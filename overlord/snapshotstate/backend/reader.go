@@ -365,29 +365,9 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 		}
 
 		for _, dir := range []string{"common", revdir} {
-			source := filepath.Join(tempdir, dir)
-			if exists, _, err := osutil.DirExists(source); err != nil {
-				return rs, err
-			} else if !exists {
-				continue
-			}
-			target := filepath.Join(parent, dir)
-			exists, _, err := osutil.DirExists(target)
-			if err != nil {
+			if err := moveFile(rs, dir, tempdir, parent); err != nil {
 				return rs, err
 			}
-			if exists {
-				rsfn := restoreStateFilename(target)
-				if err := os.Rename(target, rsfn); err != nil {
-					return rs, err
-				}
-				rs.Moved = append(rs.Moved, rsfn)
-			}
-
-			if err := os.Rename(source, target); err != nil {
-				return rs, err
-			}
-			rs.Created = append(rs.Created, target)
 		}
 
 		sz.Reset()
@@ -395,4 +375,35 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 	}
 
 	return rs, nil
+}
+
+// moveFile moves file from the sourceDir to the targetDir. Directories moved
+// and created are registered in the RestoreState.
+func moveFile(rs *RestoreState, file, sourceDir, targetDir string) error {
+	src := filepath.Join(sourceDir, file)
+	if exists, _, err := osutil.DirExists(src); err != nil {
+		return err
+	} else if !exists {
+		return nil
+	}
+
+	dst := filepath.Join(targetDir, file)
+	exists, _, err := osutil.DirExists(dst)
+	if err != nil {
+		return err
+	}
+	if exists {
+		rsfn := restoreStateFilename(dst)
+		if err := os.Rename(dst, rsfn); err != nil {
+			return err
+		}
+		rs.Moved = append(rs.Moved, rsfn)
+	}
+
+	if err := os.Rename(src, dst); err != nil {
+		return err
+	}
+	rs.Created = append(rs.Created, dst)
+
+	return nil
 }

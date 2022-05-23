@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/systemd"
-	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/usersession/client"
 )
 
@@ -85,11 +84,6 @@ type serviceInstruction struct {
 	Services []string `json:"services"`
 }
 
-var (
-	stopTimeout = time.Duration(timeout.DefaultTimeout)
-	killWait    = 5 * time.Second
-)
-
 func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	// Refuse to start non-snap services
 	for _, service := range inst.Services {
@@ -111,7 +105,7 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	stopErrors := make(map[string]string)
 	if len(startErrors) != 0 {
 		for _, service := range started {
-			if err := sysd.Stop([]string{service}, stopTimeout); err != nil {
+			if err := sysd.Stop([]string{service}); err != nil {
 				stopErrors[service] = err.Error()
 			}
 		}
@@ -143,7 +137,7 @@ func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
 
 	stopErrors := make(map[string]string)
 	for _, service := range inst.Services {
-		if err := sysd.Stop([]string{service}, stopTimeout); err != nil {
+		if err := sysd.Stop([]string{service}); err != nil {
 			stopErrors[service] = err.Error()
 		}
 	}
@@ -181,9 +175,9 @@ var serviceInstructionDispTable = map[string]func(*serviceInstruction, systemd.S
 
 var systemdLock sync.Mutex
 
-type dummyReporter struct{}
+type noopReporter struct{}
 
-func (dummyReporter) Notify(string) {}
+func (noopReporter) Notify(string) {}
 
 func validateJSONRequest(r *http.Request) (valid bool, errResp Response) {
 	contentType := r.Header.Get("Content-Type")
@@ -221,7 +215,7 @@ func postServiceControl(c *Command, r *http.Request) Response {
 	// Prevent multiple systemd actions from being carried out simultaneously
 	systemdLock.Lock()
 	defer systemdLock.Unlock()
-	sysd := systemd.New(systemd.UserMode, dummyReporter{})
+	sysd := systemd.New(systemd.UserMode, noopReporter{})
 	return impl(&inst, sysd)
 }
 

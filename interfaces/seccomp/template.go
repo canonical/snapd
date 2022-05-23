@@ -147,6 +147,7 @@ fork
 ftime
 futex
 futex_time64
+futex_waitv
 get_mempolicy
 get_robust_list
 get_thread_area
@@ -257,16 +258,6 @@ mknodat - - |S_IFSOCK -
 
 modify_ldt
 mprotect
-
-# LP: #1448184 - these aren't currently mediated by AppArmor. Deny for now
-#mq_getsetattr
-#mq_notify
-#mq_open
-#mq_timedreceive
-#mq_timedreceive_time64
-#mq_timedsend
-#mq_timedsend_time64
-#mq_unlink
 
 mremap
 msgctl

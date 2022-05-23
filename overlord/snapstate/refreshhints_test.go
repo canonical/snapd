@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -114,7 +115,7 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 
 	restoreModel := snapstatetest.MockDeviceModel(DefaultModel())
 	s.AddCleanup(restoreModel)
-	restoreEnforcedValidationSets := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restoreEnforcedValidationSets := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
 	s.AddCleanup(restoreEnforcedValidationSets)
@@ -172,7 +173,7 @@ func (s *refreshHintsTestSuite) TestAtSeedPolicy(c *C) {
 	c.Assert(err, IsNil)
 	var t1 time.Time
 	err = s.state.Get("last-refresh-hints", &t1)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	release.MockOnClassic(true)
 	// on classic it sets last-refresh-hints to now,
@@ -411,7 +412,7 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidatesIncorrectFormat(c *C) 
 	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-a"), IsNil)
 	var data interface{}
 	// and refresh-candidates has been removed from the state
-	c.Check(st.Get("refresh-candidates", data), Equals, state.ErrNoState)
+	c.Check(st.Get("refresh-candidates", data), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongArch(c *C) {

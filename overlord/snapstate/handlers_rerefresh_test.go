@@ -48,7 +48,7 @@ func logstr(task *state.Task) string {
 }
 
 func changeWithLanesAndSnapSetups(st *state.State, snapNames ...string) *state.Change {
-	chg := st.NewChange("dummy", "...")
+	chg := st.NewChange("sample", "...")
 	for _, snapName := range snapNames {
 		lane := st.NewLane()
 		tsk := st.NewTask(fmt.Sprintf("a-task-for-snap-%s-in-lane-%d", snapName, lane), "test")
@@ -216,13 +216,13 @@ func refreshedSnaps(task *state.Task) string {
 // for a snap with t1snap, the second one with status t2status.
 func addLane(st *state.State, chg *state.Change, t1snap string, t2status state.Status) {
 	lane := st.NewLane()
-	t1 := st.NewTask("dummy1", "...")
+	t1 := st.NewTask("test1", "...")
 	t1.JoinLane(lane)
 	t1.Set("snap-setup", snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: t1snap}})
 	t1.SetStatus(state.DoneStatus)
 	chg.AddTask(t1)
 
-	t2 := st.NewTask("dummy2", "...")
+	t2 := st.NewTask("test2", "...")
 	t2.JoinLane(lane)
 	t2.WaitFor(t1)
 	t2.SetStatus(t2status)
@@ -299,11 +299,11 @@ func (s *reRefreshSuite) TestLaneSnapsTwoSetups(c *C) {
 	defer s.state.Unlock()
 
 	ts := state.NewTaskSet()
-	t1 := s.state.NewTask("dummy1", "...")
+	t1 := s.state.NewTask("test1", "...")
 	t1.Set("snap-setup", snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "one"}})
 	t1.SetStatus(state.DoneStatus)
 	ts.AddTask(t1)
-	t2 := s.state.NewTask("dummy2", "...")
+	t2 := s.state.NewTask("test2", "...")
 	t2.Set("snap-setup", snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "two"}})
 	t2.WaitFor(t1)
 	ts.AddTask(t2)
@@ -324,11 +324,11 @@ func (s *reRefreshSuite) TestLaneSnapsBadSetup(c *C) {
 	defer s.state.Unlock()
 
 	ts := state.NewTaskSet()
-	t1 := s.state.NewTask("dummy1", "...")
+	t1 := s.state.NewTask("test1", "...")
 	t1.Set("snap-setup", "what is this")
 	t1.SetStatus(state.DoneStatus)
 	ts.AddTask(t1)
-	t2 := s.state.NewTask("dummy2", "...")
+	t2 := s.state.NewTask("test2", "...")
 	t2.Set("snap-setup", snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "two"}})
 	t2.WaitFor(t1)
 	ts.AddTask(t2)
@@ -374,7 +374,7 @@ func (s *reRefreshSuite) TestFilterReturnsFalseIfEpochEqualZero(c *C) {
 }
 
 func (s *refreshSuite) TestMaybeRestoreValidationSetsAndRevertSnaps(c *C) {
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -392,7 +392,7 @@ func (s *refreshSuite) TestMaybeRestoreValidationSetsAndRevertSnaps(c *C) {
 
 func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRevert(c *C) {
 	var enforcedValidationSetsCalled int
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		enforcedValidationSetsCalled++
 
 		vs := snapasserts.NewValidationSets()
@@ -520,7 +520,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRev
 
 func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertJustValidationSetsRestore(c *C) {
 	var enforcedValidationSetsCalled int
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		enforcedValidationSetsCalled++
 
 		vs := snapasserts.NewValidationSets()

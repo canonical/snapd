@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -54,7 +55,7 @@ func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gad
 	return gadget.ChangeApply, nil
 }
 
-func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {}
+func (o *simpleObserver) ChosenEncryptionKey(key keys.EncryptionKey) {}
 
 type uc20Constraints struct{}
 
@@ -88,22 +89,20 @@ func main() {
 	}
 
 	if args.Encrypt {
-		if installSideData == nil || installSideData.KeysForRoles == nil {
+		if installSideData == nil || len(installSideData.KeyForRole) == 0 {
 			panic("expected encryption keys")
 		}
-		dataKey := installSideData.KeysForRoles[gadget.SystemData]
+		dataKey := installSideData.KeyForRole[gadget.SystemData]
 		if dataKey == nil {
 			panic("ubuntu-data encryption key is unset")
 		}
-		saveKey := installSideData.KeysForRoles[gadget.SystemSave]
+		saveKey := installSideData.KeyForRole[gadget.SystemSave]
 		if saveKey == nil {
 			panic("ubuntu-save encryption key is unset")
 		}
 		toWrite := map[string][]byte{
-			"unsealed-key":  dataKey.Key[:],
-			"recovery-key":  dataKey.RecoveryKey[:],
-			"save-key":      saveKey.Key[:],
-			"reinstall-key": saveKey.RecoveryKey[:],
+			"unsealed-key": dataKey[:],
+			"save-key":     saveKey[:],
 		}
 		for keyFileName, keyData := range toWrite {
 			if err := ioutil.WriteFile(keyFileName, keyData, 0644); err != nil {

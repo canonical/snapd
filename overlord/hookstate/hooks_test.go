@@ -67,6 +67,12 @@ func (s *gateAutoRefreshHookSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// disable refresh-app-awareness (it's enabled by default);
+	// specific tests below enable it back.
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness", false)
+	tr.Commit()
+
 	si := &snap.SideInfo{RealName: "snap-a", SnapID: "snap-a-id1", Revision: snap.R(1)}
 	snaptest.MockSnap(c, snapaYaml, si)
 	snapstate.Set(s.state, "snap-a", &snapstate.SnapState{

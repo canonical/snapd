@@ -20,6 +20,8 @@
 package devicestate
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -39,7 +41,7 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 	if err == nil {
 		return remodCtx, nil
 	}
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	modelAs, err := findModel(st)

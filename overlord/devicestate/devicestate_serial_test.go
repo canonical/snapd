@@ -1359,9 +1359,9 @@ func (s *deviceMgrSerialSuite) TestModelAndSerial(c *C) {
 	defer s.state.Unlock()
 	// nothing in the state
 	_, err := s.mgr.Model()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	_, err = s.mgr.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// just brand and model
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -1369,9 +1369,9 @@ func (s *deviceMgrSerialSuite) TestModelAndSerial(c *C) {
 		Model: "pc",
 	})
 	_, err = s.mgr.Model()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	_, err = s.mgr.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a model assertion
 	model := s.brands.Model("canonical", "pc", map[string]interface{}{
@@ -1386,7 +1386,7 @@ func (s *deviceMgrSerialSuite) TestModelAndSerial(c *C) {
 	c.Assert(mod.BrandID(), Equals, "canonical")
 
 	_, err = s.mgr.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a serial as well
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -1397,7 +1397,7 @@ func (s *deviceMgrSerialSuite) TestModelAndSerial(c *C) {
 	_, err = s.mgr.Model()
 	c.Assert(err, IsNil)
 	_, err = s.mgr.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a serial assertion
 	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
@@ -1434,9 +1434,9 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendModelAndSerial(c *C) {
 
 	// nothing in the state
 	_, err := scb.Model()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	_, err = scb.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// just brand and model
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -1444,9 +1444,9 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendModelAndSerial(c *C) {
 		Model: "pc",
 	})
 	_, err = scb.Model()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	_, err = scb.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a model assertion
 	model := s.brands.Model("canonical", "pc", map[string]interface{}{
@@ -1461,7 +1461,7 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	c.Assert(mod.BrandID(), Equals, "canonical")
 
 	_, err = scb.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a serial as well
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -1472,7 +1472,7 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendModelAndSerial(c *C) {
 	_, err = scb.Model()
 	c.Assert(err, IsNil)
 	_, err = scb.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a serial assertion
 	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
@@ -1560,7 +1560,7 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendProxyStore(c *C) {
 
 	// nothing in the state
 	_, err := scb.ProxyStore()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a store referenced
 	tr := config.NewTransaction(s.state)
@@ -1569,7 +1569,7 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendProxyStore(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = scb.ProxyStore()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
 

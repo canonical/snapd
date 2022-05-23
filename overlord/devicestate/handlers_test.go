@@ -109,7 +109,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 
 	s.state.Lock()
 	t := s.state.NewTask("set-model", "set-model test")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.Set("new-model", string(asserts.Encode(newModel)))
 	chg.AddTask(t)
 
@@ -160,7 +160,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
 	c.Assert(err, IsNil)
 
 	t := s.state.NewTask("set-model", "set-model test")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.Set("new-model", string(asserts.Encode(model)))
 	chg.AddTask(t)
 
@@ -207,7 +207,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerStoreSwitch(c *C) {
 
 	s.state.Lock()
 	t := s.state.NewTask("set-model", "set-model test")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.Set("new-model", string(asserts.Encode(newModel)))
 	chg.Set("device", auth.DeviceState{
 		Brand:           "canonical",
@@ -284,7 +284,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerRereg(c *C) {
 
 	s.state.Lock()
 	t := s.state.NewTask("set-model", "set-model test")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.Set("new-model", string(asserts.Encode(newModel)))
 	chg.Set("device", auth.DeviceState{
 		Brand:           "canonical",
@@ -535,7 +535,7 @@ func (s *preseedingClassicSuite) TestDoMarkPreseeded(c *C) {
 	c.Check(preseeded, Equals, true)
 
 	var systemKey map[string]interface{}
-	c.Assert(st.Get("seed-restart-system-key", &systemKey), Equals, state.ErrNoState)
+	c.Assert(st.Get("seed-restart-system-key", &systemKey), testutil.ErrorIs, state.ErrNoState)
 	c.Assert(st.Get("preseed-system-key", &systemKey), IsNil)
 	c.Check(systemKey["build-id"], Equals, "abcde")
 
@@ -626,7 +626,7 @@ func (s *preseedingClassicDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
 	// in real world preseed-system-key would be present at this point because
 	// mark-preseeded would be run twice (before & after preseeding); this is
 	// not the case in this test.
-	c.Assert(st.Get("preseed-system-key", &systemKey), Equals, state.ErrNoState)
+	c.Assert(st.Get("preseed-system-key", &systemKey), testutil.ErrorIs, state.ErrNoState)
 	c.Assert(st.Get("seed-restart-system-key", &systemKey), IsNil)
 	c.Check(systemKey["build-id"], Equals, "abcde")
 
@@ -740,7 +740,7 @@ func (s *preseedingUC20Suite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
 
 	_, _, err = devicestate.PreloadGadget(mgr)
 	// error from mocked loadDeviceSeed results in ErrNoState from preloadGadget
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(readSysLabel, Equals, "20220108")
 }
 

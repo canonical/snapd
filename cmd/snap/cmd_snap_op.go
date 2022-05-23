@@ -132,7 +132,7 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 
 	changeID, err := x.client.Remove(name, opts)
 	if err != nil {
-		msg, err := errorToCmdMessage(name, err, opts)
+		msg, err := errorToCmdMessage(name, "remove", err, opts)
 		if err != nil {
 			return err
 		}
@@ -159,7 +159,19 @@ func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 	names := installedSnapNames(x.Positional.Snaps)
 	changeID, err := x.client.RemoveMany(names, opts)
 	if err != nil {
-		return err
+		var name string
+		if cerr, ok := err.(*client.Error); ok {
+			if snapName, ok := cerr.Value.(string); ok {
+				name = snapName
+			}
+		}
+
+		msg, err := errorToCmdMessage(name, "remove", err, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(Stderr, msg)
+		return nil
 	}
 
 	chg, err := x.wait(changeID)
@@ -476,10 +488,10 @@ type cmdInstall struct {
 
 	Name string `long:"name"`
 
-	Cohort           string `long:"cohort"`
-	IgnoreValidation bool   `long:"ignore-validation"`
-	IgnoreRunning    bool   `long:"ignore-running" hidden:"yes"`
-	Transactional    bool   `long:"transactional"`
+	Cohort           string                 `long:"cohort"`
+	IgnoreValidation bool                   `long:"ignore-validation"`
+	IgnoreRunning    bool                   `long:"ignore-running" hidden:"yes"`
+	Transaction      client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
 	Positional       struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
@@ -502,7 +514,7 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 		changeID, err = x.client.Install(snapName, opts)
 	}
 	if err != nil {
-		msg, err := errorToCmdMessage(nameOrPath, err, opts)
+		msg, err := errorToCmdMessage(nameOrPath, "install", err, opts)
 		if err != nil {
 			return err
 		}
@@ -559,7 +571,7 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 		if err, ok := err.(*client.Error); ok {
 			snapName, _ = err.Value.(string)
 		}
-		msg, err := errorToCmdMessage(snapName, err, opts)
+		msg, err := errorToCmdMessage(snapName, "install", err, opts)
 		if err != nil {
 			return err
 		}
@@ -624,7 +636,7 @@ func (x *cmdInstall) Execute([]string) error {
 		CohortKey:        x.Cohort,
 		IgnoreValidation: x.IgnoreValidation,
 		IgnoreRunning:    x.IgnoreRunning,
-		Transactional:    x.Transactional,
+		Transaction:      x.Transaction,
 	}
 	x.setModes(opts)
 
@@ -659,15 +671,15 @@ type cmdRefresh struct {
 	channelMixin
 	modeMixin
 
-	Amend            bool   `long:"amend"`
-	Revision         string `long:"revision"`
-	Cohort           string `long:"cohort"`
-	LeaveCohort      bool   `long:"leave-cohort"`
-	List             bool   `long:"list"`
-	Time             bool   `long:"time"`
-	IgnoreValidation bool   `long:"ignore-validation"`
-	IgnoreRunning    bool   `long:"ignore-running" hidden:"yes"`
-	Transactional    bool   `long:"transactional"`
+	Amend            bool                   `long:"amend"`
+	Revision         string                 `long:"revision"`
+	Cohort           string                 `long:"cohort"`
+	LeaveCohort      bool                   `long:"leave-cohort"`
+	List             bool                   `long:"list"`
+	Time             bool                   `long:"time"`
+	IgnoreValidation bool                   `long:"ignore-validation"`
+	IgnoreRunning    bool                   `long:"ignore-running" hidden:"yes"`
+	Transaction      client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
 	Positional       struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -704,7 +716,7 @@ func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error
 func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 	changeID, err := x.client.Refresh(name, opts)
 	if err != nil {
-		msg, err := errorToCmdMessage(name, err, opts)
+		msg, err := errorToCmdMessage(name, "refresh", err, opts)
 		if err != nil {
 			return err
 		}
@@ -837,15 +849,16 @@ func (x *cmdRefresh) Execute([]string) error {
 			Revision:         x.Revision,
 			CohortKey:        x.Cohort,
 			LeaveCohort:      x.LeaveCohort,
-			Transactional:    x.Transactional,
+			Transaction:      x.Transaction,
 		}
 		x.setModes(opts)
 		return x.refreshOne(names[0], opts)
 	}
-	// transactional flag is the only one with meaning when
+	// transaction flag and ignore-running flags are the only ones with meaning when
 	// refreshing many snaps
 	opts := &client.SnapOptions{
-		Transactional: x.Transactional,
+		IgnoreRunning: x.IgnoreRunning,
+		Transaction:   x.Transaction,
 	}
 
 	if x.asksForMode() || x.asksForChannel() {
@@ -854,9 +867,6 @@ func (x *cmdRefresh) Execute([]string) error {
 
 	if x.IgnoreValidation {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
-	}
-	if x.IgnoreRunning {
-		return errors.New(i18n.G("a single snap name must be specified when ignoring running apps and hooks"))
 	}
 
 	return x.refreshMany(names, opts)
@@ -914,7 +924,7 @@ func (x *cmdTry) Execute([]string) error {
 
 	changeID, err := x.client.Try(path, opts)
 	if err != nil {
-		msg, err := errorToCmdMessage(name, err, opts)
+		msg, err := errorToCmdMessage(name, "try", err, opts)
 		if err != nil {
 			return err
 		}
@@ -1146,7 +1156,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-running": i18n.G("Ignore running hooks or applications blocking the installation"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"transactional": i18n.G("Install a set of snaps transactionally."),
+			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
@@ -1167,7 +1177,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"leave-cohort": i18n.G("Refresh the snap out of its cohort"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"transactional": i18n.G("Refresh a set of snaps transactionally."),
+			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, waitDescs, nil)

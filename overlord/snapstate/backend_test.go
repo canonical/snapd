@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
@@ -81,7 +82,8 @@ type fakeOp struct {
 
 	requireSnapdTooling bool
 
-	dirOpts *dirs.SnapDirOptions
+	dirOpts  *dirs.SnapDirOptions
+	undoInfo *backend.UndoInfo
 }
 
 type fakeOps []fakeOp
@@ -369,7 +371,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "core22"
 		typ = snap.TypeBase
 	case "snap-for-core22-id":
-		name = "snap-for-core22"
+		name = "snap-core18-to-core22"
 	case "snap-for-core24-id":
 		name = "snap-for-core24"
 	case "snap-with-snapd-control-id":
@@ -918,7 +920,8 @@ apps:
 			panic(err)
 		}
 		info.SideInfo = *si
-	case "snap-for-core22":
+	case "snap-core18-to-core22":
+		info.Base = "core18"
 		if info.Revision.N > 1 {
 			info.Base = "core22"
 		}
@@ -1274,13 +1277,23 @@ func (f *fakeSnappyBackend) UndoHideSnapData(snapName string) error {
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision) error {
-	f.appendOp(&fakeOp{op: "init-exposed-snap-home", name: snapName})
+func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision) (*backend.UndoInfo, error) {
+	f.appendOp(&fakeOp{op: "init-exposed-snap-home", name: snapName, revno: rev})
+
+	if err := f.maybeErrForLastOp(); err != nil {
+		return nil, err
+	}
+
+	return &backend.UndoInfo{Created: []string{randutil.RandomString(10)}}, nil
+}
+
+func (f *fakeSnappyBackend) UndoInitExposedSnapHome(snapName string, undoInfo *backend.UndoInfo) error {
+	f.appendOp(&fakeOp{op: "undo-init-exposed-snap-home", name: snapName, undoInfo: undoInfo})
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveExposedSnapHome(snapName string) error {
-	f.appendOp(&fakeOp{op: "rm-exposed-snap-home", name: snapName})
+func (f *fakeSnappyBackend) InitXDGDirs(info *snap.Info) error {
+	f.appendOp(&fakeOp{op: "init-xdg-dirs", name: info.InstanceName()})
 	return f.maybeErrForLastOp()
 }
 

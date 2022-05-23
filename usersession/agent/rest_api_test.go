@@ -22,6 +22,7 @@ package agent_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http/httptest"
@@ -64,9 +65,7 @@ func (s *restSuite) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.AddCleanup(restore)
-	restore = systemd.MockStopDelays(time.Millisecond, 25*time.Second)
-	s.AddCleanup(restore)
-	restore = agent.MockStopTimeouts(20*time.Millisecond, time.Millisecond)
+	restore = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	s.AddCleanup(restore)
 
 	var err error
@@ -279,6 +278,7 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 		{"--user", "start", "snap.foo.service"},
 		{"--user", "start", "snap.bar.service"},
 		{"--user", "stop", "snap.foo.service"},
+		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
 	})
 }
 
@@ -322,7 +322,7 @@ func (s *restSuite) TestServicesStopNonSnap(c *C) {
 	c.Check(s.sysdLog, HasLen, 0)
 }
 
-func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
+func (s *restSuite) TestServicesStopReportsError(c *C) {
 	var sysdLog [][]string
 	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// Ignore "show" spam
@@ -330,7 +330,7 @@ func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 			sysdLog = append(sysdLog, cmd)
 		}
 		if cmd[len(cmd)-1] == "snap.bar.service" {
-			return []byte("ActiveState=active\n"), nil
+			return []byte("ActiveState=active\n"), errors.New("mock systemctl error")
 		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
@@ -351,7 +351,7 @@ func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 		"kind":    "service-control",
 		"value": map[string]interface{}{
 			"stop-errors": map[string]interface{}{
-				"snap.bar.service": `"snap.bar.service" failed to stop: timeout`,
+				"snap.bar.service": "mock systemctl error",
 			},
 		},
 	})

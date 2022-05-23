@@ -22,12 +22,17 @@ package triggerwatch
 import (
 	"errors"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/udev/netlink"
 )
 
 type triggerProvider interface {
+	Open(filter triggerEventFilter, node string) (triggerDevice, error)
 	FindMatchingDevices(filter triggerEventFilter) ([]triggerDevice, error)
 }
 
@@ -37,9 +42,18 @@ type triggerDevice interface {
 	Close()
 }
 
+type ueventConnection interface {
+	Connect(mode netlink.Mode) error
+	Close() error
+	Monitor(queue chan netlink.UEvent, errors chan error, matcher netlink.Matcher) func(time.Duration) bool
+}
+
 var (
 	// trigger mechanism
-	trigger triggerProvider
+	trigger       triggerProvider
+	getUEventConn = func() ueventConnection {
+		return &netlink.UEventConn{}
+	}
 
 	// wait for '1' to be pressed
 	triggerFilter = triggerEventFilter{Key: "KEY_1"}
@@ -51,7 +65,33 @@ var (
 // Wait waits for a trigger on the available trigger devices for a given amount
 // of time. Returns nil if one was detected, ErrTriggerNotDetected if timeout
 // was hit, or other non-nil error.
-func Wait(timeout time.Duration) error {
+func Wait(timeout time.Duration, deviceTimeout time.Duration) error {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGUSR1)
+	conn := getUEventConn()
+	if err := conn.Connect(netlink.UdevEvent); err != nil {
+		logger.Panicf("Unable to connect to Netlink Kobject UEvent socket")
+	}
+	defer conn.Close()
+
+	add := "add"
+	matcher := &netlink.RuleDefinitions{
+		Rules: []netlink.RuleDefinition{
+			{
+				Action: &add,
+				Env: map[string]string{
+					"SUBSYSTEM":         "input",
+					"ID_INPUT_KEYBOARD": "1",
+					"DEVNAME":           ".*",
+				},
+			},
+		},
+	}
+
+	ueventQueue := make(chan netlink.UEvent)
+	ueventErrors := make(chan error)
+	conn.Monitor(ueventQueue, ueventErrors, matcher)
+
 	if trigger == nil {
 		logger.Panicf("trigger is unset")
 	}
@@ -60,8 +100,9 @@ func Wait(timeout time.Duration) error {
 	if err != nil {
 		return fmt.Errorf("cannot list trigger devices: %v", err)
 	}
+
 	if devices == nil {
-		return ErrNoMatchingInputDevices
+		devices = make([]triggerDevice, 0)
 	}
 
 	logger.Noticef("waiting for trigger key: %v", triggerFilter.Key)
@@ -71,17 +112,47 @@ func Wait(timeout time.Duration) error {
 		go dev.WaitForTrigger(detectKeyCh)
 		defer dev.Close()
 	}
+	foundDevice := len(devices) != 0
 
-	select {
-	case kev := <-detectKeyCh:
-		if kev.Err != nil {
-			return kev.Err
+	start := time.Now()
+	for {
+		timePassed := time.Now().Sub(start)
+		relTimeout := timeout - timePassed
+		relDeviceTimeout := deviceTimeout - timePassed
+		select {
+		case kev := <-detectKeyCh:
+			if kev.Err != nil {
+				return kev.Err
+			}
+			// channel got closed without an error
+			logger.Noticef("%s: + got trigger key %v", kev.Dev, triggerFilter.Key)
+			return nil
+		case <-time.After(relTimeout):
+			return ErrTriggerNotDetected
+		case <-time.After(relDeviceTimeout):
+			if !foundDevice {
+				return ErrNoMatchingInputDevices
+			}
+		case uevent := <-ueventQueue:
+			dev, err := trigger.Open(triggerFilter, uevent.Env["DEVNAME"])
+			if err != nil {
+				logger.Noticef("ignoring device %s that cannot be opened: %v", uevent.Env["DEVNAME"], err)
+			} else if dev != nil {
+				foundDevice = true
+				defer dev.Close()
+				go dev.WaitForTrigger(detectKeyCh)
+			}
+		case <-sigs:
+			logger.Noticef("Switching root")
+			if err := syscall.Chdir("/sysroot"); err != nil {
+				return fmt.Errorf("Cannot change directory: %w", err)
+			}
+			if err := syscall.Chroot("/sysroot"); err != nil {
+				return fmt.Errorf("Cannot change root: %w", err)
+			}
+			if err := syscall.Chdir("/"); err != nil {
+				return fmt.Errorf("Cannot change directory: %w", err)
+			}
 		}
-		// channel got closed without an error
-		logger.Noticef("%s: + got trigger key %v", kev.Dev, triggerFilter.Key)
-	case <-time.After(timeout):
-		return ErrTriggerNotDetected
 	}
-
-	return nil
 }

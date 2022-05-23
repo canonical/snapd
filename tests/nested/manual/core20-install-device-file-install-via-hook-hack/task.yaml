@@ -6,7 +6,7 @@ details: |
     onto the run system ubuntu-data on UC20 during install mode to avoid an
     additional reboot during the first boot process.
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
     NESTED_IMAGE_ID: core20-install-device-system-files-hack
@@ -27,8 +27,8 @@ environment:
 
     # use the testrootorg auto-import assertion
     # TODO: commit the Go code used to create this assertion from the json file
-    NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-auto-import.assert
-    NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-secured.model
+    NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-{VERSION}-auto-import.assert
+    NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-secured.model
 
     # for the fake store
     NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
@@ -68,8 +68,11 @@ prepare: |
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
+    # Get the nested system version
+    VERSION="$(tests.nested show version)"
+
     echo "Grab and prepare the gadget snap"
-    snap download --basename=pc --channel="20/edge" pc
+    snap download --basename=pc --channel="$VERSION/edge" pc
     unsquashfs -d pc-gadget pc.snap
 
     echo "Sign the shim binary"
@@ -137,8 +140,10 @@ execute: |
     # wait for the initialize device task to be done
     retry -n 200 --wait 1 sh -c "tests.nested exec snap changes | MATCH 'Done.*Initialize device'"
 
+    VERSION="$(tests.nested show version)"
+
     echo "Check we have the right model from snap model"
-    tests.nested exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-secured-core-20-amd64"
+    tests.nested exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-secured-core-$VERSION-amd64"
     tests.nested exec "sudo snap model --verbose" | MATCH "grade:\s+secured"
     tests.nested exec "sudo snap model --verbose --serial" | MATCH "serial:\s+7777"
 

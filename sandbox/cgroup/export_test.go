@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"github.com/godbus/dbus"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -102,4 +104,10 @@ func MockCreateScopeJobTimeout(d time.Duration) (restore func()) {
 	return func() {
 		createScopeJobTimeout = oldCreateScopeJobTimeout
 	}
+}
+
+func MockCgroupsFilePath(path string) (restore func()) {
+	r := testutil.Backup(&cgroupsFilePath)
+	cgroupsFilePath = path
+	return r
 }

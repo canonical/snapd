@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type patch4Suite struct{}
@@ -260,7 +261,7 @@ func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 		var idx int
 		c.Check(task.Get("had-candidate", &had), IsNil)
 		c.Check(had, Equals, true)
-		c.Check(task.Get("old-candidate-index", &idx), Equals, state.ErrNoState)
+		c.Check(task.Get("old-candidate-index", &idx), testutil.ErrorIs, state.ErrNoState)
 		c.Check(len(task.Change().Tasks()), Equals, 4)
 	}()
 
@@ -280,7 +281,7 @@ func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 
 	var had bool
 	var idx int
-	c.Check(task.Get("had-candidate", &had), Equals, state.ErrNoState)
+	c.Check(task.Get("had-candidate", &had), testutil.ErrorIs, state.ErrNoState)
 	c.Check(task.Get("old-candidate-index", &idx), IsNil)
 	c.Check(idx, Equals, 1)
 	c.Check(len(task.Change().Tasks()), Equals, 4)
@@ -312,8 +313,8 @@ func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
 
 		var had bool
 		var idx int
-		c.Check(task.Get("had-candidate", &had), Equals, state.ErrNoState)
-		c.Check(task.Get("old-candidate-index", &idx), Equals, state.ErrNoState)
+		c.Check(task.Get("had-candidate", &had), testutil.ErrorIs, state.ErrNoState)
+		c.Check(task.Get("old-candidate-index", &idx), testutil.ErrorIs, state.ErrNoState)
 		c.Check(len(task.Change().Tasks()), Equals, 4)
 	}()
 
@@ -333,7 +334,7 @@ func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
 
 	var had bool
 	var idx int
-	c.Check(task.Get("had-candidate", &had), Equals, state.ErrNoState)
+	c.Check(task.Get("had-candidate", &had), testutil.ErrorIs, state.ErrNoState)
 	c.Check(task.Get("old-candidate-index", &idx), IsNil)
 	c.Check(idx, Equals, 1)
 	c.Check(len(task.Change().Tasks()), Equals, 4)
@@ -367,7 +368,7 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 		var idx int
 		c.Check(task.Get("had-candidate", &had), IsNil)
 		c.Check(had, Equals, false)
-		c.Check(task.Get("old-candidate-index", &idx), Equals, state.ErrNoState)
+		c.Check(task.Get("old-candidate-index", &idx), testutil.ErrorIs, state.ErrNoState)
 		c.Check(len(task.Change().Tasks()), Equals, 7)
 	}()
 
@@ -387,7 +388,7 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 
 	var had bool
 	var idx int
-	c.Check(task.Get("had-candidate", &had), Equals, state.ErrNoState)
+	c.Check(task.Get("had-candidate", &had), testutil.ErrorIs, state.ErrNoState)
 	c.Check(task.Get("old-candidate-index", &idx), IsNil)
 	c.Check(idx, Equals, 1)
 	// we added cleanup
@@ -422,8 +423,8 @@ func (s *patch4Suite) TestPatch4OnRefreshesNoHadCandidateYet(c *C) {
 
 		var had bool
 		var idx int
-		c.Check(task.Get("had-candidate", &had), Equals, state.ErrNoState)
-		c.Check(task.Get("old-candidate-index", &idx), Equals, state.ErrNoState)
+		c.Check(task.Get("had-candidate", &had), testutil.ErrorIs, state.ErrNoState)
+		c.Check(task.Get("old-candidate-index", &idx), testutil.ErrorIs, state.ErrNoState)
 		c.Check(len(task.Change().Tasks()), Equals, 7)
 	}()
 
@@ -443,7 +444,7 @@ func (s *patch4Suite) TestPatch4OnRefreshesNoHadCandidateYet(c *C) {
 
 	var had bool
 	var idx int
-	c.Check(task.Get("had-candidate", &had), Equals, state.ErrNoState)
+	c.Check(task.Get("had-candidate", &had), testutil.ErrorIs, state.ErrNoState)
 	c.Check(task.Get("old-candidate-index", &idx), IsNil)
 	c.Check(idx, Equals, 1)
 	// we added cleanup

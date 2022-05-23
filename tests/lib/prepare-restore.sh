@@ -561,7 +561,7 @@ prepare_project() {
     go install ./tests/lib/systemd-escape
 
     # Build the tool for signing model assertions
-    go install ./tests/lib/gendeveloper1model
+    go install ./tests/lib/gendeveloper1
 
     # and the U20 create partitions wrapper
     go install ./tests/lib/uc20-create-partitions
@@ -691,7 +691,9 @@ restore_suite_each() {
     fi
 
     # In case of nested tests the next checks and changes are not needed
+    # Just is needed to cleanup the snaps installed
     if tests.nested is-nested; then
+        "$TESTSTOOLS"/snaps.cleanup
         return 0
     fi
 

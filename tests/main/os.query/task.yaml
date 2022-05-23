@@ -31,6 +31,14 @@ execute: |
             not os.query is-classic
             os.query is-ubuntu
             ;;
+        ubuntu-core-22-*)
+            os.query is-core
+            os.query is-core22
+            not os.query is-core20
+            not os.query is-core18
+            not os.query is-classic
+            os.query is-ubuntu
+            ;;
         ubuntu-14.04-*)
             os.query is-classic
             os.query is-trusty

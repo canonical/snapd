@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -479,9 +480,9 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
-	obs.ChosenEncryptionKeys(secboot.EncryptionKey{1, 2, 3, 4}, secboot.EncryptionKey{5, 6, 7, 8})
-	c.Check(obs.CurrentDataEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
-	c.Check(obs.CurrentSaveEncryptionKey(), DeepEquals, secboot.EncryptionKey{5, 6, 7, 8})
+	obs.ChosenEncryptionKeys(keys.EncryptionKey{1, 2, 3, 4}, keys.EncryptionKey{5, 6, 7, 8})
+	c.Check(obs.CurrentDataEncryptionKey(), DeepEquals, keys.EncryptionKey{1, 2, 3, 4})
+	c.Check(obs.CurrentSaveEncryptionKey(), DeepEquals, keys.EncryptionKey{5, 6, 7, 8})
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
@@ -500,9 +501,9 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
 	c.Assert(err, IsNil)
 	c.Assert(obs, NotNil)
-	obs.ChosenEncryptionKeys(secboot.EncryptionKey{1, 2, 3, 4}, secboot.EncryptionKey{5, 6, 7, 8})
-	c.Check(obs.CurrentDataEncryptionKey(), DeepEquals, secboot.EncryptionKey{1, 2, 3, 4})
-	c.Check(obs.CurrentSaveEncryptionKey(), DeepEquals, secboot.EncryptionKey{5, 6, 7, 8})
+	obs.ChosenEncryptionKeys(keys.EncryptionKey{1, 2, 3, 4}, keys.EncryptionKey{5, 6, 7, 8})
+	c.Check(obs.CurrentDataEncryptionKey(), DeepEquals, keys.EncryptionKey{1, 2, 3, 4})
+	c.Check(obs.CurrentSaveEncryptionKey(), DeepEquals, keys.EncryptionKey{5, 6, 7, 8})
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {

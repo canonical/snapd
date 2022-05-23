@@ -628,6 +628,7 @@ pkg_dependencies_ubuntu_classic(){
                 fwupd
                 golang
                 linux-tools-$(uname -r)
+                lz4
                 qemu-utils
                 "
             ;;

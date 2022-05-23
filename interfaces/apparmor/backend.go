@@ -65,6 +65,8 @@ var (
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 	kernelFeatures        = apparmor_sandbox.KernelFeatures
 	parserFeatures        = apparmor_sandbox.ParserFeatures
+	loadProfiles          = apparmor_sandbox.LoadProfiles
+	unloadProfiles        = apparmor_sandbox.UnloadProfiles
 
 	// make sure that apparmor profile fulfills the late discarding backend
 	// interface
@@ -207,12 +209,11 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		return nil
 	}
 
-	aaFlags := skipReadCache
+	aaFlags := apparmor_sandbox.SkipReadCache
 	if b.preseed {
-		aaFlags |= skipKernelLoad
+		aaFlags |= apparmor_sandbox.SkipKernelLoad
 	}
 
-	// We are not using apparmor.LoadProfiles() because it uses other cache.
 	if err := loadProfiles([]string{profilePath}, apparmor_sandbox.SystemCacheDir, aaFlags); err != nil {
 		// When we cannot reload the profile then let's remove the generated
 		// policy. Maybe we have caused the problem so it's better to let other
@@ -334,9 +335,9 @@ func (b *Backend) setupSnapConfineReexec(info *snap.Info) error {
 		pathnames[i] = filepath.Join(dir, profile)
 	}
 
-	var aaFlags aaParserFlags
+	var aaFlags apparmor_sandbox.AaParserFlags
 	if b.preseed {
-		aaFlags = skipKernelLoad
+		aaFlags = apparmor_sandbox.SkipKernelLoad
 	}
 	errReload := loadProfiles(pathnames, cache, aaFlags)
 	errUnload := unloadProfiles(removed, cache)
@@ -410,6 +411,9 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 
 	// Add snippets derived from the layout definition.
 	spec.(*Specification).AddLayout(snapInfo)
+
+	// Add additional mount layouts rules for the snap.
+	spec.(*Specification).AddExtraLayouts(snapInfo, opts.ExtraLayouts)
 
 	// core on classic is special
 	if snapName == "core" && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
@@ -500,9 +504,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// work despite time being wrong (e.g. in the past). For more details see
 	// https://forum.snapcraft.io/t/apparmor-profile-caching/1268/18
 	var errReloadChanged error
-	aaFlags := skipReadCache
+	aaFlags := apparmor_sandbox.SkipReadCache
 	if b.preseed {
-		aaFlags |= skipKernelLoad
+		aaFlags |= apparmor_sandbox.SkipKernelLoad
 	}
 	timings.Run(tm, "load-profiles[changed]", fmt.Sprintf("load changed security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
 		errReloadChanged = loadProfiles(prof.changed, apparmor_sandbox.CacheDir, aaFlags)
@@ -514,7 +518,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	var errReloadOther error
 	aaFlags = 0
 	if b.preseed {
-		aaFlags |= skipKernelLoad
+		aaFlags |= apparmor_sandbox.SkipKernelLoad
 	}
 	timings.Run(tm, "load-profiles[unchanged]", fmt.Sprintf("load unchanged security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
 		errReloadOther = loadProfiles(prof.unchanged, apparmor_sandbox.CacheDir, aaFlags)
@@ -552,18 +556,18 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 	}
 
 	if !fallback {
-		aaFlags := skipReadCache | conserveCPU
+		aaFlags := apparmor_sandbox.SkipReadCache | apparmor_sandbox.ConserveCPU
 		if b.preseed {
-			aaFlags |= skipKernelLoad
+			aaFlags |= apparmor_sandbox.SkipKernelLoad
 		}
 		var errReloadChanged error
 		timings.Run(tm, "load-profiles[changed-many]", fmt.Sprintf("load changed security profiles of %d snaps", len(snaps)), func(nesttm timings.Measurer) {
 			errReloadChanged = loadProfiles(allChangedPaths, apparmor_sandbox.CacheDir, aaFlags)
 		})
 
-		aaFlags = conserveCPU
+		aaFlags = apparmor_sandbox.ConserveCPU
 		if b.preseed {
-			aaFlags |= skipKernelLoad
+			aaFlags |= apparmor_sandbox.SkipKernelLoad
 		}
 		var errReloadOther error
 		timings.Run(tm, "load-profiles[unchanged-many]", fmt.Sprintf("load unchanged security profiles %d snaps", len(snaps)), func(nesttm timings.Measurer) {

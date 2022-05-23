@@ -1063,7 +1063,7 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemMissingInModee
 	var triedSystems []string
 	s.state.Lock()
 	err = s.state.Get("tried-systems", &triedSystems)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	// also logged
 	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system outcome error: recovery system "1234" was tried, but is not present in the modeenv CurrentRecoverySystems`)
 	s.state.Unlock()
@@ -1093,7 +1093,7 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemBad(c *C) {
 	var triedSystems []string
 	s.state.Lock()
 	err = s.state.Get("tried-systems", &triedSystems)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system "1234" failed`)
 	s.state.Unlock()
 
@@ -1113,7 +1113,7 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemBad(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	err = s.state.Get("tried-systems", &triedSystems)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	// bootenv got cleared
 	m, err = s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
@@ -1495,7 +1495,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 
 	var triedSystemsAfterFinalize []string
 	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	modeenvAfterFinalize, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -1523,8 +1523,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	barSnap := snaptest.MakeTestSnapWithFiles(c, "name: bar\nversion: 1.0\nbase: core20", nil)
 	s.state.Lock()
 	// fake downloads are a nop
-	tSnapsup1 := s.state.NewTask("fake-download", "dummy task carrying snap setup")
-	tSnapsup2 := s.state.NewTask("fake-download", "dummy task carrying snap setup")
+	tSnapsup1 := s.state.NewTask("fake-download", "test task carrying snap setup")
+	tSnapsup2 := s.state.NewTask("fake-download", "test task carrying snap setup")
 	// both snaps are asserted
 	snapsupFoo := snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "foo", SnapID: s.ss.AssertedSnapID("foo"), Revision: snap.R(99)},
@@ -1564,7 +1564,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	})
 	tss.WaitFor(tSnapsup1)
 	tss.WaitFor(tSnapsup2)
-	// add the dummy tasks to the change
+	// add the test tasks to the change
 	chg := s.state.NewChange("create-recovery-system", "create recovery system")
 	chg.AddTask(tSnapsup1)
 	chg.AddTask(tSnapsup2)
@@ -1703,7 +1703,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	s.state.Lock()
 	defer s.state.Unlock()
 	// fake downloads are a nop
-	tSnapsup1 := s.state.NewTask("fake-download", "dummy task carrying snap setup")
+	tSnapsup1 := s.state.NewTask("fake-download", "test task carrying snap setup")
 	// both snaps are asserted
 	snapsupFoo := snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "foo", SnapID: s.ss.AssertedSnapID("foo"), Revision: snap.R(99)},
@@ -1728,7 +1728,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		"snap-setup-tasks": []interface{}{tSnapsup1.ID()},
 	})
 	tss.WaitFor(tSnapsup1)
-	// add the dummy task to the change
+	// add the test task to the change
 	chg := s.state.NewChange("create-recovery-system", "create recovery system")
 	chg.AddTask(tSnapsup1)
 	chg.AddAll(tss)
@@ -1873,7 +1873,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 
 	var triedSystemsAfter []string
 	err = s.state.Get("tried-systems", &triedSystemsAfter)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	modeenvAfterFinalize, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)

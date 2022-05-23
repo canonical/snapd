@@ -18,6 +18,12 @@
  */
 package triggerwatch
 
+import (
+	"time"
+
+	"github.com/snapcore/snapd/osutil/udev/netlink"
+)
+
 func MockInput(newInput TriggerProvider) (restore func()) {
 	oldInput := trigger
 	trigger = newInput
@@ -30,3 +36,37 @@ type TriggerProvider = triggerProvider
 type TriggerDevice = triggerDevice
 type TriggerCapabilityFilter = triggerEventFilter
 type KeyEvent = keyEvent
+
+type mockUEventConnection struct {
+	events []netlink.UEvent
+}
+
+func (m *mockUEventConnection) Connect(mode netlink.Mode) error {
+	return nil
+}
+
+func (m *mockUEventConnection) Close() error {
+	return nil
+}
+
+func (m *mockUEventConnection) Monitor(queue chan netlink.UEvent, errors chan error, matcher netlink.Matcher) func(time.Duration) bool {
+	go func() {
+		for _, event := range m.events {
+			queue <- event
+		}
+	}()
+	return func(time.Duration) bool {
+		return true
+	}
+}
+
+func MockUEvent(events []netlink.UEvent) (restore func()) {
+	oldGetUEventConn := getUEventConn
+	getUEventConn = func() ueventConnection {
+		return &mockUEventConnection{events}
+	}
+
+	return func() {
+		getUEventConn = oldGetUEventConn
+	}
+}

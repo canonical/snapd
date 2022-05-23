@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -164,24 +165,24 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 			comment:    "basic sub group with same quota as parent happy",
 		},
 		{
-			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(2 * quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "sub",
-			sublimits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB / 2).WithCPUCount(1).WithCPUPercentage(50).WithAllowedCPUs([]int{0}).WithThreadLimit(16).Build(),
+			sublimits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(50).WithAllowedCPUs([]int{0}).WithThreadLimit(16).Build(),
 			comment:    "basic sub group with smaller quota than parent happy",
 		},
 		{
-			rootlimits:    quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits:    quota.NewResourcesBuilder().WithMemoryLimit(2 * quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
 			subname:       "sub-with-dashes",
 			sliceFileName: `myroot-sub\x2dwith\x2ddashes`,
-			sublimits:     quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB / 2).WithCPUCount(1).WithCPUPercentage(50).WithAllowedCPUs([]int{0}).WithThreadLimit(16).Build(),
+			sublimits:     quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(50).WithAllowedCPUs([]int{0}).WithThreadLimit(16).Build(),
 			comment:       "basic sub group with dashes in the name",
 		},
 		{
 			rootname:      "my-root",
-			rootlimits:    quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
+			rootlimits:    quota.NewResourcesBuilder().WithMemoryLimit(2 * quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
 			subname:       "sub-with-dashes",
 			sliceFileName: `my\x2droot-sub\x2dwith\x2ddashes`,
-			sublimits:     quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB / 2).WithCPUCount(1).WithCPUPercentage(50).WithAllowedCPUs([]int{0}).WithThreadLimit(16).Build(),
+			sublimits:     quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(50).WithAllowedCPUs([]int{0}).WithThreadLimit(16).Build(),
 			comment:       "parent and sub group have dashes in name",
 		},
 		{
@@ -269,30 +270,30 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 }
 
 func (ts *quotaTestSuite) TestComplexSubGroups(c *C) {
-	rootGrp, err := quota.NewGroup("myroot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	rootGrp, err := quota.NewGroup("myroot", quota.NewResourcesBuilder().WithMemoryLimit(2*quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
 
 	// try adding 2 sub-groups with total quota split exactly equally
-	sub1, err := rootGrp.NewSubGroup("sub1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB/2).Build())
+	sub1, err := rootGrp.NewSubGroup("sub1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
 	c.Assert(sub1.SliceFileName(), Equals, "snap.myroot-sub1.slice")
 
-	sub2, err := rootGrp.NewSubGroup("sub2", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB/2).Build())
+	sub2, err := rootGrp.NewSubGroup("sub2", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
 	c.Assert(sub2.SliceFileName(), Equals, "snap.myroot-sub2.slice")
 
 	// adding another sub-group to this group fails
-	_, err = rootGrp.NewSubGroup("sub3", quota.NewResourcesBuilder().WithMemoryLimit(5*quantity.SizeKiB).Build())
-	c.Assert(err, ErrorMatches, "sub-group memory limit of 5 KiB is too large to fit inside group \"myroot\" remaining quota space 0 B")
+	_, err = rootGrp.NewSubGroup("sub3", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, ErrorMatches, "sub-group memory limit of 1 MiB is too large to fit inside group \"myroot\" remaining quota space 0 B")
 
 	// we can however add a sub-group to one of the sub-groups with the exact
 	// size of the parent sub-group
-	subsub1, err := sub1.NewSubGroup("subsub1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB/2).Build())
+	subsub1, err := sub1.NewSubGroup("subsub1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
 	c.Assert(subsub1.SliceFileName(), Equals, "snap.myroot-sub1-subsub1.slice")
 
-	// and we can even add a smaller sub-sub-sub-group to the sub-group
-	subsubsub1, err := subsub1.NewSubGroup("subsubsub1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB/4).Build())
+	// and we can even add a sub-sub-sub-group to the sub-group
+	subsubsub1, err := subsub1.NewSubGroup("subsubsub1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
 	c.Assert(subsubsub1.SliceFileName(), Equals, "snap.myroot-sub1-subsub1-subsubsub1.slice")
 }
@@ -305,7 +306,7 @@ func (ts *quotaTestSuite) TestGroupUnmixableSnapsSubgroups(c *C) {
 	parent.Snaps = []string{"test-snap"}
 
 	// add a subgroup to the parent group, this should fail as the group now has snaps
-	_, err = parent.NewSubGroup("sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB/2).Build())
+	_, err = parent.NewSubGroup("sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, ErrorMatches, "cannot mix sub groups with snaps in the same group")
 }
 
@@ -418,17 +419,17 @@ func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
 			grps: map[string]*quota.Group{
 				"foogroup": {
 					Name:        "foogroup",
-					MemoryLimit: quantity.SizeMiB,
+					MemoryLimit: 2 * quantity.SizeMiB,
 					SubGroups:   []string{"subgroup1", "subgroup2"},
 				},
 				"subgroup1": {
 					Name:        "subgroup1",
-					MemoryLimit: quantity.SizeMiB / 2,
+					MemoryLimit: quantity.SizeMiB,
 					ParentGroup: "foogroup",
 				},
 				"subgroup2": {
 					Name:        "subgroup2",
-					MemoryLimit: quantity.SizeMiB / 2,
+					MemoryLimit: quantity.SizeMiB,
 					ParentGroup: "foogroup",
 				},
 			},
@@ -514,6 +515,34 @@ func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
 	for _, t := range tt {
 		comment := Commentf(t.comment)
 		err := quota.ResolveCrossReferences(t.grps)
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, comment)
+		} else {
+			c.Assert(err, IsNil, comment)
+		}
+	}
+}
+
+func (ts *quotaTestSuite) TestChangingRequirementsDoesNotBreakExistingGroups(c *C) {
+	tt := []struct {
+		grp     *quota.Group
+		err     string
+		comment string
+	}{
+		// Test that an existing group with lower than 640kB limit
+		// does not break .validate(), since the requirement was increased
+		{
+			grp: &quota.Group{
+				Name:        "foogroup",
+				MemoryLimit: quantity.SizeKiB * 12,
+			},
+			comment: "group with a lower memory limit than 640kB",
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		err := t.grp.ValidateGroup()
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, comment)
 		} else {
@@ -1029,7 +1058,7 @@ func (ts *quotaTestSuite) TestChangingParentMemoryLimits(c *C) {
 
 	// Now the test is to change the upper most parent limit so that it would be less
 	// than the current usage, which we should not be able to do
-	err = grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build())
+	err = grp1.QuotaUpdateCheck(quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build())
 	c.Check(err, ErrorMatches, `group memory limit of 512 MiB is too small to fit current subgroup usage of 1 GiB`)
 }
 
@@ -1089,7 +1118,7 @@ func (ts *quotaTestSuite) TestChangingParentTaskLimits(c *C) {
 
 	// Now the test is to change the upper most parent limit so that it would be less
 	// than the current usage, which we should not be able to do
-	err = grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithThreadLimit(16).Build())
+	err = grp1.QuotaUpdateCheck(quota.NewResourcesBuilder().WithThreadLimit(16).Build())
 	c.Check(err, ErrorMatches, `group thread limit of 16 is too small to fit current subgroup usage of 32`)
 }
 
@@ -1218,4 +1247,81 @@ func (ts *quotaTestSuite) TestAddingNewMiddleParentThreadLimits(c *C) {
 	// Now lets inject one that is larger, that should be possible
 	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithThreadLimit(1024).Build())
 	c.Check(err, IsNil)
+}
+
+func (ts *quotaTestSuite) TestCombinedCpuPercentageWithCpuSetLimits(c *C) {
+	// mock the CPU count to be above 2
+	restore := quota.MockRuntimeNumCPU(func() int { return 4 })
+	defer restore()
+
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	c.Assert(err, IsNil)
+
+	// Create a subgroup of the CPU set of 0,1 with 50% allowed CPU usage. This should result in a combined
+	// allowance of 100%
+	subgrp1, err := grp1.NewSubGroup("cpu-sub1", quota.NewResourcesBuilder().WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+	c.Check(subgrp1.GetCPUQuotaPercentage(), Equals, 100)
+
+	_, err = grp1.NewSubGroup("cpu-sub2", quota.NewResourcesBuilder().WithCPUCount(8).WithCPUPercentage(50).Build())
+	c.Assert(err, ErrorMatches, `sub-group cpu limit of 400% is too large to fit inside group "groot" with allowed CPU set \[0 1\]`)
+}
+
+func (ts *quotaTestSuite) TestCombinedCpuPercentageWithLowCoreCount(c *C) {
+	// mock the CPU count to be above 1
+	restore := quota.MockRuntimeNumCPU(func() int { return 1 })
+	defer restore()
+
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("cpu-sub1", quota.NewResourcesBuilder().WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Even though the CPU set is set to cores 0+1, which technically means that a CPUPercentage of 50 would
+	// be half of this, the CPU percentage is capped at at total of 100% because the number of cores on the system
+	// is 1.
+	c.Check(subgrp1.GetCPUQuotaPercentage(), Equals, 50)
+
+	subgrp2, err := grp1.NewSubGroup("cpu-sub2", quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Verify that the number of cpus are now correctly reported as the one explicitly set
+	// by the quota
+	c.Check(subgrp2.GetCPUQuotaPercentage(), Equals, 200)
+}
+
+func (ts *quotaTestSuite) TestJournalQuotasSetCorrectly(c *C) {
+	grp1, err := quota.NewGroup("groot1", quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	c.Assert(err, IsNil)
+	c.Assert(grp1.JournalLimit, NotNil)
+
+	grp2, err := quota.NewGroup("groot2", quota.NewResourcesBuilder().WithJournalRate(15, time.Second).Build())
+	c.Assert(err, IsNil)
+	c.Assert(grp2.JournalLimit, NotNil)
+	c.Check(grp2.JournalLimit.RateCount, Equals, 15)
+	c.Check(grp2.JournalLimit.RatePeriod, Equals, time.Second)
+
+	grp3, err := quota.NewGroup("groot3", quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Assert(grp3.JournalLimit, NotNil)
+	c.Check(grp3.JournalLimit.Size, Equals, quantity.SizeMiB)
+}
+
+func (ts *quotaTestSuite) TestJournalQuotasUpdatesCorrectly(c *C) {
+	grp1, err := quota.NewGroup("groot1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+	c.Assert(grp1.JournalLimit, IsNil)
+
+	grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	c.Assert(grp1.JournalLimit, NotNil)
+	c.Check(grp1.JournalLimit.Size, Equals, quantity.Size(0))
+	c.Check(grp1.JournalLimit.RateCount, Equals, 0)
+	c.Check(grp1.JournalLimit.RatePeriod, Equals, time.Duration(0))
+
+	grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithJournalRate(15, time.Microsecond*5).WithJournalSize(quantity.SizeMiB).Build())
+	c.Assert(grp1.JournalLimit, NotNil)
+	c.Check(grp1.JournalLimit.Size, Equals, quantity.SizeMiB)
+	c.Check(grp1.JournalLimit.RateCount, Equals, 15)
+	c.Check(grp1.JournalLimit.RatePeriod, Equals, time.Microsecond*5)
 }

@@ -321,6 +321,11 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		// Note: Auto is no longer set in the Snapshot.
 	}
 
+	snapshotOptions, err := snap.ReadSnapshotYaml(si)
+	if err != nil {
+		return nil, err
+	}
+
 	aw, err := osutil.NewAtomicFile(Filename(snapshot), 0600, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return nil, err
@@ -330,7 +335,9 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 
 	w := zip.NewWriter(aw)
 	defer w.Close() // note this does not close the file descriptor (that's done by hand on the atomic writer, above)
-	if err := addDirToZip(ctx, snapshot, w, "root", archiveName, si.DataDir()); err != nil {
+	savingUserData := false
+	baseDataDir := snap.BaseDataDir(si.InstanceName())
+	if err := addSnapDirToZip(ctx, snapshot, w, "root", archiveName, baseDataDir, savingUserData, snapshotOptions.ExcludePaths); err != nil {
 		return nil, err
 	}
 
@@ -339,8 +346,10 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		return nil, err
 	}
 
+	savingUserData = true
 	for _, usr := range users {
-		if err := addDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), si.UserDataDir(usr.HomeDir, opts)); err != nil {
+		snapDataDir := filepath.Dir(si.UserDataDir(usr.HomeDir, opts))
+		if err := addSnapDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), snapDataDir, savingUserData, snapshotOptions.ExcludePaths); err != nil {
 			return nil, err
 		}
 	}
@@ -378,65 +387,79 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 
 var isTesting = snapdenv.Testing()
 
-func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username string, entry, dir string) error {
-	parent, revdir := filepath.Split(dir)
-	exists, isDir, err := osutil.DirExists(parent)
+// addSnapDirToZip adds the 'common' and the 'rev' revisioned dir under 'snapDir'
+// to the snapshot. If one doesn't exist, it's ignored. If none exists, the
+// operation is skipped.
+func addSnapDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username, entry, snapDir string, savingUserData bool, excludePaths []string) error {
+	paths, err := pathsForSnapshot(snapDir, snapshot)
 	if err != nil {
 		return err
 	}
-	if exists && !isDir {
-		logger.Noticef("Not saving directories under %q in snapshot #%d of %q as it is not a directory.", parent, snapshot.SetID, snapshot.Snap)
+
+	if len(paths) == 0 {
 		return nil
 	}
-	if !exists {
-		logger.Debugf("Not saving directories under %q in snapshot #%d of %q as it is does not exist.", parent, snapshot.SetID, snapshot.Snap)
-		return nil
+
+	expandSnapDataDirs := func(varName string) string {
+		// Validation of the environment variables has already been performed.
+		// We just need to make sure that we consider the right variables
+		// according to whether we are saving user or system data.
+		switch {
+		case varName == "SNAP_COMMON" && !savingUserData:
+			fallthrough
+		case varName == "SNAP_USER_COMMON" && savingUserData:
+			return "common"
+		case varName == "SNAP_DATA" && !savingUserData:
+			fallthrough
+		case varName == "SNAP_USER_DATA" && savingUserData:
+			return snapshot.Revision.String()
+		}
+		// The variable specified does not match the current operating mode
+		// (for example, the variable is SNAP_COMMON but we are saving user
+		// data); in this case, we need to inform our caller that the returned
+		// string should be ignored and not added to the "tar" parameters. In
+		// order to do this, we return a "-" as a sentinel.
+		return "-"
 	}
+
+	var expExcludePaths []string
+	for _, excludePath := range excludePaths {
+		expandedPath := os.Expand(excludePath, expandSnapDataDirs)
+		// "-" is the sentinel returned by expandSnapDataDirs() if the
+		// exclusion path is not relevant for the type of data being considered
+		if expandedPath[0] == '-' {
+			continue
+		}
+		expExcludePaths = append(expExcludePaths, expandedPath)
+	}
+
+	return addToZip(ctx, snapshot, w, username, entry, paths, expExcludePaths)
+}
+
+// addToZip adds 'paths' to the snapshot. tar will change into the paths' parent
+// directory before creating the archive so that parent dirs are not added.
+func addToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username, entry string, paths []string, excludePaths []string) error {
+	archiveWriter, err := w.CreateHeader(&zip.FileHeader{Name: entry})
+	if err != nil {
+		return err
+	}
+
 	tarArgs := []string{
 		"--create",
 		"--sparse", "--gzip",
 		"--format", "gnu",
-		"--directory", parent,
+		"--anchored",
+		"--no-wildcards-match-slash",
 	}
 
-	noRev, noCommon := true, true
-
-	exists, isDir, err = osutil.DirExists(dir)
-	if err != nil {
-		return err
-	}
-	switch {
-	case exists && isDir:
-		tarArgs = append(tarArgs, revdir)
-		noRev = false
-	case exists && !isDir:
-		logger.Noticef("Not saving %q in snapshot #%d of %q as it is not a directory.", dir, snapshot.SetID, snapshot.Snap)
-	case !exists:
-		logger.Debugf("Not saving %q in snapshot #%d of %q as it is does not exist.", dir, snapshot.SetID, snapshot.Snap)
+	for _, path := range excludePaths {
+		tarArgs = append(tarArgs, fmt.Sprintf("--exclude=%s", path))
 	}
 
-	common := filepath.Join(parent, "common")
-	exists, isDir, err = osutil.DirExists(common)
-	if err != nil {
-		return err
-	}
-	switch {
-	case exists && isDir:
-		tarArgs = append(tarArgs, "common")
-		noCommon = false
-	case exists && !isDir:
-		logger.Noticef("Not saving %q in snapshot #%d of %q as it is not a directory.", common, snapshot.SetID, snapshot.Snap)
-	case !exists:
-		logger.Debugf("Not saving %q in snapshot #%d of %q as it is does not exist.", common, snapshot.SetID, snapshot.Snap)
-	}
-
-	if noCommon && noRev {
-		return nil
-	}
-
-	archiveWriter, err := w.CreateHeader(&zip.FileHeader{Name: entry})
-	if err != nil {
-		return err
+	// use --directory so that the directory is added without its parent dirs
+	for _, path := range paths {
+		parent, dir := filepath.Split(path)
+		tarArgs = append(tarArgs, "--directory", parent, dir)
 	}
 
 	var sz osutil.Sizer
@@ -444,18 +467,20 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 	cmd := tarAsUser(username, tarArgs...)
 	cmd.Stdout = io.MultiWriter(archiveWriter, hasher, &sz)
+
+	// keep (at most) the last 5 non-empty lines of what 'tar' writes to stderr
+	// (those are the most likely contain the reason for fatal errors)
 	matchCounter := &strutil.MatchCounter{
-		// keep at most 5 matches
-		N: 5,
-		// keep the last lines only, those likely contain the reason for
-		// fatal errors
+		N:     5,
 		LastN: true,
 	}
 	cmd.Stderr = matchCounter
+
 	if isTesting {
 		matchCounter.N = -1
 		cmd.Stderr = io.MultiWriter(os.Stderr, matchCounter)
 	}
+
 	if err := osutil.RunWithContext(ctx, cmd); err != nil {
 		matches, count := matchCounter.Matches()
 		if count > 0 {
@@ -474,6 +499,41 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 	snapshot.Size += sz.Size()
 
 	return nil
+}
+
+// pathsForSnapshot returns a list of absolute paths under 'snapDir' that should
+// be included in the snapshot (based on what directories exist).
+func pathsForSnapshot(snapDir string, snapshot *client.Snapshot) ([]string, error) {
+	dirExists := func(path string) (bool, error) {
+		exists, isDir, err := osutil.DirExists(path)
+		if err != nil {
+			return false, err
+		}
+
+		if exists && isDir {
+			return true, nil
+		}
+
+		if !exists {
+			logger.Debugf("Not saving %q in snapshot #%d of %q as it is does not exist.", path, snapshot.SetID, snapshot.Snap)
+		} else if !isDir {
+			logger.Noticef("Not saving %q in snapshot #%d of %q as it is not a directory.", path, snapshot.SetID, snapshot.Snap)
+		}
+
+		return false, nil
+	}
+
+	var snapshotPaths []string
+	for _, subDir := range []string{snapshot.Revision.String(), "common"} {
+		subPath := filepath.Join(snapDir, subDir)
+		if ok, err := dirExists(subPath); err != nil {
+			return nil, err
+		} else if ok {
+			snapshotPaths = append(snapshotPaths, subPath)
+		}
+	}
+
+	return snapshotPaths, nil
 }
 
 var ErrCannotCancel = errors.New("cannot cancel: import already finished")
@@ -924,7 +984,7 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 // so it should be called without any locks. The SnapshotExport
 // keeps the FDs open so even files moved/deleted will be found.
 func (se *SnapshotExport) Init() error {
-	// Export once into a dummy writer so that we can set the size
+	// Export once into a fake writer so that we can set the size
 	// of the export. This is then used to set the Content-Length
 	// in the response correctly.
 	//

@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/client"
@@ -60,6 +61,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -174,6 +176,11 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.AddCleanup(osutil.MockMountInfo(""))
 
 	s.AddCleanup(archtest.MockArchitecture("amd64"))
+	snippets := []assets.ForEditions{
+		{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")},
+	}
+	s.AddCleanup(assets.MockSnippetsForEdition("grub.cfg:static-cmdline", snippets))
+	s.AddCleanup(assets.MockSnippetsForEdition("grub-recovery.cfg:static-cmdline", snippets))
 
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
@@ -1629,7 +1636,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyFails(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transactional: true})
+	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
@@ -1675,7 +1682,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyFails(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transactional: true})
+	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
@@ -1711,7 +1718,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyFails(c *C) {
 
 	// refresh
 	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, nil, 0,
-		&snapstate.Flags{Transactional: true})
+		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
@@ -1761,7 +1768,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyOk(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transactional: true})
+	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
@@ -1796,7 +1803,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyOk(c *C) {
 
 	// refresh
 	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, nil, 0,
-		&snapstate.Flags{Transactional: true})
+		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
@@ -4543,7 +4550,7 @@ hooks:
 
 	var snst snapstate.SnapState
 	err = snapstate.Get(st, "other-snap", &snst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	_, err = repo.Connected("other-snap", "media-hub")
 	c.Assert(err, ErrorMatches, `snap "other-snap" has no plug or slot named "media-hub"`)
 }
@@ -4903,7 +4910,7 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAddedUndo(c *C) {
 	var snapst snapstate.SnapState
 	for _, snapName := range []string{"foo", "bar", "baz"} {
 		err = snapstate.Get(st, snapName, &snapst)
-		c.Assert(err, Equals, state.ErrNoState)
+		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	}
 
 	// old-required-snap-1 is still marked required
@@ -6201,8 +6208,20 @@ volumes:
 	})
 	s.serveSnap(snapPath, "2")
 
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+		return map[string]map[int]gadget.StructureLocation{
+			"volume-id": {
+				0: {
+					Device: "/dev/foo",
+					Offset: quantity.OffsetMiB,
+				},
+			},
+		}, nil
+	})
+	defer r()
+
 	updaterForStructureCalls := 0
-	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updaterForStructureCalls++
 		c.Assert(ps.Name, Equals, "foo")
 		return &mockUpdater{}, nil
@@ -7059,7 +7078,7 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 	// the new required-snap "foo" is not installed yet
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	// simulate successful reboot to recovery and back
 	restart.MockPending(st, restart.RestartUnset)
@@ -7527,7 +7546,24 @@ func (s *mgrsSuite) TestRemodelUC20DifferentGadgetChannel(c *C) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+		return map[string]map[int]gadget.StructureLocation{
+			"pc": {
+				0: {
+					RootMountPoint: "/foo-seed",
+				},
+				1: {
+					RootMountPoint: "/foo-boot",
+				},
+				2: {
+					RootMountPoint: "/foo-data",
+				},
+			},
+		}, nil
+	})
+	defer r()
+
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		// use a mock updater which does nothing
 		return &mockUpdater{
 			onUpdate: gadget.ErrNoUpdate,
@@ -7797,8 +7833,25 @@ func (s *mgrsSuite) TestRemodelUC20BackToPreviousGadget(c *C) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+		return map[string]map[int]gadget.StructureLocation{
+			"pc": {
+				0: {
+					RootMountPoint: "/foo-seed",
+				},
+				1: {
+					RootMountPoint: "/foo-boot",
+				},
+				2: {
+					RootMountPoint: "/foo-data",
+				},
+			},
+		}, nil
+	})
+	defer r()
+
 	updater := &mockUpdater{}
-	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		// use a mock updater pretends an update was applied
 		return updater, nil
 	})
@@ -7961,8 +8014,25 @@ func (s *mgrsSuite) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+		return map[string]map[int]gadget.StructureLocation{
+			"pc": {
+				0: {
+					RootMountPoint: "/foo-seed",
+				},
+				1: {
+					RootMountPoint: "/foo-boot",
+				},
+				2: {
+					RootMountPoint: "/foo-data",
+				},
+			},
+		}, nil
+	})
+	defer r()
+
 	updater := &mockUpdater{}
-	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		// use a mock updater pretends an update was applied
 		return updater, nil
 	})
@@ -8305,10 +8375,27 @@ func (s *mgrsSuite) TestRemodelUC20ToUC22(c *C) {
 	bl, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, &bootloader.Options{Role: bootloader.RoleRecovery})
 	c.Assert(err, IsNil)
 
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+		return map[string]map[int]gadget.StructureLocation{
+			"pc": {
+				0: {
+					RootMountPoint: "/foo-seed",
+				},
+				1: {
+					RootMountPoint: "/foo-boot",
+				},
+				2: {
+					RootMountPoint: "/foo-data",
+				},
+			},
+		}, nil
+	})
+	defer r()
+
 	// remodel updates a gadget, setup a mock updater that pretends an
 	// update was applied
 	updater := &mockUpdater{}
-	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		// use a mock updater pretends an update was applied
 		return updater, nil
 	})
@@ -8991,6 +9078,9 @@ WantedBy=multi-user.target
 			// service also dies?
 			c.Check(cmd, DeepEquals, []string{"stop", "snap.test-snap.svc1.service"})
 			return nil, fmt.Errorf("the snap service is still having a bad day")
+		case 15:
+			c.Check(cmd, DeepEquals, []string{"show", "--property=ActiveState", "snap.test-snap.svc1.service"})
+			return nil, nil
 		default:
 			c.Errorf("unexpected call to systemctl: %+v", cmd)
 			return nil, fmt.Errorf("broken test")
@@ -8998,7 +9088,7 @@ WantedBy=multi-user.target
 	})
 	s.AddCleanup(r)
 	// make sure that we get the expected number of systemctl calls
-	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 14) })
+	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 15) })
 
 	// also add the snapd snap to state which we will refresh
 	si1 := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
@@ -10278,6 +10368,9 @@ base: core20
 	st.Lock()
 	defer st.Unlock()
 
+	// cyclic dependency check would detect the problem
+	c.Assert(chg.CheckTaskDependencies(), ErrorMatches, `dependency cycle involving tasks \[.*\]`)
+
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, "snapd", &snapst)
 	c.Assert(err, IsNil)
@@ -10372,6 +10465,9 @@ base: core20
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	// cyclic dependency check would detect the problem
+	c.Assert(chg.CheckTaskDependencies(), ErrorMatches, `dependency cycle involving tasks \[.*\]`)
 
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, "snapd", &snapst)
@@ -10526,11 +10622,13 @@ func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
 	byLabelDir := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/")
 	err := os.MkdirAll(byLabelDir, 0755)
 	c.Assert(err, IsNil)
+	fakeDiskDeviceNode := filepath.Join(dirs.GlobalRootDir, "/dev/fakedevice0")
+	fakePartDeviceNode := fakeDiskDeviceNode + "p1"
 	// create fakedevice node
-	err = ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/dev/fakedevice0p1"), nil, 0644)
+	err = ioutil.WriteFile(fakePartDeviceNode, nil, 0644)
 	c.Assert(err, IsNil)
 	// and point the mocked by-label entry to the fakedevice node
-	err = os.Symlink(filepath.Join(dirs.GlobalRootDir, "/dev/fakedevice0p1"), filepath.Join(byLabelDir, structureName))
+	err = os.Symlink(fakePartDeviceNode, filepath.Join(byLabelDir, structureName))
 	c.Assert(err, IsNil)
 
 	// mock /proc/self/mountinfo with the above generated paths
@@ -10540,6 +10638,44 @@ func (ms *gadgetUpdatesSuite) makeMockedDev(c *C, structureName string) {
 	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), 0755)
 	c.Assert(err, IsNil)
 
+	mockDisk := &disks.MockDiskMapping{
+		DevNode: fakeDiskDeviceNode,
+
+		// copied from ExpectedRaspiMockDiskMapping
+		DevPath:             "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+		DevNum:              "8:2",
+		DiskUsableSectorEnd: 30528 * 1024 * 1024 / 512,
+		DiskSizeInBytes:     30528 * 1024 * 1024,
+		SectorSizeBytes:     512,
+		DiskSchema:          "dos",
+		ID:                  "7c301cbd",
+
+		Structure: []disks.Partition{
+			{
+				PartitionUUID:    "7c301cbd-01",
+				PartitionType:    "0C",
+				FilesystemLabel:  structureName,
+				FilesystemUUID:   "0E09-0822",
+				FilesystemType:   "vfat",
+				Major:            8,
+				Minor:            3,
+				KernelDeviceNode: fakePartDeviceNode,
+				KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
+				DiskIndex:        1,
+				StartInBytes:     1024 * 1024,
+				SizeInBytes:      1200 * 1024 * 1024,
+			},
+		},
+	}
+
+	// mock device nodes
+	disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		fakePartDeviceNode: mockDisk,
+	})
+
+	disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		fakeDiskDeviceNode: mockDisk,
+	})
 }
 
 // tsWithoutReRefresh removes the re-refresh task from the given taskset.
@@ -11415,6 +11551,23 @@ volumes:
 }
 
 func (ms *gadgetUpdatesSuite) TestGadgetWithKernelRefUpgradeFromOldErrorKernel(c *C) {
+	structureName := "ubuntu-seed"
+	structureMountDir := filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName)
+
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+		return map[string]map[int]gadget.StructureLocation{
+			"volume-id": {
+				0: {
+					RootMountPoint: structureMountDir,
+				},
+				1: {
+					RootMountPoint: "/foo-data",
+				},
+			},
+		}, nil
+	})
+	defer r()
+
 	kernelYaml := `
 assets:
   pidtbs:
@@ -11423,7 +11576,6 @@ assets:
     - dtbs/broadcom/
     - dtbs/overlays/`
 
-	structureName := "ubuntu-seed"
 	oldGadgetYaml := fmt.Sprintf(`
 volumes:
     volume-id:
@@ -11471,7 +11623,7 @@ volumes:
 		{"boot-assets/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},
 	})
 	// we have old style boot assets in the bootloader dir
-	snaptest.PopulateDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), [][]string{
+	snaptest.PopulateDir(structureMountDir, [][]string{
 		{"start.elf", "start.elf rev1"},
 		{"bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
 		{"bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},

@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -161,8 +162,16 @@ func (b Backend) HideSnapData(snapName string) error {
 			return fmt.Errorf("cannot create snap dir %q: %w", hiddenSnapDir, err)
 		}
 
-		// move the snap's dir
 		newSnapDir := snap.UserSnapDir(usr.HomeDir, snapName, hiddenDirOpts)
+		if exists, _, err := osutil.DirExists(newSnapDir); err != nil {
+			return err
+		} else if exists {
+			if err := os.RemoveAll(newSnapDir); err != nil {
+				return fmt.Errorf("cannot remove existing snap dir %q: %v", newSnapDir, err)
+			}
+		}
+
+		// move the snap's dir
 		if err := osutil.AtomicRename(oldSnapDir, newSnapDir); err != nil {
 			return fmt.Errorf("cannot move %q to %q: %w", oldSnapDir, newSnapDir, err)
 		}
@@ -255,53 +264,104 @@ var removeIfEmpty = func(dir string) error {
 	return os.Remove(dir)
 }
 
+// UndoInfo contains information about what an operation did so that it can be
+// undone.
+type UndoInfo struct {
+	// Created contains the directories created in the operation.
+	Created []string `json:"created,omitempty"`
+}
+
 // InitExposedSnapHome creates and initializes ~/Snap/<snapName> based on the
-// specified revision. Must be called after the snap has been migrated.
-func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (err error) {
+// specified revision. Must be called after the snap has been migrated. If no
+// error occurred, returns a non-nil undoInfo so that the operation can be undone.
+// If an error occurred, an attempt is made to undo so no undoInfo is returned.
+func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (undoInfo *UndoInfo, err error) {
 	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
 
 	users, err := allUsers(opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	undoInfo = &UndoInfo{}
+	defer func() {
+		if err != nil {
+			if err := b.UndoInitExposedSnapHome(snapName, undoInfo); err != nil {
+				logger.Noticef("cannot undo ~/Snap init for %q after it failed: %v", snapName, err)
+			}
+
+			undoInfo = nil
+		}
+	}()
 
 	for _, usr := range users {
 		uid, gid, err := osutil.UidGid(usr)
 		if err != nil {
-			return err
+			return undoInfo, err
 		}
 
 		newUserHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
-		if err := mkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
-			return fmt.Errorf("cannot create %q: %v", newUserHome, err)
+		if exists, isDir, err := osutil.DirExists(newUserHome); err != nil {
+			return undoInfo, err
+		} else if exists {
+			if !isDir {
+				return undoInfo, fmt.Errorf("cannot initialize new user HOME %q: already exists but is not a directory", newUserHome)
+			}
+
+			// we reverted from a core22 base before, so the new HOME already exists
+			continue
 		}
 
+		if err := mkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
+			return undoInfo, fmt.Errorf("cannot create %q: %v", newUserHome, err)
+		}
+
+		undoInfo.Created = append(undoInfo.Created, newUserHome)
+
 		userData := snap.UserDataDir(usr.HomeDir, snapName, rev, opts)
-		entries, err := ioutil.ReadDir(userData)
+		files, err := ioutil.ReadDir(userData)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				// there's nothing to copy into ~/Snap/<snap> (like on a fresh install)
 				continue
 			}
 
-			return err
+			return undoInfo, err
 		}
-		for _, e := range entries {
-			src := filepath.Join(userData, e.Name())
-			dst := filepath.Join(newUserHome, e.Name())
+
+		for _, f := range files {
+			// some XDG vars aren't copied to the new HOME, they will be in SNAP_USER_DATA
+			// .local/share is a subdirectory it needs to be handled specially below
+			if strutil.ListContains([]string{".cache", ".config"}, f.Name()) {
+				continue
+			}
+
+			src := filepath.Join(userData, f.Name())
+			dst := filepath.Join(newUserHome, f.Name())
 
 			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
-				return err
+				return undoInfo, err
+			}
+
+			// don't copy .local/share but copy other things under .local/
+			if f.Name() == ".local" {
+				shareDir := filepath.Join(dst, "share")
+				if err := os.RemoveAll(shareDir); err != nil {
+					return undoInfo, err
+				}
 			}
 		}
 	}
 
-	return nil
+	return undoInfo, nil
 }
 
-// RemoveExposedSnapHome removes the ~/Snap dirs.
-func (b Backend) RemoveExposedSnapHome(snapName string) error {
+// UndoInitExposedSnapHome undoes the ~/Snap initialization according to the undoInfo.
+func (b Backend) UndoInitExposedSnapHome(snapName string, undoInfo *UndoInfo) error {
 	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	if undoInfo == nil {
+		undoInfo = &UndoInfo{}
+	}
 
 	var firstErr error
 	handle := func(err error) {
@@ -319,6 +379,10 @@ func (b Backend) RemoveExposedSnapHome(snapName string) error {
 
 	for _, usr := range users {
 		newUserHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
+		if !strutil.ListContains(undoInfo.Created, newUserHome) {
+			continue
+		}
+
 		if err := os.RemoveAll(newUserHome); err != nil {
 			handle(fmt.Errorf("cannot remove %q: %v", newUserHome, err))
 			continue
@@ -332,4 +396,54 @@ func (b Backend) RemoveExposedSnapHome(snapName string) error {
 	}
 
 	return firstErr
+}
+
+var (
+	srcXDGDirs = []string{".config", ".cache", ".local/share"}
+	dstXDGDirs = []string{"xdg-config", "xdg-cache", "xdg-data"}
+)
+
+// InitXDGDirs renames .local/share, .config and .cache directories to their
+// post core22 migration locations. Directories that don't exist are created.
+// Must be invoked after the revisioned data has been migrated.
+func (b Backend) InitXDGDirs(info *snap.Info) error {
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
+	users, err := allUsers(opts)
+	if err != nil {
+		return err
+	}
+
+	for _, usr := range users {
+		uid, gid, err := osutil.UidGid(usr)
+		if err != nil {
+			return err
+		}
+
+		revDir := info.UserDataDir(usr.HomeDir, opts)
+		for i, srcDir := range srcXDGDirs {
+			src := filepath.Join(revDir, srcDir)
+			dst := filepath.Join(revDir, dstXDGDirs[i])
+
+			if exists, _, err := osutil.DirExists(dst); err != nil {
+				return err
+			} else if exists {
+				return fmt.Errorf("cannot migrate XDG dir %q to %q because destination already exists", src, dst)
+			}
+
+			if exists, isDir, err := osutil.DirExists(src); err != nil {
+				return err
+			} else if exists && isDir {
+				if err := os.Rename(src, dst); err != nil {
+					return err
+				}
+
+			} else {
+				if err := mkdirAllChown(dst, 0700, uid, gid); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }

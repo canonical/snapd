@@ -503,7 +503,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDiskDevice(
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/vda4 of /run/mnt/point: not a decrypted device: devtype is not disk \(is partition\)`)
+	c.Assert(err, ErrorMatches, `cannot process properties of /dev/vda4 parent device: not a decrypted device: devtype is not disk \(is partition\)`)
 }
 
 func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) {
@@ -531,7 +531,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) 
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point: not a decrypted device: could not read device mapper metadata: open %s/dev/block/252:0/dm/uuid: no such file or directory`, dirs.SysfsDir))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot process properties of /dev/mapper/something parent device: not a decrypted device: could not read device mapper metadata: open %s/dev/block/252:0/dm/uuid: no such file or directory`, dirs.SysfsDir))
 }
 
 func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitionsInSysfs(c *C) {
@@ -761,7 +761,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C)
 	}()
 
 	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point: internal error: no back resolver supports decrypted device mapper with UUID "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
+	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something parent device: internal error: no back resolver supports decrypted device mapper with UUID "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
 
 	// but when it is available it works
 	disks.RegisterDeviceMapperBackResolver("crypt-luks2", disks.CryptLuks2DeviceMapperBackResolver)
@@ -851,7 +851,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedUnlockedDeviceVolumeHappy(c
 
 	// first try without the handler fails
 	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/mapper/something-device-locked of /run/mnt/point: internal error: no back resolver supports decrypted device mapper with UUID "5a522809-c87e-4dfa-81a8-8dc5667d1304" and name "something-device-locked"`)
+	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something-device-locked parent device: internal error: no back resolver supports decrypted device mapper with UUID "5a522809-c87e-4dfa-81a8-8dc5667d1304" and name "something-device-locked"`)
 
 	// next try with the FDE package handler works
 	disks.RegisterDeviceMapperBackResolver("device-unlock-kernel-fde", fde.DeviceUnlockKernelHookDeviceMapperBackResolver)
@@ -2021,4 +2021,126 @@ func (s *diskSuite) TestAllPhysicalDisks(c *C) {
 	c.Assert(d[1].KernelDeviceNode(), Equals, "/dev/nvme0n1")
 	c.Assert(d[2].KernelDeviceNode(), Equals, "/dev/sda")
 	c.Assert(d[3].KernelDeviceNode(), Equals, "/dev/sdb")
+}
+
+func (s *diskSuite) TestPartitionUUIDFromMopuntPointErrs(c *C) {
+	restore := osutil.MockMountInfo(``)
+	defer restore()
+
+	_, err := disks.PartitionUUIDFromMountPoint("/run/mnt/blah", nil)
+	c.Assert(err, ErrorMatches, "cannot find mountpoint \"/run/mnt/blah\"")
+
+	restore = osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda4 rw
+`)
+	defer restore()
+
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		c.Assert(dev, Equals, "/dev/vda4")
+		return map[string]string{
+			"DEVNAME": "vda4",
+			"prop":    "hello",
+		}, nil
+	})
+	defer restore()
+
+	_, err = disks.PartitionUUIDFromMountPoint("/run/mnt/point", nil)
+	c.Assert(err, ErrorMatches, "cannot get required partition UUID udev property for device /dev/vda4")
+}
+
+func (s *diskSuite) TestPartitionUUIDFromMountPointPlain(c *C) {
+	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda4 rw
+`)
+	defer restore()
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		c.Assert(dev, Equals, "/dev/vda4")
+		return map[string]string{
+			"DEVTYPE":            "disk",
+			"ID_PART_ENTRY_UUID": "foo-uuid",
+		}, nil
+	})
+	defer restore()
+
+	uuid, err := disks.PartitionUUIDFromMountPoint("/run/mnt/point", nil)
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "foo-uuid")
+}
+
+func (s *diskSuite) TestPartitionUUIDFromMopuntPointDecrypted(c *C) {
+	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something rw
+`)
+	defer restore()
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/mapper/something":
+			return map[string]string{
+				"DEVTYPE": "disk",
+				"MAJOR":   "242",
+				"MINOR":   "1",
+			}, nil
+		case "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304":
+			return map[string]string{
+				"ID_PART_ENTRY_UUID": "foo-uuid",
+			}, nil
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	// mock the sysfs dm uuid and name files
+	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "242:1", "dm")
+	err := os.MkdirAll(dmDir, 0755)
+	c.Assert(err, IsNil)
+
+	b := []byte("something")
+	err = ioutil.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
+	c.Assert(err, IsNil)
+
+	b = []byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something")
+	err = ioutil.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
+	c.Assert(err, IsNil)
+
+	uuid, err := disks.PartitionUUIDFromMountPoint("/run/mnt/point", &disks.Options{
+		IsDecryptedDevice: true,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "foo-uuid")
+}
+
+func (s *diskSuite) TestPartitionUUID(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/vda4":
+			return map[string]string{
+				"ID_PART_ENTRY_UUID": "foo-uuid",
+			}, nil
+		case "/dev/no-uuid":
+			return map[string]string{
+				"no-uuid": "no-uuid",
+			}, nil
+		case "/dev/mock-failure":
+			return nil, fmt.Errorf("mock failure")
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	uuid, err := disks.PartitionUUID("/dev/vda4")
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "foo-uuid")
+
+	uuid, err = disks.PartitionUUID("/dev/no-uuid")
+	c.Assert(err, ErrorMatches, "cannot get required udev partition UUID property")
+	c.Check(uuid, Equals, "")
+
+	uuid, err = disks.PartitionUUID("/dev/mock-failure")
+	c.Assert(err, ErrorMatches, "cannot process udev properties: mock failure")
+	c.Check(uuid, Equals, "")
 }

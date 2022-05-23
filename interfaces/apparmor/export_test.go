@@ -22,6 +22,7 @@ package apparmor
 import (
 	"os"
 
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -30,19 +31,20 @@ var (
 	NsProfile                       = nsProfile
 	ProfileGlobs                    = profileGlobs
 	SnapConfineFromSnapProfile      = snapConfineFromSnapProfile
-	LoadProfiles                    = loadProfiles
-	UnloadProfiles                  = unloadProfiles
-	MaybeSetNumberOfJobs            = maybeSetNumberOfJobs
 	DefaultCoreRuntimeTemplateRules = defaultCoreRuntimeTemplateRules
 	DefaultOtherBaseTemplateRules   = defaultOtherBaseTemplateRules
 )
 
-func MockRuntimeNumCPU(new func() int) (restore func()) {
-	old := runtimeNumCPU
-	runtimeNumCPU = new
-	return func() {
-		runtimeNumCPU = old
-	}
+func MockLoadProfiles(f func(fnames []string, cacheDir string, flags apparmor_sandbox.AaParserFlags) error) (restore func()) {
+	r := testutil.Backup(&loadProfiles)
+	loadProfiles = f
+	return r
+}
+
+func MockUnloadProfiles(f func(fnames []string, cacheDir string) error) (restore func()) {
+	r := testutil.Backup(&unloadProfiles)
+	unloadProfiles = f
+	return r
 }
 
 // MockIsRootWritableOverlay mocks the real implementation of osutil.IsRootWritableOverlay
@@ -62,14 +64,6 @@ func MockProcSelfExe(symlink string) (restore func()) {
 		os.Remove(procSelfExe)
 		procSelfExe = old
 	}
-}
-
-// MockProfilesPath mocks the file read by LoadedProfiles()
-func MockProfilesPath(t *testutil.BaseTest, profiles string) {
-	profilesPath = profiles
-	t.AddCleanup(func() {
-		profilesPath = realProfilesPath
-	})
 }
 
 // MockTemplate replaces apprmor template.
