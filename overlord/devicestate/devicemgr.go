@@ -2088,6 +2088,10 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 	if err != nil {
 		return nil, fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
 	}
+	if len(dataMountPoints) == 0 {
+		// shouldn't happen as the marker file is under ubuntu-data
+		return nil, fmt.Errorf("cannot ensure recovery keys without any ubuntu-data mount points")
+	}
 	recoveryKeyDevices := []secboot.RecoveryKeyDevice{
 		{
 			Mountpoint: dataMountPoints[0],
