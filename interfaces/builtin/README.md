@@ -1,12 +1,12 @@
-# Interfaces declarations
+# Interface policy
 
-## Plug and slot declarations
+## Plug and slot rules
 
-These declarations are mainly used to control what plugs or slots a snap is
+Declarative rules are used to control what plugs or slots a snap is
 allowed to use, and if a snap is allowed to use a plug/slot, what other
-slots/plugs should connect to that plug/slot on this snap.
+slots/plugs can connect to that plug/slot on this snap.
 
-The behaviour is defined by a map which has 6 possible keys:
+These ruels are declared as a map which has 6 possible keys:
 
 - allow-installation
 - deny-installation
@@ -20,15 +20,19 @@ more complex object/list which then is “evaluated” by snapd on a device to
 determine the actual value, be it true or false.
 
 
-### Base declarations and snap declarations
+### Base declaration and snap declarations
 
-The declarations defined in the snapd interfaces source code are called “base
-declarations” and can be overridden in the “snap declarations” in the snap
-store by means of “store assertions”, which make it possible for a store to
-alter the behaviour hardcoded in snapd; for example, a store assertion is
-typically used to grant auto-connection to some plugs of a specific application
-where this is deemed reasonable or safe (for example, auto-connecting the
-`camera` interface in a web-streaming application).
+The rules defined in the snapd interfaces source code (via setting
+`commonInterface.baseDeclarationSlots/Plugs`) form together the
+“base declaration” and can be overridden in by per-snap rules in the
+snap store published via the per-snap `snap-declaration` assertions,
+which make it possible for a store to alter the policy hardcoded in
+snapd; for example, a store assertion is typically used to grant
+auto-connection to some plugs of a specific application where this is
+deemed reasonable or safe (for example, auto-connecting the `camera`
+interface in a web-streaming application).
+
+### Basic evalution and precedence
 
 The default value of the `allow-*` keys when not otherwise specified is `true`
 and the default value of `deny-*` keys when not otherwise specified is `false`.
@@ -75,12 +79,12 @@ cannot be used at all without a snap-declaration assertion.
 
 ### allow-connection
 
-The `allow-connection` key controls whether a connection is permitted at
-all and usually is used to ensure that only “compatible” plugs and slots are
-connected to each other. A great example is the content interface, where the
-following (abbreviated) rule from the base-declaration is used to ensure that a
-candidate plug and slot content interface have matching `content` attribute
-values:
+The `allow-connection` key controls whether an API/manual connection
+is permitted at all and usually is used to ensure that only
+“compatible” plugs and slots are connected to each other. A great
+example is the content interface, where the following (abbreviated)
+rule from the base-declaration is used to ensure that a candidate plug
+and slot content interface have matching `content` attribute values:
 
     allow-connection:
       plug-attributes:
@@ -121,13 +125,13 @@ While the following plug and slots are not compatible:
 The allow-auto-connection key is the final key considered when snapd is
 evaluating automatic connection of interface plugs and slots. If this key
 evaluates to `true`, then this plug/slot combination is considered a valid
-candidate for automatic connection.
+candidate for automatic connection. In this context allow-connection is ignored.
 
 Automatic connection will happen normally only if there is one single candidate
 pairing with a slot for a given plug.
 
 
-### Supported rules
+### Supported rule constraints
 
 Each of the keys seen before (`allow/deny-installation`,
 `allow/deny-connection`, and `allow/deny-auto-connection`) has a set of
@@ -141,16 +145,17 @@ snap ID and publisher can only be specified for the other side snap (e.g. a
 slot-side `allow-connection` constraint can only specify plug-snap-type,
 plug-snap-id, plug-snap-publisher).
 
-For the `plug-snap-type` and `slot-snap-type` rules there are three possible
-values: `core`, `gadget`, `kernel` and `app`. The `core` snap type refers to
-whichever snap is providing snapd on the system, either the `core` snap or
-`snapd` snap (typically `core` snap on UC16 devices, `snapd` snap on UC18+
+For the `plug-snap-type` and `slot-snap-type` rules there are 4
+possible values: `core`, `gadget`, `kernel` and `app`. The `core` snap
+type refers to whichever snap is providing snapd on the system and
+therefore the system inteface slots, either the `core` snap or `snapd`
+snap (typically `core` snap on UC16 devices, `snapd` snap on UC18+
 systems, and either on classic systems depending on re-exec logic).
 
 The `on-store`, `on-brand`, and `on-model` rules are not generally hardcoded in
 the snapd interfaces, but are specified in store assertions; they are known as
 “device context constraints” and are primarily used to ensure that a given
-assertion only applies to a device with a serial assertion (and thus model
+rule only applies to a device with a serial assertion (and thus model
 assertion) from a given brand. This is because if the assertion and snap from a
 brand store were copied to a non-branded device, the assertion could still be
 ack’d by the device and the snap installed, but the assertion would not
@@ -289,7 +294,7 @@ of attribute scalars if the two groups of values match as a sets (order doesn't
 matter).
 
 
-#### Special matches and variables
+#### Attribute constraints and special matches and variables
 
 Plug/slot-attributes string value constraints are interpreted as regexps
 (wrapped implicitly in `^$` anchors), unless they are one of the special forms
