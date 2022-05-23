@@ -52,11 +52,7 @@ func (l *sysdCtrlAltDelLogger) Notify(status string) {
 // ctrl-alt-del keyboard sequence. This function supports configuring
 // systemd to trigger a reboot, or ignore the key sequence.
 func switchCtrlAltDelAction(action string, opts *fsOnlyContext) error {
-	validAction := map[string]bool{
-		ctrlAltDelReboot: true,
-		ctrlAltDelNone:   true,
-	}
-	if !validAction[action] {
+	if action != "reboot" && action != "none" {
 		return fmt.Errorf("invalid action %q supplied for system.ctrl-alt-del-action option", action)
 	}
 
