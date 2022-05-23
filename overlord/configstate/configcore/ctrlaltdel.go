@@ -86,7 +86,7 @@ func switchCtrlAltDelAction(action string, opts *fsOnlyContext) error {
 		//     The ctrl-alt-del.target unit is an alias for reboot.target. This means that
 		//     if reboot.target is enabled, a ctrl-alt-del.target symlink will be created
 		//     under /etc/systemd/system, which is not needed and will prevent masking
-		status, err := sysd.Status(ctrlAltDelTarget)
+		status, err := sysd.Status([]string{ctrlAltDelTarget})
 		if err != nil {
 			return err
 		}

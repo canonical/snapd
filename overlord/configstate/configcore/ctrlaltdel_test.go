@@ -118,19 +118,7 @@ func (s *ctrlaltdelSuite) TestCtrlAltDelInvalidSystemctlReply(c *C) {
 			"system.ctrl-alt-del-action": "none",
 		},
 	})
-	c.Check(err, ErrorMatches, `
-requested: show --property=Id,ActiveState,UnitFileState,Names ctrl-alt-del.target
-got:
-Id=ctrl-alt-del.target
-ActiveState=inactive
-UnitFileState=enabled
-Names=ctrl-alt-del.target
-
-Id=ctrl-alt-del.target
-ActiveState=inactive
-UnitFileState=enabled
-Names=ctrl-alt-del.target
-error: more results than expected`[1:])
+	c.Check(err, ErrorMatches, "cannot get unit status: got more results than expected")
 }
 
 // The ctrl-alt-del.target unit is expected to be installed in the filesystem
