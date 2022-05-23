@@ -2091,7 +2091,8 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 	recoveryKeyDevices := []secboot.RecoveryKeyDevice{
 		{
 			Mountpoint: dataMountPoints[0],
-			// TODO ubuntu-data key in install mode?
+			// TODO ubuntu-data key in install mode? key isn't
+			// available in the keyring nor exists on disk
 		},
 		{
 			Mountpoint: boot.InitramfsUbuntuSaveDir,
