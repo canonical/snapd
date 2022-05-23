@@ -110,8 +110,8 @@ func switchCtrlAltDelAction(action string, opts *fsOnlyContext) error {
 			return err
 		}
 	default:
-		// We already checked the action against the list of defined actions. This is a
-		// sanity check to see if any of the actions are unhandled with in this switch.
+		// We already checked the action against the list of defined actions. This is an
+		// internal double check to see if any of the actions are unhandled with in this switch.
 		return fmt.Errorf("internal error: action %s unhandled on this platform", action)
 	}
 	return nil
