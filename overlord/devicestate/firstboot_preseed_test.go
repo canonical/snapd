@@ -27,9 +27,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot/boottest"
-	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -43,31 +40,12 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type firstbootPreseed16Suite struct {
+type firstbootPreseedingClassic16Suite struct {
 	firstBootBaseTest
 	firstBoot16BaseTest
 }
 
-var _ = Suite(&firstbootPreseed16Suite{})
-
-func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
-	// the tasks of the last taskset must be mark-preseeded, mark-seeded, in that order
-	lastTasks := tsAll[len(tsAll)-1].Tasks()
-	c.Check(lastTasks, HasLen, 2)
-	preseedTask := lastTasks[0]
-	markSeededTask := lastTasks[1]
-	c.Assert(preseedTask.Kind(), Equals, "mark-preseeded")
-	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
-
-	// mark-seeded waits for mark-preseeded
-	var waitsForPreseeded bool
-	for _, wt := range markSeededTask.WaitTasks() {
-		if wt.Kind() == "mark-preseeded" {
-			waitsForPreseeded = true
-		}
-	}
-	c.Check(waitsForPreseeded, Equals, true)
-}
+var _ = Suite(&firstbootPreseedingClassic16Suite{})
 
 func checkPreseedTaskStates(c *C, st *state.State) {
 	doneTasks := map[string]bool{
@@ -107,7 +85,7 @@ func checkPreseedTaskStates(c *C, st *state.State) {
 		}
 	}
 
-	// sanity: check that doneTasks is not declaring more tasks than
+	// validity: check that doneTasks is not declaring more tasks than
 	// actually expected.
 	c.Check(doneTasks, DeepEquals, seenDone)
 }
@@ -249,7 +227,7 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 	c.Check(matched, Equals, len(snaps))
 }
 
-func (s *firstbootPreseed16Suite) SetUpTest(c *C) {
+func (s *firstbootPreseedingClassic16Suite) SetUpTest(c *C) {
 	s.TestingSeed16 = &seedtest.TestingSeed16{}
 	s.setup16BaseTest(c, &s.firstBootBaseTest)
 
@@ -260,51 +238,23 @@ func (s *firstbootPreseed16Suite) SetUpTest(c *C) {
 
 	s.AddCleanup(interfaces.MockSystemKey(`{"core": "123"}`))
 	c.Assert(interfaces.WriteSystemKey(), IsNil)
-}
-
-func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
-	restore := snapdenv.MockPreseeding(true)
-	defer restore()
-
-	mockMountCmd := testutil.MockCommand(c, "mount", "")
-	defer mockMountCmd.Restore()
-
-	mockUmountCmd := testutil.MockCommand(c, "umount", "")
-	defer mockUmountCmd.Restore()
-
-	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
-	bootloader.Force(bloader)
-	defer bootloader.Force(nil)
-	bloader.SetBootKernel("pc-kernel_1.snap")
-	bloader.SetBootBase("core_1.snap")
-
-	s.startOverlord(c)
-	st := s.overlord.State()
-	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true}
-	chg, _ := s.makeSeedChange(c, st, opts, checkPreseedTasks, checkPreseedOrder)
-	err := s.overlord.Settle(settleTimeout)
-
-	st.Lock()
-	defer st.Unlock()
-
-	c.Assert(err, IsNil)
-	c.Assert(chg.Err(), IsNil)
-
-	checkPreseedTaskStates(c, st)
-}
-
-func (s *firstbootPreseed16Suite) TestPreseedOnClassicHappy(c *C) {
-	restore := snapdenv.MockPreseeding(true)
-	defer restore()
 
 	restoreRelease := release.MockOnClassic(true)
-	defer restoreRelease()
+	s.AddCleanup(restoreRelease)
 
 	mockMountCmd := testutil.MockCommand(c, "mount", "")
-	defer mockMountCmd.Restore()
+	s.AddCleanup(mockMountCmd.Restore)
 
 	mockUmountCmd := testutil.MockCommand(c, "umount", "")
-	defer mockUmountCmd.Restore()
+	s.AddCleanup(mockUmountCmd.Restore)
+}
+
+func (s *firstbootPreseedingClassic16Suite) TestPreseedOnClassicHappy(c *C) {
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
+
+	// precondition
+	c.Assert(release.OnClassic, Equals, true)
 
 	coreFname, _, _ := s.makeCoreSnaps(c, "")
 
@@ -387,21 +337,15 @@ snaps:
 	// but we're not considered seeded
 	var seeded bool
 	err = diskState.Get("seeded", &seeded)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
-func (s *firstbootPreseed16Suite) TestPreseedClassicWithSnapdOnlyHappy(c *C) {
+func (s *firstbootPreseedingClassic16Suite) TestPreseedClassicWithSnapdOnlyHappy(c *C) {
 	restorePreseedMode := snapdenv.MockPreseeding(true)
 	defer restorePreseedMode()
 
-	restore := release.MockOnClassic(true)
-	defer restore()
-
-	mockMountCmd := testutil.MockCommand(c, "mount", "")
-	defer mockMountCmd.Restore()
-
-	mockUmountCmd := testutil.MockCommand(c, "umount", "")
-	defer mockUmountCmd.Restore()
+	// precondition
+	c.Assert(release.OnClassic, Equals, true)
 
 	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{
 		classic: true,
@@ -480,5 +424,5 @@ snaps:
 	// but we're not considered seeded
 	var seeded bool
 	err = diskState.Get("seeded", &seeded)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }

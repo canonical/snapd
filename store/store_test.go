@@ -77,7 +77,7 @@ var (
 )
 
 func (suite *configTestSuite) TestSetBaseURL(c *C) {
-	// Sanity check to prove at least one URI changes.
+	// Validity check to prove at least one URI changes.
 	cfg := store.DefaultConfig()
 	c.Assert(cfg.StoreBaseURL.String(), Equals, "https://api.snapcraft.io/")
 
@@ -631,7 +631,7 @@ func (s *storeTestSuite) TestEnsureDeviceSession(c *C) {
 		case authNoncesPath:
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
-			// sanity of request
+			// validity of request
 			jsonReq, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
@@ -678,7 +678,7 @@ func (s *storeTestSuite) TestEnsureDeviceSessionSerialisation(c *C) {
 		case authNoncesPath:
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
-			// sanity of request
+			// validity of request
 			jsonReq, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
@@ -766,7 +766,7 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 		case authNoncesPath:
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
-			// sanity of request
+			// validity of request
 			jsonReq, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
@@ -857,7 +857,7 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesBothAuths(c *C) {
 		case authNoncesPath:
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
-			// sanity of request
+			// validity of request
 			jsonReq, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
@@ -2110,7 +2110,7 @@ func (s *storeTestSuite) TestFindV1Queries(c *C) {
 		c.Check(r.URL.Path, Matches, ".*/search")
 		c.Check(query.Get("fields"), Equals, "abc,def")
 
-		// write dummy json so that Find doesn't re-try due to json decoder EOF error
+		// write test json so that Find doesn't re-try due to json decoder EOF error
 		io.WriteString(w, "{}")
 
 		switch n {

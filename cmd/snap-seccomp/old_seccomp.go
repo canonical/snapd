@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build oldseccomp
 // +build oldseccomp
 
 /*

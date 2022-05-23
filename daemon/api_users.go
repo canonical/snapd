@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os/user"
@@ -349,7 +350,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		st.Lock()
 		serial, err = c.d.overlord.DeviceManager().Serial()
 		st.Unlock()
-		if err != nil && err != state.ErrNoState {
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return InternalError("cannot create user: cannot get serial: %v", err)
 		}
 	}

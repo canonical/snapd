@@ -1,18 +1,18 @@
 summary: Integration tests for the bootstrap.Run
 
-# use the same system and tooling as uc20
-systems: [ubuntu-20.04-64]
+# use the same system and tooling as uc20/uc22
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
     SNAPD_DEBUG: "1"
+    DISK_MAPPING_JSON: /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/disk-mapping.json
 
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
-    truncate --size=20GB fake.img
+    truncate --size=5GB fake.img
 
     echo "Setup the image as a block device"
-    losetup -fP fake.img
-    losetup -a |grep fake.img|cut -f1 -d: > loop.txt
+    losetup --show -fP fake.img >loop.txt
     LOOP="$(cat loop.txt)"
 
     echo "Create a partition that looks like a uc20 image"
@@ -30,8 +30,17 @@ prepare: |
     sfdisk -l "$LOOP" | MATCH 'BIOS boot'
     sfdisk -l "$LOOP" | MATCH 'EFI System'
 
+    # Resize the disk without resizing the partition table
+    truncate --size=20GB fake.img
+    losetup -c "${LOOP}"
+    partx -u "${LOOP}"
+
     echo "Get the UC20 gadget"
-    snap download --channel=20/edge pc
+    if os.query is-focal; then
+        snap download --channel=20/edge pc
+    elif os.query is-jammy; then
+        snap download --channel=22/edge pc
+    fi
     unsquashfs -d gadget-dir pc_*.snap
 
 restore: |
@@ -46,14 +55,13 @@ restore: |
     if mountpoint ./mnt; then
         umount ./mnt
     fi
-    # sanity check
+    # precondition check
     mount | NOMATCH /run/mnt
     if [ -f loop.txt ]; then
         LOOP="$(cat loop.txt)"
         losetup -d "$LOOP"
         losetup -l | NOMATCH "$LOOP"
     fi
-    rm -f "$GOHOME"/bin/uc20-create-partitions
 
 debug: |
     cat /proc/partitions
@@ -69,7 +77,6 @@ execute: |
     LOOP="$(cat loop.txt)"
 
     echo "Run the snap-bootstrap tool"
-    go get ../../lib/uc20-create-partitions
     # TODO:UC20: make kernel-dir non-empty once we have a gadget that has a
     #            "$kernel:" style ref in the meta/gadget.yaml
     kerneldir=""
@@ -147,7 +154,7 @@ execute: |
             filesystem-label: other-ext4
             size: 110M
     EOF
-    uc20-create-partitions ./gadget-dir "$kerneldir" "$LOOP" 2>&1 | MATCH "panic: gadget and ${LOOP} partition table not compatible: cannot find gadget structure #6 \(\"Other ext4\"\) on disk"
+    uc20-create-partitions ./gadget-dir "$kerneldir" "$LOOP" 2>&1 | MATCH "panic: gadget and system-boot device ${LOOP} partition table not compatible: cannot find gadget structure #6 \(\"Other ext4\"\) on disk"
 
     # replace the gadget.yaml without the extra partition
     cp gadget.yaml.backup gadget-dir/meta/gadget.yaml
@@ -167,3 +174,66 @@ execute: |
 
     echo "Make sure the filesystem was redeployed"
     ls /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
+
+    echo "Check the disk-mapping.json has expected contents"
+
+    LOOP_BASENAME="$(basename "$LOOP")"
+
+    # disk things
+    jq -r '.pc.size'               < "$DISK_MAPPING_JSON" | MATCH 20000000000
+    jq -r '.pc."sector-size"'      < "$DISK_MAPPING_JSON" | MATCH 512
+    jq -r '.pc."device-path"'      < "$DISK_MAPPING_JSON" | MATCH "/sys/devices/virtual/block/$LOOP_BASENAME"
+    jq -r '.pc."kernel-path"'      < "$DISK_MAPPING_JSON" | MATCH "$LOOP"
+    jq -r '.pc.schema'             < "$DISK_MAPPING_JSON" | MATCH gpt
+    jq -r '.pc.structure | length' < "$DISK_MAPPING_JSON" | MATCH 5
+
+    # note: no partition "id" for gpt disks
+
+    # first structure - "BIOS Boot"
+    # note: no filesystem for the BIOS Boot structure
+    jq -r '.pc.structure[0]."device-path"'      < "$DISK_MAPPING_JSON" | MATCH "/sys/devices/virtual/block/$LOOP_BASENAME/${LOOP_BASENAME}p1"
+    jq -r '.pc.structure[0]."kernel-path"'      < "$DISK_MAPPING_JSON" | MATCH "${LOOP}p1"
+    jq -r '.pc.structure[0]."filesystem-label"' < "$DISK_MAPPING_JSON" | MATCH ""
+    jq -r '.pc.structure[0]."partition-label"'  < "$DISK_MAPPING_JSON" | MATCH "BIOS\\\x20Boot"
+    jq -r '.pc.structure[0].id'                 < "$DISK_MAPPING_JSON" | MATCH ""
+    jq -r '.pc.structure[0].offset'             < "$DISK_MAPPING_JSON" | MATCH 1048576
+    jq -r '.pc.structure[0].size'               < "$DISK_MAPPING_JSON" | MATCH 1048576
+
+    # second structure - ubuntu-seed
+    # TODO: for some reason udev does not identify ubuntu-seed as having a
+    # filesystem label, I think this has something to do with how we create it
+    # artificially above
+    jq -r '.pc.structure[1]."device-path"'      < "$DISK_MAPPING_JSON" | MATCH "/sys/devices/virtual/block/$LOOP_BASENAME/${LOOP_BASENAME}p2"
+    jq -r '.pc.structure[1]."kernel-path"'      < "$DISK_MAPPING_JSON" | MATCH "${LOOP}p2"
+    jq -r '.pc.structure[1]."filesystem-label"' < "$DISK_MAPPING_JSON" | MATCH ""
+    jq -r '.pc.structure[1]."partition-label"'  < "$DISK_MAPPING_JSON" | MATCH ubuntu-seed
+    jq -r '.pc.structure[1].id'                 < "$DISK_MAPPING_JSON" | MATCH ""
+    jq -r '.pc.structure[1].offset'             < "$DISK_MAPPING_JSON" | MATCH 2097152
+    jq -r '.pc.structure[1].size'               < "$DISK_MAPPING_JSON" | MATCH 1258291200
+
+    # third structure - ubuntu-boot
+    jq -r '.pc.structure[2]."device-path"'      < "$DISK_MAPPING_JSON" | MATCH "/sys/devices/virtual/block/$LOOP_BASENAME/${LOOP_BASENAME}p3"
+    jq -r '.pc.structure[2]."kernel-path"'      < "$DISK_MAPPING_JSON" | MATCH "${LOOP}p3"
+    jq -r '.pc.structure[2]."filesystem-label"' < "$DISK_MAPPING_JSON" | MATCH ubuntu-boot
+    jq -r '.pc.structure[2]."partition-label"'  < "$DISK_MAPPING_JSON" | MATCH ubuntu-boot
+    jq -r '.pc.structure[2].id'                 < "$DISK_MAPPING_JSON" | MATCH ""
+    jq -r '.pc.structure[2].offset'             < "$DISK_MAPPING_JSON" | MATCH 1260388352
+    jq -r '.pc.structure[2].size'               < "$DISK_MAPPING_JSON" | MATCH 786432000
+
+    # fourth structure - ubuntu-save
+    jq -r '.pc.structure[3]."device-path"'      < "$DISK_MAPPING_JSON" | MATCH "/sys/devices/virtual/block/$LOOP_BASENAME/${LOOP_BASENAME}p4"
+    jq -r '.pc.structure[3]."kernel-path"'      < "$DISK_MAPPING_JSON" | MATCH "${LOOP}p4"
+    jq -r '.pc.structure[3]."filesystem-label"' < "$DISK_MAPPING_JSON" | MATCH ubuntu-save
+    jq -r '.pc.structure[3]."partition-label"'  < "$DISK_MAPPING_JSON" | MATCH ubuntu-save
+    jq -r '.pc.structure[3].id'                 < "$DISK_MAPPING_JSON" | MATCH ""
+    jq -r '.pc.structure[3].offset'             < "$DISK_MAPPING_JSON" | MATCH 2046820352
+    jq -r '.pc.structure[3].size'               < "$DISK_MAPPING_JSON" | MATCH 16777216
+
+    # fifth structure - ubuntu-data
+    jq -r '.pc.structure[4]."device-path"'      < "$DISK_MAPPING_JSON" | MATCH "/sys/devices/virtual/block/$LOOP_BASENAME/${LOOP_BASENAME}p5"
+    jq -r '.pc.structure[4]."kernel-path"'      < "$DISK_MAPPING_JSON" | MATCH "${LOOP}p5"
+    jq -r '.pc.structure[4]."filesystem-label"' < "$DISK_MAPPING_JSON" | MATCH ubuntu-data
+    jq -r '.pc.structure[4]."partition-label"'  < "$DISK_MAPPING_JSON" | MATCH ubuntu-data
+    jq -r '.pc.structure[4].id'                 < "$DISK_MAPPING_JSON" | MATCH ""
+    jq -r '.pc.structure[4].offset'             < "$DISK_MAPPING_JSON" | MATCH 2063597568
+    jq -r '.pc.structure[4].size'               < "$DISK_MAPPING_JSON" | MATCH 17936385536

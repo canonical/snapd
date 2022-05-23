@@ -10,6 +10,10 @@ environment:
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local $SNAP_NAME
 
+restore: |
+    echo "Ensure snap is removed even if something goes wrong"
+    snap remove "$SNAP_NAME"
+
 execute: |
     echo "When the interface is connected"
     snap connect "$SNAP_NAME:kernel-module-load"
@@ -18,14 +22,14 @@ execute: |
     MODPROBE_CONF="/etc/modprobe.d/snap.$SNAP_NAME.conf"
     MATCH "blacklist mymodule" < "$MODPROBE_CONF"
     MATCH "blacklist other_module" < "$MODPROBE_CONF"
-    MATCH "options parport_pc io=0x3bc,0x278 irq=none" < "$MODPROBE_CONF"
-    NOMATCH "blacklist parport_pc" < "$MODPROBE_CONF"
+    MATCH "options bfq slice_idle_us=20 strict_guarantees=1" < "$MODPROBE_CONF"
+    NOMATCH "blacklist bfq" < "$MODPROBE_CONF"
     NOMATCH "pcspkr" < "$MODPROBE_CONF"
 
     echo "And modules are configured to be auto-loaded"
     MODULES_LOAD_CONF="/etc/modules-load.d/snap.$SNAP_NAME.conf"
-    MATCH "parport_pc" < "$MODULES_LOAD_CONF"
-    MATCH "pcspkr" < "$MODULES_LOAD_CONF"
+    MATCH "bfq" < "$MODULES_LOAD_CONF"
+    MATCH "arc4" < "$MODULES_LOAD_CONF"
     NOMATCH "mymodule" < "$MODULES_LOAD_CONF"
 
     echo "Disconnect the interface"

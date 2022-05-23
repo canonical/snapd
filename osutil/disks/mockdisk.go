@@ -228,18 +228,18 @@ func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping)
 		}
 	}
 
-	// check StructureIndex across each disk
+	// check DiskIndex across each disk
 	for _, disk := range mockedDisks {
 		seenIndices := map[uint64]bool{}
 		for _, p := range disk.Structure {
-			if p.StructureIndex == 0 {
+			if p.DiskIndex == 0 {
 				continue
 			}
 
-			if seenIndices[p.StructureIndex] {
+			if seenIndices[p.DiskIndex] {
 				panic("mock error: duplicated structure indices for partitions in disk mapping")
 			}
-			seenIndices[p.StructureIndex] = true
+			seenIndices[p.DiskIndex] = true
 		}
 	}
 
@@ -401,7 +401,7 @@ func MockMountPointDisksToPartitionMapping(mockedMountPoints map[Mountpoint]*Moc
 		if mockedDisk, ok := mockedMountPoints[m]; ok {
 			return mockedDisk, nil
 		}
-		return nil, fmt.Errorf("mountpoint %s not mocked", mountpoint)
+		return nil, fmt.Errorf("mountpoint %+v not mocked", m)
 	}
 	return func() {
 		diskFromMountPoint = old

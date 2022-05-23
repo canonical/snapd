@@ -27,8 +27,11 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/image/preseed"
+
 	// for SanitizePlugsSlots
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -44,13 +47,20 @@ first-boot startup time`
 )
 
 type options struct {
-	Reset bool `long:"reset"`
+	Reset               bool   `long:"reset"`
+	PreseedSignKey      string `long:"preseed-sign-key"`
+	AppArmorFeaturesDir string `long:"apparmor-features-dir"`
 }
 
 var (
-	osGetuid           = os.Getuid
-	Stdout   io.Writer = os.Stdout
-	Stderr   io.Writer = os.Stderr
+	osGetuid = os.Getuid
+	// unused currently, left in place for consistency for when it is needed
+	// Stdout   io.Writer = os.Stdout
+	Stderr io.Writer = os.Stderr
+
+	preseedCore20               = preseed.Core20
+	preseedClassic              = preseed.Classic
+	preseedResetPreseededChroot = preseed.ResetPreseededChroot
 
 	opts options
 )
@@ -63,6 +73,12 @@ func Parser() *flags.Parser {
 	return parser
 }
 
+func probeCore20ImageDir(dir string) bool {
+	sysDir := filepath.Join(dir, "system-seed")
+	_, isDir, _ := osutil.DirExists(sysDir)
+	return isDir
+}
+
 func main() {
 	parser := Parser()
 	if err := run(parser, os.Args[1:]); err != nil {
@@ -71,7 +87,7 @@ func main() {
 	}
 }
 
-func run(parser *flags.Parser, args []string) error {
+func run(parser *flags.Parser, args []string) (err error) {
 	// real validation of plugs and slots; needs to be set
 	// for processing of seeds with gadget because of readInfo().
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
@@ -100,20 +116,11 @@ func run(parser *flags.Parser, args []string) error {
 	}
 
 	if opts.Reset {
-		return resetPreseededChroot(chrootDir)
+		return preseedResetPreseededChroot(chrootDir)
 	}
 
-	if err := checkChroot(chrootDir); err != nil {
-		return err
+	if probeCore20ImageDir(chrootDir) {
+		return preseedCore20(chrootDir, opts.PreseedSignKey, opts.AppArmorFeaturesDir)
 	}
-
-	targetSnapd, cleanup, err := prepareChroot(chrootDir)
-	if err != nil {
-		return err
-	}
-
-	// executing inside the chroot
-	err = runPreseedMode(chrootDir, targetSnapd)
-	cleanup()
-	return err
+	return preseedClassic(chrootDir)
 }

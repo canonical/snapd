@@ -21,6 +21,9 @@
 package restart
 
 import (
+	"errors"
+
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -45,7 +48,7 @@ const (
 
 // Handler can handle restart requests and whether expected reboots happen.
 type Handler interface {
-	HandleRestart(t RestartType)
+	HandleRestart(t RestartType, rebootInfo *boot.RebootInfo)
 	// RebootAsExpected is called early when either a reboot was
 	// requested by snapd and happened or no reboot was expected at all.
 	RebootAsExpected(st *state.State) error
@@ -66,7 +69,7 @@ func Init(st *state.State, curBootID string, h Handler) error {
 	}
 	var fromBootID string
 	err := st.Get("system-restart-from-boot-id", &fromBootID)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	st.Cache(restartStateKey{}, rs)
@@ -94,9 +97,9 @@ type restartState struct {
 	bootID     string
 }
 
-func (rs *restartState) handleRestart(t RestartType) {
+func (rs *restartState) handleRestart(t RestartType, rebootInfo *boot.RebootInfo) {
 	if rs.h != nil {
-		rs.h.HandleRestart(t)
+		rs.h.HandleRestart(t, rebootInfo)
 	}
 }
 
@@ -116,7 +119,7 @@ func (rs *restartState) rebootDidNotHappen(st *state.State) error {
 
 // Request asks for a restart of the managing process.
 // The state needs to be locked to request a restart.
-func Request(st *state.State, t RestartType) {
+func Request(st *state.State, t RestartType, rebootInfo *boot.RebootInfo) {
 	cached := st.Cached(restartStateKey{})
 	if cached == nil {
 		panic("internal error: cannot request a restart before restart.Init")
@@ -127,7 +130,7 @@ func Request(st *state.State, t RestartType) {
 		st.Set("system-restart-from-boot-id", rs.bootID)
 	}
 	rs.restarting = t
-	rs.handleRestart(t)
+	rs.handleRestart(t, rebootInfo)
 }
 
 // Pending returns whether a restart was requested with Request and of which type.

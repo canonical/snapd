@@ -23,8 +23,13 @@ package signtool
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/snapcore/snapd/asserts"
+)
+
+var (
+	Stdout = os.Stdout
 )
 
 // Options specifies the complete input for signing an assertion.

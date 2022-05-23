@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -106,7 +107,7 @@ func (r *refreshHints) AtSeed() error {
 	if release.OnClassic {
 		var t1 time.Time
 		err := r.state.Get("last-refresh-hints", &t1)
-		if err != state.ErrNoState {
+		if !errors.Is(err, state.ErrNoState) {
 			// already set or other error
 			return err
 		}
@@ -219,7 +220,7 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 
 	err = st.Get("refresh-candidates", &candidates)
 	if err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			return nil
 		}
 		return err

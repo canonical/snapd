@@ -41,12 +41,12 @@ const removableMediaConnectedPlugAppArmor = `
 
 # Mount points could be in /run/media/<user>/* or /media/<user>/*
 /{,run/}media/*/ r,
-/{,run/}media/*/** rwkl,
+/{,run/}media/*/** mrwklix,
 
 # Allow read-only access to /mnt to enumerate items.
 /mnt/ r,
 # Allow write access to anything under /mnt
-/mnt/** rwkl,
+/mnt/** mrwklix,
 `
 
 func init() {

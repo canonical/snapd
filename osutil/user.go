@@ -28,8 +28,15 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/snapcore/snapd/osutil/sys"
+)
+
+var (
+	userLookup  = user.Lookup
+	userCurrent = user.Current
+	sudoersDotD = "/etc/sudoers.d"
 )
 
 var sudoersTemplate = `
@@ -281,6 +288,24 @@ func DelUser(name string, opts *DelUserOptions) error {
 	return nil
 }
 
+// Note: this is best effort, comparing err here with UnknownUserError
+// is inherently flawed and may end up missing some legitimate unknown
+// user errors, see the comment on findGidNoGetentFallback in group.go
+// for more details. It seems the most common return value is ENOENT so
+// check for that too (e.g. when the sssd package is installed).
+func isUnknownUserOrEnoent(err error) bool {
+	if err == nil {
+		return false
+	}
+	if _, ok := err.(user.UnknownUserError); ok {
+		return true
+	}
+	// Check for ENOENT, ideally go itself would handle this, see
+	// https://github.com/golang/go/issues/40334 for the upstream
+	// bug
+	return strings.HasSuffix(err.Error(), syscall.ENOENT.Error())
+}
+
 // UserMaybeSudoUser finds the user behind a sudo invocation when root, if
 // applicable and possible. Otherwise the current user is returned.
 //
@@ -304,15 +329,14 @@ func UserMaybeSudoUser() (*user.User, error) {
 	}
 
 	real, err := user.Lookup(realName)
-
-	// Note: comparing err here with UnknownUserError is inherently flawed and
-	// may end up missing some legitimate unknown user errors, see the comment
-	// on findGidNoGetentFallback in group.go for more details.
-	// however in this case the effect is not worrisome, because if we fail to
+	// This is a best effort, see the comment in findGidNoGetentFallback in
+	// group.go.
+	//
+	// But here the effect is not worrisome, because if we fail to
 	// identify the error as unknown user, we will just fail here and won't
 	// inadvertently raise or lower permissions, as the current user is already
 	// root in this codepath
-	if _, ok := err.(user.UnknownUserError); ok {
+	if isUnknownUserOrEnoent(err) {
 		return cur, nil
 	}
 	if err != nil {

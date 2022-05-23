@@ -235,6 +235,43 @@ func (spec *Specification) UpdateNSIndexOf(snippet string) (idx int, ok bool) {
 	return spec.updateNS.IndexOf(snippet)
 }
 
+func (spec *Specification) emitLayout(si *snap.Info, layout *snap.Layout) {
+	emit := spec.AddUpdateNSf
+
+	emit("  # Layout %s\n", layout.String())
+	path := si.ExpandSnapVariables(layout.Path)
+	switch {
+	case layout.Bind != "":
+		bind := si.ExpandSnapVariables(layout.Bind)
+		// Allow bind mounting the layout element.
+		emit("  mount options=(rbind, rw) \"%s/\" -> \"%s/\",\n", bind, path)
+		emit("  mount options=(rprivate) -> \"%s/\",\n", path)
+		emit("  umount \"%s/\",\n", path)
+		// Allow constructing writable mimic in both bind-mount source and mount point.
+		GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
+		GenWritableProfile(emit, bind, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
+	case layout.BindFile != "":
+		bindFile := si.ExpandSnapVariables(layout.BindFile)
+		// Allow bind mounting the layout element.
+		emit("  mount options=(bind, rw) \"%s\" -> \"%s\",\n", bindFile, path)
+		emit("  mount options=(rprivate) -> \"%s\",\n", path)
+		emit("  umount \"%s\",\n", path)
+		// Allow constructing writable mimic in both bind-mount source and mount point.
+		GenWritableFileProfile(emit, path, 2)     // At least / and /some-top-level-directory
+		GenWritableFileProfile(emit, bindFile, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
+	case layout.Type == "tmpfs":
+		emit("  mount fstype=tmpfs tmpfs -> \"%s/\",\n", path)
+		emit("  mount options=(rprivate) -> \"%s/\",\n", path)
+		emit("  umount \"%s/\",\n", path)
+		// Allow constructing writable mimic to mount point.
+		GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
+	case layout.Symlink != "":
+		// Allow constructing writable mimic to symlink parent directory.
+		emit("  \"%s\" rw,\n", path)
+		GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
+	}
+}
+
 // AddLayout adds apparmor snippets based on the layout of the snap.
 //
 // The per-snap snap-update-ns profiles are composed via a template and
@@ -252,24 +289,24 @@ func (spec *Specification) UpdateNSIndexOf(snippet string) (idx int, ok bool) {
 //   the data)
 // Importantly, the above mount operations are happening within the per-snap
 // mount namespace.
-func (spec *Specification) AddLayout(si *snap.Info) {
-	if len(si.Layout) == 0 {
+func (spec *Specification) AddLayout(snapInfo *snap.Info) {
+	if len(snapInfo.Layout) == 0 {
 		return
 	}
 
 	// Walk the layout elements in deterministic order, by mount point name.
-	paths := make([]string, 0, len(si.Layout))
-	for path := range si.Layout {
+	paths := make([]string, 0, len(snapInfo.Layout))
+	for path := range snapInfo.Layout {
 		paths = append(paths, path)
 	}
 	sort.Strings(paths)
 
 	// Get tags describing all apps and hooks.
-	tags := make([]string, 0, len(si.Apps)+len(si.Hooks))
-	for _, app := range si.Apps {
+	tags := make([]string, 0, len(snapInfo.Apps)+len(snapInfo.Hooks))
+	for _, app := range snapInfo.Apps {
 		tags = append(tags, app.SecurityTag())
 	}
-	for _, hook := range si.Hooks {
+	for _, hook := range snapInfo.Hooks {
 		tags = append(tags, hook.SecurityTag())
 	}
 
@@ -280,49 +317,27 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 	}
 	for _, tag := range tags {
 		for _, path := range paths {
-			snippet := snippetFromLayout(si.Layout[path])
+			snippet := snippetFromLayout(snapInfo.Layout[path])
 			spec.snippets[tag] = append(spec.snippets[tag], snippet)
 		}
 		sort.Strings(spec.snippets[tag])
 	}
 
-	emit := spec.AddUpdateNSf
-
 	// Append update-ns snippets that allow constructing the layout.
 	for _, path := range paths {
-		l := si.Layout[path]
-		emit("  # Layout %s\n", l.String())
-		path := si.ExpandSnapVariables(l.Path)
-		switch {
-		case l.Bind != "":
-			bind := si.ExpandSnapVariables(l.Bind)
-			// Allow bind mounting the layout element.
-			emit("  mount options=(rbind, rw) %s/ -> %s/,\n", bind, path)
-			emit("  mount options=(rprivate) -> %s/,\n", path)
-			emit("  umount %s/,\n", path)
-			// Allow constructing writable mimic in both bind-mount source and mount point.
-			GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
-			GenWritableProfile(emit, bind, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
-		case l.BindFile != "":
-			bindFile := si.ExpandSnapVariables(l.BindFile)
-			// Allow bind mounting the layout element.
-			emit("  mount options=(bind, rw) %s -> %s,\n", bindFile, path)
-			emit("  mount options=(rprivate) -> %s,\n", path)
-			emit("  umount %s,\n", path)
-			// Allow constructing writable mimic in both bind-mount source and mount point.
-			GenWritableFileProfile(emit, path, 2)     // At least / and /some-top-level-directory
-			GenWritableFileProfile(emit, bindFile, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
-		case l.Type == "tmpfs":
-			emit("  mount fstype=tmpfs tmpfs -> %s/,\n", path)
-			emit("  mount options=(rprivate) -> %s/,\n", path)
-			emit("  umount %s/,\n", path)
-			// Allow constructing writable mimic to mount point.
-			GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
-		case l.Symlink != "":
-			// Allow constructing writable mimic to symlink parent directory.
-			emit("  %s rw,\n", path)
-			GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
-		}
+		layout := snapInfo.Layout[path]
+		spec.emitLayout(snapInfo, layout)
+	}
+}
+
+// AddExtraLayouts adds additional apparmor snippets based on the provided layouts.
+// The function is in part identical to AddLayout, except that it considers only the
+// layouts passed as parameters instead of those declared in the snap.Info structure.
+// XXX: Should we just combine this into AddLayout instead of this separate
+// function?
+func (spec *Specification) AddExtraLayouts(si *snap.Info, layouts []snap.Layout) {
+	for _, layout := range layouts {
+		spec.emitLayout(si, &layout)
 	}
 }
 
@@ -374,7 +389,7 @@ func GenWritableMimicProfile(emit func(f string, args ...interface{}), path stri
 	emit("  # .. permissions for traversing the prefix that is assumed to exist\n")
 	for iter.Next() {
 		if iter.Depth() < assumedPrefixDepth {
-			emit("  %s r,\n", iter.CurrentPath())
+			emit("  \"%s\" r,\n", iter.CurrentPath())
 		}
 	}
 
@@ -392,33 +407,33 @@ func GenWritableMimicProfile(emit func(f string, args ...interface{}), path stri
 		mimicAuxPath := filepath.Join("/tmp/.snap", iter.CurrentPath()) + "/"
 		emit("  # .. variant with mimic at %s\n", mimicPath)
 		emit("  # Allow reading the mimic directory, it must exist in the first place.\n")
-		emit("  %s r,\n", mimicPath)
+		emit("  \"%s\" r,\n", mimicPath)
 		emit("  # Allow setting the read-only directory aside via a bind mount.\n")
-		emit("  %s rw,\n", mimicAuxPath)
-		emit("  mount options=(rbind, rw) %s -> %s,\n", mimicPath, mimicAuxPath)
+		emit("  \"%s\" rw,\n", mimicAuxPath)
+		emit("  mount options=(rbind, rw) \"%s\" -> \"%s\",\n", mimicPath, mimicAuxPath)
 		emit("  # Allow mounting tmpfs over the read-only directory.\n")
-		emit("  mount fstype=tmpfs options=(rw) tmpfs -> %s,\n", mimicPath)
+		emit("  mount fstype=tmpfs options=(rw) tmpfs -> \"%s\",\n", mimicPath)
 		emit("  # Allow creating empty files and directories for bind mounting things\n" +
 			"  # to reconstruct the now-writable parent directory.\n")
-		emit("  %s*/ rw,\n", mimicAuxPath)
-		emit("  %s*/ rw,\n", mimicPath)
-		emit("  mount options=(rbind, rw) %s*/ -> %s*/,\n", mimicAuxPath, mimicPath)
-		emit("  %s* rw,\n", mimicAuxPath)
-		emit("  %s* rw,\n", mimicPath)
-		emit("  mount options=(bind, rw) %s* -> %s*,\n", mimicAuxPath, mimicPath)
+		emit("  \"%s*/\" rw,\n", mimicAuxPath)
+		emit("  \"%s*/\" rw,\n", mimicPath)
+		emit("  mount options=(rbind, rw) \"%s*/\" -> \"%s*/\",\n", mimicAuxPath, mimicPath)
+		emit("  \"%s*\" rw,\n", mimicAuxPath)
+		emit("  \"%s*\" rw,\n", mimicPath)
+		emit("  mount options=(bind, rw) \"%s*\" -> \"%s*\",\n", mimicAuxPath, mimicPath)
 		emit("  # Allow unmounting the auxiliary directory.\n" +
 			"  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)\n")
-		emit("  mount options=(rprivate) -> %s,\n", mimicAuxPath)
-		emit("  umount %s,\n", mimicAuxPath)
+		emit("  mount options=(rprivate) -> \"%s\",\n", mimicAuxPath)
+		emit("  umount \"%s\",\n", mimicAuxPath)
 		emit("  # Allow unmounting the destination directory as well as anything\n" +
 			"  # inside.  This lets us perform the undo plan in case the writable\n" +
 			"  # mimic fails.\n")
-		emit("  mount options=(rprivate) -> %s,\n", mimicPath)
-		emit("  mount options=(rprivate) -> %s*,\n", mimicPath)
-		emit("  mount options=(rprivate) -> %s*/,\n", mimicPath)
-		emit("  umount %s,\n", mimicPath)
-		emit("  umount %s*,\n", mimicPath)
-		emit("  umount %s*/,\n", mimicPath)
+		emit("  mount options=(rprivate) -> \"%s\",\n", mimicPath)
+		emit("  mount options=(rprivate) -> \"%s*\",\n", mimicPath)
+		emit("  mount options=(rprivate) -> \"%s*/\",\n", mimicPath)
+		emit("  umount \"%s\",\n", mimicPath)
+		emit("  umount \"%s*\",\n", mimicPath)
+		emit("  umount \"%s*/\",\n", mimicPath)
 	}
 }
 
@@ -429,9 +444,9 @@ func GenWritableFileProfile(emit func(f string, args ...interface{}), path strin
 	}
 	if isProbablyWritable(path) {
 		emit("  # Writable file %s\n", path)
-		emit("  %s rw,\n", path)
+		emit("  \"%s\" rw,\n", path)
 		for p := parent(path); !isProbablyPresent(p); p = parent(p) {
-			emit("  %s/ rw,\n", p)
+			emit("  \"%s/\" rw,\n", p)
 		}
 	} else {
 		parentPath := parent(path)
@@ -447,7 +462,7 @@ func GenWritableProfile(emit func(f string, args ...interface{}), path string, a
 	if isProbablyWritable(path) {
 		emit("  # Writable directory %s\n", path)
 		for p := path; !isProbablyPresent(p); p = parent(p) {
-			emit("  %s/ rw,\n", p)
+			emit("  \"%s/\" rw,\n", p)
 		}
 	} else {
 		parentPath := parent(path)
@@ -541,9 +556,9 @@ func (spec *Specification) UpdateNS() []string {
 func snippetFromLayout(layout *snap.Layout) string {
 	mountPoint := layout.Snap.ExpandSnapVariables(layout.Path)
 	if layout.Bind != "" || layout.Type == "tmpfs" {
-		return fmt.Sprintf("# Layout path: %s\n%s{,/**} mrwklix,", mountPoint, mountPoint)
+		return fmt.Sprintf("# Layout path: %s\n\"%s{,/**}\" mrwklix,", mountPoint, mountPoint)
 	} else if layout.BindFile != "" {
-		return fmt.Sprintf("# Layout path: %s\n%s mrwklix,", mountPoint, mountPoint)
+		return fmt.Sprintf("# Layout path: %s\n\"%s\" mrwklix,", mountPoint, mountPoint)
 	}
 	return fmt.Sprintf("# Layout path: %s\n# (no extra permissions required for symlink)", mountPoint)
 }

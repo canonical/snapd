@@ -65,6 +65,8 @@ var (
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 	kernelFeatures        = apparmor_sandbox.KernelFeatures
 	parserFeatures        = apparmor_sandbox.ParserFeatures
+	loadProfiles          = apparmor_sandbox.LoadProfiles
+	unloadProfiles        = apparmor_sandbox.UnloadProfiles
 
 	// make sure that apparmor profile fulfills the late discarding backend
 	// interface
@@ -74,6 +76,9 @@ var (
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
 type Backend struct {
 	preseed bool
+
+	coreSnap  *snap.Info
+	snapdSnap *snap.Info
 }
 
 // Name returns the name of the backend.
@@ -85,6 +90,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	if opts != nil && opts.Preseed {
 		b.preseed = true
+	}
+
+	if opts != nil {
+		b.coreSnap = opts.CoreSnapInfo
+		b.snapdSnap = opts.SnapdSnapInfo
 	}
 	// NOTE: It would be nice if we could also generate the profile for
 	// snap-confine executing from the core snap, right here, and not have to
@@ -199,12 +209,11 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		return nil
 	}
 
-	aaFlags := skipReadCache
+	aaFlags := apparmor_sandbox.SkipReadCache
 	if b.preseed {
-		aaFlags |= skipKernelLoad
+		aaFlags |= apparmor_sandbox.SkipKernelLoad
 	}
 
-	// We are not using apparmor.LoadProfiles() because it uses other cache.
 	if err := loadProfiles([]string{profilePath}, apparmor_sandbox.SystemCacheDir, aaFlags); err != nil {
 		// When we cannot reload the profile then let's remove the generated
 		// policy. Maybe we have caused the problem so it's better to let other
@@ -240,7 +249,16 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	patchedProfileText := bytes.Replace(
 		vanillaProfileText, []byte("/usr/lib/snapd/snap-confine"), []byte(snapConfineInCore), -1)
 
-	// We need to add a uniqe prefix that can never collide with a
+	// Also replace the test providing access to verbatim
+	// /usr/lib/snapd/snap-confine, which is necessary because to execute snaps
+	// from strict snaps, we need to be able read and map
+	// /usr/lib/snapd/snap-confine from inside the strict snap mount namespace,
+	// even though /usr/lib/snapd/snap-confine from inside the strict snap mount
+	// namespace is actually a bind mount to the "snapConfineInCore"
+	patchedProfileText = bytes.Replace(
+		patchedProfileText, []byte("#@VERBATIM_LIBEXECDIR_SNAP_CONFINE@"), []byte("/usr/lib/snapd/snap-confine"), -1)
+
+	// We need to add a unique prefix that can never collide with a
 	// snap on the system. Using "snap-confine.*" is similar to
 	// "snap-update-ns.*" that is already used there
 	//
@@ -317,9 +335,9 @@ func (b *Backend) setupSnapConfineReexec(info *snap.Info) error {
 		pathnames[i] = filepath.Join(dir, profile)
 	}
 
-	var aaFlags aaParserFlags
+	var aaFlags apparmor_sandbox.AaParserFlags
 	if b.preseed {
-		aaFlags = skipKernelLoad
+		aaFlags = apparmor_sandbox.SkipKernelLoad
 	}
 	errReload := loadProfiles(pathnames, cache, aaFlags)
 	errUnload := unloadProfiles(removed, cache)
@@ -393,6 +411,9 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 
 	// Add snippets derived from the layout definition.
 	spec.(*Specification).AddLayout(snapInfo)
+
+	// Add additional mount layouts rules for the snap.
+	spec.(*Specification).AddExtraLayouts(snapInfo, opts.ExtraLayouts)
 
 	// core on classic is special
 	if snapName == "core" && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
@@ -483,9 +504,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// work despite time being wrong (e.g. in the past). For more details see
 	// https://forum.snapcraft.io/t/apparmor-profile-caching/1268/18
 	var errReloadChanged error
-	aaFlags := skipReadCache
+	aaFlags := apparmor_sandbox.SkipReadCache
 	if b.preseed {
-		aaFlags |= skipKernelLoad
+		aaFlags |= apparmor_sandbox.SkipKernelLoad
 	}
 	timings.Run(tm, "load-profiles[changed]", fmt.Sprintf("load changed security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
 		errReloadChanged = loadProfiles(prof.changed, apparmor_sandbox.CacheDir, aaFlags)
@@ -497,7 +518,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	var errReloadOther error
 	aaFlags = 0
 	if b.preseed {
-		aaFlags |= skipKernelLoad
+		aaFlags |= apparmor_sandbox.SkipKernelLoad
 	}
 	timings.Run(tm, "load-profiles[unchanged]", fmt.Sprintf("load unchanged security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
 		errReloadOther = loadProfiles(prof.unchanged, apparmor_sandbox.CacheDir, aaFlags)
@@ -535,18 +556,18 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 	}
 
 	if !fallback {
-		aaFlags := skipReadCache | conserveCPU
+		aaFlags := apparmor_sandbox.SkipReadCache | apparmor_sandbox.ConserveCPU
 		if b.preseed {
-			aaFlags |= skipKernelLoad
+			aaFlags |= apparmor_sandbox.SkipKernelLoad
 		}
 		var errReloadChanged error
 		timings.Run(tm, "load-profiles[changed-many]", fmt.Sprintf("load changed security profiles of %d snaps", len(snaps)), func(nesttm timings.Measurer) {
 			errReloadChanged = loadProfiles(allChangedPaths, apparmor_sandbox.CacheDir, aaFlags)
 		})
 
-		aaFlags = conserveCPU
+		aaFlags = apparmor_sandbox.ConserveCPU
 		if b.preseed {
-			aaFlags |= skipKernelLoad
+			aaFlags |= apparmor_sandbox.SkipKernelLoad
 		}
 		var errReloadOther error
 		timings.Run(tm, "load-profiles[unchanged-many]", fmt.Sprintf("load unchanged security profiles %d snaps", len(snaps)), func(nesttm timings.Measurer) {
@@ -630,12 +651,12 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 	// Add profile for each app.
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
-		addContent(securityTag, snapInfo, appInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
+		b.addContent(securityTag, snapInfo, appInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
 	}
 	// Add profile for each hook.
 	for _, hookInfo := range snapInfo.Hooks {
 		securityTag := hookInfo.SecurityTag()
-		addContent(securityTag, snapInfo, "hook."+hookInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
+		b.addContent(securityTag, snapInfo, "hook."+hookInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
 	}
 	// Add profile for snap-update-ns if we have any apps or hooks.
 	// If we have neither then we don't have any need to create an executing environment.
@@ -676,7 +697,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string
 	}
 }
 
-func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
+func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
 	// If base is specified and it doesn't match the core snaps (not
 	// specifying a base should use the default core policy since in this
 	// case, the 'core' snap is used for the runtime), use the base
@@ -704,6 +725,150 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 	}
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {
+		case "###DEVMODE_SNAP_CONFINE###":
+			if !opts.DevMode {
+				// nothing to add if we are not in devmode
+				return ""
+			}
+
+			// otherwise we need to generate special policy to allow executing
+			// snap-confine from inside a devmode snap
+
+			// TODO: we should deprecate this and drop it in a future release
+
+			// assumes coreSnapInfo is not nil
+			coreProfileTarget := func() string {
+				return fmt.Sprintf("/snap/core/%s/usr/lib/snapd/snap-confine", b.coreSnap.SnapRevision().String())
+			}
+
+			// assumes snapdSnapInfo is not nil
+			snapdProfileTarget := func() string {
+				return fmt.Sprintf("/snap/snapd/%s/usr/lib/snapd/snap-confine", b.snapdSnap.SnapRevision().String())
+			}
+
+			// There are 3 main apparmor exec transition rules we need to
+			// generate:
+			// * exec( /usr/lib/snapd/snap-confine ... )
+			// * exec( /snap/snapd/<rev>/usr/lib/snapd/snap-confine ... )
+			// * exec( /snap/core/<rev>/usr/lib/snapd/snap-confine ... )
+
+			// The latter two can always transition to their respective
+			// revisioned profiles unambiguously if each snap is installed.
+
+			// The former rule for /usr/lib/snapd/snap-confine however is
+			// more tricky. First, we can say that if only the snapd snap is
+			// installed, to just transition to that profile and be done. If
+			// just the core snap is installed, then we can deduce this
+			// system is either UC16 or a classic one, in both cases though
+			// we have /usr/lib/snapd/snap-confine defined as the profile to
+			// transition to.
+			// If both snaps are installed however, then we need to branch
+			// and pick a profile that exists, we can't just arbitrarily
+			// pick one profile because not all profiles will exist on all
+			// systems actually, for example the snap-confine profile from
+			// the core snap will not be generated/installed on UC18+. We
+			// can simplify the logic however by realizing that no matter
+			// the relative version numbers of snapd and core, when
+			// executing a snap with base other than core (i.e. base core18
+			// or core20), the snapd snap's version of snap-confine will
+			// always be used for various reasons. This is also true for
+			// base: core snaps, but only on non-classic systems. So we
+			// essentially say that /usr/lib/snapd/snap-confine always
+			// transitions to the snapd snap profile if the base is not
+			// core or if the system is not classic. If the base is core and
+			// the system is classic, then the core snap profile will be
+			// used.
+
+			usrLibSnapdConfineTransitionTarget := ""
+			switch {
+			case b.coreSnap != nil && b.snapdSnap == nil:
+				// only core snap - use /usr/lib/snapd/snap-confine always
+				usrLibSnapdConfineTransitionTarget = "/usr/lib/snapd/snap-confine"
+			case b.snapdSnap != nil && b.coreSnap == nil:
+				// only snapd snap - use snapd snap version
+				usrLibSnapdConfineTransitionTarget = snapdProfileTarget()
+			case b.snapdSnap != nil && b.coreSnap != nil:
+				// both are installed - need to check which one to use
+				// note that a base of "core" is represented by base == "" for
+				// historical reasons
+				if release.OnClassic && snapInfo.Base == "" {
+					// use the core snap as the target only if we are on
+					// classic and the base is core
+					usrLibSnapdConfineTransitionTarget = coreProfileTarget()
+				} else {
+					// otherwise always use snapd
+					usrLibSnapdConfineTransitionTarget = snapdProfileTarget()
+				}
+
+			default:
+				// neither of the snaps are installed
+
+				// TODO: this panic is unfortunate, but we don't have time
+				// to do any better for this security release
+				// It is actually important that we panic here, the only
+				// known circumstance where this happens is when we are
+				// seeding during first boot of UC16 with a very new core
+				// snap (i.e. with the security fix of 2.54.3) and also have
+				// a devmode confined snap in the seed to prepare. In this
+				// situation, when we panic(), we force snapd to exit, and
+				// systemd will restart us and we actually recover the
+				// initial seed change and continue on. This code will be
+				// removed/adapted before it is merged to the main branch,
+				// it is only meant to exist on the security release branch.
+				msg := fmt.Sprintf("neither snapd nor core snap available while preparing apparmor profile for devmode snap %s, panicing to restart snapd to continue seeding", snapInfo.InstanceName())
+				panic(msg)
+			}
+
+			// We use Pxr for all these rules since the snap-confine profile
+			// is not a child profile of the devmode complain profile we are
+			// generating right now.
+			usrLibSnapdConfineTransitionRule := fmt.Sprintf("/usr/lib/snapd/snap-confine Pxr -> %s,\n", usrLibSnapdConfineTransitionTarget)
+
+			coreSnapConfineSnippet := ""
+			if b.coreSnap != nil {
+				coreSnapConfineSnippet = fmt.Sprintf("/snap/core/*/usr/lib/snapd/snap-confine Pxr -> %s,\n", coreProfileTarget())
+			}
+
+			snapdSnapConfineSnippet := ""
+			if b.snapdSnap != nil {
+				snapdSnapConfineSnippet = fmt.Sprintf("/snap/snapd/*/usr/lib/snapd/snap-confine Pxr -> %s,\n", snapdProfileTarget())
+			}
+
+			nonBaseCoreTransitionSnippet := coreSnapConfineSnippet + "\n" + snapdSnapConfineSnippet
+
+			// include both rules for the core snap and the snapd snap since
+			// we can't know which one will be used at runtime (for example
+			// SNAP_REEXEC could be set which affects which one is used)
+			return fmt.Sprintf(`
+  # allow executing the snap command from either the rootfs (for base: core) or
+  # from the system snaps (all other bases) - this is very specifically only to
+  # enable proper apparmor profile transition to snap-confine below, if we don't
+  # include these exec rules, then when executing the snap command, apparmor 
+  # will create a new, unique sub-profile which then cannot be transitioned from
+  # to the actual snap-confine profile
+  /usr/bin/snap ixr,
+  /snap/{snapd,core}/*/usr/bin/snap ixr,
+
+  # allow transitioning to snap-confine to support executing strict snaps from
+  # inside devmode confined snaps
+
+  # this first rule is to handle the case of exec()ing 
+  # /usr/lib/snapd/snap-confine directly, the profile we transition to depends
+  # on whether we are classic or not, what snaps (snapd or core) are installed
+  # and also whether this snap is a base: core snap or a differently based snap.
+  # see the comment in interfaces/backend/apparmor.go where this snippet is
+  # generated for the full context
+  %[1]s
+
+  # the second (and possibly third if both core and snapd are installed) rule is
+  # to handle direct exec() of snap-confine from the respective snaps directly, 
+  # this happens mostly on non-core based snaps, wherein the base snap has a 
+  # symlink from /usr/bin/snap -> /snap/snapd/current/usr/bin/snap, which makes
+  # the snap command execute snap-confine directly from the associated system 
+  # snap in /snap/{snapd,core}/<rev>/usr/lib/snapd/snap-confine
+  %[2]s
+`, usrLibSnapdConfineTransitionRule, nonBaseCoreTransitionSnippet)
+
 		case "###VAR###":
 			return templateVariables(snapInfo, securityTag, cmdName)
 		case "###PROFILEATTACH###":

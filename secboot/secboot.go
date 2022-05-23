@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 const (
@@ -58,7 +59,7 @@ func NewLoadChain(bf bootloader.BootFile, next ...*LoadChain) *LoadChain {
 
 type SealKeyRequest struct {
 	// The key to seal
-	Key EncryptionKey
+	Key keys.EncryptionKey
 	// The key name; identical keys should have identical names
 	KeyName string
 	// The path to store the sealed key file. The same Key/KeyName
@@ -107,7 +108,7 @@ type SealKeysWithFDESetupHookParams struct {
 	// Initial model to bind sealed keys to.
 	Model ModelForSealing
 	// AuxKey is the auxiliary key used to bind models.
-	AuxKey AuxKey
+	AuxKey keys.AuxKey
 	// The path to the aux key file (if empty the key will not be
 	// saved)
 	AuxKeyFile string

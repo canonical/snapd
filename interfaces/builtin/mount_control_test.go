@@ -238,6 +238,26 @@ apps:
 			"mount:\n  - what: /\n    where: /media/../etc",
 			`mount-control "where" pattern is not clean:.*`,
 		},
+		{
+			"mount:\n  - what: none\n    where: /media/*\n    options: [rw]",
+			`mount-control "what" attribute can be "none" only with "tmpfs"`,
+		},
+		{
+			"mount:\n  - what: none\n    where: /media/*\n    options: [rw]\n    type: [ext4,ntfs]",
+			`mount-control "what" attribute can be "none" only with "tmpfs"`,
+		},
+		{
+			"mount:\n  - what: none\n    where: /media/*\n    options: [rw]\n    type: [tmpfs,ext4]",
+			`mount-control filesystem type "tmpfs" cannot be listed with other types`,
+		},
+		{
+			"mount:\n  - what: /\n    where: /media/*\n    options: [rw]\n    type: [tmpfs]",
+			`mount-control "what" attribute must be "none" with "tmpfs"; found "/" instead`,
+		},
+		{
+			"mount:\n  - what: /\n    where: $SNAP_DATA/foo\n    options: [ro]\n    persistent: true",
+			`mount-control "persistent" attribute cannot be used to mount onto \$SNAP_DATA`,
+		},
 	}
 
 	for _, testData := range data {
@@ -264,22 +284,22 @@ func (s *MountControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `capability sys_admin,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/{,usr/}bin/mount ixr,`)
 
-	expectedMountLine1 := `mount fstype=(ext2,ext3,ext4) options=(rw,sync) "/dev/sd*" -> "/media/**",`
+	expectedMountLine1 := `mount fstype=(ext2,ext3,ext4) options=(rw,sync) "/dev/sd*" -> "/media/**{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine1)
 
-	expectedMountLine2 := `mount  options=(bind) "/usr/**" -> "/var/snap/consumer/common/**",`
+	expectedMountLine2 := `mount  options=(bind) "/usr/**" -> "/var/snap/consumer/common/**{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine2)
 
 	expectedMountLine3 := `mount fstype=(` +
 		`aufs,autofs,btrfs,ext2,ext3,ext4,hfs,iso9660,jfs,msdos,ntfs,ramfs,` +
 		`reiserfs,squashfs,tmpfs,ubifs,udf,ufs,vfat,zfs,xfs` +
-		`) options=(ro) "/dev/sda{0,1}" -> "/var/snap/consumer/common/**",`
+		`) options=(ro) "/dev/sda{0,1}" -> "/var/snap/consumer/common/**{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine3)
 
 	expectedMountLine4 := `mount fstype=(` +
 		`aufs,autofs,btrfs,ext2,ext3,ext4,hfs,iso9660,jfs,msdos,ntfs,ramfs,` +
 		`reiserfs,squashfs,tmpfs,ubifs,udf,ufs,vfat,zfs,xfs` +
-		`) options=(sync) "/dev/sda[0-1]" -> "/var/snap/consumer/common/{foo,other,**}",`
+		`) options=(sync) "/dev/sda[0-1]" -> "/var/snap/consumer/common/{foo,other,**}{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine4)
 }
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -46,14 +46,20 @@ import (
 )
 
 var (
-	// the output of "show" must match this for Stop to be done:
+	// The output of 'systemctl show' for the ActiveState property must
+	// either be 'failed' or 'inactive' to detect as a valid stop. Any
+	// other value, including no output, results in an assumption that
+	// the queried service(s) are still running.
 	isStopDone = regexp.MustCompile(`(?m)\AActiveState=(?:failed|inactive)$`).Match
 
 	// how much time should Stop wait between calls to show
 	stopCheckDelay = 250 * time.Millisecond
 
-	// how much time should Stop wait between notifying the user of the waiting
-	stopNotifyDelay = 20 * time.Second
+	// Empirical test results on slower targets (i.e. on Raspberry Pi 3)
+	// show that trying to stop 4 systemd units under heavy CPU and IO
+	// load can take 750ms to complete. Only generate notifications for
+	// units still running after 1 second to minimize noise.
+	stopNotifyDelay = time.Second
 
 	// daemonReloadLock is a package level lock to ensure that we
 	// do not run any `systemd daemon-reload` while a
@@ -134,11 +140,43 @@ func MockSystemdVersion(version int, injectedError error) (restore func()) {
 	}
 }
 
-// MockSystemctl is called from the commands to actually call out to
-// systemctl. It's exported so it can be overridden by testing.
+// MockSystemctl allows to mock the systemctl invocations.
+// The provided function will be called when systemctl would be invoked.
+// The function can return the output and an error.
 func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
+	var mutex sync.Mutex
 	oldSystemctlCmd := systemctlCmd
-	systemctlCmd = f
+	systemctlCmd = func(args ...string) ([]byte, error) {
+		// Thread-safe wrapper to call the locked systemctl
+		mutex.Lock()
+		defer mutex.Unlock()
+		return f(args...)
+	}
+	return func() {
+		systemctlCmd = oldSystemctlCmd
+	}
+}
+
+// MockSystemctlWithDelay allows to mock the systemctl invocations.
+// The provided function will be called when systemctl would be invoked.
+// The function can return the output and an error. Also the function
+// can return a delay that will be respected before completing the
+// mocked invocation.
+func MockSystemctlWithDelay(f func(args ...string) ([]byte, time.Duration, error)) func() {
+	var mutex sync.Mutex
+	oldSystemctlCmd := systemctlCmd
+	systemctlCmd = func(args ...string) (bs []byte, err error) {
+		// Thread-safe wrapper to call the locked systemctl
+		var delay time.Duration
+		func() {
+			mutex.Lock()
+			defer mutex.Unlock()
+			bs, delay, err = f(args...)
+		}()
+		// Emulate the delay outside the lock
+		time.Sleep(delay)
+		return bs, err
+	}
 	return func() {
 		systemctlCmd = oldSystemctlCmd
 	}
@@ -295,20 +333,20 @@ type Systemd interface {
 	// only necessary to apply manager's configuration like
 	// watchdog.
 	DaemonReexec() error
-	// Enable the given service.
-	Enable(service string) error
-	// Disable the given service.
-	Disable(service string) error
+	// EnableNoReload the given services, do not reload systemd.
+	EnableNoReload(services []string) error
+	// DisableNoReload the given services, do not reload system.
+	DisableNoReload(services []string) error
 	// Start the given service or services.
-	Start(service ...string) error
+	Start(service []string) error
 	// StartNoBlock starts the given service or services non-blocking.
-	StartNoBlock(service ...string) error
+	StartNoBlock(service []string) error
 	// Stop the given service, and wait until it has stopped.
-	Stop(service string, timeout time.Duration) error
+	Stop(services []string) error
 	// Kill all processes of the unit with the given signal.
 	Kill(service, signal, who string) error
 	// Restart the service, waiting for it to stop before starting it again.
-	Restart(service string, timeout time.Duration) error
+	Restart(services []string) error
 	// Reload or restart the service via 'systemctl reload-or-restart'
 	ReloadOrRestart(service string) error
 	// RestartAll restarts the given service using systemctl restart --all
@@ -316,7 +354,7 @@ type Systemd interface {
 	// Status fetches the status of given units. Statuses are
 	// returned in the same order as unit names passed in
 	// argument.
-	Status(units ...string) ([]*UnitStatus, error)
+	Status(units []string) ([]*UnitStatus, error)
 	// InactiveEnterTimestamp returns the time that the given unit entered the
 	// inactive state as defined by the systemd docs. Specifically, this time is
 	// the most recent time in which the unit transitioned from deactivating
@@ -358,6 +396,25 @@ type Systemd interface {
 	// threads if enabled, etc) part of the unit, which can be a service or a
 	// slice.
 	CurrentTasksCount(unit string) (uint64, error)
+	// Run a command
+	Run(command []string, opts *RunOptions) ([]byte, error)
+}
+
+// KeyringMode describes how the kernel keyring is setup, see systemd.exec(5)
+type KeyringMode string
+
+const (
+	KeyringModeInherit KeyringMode = "inherit"
+	KeyringModePrivate KeyringMode = "private"
+	KeyringModeShared  KeyringMode = "shared"
+)
+
+// RunOptions can be passed to systemd.Run()
+type RunOptions struct {
+	// XXX: alternative we could just have `Propertes []string` here
+	//      and let the caller do the keyring setup but feels a bit loose
+	KeyringMode KeyringMode
+	Stdin       io.Reader
 }
 
 // A Log is a single entry in the systemd journal.
@@ -501,13 +558,20 @@ func (s *systemd) DaemonReexec() error {
 	return err
 }
 
-func (s *systemd) Enable(serviceName string) error {
-	var err error
-	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "enable", serviceName)
-	} else {
-		_, err = s.systemctl("enable", serviceName)
+func (s *systemd) EnableNoReload(serviceNames []string) error {
+	if 0 == len(serviceNames) {
+		return nil
 	}
+	var args []string
+	if s.rootDir != "" {
+		// passing root already implies no reload
+		args = append(args, "--root", s.rootDir)
+	} else {
+		args = append(args, "--no-reload")
+	}
+	args = append(args, "enable")
+	args = append(args, serviceNames...)
+	_, err := s.systemctl(args...)
 	return err
 }
 
@@ -521,13 +585,20 @@ func (s *systemd) Unmask(serviceName string) error {
 	return err
 }
 
-func (s *systemd) Disable(serviceName string) error {
-	var err error
-	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "disable", serviceName)
-	} else {
-		_, err = s.systemctl("disable", serviceName)
+func (s *systemd) DisableNoReload(serviceNames []string) error {
+	if 0 == len(serviceNames) {
+		return nil
 	}
+	var args []string
+	if s.rootDir != "" {
+		// passing root already implies no reload
+		args = append(args, "--root", s.rootDir)
+	} else {
+		args = append(args, "--no-reload")
+	}
+	args = append(args, "disable")
+	args = append(args, serviceNames...)
+	_, err := s.systemctl(args...)
 	return err
 }
 
@@ -541,7 +612,7 @@ func (s *systemd) Mask(serviceName string) error {
 	return err
 }
 
-func (s *systemd) Start(serviceNames ...string) error {
+func (s *systemd) Start(serviceNames []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call start with GlobalUserMode")
 	}
@@ -549,7 +620,7 @@ func (s *systemd) Start(serviceNames ...string) error {
 	return err
 }
 
-func (s *systemd) StartNoBlock(serviceNames ...string) error {
+func (s *systemd) StartNoBlock(serviceNames []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call start with GlobalUserMode")
 	}
@@ -579,10 +650,14 @@ type UnitStatus struct {
 	Active  bool
 	// Installed is false if the queried unit doesn't exist.
 	Installed bool
+	// NeedDaemonReload is true when systemd reports that the unit on disk
+	// has been modified and may differ from systemd's internal state, thus
+	// a daemon-reload is needed.
+	NeedDaemonReload bool
 }
 
 var baseProperties = []string{"Id", "ActiveState", "UnitFileState", "Names"}
-var extendedProperties = []string{"Id", "ActiveState", "UnitFileState", "Type", "Names"}
+var extendedProperties = []string{"Id", "ActiveState", "UnitFileState", "Type", "Names", "NeedDaemonReload"}
 var unitProperties = map[string][]string{
 	".timer":  baseProperties,
 	".socket": baseProperties,
@@ -599,7 +674,7 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 	// ask for all properties, regardless of unit type
 	cmd[1] = "--property=" + strings.Join(properties, ",")
 	copy(cmd[2:], unitNames)
-	multiLineReply, err := s.systemctl(cmd...)
+	bs, err := s.systemctl(cmd...)
 	if err != nil {
 		return nil, err
 	}
@@ -608,17 +683,10 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 	cur := &UnitStatus{}
 	seen := map[string]bool{}
 
-	// systemctl replies with a byte array which includes newlines. The regex
-	// processing the '--property=<...>' request breaks this up into single
-	// line key/value pairs, or an empty line separating properties of
-	// different units in the same request. Each line consists of an array
-	// of byte strings, i.e. [ "match", "key", "value" ].
-	for _, line := range statusregex.FindAllSubmatch(multiLineReply, -1) {
-		if len(line[0]) == 0 {
+	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
+		if len(bs[0]) == 0 {
 			if len(sts) >= len(unitNames) {
-				return nil, fmt.Errorf("requested: %s\ngot:\n%serror: more results than expected",
-					strings.Join(cmd, " "),
-					strings.Join(statusregex.FindAllString(string(multiLineReply), -1), "\n"))
+				return nil, fmt.Errorf("cannot get unit status: got more results than expected")
 			}
 
 			// The 'systemctl' command can return the status parameters for a
@@ -669,11 +737,11 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 			seen = map[string]bool{}
 			continue
 		}
-		if len(line[3]) > 0 {
-			return nil, fmt.Errorf("cannot get unit status: bad line %q in ‘systemctl show’ output", line[3])
+		if len(bs[3]) > 0 {
+			return nil, fmt.Errorf("cannot get unit status: bad line %q in ‘systemctl show’ output", bs[3])
 		}
-		k := string(line[1])
-		v := string(line[2])
+		k := string(bs[1])
+		v := string(bs[2])
 
 		if v == "" && k != "UnitFileState" && k != "Type" {
 			return nil, fmt.Errorf("cannot get unit status: empty field %q in ‘systemctl show’ output", k)
@@ -694,6 +762,8 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 		case "Names":
 			// This list can include Alias names for a unit (but also includes Id)
 			cur.Names = strings.Fields(v)
+		case "NeedDaemonReload":
+			cur.NeedDaemonReload = v == "yes"
 		default:
 			return nil, fmt.Errorf("cannot get unit status: unexpected field %q in ‘systemctl show’ output", k)
 		}
@@ -705,9 +775,7 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 	}
 
 	if len(sts) != len(unitNames) {
-		return nil, fmt.Errorf("requested: %s\ngot:\n%serror: fewer results than expected",
-			strings.Join(cmd, " "),
-			strings.Join(statusregex.FindAllString(string(multiLineReply), -1), "\n"))
+		return nil, fmt.Errorf("cannot get unit status: expected %d results, got %d", len(unitNames), len(sts))
 	}
 	return sts, nil
 }
@@ -720,16 +788,16 @@ func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error
 	if s.rootDir != "" {
 		cmd = append([]string{"--root", s.rootDir}, cmd...)
 	}
-	multiLineReply, err := s.systemctl(cmd...)
+	bs, err := s.systemctl(cmd...)
 	if err != nil {
 		// is-enabled returns non-zero if no units are
 		// enabled.  We still need to examine the output to
 		// track the other units.
 		sysdErr := err.(systemctlError)
-		multiLineReply = sysdErr.Msg()
+		bs = sysdErr.Msg()
 	}
 
-	results := bytes.Split(bytes.Trim(multiLineReply, "\n"), []byte("\n"))
+	results := bytes.Split(bytes.Trim(bs, "\n"), []byte("\n"))
 	if len(results) != len(unitNames) {
 		return nil, fmt.Errorf("cannot get enabled status of services: expected %d results, got %d", len(unitNames), len(results))
 	}
@@ -828,7 +896,7 @@ func (s *systemd) InactiveEnterTimestamp(unit string) (time.Time, error) {
 	return inactiveEnterTime, nil
 }
 
-func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
+func (s *systemd) Status(unitNames []string) ([]*UnitStatus, error) {
 	if s.mode == GlobalUserMode {
 		return s.getGlobalUserStatus(unitNames...)
 	}
@@ -928,46 +996,116 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	return false, err
 }
 
-func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
+func (s *systemd) Stop(serviceNames []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call stop with GlobalUserMode")
 	}
-	if _, err := s.systemctl("stop", serviceName); err != nil {
-		return err
-	}
 
-	// and now wait for it to actually stop
-	giveup := time.NewTimer(timeout)
-	notify := time.NewTicker(stopNotifyDelay)
-	defer notify.Stop()
-	check := time.NewTicker(stopCheckDelay)
-	defer check.Stop()
+	// Start the real time progress tracking inside a go routine because the
+	// 'systemctl stop' request is blocking (which runs in the parent function).
+	// Note that although the status polling thread is separate, and could start
+	// before the 'systemctl stop' command, the poll ticker will not fire
+	// immediately, allowing the stop command to start first. The ordering is
+	// not assumed, but it helps make existing unit-test code work, because the
+	// systemctl mocking in some modules are implemented very simplistically, and
+	// assumes that the 'stop' argument comes before the 'show'.
+	errorRet := make(chan error)
+	quit := make(chan interface{})
 
-	firstCheck := true
-loop:
-	for {
-		select {
-		case <-giveup.C:
-			break loop
-		case <-check.C:
-			multiLineReply, err := s.systemctl("show", "--property=ActiveState", serviceName)
-			if err != nil {
-				return err
+	go func() {
+		// The polling routine is the 'errorRet' channel sender, so we make
+		// sure we exit closing the channel explicitly, even though we always
+		// return the error result first. Closing the channel does not free the
+		// object, the reader can still access the object. The object is only
+		// freed when no further references exit.
+		defer close(errorRet)
+
+		notify := time.NewTimer(stopNotifyDelay)
+		check := time.NewTicker(stopCheckDelay)
+		defer check.Stop()
+
+		// We start with a notice grace period to give services time to stop.
+		// Once this period expires, we provide user notifications every time
+		// the list of services we are waiting for changes (or on the first
+		// change of 'notifyEnable', which is detected by 'notifyShowFirst')
+		notifyEnable := false
+		notifyShowFirst := false
+
+		// Once the async systemd stop completes, we do one last status poll
+		// to make sure we have the most up to date state.
+		stopComplete := false
+
+		for {
+			select {
+			case <-quit:
+				// We are now complete, but poll final state of units
+				stopComplete = true
+
+			case <-check.C:
+				// Enable state poll of units
+
+			case <-notify.C:
+				// Enable user notifications and trigger first message
+				notifyEnable = true
+				notifyShowFirst = true
 			}
-			if isStopDone(multiLineReply) {
-				return nil
+
+			// Check if any of the remaining running units have stopped?
+			stillRunningServices := []string{}
+			for _, service := range serviceNames {
+				bs, err := s.systemctl("show", "--property=ActiveState", service)
+				if err != nil {
+					errorRet <- err
+					return
+				}
+				if !isStopDone(bs) {
+					stillRunningServices = append(stillRunningServices, service)
+				}
 			}
-			if !firstCheck {
-				continue loop
+
+			// Any remaining running units stopped?
+			somethingChanged := len(serviceNames) != len(stillRunningServices)
+
+			// We only poll units still running.
+			serviceNames = stillRunningServices
+
+			if len(serviceNames) == 0 || stopComplete {
+				// We return without explicitly writing to the error channel
+				// because the deferred close will cause the pending channel
+				// read to return a nil error.
+				return
 			}
-			firstCheck = false
-		case <-notify.C:
+
+			// The first time the notification silence period expires we print
+			// an update, or on any subsequent change to the list of waiting units.
+			if (notifyEnable && somethingChanged) || notifyShowFirst {
+				s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", strutil.Quoted(serviceNames)))
+				notifyShowFirst = false
+			}
 		}
-		// after notify delay or after a failed first check
-		s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", serviceName))
+	}()
+
+	// This command blocks until the 'systemctl stop' completes
+	_, errStop := s.systemctl(append([]string{"stop"}, serviceNames...)...)
+
+	// Notify the progress loop to exit since systemctl completed the request
+	close(quit)
+
+	// Wait until the progress loop returns
+	errProgress := <-errorRet
+
+	// If we have an error from 'systemctl stop', return this as first priority
+	if errStop != nil {
+		return errStop
 	}
 
-	return &Timeout{action: "stop", service: serviceName}
+	// If we have an error from 'systemctl show', return this as second priority
+	if errProgress != nil {
+		return errProgress
+	}
+
+	// Stopped and no error
+	return nil
 }
 
 func (s *systemd) Kill(serviceName, signal, who string) error {
@@ -981,14 +1119,14 @@ func (s *systemd) Kill(serviceName, signal, who string) error {
 	return err
 }
 
-func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
+func (s *systemd) Restart(serviceNames []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
-	if err := s.Stop(serviceName, timeout); err != nil {
+	if err := s.Stop(serviceNames); err != nil {
 		return err
 	}
-	return s.Start(serviceName)
+	return s.Start(serviceNames)
 }
 
 func (s *systemd) RestartAll(serviceName string) error {
@@ -1030,23 +1168,6 @@ func (e *Error) Error() string {
 		return fmt.Sprintf("systemctl command %v failed with: %v%s", e.cmd, e.runErr, msg)
 	}
 	return fmt.Sprintf("systemctl command %v failed with exit status %d%s", e.cmd, e.exitCode, msg)
-}
-
-// Timeout is returned if the systemd action failed to reach the
-// expected state in a reasonable amount of time
-type Timeout struct {
-	action  string
-	service string
-}
-
-func (e *Timeout) Error() string {
-	return fmt.Sprintf("%v failed to %v: timeout", e.service, e.action)
-}
-
-// IsTimeout checks whether the given error is a Timeout
-func IsTimeout(err error) bool {
-	_, isTimeout := err.(*Timeout)
-	return isTimeout
 }
 
 func (l Log) parseLogRawMessageString(key string, sliceHandler func([]string) (string, error)) (string, error) {
@@ -1338,10 +1459,11 @@ func (s *systemd) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (st
 		return "", err
 	}
 
-	if err := s.Enable(mountUnitName); err != nil {
+	units := []string{mountUnitName}
+	if err := s.EnableNoReload(units); err != nil {
 		return "", err
 	}
-	if err := s.Start(mountUnitName); err != nil {
+	if err := s.Start(units); err != nil {
 		return "", err
 	}
 
@@ -1365,16 +1487,17 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	if err != nil {
 		return err
 	}
+	units := []string{filepath.Base(unit)}
 	if isMounted {
 		if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
 			return osutil.OutputErr(output, err)
 		}
 
-		if err := s.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+		if err := s.Stop(units); err != nil {
 			return err
 		}
 	}
-	if err := s.Disable(filepath.Base(unit)); err != nil {
+	if err := s.DisableNoReload(units); err != nil {
 		return err
 	}
 	if err := os.Remove(unit); err != nil {
@@ -1509,4 +1632,32 @@ func (s *systemd) Umount(whatOrWhere string) error {
 		return osutil.OutputErr(output, err)
 	}
 	return nil
+}
+
+// Run runs the given command via "sytemd-run" and returns the output
+// or an error if the command fails.
+func (s *systemd) Run(command []string, opts *RunOptions) ([]byte, error) {
+	if opts == nil {
+		opts = &RunOptions{}
+	}
+	runArgs := []string{
+		"--wait",
+		"--pipe",
+		"--collect",
+		"--service-type=exec",
+		"--quiet",
+	}
+	if opts.KeyringMode != "" {
+		runArgs = append(runArgs, fmt.Sprintf("--property=KeyringMode=%v", opts.KeyringMode))
+	}
+	runArgs = append(runArgs, "--")
+	runArgs = append(runArgs, command...)
+	cmd := exec.Command("systemd-run", runArgs...)
+	cmd.Stdin = opts.Stdin
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("cannot run %q: %v", command, osutil.OutputErr(output, err))
+	}
+	return output, nil
 }

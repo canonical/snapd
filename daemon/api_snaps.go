@@ -190,16 +190,17 @@ type snapInstruction struct {
 	Action string `json:"action"`
 	Amend  bool   `json:"amend"`
 	snapRevisionOptions
-	DevMode                bool     `json:"devmode"`
-	JailMode               bool     `json:"jailmode"`
-	Classic                bool     `json:"classic"`
-	IgnoreValidation       bool     `json:"ignore-validation"`
-	IgnoreRunning          bool     `json:"ignore-running"`
-	Unaliased              bool     `json:"unaliased"`
-	Purge                  bool     `json:"purge,omitempty"`
-	SystemRestartImmediate bool     `json:"system-restart-immediate"`
-	Snaps                  []string `json:"snaps"`
-	Users                  []string `json:"users"`
+	DevMode                bool                   `json:"devmode"`
+	JailMode               bool                   `json:"jailmode"`
+	Classic                bool                   `json:"classic"`
+	IgnoreValidation       bool                   `json:"ignore-validation"`
+	IgnoreRunning          bool                   `json:"ignore-running"`
+	Unaliased              bool                   `json:"unaliased"`
+	Purge                  bool                   `json:"purge,omitempty"`
+	SystemRestartImmediate bool                   `json:"system-restart-immediate"`
+	Transaction            client.TransactionType `json:"transaction"`
+	Snaps                  []string               `json:"snaps"`
+	Users                  []string               `json:"users"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -256,6 +257,15 @@ func (inst *snapInstruction) validate() error {
 				return fmt.Errorf(`cannot install "ubuntu-core", please use "core" instead`)
 			}
 		}
+	}
+	switch inst.Transaction {
+	case "":
+	case client.TransactionPerSnap, client.TransactionAllSnaps:
+		if inst.Action != "install" && inst.Action != "refresh" {
+			return fmt.Errorf(`transaction type is unsupported for %q actions`, inst.Action)
+		}
+	default:
+		return fmt.Errorf("invalid value for transaction type: %s", inst.Transaction)
 	}
 
 	return inst.snapRevisionOptions.validate()
@@ -568,7 +578,8 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 			return nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
 		}
 	}
-	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID)
+	transaction := inst.Transaction
+	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID, &snapstate.Flags{Transaction: transaction})
 	if err != nil {
 		return nil, err
 	}
@@ -604,8 +615,12 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 		return nil, err
 	}
 
+	transaction := inst.Transaction
 	// TODO: use a per-request context
-	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID, nil)
+	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID, &snapstate.Flags{
+		IgnoreRunning: inst.IgnoreRunning,
+		Transaction:   transaction,
+	})
 	if err != nil {
 		if opts.IsRefreshOfAllSnaps {
 			if err := assertstateRestoreValidationSetsTracking(st); err != nil && !errors.Is(err, state.ErrNoState) {

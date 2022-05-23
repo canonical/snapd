@@ -20,16 +20,20 @@
 package userd
 
 import (
+	"bytes"
 	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
+	"regexp"
 	"syscall"
 	"time"
 
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil"
@@ -153,10 +157,28 @@ func checkOnClassic() *dbus.Error {
 	return nil
 }
 
+// see https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#file-naming
+var validDesktopFileName = regexp.MustCompile(`^[A-Za-z-_][A-Za-z0-9-_]*(\.[A-Za-z-_][A-Za-z0-9-_]*)*\.desktop$`)
+
+func schemeHasHandler(scheme string) (bool, error) {
+	cmd := exec.Command("xdg-mime", "query", "default", "x-scheme-handler/"+scheme)
+	// TODO: consider using Output() in case xdg-mime starts logging to
+	// stderr
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false, osutil.OutputErr(out, err)
+	}
+	out = bytes.TrimSpace(out)
+	// if the output is a valid desktop file we have a handler for the given
+	// scheme
+	return validDesktopFileName.Match(out), nil
+}
+
 // OpenURL implements the 'OpenURL' method of the 'io.snapcraft.Launcher'
 // DBus interface. Before the provided url is passed to xdg-open the scheme is
 // validated against a list of allowed schemes. All other schemes are denied.
 func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
+	logger.Debugf("open url: %q", addr)
 	if err := checkOnClassic(); err != nil {
 		return err
 	}
@@ -165,8 +187,21 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 	if err != nil {
 		return &dbus.ErrMsgInvalidArg
 	}
+	if u.Scheme == "" {
+		return makeAccessDeniedError(fmt.Errorf("cannot open URL without a scheme"))
+	}
 
-	if !strutil.ListContains(allowedURLSchemes, u.Scheme) {
+	isAllowed := strutil.ListContains(allowedURLSchemes, u.Scheme)
+	if !isAllowed {
+		// scheme is not listed in our allowed schemes list, perform
+		// fallback and check whether the local system has a handler for
+		// it
+		isAllowed, err = schemeHasHandler(u.Scheme)
+		if err != nil {
+			logger.Noticef("cannot obtain scheme handler for %q: %v", u.Scheme, err)
+		}
+	}
+	if !isAllowed {
 		return makeAccessDeniedError(fmt.Errorf("Supplied URL scheme %q is not allowed", u.Scheme))
 	}
 
@@ -209,7 +244,7 @@ func fdToFilename(fd int) (string, error) {
 		return "", err
 	}
 
-	// Sanity check to ensure we've got the right file
+	// check to ensure we've got the right file
 	if fdStat.Dev != fileStat.Dev || fdStat.Ino != fileStat.Ino {
 		return "", fmt.Errorf("cannot determine file name")
 	}

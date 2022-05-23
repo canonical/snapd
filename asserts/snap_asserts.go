@@ -115,7 +115,7 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*SnapDeclaration)(nil)
 
 // Prerequisites returns references to this snap-declaration's prerequisite assertions.
@@ -476,7 +476,7 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*SnapRevision)(nil)
 
 // Prerequisites returns references to this snap-revision's prerequisite assertions.
@@ -610,7 +610,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*Validation)(nil)
 
 // Prerequisites returns references to this validation's prerequisite assertions.
@@ -684,7 +684,7 @@ func (basedcl *BaseDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*BaseDeclaration)(nil)
 
 func assembleBaseDeclaration(assert assertionBase) (Assertion, error) {
@@ -860,7 +860,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*SnapDeveloper)(nil)
 
 // Prerequisites returns references to this snap-developer's prerequisite assertions.

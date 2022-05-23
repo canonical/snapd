@@ -8,6 +8,9 @@ systems:
     # Centos 7 gives error "Unit user@12345.service not loaded."
     - -centos-7-*
 
+    # TODO: dbus issue
+    - -ubuntu-core-22-*
+
 kill-timeout: 10m
 
 prepare: |

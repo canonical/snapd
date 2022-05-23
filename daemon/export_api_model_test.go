@@ -42,6 +42,5 @@ func MockDevicestateDeviceManagerUnregister(mock func(*devicestate.DeviceManager
 }
 
 type (
-	PostModelData   = postModelData
-	ModelAssertJSON = modelAssertJSON
+	PostModelData = postModelData
 )

@@ -21,6 +21,7 @@
 package overlord
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -53,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -60,13 +62,17 @@ var (
 	ensureInterval = 5 * time.Minute
 	pruneInterval  = 10 * time.Minute
 	pruneWait      = 24 * time.Hour * 1
-	abortWait      = 24 * time.Hour * 7
+	abortWait      = 24 * time.Hour * 3
+
+	stateLockTimeout       = 1 * time.Minute
+	stateLockRetryInterval = 1 * time.Second
 
 	pruneMaxChanges = 500
 
 	defaultCachedDownloads = 5
 
 	configstateInit = configstate.Init
+	systemdSdNotify = systemd.SdNotify
 )
 
 var pruneTickerC = func(t *time.Ticker) <-chan time.Time {
@@ -76,6 +82,8 @@ var pruneTickerC = func(t *time.Ticker) <-chan time.Time {
 // Overlord is the central manager of a snappy system, keeping
 // track of all available state managers and related helpers.
 type Overlord struct {
+	stateFLock *osutil.FileLock
+
 	stateEng *StateEngine
 	// ensure loop
 	loopTomb    *tomb.Tomb
@@ -109,15 +117,14 @@ var storeNew = store.New
 // It can be provided with an optional restart.Handler.
 func New(restartHandler restart.Handler) (*Overlord, error) {
 	o := &Overlord{
-		loopTomb: new(tomb.Tomb),
-		inited:   true,
+		inited: true,
 	}
 
 	backend := &overlordStateBackend{
 		path:         dirs.SnapStateFile,
 		ensureBefore: o.ensureBefore,
 	}
-	s, err := loadState(backend, restartHandler)
+	s, err := o.loadState(backend, restartHandler)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +216,57 @@ func (o *Overlord) addManager(mgr StateManager) {
 	o.stateEng.AddManager(mgr)
 }
 
-func loadState(backend state.Backend, restartHandler restart.Handler) (*state.State, error) {
+func initStateFileLock() (*osutil.FileLock, error) {
+	lockFilePath := dirs.SnapStateLockFile
+	if err := os.MkdirAll(filepath.Dir(lockFilePath), 0755); err != nil {
+		return nil, err
+	}
+
+	return osutil.NewFileLockWithMode(lockFilePath, 0644)
+}
+
+func lockWithTimeout(l *osutil.FileLock, timeout time.Duration) error {
+	startTime := time.Now()
+	systemdWasNotified := false
+	for {
+		err := l.TryLock()
+		if err != osutil.ErrAlreadyLocked {
+			// We return nil if err is nil (that is, if we got the lock); we
+			// also return for any error except for ErrAlreadyLocked, because
+			// in that case we want to continue trying.
+			return err
+		}
+
+		// The state is locked. Let's notify systemd that our startup might be
+		// longer than usual, or we risk getting killed if we overstep the
+		// systemd timeout.
+		if !systemdWasNotified {
+			logger.Noticef("Adjusting startup timeout by %v", timeout)
+			systemdSdNotify(fmt.Sprintf("EXTEND_TIMEOUT_USEC=%d", timeout.Microseconds()))
+			systemdWasNotified = true
+		}
+
+		if time.Since(startTime) >= timeout {
+			return errors.New("timeout for state lock file expired")
+		}
+		time.Sleep(stateLockRetryInterval)
+	}
+}
+
+func (o *Overlord) loadState(backend state.Backend, restartHandler restart.Handler) (*state.State, error) {
+	flock, err := initStateFileLock()
+	if err != nil {
+		return nil, fmt.Errorf("fatal: error opening lock file: %v", err)
+	}
+	o.stateFLock = flock
+
+	logger.Noticef("Acquiring state lock file")
+	if err := lockWithTimeout(o.stateFLock, stateLockTimeout); err != nil {
+		logger.Noticef("Failed to lock state file")
+		return nil, fmt.Errorf("fatal: could not lock state file: %v", err)
+	}
+	logger.Noticef("Acquired state lock file")
+
 	curBootID, err := osutil.BootID()
 	if err != nil {
 		return nil, fmt.Errorf("fatal: cannot find current boot id: %v", err)
@@ -385,6 +442,9 @@ func (o *Overlord) Loop() {
 	if preseed {
 		o.runner.OnTaskError(preseedExitWithError)
 	}
+	if o.loopTomb == nil {
+		o.loopTomb = new(tomb.Tomb)
+	}
 	o.loopTomb.Go(func() error {
 		for {
 			// TODO: pass a proper context into Ensure
@@ -432,9 +492,17 @@ func (o *Overlord) CanStandby() bool {
 
 // Stop stops the ensure loop and the managers under the StateEngine.
 func (o *Overlord) Stop() error {
-	o.loopTomb.Kill(nil)
-	err := o.loopTomb.Wait()
+	var err error
+	if o.loopTomb != nil {
+		o.loopTomb.Kill(nil)
+		err = o.loopTomb.Wait()
+	}
 	o.stateEng.Stop()
+	if o.stateFLock != nil {
+		// This will also unlock the file
+		o.stateFLock.Close()
+		logger.Noticef("Released state lock file")
+	}
 	return err
 }
 
@@ -603,8 +671,7 @@ func Mock() *Overlord {
 // disk. Managers can be added with AddManager. For testing.
 func MockWithState(s *state.State) *Overlord {
 	o := &Overlord{
-		loopTomb: new(tomb.Tomb),
-		inited:   false,
+		inited: false,
 	}
 	if s == nil {
 		s = state.New(mockBackend{o: o})

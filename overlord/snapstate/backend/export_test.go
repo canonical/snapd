@@ -20,10 +20,12 @@
 package backend
 
 import (
+	"os"
 	"os/exec"
-	"os/user"
 
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 var (
@@ -31,6 +33,14 @@ var (
 	RemoveMountUnit = removeMountUnit
 	RemoveIfEmpty   = removeIfEmpty
 )
+
+func MockWrappersAddSnapdSnapServices(f func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) error) (restore func()) {
+	old := wrappersAddSnapdSnapServices
+	wrappersAddSnapdSnapServices = f
+	return func() {
+		wrappersAddSnapdSnapServices = old
+	}
+}
 
 func MockUpdateFontconfigCaches(f func() error) (restore func()) {
 	oldUpdateFontconfigCaches := updateFontconfigCaches
@@ -48,19 +58,18 @@ func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (re
 	}
 }
 
-func MockAllUsers(f func(options *dirs.SnapDirOptions) ([]*user.User, error)) func() {
-	old := allUsers
-	allUsers = f
-	return func() {
-		allUsers = old
-	}
-
-}
-
 func MockRemoveIfEmpty(f func(dir string) error) func() {
 	old := removeIfEmpty
 	removeIfEmpty = f
 	return func() {
 		removeIfEmpty = old
+	}
+}
+
+func MockMkdirAllChown(f func(string, os.FileMode, sys.UserID, sys.GroupID) error) func() {
+	old := mkdirAllChown
+	mkdirAllChown = f
+	return func() {
+		mkdirAllChown = old
 	}
 }

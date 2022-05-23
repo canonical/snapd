@@ -360,7 +360,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemote(c *check.C
 		c.Assert(sequence, check.Equals, 0)
 		as, err := asserts.Decode(validationSetAssertion)
 		c.Assert(err, check.IsNil)
-		// sanity
+		// validity
 		c.Assert(as.Type().Name, check.Equals, "validation-set")
 		return as, nil
 	}
@@ -651,7 +651,7 @@ func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
 		var tr assertstate.ValidationSetTracking
 
 		st.Lock()
-		// sanity, it exists before removing
+		// validity, it exists before removing
 		err := assertstate.GetValidationSet(st, s.dev1acct.AccountID(), "foo", &tr)
 		st.Unlock()
 		c.Assert(err, check.IsNil)
@@ -667,7 +667,7 @@ func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
 		st.Lock()
 		err = assertstate.GetValidationSet(st, s.dev1acct.AccountID(), "foo", &tr)
 		st.Unlock()
-		c.Assert(err, check.Equals, state.ErrNoState)
+		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 		// and forget again fails
 		req, err = http.NewRequest("POST", fmt.Sprintf("/v2/validation-sets/%s/foo", s.dev1acct.AccountID()), strings.NewReader(body))

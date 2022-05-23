@@ -1,7 +1,7 @@
 summary: Build the test suite for C code using clang and run it
 
 prepare: |
-    # Sanity check, the core snap is installed
+    # Precondition check, the core snap is installed
     snap info core | MATCH "installed:"
     # Install build dependencies for the test
     dpkg --get-selections > pkg-list
