@@ -94,8 +94,8 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
 		c.Check(rkeyDevs, DeepEquals, []secboot.RecoveryKeyDevice{
 			{Mountpoint: boot.InitramfsDataDir},
 			{
-				Mountpoint:           boot.InitramfsUbuntuSaveDir,
-				AuthorizationKeyFile: filepath.Join(boot.InitramfsDataDir, "system-data/var/lib/snapd/device/fde/ubuntu-save.key"),
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, "system-data/var/lib/snapd/device/fde/ubuntu-save.key"),
 			},
 		})
 
@@ -125,8 +125,8 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
 				Mountpoint: filepath.Dir(boot.InstallHostWritableDir),
 			},
 			{
-				Mountpoint:           boot.InitramfsUbuntuSaveDir,
-				AuthorizationKeyFile: filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key"),
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				AuthorizingKeyFile: filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key"),
 			},
 		})
 
@@ -167,8 +167,8 @@ func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
 		c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
 			{Mountpoint: boot.InitramfsDataDir}: rkey,
 			{
-				Mountpoint:           boot.InitramfsUbuntuSaveDir,
-				AuthorizationKeyFile: filepath.Join(boot.InitramfsDataDir, "system-data/var/lib/snapd/device/fde/ubuntu-save.key"),
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, "system-data/var/lib/snapd/device/fde/ubuntu-save.key"),
 			}: rkey,
 		})
 		return nil
@@ -188,8 +188,8 @@ func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeysBackwardCompat(c *C) 
 		c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
 			{Mountpoint: boot.InitramfsDataDir}: rkey,
 			{
-				Mountpoint:           boot.InitramfsUbuntuSaveDir,
-				AuthorizationKeyFile: filepath.Join(boot.InitramfsDataDir, "system-data/var/lib/snapd/device/fde/ubuntu-save.key"),
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, "system-data/var/lib/snapd/device/fde/ubuntu-save.key"),
 			}: filepath.Join(dirs.SnapFDEDir, "reinstall.key"),
 		})
 		return nil

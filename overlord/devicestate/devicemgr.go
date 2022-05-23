@@ -2095,7 +2095,7 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 		},
 		{
 			Mountpoint: boot.InitramfsUbuntuSaveDir,
-			AuthorizationKeyFile: filepath.Join(
+			AuthorizingKeyFile: filepath.Join(
 				dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data")),
 				"ubuntu-save.key",
 			),
@@ -2137,7 +2137,7 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	}
 	recoveryKeyDevices[secboot.RecoveryKeyDevice{
 		Mountpoint: boot.InitramfsUbuntuSaveDir,
-		AuthorizationKeyFile: filepath.Join(
+		AuthorizingKeyFile: filepath.Join(
 			dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data")),
 			"ubuntu-save.key",
 		),
