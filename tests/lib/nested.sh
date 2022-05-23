@@ -801,6 +801,7 @@ EOF
 
             declare -a UBUNTU_IMAGE_PRESEED_ARGS
             if [ -n "$NESTED_UBUNTU_IMAGE_PRESEED_KEY" ]; then
+                # shellcheck disable=SC2191
                 UBUNTU_IMAGE_PRESEED_ARGS+=(--preseed  --preseed-sign-key=\""$NESTED_UBUNTU_IMAGE_PRESEED_KEY"\")
             fi
             # ubuntu-image creates sparse image files
