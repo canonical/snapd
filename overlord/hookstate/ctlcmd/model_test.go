@@ -48,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/timeutil"
 )
 
 type modelSuite struct {
@@ -167,6 +166,19 @@ func (s *modelSuite) setupBrands() {
 	assertstatetest.AddMany(s.state, otherAcct)
 }
 
+func (s *modelSuite) addSnapDeclaration(c *C, snapID, developerID, snapName string) {
+	declA, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      snapID,
+		"publisher-id": developerID,
+		"snap-name":    snapName,
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.db.Add(declA)
+	c.Assert(err, IsNil)
+}
+
 const snapGadgetYaml = `name: gadget1
 type: gadget
 version: 1
@@ -220,6 +232,7 @@ func (s *modelSuite) TestUnhappyModelCommandNotGadgetOrSamePublisher(c *C) {
 func (s *modelSuite) TestHappyModelCommandPublisherYaml(c *C) {
 	// Make sure that we can get the model assertion even if the snap is
 	// is not a gadget, but comes from the same publisher as the model
+	s.addSnapDeclaration(c, "gadget1-id", "canonical", "gadget1")
 	s.state.Lock()
 	s.setupBrands()
 
@@ -255,13 +268,14 @@ base:          core18
 gadget:        pc
 kernel:        pc-kernel
 timestamp:     %s
-`, timeutil.Human(time.Now())))
+`, time.Now().Format(time.RFC3339)))
 	c.Check(string(stderr), Equals, "")
 }
 
 func (s *modelSuite) TestHappyModelCommandGadgetYaml(c *C) {
 	// This tests verifies that a snap that is a gadget can be used to
 	// get the model assertion, even if from a different publisher
+	s.addSnapDeclaration(c, "gadget1-id", "canonical", "gadget1")
 	s.state.Lock()
 	s.setupBrands()
 
@@ -297,11 +311,12 @@ base:          core18
 gadget:        pc
 kernel:        pc-kernel
 timestamp:     %s
-`, timeutil.Human(time.Now())))
+`, time.Now().Format(time.RFC3339)))
 	c.Check(string(stderr), Equals, "")
 }
 
 func (s *modelSuite) TestHappyModelCommandGadgetJson(c *C) {
+	s.addSnapDeclaration(c, "gadget1-id", "canonical", "gadget1")
 	s.state.Lock()
 	s.setupBrands()
 
@@ -343,6 +358,7 @@ func (s *modelSuite) TestHappyModelCommandGadgetJson(c *C) {
 }
 
 func (s *modelSuite) TestHappyModelCommandAssertionGadgetYaml(c *C) {
+	s.addSnapDeclaration(c, "gadget1-id", "canonical", "gadget1")
 	s.state.Lock()
 	s.setupBrands()
 
@@ -375,6 +391,7 @@ func (s *modelSuite) TestHappyModelCommandAssertionGadgetYaml(c *C) {
 }
 
 func (s *modelSuite) TestHappyModelCommandAssertionGadgetJson(c *C) {
+	s.addSnapDeclaration(c, "gadget1-id", "canonical", "gadget1")
 	s.state.Lock()
 	s.setupBrands()
 
@@ -417,5 +434,46 @@ func (s *modelSuite) TestHappyModelCommandAssertionGadgetJson(c *C) {
     "type": "model"
   }
 }`, current.SignKeyID(), time.Now().Format(time.RFC3339)))
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *modelSuite) TestRunWithoutHook(c *C) {
+	s.addSnapDeclaration(c, "gadget1-id", "canonical", "gadget1")
+	s.state.Lock()
+	s.setupBrands()
+
+	// set a model assertion
+	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	err := assertstate.Add(s.state, current)
+	c.Assert(err, IsNil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	c.Assert(err, IsNil)
+	setup := &hookstate.HookSetup{Snap: "gadget1", Revision: snap.R(1)}
+	mockContext, err := hookstate.NewContext(nil, s.state, setup, nil, "")
+	c.Assert(err, IsNil)
+	mockInstalledSnap(c, s.state, snapGadgetYaml, "")
+	s.state.Unlock()
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model", "--json"}, 0)
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, fmt.Sprintf(`{
+  "architecture": "amd64",
+  "base": "core18",
+  "brand-id": "canonical",
+  "gadget": "pc",
+  "kernel": "pc-kernel",
+  "model": "pc-model",
+  "serial": null,
+  "timestamp": "%s"
+}`, time.Now().Format(time.RFC3339)))
 	c.Check(string(stderr), Equals, "")
 }
