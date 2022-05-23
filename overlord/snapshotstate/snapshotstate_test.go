@@ -1120,7 +1120,7 @@ func (snapshotSuite) TestRestoreWorksWithCompatibleEpoch(c *check.C) {
 	tasks := taskset.Tasks()
 	c.Assert(tasks, check.HasLen, 2)
 	c.Check(tasks[0].Kind(), check.Equals, "restore-snapshot")
-	c.Check(tasks[1].Kind(), check.Equals, "cleanup-restore-snapshot")
+	c.Check(tasks[1].Kind(), check.Equals, "cleanup-after-restore")
 	c.Check(tasks[0].Summary(), check.Equals, `Restore data of snap "a-snap" from snapshot set #42`)
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
@@ -1157,7 +1157,7 @@ func (snapshotSuite) TestRestore(c *check.C) {
 	tasks := taskset.Tasks()
 	c.Assert(tasks, check.HasLen, 2)
 	c.Check(tasks[0].Kind(), check.Equals, "restore-snapshot")
-	c.Check(tasks[1].Kind(), check.Equals, "cleanup-restore-snapshot")
+	c.Check(tasks[1].Kind(), check.Equals, "cleanup-after-restore")
 	c.Check(tasks[0].Summary(), check.Equals, `Restore data of snap "a-snap" from snapshot set #42`)
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)

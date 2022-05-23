@@ -73,7 +73,7 @@ func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
 	runner.AddHandler("forget-snapshot", doForget, nil)
 	runner.AddHandler("check-snapshot", doCheck, nil)
 	runner.AddHandler("restore-snapshot", doRestore, undoRestore)
-	runner.AddHandler("cleanup-restore-snapshot", doCleanup, nil)
+	runner.AddHandler("cleanup-after-restore", doCleanupAfterRestore, nil)
 
 	manager := &SnapshotManager{
 		state: st,
@@ -371,7 +371,7 @@ func undoRestore(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func doCleanup(task *state.Task, tomb *tomb.Tomb) error {
+func doCleanupAfterRestore(task *state.Task, tomb *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 	restoreTasks := task.WaitTasks()
