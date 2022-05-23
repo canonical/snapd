@@ -99,6 +99,7 @@ var (
 	SnapRuntimeServicesDir string
 	SnapUserServicesDir    string
 	SnapSystemdConfDir     string
+	SnapSystemdDir         string
 	SnapDesktopFilesDir    string
 	SnapDesktopIconsDir    string
 	SnapPolkitPolicyDir    string
