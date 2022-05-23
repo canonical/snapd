@@ -20,37 +20,14 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-    - name: Cache snapd snap build status
-      id: cache-snapd-build-status
-      uses: actions/cache@v1
-      with:
-        path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_id }}-${{ github.job }}-results"
-    - name: Check cached snap build
-      id: cached-results
-      run: |
-          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/snap-build-success"
-          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
-          if [ -e "$CACHE_RESULT_STAMP" ]; then
-              has_cached_snap=0
-              while read name; do
-                  has_cached_snap=1
-                  # bring back artifacts from the cache
-                  cp -v "$name" "${{ github.workspace }}"
-              done < <(find "$(dirname $CACHE_RESULT_STAMP)" -name "*.snap")
-              if [ "$has_cached_snap" = "1" ]; then
-                  # we have restored an artifact from the cache
-                  echo "::set-output name=already-ran::true"
-              fi
-          fi
+
     - name: Build snapd snap
-      if: steps.cached-results.outputs.already-ran != 'true'
       uses: snapcore/action-build@v1
       with:
         snapcraft-channel: 4.x/candidate
-    - name: Cache and check built artifact
+
+    - name: Check built artifact
       run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
         unsquashfs snapd*.snap meta/snap.yaml usr/lib/snapd/info
         if cat squashfs-root/meta/snap.yaml | grep -q "version:.*dirty.*"; then
           echo "PR produces dirty snapd snap version"
@@ -61,18 +38,163 @@ jobs:
           cat squashfs-root/usr/lib/snapd/info
           exit 1
         fi
-        cp -v *.snap "$(dirname $CACHE_RESULT_STAMP)/"
+
     - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v2
       with:
         name: snap-files
         path: "*.snap"
-    - name: Mark successful snap build
+
+  cache-build-deps:
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        # needed for git commit history
+        fetch-depth: 0
+        # NOTE: checkout the code in a fixed location, even for forks, as this
+        # is relevant for go's import system.
+        path: ./src/github.com/snapcore/snapd
+
+    # Fetch base ref, needed for golangci-lint
+    - name: Fetching base ref ${{ github.base_ref }}
       run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
-        touch "$CACHE_RESULT_STAMP"
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd
+        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+        # golang latest ensures things work on the edge
+
+    - name: Download Debian dependencies
+      run: |
+          sudo apt clean
+          sudo apt update
+          sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+
+    - name: Copy dependencies
+      run: |
+        sudo tar cvf cached-apt.tar /var/cache/apt
+
+    - name: upload Debian dependencies
+      uses: actions/upload-artifact@v2
+      with:
+        name: debian-dependencies
+        path: ./cached-apt.tar
+
+  static-checks:
+    runs-on: ubuntu-20.04
+    needs: [cache-build-deps]
+    env:
+      GOPATH: ${{ github.workspace }}
+      # Set PATH to ignore the load of magic binaries from /usr/local/bin And
+      # to use the go snap automatically. Note that we install go from the
+      # snap in a step below. Without this we get the GitHub-controlled latest
+      # version of go.
+      PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
+      GOROOT: ""
+      GITHUB_PULL_REQUEST: ${{ github.event.number }}
+
+    strategy:
+      # we cache successful runs so it's fine to keep going
+      fail-fast: false      
+      matrix:
+        gochannel:
+          - 1.13
+          - latest/stable
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        # needed for git commit history
+        fetch-depth: 0
+        # NOTE: checkout the code in a fixed location, even for forks, as this
+        # is relevant for go's import system.
+        path: ./src/github.com/snapcore/snapd
+
+    # Fetch base ref, needed for golangci-lint
+    - name: Fetching base ref ${{ github.base_ref }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd
+        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+
+    - name: Download Debian dependencies
+      uses: actions/download-artifact@v3
+      with:
+        name: debian-dependencies
+        path: ./debian-deps/
+
+    - name: Copy dependencies
+      run: |
+        test -f ./debian-deps/cached-apt.tar
+        sudo tar xvf ./debian-deps/cached-apt.tar -C /
+
+    - name: Install Debian dependencies
+      run: |
+          sudo apt update
+          sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+
+    # golang latest ensures things work on the edge
+    - name: Install the go snap
+      run: |
+          sudo snap install --classic --channel=${{ matrix.gochannel }} go
+
+    - name: Install ShellCheck as a snap
+      run: |
+          sudo apt-get remove --purge shellcheck
+          sudo snap install shellcheck
+
+    - name: Get C vendoring
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
+
+    - name: golangci-lint
+      if: ${{ matrix.gochannel == 'latest/stable' }}
+      uses: golangci/golangci-lint-action@v2
+      with:
+        # version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest`
+        # to use the latest version
+        version: v1.45.2
+        working-directory: ./src/github.com/snapcore/snapd
+        # show only new issues
+        # use empty path prefix to make annotations work
+        args: --new-from-rev=${{ github.base_ref }} --path-prefix=
+        # skip all additional steps
+        skip-go-installation: true
+        skip-pkg-cache: true
+        skip-build-cache: true
+        # XXX: does no work with working-directory
+        # only-new-issues: true
+
+    - name: Get changed files
+      id: changed-files
+      uses: tj-actions/changed-files@v19
+      with:
+        path: ./src/github.com/snapcore/snapd
+
+    - name: Save changes files
+      run: |
+          CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
+          echo "The changed files found are: $CHANGED_FILES"
+
+    - name: Run static checks
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+          # run gofmt checks only with Go 1.13
+          if ! echo "${{ matrix.gochannel }}" | grep -E '1\.13' ; then
+              # and skip with other versions
+              export SKIP_GOFMT=1
+              echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
+          else
+              # misspell and infessassign do not build with Go 1.13
+              export SKIP_MISSPELL=1
+              export SKIP_INEFFASSIGN=1
+          fi
+          sudo apt-get install -y python3-yamlordereddictloader
+          ./run-checks --static
 
   unit-tests:
+    needs: [static-checks]
     runs-on: ubuntu-20.04
     env:
       GOPATH: ${{ github.workspace }}
@@ -90,6 +212,13 @@ jobs:
         gochannel:
           - 1.13
           - latest/stable
+        unit-scenario:
+          - normal
+          - snapd_debug
+          - withbootassetstesting
+          - nosecboot
+          - faultinject
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -99,128 +228,76 @@ jobs:
         # NOTE: checkout the code in a fixed location, even for forks, as this
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
+
     # Fetch base ref, needed for golangci-lint
     - name: Fetching base ref ${{ github.base_ref }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
-    - name: Cache Debian dependencies
-      id: cache-deb-downloads
-      uses: actions/cache@v1
+
+    - name: Download Debian dependencies
+      uses: actions/download-artifact@v3
       with:
-        path: /var/cache/apt
-        key: var-cache-apt-{{ hashFiles('**/debian/control') }}
-    - name: Run "apt update"
+        name: debian-dependencies
+        path: ./debian-deps/
+
+    - name: Copy dependencies
+      run: |
+        test -f ./debian-deps/cached-apt.tar
+        sudo tar xvf ./debian-deps/cached-apt.tar -C /
+
+    - name: Install Debian dependencies
       run: |
           sudo apt update
-    - name: Download Debian dependencies
-      if: steps.cache-deb-downloads.outputs.cache-hit != 'true'
-      run: |
-          sudo apt clean
-          sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
-
-    - name: Cache snapd test results
-      id: cache-snapd-test-results
-      uses: actions/cache@v1
-      with:
-        path: "${{ github.workspace }}/.test-results"
-        # must include matrix or things get racy, i.e. when latest/edge
-        # finishes after 1.9 it overrides the results from 1.9
-        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.gochannel }}-results"
-    - name: Check cached test results
-      id: cached-results
-      run: |
-          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success"
-          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
-          if [ -e "$CACHE_RESULT_STAMP" ]; then
-              echo "::set-output name=already-ran::true"
-          fi
-    - name: Install Debian dependencies
-      if: steps.cached-results.outputs.cached-results != 'true'
-      run: |
           sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+
     # golang latest ensures things work on the edge
     - name: Install the go snap
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           sudo snap install --classic --channel=${{ matrix.gochannel }} go
-    - name: Install ShellCheck as a snap
-      if: steps.cached-results.outputs.already-ran != 'true'
-      run: |
-          sudo apt-get remove --purge shellcheck
-          sudo snap install shellcheck
-    - name: Get C vendoring
-      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
 
-    - name: golangci-lint
-      uses: golangci/golangci-lint-action@v2
-      if: ${{ matrix.gochannel == 'latest/stable' }}
-      with:
-        # version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest`
-        # to use the latest version
-        version: v1.45.2
-        working-directory: ./src/github.com/snapcore/snapd
-        # show only new issues
-        # use empty path prefix to make annotations work
-        args: --new-from-rev=${{ github.base_ref }} --path-prefix=
-        # skip all additional steps
-        skip-go-installation: true
-        skip-pkg-cache: true
-        skip-build-cache: true
-        # XXX: does no work with working-directory
-        # only-new-issues: true
-
-    - name: Run static checks
-      if: steps.cached-results.outputs.already-ran != 'true'
-      run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-          # run gofmt checks only with Go 1.13
-          if ! echo "${{ matrix.gochannel }}" | grep -E '1\.13' ; then
-              # and skip with other versions
-              export SKIP_GOFMT=1
-              echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
-          else
-              # misspell and infessassign do not build with Go 1.13
-              export SKIP_MISSPELL=1
-              export SKIP_INEFFASSIGN=1
-          fi
-          sudo apt-get install -y python3-yamlordereddictloader
-          ./run-checks --static
     - name: Build C
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
           ./autogen.sh
           make -j2
+
+    - name: Get deps
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/ && ./get-deps.sh
+
     - name: Build Go
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           go build github.com/snapcore/snapd/...
+
     - name: Test C
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
+
     - name: Reset code coverage data
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           rm -rf ${{ github.workspace }}/.coverage/
+
     - name: Test Go
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: ${{ matrix.unit-scenario == 'normal' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         ./run-checks --unit
+
     - name: Test Go (SNAPD_DEBUG=1)
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: ${{ matrix.unit-scenario == 'snapd_debug' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 SNAPD_DEBUG=1 ./run-checks --unit
+
     - name: Test Go (withbootassetstesting)
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: ${{ matrix.unit-scenario == 'withbootassetstesting' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
+
     - name: Test Go (nosecboot)
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: ${{ matrix.unit-scenario == 'nosecboot' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         echo "Dropping github.com/snapcore/secboot"
@@ -229,33 +306,59 @@ jobs:
         # ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
         # ${{ github.workspace }}/bin/govendor remove +unused
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+
     - name: Test Go (faultinject)
-      if: steps.cached-results.outputs.already-ran != 'true'
+      if: ${{ matrix.unit-scenario == 'faultinject' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
+
+    - name: Upload the coverage results
+      if: ${{ matrix.gochannel != 'latest/stable' }}
+      uses: actions/upload-artifact@v2
+      with:
+        name: coverage-files
+        path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
+
+  code-coverage:
+    needs: [unit-tests]
+    runs-on: ubuntu-20.04
+    env:
+      GOPATH: ${{ github.workspace }}
+      # Set PATH to ignore the load of magic binaries from /usr/local/bin And
+      # to use the go snap automatically. Note that we install go from the
+      # snap in a step below. Without this we get the GitHub-controlled latest
+      # version of go.
+      PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
+      GOROOT: ""
+      GITHUB_PULL_REQUEST: ${{ github.event.number }}
+    steps:
+    - name: Download the coverage files
+      uses: actions/download-artifact@v3
+      with:
+        name: coverage-files
+        path: .coverage/
+
     - name: Merge coverage results
-      if: ${{ steps.cached-results.outputs.already-ran != 'true' && matrix.gochannel != 'latest/stable' }}
       run: |
-        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        go install github.com/makholm/covertool
+        echo "List the coverage files downloaded"
+        ls -l .coverage/
+
+        echo "Install covertool and merge the results"
+        go install github.com/makholm/covertool@latest
         covertool merge -o .coverage/all.cov .coverage/coverage*.cov
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
       # uploading to codecov occasionally fails, so continue running the test
       # workflow regardless of the upload
       continue-on-error: true
-      if: ${{ steps.cached-results.outputs.already-ran != 'true' && matrix.gochannel != 'latest/stable' }}
       with:
         fail_ci_if_error: true
         flags: unittests
         name: codecov-umbrella
         files: .coverage/all.cov
         verbose: true
-    - name: Cache successful run
-      run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
-        touch "$CACHE_RESULT_STAMP"
 
   spread:
     needs: [unit-tests]
@@ -322,17 +425,11 @@ jobs:
           mkdir -p "$TEST_RESULTS_DIR"
           echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
 
-          CACHE_RESULT_STAMP="$TEST_RESULTS_DIR/${{ matrix.system }}-success"
-          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
-          if [ -e "$CACHE_RESULT_STAMP" ]; then
-              echo "::set-output name=already-ran::true"
-          fi
-
           # Save the var with the failed tests file
           echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
 
     - name: Check failed tests to run
-      if: "contains(github.event.pull_request.labels.*.name, 'Run failed') && steps.cached-results.outputs.already-ran != 'true'"
+      if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
       run: |
           # Save previous failed test results in FAILED_TESTS env var
           FAILED_TESTS=""
@@ -346,7 +443,7 @@ jobs:
           fi
 
     - name: Run spread tests
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
@@ -358,16 +455,11 @@ jobs:
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
           fi
-
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
           (set -o pipefail; spread -abend $RUN_TESTS | tee spread.log)
-
-    - name: Cache successful run
-      run: |
-        touch "$CACHE_RESULT_STAMP"
 
     - name: Discard spread workers
       if: always()
@@ -399,12 +491,10 @@ jobs:
       run: |
           if [ -f spread.log ]; then
               echo "Running spread log analyzer"
-
               # Aborted cannot be used to determine if we need to re-run all because it could be a aborted an entire suite
               if grep -q "Aborted tasks: 0" spread.log; then
                   ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
-                  jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | select( .level == "task" or .level == "tasks" ) | .detail.lines[]' spread-results.json | cut -d '-' -f2- > "$FAILED_TESTS_FILE"
-
+                  jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | select( .level == "task" or .level == "tasks" ) | .detail.lines[]' spread-results.json | grep "google:" | cut -d '-' -f2- | tr '\n' ' ' > "$FAILED_TESTS_FILE"
                   echo "Failed tests saved for re-execution: $(cat $FAILED_TESTS_FILE)"
               else
                   echo "No failed tests saved, this means all the tests will be executed next run"
@@ -440,26 +530,45 @@ jobs:
       run: |
           rm -rf "${{ github.workspace }}"
           mkdir "${{ github.workspace }}"
+
     - name: Checkout code
       uses: actions/checkout@v2
+
     - name: Cache snapd test results
       id: cache-snapd-test-results
-      uses: actions/cache@v1
+      uses: pat-s/always-upload-cache@v2.1.5
       with:
         path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-nested-results"
+        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
+
     - name: Check cached test results
       id: cached-results
       run: |
-          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-nested-success"
-          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
-          if [ -e "$CACHE_RESULT_STAMP" ]; then
-              echo "::set-output name=already-ran::true"
+          TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
+          mkdir -p "$TEST_RESULTS_DIR"
+          echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
+
+          # Save the var with the failed tests file
+          echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
+
+    - name: Check failed tests to run
+      if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
+      run: |
+          # Save previous failed test results in FAILED_TESTS env var
+          FAILED_TESTS=""
+          if [ -f "$FAILED_TESTS_FILE" ]; then
+              echo "Failed tests file found"
+              FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
+              if [ -n "$FAILED_TESTS" ]; then
+                  echo "Failed tests to run: $FAILED_TESTS"
+                  echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
+              fi
           fi
+
     - name: Run spread tests
       # run if the commit is pushed to the release/* branch or there is a 'Run
       # nested' label set on the PR
-      if: "(contains(github.event.pull_request.labels.*.name, 'Run nested') || contains(github.ref, 'refs/heads/release/')) && steps.cached-results.outputs.already-ran != 'true'"
+      if: "contains(github.event.pull_request.labels.*.name, 'Run nested') || contains(github.ref, 'refs/heads/release/')"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
@@ -467,14 +576,16 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
           export NESTED_BUILD_SNAPD_FROM_CURRENT=true
           export NESTED_ENABLE_KVM=true
+          RUN_TESTS="google-nested:${{ matrix.system }}:tests/nested/..."
+          if [ -n "$FAILED_TESTS" ]; then
+              RUN_TESTS="$FAILED_TESTS"
+          fi
+          # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
-          (set -o pipefail; spread -abend google-nested:${{ matrix.system }}:tests/nested/... | tee spread.log)
-    - name: Cache successful run
-      run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
-        touch "$CACHE_RESULT_STAMP"
+          (set -o pipefail; spread -abend $RUN_TESTS | tee spread.log)
+
     - name: Discard spread workers
       if: always()
       run: |
@@ -482,6 +593,7 @@ jobs:
         for r in .spread-reuse.*.yaml; do
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
+
     - name: report spread errors
       if: always()
       run: |
@@ -498,3 +610,22 @@ jobs:
         else
             echo "No spread log found, skipping errors reporting"
         fi
+
+    - name: save spread results
+      if: always()
+      run: |
+          if [ -f spread.log ]; then
+              echo "Running spread log analyzer"
+              # Aborted cannot be used to determine if we need to re-run all because it could be a aborted an entire suite
+              if grep -q "Aborted tasks: 0" spread.log; then
+                  ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
+                  jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | select( .level == "task" or .level == "tasks" ) | .detail.lines[]' spread-results.json | grep "google-nested:" | cut -d '-' -f2- | tr '\n' ' ' > "$FAILED_TESTS_FILE"
+                  echo "Failed tests saved for re-execution: $(cat $FAILED_TESTS_FILE)"
+              else
+                  echo "No failed tests saved, this means all the tests will be executed next run"
+                  touch "$FAILED_TESTS_FILE"
+              fi
+          else
+              echo "No spread log found, saving empty list of failed tests"
+              touch "$FAILED_TESTS_FILE"
+          fi

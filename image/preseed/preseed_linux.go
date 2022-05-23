@@ -119,7 +119,7 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 		fmt.Fprintf(Stdout, "ubuntu classic preseeding")
 	} else {
 		if model.Base() == "core20" {
-			fmt.Fprintf(Stdout, "UC20 preseeding")
+			fmt.Fprintf(Stdout, "UC20+ preseeding\n")
 		} else {
 			// TODO: support uc20+
 			return "", "", fmt.Errorf("preseeding of ubuntu core with base %s is not supported", model.Base())
@@ -217,13 +217,19 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 
 	var mounted []string
 
+	doUnmount := func(mnt string) {
+		cmd := exec.Command("umount", mnt)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			fmt.Fprintf(Stdout, "cannot unmount: %v\n'umount %s' failed with: %s", err, mnt, out)
+		}
+	}
+
 	cleanupMounts = func() {
-		for i := len(mounted) - 1; i >= 0; i-- {
+		// unmount all the mounts but the first one, which is the base
+		// and it is cleaned up last
+		for i := len(mounted) - 1; i > 0; i-- {
 			mnt := mounted[i]
-			cmd := exec.Command("umount", mnt)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				fmt.Fprintf(Stdout, "cannot unmount: %v\n'umount %s' failed with: %s", err, mnt, out)
-			}
+			doUnmount(mnt)
 		}
 
 		entries, err := osutil.LoadMountInfo()
@@ -233,12 +239,14 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 		}
 		// cleanup after handle-writable-paths
 		for _, ent := range entries {
-			if strings.HasPrefix(ent.MountDir, tmpPreseedChrootDir) {
-				cmd := exec.Command("umount", ent.MountDir)
-				if out, err := cmd.CombinedOutput(); err != nil {
-					fmt.Fprintf(Stdout, "cannot unmount: %v\n'umount %s' failed with: %s", err, ent.MountDir, out)
-				}
+			if ent.MountDir != tmpPreseedChrootDir && strings.HasPrefix(ent.MountDir, tmpPreseedChrootDir) {
+				doUnmount(ent.MountDir)
 			}
+		}
+
+		// finally, umount the base snap
+		if len(mounted) > 0 {
+			doUnmount(mounted[0])
 		}
 	}
 
@@ -528,7 +536,7 @@ func runUC20PreseedMode(opts *preseedOpts) error {
 	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
 	cmd.Stderr = Stderr
 	cmd.Stdout = Stdout
-	fmt.Fprintf(Stdout, "starting to preseed UC20 system: %s", opts.PreseedChrootDir)
+	fmt.Fprintf(Stdout, "starting to preseed UC20+ system: %s\n", opts.PreseedChrootDir)
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error running snapd in preseed mode: %v\n", err)

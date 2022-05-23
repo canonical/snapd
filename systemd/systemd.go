@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -46,14 +46,20 @@ import (
 )
 
 var (
-	// the output of "show" must match this for Stop to be done:
+	// The output of 'systemctl show' for the ActiveState property must
+	// either be 'failed' or 'inactive' to detect as a valid stop. Any
+	// other value, including no output, results in an assumption that
+	// the queried service(s) are still running.
 	isStopDone = regexp.MustCompile(`(?m)\AActiveState=(?:failed|inactive)$`).Match
 
 	// how much time should Stop wait between calls to show
 	stopCheckDelay = 250 * time.Millisecond
 
-	// how much time should Stop wait between notifying the user of the waiting
-	stopNotifyDelay = 20 * time.Second
+	// Empirical test results on slower targets (i.e. on Raspberry Pi 3)
+	// show that trying to stop 4 systemd units under heavy CPU and IO
+	// load can take 750ms to complete. Only generate notifications for
+	// units still running after 1 second to minimize noise.
+	stopNotifyDelay = time.Second
 
 	// daemonReloadLock is a package level lock to ensure that we
 	// do not run any `systemd daemon-reload` while a
@@ -134,11 +140,43 @@ func MockSystemdVersion(version int, injectedError error) (restore func()) {
 	}
 }
 
-// MockSystemctl is called from the commands to actually call out to
-// systemctl. It's exported so it can be overridden by testing.
+// MockSystemctl allows to mock the systemctl invocations.
+// The provided function will be called when systemctl would be invoked.
+// The function can return the output and an error.
 func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
+	var mutex sync.Mutex
 	oldSystemctlCmd := systemctlCmd
-	systemctlCmd = f
+	systemctlCmd = func(args ...string) ([]byte, error) {
+		// Thread-safe wrapper to call the locked systemctl
+		mutex.Lock()
+		defer mutex.Unlock()
+		return f(args...)
+	}
+	return func() {
+		systemctlCmd = oldSystemctlCmd
+	}
+}
+
+// MockSystemctlWithDelay allows to mock the systemctl invocations.
+// The provided function will be called when systemctl would be invoked.
+// The function can return the output and an error. Also the function
+// can return a delay that will be respected before completing the
+// mocked invocation.
+func MockSystemctlWithDelay(f func(args ...string) ([]byte, time.Duration, error)) func() {
+	var mutex sync.Mutex
+	oldSystemctlCmd := systemctlCmd
+	systemctlCmd = func(args ...string) (bs []byte, err error) {
+		// Thread-safe wrapper to call the locked systemctl
+		var delay time.Duration
+		func() {
+			mutex.Lock()
+			defer mutex.Unlock()
+			bs, delay, err = f(args...)
+		}()
+		// Emulate the delay outside the lock
+		time.Sleep(delay)
+		return bs, err
+	}
 	return func() {
 		systemctlCmd = oldSystemctlCmd
 	}
@@ -304,11 +342,11 @@ type Systemd interface {
 	// StartNoBlock starts the given service or services non-blocking.
 	StartNoBlock(service []string) error
 	// Stop the given service, and wait until it has stopped.
-	Stop(services []string, timeout time.Duration) error
+	Stop(services []string) error
 	// Kill all processes of the unit with the given signal.
 	Kill(service, signal, who string) error
 	// Restart the service, waiting for it to stop before starting it again.
-	Restart(services []string, timeout time.Duration) error
+	Restart(services []string) error
 	// Reload or restart the service via 'systemctl reload-or-restart'
 	ReloadOrRestart(service string) error
 	// RestartAll restarts the given service using systemctl restart --all
@@ -958,57 +996,116 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	return false, err
 }
 
-func (s *systemd) Stop(serviceNames []string, timeout time.Duration) error {
+func (s *systemd) Stop(serviceNames []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call stop with GlobalUserMode")
 	}
-	if _, err := s.systemctl(append([]string{"stop"}, serviceNames...)...); err != nil {
-		return err
-	}
 
-	// and now wait for it to actually stop
-	giveup := time.NewTimer(timeout)
-	notify := time.NewTicker(stopNotifyDelay)
-	defer notify.Stop()
-	check := time.NewTicker(stopCheckDelay)
-	defer check.Stop()
+	// Start the real time progress tracking inside a go routine because the
+	// 'systemctl stop' request is blocking (which runs in the parent function).
+	// Note that although the status polling thread is separate, and could start
+	// before the 'systemctl stop' command, the poll ticker will not fire
+	// immediately, allowing the stop command to start first. The ordering is
+	// not assumed, but it helps make existing unit-test code work, because the
+	// systemctl mocking in some modules are implemented very simplistically, and
+	// assumes that the 'stop' argument comes before the 'show'.
+	errorRet := make(chan error)
+	quit := make(chan interface{})
 
-	firstCheck := true
-loop:
-	for {
-		select {
-		case <-giveup.C:
-			break loop
-		case <-check.C:
-			allStopped := true
+	go func() {
+		// The polling routine is the 'errorRet' channel sender, so we make
+		// sure we exit closing the channel explicitly, even though we always
+		// return the error result first. Closing the channel does not free the
+		// object, the reader can still access the object. The object is only
+		// freed when no further references exit.
+		defer close(errorRet)
+
+		notify := time.NewTimer(stopNotifyDelay)
+		check := time.NewTicker(stopCheckDelay)
+		defer check.Stop()
+
+		// We start with a notice grace period to give services time to stop.
+		// Once this period expires, we provide user notifications every time
+		// the list of services we are waiting for changes (or on the first
+		// change of 'notifyEnable', which is detected by 'notifyShowFirst')
+		notifyEnable := false
+		notifyShowFirst := false
+
+		// Once the async systemd stop completes, we do one last status poll
+		// to make sure we have the most up to date state.
+		stopComplete := false
+
+		for {
+			select {
+			case <-quit:
+				// We are now complete, but poll final state of units
+				stopComplete = true
+
+			case <-check.C:
+				// Enable state poll of units
+
+			case <-notify.C:
+				// Enable user notifications and trigger first message
+				notifyEnable = true
+				notifyShowFirst = true
+			}
+
+			// Check if any of the remaining running units have stopped?
 			stillRunningServices := []string{}
 			for _, service := range serviceNames {
 				bs, err := s.systemctl("show", "--property=ActiveState", service)
 				if err != nil {
-					return err
+					errorRet <- err
+					return
 				}
 				if !isStopDone(bs) {
 					stillRunningServices = append(stillRunningServices, service)
-					allStopped = false
 				}
 			}
-			if allStopped {
-				return nil
-			}
-			if !firstCheck {
-				// do not notify about services waiting on the
-				// first pass
-				continue loop
-			}
+
+			// Any remaining running units stopped?
+			somethingChanged := len(serviceNames) != len(stillRunningServices)
+
+			// We only poll units still running.
 			serviceNames = stillRunningServices
-			firstCheck = false
-		case <-notify.C:
+
+			if len(serviceNames) == 0 || stopComplete {
+				// We return without explicitly writing to the error channel
+				// because the deferred close will cause the pending channel
+				// read to return a nil error.
+				return
+			}
+
+			// The first time the notification silence period expires we print
+			// an update, or on any subsequent change to the list of waiting units.
+			if (notifyEnable && somethingChanged) || notifyShowFirst {
+				s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", strutil.Quoted(serviceNames)))
+				notifyShowFirst = false
+			}
 		}
-		// after notify delay or after a failed first check
-		s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", strutil.Quoted(serviceNames)))
+	}()
+
+	// This command blocks until the 'systemctl stop' completes
+	_, errStop := s.systemctl(append([]string{"stop"}, serviceNames...)...)
+
+	// Notify the progress loop to exit since systemctl completed the request
+	close(quit)
+
+	// Wait until the progress loop returns
+	errProgress := <-errorRet
+
+	// If we have an error from 'systemctl stop', return this as first priority
+	if errStop != nil {
+		return errStop
 	}
 
-	return &Timeout{action: "stop", services: serviceNames}
+	// If we have an error from 'systemctl show', return this as second priority
+	if errProgress != nil {
+		return errProgress
+	}
+
+	// Stopped and no error
+	return nil
 }
 
 func (s *systemd) Kill(serviceName, signal, who string) error {
@@ -1022,11 +1119,11 @@ func (s *systemd) Kill(serviceName, signal, who string) error {
 	return err
 }
 
-func (s *systemd) Restart(serviceNames []string, timeout time.Duration) error {
+func (s *systemd) Restart(serviceNames []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
-	if err := s.Stop(serviceNames, timeout); err != nil {
+	if err := s.Stop(serviceNames); err != nil {
 		return err
 	}
 	return s.Start(serviceNames)
@@ -1071,23 +1168,6 @@ func (e *Error) Error() string {
 		return fmt.Sprintf("systemctl command %v failed with: %v%s", e.cmd, e.runErr, msg)
 	}
 	return fmt.Sprintf("systemctl command %v failed with exit status %d%s", e.cmd, e.exitCode, msg)
-}
-
-// Timeout is returned if the systemd action failed to reach the
-// expected state in a reasonable amount of time
-type Timeout struct {
-	action   string
-	services []string
-}
-
-func (e *Timeout) Error() string {
-	return fmt.Sprintf("%v failed to %v: timeout", strutil.Quoted(e.services), e.action)
-}
-
-// IsTimeout checks whether the given error is a Timeout
-func IsTimeout(err error) bool {
-	_, isTimeout := err.(*Timeout)
-	return isTimeout
 }
 
 func (l Log) parseLogRawMessageString(key string, sliceHandler func([]string) (string, error)) (string, error) {
@@ -1413,7 +1493,7 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 			return osutil.OutputErr(output, err)
 		}
 
-		if err := s.Stop(units, time.Duration(1*time.Second)); err != nil {
+		if err := s.Stop(units); err != nil {
 			return err
 		}
 	}

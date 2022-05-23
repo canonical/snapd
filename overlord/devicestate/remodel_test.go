@@ -720,19 +720,19 @@ func (s *remodelLogicSuite) TestRemodelContextForTaskNo(c *C) {
 
 	// task is nil
 	remodCtx1, err := devicestate.DeviceCtx(s.state, nil, nil)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(remodCtx1, IsNil)
 
 	// no change
 	t := s.state.NewTask("random-task", "...")
 	_, err = devicestate.DeviceCtx(s.state, t, nil)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// not a remodel change
 	chg := s.state.NewChange("not-remodel", "...")
 	chg.AddTask(t)
 	_, err = devicestate.DeviceCtx(s.state, t, nil)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *remodelLogicSuite) setupForRereg(c *C) (oldModel, newModel *asserts.Model) {
@@ -896,7 +896,7 @@ func (s *remodelLogicSuite) TestReregRemodelContextNewSerial(c *C) {
 
 	// no new serial yet
 	_, err = devBE.Serial()
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	chg := s.state.NewChange("remodel", "...")
 
@@ -912,13 +912,13 @@ func (s *remodelLogicSuite) TestReregRemodelContextNewSerial(c *C) {
 
 	// still no new serial
 	_, err = devBE.Serial()
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	newSerial := makeSerialAssertionInState(c, s.brands, s.state, "my-brand", "other-model", "serialserialserial2")
 
 	// same
 	_, err = devBE.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// finish registration
 	regCtx := remodCtx.(devicestate.RegistrationContext)

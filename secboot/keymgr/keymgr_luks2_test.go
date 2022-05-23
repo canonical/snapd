@@ -153,6 +153,35 @@ func (s *keymgrSuite) TestAddRecoveryKeyToDeviceNoUnlockKey(c *C) {
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
 
+func (s *keymgrSuite) TestAddRecoveryKeyToDeviceCryptsetupFail(c *C) {
+	unlockKey := "1234abcd"
+	restore := keymgr.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		return []byte(unlockKey), nil
+	})
+	defer restore()
+
+	cmd := testutil.MockCommand(c, "cryptsetup", `
+while [ "$#" -gt 1 ]; do
+  case "$1" in
+    --key-file)
+      cat "$2" > /dev/null
+      shift 2
+      ;;
+    *)
+      shift 1
+      ;;
+  esac
+done
+echo "Other error, cryptsetup boom"
+exit 1
+`)
+	defer cmd.Restore()
+	err := keymgr.AddRecoveryKeyToLUKSDevice(mockRecoveryKey, "/dev/foobar")
+	c.Assert(err, ErrorMatches, "cannot add key: cryptsetup failed with: Other error, cryptsetup boom")
+	// should match the keyslot full error too
+	c.Assert(keymgr.IsKeyslotAlreadyUsed(err), Equals, false)
+}
+
 func (s *keymgrSuite) TestAddRecoveryKeyToDeviceOccupiedSlot(c *C) {
 	unlockKey := "1234abcd"
 	getCalls := 0
@@ -188,6 +217,8 @@ exit 1
 	c.Assert(calls, HasLen, 1)
 	c.Assert(calls[0], HasLen, 16)
 	c.Assert(calls[0][:2], DeepEquals, []string{"cryptsetup", "luksAddKey"})
+	// should match the keyslot full error too
+	c.Assert(keymgr.IsKeyslotAlreadyUsed(err), Equals, true)
 }
 
 func (s *keymgrSuite) TestAddRecoveryKeyToDeviceUsingExistingKey(c *C) {
@@ -262,6 +293,38 @@ func (s *keymgrSuite) TestRemoveRecoveryKeyFromDeviceKeyNotInKeyring(c *C) {
 	c.Assert(err, ErrorMatches, "cannot obtain current unlock key for /dev/foobar: cannot find key in kernel keyring")
 	c.Assert(getCalls, Equals, 1)
 	c.Assert(s.cryptsetupCmd.Calls(), HasLen, 0)
+}
+
+func (s *keymgrSuite) TestRemoveRecoveryKeyFromDeviceUsingKey(c *C) {
+	restore := keymgr.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		c.Fail()
+		return nil, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	cryptsetupCmd := testutil.MockCommand(c, "cryptsetup", fmt.Sprintf(`
+while [ "$#" -gt 1 ]; do
+  case "$1" in
+    luksKillSlot)
+      cat > %s
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+`, filepath.Join(s.rootDir, "unlock.key")))
+	defer cryptsetupCmd.Restore()
+
+	key := bytes.Repeat([]byte{1}, 32)
+	err := keymgr.RemoveRecoveryKeyFromLUKSDeviceUsingKey(keys.EncryptionKey(key), "/dev/foobar")
+	c.Assert(err, IsNil)
+	calls := cryptsetupCmd.Calls()
+	c.Assert(calls, DeepEquals, [][]string{
+		{"cryptsetup", "luksKillSlot", "--type", "luks2", "--key-file", "-", "/dev/foobar", "1"},
+	})
+	c.Assert(filepath.Join(s.rootDir, "unlock.key"), testutil.FileEquals, key)
 }
 
 func (s *keymgrSuite) TestChangeEncryptionKeyHappy(c *C) {

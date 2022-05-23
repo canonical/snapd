@@ -140,6 +140,15 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 	}
 }
 
+// AddExtraLayouts adds mount entries based on additional layouts that
+// are provided for the snap.
+func (spec *Specification) AddExtraLayouts(layouts []snap.Layout) {
+	for _, layout := range layouts {
+		entry := mountEntryFromLayout(&layout)
+		spec.layout = append(spec.layout, entry)
+	}
+}
+
 // MountEntries returns a copy of the added mount entries.
 func (spec *Specification) MountEntries() []osutil.MountEntry {
 	result := make([]osutil.MountEntry, 0, len(spec.overname)+len(spec.layout)+len(spec.general))

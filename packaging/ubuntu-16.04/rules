@@ -236,7 +236,7 @@ ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),riscv64)
 	GO111MODULE=on \
 		dh_auto_test -- -mod=vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/...
 endif
-	
+
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included
@@ -274,6 +274,8 @@ override_dh_install:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 	# bootloader assets generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
+	# asserts/info
+	rm -f ${CURDIR}/debian/tmp/usr/bin/info
 	# docs generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
 

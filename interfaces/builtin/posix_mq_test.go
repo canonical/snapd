@@ -75,6 +75,13 @@ slots:
     path:
       - this-is-not-a-string
 
+  test-invalid-path-4:
+    interface: posix-mq
+
+  test-invalid-path-5:
+    interface: posix-mq
+    path: /.
+
   test-invalid-perms-1:
     interface: posix-mq
     path: /test-invalid-perms-1
@@ -87,6 +94,13 @@ slots:
       interface: posix-mq
       path: /test-invalid-perms-2
       permissions: not-a-list
+
+  test-invalid-perms-3:
+    interface: posix-mq
+    path: /test-invalid-perms-3
+    permissions:
+      - create
+      - [not-a-string]
 
   test-label:
       interface: posix-mq
@@ -190,6 +204,19 @@ apps:
     plugs: [test-label]
 `
 
+const invalidPerms3PlugSnapInfoYaml = `name: consumer
+version: 1.0
+
+plugs:
+  test-invalid-perms-3:
+    interface: posix-mq
+
+apps:
+  app:
+    command: foo
+    plugs: [test-invalid-perms-3]
+`
+
 const testInvalidLabelPlugSnapInfoYaml = `name: consumer
 version: 1.0
 
@@ -239,6 +266,12 @@ type PosixMQInterfaceSuite struct {
 	testInvalidPath3SlotInfo *snap.SlotInfo
 	testInvalidPath3Slot     *interfaces.ConnectedSlot
 
+	testInvalidPath4SlotInfo *snap.SlotInfo
+	testInvalidPath4Slot     *interfaces.ConnectedSlot
+
+	testInvalidPath5SlotInfo *snap.SlotInfo
+	testInvalidPath5Slot     *interfaces.ConnectedSlot
+
 	testInvalidPerms1SlotInfo *snap.SlotInfo
 	testInvalidPerms1Slot     *interfaces.ConnectedSlot
 	testInvalidPerms1PlugInfo *snap.PlugInfo
@@ -246,6 +279,11 @@ type PosixMQInterfaceSuite struct {
 
 	testInvalidPerms2SlotInfo *snap.SlotInfo
 	testInvalidPerms2Slot     *interfaces.ConnectedSlot
+
+	testInvalidPerms3SlotInfo *snap.SlotInfo
+	testInvalidPerms3Slot     *interfaces.ConnectedSlot
+	testInvalidPerms3PlugInfo *snap.PlugInfo
+	testInvalidPerms3Plug     *interfaces.ConnectedPlug
 
 	testLabelSlotInfo *snap.SlotInfo
 	testLabelSlot     *interfaces.ConnectedSlot
@@ -288,11 +326,20 @@ func (s *PosixMQInterfaceSuite) SetUpTest(c *C) {
 	s.testInvalidPath3SlotInfo = slotSnap.Slots["test-invalid-path-3"]
 	s.testInvalidPath3Slot = interfaces.NewConnectedSlot(s.testInvalidPath3SlotInfo, nil, nil)
 
+	s.testInvalidPath4SlotInfo = slotSnap.Slots["test-invalid-path-4"]
+	s.testInvalidPath4Slot = interfaces.NewConnectedSlot(s.testInvalidPath4SlotInfo, nil, nil)
+
+	s.testInvalidPath5SlotInfo = slotSnap.Slots["test-invalid-path-5"]
+	s.testInvalidPath5Slot = interfaces.NewConnectedSlot(s.testInvalidPath5SlotInfo, nil, nil)
+
 	s.testInvalidPerms1SlotInfo = slotSnap.Slots["test-invalid-perms-1"]
 	s.testInvalidPerms1Slot = interfaces.NewConnectedSlot(s.testInvalidPerms1SlotInfo, nil, nil)
 
 	s.testInvalidPerms2SlotInfo = slotSnap.Slots["test-invalid-perms-2"]
 	s.testInvalidPerms2Slot = interfaces.NewConnectedSlot(s.testInvalidPerms2SlotInfo, nil, nil)
+
+	s.testInvalidPerms3SlotInfo = slotSnap.Slots["test-invalid-perms-3"]
+	s.testInvalidPerms3Slot = interfaces.NewConnectedSlot(s.testInvalidPerms3SlotInfo, nil, nil)
 
 	s.testLabelSlotInfo = slotSnap.Slots["test-label"]
 	s.testLabelSlot = interfaces.NewConnectedSlot(s.testLabelSlotInfo, nil, nil)
@@ -327,6 +374,10 @@ func (s *PosixMQInterfaceSuite) SetUpTest(c *C) {
 	plugSnap6 := snaptest.MockInfo(c, testInvalidLabelPlugSnapInfoYaml, nil)
 	s.testInvalidLabelPlugInfo = plugSnap6.Plugs["test-invalid-label"]
 	s.testInvalidLabelPlug = interfaces.NewConnectedPlug(s.testInvalidLabelPlugInfo, nil, nil)
+
+	plugSnap7 := snaptest.MockInfo(c, invalidPerms3PlugSnapInfoYaml, nil)
+	s.testInvalidPerms3PlugInfo = plugSnap7.Plugs["test-invalid-perms-3"]
+	s.testInvalidPerms3Plug = interfaces.NewConnectedPlug(s.testInvalidPerms3PlugInfo, nil, nil)
 }
 
 func (s *PosixMQInterfaceSuite) checkSlotSeccompSnippet(c *C, spec *seccomp.Specification) {
@@ -490,7 +541,7 @@ func (s *PosixMQInterfaceSuite) TestPathValidationAppArmorRegex(c *C) {
 func (s *PosixMQInterfaceSuite) TestPathStringValidation(c *C) {
 	spec := &apparmor.Specification{}
 	err := spec.AddPermanentSlot(s.iface, s.testInvalidPath3SlotInfo)
-	c.Check(err, ErrorMatches, `posix-mq slot "path" attribute must be a string, not \[this-is-not-a-string\]`)
+	c.Check(err, ErrorMatches, `snap "producer" has interface "posix-mq" with invalid value type \[\]interface {} for "path" attribute: \*string`)
 }
 
 func (s *PosixMQInterfaceSuite) TestInvalidPerms1(c *C) {
@@ -506,6 +557,15 @@ func (s *PosixMQInterfaceSuite) TestInvalidPerms1(c *C) {
 		`posix-mq slot permission "break-everything" not valid, must be one of \[open read write create delete\]`)
 }
 
+func (s *PosixMQInterfaceSuite) TestInvalidPerms3(c *C) {
+	spec := &apparmor.Specification{}
+	err := spec.AddPermanentSlot(s.iface, s.testInvalidPerms3SlotInfo)
+	c.Assert(err, IsNil)
+	err = spec.AddConnectedPlug(s.iface, s.testInvalidPerms3Plug, s.testInvalidPerms3Slot)
+	c.Check(err, ErrorMatches,
+		`snap "producer" has interface "posix-mq" with invalid value type \[\]interface {} for "permissions" attribute: \*\[\]string`)
+}
+
 func (s *PosixMQInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "posix-mq")
 }
@@ -514,7 +574,9 @@ func (s *PosixMQInterfaceSuite) TestNoAppArmor(c *C) {
 	// Ensure that the interface does not fail if AppArmor is unsupported
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Unsupported)
 	defer restore()
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testReadWriteSlotInfo), IsNil)
+
+	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testReadWriteSlotInfo), IsNil)
+	c.Check(interfaces.BeforePreparePlug(s.iface, s.testReadWritePlugInfo), IsNil)
 }
 
 func (s *PosixMQInterfaceSuite) TestFeatureDetection(c *C) {
@@ -555,11 +617,15 @@ func (s *PosixMQInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath2SlotInfo), ErrorMatches,
 		`posix-mq "path" attribute is invalid: /test-invalid-2"\["`)
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath3SlotInfo), ErrorMatches,
-		`posix-mq slot "path" attribute must be a string, not \[this-is-not-a-string\]`)
+		`snap "producer" has interface "posix-mq" with invalid value type \[\]interface {} for "path" attribute: \*string`)
+	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath4SlotInfo), ErrorMatches,
+		`posix-mq slot requires the "path" attribute`)
+	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath5SlotInfo), ErrorMatches,
+		`posix-mq "path" attribute is not a clean path: "/."`)
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPerms1SlotInfo), ErrorMatches,
 		`posix-mq slot permission "break-everything" not valid, must be one of \[open read write create delete\]`)
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPerms2SlotInfo), ErrorMatches,
-		`posix-mq slot "permissions" attribute must be a list of strings, not not-a-list`)
+		`snap "producer" has interface "posix-mq" with invalid value type string for "permissions" attribute: \*\[\]string`)
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidLabelSlotInfo), ErrorMatches,
 		`posix-mq "posix-mq" attribute must be a string, not \[broken\]`)
 }
