@@ -312,6 +312,13 @@ if [ "$STATIC" = 1 ]; then
         echo "Checking tests formatting"
         ./tests/lib/external/snapd-testing-tools/utils/check-test-format ./tests
     fi
+
+    echo "Checking for usages of !=, == or Equals with ErrNoState"
+    if got=$(grep -n -R -E "(\!=|==|Equals,) (state\.)?ErrNoState" --include=*.go) ; then
+      echo "Don't use equality checks with ErrNoState, use errors.Is() instead"
+      echo "$got"
+      exit 1
+    fi
 fi
 
 if [ "$UNIT" = 1 ]; then
