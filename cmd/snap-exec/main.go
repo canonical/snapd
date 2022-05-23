@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
-	"github.com/snapcore/snapd/timings"
 )
 
 // for the tests
@@ -248,7 +247,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 
 	fullCmd = append(absoluteCommandChain(app.Snap, app.CommandChain), fullCmd...)
 
-	logger.Debugf("-- snap startup %s", timings.StartupTimestampMsg("snap-exec to app"))
+	logger.StartupStageTimestamp("snap-exec to app")
 	if err := syscallExec(fullCmd[0], fullCmd, env.ForExec()); err != nil {
 		return fmt.Errorf("cannot exec %q: %s", fullCmd[0], err)
 	}
