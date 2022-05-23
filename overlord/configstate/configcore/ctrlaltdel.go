@@ -22,7 +22,6 @@ package configcore
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
@@ -46,7 +45,7 @@ func init() {
 type sysdCtrlAltDelLogger struct{}
 
 func (l *sysdCtrlAltDelLogger) Notify(status string) {
-	logger.Noticef("CtrlAltDel handler: %s", status)
+	fmt.Fprintf(Stderr, "ctrl-alt-del: %s\n", status)
 }
 
 // switchCtrlAltDelAction configures the systemd handling of the special
