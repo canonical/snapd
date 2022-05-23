@@ -161,3 +161,28 @@ func (s *ctrlaltdelSuite) TestCtrlAltDelValidDisabledState(c *C) {
 		}
 	}
 }
+
+func (s *ctrlaltdelSuite) TestFilesystemOnlyApplyNone(c *C) {
+	conf := configcore.PlainCoreConfig(map[string]interface{}{
+		"system.ctrl-alt-del-action": "none",
+	})
+	tmpDir := c.MkDir()
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
+
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"--root", tmpDir, "mask", "ctrl-alt-del.target"},
+	})
+}
+
+func (s *ctrlaltdelSuite) TestFilesystemOnlyApplyReboot(c *C) {
+	// slightly strange test as this is the default
+	conf := configcore.PlainCoreConfig(map[string]interface{}{
+		"system.ctrl-alt-del-action": "reboot",
+	})
+	tmpDir := c.MkDir()
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
+
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"--root", tmpDir, "unmask", "ctrl-alt-del.target"},
+	})
+}
