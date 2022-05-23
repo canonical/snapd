@@ -107,8 +107,8 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 			return keys.RecoveryKey{}, fmt.Errorf("cannot find matching device for: %v", err)
 		}
 		authzMethod := "keyring"
-		if rkeyDev.AuthorizationKeyFile != "" {
-			authzMethod = "file:" + rkeyDev.AuthorizationKeyFile
+		if rkeyDev.AuthorizingKeyFile != "" {
+			authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
 		}
 		command = append(command, []string{
 			"--devices", dev,
@@ -153,8 +153,8 @@ func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
 			return fmt.Errorf("cannot find matching device for: %v", err)
 		}
 		authzMethod := "keyring"
-		if rkeyDev.AuthorizationKeyFile != "" {
-			authzMethod = "file:" + rkeyDev.AuthorizationKeyFile
+		if rkeyDev.AuthorizingKeyFile != "" {
+			authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
 		}
 		command = append(command, []string{
 			"--devices", dev,
