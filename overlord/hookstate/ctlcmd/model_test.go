@@ -159,6 +159,9 @@ func (s *modelSuite) SetUpTest(c *C) {
 }
 
 func (s *modelSuite) setupBrands() {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	assertstatetest.AddMany(s.state, s.brands.AccountsAndKeys("my-brand")...)
 	otherAcct := assertstest.NewAccount(s.storeSigning, "other-brand", map[string]interface{}{
 		"account-id": "other-brand",
@@ -194,13 +197,20 @@ base: snap1-base
 version: 1
 `
 
-func (s *modelSuite) TestUnhappyModelCommandNotGadgetOrSamePublisher(c *C) {
+var snapWithSnapdControlOnlyYaml = `
+name: snap1-control
+version: 1
+plugs:
+ snapd-control:
+`
+
+func (s *modelSuite) TestUnhappyModelCommandInsufficientPermissions(c *C) {
 	// Make sure that we can not get the model assertion if we are not a gadget
 	// type snap, or if we are not the publisher of the model assertion.
-	s.state.Lock()
 	s.setupBrands()
 
 	// set a model assertion
+	s.state.Lock()
 	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
@@ -229,14 +239,91 @@ func (s *modelSuite) TestUnhappyModelCommandNotGadgetOrSamePublisher(c *C) {
 	c.Check(string(stderr), Equals, "cannot get model assertion for snap \"snap1\": not a gadget or from the same brand as the device model assertion\n")
 }
 
+func (s *modelSuite) TestHappyModelCommandIdenticalPublisher(c *C) {
+	// Make sure that we can not get the model assertion if we are not a gadget
+	// type snap, or if we are not the publisher of the model assertion.
+	s.addSnapDeclaration(c, "snap1-id", "canonical", "snap1")
+	s.setupBrands()
+
+	// set a model assertion
+	s.state.Lock()
+	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	err := assertstate.Add(s.state, current)
+	c.Assert(err, IsNil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	c.Assert(err, IsNil)
+	task := s.state.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "test-hook"}
+	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+	mockInstalledSnap(c, s.state, snapBaseYaml, "")
+	mockInstalledSnap(c, s.state, snapYaml, "")
+	s.state.Unlock()
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
+	c.Check(err, IsNil)
+	c.Check(len(string(stdout)) > 0, Equals, true)
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *modelSuite) TestHappyModelCommandSnapdControlPlug(c *C) {
+	// Make sure that we can not get the model assertion if we are not a gadget
+	// type snap, or if we are not the publisher of the model assertion.
+	s.setupBrands()
+	s.addSnapDeclaration(c, "snap1-control-id", "other-brand", "snap1-control")
+
+	// set a model assertion
+	s.state.Lock()
+	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	err := assertstate.Add(s.state, current)
+	c.Assert(err, IsNil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	c.Assert(err, IsNil)
+	task := s.state.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "snap1-control", Revision: snap.R(1), Hook: "test-hook"}
+	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+	mockInstalledSnap(c, s.state, snapWithSnapdControlOnlyYaml, "")
+	s.state.Unlock()
+
+	// to make life easier for us, we mock the connected check
+	r := ctlcmd.MockInterfaceConnected(func(st *state.State, snapName, ifName string) bool {
+		return true
+	})
+	defer r()
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
+	c.Check(err, IsNil)
+	c.Check(len(string(stdout)) > 0, Equals, true)
+	c.Check(string(stderr), Equals, "")
+}
+
 func (s *modelSuite) TestHappyModelCommandPublisherYaml(c *C) {
 	// Make sure that we can get the model assertion even if the snap is
 	// is not a gadget, but comes from the same publisher as the model
 	s.addSnapDeclaration(c, "gadget1-id", "canonical", "gadget1")
-	s.state.Lock()
 	s.setupBrands()
 
 	// set a model assertion
+	s.state.Lock()
 	current := s.brands.Model("my-brand", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
@@ -276,10 +363,10 @@ func (s *modelSuite) TestHappyModelCommandGadgetYaml(c *C) {
 	// This tests verifies that a snap that is a gadget can be used to
 	// get the model assertion, even if from a different publisher
 	s.addSnapDeclaration(c, "gadget1-id", "canonical", "gadget1")
-	s.state.Lock()
 	s.setupBrands()
 
 	// set a model assertion
+	s.state.Lock()
 	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
@@ -317,10 +404,10 @@ timestamp:     %s
 
 func (s *modelSuite) TestHappyModelCommandGadgetJson(c *C) {
 	s.addSnapDeclaration(c, "gadget1-id", "canonical", "gadget1")
-	s.state.Lock()
 	s.setupBrands()
 
 	// set a model assertion
+	s.state.Lock()
 	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
@@ -359,10 +446,10 @@ func (s *modelSuite) TestHappyModelCommandGadgetJson(c *C) {
 
 func (s *modelSuite) TestHappyModelCommandAssertionGadgetYaml(c *C) {
 	s.addSnapDeclaration(c, "gadget1-id", "canonical", "gadget1")
-	s.state.Lock()
 	s.setupBrands()
 
 	// set a model assertion
+	s.state.Lock()
 	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
@@ -392,10 +479,10 @@ func (s *modelSuite) TestHappyModelCommandAssertionGadgetYaml(c *C) {
 
 func (s *modelSuite) TestHappyModelCommandAssertionGadgetJson(c *C) {
 	s.addSnapDeclaration(c, "gadget1-id", "canonical", "gadget1")
-	s.state.Lock()
 	s.setupBrands()
 
 	// set a model assertion
+	s.state.Lock()
 	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
@@ -439,10 +526,10 @@ func (s *modelSuite) TestHappyModelCommandAssertionGadgetJson(c *C) {
 
 func (s *modelSuite) TestRunWithoutHook(c *C) {
 	s.addSnapDeclaration(c, "gadget1-id", "canonical", "gadget1")
-	s.state.Lock()
 	s.setupBrands()
 
 	// set a model assertion
+	s.state.Lock()
 	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",

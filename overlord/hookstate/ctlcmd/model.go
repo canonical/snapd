@@ -99,7 +99,7 @@ func (c *modelCommand) reportError(format string, a ...interface{}) {
 	w.Flush()
 }
 
-func interfaceConnected(st *state.State, snapName, ifName string) bool {
+var interfaceConnected = func(st *state.State, snapName, ifName string) bool {
 	conns, err := ifacerepo.Get(st).Connected(snapName, ifName)
 	return err == nil && len(conns) > 0
 }

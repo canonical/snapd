@@ -48,6 +48,12 @@ func MockDevicestateSystemModeInfoFromState(f func(*state.State) (*devicestate.S
 	return func() { devicestateSystemModeInfoFromState = old }
 }
 
+func MockInterfaceConnected(f func(st *state.State, snapName, ifName string) bool) (restore func()) {
+	old := interfaceConnected
+	interfaceConnected = f
+	return func() { interfaceConnected = old }
+}
+
 func AddMockCommand(name string) *MockCommand {
 	return addMockCmd(name, false)
 }
