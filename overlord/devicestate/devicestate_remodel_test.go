@@ -1063,7 +1063,7 @@ func (s *deviceMgrRemodelSuite) TestDeviceCtxNoTask(c *C) {
 	// nothing in the state
 
 	_, err := devicestate.DeviceCtx(s.state, nil, nil)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// have a model assertion
 	model := s.brands.Model("canonical", "pc", map[string]interface{}{

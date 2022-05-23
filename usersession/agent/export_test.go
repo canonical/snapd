@@ -31,13 +31,10 @@ var (
 	FinishRefreshNotificationCmd  = finishRefreshNotificationCmd
 )
 
-func MockStopTimeouts(stop, kill time.Duration) (restore func()) {
-	oldStopTimeout := stopTimeout
-	stopTimeout = stop
+func MockStopTimeouts(kill time.Duration) (restore func()) {
 	oldKillWait := killWait
 	killWait = kill
 	return func() {
-		stopTimeout = oldStopTimeout
 		killWait = oldKillWait
 	}
 }

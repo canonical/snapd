@@ -77,7 +77,7 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 		s.sysdLog = append(s.sysdLog, cmd)
 		return []byte("ActiveState=inactive\n"), nil
 	})
-	s.delaysRestorer = systemd.MockStopDelays(time.Millisecond, 25*time.Second)
+	s.delaysRestorer = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	s.perfTimings = timings.New(nil)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())

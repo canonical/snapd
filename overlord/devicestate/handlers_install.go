@@ -24,6 +24,7 @@ import (
 	"compress/gzip"
 	"crypto"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -603,7 +604,7 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 
 	var rebootOpts RebootOptions
 	err = t.Get("reboot", &rebootOpts)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 

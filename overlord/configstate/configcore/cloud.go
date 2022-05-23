@@ -23,6 +23,7 @@ package configcore
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"os"
 
@@ -39,7 +40,7 @@ func alreadySeeded(tr config.Conf) (bool, error) {
 	defer st.Unlock()
 	var seeded bool
 	err := tr.State().Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
 	return seeded, nil
