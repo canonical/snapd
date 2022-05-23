@@ -23,6 +23,7 @@
 package assertstate
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -688,11 +689,11 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		// by RefreshValidationSetAssertions.
 		var tr ValidationSetTracking
 		trerr := GetValidationSet(st, accountID, name, &tr)
-		if trerr != nil && trerr != state.ErrNoState {
+		if trerr != nil && !errors.Is(trerr, state.ErrNoState) {
 			return nil, 0, trerr
 		}
 		// not tracked, update the assertion
-		if trerr == state.ErrNoState {
+		if errors.Is(trerr, state.ErrNoState) {
 			// update with pool
 			atSeq.Sequence = vs.Sequence()
 			atSeq.Revision = vs.Revision()

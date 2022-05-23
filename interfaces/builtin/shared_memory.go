@@ -220,7 +220,7 @@ func writeSharedMemoryPaths(w io.Writer, slot *interfaces.ConnectedSlot,
 	snippetType sharedMemorySnippetType) {
 	emitWritableRule := func(path string) {
 		// Ubuntu 14.04 uses /run/shm instead of the most common /dev/shm
-		fmt.Fprintf(w, "\"/{dev,run}/shm/%s\" rwk,\n", path)
+		fmt.Fprintf(w, "\"/{dev,run}/shm/%s\" mrwlk,\n", path)
 	}
 
 	// All checks were already done in BeforePrepare{Plug,Slot}

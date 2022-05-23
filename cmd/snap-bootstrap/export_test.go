@@ -82,7 +82,7 @@ func MockSystemdMount(f func(_, _ string, opts *SystemdMountOptions) error) (res
 	}
 }
 
-func MockTriggerwatchWait(f func(_ time.Duration) error) (restore func()) {
+func MockTriggerwatchWait(f func(_ time.Duration, _ time.Duration) error) (restore func()) {
 	oldTriggerwatchWait := triggerwatchWait
 	triggerwatchWait = f
 	return func() {
@@ -91,6 +91,7 @@ func MockTriggerwatchWait(f func(_ time.Duration) error) (restore func()) {
 }
 
 var DefaultTimeout = defaultTimeout
+var DefaultDeviceTimeout = defaultDeviceTimeout
 
 func MockDefaultMarkerFile(p string) (restore func()) {
 	old := defaultMarkerFile

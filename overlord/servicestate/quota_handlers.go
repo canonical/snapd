@@ -20,9 +20,9 @@
 package servicestate
 
 import (
+	"errors"
 	"fmt"
 	"sort"
-	"time"
 
 	tomb "gopkg.in/tomb.v2"
 
@@ -193,7 +193,7 @@ func rememberQuotaStateUpdated(t *state.Task, appsToRestartBySnap map[*snap.Info
 func quotaStateAlreadyUpdated(t *state.Task) (ok bool, appsToRestartBySnap map[*snap.Info][]*snap.AppInfo, err error) {
 	var updated quotaStateUpdated
 	if err := t.Get("state-updated", &updated); err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			return false, nil, nil
 		}
 		return false, nil, err
@@ -529,7 +529,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	if _, ok := allGrps[grp.Name]; !ok {
 		// stop the quota group, then remove it
 		if !ensureOpts.Preseeding {
-			if err := systemSysd.Stop([]string{grp.SliceFileName()}, 5*time.Second); err != nil {
+			if err := systemSysd.Stop([]string{grp.SliceFileName()}); err != nil {
 				logger.Noticef("unable to stop systemd slice while removing group %q: %v", grp.Name, err)
 			}
 		}
@@ -654,7 +654,7 @@ func quotaControlAffectedSnaps(t *state.Task) (snaps []string, err error) {
 
 	// if state-updated was already set we can use it
 	var updated quotaStateUpdated
-	if err := t.Get("state-updated", &updated); err != state.ErrNoState {
+	if err := t.Get("state-updated", &updated); !errors.Is(err, state.ErrNoState) {
 		if err != nil {
 			return nil, err
 		}

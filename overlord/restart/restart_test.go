@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestRestart(t *testing.T) { TestingT(t) }
@@ -143,7 +144,7 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	err = restart.Init(st, "boot-id-2", h2)
 	c.Assert(err, IsNil)
 	c.Check(h2.rebootAsExpected, Equals, true)
-	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), Equals, state.ErrNoState)
+	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
@@ -189,5 +190,5 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	err = restart.Init(st, "boot-id-2", h2)
 	c.Assert(err, IsNil)
 	c.Check(h2.rebootAsExpected, Equals, true)
-	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), Equals, state.ErrNoState)
+	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), testutil.ErrorIs, state.ErrNoState)
 }

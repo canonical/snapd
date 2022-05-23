@@ -1,4 +1,4 @@
-#!/bin/sh -eu
+#!/bin/bash -eu
 
 export LANG=C.UTF-8
 export LANGUAGE=en
@@ -11,6 +11,7 @@ fi
 COVERMODE=${COVERMODE:-atomic}
 COVERAGE_SUFFIX=${GO_BUILD_TAGS:-notags}
 COVERAGE_OUT=${COVERAGE_OUT:-.coverage/coverage-$COVERAGE_SUFFIX.cov}
+CHANGED_FILES=${CHANGED_FILES:-""}
 
 if [ -z "${GITHUB_WORKFLOW:-}" ]; then
     # when *not* running inside github, ensure we use go-1.13 by default
@@ -203,12 +204,23 @@ if [ "$STATIC" = 1 ]; then
     if command -v shellcheck >/dev/null; then
         exclude_tools_path=tests/lib/external/snapd-testing-tools
         echo "Checking shell scripts..."
-        ( git ls-files -z 2>/dev/null ||
-                find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0 ) |
-            xargs -0 file -N |
-            awk -F": " '$2~/shell.script/{print $1}' |
-            grep -v "$exclude_tools_path" |
-            xargs shellcheck -x
+        if [ -n "$CHANGED_FILES" ]; then
+            echo "Checking just the changed bash files"
+            # shellcheck disable=SC2086
+            INITIAL_FILES="$( file -N $CHANGED_FILES | awk -F": " '$2~/shell.script/{print $1}' )"
+        else
+            echo "Checking all the bash files"
+            INITIAL_FILES="$( ( git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0) | xargs -0 file -N | awk -F": " '$2~/shell.script/{print $1}' )"
+        fi
+        FILTERED_FILES="$( echo "$INITIAL_FILES"  | grep -v "$exclude_tools_path" )"
+        if [ -n "$FILTERED_FILES" ]; then
+            echo "Running shellcheck for files: $FILTERED_FILES"
+            # shellcheck disable=SC2086
+            shellcheck -x $FILTERED_FILES
+        else
+            echo "Skipping shellcheck, no files to check"
+        fi
+
         regexp='GOPATH(?!%%:\*)(?!:)[^= ]*/'
         if  grep -qPr                   --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
             echo "Using GOPATH as if it were a single entry and not a list:"
@@ -217,8 +229,21 @@ if [ "$STATIC" = 1 ]; then
             exit 1
         fi
         unset regexp
+
         # also run spread-shellcheck
-        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck spread.yaml tests --exclude "$exclude_tools_path"
+        FILTERED_FILES="spread.yaml"
+        if [ -n "$CHANGED_FILES" ]; then
+            # shellcheck disable=SC2086
+            for changed_file in $CHANGED_FILES; do
+                if [[ $changed_file == */task.yaml ]]; then
+                    FILTERED_FILES="$FILTERED_FILES $changed_file"
+                fi
+            done
+        else
+            FILTERED_FILES="$FILTERED_FILES tests"
+        fi
+        # shellcheck disable=SC2086
+        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $FILTERED_FILES --exclude "$exclude_tools_path"
     fi
 
     if [ -z "${SKIP_MISSPELL-}" ]; then
