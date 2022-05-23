@@ -161,10 +161,17 @@ backends:
                   workers: 6
                   storage: preserve-size
                   image: centos-7-64
+                  manual: true
             - centos-8-64:
                   workers: 6
                   storage: preserve-size
-                  image: centos-stream-8
+                  image: centos-9-64
+            - centos-9-64:
+                  workers: 6
+                  storage: preserve-size
+                  image: centos-9-64
+                  manual: true
+
             # unstable systems below
             - opensuse-15.2-64:
                   workers: 6
