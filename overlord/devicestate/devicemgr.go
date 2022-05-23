@@ -2125,8 +2125,6 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	}
 	recoveryKeyDevices := make(map[secboot.RecoveryKeyDevice]string, 2)
 	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
-	// TODO figure out appropriate authorization source for each device
-	// depending on mode
 	recoveryKeyDevices[secboot.RecoveryKeyDevice{
 		Mountpoint: dataMountPoints[0],
 		// authorization from keyring
