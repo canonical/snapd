@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -73,7 +72,7 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled 
 			return err
 		}
 		if opts == nil {
-			return sysd.Stop(units, 5*time.Minute)
+			return sysd.Stop(units)
 		}
 	} else {
 		err := os.Remove(sshCanary)
@@ -186,7 +185,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		}
 		// mask triggered a reload already
 		if opts == nil {
-			return sysd.Stop(units, 5*time.Minute)
+			return sysd.Stop(units)
 		}
 	} else {
 		if err := sysd.Unmask(serviceName); err != nil {

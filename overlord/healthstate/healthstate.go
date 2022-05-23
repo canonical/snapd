@@ -21,6 +21,7 @@ package healthstate
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -126,7 +127,7 @@ func (h *healthHandler) Done() error {
 	err := h.context.Get("health", &health)
 	h.context.Unlock()
 
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		// note it can't actually be state.ErrNoState because Before sets it
 		// (but if it were, health.Timestamp would still be zero)
 		return err
@@ -168,7 +169,7 @@ func appendHealth(ctx *hookstate.Context, health *HealthState) error {
 
 	var hs map[string]*HealthState
 	if err := st.Get("health", &hs); err != nil {
-		if err != state.ErrNoState {
+		if !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		hs = map[string]*HealthState{}
@@ -187,7 +188,7 @@ func SetFromHookContext(ctx *hookstate.Context) error {
 	err := ctx.Get("health", &health)
 
 	if err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			return nil
 		}
 		return err
@@ -197,7 +198,7 @@ func SetFromHookContext(ctx *hookstate.Context) error {
 
 func All(st *state.State) (map[string]*HealthState, error) {
 	var hs map[string]*HealthState
-	if err := st.Get("health", &hs); err != nil && err != state.ErrNoState {
+	if err := st.Get("health", &hs); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	return hs, nil
@@ -206,7 +207,7 @@ func All(st *state.State) (map[string]*HealthState, error) {
 func Get(st *state.State, snap string) (*HealthState, error) {
 	var hs map[string]json.RawMessage
 	if err := st.Get("health", &hs); err != nil {
-		if err != state.ErrNoState {
+		if !errors.Is(err, state.ErrNoState) {
 			return nil, err
 		}
 		return nil, nil

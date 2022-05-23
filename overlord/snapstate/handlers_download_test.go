@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type downloadSnapSuite struct {
@@ -254,7 +255,7 @@ func (s *downloadSnapSuite) TestDoUndoDownloadSnap(c *C) {
 	// and nothing is in the state for "foo"
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 }
 

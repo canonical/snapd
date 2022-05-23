@@ -562,7 +562,7 @@ func genRefreshRequestSalt(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
 
-	if err := st.Get("refresh-privacy-key", &refreshPrivacyKey); err != nil && err != state.ErrNoState {
+	if err := st.Get("refresh-privacy-key", &refreshPrivacyKey); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if refreshPrivacyKey != "" {
@@ -654,7 +654,7 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 	// not exploitable in the current versions of snapd/core snaps.
 	var alreadyRemoved bool
 	key := fmt.Sprintf("%s-snap-cve-2021-44731-vuln-removed", name)
-	if err := m.state.Get(key, &alreadyRemoved); err != nil && err != state.ErrNoState {
+	if err := m.state.Get(key, &alreadyRemoved); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if alreadyRemoved {
@@ -662,10 +662,10 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 	}
 	var snapSt SnapState
 	err := Get(m.state, name, &snapSt)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		// not installed, nothing to do
 		return nil
 	}
@@ -782,7 +782,7 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 
 	// int because we might want to come back and do a second pass at cleanup
 	var fixed int
-	if err := m.state.Get("fix-forced-devmode", &fixed); err != nil && err != state.ErrNoState {
+	if err := m.state.Get("fix-forced-devmode", &fixed); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -792,7 +792,7 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 
 	for _, name := range []string{"core", "ubuntu-core"} {
 		var snapst SnapState
-		if err := Get(m.state, name, &snapst); err == state.ErrNoState {
+		if err := Get(m.state, name, &snapst); errors.Is(err, state.ErrNoState) {
 			// nothing to see here
 			continue
 		} else if err != nil {
@@ -836,7 +836,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 	// check if snapd snap is installed
 	var snapst SnapState
 	err := Get(m.state, "snapd", &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	// nothing to do
@@ -869,7 +869,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 	// Note that state.ErrNoState should never happen in practise. However
 	// if it *does* happen we still want to fix those systems by installing
 	// the snapd snap.
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	coreChannel := snapst.TrackingChannel
@@ -886,7 +886,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 	// ensure we limit the retries in case something goes wrong
 	var lastSnapdTransitionAttempt time.Time
 	err = m.state.Get("snapd-transition-last-retry-time", &lastSnapdTransitionAttempt)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	now := time.Now()
@@ -897,7 +897,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 
 	var retryCount int
 	err = m.state.Get("snapd-transition-retry", &retryCount)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	m.state.Set("snapd-transition-retry", retryCount+1)
@@ -922,10 +922,10 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 
 	var snapst SnapState
 	err := Get(m.state, "ubuntu-core", &snapst)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -939,7 +939,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	// ensure we limit the retries in case something goes wrong
 	var lastUbuntuCoreTransitionAttempt time.Time
 	err = m.state.Get("ubuntu-core-transition-last-retry-time", &lastUbuntuCoreTransitionAttempt)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	now := time.Now()
@@ -957,7 +957,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 
 	var retryCount int
 	err = m.state.Get("ubuntu-core-transition-retry", &retryCount)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	m.state.Set("ubuntu-core-transition-retry", retryCount+1)
@@ -981,7 +981,7 @@ func (m *SnapManager) atSeed() error {
 	defer m.state.Unlock()
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != state.ErrNoState {
+	if !errors.Is(err, state.ErrNoState) {
 		// already seeded or other error
 		return err
 	}

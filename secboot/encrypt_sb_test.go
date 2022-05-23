@@ -283,7 +283,7 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 
 	rkey, err := secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
 		{Mountpoint: "/foo"},
-		{Mountpoint: "/bar", AuthorizationKeyFile: "/authz/key.file"},
+		{Mountpoint: "/bar", AuthorizingKeyFile: "/authz/key.file"},
 	})
 	c.Assert(err, IsNil)
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
@@ -325,7 +325,7 @@ func (s *keymgrSuite) TestRemoveRecoveryKey(c *C) {
 	// only one of the key files exists
 	err := secboot.RemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
 		{Mountpoint: "/foo"}: filepath.Join(s.d, "recovery.key"),
-		{Mountpoint: "/bar", AuthorizationKeyFile: "/authz/key.file"}: filepath.Join(s.d, "missing-recovery.key"),
+		{Mountpoint: "/bar", AuthorizingKeyFile: "/authz/key.file"}: filepath.Join(s.d, "missing-recovery.key"),
 	})
 	c.Assert(err, IsNil)
 

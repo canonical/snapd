@@ -4548,10 +4548,10 @@ func (s *snapmgrQuerySuite) TestGadgetInfo(c *C) {
 	deviceCtx := deviceWithGadgetContext("gadget")
 
 	_, err := snapstate.GadgetInfo(st, deviceCtxNoGadget)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	_, err = snapstate.GadgetInfo(st, deviceCtx)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	sideInfo := &snap.SideInfo{
 		RealName: "gadget",
@@ -4593,10 +4593,10 @@ func (s *snapmgrQuerySuite) TestKernelInfo(c *C) {
 	}
 
 	_, err := snapstate.KernelInfo(st, deviceCtxNoKernel)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	_, err = snapstate.KernelInfo(st, deviceCtx)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	sideInfo := &snap.SideInfo{
 		RealName: "pc-kernel",
@@ -4652,11 +4652,11 @@ version: v18
 	})
 
 	_, err := snapstate.BootBaseInfo(st, deviceCtxNoBootBase)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	// no boot-base in the state so ErrNoState
 	_, err = snapstate.BootBaseInfo(st, deviceCtx)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	sideInfo := &snap.SideInfo{RealName: "core20", Revision: snap.R(4)}
 	snaptest.MockSnap(c, `
@@ -5709,7 +5709,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTooEarly(c *C) {
 	// not counted as a try
 	var t time.Time
 	err := s.state.Get("ubuntu-core-transition-last-retry-time", &t)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *snapmgrTestSuite) TestTransitionCoreTimeLimitWorks(c *C) {
@@ -6145,7 +6145,7 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2(c *C) {
 
 	var gone interface{}
 	err = s.state.Get("aliases", &gone)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "alias-snap", &snapst)
@@ -6213,7 +6213,7 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2SnapDisabled(c *C) {
 
 	var gone interface{}
 	err = s.state.Get("aliases", &gone)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "alias-snap", &snapst)
@@ -6955,10 +6955,10 @@ func (s *snapmgrTestSuite) TestGadgetConnections(c *C) {
 	defer s.state.Unlock()
 
 	_, err := snapstate.GadgetConnections(s.state, deviceCtxNoGadget)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	_, err = snapstate.GadgetConnections(s.state, deviceCtx)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	s.prepareGadget(c, `
 connections:

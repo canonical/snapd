@@ -106,9 +106,10 @@ func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.Recov
 		if err != nil {
 			return keys.RecoveryKey{}, fmt.Errorf("cannot find matching device for: %v", err)
 		}
+		logger.Debugf("ensuring recovery key on device: %v", dev)
 		authzMethod := "keyring"
-		if rkeyDev.AuthorizationKeyFile != "" {
-			authzMethod = "file:" + rkeyDev.AuthorizationKeyFile
+		if rkeyDev.AuthorizingKeyFile != "" {
+			authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
 		}
 		command = append(command, []string{
 			"--devices", dev,
@@ -135,7 +136,6 @@ func devByPartUUIDFromMount(mp string) (string, error) {
 		return "", fmt.Errorf("cannot partition for mount %v: %v", mp, err)
 	}
 	dev := filepath.Join("/dev/disk/by-partuuid", partUUID)
-	logger.Debugf("device by partuuid: %v", dev)
 	return dev, nil
 }
 
@@ -152,9 +152,10 @@ func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
 		if err != nil {
 			return fmt.Errorf("cannot find matching device for: %v", err)
 		}
+		logger.Debugf("removing recovery key from device: %v", dev)
 		authzMethod := "keyring"
-		if rkeyDev.AuthorizationKeyFile != "" {
-			authzMethod = "file:" + rkeyDev.AuthorizationKeyFile
+		if rkeyDev.AuthorizingKeyFile != "" {
+			authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
 		}
 		command = append(command, []string{
 			"--devices", dev,

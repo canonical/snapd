@@ -21,6 +21,7 @@ package hookstate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -226,7 +227,7 @@ func hookSetup(task *state.Task, key string) (*HookSetup, *snapstate.SnapState, 
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(task.State(), hooksup.Snap, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, fmt.Errorf("cannot handle %q snap: %v", hooksup.Snap, err)
 	}
 
@@ -276,7 +277,7 @@ func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	hooksup, snapst, err := hookSetup(task, "undo-hook-setup")
 	task.State().Unlock()
 	if err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			// no undo hook setup
 			return nil
 		}

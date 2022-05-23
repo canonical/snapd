@@ -21,6 +21,7 @@ package patch
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/logger"
@@ -43,7 +44,7 @@ func normChan(in string) string {
 //  - ensure channel spec is valid
 func patch6_3(st *state.State) error {
 	var snaps map[string]*json.RawMessage
-	if err := st.Get("snaps", &snaps); err != nil && err != state.ErrNoState {
+	if err := st.Get("snaps", &snaps); err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot get snaps: %s", err)
 	}
 
@@ -83,7 +84,7 @@ func patch6_3(st *state.State) error {
 		// check task snap-setup
 		var snapsup map[string]interface{}
 		err := task.Get("snap-setup", &snapsup)
-		if err != nil && err != state.ErrNoState {
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return fmt.Errorf("internal error: cannot get snap-setup of task %s: %s", task.ID(), err)
 		}
 		if err == nil {

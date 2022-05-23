@@ -22,6 +22,7 @@ package hookstate
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -167,7 +168,7 @@ func (c *Context) Set(key string, value interface{}) {
 	if c.IsEphemeral() {
 		data, _ = c.cache["ephemeral-context"].(map[string]*json.RawMessage)
 	} else {
-		if err := c.task.Get("hook-context", &data); err != nil && err != state.ErrNoState {
+		if err := c.task.Get("hook-context", &data); err != nil && !errors.Is(err, state.ErrNoState) {
 			panic(fmt.Sprintf("internal error: cannot unmarshal context: %v", err))
 		}
 	}

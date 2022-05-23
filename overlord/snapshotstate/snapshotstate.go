@@ -22,6 +22,7 @@ package snapshotstate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -59,7 +60,7 @@ func newSnapshotSetID(st *state.State) (uint64, error) {
 
 	// get last set id from state
 	err := st.Get("last-snapshot-set-id", &lastStateSetID)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return 0, err
 	}
 
@@ -155,7 +156,7 @@ func AutomaticSnapshotExpiration(st *state.State) (time.Duration, error) {
 func saveExpiration(st *state.State, setID uint64, expiryTime time.Time) error {
 	var snapshots map[uint64]*json.RawMessage
 	err := st.Get("snapshots", &snapshots)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if snapshots == nil {
@@ -178,7 +179,7 @@ func removeSnapshotState(st *state.State, setIDs ...uint64) error {
 	var snapshots map[uint64]*json.RawMessage
 	err := st.Get("snapshots", &snapshots)
 	if err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			return nil
 		}
 		return err
@@ -198,7 +199,7 @@ func expiredSnapshotSets(st *state.State, cutoffTime time.Time) (map[uint64]bool
 	var snapshots map[uint64]*snapshotState
 	err := st.Get("snapshots", &snapshots)
 	if err != nil {
-		if err != state.ErrNoState {
+		if !errors.Is(err, state.ErrNoState) {
 			return nil, err
 		}
 		return nil, nil
@@ -267,7 +268,7 @@ func snapSummariesInSnapshotSet(setID uint64, requested []string) (summaries sna
 }
 
 func taskGetErrMsg(task *state.Task, err error, what string) error {
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: task %s (%s) is missing %s information", task.ID(), task.Kind(), what)
 	}
 	return fmt.Errorf("internal error: retrieving %s information from task %s (%s): %v", what, task.ID(), task.Kind(), err)
@@ -315,7 +316,7 @@ func List(ctx context.Context, st *state.State, setID uint64, snapNames []string
 	}
 
 	var snapshots map[uint64]*snapshotState
-	if err := st.Get("snapshots", &snapshots); err != nil && err != state.ErrNoState {
+	if err := st.Get("snapshots", &snapshots); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 

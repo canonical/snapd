@@ -31,8 +31,8 @@ const (
 type RecoveryKeyDevice struct {
 	// Mountpoint of the device
 	Mountpoint string
-	// AuthorizationKeyFile is the path to the key to authorize the
+	// AuthorizingKeyFile is the path to the key to authorize the
 	// operation, if empty, then it is assumed that the authorization key is
 	// present in the user session keyring
-	AuthorizationKeyFile string
+	AuthorizingKeyFile string
 }
