@@ -22,6 +22,7 @@ package ifacestate
 import (
 	"errors"
 	"fmt"
+	"path"
 	"reflect"
 	"sort"
 	"strings"
@@ -29,26 +30,82 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/timings"
 )
 
 var snapstateFinishRestart = snapstate.FinishRestart
 
-// confinementOptions returns interfaces.ConfinementOptions from snapstate.Flags.
-func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
-	return interfaces.ConfinementOptions{
-		DevMode:  flags.DevMode,
-		JailMode: flags.JailMode,
-		Classic:  flags.Classic,
+func getQuotaGroup(st *state.State, snapName string) *quota.Group {
+	allGrps, err := servicestate.AllQuotas(st)
+	if err != nil {
+		return nil
 	}
+
+	for _, grp := range allGrps {
+		for _, name := range grp.Snaps {
+			if name == snapName {
+				return grp
+			}
+		}
+	}
+	return nil
+}
+
+func addJournalQuotaLayout(quotaGroup *quota.Group, layouts *[]snap.Layout) error {
+	if quotaGroup.JournalLimit == nil {
+		return nil
+	}
+
+	// We need to bind mount the journal namespace folder ontop of
+	// the journal folder
+	// /etc/systemd/journal.<ns> -> /etc/systemd/journal
+	journalLayout := snap.Layout{
+		Bind: path.Join(dirs.SnapSystemdDir, fmt.Sprintf("journal.snap-%s", quotaGroup.Name)),
+		Path: path.Join(dirs.SnapSystemdDir, "journal"),
+		Mode: 0755,
+	}
+	*layouts = append(*layouts, journalLayout)
+	return nil
+}
+
+func getExtraLayouts(st *state.State, snapName string) ([]snap.Layout, error) {
+	var extraLayouts []snap.Layout
+	if quotaGrp := getQuotaGroup(st, snapName); quotaGrp != nil {
+		if err := addJournalQuotaLayout(quotaGrp, &extraLayouts); err != nil {
+			return extraLayouts, err
+		}
+	}
+
+	return extraLayouts, nil
+}
+
+// confinementOptions returns interfaces.ConfinementOptions from snapstate.Flags.
+func confinementOptions(flags snapstate.Flags, extraLayouts []snap.Layout) interfaces.ConfinementOptions {
+	return interfaces.ConfinementOptions{
+		DevMode:      flags.DevMode,
+		JailMode:     flags.JailMode,
+		Classic:      flags.Classic,
+		ExtraLayouts: extraLayouts,
+	}
+}
+
+func buildConfinementOptions(st *state.State, snapName string, flags snapstate.Flags) interfaces.ConfinementOptions {
+	extraLayouts, err := getExtraLayouts(st, snapName)
+	if err != nil {
+		logger.Noticef("cannot get extra mount layouts of snap %q: %s", snapName, err)
+	}
+	return confinementOptions(flags, extraLayouts)
 }
 
 func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string, tm timings.Measurer) error {
@@ -72,7 +129,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		if err := addImplicitSlots(st, affectedSnapInfo); err != nil {
 			return err
 		}
-		opts := confinementOptions(snapst.Flags)
+		opts := buildConfinementOptions(st, affectedSnapInfo.SnapName(), snapst.Flags)
 		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts, tm); err != nil {
 			return err
 		}
@@ -115,7 +172,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return nil
 	}
 
-	opts := confinementOptions(snapsup.Flags)
+	opts := buildConfinementOptions(task.State(), snapInfo.SnapName(), snapsup.Flags)
 	return m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings)
 }
 
@@ -206,7 +263,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 			return err
 		}
 		affectedSnaps = append(affectedSnaps, snapInfo)
-		confinementOpts = append(confinementOpts, confinementOptions(snapst.Flags))
+		confinementOpts = append(confinementOpts, buildConfinementOptions(st, name, snapst.Flags))
 	}
 
 	return m.setupSecurityByBackend(task, affectedSnaps, confinementOpts, tm)
@@ -297,7 +354,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if err != nil {
 			return err
 		}
-		opts := confinementOptions(snapst.Flags)
+		opts := buildConfinementOptions(task.State(), snapName, snapst.Flags)
 		return m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings)
 	}
 }
@@ -499,12 +556,12 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 	}()
 
 	if !delayedSetupProfiles {
-		slotOpts := confinementOptions(slotSnapst.Flags)
+		slotOpts := buildConfinementOptions(st, slotRef.Snap, slotSnapst.Flags)
 		if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
 			return err
 		}
 
-		plugOpts := confinementOptions(plugSnapst.Flags)
+		plugOpts := buildConfinementOptions(st, plugRef.Name, plugSnapst.Flags)
 		if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, perfTimings); err != nil {
 			return err
 		}
@@ -605,7 +662,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		opts := confinementOptions(snapst.Flags)
+		opts := buildConfinementOptions(st, snapInfo.SnapName(), snapst.Flags)
 		if err := m.setupSnapSecurity(task, snapInfo, opts, perfTimings); err != nil {
 			return err
 		}
@@ -711,11 +768,11 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	slotOpts := confinementOptions(slotSnapst.Flags)
+	slotOpts := buildConfinementOptions(st, connRef.SlotRef.Snap, slotSnapst.Flags)
 	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
 		return err
 	}
-	plugOpts := confinementOptions(plugSnapst.Flags)
+	plugOpts := buildConfinementOptions(st, connRef.PlugRef.Snap, plugSnapst.Flags)
 	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, perfTimings); err != nil {
 		return err
 	}
@@ -794,11 +851,11 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	slotOpts := confinementOptions(slotSnapst.Flags)
+	slotOpts := buildConfinementOptions(st, slotRef.Snap, slotSnapst.Flags)
 	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
 		return err
 	}
-	plugOpts := confinementOptions(plugSnapst.Flags)
+	plugOpts := buildConfinementOptions(st, plugRef.Snap, plugSnapst.Flags)
 	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, perfTimings); err != nil {
 		return err
 	}
