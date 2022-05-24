@@ -411,6 +411,12 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "outdated-consumer"
 	case "outdated-producer-id":
 		name = "outdated-producer"
+	// for validation-sets testing
+	case "aaqKhntON3vR7kwEbVPsILm7bUViPDzx":
+		name = "some-snap"
+	// for validation-sets testing
+	case "bgtKhntON3vR7kwEbVPsILm7bUViPDzx":
+		name = "some-other-snap"
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
