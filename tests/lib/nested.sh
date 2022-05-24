@@ -808,7 +808,7 @@ EOF
             # shellcheck disable=SC2086
             "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
                 $UBUNTU_IMAGE_CHANNEL_ARG \
-                "${UBUNTU_IMAGE_PRESEED_ARGS[@]}" \
+                "${UBUNTU_IMAGE_PRESEED_ARGS[@]:-}" \
                 --output-dir "$NESTED_IMAGES_DIR" \
                 $EXTRA_FUNDAMENTAL \
                 $EXTRA_SNAPS
