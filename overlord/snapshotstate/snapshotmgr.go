@@ -378,7 +378,7 @@ func doCleanupAfterRestore(task *state.Task, tomb *tomb.Tomb) error {
 	st.Unlock()
 	for _, t := range restoreTasks {
 		if err := cleanupRestore(t, tomb); err != nil {
-			logger.Noticef("Cleanup for tag %s failed", task.ID())
+			logger.Noticef("Cleanup of restore task %s failed: %v", task.ID(), err)
 			// do not quit the loop: we must perform all cleanups anyway
 		}
 	}
