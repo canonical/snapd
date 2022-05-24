@@ -31,8 +31,11 @@ import (
 	sb "github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -109,9 +112,35 @@ done
 `)
 	s.AddCleanup(s.systemdRunCmd.Restore)
 	s.keymgrCmd = testutil.MockCommand(c, "snap-fde-keymgr", fmt.Sprintf(`
+set -e
 if [ "$1" = "change-encryption-key" ]; then
     cat > %s/input
+    exit 0
 fi
+if [ "$1" = "add-recovery-key" ]; then
+    while true; do
+        case "$1" in
+            --key-file)
+                shift
+                printf "recovery11111111" > "$1"
+                exit 0
+                ;;
+            *) shift ;;
+        esac
+    done
+fi
+if [ "$1" = "remove-recovery-key" ]; then
+    while [ "$#" -gt 1 ]; do
+        case "$1" in
+            --key-file)
+                shift
+                rm -f "$1"
+                ;;
+            *) shift ;;
+        esac
+    done
+fi
+
 `, s.d))
 	s.AddCleanup(s.keymgrCmd.Restore)
 
@@ -196,4 +225,156 @@ func (s *keymgrSuite) TestChangeEncryptionKeyBadKeymgr(c *C) {
 	c.Check(keymgrCmd.Calls(), DeepEquals, [][]string{
 		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/something"},
 	})
+}
+
+func (s *keymgrSuite) mocksForRecoveryKeys(c *C) (udevadmCmd *testutil.MockCmd) {
+	restore := osutil.MockMountInfo(`
+27 27 600:3 / /foo rw,relatime shared:7 - vfat /dev/mapper/foo rw
+27 27 600:4 / /bar rw,relatime shared:7 - vfat /dev/mapper/bar rw
+`[1:])
+	s.AddCleanup(restore)
+
+	udevadmCmd = testutil.MockCommand(c, "udevadm", `
+while [ "$#" -gt 1 ]; do
+    case "$1" in
+        --name)
+            shift
+            case "$1" in
+                /dev/mapper/foo)
+                    echo "DEVTYPE=disk"
+                    echo "MAJOR=600"
+                    echo "MINOR=3"
+                    ;;
+                /dev/mapper/bar)
+                    echo "DEVTYPE=disk"
+                    echo "MAJOR=600"
+                    echo "MINOR=4"
+                    ;;
+                /dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304)
+                    echo "ID_PART_ENTRY_UUID=foo-uuid"
+                    ;;
+                /dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305)
+                    echo "ID_PART_ENTRY_UUID=bar-uuid"
+                    ;;
+            esac
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+`)
+	s.AddCleanup(udevadmCmd.Restore)
+
+	s.AddCleanup(func() { dirs.SetRootDir(dirs.GlobalRootDir) })
+	dirs.SetRootDir(s.d)
+
+	snaptest.PopulateDir(s.d, [][]string{
+		{"/sys/dev/block/600:3/dm/uuid", "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-foo"},
+		{"/sys/dev/block/600:3/dm/name", "foo"},
+		{"/sys/dev/block/600:4/dm/uuid", "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1305-bar"},
+		{"/sys/dev/block/600:4/dm/name", "bar"},
+	})
+	return udevadmCmd
+}
+
+func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
+	udevadmCmd := s.mocksForRecoveryKeys(c)
+
+	rkey, err := secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
+		{Mountpoint: "/foo"},
+		{Mountpoint: "/bar", AuthorizingKeyFile: "/authz/key.file"},
+	})
+	c.Assert(err, IsNil)
+	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
+		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305"},
+	})
+	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
+		{
+			"systemd-run",
+			"--wait", "--pipe", "--collect", "--service-type=exec", "--quiet",
+			"--property=KeyringMode=inherit", "--",
+			s.keymgrCmd.Exe(), "add-recovery-key",
+			"--key-file", filepath.Join(s.d, "recovery.key"),
+			"--devices", "/dev/disk/by-partuuid/foo-uuid",
+			"--authorizations", "keyring",
+			"--devices", "/dev/disk/by-partuuid/bar-uuid",
+			"--authorizations", "file:/authz/key.file",
+		},
+	})
+	c.Check(s.keymgrCmd.Calls(), DeepEquals, [][]string{
+		{
+			"snap-fde-keymgr", "add-recovery-key",
+			"--key-file", filepath.Join(s.d, "recovery.key"),
+			"--devices", "/dev/disk/by-partuuid/foo-uuid", "--authorizations", "keyring",
+			"--devices", "/dev/disk/by-partuuid/bar-uuid", "--authorizations", "file:/authz/key.file",
+		},
+	})
+	c.Check(rkey, DeepEquals, keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '1', '1', '1', '1', '1', '1', '1', '1'})
+}
+
+func (s *keymgrSuite) TestRemoveRecoveryKey(c *C) {
+	udevadmCmd := s.mocksForRecoveryKeys(c)
+
+	snaptest.PopulateDir(s.d, [][]string{
+		{"recovery.key", "foobar"},
+	})
+	// only one of the key files exists
+	err := secboot.RemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
+		{Mountpoint: "/foo"}: filepath.Join(s.d, "recovery.key"),
+		{Mountpoint: "/bar", AuthorizingKeyFile: "/authz/key.file"}: filepath.Join(s.d, "missing-recovery.key"),
+	})
+	c.Assert(err, IsNil)
+
+	expectedUdevCalls := [][]string{
+		// order can change depending on map iteration
+		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/bar"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1305"},
+	}
+	expectedSystemdRunCalls := [][]string{
+		{
+			"systemd-run",
+			"--wait", "--pipe", "--collect", "--service-type=exec", "--quiet",
+			"--property=KeyringMode=inherit", "--",
+			s.keymgrCmd.Exe(), "remove-recovery-key",
+			// order can change depending on map iteration
+			"--devices", "/dev/disk/by-partuuid/foo-uuid", "--authorizations", "keyring",
+			"--key-files", filepath.Join(s.d, "recovery.key"),
+			"--devices", "/dev/disk/by-partuuid/bar-uuid", "--authorizations", "file:/authz/key.file",
+			"--key-files", filepath.Join(s.d, "missing-recovery.key"),
+		},
+	}
+	expectedKeymgrCalls := [][]string{
+		{
+			"snap-fde-keymgr", "remove-recovery-key",
+			// order can change depending on map iteration
+			"--devices", "/dev/disk/by-partuuid/foo-uuid", "--authorizations", "keyring",
+			"--key-files", filepath.Join(s.d, "recovery.key"),
+			"--devices", "/dev/disk/by-partuuid/bar-uuid", "--authorizations", "file:/authz/key.file",
+			"--key-files", filepath.Join(s.d, "missing-recovery.key"),
+		},
+	}
+
+	udevCalls := udevadmCmd.Calls()
+	c.Assert(udevCalls, HasLen, len(expectedUdevCalls))
+	// iteration order can be different though
+	c.Assert(udevCalls[0], HasLen, 6)
+	firstFoo := udevCalls[0][5] == "/dev/mapper/foo"
+
+	if !firstFoo {
+		// flip the order of foo and bar
+		expectedUdevCalls = append(expectedUdevCalls[2:], expectedUdevCalls[0:2]...)
+		expectedSystemdRunCalls[0] = append(expectedSystemdRunCalls[0][0:10],
+			append(expectedSystemdRunCalls[0][16:], expectedSystemdRunCalls[0][10:16]...)...)
+		expectedKeymgrCalls[0] = append(expectedKeymgrCalls[0][0:2],
+			append(expectedKeymgrCalls[0][8:], expectedKeymgrCalls[0][2:8]...)...)
+	}
+
+	c.Check(s.systemdRunCmd.Calls(), DeepEquals, expectedSystemdRunCalls)
+	c.Check(s.keymgrCmd.Calls(), DeepEquals, expectedKeymgrCalls)
 }

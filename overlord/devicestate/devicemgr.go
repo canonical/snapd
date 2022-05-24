@@ -2088,8 +2088,25 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 	if err != nil {
 		return nil, fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
 	}
-	mountPoints := []string{dataMountPoints[0], boot.InitramfsUbuntuSaveDir}
-	rkey, err := secbootEnsureRecoveryKey(filepath.Join(fdeDir, "recovery.key"), mountPoints)
+	if len(dataMountPoints) == 0 {
+		// shouldn't happen as the marker file is under ubuntu-data
+		return nil, fmt.Errorf("cannot ensure recovery keys without any ubuntu-data mount points")
+	}
+	recoveryKeyDevices := []secboot.RecoveryKeyDevice{
+		{
+			Mountpoint: dataMountPoints[0],
+			// TODO ubuntu-data key in install mode? key isn't
+			// available in the keyring nor exists on disk
+		},
+		{
+			Mountpoint: boot.InitramfsUbuntuSaveDir,
+			AuthorizingKeyFile: filepath.Join(
+				dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data")),
+				"ubuntu-save.key",
+			),
+		},
+	}
+	rkey, err := secbootEnsureRecoveryKey(filepath.Join(fdeDir, "recovery.key"), recoveryKeyDevices)
 	if err != nil {
 		return nil, err
 	}
@@ -2111,14 +2128,23 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	if err != nil {
 		return fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
 	}
-	mountPointToKey := make(map[string]string, 2)
+	recoveryKeyDevices := make(map[secboot.RecoveryKeyDevice]string, 2)
 	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
-	mountPointToKey[dataMountPoints[0]] = rkey
+	recoveryKeyDevices[secboot.RecoveryKeyDevice{
+		Mountpoint: dataMountPoints[0],
+		// authorization from keyring
+	}] = rkey
 	reinstallKeyFile := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
-	if osutil.FileExists(reinstallKeyFile) {
-		mountPointToKey[boot.InitramfsUbuntuSaveDir] = reinstallKeyFile
-	} else {
-		mountPointToKey[boot.InitramfsUbuntuSaveDir] = rkey
+	if !osutil.FileExists(reinstallKeyFile) {
+		reinstallKeyFile = rkey
 	}
-	return secbootRemoveRecoveryKeys(mountPointToKey)
+	recoveryKeyDevices[secboot.RecoveryKeyDevice{
+		Mountpoint: boot.InitramfsUbuntuSaveDir,
+		AuthorizingKeyFile: filepath.Join(
+			dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data")),
+			"ubuntu-save.key",
+		),
+	}] = reinstallKeyFile
+
+	return secbootRemoveRecoveryKeys(recoveryKeyDevices)
 }
