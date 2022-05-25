@@ -591,9 +591,9 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 	if (res != 0) {
 		die("cannot create " SC_EXTRA_LIB_DIR);
 	}
-	if (res == 0 && (chown(SC_LIB, 0, 0) < 0)) {
+	if (res == 0 && (chown(SC_EXTRA_LIB_DIR, 0, 0) < 0)) {
 		// Adjust the ownership only if we created the directory.
-		die("cannot change ownership of " SC_LIB);
+		die("cannot change ownership of " SC_EXTRA_LIB_DIR);
 	}
 	(void)sc_set_effective_identity(old);
 
