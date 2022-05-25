@@ -183,42 +183,32 @@ func startUserServices(cli *client.Client, inter Interacter, services ...string)
 }
 
 func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter Interacter) error {
-	serviceName := app.ServiceName()
+	var serviceList []string
 
-	var extraServices []string
+	// Add application sockets
 	for _, socket := range app.Sockets {
-		extraServices = append(extraServices, filepath.Base(socket.File()))
+		serviceList = append(serviceList, filepath.Base(socket.File()))
 	}
+	// Add application timers
 	if app.Timer != nil {
-		extraServices = append(extraServices, filepath.Base(app.Timer.File()))
+		serviceList = append(serviceList, filepath.Base(app.Timer.File()))
 	}
+	// Add application service
+	serviceList = append(serviceList, app.ServiceName())
 
 	switch app.DaemonScope {
 	case snap.SystemDaemon:
-		var stopErrors error
-		if len(extraServices) > 0 {
-			stopErrors = sysd.Stop(extraServices)
-		}
-
-		if err := sysd.Stop([]string{serviceName}); err != nil {
-			if !systemd.IsTimeout(err) {
-				return err
-			}
-			inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
-			// ignore errors for kill; nothing we'd do differently at this point
-			sysd.Kill(serviceName, "TERM", "")
-			time.Sleep(killWait)
-			sysd.Kill(serviceName, "KILL", "")
-		}
-
-		if stopErrors != nil {
-			return stopErrors
+		if err := sysd.Stop(serviceList); err != nil {
+			return err
 		}
 
 	case snap.UserDaemon:
-		extraServices = append(extraServices, serviceName)
 		cli := client.New()
-		return stopUserServices(cli, inter, extraServices...)
+		if err := stopUserServices(cli, inter, serviceList...); err != nil {
+			return err
+		}
+	default:
+		panic("unknown app.DaemonScope")
 	}
 
 	return nil
@@ -845,17 +835,6 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 		})
 		if err != nil {
 			return err
-		}
-
-		// ensure the service is really stopped on remove regardless
-		// of stop-mode
-		if reason == snap.StopReasonRemove && !app.StopMode.KillAll() && app.DaemonScope == snap.SystemDaemon {
-			// FIXME: make this smarter and avoid the killWait
-			//        delay if not needed (i.e. if all processes
-			//        have died)
-			sysd.Kill(app.ServiceName(), "TERM", "all")
-			time.Sleep(killWait)
-			sysd.Kill(app.ServiceName(), "KILL", "")
 		}
 	}
 	if len(disableServices) > 0 {

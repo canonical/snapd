@@ -242,8 +242,9 @@ if [ "$STATIC" = 1 ]; then
         else
             FILTERED_FILES="$FILTERED_FILES tests"
         fi
+        # XXX: exclude core20-preseed test as its environment block confuses shellcheck, and it's not possible to disable shellcheck there.
         # shellcheck disable=SC2086
-        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $FILTERED_FILES --exclude "$exclude_tools_path"
+        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $FILTERED_FILES --exclude "$exclude_tools_path" --exclude "tests/nested/manual/core20-preseed"
     fi
 
     if [ -z "${SKIP_MISSPELL-}" ]; then
@@ -310,6 +311,13 @@ if [ "$STATIC" = 1 ]; then
     if [ -z "${SKIP_TESTS_FORMAT_CHECK-}" ] || [ "$SKIP_TESTS_FORMAT_CHECK" = 0 ]; then
         echo "Checking tests formatting"
         ./tests/lib/external/snapd-testing-tools/utils/check-test-format ./tests
+    fi
+
+    echo "Checking for usages of !=, == or Equals with ErrNoState"
+    if got=$(grep -n -R -E "(\!=|==|Equals,) (state\.)?ErrNoState" --include=*.go) ; then
+      echo "Don't use equality checks with ErrNoState, use errors.Is() instead"
+      echo "$got"
+      exit 1
     fi
 fi
 

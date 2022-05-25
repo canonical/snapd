@@ -207,7 +207,7 @@ execute: |
     cp -av recovery-key recovery-key-copy
     systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
         /usr/lib/snapd/snap-fde-keymgr remove-recovery-key \
-            --key-file "$PWD/recovery-key-copy" \
+            --key-files "$PWD/recovery-key-copy" \
             --devices "${LOOP}p5" --authorizations "file:$PWD/unsealed-key" \
             --devices "${LOOP}p4" --authorizations "file:$PWD/save-key"
     # the file was removed

@@ -133,7 +133,7 @@ func (h *healthHandler) Done() error {
 		return err
 	}
 	if health.Timestamp.IsZero() {
-		// health was actually the marker (or err == state.ErrNoState)
+		// health was actually the marker (or errors.Is(err, state.ErrNoState))
 		health = HealthState{
 			Revision:  h.context.SnapRevision(),
 			Timestamp: time.Now(),

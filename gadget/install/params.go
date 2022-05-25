@@ -36,4 +36,6 @@ type Options struct {
 type InstalledSystemSideData struct {
 	// KeysForRoles contains key sets for the relevant structure roles.
 	KeyForRole map[string]keys.EncryptionKey
+	// DeviceForRole maps a roles to their corresponding device nodes.
+	DeviceForRole map[string]string
 }
