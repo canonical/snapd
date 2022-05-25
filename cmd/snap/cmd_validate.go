@@ -159,7 +159,6 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		// and otherwise has no output.
 		if action == "monitor" {
 			fmt.Fprintln(Stdout, fmtValid(res))
-			return nil
 		}
 		return nil
 	}
