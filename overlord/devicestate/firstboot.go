@@ -108,7 +108,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if seeded {

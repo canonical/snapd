@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -177,7 +178,7 @@ func getValidationSet(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	var tr assertstate.ValidationSetTracking
 	err := assertstate.GetValidationSet(st, accountID, name, &tr)
-	if err == state.ErrNoState || (err == nil && sequence != 0 && sequence != tr.PinnedAt) {
+	if errors.Is(err, state.ErrNoState) || (err == nil && sequence != 0 && sequence != tr.PinnedAt) {
 		// not available locally, try to find in the store.
 		return validateAgainstStore(st, accountID, name, sequence, user)
 	}
@@ -299,7 +300,7 @@ func forgetValidationSet(st *state.State, accountID, name string, sequence int) 
 	// check if it exists first
 	var tr assertstate.ValidationSetTracking
 	err := assertstate.GetValidationSet(st, accountID, name, &tr)
-	if err == state.ErrNoState || (err == nil && sequence != 0 && sequence != tr.PinnedAt) {
+	if errors.Is(err, state.ErrNoState) || (err == nil && sequence != 0 && sequence != tr.PinnedAt) {
 		return validationSetNotFound(accountID, name, sequence)
 	}
 	if err != nil {

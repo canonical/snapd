@@ -19,6 +19,7 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"time"
@@ -54,7 +55,7 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 		// EnsureBefore(0) done somewhere else.
 		// XXX: we should probably drop the flag from the task now that we have
 		// one on the state.
-		if err := t.Get("preseeded", &preseeded); err != nil && err != state.ErrNoState {
+		if err := t.Get("preseeded", &preseeded); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if !preseeded {
@@ -121,7 +122,7 @@ func (s *seededSystem) sameAs(other *seededSystem) bool {
 
 func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSystem) error {
 	var seeded []seededSystem
-	if err := st.Get("seeded-systems", &seeded); err != nil && err != state.ErrNoState {
+	if err := st.Get("seeded-systems", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	for _, sys := range seeded {
@@ -170,7 +171,7 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 
 	now := time.Now()
 	var whatSeeded *seededSystem
-	if err := t.Get("seed-system", &whatSeeded); err != nil && err != state.ErrNoState {
+	if err := t.Get("seed-system", &whatSeeded); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if whatSeeded != nil && deviceCtx.RunMode() {

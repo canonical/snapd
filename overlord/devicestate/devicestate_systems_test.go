@@ -1063,7 +1063,7 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemMissingInModee
 	var triedSystems []string
 	s.state.Lock()
 	err = s.state.Get("tried-systems", &triedSystems)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	// also logged
 	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system outcome error: recovery system "1234" was tried, but is not present in the modeenv CurrentRecoverySystems`)
 	s.state.Unlock()
@@ -1093,7 +1093,7 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemBad(c *C) {
 	var triedSystems []string
 	s.state.Lock()
 	err = s.state.Get("tried-systems", &triedSystems)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system "1234" failed`)
 	s.state.Unlock()
 
@@ -1113,7 +1113,7 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemBad(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	err = s.state.Get("tried-systems", &triedSystems)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	// bootenv got cleared
 	m, err = s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
@@ -1495,7 +1495,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 
 	var triedSystemsAfterFinalize []string
 	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	modeenvAfterFinalize, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -1873,7 +1873,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 
 	var triedSystemsAfter []string
 	err = s.state.Get("tried-systems", &triedSystemsAfter)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	modeenvAfterFinalize, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)

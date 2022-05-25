@@ -19,6 +19,7 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 
 	"gopkg.in/tomb.v2"
@@ -41,7 +42,7 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
