@@ -72,6 +72,9 @@ owner /{dev,run}/shm/.io.nwjs.* mrw,
 /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}com.google.Chrome.*/SS r,
 /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}com.microsoft.Edge.*/SS r,
 
+# Allow access to Jupyter notebooks (LP: #1959417)
+owner @{HOME}/.local/share/jupyter/** rw,
+
 # Allow reading platform files
 /run/udev/data/+platform:* r,
 
