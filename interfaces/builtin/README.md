@@ -6,7 +6,7 @@ Declarative rules are used to control what plugs or slots a snap is
 allowed to use, and if a snap is allowed to use a plug/slot, what other
 slots/plugs can connect to that plug/slot on this snap.
 
-These ruels are declared as a map which has 6 possible keys:
+These rules are declared as a map which has 6 possible keys:
 
 - allow-installation
 - deny-installation
@@ -16,23 +16,23 @@ These ruels are declared as a map which has 6 possible keys:
 - deny-auto-connection
 
 Each of these keys can either have a static value of true/false or can be a
-more complex object/list which then is “evaluated” by snapd on a device to
+more complex object/list which is “evaluated” by snapd on a device to
 determine the actual value, be it true or false.
 
 
 ### Base declaration and snap declarations
 
 The rules defined in the snapd interfaces source code (via setting
-`commonInterface.baseDeclarationSlots/Plugs`) form together the
-“base declaration” and can be overridden in by per-snap rules in the
+`commonInterface.baseDeclarationSlots/Plugs`) form the
+“base declaration” and can be overridden by per-snap rules in the
 snap store published via the per-snap `snap-declaration` assertions,
 which make it possible for a store to alter the policy hardcoded in
-snapd; for example, a store assertion is typically used to grant
+snapd. For example, a store assertion is typically used to grant
 auto-connection to some plugs of a specific application where this is
-deemed reasonable or safe (for example, auto-connecting the `camera`
+deemed reasonable or safe (such as auto-connecting the `camera`
 interface in a web-streaming application).
 
-### Basic evalution and precedence
+### Basic evaluation and precedence
 
 The default value of the `allow-*` keys when not otherwise specified is `true`
 and the default value of `deny-*` keys when not otherwise specified is `false`.
@@ -52,7 +52,7 @@ that the topmost elements in this list have higher priority):
 
 In other words, snap-declaration (store) rules have priority over
 base-declaration rules; then, plug rules have priority over slot rules, and
-finally deny rules have priority over allow rules.
+finally, deny rules have priority over allow rules.
 
 
 ### allow-installation
@@ -72,7 +72,7 @@ the snap does declare a `snapd-control` plug and there are no assertions in the
 store for this snap about allowing `snapd-control`, then snap installation will
 fail.
 
-Snap interfaces which have `allow-installation` set to `false` for their plugs
+Snap interfaces that have `allow-installation` set to `false` for their plugs
 in the base-declaration are said to be “**super-privileged**”, meaning they
 cannot be used at all without a snap-declaration assertion.
 
@@ -123,12 +123,12 @@ While the following plug and slots are not compatible:
 ### allow-auto-connection
 
 The allow-auto-connection key is the final key considered when snapd is
-evaluating automatic connection of interface plugs and slots. If this key
+evaluating the automatic connection of interface plugs and slots. If this key
 evaluates to `true`, then this plug/slot combination is considered a valid
 candidate for automatic connection. In this context allow-connection is ignored.
 
-Automatic connection will happen normally only if there is one single candidate
-pairing with a slot for a given plug.
+An automatic connection will happen normally only if there is one single candidate
+paired with a slot for a given plug.
 
 
 ### Supported rule constraints
@@ -146,9 +146,9 @@ slot-side `allow-connection` constraint can only specify plug-snap-type,
 plug-snap-id, plug-snap-publisher).
 
 For the `plug-snap-type` and `slot-snap-type` rules there are 4
-possible values: `core`, `gadget`, `kernel` and `app`. The `core` snap
+possible values: `core`, `gadget`, `kernel`, and `app`. The `core` snap
 type refers to whichever snap is providing snapd on the system and
-therefore the system inteface slots, either the `core` snap or `snapd`
+therefore the system interface slots, either the `core` snap or `snapd`
 snap (typically `core` snap on UC16 devices, `snapd` snap on UC18+
 systems, and either on classic systems depending on re-exec logic).
 
@@ -158,12 +158,12 @@ the snapd interfaces, but are specified in store assertions; they are known as
 rule only applies to a device with a serial assertion (and thus model
 assertion) from a given brand. This is because if the assertion and snap from a
 brand store were copied to a non-branded device, the assertion could still be
-ack’d by the device and the snap installed, but the assertion would not
+acknowledged by the device and the snap installed, but the assertion would not
 operate, and snap connections would not take place as they do on the branded
 device.
 
-The `plug-names` and `slot-names` rules are also only used in store assertions;
-they refer to the naming of a plug or slot when that slot is scoped globally
+The `plug-names` and `slot-names` rules are also only used in store assertions.
+They refer to the naming of a plug or slot when that slot is scoped globally
 with a name other than the generic interface name.
 For example this assertion:
 
@@ -186,7 +186,7 @@ a slot has to do with “arity” or how many slots a given plug is being
 considered to connect to and vice versa. This is expressed with the
 `slots-per-plug` and `plugs-per-slot` rules, with the default value of
 `plugs-per-slot` being “`*`” meaning any number of plugs can be connected to a
-specific slot, but the default value of `slots-per-plug` being “`1`” meaning that a
+specific slot. The default value of `slots-per-plug` is “`1`”, however, meaning that a
 plug can in general without a special snap-declaration only automatically
 connect to one slot. All that is to say, if there are multiple candidate slots,
 in the default case a plug will auto-connect to neither of them and
@@ -202,9 +202,9 @@ which was written when this logic was first implemented.
 The next rule about evaluating snap-declaration assertions is that maps are
 treated as logical ANDs where each key in the map must individually evaluate to
 `true` and lists are treated as logical ORs where only one of the elements of
-the list must evaluate to `true`. So with the following example assertion, in
+the list must evaluate to `true`. With the following example assertion,
 order
-for the the `serial-port` plug in this snap to auto-connect, either the first
+for the `serial-port` plug in this snap to auto-connect, either the first
 element of the list must evaluate to `true` or the second element of the list
 must evaluate to `true` (or they could both theoretically evaluate to `true`,
 but this is impossible in practice since the slots can only come from gadgets
@@ -237,7 +237,7 @@ simultaneously which is impossible).
             slot-snap-id:
               - WabnwLoV48BCMj8NoOetmdxFFMxDsPGb
 
-In order for the first element of the allow-auto-connection list to evaluate to
+For the first element of the allow-auto-connection list to evaluate to
 `true`, the following things must be true:
 
 - The device must be on a brand device in `my-app-store` AND
@@ -248,9 +248,9 @@ In order for the first element of the allow-auto-connection list to evaluate to
 - The slot must come from a snap with a snap ID of
   `Cx4J8ADDq8xULNaAjO7mQid75ru4rObB`
 
-And similarly for the second element of the allow-auto-connection list.
+The above is also true for the second element of the allow-auto-connection list.
 
-An equivalent way to write this assertion that works exactly the same would be:
+An equivalent way to write an assertion that works in exactly the same way would be:
 
     plugs:
       serial-port:
@@ -269,7 +269,7 @@ An equivalent way to write this assertion that works exactly the same would be:
 
 The chief difference here is that instead of having a list of two maps, we
 instead have a single map, and the key which changes for the two gadgets is the
-`slot-snap-id` which now has two values in a list. In this case the slot snap
+`slot-snap-id` which now has two values in a list. In this case, the slot snap
 ID must be one of the snap IDs in the list in order for the `slot-snap-id` rule
 to evaluate to true. So the following things must be true:
 
@@ -282,15 +282,15 @@ to evaluate to true. So the following things must be true:
   - `Cx4J8ADDq8xULNaAjO7mQid75ru4rObB`, OR
   - `WabnwLoV48BCMj8NoOetmdxFFMxDsPGb`
 
-List and maps can be used also as values for attributes under
+Lists and maps can also be used as values for attributes under
 plug/slot-attributes constraints. A map will match only if the attribute value
 contains all the entries in the constraints map with the same values (extra
 attribute elements are ignored).
 A list will match against a non-list attribute value if the value matches any
 of the list elements. A list will match against a list attribute value if all
 the elements in the attribute list value in turn match something in the list.
-For example this means a constraint list of value constraints will match a list
-of attribute scalars if the two groups of values match as a sets (order doesn't
+This means, for example, a constraint list of value constraints will match a list
+of attribute scalars if the two groups of values match as a set (order doesn't
 matter).
 
 
@@ -313,7 +313,7 @@ The special forms starting with `$` currently consist of:
   to match when the attribute set to `$MISSING` is not specified in the snap.
 
 For example, these features are used in the base-declaration for the `content`
-interface to express that connection is only allowed when the attribute value
+interface to express that a connection is only allowed when the attribute value
 of the verbatim “content” attribute on the slot side is the same as the plug
 side and that auto-connection should only take place by default when the plug
 publisher ID is the same as the slot publisher ID (unless this is overridden by
