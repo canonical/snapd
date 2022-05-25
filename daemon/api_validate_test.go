@@ -630,6 +630,15 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetMonitorModePinnedLocalOnl
 
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
+	res := rsp.Result.(daemon.ValidationSetResult)
+	c.Check(res, check.DeepEquals, daemon.ValidationSetResult{
+		AccountID: s.dev1acct.AccountID(),
+		Name:      "bar",
+		Mode:      "monitor",
+		PinnedAt:  99,
+		Sequence:  99999,
+		Valid:     true,
+	})
 	c.Check(called, check.Equals, 1)
 }
 
@@ -770,21 +779,27 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetUnsupportedAction(c *chec
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceMode(c *check.C) {
+	st := s.d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	s.mockValidationSetsTracking(st)
+	assertstatetest.AddMany(st, s.dev1acct, s.acct1Key)
+	as := s.mockAssert(c, "bar", "99")
+	err := assertstate.Add(st, as)
+	c.Assert(err, check.IsNil)
+
 	var called int
-	restore := daemon.MockAssertstateEnforceValidationSet(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+	restore := daemon.MockAssertstateEnforceValidationSet(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*assertstate.ValidationSetTracking, error) {
 		c.Check(ignoreValidation, check.HasLen, 0)
 		c.Assert(accountID, check.Equals, s.dev1acct.AccountID())
 		c.Assert(name, check.Equals, "bar")
 		c.Assert(sequence, check.Equals, 0)
 		c.Check(userID, check.Equals, 0)
 		called++
-		return nil
+		return &assertstate.ValidationSetTracking{AccountID: accountID, Name: name, Mode: assertstate.Enforce, Current: 99}, nil
 	})
 	defer restore()
-
-	st := s.d.Overlord().State()
-	st.Lock()
-	defer st.Unlock()
 
 	snapstate.Set(st, "snap-b", &snapstate.SnapState{
 		Active:   true,
@@ -806,8 +821,18 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceMode(c *check.C) {
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeIgnoreValidationOK(c *check.C) {
+	st := s.d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	s.mockValidationSetsTracking(st)
+	assertstatetest.AddMany(st, s.dev1acct, s.acct1Key)
+	as := s.mockAssert(c, "bar", "99")
+	err := assertstate.Add(st, as)
+	c.Assert(err, check.IsNil)
+
 	var called int
-	restore := daemon.MockAssertstateEnforceValidationSet(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+	restore := daemon.MockAssertstateEnforceValidationSet(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*assertstate.ValidationSetTracking, error) {
 		c.Check(ignoreValidation, check.DeepEquals, map[string]bool{"snap-b": true})
 		c.Check(snaps, testutil.DeepUnsortedMatches, []*snapasserts.InstalledSnap{
 			snapasserts.NewInstalledSnap("snap-b", "yOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.R("1"))})
@@ -816,13 +841,9 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeIgnoreValidati
 		c.Assert(sequence, check.Equals, 0)
 		c.Check(userID, check.Equals, 0)
 		called++
-		return nil
+		return &assertstate.ValidationSetTracking{AccountID: accountID, Name: name, Mode: assertstate.Enforce, Current: 99}, nil
 	})
 	defer restore()
-
-	st := s.d.Overlord().State()
-	st.Lock()
-	defer st.Unlock()
 
 	snapstate.Set(st, "snap-b", &snapstate.SnapState{
 		Active:   true,
@@ -845,20 +866,26 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeIgnoreValidati
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeSpecificSequence(c *check.C) {
+	st := s.d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	s.mockValidationSetsTracking(st)
+	assertstatetest.AddMany(st, s.dev1acct, s.acct1Key)
+	as := s.mockAssert(c, "bar", "5")
+	err := assertstate.Add(st, as)
+	c.Assert(err, check.IsNil)
+
 	var called int
-	restore := daemon.MockAssertstateEnforceValidationSet(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+	restore := daemon.MockAssertstateEnforceValidationSet(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*assertstate.ValidationSetTracking, error) {
 		c.Assert(accountID, check.Equals, s.dev1acct.AccountID())
 		c.Assert(name, check.Equals, "bar")
 		c.Assert(sequence, check.Equals, 5)
 		c.Check(userID, check.Equals, 0)
 		called++
-		return nil
+		return &assertstate.ValidationSetTracking{AccountID: accountID, Name: name, Mode: assertstate.Enforce, PinnedAt: 5, Current: 5}, nil
 	})
 	defer restore()
-
-	st := s.d.Overlord().State()
-	st.Lock()
-	defer st.Unlock()
 
 	snapstate.Set(st, "snap-b", &snapstate.SnapState{
 		Active:   true,
@@ -880,8 +907,8 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeSpecificSequen
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeError(c *check.C) {
-	restore := daemon.MockAssertstateEnforceValidationSet(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
-		return fmt.Errorf("boom")
+	restore := daemon.MockAssertstateEnforceValidationSet(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*assertstate.ValidationSetTracking, error) {
+		return nil, fmt.Errorf("boom")
 	})
 	defer restore()
 

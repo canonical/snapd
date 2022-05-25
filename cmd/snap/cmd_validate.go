@@ -155,7 +155,9 @@ func (cmd *cmdValidate) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		if res != nil && action == "monitor" {
+		// only print valid/invalid status for monitor mode; enforce fails with an error if invalid
+		// and otherwise has no output.
+		if action == "monitor" {
 			fmt.Fprintln(Stdout, fmtValid(res))
 			return nil
 		}

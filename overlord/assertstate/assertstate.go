@@ -751,10 +751,10 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 // EnforceValidationSet tries to fetch the given validation set and enforce it.
 // If all validation sets constrains are satisfied, the current validation sets
 // tracking state is saved in validation sets history.
-func EnforceValidationSet(st *state.State, accountID, name string, sequence, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+func EnforceValidationSet(st *state.State, accountID, name string, sequence, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*ValidationSetTracking, error) {
 	_, current, err := validationSetAssertionForEnforce(st, accountID, name, sequence, userID, snaps, ignoreValidation)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	tr := ValidationSetTracking{
@@ -767,7 +767,8 @@ func EnforceValidationSet(st *state.State, accountID, name string, sequence, use
 	}
 
 	UpdateValidationSet(st, &tr)
-	return addCurrentTrackingToValidationSetsHistory(st)
+	err = addCurrentTrackingToValidationSetsHistory(st)
+	return &tr, err
 }
 
 // MonitorValidationSet tries to fetch the given validation set and monitor it.

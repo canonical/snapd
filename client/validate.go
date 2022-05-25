@@ -77,7 +77,9 @@ func (client *Client) ForgetValidationSet(accountID, name string, sequence int) 
 	return nil
 }
 
-// ApplyValidationSet applies the given validation set identified by account and name.
+// ApplyValidationSet applies the given validation set identified by account and name and returns
+// the new validation set tracking info. For monitoring mode the returned res may indicate invalid
+// state.
 func (client *Client) ApplyValidationSet(accountID, name string, opts *ValidateApplyOptions) (res *ValidationSetResult, err error) {
 	if accountID == "" || name == "" {
 		return nil, xerrors.Errorf("cannot apply validation set without account ID and name")
@@ -95,12 +97,7 @@ func (client *Client) ApplyValidationSet(accountID, name string, opts *ValidateA
 	}
 	path := fmt.Sprintf("/v2/validation-sets/%s/%s", accountID, name)
 
-	if opts.Mode == "monitor" {
-		_, err = client.doSync("POST", path, nil, nil, &body, &res)
-	} else {
-		_, err = client.doSync("POST", path, nil, nil, &body, nil)
-	}
-	if err != nil {
+	if _, err := client.doSync("POST", path, nil, nil, &body, &res); err != nil {
 		fmt := "cannot apply validation set: %w"
 		return nil, xerrors.Errorf(fmt, err)
 	}

@@ -137,7 +137,7 @@ func (s *validateSuite) TestValidateMonitorPinned(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateEnforce(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "enforce", 0))
+	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": {"account-id":"foo","name":"bar","mode":"enforce","sequence":3,"valid":true}}}`, "enforce", 0))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--enforce", "foo/bar"})
 	c.Assert(err, check.IsNil)
@@ -147,7 +147,7 @@ func (s *validateSuite) TestValidateEnforce(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateEnforcePinned(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "enforce", 5))
+	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": {"account-id":"foo","name":"bar","mode":"enforce","sequence":3,"valid":true}}}`, "enforce", 5))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--enforce", "foo/bar=5"})
 	c.Assert(err, check.IsNil)

@@ -111,12 +111,19 @@ func (cs *clientSuite) TestApplyValidationSetMonitor(c *check.C) {
 func (cs *clientSuite) TestApplyValidationSetEnforce(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
-		"status-code": 200
+		"status-code": 200,
+        "result": {"account-id": "foo", "name": "bar", "mode": "enforce", "sequence": 3, "valid": true}
 	}`
 	opts := &client.ValidateApplyOptions{Mode: "enforce", Sequence: 3}
 	vs, err := cs.cli.ApplyValidationSet("foo", "bar", opts)
 	c.Assert(err, check.IsNil)
-	c.Check(vs, check.IsNil)
+	c.Check(vs, check.DeepEquals, &client.ValidationSetResult{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      "enforce",
+		Sequence:  3,
+		Valid:     true,
+	})
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
 	body, err := ioutil.ReadAll(cs.req.Body)

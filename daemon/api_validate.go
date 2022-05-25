@@ -303,7 +303,7 @@ func updateValidationSet(st *state.State, accountID, name string, reqMode string
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	return SyncResponse(res)
+	return SyncResponse(*res)
 }
 
 // forgetValidationSet forgets the validation set.
@@ -411,11 +411,16 @@ func enforceValidationSet(st *state.State, accountID, name string, sequence, use
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	if err := assertstateEnforceValidationSet(st, accountID, name, sequence, userID, snaps, ignoreValidation); err != nil {
+	tr, err := assertstateEnforceValidationSet(st, accountID, name, sequence, userID, snaps, ignoreValidation)
+	if err != nil {
 		// XXX: provide more specific error kinds? This would probably require
 		// assertstate.ValidationSetAssertionForEnforce tuning too.
 		return BadRequest("cannot enforce validation set: %v", err)
 	}
 
-	return SyncResponse(nil)
+	res, err := validationSetResultFromTracking(st, tr)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	return SyncResponse(*res)
 }
