@@ -386,6 +386,7 @@ class LogReader:
             self._match_operation(line) or self._match_result(line):
             return None
 
+        detail=[]
         initial_iter = self.iter
         while self.iter < len(self.lines):
             line = self._next_line()
@@ -402,19 +403,22 @@ class LogReader:
                 elif self.lines[self.iter-2].strip() == '.':
                     break
 
+                detail.append(line)
+
             # When the details is for results, if the detail line does not start
             # with "    - ", then it is time to break
             if results and not line.startswith("    - "):
                 break
-
-        detail_limit = self.iter - 1
+            else:
+                detail.append(line)
+        
         # We leave the iter in the last time in case the log has finished
         if not self.iter == len(self.lines):
             self.iter = self.iter - 1
         if not other_limit:
             other_limit = self.lines_limit
 
-        return Detail(other_limit, self.lines[initial_iter:detail_limit])
+        return Detail(other_limit, detail)
 
     def _get_info(self, line):
         """

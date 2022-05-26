@@ -1,0 +1,29 @@
+project: log-analyzer-reexec
+
+backends:
+    google:
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-east1-b
+        halt-timeout: 2h
+        systems:
+            - ubuntu-20.04-64:
+                workers: 1
+            - ubuntu-22.04-64:
+                workers: 1
+
+path: /root/log-analyzer-reexec
+
+prepare: |
+    echo "Prepare log-analyzer-reexec project"
+
+restore: |
+    echo "Restore snapd-testing-tools project"
+
+suites:
+    tests/:
+        summary: Main test suite for snapd-testing-tools
+        prepare: |
+            echo "Preparing log-analyzer-reexec main suite"
+
+        restore: |
+            echo "Restoring log-analyzer-reexec main suite"
