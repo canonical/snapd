@@ -151,7 +151,6 @@ func (s *snapmgrTestSuite) TestAutoAliasesDelta(c *C) {
 			"alias2": "cmd2",
 			"alias4": "cmd4",
 			"alias5": "cmd5",
-			"alias6": "cmd6b",
 		}, nil
 	}
 
@@ -178,10 +177,10 @@ func (s *snapmgrTestSuite) TestAutoAliasesDelta(c *C) {
 	c.Check(changed, HasLen, 1)
 	which := changed["alias-snap"]
 	sort.Strings(which)
-	c.Check(which, DeepEquals, []string{"alias4", "alias5", "alias6"})
+	c.Check(which, DeepEquals, []string{"alias4", "alias5"})
 
 	c.Check(dropped, DeepEquals, map[string][]string{
-		"alias-snap": {"alias3"},
+		"alias-snap": {"alias3", "alias6"},
 	})
 }
 
@@ -197,7 +196,7 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 				"alias5": "cmd5",
 			}, nil
 		}
-		if info.InstanceName() == "apps-go-away-snap" {
+		if info.InstanceName() == "alias-snap-apps-go-away" {
 			return map[string]string{
 				"alias-remains": "cmd1",
 			}, nil
@@ -222,9 +221,9 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 		Current: snap.R(2),
 		Active:  true,
 	})
-	snapstate.Set(s.state, "apps-go-away-snap", &snapstate.SnapState{
+	snapstate.Set(s.state, "alias-snap-apps-go-away", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{RealName: "apps-go-away-snap", Revision: snap.R(1)},
+			{RealName: "alias-snap-apps-go-away", Revision: snap.R(1)},
 		},
 		Current: snap.R(1),
 		Active:  true,
@@ -243,14 +242,14 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 	c.Check(which, DeepEquals, []string{"alias1", "alias2", "alias4", "alias5"})
 
 	c.Check(dropped, DeepEquals, map[string][]string{
-		"apps-go-away-snap": {"alias-goes-away"},
+		"alias-snap-apps-go-away": {"alias-goes-away"},
 	})
 
 	c.Check(seen, DeepEquals, map[string]bool{
-		"core":              true,
-		"alias-snap":        true,
-		"other-snap":        true,
-		"apps-go-away-snap": true,
+		"core":                    true,
+		"alias-snap":              true,
+		"other-snap":              true,
+		"alias-snap-apps-go-away": true,
 	})
 }
 
@@ -298,7 +297,6 @@ func (s *snapmgrTestSuite) TestRefreshAliases(c *C) {
 			"alias1": "cmd1",
 			"alias2": "cmd2",
 			"alias4": "cmd4",
-			"alias5": "cmd5",
 		}, nil
 	}
 

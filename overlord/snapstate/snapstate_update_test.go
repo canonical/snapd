@@ -3682,6 +3682,9 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	s.fakeBackend.addSnapApp("some-snap", "cmdA")
+	s.fakeBackend.addSnapApp("other-snap", "cmdB")
+
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -3832,6 +3835,8 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	s.fakeBackend.addSnapApp("some-snap", "cmdA")
+	s.fakeBackend.addSnapApp("other-snap", "cmdB")
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
