@@ -1,0 +1,12 @@
+summary: summary
+
+prepare: |
+    echo "prepare"
+
+restore: |
+    echo "restore"
+    exit 1
+
+execute: |
+    echo "execute"
+    exit 1
