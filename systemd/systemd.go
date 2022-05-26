@@ -149,9 +149,8 @@ func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
 	systemctlCmd = func(args ...string) ([]byte, error) {
 		// Thread-safe wrapper to call the locked systemctl
 		mutex.Lock()
-		bs, err := f(args...)
-		mutex.Unlock()
-		return bs, err
+		defer mutex.Unlock()
+		return f(args...)
 	}
 	return func() {
 		systemctlCmd = oldSystemctlCmd
@@ -166,11 +165,14 @@ func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
 func MockSystemctlWithDelay(f func(args ...string) ([]byte, time.Duration, error)) func() {
 	var mutex sync.Mutex
 	oldSystemctlCmd := systemctlCmd
-	systemctlCmd = func(args ...string) ([]byte, error) {
+	systemctlCmd = func(args ...string) (bs []byte, err error) {
 		// Thread-safe wrapper to call the locked systemctl
-		mutex.Lock()
-		bs, delay, err := f(args...)
-		mutex.Unlock()
+		var delay time.Duration
+		func() {
+			mutex.Lock()
+			defer mutex.Unlock()
+			bs, delay, err = f(args...)
+		}()
 		// Emulate the delay outside the lock
 		time.Sleep(delay)
 		return bs, err
@@ -1102,11 +1104,6 @@ func (s *systemd) Stop(serviceNames []string) error {
 		return errProgress
 	}
 
-	// No error, but not all units have stopped
-	if len(serviceNames) != 0 {
-		return &Timeout{action: "stop", services: serviceNames}
-	}
-
 	// Stopped and no error
 	return nil
 }
@@ -1171,23 +1168,6 @@ func (e *Error) Error() string {
 		return fmt.Sprintf("systemctl command %v failed with: %v%s", e.cmd, e.runErr, msg)
 	}
 	return fmt.Sprintf("systemctl command %v failed with exit status %d%s", e.cmd, e.exitCode, msg)
-}
-
-// Timeout is returned if the systemd action failed to reach the
-// expected state in a reasonable amount of time
-type Timeout struct {
-	action   string
-	services []string
-}
-
-func (e *Timeout) Error() string {
-	return fmt.Sprintf("%v failed to %v: timeout", strutil.Quoted(e.services), e.action)
-}
-
-// IsTimeout checks whether the given error is a Timeout
-func IsTimeout(err error) bool {
-	_, isTimeout := err.(*Timeout)
-	return isTimeout
 }
 
 func (l Log) parseLogRawMessageString(key string, sliceHandler func([]string) (string, error)) (string, error) {

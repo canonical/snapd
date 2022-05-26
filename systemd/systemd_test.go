@@ -339,8 +339,7 @@ func (s *SystemdTestSuite) TestStopBeforeNotify(c *C) {
 	c.Assert(len(s.rep.msgs), Equals, 0)
 }
 
-// The stop completed after the notification silence period expired but
-// before timeout.
+// The stop completed after the notification silence period expired
 func (s *SystemdTestSuite) TestStopAfterNotify(c *C) {
 	// Poll rate = 2ms, Silence timeout = 4ms
 	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
@@ -431,42 +430,6 @@ func (s *SystemdTestSuite) TestStopMany(c *C) {
 	c.Check(s.argses[6], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
 	c.Check(s.argses[7], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
 	c.Check(s.argses[8], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
-
-	c.Assert(len(s.rep.msgs), Equals, 2)
-	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo", "bar" to stop.`)
-	c.Check(s.rep.msgs[1], Equals, `Waiting for "bar" to stop.`)
-}
-
-func (s *SystemdTestSuite) TestStopTimesOut(c *C) {
-	// Poll rate = 2ms, Silence timeout = 4ms
-	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
-	defer restore()
-
-	// 'systemctl stop'
-	s.stopDelays = []time.Duration{
-		// The delay we set here applies to the systemctl stop
-		// command. The purpose is to simulate how long systemd
-		// tries to stop the supplied services before returning.
-		50 * time.Millisecond,
-	}
-
-	// 'systemctl show'
-	s.outs = [][]byte{
-		[]byte("ActiveState=whatever\n"), // foo
-		[]byte("ActiveState=whatever\n"), // bar
-		[]byte("ActiveState=whatever\n"), // foo
-		[]byte("ActiveState=whatever\n"), // bar
-		[]byte("ActiveState=active\n"),   // foo
-		[]byte("ActiveState=whatever\n"), // bar
-		[]byte("ActiveState=inactive\n"), // foo
-		[]byte("ActiveState=active\n"),   // bar
-
-		// Extra iterations beyond this list simply
-		// results in not stopped, no error
-	}
-
-	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"})
-	c.Assert(err, ErrorMatches, `"bar" failed to stop: timeout`)
 
 	c.Assert(len(s.rep.msgs), Equals, 2)
 	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo", "bar" to stop.`)
@@ -794,47 +757,6 @@ NeedDaemonReload=no
 	c.Check(out, IsNil)
 }
 
-func (s *SystemdTestSuite) TestStopTimeout(c *C) {
-	// Poll rate = 2ms, Silence timeout = 0ms
-	restore := MockStopDelays(2*time.Millisecond, time.Duration(0))
-	defer restore()
-
-	// 'systemctl stop'
-	s.stopDelays = []time.Duration{
-		// The delay we set here applies to the systemctl stop
-		// command. The purpose is to simulate how long systemd
-		// tries to stop the supplied services before returning.
-		50 * time.Millisecond,
-	}
-
-	err := New(SystemMode, s.rep).Stop([]string{"foo"})
-	c.Assert(err, FitsTypeOf, &Timeout{})
-	c.Assert(len(s.rep.msgs), Equals, 1)
-	// Once the notification silence expires, expect a list of still waiting
-	// services. In this test no mock output is supplied, which results in
-	// systemctl returning nothing, which defaults to running.
-	// See the 'myRun(...)' mock systemctl implementation and 'isStopDone' regex.
-	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo" to stop.`)
-}
-
-func (s *SystemdTestSuite) TestStopManyTimeout(c *C) {
-	restore := MockStopDelays(2*time.Millisecond, time.Duration(0))
-	defer restore()
-
-	// 'systemctl stop'
-	s.stopDelays = []time.Duration{
-		// The delay we set here applies to the systemctl stop
-		// command. The purpose is to simulate how long systemd
-		// tries to stop the supplied services before returning.
-		50 * time.Millisecond,
-	}
-
-	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"})
-	c.Assert(err, FitsTypeOf, &Timeout{})
-	c.Assert(len(s.rep.msgs), Equals, 1)
-	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo", "bar" to stop.`)
-}
-
 func (s *SystemdTestSuite) TestDisable(c *C) {
 	sysd := New(SystemMode, s.rep)
 	err := sysd.DisableNoReload([]string{"foo"})
@@ -996,13 +918,8 @@ func (s *SystemdTestSuite) TestKill(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP", "--kill-who=all"}})
 }
 
-func (s *SystemdTestSuite) TestIsTimeout(c *C) {
-	c.Check(IsTimeout(os.ErrInvalid), Equals, false)
-	c.Check(IsTimeout(&Timeout{}), Equals, true)
-}
-
 func (s *SystemdTestSuite) TestLogErrJctl(c *C) {
-	s.jerrs = []error{&Timeout{}}
+	s.jerrs = []error{errors.New("mock journalctl error")}
 
 	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false)
 	c.Check(err, NotNil)

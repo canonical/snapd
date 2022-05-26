@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type validationSetTrackingSuite struct {
@@ -184,7 +185,7 @@ func (s *validationSetTrackingSuite) TestGet(c *C) {
 
 	// non-existing
 	err = assertstate.GetValidationSet(s.st, "foo", "baz", &res)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *validationSetTrackingSuite) mockAssert(c *C, name, sequence, presence string) asserts.Assertion {
@@ -414,7 +415,7 @@ func (s *validationSetTrackingSuite) TestRestoreValidationSetsTrackingNoHistory(
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	c.Assert(assertstate.RestoreValidationSetsTracking(s.st), Equals, state.ErrNoState)
+	c.Assert(assertstate.RestoreValidationSetsTracking(s.st), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *validationSetTrackingSuite) TestRestoreValidationSetsTracking(c *C) {

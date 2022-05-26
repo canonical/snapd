@@ -20,6 +20,7 @@
 package servicestate
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
@@ -192,7 +193,7 @@ func rememberQuotaStateUpdated(t *state.Task, appsToRestartBySnap map[*snap.Info
 func quotaStateAlreadyUpdated(t *state.Task) (ok bool, appsToRestartBySnap map[*snap.Info][]*snap.AppInfo, err error) {
 	var updated quotaStateUpdated
 	if err := t.Get("state-updated", &updated); err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			return false, nil, nil
 		}
 		return false, nil, err
@@ -653,7 +654,7 @@ func quotaControlAffectedSnaps(t *state.Task) (snaps []string, err error) {
 
 	// if state-updated was already set we can use it
 	var updated quotaStateUpdated
-	if err := t.Get("state-updated", &updated); err != state.ErrNoState {
+	if err := t.Get("state-updated", &updated); !errors.Is(err, state.ErrNoState) {
 		if err != nil {
 			return nil, err
 		}

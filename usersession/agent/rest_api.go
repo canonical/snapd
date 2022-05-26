@@ -84,10 +84,6 @@ type serviceInstruction struct {
 	Services []string `json:"services"`
 }
 
-var (
-	killWait = 5 * time.Second
-)
-
 func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	// Refuse to start non-snap services
 	for _, service := range inst.Services {

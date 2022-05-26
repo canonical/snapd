@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -89,10 +90,10 @@ func refreshGating(st *state.State) (map[string]map[string]*holdState, error) {
 	// held snaps -> holding snap(s) -> first-held/hold-until time
 	var gating map[string]map[string]*holdState
 	err := st.Get("snaps-hold", &gating)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("internal error: cannot get snaps-hold: %v", err)
 	}
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return make(map[string]map[string]*holdState), nil
 	}
 	return gating, nil
@@ -405,7 +406,7 @@ func AffectedByRefreshCandidates(st *state.State) (map[string]*AffectedSnapInfo,
 	// we care only about the keys so this can use
 	// *json.RawMessage instead of refreshCandidates
 	var candidates map[string]*json.RawMessage
-	if err := st.Get("refresh-candidates", &candidates); err != nil && err != state.ErrNoState {
+	if err := st.Get("refresh-candidates", &candidates); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 

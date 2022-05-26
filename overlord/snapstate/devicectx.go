@@ -20,6 +20,8 @@
 package snapstate
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -77,7 +79,7 @@ func ModelFromTask(task *state.Task) (*asserts.Model, error) {
 func DevicePastSeeding(st *state.State, providedDeviceCtx DeviceContext) (DeviceContext, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if chg := RemodelingChange(st); chg != nil {
@@ -94,7 +96,7 @@ func DevicePastSeeding(st *state.State, providedDeviceCtx DeviceContext) (Device
 		}
 	}
 	devCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	// when seeded devCtx should not be nil except in the rare
@@ -117,7 +119,7 @@ func DevicePastSeeding(st *state.State, providedDeviceCtx DeviceContext) (Device
 func DeviceCtxFromState(st *state.State, providedDeviceCtx DeviceContext) (DeviceContext, error) {
 	deviceCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
 	if err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			return nil, &ChangeConflictError{
 				Message:    "too early for operation, device model not yet acknowledged",
 				ChangeKind: "seed",
