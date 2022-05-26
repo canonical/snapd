@@ -61,7 +61,7 @@ bool sc_security_tag_validate(const char *security_tag, const char *snap_name)
 bool sc_is_hook_security_tag(const char *security_tag)
 {
 	const char *whitelist_re =
-	    "^snap\\.[a-z](-?[a-z0-9])*(_[a-z0-9]{1,10})?\\.(hook\\.[a-z](-?[a-z])*)$";
+	    "^snap\\.[a-z](-?[a-z0-9])*(_[a-z0-9]{1,10})?\\.(hook\\.[a-z](-?[a-z0-9])*)$";
 
 	regex_t re;
 	if (regcomp(&re, whitelist_re, REG_EXTENDED | REG_NOSUB) != 0)

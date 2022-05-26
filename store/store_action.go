@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -375,6 +375,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			Channel:          a.Channel,
 			Revision:         a.Revision.N,
 			CohortKey:        a.CohortKey,
+			ValidationSets:   a.ValidationSets,
 			IgnoreValidation: ignoreValidation,
 		}
 		if !a.Revision.Unset() {
@@ -385,7 +386,6 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			installNum++
 			instanceKey = fmt.Sprintf("install-%d", installNum)
 			installs[instanceKey] = a
-			aJSON.ValidationSets = a.ValidationSets
 		} else if a.Action == "download" {
 			downloadNum++
 			instanceKey = fmt.Sprintf("download-%d", downloadNum)
@@ -433,7 +433,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			for j, at := range ats {
 				aj := &assertAtJSON{
 					Type:       at.Type.Name,
-					PrimaryKey: at.PrimaryKey,
+					PrimaryKey: asserts.ReducePrimaryKey(at.Type, at.PrimaryKey),
 				}
 				rev := at.Revision
 				if rev != asserts.RevisionNotKnown {
@@ -677,7 +677,7 @@ func reportFetchAssertionsError(res *snapActionResult, assertq AssertionQuery) e
 	errl := res.ErrorList
 	carryingRef := func(ent *errorListEntry) bool {
 		aType := asserts.Type(ent.Type)
-		return aType != nil && len(ent.PrimaryKey) == len(aType.PrimaryKey)
+		return aType != nil && aType.AcceptablePrimaryKey(ent.PrimaryKey)
 	}
 	carryingSeqKey := func(ent *errorListEntry) bool {
 		aType := asserts.Type(ent.Type)

@@ -37,8 +37,6 @@ const (
 	netplanInterface  = "io.netplan.Netplan"
 
 	netplanConfigInterface = "io.netplan.Netplan.Config"
-
-	introspectInterface = "org.freedesktop.DBus.Introspectable"
 )
 
 type NetplanServer struct {

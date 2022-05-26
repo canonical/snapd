@@ -8,8 +8,7 @@ systems:
   - -ubuntu-16.04-*
   - -ubuntu-18.04-*
   - -ubuntu-20.04-*
-  # using ubuntu-21.10-* would also disable ubuntu-21.10-64-cgroupv2
-  - -ubuntu-21.10-64
+  - -ubuntu-21.04-*
   - -ubuntu-core-*
   - -debian-9-*
   - -debian-10-*
@@ -18,9 +17,19 @@ systems:
 
 prepare: |
     tests.session -u test prepare
+    if command -v setenforce; then
+        # an SELinux enabled system, switch the mode to enforcing
+        getenforce > enforcing.mode
+        setenforce 1
+        # and make a checkpoint for all denials
+        ausearch --checkpoint stamp -m AVC || true
+    fi
 
 restore: |
     tests.session -u test restore
+    if test -f enforcing.mode; then
+        setenforce "$(cat enforcing.mode)"
+    fi
 
 execute: |
     dump_cgroup_device_progs() {
@@ -107,7 +116,7 @@ execute: |
 
     echo "Refresh the value of the main pid after restart"
     pid=$(systemctl show snap.test-snapd-service.test-snapd-service.service --property=ExecMainPID | cut -d = -f 2)
-    # sanity check
+    # precondition check
     MATCH "$pid" < "/sys/fs/cgroup/$cgroup/cgroup.procs"
 
     echo "Verify that device access map for the service is present and is pinned to a file"
@@ -123,3 +132,20 @@ execute: |
     # since the service is up, we'll observe that a new program was loaded
     dump_cgroup_device_progs > cgroup_device.progs-4
     test "$(wc -l < cgroup_device.progs-1)" -lt "$(wc -l < cgroup_device.progs-4)"
+
+    # unmount /sys/fs/bpf and observe how s-c- restores it
+    echo "Verify the bpffs mount is created when needed"
+    rm -f /sys/fs/bpf/snap/snap_test-snapd-service_sh
+    umount /sys/fs/bpf
+    NOMATCH /sys/fs/bpf < /proc/self/mountinfo
+    snap run test-snapd-service.sh -c '/bin/true'
+    # the mount has been restored
+    MATCH /sys/fs/bpf < /proc/self/mountinfo
+    # and the map pin is present
+    echo "Verify that device access map for the application is present and is pinned to a file"
+    test -e /sys/fs/bpf/snap/snap_test-snapd-service_sh
+
+    if test -f enforcing.mode; then
+        # there should have been no denials
+        ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    fi

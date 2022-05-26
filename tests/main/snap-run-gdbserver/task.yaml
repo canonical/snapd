@@ -33,5 +33,5 @@ execute: |
     echo c | eval $gdb_cmd
 
     # ensure the program ran and was running as a user
-    MATCH hello-hello-hello < stdout
+    retry --wait 1 -n 5 sh -c 'MATCH hello-hello-hello < stdout'
     MATCH "uid:$(id -u test)" < stdout

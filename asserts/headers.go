@@ -32,8 +32,8 @@ var (
 	nl   = []byte("\n")
 	nlnl = []byte("\n\n")
 
-	// for basic sanity checking of header names
-	headerNameSanity = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
+	// for basic validity checking of header names
+	headerNameValidity = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 )
 
 func parseHeaders(head []byte) (map[string]interface{}, error) {
@@ -49,7 +49,7 @@ func parseHeaders(head []byte) (map[string]interface{}, error) {
 			return nil, fmt.Errorf("header entry missing ':' separator: %q", entry)
 		}
 		name := entry[:nameValueSplit]
-		if !headerNameSanity.MatchString(name) {
+		if !headerNameValidity.MatchString(name) {
 			return nil, fmt.Errorf("invalid header name: %q", name)
 		}
 
@@ -179,7 +179,7 @@ func parseMap(first int, lines []string, baseIndent int) (value interface{}, fir
 			return nil, -1, fmt.Errorf("map entry missing ':' separator: %q", entry)
 		}
 		key := entry[:keyValueSplit]
-		if !headerNameSanity.MatchString(key) {
+		if !headerNameValidity.MatchString(key) {
 			return nil, -1, fmt.Errorf("invalid map entry key: %q", key)
 		}
 

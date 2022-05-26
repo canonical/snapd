@@ -35,17 +35,14 @@
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
+#include "mount-support.h"
 
 #define SC_NVIDIA_DRIVER_VERSION_FILE "/sys/module/nvidia/version"
 
-// note: if the parent dir changes to something other than
-// the current /var/lib/snapd/lib then sc_mkdir_and_mount_and_bind
-// and sc_mkdir_and_mount_and_bind need updating.
-#define SC_LIB "/var/lib/snapd/lib"
-#define SC_LIBGL_DIR   SC_LIB "/gl"
-#define SC_LIBGL32_DIR SC_LIB "/gl32"
-#define SC_VULKAN_DIR  SC_LIB "/vulkan"
-#define SC_GLVND_DIR  SC_LIB "/glvnd"
+#define SC_LIBGL_DIR   SC_EXTRA_LIB_DIR "/gl"
+#define SC_LIBGL32_DIR SC_EXTRA_LIB_DIR "/gl32"
+#define SC_VULKAN_DIR  SC_EXTRA_LIB_DIR "/vulkan"
+#define SC_GLVND_DIR  SC_EXTRA_LIB_DIR "/glvnd"
 
 #define SC_VULKAN_SOURCE_DIR "/usr/share/vulkan"
 #define SC_EGL_VENDOR_SOURCE_DIR "/usr/share/glvnd"
@@ -360,7 +357,7 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir, const char **globs, size_t globs_len)
 {
 
-	const char *native_sources[] = {
+	static const char *native_sources[] = {
 		NATIVE_LIBDIR,
 		NATIVE_LIBDIR "/nvidia*",
 	};
@@ -369,7 +366,7 @@ static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir, const char **g
 
 #if UINTPTR_MAX == 0xffffffffffffffff
 	// Alternative 32-bit support
-	const char *lib32_sources[] = {
+	static const char *lib32_sources[] = {
 		LIB32_DIR,
 		LIB32_DIR "/nvidia*",
 	};
@@ -590,13 +587,13 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 	}
 
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	int res = mkdir(SC_LIB, 0755);
-	if (res != 0 && errno != EEXIST) {
-		die("cannot create " SC_LIB);
+	int res = sc_nonfatal_mkpath(SC_EXTRA_LIB_DIR, 0755);
+	if (res != 0) {
+		die("cannot create " SC_EXTRA_LIB_DIR);
 	}
-	if (res == 0 && (chown(SC_LIB, 0, 0) < 0)) {
+	if (res == 0 && (chown(SC_EXTRA_LIB_DIR, 0, 0) < 0)) {
 		// Adjust the ownership only if we created the directory.
-		die("cannot change ownership of " SC_LIB);
+		die("cannot change ownership of " SC_EXTRA_LIB_DIR);
 	}
 	(void)sc_set_effective_identity(old);
 

@@ -1081,7 +1081,7 @@ volumes:
 }
 
 func mockKernel(c *C, kernelYaml string, filesWithContent map[string]string) string {
-	// sanity
+	// precondition
 	_, err := kernel.InfoFromKernelYaml([]byte(kernelYaml))
 	c.Assert(err, IsNil)
 

@@ -269,6 +269,47 @@ func getChangeTimings(st *state.State, changeID, ensureTag, startupTag string, a
 	return SyncResponse(responseData)
 }
 
+func getGadgetDiskMapping(st *state.State) Response {
+	deviceCtx, err := devicestate.DeviceCtx(st, nil, nil)
+	if err != nil {
+		return InternalError("cannot get device context: %v", err)
+	}
+	gadgetInfo, err := snapstate.GadgetInfo(st, deviceCtx)
+	if err != nil {
+		return InternalError("cannot get gadget info: %v", err)
+	}
+	gadgetDir := gadgetInfo.MountDir()
+
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return InternalError("cannot get kernel info: %v", err)
+	}
+	kernelDir := kernelInfo.MountDir()
+
+	mod := deviceCtx.Model()
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetDir, kernelDir, mod)
+	if err != nil {
+		return InternalError("cannot get all disk volume device traits: cannot layout volumes: %v", err)
+	}
+
+	// TODO: allow passing in encrypted options info here
+
+	// allow implicit system-data on pre-uc20 only
+	optsMap := map[string]*gadget.DiskVolumeValidationOptions{}
+	for vol := range allLaidOutVols {
+		optsMap[vol] = &gadget.DiskVolumeValidationOptions{
+			AllowImplicitSystemData: mod.Grade() == asserts.ModelGradeUnset,
+		}
+	}
+
+	res, err := gadget.AllDiskVolumeDeviceTraits(allLaidOutVols, optsMap)
+	if err != nil {
+		return InternalError("cannot get all disk volume device traits: %v", err)
+	}
+
+	return SyncResponse(res)
+}
+
 func getDisks(st *state.State) Response {
 
 	disks, err := disks.AllPhysicalDisks()
@@ -327,6 +368,8 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return getChangeTimings(st, chgID, ensureTag, startupTag, all == "true")
 	case "seeding":
 		return getSeedingInfo(st)
+	case "gadget-disk-mapping":
+		return getGadgetDiskMapping(st)
 	case "disks":
 		return getDisks(st)
 	default:

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// sanity - uboot implements the required interfaces
+// uboot implements the required interfaces
 var (
 	_ Bootloader                             = (*uboot)(nil)
 	_ ExtractedRecoveryKernelImageBootloader = (*uboot)(nil)
@@ -131,7 +131,7 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 	if blOpts != nil && blOpts.Role == RoleRecovery {
 		// not supported yet, this is traditional uboot.env from gadget
 		// TODO:UC20: support this use-case
-		return fmt.Errorf("non-empty uboot.env not supported on UC20 yet")
+		return fmt.Errorf("non-empty uboot.env not supported on UC20+ yet")
 	}
 
 	systemFile := u.envFile()

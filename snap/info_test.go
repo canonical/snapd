@@ -361,7 +361,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	st, err := os.Lstat(cur)
 	c.Assert(err, IsNil)
 	instTime := st.ModTime()
-	// sanity
+	// validity
 	c.Check(instTime.IsZero(), Equals, false)
 
 	c.Check(info.InstallDate().Equal(instTime), Equals, true)
@@ -585,6 +585,23 @@ confinement: foo`
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, ErrorMatches, ".*invalid confinement type.*")
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileChatchesInvalidSnapshot(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app`
+	contents := [][]string{
+		{"meta/snapshots.yaml", "Oops! This is not really valid yaml :-("},
+	}
+	sideInfo := &snap.SideInfo{}
+	snapInfo := snaptest.MockSnapWithFiles(c, yaml, sideInfo, contents)
+
+	snapf, err := snapfile.Open(snapInfo.MountDir())
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, "cannot read snapshot manifest: yaml: unmarshal errors:\n.*")
 }
 
 func (s *infoSuite) TestAppEnvSimple(c *C) {
@@ -1547,6 +1564,8 @@ func (s *infoSuite) TestStopModeTypeKillMode(c *C) {
 		{"sigusr1-all", true},
 		{"sigusr2", false},
 		{"sigusr2-all", true},
+		{"sigint", false},
+		{"sigint-all", true},
 	} {
 		c.Check(snap.StopModeType(t.stopMode).KillAll(), Equals, t.killall, Commentf("wrong KillAll for %v", t.stopMode))
 	}

@@ -561,7 +561,10 @@ prepare_project() {
     go install ./tests/lib/systemd-escape
 
     # Build the tool for signing model assertions
-    go install ./tests/lib/gendeveloper1model
+    go install ./tests/lib/gendeveloper1
+
+    # and the U20 create partitions wrapper
+    go install ./tests/lib/uc20-create-partitions
 
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation
@@ -626,6 +629,14 @@ prepare_suite_each() {
     fi
     "$TESTSTOOLS"/journal-state start-new-log
 
+    # Check if journalctl is ready to run the test
+    "$TESTSTOOLS"/journal-state check-log-started
+
+    # In case of nested tests the next checks and changes are not needed
+    if tests.nested is-nested; then
+        return 0
+    fi
+
     if [[ "$variant" = full ]]; then
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
@@ -634,8 +645,6 @@ prepare_suite_each() {
         fi
         prepare_memory_limit_override
     fi
-    # Check if journalctl is ready to run the test
-    "$TESTSTOOLS"/journal-state check-log-started
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)
@@ -679,6 +688,13 @@ restore_suite_each() {
             # shellcheck disable=SC2086
             tests.pkgs install $packages
         fi
+    fi
+
+    # In case of nested tests the next checks and changes are not needed
+    # Just is needed to cleanup the snaps installed
+    if tests.nested is-nested; then
+        "$TESTSTOOLS"/snaps.cleanup
+        return 0
     fi
 
     # On Arch it seems that using sudo / su for working with the test user

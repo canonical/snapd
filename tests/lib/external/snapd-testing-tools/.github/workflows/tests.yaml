@@ -16,10 +16,21 @@ jobs:
 
     - name: Run shellCheck for tools
       run: |
+          # Run shellcheck from the snap which most likely is newer than what the distro provides
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
+          find tools utils -type f -exec sh -c "head -n 1 {} | egrep -a 'bin/bash|bin/sh' >/dev/null" \; -print -exec shellcheck {} \;
 
-          find tools -type f -exec sh -c "head -n 1 {} | egrep -a 'bin/bash|bin/sh' >/dev/null" \; -print -exec shellcheck {} \;
+          # Run shellcheck from the distro
+          sudo snap remove shellcheck
+          sudo apt-get install -y shellcheck
+          find tools utils -type f -exec sh -c "head -n 1 {} | egrep -a 'bin/bash|bin/sh' >/dev/null" \; -print -exec shellcheck {} \;
+
+    - name: Run codespell tool
+      run: |
+          sudo apt install python3-pip
+          pip3 install codespell
+          codespell
 
   test:
     needs: [unit-tests]

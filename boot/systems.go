@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -41,9 +42,9 @@ func dropFromRecoverySystemsList(systemsList []string, systemLabel string) (newL
 // the try model in the modeenv state file, then reseals and clears related
 // bootloader variables. An empty system label can be passed when the boot
 // variables state is inconsistent.
-func ClearTryRecoverySystem(dev Device, systemLabel string) error {
+func ClearTryRecoverySystem(dev snap.Device, systemLabel string) error {
 	if !dev.HasModeenv() {
-		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20+")
 	}
 
 	m, err := loadModeenv()
@@ -102,9 +103,9 @@ func ClearTryRecoverySystem(dev Device, systemLabel string) error {
 // optionally sets a try model, if the device model is different from the
 // current one, which typically can happen during a remodel. Once done, the
 // caller should request switching to the given recovery system.
-func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
+func SetTryRecoverySystem(dev snap.Device, systemLabel string) (err error) {
 	if !dev.HasModeenv() {
-		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20+")
 	}
 
 	m, err := loadModeenv()
@@ -312,7 +313,7 @@ func observeSuccessfulSystems(m *Modeenv) (*Modeenv, error) {
 // no recovery system has been tried, the outcome will be
 // TryRecoverySystemOutcomeNoneTried. The caller is responsible for clearing the
 // bootenv once the status bas been properly acted on.
-func InspectTryRecoverySystemOutcome(dev Device) (outcome TryRecoverySystemOutcome, label string, err error) {
+func InspectTryRecoverySystemOutcome(dev snap.Device) (outcome TryRecoverySystemOutcome, label string, err error) {
 	opts := &bootloader.Options{
 		// setup the recovery bootloader
 		Role: bootloader.RoleRecovery,
@@ -377,9 +378,9 @@ func InspectTryRecoverySystemOutcome(dev Device) (outcome TryRecoverySystemOutco
 // provided list of tried systems should contain the system in question. If the
 // system uses encryption, the keys will updated state. If resealing fails, an
 // attempt to restore the previous state is made
-func PromoteTriedRecoverySystem(dev Device, systemLabel string, triedSystems []string) (err error) {
+func PromoteTriedRecoverySystem(dev snap.Device, systemLabel string, triedSystems []string) (err error) {
 	if !dev.HasModeenv() {
-		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20+")
 	}
 
 	if !strutil.ListContains(triedSystems, systemLabel) {
@@ -419,9 +420,9 @@ func PromoteTriedRecoverySystem(dev Device, systemLabel string, triedSystems []s
 // DropRecoverySystem drops a provided system from the list of good and current
 // recovery systems, updates the modeenv and reseals the keys a needed. Note,
 // this call *DOES NOT* clear the boot environment variables.
-func DropRecoverySystem(dev Device, systemLabel string) error {
+func DropRecoverySystem(dev snap.Device, systemLabel string) error {
 	if !dev.HasModeenv() {
-		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20+")
 	}
 
 	m, err := loadModeenv()

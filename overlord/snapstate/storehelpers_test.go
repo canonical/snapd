@@ -334,7 +334,7 @@ func (s *snapmgrTestSuite) TestInstallSizeWithOtherChangeAffectingSameSnaps(c *C
 	// snap3 and its base installed by another change, not counted here
 	c.Check(sz, Equals, uint64(snap1Size+someBaseSize))
 
-	// sanity
+	// validity
 	c.Check(currentSnapsCalled, Equals, 2)
 }
 

@@ -29,6 +29,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
@@ -36,6 +37,7 @@ import (
 
 // for the tests
 var syscallExec = syscall.Exec
+var syscallStat = syscall.Stat
 var osReadlink = os.Readlink
 
 // commandline args
@@ -47,6 +49,7 @@ var opts struct {
 func init() {
 	// plug/slot sanitization not used nor possible from snap-exec, make it no-op
 	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
+	logger.SimpleSetup()
 }
 
 func main() {
@@ -194,6 +197,21 @@ func execApp(snapApp, revision, command string, args []string) error {
 		env.ExtendWithExpanded(eenv)
 	}
 
+	// this is a workaround for the lack of an environment backend in interfaces
+	// where we want certain interfaces when connected to add environment
+	// variables to plugging snap apps, but this is a lot simpler as a
+	// work-around
+	// we currently only handle the CUPS_SERVER environment variable, setting it
+	// to /var/cups/ if that dir is a bind-mount - it should not be one
+	// except in a strictly confined snap where we setup the bind mount from the
+	// source cups slot snap to the plugging snap.
+	var stVar, stVarCups syscall.Stat_t
+	err1 := syscallStat(dirs.GlobalRootDir+"/var/", &stVar)
+	err2 := syscallStat(dirs.GlobalRootDir+"/var/cups/", &stVarCups)
+	if err1 == nil && err2 == nil && stVar.Dev != stVarCups.Dev {
+		env["CUPS_SERVER"] = "/var/cups/cups.sock"
+	}
+
 	// strings.Split() is ok here because we validate all app fields and the
 	// whitelist is pretty strict (see snap/validate.go:appContentWhitelist)
 	// (see also overlord/snapstate/check_snap.go's normPath)
@@ -229,6 +247,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 
 	fullCmd = append(absoluteCommandChain(app.Snap, app.CommandChain), fullCmd...)
 
+	logger.StartupStageTimestamp("snap-exec to app")
 	if err := syscallExec(fullCmd[0], fullCmd, env.ForExec()); err != nil {
 		return fmt.Errorf("cannot exec %q: %s", fullCmd[0], err)
 	}

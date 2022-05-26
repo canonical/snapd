@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -116,6 +116,51 @@ func (s *storeAssertsSuite) TestAssertion(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a, NotNil)
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
+}
+
+var testAssertionOptionalPrimaryKeys = `type: snap-revision
+authority-id: super
+snap-sha3-384: QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL
+snap-id: snap-id-1
+snap-size: 123
+snap-revision: 1
+developer-id: dev-id1
+timestamp: 2022-02-25T12:22:16Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`
+
+func (s *storeAssertsSuite) TestAssertionReducedPrimaryKey(c *C) {
+	// XXX undo this when snap-revision has provenance for real
+	defer asserts.MockOptionalPrimaryKey(asserts.SnapRevisionType, "provenance", "default-provenance")()
+	restore := asserts.MockMaxSupportedFormat(asserts.SnapRevisionType, 88)
+	defer restore()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", "/v2/assertions/.*")
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Matches, ".*/snap-revision/QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL")
+		c.Check(r.URL.Query().Get("max-format"), Equals, "88")
+		io.WriteString(w, testAssertionOptionalPrimaryKeys)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	a, err := sto.Assertion(asserts.SnapRevisionType, []string{"QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL", "default-provenance"}, nil)
+	c.Assert(err, IsNil)
+	c.Check(a, NotNil)
+	c.Check(a.Type(), Equals, asserts.SnapRevisionType)
+	c.Check(a.HeaderString("provenance"), Equals, "default-provenance")
 }
 
 func (s *storeAssertsSuite) TestAssertionProxyStoreFromAuthContext(c *C) {
@@ -465,7 +510,7 @@ func (s *storeAssertsSuite) TestSeqFormingAssertion(c *C) {
 	defer restore()
 
 	// overwritten by test loop for each test case
-	expectedSeqArg := "dummy"
+	expectedSeqArg := "sample"
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", "/v2/assertions/.*")

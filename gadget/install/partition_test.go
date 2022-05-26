@@ -152,6 +152,10 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 		StartOffset: 1260388352,
 		YamlIndex:   3,
 	},
+	// Note the DiskIndex appears to be the same as the YamlIndex, but this is
+	// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
+	// yaml structure (the MBR) that does not appear on disk
+	DiskIndex: 3,
 	// expanded to fill the disk
 	Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
 }
@@ -171,7 +175,11 @@ var mockOnDiskStructureSave = gadget.OnDiskStructure{
 		StartOffset: 1260388352,
 		YamlIndex:   3,
 	},
-	Size: 128 * quantity.SizeMiB,
+	// Note the DiskIndex appears to be the same as the YamlIndex, but this is
+	// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
+	// yaml structure (the MBR) that does not appear on disk
+	DiskIndex: 3,
+	Size:      128 * quantity.SizeMiB,
 }
 
 var mockOnDiskStructureWritableAfterSave = gadget.OnDiskStructure{
@@ -189,6 +197,10 @@ var mockOnDiskStructureWritableAfterSave = gadget.OnDiskStructure{
 		StartOffset: 1394606080,
 		YamlIndex:   4,
 	},
+	// Note the DiskIndex appears to be the same as the YamlIndex, but this is
+	// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
+	// yaml structure (the MBR) that does not appear on disk
+	DiskIndex: 4,
 	// expanded to fill the disk
 	Size: 2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
 }

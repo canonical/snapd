@@ -28,7 +28,11 @@ import (
 
 // expose test-only things here
 
-var NumAssertionType = len(typeRegistry)
+var NumAssertionType int
+
+func init() {
+	NumAssertionType = len(typeRegistry)
+}
 
 // v1FixedTimestamp exposed for tests
 var V1FixedTimestamp = v1FixedTimestamp
@@ -74,8 +78,10 @@ func MakeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, since ti
 				"public-key-sha3-384": openPGPPubKey.ID(),
 			},
 		},
-		since:  since.UTC(),
-		until:  since.UTC().AddDate(validYears, 0, 0),
+		sinceUntil: sinceUntil{
+			since: since.UTC(),
+			until: since.UTC().AddDate(validYears, 0, 0),
+		},
 		pubKey: openPGPPubKey,
 	}
 }
@@ -98,7 +104,7 @@ func MockTimeNow(t time.Time) (restore func()) {
 	}
 }
 
-// define dummy assertion types to use in the tests
+// define test assertion types to use in the tests
 
 type TestOnly struct {
 	assertionBase
@@ -112,7 +118,7 @@ func assembleTestOnly(assert assertionBase) (Assertion, error) {
 	return &TestOnly{assert}, nil
 }
 
-var TestOnlyType = &AssertionType{"test-only", []string{"primary-key"}, assembleTestOnly, 0}
+var TestOnlyType = &AssertionType{"test-only", []string{"primary-key"}, nil, assembleTestOnly, 0}
 
 type TestOnly2 struct {
 	assertionBase
@@ -122,7 +128,7 @@ func assembleTestOnly2(assert assertionBase) (Assertion, error) {
 	return &TestOnly2{assert}, nil
 }
 
-var TestOnly2Type = &AssertionType{"test-only-2", []string{"pk1", "pk2"}, assembleTestOnly2, 0}
+var TestOnly2Type = &AssertionType{"test-only-2", []string{"pk1", "pk2"}, nil, assembleTestOnly2, 0}
 
 // TestOnlyDecl is a test-only assertion that mimics snap-declaration
 // relations with other assertions.
@@ -148,7 +154,7 @@ func assembleTestOnlyDecl(assert assertionBase) (Assertion, error) {
 	return &TestOnlyDecl{assert}, nil
 }
 
-var TestOnlyDeclType = &AssertionType{"test-only-decl", []string{"id"}, assembleTestOnlyDecl, 0}
+var TestOnlyDeclType = &AssertionType{"test-only-decl", []string{"id"}, nil, assembleTestOnlyDecl, 0}
 
 // TestOnlyRev is a test-only assertion that mimics snap-revision
 // relations with other assertions.
@@ -179,7 +185,7 @@ func assembleTestOnlyRev(assert assertionBase) (Assertion, error) {
 	return &TestOnlyRev{assert}, nil
 }
 
-var TestOnlyRevType = &AssertionType{"test-only-rev", []string{"h"}, assembleTestOnlyRev, 0}
+var TestOnlyRevType = &AssertionType{"test-only-rev", []string{"h"}, nil, assembleTestOnlyRev, 0}
 
 // TestOnlySeq is a test-only assertion that is sequence-forming.
 type TestOnlySeq struct {
@@ -206,7 +212,7 @@ func assembleTestOnlySeq(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-var TestOnlySeqType = &AssertionType{"test-only-seq", []string{"n", "sequence"}, assembleTestOnlySeq, sequenceForming}
+var TestOnlySeqType = &AssertionType{"test-only-seq", []string{"n", "sequence"}, nil, assembleTestOnlySeq, sequenceForming}
 
 type TestOnlyNoAuthority struct {
 	assertionBase
@@ -219,7 +225,7 @@ func assembleTestOnlyNoAuthority(assert assertionBase) (Assertion, error) {
 	return &TestOnlyNoAuthority{assert}, nil
 }
 
-var TestOnlyNoAuthorityType = &AssertionType{"test-only-no-authority", nil, assembleTestOnlyNoAuthority, noAuthority}
+var TestOnlyNoAuthorityType = &AssertionType{"test-only-no-authority", nil, nil, assembleTestOnlyNoAuthority, noAuthority}
 
 type TestOnlyNoAuthorityPK struct {
 	assertionBase
@@ -229,7 +235,7 @@ func assembleTestOnlyNoAuthorityPK(assert assertionBase) (Assertion, error) {
 	return &TestOnlyNoAuthorityPK{assert}, nil
 }
 
-var TestOnlyNoAuthorityPKType = &AssertionType{"test-only-no-authority-pk", []string{"pk"}, assembleTestOnlyNoAuthorityPK, noAuthority}
+var TestOnlyNoAuthorityPKType = &AssertionType{"test-only-no-authority-pk", []string{"pk"}, nil, assembleTestOnlyNoAuthorityPK, noAuthority}
 
 func init() {
 	typeRegistry[TestOnlyType.Name] = TestOnlyType
@@ -251,12 +257,16 @@ func init() {
 
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
 func AccountKeyIsKeyValidAt(ak *AccountKey, when time.Time) bool {
-	return ak.isKeyValidAt(when)
+	return ak.isValidAt(when)
 }
 
-// AccountKeyIsKeyValidAssumingCurTimeWithin exposes isKeyValidAssumingCurTimeWithin on AccountKey for tests
-func AccountKeyIsKeyValidAssumingCurTimeWithin(ak *AccountKey, earliest, latest time.Time) bool {
-	return ak.isKeyValidAssumingCurTimeWithin(earliest, latest)
+type sinceUntilLike interface {
+	isValidAssumingCurTimeWithin(earliest, latest time.Time) bool
+}
+
+// IsValidAssumingCurTimeWithin exposes sinceUntil.isValidAssumingCurTimeWithin
+func IsValidAssumingCurTimeWithin(su sinceUntilLike, earliest, latest time.Time) bool {
+	return su.isValidAssumingCurTimeWithin(earliest, latest)
 }
 
 type GPGRunner func(input []byte, args ...string) ([]byte, error)
@@ -310,6 +320,10 @@ func CompileAttrMatcher(constraints interface{}, allowedOperations []string) (fu
 	}
 	return domatch, nil
 }
+
+var (
+	CompileDeviceScopeConstraint = compileDeviceScopeConstraint
+)
 
 // ifacedecls tests
 var (

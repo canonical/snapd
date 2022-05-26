@@ -41,7 +41,25 @@ func checkSystemdVersion() {
 }
 
 func init() {
+	EnsureQuotaUsability()
+}
+
+// EnsureQuotaUsability is exported for unit tests from other packages to re-run
+// the init() time checks for quota usability which set the errors which
+// quotaGroupsAvailable() checks for.
+// It saves the previous state of the usability errors to be restored via the
+// provided restore function.
+func EnsureQuotaUsability() (restore func()) {
+	oldSystemdErr := systemdVersionError
 	checkSystemdVersion()
+
+	return func() {
+		systemdVersionError = oldSystemdErr
+	}
+}
+
+var resourcesCheckFeatureRequirements = func(r *quota.Resources) error {
+	return r.CheckFeatureRequirements()
 }
 
 func quotaGroupsAvailable(st *state.State) error {
@@ -82,6 +100,10 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 
 	// validate the resource limits for the group
 	if err := resourceLimits.Validate(); err != nil {
+		return nil, fmt.Errorf("cannot create quota group %q: %v", name, err)
+	}
+	// validate that the system has the features needed for this resource
+	if err := resourcesCheckFeatureRequirements(&resourceLimits); err != nil {
 		return nil, fmt.Errorf("cannot create quota group %q: %v", name, err)
 	}
 
@@ -199,6 +221,16 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*st
 	currentQuotas := grp.GetQuotaResources()
 	if err := currentQuotas.ValidateChange(updateOpts.NewResourceLimits); err != nil {
 		return nil, fmt.Errorf("cannot update group %q: %v", name, err)
+	}
+	// validate that the system has the features needed for this resource
+	if err := resourcesCheckFeatureRequirements(&updateOpts.NewResourceLimits); err != nil {
+		return nil, fmt.Errorf("cannot update group %q: %v", name, err)
+	}
+
+	// ensure that the group we are modifying does not contain a mix of snaps and sub-groups
+	// as we no longer support this, and existing quota groups might have this
+	if err := ensureGroupIsNotMixed(name, allGrps); err != nil {
+		return nil, err
 	}
 
 	// now ensure that all of the snaps mentioned in AddSnaps exist as snaps and

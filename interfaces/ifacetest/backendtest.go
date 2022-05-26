@@ -42,7 +42,20 @@ type BackendSuite struct {
 	testutil.BaseTest
 }
 
+// CoreSnapInfo is set in SetupSuite
+var DefaultInitializeOpts = &interfaces.SecurityBackendOptions{}
+
 func (s *BackendSuite) SetUpTest(c *C) {
+	coreSnapPlaceInfo := snap.MinimalPlaceInfo("core", snap.Revision{N: 123})
+	snInfo, ok := coreSnapPlaceInfo.(*snap.Info)
+	c.Assert(ok, Equals, true)
+	DefaultInitializeOpts.CoreSnapInfo = snInfo
+
+	snapdSnapPlaceInfo := snap.MinimalPlaceInfo("snapd", snap.Revision{N: 321})
+	snInfo, ok = snapdSnapPlaceInfo.(*snap.Info)
+	c.Assert(ok, Equals, true)
+	DefaultInitializeOpts.SnapdSnapInfo = snInfo
+
 	// Isolate this test to a temporary directory
 	s.RootDir = c.MkDir()
 	dirs.SetRootDir(s.RootDir)
@@ -70,6 +83,17 @@ func (s *BackendSuite) TearDownTest(c *C) {
 // Tests for Setup() and Remove()
 const SambaYamlV1 = `
 name: samba
+version: 1
+developer: acme
+apps:
+    smbd:
+slots:
+    slot:
+        interface: iface
+`
+const SambaYamlV1Core20Base = `
+name: samba
+base: core20
 version: 1
 developer: acme
 apps:

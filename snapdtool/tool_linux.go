@@ -71,11 +71,11 @@ func distroSupportsReExec() bool {
 	return true
 }
 
-// coreSupportsReExec returns true if the given core/snapd snap should be used as re-exec target.
+// systemSnapSupportsReExec returns true if the given core/snapd snap should be used as re-exec target.
 //
 // Ensure we do not use older version of snapd, look for info file and ignore
 // version of core that do not yet have it.
-func coreSupportsReExec(coreOrSnapdPath string) bool {
+func systemSnapSupportsReExec(coreOrSnapdPath string) bool {
 	infoDir := filepath.Join(coreOrSnapdPath, filepath.Join(dirs.CoreLibExecDir))
 	ver, _, err := SnapdVersionFromInfoFile(infoDir)
 	if err != nil {
@@ -197,7 +197,7 @@ func ExecInSnapdOrCoreSnap() {
 	}
 
 	// If the core snap doesn't support re-exec or run-from-core then don't do it.
-	if !coreSupportsReExec(coreOrSnapdPath) {
+	if !systemSnapSupportsReExec(coreOrSnapdPath) {
 		return
 	}
 

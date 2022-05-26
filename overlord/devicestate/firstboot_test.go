@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -76,6 +77,11 @@ type firstBootBaseTest struct {
 
 func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 	t.BaseTest.SetUpTest(c)
+
+	// TODO: temporary: skip due to timeouts on riscv64
+	if runtime.GOARCH == "riscv64" || os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
+		c.Skip("skipping slow test")
+	}
 
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
@@ -233,7 +239,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	c.Assert(err, IsNil)
 
 	_, _, err = devicestate.PreloadGadget(s.overlord.DeviceManager())
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
@@ -275,7 +281,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	defer st.Unlock()
 
 	_, _, err = devicestate.PreloadGadget(ovld.DeviceManager())
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
@@ -1330,7 +1336,14 @@ type: base`
 	snapdYaml := `name: snapd
 version: 1.0
 `
-	snapdFname, snapdDecl, snapdRev := s.MakeAssertedSnap(c, snapdYaml, nil, snap.R(2), "canonical")
+	// the info file is needed by the Ensure() loop of snapstate manager
+	snapdSnapFiles := [][]string{
+		{"usr/lib/snapd/info", `
+VERSION=2.54.3+git1.g479e745-dirty
+SNAPD_APPARMOR_REEXEC=0
+`},
+	}
+	snapdFname, snapdDecl, snapdRev := s.MakeAssertedSnap(c, snapdYaml, snapdSnapFiles, snap.R(2), "canonical")
 	s.WriteAssertions("snapd.asserts", snapdRev, snapdDecl)
 
 	var kernelFname string

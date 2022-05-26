@@ -12,15 +12,27 @@ prepare: |
     . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
-    systemctl stop snapd.service snapd.socket
 
-    clean_snapd_lib
-    prepare_core_model
-    prepare_test_account valid-for-testing
-    prepare_test_model valid-for-testing-pc
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        REBOOT_NEEDED=false
+        if os.query is-core18 && snap list snapd | NOMATCH ' x1 '; then
+            REBOOT_NEEDED=true
+        fi
 
-    # kick first boot again
-    systemctl start snapd.service snapd.socket
+        systemctl stop snapd.service snapd.socket
+
+        clean_snapd_lib
+        prepare_core_model
+        prepare_test_account valid-for-testing
+        prepare_test_model valid-for-testing-pc
+
+        # kick first boot again
+        systemctl start snapd.service snapd.socket
+
+        if [ "$REBOOT_NEEDED" = true ] && "$TESTSTOOLS"/journal-state match-log -n 30 "Waiting for system reboot"; then
+            REBOOT
+        fi
+    fi
 
     # wait for first boot to be done
     wait_for_first_boot_change
@@ -33,15 +45,26 @@ restore: |
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
 
-    systemctl stop snapd.service snapd.socket
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        REBOOT_NEEDED=false
+        if os.query is-core18 && snap list snapd | NOMATCH ' x1 '; then
+            REBOOT_NEEDED=true
+        fi
 
-    clean_snapd_lib
-    restore_test_account valid-for-testing
-    restore_test_model valid-for-testing-pc
-    restore_core_model
+        systemctl stop snapd.service snapd.socket
 
-    # kick first boot again
-    systemctl start snapd.service snapd.socket
+        clean_snapd_lib
+        restore_test_account valid-for-testing
+        restore_test_model valid-for-testing-pc
+        restore_core_model
+
+        # kick first boot again
+        systemctl start snapd.service snapd.socket
+
+        if [ "$REBOOT_NEEDED" = true ] && "$TESTSTOOLS"/journal-state match-log -n 30 "Waiting for system reboot"; then
+            REBOOT
+        fi
+    fi
 
     # wait for first boot to be done
     snap wait system seed.loaded
@@ -62,6 +85,7 @@ restore: |
         find /var/snap
         exit 1
     fi
+
 execute: |
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
@@ -82,7 +106,7 @@ execute: |
 
     # initial boot with the current model
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        # sanity check
+        # precondition check
         snap list "$OLD_GADGET"
 
         echo "We have the right model assertion"

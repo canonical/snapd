@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/godbus/dbus"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dbusutil"

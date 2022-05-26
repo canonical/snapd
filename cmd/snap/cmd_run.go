@@ -73,6 +73,7 @@ type cmdRun struct {
 	HookName string `long:"hook" hidden:"yes"`
 	Revision string `short:"r" default:"unset" hidden:"yes"`
 	Shell    bool   `long:"shell" `
+	DebugLog bool   `long:"debug-log"`
 
 	// This options is both a selector (use or don't use strace) and it
 	// can also carry extra options for strace. This is why there is
@@ -119,6 +120,8 @@ and environment.
 			"timer": i18n.G("Run as a timer service with given schedule"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"trace-exec": i18n.G("Display exec calls timing data"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"debug-log":  i18n.G("Enable debug logging during early snap startup phases"),
 			"parser-ran": "",
 		}, nil)
 }
@@ -233,6 +236,8 @@ func (x *cmdRun) Execute(args []string) error {
 		// TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
 		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(args, " "))
 	}
+
+	logger.StartupStageTimestamp("start")
 
 	if err := maybeWaitForSecurityProfileRegeneration(x.client); err != nil {
 		return err
@@ -392,7 +397,7 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 		return fmt.Errorf(i18n.G("cannot get the current user: %v"), err)
 	}
 
-	snapDir := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
+	snapDir := snap.SnapDir(usr.HomeDir, opts)
 	if err := os.MkdirAll(snapDir, 0700); err != nil {
 		return fmt.Errorf(i18n.G("cannot create snap home dir: %w"), err)
 	}
@@ -400,6 +405,7 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 	instanceUserData := info.UserDataDir(usr.HomeDir, opts)
 	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir, opts)
 	createDirs := []string{instanceUserData, instanceCommonUserData}
+
 	if info.InstanceKey != "" {
 		// parallel instance snaps get additional mapping in their mount
 		// namespace, namely /home/joe/snap/foo_bar ->
@@ -477,6 +483,10 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 }
 
 func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
+	if x.DebugLog {
+		os.Setenv("SNAPD_DEBUG", "1")
+		logger.Debugf("enabled debug logging of early snap startup")
+	}
 	snapName, appName := snap.SplitSnapApp(snapApp)
 	info, err := getSnapInfo(snapName, snap.R(0))
 	if err != nil {
@@ -777,7 +787,7 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		return err
 	}
 
-	// Sanity check to make sure the document portal is exposed
+	// Quick check to make sure the document portal is exposed
 	// where we think it is.
 	if actualMountPoint != expectedMountPoint {
 		return fmt.Errorf(i18n.G("Expected portal at %#v, got %#v"), expectedMountPoint, actualMountPoint)
@@ -1024,6 +1034,8 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return fmt.Errorf(i18n.G("missing snap-confine: try updating your core/snapd package"))
 	}
 
+	logger.Debugf("executing snap-confine from %s", snapConfine)
+
 	snapName, _ := snap.SplitSnapApp(snapApp)
 	opts, err := getSnapDirOptions(snapName)
 	if err != nil {
@@ -1213,6 +1225,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 			logger.Debugf("snap refreshes will not be postponed by this process")
 		}
 	}
+	logger.StartupStageTimestamp("snap to snap-confine")
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, envForExec)
 	} else if x.Gdb {
@@ -1247,13 +1260,16 @@ func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
 	}
 
 	var seq struct {
-		MigratedToHiddenDir bool `json:"migrated-hidden"`
+		MigratedToHiddenDir   bool `json:"migrated-hidden"`
+		MigratedToExposedHome bool `json:"migrated-exposed-home"`
 	}
 	if err := json.Unmarshal(data, &seq); err != nil {
 		return nil, err
 	}
 
 	opts.HiddenSnapDataDir = seq.MigratedToHiddenDir
+	opts.MigratedToExposedHome = seq.MigratedToExposedHome
+
 	return &opts, nil
 }
 

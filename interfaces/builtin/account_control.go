@@ -53,6 +53,7 @@ const accountControlConnectedPlugAppArmor = `
 /etc/default/useradd r,
 /etc/default/nss r,
 /etc/pam.d/{,*} r,
+/{,usr/}sbin/pam_tally2 ixr,
 
 # Needed by chpasswd
 /{,usr/}lib/@{multiarch}/security/* ixr,

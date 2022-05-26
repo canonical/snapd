@@ -513,7 +513,7 @@ func (s *snapsSuite) testPostSnapsOp(c *check.C, extraJSON, contentType string) 
 	c.Check(chg.Get("api-data", &apiData), check.IsNil)
 	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"fake1", "fake2"})
 	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		c.Error(err)
 	}
 	return systemRestartImmediate
@@ -646,9 +646,9 @@ func (s *snapsSuite) TestRefreshManyTransactionally(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &daemon.SnapInstruction{
-		Action:        "refresh",
-		Transactional: true,
-		Snaps:         []string{"foo", "bar"},
+		Action:      "refresh",
+		Transaction: client.TransactionAllSnaps,
+		Snaps:       []string{"foo", "bar"},
 	}
 	st := d.Overlord().State()
 	st.Lock()
@@ -661,7 +661,7 @@ func (s *snapsSuite) TestRefreshManyTransactionally(c *check.C) {
 	c.Assert(refreshAssertionsOpts, check.NotNil)
 	c.Check(refreshAssertionsOpts.IsRefreshOfAllSnaps, check.Equals, false)
 
-	c.Check(calledFlags.Transactional, check.Equals, true)
+	c.Check(calledFlags.Transaction, check.Equals, client.TransactionAllSnaps)
 }
 
 func (s *snapsSuite) TestRefreshMany(c *check.C) {
@@ -691,6 +691,36 @@ func (s *snapsSuite) TestRefreshMany(c *check.C) {
 	c.Check(refreshSnapAssertions, check.Equals, true)
 	c.Assert(refreshAssertionsOpts, check.NotNil)
 	c.Check(refreshAssertionsOpts.IsRefreshOfAllSnaps, check.Equals, false)
+}
+
+func (s *snapsSuite) TestRefreshManyIgnoreRunning(c *check.C) {
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		return nil
+	})()
+
+	var calledFlags *snapstate.Flags
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+		calledFlags = flags
+
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-refresh-2", "Refreshing two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action:        "refresh",
+		Snaps:         []string{"foo", "bar"},
+		IgnoreRunning: true,
+	}
+	st := d.Overlord().State()
+	st.Lock()
+	res, err := inst.DispatchForMany()(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(res.Summary, check.Equals, `Refresh snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
+	c.Check(calledFlags.IgnoreRunning, check.Equals, true)
 }
 
 func (s *snapsSuite) TestRefreshMany1(c *check.C) {
@@ -749,9 +779,9 @@ func (s *snapsSuite) TestInstallManyTransactionally(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &daemon.SnapInstruction{
-		Action:        "install",
-		Transactional: true,
-		Snaps:         []string{"foo", "bar"},
+		Action:      "install",
+		Transaction: client.TransactionAllSnaps,
+		Snaps:       []string{"foo", "bar"},
 	}
 
 	st := d.Overlord().State()
@@ -762,7 +792,7 @@ func (s *snapsSuite) TestInstallManyTransactionally(c *check.C) {
 	c.Check(res.Summary, check.Equals, `Install snaps "foo", "bar"`)
 	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 
-	c.Check(calledFlags.Transactional, check.Equals, true)
+	c.Check(calledFlags.Transaction, check.Equals, client.TransactionAllSnaps)
 }
 
 func (s *snapsSuite) TestInstallManyEmptyName(c *check.C) {
@@ -1316,7 +1346,7 @@ func (s *snapsSuite) testPostSnap(c *check.C, extraJSON string, checkOpts func(o
 
 	summary = chg.Summary()
 	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		c.Error(err)
 	}
 	return summary, systemRestartImmediate
@@ -2240,4 +2270,34 @@ func (s *snapsSuite) TestErrToResponseForChangeConflict(c *check.C) {
 			"change-kind": "some-global-op",
 		},
 	})
+}
+
+func (s *snapsSuite) TestPostSnapInvalidTransaction(c *check.C) {
+	s.daemonWithOverlordMock()
+
+	for _, action := range []string{"remove", "revert", "enable", "disable", "xyzzy"} {
+		expectedErr := fmt.Sprintf(`transaction type is unsupported for "%s" actions`, action)
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "transaction": "per-snap"}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
+func (s *snapsSuite) TestPostSnapWrongTransaction(c *check.C) {
+	s.daemonWithOverlordMock()
+	const expectedErr = "invalid value for transaction type: xyz"
+
+	for _, action := range []string{"install", "refresh"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "transaction": "xyz"}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
 }

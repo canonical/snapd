@@ -215,6 +215,30 @@ func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 		"confinement":       "strict",
 		"type":              "base",
 	})
+
+	snapFn = s.makeTestSnap(c, "name: foo-core20\nversion: 1\ntype: app\nbase: core20")
+	resp, err = s.StoreGet(`/api/v1/snaps/details/foo-core20`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	sha3_384, _ = getSha(snapFn)
+	c.Check(body, DeepEquals, map[string]interface{}{
+		"architecture":      []interface{}{"all"},
+		"snap_id":           "",
+		"package_name":      "foo-core20",
+		"origin":            "canonical",
+		"developer_id":      "canonical",
+		"anon_download_url": s.store.URL() + "/download/foo-core20_1_all.snap",
+		"download_url":      s.store.URL() + "/download/foo-core20_1_all.snap",
+		"version":           "1",
+		"revision":          float64(424242),
+		"download_sha3_384": sha3_384,
+		"confinement":       "strict",
+		"type":              "app",
+		"base":              "core20",
+	})
 }
 
 func (s *storeTestSuite) TestBulkEndpoint(c *C) {
@@ -253,11 +277,16 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
 }
 
 func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
-	snapFn := s.makeTestSnap(c, "name: foo\nversion: 10")
-	s.makeAssertions(c, snapFn, "foo", "xidididididididididididididididid", "foo-devel", "foo-devel-id", 99)
+	snapFn1 := s.makeTestSnap(c, "name: foo\nversion: 10")
+	s.makeAssertions(c, snapFn1, "foo", "xidididididididididididididididid", "foo-devel", "foo-devel-id", 99)
+	snapFn2 := s.makeTestSnap(c, "name: foo-core20\nversion: 10\nbase: core20")
+	s.makeAssertions(c, snapFn2, "foo-core20", "xidididididididididididididcore20", "foo-core20-devel", "foo-core20-devel-id", 98)
 
 	resp, err := s.StorePostJSON("/api/v1/snaps/metadata", []byte(`{
-"snaps": [{"snap_id":"xidididididididididididididididid","channel":"stable","revision":1}]
+"snaps": [
+    {"snap_id":"xidididididididididididididididid","channel":"stable","revision":1},
+    {"snap_id":"xidididididididididididididcore20","channel":"stable","revision":1}
+]
 }`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -269,7 +298,8 @@ func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
 		} `json:"_embedded"`
 	}
 	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
-	sha3_384, _ := getSha(snapFn)
+	sha3_384_1, _ := getSha(snapFn1)
+	sha3_384_2, _ := getSha(snapFn2)
 	c.Check(body.Top.Cat, DeepEquals, []map[string]interface{}{{
 		"architecture":      []interface{}{"all"},
 		"snap_id":           "xidididididididididididididididid",
@@ -280,9 +310,23 @@ func (s *storeTestSuite) TestBulkEndpointWithAssertions(c *C) {
 		"download_url":      s.store.URL() + "/download/foo_10_all.snap",
 		"version":           "10",
 		"revision":          float64(99),
-		"download_sha3_384": sha3_384,
+		"download_sha3_384": sha3_384_1,
 		"confinement":       "strict",
 		"type":              "app",
+	}, {
+		"architecture":      []interface{}{"all"},
+		"snap_id":           "xidididididididididididididcore20",
+		"package_name":      "foo-core20",
+		"origin":            "foo-core20-devel",
+		"developer_id":      "foo-core20-devel-id",
+		"anon_download_url": s.store.URL() + "/download/foo-core20_10_all.snap",
+		"download_url":      s.store.URL() + "/download/foo-core20_10_all.snap",
+		"version":           "10",
+		"revision":          float64(98),
+		"download_sha3_384": sha3_384_2,
+		"confinement":       "strict",
+		"type":              "app",
+		"base":              "core20",
 	}})
 }
 
@@ -619,6 +663,50 @@ func (s *storeTestSuite) TestSnapActionEndpointWithAssertionsInstall(c *C) {
 			"revision":    float64(99),
 			"confinement": "strict",
 			"type":        "app",
+		},
+	})
+}
+
+func (s *storeTestSuite) TestSnapActionEndpointSnapWithBase(c *C) {
+	snapFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1\nbase: core20")
+
+	resp, err := s.StorePostJSON("/v2/snaps/refresh", []byte(`{
+"context": [{"instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","tracking-channel":"stable","revision":1}],
+"actions": [{"action":"refresh","instance-key":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw","snap-id":"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw"}]
+}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	var body struct {
+		Results []map[string]interface{}
+	}
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	c.Check(body.Results, HasLen, 1)
+	sha3_384, size := getSha(snapFn)
+	c.Check(body.Results[0], DeepEquals, map[string]interface{}{
+		"result":       "refresh",
+		"instance-key": "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+		"snap-id":      "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+		"name":         "test-snapd-tools",
+		"snap": map[string]interface{}{
+			"architectures": []interface{}{"all"},
+			"snap-id":       "eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw",
+			"name":          "test-snapd-tools",
+			"publisher": map[string]interface{}{
+				"username": "canonical",
+				"id":       "canonical",
+			},
+			"download": map[string]interface{}{
+				"url":      s.store.URL() + "/download/test-snapd-tools_1_all.snap",
+				"sha3-384": sha3_384,
+				"size":     float64(size),
+			},
+			"version":     "1",
+			"revision":    float64(424242),
+			"confinement": "strict",
+			"type":        "app",
+			"base":        "core20",
 		},
 	})
 }

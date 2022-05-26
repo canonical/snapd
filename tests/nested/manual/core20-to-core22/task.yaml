@@ -7,26 +7,29 @@ summary: verify a UC20 to UC22 remodel
 systems: [ubuntu-20.04-64]
 
 environment:
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-20.model
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-{VERSION}.model
   NESTED_IMAGE_ID: uc22-remodel-testing
   # TODO: disable TPM for now and investigate why the system cannot be booted
   # after remodel completes
   NESTED_ENABLE_TPM: false
   NESTED_ENABLE_SECURE_BOOT: false
-  NESTED_BUILD_SNAPD_FROM_CURRENT: false
+  # we need pc/pc-kernel/core20 from the store, such that they get properly
+  # refreshed when doing a UC20 to UC22 remodel
+  NESTED_REPACK_KERNEL_SNAP: false
+  NESTED_REPACK_GADGET_SNAP: false
+  NESTED_REPACK_BASE_SNAP: false
 
 prepare: |
-    # we need pc/pc-kernel/core20 from the store, such that they get properly
-    # refreshed when doing a UC20 to UC22 remodel
-    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$PWD/extra-snaps"
     tests.nested build-image core
     tests.nested create-vm core
 
 execute: |
     # shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    boot_id="$( nested_get_boot_id )"
+
+    boot_id="$(tests.nested boot-id)"
     tests.nested exec snap model |MATCH 'model +my-model$'
+
     # XXX: recovery system label is based on a date; we may end up with a
     # different label if the remodel runs around midnight; the label will
     # conflict with an existing system label
@@ -34,10 +37,10 @@ execute: |
     label="${label_base}-1"
 
     # wait until device is initialized and has a serial
-    nested_wait_for_device_initialized_change
+    tests.nested wait-for device-initialized
 
     echo "Remodel to UC22"
-    nested_copy "$TESTSLIB/assertions/valid-for-testing-pc-22-from-20.model"
+    tests.nested copy "$TESTSLIB/assertions/valid-for-testing-pc-22-from-20.model"
     REMOTE_CHG_ID="$(tests.nested exec sudo snap remodel --no-wait valid-for-testing-pc-22-from-20.model)"
     test -n "$REMOTE_CHG_ID"
     # very long retry wait for the change to be in stable state, once it's
@@ -48,7 +51,7 @@ execute: |
 
     # we should have rebooted a couple of times (at least twice for the recovery
     # system and the base), so boot-id should be different
-    current_boot_id="$( nested_get_boot_id )"
+    current_boot_id="$(tests.nested boot-id)"
     test "$boot_id" != "$current_boot_id"
 
     tests.nested exec sudo snap list pc | MATCH " 22/edge "
@@ -61,21 +64,22 @@ execute: |
     NOMATCH core20 < model-from-seed.model
 
     echo "Verify that UC22 recover system is usable"
-    boot_id="$( nested_get_boot_id )"
+    boot_id="$(tests.nested boot-id)"
     tests.nested exec sudo snap reboot --recover "${label}" | MATCH 'Reboot into ".*" "recover" mode'
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested wait-for reboot "${boot_id}"
     # Verify we are in recover mode with the expected system label
     tests.nested exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=recover snapd_recovery_system=${label} "
+
     # we are in recover mode, so tools need to be set up again
     nested_prepare_tools
 
-    nested_wait_for_snap_command
+    tests.nested wait-for snap-command
     # there should be no core20 since the seed is UC22
     tests.nested exec sudo snap list | NOMATCH core20
 
-    boot_id="$( nested_get_boot_id )"
+    boot_id="$(tests.nested boot-id)"
     echo "And back to run mode"
     tests.nested exec "sudo snap wait system seed.loaded"
     tests.nested exec sudo snap reboot --run | MATCH 'Reboot into "run" mode.'
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested wait-for reboot "${boot_id}"
     tests.nested exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=run "

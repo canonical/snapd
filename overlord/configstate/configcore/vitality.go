@@ -22,6 +22,7 @@
 package configcore
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -86,7 +87,7 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		err := snapstate.Get(st, instanceName, &snapst)
 		// not installed, vitality-score will be applied when the snap
 		// gets installed
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			continue
 		}
 		if err != nil {

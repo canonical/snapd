@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,40 +24,82 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
 const sharedMemorySummary = `allows two snaps to use predefined shared memory objects`
 
-// The plug side of shared-memory implements auto-connect to a matching slot -
-// this is permitted even though the interface is super-privileged because using
-// a slot requires a store declaration anyways so just declaring a plug will not
-// grant access unless a slot was also granted at some point.
+// The plug side of shared-memory can operate in two modes: if the
+// private attribute is set to true, then it can be connected to the
+// implicit system slot to be given a private version of /dev/shm.
+//
+// For a plug without that attribute set, it will connect to a
+// matching application snap slot - this is permitted even though the
+// interface is super-privileged because using a slot requires a store
+// declaration anyways so just declaring a plug will not grant access
+// unless a slot was also granted at some point.
 const sharedMemoryBaseDeclarationPlugs = `
   shared-memory:
-    allow-installation: true
     allow-connection:
-      slot-attributes:
-        shared-memory: $PLUG(shared-memory)
+      -
+        plug-attributes:
+          private: false
+        slot-attributes:
+          shared-memory: $PLUG(shared-memory)
+      -
+        plug-attributes:
+          private: true
+        slot-snap-type:
+          - core
     allow-auto-connection:
-      slot-publisher-id:
-        - $PLUG_PUBLISHER_ID
-      slot-attributes:
-        shared-memory: $PLUG(shared-memory)
+      -
+        plug-attributes:
+          private: false
+        slot-publisher-id:
+          - $PLUG_PUBLISHER_ID
+        slot-attributes:
+          shared-memory: $PLUG(shared-memory)
+      -
+        plug-attributes:
+          private: true
+        slot-snap-type:
+          - core
 `
 
-// shared-memory slots are super-privileged and thus denied to any snap except
-// those that get a store declaration to do so, but the intent is for
-// application or gadget snaps to use the slot much like the content interface.
+// shared-memory slots can appear either as an implicit system slot,
+// or as a slot on an application snap.
+//
+// The implicit version of the slot is intended to auto-connect with
+// plugs that have the private attribute set to true.
+//
+// Slots on app snaps connect to non-private plugs. They are are
+// super-privileged and thus denied to any snap except those that get
+// a store declaration to do so, but the intent is for application or
+// gadget snaps to use the slot much like the content interface.
 const sharedMemoryBaseDeclarationSlots = `
   shared-memory:
-    allow-installation: false
-    deny-connection: true
+    allow-installation:
+      slot-snap-type:
+        - app
+        - gadget
+        - core
+      slot-snap-id:
+        - PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+        - 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
     deny-auto-connection: true
+`
+
+const sharedMemoryPrivateConnectedPlugAppArmor = `
+# Description: Allow access to everything in private /dev/shm
+"/dev/shm/*" mrwlkix,
 `
 
 func validateSharedMemoryPath(path string) error {
@@ -121,6 +163,8 @@ func (iface *sharedMemoryInterface) StaticInfo() interfaces.StaticInfo {
 		BaseDeclarationPlugs: sharedMemoryBaseDeclarationPlugs,
 		BaseDeclarationSlots: sharedMemoryBaseDeclarationSlots,
 		AffectsPlugOnRefresh: true,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
 	}
 }
 
@@ -176,7 +220,7 @@ func writeSharedMemoryPaths(w io.Writer, slot *interfaces.ConnectedSlot,
 	snippetType sharedMemorySnippetType) {
 	emitWritableRule := func(path string) {
 		// Ubuntu 14.04 uses /run/shm instead of the most common /dev/shm
-		fmt.Fprintf(w, "\"/{dev,run}/shm/%s\" rwk,\n", path)
+		fmt.Fprintf(w, "\"/{dev,run}/shm/%s\" mrwlk,\n", path)
 	}
 
 	// All checks were already done in BeforePrepare{Plug,Slot}
@@ -198,35 +242,98 @@ func writeSharedMemoryPaths(w io.Writer, slot *interfaces.ConnectedSlot,
 }
 
 func (iface *sharedMemoryInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	privateAttr, isPrivateSet := plug.Attrs["private"]
+	private, ok := privateAttr.(bool)
+	if isPrivateSet && !ok {
+		return fmt.Errorf(`shared-memory "private" attribute must be a bool, not %v`, privateAttr)
+	}
+	if plug.Attrs == nil {
+		plug.Attrs = make(map[string]interface{})
+	}
+	plug.Attrs["private"] = private
+
 	sharedMemoryAttr, isSet := plug.Attrs["shared-memory"]
 	sharedMemory, ok := sharedMemoryAttr.(string)
 	if isSet && !ok {
 		return fmt.Errorf(`shared-memory "shared-memory" attribute must be a string, not %v`,
 			plug.Attrs["shared-memory"])
 	}
-	if sharedMemory == "" {
-		if plug.Attrs == nil {
-			plug.Attrs = make(map[string]interface{})
+	if private {
+		if isSet {
+			return fmt.Errorf(`shared-memory "shared-memory" attribute must not be set together with "private: true"`)
 		}
-		// shared-memory defaults to "plug" name if unspecified
-		plug.Attrs["shared-memory"] = plug.Name
+		// A private shared-memory plug cannot coexist with
+		// other shared-memory plugs/slots.
+		for _, other := range plug.Snap.Plugs {
+			if other != plug && other.Interface == "shared-memory" {
+				return fmt.Errorf(`shared-memory plug with "private: true" set cannot be used with other shared-memory plugs`)
+			}
+		}
+		for _, other := range plug.Snap.Slots {
+			if other.Interface == "shared-memory" {
+				return fmt.Errorf(`shared-memory plug with "private: true" set cannot be used with shared-memory slots`)
+			}
+		}
+	} else {
+		if sharedMemory == "" {
+			// shared-memory defaults to "plug" name if unspecified
+			plug.Attrs["shared-memory"] = plug.Name
+		}
 	}
 
 	return nil
 }
 
+func (iface *sharedMemoryInterface) isPrivate(plug *interfaces.ConnectedPlug) bool {
+	var private bool
+	if err := plug.Attr("private", &private); err == nil {
+		return private
+	}
+	panic("plug is not sanitized")
+}
+
 func (iface *sharedMemoryInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	sharedMemorySnippet := &bytes.Buffer{}
-	writeSharedMemoryPaths(sharedMemorySnippet, slot, snippetForPlug)
-	spec.AddSnippet(sharedMemorySnippet.String())
+	if iface.isPrivate(plug) {
+		spec.AddSnippet(sharedMemoryPrivateConnectedPlugAppArmor)
+		spec.AddUpdateNSf(`  # Private /dev/shm
+  /dev/ r,
+  /dev/shm/{,**} rw,
+  mount options=(bind, rw) /dev/shm/snap.%s/ -> /dev/shm/,
+  umount /dev/shm/,`, plug.Snap().InstanceName())
+	} else {
+		sharedMemorySnippet := &bytes.Buffer{}
+		writeSharedMemoryPaths(sharedMemorySnippet, slot, snippetForPlug)
+		spec.AddSnippet(sharedMemorySnippet.String())
+	}
 	return nil
 }
 
 func (iface *sharedMemoryInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if slot.Snap().Type() == snap.TypeOS || slot.Snap().Type() == snap.TypeSnapd {
+		return nil
+	}
+
 	sharedMemorySnippet := &bytes.Buffer{}
 	writeSharedMemoryPaths(sharedMemorySnippet, slot, snippetForSlot)
 	spec.AddSnippet(sharedMemorySnippet.String())
 	return nil
+}
+
+func (iface *sharedMemoryInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if !iface.isPrivate(plug) {
+		return nil
+	}
+
+	devShm := filepath.Join(dirs.GlobalRootDir, "/dev/shm")
+	if osutil.IsSymlink(devShm) {
+		return fmt.Errorf(`shared-memory plug with "private: true" cannot be connected if %q is a symlink`, devShm)
+	}
+
+	return spec.AddMountEntry(osutil.MountEntry{
+		Name:    filepath.Join(devShm, "snap."+plug.Snap().InstanceName()),
+		Dir:     "/dev/shm",
+		Options: []string{"bind", "rw"},
+	})
 }
 
 func (iface *sharedMemoryInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {

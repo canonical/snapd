@@ -38,9 +38,8 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/godbus/dbus"
+	"gopkg.in/yaml.v3"
 
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/logger"

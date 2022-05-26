@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"errors"
 	"time"
 
 	"github.com/snapcore/snapd/overlord/state"
@@ -66,18 +67,18 @@ type seedingInfo struct {
 func getSeedingInfo(st *state.State) Response {
 	var seeded, preseeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return InternalError(err.Error())
 	}
-	if err = st.Get("preseeded", &preseeded); err != nil && err != state.ErrNoState {
+	if err = st.Get("preseeded", &preseeded); err != nil && !errors.Is(err, state.ErrNoState) {
 		return InternalError(err.Error())
 	}
 
 	var preseedSysKey, seedRestartSysKey interface{}
-	if err := st.Get("preseed-system-key", &preseedSysKey); err != nil && err != state.ErrNoState {
+	if err := st.Get("preseed-system-key", &preseedSysKey); err != nil && !errors.Is(err, state.ErrNoState) {
 		return InternalError(err.Error())
 	}
-	if err := st.Get("seed-restart-system-key", &seedRestartSysKey); err != nil && err != state.ErrNoState {
+	if err := st.Get("seed-restart-system-key", &seedRestartSysKey); err != nil && !errors.Is(err, state.ErrNoState) {
 		return InternalError(err.Error())
 	}
 
@@ -116,7 +117,7 @@ func getSeedingInfo(st *state.State) Response {
 		{"seed-time", &data.SeedTime},
 	} {
 		var tm time.Time
-		if err := st.Get(t.name, &tm); err != nil && err != state.ErrNoState {
+		if err := st.Get(t.name, &tm); err != nil && !errors.Is(err, state.ErrNoState) {
 			return InternalError(err.Error())
 		}
 		if !tm.IsZero() {
@@ -124,7 +125,7 @@ func getSeedingInfo(st *state.State) Response {
 		}
 	}
 
-	// XXX: consistency & sanity checks, e.g. if preseeded, then need to have
+	// XXX: consistency & validity checks, e.g. if preseeded, then need to have
 	// preseed-start-time, preseeded-time, preseed-system-key etc?
 
 	return SyncResponse(data)

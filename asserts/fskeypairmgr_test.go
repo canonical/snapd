@@ -89,7 +89,9 @@ func (fsbss *fsKeypairMgrSuite) TestDelete(c *C) {
 
 	err = keypairMgr.Delete(keyID)
 	c.Check(err, ErrorMatches, "cannot find key pair")
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 
 	_, err = keypairMgr.Get(keyID)
 	c.Check(err, ErrorMatches, "cannot find key pair")
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 }

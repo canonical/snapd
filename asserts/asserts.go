@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 type typeFlags int
@@ -44,6 +46,7 @@ var MetaHeaders = [...]string{
 	"type",
 	"format",
 	"authority-id",
+	// XXX authority-delegation: "signatory-id",
 	"revision",
 	"body-length",
 	"sign-key-sha3-384",
@@ -56,9 +59,40 @@ type AssertionType struct {
 	// PrimaryKey holds the names of the headers that constitute the
 	// unique primary key for this assertion type.
 	PrimaryKey []string
+	// OptionalPrimaryKeyDefaults holds the default values for
+	// optional primary key headers.
+	// Optional primary key headers can be added to types defined
+	// in previous versions of snapd, as long as they are added at
+	// the end of the old primary key together with a default value set in
+	// this map. So they must form a contiguous suffix of PrimaryKey with
+	// each member having a default value set in this map.
+	// Optional primary key headers are not supported for sequence
+	// forming types.
+	OptionalPrimaryKeyDefaults map[string]string
 
 	assembler func(assert assertionBase) (Assertion, error)
 	flags     typeFlags
+}
+
+func (at *AssertionType) validate() {
+	if len(at.OptionalPrimaryKeyDefaults) != 0 && at.flags&sequenceForming != 0 {
+		panic(fmt.Sprintf("assertion type %q cannot be both sequence forming and have optional primary keys", at.Name))
+	}
+	noptional := 0
+	for _, k := range at.PrimaryKey {
+		defl := at.OptionalPrimaryKeyDefaults[k]
+		if noptional > 0 {
+			if defl == "" {
+				panic(fmt.Sprintf("assertion type %q primary key header %q has no default, optional primary keys must be a proper suffix of the primary key", at.Name, k))
+			}
+		}
+		if defl != "" {
+			noptional++
+		}
+	}
+	if len(at.OptionalPrimaryKeyDefaults) != noptional {
+		panic(fmt.Sprintf("assertion type %q has defaults values for unknown primary key headers", at.Name))
+	}
 }
 
 // MaxSupportedFormat returns the maximum supported format iteration for the type.
@@ -76,31 +110,44 @@ func (at *AssertionType) SequenceForming() bool {
 	return at.flags&sequenceForming != 0
 }
 
+// AcceptablePrimaryKey returns whether the given key could be an acceptable primary key for this type, allowing for the omission of optional primary key headers.
+func (at *AssertionType) AcceptablePrimaryKey(key []string) bool {
+	n := len(at.PrimaryKey)
+	nopt := len(at.OptionalPrimaryKeyDefaults)
+	ninp := len(key)
+	if ninp > n || ninp < (n-nopt) {
+		return false
+	}
+	return true
+}
+
 // Understood assertion types.
 var (
-	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount, 0}
-	AccountKeyType      = &AssertionType{"account-key", []string{"public-key-sha3-384"}, assembleAccountKey, 0}
-	RepairType          = &AssertionType{"repair", []string{"brand-id", "repair-id"}, assembleRepair, sequenceForming}
-	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel, 0}
-	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial, 0}
-	BaseDeclarationType = &AssertionType{"base-declaration", []string{"series"}, assembleBaseDeclaration, 0}
-	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration, 0}
-	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-sha3-384"}, assembleSnapBuild, 0}
-	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, assembleSnapRevision, 0}
-	SnapDeveloperType   = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, assembleSnapDeveloper, 0}
-	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, assembleSystemUser, 0}
-	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
-	ValidationSetType   = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, assembleValidationSet, sequenceForming}
-	StoreType           = &AssertionType{"store", []string{"store"}, assembleStore, 0}
+	AccountType             = &AssertionType{"account", []string{"account-id"}, nil, assembleAccount, 0}
+	AccountKeyType          = &AssertionType{"account-key", []string{"public-key-sha3-384"}, nil, assembleAccountKey, 0}
+	RepairType              = &AssertionType{"repair", []string{"brand-id", "repair-id"}, nil, assembleRepair, sequenceForming}
+	ModelType               = &AssertionType{"model", []string{"series", "brand-id", "model"}, nil, assembleModel, 0}
+	SerialType              = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, nil, assembleSerial, 0}
+	BaseDeclarationType     = &AssertionType{"base-declaration", []string{"series"}, nil, assembleBaseDeclaration, 0}
+	SnapDeclarationType     = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, nil, assembleSnapDeclaration, 0}
+	SnapBuildType           = &AssertionType{"snap-build", []string{"snap-sha3-384"}, nil, assembleSnapBuild, 0}
+	SnapRevisionType        = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, nil, assembleSnapRevision, 0}
+	SnapDeveloperType       = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, nil, assembleSnapDeveloper, 0}
+	SystemUserType          = &AssertionType{"system-user", []string{"brand-id", "email"}, nil, assembleSystemUser, 0}
+	ValidationType          = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, nil, assembleValidation, 0}
+	ValidationSetType       = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, nil, assembleValidationSet, sequenceForming}
+	StoreType               = &AssertionType{"store", []string{"store"}, nil, assembleStore, 0}
+	AuthorityDelegationType = &AssertionType{"authority-delegation", []string{"account-id", "delegate-id"}, nil, assembleAuthorityDelegation, 0}
+	PreseedType             = &AssertionType{"preseed", []string{"series", "brand-id", "model", "system-label"}, nil, assemblePreseed, 0}
 
 // ...
 )
 
 // Assertion types without a definite authority set (on the wire and/or self-signed).
 var (
-	DeviceSessionRequestType = &AssertionType{"device-session-request", []string{"brand-id", "model", "serial"}, assembleDeviceSessionRequest, noAuthority}
-	SerialRequestType        = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
-	AccountKeyRequestType    = &AssertionType{"account-key-request", []string{"public-key-sha3-384"}, assembleAccountKeyRequest, noAuthority}
+	DeviceSessionRequestType = &AssertionType{"device-session-request", []string{"brand-id", "model", "serial"}, nil, assembleDeviceSessionRequest, noAuthority}
+	SerialRequestType        = &AssertionType{"serial-request", nil, nil, assembleSerialRequest, noAuthority}
+	AccountKeyRequestType    = &AssertionType{"account-key-request", []string{"public-key-sha3-384"}, nil, assembleAccountKeyRequest, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -122,6 +169,7 @@ var typeRegistry = map[string]*AssertionType{
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
 	AccountKeyRequestType.Name:    AccountKeyRequestType,
+	PreseedType.Name:              PreseedType,
 }
 
 // Type returns the AssertionType with name or nil
@@ -155,6 +203,14 @@ func init() {
 
 	// 1: support to limit to device serials
 	maxSupportedFormat[SystemUserType.Name] = 1
+
+	// done here to untangle initialization loop via Type()
+	// XXX authority-delegation disabled
+	// typeRegistry[AuthorityDelegationType.Name] = AuthorityDelegationType
+
+	for _, at := range typeRegistry {
+		at.validate()
+	}
 }
 
 func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {
@@ -162,6 +218,23 @@ func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore f
 	maxSupportedFormat[assertType.Name] = maxFormat
 	return func() {
 		maxSupportedFormat[assertType.Name] = prev
+	}
+}
+
+func MockOptionalPrimaryKey(assertType *AssertionType, key, defaultValue string) (restore func()) {
+	osutil.MustBeTestBinary("mocking new assertion optional primary keys can be done only from tests")
+	oldPrimaryKey := assertType.PrimaryKey
+	oldOptionalPrimaryKeyDefaults := assertType.OptionalPrimaryKeyDefaults
+	newOptionalPrimaryKeyDefaults := make(map[string]string, len(oldOptionalPrimaryKeyDefaults)+1)
+	for k, defl := range oldOptionalPrimaryKeyDefaults {
+		newOptionalPrimaryKeyDefaults[k] = defl
+	}
+	assertType.PrimaryKey = append(assertType.PrimaryKey, key)
+	assertType.OptionalPrimaryKeyDefaults = newOptionalPrimaryKeyDefaults
+	newOptionalPrimaryKeyDefaults[key] = defaultValue
+	return func() {
+		assertType.PrimaryKey = oldPrimaryKey
+		assertType.OptionalPrimaryKeyDefaults = oldOptionalPrimaryKeyDefaults
 	}
 }
 
@@ -204,16 +277,23 @@ func SuggestFormat(assertType *AssertionType, headers map[string]interface{}, bo
 
 // HeadersFromPrimaryKey constructs a headers mapping from the
 // primaryKey values and the assertion type, it errors if primaryKey
-// has the wrong length.
+// does not cover all the non-optional primary key headers or provides
+// too many values.
 func HeadersFromPrimaryKey(assertType *AssertionType, primaryKey []string) (headers map[string]string, err error) {
-	if len(primaryKey) != len(assertType.PrimaryKey) {
+	if !assertType.AcceptablePrimaryKey(primaryKey) {
 		return nil, fmt.Errorf("primary key has wrong length for %q assertion", assertType.Name)
 	}
+	ninp := len(primaryKey)
 	headers = make(map[string]string, len(assertType.PrimaryKey))
 	for i, name := range assertType.PrimaryKey {
-		keyVal := primaryKey[i]
-		if keyVal == "" {
-			return nil, fmt.Errorf("primary key %q header cannot be empty", name)
+		var keyVal string
+		if i < ninp {
+			keyVal = primaryKey[i]
+			if keyVal == "" {
+				return nil, fmt.Errorf("primary key %q header cannot be empty", name)
+			}
+		} else {
+			keyVal = assertType.OptionalPrimaryKeyDefaults[name]
 		}
 		headers[name] = keyVal
 	}
@@ -244,21 +324,50 @@ func HeadersFromSequenceKey(assertType *AssertionType, sequenceKey []string) (he
 
 // PrimaryKeyFromHeaders extracts the tuple of values from headers
 // corresponding to a primary key under the assertion type, it errors
-// if there are missing primary key headers.
+// if there are missing primary key headers unless they are optional
+// in which case it fills in their default values.
 func PrimaryKeyFromHeaders(assertType *AssertionType, headers map[string]string) (primaryKey []string, err error) {
-	return keysFromHeaders(assertType.PrimaryKey, headers)
+	return keysFromHeaders(assertType.PrimaryKey, headers, assertType.OptionalPrimaryKeyDefaults)
 }
 
-func keysFromHeaders(keys []string, headers map[string]string) (keyValues []string, err error) {
+func keysFromHeaders(keys []string, headers map[string]string, defaults map[string]string) (keyValues []string, err error) {
 	keyValues = make([]string, len(keys))
 	for i, k := range keys {
 		keyVal := headers[k]
 		if keyVal == "" {
-			return nil, fmt.Errorf("must provide primary key: %v", k)
+			keyVal = defaults[k]
+			if keyVal == "" {
+				return nil, fmt.Errorf("must provide primary key: %v", k)
+			}
 		}
 		keyValues[i] = keyVal
 	}
 	return keyValues, nil
+}
+
+// ReducePrimaryKey produces a primary key prefix by omitting any
+// suffix of optional primary key headers default values.
+// Too short or long primary keys are returned as is.
+func ReducePrimaryKey(assertType *AssertionType, primaryKey []string) []string {
+	n := len(assertType.PrimaryKey)
+	nopt := len(assertType.OptionalPrimaryKeyDefaults)
+	ninp := len(primaryKey)
+	if ninp > n || ninp < (n-nopt) {
+		return primaryKey
+	}
+	reduced := make([]string, n-nopt, n)
+	copy(reduced, primaryKey[:n-nopt])
+	rest := ninp - (n - nopt)
+	for i := ninp - 1; i >= n-nopt; i-- {
+		defl := assertType.OptionalPrimaryKeyDefaults[assertType.PrimaryKey[i]]
+		if primaryKey[i] != defl {
+			break
+		}
+		// it matches the default value, leave it out
+		rest--
+	}
+	reduced = append(reduced, primaryKey[n-nopt:n-nopt+rest]...)
+	return reduced
 }
 
 // Ref expresses a reference to an assertion.
@@ -270,14 +379,25 @@ type Ref struct {
 func (ref *Ref) String() string {
 	pkStr := "-"
 	n := len(ref.Type.PrimaryKey)
-	if n != len(ref.PrimaryKey) {
+	nopt := len(ref.Type.OptionalPrimaryKeyDefaults)
+	ninp := len(ref.PrimaryKey)
+	if ninp > n || ninp < (n-nopt) {
 		pkStr = "???"
 	} else if n > 0 {
-		pkStr = ref.PrimaryKey[n-1]
+		pkStr = ref.PrimaryKey[n-nopt-1]
 		if n > 1 {
 			sfx := []string{pkStr + ";"}
-			for i, k := range ref.Type.PrimaryKey[:n-1] {
+			for i, k := range ref.Type.PrimaryKey[:n-nopt-1] {
 				sfx = append(sfx, fmt.Sprintf("%s:%s", k, ref.PrimaryKey[i]))
+			}
+			// optional primary keys
+			for i := n - nopt; i < ninp; i++ {
+				v := ref.PrimaryKey[i]
+				k := ref.Type.PrimaryKey[i]
+				defl := ref.Type.OptionalPrimaryKeyDefaults[k]
+				if v != defl {
+					sfx = append(sfx, fmt.Sprintf("%s:%s", k, v))
+				}
 			}
 			pkStr = strings.Join(sfx, " ")
 		}
@@ -287,7 +407,7 @@ func (ref *Ref) String() string {
 
 // Unique returns a unique string representing the reference that can be used as a key in maps.
 func (ref *Ref) Unique() string {
-	return fmt.Sprintf("%s/%s", ref.Type.Name, strings.Join(ref.PrimaryKey, "/"))
+	return fmt.Sprintf("%s/%s", ref.Type.Name, strings.Join(ReducePrimaryKey(ref.Type, ref.PrimaryKey), "/"))
 }
 
 // Resolve resolves the reference using the given find function.
@@ -394,8 +514,12 @@ type Assertion interface {
 	SupportedFormat() bool
 	// Revision returns the revision of this assertion
 	Revision() int
-	// AuthorityID returns the authority that signed this assertion
+	// AuthorityID returns the authority ultimately responsible
+	// for this assertion
 	AuthorityID() string
+	// SignatoryID returns the account that signed this assertion, it will
+	// differ from AuthorityID in the case of signing authority delegation
+	SignatoryID() string
 
 	// Header retrieves the header with name
 	Header(name string) interface{}
@@ -484,9 +608,20 @@ func (ab *assertionBase) Revision() int {
 	return ab.revision
 }
 
-// AuthorityID returns the authority-id a.k.a the signer id of the assertion.
+// AuthorityID returns the authority-id a.k.a the authority ultimately responsible for the assertion.
 func (ab *assertionBase) AuthorityID() string {
 	return ab.HeaderString("authority-id")
+}
+
+// SignatoryID returns the account that signed this assertion, it will
+// differ from AuthorityID in the case of signing authority delegation.
+func (ab *assertionBase) SignatoryID() string {
+	// XXX authority-delegation: disabled, remove this
+	/*signID := ab.HeaderString("signatory-id")
+	if signID != "" {
+		return signID
+	}*/
+	return ab.AuthorityID()
 }
 
 // Header returns the value of an header by name.
@@ -541,7 +676,7 @@ func (ab *assertionBase) At() *AtRevision {
 	return &AtRevision{Ref: *ab.Ref(), Revision: ab.Revision()}
 }
 
-// sanity check
+// expected interface is implemented
 var _ Assertion = (*assertionBase)(nil)
 
 // Decode parses a serialized assertion.
@@ -854,6 +989,29 @@ func Assemble(headers map[string]interface{}, body, content, signature []byte) (
 	return assemble(headers, body, content, signature)
 }
 
+func checkAuthority(_ *AssertionType, headers map[string]interface{}) (hasSignatoryID bool, err error) {
+	if _, err := checkNotEmptyString(headers, "authority-id"); err != nil {
+		return false, err
+	}
+	_, hasSignatoryID = headers["signatory-id"]
+	if hasSignatoryID {
+		if _, err := checkNotEmptyString(headers, "signatory-id"); err != nil {
+			return false, err
+		}
+	}
+	return hasSignatoryID, nil
+}
+
+func checkNoAuthority(assertType *AssertionType, headers map[string]interface{}) error {
+	if _, ok := headers["authority-id"]; ok {
+		return fmt.Errorf("%q assertion cannot have authority-id set", assertType.Name)
+	}
+	if _, ok := headers["signatory-id"]; ok {
+		return fmt.Errorf("%q assertion cannot have signatory-id set", assertType.Name)
+	}
+	return nil
+}
+
 // assemble is the internal variant of Assemble, assumes headers are already checked for supported types
 func assemble(headers map[string]interface{}, body, content, signature []byte) (Assertion, error) {
 	length, err := checkIntWithDefault(headers, "body-length", 0)
@@ -865,7 +1023,7 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 	}
 
 	if !utf8.Valid(body) {
-		return nil, fmt.Errorf("body is not utf8")
+		return nil, fmt.Errorf("assertion body is not utf8")
 	}
 
 	if _, err := checkDigest(headers, "sign-key-sha3-384", crypto.SHA3_384); err != nil {
@@ -882,13 +1040,12 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 	}
 
 	if assertType.flags&noAuthority == 0 {
-		if _, err := checkNotEmptyString(headers, "authority-id"); err != nil {
+		if _, err := checkAuthority(assertType, headers); err != nil {
 			return nil, fmt.Errorf("assertion: %v", err)
 		}
 	} else {
-		_, ok := headers["authority-id"]
-		if ok {
-			return nil, fmt.Errorf("%q assertion cannot have authority-id set", assertType.Name)
+		if err := checkNoAuthority(assertType, headers); err != nil {
+			return nil, err
 		}
 	}
 
@@ -898,6 +1055,11 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 	}
 
 	for _, primKey := range assertType.PrimaryKey {
+		if _, ok := headers[primKey]; !ok {
+			if defl := assertType.OptionalPrimaryKeyDefaults[primKey]; defl != "" {
+				headers[primKey] = defl
+			}
+		}
 		if _, err := checkPrimaryKey(headers, primKey); err != nil {
 			return nil, fmt.Errorf("assertion %s: %v", assertType.Name, err)
 		}
@@ -957,14 +1119,15 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	finalHeaders["body-length"] = strconv.Itoa(bodyLength)
 	finalHeaders["sign-key-sha3-384"] = privKey.PublicKey().ID()
 
+	var hasSignatoryID bool
 	if withAuthority {
-		if _, err := checkNotEmptyString(finalHeaders, "authority-id"); err != nil {
+		hasSignatoryID, err = checkAuthority(assertType, finalHeaders)
+		if err != nil {
 			return nil, err
 		}
 	} else {
-		_, ok := finalHeaders["authority-id"]
-		if ok {
-			return nil, fmt.Errorf("%q assertion cannot have authority-id set", assertType.Name)
+		if err := checkNoAuthority(assertType, finalHeaders); err != nil {
+			return nil, err
 		}
 	}
 
@@ -1002,6 +1165,9 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 
 	if withAuthority {
 		writeHeader(buf, finalHeaders, "authority-id")
+		if hasSignatoryID && finalHeaders["authority-id"] != finalHeaders["signatory-id"] {
+			writeHeader(buf, finalHeaders, "signatory-id")
+		}
 	}
 
 	if revision > 0 {
@@ -1013,15 +1179,27 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 		"type":              true,
 		"format":            true,
 		"authority-id":      true,
+		"signatory-id":      true,
 		"revision":          true,
 		"body-length":       true,
 		"sign-key-sha3-384": true,
 	}
 	for _, primKey := range assertType.PrimaryKey {
-		if _, err := checkPrimaryKey(finalHeaders, primKey); err != nil {
+		defl := assertType.OptionalPrimaryKeyDefaults[primKey]
+		_, ok := finalHeaders[primKey]
+		if !ok && defl != "" {
+			// optional but expected to be set in headers
+			// in the result assertion
+			finalHeaders[primKey] = defl
+			continue
+		}
+		value, err := checkPrimaryKey(finalHeaders, primKey)
+		if err != nil {
 			return nil, err
 		}
-		writeHeader(buf, finalHeaders, primKey)
+		if value != defl {
+			writeHeader(buf, finalHeaders, primKey)
+		}
 		written[primKey] = true
 	}
 

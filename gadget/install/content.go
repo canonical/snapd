@@ -34,6 +34,8 @@ import (
 
 var contentMountpoint string
 
+var mkfsImpl = mkfs.Make
+
 func init() {
 	contentMountpoint = filepath.Join(dirs.SnapRunDir, "gadget-install")
 }
@@ -43,35 +45,23 @@ func init() {
 // that sector size is used when creating the filesystem, otherwise if it is
 // zero, automatic values are used instead.
 func makeFilesystem(ds *gadget.OnDiskStructure, sectorSize quantity.Size) error {
-	if ds.HasFilesystem() {
-		logger.Debugf("create %s filesystem on %s with label %q", ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label)
-		if err := mkfs.Make(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label, ds.Size, sectorSize); err != nil {
-			return err
-		}
-		if err := udevTrigger(ds.Node); err != nil {
-			return err
-		}
+	if !ds.HasFilesystem() {
+		return fmt.Errorf("internal error: on disk structure for partition %s has no filesystem", ds.Node)
 	}
-	return nil
+	logger.Debugf("create %s filesystem on %s with label %q", ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label)
+	if err := mkfsImpl(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label, ds.Size, sectorSize); err != nil {
+		return err
+	}
+	return udevTrigger(ds.Node)
 }
 
 // writeContent populates the given on-disk structure, according to the contents
 // defined in the gadget.
-func writeContent(ds *gadget.OnDiskStructure, gadgetRoot string, observer gadget.ContentObserver) error {
-	switch {
-	case !ds.IsPartition():
-		return fmt.Errorf("cannot write non-partitions yet")
-	case !ds.HasFilesystem():
-		if err := writeNonFSContent(ds, gadgetRoot); err != nil {
-			return err
-		}
-	case ds.HasFilesystem():
-		if err := writeFilesystemContent(ds, observer); err != nil {
-			return err
-		}
+func writeContent(ds *gadget.OnDiskStructure, observer gadget.ContentObserver) error {
+	if ds.HasFilesystem() {
+		return writeFilesystemContent(ds, observer)
 	}
-
-	return nil
+	return fmt.Errorf("cannot write non-filesystem structures during install")
 }
 
 // mountFilesystem mounts the on-disk structure filesystem under the given base
@@ -122,22 +112,4 @@ func writeFilesystemContent(ds *gadget.OnDiskStructure, observer gadget.ContentO
 	}
 
 	return nil
-}
-
-func writeNonFSContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
-	f, err := os.OpenFile(ds.Node, os.O_RDWR, 0644)
-	if err != nil {
-		return fmt.Errorf("cannot write bare content for %q: %v", ds.Node, err)
-	}
-	defer f.Close()
-
-	// Laid out structures start relative to the beginning of the
-	// volume, shift the structure offsets to 0, so that it starts
-	// at the beginning of the partition
-	l := gadget.ShiftStructureTo(ds.LaidOutStructure, 0)
-	raw, err := gadget.NewRawStructureWriter(gadgetRoot, &l)
-	if err != nil {
-		return err
-	}
-	return raw.Write(f)
 }

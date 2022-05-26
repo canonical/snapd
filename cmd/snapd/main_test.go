@@ -61,7 +61,7 @@ func (s *snapdSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 }
 
-func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
+func (s *snapdSuite) TestSyscheckFailGoesIntoDegradedMode(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
@@ -69,21 +69,21 @@ func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
 	restore = seccomp.MockSnapSeccompVersionInfo("abcdef 1.2.3 1234abcd -")
 	defer restore()
 
-	sanityErr := fmt.Errorf("foo failed")
-	sanityCalled := make(chan bool)
-	sanityRan := 0
-	restore = snapd.MockSanityCheck(func() error {
-		sanityRan++
+	syscheckErr := fmt.Errorf("foo failed")
+	syscheckCalled := make(chan bool)
+	syscheckRan := 0
+	restore = snapd.MockSyscheckCheckSystem(func() error {
+		syscheckRan++
 		// Ensure this ran at least *twice* to avoid a race here:
 		// If we close the channel and this wakes up the "select"
 		// below immediately and stops this go-routine then the
 		// check that the logbuf contains the error will fail.
 		// By running this at least twice we know the error made
 		// it to the log.
-		if sanityRan == 2 {
-			close(sanityCalled)
+		if syscheckRan == 2 {
+			close(syscheckCalled)
 		}
-		return sanityErr
+		return syscheckErr
 	})
 	defer restore()
 
@@ -100,17 +100,17 @@ func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
 		c.Check(err, IsNil)
 	}()
 
-	sanityCheckWasRun := false
+	syscheckCheckWasRun := false
 	select {
 	case <-time.After(5 * time.Second):
-	case _, stillOpen := <-sanityCalled:
+	case _, stillOpen := <-syscheckCalled:
 		c.Assert(stillOpen, Equals, false)
-		sanityCheckWasRun = true
+		syscheckCheckWasRun = true
 	}
-	c.Check(sanityCheckWasRun, Equals, true)
+	c.Check(syscheckCheckWasRun, Equals, true)
 	c.Check(logbuf.String(), testutil.Contains, "system does not fully support snapd: foo failed")
 
-	// verify that talking to the daemon yields the sanity error
+	// verify that talking to the daemon yields the syscheck error
 	// message
 	// disable keepliave as it would sometimes cause the daemon to be
 	// blocked when closing connections during graceful shutdown

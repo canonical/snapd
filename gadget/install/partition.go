@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -125,7 +126,8 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 		}
 	}
 
-	// The partition index
+	// The partition / disk index - note that it will start at 1, we increment
+	// it before we use it in the loop below
 	pIndex := 0
 
 	// Write new partition data in named-fields format
@@ -159,18 +161,20 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 
 		ptype := partitionType(dl.Schema, p.Type)
 
-		// Can we use the index here? Get the largest existing partition number and
-		// build from there could be safer if the disk partitions are not consecutive
-		// (can this actually happen in our images?)
+		// synthesize the node name and on disk structure
 		node := deviceName(dl.Device, pIndex)
+		ps := gadget.OnDiskStructure{
+			LaidOutStructure: p,
+			Node:             node,
+			DiskIndex:        pIndex,
+			Size:             quantity.Size(newSizeInSectors * sectorSize),
+		}
+
+		// format sfdisk input for creating this partition
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
 			startInSectors, newSizeInSectors, ptype, s.Name)
 
-		toBeCreated = append(toBeCreated, gadget.OnDiskStructure{
-			LaidOutStructure: p,
-			Node:             node,
-			Size:             quantity.Size(newSizeInSectors * sectorSize),
-		})
+		toBeCreated = append(toBeCreated, ps)
 	}
 
 	return buf, toBeCreated, nil
@@ -259,6 +263,30 @@ func removeCreatedPartitions(gadgetRoot string, lv *gadget.LaidOutVolume, dl *ga
 	}
 
 	return nil
+}
+
+func partitionsWithRolesAndContent(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume, roles []string) []gadget.OnDiskStructure {
+	roleForOffset := map[quantity.Offset]*gadget.LaidOutStructure{}
+	for idx, gs := range lv.LaidOutStructure {
+		if gs.Role != "" {
+			roleForOffset[gs.StartOffset] = &lv.LaidOutStructure[idx]
+		}
+	}
+
+	var parts []gadget.OnDiskStructure
+	for _, part := range dl.Structure {
+		gs := roleForOffset[part.StartOffset]
+		if gs == nil || gs.Role == "" || !strutil.ListContains(roles, gs.Role) {
+			continue
+		}
+		// now that we have a match, override the laid out structure
+		// such that the fields reflect what was declared in the gadget,
+		// the on-disk-structure already has the right size as read from
+		// the partition table
+		part.LaidOutStructure = *gs
+		parts = append(parts, part)
+	}
+	return parts
 }
 
 // ensureNodeExists makes sure the device nodes for all device structures are

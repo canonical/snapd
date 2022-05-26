@@ -7,6 +7,12 @@ prepare: |
     snap install --dangerous ./test-snapd-app_1_all.snap
     mkdir -p /usr/share/doc/system-packages-doc-iface
     echo text >/usr/share/doc/system-packages-doc-iface/content
+    mkdir -p /usr/share/libreoffice/help
+    echo text >/usr/share/libreoffice/help/content
+    mkdir -p /usr/share/xubuntu-docs
+    echo text >/usr/share/xubuntu-docs/content
+    mkdir -p /usr/share/gtk-doc
+    echo text >/usr/share/gtk-doc/content
 
 restore: |
     snap remove --purge test-snapd-app
@@ -20,7 +26,13 @@ execute: |
     # The interface works as expected
     snap connect test-snapd-app:system-packages-doc
     test-snapd-app.sh -c 'cat /usr/share/doc/system-packages-doc-iface/content' | MATCH text
+    test-snapd-app.sh -c 'cat /usr/share/libreoffice/help/content' | MATCH text
+    test-snapd-app.sh -c 'cat /usr/share/xubuntu-docs/content' | MATCH text
+    test-snapd-app.sh -c 'cat /usr/share/gtk-doc/content' | MATCH text
 
     # The interface can be disconnected
     snap disconnect test-snapd-app:system-packages-doc
     not test-snapd-app.sh -c 'test -e /usr/share/doc/system-packages-doc-iface/content'
+    not test-snapd-app.sh -c 'test -e /usr/share/libreoffice/help/content'
+    not test-snapd-app.sh -c 'test -e /usr/share/xubuntu-docs/content'
+    not test-snapd-app.sh -c 'test -e /usr/share/gtk-doc/content'

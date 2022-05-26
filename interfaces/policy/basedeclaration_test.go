@@ -147,8 +147,9 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"microstack-support": true,
 		"multipass-support":  true,
 		"packagekit-control": true,
+		"pkcs11":             true,
 		"snapd-control":      true,
-		"dummy":              true,
+		"empty":              true,
 	}
 
 	// these simply auto-connect, anything else doesn't
@@ -358,6 +359,131 @@ plugs:
 	c.Check(err, NotNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionSharedMemory(c *C) {
+	// random snaps cannot connect with shared-memory
+	// (Sanitize* will now also block this)
+	cand := s.connectCand(c, "shared-memory", "", "")
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+
+	slotDecl1 := s.mockSnapDecl(c, "slot-snap", "slot-snap-id", "pub1", "")
+	plugDecl1 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub1", "")
+	plugDecl2 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub2", "")
+
+	// same publisher, same shared-memory
+	cand = s.connectCand(c, "stuff", `
+name: slot-snap
+version: 0
+slots:
+  stuff:
+    interface: shared-memory
+    shared-memory: mk1
+`, `
+name: plug-snap
+version: 0
+plugs:
+  stuff:
+    interface: shared-memory
+    private: false
+    shared-memory: mk1
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	arity, err := cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+	c.Check(arity.SlotsPerPlugAny(), Equals, false)
+
+	// different publisher, same shared-memory
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl2
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+
+	// same publisher, different shared-memory
+	cand = s.connectCand(c, "stuff", `name: slot-snap
+version: 0
+slots:
+  stuff:
+    interface: shared-memory
+    shared-memory: mk1
+`, `
+name: plug-snap
+version: 0
+plugs:
+  stuff:
+    interface: shared-memory
+    private: false
+    shared-memory: mk2
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionSharedMemoryPrivate(c *C) {
+	slotDecl := s.mockSnapDecl(c, "snapd", "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4", "canonical", "")
+	appSlotDecl := s.mockSnapDecl(c, "slot-snap", "slot-snap-id", "pub1", "")
+	plugDecl := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub1", "")
+
+	// private shm plug, implicit slot
+	cand := s.connectCand(c, "shared-memory", `
+name: snapd
+type: snapd
+version: 0
+slots:
+  shared-memory:
+`, `
+name: plug-snap
+version: 0
+plugs:
+  shared-memory:
+    private: true
+`)
+	cand.SlotSnapDeclaration = slotDecl
+	cand.PlugSnapDeclaration = plugDecl
+	arity, err := cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+	c.Check(arity.SlotsPerPlugAny(), Equals, false)
+
+	// private shm plug, regular app slot
+	cand = s.connectCand(c, "shared-memory", `
+name: slot-snap
+version: 0
+slots:
+  shared-memory:
+`, `
+name: plug-snap
+version: 0
+plugs:
+  shared-memory:
+    private: true
+`)
+	cand.SlotSnapDeclaration = appSlotDecl
+	cand.PlugSnapDeclaration = plugDecl
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+
+	// regular shm plug, implicit slot
+	cand = s.connectCand(c, "shared-memory", `
+name: snapd
+type: snapd
+version: 0
+slots:
+  shared-memory:
+`, `
+name: plug-snap
+version: 0
+plugs:
+  shared-memory:
+    private: false
+`)
+	cand.SlotSnapDeclaration = slotDecl
+	cand.PlugSnapDeclaration = plugDecl
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionLxdSupportOverride(c *C) {
 	// by default, don't auto-connect
 	cand := s.connectCand(c, "lxd-support", "", "")
@@ -552,6 +678,42 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionPosixMQOverride(c *C) {
+	cand := s.connectCand(c, "posix-mq", "", "")
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection not allowed by plug rule of interface \"posix-mq\"")
+
+	plugsSlots := `
+plugs:
+  posix-mq:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionSteamSupportOverride(c *C) {
+	cand := s.connectCand(c, "steam-support", "", "")
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"steam-support\"")
+
+	plugsSlots := `
+plugs:
+  steam-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -619,7 +781,7 @@ var (
 		"docker-support":            {"core"},
 		"desktop-launch":            {"core"},
 		"dsp":                       {"core", "gadget"},
-		"dummy":                     {"app"},
+		"empty":                     {"app"},
 		"fwupd":                     {"app", "core"},
 		"gpio":                      {"core", "gadget"},
 		"gpio-control":              {"core"},
@@ -655,6 +817,7 @@ var (
 		"sd-control":                {"core"},
 		"serial-port":               {"core", "gadget"},
 		"spi":                       {"core", "gadget"},
+		"steam-support":             {"core"},
 		"storage-framework-service": {"app"},
 		"thumbnailer-service":       {"app"},
 		"ubuntu-download-manager":   {"app"},
@@ -669,8 +832,11 @@ var (
 		"x11":                       {"app", "core"},
 		// snowflakes
 		"classic-support": nil,
+		"custom-device":   nil,
 		"docker":          nil,
 		"lxd":             nil,
+		"pkcs11":          nil,
+		"posix-mq":        nil,
 		"shared-memory":   nil,
 	}
 
@@ -723,6 +889,31 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err = ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"lxd\" slot rule of interface \"lxd\"")
+
+	// test shared-memory specially
+	ic = s.installSlotCand(c, "shared-memory", snap.TypeApp, ``)
+	err = ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"shared-memory\" slot rule of interface \"shared-memory\"")
+
+	// The core and snapd snaps may provide a shared-memory slot
+	ic = s.installSlotCand(c, "shared-memory", snap.TypeOS, `name: core
+version: 0
+type: os
+slots:
+  shared-memory:
+`)
+	ic.SnapDeclaration = s.mockSnapDecl(c, "core", "99T7MUlRhtI3U0QFgl5mXXESAiSwt776", "canonical", "")
+	c.Assert(ic.Check(), IsNil)
+
+	ic = s.installSlotCand(c, "shared-memory", snap.TypeSnapd, `name: snapd
+version: 0
+type: snapd
+slots:
+  shared-memory:
+`)
+	ic.SnapDeclaration = s.mockSnapDecl(c, "snapd", "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4", "canonical", "")
+	c.Assert(ic.Check(), IsNil)
 }
 
 func (s *baseDeclSuite) TestPlugInstallation(c *C) {
@@ -751,6 +942,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"snap-refresh-control":  true,
 		"snap-themes-control":   true,
 		"snapd-control":         true,
+		"steam-support":         true,
 		"system-files":          true,
 		"tee":                   true,
 		"uinput":                true,
@@ -796,6 +988,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	noconnect := map[string]bool{
 		"content":                   true,
 		"cups":                      true,
+		"custom-device":             true,
 		"docker":                    true,
 		"fwupd":                     true,
 		"location-control":          true,
@@ -804,6 +997,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"maliit":                    true,
 		"mir":                       true,
 		"online-accounts-service":   true,
+		"posix-mq":                  true,
 		"raw-volume":                true,
 		"shared-memory":             true,
 		"storage-framework-service": true,
@@ -965,7 +1159,7 @@ slots:
 	}
 }
 
-func (s *baseDeclSuite) TestSanity(c *C) {
+func (s *baseDeclSuite) TestValidity(c *C) {
 	all := builtin.Interfaces()
 
 	// these interfaces have rules both for the slots and plugs side
@@ -976,6 +1170,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"audio-playback":        true,
 		"classic-support":       true,
 		"core-support":          true,
+		"custom-device":         true,
 		"desktop-launch":        true,
 		"dm-crypt":              true,
 		"docker-support":        true,
@@ -991,12 +1186,15 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
+		"pkcs11":                true,
+		"posix-mq":              true,
 		"polkit":                true,
 		"sd-control":            true,
 		"shared-memory":         true,
 		"snap-refresh-control":  true,
 		"snap-themes-control":   true,
 		"snapd-control":         true,
+		"steam-support":         true,
 		"system-files":          true,
 		"tee":                   true,
 		"udisks2":               true,
@@ -1078,6 +1276,129 @@ plugs:
 `)
 	cand.SlotSnapDeclaration = slotDecl1
 	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err, NotNil)
+}
+
+func (s *baseDeclSuite) TestConnectionSharedMemory(c *C) {
+	// we let connect explicitly as long as shared-memory matches
+
+	// random (Sanitize* will now also block this)
+	cand := s.connectCand(c, "shared-memory", "", "")
+	err := cand.Check()
+	c.Check(err, NotNil)
+
+	slotDecl1 := s.mockSnapDecl(c, "slot-snap", "slot-snap-id", "pub1", "")
+	plugDecl1 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub1", "")
+	plugDecl2 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub2", "")
+
+	// same publisher, same shared-memory
+	cand = s.connectCand(c, "stuff", `name: slot-snap
+version: 0
+slots:
+  stuff:
+    interface: shared-memory
+    shared-memory: mk1
+`, `
+name: plug-snap
+version: 0
+plugs:
+  stuff:
+    interface: shared-memory
+    private: false
+    shared-memory: mk1
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err, IsNil)
+
+	// different publisher, same shared-memory
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl2
+	err = cand.Check()
+	c.Check(err, IsNil)
+
+	// same publisher, different shared-memory
+	cand = s.connectCand(c, "stuff", `
+name: slot-snap
+version: 0
+slots:
+  stuff:
+    interface: shared-memory
+    shared-memory: mk1
+`, `
+name: plug-snap
+version: 0
+plugs:
+  stuff:
+    interface: shared-memory
+    private: false
+    shared-memory: mk2
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err, NotNil)
+}
+
+func (s *baseDeclSuite) TestConnectionSharedMemoryPrivate(c *C) {
+	slotDecl := s.mockSnapDecl(c, "snapd", "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4", "canonical", "")
+	appSlotDecl := s.mockSnapDecl(c, "slot-snap", "slot-snap-id", "pub1", "")
+	plugDecl := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub1", "")
+
+	// private shm plug, implicit slot
+	cand := s.connectCand(c, "shared-memory", `name: snapd
+type: snapd
+version: 0
+slots:
+  shared-memory:
+`, `
+name: plug-snap
+version: 0
+plugs:
+  shared-memory:
+    private: true
+`)
+	cand.SlotSnapDeclaration = slotDecl
+	cand.PlugSnapDeclaration = plugDecl
+	err := cand.Check()
+	c.Check(err, IsNil)
+
+	// private shm plug, regular app slot
+	cand = s.connectCand(c, "shared-memory", `name: slot-snap
+version: 0
+slots:
+  shared-memory:
+    shared-memory: mk1
+`, `
+name: plug-snap
+version: 0
+plugs:
+  shared-memory:
+    private: true
+`)
+	cand.SlotSnapDeclaration = appSlotDecl
+	cand.PlugSnapDeclaration = plugDecl
+	err = cand.Check()
+	c.Check(err, NotNil)
+
+	// regular shm plug, implicit slot
+	cand = s.connectCand(c, "shared-memory", `name: snapd
+type: snapd
+version: 0
+slots:
+  shared-memory:
+`, `
+name: plug-snap
+version: 0
+plugs:
+  shared-memory:
+    shared-memory: mk1
+    private: false
+`)
+	cand.SlotSnapDeclaration = slotDecl
+	cand.PlugSnapDeclaration = plugDecl
 	err = cand.Check()
 	c.Check(err, NotNil)
 }

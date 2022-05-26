@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2017 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -852,7 +852,7 @@ func (srs *snapRevSuite) makeValidEncoded() string {
 		"AXNpZw=="
 }
 
-func (srs *snapRevSuite) makeHeaders(overrides map[string]interface{}) map[string]interface{} {
+func makeSnapRevisionHeaders(overrides map[string]interface{}) map[string]interface{} {
 	headers := map[string]interface{}{
 		"authority-id":  "canonical",
 		"snap-sha3-384": blobSHA3_384,
@@ -867,6 +867,10 @@ func (srs *snapRevSuite) makeHeaders(overrides map[string]interface{}) map[strin
 		headers[k] = v
 	}
 	return headers
+}
+
+func (srs *snapRevSuite) makeHeaders(overrides map[string]interface{}) map[string]interface{} {
+	return makeSnapRevisionHeaders(overrides)
 }
 
 func (srs *snapRevSuite) TestDecodeOK(c *C) {
@@ -1000,6 +1004,92 @@ func (srs *snapRevSuite) TestSnapRevisionCheckMissingDeclaration(c *C) {
 
 	err = db.Check(snapRev)
 	c.Assert(err, ErrorMatches, `snap-revision assertion for snap id "snap-id-1" does not have a matching snap-declaration assertion`)
+}
+
+func (srs *snapRevSuite) TestSnapRevisionDelegation(c *C) {
+	c.Skip("authority-delegation disabled")
+
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	prereqDevAccount(c, storeDB, db)
+	prereqSnapDecl(c, storeDB, db)
+
+	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
+
+	since := time.Now()
+	headers := srs.makeHeaders(map[string]interface{}{
+		"authority-id": "canonical",
+		"signatory-id": "other",
+		"timestamp":    since.Format(time.RFC3339),
+	})
+	snapRev, err := otherDB.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	// now add authority-delegation
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"account-id":   "canonical",
+		"delegate-id":  "other",
+		"assertions": []interface{}{
+			map[string]interface{}{
+				"type": "snap-revision",
+				"headers": map[string]interface{}{
+					"snap-id": "snap-id-1",
+				},
+				"since": since.AddDate(0, -1, 0).Format(time.RFC3339),
+			},
+		},
+	}
+	ad, err := storeDB.Sign(asserts.AuthorityDelegationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Check(db.Add(ad), IsNil)
+
+	err = db.Check(snapRev)
+	c.Check(err, IsNil)
+}
+
+func (srs *snapRevSuite) TestSnapRevisionDelegationInconsistentTimestamp(c *C) {
+	c.Skip("authority-delegation disabled")
+
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	prereqDevAccount(c, storeDB, db)
+	prereqSnapDecl(c, storeDB, db)
+
+	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
+
+	headers := srs.makeHeaders(map[string]interface{}{
+		"authority-id": "canonical",
+		"signatory-id": "other",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	})
+	snapRev, err := otherDB.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	// move forward in time
+	time.Sleep(100 * time.Millisecond)
+
+	// now add authority-delegation
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"account-id":   "canonical",
+		"delegate-id":  "other",
+		"assertions": []interface{}{
+			map[string]interface{}{
+				"type": "snap-revision",
+				"headers": map[string]interface{}{
+					"snap-id": "snap-id-1",
+				},
+				"since": time.Now().Format(time.RFC3339Nano),
+			},
+		},
+	}
+	ad, err := storeDB.Sign(asserts.AuthorityDelegationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Check(db.Add(ad), IsNil)
+
+	err = db.Check(snapRev)
+	c.Check(err, ErrorMatches, `delegated snap-revision assertion from "canonical" to "other" timestamp ".*" is outside of all supporting delegation constraints validity`)
 }
 
 func (srs *snapRevSuite) TestPrimaryKey(c *C) {

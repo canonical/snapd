@@ -11,7 +11,7 @@ restore: |
   rm -f /var/snap/test-disconnect/common/do-not-fail
 
 execute: |
-  # sanity check, network is connected automatically
+  # precondition check, network is connected automatically
   snap connections | MATCH "test-disconnect:network .*:network"
 
   echo "Disconnect fails due to failing disconnect hook"
