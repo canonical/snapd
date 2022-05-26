@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func target(at *snapstate.AliasTarget) string {
@@ -179,9 +180,8 @@ func (s *snapmgrTestSuite) TestAutoAliasesDelta(c *C) {
 	sort.Strings(which)
 	c.Check(which, DeepEquals, []string{"alias4", "alias5"})
 
-	c.Check(dropped, DeepEquals, map[string][]string{
-		"alias-snap": {"alias3", "alias6"},
-	})
+	c.Check(dropped, HasLen, 1)
+	c.Check(dropped["alias-snap"], testutil.DeepUnsortedMatches, []string{"alias3", "alias6"})
 }
 
 func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
