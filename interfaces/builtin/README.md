@@ -127,8 +127,8 @@ evaluating the automatic connection of interface plugs and slots. If this key
 evaluates to `true`, then this plug/slot combination is considered a valid
 candidate for automatic connection. In this context allow-connection is ignored.
 
-An automatic connection will happen normally only if there is one single candidate
-paired with a slot for a given plug.
+An automatic connection will happen normally only if there is one single
+candidate combination with a slot for a given plug.
 
 
 ### Supported rule constraints
