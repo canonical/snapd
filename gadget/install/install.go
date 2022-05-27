@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
@@ -60,7 +61,7 @@ func diskWithSystemSeed(lv *gadget.LaidOutVolume) (device string, err error) {
 	return "", fmt.Errorf("cannot find role system-seed in gadget")
 }
 
-func roleOrLabelOrName(part gadget.OnDiskStructure) string {
+func roleOrLabelOrName(part *gadget.OnDiskStructure) string {
 	switch {
 	case part.Role != "":
 		return part.Role
@@ -71,6 +72,10 @@ func roleOrLabelOrName(part gadget.OnDiskStructure) string {
 	default:
 		return "unknown"
 	}
+}
+
+func roleNeedsEncryption(role string) bool {
+	return role == gadget.SystemData || role == gadget.SystemSave
 }
 
 func saveStorageTraits(allLaidOutVols map[string]*gadget.LaidOutVolume, optsPerVol map[string]*gadget.DiskVolumeValidationOptions, hasSavePartition bool) error {
@@ -89,6 +94,76 @@ func saveStorageTraits(allLaidOutVols map[string]*gadget.LaidOutVolume, optsPerV
 		}
 	}
 	return nil
+}
+
+func installOneParition(part *gadget.OnDiskStructure, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer, observer gadget.ContentObserver) (encryptionKey keys.EncryptionKey, err error) {
+	encrypt := (encryptionType != secboot.EncryptionTypeNone)
+
+	if encrypt && roleNeedsEncryption(part.Role) {
+		var err error
+		timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", roleOrLabelOrName(part)),
+			fmt.Sprintf("Create encryption key set for %s", roleOrLabelOrName(part)),
+			func(timings.Measurer) {
+				encryptionKey, err = keys.NewEncryptionKey()
+				if err != nil {
+					err = fmt.Errorf("cannot create encryption key: %v", err)
+				}
+			})
+		if err != nil {
+			return nil, err
+		}
+		logger.Noticef("encrypting partition device %v", part.Node)
+		var dataPart encryptedDevice
+		switch encryptionType {
+		case secboot.EncryptionTypeLUKS:
+			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", roleOrLabelOrName(part)),
+				fmt.Sprintf("Create encryption device for %s", roleOrLabelOrName(part)),
+				func(timings.Measurer) {
+					dataPart, err = newEncryptedDeviceLUKS(part, encryptionKey, part.Label)
+				})
+			if err != nil {
+				return nil, err
+			}
+
+		case secboot.EncryptionTypeDeviceSetupHook:
+			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device-setup-hook[%s]", roleOrLabelOrName(part)),
+				fmt.Sprintf("Create encryption device for %s using device-setup-hook", roleOrLabelOrName(part)),
+				func(timings.Measurer) {
+					dataPart, err = createEncryptedDeviceWithSetupHook(part, encryptionKey, part.Name)
+				})
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		// update the encrypted device node
+		part.Node = dataPart.Node()
+		logger.Noticef("encrypted device %v", part.Node)
+	}
+
+	// use the diskLayout.SectorSize here instead of lv.SectorSize, we check
+	// that if there is a sector-size specified in the gadget that it
+	// matches what is on the disk, but sometimes there may not be a sector
+	// size specified in the gadget.yaml, but we will always have the sector
+	// size from the physical disk device
+	timings.Run(perfTimings, fmt.Sprintf("make-filesystem[%s]", roleOrLabelOrName(part)),
+		fmt.Sprintf("Create filesystem for %s", part.Node),
+		func(timings.Measurer) {
+			err = makeFilesystem(part, sectorSize)
+		})
+	if err != nil {
+		return nil, fmt.Errorf("cannot make filesystem for partition %s: %v", roleOrLabelOrName(part), err)
+	}
+
+	timings.Run(perfTimings, fmt.Sprintf("write-content[%s]", roleOrLabelOrName(part)),
+		fmt.Sprintf("Write content for %s", roleOrLabelOrName(part)),
+		func(timings.Measurer) {
+			err = writeContent(part, observer)
+		})
+	if err != nil {
+		return nil, err
+	}
+	return encryptionKey, nil
 }
 
 // Run bootstraps the partitions of a device, by either creating
@@ -153,11 +228,8 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 		return nil, fmt.Errorf("cannot create the partitions: %v", err)
 	}
 
-	roleNeedsEncryption := func(role string) bool {
-		return role == gadget.SystemData || role == gadget.SystemSave
-	}
 	var keyForRole map[string]keys.EncryptionKey
-	var devicesForRoles = map[string]string{}
+	devicesForRoles := map[string]string{}
 
 	partsEncrypted := map[string]gadget.StructureEncryptionParameters{}
 
@@ -170,8 +242,6 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 		}
 		logger.Noticef("created new partition %v for structure %v (size %v) %s",
 			part.Node, part, part.Size.IECString(), roleFmt)
-		encrypt := (options.EncryptionType != secboot.EncryptionTypeNone)
-
 		if part.Role == gadget.SystemSave {
 			hasSavePartition = true
 		}
@@ -179,73 +249,28 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 			devicesForRoles[part.Role] = part.Node
 		}
 
-		if encrypt && roleNeedsEncryption(part.Role) {
-			var encryptionKey keys.EncryptionKey
-			var err error
-			timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption key set for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-				encryptionKey, err = keys.NewEncryptionKey()
-				if err != nil {
-					err = fmt.Errorf("cannot create encryption key: %v", err)
-				}
-			})
-			if err != nil {
-				return nil, err
-			}
-			logger.Noticef("encrypting partition device %v", part.Node)
-			var dataPart encryptedDevice
-			switch options.EncryptionType {
-			case secboot.EncryptionTypeLUKS:
-				timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption device for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-					dataPart, err = newEncryptedDeviceLUKS(&part, encryptionKey, part.Label)
-				})
-				if err != nil {
-					return nil, err
-				}
-
-				partsEncrypted[part.Name] = gadget.StructureEncryptionParameters{
-					Method: gadget.EncryptionLUKS,
-				}
-			case secboot.EncryptionTypeDeviceSetupHook:
-				timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device-setup-hook[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption device for %s using device-setup-hook", roleOrLabelOrName(part)), func(timings.Measurer) {
-					dataPart, err = createEncryptedDeviceWithSetupHook(&part, encryptionKey, part.Name)
-				})
-				if err != nil {
-					return nil, err
-				}
-				// Note that inline-crypt-hw does not
-				// support recovery keys currently
-
-				partsEncrypted[part.Name] = gadget.StructureEncryptionParameters{
-					Method: gadget.EncryptionICE,
-				}
-			}
-
-			// update the encrypted device node
-			part.Node = dataPart.Node()
+		// part.Node can be updated inside
+		encryptionKey, err := installOneParition(&part, options.EncryptionType,
+			diskLayout.SectorSize, perfTimings, observer)
+		if err != nil {
+			return nil, err
+		}
+		if encryptionKey != nil {
 			if keyForRole == nil {
 				keyForRole = map[string]keys.EncryptionKey{}
 			}
 			keyForRole[part.Role] = encryptionKey
-			logger.Noticef("encrypted device %v", part.Node)
-		}
 
-		// use the diskLayout.SectorSize here instead of lv.SectorSize, we check
-		// that if there is a sector-size specified in the gadget that it
-		// matches what is on the disk, but sometimes there may not be a sector
-		// size specified in the gadget.yaml, but we will always have the sector
-		// size from the physical disk device
-		timings.Run(perfTimings, fmt.Sprintf("make-filesystem[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create filesystem for %s", part.Node), func(timings.Measurer) {
-			err = makeFilesystem(&part, diskLayout.SectorSize)
-		})
-		if err != nil {
-			return nil, fmt.Errorf("cannot make filesystem for partition %s: %v", roleOrLabelOrName(part), err)
-		}
-
-		timings.Run(perfTimings, fmt.Sprintf("write-content[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Write content for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-			err = writeContent(&part, observer)
-		})
-		if err != nil {
-			return nil, err
+			switch options.EncryptionType {
+			case secboot.EncryptionTypeLUKS:
+				partsEncrypted[part.Name] = gadget.StructureEncryptionParameters{
+					Method: gadget.EncryptionLUKS,
+				}
+			case secboot.EncryptionTypeDeviceSetupHook:
+				partsEncrypted[part.Name] = gadget.StructureEncryptionParameters{
+					Method: gadget.EncryptionICE,
+				}
+			}
 		}
 
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
@@ -307,10 +332,6 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		return nil, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
 
-	roleNeedsEncryption := func(role string) bool {
-		return role == gadget.SystemData || role == gadget.SystemSave
-	}
-
 	layoutCompatOps := &gadget.EnsureLayoutCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
 		ExpectedStructureEncryption:      map[string]gadget.StructureEncryptionParameters{},
@@ -328,9 +349,6 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 			if !roleNeedsEncryption(volStruct.Role) {
 				continue
 			}
-			if layoutCompatOps.ExpectedStructureEncryption == nil {
-				layoutCompatOps.ExpectedStructureEncryption = map[string]gadget.StructureEncryptionParameters{}
-			}
 			layoutCompatOps.ExpectedStructureEncryption[volStruct.Name] = encryptionParam
 		}
 	}
@@ -341,7 +359,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	}
 
 	var keyForRole map[string]keys.EncryptionKey
-	var deviceForRole = map[string]string{}
+	deviceForRole := map[string]string{}
 
 	savePart := partitionsWithRolesAndContent(laidOutBootVol, diskLayout, []string{gadget.SystemSave})
 	hasSavePartition := len(savePart) != 0
@@ -353,58 +371,23 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	for _, part := range partsToReset {
 		logger.Noticef("resetting %v structure %v (size %v) role %v",
 			part.Node, part, part.Size.IECString(), part.Role)
-		encrypt := (options.EncryptionType != secboot.EncryptionTypeNone)
 
-		// keep track of the  /dev/<partition> for each role
-		deviceForRole[part.Role] = part.Node
+		if part.Role != "" {
+			// keep track of the  /dev/<partition> for each role
+			deviceForRole[part.Role] = part.Node
+		}
 
-		if encrypt && roleNeedsEncryption(part.Role) {
-			var encryptionKey keys.EncryptionKey
-			timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption key set for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-				encryptionKey, err = keys.NewEncryptionKey()
-				if err != nil {
-					err = fmt.Errorf("cannot create encryption key: %v", err)
-				}
-			})
-			if err != nil {
-				return nil, err
-			}
-			logger.Noticef("encrypting partition device %v", part.Node)
-			var dataPart encryptedDevice
-			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption device for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-				dataPart, err = newEncryptedDeviceLUKS(&part, encryptionKey, part.Label)
-			})
-			if err != nil {
-				return nil, err
-			}
-			// update the encrypted device node, which points to the
-			// /dev/mapper/<name> now, such that the filesystem gets
-			// created inside the encrypted device
-			part.Node = dataPart.Node()
+		// part.Node can be modified internally
+		encryptionKey, err := installOneParition(&part, options.EncryptionType,
+			diskLayout.SectorSize, perfTimings, observer)
+		if err != nil {
+			return nil, err
+		}
+		if encryptionKey != nil {
 			if keyForRole == nil {
 				keyForRole = map[string]keys.EncryptionKey{}
 			}
 			keyForRole[part.Role] = encryptionKey
-			logger.Noticef("encrypted device %v", part.Node)
-		}
-
-		// use the diskLayout.SectorSize here instead of lv.SectorSize, we check
-		// that if there is a sector-size specified in the gadget that it
-		// matches what is on the disk, but sometimes there may not be a sector
-		// size specified in the gadget.yaml, but we will always have the sector
-		// size from the physical disk device
-		timings.Run(perfTimings, fmt.Sprintf("make-filesystem[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create filesystem for %s", part.Node), func(timings.Measurer) {
-			err = makeFilesystem(&part, diskLayout.SectorSize)
-		})
-		if err != nil {
-			return nil, fmt.Errorf("cannot make filesystem for partition %s: %v", roleOrLabelOrName(part), err)
-		}
-
-		timings.Run(perfTimings, fmt.Sprintf("write-content[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Write content for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-			err = writeContent(&part, observer)
-		})
-		if err != nil {
-			return nil, err
 		}
 
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
