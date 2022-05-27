@@ -169,7 +169,6 @@ backends:
                   workers: 6
                   storage: preserve-size
                   image: centos-9-64
-                  manual: true
 
             # unstable systems below
             - opensuse-15.2-64:
