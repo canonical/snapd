@@ -533,11 +533,12 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		if (errno == ENOENT) {
 			// Create the hostfs directory if one is missing. This directory is a part
 			// of packaging now so perhaps this code can be removed later.
-			sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 			if (mkdir(SC_HOSTFS_DIR, 0755) < 0) {
 				die("cannot perform operation: mkdir %s", SC_HOSTFS_DIR);
 			}
-			(void)sc_set_effective_identity(old);
+			if (chown(SC_HOSTFS_DIR, 0, 0) < 0) {
+				die("cannot set root ownership on %s directory", SC_HOSTFS_DIR);
+			}
 		} else {
 			die("cannot stat %s", SC_HOSTFS_DIR);
 		}
