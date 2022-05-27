@@ -610,7 +610,7 @@ jobs:
           if [ -f spread.log ]; then
               echo "Running spread log analyzer"
              ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
-             ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "google-nested:${{ matrix.system }}:" spread-results.json > "$FAILED_TESTS_FILE"
+             ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "google-nested:${{ matrix.system }}:tests/nested/" spread-results.json > "$FAILED_TESTS_FILE"
           else
               echo "No spread log found, saving empty list of failed tests"
               touch "$FAILED_TESTS_FILE"
