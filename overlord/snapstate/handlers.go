@@ -3733,11 +3733,14 @@ var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSn
 		return nil, fmt.Errorf("internal error: unexpected validation error of installed snaps after unsuccesfull refresh: %v", verr)
 	}
 
-	wrongRevSnaps := make([]string, 0, len(verr.WrongRevisionSnaps))
-	for sn := range verr.WrongRevisionSnaps {
-		wrongRevSnaps = append(wrongRevSnaps, sn)
+	wrongRevSnaps := func() []string {
+		snaps := make([]string, 0, len(verr.WrongRevisionSnaps))
+		for sn := range verr.WrongRevisionSnaps {
+			snaps = append(snaps, sn)
+		}
+		return snaps
 	}
-	logger.Debugf("refreshed snaps: %s, snaps at wrong revisions: %s", strutil.Quoted(refreshedSnaps), wrongRevSnaps)
+	logger.Debugf("refreshed snaps: %s, snaps at wrong revisions: %s", strutil.Quoted(refreshedSnaps), strutil.Quoted(wrongRevSnaps()))
 
 	// revert some or all snaps
 	var tss []*state.TaskSet
@@ -3750,8 +3753,14 @@ var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSn
 				return nil, fmt.Errorf("cannot revert snap %q: %v", snapName, err)
 			}
 			tss = append(tss, ts)
+			delete(verr.WrongRevisionSnaps, snapName)
 		}
 	}
+
+	if len(verr.WrongRevisionSnaps) > 0 {
+		return nil, fmt.Errorf("internal error: some snaps were not refreshed but are at wrong revisions: %s", strutil.Quoted(wrongRevSnaps()))
+	}
+
 	return tss, nil
 }
 

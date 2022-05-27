@@ -7108,7 +7108,7 @@ func (s *validationSetsSuite) testUpdateManyValidationSetsPartialFailure(c *C) *
 			"name":     "some-other-snap",
 			"presence": "required",
 		}
-		sequence := "2"
+		var sequence string
 		if enforcedValidationSetsCalls == 0 {
 			snap1["revision"] = "11"
 			snap2["revision"] = "11"
