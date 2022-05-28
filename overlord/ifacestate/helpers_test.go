@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -598,8 +599,8 @@ func (s *helpersSuite) TestAllocHotplugSeq(c *C) {
 
 	var stateSeq int
 
-	// sanity
-	c.Assert(s.st.Get("hotplug-seq", &stateSeq), Equals, state.ErrNoState)
+	// precondition
+	c.Assert(s.st.Get("hotplug-seq", &stateSeq), testutil.ErrorIs, state.ErrNoState)
 
 	seq, err := ifacestate.AllocHotplugSeq(s.st)
 	c.Assert(err, IsNil)

@@ -20,6 +20,7 @@
 package disks_test
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -179,6 +180,10 @@ func (s *diskSuite) TestDiskFromDeviceNameHappy(c *C) {
 }
 
 func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
+	// for udevadm trigger and udevadm settle which are called on the partitions
+	mockUdevadm := testutil.MockCommand(c, "udevadm", ``)
+	defer mockUdevadm.Restore()
+
 	const vdaSysfsPath = "/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb"
 	fullSysPath := filepath.Join("/sys", vdaSysfsPath)
 	n := 0
@@ -303,6 +308,13 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 	})
 
 	c.Assert(n, Equals, 4)
+
+	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "trigger", "--name-match=vdb1"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vdb2"},
+		{"udevadm", "settle", "--timeout=180"},
+	})
 }
 
 func (s *diskSuite) TestDiskFromPartitionDeviceNodeHappy(c *C) {
@@ -491,7 +503,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDiskDevice(
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/vda4 of /run/mnt/point: not a decrypted device: devtype is not disk \(is partition\)`)
+	c.Assert(err, ErrorMatches, `cannot process properties of /dev/vda4 parent device: not a decrypted device: devtype is not disk \(is partition\)`)
 }
 
 func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) {
@@ -519,10 +531,14 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) 
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point: not a decrypted device: could not read device mapper metadata: open %s/dev/block/252:0/dm/uuid: no such file or directory`, dirs.SysfsDir))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot process properties of /dev/mapper/something parent device: not a decrypted device: could not read device mapper metadata: open %s/dev/block/252:0/dm/uuid: no such file or directory`, dirs.SysfsDir))
 }
 
 func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitionsInSysfs(c *C) {
+	// for udevadm trigger and udevadm settle which are called on the partitions
+	mockUdevadm := testutil.MockCommand(c, "udevadm", ``)
+	defer mockUdevadm.Restore()
+
 	restore := osutil.MockMountInfo(`130 30 47:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda4 rw
 `)
 	defer restore()
@@ -624,6 +640,11 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 	c.Assert(err, DeepEquals, disks.PartitionNotFoundError{
 		SearchType:  "filesystem-label",
 		SearchQuery: "ubuntu-boot",
+	})
+
+	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "trigger", "--name-match=vda4"},
+		{"udevadm", "settle", "--timeout=180"},
 	})
 }
 
@@ -740,7 +761,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C)
 	}()
 
 	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point: internal error: no back resolver supports decrypted device mapper with UUID "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
+	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something parent device: internal error: no back resolver supports decrypted device mapper with UUID "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
 
 	// but when it is available it works
 	disks.RegisterDeviceMapperBackResolver("crypt-luks2", disks.CryptLuks2DeviceMapperBackResolver)
@@ -753,6 +774,10 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C)
 }
 
 func (s *diskSuite) TestDiskFromMountPointIsDecryptedUnlockedDeviceVolumeHappy(c *C) {
+	// for udevadm trigger and udevadm settle which are called on the partitions
+	mockUdevadm := testutil.MockCommand(c, "udevadm", ``)
+	defer mockUdevadm.Restore()
+
 	restore := osutil.MockMountInfo(`130 30 242:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something-device-locked rw
 `)
 	defer restore()
@@ -826,7 +851,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedUnlockedDeviceVolumeHappy(c
 
 	// first try without the handler fails
 	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/mapper/something-device-locked of /run/mnt/point: internal error: no back resolver supports decrypted device mapper with UUID "5a522809-c87e-4dfa-81a8-8dc5667d1304" and name "something-device-locked"`)
+	c.Assert(err, ErrorMatches, `cannot process properties of /dev/mapper/something-device-locked parent device: internal error: no back resolver supports decrypted device mapper with UUID "5a522809-c87e-4dfa-81a8-8dc5667d1304" and name "something-device-locked"`)
 
 	// next try with the FDE package handler works
 	disks.RegisterDeviceMapperBackResolver("device-unlock-kernel-fde", fde.DeviceUnlockKernelHookDeviceMapperBackResolver)
@@ -857,6 +882,11 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedUnlockedDeviceVolumeHappy(c
 			KernelDevicePath: filepath.Join(dirs.SysfsDir, "/block/foo/sda1"),
 			KernelDeviceNode: "/dev/sda1",
 		},
+	})
+
+	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "trigger", "--name-match=sda1"},
+		{"udevadm", "settle", "--timeout=180"},
 	})
 }
 
@@ -919,6 +949,10 @@ fi
 }
 
 func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
+	// for udevadm trigger and udevadm settle which are called on the partitions
+	mockUdevadm := testutil.MockCommand(c, "udevadm", ``)
+	defer mockUdevadm.Restore()
+
 	restore := osutil.MockMountInfo(`130 30 42:4 / /run/mnt/data rw,relatime shared:54 - ext4 /dev/vda4 rw
  130 30 42:4 / /run/mnt/ubuntu-boot rw,relatime shared:54 - ext4 /dev/vda3 rw
 `)
@@ -1085,9 +1119,32 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 		SearchType:  "partition-label",
 		SearchQuery: "NOT BIOS Boot",
 	})
+
+	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "trigger", "--name-match=vda1"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vda2"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vda3"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vda4"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vda1"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vda2"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vda3"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vda4"},
+		{"udevadm", "settle", "--timeout=180"},
+	})
 }
 
 func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
+	// for udevadm trigger and udevadm settle which are called on the partitions
+	mockUdevadm := testutil.MockCommand(c, "udevadm", ``)
+	defer mockUdevadm.Restore()
+
 	restore := osutil.MockMountInfo(`130 30 252:0 / /run/mnt/data rw,relatime shared:54 - ext4 /dev/mapper/ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4 rw
  130 30 42:4 / /run/mnt/ubuntu-boot rw,relatime shared:54 - ext4 /dev/vda3 rw
 `)
@@ -1326,6 +1383,25 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 	matches, err = ubuntuBootDisk.MountPointIsFromDisk("/run/mnt/data", opts)
 	c.Assert(err, IsNil)
 	c.Assert(matches, Equals, true)
+
+	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "trigger", "--name-match=vda1"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vda2"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vda3"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vda4"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vda1"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vda2"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vda3"},
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--name-match=vda4"},
+		{"udevadm", "settle", "--timeout=180"},
+	})
 }
 
 func (s *diskSuite) TestMountPointsForPartitionRoot(c *C) {
@@ -1457,7 +1533,14 @@ func (s *diskSuite) TestDiskSizeRelatedMethodsGPT(c *C) {
 	})
 	defer restore()
 
+	restoreCalculateLBA := disks.MockCalculateLastUsableLBA(42, nil)
+	defer restoreCalculateLBA()
+
 	sfdiskCmd := testutil.MockCommand(c, "sfdisk", `
+if [ "$1" = --version ]; then
+	echo 'sfdisk from util-linux 2.37.2'
+	exit 0
+fi
 echo '{
 	"partitiontable": {
 		"unit": "sectors",
@@ -1476,7 +1559,7 @@ echo '{
 	c.Assert(err, IsNil)
 	c.Assert(endSectors, Equals, uint64(43))
 	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
-		{"sfdisk", "--json", "/dev/sda"},
+		{"sfdisk", "--version"},
 	})
 	sfdiskCmd.ForgetCalls()
 
@@ -1512,6 +1595,53 @@ fi
 	c.Assert(sfdiskCmd.Calls(), HasLen, 0)
 }
 
+func (s *diskSuite) TestDiskSizeRelatedMethodsGPTFallback(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		c.Assert(dev, Equals, "sda")
+		return map[string]string{
+			"MAJOR":              "1",
+			"MINOR":              "2",
+			"DEVTYPE":            "disk",
+			"DEVNAME":            "/dev/sda",
+			"ID_PART_TABLE_UUID": "foo",
+			"ID_PART_TABLE_TYPE": "gpt",
+			"DEVPATH":            "/devices/foo/sda",
+		}, nil
+	})
+	defer restore()
+
+	restoreCalculateLBA := disks.MockCalculateLastUsableLBA(0, errors.New("Some error"))
+	defer restoreCalculateLBA()
+
+	sfdiskCmd := testutil.MockCommand(c, "sfdisk", `
+if [ "$1" = --version ]; then
+	echo 'sfdisk from util-linux 2.34.1'
+	exit 0
+fi
+echo '{
+	"partitiontable": {
+		"unit": "sectors",
+		"lastlba": 42
+	}
+}'
+`)
+	defer sfdiskCmd.Restore()
+
+	d, err := disks.DiskFromDeviceName("sda")
+	c.Assert(err, IsNil)
+	c.Assert(d.Schema(), Equals, "gpt")
+	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
+
+	endSectors, err := d.UsableSectorsEnd()
+	c.Assert(err, IsNil)
+	c.Assert(endSectors, Equals, uint64(43))
+	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--version"},
+		{"sfdisk", "--json", "/dev/sda"},
+	})
+}
+
 func (s *diskSuite) TestDiskUsableSectorsEndGPTUnexpectedSfdiskUnit(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
@@ -1529,6 +1659,10 @@ func (s *diskSuite) TestDiskUsableSectorsEndGPTUnexpectedSfdiskUnit(c *C) {
 	defer restore()
 
 	cmd := testutil.MockCommand(c, "sfdisk", `
+if [ "$1" = --version ]; then
+	echo 'sfdisk from util-linux 2.34.1'
+	exit 0
+fi
 echo '{
 	"partitiontable": {
 		"unit": "not-sectors",
@@ -1547,6 +1681,7 @@ echo '{
 	c.Assert(err, ErrorMatches, "cannot get size in sectors, sfdisk reported unknown unit not-sectors")
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--version"},
 		{"sfdisk", "--json", "/dev/sda"},
 	})
 }
@@ -1568,6 +1703,10 @@ func (s *diskSuite) TestDiskSizeRelatedMethodsGPTSectorSize4K(c *C) {
 	defer restore()
 
 	sfdiskCmd := testutil.MockCommand(c, "sfdisk", `
+if [ "$1" = --version ]; then
+	echo 'sfdisk from util-linux 2.34.1'
+	exit 0
+fi
 echo '{
 	"partitiontable": {
 		"unit": "sectors",
@@ -1586,6 +1725,7 @@ echo '{
 	c.Assert(err, IsNil)
 	c.Assert(endSectors, Equals, uint64(43))
 	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--version"},
 		{"sfdisk", "--json", "/dev/sda"},
 	})
 
@@ -1643,6 +1783,10 @@ func (s *diskSuite) TestDiskSizeRelatedMethodsGPTNon512MultipleSectorSizeError(c
 	defer restore()
 
 	sfdiskCmd := testutil.MockCommand(c, "sfdisk", `
+if [ "$1" = --version ]; then
+	echo 'sfdisk from util-linux 2.34.1'
+	exit 0
+fi
 echo '{
 	"partitiontable": {
 		"unit": "sectors",
@@ -1877,4 +2021,126 @@ func (s *diskSuite) TestAllPhysicalDisks(c *C) {
 	c.Assert(d[1].KernelDeviceNode(), Equals, "/dev/nvme0n1")
 	c.Assert(d[2].KernelDeviceNode(), Equals, "/dev/sda")
 	c.Assert(d[3].KernelDeviceNode(), Equals, "/dev/sdb")
+}
+
+func (s *diskSuite) TestPartitionUUIDFromMopuntPointErrs(c *C) {
+	restore := osutil.MockMountInfo(``)
+	defer restore()
+
+	_, err := disks.PartitionUUIDFromMountPoint("/run/mnt/blah", nil)
+	c.Assert(err, ErrorMatches, "cannot find mountpoint \"/run/mnt/blah\"")
+
+	restore = osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda4 rw
+`)
+	defer restore()
+
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		c.Assert(dev, Equals, "/dev/vda4")
+		return map[string]string{
+			"DEVNAME": "vda4",
+			"prop":    "hello",
+		}, nil
+	})
+	defer restore()
+
+	_, err = disks.PartitionUUIDFromMountPoint("/run/mnt/point", nil)
+	c.Assert(err, ErrorMatches, "cannot get required partition UUID udev property for device /dev/vda4")
+}
+
+func (s *diskSuite) TestPartitionUUIDFromMountPointPlain(c *C) {
+	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda4 rw
+`)
+	defer restore()
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		c.Assert(dev, Equals, "/dev/vda4")
+		return map[string]string{
+			"DEVTYPE":            "disk",
+			"ID_PART_ENTRY_UUID": "foo-uuid",
+		}, nil
+	})
+	defer restore()
+
+	uuid, err := disks.PartitionUUIDFromMountPoint("/run/mnt/point", nil)
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "foo-uuid")
+}
+
+func (s *diskSuite) TestPartitionUUIDFromMopuntPointDecrypted(c *C) {
+	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something rw
+`)
+	defer restore()
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/mapper/something":
+			return map[string]string{
+				"DEVTYPE": "disk",
+				"MAJOR":   "242",
+				"MINOR":   "1",
+			}, nil
+		case "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304":
+			return map[string]string{
+				"ID_PART_ENTRY_UUID": "foo-uuid",
+			}, nil
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	// mock the sysfs dm uuid and name files
+	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "242:1", "dm")
+	err := os.MkdirAll(dmDir, 0755)
+	c.Assert(err, IsNil)
+
+	b := []byte("something")
+	err = ioutil.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
+	c.Assert(err, IsNil)
+
+	b = []byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something")
+	err = ioutil.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
+	c.Assert(err, IsNil)
+
+	uuid, err := disks.PartitionUUIDFromMountPoint("/run/mnt/point", &disks.Options{
+		IsDecryptedDevice: true,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "foo-uuid")
+}
+
+func (s *diskSuite) TestPartitionUUID(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/vda4":
+			return map[string]string{
+				"ID_PART_ENTRY_UUID": "foo-uuid",
+			}, nil
+		case "/dev/no-uuid":
+			return map[string]string{
+				"no-uuid": "no-uuid",
+			}, nil
+		case "/dev/mock-failure":
+			return nil, fmt.Errorf("mock failure")
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	uuid, err := disks.PartitionUUID("/dev/vda4")
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "foo-uuid")
+
+	uuid, err = disks.PartitionUUID("/dev/no-uuid")
+	c.Assert(err, ErrorMatches, "cannot get required udev partition UUID property")
+	c.Check(uuid, Equals, "")
+
+	uuid, err = disks.PartitionUUID("/dev/mock-failure")
+	c.Assert(err, ErrorMatches, "cannot process udev properties: mock failure")
+	c.Check(uuid, Equals, "")
 }

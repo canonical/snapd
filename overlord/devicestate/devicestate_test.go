@@ -59,7 +59,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -136,7 +136,7 @@ var (
 	brandPrivKey3, _ = assertstest.GenerateKey(752)
 )
 
-func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
+func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
@@ -157,7 +157,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	bootloader.Force(s.bootloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 
-	s.AddCleanup(release.MockOnClassic(false))
+	s.AddCleanup(release.MockOnClassic(classic))
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.restartObserve = nil
@@ -349,6 +349,11 @@ func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *s
 
 func (s *deviceMgrBaseSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) *asserts.Serial {
 	return makeSerialAssertionInState(c, s.brands, s.state, brandID, model, serialN)
+}
+
+func (s *deviceMgrSuite) SetUpTest(c *C) {
+	classic := false
+	s.setupBaseTest(c, classic)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerSetTimeOnce(c *C) {
@@ -900,7 +905,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshNoSerialFallback(c *C) {
 	// third attempt ongoing, or done
 	// fallback, try auto-refresh
 	devicestate.IncEnsureOperationalAttempts(s.state)
-	// sanity
+	// validity
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 3)
 	c.Check(canAutoRefresh(), Equals, true)
 }
@@ -1568,7 +1573,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookHappy(c *C) {
 	})
 	st.Unlock()
 
-	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
+	mockKey := keys.EncryptionKey{1, 2, 3, 4}
 
 	var hookCalled []string
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {

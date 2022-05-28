@@ -19,6 +19,30 @@
 
 package apparmor
 
+import (
+	"github.com/snapcore/snapd/testutil"
+)
+
+var (
+	NumberOfJobsParam = numberOfJobsParam
+)
+
+func MockRuntimeNumCPU(new func() int) (restore func()) {
+	old := runtimeNumCPU
+	runtimeNumCPU = new
+	return func() {
+		runtimeNumCPU = old
+	}
+}
+
+// MockProfilesPath mocks the file read by LoadedProfiles()
+func MockProfilesPath(t *testutil.BaseTest, profiles string) {
+	profilesPath = profiles
+	t.AddCleanup(func() {
+		profilesPath = realProfilesPath
+	})
+}
+
 func MockFsRootPath(path string) (restorer func()) {
 	old := rootPath
 	rootPath = path

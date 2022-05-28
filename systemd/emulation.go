@@ -51,41 +51,41 @@ func (s *emulation) Backend() Backend {
 }
 
 func (s *emulation) DaemonReload() error {
-	return &notImplementedError{"DaemonReload"}
+	return nil
 }
 
 func (s *emulation) DaemonReexec() error {
 	return &notImplementedError{"DaemonReexec"}
 }
 
-func (s *emulation) Enable(services []string) error {
+func (s *emulation) EnableNoReload(services []string) error {
 	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "enable"}, services...)...)
 	return err
 }
 
-func (s *emulation) Disable(services []string) error {
+func (s *emulation) DisableNoReload(services []string) error {
 	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "disable"}, services...)...)
 	return err
 }
 
 func (s *emulation) Start(services []string) error {
-	return &notImplementedError{"Start"}
+	return nil
 }
 
 func (s *emulation) StartNoBlock(services []string) error {
-	return &notImplementedError{"StartNoBlock"}
+	return nil
 }
 
-func (s *emulation) Stop(services []string, timeout time.Duration) error {
-	return &notImplementedError{"Stop"}
+func (s *emulation) Stop(services []string) error {
+	return nil
 }
 
 func (s *emulation) Kill(service, signal, who string) error {
 	return &notImplementedError{"Kill"}
 }
 
-func (s *emulation) Restart(services []string, timeout time.Duration) error {
-	return &notImplementedError{"Restart"}
+func (s *emulation) Restart(services []string) error {
+	return nil
 }
 
 func (s *emulation) ReloadOrRestart(service string) error {
@@ -221,4 +221,8 @@ func (s *emulation) Mount(what, where string, options ...string) error {
 
 func (s *emulation) Umount(whatOrWhere string) error {
 	return &notImplementedError{"Umount"}
+}
+
+func (s *emulation) Run(command []string, opts *RunOptions) ([]byte, error) {
+	return nil, &notImplementedError{"Run"}
 }

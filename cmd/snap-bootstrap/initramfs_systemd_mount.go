@@ -41,8 +41,7 @@ var (
 	defaultMountUnitWaitTimeout = time.Minute + 30*time.Second
 
 	unitFileDependOverride = `[Unit]
-Requires=%[1]s
-After=%[1]s
+Wants=%[1]s
 `
 
 	doSystemdMount = doSystemdMountImpl
@@ -74,6 +73,8 @@ type systemdMountOptions struct {
 	Bind bool
 	// Read-only mount
 	ReadOnly bool
+	// Private mount
+	Private bool
 }
 
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
@@ -140,37 +141,25 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	if opts.ReadOnly {
 		options = append(options, "ro")
 	}
+	if opts.Private {
+		options = append(options, "private")
+	}
 	if len(options) > 0 {
 		args = append(args, "--options="+strings.Join(options, ","))
-	}
-
-	// note that we do not currently parse any output from systemd-mount, but if
-	// we ever do, take special care surrounding the debug output that systemd
-	// outputs with the "debug" kernel command line present (or equivalently the
-	// SYSTEMD_LOG_LEVEL=debug env var) which will add lots of additional output
-	// to stderr from systemd commands
-	out, err := exec.Command("systemd-mount", args...).CombinedOutput()
-	if err != nil {
-		return osutil.OutputErr(out, err)
 	}
 
 	// if it should survive pivot_root() then we need to add overrides for this
 	// unit to /run/systemd units
 	if !opts.Ephemeral {
-		// to survive the pivot_root, we need to make the mount units depend on
-		// all of the various initrd special targets by adding runtime conf
-		// files there
+		// to survive the pivot_root, mounts need to be "wanted" by
+		// initrd-switch-root.target directly or indirectly. The
+		// proper target to place them in is initrd-fs.target
 		// note we could do this statically in the initramfs main filesystem
 		// layout, but that means that changes to snap-bootstrap would block on
 		// waiting for those files to be added before things works here, this is
 		// a more flexible strategy that puts snap-bootstrap in control
 		overrideContent := []byte(fmt.Sprintf(unitFileDependOverride, unitName))
-		for _, initrdUnit := range []string{
-			"initrd.target",
-			"initrd-fs.target",
-			"initrd-switch-root.target",
-			"local-fs.target",
-		} {
+		for _, initrdUnit := range []string{"initrd-fs.target", "local-fs.target"} {
 			targetDir := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d")
 			err := os.MkdirAll(targetDir, 0755)
 			if err != nil {
@@ -186,6 +175,18 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 				return err
 			}
 		}
+		// local-fs.target is already automatically a depenency
+		args = append(args, "--property=Before=initrd-fs.target")
+	}
+
+	// note that we do not currently parse any output from systemd-mount, but if
+	// we ever do, take special care surrounding the debug output that systemd
+	// outputs with the "debug" kernel command line present (or equivalently the
+	// SYSTEMD_LOG_LEVEL=debug env var) which will add lots of additional output
+	// to stderr from systemd commands
+	out, err := exec.Command("systemd-mount", args...).CombinedOutput()
+	if err != nil {
+		return osutil.OutputErr(out, err)
 	}
 
 	if !opts.NoWait {

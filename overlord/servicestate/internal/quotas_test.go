@@ -122,7 +122,7 @@ func (s *servicestateQuotasSuite) TestQuotas(c *C) {
 
 	_, err = internal.PatchQuotas(st, otherGrp2, otherGrp)
 	// either group can get checked first
-	c.Assert(err, ErrorMatches, `cannot update quotas "other-group", "other-group2": group "other-group2?" is invalid: quota group must have a memory limit set`)
+	c.Assert(err, ErrorMatches, `cannot update quotas "other-group", "other-group2": group "other-group2?" is invalid: quota group must have at least one resource limit set`)
 }
 
 func (s *servicestateQuotasSuite) TestCreateQuotaInState(c *C) {
@@ -135,7 +135,7 @@ func (s *servicestateQuotasSuite) TestCreateQuotaInState(c *C) {
 		Name:        "foogroup",
 		MemoryLimit: quantity.SizeGiB,
 	}
-	grp1, newGrps, err := internal.CreateQuotaInState(st, "foogroup", nil, nil, quota.NewResources(quantity.SizeGiB), nil)
+	grp1, newGrps, err := internal.CreateQuotaInState(st, "foogroup", nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(), nil)
 	c.Assert(err, IsNil)
 	c.Check(grp1, DeepEquals, grp)
 	c.Check(newGrps, DeepEquals, map[string]*quota.Group{
@@ -156,7 +156,7 @@ func (s *servicestateQuotasSuite) TestCreateQuotaInState(c *C) {
 		ParentGroup: "foogroup",
 		Snaps:       []string{"snap1", "snap2"},
 	}
-	grp3, newGrps, err := internal.CreateQuotaInState(st, "group-2", grp1, []string{"snap1", "snap2"}, quota.NewResources(quantity.SizeGiB), nil)
+	grp3, newGrps, err := internal.CreateQuotaInState(st, "group-2", grp1, []string{"snap1", "snap2"}, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(), nil)
 	c.Assert(err, IsNil)
 	c.Check(grp3.Name, Equals, grp2.Name)
 	c.Check(grp3.MemoryLimit, Equals, grp2.MemoryLimit)

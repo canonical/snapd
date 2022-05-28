@@ -153,7 +153,7 @@ func (s *snapshotSuite) TestLastSnapshotID(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(0))
 
-	// create snapshots dir and dummy snapshots
+	// create snapshots dir and test snapshots
 	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 	for _, name := range []string{
 		"9_some-snap-1.zip", "1234_not-a-snapshot", "12_other-snap.zip", "3_foo.zip",
@@ -557,20 +557,26 @@ func (s *snapshotSuite) TestList(c *check.C) {
 }
 
 func (s *snapshotSuite) TestAddDirToZipBails(c *check.C) {
-	snapshot := &client.Snapshot{SetID: 42, Snap: "a-snap"}
+	snapshot := &client.Snapshot{SetID: 42, Snap: "a-snap", Revision: snap.R(5)}
+
+	oldVal := os.Getenv("SNAPD_DEBUG")
+	c.Assert(os.Setenv("SNAPD_DEBUG", "1"), check.IsNil)
+	defer func() {
+		os.Setenv("SNAPD_DEBUG", oldVal)
+	}()
+
 	buf, restore := logger.MockLogger()
 	defer restore()
+	savingUserData := false
 	// note as the zip is nil this would panic if it didn't bail
-	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", filepath.Join(s.root, "nonexistent")), check.IsNil)
-	// no log for the non-existent case
-	c.Check(buf.String(), check.Equals, "")
-	buf.Reset()
-	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", "/etc/passwd"), check.IsNil)
-	c.Check(buf.String(), check.Matches, "(?m).* is not a directory.")
+	c.Check(backend.AddSnapDirToZip(nil, snapshot, nil, "", "an/entry", filepath.Join(s.root, "nonexistent"), savingUserData, nil), check.IsNil)
+	c.Check(backend.AddSnapDirToZip(nil, snapshot, nil, "", "an/entry", "/etc/passwd", savingUserData, nil), check.IsNil)
+	c.Check(buf.String(), check.Matches, "(?m).* is does not exist.*")
 }
 
 func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
-	d := filepath.Join(s.root, "foo")
+	rev := snap.R(5)
+	d := filepath.Join(s.root, rev.String())
 	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0755), check.IsNil)
 
@@ -579,11 +585,13 @@ func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
 
 	var buf bytes.Buffer
 	z := zip.NewWriter(&buf)
-	c.Assert(backend.AddDirToZip(ctx, nil, z, "", "an/entry", d), check.ErrorMatches, ".* context canceled")
+	savingUserData := false
+	c.Assert(backend.AddSnapDirToZip(ctx, &client.Snapshot{Revision: rev}, z, "", "an/entry", s.root, savingUserData, nil), check.ErrorMatches, ".* context canceled")
 }
 
 func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
-	d := filepath.Join(s.root, "foo")
+	rev := snap.R(5)
+	d := filepath.Join(s.root, rev.String())
 	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0755), check.IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d, "bar", "baz"), []byte("hello\n"), 0644), check.IsNil)
@@ -592,8 +600,10 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 	z := zip.NewWriter(&buf)
 	snapshot := &client.Snapshot{
 		SHA3_384: map[string]string{},
+		Revision: rev,
 	}
-	c.Assert(backend.AddDirToZip(context.Background(), snapshot, z, "", "an/entry", d), check.IsNil)
+	savingUserData := false
+	c.Assert(backend.AddSnapDirToZip(context.Background(), snapshot, z, "", "an/entry", s.root, savingUserData, nil), check.IsNil)
 	z.Close() // write out the central directory
 
 	c.Check(snapshot.SHA3_384, check.HasLen, 1)
@@ -604,6 +614,77 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(r.File, check.HasLen, 1)
 	c.Check(r.File[0].Name, check.Equals, "an/entry")
+}
+
+func (s *snapshotSuite) TestAddDirToZipExclusions(c *check.C) {
+	d := filepath.Join(s.root, "x1")
+	c.Assert(os.MkdirAll(d, 0755), check.IsNil)
+
+	var buf bytes.Buffer
+	z := zip.NewWriter(&buf)
+	snapshot := &client.Snapshot{
+		SHA3_384: map[string]string{},
+		Revision: snap.R("x1"),
+	}
+	defer z.Close()
+
+	var tarArgs []string
+	restore := backend.MockTarAsUser(func(username string, args ...string) *exec.Cmd {
+		// We care only about the exclusion arguments in this test
+		tarArgs = nil
+		for _, arg := range args {
+			if strings.HasPrefix(arg, "--exclude=") {
+				tarArgs = append(tarArgs, arg)
+			}
+		}
+		// We only care about being called with the right arguments
+		return exec.Command("false")
+	})
+	defer restore()
+
+	for _, testData := range []struct {
+		excludes       []string
+		savingUserData bool
+		expectedArgs   []string
+	}{
+		{
+			[]string{"$SNAP_DATA/file"},
+			false,
+			[]string{"--exclude=x1/file"},
+		},
+		{
+			// user data, but vars are for system data: they must be ignored
+			[]string{"$SNAP_DATA/a", "$SNAP_COMMON_DATA/b"}, true, nil,
+		},
+		{
+			// system data, but vars are for system data: they must be ignored
+			[]string{"$SNAP_USER_DATA/a", "$SNAP_USER_COMMON/b"}, false, nil,
+		},
+		{
+			// system data
+			[]string{"$SNAP_DATA/one", "$SNAP_COMMON/two"},
+			false,
+			[]string{"--exclude=x1/one", "--exclude=common/two"},
+		},
+		{
+			// user data
+			[]string{"$SNAP_USER_DATA/file", "$SNAP_USER_COMMON/test"},
+			true,
+			[]string{"--exclude=x1/file", "--exclude=common/test"},
+		},
+		{
+			// mixed case
+			[]string{"$SNAP_USER_DATA/1", "$SNAP_DATA/2", "$SNAP_COMMON/3", "$SNAP_DATA/4"},
+			false,
+			[]string{"--exclude=x1/2", "--exclude=common/3", "--exclude=x1/4"},
+		},
+	} {
+		testLabel := check.Commentf("%s/%v", testData.excludes, testData.savingUserData)
+
+		err := backend.AddSnapDirToZip(context.Background(), snapshot, z, "", "an/entry", s.root, testData.savingUserData, testData.excludes)
+		c.Check(err, check.ErrorMatches, "tar failed.*")
+		c.Check(tarArgs, check.DeepEquals, testData.expectedArgs, testLabel)
+	}
 }
 
 func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
@@ -689,7 +770,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 
 	for i := 0; i < 3; i++ {
 		comm := check.Commentf("%d", i)
-		// sanity check
+		// validity check
 		c.Check(diff().Run(), check.NotNil, comm)
 
 		// restore leaves things like they were (again and again)
@@ -767,7 +848,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 		return cmd
 	}
 
-	// sanity check
+	// validity check
 	c.Check(diff().Run(), check.NotNil)
 
 	// restore leaves things like they were, but in the new dir
@@ -1263,7 +1344,7 @@ func createTestExportFile(filename string, flags *createTestExportFlags) error {
 
 		sha := map[string]string{}
 
-		// create dummy archive.tgz
+		// create test archive.tgz
 		archiveWriter, err := zipW.CreateHeader(&zip.FileHeader{Name: "archive.tgz"})
 		if err != nil {
 			return err
@@ -1351,13 +1432,13 @@ func makeMockSnapshotZipContent(c *check.C) []byte {
 	buf := bytes.NewBuffer(nil)
 	zipW := zip.NewWriter(buf)
 
-	// create dummy archive.tgz
+	// create test archive.tgz
 	archiveWriter, err := zipW.CreateHeader(&zip.FileHeader{Name: "archive.tgz"})
 	c.Assert(err, check.IsNil)
 	_, err = archiveWriter.Write([]byte("mock archive.tgz content"))
 	c.Assert(err, check.IsNil)
 
-	// create dummy meta.json
+	// create test meta.json
 	archiveWriter, err = zipW.CreateHeader(&zip.FileHeader{Name: "meta.json"})
 	c.Assert(err, check.IsNil)
 	_, err = archiveWriter.Write([]byte("{}"))

@@ -35,9 +35,12 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type gadgetYamlTestSuite struct {
@@ -774,7 +777,7 @@ volumes:
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
-	c.Assert(err, ErrorMatches, "bootloader must be one of grub, u-boot, android-boot or lk")
+	c.Assert(err, ErrorMatches, "bootloader must be one of grub, u-boot, android-boot, piboot or lk")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlEmptyBootloader(c *C) {
@@ -2798,7 +2801,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibility(c *C) {
 	smallDeviceLayout := mockDeviceLayout
 	smallDeviceLayout.UsableSectorsEnd = uint64(100 * quantity.SizeMiB / 512)
 
-	// sanity check
+	// validity check
 	c.Check(gadgetLayoutWithExtras.Size > quantity.Size(smallDeviceLayout.UsableSectorsEnd*uint64(smallDeviceLayout.SectorSize)), Equals, true)
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &smallDeviceLayout, nil)
 	c.Assert(err, ErrorMatches, `device /dev/node \(last usable byte at 100 MiB\) is too small to fit the requested layout \(1\.17 GiB\)`)
@@ -3041,6 +3044,143 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithImplicitSystemData(c *C
 	c.Assert(err, IsNil)
 }
 
+var mockEncDeviceLayout = gadget.OnDiskVolume{
+	Structure: []gadget.OnDiskStructure{
+		// Note that the first ondisk structure we have is BIOS Boot, even
+		// though in reality the first ondisk structure is MBR, but the MBR
+		// doesn't actually show up in /dev at all, so we don't ever measure it
+		// as existing on the disk - the code and test accounts for the MBR
+		// structure not being present in the OnDiskVolume
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name: "BIOS Boot",
+					Size: 1 * quantity.SizeMiB,
+				},
+				StartOffset: 1 * quantity.OffsetMiB,
+			},
+			Node: "/dev/node1",
+		},
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name:       "Writable",
+					Size:       1200 * quantity.SizeMiB,
+					Filesystem: "crypto_LUKS",
+					Label:      "Writable-enc",
+				},
+				StartOffset: 2 * quantity.OffsetMiB,
+			},
+			Node: "/dev/node2",
+		},
+	},
+	ID:         "anything",
+	Device:     "/dev/node",
+	Schema:     "gpt",
+	Size:       2 * quantity.SizeGiB,
+	SectorSize: 512,
+
+	// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
+	// 1 sector to get the exclusive end
+	UsableSectorsEnd: uint64((2*quantity.SizeGiB/512)-33) + 1,
+}
+
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions(c *C) {
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockSimpleGadgetYaml+mockExtraStructure, nil)
+	c.Assert(err, IsNil)
+	deviceLayout := mockEncDeviceLayout
+
+	mockLog, r := logger.MockLogger()
+	defer r()
+
+	// if we set the EncryptedPartitions and assume partitions are already
+	// created then they match
+
+	encParams := gadget.StructureEncryptionParameters{Method: gadget.EncryptionLUKS}
+	encParams.SetUnknownKeys(map[string]string{"foo": "secret-foo"})
+
+	encOpts := &gadget.EnsureLayoutCompatibilityOptions{
+		AssumeCreatablePartitionsCreated: true,
+		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{
+			"Writable": encParams,
+		},
+	}
+
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, encOpts)
+	c.Assert(err, IsNil)
+
+	// we had a log message about the unknown/unsupported parameter
+	c.Assert(mockLog.String(), testutil.Contains, "ignoring unknown expected encryption structure parameter \"foo\"")
+	// but we didn't log anything about the value in case that is secret for
+	// whatever reason
+	c.Assert(mockLog.String(), Not(testutil.Contains), "secret-foo")
+
+	// but if the name of the partition does not match "-enc" then it is not
+	// valid
+	deviceLayout.Structure[1].Label = "Writable"
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, encOpts)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: partition Writable is expected to be encrypted but is not named Writable-enc`)
+
+	// the filesystem must also be reported as crypto_LUKS
+	deviceLayout.Structure[1].Label = "Writable-enc"
+	deviceLayout.Structure[1].Filesystem = "ext4"
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, encOpts)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: partition Writable is expected to be encrypted but does not have an encrypted filesystem`)
+
+	deviceLayout.Structure[1].Filesystem = "crypto_LUKS"
+
+	// but without encrypted partition information and strict assumptions, they
+	// do not match due to differing filesystems
+	opts := &gadget.EnsureLayoutCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, opts)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match: declared as ext4, got crypto_LUKS`)
+
+	// with less strict options however they match since this role is creatable
+	// at install
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, nil)
+	c.Assert(err, IsNil)
+
+	// unsupported encryption types
+	invalidEncOptions := &gadget.EnsureLayoutCompatibilityOptions{
+		AssumeCreatablePartitionsCreated: true,
+		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{
+			"Writable": {Method: gadget.EncryptionICE},
+		},
+	}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, invalidEncOptions)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: Inline Crypto Engine encrypted partitions currently unsupported`)
+
+	invalidEncOptions = &gadget.EnsureLayoutCompatibilityOptions{
+		AssumeCreatablePartitionsCreated: true,
+		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{
+			"Writable": {Method: "other"},
+		},
+	}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, invalidEncOptions)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: unsupported encrypted partition type "other"`)
+
+	// missing an encrypted partition from the gadget.yaml
+	missingEncStructureOptions := &gadget.EnsureLayoutCompatibilityOptions{
+		AssumeCreatablePartitionsCreated: true,
+		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{
+			"Writable": {Method: gadget.EncryptionLUKS},
+			"missing":  {Method: gadget.EncryptionLUKS},
+		},
+	}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, missingEncStructureOptions)
+	c.Assert(err, ErrorMatches, `expected encrypted structure missing not present in gadget`)
+
+	// missing required method
+	invalidEncStructureOptions := &gadget.EnsureLayoutCompatibilityOptions{
+		AssumeCreatablePartitionsCreated: true,
+		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{
+			"Writable": {},
+		},
+	}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, invalidEncStructureOptions)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: encrypted structure parameter missing required parameter "method"`)
+}
+
 func (s *gadgetYamlTestSuite) TestSchemaCompatibility(c *C) {
 	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockSimpleGadgetYaml, nil)
 	c.Assert(err, IsNil)
@@ -3156,6 +3296,23 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(m3, DeepEquals, expPiMap)
+
+	// do the same for a mock LUKS encrypted raspi
+	expPiLUKSMap := map[string]gadget.DiskVolumeDeviceTraits{
+		"pi": gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
+	}
+
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+		[]byte(gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON),
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	m4, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
+	c.Assert(err, IsNil)
+
+	c.Assert(m4, DeepEquals, expPiLUKSMap)
 }
 
 func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleUC16Implicit(c *C) {
@@ -3240,4 +3397,209 @@ func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleU
 		matches := gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, volStruct)
 		c.Assert(matches, Equals, false)
 	}
+}
+
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsUnhappy(c *C) {
+	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
+	c.Assert(err, IsNil)
+
+	// don't setup the expected/needed symlinks in /dev
+	m := map[string]*gadget.LaidOutVolume{
+		"foo": vol,
+	}
+	_, err = gadget.AllDiskVolumeDeviceTraits(m, nil)
+	c.Assert(err, ErrorMatches, `cannot find disk for volume foo from gadget`)
+}
+
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsHappy(c *C) {
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/foo1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/nofspart"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// mock the partition device node going to a particular disk
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		fakedevicepart: gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
+	c.Assert(err, IsNil)
+
+	m := map[string]*gadget.LaidOutVolume{
+		"foo": vol,
+	}
+	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsMap, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"foo": gadgettest.MockExtraVolumeDeviceTraits,
+	})
+}
+
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsTriesAllStructures(c *C) {
+	// make a symlink from the filesystem label to /dev/foo2 - note that in
+	// reality we would have a symlink for /dev/foo1, since that partition
+	// exists, but here we pretend that we for whatever reason don't find
+	// /dev/foo1 but we keep going and check /dev/foo2 and at that point
+	// everything matches up
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/foo2")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/some-filesystem"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// mock the partition device node going to a particular disk
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		fakedevicepart: gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
+	c.Assert(err, IsNil)
+
+	m := map[string]*gadget.LaidOutVolume{
+		"foo": vol,
+	}
+	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsMap, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"foo": gadgettest.MockExtraVolumeDeviceTraits,
+	})
+}
+
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsMultipleGPTVolumes(c *C) {
+	// make a symlink for the partition label for nofspart to /dev/vdb1
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fooVolDevicePart := filepath.Join(dirs.GlobalRootDir, "/dev/vdb1")
+	err = os.Symlink(fooVolDevicePart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/nofspart"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fooVolDevicePart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// make a symlink for the partition label for "BIOS Boot" to /dev/vda1
+	fakepcdevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
+	err = os.Symlink(fakepcdevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/BIOS\\x20Boot"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakepcdevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
+		"/dev/vdb": gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// mock the partition device nodes going to a particular disks
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		fakepcdevicepart: gadgettest.VMSystemVolumeDiskMapping,
+		fooVolDevicePart: gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	mod := &gadgettest.ModelCharacteristics{
+		SystemSeed: true,
+	}
+	vols, err := gadgettest.LayoutMultiVolumeFromYaml(
+		c.MkDir(),
+		"",
+		gadgettest.MultiVolumeUC20GadgetYaml,
+		mod,
+	)
+	c.Assert(err, IsNil)
+
+	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(vols, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsMap, DeepEquals, multipleUC20DisksDeviceTraitsMap)
+
+	// check that an expected json serialization still equals the map we
+	// constructed
+	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	traitsDeviceMap2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsDeviceMap2, DeepEquals, traitsMap)
+}
+
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsImplicitSystemDataHappy(c *C) {
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	biosBootPart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
+	err = os.Symlink(biosBootPart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/BIOS\\x20Boot"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(biosBootPart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sda": gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+	})
+	defer restore()
+
+	// mock the partition device node going to a particular disk
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		biosBootPart: gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+	})
+	defer restore()
+
+	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, nil)
+	c.Assert(err, IsNil)
+
+	m := map[string]*gadget.LaidOutVolume{
+		"pc": vol,
+	}
+
+	// the volume cannot be found with no opts set
+	_, err = gadget.AllDiskVolumeDeviceTraits(m, nil)
+	c.Assert(err, ErrorMatches, `cannot gather disk traits for device /dev/sda to use with volume pc: volume pc is not compatible with disk /dev/sda: cannot find disk partition /dev/sda3 \(starting at 54525952\) in gadget`)
+
+	// with opts for pc then it can be found
+	optsMap := map[string]*gadget.DiskVolumeValidationOptions{
+		"pc": {
+			AllowImplicitSystemData: true,
+		},
+	}
+	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, optsMap)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsMap, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"pc": gadgettest.UC16ImplicitSystemDataDeviceTraits,
+	})
 }

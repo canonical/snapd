@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 )
 
 var (
@@ -67,5 +68,13 @@ func MockEnsureNodesExist(f func(dss []gadget.OnDiskStructure, timeout time.Dura
 	ensureNodesExist = f
 	return func() {
 		ensureNodesExist = old
+	}
+}
+
+func MockMkfsMake(f func(typ, img, label string, devSize, sectorSize quantity.Size) error) (restore func()) {
+	old := mkfsImpl
+	mkfsImpl = f
+	return func() {
+		mkfsImpl = old
 	}
 }

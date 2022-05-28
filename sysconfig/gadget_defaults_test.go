@@ -116,7 +116,7 @@ defaults:
 	journalPath := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/var/log/journal")
 	sshDontRunFile := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")
 
-	// sanity
+	// validity
 	c.Check(osutil.FileExists(sshDontRunFile), Equals, false)
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
@@ -183,7 +183,7 @@ defaults:
 	journalPath := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/var/log/journal")
 	sshDontRunFile := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")
 
-	// sanity
+	// validity
 	c.Check(osutil.FileExists(sshDontRunFile), Equals, false)
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)

@@ -99,7 +99,7 @@ func (m *StandbyOpinions) Start() {
 		for {
 			if m.CanStandby() {
 				m.state.Lock()
-				restart.Request(m.state, restart.RestartSocket)
+				restart.Request(m.state, restart.RestartSocket, nil)
 				m.state.Unlock()
 			}
 			select {

@@ -31,9 +31,33 @@ var validAccountKeyName = regexp.MustCompile(`^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9
 // belonging to the account.
 type AccountKey struct {
 	assertionBase
-	since  time.Time
-	until  time.Time
+	sinceUntil
 	pubKey PublicKey
+}
+
+type sinceUntil struct {
+	since time.Time
+	until time.Time
+}
+
+func checkSinceUntilWhat(m map[string]interface{}, what string) (*sinceUntil, error) {
+	since, err := checkRFC3339DateWhat(m, "since", what)
+	if err != nil {
+		return nil, err
+	}
+
+	until, err := checkRFC3339DateWithDefaultWhat(m, "until", what, time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	if !until.IsZero() && until.Before(since) {
+		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
+	}
+
+	return &sinceUntil{
+		since: since,
+		until: until,
+	}, nil
 }
 
 // AccountID returns the account-id of this account-key.
@@ -65,33 +89,33 @@ func (ak *AccountKey) PublicKeyID() string {
 	return ak.pubKey.ID()
 }
 
-// isKeyValidAt returns whether the account key is valid at 'when' time.
-func (ak *AccountKey) isKeyValidAt(when time.Time) bool {
-	valid := when.After(ak.since) || when.Equal(ak.since)
-	if valid && !ak.until.IsZero() {
-		valid = when.Before(ak.until)
+// isValidAt returns whether the since-until constraint is valid at 'when' time.
+func (su *sinceUntil) isValidAt(when time.Time) bool {
+	valid := when.After(su.since) || when.Equal(su.since)
+	if valid && !su.until.IsZero() {
+		valid = when.Before(su.until)
 	}
 	return valid
 }
 
-// isKeyValidAssumingCurTimeWithin returns whether the account key is
+// isValidAssumingCurTimeWithin returns whether the since-until constraint  is
 // possibly valid if the current time is known to be within [earliest,
 // latest]. That means the intersection of possible current times and
 // validity is not empty.
 // If latest is zero, then current time is assumed to be >=earliest.
 // If earliest == latest this is equivalent to isKeyValidAt().
-func (ak *AccountKey) isKeyValidAssumingCurTimeWithin(earliest, latest time.Time) bool {
+func (su *sinceUntil) isValidAssumingCurTimeWithin(earliest, latest time.Time) bool {
 	if !latest.IsZero() {
 		// impossible input => false
 		if latest.Before(earliest) {
 			return false
 		}
-		if latest.Before(ak.since) {
+		if latest.Before(su.since) {
 			return false
 		}
 	}
-	if !ak.until.IsZero() {
-		if earliest.After(ak.until) || earliest.Equal(ak.until) {
+	if !su.until.IsZero() {
+		if earliest.After(su.until) || earliest.Equal(su.until) {
 			return false
 		}
 	}
@@ -156,7 +180,7 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*AccountKey)(nil)
 
 // Prerequisites returns references to this account-key's prerequisite assertions.
@@ -181,17 +205,9 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 		}
 	}
 
-	since, err := checkRFC3339Date(assert.headers, "since")
+	sinceUntil, err := checkSinceUntilWhat(assert.headers, "header")
 	if err != nil {
 		return nil, err
-	}
-
-	until, err := checkRFC3339DateWithDefault(assert.headers, "until", time.Time{})
-	if err != nil {
-		return nil, err
-	}
-	if !until.IsZero() && until.Before(since) {
-		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
 	}
 
 	pubk, err := checkPublicKey(&assert, "public-key-sha3-384")
@@ -202,8 +218,7 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 	// ignore extra headers for future compatibility
 	return &AccountKey{
 		assertionBase: assert,
-		since:         since,
-		until:         until,
+		sinceUntil:    *sinceUntil,
 		pubKey:        pubk,
 	}, nil
 }
@@ -211,8 +226,7 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 // AccountKeyRequest holds an account-key-request assertion, which is a self-signed request to prove that the requester holds the private key and wishes to create an account-key assertion for it.
 type AccountKeyRequest struct {
 	assertionBase
-	since  time.Time
-	until  time.Time
+	sinceUntil
 	pubKey PublicKey
 }
 
@@ -260,7 +274,7 @@ func (akr *AccountKeyRequest) checkConsistency(db RODatabase, acck *AccountKey) 
 	return nil
 }
 
-// sanity
+// expected interfaces are implemented
 var (
 	_ consistencyChecker = (*AccountKeyRequest)(nil)
 	_ customSigner       = (*AccountKeyRequest)(nil)
@@ -284,17 +298,9 @@ func assembleAccountKeyRequest(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	since, err := checkRFC3339Date(assert.headers, "since")
+	sinceUntil, err := checkSinceUntilWhat(assert.headers, "header")
 	if err != nil {
 		return nil, err
-	}
-
-	until, err := checkRFC3339DateWithDefault(assert.headers, "until", time.Time{})
-	if err != nil {
-		return nil, err
-	}
-	if !until.IsZero() && until.Before(since) {
-		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
 	}
 
 	pubk, err := checkPublicKey(&assert, "public-key-sha3-384")
@@ -305,8 +311,7 @@ func assembleAccountKeyRequest(assert assertionBase) (Assertion, error) {
 	// ignore extra headers for future compatibility
 	return &AccountKeyRequest{
 		assertionBase: assert,
-		since:         since,
-		until:         until,
+		sinceUntil:    *sinceUntil,
 		pubKey:        pubk,
 	}, nil
 }

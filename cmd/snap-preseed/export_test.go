@@ -19,48 +19,32 @@
 
 package main
 
-import (
-	"github.com/snapcore/snapd/seed"
-)
+import "github.com/snapcore/snapd/testutil"
 
 var (
-	Run                      = run
-	SystemSnapFromSeed       = systemSnapFromSeed
-	ChooseTargetSnapdVersion = chooseTargetSnapdVersion
+	Run = run
 )
 
 func MockOsGetuid(f func() int) (restore func()) {
-	oldOsGetuid := osGetuid
+	r := testutil.Backup(&osGetuid)
 	osGetuid = f
-	return func() { osGetuid = oldOsGetuid }
+	return r
 }
 
-func MockSyscallChroot(f func(string) error) (restore func()) {
-	oldSyscallChroot := syscallChroot
-	syscallChroot = f
-	return func() { syscallChroot = oldSyscallChroot }
+func MockPreseedCore20(f func(dir, key, aaDir string) error) (restore func()) {
+	r := testutil.Backup(&preseedCore20)
+	preseedCore20 = f
+	return r
 }
 
-func MockSnapdMountPath(path string) (restore func()) {
-	oldMountPath := snapdMountPath
-	snapdMountPath = path
-	return func() { snapdMountPath = oldMountPath }
+func MockPreseedClassic(f func(dir string) error) (restore func()) {
+	r := testutil.Backup(&preseedClassic)
+	preseedClassic = f
+	return r
 }
 
-func MockSystemSnapFromSeed(f func(rootDir string) (string, error)) (restore func()) {
-	oldSystemSnapFromSeed := systemSnapFromSeed
-	systemSnapFromSeed = f
-	return func() { systemSnapFromSeed = oldSystemSnapFromSeed }
-}
-
-func MockSeedOpen(f func(rootDir, label string) (seed.Seed, error)) (restore func()) {
-	oldSeedOpen := seedOpen
-	seedOpen = f
-	return func() {
-		seedOpen = oldSeedOpen
-	}
-}
-
-func SnapdPathAndVersion(targetSnapd *targetSnapdInfo) (string, string) {
-	return targetSnapd.path, targetSnapd.version
+func MockResetPreseededChroot(f func(dir string) error) (restore func()) {
+	r := testutil.Backup(&preseedResetPreseededChroot)
+	preseedResetPreseededChroot = f
+	return r
 }

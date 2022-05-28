@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -313,7 +314,7 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Contain
 		return nil
 	}
 	core, err := coreInfo(st)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
 	if err != nil {
@@ -366,7 +367,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 	}
 
 	currentSnap, err := infoForDeviceSnap(st, deviceCtx, whichName)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		// check if we are in the remodel case
 		if deviceCtx != nil && deviceCtx.ForRemodeling() {
 			if whichName(deviceCtx.Model()) == snapInfo.InstanceName() {

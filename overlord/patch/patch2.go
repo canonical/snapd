@@ -20,6 +20,8 @@
 package patch
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -116,7 +118,7 @@ func patch2(s *state.State) error {
 
 	var oldStateMap map[string]*patch1SnapState
 	err := s.Get("snaps", &oldStateMap)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
 	if err != nil {
@@ -135,10 +137,10 @@ func patch2(s *state.State) error {
 	for _, t := range s.Tasks() {
 		var newSS patch2SnapSetup
 		err := t.Get("snap-setup", &oldSS)
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			continue
 		}
-		if err != nil && err != state.ErrNoState {
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		// some things stay the same

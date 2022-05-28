@@ -84,7 +84,7 @@ func (s *sideloadSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	chgSummary, systemRestartImmediate := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true})
+	chgSummary, systemRestartImmediate := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap})
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 	c.Check(systemRestartImmediate, check.Equals, false)
 }
@@ -95,7 +95,7 @@ func (s *sideloadSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	restore := sandbox.MockForceDevMode(true)
 	defer restore()
-	flags := snapstate.Flags{RemoveSnapPath: true}
+	flags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap}
 	chgSummary, _ := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
@@ -113,7 +113,7 @@ func (s *sideloadSuite) TestSideloadSnapDevMode(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
-	flags := snapstate.Flags{RemoveSnapPath: true}
+	flags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap}
 	flags.DevMode = true
 	chgSummary, _ := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
@@ -136,7 +136,7 @@ func (s *sideloadSuite) TestSideloadSnapJailMode(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
-	flags := snapstate.Flags{JailMode: true, RemoveSnapPath: true}
+	flags := snapstate.Flags{JailMode: true, RemoveSnapPath: true, Transaction: client.TransactionPerSnap}
 	chgSummary, _ := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
@@ -222,7 +222,7 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 
 	summary = chg.Summary()
 	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		c.Error(err)
 	}
 	return summary, systemRestartImmediate
@@ -320,7 +320,7 @@ func (s *sideloadSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
 	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
-		c.Check(flags, check.Equals, snapstate.Flags{RemoveSnapPath: true})
+		c.Check(flags, check.Equals, snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap})
 		c.Check(si, check.DeepEquals, &snap.SideInfo{
 			RealName: "x",
 			SnapID:   "x-id",
@@ -431,7 +431,7 @@ func (s *sideloadSuite) TestSideloadSnapInstanceName(c *check.C) {
 		"local_instance\r\n" +
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	chgSummary, _ := s.sideloadCheck(c, body, head, "local_instance", snapstate.Flags{RemoveSnapPath: true})
+	chgSummary, _ := s.sideloadCheck(c, body, head, "local_instance", snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap})
 	c.Check(chgSummary, check.Equals, `Install "local_instance" snap from file "a/b/local.snap"`)
 }
 
@@ -443,7 +443,7 @@ func (s *sideloadSuite) TestSideloadSnapInstanceNameNoKey(c *check.C) {
 		"local\r\n" +
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	chgSummary, _ := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true})
+	chgSummary, _ := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap})
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
@@ -485,7 +485,7 @@ func (s *sideloadSuite) TestInstallPathUnaliased(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
-	flags := snapstate.Flags{Unaliased: true, RemoveSnapPath: true, DevMode: true}
+	flags := snapstate.Flags{Unaliased: true, RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionPerSnap}
 	chgSummary, _ := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
@@ -507,7 +507,7 @@ func (s *sideloadSuite) TestInstallPathSystemRestartImmediate(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
-	flags := snapstate.Flags{RemoveSnapPath: true, DevMode: true}
+	flags := snapstate.Flags{RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionPerSnap}
 	chgSummary, systemRestartImmediate := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 	c.Check(systemRestartImmediate, check.Equals, true)
@@ -522,7 +522,7 @@ func (s *sideloadSuite) TestFormdataIsWrittenToCorrectTmpLocation(c *check.C) {
 	c.Assert(os.Setenv("TMPDIR", tmpDir), check.IsNil)
 
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	chgSummary, _ := s.sideloadCheck(c, sideLoadBodyWithoutDevMode, head, "local", snapstate.Flags{RemoveSnapPath: true})
+	chgSummary, _ := s.sideloadCheck(c, sideLoadBodyWithoutDevMode, head, "local", snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap})
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 
 	files, err := ioutil.ReadDir(tmpDir)
@@ -639,7 +639,7 @@ func (s *sideloadSuite) TestSideloadCleanUpUnusedTempSnapFiles(c *check.C) {
 		"----hello--\r\n"
 
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	chgSummary, _ := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true, DevMode: true})
+	chgSummary, _ := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionPerSnap})
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "one"`)
 
 	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*"))
@@ -650,7 +650,7 @@ func (s *sideloadSuite) TestSideloadCleanUpUnusedTempSnapFiles(c *check.C) {
 
 func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 	d := s.daemonWithFakeSnapManager(c)
-	expectedFlags := &snapstate.Flags{RemoveSnapPath: true, DevMode: true, Transactional: true}
+	expectedFlags := &snapstate.Flags{RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionAllSnaps}
 
 	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
 		c.Check(flags, check.DeepEquals, expectedFlags)
@@ -683,9 +683,9 @@ func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	body += "Content-Disposition: form-data; name=\"transactional\"\r\n" +
+	body += "Content-Disposition: form-data; name=\"transaction\"\r\n" +
 		"\r\n" +
-		"true\r\n" +
+		"all-snaps\r\n" +
 		"----hello--\r\n"
 	prefixed := make([]string, len(snaps))
 	for i, snap := range snaps {
@@ -823,7 +823,7 @@ func (s *sideloadSuite) TestSideloadManySnapsAsserted(c *check.C) {
 	s.mockAssertions(c, st, snaps)
 
 	body := "----hello--\r\n"
-	expectedFlags := snapstate.Flags{RemoveSnapPath: true}
+	expectedFlags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap}
 	s.testSideloadManySnaps(c, st, body, snaps, expectedFlags)
 }
 
@@ -1092,4 +1092,26 @@ func (s *trySuite) TestTryChangeConflict(c *check.C) {
 
 	rspe := daemon.TrySnap(st, tryDir, snapstate.Flags{}).(*daemon.APIError)
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindSnapChangeConflict)
+}
+
+func (s *sideloadSuite) TestSideloadSnapInvalidTransaction(c *check.C) {
+	s.daemon(c)
+
+	content := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"transaction\"\r\n" +
+		"\r\n" +
+		"xyz\r\n" +
+		"----hello--\r\n"
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+
+	buf := bytes.NewBufferString(content)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	for k, v := range head {
+		req.Header.Set(k, v)
+	}
+
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Message, check.Matches, `transaction must be either "per-snap" or "all-snaps"`)
 }

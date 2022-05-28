@@ -83,4 +83,4 @@ execute: |
     # device cgroup is in effect (because of rtc) and the device isn't in the
     # cgroup. DAC is evaluated before AppArmor so since the device wasn't added
     # to the cgroup, we see a DAC denial.
-    MATCH "Operation not permitted" < call.error
+    MATCH "(Operation not permitted|Permission denied)" < call.error

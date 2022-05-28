@@ -4,12 +4,9 @@ details: |
     The test injects a reboot fault during link snap and verifies that a reboot
     actually happens.
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     # automatically cleaned up in restore
     echo "Inject a reboot on link-snap"
     cat <<EOF > fault-inject.conf
@@ -27,7 +24,7 @@ execute: |
     tests.nested exec "sudo systemctl daemon-reload"
     tests.nested exec "sudo systemctl restart snapd.service"
 
-    boot_id="$( nested_get_boot_id )"
+    boot_id="$(tests.nested boot-id)"
     echo "We should observe a reboot being triggered when linking the snap"
     change_id="$(tests.nested exec 'sudo snap install --no-wait test-snapd-sh')"
 

@@ -39,9 +39,7 @@ execute: |
     test-snapd-sh.sh -c 'echo Hello' |MATCH Hello
 
     echo "Ensure the important snaps can not be disabled"
-    #shellcheck source=tests/lib/names.sh
-    . "$TESTSLIB"/names.sh
-    for sn in core $kernel_name $gadget_name; do
+    for sn in core $(snaps.name kernel) $(snaps.name gadget); do
         if snap disable "$sn"; then
             echo "It should not be possible to disable $sn"
             exit 1

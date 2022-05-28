@@ -20,7 +20,9 @@
 package asserts_test
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -30,12 +32,15 @@ import (
 
 type authorityDelegationSuite struct {
 	assertionsLines string
+	since, until    time.Time
 	validEncoded    string
 }
 
 var _ = Suite(&authorityDelegationSuite{})
 
 func (s *authorityDelegationSuite) SetUpSuite(c *C) {
+	c.Skip("authority-delegation disabled")
+
 	s.assertionsLines = `assertions:
   -
     type: snap-revision
@@ -47,6 +52,12 @@ func (s *authorityDelegationSuite) SetUpSuite(c *C) {
     since: 2022-01-12T00:00:00.0Z
     until: 2032-01-01T00:00:00.0Z
 `
+	var err error
+	s.since, err = time.Parse(time.RFC3339, "2022-01-12T00:00:00.0Z")
+	c.Assert(err, IsNil)
+	s.until, err = time.Parse(time.RFC3339, "2032-01-01T00:00:00.0Z")
+	c.Assert(err, IsNil)
+
 	s.validEncoded = `type: authority-delegation
 authority-id: canonical
 account-id: canonical
@@ -88,7 +99,8 @@ func (s *authorityDelegationSuite) TestAuthorityDelegationCheckUntrustedAuthorit
 		"delegate-id": "other",
 		"assertions": []interface{}{
 			map[string]interface{}{
-				"type": "snap-declaration",
+				"type":  "snap-declaration",
+				"since": time.Now().Format(time.RFC3339),
 			},
 		},
 	}
@@ -107,7 +119,8 @@ func (s *authorityDelegationSuite) TestAuthorityDelegationCheckAccountReferences
 		"delegate-id": "other2",
 		"assertions": []interface{}{
 			map[string]interface{}{
-				"type": "model",
+				"type":  "model",
+				"since": time.Now().Format(time.RFC3339),
 			},
 		},
 	}
@@ -134,7 +147,8 @@ func (s *authorityDelegationSuite) TestAuthorityDelegationCheckHappy(c *C) {
 		"delegate-id": "other2",
 		"assertions": []interface{}{
 			map[string]interface{}{
-				"type": "model",
+				"type":  "model",
+				"since": time.Now().Format(time.RFC3339),
 			},
 		},
 	}
@@ -171,6 +185,22 @@ func (s *authorityDelegationSuite) TestMatchingConstraints(c *C) {
 
 	acs := ad.MatchingConstraints(snapRevWProvenance)
 	c.Check(acs, HasLen, 1)
+	// probe since-until
+	ac := acs[0]
+	tests := []struct {
+		earliest time.Time
+		latest   time.Time
+		valid    bool
+	}{
+		{s.since, s.until, true},
+		{s.until, s.until.AddDate(0, 3, 0), false},
+		{s.since.AddDate(0, -2, 0), s.since.AddDate(0, -2, 0), false},
+	}
+	for _, t := range tests {
+		c.Check(asserts.IsValidAssumingCurTimeWithin(ac, t.earliest, t.latest), Equals, t.valid)
+	}
+	c.Check(ac.Check(snapRevWProvenance), IsNil)
+	c.Check(ac.Check(storeDB.TrustedAccount), ErrorMatches, `assertion "account" does not match constraint for assertion type "snap-revision"`)
 
 	// no provenance => no match
 	headers = makeSnapRevisionHeaders(map[string]interface{}{
@@ -232,11 +262,29 @@ func (s *authorityDelegationSuite) TestDecodeInvalid(c *C) {
 		{hdrs, `headers:
       provenance: $FOO
 `, `cannot compile headers constraint:.*`},
+		{"    since: 2022-01-12T00:00:00.0Z\n", "", `"since" constraint is mandatory`},
+		{"    until: 2032-01-01T00:00:00.0Z", "    until: 2012-01-01T00:00:00.0Z", `'until' time cannot be before 'since' time`},
 	}
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, authDelegErrPrefix+test.expectedErr)
+	}
+}
+
+func (s *authorityDelegationSuite) TestDecodeDeviceScope(c *C) {
+	// XXX: for now we fail on device scope constraints
+	// to avoid misinterpreting assertions until it is properly implemented
+	encoded := s.validEncoded
+	sinceFrag := "    since: 2022-01-12T00:00:00.0Z\n"
+	for _, deviceScoping := range []string{
+		"on-store: store1",
+		"on-brand: brand-id-1",
+		"on-model: brand-id-1/model1",
+	} {
+		withDeviceScope := strings.Replace(encoded, sinceFrag, fmt.Sprintf("    %s\n", deviceScoping)+sinceFrag, 1)
+		_, err := asserts.Decode([]byte(withDeviceScope))
+		c.Check(err, ErrorMatches, `assertion authority-delegation: device scope constraints not yet implemented`)
 	}
 }

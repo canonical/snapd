@@ -163,6 +163,7 @@ var templateCommon = `
   /run/systemd/userdb/io.systemd.DynamicUser rw,        # systemd-exec users
   /run/systemd/userdb/io.systemd.Home rw,               # systemd-home dirs
   /run/systemd/userdb/io.systemd.NameServiceSwitch rw,  # UNIX/glibc NSS
+  /run/systemd/userdb/io.systemd.Machine rw,            # systemd-machined
 
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
 
@@ -342,6 +343,9 @@ var templateCommon = `
   owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
   owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/common/**           wl,
 
+  owner @{HOME}/Snap/@{SNAP_INSTANCE_NAME}/                          r,
+  owner @{HOME}/Snap/@{SNAP_INSTANCE_NAME}/**                        mrkixwl,
+
   # Writable home area for this version.
   # bind mount *not* used here (see 'parallel installs', above)
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
@@ -463,6 +467,9 @@ var templateCommon = `
   /run/lock/ r,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
+
+
+  ###DEVMODE_SNAP_CONFINE###
 `
 
 var templateFooter = `
@@ -554,7 +561,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/kill ixr,
   /{,usr/}bin/ldd ixr,
   /{usr/,}lib{,32,64}/ld{,32,64}-*.so ix,
-  /{usr/,}lib/@{multiarch}/ld{,32,64}-*.so ix,
+  /{usr/,}lib/@{multiarch}/ld{,32,64}-*.so* ix,
   /{,usr/}bin/less{,file,pipe} ixr,
   /{,usr/}bin/ln ixr,
   /{,usr/}bin/line ixr,
@@ -571,6 +578,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/mv ixr,
   /{,usr/}bin/nice ixr,
   /{,usr/}bin/nohup ixr,
+  /{,usr/}bin/numfmt ixr,
   /{,usr/}bin/od ixr,
   /{,usr/}bin/openssl ixr, # may cause harmless capability block_suspend denial
   /{,usr/}bin/paste ixr,

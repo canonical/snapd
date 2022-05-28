@@ -227,7 +227,7 @@ version: 1
 	c.Check(err, IsNil)
 	s.st.Unlock()
 
-	// sanity check
+	// validity check
 	var gating map[string]map[string]interface{}
 	s.st.Lock()
 	snapsHold := s.st.Get("snaps-hold", &gating)

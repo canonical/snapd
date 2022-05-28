@@ -42,7 +42,6 @@ prepare: |
         exit 0
     fi
 
-    mkdir -p "$BUILD_DIR"
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
@@ -55,8 +54,9 @@ prepare: |
     snap ack "$TESTSLIB/assertions/developer1.account-key"
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
-
     setup_fake_store "$BLOB_DIR"
+
+    mkdir -p "$BUILD_DIR"
 
 restore: |
     if [ "$TARGET_SNAP" = "kernel" ] && os.query is-arm; then
@@ -71,6 +71,7 @@ restore: |
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     teardown_fake_store "$BLOB_DIR"
+
     rm -rf "$BUILD_DIR"
 
 debug: |
@@ -111,8 +112,6 @@ execute: |
         exit 0
     fi
 
-    #shellcheck source=tests/lib/names.sh
-    . "$TESTSLIB"/names.sh
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     #shellcheck source=tests/lib/store.sh

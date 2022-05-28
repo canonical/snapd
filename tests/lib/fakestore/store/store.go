@@ -178,6 +178,7 @@ type essentialInfo struct {
 	Digest      string
 	Confinement string
 	Type        string
+	Base        string
 }
 
 var errInfo = errors.New("cannot get info")
@@ -235,6 +236,7 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 		Size:        size,
 		Confinement: string(info.Confinement),
 		Type:        string(info.Type()),
+		Base:        info.Base,
 	}, nil
 }
 
@@ -251,6 +253,7 @@ type detailsReplyJSON struct {
 	DownloadDigest  string   `json:"download_sha3_384"`
 	Confinement     string   `json:"confinement"`
 	Type            string   `json:"type"`
+	Base            string   `json:"base,omitempty"`
 }
 
 func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -380,6 +383,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		DownloadDigest:  hexify(essInfo.Digest),
 		Confinement:     essInfo.Confinement,
 		Type:            essInfo.Type,
+		Base:            essInfo.Base,
 	}
 
 	// use indent because this is a development tool, output
@@ -490,7 +494,6 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 
 	// check if we have downloadable snap of the given SnapID
 	for _, pkg := range pkgs.CandidateSnaps {
-
 		name := snapIDtoName[pkg.SnapID]
 		if name == "" {
 			http.Error(w, fmt.Sprintf("unknown snap-id: %q", pkg.SnapID), 400)
@@ -519,6 +522,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				DownloadDigest:  hexify(essInfo.Digest),
 				Confinement:     essInfo.Confinement,
 				Type:            essInfo.Type,
+				Base:            essInfo.Base,
 			})
 		}
 	}
@@ -604,6 +608,7 @@ type snapActionResultList struct {
 
 type detailsResultV2 struct {
 	Architectures []string `json:"architectures"`
+	Base          string   `json:"base,omitempty"`
 	SnapID        string   `json:"snap-id"`
 	Name          string   `json:"name"`
 	Publisher     struct {
@@ -702,6 +707,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 					Revision:      essInfo.Revision,
 					Confinement:   essInfo.Confinement,
 					Type:          essInfo.Type,
+					Base:          essInfo.Base,
 				},
 			}
 			res.Snap.Publisher.ID = essInfo.DeveloperID

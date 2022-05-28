@@ -22,3 +22,8 @@ package osutil
 func MockMountInfo(content string) (restore func()) {
 	panic("MockMountInfo not implemented on darwin")
 }
+
+// LoadMountInfo is not implemented on darwin
+func LoadMountInfo() ([]*MountInfoEntry, error) {
+	return nil, ErrDarwin
+}

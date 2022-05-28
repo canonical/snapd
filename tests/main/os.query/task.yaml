@@ -1,5 +1,7 @@
 summary: smoke test for the system-state tool
 
+backends: [google, qemu]
+
 execute: |
     # Check help
     os.query | MATCH "usage: os.query is-core, is-classic"
@@ -25,6 +27,14 @@ execute: |
         ubuntu-core-20-*)
             os.query is-core
             os.query is-core20
+            not os.query is-core18
+            not os.query is-classic
+            os.query is-ubuntu
+            ;;
+        ubuntu-core-22-*)
+            os.query is-core
+            os.query is-core22
+            not os.query is-core20
             not os.query is-core18
             not os.query is-classic
             os.query is-ubuntu

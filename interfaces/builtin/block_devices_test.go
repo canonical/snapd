@@ -85,7 +85,7 @@ func (s *blockDevicesInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# Description: Allow write access to raw disk block devices.`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/sd{,[a-h]}[a-z] rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/sd{,[a-h]}[a-z] rwk,`)
 }
 
 func (s *blockDevicesInterfaceSuite) TestUDevSpec(c *C) {

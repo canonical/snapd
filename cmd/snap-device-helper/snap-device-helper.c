@@ -144,7 +144,7 @@ static char *udev_to_security_tag(const char *udev_tag) {
 }
 
 /* sysroot can be mocked in tests */
-const char *sysroot = "/";
+static const char *sysroot = "/";
 
 int snap_device_helper_run(const struct sdh_invocation *inv) {
     const char *action = inv->action;

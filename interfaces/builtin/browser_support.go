@@ -279,7 +279,7 @@ dbus (send)
     bus=system
     path=/org/freedesktop/RealtimeKit1
     interface=org.freedesktop.RealtimeKit1
-    member=MakeThread{HighPriority,Realtime}
+    member=MakeThread{HighPriority,Realtime,RealtimeWithPID}
     peer=(name=org.freedesktop.RealtimeKit1, label=unconfined),
 `
 

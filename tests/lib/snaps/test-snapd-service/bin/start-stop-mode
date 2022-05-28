@@ -43,7 +43,7 @@ def main() -> None:
         nonlocal loop
         loop = False
 
-    for signum in signal.SIGUSR1, signal.SIGUSR2, signal.SIGHUP:
+    for signum in signal.SIGUSR1, signal.SIGUSR2, signal.SIGHUP, signal.SIGINT:
         signal.signal(signum, on_signal)
 
     # Tell systemd that we are considered ready now or touch a file in

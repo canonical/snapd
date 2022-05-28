@@ -7,7 +7,7 @@ prepare: |
 execute: |
     echo "Setting up initial configuration"
     snap set basic-hooks foo=abc bar=def baz=1234
-    # sanity check
+    # precondition check
     snap get basic-hooks foo bar baz
 
     echo "Unsetting unknown option currently doesn't give an error"
@@ -17,7 +17,7 @@ execute: |
     snap unset basic-hooks foo
     snap get basic-hooks foo 2>&1 | MATCH 'snap "basic-hooks" has no "foo" configuration option'
 
-    # sanity check, two options still available
+    # precondition check, two options still available
     snap get basic-hooks bar baz
 
     echo "Unsetting multiple options"

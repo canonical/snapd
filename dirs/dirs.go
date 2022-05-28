@@ -33,6 +33,8 @@ import (
 var (
 	GlobalRootDir string
 
+	RunDir string
+
 	SnapMountDir string
 
 	DistroLibExecDir string
@@ -53,7 +55,6 @@ var (
 	SnapKModModulesDir        string
 	SnapKModModprobeDir       string
 	LocaleDir                 string
-	SnapMetaDir               string
 	SnapdSocket               string
 	SnapSocket                string
 	SnapRunDir                string
@@ -145,11 +146,15 @@ const (
 	CoreLibExecDir   = "/usr/lib/snapd"
 	CoreSnapMountDir = "/snap"
 
-	// Directory with snap data inside user's home
+	// UserHomeSnapDir is the directory with snap data inside user's home
 	UserHomeSnapDir = "snap"
 
 	// HiddenSnapDataHomeDir is an experimental hidden directory for snap data
 	HiddenSnapDataHomeDir = ".snap/data"
+
+	// ExposedSnapHomeDir is the directory where snaps should place user-facing
+	// data after ~/snap has been migrated to ~/.snap
+	ExposedSnapHomeDir = "Snap"
 
 	// LocalInstallBlobTempPrefix is used by local install code:
 	// * in daemon to spool the snap file to <SnapBlobDir>/<LocalInstallBlobTempPrefix>*
@@ -165,8 +170,14 @@ var (
 )
 
 type SnapDirOptions struct {
-	// HiddenSnapDataDir determines if the snaps' data is in ~/.snap/data instead of ~/snap
+	// HiddenSnapDataDir determines if the snaps' data is in ~/.snap/data instead
+	// of ~/snap
 	HiddenSnapDataDir bool
+
+	// MigratedToExposedHome determines if the snap's directory in ~/Snap has been
+	// initialized with the contents of the snap's previous home (i.e., the
+	// revisioned data directory).
+	MigratedToExposedHome bool
 }
 
 func init() {
@@ -351,7 +362,6 @@ func SetRootDir(rootdir string) {
 	SnapSeccompBase = filepath.Join(rootdir, snappyDir, "seccomp")
 	SnapSeccompDir = filepath.Join(SnapSeccompBase, "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
-	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapdMaintenanceFile = filepath.Join(rootdir, snappyDir, "maintenance.json")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
 	SnapVoidDir = filepath.Join(rootdir, snappyDir, "void")
@@ -360,6 +370,7 @@ func SetRootDir(rootdir string) {
 	// freedesktop.org specifications
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	SnapDesktopIconsDir = filepath.Join(rootdir, snappyDir, "desktop", "icons")
+	RunDir = filepath.Join(rootdir, "/run")
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")

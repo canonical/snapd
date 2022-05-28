@@ -20,6 +20,7 @@
 package state_test
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -722,5 +723,352 @@ func (ts *taskRunnerSuite) TestAbortLanes(c *C) {
 		}
 
 		c.Assert(strings.Join(obtained, " "), Equals, strings.Join(expected, " "), Commentf("setup: %s", test.setup))
+	}
+}
+
+//
+// setup and result lines are <task>:<status>[:<lane>,...]
+// order is <task1>-><task2> (implies task2 waits for task 1)
+// "*" as task name means "all remaining".
+//
+var abortUnreadyLanesTests = []struct {
+	setup  string
+	order  string
+	result string
+}{
+
+	// Some basics.
+	{
+		setup:  "*:do",
+		result: "*:hold",
+	}, {
+		setup:  "*:done",
+		result: "*:done",
+	}, {
+		setup:  "*:error",
+		result: "*:error",
+	},
+
+	// t11 (1) => t12 (1) => t21 (1) => t22 (1)
+	// t31 (2) => t32 (2) => t41 (2) => t42 (2)
+	{
+		setup:  "t11:do:1 t12:do:1 t21:do:1 t22:do:1 t31:do:2 t32:do:2 t41:do:2 t42:do:2",
+		order:  "t11->t12 t12->t21 t21->t22 t31->t32 t32->t41 t41->t42",
+		result: "*:hold",
+	}, {
+		setup:  "t11:done:1 t12:done:1 t21:done:1 t22:done:1 t31:do:2 t32:do:2 t41:do:2 t42:do:2",
+		order:  "t11->t12 t12->t21 t21->t22 t31->t32 t32->t41 t41->t42",
+		result: "t11:done t12:done t21:done t22:done t31:hold t32:hold t41:hold t42:hold",
+	}, {
+		setup:  "t11:done:1 t12:done:1 t21:done:1 t22:done:1 t31:done:2 t32:done:2 t41:done:2 t42:do:2",
+		order:  "t11->t12 t12->t21 t21->t22 t31->t32 t32->t41 t41->t42",
+		result: "t11:done t12:done t21:done t22:done t31:undo t32:undo t41:undo t42:hold",
+	},
+	//                          => t21 (2) => t22 (2)
+	//                        /                       \
+	// t11 (2,3) => t12 (2,3)                           => t41 (4) => t42 (4)
+	//                        \                       /
+	//                          => t31 (3) => t32 (3)
+	{
+		setup:  "t11:do:2,3 t12:do:2,3 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		order:  "t11->t12 t12->t21 t12->t31 t21->t22 t31->t32 t22->t41 t32->t41 t41->t42",
+		result: "*:hold",
+	}, {
+		setup: "t11:done:2,3 t12:done:2,3 t21:done:2 t22:done:2 t31:doing:3 t32:do:3 t41:do:4 t42:do:4",
+		order: "t11->t12 t12->t21 t12->t31 t21->t22 t31->t32 t22->t41 t32->t41 t41->t42",
+		// lane 2 is fully complete so it does not get aborted
+		result: "t11:done t12:done t21:done t22:done t31:abort t32:hold t41:hold t42:hold *:undo",
+	}, {
+		setup:  "t11:done:2,3 t12:done:2,3 t21:doing:2 t22:do:2 t31:doing:3 t32:do:3 t41:do:4 t42:do:4",
+		order:  "t11->t12 t12->t21 t12->t31 t21->t22 t31->t32 t22->t41 t32->t41 t41->t42",
+		result: "t21:abort t22:hold t31:abort t32:hold t41:hold t42:hold *:undo",
+	},
+
+	// t11 (1) => t12 (1)
+	// t21 (2) => t22 (2)
+	// t31 (3) => t32 (3)
+	// t41 (4) => t42 (4)
+	{
+		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		order:  "t11->t12 t21->t22 t31->t32 t41->t42",
+		result: "*:hold",
+	}, {
+		setup:  "t11:do:1 t12:do:1 t21:doing:2 t22:do:2 t31:done:3 t32:doing:3 t41:undone:4 t42:error:4",
+		order:  "t11->t12 t21->t22 t31->t32 t41->t42",
+		result: "t11:hold t12:hold t21:abort t22:hold t31:undo t32:abort t41:undone t42:error",
+	},
+	// auto refresh like arrangement
+	//
+	//                                                  (apps)
+	//                                            => t31 (3) => t32 (3)
+	//     (snapd)               (base)         /
+	// t11 (1) => t12 (1) => t21 (2) => t22 (2)
+	//                                          \
+	//                                            => t41 (4) => t42 (4)
+	{
+		setup:  "t11:done:1 t12:done:1 t21:done:2 t22:done:2 t31:doing:3 t32:do:3 t41:do:4 t42:do:4",
+		order:  "t11->t12 t12->t21 t21->t22 t22->t31 t22->t41 t31->t32 t41->t42",
+		result: "t11:done t12:done t21:done t22:done t31:abort *:hold",
+	}, {
+		//
+		setup:  "t11:done:1 t12:done:1 t21:done:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		order:  "t11->t12 t12->t21 t21->t22 t22->t31 t22->t41 t31->t32 t41->t42",
+		result: "t11:done t12:done t21:undo *:hold",
+	},
+	// arrangement with a cyclic dependency between tasks
+	//
+	//                        /-----------------------------------------\
+	//                        |                                         |
+	//                        |                   => t31 (3) => t32 (3) /
+	//     (snapd)            v  (base)         /
+	// t11 (1) => t12 (1) => t21 (2) => t22 (2)
+	//                                          \
+	//                                            => t41 (4) => t42 (4)
+	{
+		setup:  "t11:done:1 t12:done:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		order:  "t11->t12 t12->t21 t21->t22 t22->t31 t22->t41 t31->t32 t41->t42 t32->t21",
+		result: "t11:done t12:done *:hold",
+	},
+}
+
+func (ts *taskRunnerSuite) TestAbortUnreadyLanes(c *C) {
+
+	names := strings.Fields("t11 t12 t21 t22 t31 t32 t41 t42")
+
+	for i, test := range abortUnreadyLanesTests {
+		sb := &stateBackend{}
+		st := state.New(sb)
+		r := state.NewTaskRunner(st)
+		defer r.Stop()
+
+		st.Lock()
+		defer st.Unlock()
+
+		c.Assert(len(st.Tasks()), Equals, 0)
+
+		chg := st.NewChange("install", "...")
+		tasks := make(map[string]*state.Task)
+		for _, name := range names {
+			tasks[name] = st.NewTask("do", name)
+			chg.AddTask(tasks[name])
+		}
+
+		c.Logf("----- %v", i)
+		c.Logf("Testing setup: %s", test.setup)
+
+		for _, wp := range strings.Fields(test.order) {
+			pair := strings.Split(wp, "->")
+			c.Assert(pair, HasLen, 2)
+			// task 2 waits for task 1 is denoted as:
+			// task1->task2
+			tasks[pair[1]].WaitFor(tasks[pair[0]])
+		}
+
+		statuses := make(map[string]state.Status)
+		for s := state.DefaultStatus; s <= state.ErrorStatus; s++ {
+			statuses[strings.ToLower(s.String())] = s
+		}
+
+		items := strings.Fields(test.setup)
+		seen := make(map[string]bool)
+		for i := 0; i < len(items); i++ {
+			item := items[i]
+			parts := strings.Split(item, ":")
+			if parts[0] == "*" {
+				c.Assert(i, Equals, len(items)-1, Commentf("*: can only be used as the last entry"))
+				for _, name := range names {
+					if !seen[name] {
+						parts[0] = name
+						items = append(items, strings.Join(parts, ":"))
+					}
+				}
+				continue
+			}
+			seen[parts[0]] = true
+			task := tasks[parts[0]]
+			task.SetStatus(statuses[parts[1]])
+			if len(parts) > 2 {
+				lanes := strings.Split(parts[2], ",")
+				for _, lane := range lanes {
+					n, err := strconv.Atoi(lane)
+					c.Assert(err, IsNil)
+					task.JoinLane(n)
+				}
+			}
+		}
+
+		c.Logf("Aborting")
+
+		chg.AbortUnreadyLanes()
+
+		c.Logf("Expected result: %s", test.result)
+
+		seen = make(map[string]bool)
+		var expected = strings.Fields(test.result)
+		var obtained []string
+		for i := 0; i < len(expected); i++ {
+			item := expected[i]
+			parts := strings.Split(item, ":")
+			if parts[0] == "*" {
+				c.Assert(i, Equals, len(expected)-1, Commentf("*: can only be used as the last entry"))
+				var expanded []string
+				for _, name := range names {
+					if !seen[name] {
+						parts[0] = name
+						expanded = append(expanded, strings.Join(parts, ":"))
+					}
+				}
+				expected = append(expected[:i], append(expanded, expected[i+1:]...)...)
+				i--
+				continue
+			}
+			name := parts[0]
+			seen[parts[0]] = true
+			obtained = append(obtained, name+":"+strings.ToLower(tasks[name].Status().String()))
+		}
+
+		c.Assert(strings.Join(obtained, " "), Equals, strings.Join(expected, " "), Commentf("setup: %s", test.setup))
+	}
+}
+
+// setup is a list of tasks "<task1> <task2>", order is <task1>-><task2>
+// (implies task2 waits for task 1)
+var cyclicDependencyTests = []struct {
+	setup  string
+	order  string
+	err    string
+	errIDs []string
+}{
+
+	// Some basics.
+	{
+		setup: "t1",
+	}, {
+		setup: "",
+	}, {
+		// independent tasks
+		setup: "t1 t2 t3",
+	}, {
+		// some independent and some ordered tasks
+		setup: "t1 t2 t3 t4",
+		order: "t2->t3",
+	},
+	// some independent, dependencies as if added by WaitAll()
+	// t1 => t2
+	// t1,t2 => t3
+	// t1,t2,t3 => t4
+	{
+		setup: "t1 t2 t3 t4",
+		order: "t1->t2 t1->t3 t2->t3 t1->t4 t2->t4 t3->t4",
+	}, {
+		// simple loop
+		setup:  "t1 t2",
+		order:  "t1->t2 t2->t1",
+		err:    `dependency cycle involving tasks \[1:t1 2:t2\]`,
+		errIDs: []string{"1", "2"},
+	},
+
+	// t1 => t2 => t3 => t4
+	// t5 => t6 => t7 => t8
+	{
+		setup: "t1 t2 t3 t4 t5 t6 t7 t8",
+		order: "t1->t2 t2->t3 t3->t4 t5->t6 t6->t7 t7->t8",
+	},
+	//               => t21 => t22
+	//             /               \
+	// t11 => t12                    => t41 => t42
+	//             \               /
+	//               => t31 => t32
+	{
+		setup: "t11 t12 t21 t22 t31 t32 t41 t42",
+		order: "t11->t12 t12->t21 t12->t31 t21->t22 t31->t32 t22->t41 t32->t41 t41->t42",
+	},
+	// t11 (1) => t12 (1)
+	// t21 (2) => t22 (2)
+	// t31 (3) => t32 (3)
+	// t41 (4) => t42 (4)
+	{
+		setup: "t11 t12 t21 t22 t31 t32 t41 t42",
+		order: "t11->t12 t21->t22 t31->t32 t41->t42",
+	},
+	// auto refresh like arrangement
+	//
+	//                                                  (apps)
+	//                                            => t31 (3) => t32 (3)
+	//     (snapd)               (base)         /
+	// t11 (1) => t12 (1) => t21 (2) => t22 (2)
+	//                                          \
+	//                                            => t41 (4) => t42 (4)
+	{
+		setup: "t11 t12 t21 t22 t31 t32 t41 t42",
+		order: "t11->t12 t12->t21 t21->t22 t22->t31 t22->t41 t31->t32 t41->t42",
+	},
+	// arrangement with a cyclic dependency between tasks
+	//
+	//                        /-----------------------------------------\
+	//                        |                                         |
+	//                        |                   => t31 (3) => t32 (3) /
+	//     (snapd)            v  (base)         /
+	// t11 (1) => t12 (1) => t21 (2) => t22 (2)
+	//                                          \
+	//                                            => t41 (4) => t42 (4)
+	{
+		setup:  "t11 t12 t21 t22 t31 t32 t41 t42",
+		order:  "t11->t12 t12->t21 t21->t22 t22->t31 t22->t41 t31->t32 t41->t42 t32->t21",
+		err:    `dependency cycle involving tasks \[3:t21 4:t22 5:t31 6:t32 7:t41 8:t42\]`,
+		errIDs: []string{"3", "4", "5", "6", "7", "8"},
+	},
+	// t1 => t2 => t3 => t4 --> t6
+	// t5 => t6 => t7 => t8 --> t2
+	{
+		setup:  "t1 t2 t3 t4 t5 t6 t7 t8",
+		order:  "t1->t2 t2->t3 t3->t4 t4->t6 t5->t6 t6->t7 t7->t8 t8->t2",
+		err:    `dependency cycle involving tasks \[2:t2 3:t3 4:t4 6:t6 7:t7 8:t8\]`,
+		errIDs: []string{"2", "3", "4", "6", "7", "8"},
+	},
+}
+
+func (ts *taskRunnerSuite) TestCheckTaskDependencies(c *C) {
+
+	for i, test := range cyclicDependencyTests {
+		names := strings.Fields(test.setup)
+		sb := &stateBackend{}
+		st := state.New(sb)
+		r := state.NewTaskRunner(st)
+		defer r.Stop()
+
+		st.Lock()
+		defer st.Unlock()
+
+		c.Assert(len(st.Tasks()), Equals, 0)
+
+		chg := st.NewChange("install", "...")
+		tasks := make(map[string]*state.Task)
+		for _, name := range names {
+			tasks[name] = st.NewTask(name, name)
+			chg.AddTask(tasks[name])
+		}
+
+		c.Logf("----- %v", i)
+		c.Logf("Testing setup: %s", test.setup)
+
+		for _, wp := range strings.Fields(test.order) {
+			pair := strings.Split(wp, "->")
+			c.Assert(pair, HasLen, 2)
+			// task 2 waits for task 1 is denoted as:
+			// task1->task2
+			tasks[pair[1]].WaitFor(tasks[pair[0]])
+		}
+
+		err := chg.CheckTaskDependencies()
+
+		if test.err != "" {
+			c.Assert(err, ErrorMatches, test.err)
+			c.Assert(errors.Is(err, &state.TaskDependencyCycleError{}), Equals, true)
+			errTasksDepCycle := err.(*state.TaskDependencyCycleError)
+			c.Assert(errTasksDepCycle.IDs, DeepEquals, test.errIDs)
+		} else {
+			c.Assert(err, IsNil)
+		}
 	}
 }

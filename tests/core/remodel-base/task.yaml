@@ -12,15 +12,26 @@ prepare: |
     . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
-    systemctl stop snapd.service snapd.socket
 
-    clean_snapd_lib
-    prepare_core_model
-    prepare_test_account valid-for-testing
-    prepare_test_model valid-for-testing-pc
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        REBOOT_NEEDED=false
+        if os.query is-core18 && snap list snapd | NOMATCH ' x1 '; then
+            REBOOT_NEEDED=true
+        fi
+        systemctl stop snapd.service snapd.socket
 
-    # kick first boot again
-    systemctl start snapd.service snapd.socket
+        clean_snapd_lib
+        prepare_core_model
+        prepare_test_account valid-for-testing
+        prepare_test_model valid-for-testing-pc
+
+        # kick first boot again
+        systemctl start snapd.service snapd.socket
+
+        if [ "$REBOOT_NEEDED" = true ] && "$TESTSTOOLS"/journal-state match-log -n 30 "Waiting for system reboot"; then
+            REBOOT
+        fi
+    fi
 
     # wait for first boot to be done
     wait_for_first_boot_change
@@ -34,6 +45,11 @@ restore: |
     . "$TESTSLIB"/systemd.sh
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
+        REBOOT_NEEDED=false
+        if os.query is-core18 && snap list snapd | NOMATCH ' x1 '; then
+            REBOOT_NEEDED=true
+        fi
+
         systemctl stop snapd.service snapd.socket
 
         clean_snapd_lib
@@ -44,14 +60,9 @@ restore: |
         # kick first boot again
         systemctl start snapd.service snapd.socket
 
-        echo "reboot when the system is ready"
-        for _ in $(seq 30); do
-            if "$TESTSTOOLS"/journal-state match-log "Waiting for system reboot"; then
-                 break
-            fi
-            sleep 1
-        done
-        REBOOT
+        if [ "$REBOOT_NEEDED" = true ] && "$TESTSTOOLS"/journal-state match-log -n 30 "Waiting for system reboot"; then
+            REBOOT
+        fi
     fi
 
     # wait for first boot to be done
@@ -87,7 +98,7 @@ execute: |
     }
     # initial boot with the current model 
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        # sanity check
+        # precondition check
         snap list "$OLD_BASE"
 
         echo "We have the right model assertion"
