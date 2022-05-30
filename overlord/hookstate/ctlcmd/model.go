@@ -164,6 +164,8 @@ func (c *modelCommand) checkGadgetOrModel(st *state.State, deviceCtx snapstate.D
 	return fmt.Errorf("insufficient permissions to get model assertion for snap %q", snapInfo.SnapName())
 }
 
+// findSerialAssertion is a helper function to find the newest matching serial assertion
+// for the provided model assertion.
 func findSerialAssertion(st *state.State, modelAssertion *asserts.Model) *asserts.Serial {
 	assertions, err := assertstate.DB(st).FindMany(asserts.SerialType, map[string]string{
 		"brand-id": modelAssertion.BrandID(),
@@ -173,22 +175,29 @@ func findSerialAssertion(st *state.State, modelAssertion *asserts.Model) *assert
 		return nil
 	}
 
-	sort.Slice(assertions, func(i, j int) bool {
-		// get timestamps from the assertion
-		iTimeString := assertions[i].HeaderString("timestamp")
-		jTimeString := assertions[j].HeaderString("timestamp")
+	// helper to parse the timestamp embedded in the assertion, if
+	// anything goes wrong parsing this we return an empty timestamp
+	// to only use it in case there is no other serial assertion with
+	// a valid timetamp
+	getAssertionTime := func(a asserts.Assertion) time.Time {
+		iTimestamp := a.HeaderString("timestamp")
 
-		t1, err := time.Parse(time.RFC3339, iTimeString)
+		// for assertions the timestamp is always RFC3339
+		t1, err := time.Parse(time.RFC3339, iTimestamp)
 		if err != nil {
-			return false
+			return time.Time{}
 		}
-		t2, err := time.Parse(time.RFC3339, jTimeString)
-		if err != nil {
-			return false
-		}
+		return t1
+	}
+
+	sort.Slice(assertions, func(i, j int) bool {
+		t1 := getAssertionTime(assertions[i])
+		t2 := getAssertionTime(assertions[j])
 		return t1.Before(t2)
 	})
-	serial := assertions[0].(*asserts.Serial)
+
+	// sort.Slice sorts in ascending order, so the last assertion is the newest
+	serial := assertions[len(assertions)-1].(*asserts.Serial)
 	return serial
 }
 
