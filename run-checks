@@ -313,8 +313,9 @@ if [ "$STATIC" = 1 ]; then
         ./tests/lib/external/snapd-testing-tools/utils/check-test-format ./tests
     fi
 
+    # To ignore this check, add a '// nocheck=' to the end of the line
     echo "Checking for usages of !=, == or Equals with ErrNoState"
-    if got=$(grep -n -R -E "(\!=|==|Equals,) (state\.)?ErrNoState" --include=*.go) ; then
+    if got=$(grep -n -R -E "(\!=|==|Equals,) (state\.)?ErrNoState" --include=*.go | grep -v "//\s*nocheck=") ; then
       echo "Don't use equality checks with ErrNoState, use errors.Is() instead"
       echo "$got"
       exit 1
