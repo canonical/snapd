@@ -23,6 +23,10 @@ import (
 	kmod_wrapper "github.com/snapcore/snapd/osutil/kmod"
 )
 
+var (
+	kmodLoadModule = kmod_wrapper.LoadModule
+)
+
 // loadModules loads given list of modules via modprobe.
 // Since different kernels may not have the requested module, we treat any
 // error from modprobe as non-fatal and subsequent module loads are attempted
@@ -34,6 +38,6 @@ func (b *Backend) loadModules(modules []string) {
 	}
 	for _, mod := range modules {
 		// ignore errors which are logged by loadModule() via syslog
-		_ = kmod_wrapper.LoadModule(mod, []string{})
+		_ = kmodLoadModule(mod, []string{})
 	}
 }
