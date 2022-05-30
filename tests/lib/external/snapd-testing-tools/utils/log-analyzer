@@ -119,6 +119,7 @@ _intersection_tasks_lists() {
 
 list_all_tasks() {
     local exec_exp="$1"
+    exec_exp="$(echo $exec_exp | tr ',' ' ')"
     if ! command -v spread >/dev/null; then
         echo "log.analyzer: spread tool is not installed, exiting..."
         exit 1
@@ -154,7 +155,8 @@ list_failed_tasks() {
     if [ -z "$exec_exp" ]; then
         echo "log.analyzer: execution expression for spread cannot be empty"
         exit 1
-    fi 
+    fi
+    exec_exp="$(echo $exec_exp | tr ',' ' ')"
     _check_log "$log"
 
     local all_tasks failed_tasks
@@ -170,7 +172,8 @@ list_reexecute_tasks() {
     if [ -z "$exec_exp" ]; then
         echo "log.analyzer: execution expression for spread cannot be empty"
         exit 1
-    fi 
+    fi
+    exec_exp="$(echo $exec_exp | tr ',' ' ')"
     _check_log "$log"
 
     local aborted_tasks exec_and_failed_tasks all_tasks reexec_tasks
@@ -203,6 +206,7 @@ list_successful_tasks() {
         echo "log.analyzer: execution expression for spread cannot be empty"
         exit 1
     fi
+    exec_exp="$(echo $exec_exp | tr ',' ' ')"
     _check_log "$log"
 
     local all_tasks executed_tasks failed_tasks_restore failed_tasks
@@ -230,7 +234,8 @@ list_executed_tasks() {
     if [ -z "$exec_exp" ]; then
         echo "log.analyzer: execution expression for spread cannot be empty"
         exit 1
-    fi 
+    fi
+    exec_exp="$(echo $exec_exp | tr ',' ' ')"
     _check_log "$log"
 
     local all_tasks executed_tasks
@@ -246,7 +251,8 @@ list_aborted_tasks() {
     if [ -z "$exec_exp" ]; then
         echo "log.analyzer: execution expression for spread cannot be empty"
         exit 1
-    fi 
+    fi
+    exec_exp="$(echo $exec_exp | tr ',' ' ')"
     _check_log "$log"
 
     local all_tasks executed_tasks failed_tasks_prepare failed_tasks_restore failed_tasks

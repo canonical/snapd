@@ -225,5 +225,7 @@ execute: |
 
     ### CHECK ALL ###
     count_tasks "$(log-analyzer list-all-tasks google:)" 10
+    count_tasks "$(log-analyzer list-all-tasks 'google:ubuntu-20.04-64: google:ubuntu-22.04-64:')" 10
+    count_tasks "$(log-analyzer list-all-tasks 'google:ubuntu-20.04-64:,google:ubuntu-22.04-64:')" 10
     count_tasks "$(log-analyzer list-all-tasks google:ubuntu-20.04-64:)" 5
     count_tasks "$(log-analyzer list-all-tasks google:ubuntu-22.04-64:)" 5
