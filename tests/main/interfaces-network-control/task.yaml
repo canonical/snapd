@@ -54,6 +54,9 @@ execute: |
     echo "Then the snap command can query network status information"
     network-control-consumer.cmd ss -lnt | MATCH "LISTEN.*:$PORT"
 
+    echo "And DNS information"
+    network-control-consumer.cmd resolvectl | MATCH "DNS Server"
+
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "When the plug is disconnected"
         snap disconnect network-control-consumer:network-control
