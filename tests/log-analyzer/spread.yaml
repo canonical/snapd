@@ -1,4 +1,10 @@
-project: log-analyzer-reexec
+project: log-analyzer
+
+details: |
+    This project is used to test the log analyzer tool. The project contains a
+    set of tests which are needed by the log analyzer to list all the tests which
+    have to be consider to be able to detect the tests which have been aborted and
+    are not listed in the results section.
 
 backends:
     google:
