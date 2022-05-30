@@ -8,7 +8,14 @@ show_help() {
     echo "       log-analyzer list-all-tasks <EXEC-PARAM>"
     echo "       log-analyzer list-reexecute-tasks <EXEC-PARAM> <PARSED-LOG>"
     echo ""
-    echo "Get general information about the current system"
+    echo "The log analyzer is an utility wchi provides useful information about a spread"
+    echo "execution. The main functionality of the analyzer utility is to determine which tests"
+    echo "have to be re-executed, being able to include the tests that have been aborted, even"
+    echo "when those tests are not included in the test results."
+    echo "The log analyzer uses as input the spread expression that was used to run the tests,"
+    echo "this expression determines which are all the tests to be considered. The second input"
+    echo "is the output of the log-parser utility, which generates a json file including all the"
+    echo "information extracted from the raw spread log"
     echo ""
     echo "Available options:"
     echo "  -h --help   show this help message."
@@ -297,5 +304,3 @@ main() {
 }
 
 main "$@"
-
-    

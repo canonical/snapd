@@ -45,7 +45,6 @@ OPERATIONS = [
     'Allocated', 'Connecting', 'Connected', 'Sending'
     ]
 RESULTS = ['Successful', 'Aborted', 'Failed']
-COMON_LEVEL = 'tasks'
 FAILED_LEVELS = ['task', 'suite', 'project']
 FAILED_STAGES = ['prepare', 'restore']
 
@@ -269,7 +268,7 @@ class LogReader:
             else:
                 prepared_log.append(item.__dict__())
         with open(filepath, 'w') as json_file:
-            json.dump(prepared_log, json_file)
+            json.dump(prepared_log, json_file, indent=4)
 
     def _next_line(self):
         self.iter = self.iter + 1
@@ -379,8 +378,8 @@ class LogReader:
         It returns a Detail object included all the lines.
         """
 
-        # If the first line matches with a regular line, this mean the detail
-        # has not output and has to be discarded
+        # If the first line matches with a regular line, this means the detail
+        # has no output and has to be discarded
         line = self.lines[self.iter]
         if self._match_task(line) or self._match_info(line) or \
             self._match_operation(line) or self._match_result(line):
@@ -400,6 +399,9 @@ class LogReader:
                 # The details for info (Error, Debug and Warning) always finish with
                 # ----
                 # .
+                #
+                # As the iter is already pointing to the next line since 'line = self._next_line()'
+                # to access the previous line of the current one it is needed to do 'self.iter-2'
                 elif self.lines[self.iter-2].strip() == '.':
                     break
 
