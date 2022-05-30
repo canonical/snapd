@@ -197,7 +197,6 @@ func generateJournaldConfFile(grp *quota.Group) []byte {
 	template := `# Journald configuration for snap quota group %[1]s
 [Journal]
 `
-
 	fmt.Fprintf(&buf, template, grp.Name)
 	fmt.Fprint(&buf, sizeOptions, rateOptions)
 	return buf.Bytes()
