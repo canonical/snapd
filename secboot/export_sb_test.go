@@ -42,11 +42,11 @@ func MockSbConnectToDefaultTPM(f func() (*sb_tpm2.Connection, error)) (restore f
 	}
 }
 
-func MockProvisionTPM(f func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, newLockoutAuth []byte) error) (restore func()) {
-	old := provisionTPM
-	provisionTPM = f
+func MockSbTPMEnsureProvisioned(f func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, newLockoutAuth []byte) error) (restore func()) {
+	old := sbTPMEnsureProvisioned
+	sbTPMEnsureProvisioned = f
 	return func() {
-		provisionTPM = old
+		sbTPMEnsureProvisioned = old
 	}
 }
 

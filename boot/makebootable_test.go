@@ -580,9 +580,17 @@ version: 5.0
 	})
 	defer restore()
 
+	provisionCalls := 0
+	restore = boot.MockSecbootProvisionTPM(func(lockoutAuthFile string) error {
+		provisionCalls++
+		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+		return nil
+	})
+	defer restore()
 	// set mock key sealing
 	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+		c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
 		sealKeysCalls++
 		switch sealKeysCalls {
 		case 1:
@@ -721,6 +729,8 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 	c.Check(copiedRecoveryGrubBin, testutil.FileEquals, "recovery grub content")
 	c.Check(copiedRecoveryShimBin, testutil.FileEquals, "recovery shim content")
 
+	// make sure TPM was provisioned
+	c.Check(provisionCalls, Equals, 1)
 	// make sure SealKey was called for the run object and the fallback object
 	c.Check(sealKeysCalls, Equals, 2)
 
@@ -923,6 +933,11 @@ version: 5.0
 	})
 	defer restore()
 
+	restore = boot.MockSecbootProvisionTPM(func(lockoutAuthFile string) error {
+		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+		return nil
+	})
+	defer restore()
 	// set mock key sealing
 	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
@@ -1090,6 +1105,11 @@ version: 5.0
 	})
 	defer restore()
 
+	restore = boot.MockSecbootProvisionTPM(func(lockoutAuthFile string) error {
+		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+		return nil
+	})
+	defer restore()
 	// set mock key sealing
 	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
