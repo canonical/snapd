@@ -305,7 +305,7 @@ func (s *modelSuite) TestHappyModelCommandSnapdControlPlug(c *C) {
 	s.state.Unlock()
 
 	// to make life easier for us, we mock the connected check
-	r := ctlcmd.MockInterfaceConnected(func(st *state.State, snapName, ifName string) bool {
+	r := ctlcmd.MockHasSnapdControlInterface(func(st *state.State, snapName string) bool {
 		return true
 	})
 	defer r()

@@ -62,7 +62,7 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 		return aboutSnap{}, fmt.Errorf("cannot read snap details: %v", err)
 	}
 
-	info.Publisher, err = assertstate.PublisherAccount(st, info.SnapID)
+	info.Publisher, err = assertstate.PublisherStoreAccount(st, info.SnapID)
 	if err != nil {
 		return aboutSnap{}, err
 	}
@@ -118,7 +118,7 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 					// clear the error
 					err = nil
 				}
-				info.Publisher, err = assertstate.PublisherAccount(st, seq.SnapID)
+				info.Publisher, err = assertstate.PublisherStoreAccount(st, seq.SnapID)
 				if err != nil && firstErr == nil {
 					firstErr = err
 				}
@@ -127,7 +127,7 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		} else {
 			info, err = snapst.CurrentInfo()
 			if err == nil {
-				info.Publisher, err = assertstate.PublisherAccount(st, info.SnapID)
+				info.Publisher, err = assertstate.PublisherStoreAccount(st, info.SnapID)
 				aboutThis = append(aboutThis, aboutSnap{info, snapst, health})
 			}
 		}

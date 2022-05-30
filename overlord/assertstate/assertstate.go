@@ -289,8 +289,8 @@ func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
 	return a.(*asserts.Account), nil
 }
 
-// PublisherAccount returns the store account information from the publisher assertion
-func PublisherAccount(st *state.State, snapID string) (snap.StoreAccount, error) {
+// PublisherStoreAccount returns the store account information from the publisher assertion.
+func PublisherStoreAccount(st *state.State, snapID string) (snap.StoreAccount, error) {
 	if snapID == "" {
 		return snap.StoreAccount{}, nil
 	}

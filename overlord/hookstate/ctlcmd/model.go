@@ -22,13 +22,17 @@ package ctlcmd
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -99,33 +103,23 @@ func (c *modelCommand) reportError(format string, a ...interface{}) {
 	w.Flush()
 }
 
-var interfaceConnected = func(st *state.State, snapName, ifName string) bool {
-	conns, err := ifacerepo.Get(st).Connected(snapName, ifName)
-	return err == nil && len(conns) > 0
-}
-
 // hasSnapdControl returns true if the requesting snap has the snapd-control plug
 // and only if it is connected as well.
-func hasSnapdControl(st *state.State, snapInfo *snap.Info) bool {
-	// Always get the current info even if the snap is currently
-	// being operated on or if its disabled.
-	if snapInfo.Broken != "" {
+var hasSnapdControlInterface = func(st *state.State, snapName string) bool {
+	conns, err := ifacestate.ConnectionStates(st)
+	if err != nil {
 		return false
 	}
-
-	// The snap must have a snap declaration (implies that
-	// its from the store)
-	if _, err := assertstate.SnapDeclaration(st, snapInfo.SideInfo.SnapID); err != nil {
-		return false
-	}
-
-	for _, plugInfo := range snapInfo.Plugs {
-		if plugInfo.Interface == "snapd-control" {
-			snapName := snapInfo.InstanceName()
-			plugName := plugInfo.Name
-			if interfaceConnected(st, snapName, plugName) {
-				return true
-			}
+	for refStr, connState := range conns {
+		if connState.Undesired || connState.Interface != "snapd-control" {
+			continue
+		}
+		connRef, err := interfaces.ParseConnRef(refStr)
+		if err != nil {
+			return false
+		}
+		if connRef.PlugRef.Snap == snapName {
+			return true
 		}
 	}
 	return false
@@ -144,7 +138,7 @@ func getSnapInfo(st *state.State, snapName string) (*snap.Info, error) {
 		return nil, err
 	}
 
-	snapInfo.Publisher, err = assertstate.PublisherAccount(st, snapInfo.SnapID)
+	snapInfo.Publisher, err = assertstate.PublisherStoreAccount(st, snapInfo.SnapID)
 	return snapInfo, err
 }
 
@@ -161,13 +155,41 @@ func (c *modelCommand) checkGadgetOrModel(st *state.State, deviceCtx snapstate.D
 	if snapInfo.Publisher.ID == deviceCtx.Model().BrandID() {
 		return nil
 	}
-	if hasSnapdControl(st, snapInfo) {
+	if hasSnapdControlInterface(st, snapInfo.SnapName()) {
 		return nil
 	}
 
 	c.reportError("cannot get model assertion for snap %q: not a gadget or from the same brand as the device model assertion\n",
 		snapInfo.SnapName())
 	return fmt.Errorf("insufficient permissions to get model assertion for snap %q", snapInfo.SnapName())
+}
+
+func findSerialAssertion(st *state.State, modelAssertion *asserts.Model) *asserts.Serial {
+	assertions, err := assertstate.DB(st).FindMany(asserts.SerialType, map[string]string{
+		"brand-id": modelAssertion.BrandID(),
+		"model":    modelAssertion.Model(),
+	})
+	if err != nil || len(assertions) == 0 {
+		return nil
+	}
+
+	sort.Slice(assertions, func(i, j int) bool {
+		// get timestamps from the assertion
+		iTimeString := assertions[i].HeaderString("timestamp")
+		jTimeString := assertions[j].HeaderString("timestamp")
+
+		t1, err := time.Parse(time.RFC3339, iTimeString)
+		if err != nil {
+			return false
+		}
+		t2, err := time.Parse(time.RFC3339, jTimeString)
+		if err != nil {
+			return false
+		}
+		return t1.Before(t2)
+	})
+	serial := assertions[0].(*asserts.Serial)
+	return serial
 }
 
 func (c *modelCommand) Execute([]string) error {
@@ -217,15 +239,16 @@ func (c *modelCommand) Execute([]string) error {
 		Assertion: c.Assertion,
 	}
 
+	serialAssertion := findSerialAssertion(st, deviceCtx.Model())
 	if c.Json {
-		if err := clientutil.PrintModelAssertionJSON(w, *deviceCtx.Model(), nil, opts); err != nil {
+		if err := clientutil.PrintModelAssertionJSON(w, *deviceCtx.Model(), serialAssertion, opts); err != nil {
 			return err
 		}
 	} else {
 		modelFormatter := modelCommandFormatter{
 			snapInfo: snapInfo,
 		}
-		if err := clientutil.PrintModelAssertion(w, *deviceCtx.Model(), nil, modelFormatter, opts); err != nil {
+		if err := clientutil.PrintModelAssertion(w, *deviceCtx.Model(), serialAssertion, modelFormatter, opts); err != nil {
 			return err
 		}
 	}
