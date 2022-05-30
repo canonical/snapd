@@ -63,9 +63,8 @@ var (
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
-	isTPMEnabled        = isTPMEnabledImpl
-	provisionTPM        = provisionTPMImpl
-	tpmReleaseResources = tpmReleaseResourcesImpl
+	isTPMEnabled = isTPMEnabledImpl
+	provisionTPM = provisionTPMImpl
 
 	// check whether the interfaces match
 	_ (sb.SnapModel) = ModelForSealing(nil)
@@ -285,17 +284,6 @@ func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile str
 	return UnlockedWithSealedKey, nil
 }
 
-func tpmReleaseResourcesImpl(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
-	rc, err := tpm.CreateResourceContextFromTPM(handle)
-	if err != nil {
-		return fmt.Errorf("cannot create resource context: %v", err)
-	}
-	if err := tpm.NVUndefineSpace(tpm.OwnerHandleContext(), rc, tpm.HmacSession()); err != nil {
-		return fmt.Errorf("cannot undefine space: %v", err)
-	}
-	return nil
-}
-
 // SealKeys provisions the TPM and seals the encryption keys according to the
 // specified parameters. If the TPM is already provisioned, or a sealed key already
 // exists, SealKeys will fail and return an error.
@@ -321,14 +309,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 
 	if params.TPMProvision {
 		// Provision the TPM as late as possible
-		existingLockoutAuth := params.TPMPartialReprovision
-		if err := tpmProvision(tpm, params.TPMLockoutAuthFile, existingLockoutAuth); err != nil {
-			return err
-		}
-	}
-	if params.TPMPartialReprovision {
-		logger.Debugf("releasing TPM NV resource with handle %v", params.PCRPolicyCounterHandle)
-		if err := tpmReleaseResources(tpm, tpm2.Handle(params.PCRPolicyCounterHandle)); err != nil {
+		if err := tpmProvision(tpm, params.TPMLockoutAuthFile); err != nil {
 			return err
 		}
 	}
@@ -491,16 +472,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 	return pcrProfile, nil
 }
 
-func tpmProvision(tpm *sb_tpm2.Connection, lockoutAuthFile string, existingLockoutAuth bool) error {
-	var currentLockoutAuth []byte
-	if existingLockoutAuth {
-		logger.Debugf("using existing lockout authorization")
-		d, err := ioutil.ReadFile(lockoutAuthFile)
-		if err != nil {
-			return fmt.Errorf("cannot read existing lockout auth: %v", err)
-		}
-		currentLockoutAuth = d
-	}
+func tpmProvision(tpm *sb_tpm2.Connection, lockoutAuthFile string) error {
 	// Create and save the lockout authorization file
 	lockoutAuth := make([]byte, 16)
 	// crypto rand is protected against short reads
@@ -515,20 +487,15 @@ func tpmProvision(tpm *sb_tpm2.Connection, lockoutAuthFile string, existingLocko
 	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
 	//            if the device has previously been provisioned, see
 	//            https://godoc.org/github.com/snapcore/secboot#RequestTPMClearUsingPPI
-	if err := provisionTPM(tpm, sb_tpm2.ProvisionModeFull, lockoutAuth, currentLockoutAuth); err != nil {
+	if err := provisionTPM(tpm, sb_tpm2.ProvisionModeFull, lockoutAuth); err != nil {
 		logger.Noticef("TPM provisioning error: %v", err)
 		return fmt.Errorf("cannot provision TPM: %v", err)
 	}
 	return nil
 }
 
-func provisionTPMImpl(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, newLockoutAuth []byte, currentLockoutAuth []byte) error {
-	if currentLockoutAuth != nil {
-		// use the current lockout authorization data to authorize
-		// provisioning
-		tpm.LockoutHandleContext().SetAuthValue(currentLockoutAuth)
-	}
-	return tpm.EnsureProvisioned(mode, newLockoutAuth)
+func provisionTPMImpl(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte) error {
+	return tpm.EnsureProvisioned(mode, lockoutAuth)
 }
 
 // buildLoadSequences builds EFI load image event trees from this package LoadChains
