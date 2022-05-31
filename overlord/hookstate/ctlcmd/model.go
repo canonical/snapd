@@ -95,7 +95,7 @@ func (mf modelCommandFormatter) LongPublisher(storeAccountID string) string {
 	return fmt.Sprintf("%s (%s%s)", storeAccount.DisplayName, storeAccount.Username, badge)
 }
 
-func newTabWriter(output io.Writer) *tabwriter.Writer {
+func (c *modelCommand) newTabWriter(output io.Writer) *tabwriter.Writer {
 	minWidth := 2
 	tabWidth := 2
 	padding := 2
@@ -105,7 +105,7 @@ func newTabWriter(output io.Writer) *tabwriter.Writer {
 
 // reportError prints the error message to stderr
 func (c *modelCommand) reportError(format string, a ...interface{}) {
-	w := newTabWriter(c.stderr)
+	w := c.newTabWriter(c.stderr)
 	fmt.Fprintf(w, format, a...)
 	w.Flush()
 }
@@ -134,7 +134,7 @@ var hasSnapdControlInterface = func(st *state.State, snapName string) (bool, err
 
 // getSnapInfo is a helper utility to read the snap.Info for the requesting snap
 // which also fills the publisher information.
-func getSnapInfo(st *state.State, snapName string) (*snap.Info, error) {
+func (c *modelCommand) getSnapInfo(st *state.State, snapName string) (*snap.Info, error) {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, snapName, &snapst); err != nil {
 		return nil, fmt.Errorf("failed to get snapstate for snap %s: %v", snapName, err)
@@ -149,8 +149,8 @@ func getSnapInfo(st *state.State, snapName string) (*snap.Info, error) {
 	return snapInfo, err
 }
 
-// checkPermissions verifies that the current snap context is allowed to read
-// the current model assertion.
+// checkPermissions verifies that the snap described by snapInfo is allowed to
+// read the model assertion of deviceCtx.
 // We allow the usage of this command if one of the following is true
 // 1. The requesting snap must be a gadget
 // 2. Come from the same brand as the device model assertion
@@ -163,7 +163,7 @@ func (c *modelCommand) checkPermissions(st *state.State, deviceCtx snapstate.Dev
 		return nil
 	}
 	if conn, err := hasSnapdControlInterface(st, snapInfo.SnapName()); err != nil {
-		return fmt.Errorf("internal error: %s", err)
+		return fmt.Errorf("cannot check for snapd-control interface: %v", err)
 	} else if conn {
 		return nil
 	}
@@ -203,11 +203,10 @@ func findSerialAssertion(st *state.State, modelAssertion *asserts.Model) (*asser
 	sort.Slice(assertions, func(i, j int) bool {
 		t1 := getAssertionTime(assertions[i])
 		t2 := getAssertionTime(assertions[j])
-		return t1.Before(t2)
+		// sort in descending order to get the newest first
+		return t2.Before(t1)
 	})
-
-	// sort.Slice sorts in ascending order, so the last assertion is the newest
-	serial := assertions[len(assertions)-1].(*asserts.Serial)
+	serial := assertions[0].(*asserts.Serial)
 	return serial, nil
 }
 
@@ -217,13 +216,13 @@ func (c *modelCommand) Execute([]string) error {
 		return err
 	}
 
-	// ignore the valid bool as we just pass the task whether it is
-	// nil or not.
-	task, _ := context.Task()
 	st := context.State()
 	st.Lock()
 	defer st.Unlock()
 
+	// ignore the valid bool as we just pass the task whether it is
+	// nil or not.
+	task, _ := context.Task()
 	deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
 	if err != nil {
 		return err
@@ -232,7 +231,7 @@ func (c *modelCommand) Execute([]string) error {
 	// We only return an error in case we could not the get the snap.Info
 	// structure, and 'ignore' any error that caused us not to get the store
 	// account publisher
-	snapInfo, err := getSnapInfo(st, context.InstanceName())
+	snapInfo, err := c.getSnapInfo(st, context.InstanceName())
 	if snapInfo == nil {
 		return err
 	}
@@ -242,7 +241,7 @@ func (c *modelCommand) Execute([]string) error {
 	}
 
 	// use the same tab-writer settings as the 'snap model' in cmd_list.go
-	w := newTabWriter(c.stdout)
+	w := c.newTabWriter(c.stdout)
 	defer w.Flush()
 
 	opts := clientutil.PrintModelAssertionOptions{

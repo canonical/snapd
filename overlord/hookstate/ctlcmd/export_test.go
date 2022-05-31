@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 const (
@@ -49,9 +50,9 @@ func MockDevicestateSystemModeInfoFromState(f func(*state.State) (*devicestate.S
 }
 
 func MockHasSnapdControlInterface(f func(st *state.State, snapName string) (bool, error)) (restore func()) {
-	old := hasSnapdControlInterface
+	r := testutil.Backup(&hasSnapdControlInterface)
 	hasSnapdControlInterface = f
-	return func() { hasSnapdControlInterface = old }
+	return r
 }
 
 func AddMockCommand(name string) *MockCommand {
