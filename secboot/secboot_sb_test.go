@@ -1911,3 +1911,46 @@ func (s *secbootSuite) TestPCRHandleOfSealedKey(c *C) {
 	// which unfortunately there are no examples of the secboot/tpm2 test
 	// code
 }
+
+func (s *secbootSuite) TestReleasePCRResourceHandles(c *C) {
+	_, restore := mockSbTPMConnection(c, fmt.Errorf("mock err"))
+	defer restore()
+
+	err := secboot.ReleasePCRResourceHandles(0x1234, 0x2345)
+	c.Assert(err, ErrorMatches, "cannot connect to TPM device: mock err")
+
+	conn, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	var handles []tpm2.Handle
+	restore = secboot.MockTPMReleaseResources(func(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
+		c.Check(tpm, Equals, conn)
+		handles = append(handles, handle)
+		if handle == tpm2.Handle(0xeeeeee) {
+			return fmt.Errorf("mock release error")
+		}
+		return nil
+	})
+	defer restore()
+
+	// many handles
+	err = secboot.ReleasePCRResourceHandles(0x1234, 0x2345)
+	c.Assert(err, IsNil)
+	c.Check(handles, DeepEquals, []tpm2.Handle{
+		tpm2.Handle(0x1234), tpm2.Handle(0x2345),
+	})
+
+	// single handle
+	handles = nil
+	err = secboot.ReleasePCRResourceHandles(0x1234)
+	c.Assert(err, IsNil)
+	c.Check(handles, DeepEquals, []tpm2.Handle{tpm2.Handle(0x1234)})
+
+	// an error case
+	handles = nil
+	err = secboot.ReleasePCRResourceHandles(0x1234, 0xeeeeee)
+	c.Assert(err, ErrorMatches, "cannot release TPM resources for handle 0xeeeeee: mock release error")
+	c.Check(handles, DeepEquals, []tpm2.Handle{
+		tpm2.Handle(0x1234), tpm2.Handle(0xeeeeee),
+	})
+}

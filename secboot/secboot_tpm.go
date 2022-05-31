@@ -63,8 +63,9 @@ var (
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
-	isTPMEnabled = isTPMEnabledImpl
-	provisionTPM = provisionTPMImpl
+	isTPMEnabled        = isTPMEnabledImpl
+	provisionTPM        = provisionTPMImpl
+	tpmReleaseResources = tpmReleaseResourcesImpl
 
 	// check whether the interfaces match
 	_ (sb.SnapModel) = ModelForSealing(nil)
@@ -573,4 +574,38 @@ func PCRHandleOfSealedKey(p string) (uint32, error) {
 	}
 	handle := uint32(sko.PCRPolicyCounterHandle())
 	return handle, nil
+}
+
+func tpmReleaseResourcesImpl(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
+	rc, err := tpm.CreateResourceContextFromTPM(handle)
+	if err != nil {
+		if _, ok := err.(tpm2.ResourceUnavailableError); ok {
+			// there's nothing to release, the handle isn't used
+			return nil
+		}
+		return fmt.Errorf("cannot create resource context: %v", err)
+	}
+	if err := tpm.NVUndefineSpace(tpm.OwnerHandleContext(), rc, tpm.HmacSession()); err != nil {
+		return fmt.Errorf("cannot undefine space: %v", err)
+	}
+	return nil
+}
+
+// ReleasePCRResourceHandles releases any TPM resources associated with given
+// PCR handles.
+func ReleasePCRResourceHandles(handles ...uint32) error {
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		err = fmt.Errorf("cannot connect to TPM device: %v", err)
+		return err
+	}
+	defer tpm.Close()
+
+	for _, handle := range handles {
+		logger.Debugf("releasing PCR handle %#x", handle)
+		if err := tpmReleaseResources(tpm, tpm2.Handle(handle)); err != nil {
+			return fmt.Errorf("cannot release TPM resources for handle %#x: %v", handle, err)
+		}
+	}
+	return nil
 }

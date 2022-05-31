@@ -48,3 +48,7 @@ func ResealKeys(params *ResealKeysParams) error {
 func PCRHandleOfSealedKey(p string) (uint32, error) {
 	return 0, errBuildWithoutSecboot
 }
+
+func ReleasePCRResourceHandles(handles ...uint32) error {
+	return errBuildWithoutSecboot
+}
