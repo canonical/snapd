@@ -69,19 +69,35 @@ dbus (send)
      peer=(label=unconfined),
 
 # required by resolvectl command
-dbus (send,receive)
+dbus (send)
      bus=system
      path="/org/freedesktop/resolve1"
      interface=org.freedesktop.DBus.Properties
-     member={GetAll,PropertiesChanged,Get}
+     member=Get{,All}
      peer=(label=unconfined),
 
 # required by resolvectl command
-dbus (send,receive)
+dbus (receive)
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface=org.freedesktop.DBus.Properties
+     member=PropertiesChanged
+     peer=(label=unconfined),
+
+# required by resolvectl command
+dbus (send)
      bus=system
      path="/org/freedesktop/resolve1/link/*"
      interface="org.freedesktop.DBus.Properties"
-     member={GetAll,PropertiesChanged,Get}
+     member=Get{,All}
+     peer=(label=unconfined),
+
+# required by resolvectl command
+dbus (receive)
+     bus=system
+     path="/org/freedesktop/resolve1/link/*"
+     interface="org.freedesktop.DBus.Properties"
+     member=PropertiesChanged
      peer=(label=unconfined),
 
 #include <abstractions/ssl_certs>
