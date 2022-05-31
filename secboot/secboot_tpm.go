@@ -282,7 +282,7 @@ func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile str
 
 // ProvisionTPM provisions the default TPM and saves the lockout authorization
 // key to the specified file.
-func ProvisionTPM(lockoutAuthFile string) error {
+func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
 		return fmt.Errorf("cannot connect to TPM: %v", err)
@@ -292,7 +292,7 @@ func ProvisionTPM(lockoutAuthFile string) error {
 		return fmt.Errorf("TPM device is not enabled")
 	}
 
-	if err := tpmProvision(tpm, lockoutAuthFile); err != nil {
+	if err := tpmProvision(tpm, mode, lockoutAuthFile); err != nil {
 		return err
 	}
 	return nil
@@ -321,10 +321,12 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 		return err
 	}
 
+	pcrHandle := params.PCRPolicyCounterHandle
+	logger.Noticef("sealing with PCR handle %#x", pcrHandle)
 	// Seal the provided keys to the TPM
 	creationParams := sb_tpm2.KeyCreationParams{
 		PCRProfile:             pcrProfile,
-		PCRPolicyCounterHandle: tpm2.Handle(params.PCRPolicyCounterHandle),
+		PCRPolicyCounterHandle: tpm2.Handle(pcrHandle),
 		AuthKey:                params.TPMPolicyAuthKey,
 	}
 
@@ -338,6 +340,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 
 	authKey, err := sbSealKeyToTPMMultiple(tpm, sbKeys, &creationParams)
 	if err != nil {
+		logger.Noticef("seal key err: %v", err)
 		return err
 	}
 	if params.TPMPolicyAuthKeyFile != "" {
@@ -345,7 +348,6 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 			return fmt.Errorf("cannot write the policy auth key file: %v", err)
 		}
 	}
-
 	return nil
 }
 
@@ -479,7 +481,16 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 	return pcrProfile, nil
 }
 
-func tpmProvision(tpm *sb_tpm2.Connection, lockoutAuthFile string) error {
+func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFile string) error {
+	var currentLockoutAuth []byte
+	if mode == TPMPartialReprovision {
+		logger.Debugf("using existing lockout authorization")
+		d, err := ioutil.ReadFile(lockoutAuthFile)
+		if err != nil {
+			return fmt.Errorf("cannot read existing lockout auth: %v", err)
+		}
+		currentLockoutAuth = d
+	}
 	// Create and save the lockout authorization file
 	lockoutAuth := make([]byte, 16)
 	// crypto rand is protected against short reads
@@ -494,6 +505,11 @@ func tpmProvision(tpm *sb_tpm2.Connection, lockoutAuthFile string) error {
 	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
 	//            if the device has previously been provisioned, see
 	//            https://godoc.org/github.com/snapcore/secboot#RequestTPMClearUsingPPI
+	if currentLockoutAuth != nil {
+		// use the current lockout authorization data to authorize
+		// provisioning
+		tpm.LockoutHandleContext().SetAuthValue(currentLockoutAuth)
+	}
 	if err := sbTPMEnsureProvisioned(tpm, sb_tpm2.ProvisionModeFull, lockoutAuth); err != nil {
 		logger.Noticef("TPM provisioning error: %v", err)
 		return fmt.Errorf("cannot provision TPM: %v", err)
