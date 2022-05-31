@@ -104,7 +104,7 @@ func (o *TrustedAssetsInstallObserver) CurrentSaveEncryptionKey() keys.Encryptio
 	return o.saveEncryptionKey
 }
 
-func MockSecbootProvisionTPM(f func(lockoutAuthFile string) error) (restore func()) {
+func MockSecbootProvisionTPM(f func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error) (restore func()) {
 	restore = testutil.Backup(&secbootProvisionTPM)
 	secbootProvisionTPM = f
 	return restore
