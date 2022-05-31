@@ -8155,6 +8155,64 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	c.Assert(tsNew, IsNil)
 }
 
+func (s *snapmgrTestSuite) TestMigrateHome(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.move-home-dir", true), IsNil)
+	tr.Commit()
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
+	snaptest.MockSnapCurrent(c, "name: snap-gadget\nversion: 1.0\n", si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("migrate-home", "...")
+	tss, err := snapstate.MigrateHome(s.state, []string{"some-snap"})
+	c.Assert(err, IsNil)
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(tss, HasLen, 1)
+	c.Assert(taskNames(tss[0].Tasks()), DeepEquals, []string{
+		`prepare-snap`,
+		`stop-snap-services`,
+		`remove-aliases`,
+		`unlink-current-snap`,
+		`migrate-home`,
+		`setup-profiles`,
+		`link-snap`,
+		`auto-connect`,
+		`set-auto-aliases`,
+		`setup-aliases`,
+		`start-snap-services`,
+	})
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	s.fakeBackend.ops.MustFindOp(c, "init-exposed-snap-home")
+}
+
+func taskNames(tasks []*state.Task) []string {
+	var names []string
+
+	for _, t := range tasks {
+		names = append(names, t.Kind())
+	}
+
+	return names
+}
+
 func (s *snapmgrTestSuite) TestMigrationTriggers(c *C) {
 	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
 

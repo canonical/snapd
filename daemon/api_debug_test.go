@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"gopkg.in/check.v1"
 
@@ -237,4 +238,32 @@ func (s *postDebugSuite) TestMinLane(c *check.C) {
 
 	// validity
 	c.Check(t.Lanes(), check.DeepEquals, []int{lane1, lane2})
+}
+
+func (s *postDebugSuite) TestMigrateHome(c *check.C) {
+	s.daemonWithOverlordMock()
+	s.expectRootAccess()
+
+	restore := daemon.MockSnapstateMigrate(func(*state.State, []string) ([]*state.TaskSet, error) {
+		st := state.New(nil)
+		st.Lock()
+		defer st.Unlock()
+
+		var ts state.TaskSet
+		ts.AddTask(st.NewTask("bar", ""))
+		return []*state.TaskSet{&ts}, nil
+	})
+	defer restore()
+
+	body := strings.NewReader(`{"action": "migrate-home", "snaps": ["foo", "bar"]}`)
+	req, err := http.NewRequest("POST", "/v2/debug", body)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.asyncReq(c, req, nil)
+	c.Assert(rsp.Status, check.Equals, 202)
+	data, err := json.Marshal(rsp.Result)
+	c.Assert(err, check.IsNil)
+	var dataJSON []interface{}
+	json.Unmarshal(data, &dataJSON)
+
 }

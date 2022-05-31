@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -2429,6 +2429,109 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 	}
 
 	return nil
+}
+
+// MigrateHome migrates ... TODO
+func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
+	tr := config.NewTransaction(st)
+	moveDir, err := features.Flag(tr, features.MoveHomeDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if !moveDir {
+		_, confName := features.MoveHomeDir.ConfigOption()
+		return nil, fmt.Errorf("cannot migrate to ~/Snap: flag %q is not set", confName)
+	}
+
+	allSnaps, err := All(st)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, name := range snaps {
+		if snapst, ok := allSnaps[name]; !ok {
+			return nil, snap.NotInstalledError{Snap: name}
+		} else if snapst.MigratedToExposedHome {
+			return nil, fmt.Errorf("cannot migrate %q to ~/Snap: already migrated", name)
+		}
+	}
+
+	var tss []*state.TaskSet
+	for _, name := range snaps {
+		si := allSnaps[name].CurrentSideInfo()
+		snapsup := &SnapSetup{
+			SideInfo: si,
+		}
+
+		var tasks []*state.Task
+		prepare := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s)"), name, si.Revision))
+		prepare.Set("snap-setup", snapsup)
+		tasks = append(tasks, prepare)
+
+		prev := prepare
+		addTask := func(t *state.Task) {
+			t.Set("snap-setup-task", prepare.ID())
+			t.WaitFor(prev)
+			tasks = append(tasks, t)
+		}
+
+		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), snapsup.InstanceName()))
+		stop.Set("stop-reason", "home-migration")
+		addTask(stop)
+		prev = stop
+
+		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), snapsup.InstanceName()))
+		addTask(removeAliases)
+		prev = removeAliases
+
+		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapsup.InstanceName()))
+		addTask(unlink)
+		prev = unlink
+
+		migrate := st.NewTask("migrate-home", fmt.Sprintf(i18n.G("Migrate %q to ~/Snap"), name))
+		addTask(migrate)
+		prev = migrate
+
+		// security
+		setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles"), snapsup.InstanceName(), si.Revision))
+		addTask(setupSecurity)
+		prev = setupSecurity
+
+		// finalize (wrappers+current symlink)
+		linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system"), snapsup.InstanceName(), si.Revision))
+		addTask(linkSnap)
+		prev = linkSnap
+
+		// auto-connections
+		autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.InstanceName()))
+		addTask(autoConnect)
+		prev = autoConnect
+
+		// setup aliases
+		setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.InstanceName()))
+		addTask(setAutoAliases)
+		prev = setAutoAliases
+
+		setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.InstanceName()))
+		addTask(setupAliases)
+		prev = setupAliases
+
+		// run new services
+		startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q (%s) services"), snapsup.InstanceName(), si.Revision))
+		addTask(startSnapServices)
+		prev = startSnapServices
+
+		var ts state.TaskSet
+		for _, t := range tasks {
+			ts.AddTask(t)
+		}
+
+		ts.JoinLane(st.NewLane())
+		tss = append(tss, &ts)
+	}
+
+	return tss, nil
 }
 
 // LinkNewBaseOrKernel creates a new task set with prepare/link-snap, and

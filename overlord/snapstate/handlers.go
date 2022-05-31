@@ -1282,7 +1282,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapsup.MigratedHidden = true
 		fallthrough
 	case home:
-		undo, err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision)
+		undo, err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision, opts.getSnapDirOpts())
 		if err != nil {
 			return err
 		}
@@ -3656,6 +3656,62 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 
 	st.EnsureBefore(0)
 	return nil
+}
+
+func (m *SnapManager) doMigrateHome(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
+	opts, err := getDirMigrationOpts(st, snapst, snapsup)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	dirOpts := opts.getSnapDirOpts()
+	undo, err := m.backend.InitExposedSnapHome(snapsup.InstanceName(), snapsup.Revision(), dirOpts)
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
+	t.Set("undo-exposed-home-init", undo)
+	st.Unlock()
+	snapsup.MigratedToExposedHome = true
+
+	st.Lock()
+	defer st.Unlock()
+	return SetTaskSnapSetup(t, snapsup)
+}
+
+func (m *SnapManager) undoMigrateHome(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	snapsup, err := TaskSnapSetup(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	var undo backend.UndoInfo
+
+	st.Lock()
+	err = t.Get("undo-exposed-home-init", &undo)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	snapsup.MigratedToExposedHome = false
+	st.Lock()
+	defer st.Unlock()
+	return SetTaskSnapSetup(t, snapsup)
 }
 
 // maybeRestoreValidationSetsAndRevertSnaps restores validation-sets to their

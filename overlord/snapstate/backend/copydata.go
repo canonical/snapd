@@ -272,12 +272,10 @@ type UndoInfo struct {
 }
 
 // InitExposedSnapHome creates and initializes ~/Snap/<snapName> based on the
-// specified revision. Must be called after the snap has been migrated. If no
-// error occurred, returns a non-nil undoInfo so that the operation can be undone.
-// If an error occurred, an attempt is made to undo so no undoInfo is returned.
-func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (undoInfo *UndoInfo, err error) {
-	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
-
+// specified revision. If no error occurred, returns a non-nil undoInfo so that
+// the operation can be undone. If an error occurred, an attempt is made to undo
+// so no undoInfo is returned.
+func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision, opts *dirs.SnapDirOptions) (undoInfo *UndoInfo, err error) {
 	users, err := allUsers(opts)
 	if err != nil {
 		return nil, err
@@ -312,6 +310,7 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (undoIn
 			continue
 		}
 
+		fmt.Println("mkdiring")
 		if err := mkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
 			return undoInfo, fmt.Errorf("cannot create %q: %v", newUserHome, err)
 		}
@@ -339,6 +338,7 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (undoIn
 			src := filepath.Join(userData, f.Name())
 			dst := filepath.Join(newUserHome, f.Name())
 
+			fmt.Println("copying")
 			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
 				return undoInfo, err
 			}

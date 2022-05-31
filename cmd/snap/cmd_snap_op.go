@@ -417,6 +417,13 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 				msg = fmt.Sprintf(i18n.G("%q left the cohort"), snap.Name)
 			}
 			fmt.Fprintln(Stdout, msg)
+		case "migrate-home":
+			msg := fmt.Sprintf("%s's home directory was migrated to ~/Snap\n", names[0])
+			if len(names) > 1 {
+				msg = fmt.Sprintf(i18n.G("%s migrated their home directories to ~/Snap\n"), strutil.Quoted(names))
+			}
+
+			fmt.Fprintf(Stdout, msg)
 		default:
 			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
 		}
