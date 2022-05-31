@@ -1890,3 +1890,24 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 
 	c.Check(err, ErrorMatches, `cannot unlock encrypted partition: invalid key data:.*`)
 }
+
+func (s *secbootSuite) TestPCRHandleOfSealedKey(c *C) {
+	d := c.MkDir()
+	h, err := secboot.PCRHandleOfSealedKey(filepath.Join(d, "not-found"))
+	c.Assert(err, ErrorMatches, "cannot open key file: .*/not-found: no such file or directory")
+	c.Assert(h, Equals, uint32(0))
+
+	skf := filepath.Join(d, "sealed-key")
+	// partially valid salealed key with correct header magic
+	c.Assert(ioutil.WriteFile(skf, []byte{0x55, 0x53, 0x4b, 0x24, 1, 1, 1, 'k', 'e', 'y', 1, 1, 1}, 0644), IsNil)
+	h, err = secboot.PCRHandleOfSealedKey(skf)
+	c.Assert(err, ErrorMatches, "(?s)cannot open key file: invalid key data: cannot unmarshal AFIS header: .*")
+	c.Check(h, Equals, uint32(0))
+
+	// TODO simulate the happy case, which needs a real (or at least
+	// partially mocked) sealed key object, which could be obtained using
+	// go-tpm2/testutil, but that has a dependency on an older version of
+	// snapd API and cannot be imported or procure a valid sealed key binary
+	// which unfortunately there are no examples of the secboot/tpm2 test
+	// code
+}

@@ -559,3 +559,18 @@ func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
 		FileName:  b.Path,
 	}, nil
 }
+
+// PCRHandleOfSealedKey retunrs the PCR handle which was used when sealing a
+// given key object.
+func PCRHandleOfSealedKey(p string) (uint32, error) {
+	r, err := sb_tpm2.NewFileSealedKeyObjectReader(p)
+	if err != nil {
+		return 0, fmt.Errorf("cannot open key file: %v", err)
+	}
+	sko, err := sb_tpm2.ReadSealedKeyObject(r)
+	if err != nil {
+		return 0, fmt.Errorf("cannot read sealed key file: %v", err)
+	}
+	handle := uint32(sko.PCRPolicyCounterHandle())
+	return handle, nil
+}
