@@ -258,7 +258,7 @@ func (e *NoStateError) Error() string {
 
 func (e *NoStateError) Is(err error) bool {
 	_, ok := err.(*NoStateError)
-	return ok || err == ErrNoState // nocheck=
+	return ok || errors.Is(err, ErrNoState)
 }
 
 // Get unmarshals the stored value associated with the provided key
