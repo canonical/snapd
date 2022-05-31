@@ -132,9 +132,9 @@ var hasSnapdControlInterface = func(st *state.State, snapName string) (bool, err
 	return false, nil
 }
 
-// getSnapInfo is a helper utility to read the snap.Info for the requesting snap
+// getSnapInfoWithPublisher is a helper utility to read the snap.Info for the requesting snap
 // which also fills the publisher information.
-func (c *modelCommand) getSnapInfo(st *state.State, snapName string) (*snap.Info, error) {
+func (c *modelCommand) getSnapInfoWithPublisher(st *state.State, snapName string) (*snap.Info, error) {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, snapName, &snapst); err != nil {
 		return nil, fmt.Errorf("failed to get snapstate for snap %s: %v", snapName, err)
@@ -231,7 +231,7 @@ func (c *modelCommand) Execute([]string) error {
 	// We only return an error in case we could not the get the snap.Info
 	// structure, and 'ignore' any error that caused us not to get the store
 	// account publisher
-	snapInfo, err := c.getSnapInfo(st, context.InstanceName())
+	snapInfo, err := c.getSnapInfoWithPublisher(st, context.InstanceName())
 	if snapInfo == nil {
 		return err
 	}
