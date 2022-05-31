@@ -124,6 +124,10 @@ apps:
 			`kernel-module-load "name" must be a string`,
 		},
 		{
+			"modules:\n  - name: w3/rd*",
+			`kernel-module-load "name" attribute is not a valid module name`,
+		},
+		{
 			"modules:\n  - name: pcspkr",
 			`kernel-module-load: must specify at least "load" or "options"`,
 		},
