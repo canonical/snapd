@@ -167,9 +167,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		defer restore()
 
 		provisionCalls := 0
-		restore = boot.MockSecbootProvisionTPM(func(lockoutAuthFile string) error {
+		restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 			provisionCalls++
 			c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+			c.Check(mode, Equals, secboot.TPMProvisionFull)
 			return tc.provisionErr
 		})
 		defer restore()

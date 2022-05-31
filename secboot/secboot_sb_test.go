@@ -611,14 +611,31 @@ func (s *secbootSuite) TestProvisionTPM(c *C) {
 	for idx, tc := range []struct {
 		tpmErr            error
 		tpmEnabled        bool
+		mode              secboot.TPMProvisionMode
+		writeLockoutAuth  bool
 		provisioningErr   error
 		provisioningCalls int
 		expectedErr       string
 	}{
-		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
-		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
-		{tpmEnabled: true, provisioningErr: mockErr, provisioningCalls: 1, expectedErr: "cannot provision TPM: some error"},
-		{tpmEnabled: true, provisioningCalls: 1, expectedErr: ""},
+		{
+			tpmErr: mockErr, mode: secboot.TPMProvisionFull,
+			expectedErr: "cannot connect to TPM: some error",
+		}, {
+			tpmEnabled: false, mode: secboot.TPMProvisionFull, expectedErr: "TPM device is not enabled",
+		}, {
+			tpmEnabled: true, mode: secboot.TPMProvisionFull, provisioningErr: mockErr,
+			provisioningCalls: 1, expectedErr: "cannot provision TPM: some error",
+		}, {
+			tpmEnabled: true, mode: secboot.TPMPartialReprovision, provisioningCalls: 0,
+			expectedErr: "cannot read existing lockout auth: open .*/lockout-auth: no such file or directory",
+		},
+		// happy cases
+		{
+			tpmEnabled: true, mode: secboot.TPMProvisionFull, provisioningCalls: 1,
+		}, {
+			tpmEnabled: true, mode: secboot.TPMPartialReprovision, writeLockoutAuth: true,
+			provisioningCalls: 1,
+		},
 	} {
 		c.Logf("tc: %v", idx)
 		d := c.MkDir()
@@ -631,6 +648,11 @@ func (s *secbootSuite) TestProvisionTPM(c *C) {
 		})
 		defer restore()
 
+		lockoutAuthData := []byte{'l', 'o', 'c', 'k', 'o', 'u', 't', 1, 1, 1, 1, 1, 1, 1, 1, 1}
+		if tc.writeLockoutAuth {
+			c.Assert(ioutil.WriteFile(filepath.Join(d, "lockout-auth"), lockoutAuthData, 0644), IsNil)
+		}
+
 		// mock provisioning
 		provisioningCalls := 0
 		restore = secboot.MockSbTPMEnsureProvisioned(func(t *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, newLockoutAuth []byte) error {
@@ -641,7 +663,7 @@ func (s *secbootSuite) TestProvisionTPM(c *C) {
 		})
 		defer restore()
 
-		err := secboot.ProvisionTPM(filepath.Join(d, "lockout-auth"))
+		err := secboot.ProvisionTPM(tc.mode, filepath.Join(d, "lockout-auth"))
 		if tc.expectedErr != "" {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		} else {
@@ -679,8 +701,9 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
 		{tpmEnabled: true, sealErr: mockErr, provisioningCalls: 1, sealCalls: 1, expectedErr: "some error"},
-		{tpmEnabled: true, sealCalls: 1, expectedErr: ""},
-		{tpmEnabled: true, sealCalls: 1, expectedErr: ""},
+
+		// happy cases
+		{tpmEnabled: true, provisioningCalls: 1, sealCalls: 1},
 	} {
 		c.Logf("tc: %v", idx)
 		tmpDir := c.MkDir()
