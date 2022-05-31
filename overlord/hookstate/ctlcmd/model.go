@@ -176,15 +176,13 @@ func (c *modelCommand) checkPermissions(st *state.State, deviceCtx snapstate.Dev
 
 // findSerialAssertion is a helper function to find the newest matching serial assertion
 // for the provided model assertion.
-func findSerialAssertion(st *state.State, modelAssertion *asserts.Model) *asserts.Serial {
+func findSerialAssertion(st *state.State, modelAssertion *asserts.Model) (*asserts.Serial, error) {
 	assertions, err := assertstate.DB(st).FindMany(asserts.SerialType, map[string]string{
 		"brand-id": modelAssertion.BrandID(),
 		"model":    modelAssertion.Model(),
 	})
 	if err != nil || len(assertions) == 0 {
-		// Ignore the error in case the serial assertion wasn't found. We will
-		// then use the model assertion instead.
-		return nil
+		return nil, err
 	}
 
 	// helper to parse the timestamp embedded in the assertion, if
@@ -210,7 +208,7 @@ func findSerialAssertion(st *state.State, modelAssertion *asserts.Model) *assert
 
 	// sort.Slice sorts in ascending order, so the last assertion is the newest
 	serial := assertions[len(assertions)-1].(*asserts.Serial)
-	return serial
+	return serial, nil
 }
 
 func (c *modelCommand) Execute([]string) error {
@@ -260,7 +258,13 @@ func (c *modelCommand) Execute([]string) error {
 		Assertion: c.Assertion,
 	}
 
-	serialAssertion := findSerialAssertion(st, deviceCtx.Model())
+	serialAssertion, err := findSerialAssertion(st, deviceCtx.Model())
+	// Ignore the error in case the serial assertion wasn't found. We will
+	// then use the model assertion instead.
+	if err != nil && !asserts.IsNotFound(err) {
+		return err
+	}
+
 	if c.Json {
 		if err := clientutil.PrintModelAssertionJSON(w, *deviceCtx.Model(), serialAssertion, opts); err != nil {
 			return err
