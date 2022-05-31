@@ -75,13 +75,20 @@ _merge_tasks_lists() {
     local list1="$1"
     local list2="$2"
     local merged_list="$1"
+    local list1_file
+
+    list1_file=$(mktemp list1.XXXXXX)
+    for elem in $list1; do
+        echo "$elem" >> "$list1_file"
+    done
 
     # shellcheck disable=SC2086
     for elem2 in $list2; do
-        if [[ ! $list1 =~ (^|[[:space:]])$elem2($|[[:space:]]) ]]; then
+        if ! grep -Fxq "$elem2" "$list1_file"; then
             merged_list="$merged_list $elem2"
         fi
-    done 
+    done
+    rm "$list1_file"
     echo "$merged_list"
 }
 
@@ -89,15 +96,21 @@ _diff_tasks_lists() {
     # Returns the list1 - the tasks in list2
     local list1="$1"
     local list2="$2"
-    local diff_list
+    local diff_list list2_file
+
     diff_list=""
+    list2_file=$(mktemp list2.XXXXXX)
+    for elem in $list2; do
+        echo "$elem" >> "$list2_file"
+    done
 
     # shellcheck disable=SC2086
     for elem1 in $list1; do
-        if [[ ! $list2 =~ (^|[[:space:]])$elem1($|[[:space:]]) ]]; then
+        if ! grep -Fxq "$elem1" "$list2_file"; then
             diff_list="$diff_list $elem1"
         fi
     done 
+    rm "$list2_file"
     echo "$diff_list"
 }
 
@@ -105,21 +118,26 @@ _intersection_tasks_lists() {
     # Returns the tasks in list1 which are also in the list2
     local list1="$1"
     local list2="$2"
-    local both_list
-    both_list=""
+    local both_list list2_file
 
-    # shellcheck disable=SC2086
-    for elem1 in $list1; do
-        if [[ $list2 =~ (^|[[:space:]])$elem1($|[[:space:]]) ]]; then
-            both_list="$both_list $elem1"
+    both_list=""
+    list2_file=$(mktemp list2.XXXXXX)
+    for elem in $list2; do
+        echo "$elem" >> "$list2_file"
+    done
+    for elem in $list1; do
+        # -F tells grep to look for fixed strings, not regexps
+        if grep -Fxq "$elem" "$list2_file"; then
+            both_list="$both_list $elem"
         fi
-    done 
+    done
+    rm "$list2_file"
     echo "$both_list"
 }
 
 list_all_tasks() {
     local exec_exp="$1"
-    exec_exp="$(echo $exec_exp | tr ',' ' ')"
+    exec_exp="$(echo "$exec_exp" | tr ',' ' ')"
     if ! command -v spread >/dev/null; then
         echo "log.analyzer: spread tool is not installed, exiting..."
         exit 1
@@ -156,7 +174,7 @@ list_failed_tasks() {
         echo "log.analyzer: execution expression for spread cannot be empty"
         exit 1
     fi
-    exec_exp="$(echo $exec_exp | tr ',' ' ')"
+    exec_exp="$(echo "$exec_exp" | tr ',' ' ')"
     _check_log "$log"
 
     local all_tasks failed_tasks
@@ -173,7 +191,7 @@ list_reexecute_tasks() {
         echo "log.analyzer: execution expression for spread cannot be empty"
         exit 1
     fi
-    exec_exp="$(echo $exec_exp | tr ',' ' ')"
+    exec_exp="$(echo "$exec_exp" | tr ',' ' ')"
     _check_log "$log"
 
     local aborted_tasks exec_and_failed_tasks all_tasks reexec_tasks
@@ -206,7 +224,7 @@ list_successful_tasks() {
         echo "log.analyzer: execution expression for spread cannot be empty"
         exit 1
     fi
-    exec_exp="$(echo $exec_exp | tr ',' ' ')"
+    exec_exp="$(echo "$exec_exp" | tr ',' ' ')"
     _check_log "$log"
 
     local all_tasks executed_tasks failed_tasks_restore failed_tasks
@@ -235,7 +253,7 @@ list_executed_tasks() {
         echo "log.analyzer: execution expression for spread cannot be empty"
         exit 1
     fi
-    exec_exp="$(echo $exec_exp | tr ',' ' ')"
+    exec_exp="$(echo "$exec_exp" | tr ',' ' ')"
     _check_log "$log"
 
     local all_tasks executed_tasks
@@ -252,7 +270,7 @@ list_aborted_tasks() {
         echo "log.analyzer: execution expression for spread cannot be empty"
         exit 1
     fi
-    exec_exp="$(echo $exec_exp | tr ',' ' ')"
+    exec_exp="$(echo "$exec_exp" | tr ',' ' ')"
     _check_log "$log"
 
     local all_tasks executed_tasks failed_tasks_prepare failed_tasks_restore failed_tasks
