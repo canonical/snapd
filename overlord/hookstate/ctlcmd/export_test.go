@@ -48,7 +48,7 @@ func MockDevicestateSystemModeInfoFromState(f func(*state.State) (*devicestate.S
 	return func() { devicestateSystemModeInfoFromState = old }
 }
 
-func MockHasSnapdControlInterface(f func(st *state.State, snapName string) bool) (restore func()) {
+func MockHasSnapdControlInterface(f func(st *state.State, snapName string) (bool, error)) (restore func()) {
 	old := hasSnapdControlInterface
 	hasSnapdControlInterface = f
 	return func() { hasSnapdControlInterface = old }

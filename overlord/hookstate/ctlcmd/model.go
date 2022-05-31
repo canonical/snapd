@@ -69,23 +69,30 @@ func (mf modelCommandFormatter) GetEscapedDash() string {
 }
 
 // LongPublisher implements part of the clientutil.ModelFormatter interface
+// essentially this functions reimplements the same logic as cmd/snap/color.go
+// but without all the fancy formatting as we don't need it. We also will not use
+// the unicode characters as the output is formatted for API rather than human
+// consumption
 func (mf modelCommandFormatter) LongPublisher(storeAccountID string) string {
 	if mf.snapInfo == nil || mf.snapInfo.Publisher.DisplayName == "" {
-		return mf.GetEscapedDash() + "\033[0m"
+		return mf.GetEscapedDash()
 	}
 
 	storeAccount := mf.snapInfo.Publisher
-	badge := ""
-	if storeAccount.Validation == "verified" {
+	var badge string
+	switch storeAccount.Validation {
+	case "verified":
+		badge = "**"
+	case "starred":
 		badge = "*"
 	}
 
 	// NOTE this makes e.g. 'Potato' == 'potato', and 'Potato Team' == 'potato-team',
 	// but 'Potato Team' != 'potatoteam', 'Potato Inc.' != 'potato' (in fact 'Potato Inc.' != 'potato-inc')
 	if strings.EqualFold(strings.Replace(storeAccount.Username, "-", " ", -1), storeAccount.DisplayName) {
-		return storeAccount.DisplayName + badge + "\033[0m"
+		return storeAccount.DisplayName + badge
 	}
-	return fmt.Sprintf("%s (%s%s%s)", storeAccount.DisplayName, storeAccount.Username, badge, "\033[0m")
+	return fmt.Sprintf("%s (%s%s)", storeAccount.DisplayName, storeAccount.Username, badge)
 }
 
 func newTabWriter(output io.Writer) *tabwriter.Writer {
@@ -105,10 +112,10 @@ func (c *modelCommand) reportError(format string, a ...interface{}) {
 
 // hasSnapdControl returns true if the requesting snap has the snapd-control plug
 // and only if it is connected as well.
-var hasSnapdControlInterface = func(st *state.State, snapName string) bool {
+var hasSnapdControlInterface = func(st *state.State, snapName string) (bool, error) {
 	conns, err := ifacestate.ConnectionStates(st)
 	if err != nil {
-		return false
+		return false, err
 	}
 	for refStr, connState := range conns {
 		if connState.Undesired || connState.Interface != "snapd-control" {
@@ -116,13 +123,13 @@ var hasSnapdControlInterface = func(st *state.State, snapName string) bool {
 		}
 		connRef, err := interfaces.ParseConnRef(refStr)
 		if err != nil {
-			return false
+			return false, err
 		}
 		if connRef.PlugRef.Snap == snapName {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // getSnapInfo is a helper utility to read the snap.Info for the requesting snap
@@ -142,25 +149,28 @@ func getSnapInfo(st *state.State, snapName string) (*snap.Info, error) {
 	return snapInfo, err
 }
 
-// checkGadgetOrModel verifies that the current snap context is either a gadget snap or that
-// the snap shares the same publisher as the current model assertion.
-func (c *modelCommand) checkGadgetOrModel(st *state.State, deviceCtx snapstate.DeviceContext, snapInfo *snap.Info) error {
-	// We allow the usage of this command if one of the following is true
-	// 1. The requesting snap must be a gadget
-	// 2. Come from the same brand as the device model assertion
-	// 3. Have the snapd-control plug
+// checkPermissions verifies that the current snap context is allowed to read
+// the current model assertion.
+// We allow the usage of this command if one of the following is true
+// 1. The requesting snap must be a gadget
+// 2. Come from the same brand as the device model assertion
+// 3. Have the snapd-control plug
+func (c *modelCommand) checkPermissions(st *state.State, deviceCtx snapstate.DeviceContext, snapInfo *snap.Info) error {
 	if snapType := snapInfo.Type(); snapType == snap.TypeGadget {
 		return nil
 	}
 	if snapInfo.Publisher.ID == deviceCtx.Model().BrandID() {
 		return nil
 	}
-	if hasSnapdControlInterface(st, snapInfo.SnapName()) {
+	if conn, err := hasSnapdControlInterface(st, snapInfo.SnapName()); err != nil {
+		return fmt.Errorf("internal error: %s", err)
+	} else if conn {
 		return nil
 	}
 
-	c.reportError("cannot get model assertion for snap %q: not a gadget or from the same brand as the device model assertion\n",
-		snapInfo.SnapName())
+	c.reportError("cannot get model assertion for snap %q: "+
+		"must be either a gadget snap, from the same publisher as the model "+
+		"or have the snapd-control interface\n", snapInfo.SnapName())
 	return fmt.Errorf("insufficient permissions to get model assertion for snap %q", snapInfo.SnapName())
 }
 
@@ -172,6 +182,8 @@ func findSerialAssertion(st *state.State, modelAssertion *asserts.Model) *assert
 		"model":    modelAssertion.Model(),
 	})
 	if err != nil || len(assertions) == 0 {
+		// Ignore the error in case the serial assertion wasn't found. We will
+		// then use the model assertion instead.
 		return nil
 	}
 
@@ -227,7 +239,7 @@ func (c *modelCommand) Execute([]string) error {
 		return err
 	}
 
-	if err := c.checkGadgetOrModel(st, deviceCtx, snapInfo); err != nil {
+	if err := c.checkPermissions(st, deviceCtx, snapInfo); err != nil {
 		return err
 	}
 

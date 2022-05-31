@@ -205,8 +205,11 @@ plugs:
 `
 
 func (s *modelSuite) TestUnhappyModelCommandInsufficientPermissions(c *C) {
-	// Make sure that we can not get the model assertion if we are not a gadget
-	// type snap, or if we are not the publisher of the model assertion.
+	// Verify we get an error in case that we do not match any of the three
+	// criterias:
+	// - snapd-control interface
+	// - we are a gadget snap
+	// - we come from the same publisher
 	s.setupBrands()
 
 	// set a model assertion
@@ -236,12 +239,12 @@ func (s *modelSuite) TestUnhappyModelCommandInsufficientPermissions(c *C) {
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
 	c.Check(err, ErrorMatches, "insufficient permissions to get model assertion for snap \"snap1\"")
 	c.Check(string(stdout), Equals, "")
-	c.Check(string(stderr), Equals, "cannot get model assertion for snap \"snap1\": not a gadget or from the same brand as the device model assertion\n")
+	c.Check(string(stderr), Equals, "cannot get model assertion for snap \"snap1\": must be either a gadget snap, from the same publisher as the model or have the snapd-control interface\n")
 }
 
 func (s *modelSuite) TestHappyModelCommandIdenticalPublisher(c *C) {
-	// Make sure that we can not get the model assertion if we are not a gadget
-	// type snap, or if we are not the publisher of the model assertion.
+	// Test that verifies we can get the model assertion if we are the publisher
+	// of the snap that requests
 	s.addSnapDeclaration(c, "snap1-id", "canonical", "snap1")
 	s.setupBrands()
 
@@ -270,14 +273,19 @@ func (s *modelSuite) TestHappyModelCommandIdenticalPublisher(c *C) {
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
+
+	// For this test we just check that no error is returned, we have other testsw
+	// that verifies formats for each case. So make sure that stderr is empty and that
+	// we get data printed on stdout.
 	c.Check(err, IsNil)
 	c.Check(len(string(stdout)) > 0, Equals, true)
 	c.Check(string(stderr), Equals, "")
 }
 
 func (s *modelSuite) TestHappyModelCommandSnapdControlPlug(c *C) {
-	// Make sure that we can not get the model assertion if we are not a gadget
-	// type snap, or if we are not the publisher of the model assertion.
+	// Verify that we can retrieve the model assertion in the case that we are
+	// not a gadget snap, or from the same publisher, but we do have the snapd-control
+	// interface connected.
 	s.setupBrands()
 	s.addSnapDeclaration(c, "snap1-control-id", "other-brand", "snap1-control")
 
@@ -305,8 +313,8 @@ func (s *modelSuite) TestHappyModelCommandSnapdControlPlug(c *C) {
 	s.state.Unlock()
 
 	// to make life easier for us, we mock the connected check
-	r := ctlcmd.MockHasSnapdControlInterface(func(st *state.State, snapName string) bool {
-		return true
+	r := ctlcmd.MockHasSnapdControlInterface(func(st *state.State, snapName string) (bool, error) {
+		return true, nil
 	})
 	defer r()
 
@@ -317,14 +325,14 @@ func (s *modelSuite) TestHappyModelCommandSnapdControlPlug(c *C) {
 }
 
 func (s *modelSuite) TestHappyModelCommandPublisherYaml(c *C) {
-	// Make sure that we can get the model assertion even if the snap is
-	// is not a gadget, but comes from the same publisher as the model
-	s.addSnapDeclaration(c, "gadget1-id", "canonical", "gadget1")
+	// Verify that we can read the model assertion when the snap has the same
+	// publisher as the model assertion.
+	s.addSnapDeclaration(c, "snap1-id", "canonical", "snap1")
 	s.setupBrands()
 
 	// set a model assertion
 	s.state.Lock()
-	current := s.brands.Model("my-brand", "pc-model", map[string]interface{}{
+	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -333,21 +341,21 @@ func (s *modelSuite) TestHappyModelCommandPublisherYaml(c *C) {
 	err := assertstate.Add(s.state, current)
 	c.Assert(err, IsNil)
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "my-brand",
+		Brand: "canonical",
 		Model: "pc-model",
 	})
 
 	c.Assert(err, IsNil)
 	task := s.state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "gadget1", Revision: snap.R(1), Hook: "test-hook"}
+	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "test-hook"}
 	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
-	mockInstalledSnap(c, s.state, snapGadgetYaml, "")
+	mockInstalledSnap(c, s.state, snapYaml, "")
 	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
 	c.Check(err, IsNil)
-	c.Check(string(stdout), Equals, fmt.Sprintf(`brand-id:      my-brand
+	c.Check(string(stdout), Equals, fmt.Sprintf(`brand-id:      canonical
 model:         pc-model
 serial:        -- (device not registered yet)
 architecture:  amd64
