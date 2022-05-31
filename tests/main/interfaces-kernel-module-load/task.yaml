@@ -13,6 +13,7 @@ prepare: |
 restore: |
     echo "Ensure snap is removed even if something goes wrong"
     snap remove "$SNAP_NAME"
+    modprobe -r xcbc md4 pcrypt || true
 
 execute: |
     echo "When the interface is connected"
@@ -25,12 +26,46 @@ execute: |
     MATCH "options bfq slice_idle_us=20 strict_guarantees=1" < "$MODPROBE_CONF"
     NOMATCH "blacklist bfq" < "$MODPROBE_CONF"
     NOMATCH "pcspkr" < "$MODPROBE_CONF"
+    MATCH "options md4 something=ok" < "$MODPROBE_CONF"
+    # This has the "*" value for the options: no entry should be written:
+    NOMATCH "pcrypt" < "$MODPROBE_CONF"
 
     echo "And modules are configured to be auto-loaded"
     MODULES_LOAD_CONF="/etc/modules-load.d/snap.$SNAP_NAME.conf"
     MATCH "bfq" < "$MODULES_LOAD_CONF"
     MATCH "arc4" < "$MODULES_LOAD_CONF"
     NOMATCH "mymodule" < "$MODULES_LOAD_CONF"
+    NOMATCH "md4" < "$MODULES_LOAD_CONF"
+    NOMATCH "pcrypt" < "$MODULES_LOAD_CONF"
+
+    echo "Test dynamic loading of kernel modules"
+    test-snapd-kernel-module-load.cmd snapctl kmod insert xcbc
+    test-snapd-kernel-module-load.cmd snapctl kmod insert md4
+    test-snapd-kernel-module-load.cmd snapctl kmod insert pcrypt
+    MATCH "^xcbc " < /proc/modules
+    MATCH "^md4 " < /proc/modules
+    MATCH "^pcrypt " < /proc/modules
+
+    echo "Test unloading"
+    test-snapd-kernel-module-load.cmd snapctl kmod remove xcbc
+    test-snapd-kernel-module-load.cmd snapctl kmod remove md4
+    test-snapd-kernel-module-load.cmd snapctl kmod remove pcrypt
+    NOMATCH "^xcbc " < /proc/modules
+    NOMATCH "^md4 " < /proc/modules
+    NOMATCH "^pcrypt " < /proc/modules
+
+    echo "Test loading with options"
+    if test-snapd-kernel-module-load.cmd snapctl kmod insert xcbc option=value; then
+        echo "Should not be able to specify parameters for xcbc module!"
+        exit 1
+    fi
+    # Even if the options match those from the interface, we don't allow them
+    if test-snapd-kernel-module-load.cmd snapctl kmod insert md4 something=ok; then
+        echo "Should not be able to specify parameters for md4 module!"
+        exit 1
+    fi
+    test-snapd-kernel-module-load.cmd snapctl kmod insert pcrypt opt1=v1 opt2=v2
+    MATCH "^pcrypt " < /proc/modules
 
     echo "Disconnect the interface"
     snap disconnect "$SNAP_NAME:kernel-module-load"
@@ -38,6 +73,10 @@ execute: |
     echo "and verify that module configuration files are gone"
     test ! -f "$MODPROBE_CONF"
     test ! -f "$MODULES_LOAD_CONF"
+
+    echo "Check that snapctl cannot be invoked with the disconnected interface"
+    test-snapd-kernel-module-load.cmd snapctl kmod insert xcbc 2>&1 \
+        | MATCH ".*snap \"test-snapd-kernel-module-load\" lacks permissions to load the module \"xcbc\""
 
     # Now we want to verify that removing the snap does not leave any leftovers
     echo "Reconnect the interface"
