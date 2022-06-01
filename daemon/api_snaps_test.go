@@ -2073,12 +2073,12 @@ func (s *snapsSuite) testRevertSnap(inst *daemon.SnapInstruction, c *check.C) {
 	instFlags, err := inst.ModeFlags()
 	c.Assert(err, check.IsNil)
 
-	defer daemon.MockSnapstateRevert(func(s *state.State, name string, flags snapstate.Flags) (*state.TaskSet, error) {
+	defer daemon.MockSnapstateRevert(func(s *state.State, name string, flags snapstate.Flags, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, instFlags)
 		queue = append(queue, name)
 		return nil, nil
 	})()
-	defer daemon.MockSnapstateRevertToRevision(func(s *state.State, name string, rev snap.Revision, flags snapstate.Flags) (*state.TaskSet, error) {
+	defer daemon.MockSnapstateRevertToRevision(func(s *state.State, name string, rev snap.Revision, flags snapstate.Flags, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, instFlags)
 		queue = append(queue, fmt.Sprintf("%s (%s)", name, rev))
 		return nil, nil
