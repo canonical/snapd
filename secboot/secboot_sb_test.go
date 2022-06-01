@@ -666,7 +666,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		addSnapModelErr      error
 		provisioningErr      error
 		sealErr              error
-		provisioningCalls    int
 		sealCalls            int
 		expectedErr          string
 	}{
