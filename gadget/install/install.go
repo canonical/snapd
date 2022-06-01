@@ -96,7 +96,7 @@ func saveStorageTraits(allLaidOutVols map[string]*gadget.LaidOutVolume, optsPerV
 	return nil
 }
 
-func installOnePartition(part *gadget.OnDiskStructure, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer, observer gadget.ContentObserver) (encryptionKey keys.EncryptionKey, err error) {
+func installOnePartition(part *gadget.OnDiskStructure, encryptionType secboot.EncryptionType, sectorSize quantity.Size, observer gadget.ContentObserver, perfTimings timings.Measurer) (fsDevice string, encryptionKey keys.EncryptionKey, err error) {
 	mustEncrypt := (encryptionType != secboot.EncryptionTypeNone)
 	partDisp := roleOrLabelOrName(part)
 
@@ -254,6 +254,8 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 		// part.Node can be updated inside
 		encryptionKey, err := installOnePartition(&part, options.EncryptionType,
 			diskLayout.SectorSize, perfTimings, observer)
+		fsDevice, encryptionKey, err := installOnePartition(&part, options.EncryptionType,
+			diskLayout.SectorSize, observer, perfTimings)
 		if err != nil {
 			return nil, err
 		}
@@ -380,8 +382,8 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		}
 
 		// part.Node can be modified internally
-		encryptionKey, err := installOnePartition(&part, options.EncryptionType,
-			diskLayout.SectorSize, perfTimings, observer)
+		fsDevice, encryptionKey, err := installOnePartition(&part, options.EncryptionType,
+			diskLayout.SectorSize, observer, perfTimings)
 		if err != nil {
 			return nil, err
 		}
