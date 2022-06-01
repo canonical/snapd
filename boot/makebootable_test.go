@@ -1105,7 +1105,9 @@ version: 5.0
 	})
 	defer restore()
 
+	provisionCalls := 0
 	restore = boot.MockSecbootProvisionTPM(func(lockoutAuthFile string) error {
+		provisionCalls++
 		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
 		return nil
 	})
