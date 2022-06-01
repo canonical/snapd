@@ -281,17 +281,13 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	})
 	defer restore()
 
-	mockMountpoint := c.MkDir()
-	restore = install.MockContentMountpoint(mockMountpoint)
-	defer restore()
-
 	mountCall := 0
 	restore = install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
 		mountCall++
 		switch mountCall {
 		case 1:
 			c.Assert(source, Equals, "/dev/mmcblk0p2")
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "2"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/2"))
 			c.Assert(fstype, Equals, "vfat")
 			c.Assert(flags, Equals, uintptr(0))
 			c.Assert(data, Equals, "")
@@ -301,7 +297,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 			} else {
 				c.Assert(source, Equals, "/dev/mmcblk0p3")
 			}
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "3"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/3"))
 			c.Assert(fstype, Equals, "ext4")
 			c.Assert(flags, Equals, uintptr(0))
 			c.Assert(data, Equals, "")
@@ -311,7 +307,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 			} else {
 				c.Assert(source, Equals, "/dev/mmcblk0p4")
 			}
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "4"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/4"))
 			c.Assert(fstype, Equals, "ext4")
 			c.Assert(flags, Equals, uintptr(0))
 			c.Assert(data, Equals, "")
@@ -328,13 +324,13 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		umountCall++
 		switch umountCall {
 		case 1:
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "2"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/2"))
 			c.Assert(flags, Equals, 0)
 		case 2:
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "3"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/3"))
 			c.Assert(flags, Equals, 0)
 		case 3:
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "4"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/4"))
 			c.Assert(flags, Equals, 0)
 		default:
 			c.Errorf("unexpected umount call (%d)", umountCall)
@@ -759,26 +755,22 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	})
 	defer restore()
 
-	mockMountpoint := c.MkDir()
-	restore = install.MockContentMountpoint(mockMountpoint)
-	defer restore()
-
 	mountCall := 0
 	restore = install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
 		mountCall++
 		switch mountCall {
 		case 1:
 			c.Assert(source, Equals, "/dev/mmcblk0p2")
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "2"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/2"))
 			c.Assert(fstype, Equals, "vfat")
 			c.Assert(flags, Equals, uintptr(0))
 			c.Assert(data, Equals, "")
 		case 2:
 			c.Assert(source, Equals, dataDev)
 			if opts.noSave {
-				c.Assert(target, Equals, filepath.Join(mockMountpoint, "3"))
+				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/3"))
 			} else {
-				c.Assert(target, Equals, filepath.Join(mockMountpoint, "4"))
+				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/4"))
 			}
 			c.Assert(fstype, Equals, "ext4")
 			c.Assert(flags, Equals, uintptr(0))
@@ -796,13 +788,13 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 		umountCall++
 		switch umountCall {
 		case 1:
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "2"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/2"))
 			c.Assert(flags, Equals, 0)
 		case 2:
 			if opts.noSave {
-				c.Assert(target, Equals, filepath.Join(mockMountpoint, "3"))
+				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/3"))
 			} else {
-				c.Assert(target, Equals, filepath.Join(mockMountpoint, "4"))
+				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/4"))
 			}
 			c.Assert(flags, Equals, 0)
 		default:
