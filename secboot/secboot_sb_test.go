@@ -1898,7 +1898,7 @@ func (s *secbootSuite) TestPCRHandleOfSealedKey(c *C) {
 	c.Assert(h, Equals, uint32(0))
 
 	skf := filepath.Join(d, "sealed-key")
-	// partially valid salealed key with correct header magic
+	// partially valid sealed key with correct header magic
 	c.Assert(ioutil.WriteFile(skf, []byte{0x55, 0x53, 0x4b, 0x24, 1, 1, 1, 'k', 'e', 'y', 1, 1, 1}, 0644), IsNil)
 	h, err = secboot.PCRHandleOfSealedKey(skf)
 	c.Assert(err, ErrorMatches, "(?s)cannot open key file: invalid key data: cannot unmarshal AFIS header: .*")
