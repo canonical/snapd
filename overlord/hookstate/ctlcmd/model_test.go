@@ -206,7 +206,7 @@ plugs:
 
 func (s *modelSuite) TestUnhappyModelCommandInsufficientPermissions(c *C) {
 	// Verify we get an error in case that we do not match any of the three
-	// criterias:
+	// criteria:
 	// - snapd-control interface
 	// - we are a gadget snap
 	// - we come from the same publisher
