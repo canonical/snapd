@@ -605,22 +605,67 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 	}
 }
 
+func (s *secbootSuite) TestProvisionTPM(c *C) {
+	mockErr := errors.New("some error")
+
+	for idx, tc := range []struct {
+		tpmErr            error
+		tpmEnabled        bool
+		provisioningErr   error
+		provisioningCalls int
+		expectedErr       string
+	}{
+		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
+		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
+		{tpmEnabled: true, provisioningErr: mockErr, provisioningCalls: 1, expectedErr: "cannot provision TPM: some error"},
+		{tpmEnabled: true, provisioningCalls: 1, expectedErr: ""},
+	} {
+		c.Logf("tc: %v", idx)
+		d := c.MkDir()
+		tpm, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		// mock TPM enabled check
+		restore = secboot.MockIsTPMEnabled(func(t *sb_tpm2.Connection) bool {
+			return tc.tpmEnabled
+		})
+		defer restore()
+
+		// mock provisioning
+		provisioningCalls := 0
+		restore = secboot.MockSbTPMEnsureProvisioned(func(t *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, newLockoutAuth []byte) error {
+			provisioningCalls++
+			c.Assert(t, Equals, tpm)
+			c.Assert(mode, Equals, sb_tpm2.ProvisionModeFull)
+			return tc.provisioningErr
+		})
+		defer restore()
+
+		err := secboot.ProvisionTPM(filepath.Join(d, "lockout-auth"))
+		if tc.expectedErr != "" {
+			c.Assert(err, ErrorMatches, tc.expectedErr)
+		} else {
+			c.Assert(err, IsNil)
+		}
+		c.Check(provisioningCalls, Equals, tc.provisioningCalls)
+	}
+
+}
+
 func (s *secbootSuite) TestSealKey(c *C) {
 	mockErr := errors.New("some error")
 
-	for _, tc := range []struct {
+	for idx, tc := range []struct {
 		tpmErr               error
 		tpmEnabled           bool
 		missingFile          bool
 		badSnapFile          bool
-		skipProvision        bool
 		addEFISbPolicyErr    error
 		addEFIBootManagerErr error
 		addSystemdEFIStubErr error
 		addSnapModelErr      error
 		provisioningErr      error
 		sealErr              error
-		provisioningCalls    int
 		sealCalls            int
 		expectedErr          string
 	}{
@@ -632,11 +677,11 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmEnabled: true, addEFIBootManagerErr: mockErr, expectedErr: "cannot add EFI boot manager profile: some error"},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
-		{tpmEnabled: true, provisioningErr: mockErr, provisioningCalls: 1, expectedErr: "cannot provision TPM: some error"},
-		{tpmEnabled: true, sealErr: mockErr, provisioningCalls: 1, sealCalls: 1, expectedErr: "some error"},
-		{tpmEnabled: true, skipProvision: true, provisioningCalls: 0, sealCalls: 1, expectedErr: ""},
-		{tpmEnabled: true, provisioningCalls: 1, sealCalls: 1, expectedErr: ""},
+		{tpmEnabled: true, sealErr: mockErr, sealCalls: 1, expectedErr: "some error"},
+		{tpmEnabled: true, sealCalls: 1, expectedErr: ""},
+		{tpmEnabled: true, sealCalls: 1, expectedErr: ""},
 	} {
+		c.Logf("tc: %v", idx)
 		tmpDir := c.MkDir()
 		var mockBF []bootloader.BootFile
 		for _, name := range []string{"a", "b", "c", "d"} {
@@ -694,8 +739,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			},
 			TPMPolicyAuthKey:       myAuthKey,
 			TPMPolicyAuthKeyFile:   filepath.Join(tmpDir, "policy-auth-key-file"),
-			TPMLockoutAuthFile:     filepath.Join(tmpDir, "lockout-auth-file"),
-			TPMProvision:           !tc.skipProvision,
 			PCRPolicyCounterHandle: 42,
 		}
 
@@ -861,17 +904,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		})
 		defer restore()
 
-		// mock provisioning
-		provisioningCalls := 0
-		restore = secboot.MockProvisionTPM(func(t *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, newLockoutAuth []byte) error {
-			provisioningCalls++
-			c.Assert(t, Equals, tpm)
-			c.Assert(mode, Equals, sb_tpm2.ProvisionModeFull)
-			c.Assert(myParams.TPMLockoutAuthFile, testutil.FilePresent)
-			return tc.provisioningErr
-		})
-		defer restore()
-
 		// mock sealing
 		sealCalls := 0
 		restore = secboot.MockSbSealKeyToTPMMultiple(func(t *sb_tpm2.Connection, kr []*sb_tpm2.SealKeyRequest, params *sb_tpm2.KeyCreationParams) (sb_tpm2.PolicyAuthKey, error) {
@@ -900,9 +932,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
-		c.Assert(provisioningCalls, Equals, tc.provisioningCalls)
 		c.Assert(sealCalls, Equals, tc.sealCalls)
-
 	}
 }
 
@@ -1105,7 +1135,6 @@ func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 	}
 	myParams := secboot.SealKeysParams{
 		TPMPolicyAuthKeyFile: "policy-auth-key-file",
-		TPMLockoutAuthFile:   "lockout-auth-file",
 	}
 
 	err := secboot.SealKeys(myKeys, &myParams)
