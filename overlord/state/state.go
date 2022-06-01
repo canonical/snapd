@@ -256,6 +256,8 @@ func (e *NoStateError) Error() string {
 	return fmt.Sprintf("no state entry for key%s", keyMsg)
 }
 
+// Is returns true if the error is of type *NoStateError or equal to ErrNoState.
+// NoStateError's key isn't compared between errors.
 func (e *NoStateError) Is(err error) bool {
 	_, ok := err.(*NoStateError)
 	return ok || errors.Is(err, ErrNoState)
