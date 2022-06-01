@@ -65,6 +65,7 @@ var (
 
 	isTPMEnabled           func(tpm *sb_tpm2.Connection) bool                                                  = (*sb_tpm2.Connection).IsEnabled
 	sbTPMEnsureProvisioned func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte) error = (*sb_tpm2.Connection).EnsureProvisioned
+	tpmReleaseResources                                                                                        = tpmReleaseResourcesImpl
 
 	// check whether the interfaces match
 	_ (sb.SnapModel) = ModelForSealing(nil)
@@ -577,4 +578,53 @@ func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
 		Container: snapf,
 		FileName:  b.Path,
 	}, nil
+}
+
+// PCRHandleOfSealedKey retunrs the PCR handle which was used when sealing a
+// given key object.
+func PCRHandleOfSealedKey(p string) (uint32, error) {
+	r, err := sb_tpm2.NewFileSealedKeyObjectReader(p)
+	if err != nil {
+		return 0, fmt.Errorf("cannot open key file: %v", err)
+	}
+	sko, err := sb_tpm2.ReadSealedKeyObject(r)
+	if err != nil {
+		return 0, fmt.Errorf("cannot read sealed key file: %v", err)
+	}
+	handle := uint32(sko.PCRPolicyCounterHandle())
+	return handle, nil
+}
+
+func tpmReleaseResourcesImpl(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
+	rc, err := tpm.CreateResourceContextFromTPM(handle)
+	if err != nil {
+		if _, ok := err.(tpm2.ResourceUnavailableError); ok {
+			// there's nothing to release, the handle isn't used
+			return nil
+		}
+		return fmt.Errorf("cannot create resource context: %v", err)
+	}
+	if err := tpm.NVUndefineSpace(tpm.OwnerHandleContext(), rc, tpm.HmacSession()); err != nil {
+		return fmt.Errorf("cannot undefine space: %v", err)
+	}
+	return nil
+}
+
+// ReleasePCRResourceHandles releases any TPM resources associated with given
+// PCR handles.
+func ReleasePCRResourceHandles(handles ...uint32) error {
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		err = fmt.Errorf("cannot connect to TPM device: %v", err)
+		return err
+	}
+	defer tpm.Close()
+
+	for _, handle := range handles {
+		logger.Debugf("releasing PCR handle %#x", handle)
+		if err := tpmReleaseResources(tpm, tpm2.Handle(handle)); err != nil {
+			return fmt.Errorf("cannot release TPM resources for handle %#x: %v", handle, err)
+		}
+	}
+	return nil
 }

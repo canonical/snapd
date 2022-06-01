@@ -101,7 +101,15 @@ An existing sub group cannot be moved from one parent to another.
 
 func init() {
 	// TODO: unhide the commands when non-experimental
-	cmd := addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp, func() flags.Commander { return &cmdSetQuota{} }, nil, nil)
+	cmd := addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp,
+		func() flags.Commander { return &cmdSetQuota{} },
+		waitDescs.also(map[string]string{
+			"memory":  i18n.G("Memory quota"),
+			"cpu":     i18n.G("CPU quota"),
+			"cpu-set": i18n.G("CPU set quota"),
+			"threads": i18n.G("Threads quota"),
+			"parent":  i18n.G("Parent quota group"),
+		}), nil)
 	cmd.hidden = true
 
 	cmd = addCommand("quota", shortQuotaHelp, longQuotaHelp, func() flags.Commander { return &cmdQuota{} }, nil, nil)
