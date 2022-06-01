@@ -189,6 +189,12 @@ func DataDir(name string, revision Revision) string {
 	return filepath.Join(BaseDataDir(name), revision.String())
 }
 
+// CommonSaveDir returns a core-specific save directory meant to provide access
+// to a per-snap storage that is preserved across factory reset.
+func CommonSaveDir(name string) string {
+	return filepath.Join(dirs.SnapCommonSaveDir, name)
+}
+
 // CommonDataDir returns the common data directory for given snap name. The name
 // can be either a snap name or snap instance name.
 func CommonDataDir(name string) string {
@@ -542,6 +548,11 @@ func (s *Info) UserExposedHomeDir(home string) string {
 // CommonDataDir returns the data directory common across revisions of the snap.
 func (s *Info) CommonDataDir() string {
 	return CommonDataDir(s.InstanceName())
+}
+
+// CommonSaveDir returns the save data directory common across revisions of the snap.
+func (s *Info) CommonSaveDir() string {
+	return CommonSaveDir(s.InstanceName())
 }
 
 // DataHomeGlob returns the globbing expression for the snap directories in use

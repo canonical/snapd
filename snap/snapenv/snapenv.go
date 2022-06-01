@@ -85,6 +85,7 @@ func basicEnv(info *snap.Info) osutil.Environment {
 		"SNAP":               filepath.Join(dirs.CoreSnapMountDir, info.SnapName(), info.Revision.String()),
 		"SNAP_COMMON":        snap.CommonDataDir(info.SnapName()),
 		"SNAP_DATA":          snap.DataDir(info.SnapName(), info.Revision),
+		"SNAP_SAVE_DATA":     snap.CommonSaveDir(info.InstanceName()),
 		"SNAP_NAME":          info.SnapName(),
 		"SNAP_INSTANCE_NAME": info.InstanceName(),
 		"SNAP_INSTANCE_KEY":  info.InstanceKey,

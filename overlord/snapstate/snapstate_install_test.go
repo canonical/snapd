@@ -96,12 +96,13 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 	if opts&updatesGadget != 0 {
 		expected = append(expected, "update-gadget-cmdline")
 	}
+	expected = append(expected, "copy-snap-data")
+	if !release.OnClassic {
+		expected = append(expected, "create-snap-save")
+	}
 	expected = append(expected,
-		"copy-snap-data",
 		"setup-profiles",
 		"link-snap",
-	)
-	expected = append(expected,
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases")

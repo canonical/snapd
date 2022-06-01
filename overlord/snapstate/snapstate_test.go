@@ -5542,6 +5542,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
 		},
 		{
+			op:   "remove-snap-save-data",
+			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
+		},
+		{
 			op:   "remove-snap-data-dir",
 			name: "ubuntu-core",
 			path: filepath.Join(dirs.SnapDataDir, "ubuntu-core"),
@@ -5641,6 +5645,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:   "remove-snap-common-data",
+			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
+		},
+		{
+			op:   "remove-snap-save-data",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
 		},
 		{
@@ -7895,6 +7903,7 @@ func (s *snapmgrTestSuite) addSnapsForRemodel(c *C) {
 
 var nonReLinkKinds = []string{
 	"copy-snap-data",
+	"create-snap-save",
 	"setup-profiles",
 	"auto-connect",
 	"set-auto-aliases",

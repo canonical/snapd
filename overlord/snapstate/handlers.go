@@ -1204,6 +1204,41 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func (m *SnapManager) doCreateSnapSave(t *state.Task, _ *tomb.Tomb) (err error) {
+	st := t.State()
+	st.Lock()
+	snapsup, _, err := snapSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	// We only perform this step for ubuntu core, as the ubuntu-save
+	// partition is only present here.
+	if exists, _, err := osutil.DirExists(filepath.Dir(dirs.SnapCommonSaveDir)); err != nil || !exists {
+		return nil
+	}
+
+	saveDir := snap.CommonSaveDir(snapsup.InstanceName())
+	return os.MkdirAll(saveDir, 0755)
+}
+
+func (m *SnapManager) undoCreateSnapSave(t *state.Task, _ *tomb.Tomb) (err error) {
+	st := t.State()
+	st.Lock()
+	snapsup, _, err := snapSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	saveDir := snap.CommonSaveDir(snapsup.InstanceName())
+	if exists, _, err := osutil.DirExists(saveDir); err != nil || !exists {
+		return nil
+	}
+	return os.RemoveAll(saveDir)
+}
+
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
@@ -2756,6 +2791,10 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	if len(snapst.Sequence) == 1 {
 		// Only remove data common between versions if this is the last version
 		if err = m.backend.RemoveSnapCommonData(info, dirOpts); err != nil {
+			return err
+		}
+
+		if err = m.backend.RemoveSnapSaveData(info, dirOpts); err != nil {
 			return err
 		}
 
