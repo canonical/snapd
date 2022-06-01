@@ -485,6 +485,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = copyData
 	}
 
+	if !release.OnClassic {
+		createSnapSave := st.NewTask("create-snap-save", fmt.Sprintf(i18n.G("Create snap %q save data directory"), snapsup.InstanceName()))
+		addTask(createSnapSave)
+		prev = createSnapSave
+	}
+
 	// security
 	setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q%s security profiles"), snapsup.InstanceName(), revisionStr))
 	addTask(setupSecurity)

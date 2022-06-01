@@ -52,6 +52,15 @@ func (b Backend) RemoveSnapCommonData(snap *snap.Info, opts *dirs.SnapDirOptions
 	return removeDirs(dirs)
 }
 
+// RemoveSnapSaveData removes the common save data between versions of the given snap.
+func (b Backend) RemoveSnapSaveData(snapInfo *snap.Info, opts *dirs.SnapDirOptions) error {
+	saveDir := snap.CommonSaveDir(snapInfo.InstanceName())
+	if exists, _, err := osutil.DirExists(saveDir); err != nil || !exists {
+		return nil
+	}
+	return os.RemoveAll(saveDir)
+}
+
 // RemoveSnapDataDir removes base snap data directory
 func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool) error {
 	if info.InstanceKey != "" {

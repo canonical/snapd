@@ -44,6 +44,7 @@ var (
 	SnapBlobDir               string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
+	SnapCommonSaveDir         string
 	SnapDownloadCacheDir      string
 	SnapAppArmorDir           string
 	SnapAppArmorAdditionalDir string
@@ -380,6 +381,8 @@ func SetRootDir(rootdir string) {
 	SnapBootstrapRunDir = filepath.Join(SnapRunDir, "snap-bootstrap")
 
 	SnapdStoreSSLCertsDir = filepath.Join(rootdir, snappyDir, "ssl/store-certs")
+
+	SnapCommonSaveDir = filepath.Join(rootdir, "/var/lib/snapd/save/snap")
 
 	// keep in sync with the debian/snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")

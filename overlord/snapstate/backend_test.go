@@ -1174,6 +1174,14 @@ func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.Sna
 	return f.maybeErrForLastOp()
 }
 
+func (f *fakeSnappyBackend) RemoveSnapSaveData(info *snap.Info, opts *dirs.SnapDirOptions) error {
+	f.appendOp(&fakeOp{
+		op:   "remove-snap-save-data",
+		path: info.MountDir(),
+	})
+	return f.maybeErrForLastOp()
+}
+
 func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bool) error {
 	f.ops = append(f.ops, fakeOp{
 		op:             "remove-snap-data-dir",
