@@ -678,7 +678,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmEnabled: true, addEFIBootManagerErr: mockErr, expectedErr: "cannot add EFI boot manager profile: some error"},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
-		{tpmEnabled: true, sealErr: mockErr, provisioningCalls: 1, sealCalls: 1, expectedErr: "some error"},
+		{tpmEnabled: true, sealErr: mockErr, sealCalls: 1, expectedErr: "some error"},
 		{tpmEnabled: true, sealCalls: 1, expectedErr: ""},
 		{tpmEnabled: true, sealCalls: 1, expectedErr: ""},
 	} {

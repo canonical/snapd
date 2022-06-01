@@ -107,7 +107,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 	}{
 		{sealErr: nil, err: ""},
 		{sealErr: errors.New("seal error"), err: "cannot seal the encryption keys: seal error"},
-		{provisionErr: errors.New("provision error"), sealErr: errors.New("unexpected call"), err: "cannot seal the encryption keys: seal error"},
+		{provisionErr: errors.New("provision error"), sealErr: errors.New("unexpected call"), err: "provision error"},
 	} {
 		rootdir := c.MkDir()
 		dirs.SetRootDir(rootdir)
@@ -247,7 +247,6 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		c.Assert(provisionCalls, Equals, 1)
 		if tc.provisionErr != nil {
 			c.Assert(sealKeysCalls, Equals, 0)
-			continue
 		} else {
 			if tc.sealErr != nil {
 				c.Assert(sealKeysCalls, Equals, 1)
