@@ -141,6 +141,12 @@ func MockSecbootPCRHandleOfSealedKey(f func(p string) (uint32, error)) (restore 
 	return restore
 }
 
+func MockSecbootReleasePCRResourceHandles(f func(handles ...uint32) error) (restore func()) {
+	restore = testutil.Backup(&secbootReleasePCRResourceHandles)
+	secbootReleasePCRResourceHandles = f
+	return restore
+}
+
 func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash string, recovery bool) {
 	ta := &trackedAsset{
 		blName: blName,

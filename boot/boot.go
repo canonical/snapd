@@ -473,3 +473,16 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir string
 	}
 	return cmdlineChange, nil
 }
+
+// CompleteFactoryReset runs a series of steps in a run system that complete a
+// factory reset process.
+func CompleteFactoryReset(encrypted bool) error {
+	if !encrypted {
+		// there is nothing to do on an unencrypted system
+		return nil
+	}
+	if err := postFactoryResetCleanup(); err != nil {
+		return fmt.Errorf("cannot perform boot cleanup: %v", err)
+	}
+	return nil
+}
