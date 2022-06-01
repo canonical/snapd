@@ -21,6 +21,7 @@ package kmod_test
 
 import (
 	"errors"
+	"os"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -43,6 +44,17 @@ func (s *kmodSuite) SetUpTest(c *C) {
 
 func (s *kmodSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
+}
+
+func (s *kmodSuite) TestModprobeCommandNotFound(c *C) {
+	originalPath := os.Getenv("PATH")
+	defer func() {
+		os.Setenv("PATH", originalPath)
+	}()
+
+	os.Unsetenv("PATH")
+	err := kmod.ModprobeCommand("name", "opt1=v1", "opt2=v2")
+	c.Check(err, ErrorMatches, `exec: "modprobe": executable file not found in \$PATH`)
 }
 
 func (s *kmodSuite) TestModprobeCommandFailure(c *C) {
