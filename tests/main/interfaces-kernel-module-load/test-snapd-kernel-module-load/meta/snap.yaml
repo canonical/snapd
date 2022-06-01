@@ -27,7 +27,7 @@ plugs:
               # The module does not support any options, really, but we still
               # want to test that the module configuration files gets written
               options: something=ok
-            - name: pcrypt
+            - name: vmac
               load: dynamic
               # Like the above, no options are supported. But let's test "*"
               options: "*"

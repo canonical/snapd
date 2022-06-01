@@ -13,7 +13,7 @@ prepare: |
 restore: |
     echo "Ensure snap is removed even if something goes wrong"
     snap remove "$SNAP_NAME"
-    modprobe -r xcbc md4 pcrypt || true
+    modprobe -r xcbc md4 vmac || true
 
 execute: |
     echo "When the interface is connected"
@@ -28,7 +28,7 @@ execute: |
     NOMATCH "pcspkr" < "$MODPROBE_CONF"
     MATCH "options md4 something=ok" < "$MODPROBE_CONF"
     # This has the "*" value for the options: no entry should be written:
-    NOMATCH "pcrypt" < "$MODPROBE_CONF"
+    NOMATCH "vmac" < "$MODPROBE_CONF"
 
     echo "And modules are configured to be auto-loaded"
     MODULES_LOAD_CONF="/etc/modules-load.d/snap.$SNAP_NAME.conf"
@@ -36,23 +36,23 @@ execute: |
     MATCH "arc4" < "$MODULES_LOAD_CONF"
     NOMATCH "mymodule" < "$MODULES_LOAD_CONF"
     NOMATCH "md4" < "$MODULES_LOAD_CONF"
-    NOMATCH "pcrypt" < "$MODULES_LOAD_CONF"
+    NOMATCH "vmac" < "$MODULES_LOAD_CONF"
 
     echo "Test dynamic loading of kernel modules"
     test-snapd-kernel-module-load.cmd snapctl kmod insert xcbc
     test-snapd-kernel-module-load.cmd snapctl kmod insert md4
-    test-snapd-kernel-module-load.cmd snapctl kmod insert pcrypt
+    test-snapd-kernel-module-load.cmd snapctl kmod insert vmac
     MATCH "^xcbc " < /proc/modules
     MATCH "^md4 " < /proc/modules
-    MATCH "^pcrypt " < /proc/modules
+    MATCH "^vmac " < /proc/modules
 
     echo "Test unloading"
     test-snapd-kernel-module-load.cmd snapctl kmod remove xcbc
     test-snapd-kernel-module-load.cmd snapctl kmod remove md4
-    test-snapd-kernel-module-load.cmd snapctl kmod remove pcrypt
+    test-snapd-kernel-module-load.cmd snapctl kmod remove vmac
     NOMATCH "^xcbc " < /proc/modules
     NOMATCH "^md4 " < /proc/modules
-    NOMATCH "^pcrypt " < /proc/modules
+    NOMATCH "^vmac " < /proc/modules
 
     echo "Test loading with options"
     if test-snapd-kernel-module-load.cmd snapctl kmod insert xcbc option=value; then
@@ -64,8 +64,8 @@ execute: |
         echo "Should not be able to specify parameters for md4 module!"
         exit 1
     fi
-    test-snapd-kernel-module-load.cmd snapctl kmod insert pcrypt opt1=v1 opt2=v2
-    MATCH "^pcrypt " < /proc/modules
+    test-snapd-kernel-module-load.cmd snapctl kmod insert vmac opt1=v1 opt2=v2
+    MATCH "^vmac " < /proc/modules
 
     echo "Disconnect the interface"
     snap disconnect "$SNAP_NAME:kernel-module-load"
