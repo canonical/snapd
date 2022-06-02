@@ -162,8 +162,13 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- lxd waitready
     lxd.lxc exec my-nesting-ubuntu -- lxd init --auto
 
-    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "ubuntu:${VERSION_ID:-}" my-inner-ubuntu
-    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
+    # We can't launch the inner ubuntu lxd container in google cloud images
+    # See https://github.com/lxc/lxd/issues/10492
+    # See https://bugs.launchpad.net/cloud-images/+bug/1976552
+    if [ "$SPREAD_BACKEND" != "google" ]; then
+        lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "ubuntu:${VERSION_ID:-}" my-inner-ubuntu
+        lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
+    fi
 
     # finally check that we can't run snapd inside a nested lxd container as
     # current apparmor does not support this, so if this works it is probably a
