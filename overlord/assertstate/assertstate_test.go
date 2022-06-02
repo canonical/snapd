@@ -2204,6 +2204,30 @@ func (s *assertMgrSuite) TestPublisher(c *C) {
 	c.Check(acct.Username(), Equals, "developer1")
 }
 
+func (s *assertMgrSuite) TestPublisherStoreAccount(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a declaration in the system db
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+
+	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
+	c.Check(asserts.IsNotFound(err), Equals, true)
+
+	acct, err := assertstate.PublisherStoreAccount(s.state, "foo-id")
+	c.Assert(err, IsNil)
+	c.Check(acct.ID, Equals, s.dev1Acct.AccountID())
+	c.Check(acct.Username, Equals, "developer1")
+	c.Check(acct.DisplayName, Equals, "Developer1")
+	c.Check(acct.Validation, Equals, s.dev1Acct.Validation())
+}
+
 func (s *assertMgrSuite) TestStore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
