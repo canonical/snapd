@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"strings"
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
@@ -604,11 +605,15 @@ func ReleasePCRResourceHandles(handles ...uint32) error {
 	}
 	defer tpm.Close()
 
+	var errs []string
 	for _, handle := range handles {
 		logger.Debugf("releasing PCR handle %#x", handle)
 		if err := tpmReleaseResources(tpm, tpm2.Handle(handle)); err != nil {
-			return fmt.Errorf("cannot release TPM resources for handle %#x: %v", handle, err)
+			errs = append(errs, fmt.Sprintf("handle %#x: %v", handle, err))
 		}
+	}
+	if errCnt := len(errs); errCnt != 0 {
+		return fmt.Errorf("cannot release TPM resources for %v handles:\n%v", errCnt, strings.Join(errs, "\n"))
 	}
 	return nil
 }

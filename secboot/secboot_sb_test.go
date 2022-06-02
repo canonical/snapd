@@ -1955,8 +1955,11 @@ func (s *secbootSuite) TestReleasePCRResourceHandles(c *C) {
 	restore = secboot.MockTPMReleaseResources(func(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
 		c.Check(tpm, Equals, conn)
 		handles = append(handles, handle)
-		if handle == tpm2.Handle(0xeeeeee) {
-			return fmt.Errorf("mock release error")
+		switch handle {
+		case tpm2.Handle(0xeeeeee):
+			return fmt.Errorf("mock release error 1")
+		case tpm2.Handle(0xeeeeef):
+			return fmt.Errorf("mock release error 2")
 		}
 		return nil
 	})
@@ -1977,9 +1980,12 @@ func (s *secbootSuite) TestReleasePCRResourceHandles(c *C) {
 
 	// an error case
 	handles = nil
-	err = secboot.ReleasePCRResourceHandles(0x1234, 0xeeeeee)
-	c.Assert(err, ErrorMatches, "cannot release TPM resources for handle 0xeeeeee: mock release error")
+	err = secboot.ReleasePCRResourceHandles(0x1234, 0xeeeeee, 0x2345, 0xeeeeef)
+	c.Assert(err, ErrorMatches, `
+cannot release TPM resources for 2 handles:
+handle 0xeeeeee: mock release error 1
+handle 0xeeeeef: mock release error 2`[1:])
 	c.Check(handles, DeepEquals, []tpm2.Handle{
-		tpm2.Handle(0x1234), tpm2.Handle(0xeeeeee),
+		tpm2.Handle(0x1234), tpm2.Handle(0xeeeeee), tpm2.Handle(0x2345), tpm2.Handle(0xeeeeef),
 	})
 }
