@@ -110,9 +110,9 @@ func (c *modelCommand) reportError(format string, a ...interface{}) {
 	w.Flush()
 }
 
-// hasSnapdControl returns true if the requesting snap has the snapd-control plug
-// and only if it is connected as well.
-var hasSnapdControlInterface = func(st *state.State, snapName string) (bool, error) {
+// hasSnapdControlInterface returns true if the requesting snap has the
+// snapd-control plug and only if it is connected as well.
+func (c *modelCommand) hasSnapdControlInterface(st *state.State, snapName string) (bool, error) {
 	conns, err := ifacestate.ConnectionStates(st)
 	if err != nil {
 		return false, err
@@ -162,7 +162,7 @@ func (c *modelCommand) checkPermissions(st *state.State, deviceCtx snapstate.Dev
 	if snapInfo.Publisher.ID == deviceCtx.Model().BrandID() {
 		return nil
 	}
-	if conn, err := hasSnapdControlInterface(st, snapInfo.SnapName()); err != nil {
+	if conn, err := c.hasSnapdControlInterface(st, snapInfo.SnapName()); err != nil {
 		return fmt.Errorf("cannot check for snapd-control interface: %v", err)
 	} else if conn {
 		return nil
@@ -176,7 +176,7 @@ func (c *modelCommand) checkPermissions(st *state.State, deviceCtx snapstate.Dev
 
 // findSerialAssertion is a helper function to find the newest matching serial assertion
 // for the provided model assertion.
-func findSerialAssertion(st *state.State, modelAssertion *asserts.Model) (*asserts.Serial, error) {
+func (c *modelCommand) findSerialAssertion(st *state.State, modelAssertion *asserts.Model) (*asserts.Serial, error) {
 	assertions, err := assertstate.DB(st).FindMany(asserts.SerialType, map[string]string{
 		"brand-id": modelAssertion.BrandID(),
 		"model":    modelAssertion.Model(),
@@ -185,19 +185,12 @@ func findSerialAssertion(st *state.State, modelAssertion *asserts.Model) (*asser
 		return nil, err
 	}
 
-	// helper to parse the timestamp embedded in the assertion, if
-	// anything goes wrong parsing this we return an empty timestamp
-	// to only use it in case there is no other serial assertion with
-	// a valid timetamp
+	// Helper to parse the timestamp embedded in the assertion. There
+	// is a Timestamp method for the serial assertion, so we cast it
+	// and use that
 	getAssertionTime := func(a asserts.Assertion) time.Time {
-		iTimestamp := a.HeaderString("timestamp")
-
-		// for assertions the timestamp is always RFC3339
-		t1, err := time.Parse(time.RFC3339, iTimestamp)
-		if err != nil {
-			return time.Time{}
-		}
-		return t1
+		serial := a.(*asserts.Serial)
+		return serial.Timestamp()
 	}
 
 	sort.Slice(assertions, func(i, j int) bool {
@@ -257,7 +250,7 @@ func (c *modelCommand) Execute([]string) error {
 		Assertion: c.Assertion,
 	}
 
-	serialAssertion, err := findSerialAssertion(st, deviceCtx.Model())
+	serialAssertion, err := c.findSerialAssertion(st, deviceCtx.Model())
 	// Ignore the error in case the serial assertion wasn't found. We will
 	// then use the model assertion instead.
 	if err != nil && !asserts.IsNotFound(err) {

@@ -109,7 +109,6 @@ func (s *modelSuite) SetUpTest(c *C) {
 		"display-name": "fancy model publisher",
 		"validation":   "certified",
 	})
-	s.brands.Register("rereg-brand", brandPrivKey2, nil)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore:       asserts.NewMemoryBackstore(),
@@ -310,13 +309,11 @@ func (s *modelSuite) TestHappyModelCommandSnapdControlPlug(c *C) {
 	mockContext, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 	mockInstalledSnap(c, s.state, snapWithSnapdControlOnlyYaml, "")
-	s.state.Unlock()
 
-	// to make life easier for us, we mock the connected check
-	r := ctlcmd.MockHasSnapdControlInterface(func(st *state.State, snapName string) (bool, error) {
-		return true, nil
+	s.state.Set("conns", map[string]interface{}{
+		"snap1-control:plug core:slot": map[string]interface{}{"interface": "snapd-control"},
 	})
-	defer r()
+	s.state.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"model"}, 0)
 	c.Check(err, IsNil)
@@ -571,4 +568,144 @@ func (s *modelSuite) TestRunWithoutHook(c *C) {
   "timestamp": "%s"
 }`, time.Now().Format(time.RFC3339)))
 	c.Check(string(stderr), Equals, "")
+}
+
+func (s *modelSuite) TestLongPublisherUnproven(c *C) {
+	snapInfo := &snap.Info{
+		Publisher: snap.StoreAccount{
+			ID:          "canonical-id",
+			Username:    "canonical",
+			DisplayName: "Canonical",
+			Validation:  "unproven",
+		},
+	}
+	c.Assert(ctlcmd.FormatLongPublisher(snapInfo, ""), Equals, "Canonical")
+}
+
+func (s *modelSuite) TestLongPublisherStarred(c *C) {
+	snapInfo := &snap.Info{
+		Publisher: snap.StoreAccount{
+			ID:          "canonical-id",
+			Username:    "canonical",
+			DisplayName: "Canonical",
+			Validation:  "starred",
+		},
+	}
+	c.Assert(ctlcmd.FormatLongPublisher(snapInfo, ""), Equals, "Canonical*")
+}
+
+func (s *modelSuite) TestLongPublisherVerified(c *C) {
+	snapInfo := &snap.Info{
+		Publisher: snap.StoreAccount{
+			ID:          "canonical-id",
+			Username:    "canonical",
+			DisplayName: "Canonical",
+			Validation:  "verified",
+		},
+	}
+	c.Assert(ctlcmd.FormatLongPublisher(snapInfo, ""), Equals, "Canonical**")
+}
+
+func (s *modelSuite) signSerial(accountID, model, serial string, timestamp time.Time, extras ...map[string]interface{}) *asserts.Serial {
+	encodedPubKey, err := asserts.EncodePublicKey(brandPrivKey2.PublicKey())
+	headers := map[string]interface{}{
+		"series":              "16",
+		"serial":              serial,
+		"brand-id":            accountID,
+		"model":               model,
+		"timestamp":           timestamp.Format(time.RFC3339),
+		"device-key":          string(encodedPubKey),
+		"device-key-sha3-384": brandPrivKey2.PublicKey().ID(),
+	}
+	for _, extra := range extras {
+		for k, v := range extra {
+			headers[k] = v
+		}
+	}
+
+	signer := s.brands.Signing(accountID)
+
+	modelAs, err := signer.Sign(asserts.SerialType, headers, nil, "")
+	if err != nil {
+		panic(err)
+	}
+	return modelAs.(*asserts.Serial)
+}
+
+func (s *modelSuite) TestFindSerialAssertionNone(c *C) {
+	s.setupBrands()
+	model := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	assertstatetest.AddMany(s.state, model)
+
+	result, err := ctlcmd.FindSerialAssertion(s.state, model)
+	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Assert(result, IsNil)
+}
+
+func (s *modelSuite) TestFindSerialAssertionMatch(c *C) {
+	s.setupBrands()
+	model := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	serial := s.signSerial("canonical", "pc-model", "1", time.Now(), map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	assertstatetest.AddMany(s.state, model, serial)
+
+	result, err := ctlcmd.FindSerialAssertion(s.state, model)
+	c.Assert(err, IsNil)
+	c.Check(result.Serial(), Equals, "1")
+}
+
+func (s *modelSuite) TestFindSerialAssertionMultiple(c *C) {
+	// In case of multiple matches, we should return the one with the
+	// newest timestamp.
+	s.setupBrands()
+
+	now := time.Now()
+	tomorrow := now.AddDate(0, 0, 1)
+
+	model := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	serial := s.signSerial("canonical", "pc-model", "1", now, map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	serialnext := s.signSerial("canonical", "pc-model", "2", tomorrow, map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	assertstatetest.AddMany(s.state, model, serial, serialnext)
+
+	result, err := ctlcmd.FindSerialAssertion(s.state, model)
+	c.Assert(err, IsNil)
+	c.Check(result.Timestamp(), Equals, serialnext.Timestamp())
 }
