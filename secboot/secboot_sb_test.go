@@ -1919,3 +1919,73 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 
 	c.Check(err, ErrorMatches, `cannot unlock encrypted partition: invalid key data:.*`)
 }
+
+func (s *secbootSuite) TestPCRHandleOfSealedKey(c *C) {
+	d := c.MkDir()
+	h, err := secboot.PCRHandleOfSealedKey(filepath.Join(d, "not-found"))
+	c.Assert(err, ErrorMatches, "cannot open key file: .*/not-found: no such file or directory")
+	c.Assert(h, Equals, uint32(0))
+
+	skf := filepath.Join(d, "sealed-key")
+	// partially valid sealed key with correct header magic
+	c.Assert(ioutil.WriteFile(skf, []byte{0x55, 0x53, 0x4b, 0x24, 1, 1, 1, 'k', 'e', 'y', 1, 1, 1}, 0644), IsNil)
+	h, err = secboot.PCRHandleOfSealedKey(skf)
+	c.Assert(err, ErrorMatches, "(?s)cannot open key file: invalid key data: cannot unmarshal AFIS header: .*")
+	c.Check(h, Equals, uint32(0))
+
+	// TODO simulate the happy case, which needs a real (or at least
+	// partially mocked) sealed key object, which could be obtained using
+	// go-tpm2/testutil, but that has a dependency on an older version of
+	// snapd API and cannot be imported or procure a valid sealed key binary
+	// which unfortunately there are no examples of the secboot/tpm2 test
+	// code
+}
+
+func (s *secbootSuite) TestReleasePCRResourceHandles(c *C) {
+	_, restore := mockSbTPMConnection(c, fmt.Errorf("mock err"))
+	defer restore()
+
+	err := secboot.ReleasePCRResourceHandles(0x1234, 0x2345)
+	c.Assert(err, ErrorMatches, "cannot connect to TPM device: mock err")
+
+	conn, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	var handles []tpm2.Handle
+	restore = secboot.MockTPMReleaseResources(func(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
+		c.Check(tpm, Equals, conn)
+		handles = append(handles, handle)
+		switch handle {
+		case tpm2.Handle(0xeeeeee):
+			return fmt.Errorf("mock release error 1")
+		case tpm2.Handle(0xeeeeef):
+			return fmt.Errorf("mock release error 2")
+		}
+		return nil
+	})
+	defer restore()
+
+	// many handles
+	err = secboot.ReleasePCRResourceHandles(0x1234, 0x2345)
+	c.Assert(err, IsNil)
+	c.Check(handles, DeepEquals, []tpm2.Handle{
+		tpm2.Handle(0x1234), tpm2.Handle(0x2345),
+	})
+
+	// single handle
+	handles = nil
+	err = secboot.ReleasePCRResourceHandles(0x1234)
+	c.Assert(err, IsNil)
+	c.Check(handles, DeepEquals, []tpm2.Handle{tpm2.Handle(0x1234)})
+
+	// an error case
+	handles = nil
+	err = secboot.ReleasePCRResourceHandles(0x1234, 0xeeeeee, 0x2345, 0xeeeeef)
+	c.Assert(err, ErrorMatches, `
+cannot release TPM resources for 2 handles:
+handle 0xeeeeee: mock release error 1
+handle 0xeeeeef: mock release error 2`[1:])
+	c.Check(handles, DeepEquals, []tpm2.Handle{
+		tpm2.Handle(0x1234), tpm2.Handle(0xeeeeee), tpm2.Handle(0x2345), tpm2.Handle(0xeeeeef),
+	})
+}
