@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -85,6 +86,12 @@ func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) 
 	old := removeStaleConnections
 	removeStaleConnections = f
 	return func() { removeStaleConnections = old }
+}
+
+func MockSnapdAppArmorServiceIsDisabled(f func() bool) (restore func()) {
+	r := testutil.Backup(&snapdAppArmorServiceIsDisabled)
+	snapdAppArmorServiceIsDisabled = f
+	return r
 }
 
 func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
