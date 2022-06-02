@@ -38,6 +38,6 @@ type InstalledSystemSideData struct {
 	KeyForRole map[string]keys.EncryptionKey
 	// DeviceForRole maps a roles to their corresponding device nodes. For
 	// structures with roles that require data to be encrypted, the device
-	// is the encrypted device node (eg. /dev/mmcblk0p1).
+	// is the raw encrypted device node (eg. /dev/mmcblk0p1).
 	DeviceForRole map[string]string
 }
