@@ -45,4 +45,4 @@ execute: |
     tests.nested exec "sudo snap remove test-snapd-sh"
 
     echo "Ensuring the path /var/lib/snapd/save/snap/test-snapd-sh no longer exists"
-    tests.nested exec "\[ ! -d "/var/lib/snapd/save/snap/test-snapd-sh" \]"
+    tests.nested exec "\[ ! -d \"/var/lib/snapd/save/snap/test-snapd-sh\" \]"
