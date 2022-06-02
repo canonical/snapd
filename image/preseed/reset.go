@@ -31,6 +31,50 @@ import (
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 )
 
+// bash-completion symlinks; note there are symlinks that point at
+// completer, and symlinks that point at the completer symlinks.
+// e.g.
+// lxd.lxc -> /snap/core/current/usr/lib/snapd/complete.sh
+// lxc -> lxd.lxc
+func resetCompletionSymlinks(preseedChroot string) error {
+	files, err := ioutil.ReadDir(filepath.Join(preseedChroot, dirs.CompletersDir))
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("error reading %s: %v", dirs.CompletersDir, err)
+	}
+	completeShSymlinks := make(map[string]string)
+	var otherSymlinks []string
+
+	// pass 1: find all symlinks pointing at complete.sh
+	for _, fileInfo := range files {
+		if fileInfo.Mode()&os.ModeSymlink == 0 {
+			continue
+		}
+		fullPath := filepath.Join(preseedChroot, dirs.CompletersDir, fileInfo.Name())
+		if dirs.IsCompleteShSymlink(fullPath) {
+			if err := os.Remove(fullPath); err != nil {
+				return fmt.Errorf("error removing symlink %s: %v", fullPath, err)
+			}
+			completeShSymlinks[fileInfo.Name()] = fullPath
+		} else {
+			otherSymlinks = append(otherSymlinks, fullPath)
+		}
+	}
+	// pass 2: find all symlinks that point at the symlinks found in pass 1.
+	for _, other := range otherSymlinks {
+		target, err := os.Readlink(other)
+		if err != nil {
+			return fmt.Errorf("error reading symlink target of %s: %v", other, err)
+		}
+		if _, ok := completeShSymlinks[target]; ok {
+			if err := os.Remove(other); err != nil {
+				return fmt.Errorf("error removing symlink %s: %v", other, err)
+			}
+		}
+	}
+
+	return nil
+}
+
 // ResetPreseededChroot removes all preseeding artifacts from preseedChroot
 // (classic Ubuntu only).
 func ResetPreseededChroot(preseedChroot string) error {
@@ -130,44 +174,8 @@ func ResetPreseededChroot(preseedChroot string) error {
 		}
 	}
 
-	// bash-completion symlinks; note there are symlinks that point at
-	// completer, and symlinks that point at the completer symlinks.
-	// e.g.
-	// lxd.lxc -> /snap/core/current/usr/lib/snapd/complete.sh
-	// lxc -> lxd.lxc
-	files, err := ioutil.ReadDir(filepath.Join(preseedChroot, dirs.CompletersDir))
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("error reading %s: %v", dirs.CompletersDir, err)
-	}
-	completeShSymlinks := make(map[string]string)
-	var otherSymlinks []string
-
-	// pass 1: find all symlinks pointing at complete.sh
-	for _, fileInfo := range files {
-		if fileInfo.Mode()&os.ModeSymlink == 0 {
-			continue
-		}
-		fullPath := filepath.Join(preseedChroot, dirs.CompletersDir, fileInfo.Name())
-		if dirs.IsCompleteShSymlink(fullPath) {
-			if err := os.Remove(fullPath); err != nil {
-				return fmt.Errorf("error removing symlink %s: %v", fullPath, err)
-			}
-			completeShSymlinks[fileInfo.Name()] = fullPath
-		} else {
-			otherSymlinks = append(otherSymlinks, fullPath)
-		}
-	}
-	// pass 2: find all symlinks that point at the symlinks found in pass 1.
-	for _, other := range otherSymlinks {
-		target, err := os.Readlink(other)
-		if err != nil {
-			return fmt.Errorf("error reading symlink target of %s: %v", other, err)
-		}
-		if _, ok := completeShSymlinks[target]; ok {
-			if err := os.Remove(other); err != nil {
-				return fmt.Errorf("error removing symlink %s: %v", other, err)
-			}
-		}
+	if err := resetCompletionSymlinks(preseedChroot); err != nil {
+		return err
 	}
 
 	return nil
