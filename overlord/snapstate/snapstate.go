@@ -3082,7 +3082,7 @@ func validateSnapNames(names []string) error {
 
 // Revert returns a set of tasks for reverting to the previous version of the snap.
 // Note that the state must be locked by the caller.
-func Revert(st *state.State, name string, flags Flags) (*state.TaskSet, error) {
+func Revert(st *state.State, name string, flags Flags, fromChange string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -3094,10 +3094,10 @@ func Revert(st *state.State, name string, flags Flags) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("no revision to revert to")
 	}
 
-	return RevertToRevision(st, name, pi.Revision, flags)
+	return RevertToRevision(st, name, pi.Revision, flags, fromChange)
 }
 
-func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Flags) (*state.TaskSet, error) {
+func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Flags, fromChange string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -3144,7 +3144,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
-	return doInstall(st, &snapst, snapsup, 0, "", nil)
+	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
 // TransitionCore transitions from an old core snap name to a new core
