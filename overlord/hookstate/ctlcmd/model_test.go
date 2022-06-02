@@ -607,7 +607,7 @@ func (s *modelSuite) TestLongPublisherVerified(c *C) {
 }
 
 func (s *modelSuite) signSerial(accountID, model, serial string, timestamp time.Time, extras ...map[string]interface{}) *asserts.Serial {
-	encodedPubKey, err := asserts.EncodePublicKey(brandPrivKey2.PublicKey())
+	encodedPubKey, _ := asserts.EncodePublicKey(brandPrivKey2.PublicKey())
 	headers := map[string]interface{}{
 		"series":              "16",
 		"serial":              serial,
