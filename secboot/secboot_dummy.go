@@ -45,6 +45,6 @@ func ResealKeys(params *ResealKeysParams) error {
 	return errBuildWithoutSecboot
 }
 
-func ProvisionTPM(lockoutAuthFile string) error {
+func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
 	return errBuildWithoutSecboot
 }
