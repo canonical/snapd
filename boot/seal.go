@@ -45,6 +45,7 @@ import (
 )
 
 var (
+	secbootProvisionTPM             = secboot.ProvisionTPM
 	secbootSealKeys                 = secboot.SealKeys
 	secbootSealKeysWithFDESetupHook = secboot.SealKeysWithFDESetupHook
 	secbootResealKeys               = secboot.ResealKeys
@@ -240,6 +241,12 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Mode
 		return fmt.Errorf("cannot generate key for signing dynamic authorization policies: %v", err)
 	}
 
+	// we are preparing a new system, hence the TPM needs to be provisioned
+	lockoutAuthFile := filepath.Join(InstallHostFDESaveDir, "tpm-lockout-auth")
+	if err := secbootProvisionTPM(lockoutAuthFile); err != nil {
+		return err
+	}
+
 	if err := sealRunObjectKeys(key, pbc, authKey, roleToBlName); err != nil {
 		return err
 	}
@@ -275,8 +282,6 @@ func sealRunObjectKeys(key keys.EncryptionKey, pbc predictableBootChains, authKe
 		ModelParams:            modelParams,
 		TPMPolicyAuthKey:       authKey,
 		TPMPolicyAuthKeyFile:   filepath.Join(InstallHostFDESaveDir, "tpm-policy-auth-key"),
-		TPMLockoutAuthFile:     filepath.Join(InstallHostFDESaveDir, "tpm-lockout-auth"),
-		TPMProvision:           true,
 		PCRPolicyCounterHandle: secboot.RunObjectPCRPolicyCounterHandle,
 	}
 	// The run object contains only the ubuntu-data key; the ubuntu-save key

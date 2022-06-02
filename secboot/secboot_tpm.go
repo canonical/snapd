@@ -63,17 +63,13 @@ var (
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
-	isTPMEnabled        = isTPMEnabledImpl
-	provisionTPM        = provisionTPMImpl
-	tpmReleaseResources = tpmReleaseResourcesImpl
+	isTPMEnabled           = (*sb_tpm2.Connection).IsEnabled
+	sbTPMEnsureProvisioned = (*sb_tpm2.Connection).EnsureProvisioned
+	tpmReleaseResources    = tpmReleaseResourcesImpl
 
 	// check whether the interfaces match
 	_ (sb.SnapModel) = ModelForSealing(nil)
 )
-
-func isTPMEnabledImpl(tpm *sb_tpm2.Connection) bool {
-	return tpm.IsEnabled()
-}
 
 func CheckTPMKeySealingSupported() error {
 	logger.Noticef("checking if secure boot is enabled...")
@@ -285,9 +281,27 @@ func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile str
 	return UnlockedWithSealedKey, nil
 }
 
-// SealKeys provisions the TPM and seals the encryption keys according to the
-// specified parameters. If the TPM is already provisioned, or a sealed key already
-// exists, SealKeys will fail and return an error.
+// ProvisionTPM provisions the default TPM and saves the lockout authorization
+// key to the specified file.
+func ProvisionTPM(lockoutAuthFile string) error {
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		return fmt.Errorf("cannot connect to TPM: %v", err)
+	}
+	defer tpm.Close()
+	if !isTPMEnabled(tpm) {
+		return fmt.Errorf("TPM device is not enabled")
+	}
+
+	if err := tpmProvision(tpm, lockoutAuthFile); err != nil {
+		return err
+	}
+	return nil
+}
+
+// SealKeys seals the encryption keys according to the specified parameters. The
+// TPM must have already been provisioned. If sealed key already exists at the
+// PCR handle, SealKeys will fail and return an error.
 func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
@@ -306,13 +320,6 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
 	if err != nil {
 		return err
-	}
-
-	if params.TPMProvision {
-		// Provision the TPM as late as possible
-		if err := tpmProvision(tpm, params.TPMLockoutAuthFile); err != nil {
-			return err
-		}
 	}
 
 	// Seal the provided keys to the TPM
@@ -488,15 +495,11 @@ func tpmProvision(tpm *sb_tpm2.Connection, lockoutAuthFile string) error {
 	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
 	//            if the device has previously been provisioned, see
 	//            https://godoc.org/github.com/snapcore/secboot#RequestTPMClearUsingPPI
-	if err := provisionTPM(tpm, sb_tpm2.ProvisionModeFull, lockoutAuth); err != nil {
+	if err := sbTPMEnsureProvisioned(tpm, sb_tpm2.ProvisionModeFull, lockoutAuth); err != nil {
 		logger.Noticef("TPM provisioning error: %v", err)
 		return fmt.Errorf("cannot provision TPM: %v", err)
 	}
 	return nil
-}
-
-func provisionTPMImpl(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte) error {
-	return tpm.EnsureProvisioned(mode, lockoutAuth)
 }
 
 // buildLoadSequences builds EFI load image event trees from this package LoadChains

@@ -68,6 +68,13 @@ exit 1
 	c.Assert(err, ErrorMatches, `(?m)systemd-sysctl invoked with \[--prefix net\] failed with exit status 1: foo`)
 }
 
+func (s *sysctlSuite) TestSysctlFailedExec(c *C) {
+	defer systemd.MockSystemdSysctlPath("/i/bet/this/does/not/exist/systemd-sysctl")()
+
+	err := systemd.Sysctl(nil)
+	c.Assert(err, ErrorMatches, `fork/exec /i/bet/this/does/not/exist/systemd-sysctl: no such file or directory`)
+}
+
 func (s *sysctlSuite) TestMockSystemdSysctl(c *C) {
 	var capturedArgs []string
 	var sysctlErr error

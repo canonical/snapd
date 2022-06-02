@@ -45,6 +45,10 @@ func ResealKeys(params *ResealKeysParams) error {
 	return errBuildWithoutSecboot
 }
 
+func ProvisionTPM(lockoutAuthFile string) error {
+	return errBuildWithoutSecboot
+}
+
 func PCRHandleOfSealedKey(p string) (uint32, error) {
 	return 0, errBuildWithoutSecboot
 }
