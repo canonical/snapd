@@ -93,7 +93,7 @@ const (
 	TPMProvisionNone TPMProvisionMode = iota
 	// TPMProvisionFull indicates a full provisioning of the TPM
 	TPMProvisionFull
-	// TPMPartialReprovision indicates a partial reprovisioning f the TPM
+	// TPMPartialReprovision indicates a partial reprovisioning of the TPM
 	// which was previously already provisioned by secboot. Existing lockout
 	// authorization data from TPMLockoutAuthFile will be used to authorize
 	// provisioning and will get overwritten in the process.

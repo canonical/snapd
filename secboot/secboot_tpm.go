@@ -340,7 +340,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 
 	authKey, err := sbSealKeyToTPMMultiple(tpm, sbKeys, &creationParams)
 	if err != nil {
-		logger.Noticef("seal key err: %v", err)
+		logger.Debugf("seal key error: %v", err)
 		return err
 	}
 	if params.TPMPolicyAuthKeyFile != "" {
