@@ -63,8 +63,8 @@ var (
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
-	isTPMEnabled           func(tpm *sb_tpm2.Connection) bool                                                  = (*sb_tpm2.Connection).IsEnabled
-	sbTPMEnsureProvisioned func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte) error = (*sb_tpm2.Connection).EnsureProvisioned
+	isTPMEnabled           = (*sb_tpm2.Connection).IsEnabled
+	sbTPMEnsureProvisioned = (*sb_tpm2.Connection).EnsureProvisioned
 
 	// check whether the interfaces match
 	_ (sb.SnapModel) = ModelForSealing(nil)

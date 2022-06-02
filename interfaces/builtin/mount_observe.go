@@ -49,6 +49,9 @@ owner @{PROC}/@{pid}/mountstats r,
 # This is often out of date but some apps insist on using it
 /etc/mtab r,
 /etc/fstab r,
+
+# some apps also insist on consulting utab
+/run/mount/utab r,
 `
 
 const mountObserveConnectedPlugSecComp = `
