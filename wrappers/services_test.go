@@ -610,9 +610,6 @@ LogNamespace=snap-foogroup
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"stop", "systemd-journald.service"},
-		{"show", "--property=ActiveState", "systemd-journald.service"},
-		{"start", "systemd-journald.service"},
 	})
 
 	c.Assert(svcFile, testutil.FileEquals, svcContent)
@@ -720,9 +717,6 @@ LogNamespace=snap-foogroup
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"stop", "systemd-journald.service"},
-		{"show", "--property=ActiveState", "systemd-journald.service"},
-		{"start", "systemd-journald.service"},
 	})
 
 	c.Assert(svcFile, testutil.FileEquals, svcContent)

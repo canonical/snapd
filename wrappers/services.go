@@ -530,7 +530,6 @@ type ensureSnapServicesContext struct {
 	sysd                     systemd.Systemd
 	systemDaemonReloadNeeded bool
 	userDaemonReloadNeeded   bool
-	journalCtlReloadNeeded   bool
 	// modifiedUnits is the set of units that were modified and the previous
 	// state of the unit before modification that we can roll back to if there
 	// are any issues.
@@ -571,11 +570,6 @@ func (es *ensureSnapServicesContext) restore() {
 				es.inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", err))
 			}
 		}
-		if es.journalCtlReloadNeeded {
-			if err := es.sysd.Restart([]string{"systemd-journald.service"}); err != nil {
-				es.inter.Notify(fmt.Sprintf("while trying to restart systemd-journald due to previous failure: %v", err))
-			}
-		}
 	}
 }
 
@@ -594,11 +588,6 @@ func (es *ensureSnapServicesContext) reloadModified() error {
 	}
 	if es.userDaemonReloadNeeded {
 		if err := userDaemonReload(); err != nil {
-			return err
-		}
-	}
-	if es.journalCtlReloadNeeded {
-		if err := es.sysd.Restart([]string{"systemd-journald.service"}); err != nil {
 			return err
 		}
 	}
@@ -783,7 +772,6 @@ func (es *ensureSnapServicesContext) ensureSnapJournaldUnits(quotaGroups *quota.
 			}
 
 			es.modifiedUnits[path] = old
-			es.journalCtlReloadNeeded = true
 		}
 
 		return nil
