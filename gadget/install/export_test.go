@@ -26,10 +26,12 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 )
 
+type MkfsParams = mkfsParams
+
 var (
-	MakeFilesystem  = makeFilesystem
-	WriteContent    = writeContent
-	MountFilesystem = mountFilesystem
+	MakeFilesystem         = makeFilesystem
+	WriteFilesystemContent = writeFilesystemContent
+	MountFilesystem        = mountFilesystem
 
 	CreateMissingPartitions = createMissingPartitions
 	BuildPartitionList      = buildPartitionList
@@ -38,14 +40,6 @@ var (
 
 	CreatedDuringInstall = createdDuringInstall
 )
-
-func MockContentMountpoint(new string) (restore func()) {
-	old := contentMountpoint
-	contentMountpoint = new
-	return func() {
-		contentMountpoint = old
-	}
-}
 
 func MockSysMount(f func(source, target, fstype string, flags uintptr, data string) error) (restore func()) {
 	old := sysMount

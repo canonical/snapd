@@ -20,6 +20,8 @@
 package servicestate_test
 
 import (
+	"errors"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -82,7 +84,7 @@ func mockMixedQuotaGroup(st *state.State, name string, snaps []string) error {
 
 	var quotas map[string]*quota.Group
 	if err := st.Get("quotas", &quotas); err != nil {
-		if err != state.ErrNoState {
+		if !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		quotas = make(map[string]*quota.Group)

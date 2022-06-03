@@ -27,7 +27,7 @@ export AA_SFS="$SECURITYFS/apparmor"
 # something like `systemd-detect-virt --container`.
 #
 # The only known container environments capable of supporting internal policy
-# are LXD and LXC environment.
+# are LXD and LXC environments, and Windows Subsystem for Linux.
 #
 # Returns 0 if the container environment is capable of having its own internal
 # policy and non-zero otherwise.
@@ -49,6 +49,11 @@ is_container_with_internal_policy() {
 	# shellcheck disable=SC3043,SC2039
 	local ns_name
 
+	# WSL needs to be detected explicitly
+	if [ "$(systemd-detect-virt --container)" = "wsl" ]; then
+		return 0
+	fi
+	
 	if ! [ -f "$ns_stacked_path" ] || ! [ -f "$ns_name_path" ]; then
 		return 1
 	fi

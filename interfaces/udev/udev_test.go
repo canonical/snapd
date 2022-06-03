@@ -189,7 +189,6 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithTwoSubsystems(c *C) {
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 		{"udevadm", "trigger", "--subsystem-match=input"},
-		{"udevadm", "trigger", "--subsystem-match=tty"},
 		{"udevadm", "settle", "--timeout=10"},
 	})
 }

@@ -393,12 +393,12 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.provider.app"})
 
-	c.Check(plugSnippet, testutil.Contains, `"/{dev,run}/shm/bar" rwk,`)
+	c.Check(plugSnippet, testutil.Contains, `"/{dev,run}/shm/bar" mrwlk,`)
 	c.Check(plugSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro" r,`)
 
 	// Slot has read-write permissions to all paths
-	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar" rwk,`)
-	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro" rwk,`)
+	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar" mrwlk,`)
+	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro" mrwlk,`)
 
 	wildcardSpec := &apparmor.Specification{}
 	c.Assert(wildcardSpec.AddConnectedPlug(s.iface, s.wildcardPlug, s.wildcardSlot), IsNil)
@@ -409,12 +409,12 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	c.Assert(wildcardSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.provider.app"})
 
-	c.Check(wildcardPlugSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" rwk,`)
+	c.Check(wildcardPlugSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" mrwlk,`)
 	c.Check(wildcardPlugSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" r,`)
 
 	// Slot has read-write permissions to all paths
-	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" rwk,`)
-	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" rwk,`)
+	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" mrwlk,`)
+	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" mrwlk,`)
 
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.privatePlug, s.privateSlot), IsNil)

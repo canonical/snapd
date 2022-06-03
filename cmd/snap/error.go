@@ -87,7 +87,10 @@ func fill(para string, indent int) string {
 	return strings.TrimSpace(buf.String())
 }
 
-func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (string, error) {
+// errorToCmdMessage returns the appropriate error message and value based on the
+// client error and some context information. The opName is the lowercase name
+// of the failed operation (e.g., "refresh").
+func errorToCmdMessage(snapName string, opName string, e error, opts *client.SnapOptions) (string, error) {
 	// do this here instead of in the caller for more DRY
 	err, ok := e.(*client.Error)
 	if !ok {
@@ -211,7 +214,12 @@ If you understand and want to proceed repeat the command including --classic.
 		isError = false
 		msg = i18n.G("snap %q has no updates available")
 	case client.ErrorKindSnapNotInstalled:
-		isError = false
+		isError = true
+		// if the snap isn't installed, then remove can ignore this error
+		if opName == "remove" {
+			isError = false
+		}
+
 		usesSnapName = false
 		msg = err.Message
 	case client.ErrorKindNetworkTimeout:

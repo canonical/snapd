@@ -387,9 +387,9 @@ func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 
 	if inst.Revision.Unset() {
-		ts, err = snapstateRevert(st, inst.Snaps[0], flags)
+		ts, err = snapstateRevert(st, inst.Snaps[0], flags, "")
 	} else {
-		ts, err = snapstateRevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
+		ts, err = snapstateRevertToRevision(st, inst.Snaps[0], inst.Revision, flags, "")
 	}
 	if err != nil {
 		return "", nil, err

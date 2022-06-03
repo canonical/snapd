@@ -173,7 +173,7 @@ func (s *refreshHintsTestSuite) TestAtSeedPolicy(c *C) {
 	c.Assert(err, IsNil)
 	var t1 time.Time
 	err = s.state.Get("last-refresh-hints", &t1)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	release.MockOnClassic(true)
 	// on classic it sets last-refresh-hints to now,
@@ -412,7 +412,7 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidatesIncorrectFormat(c *C) 
 	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-a"), IsNil)
 	var data interface{}
 	// and refresh-candidates has been removed from the state
-	c.Check(st.Get("refresh-candidates", data), Equals, state.ErrNoState)
+	c.Check(st.Get("refresh-candidates", data), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongArch(c *C) {
