@@ -53,6 +53,7 @@ func (snapshotSuite) TestManager(c *check.C) {
 	sort.Strings(kinds)
 	c.Check(kinds, check.DeepEquals, []string{
 		"check-snapshot",
+		"cleanup-after-restore",
 		"forget-snapshot",
 		"restore-snapshot",
 		"save-snapshot",

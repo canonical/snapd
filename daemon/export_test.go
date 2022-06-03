@@ -156,7 +156,7 @@ func MockSnapstateSwitch(mock func(*state.State, string, *snapstate.RevisionOpti
 	}
 }
 
-func MockSnapstateRevert(mock func(*state.State, string, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateRevert(mock func(*state.State, string, snapstate.Flags, string) (*state.TaskSet, error)) (restore func()) {
 	oldSnapstateRevert := snapstateRevert
 	snapstateRevert = mock
 	return func() {
@@ -164,7 +164,7 @@ func MockSnapstateRevert(mock func(*state.State, string, snapstate.Flags) (*stat
 	}
 }
 
-func MockSnapstateRevertToRevision(mock func(*state.State, string, snap.Revision, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateRevertToRevision(mock func(*state.State, string, snap.Revision, snapstate.Flags, string) (*state.TaskSet, error)) (restore func()) {
 	oldSnapstateRevertToRevision := snapstateRevertToRevision
 	snapstateRevertToRevision = mock
 	return func() {

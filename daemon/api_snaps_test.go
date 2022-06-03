@@ -513,7 +513,7 @@ func (s *snapsSuite) testPostSnapsOp(c *check.C, extraJSON, contentType string) 
 	c.Check(chg.Get("api-data", &apiData), check.IsNil)
 	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"fake1", "fake2"})
 	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		c.Error(err)
 	}
 	return systemRestartImmediate
@@ -1346,7 +1346,7 @@ func (s *snapsSuite) testPostSnap(c *check.C, extraJSON string, checkOpts func(o
 
 	summary = chg.Summary()
 	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		c.Error(err)
 	}
 	return summary, systemRestartImmediate
@@ -2073,12 +2073,12 @@ func (s *snapsSuite) testRevertSnap(inst *daemon.SnapInstruction, c *check.C) {
 	instFlags, err := inst.ModeFlags()
 	c.Assert(err, check.IsNil)
 
-	defer daemon.MockSnapstateRevert(func(s *state.State, name string, flags snapstate.Flags) (*state.TaskSet, error) {
+	defer daemon.MockSnapstateRevert(func(s *state.State, name string, flags snapstate.Flags, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, instFlags)
 		queue = append(queue, name)
 		return nil, nil
 	})()
-	defer daemon.MockSnapstateRevertToRevision(func(s *state.State, name string, rev snap.Revision, flags snapstate.Flags) (*state.TaskSet, error) {
+	defer daemon.MockSnapstateRevertToRevision(func(s *state.State, name string, rev snap.Revision, flags snapstate.Flags, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, instFlags)
 		queue = append(queue, fmt.Sprintf("%s (%s)", name, rev))
 		return nil, nil
