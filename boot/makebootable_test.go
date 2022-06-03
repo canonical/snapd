@@ -581,9 +581,10 @@ version: 5.0
 	defer restore()
 
 	provisionCalls := 0
-	restore = boot.MockSecbootProvisionTPM(func(lockoutAuthFile string) error {
+	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 		provisionCalls++
 		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+		c.Check(mode, Equals, secboot.TPMProvisionFull)
 		return nil
 	})
 	defer restore()
@@ -934,9 +935,10 @@ version: 5.0
 	defer restore()
 
 	provisionCalls := 0
-	restore = boot.MockSecbootProvisionTPM(func(lockoutAuthFile string) error {
+	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 		provisionCalls++
 		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+		c.Check(mode, Equals, secboot.TPMProvisionFull)
 		return nil
 	})
 	defer restore()
@@ -1110,9 +1112,10 @@ version: 5.0
 	defer restore()
 
 	provisionCalls := 0
-	restore = boot.MockSecbootProvisionTPM(func(lockoutAuthFile string) error {
+	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 		provisionCalls++
 		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+		c.Check(mode, Equals, secboot.TPMProvisionFull)
 		return nil
 	})
 	defer restore()
