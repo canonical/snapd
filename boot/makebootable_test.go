@@ -603,7 +603,7 @@ version: 5.0
 		}
 		c.Check(p, Equals,
 			filepath.Join(s.rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
-		// trigger use of alt handles
+		// trigger use of alt handles as current key is using the main handle
 		return secboot.FallbackObjectPCRPolicyCounterHandle, nil
 	})
 	defer restore()

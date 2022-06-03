@@ -263,11 +263,11 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Mode
 		// during factory reset we may need to rotate the PCR handles,
 		// seal the new keys using a new set of handles such that the
 		// old sealed ubuntu-save key is still usable
-		needAlt, err := needAltPCRHandles()
+		usesAlt, err := usesAltPCRHandles()
 		if err != nil {
 			return err
 		}
-		if needAlt {
+		if !usesAlt {
 			logger.Noticef("using alternative PCR handles")
 			runObjectKeyPCRHandle = secboot.AltRunObjectPCRPolicyCounterHandle
 			fallbackObjectKeyPCRHandle = secboot.AltFallbackObjectPCRPolicyCounterHandle
@@ -314,15 +314,15 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Mode
 	return nil
 }
 
-func needAltPCRHandles() (bool, error) {
+func usesAltPCRHandles() (bool, error) {
 	saveFallbackKey := filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
 	// inspect the PCR handle of the ubuntu-save fallback key
 	handle, err := secbootPCRHandleOfSealedKey(saveFallbackKey)
 	if err != nil {
 		return false, err
 	}
-	logger.Noticef("sealed key %v PCR handle: %#x", saveFallbackKey, handle)
-	return handle == secboot.FallbackObjectPCRPolicyCounterHandle, nil
+	logger.Noticef("fallback sealed key %v PCR handle: %#x", saveFallbackKey, handle)
+	return handle == secboot.AltFallbackObjectPCRPolicyCounterHandle, nil
 }
 
 func sealRunObjectKeys(key keys.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, partialReprovisionTPM bool, pcrHandle uint32) error {
