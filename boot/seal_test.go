@@ -106,7 +106,6 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		factoryReset           bool
 		pcrHandleOfKey         uint32
 		pcrHandleOfKeyErr      error
-		usesAltPCR             bool
 		err                    string
 		expProvisionCalls      int
 		expSealCalls           int
@@ -117,11 +116,9 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			expProvisionCalls: 1, expSealCalls: 2,
 		}, {
 			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
-			usesAltPCR:        true,
 			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1,
 		}, {
 			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.AltFallbackObjectPCRPolicyCounterHandle,
-			usesAltPCR:        false,
 			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1,
 		}, {
 			sealErr: nil, factoryReset: true, pcrHandleOfKeyErr: errors.New("PCR handle error"),
@@ -228,10 +225,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key")
 				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}})
-				if !tc.usesAltPCR {
-					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.RunObjectPCRPolicyCounterHandle)
-				} else {
+				if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
 					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltRunObjectPCRPolicyCounterHandle)
+				} else {
+					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.RunObjectPCRPolicyCounterHandle)
 				}
 			case 2:
 				// the fallback object seals the ubuntu-data and the ubuntu-save keys
@@ -244,10 +241,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 					saveKeyFile = filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory")
 				}
 				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}, {Key: myKey2, KeyName: "ubuntu-save", KeyFile: saveKeyFile}})
-				if !tc.usesAltPCR {
-					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.FallbackObjectPCRPolicyCounterHandle)
-				} else {
+				if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
 					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltFallbackObjectPCRPolicyCounterHandle)
+				} else {
+					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.FallbackObjectPCRPolicyCounterHandle)
 				}
 			default:
 				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
