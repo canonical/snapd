@@ -127,7 +127,7 @@ execute: |
         # systemd-logind has a 10 seconds timeout for shutting down the user
         # session, but we don't want to wait that long: let's kill all the
         # processes belonging to the test user ourselves.
-        ps -U test -o pid= | while read PID
+        ps -U test -o pid= | while read -r PID
         do
             kill -9 "$PID" || true
         done
