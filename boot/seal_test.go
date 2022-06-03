@@ -100,15 +100,43 @@ func mockGadgetSeedSnap(c *C, files [][]string) *seed.Snap {
 }
 
 func (s *sealSuite) TestSealKeyToModeenv(c *C) {
-	for _, tc := range []struct {
-		sealErr      error
-		provisionErr error
-		err          string
+	for idx, tc := range []struct {
+		sealErr                error
+		provisionErr           error
+		factoryReset           bool
+		pcrHandleOfKey         uint32
+		pcrHandleOfKeyErr      error
+		usesAltPCR             bool
+		err                    string
+		expProvisionCalls      int
+		expSealCalls           int
+		expPCRHandleOfKeyCalls int
 	}{
-		{sealErr: nil, err: ""},
-		{sealErr: errors.New("seal error"), err: "cannot seal the encryption keys: seal error"},
-		{provisionErr: errors.New("provision error"), sealErr: errors.New("unexpected call"), err: "provision error"},
+		{
+			sealErr: nil, err: "",
+			expProvisionCalls: 1, expSealCalls: 2,
+		}, {
+			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
+			usesAltPCR:        true,
+			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1,
+		}, {
+			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.AltFallbackObjectPCRPolicyCounterHandle,
+			usesAltPCR:        false,
+			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1,
+		}, {
+			sealErr: nil, factoryReset: true, pcrHandleOfKeyErr: errors.New("PCR handle error"),
+			err:                    "PCR handle error",
+			expPCRHandleOfKeyCalls: 1,
+		}, {
+			sealErr: errors.New("seal error"), err: "cannot seal the encryption keys: seal error",
+			expProvisionCalls: 1, expSealCalls: 1,
+		}, {
+			provisionErr: errors.New("provision error"), sealErr: errors.New("unexpected call"),
+			err:               "provision error",
+			expProvisionCalls: 1,
+		},
 	} {
+		c.Logf("tc %v", idx)
 		rootdir := c.MkDir()
 		dirs.SetRootDir(rootdir)
 		defer dirs.SetRootDir("")
@@ -170,8 +198,21 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 			provisionCalls++
 			c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
-			c.Check(mode, Equals, secboot.TPMProvisionFull)
+			if tc.factoryReset {
+				c.Check(mode, Equals, secboot.TPMPartialReprovision)
+			} else {
+				c.Check(mode, Equals, secboot.TPMProvisionFull)
+			}
 			return tc.provisionErr
+		})
+		defer restore()
+
+		pcrHandleOfKeyCalls := 0
+		restore = boot.MockSecbootPCRHandleOfSealedKey(func(p string) (uint32, error) {
+			pcrHandleOfKeyCalls++
+			c.Check(provisionCalls, Equals, 0)
+			c.Check(p, Equals, filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
+			return tc.pcrHandleOfKey, tc.pcrHandleOfKeyErr
 		})
 		defer restore()
 
@@ -187,13 +228,27 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key")
 				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}})
+				if !tc.usesAltPCR {
+					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.RunObjectPCRPolicyCounterHandle)
+				} else {
+					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltRunObjectPCRPolicyCounterHandle)
+				}
 			case 2:
 				// the fallback object seals the ubuntu-data and the ubuntu-save keys
 				c.Check(params.TPMPolicyAuthKeyFile, Equals, "")
 
 				dataKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key")
 				saveKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key")
+				if tc.factoryReset {
+					// during factory reset we use a different key location
+					saveKeyFile = filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory")
+				}
 				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}, {Key: myKey2, KeyName: "ubuntu-save", KeyFile: saveKeyFile}})
+				if !tc.usesAltPCR {
+					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.FallbackObjectPCRPolicyCounterHandle)
+				} else {
+					c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltFallbackObjectPCRPolicyCounterHandle)
+				}
 			default:
 				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 			}
@@ -244,17 +299,12 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 		defer restore()
 
-		err = boot.SealKeyToModeenv(myKey, myKey2, model, modeenv)
-		c.Assert(provisionCalls, Equals, 1)
-		if tc.provisionErr != nil {
-			c.Assert(sealKeysCalls, Equals, 0)
-		} else {
-			if tc.sealErr != nil {
-				c.Assert(sealKeysCalls, Equals, 1)
-			} else {
-				c.Assert(sealKeysCalls, Equals, 2)
-			}
-		}
+		err = boot.SealKeyToModeenv(myKey, myKey2, model, modeenv, boot.SealKeyToModeenvFlags{
+			FactoryReset: tc.factoryReset,
+		})
+		c.Check(pcrHandleOfKeyCalls, Equals, tc.expPCRHandleOfKeyCalls)
+		c.Check(provisionCalls, Equals, tc.expProvisionCalls)
+		c.Check(sealKeysCalls, Equals, tc.expSealCalls)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -1603,7 +1653,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	key := keys.EncryptionKey{1, 2, 3, 4}
 	saveKey := keys.EncryptionKey{5, 6, 7, 8}
 
-	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
+	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.SealKeyToModeenvFlags{})
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
@@ -1648,7 +1698,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	saveKey := keys.EncryptionKey{5, 6, 7, 8}
 
 	model := boottest.MakeMockUC20Model()
-	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
+	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.SealKeyToModeenvFlags{})
 	c.Assert(err, ErrorMatches, "hook failed")
 	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
 	c.Check(marker, testutil.FileAbsent)
