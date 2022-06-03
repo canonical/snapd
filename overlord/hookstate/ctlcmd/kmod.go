@@ -195,6 +195,7 @@ func (k *kmodSubcommand) findConnection(context *hookstate.Context, moduleName s
 }
 
 func (m *kmodCommand) Execute([]string) error {
-	fmt.Println("Execute from kmodCommand")
+	// This is needed in order to implement the interface, but it's never
+	// called.
 	return nil
 }
