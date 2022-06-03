@@ -286,7 +286,9 @@ def findfiles(locations, exclude):
                         if not is_file_in_dirs(full_path, exclude):
                             yield full_path
         else:
-            yield loc
+            full_path = os.path.abspath(loc)
+            if not is_file_in_dirs(full_path, exclude):
+                yield full_path
 
 
 def check1path(path, executor):

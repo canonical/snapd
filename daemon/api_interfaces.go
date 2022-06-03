@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -158,7 +159,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		}
 		var snapst snapstate.SnapState
 		err := snapstate.Get(st, snapName, &snapst)
-		if (err == nil && !snapst.IsInstalled()) || err == state.ErrNoState {
+		if (err == nil && !snapst.IsInstalled()) || errors.Is(err, state.ErrNoState) {
 			return fmt.Errorf("snap %q is not installed", snapName)
 		}
 		if err == nil {

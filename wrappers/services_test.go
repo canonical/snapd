@@ -20,6 +20,7 @@
 package wrappers_test
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -77,7 +78,7 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 		s.sysdLog = append(s.sysdLog, cmd)
 		return []byte("ActiveState=inactive\n"), nil
 	})
-	s.delaysRestorer = systemd.MockStopDelays(time.Millisecond, 25*time.Second)
+	s.delaysRestorer = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	s.perfTimings = timings.New(nil)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
@@ -2060,8 +2061,9 @@ func (s *servicesTestSuite) TestRemoveSnapPackageFallbackToKill(c *C) {
 		// StopServices generates
 		if cmd[0] != "show" {
 			sysdLog = append(sysdLog, cmd)
+			return nil, nil
 		}
-		return []byte("ActiveState=active\n"), nil
+		return []byte("ActiveState=active\n"), errors.New("mock systemctl error")
 	})
 	defer r()
 
@@ -2082,13 +2084,10 @@ apps:
 	svcFName := "snap.wat.wat.service"
 
 	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "mock systemctl error")
 
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"stop", svcFName},
-		// check kill invocations
-		{"kill", svcFName, "-s", "TERM", "--kill-who=all"},
-		{"kill", svcFName, "-s", "KILL", "--kill-who=all"},
 	})
 }
 
@@ -2919,19 +2918,17 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Logf("sysdlog: %v", sysdLog)
-	c.Assert(sysdLog, HasLen, 16, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 14, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--no-reload", "enable", svc2SocketName, svc3SocketName, svc1Name},
 		{"daemon-reload"},
 		{"start", svc2SocketName},
 		{"start", svc3SocketName}, // start failed, what follows is the cleanup
-		{"stop", svc3SocketName},
+		{"stop", svc3SocketName, svc3Name},
 		{"show", "--property=ActiveState", svc3SocketName},
-		{"stop", svc3Name},
 		{"show", "--property=ActiveState", svc3Name},
-		{"stop", svc2SocketName},
+		{"stop", svc2SocketName, svc2Name},
 		{"show", "--property=ActiveState", svc2SocketName},
-		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
@@ -2988,20 +2985,18 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartNoEnableNoDisable
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Logf("sysdlog: %v", sysdLog)
-	c.Assert(sysdLog, HasLen, 17, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 15, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--no-reload", "enable", svc2SocketName, svc3SocketName},
 		{"daemon-reload"},
 		{"start", svc2SocketName},
 		{"start", svc3SocketName},
 		{"start", svc1Name}, // start failed, what follows is the cleanup
-		{"stop", svc3SocketName},
+		{"stop", svc3SocketName, svc3Name},
 		{"show", "--property=ActiveState", svc3SocketName},
-		{"stop", svc3Name},
 		{"show", "--property=ActiveState", svc3Name},
-		{"stop", svc2SocketName},
+		{"stop", svc2SocketName, svc2Name},
 		{"show", "--property=ActiveState", svc2SocketName},
-		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
@@ -3339,8 +3334,6 @@ apps:
 			c.Check(s.sysdLog, DeepEquals, [][]string{
 				{"stop", filepath.Base(survivorFile)},
 				{"show", "--property=ActiveState", "snap.survive-snap.srv.service"},
-				{"kill", filepath.Base(survivorFile), "-s", "TERM", "--kill-who=all"},
-				{"kill", filepath.Base(survivorFile), "-s", "KILL", "--kill-who=all"},
 			})
 		default:
 			panic("not reached")
@@ -3448,14 +3441,13 @@ func (s *servicesTestSuite) TestStartSnapTimerCleanup(c *C) {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
-	c.Assert(sysdLog, HasLen, 11, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--no-reload", "enable", svc2Timer, svc1Name},
 		{"daemon-reload"},
 		{"start", svc2Timer}, // this call fails
-		{"stop", svc2Timer},
+		{"stop", svc2Timer, svc2Name},
 		{"show", "--property=ActiveState", svc2Timer},
-		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},

@@ -46,6 +46,7 @@ execute: |
         tests.nested exec "sudo snap get system service.rsyslog.disable" | MATCH "true"
         tests.nested exec "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
         tests.nested exec "sudo snap get system system.power-key-action" | MATCH "ignore"
+        tests.nested exec "sudo snap get system system.ctrl-alt-del-action" | MATCH "none"
         tests.nested exec "sudo snap get system system.disable-backlight-service" | MATCH "true"
 
         tests.nested exec "test -L /etc/systemd/system/rsyslog.service"

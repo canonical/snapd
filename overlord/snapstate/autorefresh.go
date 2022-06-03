@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -231,7 +232,7 @@ func canRefreshOnMeteredConnection(st *state.State) (bool, error) {
 	tr := config.NewTransaction(st)
 	var onMetered string
 	err := tr.GetMaybe("core", "refresh.metered", &onMetered)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
 
@@ -604,7 +605,7 @@ func refreshScheduleManaged(st *state.State) (managed, requested, legacy bool) {
 func getTime(st *state.State, timeKey string) (time.Time, error) {
 	var t1 time.Time
 	err := st.Get(timeKey, &t1)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return time.Time{}, err
 	}
 	return t1, nil
