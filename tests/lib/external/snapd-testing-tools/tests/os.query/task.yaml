@@ -89,6 +89,11 @@ execute: |
             os.query is-centos
             ! os.query is-core
             ;;
+        centos-9-64)
+            os.query is-centos-9
+            os.query is-centos
+            ! os.query is-core
+            ;;
         opensuse-15.3-64)
             os.query is-opensuse
             os.query is-classic
