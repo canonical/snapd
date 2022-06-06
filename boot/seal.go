@@ -286,7 +286,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Mode
 
 	// TODO: refactor sealing functions to take a struct instead of so many
 	// parameters
-	err = sealRunObjectKeys(key, pbc, authKey, roleToBlName, flags.FactoryReset, runObjectKeyPCRHandle)
+	err = sealRunObjectKeys(key, pbc, authKey, roleToBlName, runObjectKeyPCRHandle)
 	if err != nil {
 		return err
 	}
@@ -325,7 +325,7 @@ func usesAltPCRHandles() (bool, error) {
 	return handle == secboot.AltFallbackObjectPCRPolicyCounterHandle, nil
 }
 
-func sealRunObjectKeys(key keys.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, partialReprovisionTPM bool, pcrHandle uint32) error {
+func sealRunObjectKeys(key keys.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, pcrHandle uint32) error {
 	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return fmt.Errorf("cannot prepare for key sealing: %v", err)
@@ -351,7 +351,7 @@ func sealRunObjectKeys(key keys.EncryptionKey, pbc predictableBootChains, authKe
 	return nil
 }
 
-func sealFallbackObjectKeys(key, saveKey keys.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, partialReprovisionTPM bool, pcrHandle uint32) error {
+func sealFallbackObjectKeys(key, saveKey keys.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32) error {
 	// also seal the keys to the recovery bootchains as a fallback
 	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
@@ -367,8 +367,6 @@ func sealFallbackObjectKeys(key, saveKey keys.EncryptionKey, pbc predictableBoot
 	// key files are stored on ubuntu-seed, separate from ubuntu-data so they
 	// can be used if ubuntu-data and ubuntu-boot are corrupted or unavailable.
 
-	// XXX find a better name
-	factoryReset := partialReprovisionTPM
 	if err := secbootSealKeys(fallbackKeySealRequests(key, saveKey, factoryReset), sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the fallback encryption keys: %v", err)
 	}

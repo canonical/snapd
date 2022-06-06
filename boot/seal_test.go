@@ -106,13 +106,13 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		factoryReset           bool
 		pcrHandleOfKey         uint32
 		pcrHandleOfKeyErr      error
-		err                    string
+		expErr                 string
 		expProvisionCalls      int
 		expSealCalls           int
 		expPCRHandleOfKeyCalls int
 	}{
 		{
-			sealErr: nil, err: "",
+			sealErr: nil, expErr: "",
 			expProvisionCalls: 1, expSealCalls: 2,
 		}, {
 			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
@@ -122,14 +122,14 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1,
 		}, {
 			sealErr: nil, factoryReset: true, pcrHandleOfKeyErr: errors.New("PCR handle error"),
-			err:                    "PCR handle error",
+			expErr:                 "PCR handle error",
 			expPCRHandleOfKeyCalls: 1,
 		}, {
-			sealErr: errors.New("seal error"), err: "cannot seal the encryption keys: seal error",
+			sealErr: errors.New("seal error"), expErr: "cannot seal the encryption keys: seal error",
 			expProvisionCalls: 1, expSealCalls: 1,
 		}, {
 			provisionErr: errors.New("provision error"), sealErr: errors.New("unexpected call"),
-			err:               "provision error",
+			expErr:            "provision error",
 			expProvisionCalls: 1,
 		},
 	} {
@@ -302,10 +302,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		c.Check(pcrHandleOfKeyCalls, Equals, tc.expPCRHandleOfKeyCalls)
 		c.Check(provisionCalls, Equals, tc.expProvisionCalls)
 		c.Check(sealKeysCalls, Equals, tc.expSealCalls)
-		if tc.err == "" {
+		if tc.expErr == "" {
 			c.Assert(err, IsNil)
 		} else {
-			c.Assert(err, ErrorMatches, tc.err)
+			c.Assert(err, ErrorMatches, tc.expErr)
 			continue
 		}
 
