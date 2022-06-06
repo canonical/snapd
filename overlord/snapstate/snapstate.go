@@ -2481,10 +2481,6 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 		addTask(stop)
 		prev = stop
 
-		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), snapsup.InstanceName()))
-		addTask(removeAliases)
-		prev = removeAliases
-
 		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapsup.InstanceName()))
 		addTask(unlink)
 		prev = unlink
@@ -2493,29 +2489,10 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 		addTask(migrate)
 		prev = migrate
 
-		// security
-		setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles"), snapsup.InstanceName(), si.Revision))
-		addTask(setupSecurity)
-		prev = setupSecurity
-
 		// finalize (wrappers+current symlink)
 		linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system"), snapsup.InstanceName(), si.Revision))
 		addTask(linkSnap)
 		prev = linkSnap
-
-		// auto-connections
-		autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.InstanceName()))
-		addTask(autoConnect)
-		prev = autoConnect
-
-		// setup aliases
-		setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.InstanceName()))
-		addTask(setAutoAliases)
-		prev = setAutoAliases
-
-		setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.InstanceName()))
-		addTask(setupAliases)
-		prev = setupAliases
 
 		// run new services
 		startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q (%s) services"), snapsup.InstanceName(), si.Revision))

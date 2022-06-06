@@ -8186,14 +8186,9 @@ func (s *snapmgrTestSuite) TestMigrateHome(c *C) {
 	c.Assert(taskNames(tss[0].Tasks()), DeepEquals, []string{
 		`prepare-snap`,
 		`stop-snap-services`,
-		`remove-aliases`,
 		`unlink-current-snap`,
 		`migrate-snap-home`,
-		`setup-profiles`,
 		`link-snap`,
-		`auto-connect`,
-		`set-auto-aliases`,
-		`setup-aliases`,
 		`start-snap-services`,
 	})
 
