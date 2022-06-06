@@ -43,7 +43,7 @@ func init() {
 }
 
 func (x *cmdMigrateHome) Execute(args []string) error {
-	chgID, err := x.client.MigrateHome(x.Positional.Snaps)
+	chgID, err := x.client.MigrateSnapHome(x.Positional.Snaps)
 	if err != nil {
 		return err
 	}

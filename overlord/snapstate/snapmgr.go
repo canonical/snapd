@@ -528,7 +528,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 
 	// misc
 	runner.AddHandler("switch-snap", m.doSwitchSnap, nil)
-	runner.AddHandler("migrate-home", m.doMigrateHome, m.undoMigrateHome)
+	runner.AddHandler("migrate-snap-home", m.doMigrateSnapHome, m.undoMigrateSnapHome)
 
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)

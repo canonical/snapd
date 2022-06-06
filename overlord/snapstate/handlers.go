@@ -3658,7 +3658,7 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 	return nil
 }
 
-func (m *SnapManager) doMigrateHome(t *state.Task, tomb *tomb.Tomb) error {
+func (m *SnapManager) doMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	snapsup, snapst, err := snapSetupAndState(t)
@@ -3690,7 +3690,7 @@ func (m *SnapManager) doMigrateHome(t *state.Task, tomb *tomb.Tomb) error {
 	return SetTaskSnapSetup(t, snapsup)
 }
 
-func (m *SnapManager) undoMigrateHome(t *state.Task, tomb *tomb.Tomb) error {
+func (m *SnapManager) undoMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	snapsup, err := TaskSnapSetup(t)

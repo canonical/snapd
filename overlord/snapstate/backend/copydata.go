@@ -310,7 +310,6 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision, opts *d
 			continue
 		}
 
-		fmt.Println("mkdiring")
 		if err := mkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
 			return undoInfo, fmt.Errorf("cannot create %q: %v", newUserHome, err)
 		}

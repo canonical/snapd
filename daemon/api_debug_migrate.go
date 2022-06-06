@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var snapstateMigrate = snapstate.MigrateHome
+var snapstateMigrateHome = snapstate.MigrateHome
 
 func migrateHome(st *state.State, snaps []string) Response {
 	if len(snaps) == 0 {
@@ -37,7 +37,7 @@ func migrateHome(st *state.State, snaps []string) Response {
 
 	// TODO: check feature flag is enabled
 
-	tss, err := snapstateMigrate(st, snaps)
+	tss, err := snapstateMigrateHome(st, snaps)
 	if err != nil {
 		if terr, ok := err.(snap.NotInstalledError); ok {
 			return SnapNotFound(terr.Snap, err)

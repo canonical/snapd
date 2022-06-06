@@ -205,10 +205,10 @@ func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.
 }
 
 func MockSnapstateMigrate(mock func(*state.State, []string) ([]*state.TaskSet, error)) (restore func()) {
-	oldSnapstateMigrate := snapstateMigrate
-	snapstateMigrate = mock
+	oldSnapstateMigrate := snapstateMigrateHome
+	snapstateMigrateHome = mock
 	return func() {
-		snapstateMigrate = oldSnapstateMigrate
+		snapstateMigrateHome = oldSnapstateMigrate
 	}
 }
 

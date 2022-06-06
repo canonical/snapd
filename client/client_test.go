@@ -634,7 +634,7 @@ func (cs *clientSuite) TestDebugMigrateHome(c *C) {
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "123"}`
 
 	snaps := []string{"foo", "bar"}
-	changeID, err := cs.cli.MigrateHome(snaps)
+	changeID, err := cs.cli.MigrateSnapHome(snaps)
 	c.Check(err, IsNil)
 	c.Check(changeID, Equals, "123")
 

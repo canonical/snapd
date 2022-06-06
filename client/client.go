@@ -770,7 +770,7 @@ func (client *Client) SystemRecoveryKeys(result interface{}) error {
 	return err
 }
 
-func (c *Client) MigrateHome(snaps []string) (changeID string, err error) {
+func (c *Client) MigrateSnapHome(snaps []string) (changeID string, err error) {
 	body, err := json.Marshal(struct {
 		Action string   `json:"action"`
 		Snaps  []string `json:"snaps"`

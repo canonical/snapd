@@ -2434,13 +2434,13 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 // MigrateHome migrates ... TODO
 func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
-	moveDir, err := features.Flag(tr, features.MoveHomeDir)
+	moveDir, err := features.Flag(tr, features.MoveSnapHomeDir)
 	if err != nil {
 		return nil, err
 	}
 
 	if !moveDir {
-		_, confName := features.MoveHomeDir.ConfigOption()
+		_, confName := features.MoveSnapHomeDir.ConfigOption()
 		return nil, fmt.Errorf("cannot migrate to ~/Snap: flag %q is not set", confName)
 	}
 
@@ -2489,7 +2489,7 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 		addTask(unlink)
 		prev = unlink
 
-		migrate := st.NewTask("migrate-home", fmt.Sprintf(i18n.G("Migrate %q to ~/Snap"), name))
+		migrate := st.NewTask("migrate-snap-home", fmt.Sprintf(i18n.G("Migrate %q to ~/Snap"), name))
 		addTask(migrate)
 		prev = migrate
 

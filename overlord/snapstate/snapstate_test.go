@@ -8160,7 +8160,7 @@ func (s *snapmgrTestSuite) TestMigrateHome(c *C) {
 	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.move-home-dir", true), IsNil)
+	c.Assert(tr.Set("core", "experimental.move-snap-home-dir", true), IsNil)
 	tr.Commit()
 
 	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
@@ -8188,7 +8188,7 @@ func (s *snapmgrTestSuite) TestMigrateHome(c *C) {
 		`stop-snap-services`,
 		`remove-aliases`,
 		`unlink-current-snap`,
-		`migrate-home`,
+		`migrate-snap-home`,
 		`setup-profiles`,
 		`link-snap`,
 		`auto-connect`,
