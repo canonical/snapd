@@ -35,8 +35,6 @@ func migrateHome(st *state.State, snaps []string) Response {
 		return BadRequest("no snap was provided")
 	}
 
-	// TODO: check feature flag is enabled
-
 	tss, err := snapstateMigrateHome(st, snaps)
 	if err != nil {
 		if terr, ok := err.(snap.NotInstalledError); ok {

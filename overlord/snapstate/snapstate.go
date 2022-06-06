@@ -1152,6 +1152,13 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
+// InstallPathMany returns a set of tasks for installing snaps from a file paths
+// and snap.Infos.
+//
+// The state must be locked by the caller.
+// The provided SideInfos can contain just a name which results in a
+// local revision and sideloading, or full metadata in which case
+// the snaps will appear as installed from the store.
 func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
@@ -2431,7 +2438,8 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 	return nil
 }
 
-// MigrateHome migrates ... TODO
+// MigrateHome migrates a set of snaps to use a ~/Snap sub-directory as HOME.
+// The state must be locked by the caller.
 func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	moveDir, err := features.Flag(tr, features.MoveSnapHomeDir)
