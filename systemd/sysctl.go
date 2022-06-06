@@ -33,7 +33,10 @@ var (
 var systemdSysctlCmd = func(args ...string) error {
 	bs, err := exec.Command(systemdSysctlPath, args...).CombinedOutput()
 	if err != nil {
-		exitCode, _ := osutil.ExitCode(err)
+		exitCode, err := osutil.ExitCode(err)
+		if err != nil {
+			return err
+		}
 		return fmt.Errorf("%s invoked with %v failed with exit status %d: %s", systemdSysctlPath, args, exitCode, bs)
 	}
 	return nil

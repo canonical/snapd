@@ -22,6 +22,7 @@ package config
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -55,7 +56,7 @@ func NewTransaction(st *state.State) *Transaction {
 	// Record the current state of the map containing the config of every snap
 	// in the system. We'll use it for this transaction.
 	err := st.Get("config", &transaction.pristine)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		transaction.pristine = make(map[string]map[string]*json.RawMessage)
 	} else if err != nil {
 		panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))
@@ -318,7 +319,7 @@ func (t *Transaction) Commit() {
 
 	// Update our copy of the config with the most recent one from the state.
 	err := t.state.Get("config", &t.pristine)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		t.pristine = make(map[string]map[string]*json.RawMessage)
 	} else if err != nil {
 		panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))

@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -84,7 +85,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 		opts = *origOpts
 	}
 
-	if err := st.Get("refresh-privacy-key", &opts.PrivacyKey); err != nil && err != state.ErrNoState {
+	if err := st.Get("refresh-privacy-key", &opts.PrivacyKey); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("cannot obtain store request salt: %v", err)
 	}
 	if opts.PrivacyKey == "" {

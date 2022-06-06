@@ -20,6 +20,7 @@
 package servicestate
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -92,7 +93,7 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 	for _, snapName := range sortedNames {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, snapName, &snapst); err != nil {
-			if err == state.ErrNoState {
+			if errors.Is(err, state.ErrNoState) {
 				return nil, fmt.Errorf("snap not found: %s", snapName)
 			}
 			return nil, err
@@ -365,7 +366,7 @@ func SnapServiceOptions(st *state.State, instanceName string, quotaGroups map[st
 	// if quotaGroups was not provided to us, then go get that
 	if quotaGroups == nil {
 		allGrps, err := AllQuotas(st)
-		if err != nil && err != state.ErrNoState {
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return nil, err
 		}
 		quotaGroups = allGrps

@@ -87,6 +87,19 @@ type SealKeyModelParams struct {
 	KernelCmdlines []string
 }
 
+type TPMProvisionMode int
+
+const (
+	TPMProvisionNone TPMProvisionMode = iota
+	// TPMProvisionFull indicates a full provisioning of the TPM
+	TPMProvisionFull
+	// TPMPartialReprovision indicates a partial reprovisioning of the TPM
+	// which was previously already provisioned by secboot. Existing lockout
+	// authorization data from TPMLockoutAuthFile will be used to authorize
+	// provisioning and will get overwritten in the process.
+	TPMPartialReprovision
+)
+
 type SealKeysParams struct {
 	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
@@ -95,11 +108,6 @@ type SealKeysParams struct {
 	// The path to the authorization policy update key file (only relevant for TPM,
 	// if empty the key will not be saved)
 	TPMPolicyAuthKeyFile string
-	// The path to the lockout authorization file (only relevant for TPM and only
-	// used if TPMProvision is set to true)
-	TPMLockoutAuthFile string
-	// Whether we should provision the TPM
-	TPMProvision bool
 	// The handle at which to create a NV index for dynamic authorization policy revocation support
 	PCRPolicyCounterHandle uint32
 }

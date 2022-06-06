@@ -237,6 +237,8 @@ func (x *cmdRun) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(args, " "))
 	}
 
+	logger.StartupStageTimestamp("start")
+
 	if err := maybeWaitForSecurityProfileRegeneration(x.client); err != nil {
 		return err
 	}
@@ -1223,6 +1225,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 			logger.Debugf("snap refreshes will not be postponed by this process")
 		}
 	}
+	logger.StartupStageTimestamp("snap to snap-confine")
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, envForExec)
 	} else if x.Gdb {

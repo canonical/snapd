@@ -22,6 +22,7 @@ package ifacestate
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -71,7 +72,7 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 	var snapdSnap snapstate.SnapState
 	var snapdSnapInfo *snap.Info
 	err := snapstate.Get(m.state, "snapd", &snapdSnap)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("cannot access snapd snap state: %v", err)
 	}
 	if err == nil {
@@ -85,7 +86,7 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 	var coreSnap snapstate.SnapState
 	var coreSnapInfo *snap.Info
 	err = snapstate.Get(m.state, "core", &coreSnap)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("cannot access core snap state: %v", err)
 	}
 	if err == nil {
@@ -246,14 +247,14 @@ var removeStaleConnections = func(st *state.State) error {
 		}
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, connRef.PlugRef.Snap, &snapst); err != nil {
-			if err != state.ErrNoState {
+			if !errors.Is(err, state.ErrNoState) {
 				return err
 			}
 			staleConns = append(staleConns, id)
 			continue
 		}
 		if err := snapstate.Get(st, connRef.SlotRef.Snap, &snapst); err != nil {
-			if err != state.ErrNoState {
+			if !errors.Is(err, state.ErrNoState) {
 				return err
 			}
 			staleConns = append(staleConns, id)
@@ -273,7 +274,7 @@ var removeStaleConnections = func(st *state.State) error {
 func isBroken(st *state.State, snapName string) (bool, error) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, snapName, &snapst)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return false, nil
 	}
 	if err != nil {
@@ -549,7 +550,7 @@ func newGadgetConnect(s *state.State, task *state.Task, repo *interfaces.Reposit
 func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.ConnRef, conns map[string]*connState, conflictError func(*state.Retry, error) error) error {
 	var seeded bool
 	err := gc.st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	// we apply gadget connections only during seeding or a remodeling
@@ -577,7 +578,7 @@ func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.Co
 
 	gconns, err := snapstate.GadgetConnections(gc.st, gc.deviceCtx)
 	if err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			// no gadget yet, nothing to do
 			return nil
 		}
@@ -933,7 +934,7 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 func getConns(st *state.State) (conns map[string]*connState, err error) {
 	var raw *json.RawMessage
 	err = st.Get("conns", &raw)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("cannot obtain raw data about existing connections: %s", err)
 	}
 	if raw != nil {
@@ -1227,7 +1228,7 @@ func getHotplugAttrs(task *state.Task) (ifaceName string, hotplugKey snap.Hotplu
 
 func allocHotplugSeq(st *state.State) (int, error) {
 	var seq int
-	if err := st.Get("hotplug-seq", &seq); err != nil && err != state.ErrNoState {
+	if err := st.Get("hotplug-seq", &seq); err != nil && !errors.Is(err, state.ErrNoState) {
 		return 0, fmt.Errorf("internal error: cannot allocate hotplug sequence number: %s", err)
 	}
 	seq++
@@ -1279,7 +1280,7 @@ func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
 	var slots map[string]*HotplugSlotInfo
 	err := st.Get("hotplug-slots", &slots)
 	if err != nil {
-		if err != state.ErrNoState {
+		if !errors.Is(err, state.ErrNoState) {
 			return nil, err
 		}
 		slots = make(map[string]*HotplugSlotInfo)

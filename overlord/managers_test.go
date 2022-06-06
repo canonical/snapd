@@ -3086,7 +3086,7 @@ apps:
 	c.Assert(err, ErrorMatches, ".*no such file.*")
 
 	// now do the revert
-	ts, err := snapstate.Revert(st, "foo", snapstate.Flags{})
+	ts, err := snapstate.Revert(st, "foo", snapstate.Flags{}, "")
 	c.Assert(err, IsNil)
 	chg := st.NewChange("revert-snap", "...")
 	chg.AddAll(ts)
@@ -4550,7 +4550,7 @@ hooks:
 
 	var snst snapstate.SnapState
 	err = snapstate.Get(st, "other-snap", &snst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	_, err = repo.Connected("other-snap", "media-hub")
 	c.Assert(err, ErrorMatches, `snap "other-snap" has no plug or slot named "media-hub"`)
 }
@@ -4910,7 +4910,7 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAddedUndo(c *C) {
 	var snapst snapstate.SnapState
 	for _, snapName := range []string{"foo", "bar", "baz"} {
 		err = snapstate.Get(st, snapName, &snapst)
-		c.Assert(err, Equals, state.ErrNoState)
+		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	}
 
 	// old-required-snap-1 is still marked required
@@ -7078,7 +7078,7 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 	// the new required-snap "foo" is not installed yet
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	// simulate successful reboot to recovery and back
 	restart.MockPending(st, restart.RestartUnset)
@@ -9078,6 +9078,9 @@ WantedBy=multi-user.target
 			// service also dies?
 			c.Check(cmd, DeepEquals, []string{"stop", "snap.test-snap.svc1.service"})
 			return nil, fmt.Errorf("the snap service is still having a bad day")
+		case 15:
+			c.Check(cmd, DeepEquals, []string{"show", "--property=ActiveState", "snap.test-snap.svc1.service"})
+			return nil, nil
 		default:
 			c.Errorf("unexpected call to systemctl: %+v", cmd)
 			return nil, fmt.Errorf("broken test")
@@ -9085,7 +9088,7 @@ WantedBy=multi-user.target
 	})
 	s.AddCleanup(r)
 	// make sure that we get the expected number of systemctl calls
-	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 14) })
+	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 15) })
 
 	// also add the snapd snap to state which we will refresh
 	si1 := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}

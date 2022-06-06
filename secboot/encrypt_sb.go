@@ -94,17 +94,80 @@ func runSnapFDEKeymgr(args []string, stdin io.Reader) error {
 }
 
 // EnsureRecoveryKey makes sure the encrypted block devices have a recovery key.
-// It takes the path where to store the key and mount points for the
-// encrypted devices to operate on.
-func EnsureRecoveryKey(recoveryKeyFile string, mountPoints []string) (keys.RecoveryKey, error) {
-	return keys.RecoveryKey{}, fmt.Errorf("not implemented yet")
+// It takes the path where to store the key and encrypted devices to operate on.
+func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.RecoveryKey, error) {
+	// support multiple devices with the same key
+	command := []string{
+		"add-recovery-key",
+		"--key-file", keyFile,
+	}
+	for _, rkeyDev := range rkeyDevs {
+		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
+		if err != nil {
+			return keys.RecoveryKey{}, fmt.Errorf("cannot find matching device for: %v", err)
+		}
+		logger.Debugf("ensuring recovery key on device: %v", dev)
+		authzMethod := "keyring"
+		if rkeyDev.AuthorizingKeyFile != "" {
+			authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
+		}
+		command = append(command, []string{
+			"--devices", dev,
+			"--authorizations", authzMethod,
+		}...)
+	}
+
+	if err := runSnapFDEKeymgr(command, nil); err != nil {
+		return keys.RecoveryKey{}, fmt.Errorf("cannot run keymgr tool: %v", err)
+	}
+
+	rk, err := keys.RecoveryKeyFromFile(keyFile)
+	if err != nil {
+		return keys.RecoveryKey{}, fmt.Errorf("cannot read recovery key: %v", err)
+	}
+	return *rk, nil
+}
+
+func devByPartUUIDFromMount(mp string) (string, error) {
+	partUUID, err := disks.PartitionUUIDFromMountPoint(mp, &disks.Options{
+		IsDecryptedDevice: true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("cannot partition for mount %v: %v", mp, err)
+	}
+	dev := filepath.Join("/dev/disk/by-partuuid", partUUID)
+	return dev, nil
 }
 
 // RemoveRecoveryKeys removes any recovery key from all encrypted block devices.
-// It takes a map from the mount points for the encrypted devices to where
-// their recovery key is stored, mount points might share the latter.
-func RemoveRecoveryKeys(mountPointToRecoveryKeyFile map[string]string) error {
-	return fmt.Errorf("not implemented yet")
+// It takes a map from the recovery key device to where their recovery key is
+// stored, mount points might share the latter.
+func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
+	// support multiple devices and key files
+	command := []string{
+		"remove-recovery-key",
+	}
+	for rkeyDev, keyFile := range rkeyDevToKey {
+		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
+		if err != nil {
+			return fmt.Errorf("cannot find matching device for: %v", err)
+		}
+		logger.Debugf("removing recovery key from device: %v", dev)
+		authzMethod := "keyring"
+		if rkeyDev.AuthorizingKeyFile != "" {
+			authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
+		}
+		command = append(command, []string{
+			"--devices", dev,
+			"--authorizations", authzMethod,
+			"--key-files", keyFile,
+		}...)
+	}
+
+	if err := runSnapFDEKeymgr(command, nil); err != nil {
+		return fmt.Errorf("cannot run keymgr tool: %v", err)
+	}
+	return nil
 }
 
 // ChangeEncryptionKey changes the main encryption key of a given device to the
