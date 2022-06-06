@@ -18,15 +18,17 @@ backends:
             - ubuntu-21.10-64:
             - ubuntu-22.04-64:
             - debian-10-64:
-            - debian-sid-64:
-            - fedora-33-64:
+            - debian-sid-64:            
             - fedora-34-64:
+            - fedora-35-64:
             - arch-linux-64:
             - amazon-linux-2-64:
                 storage: preserve-size
             - centos-7-64:
                 storage: preserve-size
             - centos-8-64:
+                storage: preserve-size
+            - centos-9-64:
                 storage: preserve-size
             - opensuse-15.3-64:
 

@@ -99,6 +99,10 @@ is_centos_8() {
     grep -qFx 'ID="centos"' /etc/os-release && grep -qFx 'VERSION_ID="8"' /etc/os-release
 }
 
+is_centos_9() {
+    grep -qFx 'ID="centos"' /etc/os-release && grep -qFx 'VERSION_ID="9"' /etc/os-release
+}
+
 is_arch_linux() {
     grep -qFx 'ID=arch' /etc/os-release
 }

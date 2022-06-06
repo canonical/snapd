@@ -58,12 +58,12 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
-        fedora-33-64)
+        fedora-34-64)
             os.query is-fedora
             os.query is-classic
             ! os.query is-core
             ;;
-        fedora-34-64)
+        fedora-35-64)
             os.query is-fedora
             os.query is-classic
             ! os.query is-core
@@ -86,6 +86,11 @@ execute: |
             ;;
         centos-8-64)
             os.query is-centos-8
+            os.query is-centos
+            ! os.query is-core
+            ;;
+        centos-9-64)
+            os.query is-centos-9
             os.query is-centos
             ! os.query is-core
             ;;
