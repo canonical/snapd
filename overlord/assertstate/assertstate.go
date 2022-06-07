@@ -315,7 +315,13 @@ func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 	}
 	explicitAliases := decl.Aliases()
 	if len(explicitAliases) != 0 {
-		return explicitAliases, nil
+		aliasesForApps := make(map[string]string, len(explicitAliases))
+		for alias, app := range explicitAliases {
+			if _, ok := info.Apps[app]; ok {
+				aliasesForApps[alias] = app
+			}
+		}
+		return aliasesForApps, nil
 	}
 	// XXX: old header fallback, just to keep edge working while we fix the
 	// store, to remove before next release!

@@ -2164,6 +2164,10 @@ func (s *assertMgrSuite) TestAutoAliasesExplicit(c *C) {
 				"name":   "alias2",
 				"target": "cmd2",
 			},
+			map[string]interface{}{
+				"name":   "alias-missing",
+				"target": "cmd-missing",
+			},
 		},
 		"revision": "1",
 	})
@@ -2173,6 +2177,11 @@ func (s *assertMgrSuite) TestAutoAliasesExplicit(c *C) {
 		SideInfo: snap.SideInfo{
 			RealName: "foo",
 			SnapID:   "foo-id",
+		},
+		Apps: map[string]*snap.AppInfo{
+			"cmd1": {},
+			"cmd2": {},
+			// no cmd-missing
 		},
 	})
 	c.Assert(err, IsNil)
