@@ -15,10 +15,6 @@ execute: |
     echo "Ensuring the path /var/lib/snapd/save exists"
     tests.nested exec "ls -l /var/lib/snapd/save"
 
-    # Build our local version of snapd-sh that contains the .cmd file
-    SNAP_FILE=$("$TESTSTOOLS"/snaps-state pack-local test-snapd-sh "$TESTSLIB"/snaps/test-snapd-sh)
-    tests.nested copy "$SNAP_FILE"
-
     # next up is to install a snap and verify the creation of a snap save folder
     # for that snap on the ubuntu-save partition
     tests.nested exec "sudo snap install test-snapd-sh"
