@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 
@@ -277,6 +278,9 @@ SNAPD_APPARMOR_REEXEC=0
 	s.AddCleanup(snapstate.MockSecurityProfilesDiscardLate(func(snapName string, rev snap.Revision, typ snap.Type) error {
 		return nil
 	}))
+
+	restoreMountInfo := osutil.MockMountInfo("")
+	s.AddCleanup(restoreMountInfo)
 }
 
 func (s *snapmgrBaseTest) TearDownTest(c *C) {
