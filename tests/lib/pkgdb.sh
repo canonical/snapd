@@ -479,7 +479,7 @@ distro_install_build_snapd(){
             fi
         fi
 
-        if os.query is-opensuse-tumbleweed; then
+        if os.query is-opensuse-tumbleweed || os.query is-arch-linux; then
             # Package installation applies vendor presets only, which leaves
             # snapd.apparmor disabled.
             systemctl enable --now snapd.apparmor.service
