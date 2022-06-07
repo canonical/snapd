@@ -126,14 +126,14 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string) *snap.Info {
 }
 
 func (s *handlersSuite) TestBuildConfinementOptions(c *C) {
-	// Mock installed snap
 	s.st.Lock()
 	defer s.st.Unlock()
 
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
 	flags := snapstate.Flags{}
-	opts := ifacestate.BuildConfinementOptions(s.st, snapInfo.InstanceName(), snapstate.Flags{})
+	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo.InstanceName(), snapstate.Flags{})
 
+	c.Check(err, IsNil)
 	c.Check(len(opts.ExtraLayouts), Equals, 0)
 	c.Check(opts.Classic, Equals, flags.Classic)
 	c.Check(opts.DevMode, Equals, flags.DevMode)
@@ -141,7 +141,6 @@ func (s *handlersSuite) TestBuildConfinementOptions(c *C) {
 }
 
 func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
-	// Mock installed snap
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -156,8 +155,9 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	c.Assert(err, IsNil)
 
 	flags := snapstate.Flags{}
-	opts := ifacestate.BuildConfinementOptions(s.st, snapInfo.InstanceName(), snapstate.Flags{})
+	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo.InstanceName(), snapstate.Flags{})
 
+	c.Check(err, IsNil)
 	c.Assert(len(opts.ExtraLayouts), Equals, 1)
 	c.Check(opts.ExtraLayouts[0].Bind, Equals, path.Join(dirs.SnapSystemdDir, "journal.snap-foo"))
 	c.Check(opts.ExtraLayouts[0].Path, Equals, path.Join(dirs.SnapSystemdDir, "journal"))
