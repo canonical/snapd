@@ -1883,6 +1883,8 @@ func (s *runScriptSuite) SetUpTest(c *C) {
 	s.baseRunnerSuite.SetUpTest(c)
 	s.runDir = filepath.Join(dirs.SnapRepairRunDir, "canonical", "1")
 
+	s.AddCleanup(snapdenv.SetUserAgentFromVersion("1", nil, "snap-repair"))
+
 	restoreErrTrackerReportRepair := repair.MockErrtrackerReportRepair(s.errtrackerReportRepair)
 	s.AddCleanup(restoreErrTrackerReportRepair)
 }
