@@ -47,15 +47,13 @@ import (
 var snapstateFinishRestart = snapstate.FinishRestart
 
 // addJournalQuotaLayout handles the addition of a journal quota bind mount
-// in case the snap has a journal quota. This mimicks what systemd does for
-// services with log namespaces.
+// to mimicks what systemd does for services with log namespaces.
 func addJournalQuotaLayout(quotaGroup *quota.Group, layouts *[]snap.Layout) error {
 	if quotaGroup.JournalLimit == nil {
 		return nil
 	}
 
-	// We need to bind mount the journal namespace folder ontop of
-	// the journal folder
+	// bind mount the journal namespace folder ontop of the journal folder
 	// /etc/systemd/journal.<ns> -> /etc/systemd/journal
 	journalLayout := snap.Layout{
 		Bind: path.Join(dirs.SnapSystemdDir, fmt.Sprintf("journal.snap-%s", quotaGroup.Name)),
