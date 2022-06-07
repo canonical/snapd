@@ -20,25 +20,49 @@
 package ifacestate_test
 
 import (
+	"path"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-type handlersSuite struct{}
+const snapAyaml = `name: snap-a
+type: app
+base: base-snap-a
+`
+
+type handlersSuite struct {
+	st *state.State
+}
 
 var _ = Suite(&handlersSuite{})
 
+func (s *handlersSuite) SetUpTest(c *C) {
+	s.st = state.New(nil)
+	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *handlersSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
+
 func (s *handlersSuite) TestInSameChangeWaitChain(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
+	s.st.Lock()
+	defer s.st.Unlock()
 
 	// no wait chain (yet)
-	startT := st.NewTask("start", "...start")
-	intermediateT := st.NewTask("intermediateT", "...intermediateT")
-	searchT := st.NewTask("searchT", "...searchT")
+	startT := s.st.NewTask("start", "...start")
+	intermediateT := s.st.NewTask("intermediateT", "...intermediateT")
+	searchT := s.st.NewTask("searchT", "...searchT")
 	c.Check(ifacestate.InSameChangeWaitChain(startT, searchT), Equals, false)
 
 	// add (indirect) wait chain
@@ -48,16 +72,15 @@ func (s *handlersSuite) TestInSameChangeWaitChain(c *C) {
 }
 
 func (s *handlersSuite) TestInSameChangeWaitChainDifferentChanges(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
+	s.st.Lock()
+	defer s.st.Unlock()
 
-	t1 := st.NewTask("t1", "...")
-	chg1 := st.NewChange("chg1", "...")
+	t1 := s.st.NewTask("t1", "...")
+	chg1 := s.st.NewChange("chg1", "...")
 	chg1.AddTask(t1)
 
-	t2 := st.NewTask("t2", "...")
-	chg2 := st.NewChange("chg2", "...")
+	t2 := s.st.NewTask("t2", "...")
+	chg2 := s.st.NewChange("chg2", "...")
 	chg2.AddTask(t2)
 
 	// add a cross change wait chain
@@ -66,23 +89,79 @@ func (s *handlersSuite) TestInSameChangeWaitChainDifferentChanges(c *C) {
 }
 
 func (s *handlersSuite) TestInSameChangeWaitChainWithCycles(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
+	s.st.Lock()
+	defer s.st.Unlock()
 
 	// cycles like this are unexpected in practice but are easier to test than
 	// the exponential paths situation that e.g. seed changes present.
-	startT := st.NewTask("start", "...start")
-	task1 := st.NewTask("task1", "...")
+	startT := s.st.NewTask("start", "...start")
+	task1 := s.st.NewTask("task1", "...")
 	task1.WaitFor(startT)
-	task2 := st.NewTask("task2", "...")
+	task2 := s.st.NewTask("task2", "...")
 	task2.WaitFor(task1)
-	task3 := st.NewTask("task3", "...")
+	task3 := s.st.NewTask("task3", "...")
 	task3.WaitFor(task2)
 
 	startT.WaitFor(task2)
 	startT.WaitFor(task3)
 
-	unrelated := st.NewTask("unrelated", "...")
+	unrelated := s.st.NewTask("unrelated", "...")
 	c.Check(ifacestate.InSameChangeWaitChain(startT, unrelated), Equals, false)
+}
+
+func mockInstalledSnap(c *C, st *state.State, snapYaml string) *snap.Info {
+	snapInfo := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{
+		Revision: snap.R(1),
+	})
+
+	snapName := snapInfo.SnapName()
+	si := &snap.SideInfo{RealName: snapName, SnapID: snapName + "-id", Revision: snap.R(1)}
+	snapstate.Set(st, snapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: string(snapInfo.Type()),
+	})
+	return snapInfo
+}
+
+func (s *handlersSuite) TestBuildConfinementOptions(c *C) {
+	// Mock installed snap
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
+	flags := snapstate.Flags{}
+	opts := ifacestate.BuildConfinementOptions(s.st, snapInfo.InstanceName(), snapstate.Flags{})
+
+	c.Check(len(opts.ExtraLayouts), Equals, 0)
+	c.Check(opts.Classic, Equals, flags.Classic)
+	c.Check(opts.DevMode, Equals, flags.DevMode)
+	c.Check(opts.JailMode, Equals, flags.JailMode)
+}
+
+func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
+	// Mock installed snap
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	tr := config.NewTransaction(s.st)
+	tr.Set("core", "experimental.quota-groups", true)
+	tr.Commit()
+
+	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
+
+	// Create a new quota group with a journal quota
+	err := servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName()}, quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	c.Assert(err, IsNil)
+
+	flags := snapstate.Flags{}
+	opts := ifacestate.BuildConfinementOptions(s.st, snapInfo.InstanceName(), snapstate.Flags{})
+
+	c.Assert(len(opts.ExtraLayouts), Equals, 1)
+	c.Check(opts.ExtraLayouts[0].Bind, Equals, path.Join(dirs.SnapSystemdDir, "journal.snap-foo"))
+	c.Check(opts.ExtraLayouts[0].Path, Equals, path.Join(dirs.SnapSystemdDir, "journal"))
+	c.Check(opts.Classic, Equals, flags.Classic)
+	c.Check(opts.DevMode, Equals, flags.DevMode)
+	c.Check(opts.JailMode, Equals, flags.JailMode)
 }

@@ -61,6 +61,7 @@ var (
 
 	BatchConnectTasks                = batchConnectTasks
 	FirstTaskAfterBootWhenPreseeding = firstTaskAfterBootWhenPreseeding
+	BuildConfinementOptions          = buildConfinementOptions
 )
 
 type ConnectOpts = connectOpts

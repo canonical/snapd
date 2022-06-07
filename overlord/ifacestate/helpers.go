@@ -177,7 +177,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
 			logger.Noticef("cannot get state of snap %q: %s", snapName, err)
 		}
-		return buildConfinementOptions(m.state, snapName, snapst.Flags)
+		return buildConfinementOptions(m.state, snapst.InstanceName(), snapst.Flags)
 	}
 
 	// For each backend:
