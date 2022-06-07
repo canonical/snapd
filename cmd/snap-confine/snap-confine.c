@@ -397,7 +397,7 @@ int main(int argc, char **argv)
 		die("snap-confine has elevated permissions and is not confined"
 		    " but should be. Refusing to continue to avoid"
 		    " permission escalation attacks\n"
-		    "Please make sure that the snapd.apparmor service is enabled.");
+		    "Please make sure that the snapd.apparmor service is enabled and started.");
 	}
 
 	log_startup_stage("snap-confine mount namespace start");

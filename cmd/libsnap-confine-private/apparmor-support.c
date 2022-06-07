@@ -130,7 +130,7 @@ sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile)
 			errno = aa_change_onexec_errno;
 			if (errno == ENOENT) {
 				fprintf(stderr, "missing profile %s.\n"
-				        "Please make sure that the snapd.apparmor service is enabled\n",
+				        "Please make sure that the snapd.apparmor service is enabled and started\n",
 				        profile);
 				exit(1);
 			} else {
