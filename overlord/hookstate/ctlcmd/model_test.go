@@ -625,11 +625,11 @@ func (s *modelSuite) signSerial(accountID, model, serial string, timestamp time.
 
 	signer := s.brands.Signing(accountID)
 
-	modelAs, err := signer.Sign(asserts.SerialType, headers, nil, "")
+	serialAs, err := signer.Sign(asserts.SerialType, headers, nil, "")
 	if err != nil {
 		panic(err)
 	}
-	return modelAs.(*asserts.Serial)
+	return serialAs.(*asserts.Serial)
 }
 
 func (s *modelSuite) TestFindSerialAssertionNone(c *C) {
