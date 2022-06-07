@@ -1889,7 +1889,10 @@ func (s *runScriptSuite) SetUpTest(c *C) {
 	s.AddCleanup(restoreErrTrackerReportRepair)
 }
 
-func (s *runScriptSuite) setup(c *C) {
+// setupRunner must be called from the tests so that the *C passed into contains
+// the tests' state and not the SetUpTest's state (otherwise, assertion failures
+// in the mock server go unreported).
+func (s *runScriptSuite) setupRunner(c *C) {
 	s.mockServer = makeMockServer(c, &s.seqRepairs, false)
 	s.AddCleanup(func() { s.mockServer.Close() })
 
@@ -1944,7 +1947,7 @@ func (s *runScriptSuite) verifyOutput(c *C, name, expectedOutput string) {
 }
 
 func (s *runScriptSuite) TestRepairBasicRunHappy(c *C) {
-	s.setup(c)
+	s.setupRunner(c)
 	script := `#!/bin/sh
 echo "happy output"
 echo "done" >&$SNAP_REPAIR_STATUS_FD
@@ -1968,7 +1971,7 @@ happy output
 }
 
 func (s *runScriptSuite) TestRepairBasicRunUnhappy(c *C) {
-	s.setup(c)
+	s.setupRunner(c)
 	script := `#!/bin/sh
 echo "unhappy output"
 exit 1
@@ -2010,7 +2013,7 @@ unhappy output
 }
 
 func (s *runScriptSuite) TestRepairBasicSkip(c *C) {
-	s.setup(c)
+	s.setupRunner(c)
 	script := `#!/bin/sh
 echo "other output"
 echo "skip" >&$SNAP_REPAIR_STATUS_FD
@@ -2034,7 +2037,7 @@ other output
 }
 
 func (s *runScriptSuite) TestRepairBasicRunUnhappyThenHappy(c *C) {
-	s.setup(c)
+	s.setupRunner(c)
 	script := `#!/bin/sh
 if [ -f zzz-ran-once ]; then
     echo "happy now"
@@ -2081,7 +2084,7 @@ happy now
 }
 
 func (s *runScriptSuite) TestRepairHitsTimeout(c *C) {
-	s.setup(c)
+	s.setupRunner(c)
 	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer r1()
 	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
@@ -2119,7 +2122,7 @@ repair canonical-1 revision 0 failed: repair did not finish within 100ms`)
 }
 
 func (s *runScriptSuite) TestRepairHasCorrectPath(c *C) {
-	s.setup(c)
+	s.setupRunner(c)
 	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer r1()
 	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
