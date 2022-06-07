@@ -22,7 +22,6 @@ package ifacestate
 import (
 	"errors"
 	"fmt"
-	"log"
 	"path"
 	"reflect"
 	"sort"
@@ -51,12 +50,10 @@ var snapstateFinishRestart = snapstate.FinishRestart
 // in case the snap has a journal quota. This mimicks what systemd does for
 // services with log namespaces.
 func addJournalQuotaLayout(quotaGroup *quota.Group, layouts *[]snap.Layout) error {
-	log.Println("3.1")
 	if quotaGroup.JournalLimit == nil {
 		return nil
 	}
 
-	log.Println("3.2")
 	// We need to bind mount the journal namespace folder ontop of
 	// the journal folder
 	// /etc/systemd/journal.<ns> -> /etc/systemd/journal
@@ -102,7 +99,6 @@ func buildConfinementOptions(st *state.State, snapInstanceName string, flags sna
 	extraLayouts, err := getExtraLayouts(st, snapInstanceName)
 	if err != nil {
 		logger.Noticef("cannot get extra mount layouts of snap %q: %s", snapInstanceName, err)
-		log.Printf("cannot get extra mount layouts of snap %q: %s", snapInstanceName, err)
 	}
 	return confinementOptions(flags, extraLayouts)
 }
