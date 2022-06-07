@@ -142,7 +142,6 @@ func validateOptionsAttr(moduleInfo *ModuleInfo) error {
 		return errors.New(`kernel-module-load "options" attribute incompatible with "load: denied"`)
 	}
 
-	// Use a variable to make the next `if` more readable
 	dynamicLoadingWithAnyOptions := moduleInfo.load == loadDynamic && moduleInfo.options == "*"
 	if !dynamicLoadingWithAnyOptions && !kernelModuleOptionsRegexp.MatchString(moduleInfo.options) {
 		return fmt.Errorf(`kernel-module-load "options" attribute contains invalid characters: %q`, moduleInfo.options)
