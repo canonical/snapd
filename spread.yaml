@@ -171,9 +171,6 @@ backends:
                   image: centos-9-64
 
             # unstable systems below
-            - opensuse-15.2-64:
-                  workers: 6
-                  manual: true
             - opensuse-15.3-64:
                   workers: 6
             - opensuse-tumbleweed-64:
@@ -305,9 +302,6 @@ backends:
             - amazon-linux-2-64:
                   username: ec2-user
                   password: ec2-user
-            - opensuse-15.2-64:
-                  username: opensuse
-                  password: opensuse
             - opensuse-tumbleweed-64:
                   username: opensuse
                   password: opensuse
