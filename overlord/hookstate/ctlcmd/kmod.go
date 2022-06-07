@@ -156,10 +156,11 @@ func (k *kmodSubcommand) findConnection(context *hookstate.Context, moduleName s
 		return nil, fmt.Errorf("internal error: cannot get connections: %s", err)
 	}
 
-	k.snapInfo, err = snapstate.CurrentInfo(st, snapName)
+	snapInfo, err := snapstate.CurrentInfo(st, snapName)
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot get snap info: %s", err)
 	}
+	k.snapInfo = snapInfo
 
 	for connId, connState := range conns {
 		if connState.Interface != "kernel-module-load" {
