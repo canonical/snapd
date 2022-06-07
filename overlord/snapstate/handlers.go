@@ -1213,9 +1213,9 @@ func (m *SnapManager) doCreateSnapSave(t *state.Task, _ *tomb.Tomb) (err error) 
 		return err
 	}
 
-	// We only perform this step for ubuntu core, as the ubuntu-save
-	// partition is only present here.
-	if exists, _, err := osutil.DirExists(filepath.Dir(dirs.SnapCommonSaveDir)); err != nil || !exists {
+	// verify that ubuntu-save has been mounted under the expected path and
+	// that it is indeed a mount-point.
+	if hasSave, err := osutil.IsMounted(dirs.SnapSaveDir); err != nil || !hasSave {
 		return nil
 	}
 
