@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -111,6 +112,9 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.AddCleanup(func() {
 		snapstate.SnapServiceOptions = oldSnapServiceOptions
 	})
+
+	restoreMountInfo := osutil.MockMountInfo("")
+	bs.AddCleanup(restoreMountInfo)
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {

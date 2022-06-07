@@ -1216,6 +1216,9 @@ func (m *SnapManager) doCreateSnapSave(t *state.Task, _ *tomb.Tomb) (err error) 
 	// verify that ubuntu-save has been mounted under the expected path and
 	// that it is indeed a mount-point.
 	if hasSave, err := osutil.IsMounted(dirs.SnapSaveDir); err != nil || !hasSave {
+		if err != nil {
+			return fmt.Errorf("cannot check if ubuntu-save is mounted: %v", err)
+		}
 		return nil
 	}
 

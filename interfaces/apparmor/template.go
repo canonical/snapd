@@ -645,14 +645,6 @@ var defaultCoreRuntimeTemplateRules = `
 
   # Allow all snaps to chroot
   /{,usr/}sbin/chroot ixr,
-
-  # Allow all snaps to access each their own folder on the
-  # ubuntu-save partition, mark the ubuntu-save snap for read-only
-  # unless it's specifically its own snap directory.
-  /var/lib/snapd/save/snap/   r,
-  /var/lib/snapd/save/snap/** mrkix,
-
-  /var/lib/snapd/save/snap/@{SNAP_INSTANCE_NAME}/** wl,
 `
 
 // defaultCoreRuntimeTemplate contains the default apparmor template for core* bases. It
