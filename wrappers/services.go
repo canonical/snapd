@@ -190,13 +190,12 @@ func generateJournaldConfFile(grp *quota.Group) []byte {
 		return nil
 	}
 
-	buf := bytes.Buffer{}
-
 	sizeOptions := formatJournalSizeConf(grp)
 	rateOptions := formatJournalRateConf(grp)
 	template := `# Journald configuration for snap quota group %[1]s
 [Journal]
 `
+	buf := bytes.Buffer{}
 	fmt.Fprintf(&buf, template, grp.Name)
 	fmt.Fprint(&buf, sizeOptions, rateOptions)
 	return buf.Bytes()
@@ -755,25 +754,26 @@ func (es *ensureSnapServicesContext) ensureSnapJournaldUnits(quotaGroups *quota.
 			return err
 		}
 
-		if modifiedFile {
-			// suppress any event and restart if we actually did not do anything
-			// as it seems modifiedFile is set even when the file does not exist
-			// and when the new content is nil.
-			if (old == nil || len(old.Content) == 0) && len(content) == 0 {
-				return nil
-			}
-
-			if es.observeChange != nil {
-				var oldContent []byte
-				if old != nil {
-					oldContent = old.Content
-				}
-				es.observeChange(nil, grp, "journald", grp.Name, string(oldContent), string(content))
-			}
-
-			es.modifiedUnits[path] = old
+		if !modifiedFile {
+			return nil
 		}
 
+		// suppress any event and restart if we actually did not do anything
+		// as it seems modifiedFile is set even when the file does not exist
+		// and when the new content is nil.
+		if (old == nil || len(old.Content) == 0) && len(content) == 0 {
+			return nil
+		}
+
+		if es.observeChange != nil {
+			var oldContent []byte
+			if old != nil {
+				oldContent = old.Content
+			}
+			es.observeChange(nil, grp, "journald", grp.Name, string(oldContent), string(content))
+		}
+
+		es.modifiedUnits[path] = old
 		return nil
 	}
 
