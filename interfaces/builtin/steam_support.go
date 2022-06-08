@@ -167,6 +167,9 @@ mount options=(rw, rbind) /oldroot/run/dbus/system_bus_socket -> /newroot/run/db
 mount options=(rw, rbind) /oldroot/run/systemd/resolve/io.systemd.Resolve -> /newroot/run/systemd/resolve/io.systemd.Resolve,
 mount options=(rw, rbind) /bindfile* -> /newroot/run/host/container-manager,
 
+# Allow mounting Nvidia drivers into the sandbox
+mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/* -> /newroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/*,
+
 # Allow masking of certain directories in the sandbox
 mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/home/*/snap/steam/common/.local/share/vulkan/implicit_layer.d/,
 mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/run/pressure-vessel/ldso/,
@@ -179,6 +182,8 @@ pivot_root oldroot=/newroot/ /newroot/,
 umount /,
 
 # Permissions needed within sandbox root
+/usr/bin/** ixr,
+/usr/sbin/** ixr,
 /usr/lib/pressure-vessel/** ixr,
 /run/host/** mr,
 /run/pressure-vessel/** mrw,
