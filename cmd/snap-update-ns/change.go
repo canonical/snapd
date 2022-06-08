@@ -499,6 +499,13 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		desired[i].Dir = filepath.Clean(desired[i].Dir)
 	}
 
+	// Make yet another copy of the current entries, to retain their original
+	// order (the "current" variable is going to be sorted soon); just using
+	// currentProfile.Entries is not reliable because it didn't undergo the
+	// cleanup of the Dir paths.
+	unsortedCurrent := make([]osutil.MountEntry, len(current))
+	copy(unsortedCurrent, current)
+
 	dumpMountEntries := func(entries []osutil.MountEntry, pfx string) {
 		logger.Debugf(pfx)
 		for _, en := range entries {
@@ -582,7 +589,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	var changes []*Change
 
 	// Unmount entries not reused in reverse to handle children before their parent.
-	unmountOrder := currentProfile.Entries
+	unmountOrder := unsortedCurrent
 	for i := len(unmountOrder) - 1; i >= 0; i-- {
 		if reuse[unmountOrder[i].Dir] {
 			changes = append(changes, &Change{Action: Keep, Entry: unmountOrder[i]})
