@@ -46,11 +46,11 @@ import (
 
 var snapstateFinishRestart = snapstate.FinishRestart
 
-// getJournalQuotaLayout returns the necessary journal quota mount layouts
+// journalQuotaLayout returns the necessary journal quota mount layouts
 // to mimick what systemd does for services with log namespaces.
-func getJournalQuotaLayout(quotaGroup *quota.Group) []snap.Layout {
+func journalQuotaLayout(quotaGroup *quota.Group) []snap.Layout {
 	if quotaGroup.JournalLimit == nil {
-		return []snap.Layout{}
+		return nil
 	}
 
 	// bind mount the journal namespace folder on top of the journal folder
@@ -74,7 +74,7 @@ func getExtraLayouts(st *state.State, snapInstanceName string) ([]snap.Layout, e
 
 	var extraLayouts []snap.Layout
 	if snapOpts.QuotaGroup != nil {
-		extraLayouts = append(extraLayouts, getJournalQuotaLayout(snapOpts.QuotaGroup)...)
+		extraLayouts = append(extraLayouts, journalQuotaLayout(snapOpts.QuotaGroup)...)
 	}
 
 	return extraLayouts, nil
