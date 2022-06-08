@@ -1,0 +1,45 @@
+summary: Check the debug command migrate-home migrates snaps' homes
+
+environment:
+    NAME: test-snapd-tools
+
+prepare: |
+  snap pack "$TESTSLIB/snaps/$NAME"
+  "$TESTSTOOLS"/snaps-state install-local "$NAME"
+
+  snap pack "$TESTSLIB"/snaps/basic
+  "$TESTSTOOLS"/snaps-state install-local basic
+
+restore: |
+  snap unset system experimental.move-snap-home-dir
+  snap remove --purge basic
+  snap remove --purge "$NAME"
+
+execute: |
+  echo "Check that migrate home doesn't work without setting the experimental flag"
+  if got=$(snap debug migrate-home "$NAME" 2>&1); then
+    echo 'Calling "snap debug migrate-home" without setting "experimental.move-snap-home-dir" should fail'
+    exit 1
+  fi
+  #shellcheck disable=SC2086
+  echo $got |  MATCH 'error: cannot migrate to ~/Snap: flag "experimental.move-snap-home-dir" is not set'
+
+  echo "Check that migrate home migrates the data under SNAP_USER_DATA"
+  snap set system experimental.move-snap-home-dir=true
+
+  #shellcheck disable=SC2016
+  "$NAME".cmd sh -c 'echo foo > $HOME/foo'
+  MATCH "foo" < "$HOME/snap/$NAME/current/foo"
+  not test -e "$HOME"/Snap
+
+  snap debug migrate-home "$NAME" basic
+
+  MATCH "foo" < "$HOME/Snap/$NAME/foo"
+
+  echo "Check that the snap's environment variables and AppArmor rules are correct"
+  snapEnv=$("$NAME".env)
+  echo "$snapEnv" | MATCH "HOME=$HOME/Snap/$NAME"
+
+  #shellcheck disable=SC2016
+  "$NAME".cmd sh -c 'echo "bar" > $HOME/bar'
+  MATCH "bar" < "$HOME/Snap/$NAME/bar"
