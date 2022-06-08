@@ -84,6 +84,7 @@ type appYaml struct {
 	WatchdogTimeout timeout.Timeout `yaml:"watchdog-timeout,omitempty"`
 	Completer       string          `yaml:"completer,omitempty"`
 	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
+	RefreshAllowed  bool            `yaml:"refresh-allowed,omitempty"`
 	StopMode        StopModeType    `yaml:"stop-mode,omitempty"`
 	InstallMode     string          `yaml:"install-mode,omitempty"`
 
@@ -371,6 +372,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 			Completer:       yApp.Completer,
 			StopMode:        yApp.StopMode,
 			RefreshMode:     yApp.RefreshMode,
+			RefreshAllowed:  yApp.RefreshAllowed,
 			InstallMode:     yApp.InstallMode,
 			Before:          yApp.Before,
 			After:           yApp.After,

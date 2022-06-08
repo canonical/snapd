@@ -943,6 +943,7 @@ type AppInfo struct {
 	RestartDelay    timeout.Timeout
 	Completer       string
 	RefreshMode     string
+	RefreshAllowed  bool
 	StopMode        StopModeType
 	InstallMode     string
 
