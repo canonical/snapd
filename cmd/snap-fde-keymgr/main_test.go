@@ -338,28 +338,115 @@ func (s *mainSuite) TestRemoveKeyRequiresAuthz(c *C) {
 	c.Assert(err, ErrorMatches, `cannot remove recovery keys with invalid authorizations: authorization file .*/authz.key does not exist`)
 }
 
+// 1 in ASCII repeated 32 times
+const all1sKey = `{"key":"MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="}`
+
 func (s *mainSuite) TestChangeEncryptionKey(c *C) {
-	const all1sKey = `{"key":"MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="}`
+	b := bytes.NewBufferString(all1sKey)
+	restore := main.MockOsStdin(b)
+	defer restore()
+	unexpectedCall := func(newKey keys.EncryptionKey, luksDev string) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	}
+	defer main.MockStageLUKSEncryptionKeyChange(unexpectedCall)
+	defer main.MockTransitionLUKSEncryptionKeyChange(unexpectedCall)
+
+	err := main.Run([]string{
+		"change-encryption-key",
+		"--device", "/dev/vda4",
+	})
+	c.Assert(err, ErrorMatches, "cannot change encryption key without stage or transition request")
+
+	err = main.Run([]string{
+		"change-encryption-key",
+		"--device", "/dev/vda4",
+		"--stage", "--transition",
+	})
+	c.Assert(err, ErrorMatches, "cannot both stage and transition the encryption key change")
+}
+
+func (s *mainSuite) TestStageEncryptionKey(c *C) {
 	b := bytes.NewBufferString(all1sKey)
 	restore := main.MockOsStdin(b)
 	defer restore()
 	dev := ""
-	changeCalls := 0
+	stageCalls := 0
 	var key []byte
-	restore = main.MockChangeLUKSEncryptionKey(func(newKey keys.EncryptionKey, luksDev string) error {
-		changeCalls++
+	var stageErr error
+	restore = main.MockStageLUKSEncryptionKeyChange(func(newKey keys.EncryptionKey, luksDev string) error {
+		stageCalls++
 		dev = luksDev
 		key = newKey
-		return nil
+		return stageErr
+	})
+	defer restore()
+	restore = main.MockTransitionLUKSEncryptionKeyChange(func(newKey keys.EncryptionKey, luksDev string) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 	err := main.Run([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
+		"--stage",
 	})
 	c.Assert(err, IsNil)
-	c.Check(changeCalls, Equals, 1)
+	c.Check(stageCalls, Equals, 1)
 	c.Check(dev, Equals, "/dev/vda4")
 	// secboot encryption key size
 	c.Check(key, DeepEquals, bytes.Repeat([]byte("1"), 32))
+
+	restore = main.MockOsStdin(bytes.NewBufferString(all1sKey))
+	defer restore()
+	stageErr = fmt.Errorf("mock stage error")
+	err = main.Run([]string{
+		"change-encryption-key",
+		"--device", "/dev/vda4",
+		"--stage",
+	})
+	c.Assert(err, ErrorMatches, "cannot stage LUKS device encryption key change: mock stage error")
+}
+
+func (s *mainSuite) TestTransitionEncryptionKey(c *C) {
+	b := bytes.NewBufferString(all1sKey)
+	restore := main.MockOsStdin(b)
+	defer restore()
+	dev := ""
+	transitionCalls := 0
+	var key []byte
+	var transitionErr error
+	restore = main.MockStageLUKSEncryptionKeyChange(func(newKey keys.EncryptionKey, luksDev string) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+	restore = main.MockTransitionLUKSEncryptionKeyChange(func(newKey keys.EncryptionKey, luksDev string) error {
+		transitionCalls++
+		dev = luksDev
+		key = newKey
+		return transitionErr
+	})
+	defer restore()
+	defer restore()
+	err := main.Run([]string{
+		"change-encryption-key",
+		"--device", "/dev/vda4",
+		"--transition",
+	})
+	c.Assert(err, IsNil)
+	c.Check(transitionCalls, Equals, 1)
+	c.Check(dev, Equals, "/dev/vda4")
+	// secboot encryption key size
+	c.Check(key, DeepEquals, bytes.Repeat([]byte("1"), 32))
+
+	restore = main.MockOsStdin(bytes.NewBufferString(all1sKey))
+	defer restore()
+	transitionErr = fmt.Errorf("mock transition error")
+	err = main.Run([]string{
+		"change-encryption-key",
+		"--device", "/dev/vda4",
+		"--transition",
+	})
+	c.Assert(err, ErrorMatches, "cannot transition LUKS device encryption key change: mock transition error")
 }
