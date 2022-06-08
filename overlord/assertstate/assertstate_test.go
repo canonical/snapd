@@ -2164,6 +2164,10 @@ func (s *assertMgrSuite) TestAutoAliasesExplicit(c *C) {
 				"name":   "alias2",
 				"target": "cmd2",
 			},
+			map[string]interface{}{
+				"name":   "alias-missing",
+				"target": "cmd-missing",
+			},
 		},
 		"revision": "1",
 	})
@@ -2173,6 +2177,11 @@ func (s *assertMgrSuite) TestAutoAliasesExplicit(c *C) {
 		SideInfo: snap.SideInfo{
 			RealName: "foo",
 			SnapID:   "foo-id",
+		},
+		Apps: map[string]*snap.AppInfo{
+			"cmd1": {},
+			"cmd2": {},
+			// no cmd-missing
 		},
 	})
 	c.Assert(err, IsNil)
@@ -3357,7 +3366,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertion(c *C) {
 	}
 
 	sequence := 2
-	err := assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	tracking, err := assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 
 	// and it has been committed
@@ -3372,6 +3381,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertion(c *C) {
 
 	var tr assertstate.ValidationSetTracking
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
+	c.Check(tr, DeepEquals, *tracking)
 
 	c.Check(tr, DeepEquals, assertstate.ValidationSetTracking{
 		AccountID: s.dev1Acct.AccountID(),
@@ -3417,7 +3427,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionUpdate(c *C) {
 	}
 
 	sequence := 2
-	err := assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	tracking, err := assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 
 	// and it has been committed
@@ -3439,6 +3449,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionUpdate(c *C) {
 		PinnedAt:  2,
 		Current:   2,
 	})
+	c.Check(tr, DeepEquals, *tracking)
 
 	// and it was added to the history
 	vshist, err := assertstate.ValidationSetsHistory(st)
@@ -3455,7 +3466,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionUpdate(c *C) {
 
 	// not pinned
 	sequence = 0
-	err = assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	tracking, err = assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
@@ -3466,6 +3477,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionUpdate(c *C) {
 		PinnedAt:  0,
 		Current:   2,
 	})
+	c.Check(tr, DeepEquals, *tracking)
 }
 
 func (s *assertMgrSuite) TestEnforceValidationSetAssertionPinToOlderSequence(c *C) {
@@ -3492,7 +3504,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionPinToOlderSequence(c *
 	}
 
 	sequence := 2
-	err := assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	tracking, err := assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 
 	// and it has been committed
@@ -3514,10 +3526,11 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionPinToOlderSequence(c *
 		PinnedAt:  2,
 		Current:   2,
 	})
+	c.Check(tr, DeepEquals, *tracking)
 
 	// pin to older
 	sequence = 1
-	err = assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	tracking, err = assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
@@ -3529,6 +3542,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionPinToOlderSequence(c *
 		// and current points at the latest sequence available
 		Current: 2,
 	})
+	c.Check(tr, DeepEquals, *tracking)
 }
 
 func (s *assertMgrSuite) TestEnforceValidationSetAssertionAfterMonitor(c *C) {
@@ -3565,7 +3579,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionAfterMonitor(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	sequence := 2
-	err := assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	tracking, err := assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 
 	// and it has been committed
@@ -3588,6 +3602,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionAfterMonitor(c *C) {
 		PinnedAt:  2,
 		Current:   2,
 	})
+	c.Check(tr, DeepEquals, *tracking)
 }
 
 func (s *assertMgrSuite) TestEnforceValidationSetAssertionIgnoreValidation(c *C) {
@@ -3613,13 +3628,13 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionIgnoreValidation(c *C)
 
 	sequence := 2
 	ignoreValidation := map[string]bool{}
-	err := assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, ignoreValidation)
+	_, err := assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, ignoreValidation)
 	wrongRevErr, ok := err.(*snapasserts.ValidationSetsValidationError)
 	c.Assert(ok, Equals, true)
 	c.Check(wrongRevErr.WrongRevisionSnaps["foo"], NotNil)
 
 	ignoreValidation["foo"] = true
-	err = assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, ignoreValidation)
+	tracking, err := assertstate.EnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, ignoreValidation)
 	c.Assert(err, IsNil)
 
 	// and it has been committed
@@ -3642,6 +3657,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionIgnoreValidation(c *C)
 		PinnedAt:  2,
 		Current:   2,
 	})
+	c.Check(tr, DeepEquals, *tracking)
 }
 
 func (s *assertMgrSuite) TestMonitorValidationSet(c *C) {
@@ -3662,8 +3678,15 @@ func (s *assertMgrSuite) TestMonitorValidationSet(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	sequence := 2
-	err := assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0)
+	tr1, err := assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0)
 	c.Assert(err, IsNil)
+	c.Check(tr1, DeepEquals, &assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "bar",
+		Mode:      assertstate.Monitor,
+		PinnedAt:  2,
+		Current:   2,
+	})
 
 	// and it has been committed
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
@@ -3720,8 +3743,25 @@ func (s *assertMgrSuite) TestForgetValidationSet(c *C) {
 	vsetAs2 := s.validationSetAssert(c, "baz", "2", "2", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
-	c.Assert(assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "bar", 2, 0), IsNil)
-	c.Assert(assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "baz", 2, 0), IsNil)
+	tr1, err := assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "bar", 2, 0)
+	c.Assert(err, IsNil)
+	c.Check(tr1, DeepEquals, &assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "bar",
+		Mode:      assertstate.Monitor,
+		PinnedAt:  2,
+		Current:   2,
+	})
+
+	tr2, err := assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "baz", 2, 0)
+	c.Assert(err, IsNil)
+	c.Check(tr2, DeepEquals, &assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "baz",
+		Mode:      assertstate.Monitor,
+		PinnedAt:  2,
+		Current:   2,
+	})
 
 	c.Assert(assertstate.ForgetValidationSet(st, s.dev1Acct.AccountID(), "bar"), IsNil)
 

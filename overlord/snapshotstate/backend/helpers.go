@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// zipMember returns an io.ReadCloser for the 'member' file in the 'f' zip file.
 func zipMember(f *os.File, member string) (r io.ReadCloser, sz int64, err error) {
 	// rewind the file
 	// (shouldn't be needed, but doesn't hurt too much)

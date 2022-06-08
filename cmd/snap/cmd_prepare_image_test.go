@@ -188,14 +188,15 @@ func (s *SnapPrepareImageSuite) TestPrepareImagePreseed(c *C) {
 	r := snap.MockImagePrepare(prep)
 	defer r()
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "--preseed", "--preseed-sign-key", "key", "model", "prepare-dir"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "--preseed", "--preseed-sign-key", "key", "--apparmor-features-dir", "aafeatures-dir", "model", "prepare-dir"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 
 	c.Check(opts, DeepEquals, &image.Options{
-		ModelFile:      "model",
-		PrepareDir:     "prepare-dir",
-		Preseed:        true,
-		PreseedSignKey: "key",
+		ModelFile:                 "model",
+		PrepareDir:                "prepare-dir",
+		Preseed:                   true,
+		PreseedSignKey:            "key",
+		AppArmorKernelFeaturesDir: "aafeatures-dir",
 	})
 }

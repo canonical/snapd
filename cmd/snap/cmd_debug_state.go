@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -284,7 +285,7 @@ func (c *cmdDebugState) showIsSeeded(st *state.State) error {
 
 	var isSeeded bool
 	err := st.Get("seeded", &isSeeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	fmt.Fprintf(Stdout, "%v\n", isSeeded)

@@ -506,6 +506,37 @@ func (s *specSuite) TestApparmorOvernameSnippets(c *C) {
 	c.Assert(updateNS[0], Equals, profile)
 }
 
+func (s *specSuite) TestApparmorExtraLayouts(c *C) {
+	snapInfo := snaptest.MockInfo(c, snapTrivial, &snap.SideInfo{Revision: snap.R(42)})
+	snapInfo.InstanceKey = "instance"
+
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.some-snap_instace.app"})
+	defer restore()
+
+	extraLayouts := []snap.Layout{
+		{
+			Path: "/test",
+			Bind: "/usr/home/test",
+			Mode: 0755,
+		},
+	}
+
+	s.spec.AddExtraLayouts(snapInfo, extraLayouts)
+
+	updateNS := s.spec.UpdateNS()
+
+	// verify that updateNS does indeed add all the additional layout
+	// lines. This just so happens to be 10 in this case because of reverse
+	// traversal for the path /usr/home/test
+	c.Assert(updateNS, HasLen, 10)
+
+	// make sure the extra layout is added
+	c.Assert(updateNS[0], Equals, "  # Layout /test: bind /usr/home/test\n")
+	c.Assert(updateNS[1], Equals, "  mount options=(rbind, rw) \"/usr/home/test/\" -> \"/test/\",\n")
+	c.Assert(updateNS[2], Equals, "  mount options=(rprivate) -> \"/test/\",\n")
+	// lines 3..9 is the traversal of the prefix for /usr/home/test
+}
+
 func (s *specSuite) TestUsesPtraceTrace(c *C) {
 	c.Assert(s.spec.UsesPtraceTrace(), Equals, false)
 	s.spec.SetUsesPtraceTrace()

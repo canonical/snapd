@@ -59,6 +59,17 @@ func getEncryptionKeyFromUserKeyring(dev string) ([]byte, error) {
 	return currKey, err
 }
 
+var keyslotFull = regexp.MustCompile(`^.* cryptsetup failed with: Key slot [0-9]+ is full, please select another one\.$`)
+
+// IsKeyslotAlreadyUsed returns true if the error indicates that the keyslot
+// attempted for a given key is already used
+func IsKeyslotAlreadyUsed(err error) bool {
+	if err == nil {
+		return false
+	}
+	return keyslotFull.MatchString(err.Error())
+}
+
 func isKeyslotNotActive(err error) bool {
 	match, _ := regexp.MatchString(`.*: Keyslot [0-9]+ is not active`, err.Error())
 	return match
@@ -134,6 +145,12 @@ func RemoveRecoveryKeyFromLUKSDevice(dev string) error {
 	if err != nil {
 		return err
 	}
+	return RemoveRecoveryKeyFromLUKSDeviceUsingKey(currKey, dev)
+}
+
+// RemoveRecoveryKeyFromLUKSDeviceUsingKey removes an existing recovery key a
+// LUKS2 using the provided key to authorize the operation.
+func RemoveRecoveryKeyFromLUKSDeviceUsingKey(currKey keys.EncryptionKey, dev string) error {
 	// just remove the key we think is a recovery key (luks keyslot 1)
 	if err := luks2.KillSlot(dev, recoveryKeySlot, currKey); err != nil {
 		if !isKeyslotNotActive(err) {

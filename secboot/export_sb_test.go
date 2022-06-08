@@ -24,9 +24,12 @@ package secboot
 import (
 	"io"
 
+	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -42,12 +45,16 @@ func MockSbConnectToDefaultTPM(f func() (*sb_tpm2.Connection, error)) (restore f
 	}
 }
 
-func MockProvisionTPM(f func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, newLockoutAuth []byte) error) (restore func()) {
-	old := provisionTPM
-	provisionTPM = f
-	return func() {
-		provisionTPM = old
-	}
+func MockSbTPMEnsureProvisioned(f func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, newLockoutAuth []byte) error) (restore func()) {
+	restore = testutil.Backup(&sbTPMEnsureProvisioned)
+	sbTPMEnsureProvisioned = f
+	return restore
+}
+
+func MockTPMReleaseResources(f func(tpm *sb_tpm2.Connection, handle tpm2.Handle) error) (restore func()) {
+	restore = testutil.Backup(&tpmReleaseResources)
+	tpmReleaseResources = f
+	return restore
 }
 
 func MockSbEfiAddSecureBootPolicyProfile(f func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.SecureBootPolicyProfileParams) error) (restore func()) {

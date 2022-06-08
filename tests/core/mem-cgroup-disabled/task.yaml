@@ -1,5 +1,10 @@
 summary: Check basic functionality when memory cgroup is disabled
 
+# external backends fails because a signed gadget cannot be replaced
+# with an unsigned one
+# TODO: remove once https://github.com/snapcore/snapd/pull/11589 landed
+backends: [-external]
+
 # only run on UC20+ to use the convenient cmdline.extra file
 systems: [ubuntu-core-2*]
 
@@ -10,13 +15,6 @@ prepare: |
   if not os.query is-pc-amd64; then
     echo "Skipping non-grub device test"
     exit 0
-  fi
-  # external backends would fail because a signed gadget cannot be replaced
-  # with an unsigned one
-  # TODO: remove once https://github.com/snapcore/snapd/pull/11589 landed
-  if ! snap list pc | grep -Eq " x[0-9]+ "; then  
-    echo "This test needs a sideloaded gadget snap"
-    exit
   fi
 
   echo "Create copy of gadget snap with cgroup_disable=memory set in cmdline.extra"
@@ -43,13 +41,6 @@ execute: |
   if not os.query is-pc-amd64; then
     echo "Skipping non-grub device test"
     exit 0
-  fi
-  # external backends would fail because a signed gadget cannot be replaced
-  # with an unsigned one
-  # TODO: remove once https://github.com/snapcore/snapd/pull/11589 landed
-  if ! snap list pc | grep -Eq " x[0-9]+ "; then
-    echo "This test needs a sideloaded gadget snap"
-    exit
   fi
   case "$SPREAD_REBOOT" in 
     0)
