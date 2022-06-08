@@ -505,7 +505,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 			logger.Debugf("- %v", en)
 		}
 	}
-	dumpMountEntries(desired, "desired mount entries")
+	dumpMountEntries(current, "current mount entries")
 	// Sort only the desired lists by directory name with implicit trailing
 	// slash and the mount kind.
 	// Note that the current profile is a log of what was applied and should
