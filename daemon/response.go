@@ -27,6 +27,7 @@ import (
 	"mime"
 	"net/http"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"time"
 
@@ -281,40 +282,75 @@ func (f fileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 //
 // Tip: “jq” knows how to read this; “jq --seq” both reads and writes this.
 type journalLineReaderSeqResponse struct {
-	io.ReadCloser
-	follow bool
+	readers []io.ReadCloser
+	follow  bool
+}
+
+func (rr *journalLineReaderSeqResponse) readAllLogsSorted() ([]systemd.Log, error) {
+	var logs []systemd.Log
+	for _, r := range rr.readers {
+		dec := json.NewDecoder(r)
+		for {
+			var log systemd.Log
+			if err := dec.Decode(&log); err != nil {
+				if err == io.EOF {
+					break
+				}
+				return nil, fmt.Errorf("cannot decode journal log: %v", err)
+			}
+			logs = append(logs, log)
+		}
+		r.Close()
+	}
+
+	// sort by timestamp ascending
+	sort.Slice(logs, func(i, j int) bool {
+		ti, _ := logs[i].Time()
+		tj, _ := logs[j].Time()
+		return ti.Before(tj)
+	})
+	return logs, nil
 }
 
 func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json-seq")
 
 	flusher, hasFlusher := w.(http.Flusher)
-
-	var err error
-	dec := json.NewDecoder(rr)
 	writer := bufio.NewWriter(w)
 	enc := json.NewEncoder(writer)
-	for {
-		var log systemd.Log
-		if err = dec.Decode(&log); err != nil {
-			break
+
+	writeError := func(err error) {
+		if err == io.EOF {
+			return
 		}
 
+		fmt.Fprintf(writer, `\x1E{"error": %q}\n`, err)
+		logger.Noticef("cannot stream response; problem reading: %v", err)
+	}
+
+	logEntries, err := rr.readAllLogsSorted()
+	if err != nil {
+		writeError(err)
+	}
+
+	for _, logEntry := range logEntries {
 		writer.WriteByte(0x1E) // RS -- see ascii(7), and RFC7464
 
 		// ignore the error...
-		t, _ := log.Time()
+		t, _ := logEntry.Time()
 		if err = enc.Encode(client.Log{
 			Timestamp: t,
-			Message:   log.Message(),
-			SID:       log.SID(),
-			PID:       log.PID(),
+			Message:   logEntry.Message(),
+			SID:       logEntry.SID(),
+			PID:       logEntry.PID(),
 		}); err != nil {
+			writeError(err)
 			break
 		}
 
 		if rr.follow {
 			if e := writer.Flush(); e != nil {
+				writeError(e)
 				break
 			}
 			if hasFlusher {
@@ -322,14 +358,10 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 			}
 		}
 	}
-	if err != nil && err != io.EOF {
-		fmt.Fprintf(writer, `\x1E{"error": %q}\n`, err)
-		logger.Noticef("cannot stream response; problem reading: %v", err)
-	}
+
 	if err := writer.Flush(); err != nil {
 		logger.Noticef("cannot stream response; problem writing: %v", err)
 	}
-	rr.Close()
 }
 
 type assertResponse struct {

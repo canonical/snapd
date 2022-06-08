@@ -75,6 +75,7 @@ type SystemdTestSuite struct {
 
 	j        int
 	jns      []string
+	jnmspcs  []string
 	jsvcs    [][]string
 	jouts    [][]byte
 	jerrs    []error
@@ -114,6 +115,7 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	s.j = 0
 	s.jns = nil
 	s.jsvcs = nil
+	s.jnmspcs = nil
 	s.jouts = nil
 	s.jerrs = nil
 	s.jfollows = nil
@@ -160,12 +162,13 @@ func (s *SystemdTestSuite) myRun(args ...string) (out []byte, delay time.Duratio
 	return out, delayReq, err
 }
 
-func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow bool) (io.ReadCloser, error) {
+func (s *SystemdTestSuite) myJctl(svcs []string, namespace string, n int, follow bool) (io.ReadCloser, error) {
 	var err error
 	var out []byte
 
 	s.jns = append(s.jns, strconv.Itoa(n))
 	s.jsvcs = append(s.jsvcs, svcs)
+	s.jnmspcs = append(s.jnmspcs, namespace)
 	s.jfollows = append(s.jfollows, follow)
 
 	if s.j < len(s.jouts) {
@@ -921,11 +924,12 @@ func (s *SystemdTestSuite) TestKill(c *C) {
 func (s *SystemdTestSuite) TestLogErrJctl(c *C) {
 	s.jerrs = []error{errors.New("mock journalctl error")}
 
-	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false)
+	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, "", 24, false)
 	c.Check(err, NotNil)
 	c.Check(reader, IsNil)
 	c.Check(s.jns, DeepEquals, []string{"24"})
 	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
+	c.Check(s.jnmspcs, DeepEquals, []string{""})
 	c.Check(s.jfollows, DeepEquals, []bool{false})
 	c.Check(s.j, Equals, 1)
 }
@@ -936,13 +940,14 @@ func (s *SystemdTestSuite) TestLogs(c *C) {
 `
 	s.jouts = [][]byte{[]byte(expected)}
 
-	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false)
+	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, "", 24, false)
 	c.Check(err, IsNil)
 	logs, err := ioutil.ReadAll(reader)
 	c.Assert(err, IsNil)
 	c.Check(string(logs), Equals, expected)
 	c.Check(s.jns, DeepEquals, []string{"24"})
 	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
+	c.Check(s.jnmspcs, DeepEquals, []string{""})
 	c.Check(s.jfollows, DeepEquals, []bool{false})
 	c.Check(s.j, Equals, 1)
 }
@@ -1385,20 +1390,23 @@ func (s *SystemdTestSuite) TestJctl(c *C) {
 	var args []string
 	var err error
 	MockOsutilStreamCommand(func(name string, myargs ...string) (io.ReadCloser, error) {
-		c.Check(cap(myargs) <= len(myargs)+2, Equals, true, Commentf("cap:%d, len:%d", cap(myargs), len(myargs)))
+		c.Check(cap(myargs) <= len(myargs)+3, Equals, true, Commentf("cap:%d, len:%d", cap(myargs), len(myargs)))
 		args = myargs
 		return nil, nil
 	})
 
-	_, err = Jctl([]string{"foo", "bar"}, 10, false)
+	_, err = Jctl([]string{"foo", "bar"}, "", 10, false)
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "-n", "10", "-u", "foo", "-u", "bar"})
-	_, err = Jctl([]string{"foo", "bar", "baz"}, 99, true)
+	_, err = Jctl([]string{"foo", "bar", "baz"}, "", 99, true)
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "-n", "99", "-f", "-u", "foo", "-u", "bar", "-u", "baz"})
-	_, err = Jctl([]string{"foo", "bar"}, -1, false)
+	_, err = Jctl([]string{"foo", "bar"}, "", -1, false)
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "--no-tail", "-u", "foo", "-u", "bar"})
+	_, err = Jctl([]string{"foo", "bar"}, "snap-namespace", -1, false)
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "--no-tail", "--namespace=snap-namespace", "-u", "foo", "-u", "bar"})
 }
 
 func (s *SystemdTestSuite) TestIsActiveUnderRoot(c *C) {

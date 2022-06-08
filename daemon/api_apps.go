@@ -22,6 +22,7 @@ package daemon
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -209,20 +210,43 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		return AppNotFound("no matching services")
 	}
 
-	serviceNames := make([]string, len(appInfos))
-	for i, appInfo := range appInfos {
-		serviceNames[i] = appInfo.ServiceName()
+	// group service names by their namespace
+	namespaces := make(map[string][]string)
+
+	c.d.overlord.State().Lock()
+	allQuotas, err := servicestate.AllQuotas(c.d.overlord.State())
+	if err != nil {
+		c.d.overlord.State().Unlock()
+		return InternalError("cannot get service quotas: %v", err)
 	}
 
+	for _, appInfo := range appInfos {
+		opts, err := servicestate.SnapServiceOptions(c.d.overlord.State(), appInfo.Snap.InstanceName(), allQuotas)
+		if err != nil {
+			c.d.overlord.State().Unlock()
+			return InternalError("cannot get service options for %q: %v", appInfo.Snap.InstanceName(), err)
+		}
+		namespace := ""
+		if opts.QuotaGroup != nil {
+			namespace = opts.QuotaGroup.JournalNamespaceName()
+		}
+		namespaces[namespace] = append(namespaces[namespace], appInfo.ServiceName())
+	}
+	c.d.overlord.State().Unlock()
+
 	sysd := systemd.New(systemd.SystemMode, progress.Null)
-	reader, err := sysd.LogReader(serviceNames, n, follow)
-	if err != nil {
-		return InternalError("cannot get logs: %v", err)
+	logs := make([]io.ReadCloser, 0, len(namespaces))
+	for namespace, services := range namespaces {
+		reader, err := sysd.LogReader(services, namespace, n, follow)
+		if err != nil {
+			return InternalError("cannot get logs: %v", err)
+		}
+		logs = append(logs, reader)
 	}
 
 	return &journalLineReaderSeqResponse{
-		ReadCloser: reader,
-		follow:     follow,
+		readers: logs,
+		follow:  follow,
 	}
 }
 

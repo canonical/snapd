@@ -37,11 +37,14 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -53,6 +56,7 @@ type appsSuite struct {
 
 	journalctlRestorer func()
 	jctlSvcses         [][]string
+	jctlNmspcs         []string
 	jctlNs             []int
 	jctlFollows        []bool
 	jctlRCs            []io.ReadCloser
@@ -64,8 +68,9 @@ type appsSuite struct {
 	infoA, infoB, infoC, infoD, infoE *snap.Info
 }
 
-func (s *appsSuite) journalctl(svcs []string, n int, follow bool) (rc io.ReadCloser, err error) {
+func (s *appsSuite) journalctl(svcs []string, namespace string, n int, follow bool) (rc io.ReadCloser, err error) {
 	s.jctlSvcses = append(s.jctlSvcses, svcs)
+	s.jctlNmspcs = append(s.jctlNmspcs, namespace)
 	s.jctlNs = append(s.jctlNs, n)
 	s.jctlFollows = append(s.jctlFollows, follow)
 
@@ -130,6 +135,7 @@ func (s *appsSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.jctlSvcses = nil
+	s.jctlNmspcs = nil
 	s.jctlNs = nil
 	s.jctlFollows = nil
 	s.jctlRCs = nil
@@ -648,11 +654,12 @@ func (s *appsSuite) TestLogs(c *check.C) {
 	s.req(c, req, nil).ServeHTTP(rec, req)
 
 	c.Check(s.jctlSvcses, check.DeepEquals, [][]string{{"snap.snap-a.svc2.service"}})
+	c.Check(s.jctlNmspcs, check.DeepEquals, []string{""})
 	c.Check(s.jctlNs, check.DeepEquals, []int{42})
 	c.Check(s.jctlFollows, check.DeepEquals, []bool{false})
 
 	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json-seq")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json-seq")
 	c.Check(rec.Body.String(), check.Equals, `
 {"timestamp":"1970-01-01T00:00:00.000042Z","message":"hello1","sid":"xyzzy","pid":"42"}
 {"timestamp":"1970-01-01T00:00:00.000044Z","message":"hello2","sid":"xyzzy","pid":"42"}
@@ -770,4 +777,96 @@ func (s *appsSuite) TestLogsNoServices(c *check.C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 404)
+}
+
+func (s *appsSuite) TestLogsFromNamespaces(c *check.C) {
+	s.expectLogsAccess()
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	err := servicestatetest.MockQuotaInState(st, "foo", "", []string{"snap-a"}, quota.NewResourcesBuilder().WithJournalSize(16*quantity.SizeMiB).Build())
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	s.jctlRCs = []io.ReadCloser{
+		ioutil.NopCloser(strings.NewReader(`
+{"MESSAGE": "hello1", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "42"}
+{"MESSAGE": "hello2", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "44"}
+{"MESSAGE": "hello3", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "46"}
+{"MESSAGE": "hello4", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "48"}
+{"MESSAGE": "hello5", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "50"}
+`))}
+
+	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil)
+	c.Assert(err, check.IsNil)
+
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, req)
+
+	c.Check(s.jctlSvcses, check.DeepEquals, [][]string{{"snap.snap-a.svc2.service"}})
+	c.Check(s.jctlNmspcs, check.DeepEquals, []string{"snap-foo"})
+	c.Check(s.jctlNs, check.DeepEquals, []int{42})
+	c.Check(s.jctlFollows, check.DeepEquals, []bool{false})
+
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json-seq")
+	c.Check(rec.Body.String(), check.Equals, `
+{"timestamp":"1970-01-01T00:00:00.000042Z","message":"hello1","sid":"xyzzy","pid":"42"}
+{"timestamp":"1970-01-01T00:00:00.000044Z","message":"hello2","sid":"xyzzy","pid":"42"}
+{"timestamp":"1970-01-01T00:00:00.000046Z","message":"hello3","sid":"xyzzy","pid":"42"}
+{"timestamp":"1970-01-01T00:00:00.000048Z","message":"hello4","sid":"xyzzy","pid":"42"}
+{"timestamp":"1970-01-01T00:00:00.00005Z","message":"hello5","sid":"xyzzy","pid":"42"}
+`[1:])
+}
+
+func (s *appsSuite) TestLogsFromMultipleNamespaces(c *check.C) {
+	s.expectLogsAccess()
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	err := servicestatetest.MockQuotaInState(st, "foo", "", []string{"snap-a"}, quota.NewResourcesBuilder().WithJournalSize(16*quantity.SizeMiB).Build())
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	s.jctlRCs = []io.ReadCloser{
+		ioutil.NopCloser(strings.NewReader(`
+{"MESSAGE": "hello1", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "42"}
+{"MESSAGE": "hello2", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "44"}
+{"MESSAGE": "hello3", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "46"}
+{"MESSAGE": "hello4", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "62"}
+{"MESSAGE": "hello5", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "64"}
+`)),
+		ioutil.NopCloser(strings.NewReader(`
+{"MESSAGE": "hello6", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "50", "__REALTIME_TIMESTAMP": "32"}
+{"MESSAGE": "hello7", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "50", "__REALTIME_TIMESTAMP": "48"}
+{"MESSAGE": "hello8", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "50", "__REALTIME_TIMESTAMP": "50"}
+{"MESSAGE": "hello9", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "50", "__REALTIME_TIMESTAMP": "52"}
+{"MESSAGE": "hello10", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "50", "__REALTIME_TIMESTAMP": "66"}
+`))}
+
+	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2,snap-b.svc3&n=42&follow=false", nil)
+	c.Assert(err, check.IsNil)
+
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, req)
+
+	c.Check(s.jctlSvcses, check.DeepEquals, [][]string{{"snap.snap-a.svc2.service"}, {"snap.snap-b.svc3.service"}})
+	c.Check(s.jctlNmspcs, check.DeepEquals, []string{"snap-foo", ""})
+	c.Check(s.jctlNs, check.DeepEquals, []int{42, 42})
+	c.Check(s.jctlFollows, check.DeepEquals, []bool{false, false})
+
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json-seq")
+	c.Check(rec.Body.String(), check.Equals, `
+{"timestamp":"1970-01-01T00:00:00.000032Z","message":"hello6","sid":"xyzzy","pid":"50"}
+{"timestamp":"1970-01-01T00:00:00.000042Z","message":"hello1","sid":"xyzzy","pid":"42"}
+{"timestamp":"1970-01-01T00:00:00.000044Z","message":"hello2","sid":"xyzzy","pid":"42"}
+{"timestamp":"1970-01-01T00:00:00.000046Z","message":"hello3","sid":"xyzzy","pid":"42"}
+{"timestamp":"1970-01-01T00:00:00.000048Z","message":"hello7","sid":"xyzzy","pid":"50"}
+{"timestamp":"1970-01-01T00:00:00.00005Z","message":"hello8","sid":"xyzzy","pid":"50"}
+{"timestamp":"1970-01-01T00:00:00.000052Z","message":"hello9","sid":"xyzzy","pid":"50"}
+{"timestamp":"1970-01-01T00:00:00.000062Z","message":"hello4","sid":"xyzzy","pid":"42"}
+{"timestamp":"1970-01-01T00:00:00.000064Z","message":"hello5","sid":"xyzzy","pid":"42"}
+{"timestamp":"1970-01-01T00:00:00.000066Z","message":"hello10","sid":"xyzzy","pid":"50"}
+`[1:])
 }
