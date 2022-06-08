@@ -257,11 +257,18 @@ func (grp *Group) SliceFileName() string {
 	return buf.String()
 }
 
+func (grp *Group) JournalNamespaceName() string {
+	if grp.JournalLimit == nil {
+		return ""
+	}
+	return "snap-" + grp.Name
+}
+
 // JournalFileName returns the name of the journal configuration file that should
 // be used for this quota group. As an example, a group named "foo" will return a name
 // of journald@snap-foo.conf
 func (grp *Group) JournalFileName() string {
-	return fmt.Sprintf("journald@snap-%s.conf", grp.Name)
+	return fmt.Sprintf("journald@%s.conf", grp.JournalNamespaceName())
 }
 
 // groupQuotaAllocations contains information about current quotas of a group

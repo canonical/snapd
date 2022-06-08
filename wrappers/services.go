@@ -142,7 +142,7 @@ func formatLogNamespaceSlice(grp *quota.Group) string {
 	if grp.JournalLimit == nil {
 		return ""
 	}
-	return fmt.Sprintf("LogNamespace=snap-%s\n", grp.Name)
+	return fmt.Sprintf("LogNamespace=%s\n", grp.JournalNamespaceName())
 }
 
 // generateGroupSliceFile generates a systemd slice unit definition for the
