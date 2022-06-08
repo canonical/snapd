@@ -27,7 +27,6 @@ import (
 	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/secboot/keyring"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/secboot/luks2"
 )
@@ -43,7 +42,6 @@ const (
 
 var (
 	sbGetDiskUnlockKeyFromKernel = sb.GetDiskUnlockKeyFromKernel
-	keyringAddKeyToUserKeyring   = keyring.AddKeyToUserKeyring
 )
 
 func getEncryptionKeyFromUserKeyring(dev string) ([]byte, error) {
@@ -59,7 +57,9 @@ func getEncryptionKeyFromUserKeyring(dev string) ([]byte, error) {
 	return currKey, err
 }
 
-var keyslotFull = regexp.MustCompile(`^.* cryptsetup failed with: Key slot [0-9]+ is full, please select another one\.$`)
+// TODO rather than inspecting the error messages, parse the LUKS2 headers
+
+var keyslotFull = regexp.MustCompile(`^.*cryptsetup failed with: Key slot [0-9]+ is full, please select another one\.$`)
 
 // IsKeyslotAlreadyUsed returns true if the error indicates that the keyslot
 // attempted for a given key is already used
@@ -160,26 +160,24 @@ func RemoveRecoveryKeyFromLUKSDeviceUsingKey(currKey keys.EncryptionKey, dev str
 	return nil
 }
 
-// ChangeLUKSDeviceEncryptionKey changes the main encryption key of the device.
-// Uses an existing unlock key of that device, which is present in the kernel
-// user keyring. Once complete the user keyring contains the new encryption key.
-func ChangeLUKSDeviceEncryptionKey(newKey keys.EncryptionKey, dev string) error {
+// StageLUKSDeviceEncryptionKeyChange stages a new encryption key with the goal
+// of changing the main encryption key referenced in keyslot 0. The operation is
+// authorized using the key that unlocked the device and is stored in the
+// keyring (as it happens during factory reset).
+func StageLUKSDeviceEncryptionKeyChange(newKey keys.EncryptionKey, dev string) error {
 	if len(newKey) != keys.EncryptionKeySize {
 		return fmt.Errorf("cannot use a key of size different than %v", keys.EncryptionKeySize)
 	}
 
+	// the key to authorize the device is in the keyring
 	currKey, err := getEncryptionKeyFromUserKeyring(dev)
 	if err != nil {
 		return err
 	}
 
-	// we only have the current key, we cannot add a key to an occupied
-	// keyslot, and cannot start with killing its keyslot as that would make
-	// the device unusable, so instead add the new key to an auxiliary
-	// keyslot, then use the new key to authorize removal of keyslot 0
-	// (which refers to the old key), add the new key again, but this time
-	// to keyslot 0, lastly kill the aux keyslot
+	// TODO rather than inspecting the errors, parse the LUKS2 headers
 
+	// free up the temp slot
 	if err := luks2.KillSlot(dev, tempKeySlot, currKey); err != nil {
 		if !isKeyslotNotActive(err) {
 			return fmt.Errorf("cannot kill the temporary keyslot: %v", err)
@@ -193,35 +191,86 @@ func ChangeLUKSDeviceEncryptionKey(newKey keys.EncryptionKey, dev string) error 
 	if err := luks2.AddKey(dev, currKey[:], newKey, &options); err != nil {
 		return fmt.Errorf("cannot add temporary key: %v", err)
 	}
+	return nil
+}
 
-	// now it should be possible to kill the original keyslot by using the
-	// new key for authorization
+// TransitionLUKSDeviceEncryptionKeyChange completes the main encryption key
+// change to the new key provided in the parameters. The new key must have been
+// staged before, thus it can authorize LUKS operations. Lastly, the unlock key
+// in the keyring is updated to the new key.
+func TransitionLUKSDeviceEncryptionKeyChange(newKey keys.EncryptionKey, dev string) error {
+	if len(newKey) != keys.EncryptionKeySize {
+		return fmt.Errorf("cannot use a key of size different than %v", keys.EncryptionKeySize)
+	}
+
+	// the expected state is as follows:
+	// keys lot 0 - the old encryption key
+	// key slot 2 - the new encryption key (added during --stage)
+	// the desired state is:
+	// key slot 0 - the new encryption key
+	// key slot 2 - empty
+	// it is possible that the system was rebooted right after key slot 0 was
+	// populated with the new key and key slot 2 was emptied
+
+	// there is no state information on disk which would if scenario 1
+	// occurred and to which stage it was executed, but we need to find out
+	// if key slot 2 is in use (as the caller believes that a key was staged
+	// earlier); do this indirectly by trying to add a key to key slot 2
+
+	// TODO rather than inspecting the errors, parse the LUKS2 headers
+
+	tempKeyslotAlreadyUsed := true
+
+	options := luks2.AddKeyOptions{
+		KDFOptions: luks2.KDFOptions{TargetDuration: 100 * time.Millisecond},
+		Slot:       tempKeySlot,
+	}
+	err := luks2.AddKey(dev, newKey, newKey, &options)
+	if err == nil {
+		// key slot is not in use, so we are dealing with unexpected reboot scenario
+		tempKeyslotAlreadyUsed = false
+	} else if err != nil && !IsKeyslotAlreadyUsed(err) {
+		return fmt.Errorf("cannot add new encryption key: %v", err)
+	}
+
+	if !tempKeyslotAlreadyUsed {
+		// since the key slot was not used, it means that the transition
+		// was already carried out (since it got authorized by the new
+		// key), so now all is needed is to remove the added key
+		if err := luks2.KillSlot(dev, tempKeySlot, newKey); err != nil {
+			return fmt.Errorf("cannot kill temporary key slot: %v", err)
+		}
+
+		return nil
+	}
+
+	// first kill the main encryption key slot, authorize the operation
+	// using the new key which must have been added to the temp keyslot in
+	// the stage operation
 	if err := luks2.KillSlot(dev, encryptionKeySlot, newKey); err != nil {
 		if !isKeyslotNotActive(err) {
-			return fmt.Errorf("cannot kill existing slot: %v", err)
+			return fmt.Errorf("cannot kill the encryption key slot: %v", err)
 		}
 	}
-	options.Slot = encryptionKeySlot
-	// add the new key to keyslot 0
-	if err := luks2.AddKey(dev, newKey, newKey, &options); err != nil {
-		return fmt.Errorf("cannot add key: %v", err)
+
+	options = luks2.AddKeyOptions{
+		KDFOptions: luks2.KDFOptions{TargetDuration: 100 * time.Millisecond},
+		Slot:       encryptionKeySlot,
 	}
-	// and kill the aux slot
+	if err := luks2.AddKey(dev, newKey, newKey, &options); err != nil {
+		return fmt.Errorf("cannot add new encryption key: %v", err)
+	}
+
+	// now it should be possible to kill the temporary keyslot by using the
+	// new key for authorization
 	if err := luks2.KillSlot(dev, tempKeySlot, newKey); err != nil {
-		return fmt.Errorf("cannot kill temporary key slot: %v", err)
+		if !isKeyslotNotActive(err) {
+			return fmt.Errorf("cannot kill temporary key slot: %v", err)
+		}
 	}
 	// TODO needed?
 	if err := luks2.SetSlotPriority(dev, encryptionKeySlot, luks2.SlotPriorityHigh); err != nil {
-		return fmt.Errorf("cannot change keyslot priority: %v", err)
-	}
-
-	const keyringPurposeDiskUnlock = "unlock"
-	const keyringPrefix = "ubuntu-fde"
-	// TODO: make the key permanent in the keyring, investigate why timeout
-	// is set to a very large number of weeks, but not tagged as perm in
-	// /proc/keys
-	if err := keyringAddKeyToUserKeyring(newKey, dev, keyringPurposeDiskUnlock, keyringPrefix); err != nil {
-		return fmt.Errorf("cannot add key to user keyring: %v", err)
+		return fmt.Errorf("cannot change key slot priority: %v", err)
 	}
 	return nil
 }
