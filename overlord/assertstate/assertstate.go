@@ -290,6 +290,24 @@ func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
 	return a.(*asserts.Account), nil
 }
 
+// PublisherStoreAccount returns the store account information from the publisher assertion.
+func PublisherStoreAccount(st *state.State, snapID string) (snap.StoreAccount, error) {
+	if snapID == "" {
+		return snap.StoreAccount{}, nil
+	}
+
+	pubAcct, err := Publisher(st, snapID)
+	if err != nil {
+		return snap.StoreAccount{}, fmt.Errorf("cannot find publisher details: %v", err)
+	}
+	return snap.StoreAccount{
+		ID:          pubAcct.AccountID(),
+		Username:    pubAcct.Username(),
+		DisplayName: pubAcct.DisplayName(),
+		Validation:  pubAcct.Validation(),
+	}, nil
+}
+
 // Store returns the store assertion with the given name/id if it is
 // present in the system assertion database.
 func Store(s *state.State, store string) (*asserts.Store, error) {
