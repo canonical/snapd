@@ -1,0 +1,9 @@
+name: test-snapd-refresh
+version: 1
+architectures: [all]
+apps:
+  sh:
+    command: bin/sh
+  refresh-allowed-sh:
+    command: bin/sh
+    refresh-allowed: true
