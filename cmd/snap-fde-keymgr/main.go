@@ -52,7 +52,9 @@ type cmdRemoveRecoveryKey struct {
 }
 
 type cmdChangeEncryptionKey struct {
-	Device string `long:"device" description:"encrypted device" required:"yes"`
+	Device     string `long:"device" description:"encrypted device" required:"yes"`
+	Stage      bool   `long:"stage" description:"stage the new key"`
+	Transition bool   `long:"transition" description:"replace the old key, unstage the new"`
 }
 
 type options struct {
@@ -66,7 +68,8 @@ var (
 	keymgrAddRecoveryKeyToLUKSDeviceUsingKey      = keymgr.AddRecoveryKeyToLUKSDeviceUsingKey
 	keymgrRemoveRecoveryKeyFromLUKSDevice         = keymgr.RemoveRecoveryKeyFromLUKSDevice
 	keymgrRemoveRecoveryKeyFromLUKSDeviceUsingKey = keymgr.RemoveRecoveryKeyFromLUKSDeviceUsingKey
-	keymgrChangeLUKSDeviceEncryptionKey           = keymgr.ChangeLUKSDeviceEncryptionKey
+	keymgrStageLUKSDeviceEncryptionKeyChange      = keymgr.StageLUKSDeviceEncryptionKeyChange
+	keymgrTransitionLUKSDeviceEncryptionKeyChange = keymgr.TransitionLUKSDeviceEncryptionKeyChange
 )
 
 func validateAuthorizations(authorizations []string) error {
@@ -201,13 +204,32 @@ type newKey struct {
 }
 
 func (c *cmdChangeEncryptionKey) Execute(args []string) error {
+	if c.Stage && c.Transition {
+		return fmt.Errorf("cannot both stage and transition the encryption key change")
+	}
+	if !c.Stage && !c.Transition {
+		return fmt.Errorf("cannot change encryption key without stage or transition request")
+	}
+
 	var newEncryptionKeyData newKey
 	dec := json.NewDecoder(osStdin)
 	if err := dec.Decode(&newEncryptionKeyData); err != nil {
 		return fmt.Errorf("cannot obtain new encryption key: %v", err)
 	}
-	if err := keymgrChangeLUKSDeviceEncryptionKey(newEncryptionKeyData.Key, c.Device); err != nil {
-		return fmt.Errorf("cannot change LUKS device encryption key: %v", err)
+	switch {
+	case c.Stage:
+		// staging the key change authorizes the operation using a key
+		// from the keyring
+		if err := keymgrStageLUKSDeviceEncryptionKeyChange(newEncryptionKeyData.Key, c.Device); err != nil {
+			return fmt.Errorf("cannot stage LUKS device encryption key change: %v", err)
+		}
+	case c.Transition:
+		// transitioning the key change authorizes the operation using
+		// the currently provided key (which must have been staged
+		// before hence the op will be authorized successfully)
+		if err := keymgrTransitionLUKSDeviceEncryptionKeyChange(newEncryptionKeyData.Key, c.Device); err != nil {
+			return fmt.Errorf("cannot transition LUKS device encryption key change: %v", err)
+		}
 	}
 	return nil
 }

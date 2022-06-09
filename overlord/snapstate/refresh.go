@@ -119,8 +119,7 @@ func SoftNothingRunningRefreshCheck(info *snap.Info) error {
 // refreshed and the refresh process is aborted.
 func HardNothingRunningRefreshCheck(info *snap.Info) error {
 	return genericRefreshCheck(info, func(app *snap.AppInfo) bool {
-		// TODO: use a constant instead of "endure"
-		return app.IsService() && app.RefreshMode == "endure"
+		return app.IsService()
 	})
 }
 
