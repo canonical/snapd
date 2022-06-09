@@ -71,6 +71,11 @@ restore: |
         losetup -d "$LOOP"
         losetup -l | NOMATCH "$LOOP"
     fi
+
+    # purge the key we added
+    systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
+        /usr/bin/keyctl purge -s user "ubuntu-fde:${LOOP}p4:unlock" || true
+
     apt autoremove -y cryptsetup
 
     rm -Rf /run/mnt
@@ -217,6 +222,44 @@ execute: |
     echo "Check the disk-mapping.json has expected contents"
     not cryptsetup open --key-file recovery-key "${LOOP}p5" test-data
     not cryptsetup open --key-file recovery-key "${LOOP}p4" test-save
+
+    echo "Verify encryption key change"
+    # first get the relevant ubuntu-save key to the user keyring
+    systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
+        /usr/bin/keyctl padd user "ubuntu-fde:${LOOP}p4:unlock" @u < save-key
+
+    # the new key is all ones
+    printf "11111111111111111111111111111111" > new-save-key
+    echo '{"key":"MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="}' | \
+        systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
+            /usr/lib/snapd/snap-fde-keymgr change-encryption-key \
+                --device "${LOOP}p4" --stage
+    # now it's possible to open save with both the old and new keys
+    cryptsetup open --key-file save-key "${LOOP}p4" test-save
+    cryptsetup close /dev/mapper/test-save
+    cryptsetup open --key-file new-save-key "${LOOP}p4" test-save
+    cryptsetup close /dev/mapper/test-save
+
+    # now transition the key
+    echo '{"key":"MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="}' | \
+        systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
+            /usr/lib/snapd/snap-fde-keymgr change-encryption-key \
+                --device "${LOOP}p4" --transition
+
+    # the old key no longer works
+    not cryptsetup open --key-file save-key "${LOOP}p4" test-save
+    # but the new key does
+    cryptsetup open --key-file new-save-key "${LOOP}p4" test-save
+    cryptsetup close /dev/mapper/test-save
+
+    # try to transition once more, such that we execute a reboot like scenario
+    echo '{"key":"MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="}' | \
+        systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
+            /usr/lib/snapd/snap-fde-keymgr change-encryption-key \
+                --device "${LOOP}p4" --transition
+    # and opening should still work
+    cryptsetup open --key-file new-save-key "${LOOP}p4" test-save
+    cryptsetup close /dev/mapper/test-save
 
     LOOP_BASENAME="$(basename "$LOOP")"
 
