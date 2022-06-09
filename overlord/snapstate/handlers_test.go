@@ -45,9 +45,7 @@ func (s *handlersSuite) SetUpTest(c *C) {
 	s.baseHandlerSuite.SetUpTest(c)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
-
-	restoreMountInfo := osutil.MockMountInfo("")
-	s.AddCleanup(restoreMountInfo)
+	s.AddCleanup(osutil.MockMountInfo(""))
 }
 
 func (s *handlersSuite) TestSetTaskSnapSetupFirstTask(c *C) {

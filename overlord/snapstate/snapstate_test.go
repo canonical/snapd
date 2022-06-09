@@ -284,9 +284,7 @@ SNAPD_APPARMOR_REEXEC=0
 	s.AddCleanup(snapstate.MockSecurityProfilesDiscardLate(func(snapName string, rev snap.Revision, typ snap.Type) error {
 		return nil
 	}))
-
-	restoreMountInfo := osutil.MockMountInfo("")
-	s.AddCleanup(restoreMountInfo)
+	s.AddCleanup(osutil.MockMountInfo(""))
 }
 
 func (s *snapmgrBaseTest) TearDownTest(c *C) {

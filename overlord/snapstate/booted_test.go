@@ -112,9 +112,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.AddCleanup(func() {
 		snapstate.SnapServiceOptions = oldSnapServiceOptions
 	})
-
-	restoreMountInfo := osutil.MockMountInfo("")
-	bs.AddCleanup(restoreMountInfo)
+	bs.AddCleanup(osutil.MockMountInfo(""))
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {
