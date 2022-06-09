@@ -101,9 +101,12 @@ var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app 
 // commands can fork new processes or existing processes can die. After the
 // soft check passes the user is free to start snap applications and block the
 // hard check.
+//
+// Apart from ignoring services, the check allows apps that want not to
+// block refresh to continue executing.
 func SoftNothingRunningRefreshCheck(info *snap.Info) error {
 	return genericRefreshCheck(info, func(app *snap.AppInfo) bool {
-		return app.IsService()
+		return app.IsService() || app.RefreshAllowed
 	})
 }
 
@@ -117,9 +120,12 @@ func SoftNothingRunningRefreshCheck(info *snap.Info) error {
 // The check fails if any process belonging to the snap, apart from services
 // that are enduring refresh, is still alive. If a snap is busy it cannot be
 // refreshed and the refresh process is aborted.
+//
+// Apart from ignoring services, the check allows apps that want not to
+// block refresh to continue executing.
 func HardNothingRunningRefreshCheck(info *snap.Info) error {
 	return genericRefreshCheck(info, func(app *snap.AppInfo) bool {
-		return app.IsService()
+		return app.IsService() || app.RefreshAllowed
 	})
 }
 
