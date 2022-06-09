@@ -850,8 +850,17 @@ func (s *appsSuite) TestLogsFromMultipleNamespaces(c *check.C) {
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, req)
 
+	// The order of namespaces can change, so we sort the service names
+	// and namespaces before checking results to get a stable output.
+	sort.Slice(s.jctlSvcses, func(i, j int) bool {
+		sort.Strings(s.jctlSvcses[i])
+		sort.Strings(s.jctlSvcses[j])
+		return s.jctlSvcses[i][0] < s.jctlSvcses[j][0]
+	})
+	sort.Strings(s.jctlNmspcs)
+
 	c.Check(s.jctlSvcses, check.DeepEquals, [][]string{{"snap.snap-a.svc2.service"}, {"snap.snap-b.svc3.service"}})
-	c.Check(s.jctlNmspcs, check.DeepEquals, []string{"snap-foo", ""})
+	c.Check(s.jctlNmspcs, check.DeepEquals, []string{"", "snap-foo"})
 	c.Check(s.jctlNs, check.DeepEquals, []int{42, 42})
 	c.Check(s.jctlFollows, check.DeepEquals, []bool{false, false})
 
