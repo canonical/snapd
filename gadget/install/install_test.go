@@ -153,6 +153,11 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
 	defer mockCryptsetup.Restore()
 
+	if opts.encryption {
+		mockBlockdev := testutil.MockCommand(c, "blockdev", "case ${1} in --getss) echo 4096; exit 0;; esac; exit 1")
+		defer mockBlockdev.Restore()
+	}
+
 	restore = install.MockEnsureNodesExist(func(dss []gadget.OnDiskStructure, timeout time.Duration) error {
 		c.Assert(timeout, Equals, 5*time.Second)
 		c.Assert(dss, DeepEquals, []gadget.OnDiskStructure{
@@ -257,22 +262,24 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 			c.Assert(typ, Equals, "ext4")
 			if opts.encryption {
 				c.Assert(img, Equals, "/dev/mapper/ubuntu-save")
+				c.Assert(sectorSize, Equals, quantity.Size(4096))
 			} else {
 				c.Assert(img, Equals, "/dev/mmcblk0p3")
+				c.Assert(sectorSize, Equals, quantity.Size(512))
 			}
 			c.Assert(label, Equals, "ubuntu-save")
 			c.Assert(devSize, Equals, 16*quantity.SizeMiB)
-			c.Assert(sectorSize, Equals, quantity.Size(512))
 		case 3:
 			c.Assert(typ, Equals, "ext4")
 			if opts.encryption {
 				c.Assert(img, Equals, "/dev/mapper/ubuntu-data")
+				c.Assert(sectorSize, Equals, quantity.Size(4096))
 			} else {
 				c.Assert(img, Equals, "/dev/mmcblk0p4")
+				c.Assert(sectorSize, Equals, quantity.Size(512))
 			}
 			c.Assert(label, Equals, "ubuntu-data")
 			c.Assert(devSize, Equals, (30528-(1+1200+750+16))*quantity.SizeMiB)
-			c.Assert(sectorSize, Equals, quantity.Size(512))
 		default:
 			c.Errorf("unexpected call (%d) to mkfs.Make()", mkfsCall)
 			return fmt.Errorf("test broken")
@@ -620,6 +627,11 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
 	defer mockCryptsetup.Restore()
 
+	if opts.encryption {
+		mockBlockdev := testutil.MockCommand(c, "blockdev", "case ${1} in --getss) echo 4096; exit 0;; esac; exit 1")
+		defer mockBlockdev.Restore()
+	}
+
 	dataDev := "/dev/mmcblk0p4"
 	if opts.noSave {
 		dataDev = "/dev/mmcblk0p3"
@@ -739,7 +751,11 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 			} else {
 				c.Assert(devSize, Equals, (30528-(1+1200+750+16))*quantity.SizeMiB)
 			}
-			c.Assert(sectorSize, Equals, quantity.Size(512))
+			if opts.encryption {
+				c.Assert(sectorSize, Equals, quantity.Size(4096))
+			} else {
+				c.Assert(sectorSize, Equals, quantity.Size(512))
+			}
 		default:
 			c.Errorf("unexpected call (%d) to mkfs.Make()", mkfsCall)
 			return fmt.Errorf("test broken")
