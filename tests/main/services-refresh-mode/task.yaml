@@ -18,9 +18,7 @@ execute: |
     systemctl show -p MainPID snap.test-snapd-service.test-snapd-endure-service > old-main.pid
 
     echo "When it is re-installed"
-    # Due to refresh-app-awareness we need --ignore-running to ignore the service that
-    # keeps running due to "endure" mode.
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-service --ignore-running
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
     echo "We can still see it running with the same PID"
     systemctl show -p MainPID snap.test-snapd-service.test-snapd-endure-service > new-main.pid

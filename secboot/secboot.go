@@ -87,6 +87,19 @@ type SealKeyModelParams struct {
 	KernelCmdlines []string
 }
 
+type TPMProvisionMode int
+
+const (
+	TPMProvisionNone TPMProvisionMode = iota
+	// TPMProvisionFull indicates a full provisioning of the TPM
+	TPMProvisionFull
+	// TPMPartialReprovision indicates a partial reprovisioning of the TPM
+	// which was previously already provisioned by secboot. Existing lockout
+	// authorization data from TPMLockoutAuthFile will be used to authorize
+	// provisioning and will get overwritten in the process.
+	TPMPartialReprovision
+)
+
 type SealKeysParams struct {
 	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams

@@ -81,7 +81,7 @@ dbus (send)
     bus=system
     path=/org/cups/cupsd/Notifier
     interface=org.cups.cupsd.Notifier
-    peer=(name=org.freedesktop.DBus,label=unconfined),
+    peer=(label=unconfined),
 
 # Allow daemon to send signals to its snap_daemon processes
 capability kill,
@@ -96,7 +96,7 @@ dbus (send)
     bus=system
     path=/org/cups/cupsd/Notifier
     interface=org.cups.cupsd.Notifier
-    peer=(name=org.freedesktop.DBus,label=###PLUG_SECURITY_TAGS###),
+    peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
 const cupsControlConnectedPlugAppArmor = `
@@ -111,7 +111,7 @@ dbus (receive)
     bus=system
     path=/org/cups/cupsd/Notifier
     interface=org.cups.cupsd.Notifier
-    peer=(name=org.freedesktop.DBus,label=###SLOT_SECURITY_TAGS###),
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 type cupsControlInterface struct {
