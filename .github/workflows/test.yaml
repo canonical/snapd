@@ -385,6 +385,7 @@ jobs:
         - fedora-34-64
         - fedora-35-64
         - opensuse-15.3-64
+        - opensuse-15.4-64
         - opensuse-tumbleweed-64
         - ubuntu-14.04-64
         - ubuntu-16.04-64
