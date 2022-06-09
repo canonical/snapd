@@ -173,6 +173,8 @@ backends:
             # unstable systems below
             - opensuse-15.3-64:
                   workers: 6
+            - opensuse-15.4-64:
+                  workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
                   manual: true
