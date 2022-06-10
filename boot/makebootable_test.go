@@ -692,7 +692,7 @@ version: 5.0
 	if !factoryReset {
 		err = boot.MakeRunnableSystem(model, bootWith, obs)
 	} else {
-		err = boot.MakeRunnableSystemAfterReset(model, bootWith, obs)
+		err = boot.MakeRunnableSystemAfterDataReset(model, bootWith, obs)
 	}
 	c.Assert(err, IsNil)
 
