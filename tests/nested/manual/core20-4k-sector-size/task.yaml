@@ -7,7 +7,7 @@ environment:
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
-  PHYSICAL_4K_SECTOR_SIZE: true
+  NESTED_PHYSICAL_4K_SECTOR_SIZE: true
 
 prepare: |
     tests.nested build-image core
