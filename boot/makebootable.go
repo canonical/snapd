@@ -482,6 +482,9 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{})
 }
 
+// MakeRunnableSystemAfterReset sets up the system to be able to boot, but it is
+// intended to be called from UC20 factory reset mode right before switching
+// back to the new run system.
 func MakeRunnableSystemAfterReset(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
 		AfterReset: true,
