@@ -290,6 +290,24 @@ func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
 	return a.(*asserts.Account), nil
 }
 
+// PublisherStoreAccount returns the store account information from the publisher assertion.
+func PublisherStoreAccount(st *state.State, snapID string) (snap.StoreAccount, error) {
+	if snapID == "" {
+		return snap.StoreAccount{}, nil
+	}
+
+	pubAcct, err := Publisher(st, snapID)
+	if err != nil {
+		return snap.StoreAccount{}, fmt.Errorf("cannot find publisher details: %v", err)
+	}
+	return snap.StoreAccount{
+		ID:          pubAcct.AccountID(),
+		Username:    pubAcct.Username(),
+		DisplayName: pubAcct.DisplayName(),
+		Validation:  pubAcct.Validation(),
+	}, nil
+}
+
 // Store returns the store assertion with the given name/id if it is
 // present in the system assertion database.
 func Store(s *state.State, store string) (*asserts.Store, error) {
@@ -315,7 +333,13 @@ func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 	}
 	explicitAliases := decl.Aliases()
 	if len(explicitAliases) != 0 {
-		return explicitAliases, nil
+		aliasesForApps := make(map[string]string, len(explicitAliases))
+		for alias, app := range explicitAliases {
+			if _, ok := info.Apps[app]; ok {
+				aliasesForApps[alias] = app
+			}
+		}
+		return aliasesForApps, nil
 	}
 	// XXX: old header fallback, just to keep edge working while we fix the
 	// store, to remove before next release!
@@ -751,10 +775,10 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 // EnforceValidationSet tries to fetch the given validation set and enforce it.
 // If all validation sets constrains are satisfied, the current validation sets
 // tracking state is saved in validation sets history.
-func EnforceValidationSet(st *state.State, accountID, name string, sequence, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+func EnforceValidationSet(st *state.State, accountID, name string, sequence, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*ValidationSetTracking, error) {
 	_, current, err := validationSetAssertionForEnforce(st, accountID, name, sequence, userID, snaps, ignoreValidation)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	tr := ValidationSetTracking{
@@ -767,20 +791,21 @@ func EnforceValidationSet(st *state.State, accountID, name string, sequence, use
 	}
 
 	UpdateValidationSet(st, &tr)
-	return addCurrentTrackingToValidationSetsHistory(st)
+	err = addCurrentTrackingToValidationSetsHistory(st)
+	return &tr, err
 }
 
 // MonitorValidationSet tries to fetch the given validation set and monitor it.
 // The current validation sets tracking state is saved in validation sets history.
-func MonitorValidationSet(st *state.State, accountID, name string, sequence int, userID int) error {
+func MonitorValidationSet(st *state.State, accountID, name string, sequence int, userID int) (*ValidationSetTracking, error) {
 	pinned := sequence > 0
 	opts := ResolveOptions{AllowLocalFallback: true}
 	as, local, err := validationSetAssertionForMonitor(st, accountID, name, sequence, pinned, userID, &opts)
 	if err != nil {
-		return fmt.Errorf("cannot get validation set assertion for %v: %v", ValidationSetKey(accountID, name), err)
+		return nil, fmt.Errorf("cannot get validation set assertion for %v: %v", ValidationSetKey(accountID, name), err)
 	}
 
-	tr := ValidationSetTracking{
+	tr := &ValidationSetTracking{
 		AccountID: accountID,
 		Name:      name,
 		Mode:      Monitor,
@@ -790,8 +815,8 @@ func MonitorValidationSet(st *state.State, accountID, name string, sequence int,
 		LocalOnly: local,
 	}
 
-	UpdateValidationSet(st, &tr)
-	return addCurrentTrackingToValidationSetsHistory(st)
+	UpdateValidationSet(st, tr)
+	return tr, addCurrentTrackingToValidationSetsHistory(st)
 }
 
 // TemporaryDB returns a temporary database stacked on top of the assertions
