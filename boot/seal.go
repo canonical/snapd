@@ -262,7 +262,12 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Mode
 	if flags.FactoryReset {
 		// during factory reset we may need to rotate the PCR handles,
 		// seal the new keys using a new set of handles such that the
-		// old sealed ubuntu-save key is still usable
+		// old sealed ubuntu-save key is still usable, for this we
+		// switch between two sets of handles in a round robin fashion,
+		// first looking at the PCR handle used by the current fallback
+		// key and then using the other set when sealing the new keys;
+		// the currently used handles will be released during the first
+		// boot of a new run system
 		usesAlt, err := usesAltPCRHandles()
 		if err != nil {
 			return err
