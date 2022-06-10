@@ -154,7 +154,7 @@ func fallbackKeySealRequests(key, saveKey keys.EncryptionKey, factoryReset bool)
 		// factory reset uses alternative sealed key location, such that
 		// until we boot into the run mode, both sealed keys are present
 		// on disk
-		saveFallbackKey = filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory")
+		saveFallbackKey = filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset")
 	}
 	return []secboot.SealKeyRequest{
 		{

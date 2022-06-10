@@ -635,7 +635,7 @@ version: 5.0
 				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltFallbackObjectPCRPolicyCounterHandle)
 				c.Check(keys[1].KeyFile, Equals,
 					filepath.Join(s.rootdir,
-						"/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory"))
+						"/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset"))
 
 			} else {
 				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.FallbackObjectPCRPolicyCounterHandle)

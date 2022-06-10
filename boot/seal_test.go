@@ -238,7 +238,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				saveKeyFile := filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key")
 				if tc.factoryReset {
 					// during factory reset we use a different key location
-					saveKeyFile = filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory")
+					saveKeyFile = filepath.Join(rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset")
 				}
 				c.Check(keys, DeepEquals, []secboot.SealKeyRequest{{Key: myKey, KeyName: "ubuntu-data", KeyFile: dataKeyFile}, {Key: myKey2, KeyName: "ubuntu-save", KeyFile: saveKeyFile}})
 				if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
