@@ -1136,7 +1136,7 @@ nested_start_core_vm_unit() {
     else
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw"
     fi
-    if [ "$PHYSICAL_4K_SECTOR_SIZE" = "true" ]; then
+    if [ "$NESTED_PHYSICAL_4K_SECTOR_SIZE" = "true" ]; then
        PARAM_IMAGE="$PARAM_IMAGE,physical_block_size=4096,logical_block_size=512"
     fi
 
