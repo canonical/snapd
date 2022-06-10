@@ -33,6 +33,9 @@ var (
 	shortKmodHelp = i18n.G("Load or unload kernel modules")
 	longKmodHelp  = i18n.G(`
 The kmod command handles loading and unloading of kernel modules.`)
+
+	kmodLoadModule   = kmod.LoadModule
+	kmodUnloadModule = kmod.UnloadModule
 )
 
 func init() {
@@ -85,7 +88,7 @@ func (k *KModInsertCmd) Execute([]string) error {
 		return fmt.Errorf("snap %q lacks permissions to load the module %q", snapName, k.Positional.Module)
 	}
 
-	if err := kmod.LoadModule(k.Positional.Module, k.Positional.Options); err != nil {
+	if err := kmodLoadModule(k.Positional.Module, k.Positional.Options); err != nil {
 		return fmt.Errorf("cannot load module %q: %v", k.Positional.Module, err)
 	}
 
@@ -116,7 +119,7 @@ func (k *KModRemoveCmd) Execute([]string) error {
 		return fmt.Errorf("snap %q lacks permissions to unload the module %q", snapName, k.Positional.Module)
 	}
 
-	if err := kmod.UnloadModule(k.Positional.Module); err != nil {
+	if err := kmodUnloadModule(k.Positional.Module); err != nil {
 		return fmt.Errorf("cannot unload module %q: %v", k.Positional.Module, err)
 	}
 
@@ -149,7 +152,7 @@ func kmodMatchConnection(attributes map[string]interface{}, moduleName string, m
 // kmodFindConnections walks through the established connections to find one which
 // is compatible with a kmod operation on the given moduleName and
 // moduleOptions. If found, it returns the connection's attributes.
-func kmodFindConnection(context *hookstate.Context, moduleName string, moduleOptions []string) (attributes map[string]interface{}, err error) {
+var kmodFindConnection = func(context *hookstate.Context, moduleName string, moduleOptions []string) (attributes map[string]interface{}, err error) {
 	snapName := context.InstanceName()
 
 	st := context.State()
