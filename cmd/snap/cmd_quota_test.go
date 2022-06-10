@@ -212,11 +212,11 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 		quotas string
 		err    string
 	}{
-		{maxMemory: "12KB", quotas: `{"memory":12000,"cpu":{},"cpu-set":{}}`},
-		{cpuMax: "12x40%", quotas: `{"cpu":{"count":12,"percentage":40},"cpu-set":{}}`},
-		{cpuMax: "40%", quotas: `{"cpu":{"percentage":40},"cpu-set":{}}`},
-		{cpuSet: "1,3", quotas: `{"cpu":{},"cpu-set":{"cpus":[1,3]}}`},
-		{threadsMax: "2", quotas: `{"cpu":{},"cpu-set":{},"threads":2}`},
+		{maxMemory: "12KB", quotas: `{"memory":12000}`},
+		{cpuMax: "12x40%", quotas: `{"cpu":{"count":12,"percentage":40}}`},
+		{cpuMax: "40%", quotas: `{"cpu":{"percentage":40}}`},
+		{cpuSet: "1,3", quotas: `{"cpu-set":{"cpus":[1,3]}}`},
+		{threadsMax: "2", quotas: `{"threads":2}`},
 		// Error cases
 		{cpuMax: "ASD", err: `cannot parse cpu quota string "ASD"`},
 		{cpuMax: "0x100%", err: `cannot parse cpu quota string "0x100%"`},
@@ -230,7 +230,7 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 		{threadsMax: "xxx", err: `cannot use threads value "xxx"`},
 		{threadsMax: "-3", err: `cannot use threads value "-3"`},
 	} {
-		quotas, err := main.ParseQuotas(testData.maxMemory, testData.cpuMax, testData.cpuSet, testData.threadsMax)
+		quotas, err := main.ParseQuotaValues(testData.maxMemory, testData.cpuMax, testData.cpuSet, testData.threadsMax)
 		testLabel := check.Commentf("%v", testData)
 		if testData.err == "" {
 			c.Check(err, check.IsNil, testLabel)
