@@ -5,10 +5,6 @@ details: |
 
 systems: [ubuntu-20.04-64]
 
-environment:
-    PHYSICAL_4K_SECTOR_SIZE/true: "true"
-    PHYSICAL_4K_SECTOR_SIZE/false: "false"
-
 execute: |
     echo "Wait for the system to be seeded first"
     tests.nested exec "sudo snap wait system seed.loaded"

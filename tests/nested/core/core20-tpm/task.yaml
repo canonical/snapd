@@ -5,10 +5,6 @@ details: |
 
 systems: [ubuntu-20.04-64]
 
-environment:
-    PHYSICAL_4K_SECTOR_SIZE/true: "true"
-    PHYSICAL_4K_SECTOR_SIZE/false: "false"
-
 debug: |
     cat modeenv || true
     cat modeenv.after-reboot || true
