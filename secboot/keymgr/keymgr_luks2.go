@@ -204,7 +204,7 @@ func TransitionLUKSDeviceEncryptionKeyChange(newKey keys.EncryptionKey, dev stri
 	}
 
 	// the expected state is as follows:
-	// keys lot 0 - the old encryption key
+	// key slot 0 - the old encryption key
 	// key slot 2 - the new encryption key (added during --stage)
 	// the desired state is:
 	// key slot 0 - the new encryption key
@@ -212,10 +212,11 @@ func TransitionLUKSDeviceEncryptionKeyChange(newKey keys.EncryptionKey, dev stri
 	// it is possible that the system was rebooted right after key slot 0 was
 	// populated with the new key and key slot 2 was emptied
 
-	// there is no state information on disk which would if scenario 1
-	// occurred and to which stage it was executed, but we need to find out
-	// if key slot 2 is in use (as the caller believes that a key was staged
-	// earlier); do this indirectly by trying to add a key to key slot 2
+	// there is no state information on disk which would tell if the
+	// scenario 1 above occurred and to which stage it was executed, but we
+	// need to find out if key slot 2 is in use (as the caller believes that
+	// a key was staged earlier); do this indirectly by trying to add a key
+	// to key slot 2
 
 	// TODO rather than inspecting the errors, parse the LUKS2 headers
 
