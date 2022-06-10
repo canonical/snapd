@@ -962,8 +962,17 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 			return fmt.Errorf("cannot cleanup obsolete key file: %v", err)
 		}
 
-		// TODO: generate new encryption key for save
-		// TODO: generate new recovery key for save
+		// it is ok if the recovery key file on disk does not exist;
+		// ubuntu-save was opened during boot, so the removal operation
+		// can be authorized with a key from the keyring
+		err = secbootRemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"),
+		})
+		if err != nil {
+			return fmt.Errorf("cannot remove recovery key: %v", err)
+		}
+
+		// new encryption key for save
 		key, err := keys.NewEncryptionKey()
 		if err != nil {
 			return fmt.Errorf("cannot create encryption key: %v", err)

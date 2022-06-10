@@ -2351,6 +2351,19 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	})
 	defer restore()
 
+	var recoveryKeyRemoved bool
+	defer devicestate.MockSecbootRemoveRecoveryKeys(func(r2k map[secboot.RecoveryKeyDevice]string) error {
+		if tc.encrypt {
+			recoveryKeyRemoved = true
+			c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
+				{Mountpoint: boot.InitramfsUbuntuSaveDir}: filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"),
+			})
+			return nil
+		}
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
 	bootMakeBootableCalled := 0
 	restore = devicestate.MockBootMakeSystemRunnableAfterDataReset(func(makeRunnableModel *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
 		c.Check(makeRunnableModel, DeepEquals, model)
@@ -2442,6 +2455,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	if tc.encrypt {
 		c.Assert(saveKey, NotNil)
+		c.Check(recoveryKeyRemoved, Equals, true)
 		c.Check(filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
 		c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"), testutil.FileAbsent)
 		// sha3-384 of the mocked ubuntu-save sealed key
