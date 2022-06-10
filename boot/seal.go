@@ -147,14 +147,25 @@ func runKeySealRequests(key keys.EncryptionKey) []secboot.SealKeyRequest {
 	}
 }
 
+// FallbackSaveSealedKeyUnder returns the name of a fallback ubuntu save key.
+func FallbackSaveSealedKeyUnder(dir string) string {
+	return filepath.Join(dir, "ubuntu-save.recovery.sealed-key")
+}
+
+// FactoryResetFallbackSaveSealedKeyUnder returns the name of a fallback ubuntu
+// save key object generated during factory reset.
+func FactoryResetFallbackSaveSealedKeyUnder(dir string) string {
+	return filepath.Join(dir, "ubuntu-save.recovery.sealed-key.factory-reset")
+}
+
 func fallbackKeySealRequests(key, saveKey keys.EncryptionKey, factoryReset bool) []secboot.SealKeyRequest {
-	saveFallbackKey := filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
+	saveFallbackKey := FallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir)
 
 	if factoryReset {
 		// factory reset uses alternative sealed key location, such that
 		// until we boot into the run mode, both sealed keys are present
 		// on disk
-		saveFallbackKey = filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset")
+		saveFallbackKey = FactoryResetFallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir)
 	}
 	return []secboot.SealKeyRequest{
 		{
