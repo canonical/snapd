@@ -393,6 +393,19 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 					umountOpts = append(umountOpts, fmt.Sprintf("%#x", unknownFlags))
 				}
 				logger.Debugf("umount %q %s (error: %v)", c.Entry.Dir, strings.Join(umountOpts, "|"), err)
+				// Repeat the operation: older snapd versions could land into a
+				// situation where mounts were executed twice and removing the
+				// mount point would return EBUSY. We still haven't gotten to
+				// the bottom of the issue (and we are not sure that newer
+				// snapd versions are not getting the mount configuration into
+				// this state), but this workaround has been confirmed to fix
+				// it.
+				if err == nil {
+					err = sysUnmount(c.Entry.Dir, flags)
+					if err == nil {
+						logger.Debugf("this mount point has been unmounted once more")
+					}
+				}
 				err = clearMissingMountError(err)
 				if err != nil {
 					return err
