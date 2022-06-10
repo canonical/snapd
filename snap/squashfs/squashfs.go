@@ -204,12 +204,16 @@ func (s *Snap) Unpack(src, dstDir string) error {
 
 	cmd := exec.Command("unsquashfs", "-n", "-f", "-d", dstDir, s.path, src)
 	cmd.Stderr = usw
-	if err := cmd.Run(); err != nil {
-		return err
-	}
+	err := cmd.Run()
+	// check unsquashfs errors first
 	if usw.Err() != nil {
 		return fmt.Errorf("cannot extract %q to %q: %v", src, dstDir, usw.Err())
 	}
+	// only if none are found report generic errors
+	if err != nil {
+		return fmt.Errorf("cannot run unsquashfs: %v", err)
+	}
+
 	return nil
 }
 
