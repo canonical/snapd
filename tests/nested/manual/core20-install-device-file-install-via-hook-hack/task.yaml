@@ -151,6 +151,8 @@ execute: |
     tests.nested exec "snap connections pc" | MATCH 'system-files\s+pc:modprobe-conf\s+:system-files'
     tests.nested exec "snap connections pc" | MATCH 'system-files\s+pc:modules-load-conf\s+:system-files'
     tests.nested exec "snap connections pc" | MATCH 'system-files\s+pc:udev-rules-conf\s+:system-files'
+    tests.nested exec "snap connections pc" | MATCH 'system-files\s+pc:systemd-journald-conf\s+:system-files'
+    tests.nested exec "snap connections pc" | MATCH 'system-files\s+pc:netplan-extra-yaml\s+:system-files'
 
     echo "Check that the directories have the right permissions"
     tests.nested exec "stat /etc/modprobe.d/ -c %a" | MATCH 755
@@ -161,3 +163,5 @@ execute: |
     tests.nested exec "cat /etc/modprobe.d/my-modprobe.conf" | MATCH '# configure modprobe here'
     tests.nested exec "cat /etc/modules-load.d/my-modules-load.conf" | MATCH '# load modules here'
     tests.nested exec "cat /etc/udev/rules.d/09-my-custom-udev.rules" | MATCH  '# do udev rules things here'
+    tests.nested exec "cat /etc/systemd/journald.conf" | MATCH  '# add journald configs here'
+    tests.nested exec "cat /etc/netplan/10-extra.yaml" | MATCH  '# add netpaln config here'

@@ -1585,7 +1585,13 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 	})
 
 	// and the special dirs in _writable_defaults were created
-	for _, dir := range []string{"/etc/udev/rules.d/", "/etc/modules-load.d/", "/etc/modprobe.d/"} {
+	for _, dir := range []string{
+		"/etc/udev/rules.d/",
+		"/etc/modules-load.d/",
+		"/etc/modprobe.d/",
+		"/etc/systemd/",
+		"/etc/netplan/",
+	} {
 		fullDir := filepath.Join(sysconfig.WritableDefaultsDir(boot.InstallHostWritableDir), dir)
 		c.Assert(fullDir, testutil.FilePresent)
 	}
@@ -2750,7 +2756,13 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetRunSysconfig(c *C) {
 	})
 
 	// and the special dirs in _writable_defaults were created
-	for _, dir := range []string{"/etc/udev/rules.d/", "/etc/modules-load.d/", "/etc/modprobe.d/"} {
+	for _, dir := range []string{
+		"/etc/udev/rules.d/",
+		"/etc/modules-load.d/",
+		"/etc/modprobe.d/",
+		"/etc/systemd/",
+		"/etc/netplan/",
+	} {
 		fullDir := filepath.Join(sysconfig.WritableDefaultsDir(boot.InstallHostWritableDir), dir)
 		c.Assert(fullDir, testutil.FilePresent)
 	}
