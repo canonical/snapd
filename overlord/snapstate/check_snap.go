@@ -379,7 +379,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
 	}
 
-	if currentSnap.SnapID != "" && snapInfo.SnapID == "" && (*asserts.Model).Grade(deviceCtx.Model()) != asserts.ModelDangerous {
+	if currentSnap.SnapID != "" && snapInfo.SnapID == "" && deviceCtx.Model().Grade() != asserts.ModelDangerous {
 		return fmt.Errorf("cannot replace signed %s snap with an unasserted one", kind)
 	}
 
