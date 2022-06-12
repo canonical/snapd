@@ -469,180 +469,74 @@ version: 2
 	return snapstate.MockOpenSnapFile(openSnapFile)
 }
 
-func (s *checkSnapSuite) TestCheckUnassertedGadgetKernelSnapUnsetModelGrade(c *C) {
+func (s *checkSnapSuite) TestCheckUnassertedOrAssertedGadgetKernelSnapVsModelGrade(c *C) {
 	reset := release.MockOnClassic(false)
 	defer reset()
 
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	deviceCtx := &snapstatetest.TrivialDeviceContext{
-		Remodeling: true,
+	gradeUnsetDeviceCtx := &snapstatetest.TrivialDeviceContext{
 		DeviceModel: MakeModel(map[string]interface{}{
 			"kernel": "kernel",
 			"gadget": "gadget",
 		}),
 	}
-	c.Check(deviceCtx.DeviceModel.Grade(), Equals, asserts.ModelGradeUnset)
-
-	s.setupKernelGadgetSnaps(st)
-
-	gadgetRestore := s.mockEssSnap(c, "gadget", "")
-	defer gadgetRestore()
-
-	st.Unlock()
-	err := snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, deviceCtx)
-	st.Lock()
-	c.Check(err, ErrorMatches, `cannot replace signed gadget snap with an unasserted one`)
-
-	kernelRestore := s.mockEssSnap(c, "kernel", "")
-	defer kernelRestore()
-
-	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, deviceCtx)
-	st.Lock()
-	c.Check(err, ErrorMatches, `cannot replace signed kernel snap with an unasserted one`)
-}
-
-func (s *checkSnapSuite) TestCheckUnassertedGadgetKernelSnapSignedModel(c *C) {
-	reset := release.MockOnClassic(false)
-	defer reset()
-
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	deviceCtx := &snapstatetest.TrivialDeviceContext{
+	c.Check(gradeUnsetDeviceCtx.DeviceModel.Grade(), Equals, asserts.ModelGradeUnset)
+	gradeSignedDeviceCtx := &snapstatetest.TrivialDeviceContext{
 		DeviceModel: MakeModel20("gadget", map[string]interface{}{
 			"base":  "core20",
 			"grade": "signed",
 		}),
 	}
-	c.Check(deviceCtx.DeviceModel.Grade(), Equals, asserts.ModelSigned)
-
-	s.setupKernelGadgetSnaps(st)
-
-	gadgetRestore := s.mockEssSnap(c, "gadget", "")
-	defer gadgetRestore()
-
-	st.Unlock()
-	err := snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, deviceCtx)
-	st.Lock()
-	c.Check(err, ErrorMatches, `cannot replace signed gadget snap with an unasserted one`)
-
-	kernelRestore := s.mockEssSnap(c, "kernel", "")
-	defer kernelRestore()
-
-	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, deviceCtx)
-	st.Lock()
-	c.Check(err, ErrorMatches, `cannot replace signed kernel snap with an unasserted one`)
-}
-
-func (s *checkSnapSuite) TestCheckUnassertedGadgetKernelSnapDangerousModel(c *C) {
-	reset := release.MockOnClassic(false)
-	defer reset()
-
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	deviceCtx := &snapstatetest.TrivialDeviceContext{
+	c.Check(gradeSignedDeviceCtx.DeviceModel.Grade(), Equals, asserts.ModelSigned)
+	gradeDangerousDeviceCtx := &snapstatetest.TrivialDeviceContext{
 		DeviceModel: MakeModel20("gadget", map[string]interface{}{
 			"base":  "core20",
 			"grade": "dangerous",
 		}),
 	}
-	c.Check(deviceCtx.DeviceModel.Grade(), Equals, asserts.ModelDangerous)
+	c.Check(gradeDangerousDeviceCtx.DeviceModel.Grade(), Equals, asserts.ModelDangerous)
 
-	s.setupKernelGadgetSnaps(st)
-
-	gadgetRestore := s.mockEssSnap(c, "gadget", "")
-	defer gadgetRestore()
-
-	st.Unlock()
-	err := snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, deviceCtx)
-	st.Lock()
-	c.Assert(err, IsNil)
-
-	kernelRestore := s.mockEssSnap(c, "kernel", "")
-	defer kernelRestore()
-
-	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, deviceCtx)
-	st.Lock()
-	c.Assert(err, IsNil)
-}
-
-func (s *checkSnapSuite) TestCheckAssertedGadgetKernelSnapSignedModel(c *C) {
-	reset := release.MockOnClassic(false)
-	defer reset()
-
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	deviceCtx := &snapstatetest.TrivialDeviceContext{
-		DeviceModel: MakeModel20("gadget", map[string]interface{}{
-			"base":  "core20",
-			"grade": "signed",
-		}),
+	tests := []struct {
+		deviceCtx snapstate.DeviceContext
+		essType   string
+		snapID    string
+		err       string
+	}{
+		{gradeUnsetDeviceCtx, "gadget", "gadget-id", ""},
+		{gradeUnsetDeviceCtx, "kernel", "kernel-id", ""},
+		{gradeSignedDeviceCtx, "gadget", "gadget-id", ""},
+		{gradeSignedDeviceCtx, "kernel", "kernel-id", ""},
+		{gradeDangerousDeviceCtx, "gadget", "gadget-id", ""},
+		{gradeDangerousDeviceCtx, "kernel", "kernel-id", ""},
+		{gradeUnsetDeviceCtx, "gadget", "", `cannot replace signed gadget snap with an unasserted one`},
+		{gradeUnsetDeviceCtx, "kernel", "", `cannot replace signed kernel snap with an unasserted one`},
+		{gradeSignedDeviceCtx, "gadget", "", `cannot replace signed gadget snap with an unasserted one`},
+		{gradeSignedDeviceCtx, "kernel", "", `cannot replace signed kernel snap with an unasserted one`},
+		// these combos  are now allowed
+		{gradeDangerousDeviceCtx, "gadget", "", ""},
+		{gradeDangerousDeviceCtx, "kernel", "", ""},
 	}
-	c.Check(deviceCtx.DeviceModel.Grade(), Equals, asserts.ModelSigned)
 
-	s.setupKernelGadgetSnaps(st)
+	for _, t := range tests {
+		func() {
+			st := state.New(nil)
+			st.Lock()
+			defer st.Unlock()
+			s.setupKernelGadgetSnaps(st)
 
-	gadgetRestore := s.mockEssSnap(c, "gadget", "gadget-id")
-	defer gadgetRestore()
+			essRestore := s.mockEssSnap(c, t.essType, t.snapID)
+			defer essRestore()
 
-	st.Unlock()
-	err := snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, deviceCtx)
-	st.Lock()
-	c.Assert(err, IsNil)
-
-	kernelRestore := s.mockEssSnap(c, "kernel", "kernel-id")
-	defer kernelRestore()
-
-	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, deviceCtx)
-	st.Lock()
-	c.Assert(err, IsNil)
-}
-
-func (s *checkSnapSuite) TestCheckAssertedGadgetKernelSnapDangerousModel(c *C) {
-	reset := release.MockOnClassic(false)
-	defer reset()
-
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	deviceCtx := &snapstatetest.TrivialDeviceContext{
-		DeviceModel: MakeModel20("gadget", map[string]interface{}{
-			"base":  "core20",
-			"grade": "dangerous",
-		}),
+			st.Unlock()
+			err := snapstate.CheckSnap(st, "snap-path", t.essType, nil, nil, snapstate.Flags{}, t.deviceCtx)
+			st.Lock()
+			comm := Commentf("%s %s %s", t.deviceCtx.Model().Grade(), t.essType, t.snapID)
+			if t.err == "" {
+				c.Check(err, IsNil, comm)
+			} else {
+				c.Check(err, ErrorMatches, t.err, comm)
+			}
+		}()
 	}
-	c.Check(deviceCtx.DeviceModel.Grade(), Equals, asserts.ModelDangerous)
-
-	s.setupKernelGadgetSnaps(st)
-
-	gadgetRestore := s.mockEssSnap(c, "gadget", "gadget-id")
-	defer gadgetRestore()
-
-	st.Unlock()
-	err := snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, deviceCtx)
-	st.Lock()
-	c.Assert(err, IsNil)
-
-	kernelRestore := s.mockEssSnap(c, "kernel", "kernel-id")
-	defer kernelRestore()
-
-	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, deviceCtx)
-	st.Lock()
-	c.Assert(err, IsNil)
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetAdditionProhibited(c *C) {
