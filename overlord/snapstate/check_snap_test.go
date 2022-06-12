@@ -452,38 +452,21 @@ func (s *checkSnapSuite) setupKernelGadgetSnaps(st *state.State) {
 	})
 }
 
-func (s *checkSnapSuite) mockGadgetSnap(c *C, gadgetId string) (restore func()) {
-	const gadgetYaml = `name: gadget
-type: gadget
+func (s *checkSnapSuite) mockEssSnap(c *C, snapType string, snapId string) (restore func()) {
+	const snapYaml = `name: %[1]s
+type: %[1]s
 version: 2
 `
 
-	infoGadget, err := snap.InfoFromSnapYaml([]byte(gadgetYaml))
-	infoGadget.SnapID = gadgetId
+	info, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(snapYaml, snapType)))
+	info.SnapID = snapId
 	c.Assert(err, IsNil)
 
-	var openGadgetSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return infoGadget, emptyContainer(c), nil
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, emptyContainer(c), nil
 	}
 
-	return snapstate.MockOpenSnapFile(openGadgetSnapFile)
-}
-
-func (s *checkSnapSuite) mockKernelSnap(c *C, kernelId string) (restore func()) {
-	const kernelYaml = `name: kernel
-type: kernel
-version: 2
-`
-
-	infoKernel, err := snap.InfoFromSnapYaml([]byte(kernelYaml))
-	infoKernel.SnapID = kernelId
-	c.Assert(err, IsNil)
-
-	var openKernelSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return infoKernel, emptyContainer(c), nil
-	}
-
-	return snapstate.MockOpenSnapFile(openKernelSnapFile)
+	return snapstate.MockOpenSnapFile(openSnapFile)
 }
 
 func (s *checkSnapSuite) TestCheckUnassertedGadgetKernelSnapUnsetModelGrade(c *C) {
@@ -505,7 +488,7 @@ func (s *checkSnapSuite) TestCheckUnassertedGadgetKernelSnapUnsetModelGrade(c *C
 
 	s.setupKernelGadgetSnaps(st)
 
-	gadgetRestore := s.mockGadgetSnap(c, "")
+	gadgetRestore := s.mockEssSnap(c, "gadget", "")
 	defer gadgetRestore()
 
 	st.Unlock()
@@ -513,7 +496,7 @@ func (s *checkSnapSuite) TestCheckUnassertedGadgetKernelSnapUnsetModelGrade(c *C
 	st.Lock()
 	c.Check(err, ErrorMatches, `cannot replace signed gadget snap with an unasserted one`)
 
-	kernelRestore := s.mockKernelSnap(c, "")
+	kernelRestore := s.mockEssSnap(c, "kernel", "")
 	defer kernelRestore()
 
 	st.Unlock()
@@ -540,7 +523,7 @@ func (s *checkSnapSuite) TestCheckUnassertedGadgetKernelSnapSignedModel(c *C) {
 
 	s.setupKernelGadgetSnaps(st)
 
-	gadgetRestore := s.mockGadgetSnap(c, "")
+	gadgetRestore := s.mockEssSnap(c, "gadget", "")
 	defer gadgetRestore()
 
 	st.Unlock()
@@ -548,7 +531,7 @@ func (s *checkSnapSuite) TestCheckUnassertedGadgetKernelSnapSignedModel(c *C) {
 	st.Lock()
 	c.Check(err, ErrorMatches, `cannot replace signed gadget snap with an unasserted one`)
 
-	kernelRestore := s.mockKernelSnap(c, "")
+	kernelRestore := s.mockEssSnap(c, "kernel", "")
 	defer kernelRestore()
 
 	st.Unlock()
@@ -575,7 +558,7 @@ func (s *checkSnapSuite) TestCheckUnassertedGadgetKernelSnapDangerousModel(c *C)
 
 	s.setupKernelGadgetSnaps(st)
 
-	gadgetRestore := s.mockGadgetSnap(c, "")
+	gadgetRestore := s.mockEssSnap(c, "gadget", "")
 	defer gadgetRestore()
 
 	st.Unlock()
@@ -583,7 +566,7 @@ func (s *checkSnapSuite) TestCheckUnassertedGadgetKernelSnapDangerousModel(c *C)
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	kernelRestore := s.mockKernelSnap(c, "")
+	kernelRestore := s.mockEssSnap(c, "kernel", "")
 	defer kernelRestore()
 
 	st.Unlock()
@@ -610,7 +593,7 @@ func (s *checkSnapSuite) TestCheckAssertedGadgetKernelSnapSignedModel(c *C) {
 
 	s.setupKernelGadgetSnaps(st)
 
-	gadgetRestore := s.mockGadgetSnap(c, "gadget-id")
+	gadgetRestore := s.mockEssSnap(c, "gadget", "gadget-id")
 	defer gadgetRestore()
 
 	st.Unlock()
@@ -618,7 +601,7 @@ func (s *checkSnapSuite) TestCheckAssertedGadgetKernelSnapSignedModel(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	kernelRestore := s.mockKernelSnap(c, "kernel-id")
+	kernelRestore := s.mockEssSnap(c, "kernel", "kernel-id")
 	defer kernelRestore()
 
 	st.Unlock()
@@ -645,7 +628,7 @@ func (s *checkSnapSuite) TestCheckAssertedGadgetKernelSnapDangerousModel(c *C) {
 
 	s.setupKernelGadgetSnaps(st)
 
-	gadgetRestore := s.mockGadgetSnap(c, "gadget-id")
+	gadgetRestore := s.mockEssSnap(c, "gadget", "gadget-id")
 	defer gadgetRestore()
 
 	st.Unlock()
@@ -653,7 +636,7 @@ func (s *checkSnapSuite) TestCheckAssertedGadgetKernelSnapDangerousModel(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	kernelRestore := s.mockKernelSnap(c, "kernel-id")
+	kernelRestore := s.mockEssSnap(c, "kernel", "kernel-id")
 	defer kernelRestore()
 
 	st.Unlock()
