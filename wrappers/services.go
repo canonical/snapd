@@ -76,15 +76,6 @@ func generateSnapServiceFile(app *snap.AppInfo, opts *AddSnapServicesOptions) ([
 	return genServiceFile(app, opts)
 }
 
-// max returns the maximum of two integers. Why is this
-// not provided by golang?
-func max(a, b int) int {
-	if a < b {
-		return b
-	}
-	return a
-}
-
 func min(a, b int) int {
 	if b < a {
 		return b
@@ -98,10 +89,11 @@ CPUAccounting=true
 `
 	buf := bytes.NewBufferString(header)
 
-	if grp.CPULimit != nil && grp.CPULimit.Percentage != 0 {
+	count, percentage := grp.GetLocalCPUQuota()
+	if percentage != 0 {
 		// convert the number of cores and the allowed percentage
 		// to the systemd specific format.
-		cpuQuotaSnap := max(grp.CPULimit.Count, 1) * grp.CPULimit.Percentage
+		cpuQuotaSnap := count * percentage
 		cpuQuotaMax := runtime.NumCPU() * 100
 
 		// The CPUQuota setting is only available since systemd 213
@@ -146,6 +138,13 @@ TasksAccounting=true
 	return buf.String()
 }
 
+func formatLogNamespaceSlice(grp *quota.Group) string {
+	if grp.JournalLimit == nil {
+		return ""
+	}
+	return fmt.Sprintf("LogNamespace=snap-%s\n", grp.Name)
+}
+
 // generateGroupSliceFile generates a systemd slice unit definition for the
 // specified quota group.
 func generateGroupSliceFile(grp *quota.Group) []byte {
@@ -154,6 +153,7 @@ func generateGroupSliceFile(grp *quota.Group) []byte {
 	cpuOptions := formatCpuGroupSlice(grp)
 	memoryOptions := formatMemoryGroupSlice(grp)
 	taskOptions := formatTaskGroupSlice(grp)
+	logOptions := formatLogNamespaceSlice(grp)
 	template := `[Unit]
 Description=Slice for snap quota group %[1]s
 Before=slices.target
@@ -163,7 +163,41 @@ X-Snappy=yes
 `
 
 	fmt.Fprintf(&buf, template, grp.Name)
-	fmt.Fprint(&buf, cpuOptions, memoryOptions, taskOptions)
+	fmt.Fprint(&buf, cpuOptions, memoryOptions, taskOptions, logOptions)
+	return buf.Bytes()
+}
+
+func formatJournalSizeConf(grp *quota.Group) string {
+	if grp.JournalLimit.Size == 0 {
+		return ""
+	}
+	return fmt.Sprintf(`SystemMaxUse=%[1]d
+RuntimeMaxUse=%[1]d
+`, grp.JournalLimit.Size)
+}
+
+func formatJournalRateConf(grp *quota.Group) string {
+	if grp.JournalLimit.RateCount == 0 || grp.JournalLimit.RatePeriod == 0 {
+		return ""
+	}
+	return fmt.Sprintf(`RateLimitIntervalSec=%dus
+RateLimitBurst=%d
+`, grp.JournalLimit.RatePeriod.Microseconds(), grp.JournalLimit.RateCount)
+}
+
+func generateJournaldConfFile(grp *quota.Group) []byte {
+	if grp.JournalLimit == nil {
+		return nil
+	}
+
+	sizeOptions := formatJournalSizeConf(grp)
+	rateOptions := formatJournalRateConf(grp)
+	template := `# Journald configuration for snap quota group %[1]s
+[Journal]
+`
+	buf := bytes.Buffer{}
+	fmt.Fprintf(&buf, template, grp.Name)
+	fmt.Fprint(&buf, sizeOptions, rateOptions)
 	return buf.Bytes()
 }
 
@@ -191,43 +225,32 @@ func startUserServices(cli *client.Client, inter Interacter, services ...string)
 }
 
 func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter Interacter) error {
-	serviceName := app.ServiceName()
-	tout := serviceStopTimeout(app)
+	var serviceList []string
 
-	var extraServices []string
+	// Add application sockets
 	for _, socket := range app.Sockets {
-		extraServices = append(extraServices, filepath.Base(socket.File()))
+		serviceList = append(serviceList, filepath.Base(socket.File()))
 	}
+	// Add application timers
 	if app.Timer != nil {
-		extraServices = append(extraServices, filepath.Base(app.Timer.File()))
+		serviceList = append(serviceList, filepath.Base(app.Timer.File()))
 	}
+	// Add application service
+	serviceList = append(serviceList, app.ServiceName())
 
 	switch app.DaemonScope {
 	case snap.SystemDaemon:
-		var stopErrors error
-		if len(extraServices) > 0 {
-			stopErrors = sysd.Stop(extraServices, tout)
-		}
-
-		if err := sysd.Stop([]string{serviceName}, tout); err != nil {
-			if !systemd.IsTimeout(err) {
-				return err
-			}
-			inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
-			// ignore errors for kill; nothing we'd do differently at this point
-			sysd.Kill(serviceName, "TERM", "")
-			time.Sleep(killWait)
-			sysd.Kill(serviceName, "KILL", "")
-		}
-
-		if stopErrors != nil {
-			return stopErrors
+		if err := sysd.Stop(serviceList); err != nil {
+			return err
 		}
 
 	case snap.UserDaemon:
-		extraServices = append(extraServices, serviceName)
 		cli := client.New()
-		return stopUserServices(cli, inter, extraServices...)
+		if err := stopUserServices(cli, inter, serviceList...); err != nil {
+			return err
+		}
+	default:
+		panic("unknown app.DaemonScope")
 	}
 
 	return nil
@@ -479,6 +502,283 @@ type EnsureSnapServicesOptions struct {
 	RequireMountedSnapdSnap bool
 }
 
+// ensureSnapServicesContext is the context for EnsureSnapServices.
+// EnsureSnapServices supports transactional update/write of systemd service
+// files and slice files. A part of this is to support rollback of files and
+// also keep track of whether a restart of systemd daemon is required.
+type ensureSnapServicesContext struct {
+	// snaps, observeChange, opts and inter are the arguments
+	// taken by EnsureSnapServices. They are here to allow sub-functions
+	// to easier access these, and keep parameter lists shorter.
+	snaps         map[*snap.Info]*SnapServiceOptions
+	observeChange ObserveChangeCallback
+	opts          *EnsureSnapServicesOptions
+	inter         Interacter
+
+	// note: is not used when preseeding is set in opts.Preseeding
+	sysd                     systemd.Systemd
+	systemDaemonReloadNeeded bool
+	userDaemonReloadNeeded   bool
+	// modifiedUnits is the set of units that were modified and the previous
+	// state of the unit before modification that we can roll back to if there
+	// are any issues.
+	// note that the rollback is best effort, if we are rebooted in the middle,
+	// there is no guarantee about the state of files, some may have been
+	// updated and some may have been rolled back, higher level tasks/changes
+	// should have do/undo handlers to properly handle the case where this
+	// function is interrupted midway
+	modifiedUnits map[string]*osutil.MemoryFileState
+}
+
+// restore is a helper function which should be called in case any errors happen
+// during the write/update of systemd files
+func (es *ensureSnapServicesContext) restore() {
+	for file, state := range es.modifiedUnits {
+		if state == nil {
+			// we don't have anything to rollback to, so just remove the
+			// file
+			if err := os.Remove(file); err != nil {
+				es.inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", file, err))
+			}
+		} else {
+			// rollback the file to the previous state
+			if err := osutil.EnsureFileState(file, state); err != nil {
+				es.inter.Notify(fmt.Sprintf("while trying to rollback %s due to previous failure: %v", file, err))
+			}
+		}
+	}
+
+	if !es.opts.Preseeding {
+		if es.systemDaemonReloadNeeded {
+			if err := es.sysd.DaemonReload(); err != nil {
+				es.inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", err))
+			}
+		}
+		if es.userDaemonReloadNeeded {
+			if err := userDaemonReload(); err != nil {
+				es.inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", err))
+			}
+		}
+	}
+}
+
+// reloadModified uses the modifiedSystemServices/userDaemonReloadNeeded to determine whether a reload
+// is required from systemd to take the new systemd files into effect. This is a NOP
+// if opts.Preseeding is set
+func (es *ensureSnapServicesContext) reloadModified() error {
+	if es.opts.Preseeding {
+		return nil
+	}
+
+	if es.systemDaemonReloadNeeded {
+		if err := es.sysd.DaemonReload(); err != nil {
+			return err
+		}
+	}
+	if es.userDaemonReloadNeeded {
+		if err := userDaemonReload(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ensureSnapSystemdUnits takes care of writing .service files for all services
+// registered in snap.Info apps.
+func (es *ensureSnapServicesContext) ensureSnapSystemdUnits(snapInfo *snap.Info, opts *AddSnapServicesOptions) error {
+	handleFileModification := func(app *snap.AppInfo, unitType string, name, path string, content []byte) error {
+		old, modifiedFile, err := tryFileUpdate(path, content)
+		if err != nil {
+			return err
+		}
+
+		if modifiedFile {
+			if es.observeChange != nil {
+				var oldContent []byte
+				if old != nil {
+					oldContent = old.Content
+				}
+				es.observeChange(app, nil, unitType, name, string(oldContent), string(content))
+			}
+			es.modifiedUnits[path] = old
+
+			// also mark that we need to reload either the system or
+			// user instance of systemd
+			switch app.DaemonScope {
+			case snap.SystemDaemon:
+				es.systemDaemonReloadNeeded = true
+			case snap.UserDaemon:
+				es.userDaemonReloadNeeded = true
+			}
+		}
+
+		return nil
+	}
+
+	// note that the Preseeding option is not used here at all
+	for _, app := range snapInfo.Apps {
+		if !app.IsService() {
+			continue
+		}
+
+		// create services first; this doesn't trigger systemd
+
+		// Generate new service file state
+		path := app.ServiceFile()
+		content, err := generateSnapServiceFile(app, opts)
+		if err != nil {
+			return err
+		}
+
+		if err := handleFileModification(app, "service", app.Name, path, content); err != nil {
+			return err
+		}
+
+		// Generate systemd .socket files if needed
+		socketFiles, err := generateSnapSocketFiles(app)
+		if err != nil {
+			return err
+		}
+		for name, content := range socketFiles {
+			path := app.Sockets[name].File()
+			if err := handleFileModification(app, "socket", name, path, content); err != nil {
+				return err
+			}
+		}
+
+		if app.Timer != nil {
+			content, err := generateSnapTimerFile(app)
+			if err != nil {
+				return err
+			}
+			path := app.Timer.File()
+			if err := handleFileModification(app, "timer", "", path, content); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// ensureSnapsSystemdServices takes care of writing .service files for all apps in the provided snaps
+// list, and also returns a quota group set that represents all quota groups for the set of snaps
+// provided if they are a part of any.
+func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaGroupSet, error) {
+	neededQuotaGrps := &quota.QuotaGroupSet{}
+
+	for s, snapSvcOpts := range es.snaps {
+		if s.Type() == snap.TypeSnapd {
+			return nil, fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
+		}
+
+		// always use RequireMountedSnapdSnap options from the global options
+		genServiceOpts := &AddSnapServicesOptions{
+			RequireMountedSnapdSnap: es.opts.RequireMountedSnapdSnap,
+		}
+		if snapSvcOpts != nil {
+			// and if there are per-snap options specified, use that for
+			// VitalityRank
+			genServiceOpts.VitalityRank = snapSvcOpts.VitalityRank
+			genServiceOpts.QuotaGroup = snapSvcOpts.QuotaGroup
+
+			if snapSvcOpts.QuotaGroup != nil {
+				if err := neededQuotaGrps.AddAllNecessaryGroups(snapSvcOpts.QuotaGroup); err != nil {
+					// this error can basically only be a circular reference
+					// in the quota group tree
+					return nil, err
+				}
+			}
+		}
+
+		if err := es.ensureSnapSystemdUnits(s, genServiceOpts); err != nil {
+			return nil, err
+		}
+	}
+	return neededQuotaGrps, nil
+}
+
+func (es *ensureSnapServicesContext) ensureSnapSlices(quotaGroups *quota.QuotaGroupSet) error {
+	handleSliceModification := func(grp *quota.Group, path string, content []byte) error {
+		old, modifiedFile, err := tryFileUpdate(path, content)
+		if err != nil {
+			return err
+		}
+
+		if modifiedFile {
+			if es.observeChange != nil {
+				var oldContent []byte
+				if old != nil {
+					oldContent = old.Content
+				}
+				es.observeChange(nil, grp, "slice", grp.Name, string(oldContent), string(content))
+			}
+
+			es.modifiedUnits[path] = old
+
+			// also mark that we need to reload the system instance of systemd
+			// TODO: also handle reloading the user instance of systemd when
+			// needed
+			es.systemDaemonReloadNeeded = true
+		}
+
+		return nil
+	}
+
+	// now make sure that all of the slice units exist
+	for _, grp := range quotaGroups.AllQuotaGroups() {
+		content := generateGroupSliceFile(grp)
+
+		sliceFileName := grp.SliceFileName()
+		path := filepath.Join(dirs.SnapServicesDir, sliceFileName)
+		if err := handleSliceModification(grp, path, content); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (es *ensureSnapServicesContext) ensureSnapJournaldUnits(quotaGroups *quota.QuotaGroupSet) error {
+	handleJournalModification := func(grp *quota.Group, path string, content []byte) error {
+		old, modifiedFile, err := tryFileUpdate(path, content)
+		if err != nil {
+			return err
+		}
+
+		if !modifiedFile {
+			return nil
+		}
+
+		// suppress any event and restart if we actually did not do anything
+		// as it seems modifiedFile is set even when the file does not exist
+		// and when the new content is nil.
+		if (old == nil || len(old.Content) == 0) && len(content) == 0 {
+			return nil
+		}
+
+		if es.observeChange != nil {
+			var oldContent []byte
+			if old != nil {
+				oldContent = old.Content
+			}
+			es.observeChange(nil, grp, "journald", grp.Name, string(oldContent), string(content))
+		}
+
+		es.modifiedUnits[path] = old
+		return nil
+	}
+
+	for _, grp := range quotaGroups.AllQuotaGroups() {
+		contents := generateJournaldConfFile(grp)
+		fileName := grp.JournalFileName()
+
+		path := filepath.Join(dirs.SnapSystemdDir, fileName)
+		if err := handleJournalModification(grp, path, contents); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // EnsureSnapServices will ensure that the specified snap services' file states
 // are up to date with the specified options and infos. It will add new services
 // if those units don't already exist, but it does not delete existing service
@@ -497,209 +797,40 @@ type EnsureSnapServicesOptions struct {
 // if the function did not return an error.
 // This function is idempotent.
 func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter Interacter) (err error) {
-	// note, sysd is not used when preseeding
-	sysd := systemd.New(systemd.SystemMode, inter)
-
 	if opts == nil {
 		opts = &EnsureSnapServicesOptions{}
 	}
 
-	// we only consider the global EnsureSnapServicesOptions to decide if we
-	// are preseeding or not to reduce confusion about which set of options
-	// determines whether we are preseeding or not during the ensure operation
-	preseeding := opts.Preseeding
-
-	// modifiedUnitsPreviousState is the set of units that were modified and the previous
-	// state of the unit before modification that we can roll back to if there
-	// are any issues.
-	// note that the rollback is best effort, if we are rebooted in the middle,
-	// there is no guarantee about the state of files, some may have been
-	// updated and some may have been rolled back, higher level tasks/changes
-	// should have do/undo handlers to properly handle the case where this
-	// function is interrupted midway
-	modifiedUnitsPreviousState := make(map[string]*osutil.MemoryFileState)
-	var modifiedSystem, modifiedUser bool
+	context := &ensureSnapServicesContext{
+		snaps:         snaps,
+		observeChange: observeChange,
+		opts:          opts,
+		inter:         inter,
+		sysd:          systemd.New(systemd.SystemMode, inter),
+		modifiedUnits: make(map[string]*osutil.MemoryFileState),
+	}
 
 	defer func() {
 		if err == nil {
 			return
 		}
-		for file, state := range modifiedUnitsPreviousState {
-			if state == nil {
-				// we don't have anything to rollback to, so just remove the
-				// file
-				if e := os.Remove(file); e != nil {
-					inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", file, e))
-				}
-			} else {
-				// rollback the file to the previous state
-				if e := osutil.EnsureFileState(file, state); e != nil {
-					inter.Notify(fmt.Sprintf("while trying to rollback %s due to previous failure: %v", file, e))
-				}
-			}
-		}
-		if modifiedSystem && !preseeding {
-			if e := sysd.DaemonReload(); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
-			}
-		}
-		if modifiedUser && !preseeding {
-			if e := userDaemonReload(); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", e))
-			}
-		}
+		context.restore()
 	}()
 
-	handleFileModification := func(app *snap.AppInfo, unitType string, name, path string, content []byte) error {
-		old, modifiedFile, err := tryFileUpdate(path, content)
-		if err != nil {
-			return err
-		}
-
-		if modifiedFile {
-			if observeChange != nil {
-				var oldContent []byte
-				if old != nil {
-					oldContent = old.Content
-				}
-				observeChange(app, nil, unitType, name, string(oldContent), string(content))
-			}
-			modifiedUnitsPreviousState[path] = old
-
-			// also mark that we need to reload either the system or
-			// user instance of systemd
-			switch app.DaemonScope {
-			case snap.SystemDaemon:
-				modifiedSystem = true
-			case snap.UserDaemon:
-				modifiedUser = true
-			}
-		}
-
-		return nil
+	quotaGroups, err := context.ensureSnapsSystemdServices()
+	if err != nil {
+		return err
 	}
 
-	neededQuotaGrps := &quota.QuotaGroupSet{}
-
-	for s, snapSvcOpts := range snaps {
-		if s.Type() == snap.TypeSnapd {
-			return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
-		}
-
-		// always use RequireMountedSnapdSnap options from the global options
-		genServiceOpts := &AddSnapServicesOptions{
-			RequireMountedSnapdSnap: opts.RequireMountedSnapdSnap,
-		}
-		if snapSvcOpts != nil {
-			// and if there are per-snap options specified, use that for
-			// VitalityRank
-			genServiceOpts.VitalityRank = snapSvcOpts.VitalityRank
-			genServiceOpts.QuotaGroup = snapSvcOpts.QuotaGroup
-
-			if snapSvcOpts.QuotaGroup != nil {
-				if err := neededQuotaGrps.AddAllNecessaryGroups(snapSvcOpts.QuotaGroup); err != nil {
-					// this error can basically only be a circular reference
-					// in the quota group tree
-					return err
-				}
-			}
-		}
-		// note that the Preseeding option is not used here at all
-
-		for _, app := range s.Apps {
-			if !app.IsService() {
-				continue
-			}
-
-			// create services first; this doesn't trigger systemd
-
-			// Generate new service file state
-			path := app.ServiceFile()
-			content, err := generateSnapServiceFile(app, genServiceOpts)
-			if err != nil {
-				return err
-			}
-
-			if err := handleFileModification(app, "service", app.Name, path, content); err != nil {
-				return err
-			}
-
-			// Generate systemd .socket files if needed
-			socketFiles, err := generateSnapSocketFiles(app)
-			if err != nil {
-				return err
-			}
-			for name, content := range socketFiles {
-				path := app.Sockets[name].File()
-				if err := handleFileModification(app, "socket", name, path, content); err != nil {
-					return err
-				}
-			}
-
-			if app.Timer != nil {
-				content, err := generateSnapTimerFile(app)
-				if err != nil {
-					return err
-				}
-				path := app.Timer.File()
-				if err := handleFileModification(app, "timer", "", path, content); err != nil {
-					return err
-				}
-			}
-		}
+	if err := context.ensureSnapSlices(quotaGroups); err != nil {
+		return err
 	}
 
-	handleSliceModification := func(grp *quota.Group, path string, content []byte) error {
-		old, modifiedFile, err := tryFileUpdate(path, content)
-		if err != nil {
-			return err
-		}
-
-		if modifiedFile {
-			if observeChange != nil {
-				var oldContent []byte
-				if old != nil {
-					oldContent = old.Content
-				}
-				observeChange(nil, grp, "slice", grp.Name, string(oldContent), string(content))
-			}
-
-			modifiedUnitsPreviousState[path] = old
-
-			// also mark that we need to reload the system instance of systemd
-			// TODO: also handle reloading the user instance of systemd when
-			// needed
-			modifiedSystem = true
-		}
-
-		return nil
+	if err := context.ensureSnapJournaldUnits(quotaGroups); err != nil {
+		return err
 	}
 
-	// now make sure that all of the slice units exist
-	for _, grp := range neededQuotaGrps.AllQuotaGroups() {
-		content := generateGroupSliceFile(grp)
-
-		sliceFileName := grp.SliceFileName()
-		path := filepath.Join(dirs.SnapServicesDir, sliceFileName)
-		if err := handleSliceModification(grp, path, content); err != nil {
-			return err
-		}
-	}
-
-	if !preseeding {
-		if modifiedSystem {
-			if err = sysd.DaemonReload(); err != nil {
-				return err
-			}
-		}
-		if modifiedUser {
-			if err = userDaemonReload(); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
+	return context.reloadModified()
 }
 
 // AddSnapServicesOptions is a struct for controlling the generated service
@@ -791,17 +922,6 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 		})
 		if err != nil {
 			return err
-		}
-
-		// ensure the service is really stopped on remove regardless
-		// of stop-mode
-		if reason == snap.StopReasonRemove && !app.StopMode.KillAll() && app.DaemonScope == snap.SystemDaemon {
-			// FIXME: make this smarter and avoid the killWait
-			//        delay if not needed (i.e. if all processes
-			//        have died)
-			sysd.Kill(app.ServiceName(), "TERM", "all")
-			time.Sleep(killWait)
-			sysd.Kill(app.ServiceName(), "KILL", "")
 		}
 	}
 	if len(disableServices) > 0 {
@@ -1647,7 +1767,7 @@ func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 				err = sysd.ReloadOrRestart(unit.Name)
 			} else {
 				// note: stop followed by start, not just 'restart'
-				err = sysd.Restart([]string{unit.Name}, 5*time.Second)
+				err = sysd.Restart([]string{unit.Name})
 			}
 		})
 		if err != nil {

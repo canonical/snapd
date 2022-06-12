@@ -997,9 +997,9 @@ func compileSlotInstallationConstraints(context *subruleContext, cDef constraint
 	// but the intention is really that only system snaps should have the
 	// slot without a snap-declaration rule, slot-snap-id then can
 	// be used to limit to the known system snap snap-ids.
-	// This means we want app-slot to be super-privileged but we have
+	// This means we want app-slots to be super-privileged but we have
 	// slots for the interface on the system snaps as well.
-	// XXX mention real example
+	// An example of this is shared-memory.
 	err := baseCompileConstraints(context, cDef, slotInstCstrs, []string{"slot-names"}, []string{"slot-attributes"}, []string{"slot-snap-type", "slot-snap-id"})
 	if err != nil {
 		return nil, err

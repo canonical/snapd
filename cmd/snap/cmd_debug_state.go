@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type cmdDebugState struct {
@@ -39,6 +41,7 @@ type cmdDebugState struct {
 	Changes  bool   `long:"changes"`
 	TaskID   string `long:"task"`
 	ChangeID string `long:"change"`
+	Check    bool   `long:"check"`
 
 	IsSeeded bool `long:"is-seeded"`
 
@@ -85,6 +88,7 @@ func init() {
 		"no-hold":   i18n.G("Omit tasks in 'Hold' state in the change output"),
 		"changes":   i18n.G("List all changes"),
 		"is-seeded": i18n.G("Output seeding status (true or false)"),
+		"check":     i18n.G("Check change consistency"),
 	}), nil)
 }
 
@@ -167,12 +171,8 @@ func (c *cmdDebugState) showTasks(st *state.State, changeID string) error {
 		if c.NoHoldState && t.Status() == state.HoldStatus {
 			continue
 		}
-		var lanes []string
-		for _, lane := range t.Lanes() {
-			lanes = append(lanes, fmt.Sprintf("%d", lane))
-		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			strings.Join(lanes, ","),
+			strutil.IntsToCommaSeparated(t.Lanes()),
 			t.ID(),
 			t.Status().String(),
 			c.fmtTime(t.SpawnTime()),
@@ -194,6 +194,65 @@ func (c *cmdDebugState) showTasks(st *state.State, changeID string) error {
 		}
 	}
 
+	return nil
+}
+
+func (c *cmdDebugState) checkTasks(st *state.State, changeID string) error {
+	st.Lock()
+	defer st.Unlock()
+
+	showAtMostTasks := 3
+	formatAtMostTaskIDs := func(tasks []*state.Task) string {
+		var b strings.Builder
+		b.WriteRune('[')
+		atMostTasks := tasks
+		trimmed := false
+		if len(atMostTasks) > showAtMostTasks {
+			atMostTasks = tasks[:showAtMostTasks]
+			trimmed = true
+		}
+		for i, t := range atMostTasks {
+			b.WriteString(t.ID())
+			if i < len(atMostTasks)-1 {
+				b.WriteRune(',')
+			}
+		}
+		if trimmed {
+			b.WriteString(",...")
+		}
+		b.WriteRune(']')
+		return b.String()
+	}
+
+	chg := st.Change(changeID)
+	if chg == nil {
+		return fmt.Errorf("no such change: %s", changeID)
+	}
+	err := chg.CheckTaskDependencies()
+	if err != nil {
+		if tdcErr, ok := err.(*state.TaskDependencyCycleError); ok {
+			fmt.Fprintf(Stdout, "Detected task dependency cycle involving tasks:\n")
+			w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
+			fmt.Fprintf(w, "Lanes\tID\tStatus\tSpawn\tReady\tKind\tSummary\tAfter\tBefore\n")
+			for _, tid := range tdcErr.IDs {
+				t := st.Task(tid)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%v\t%v\n",
+					strutil.IntsToCommaSeparated(t.Lanes()),
+					t.ID(),
+					t.Status().String(),
+					c.fmtTime(t.SpawnTime()),
+					c.fmtTime(t.ReadyTime()),
+					t.Kind(),
+					t.Summary(),
+					formatAtMostTaskIDs(t.WaitTasks()),
+					formatAtMostTaskIDs(t.HaltTasks()),
+				)
+			}
+			w.Flush()
+		} else {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -226,7 +285,7 @@ func (c *cmdDebugState) showIsSeeded(st *state.State) error {
 
 	var isSeeded bool
 	err := st.Get("seeded", &isSeeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	fmt.Fprintf(Stdout, "%v\n", isSeeded)
@@ -259,7 +318,7 @@ func (c *cmdDebugState) showTask(st *state.State, taskID string) error {
 	if len(log) > 0 {
 		fmt.Fprintf(Stdout, "log: |\n")
 		for _, msg := range log {
-			if err := wrapLine(Stdout, []rune(msg), "  ", termWidth); err != nil {
+			if err := strutil.WordWrapPadded(Stdout, []rune(msg), "  ", termWidth); err != nil {
 				break
 			}
 		}
@@ -313,6 +372,9 @@ func (c *cmdDebugState) Execute(args []string) error {
 	if c.NoHoldState && c.ChangeID == "" {
 		return fmt.Errorf("--no-hold can only be used with --change=")
 	}
+	if c.Check && c.ChangeID == "" {
+		return fmt.Errorf("--check can only be used with --change")
+	}
 
 	if c.Changes {
 		return c.showChanges(st)
@@ -325,6 +387,9 @@ func (c *cmdDebugState) Execute(args []string) error {
 		}
 		if c.DotOutput {
 			return c.writeDotOutput(st, c.ChangeID)
+		}
+		if c.Check {
+			return c.checkTasks(st, c.ChangeID)
 		}
 		return c.showTasks(st, c.ChangeID)
 	}

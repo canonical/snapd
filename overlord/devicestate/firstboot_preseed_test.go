@@ -337,7 +337,7 @@ snaps:
 	// but we're not considered seeded
 	var seeded bool
 	err = diskState.Get("seeded", &seeded)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *firstbootPreseedingClassic16Suite) TestPreseedClassicWithSnapdOnlyHappy(c *C) {
@@ -424,5 +424,5 @@ snaps:
 	// but we're not considered seeded
 	var seeded bool
 	err = diskState.Get("seeded", &seeded)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }

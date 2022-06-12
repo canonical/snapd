@@ -23,10 +23,7 @@ environment:
     SERIAL: 1234-snapd-remodel-testing
 
 prepare: |
-    variant=18
-    if tests.nested is-nested uc20; then
-        variant=20
-    fi
+    variant="$(tests.nested show version)"
 
     # TODO: once the gadget snap is published, this will download it from the
     # store
@@ -44,11 +41,7 @@ prepare: |
     tests.nested create-vm core
 
 execute: |
-    variant=18
-    if tests.nested is-nested uc20; then
-        variant=20
-    fi
-
+    variant="$(tests.nested show version)"
     boot_id="$(tests.nested boot-id)"
 
     # wait until device is initialized and has a serial
@@ -81,7 +74,7 @@ execute: |
     tests.nested exec sudo snap changes | MATCH "^${CHANGE_ID}\s+Done"
 
     current_boot_id="$( tests.nested boot-id )"
-    if [ "$variant" = "20" ]; then
+    if [ "$variant" = "20" ] || [ "$variant" = "22" ]; then
         # we should have rebooted a couple of times (at least twice for the recovery
         # system and the base), so boot-id should be different
         test "$boot_id" != "$current_boot_id"

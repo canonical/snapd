@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/tooling"
 	usersessionclient "github.com/snapcore/snapd/usersession/client"
 )
 
@@ -51,7 +52,6 @@ var (
 	Antialias           = antialias
 	FormatChannel       = fmtChannel
 	PrintDescr          = printDescr
-	WrapFlow            = wrapFlow
 	TrueishJSON         = trueishJSON
 	CompletionHandler   = completionHandler
 	MarkForNoCompletion = markForNoCompletion
@@ -94,12 +94,7 @@ var (
 
 	IsStopping = isStopping
 
-	GetKeypairManager = getKeypairManager
-	GenerateKey       = generateKey
-
 	GetSnapDirOptions = getSnapDirOptions
-
-	ParseQuotas = parseQuotas
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
@@ -381,7 +376,7 @@ func MockIoutilTempDir(f func(string, string) (string, error)) (restore func()) 
 	}
 }
 
-func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts image.DownloadSnapOptions) error) (restore func()) {
+func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts tooling.DownloadSnapOptions) error) (restore func()) {
 	old := downloadDirect
 	downloadDirect = f
 	return func() {
@@ -461,4 +456,15 @@ func MockAutostartSessionApps(f func(string) error) func() {
 	return func() {
 		autostartSessionApps = old
 	}
+}
+
+func ParseQuotaValues(maxMemory, cpuMax, cpuSet, threadsMax string) (*client.QuotaValues, error) {
+	var quotas cmdSetQuota
+
+	quotas.MemoryMax = maxMemory
+	quotas.CPUMax = cpuMax
+	quotas.CPUSet = cpuSet
+	quotas.ThreadsMax = threadsMax
+
+	return quotas.parseQuotas()
 }

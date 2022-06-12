@@ -32,7 +32,7 @@ execute: |
   echo "Connecting the two test snaps with content interface"
   snap connect "$SNAP_NAME:content" "$CONTENT_SNAP_NAME:content"
 
-  # sanity check
+  # precondition check
   snap list | MATCH "$SNAP_NAME +1\.0\.0"
   snap list | MATCH "$CONTENT_SNAP_NAME +1\.0\.0"
 
@@ -55,6 +55,7 @@ execute: |
 
     echo "Trigger auto-refresh of test-snapd-refresh-control-provider but hold it via test-snapd-refresh-control's hook"
     "$TESTSTOOLS"/snapd-state force-autorefresh
+    systemctl reset-failed snapd.{service,socket}
     systemctl start snapd.{service,socket}
     LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
@@ -77,7 +78,7 @@ execute: |
 
     echo "Ensure our content snap was held and is still at version 1"
     snap list | MATCH "$CONTENT_SNAP_NAME +1\.0\.0"
-    # sanity check for the gating snap.
+    # precondition check for the gating snap.
     snap list | MATCH "$SNAP_NAME +1\.0\.0"
   done
 
@@ -91,6 +92,7 @@ execute: |
   echo "--proceed" > "$CONTROL_FILE"
 
   "$TESTSTOOLS"/snapd-state force-autorefresh
+  systemctl reset-failed snapd.{service,socket}
   systemctl start snapd.{service,socket}
   LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
@@ -102,7 +104,7 @@ execute: |
 
   echo "Ensure our content snap was refreshed"
   snap list | MATCH "$CONTENT_SNAP_NAME +2\.0\.0"
-  # sanity check for the gating snap.
+  # precondition check for the gating snap.
   snap list | MATCH "$SNAP_NAME +1\.0\.0"
 
   systemctl stop snapd.{service,socket}
@@ -116,6 +118,7 @@ execute: |
   "$TESTSTOOLS"/snapd-state change-snap-channel "$SNAP_NAME" beta
   "$TESTSTOOLS"/snapd-state force-autorefresh
 
+  systemctl reset-failed snapd.{service,socket}
   systemctl start snapd.{service,socket}
   LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
@@ -138,6 +141,7 @@ execute: |
   echo "--proceed" > "$CONTROL_FILE"
   "$TESTSTOOLS"/snapd-state force-autorefresh
 
+  systemctl reset-failed snapd.{service,socket}
   systemctl start snapd.{service,socket}
   LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
@@ -153,6 +157,7 @@ execute: |
   "$TESTSTOOLS"/snapd-state change-snap-channel "$CONTENT_SNAP_NAME" edge
   "$TESTSTOOLS"/snapd-state force-autorefresh
 
+  systemctl reset-failed snapd.{service,socket}
   systemctl start snapd.{service,socket}
   LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
@@ -171,6 +176,7 @@ execute: |
   "$TESTSTOOLS"/snapd-state change-snap-channel "$CONTENT_SNAP_NAME" edge
   "$TESTSTOOLS"/snapd-state force-autorefresh
 
+  systemctl reset-failed snapd.{service,socket}
   systemctl start snapd.{service,socket}
   LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 

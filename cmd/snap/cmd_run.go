@@ -237,6 +237,8 @@ func (x *cmdRun) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(args, " "))
 	}
 
+	logger.StartupStageTimestamp("start")
+
 	if err := maybeWaitForSecurityProfileRegeneration(x.client); err != nil {
 		return err
 	}
@@ -403,13 +405,6 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 	instanceUserData := info.UserDataDir(usr.HomeDir, opts)
 	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir, opts)
 	createDirs := []string{instanceUserData, instanceCommonUserData}
-
-	if opts.MigratedToExposedHome {
-		createDirs = append(createDirs,
-			filepath.Join(info.UserDataDir(usr.HomeDir, opts), "data"),
-			filepath.Join(info.UserDataDir(usr.HomeDir, opts), "config"),
-			filepath.Join(info.UserDataDir(usr.HomeDir, opts), "cache"))
-	}
 
 	if info.InstanceKey != "" {
 		// parallel instance snaps get additional mapping in their mount
@@ -1230,6 +1225,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 			logger.Debugf("snap refreshes will not be postponed by this process")
 		}
 	}
+	logger.StartupStageTimestamp("snap to snap-confine")
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, envForExec)
 	} else if x.Gdb {

@@ -17,12 +17,23 @@ execute: |
     echo "and secure boot is enabled on the nested vm"
     tests.nested exec "xxd /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c" | MATCH "00000000: 0600 0000 01\s+....."
 
-    echo "and the recovery key is available"
+    echo "and the recovery key is unavailable"
+    tests.nested exec "test ! -e /var/lib/snapd/device/fde/recovery.key"
+    # the first request to show the keys will create them
+    tests.nested exec "sudo snap recovery --show-keys"
+    echo "the recovery key is available now"
     tests.nested exec "test -e /var/lib/snapd/device/fde/recovery.key"
     echo "and has the expected size"
     tests.nested exec "stat --printf=%s /var/lib/snapd/device/fde/recovery.key" | MATCH '^16$'
     echo "and has the expected owner and permissions"
     tests.nested exec "stat --printf='%u:%g %a' /var/lib/snapd/device/fde/recovery.key" | MATCH '^0:0 600$'
+
+    echo "verify that recovery key can be removed"
+    tests.nested exec "sudo snap install --devmode --edge test-snapd-curl"
+    tests.nested exec "sudo test-snapd-curl.curl --unix-socket /run/snapd.socket -D- -d '{\"action\":\"remove\"}' http://localhost/v2/system-recovery-keys"
+    echo "and the key is no longer available"
+    tests.nested exec "test ! -e /var/lib/snapd/device/fde/recovery.key"
+
 
     echo "and the tpm-{policy-auth-key,lockout-auth} files are in ubuntu-save"
     tests.nested exec "test -e /var/lib/snapd/save/device/fde/tpm-policy-auth-key"

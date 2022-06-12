@@ -34,6 +34,11 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// DeviceSetupHookPartitionOffset defines the free space that is reserved
+// at the start of a device-setup based partition for future use (like
+// to simulate LUKS keyslot like setup).
+const DeviceSetupHookPartitionOffset = uint64(1 * 1024 * 1024)
+
 // HasRevealKey return true if the current system has a "fde-reveal-key"
 // binary (usually used in the initrd).
 //
@@ -193,4 +198,10 @@ func DeviceSetup(runSetupHook RunSetupHookFunc, params *DeviceSetupParams) error
 	}
 
 	return nil
+}
+
+// EncryptedDeviceMapperName returns the name to use in device mapper for a
+// device that is encrypted using FDE hooks
+func EncryptedDeviceMapperName(name string) string {
+	return name + "-device-locked"
 }

@@ -127,7 +127,7 @@ func (ts *taskSuite) TestClear(c *C) {
 
 	t.Clear("a")
 
-	c.Check(t.Get("a", &v), Equals, state.ErrNoState)
+	c.Check(t.Get("a", &v), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (ts *taskSuite) TestStatusAndSetStatus(c *C) {

@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
@@ -46,6 +47,8 @@ const (
 	Hidden       = hidden
 	Home         = home
 	RevertHidden = revertHidden
+	DisableHome  = disableHome
+	RevertFull   = revertFull
 )
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
@@ -354,6 +357,8 @@ var (
 	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
 	AutoRefreshPhase1          = autoRefreshPhase1
 	RefreshRetain              = refreshRetain
+
+	ExcludeFromRefreshAppAwareness = excludeFromRefreshAppAwareness
 )
 
 func MockTimeNow(f func() time.Time) (restore func()) {
@@ -387,6 +392,12 @@ func MockSnapsToRefresh(f func(gatingTask *state.Task) ([]*refreshCandidate, err
 	}
 }
 
+func MockExcludeFromRefreshAppAwareness(f func(t snap.Type) bool) (restore func()) {
+	r := testutil.Backup(&excludeFromRefreshAppAwareness)
+	excludeFromRefreshAppAwareness = f
+	return r
+}
+
 func MockAddCurrentTrackingToValidationSetsStack(f func(st *state.State) error) (restore func()) {
 	old := AddCurrentTrackingToValidationSetsStack
 	AddCurrentTrackingToValidationSetsStack = f
@@ -403,7 +414,7 @@ func MockRestoreValidationSetsTracking(f func(*state.State) error) (restore func
 	}
 }
 
-func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refreshedSnaps []string) ([]*state.TaskSet, error)) (restore func()) {
+func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refreshedSnaps []string, fromChange string) ([]*state.TaskSet, error)) (restore func()) {
 	old := maybeRestoreValidationSetsAndRevertSnaps
 	maybeRestoreValidationSetsAndRevertSnaps = f
 	return func() {

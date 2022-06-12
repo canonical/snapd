@@ -190,9 +190,10 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":     "install",
-			"channel":    "candidate",
-			"cohort-key": "what",
+			"action":      "install",
+			"channel":     "candidate",
+			"cohort-key":  "what",
+			"transaction": string(client.TransactionPerSnap),
 		})
 		s.srv.channel = "candidate"
 	}
@@ -213,6 +214,7 @@ func (s *SnapOpSuite) TestInstallIgnoreRunning(c *check.C) {
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":         "install",
 			"ignore-running": true,
+			"transaction":    string(client.TransactionPerSnap),
 		})
 	}
 
@@ -238,8 +240,9 @@ func (s *SnapOpSuite) TestInstallNoPATH(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"channel": "candidate",
+			"action":      "install",
+			"channel":     "candidate",
+			"transaction": string(client.TransactionPerSnap),
 		})
 		s.srv.channel = "candidate"
 	}
@@ -266,8 +269,9 @@ func (s *SnapOpSuite) TestInstallNoPATHMaybeResetBySudo(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"channel": "candidate",
+			"action":      "install",
+			"channel":     "candidate",
+			"transaction": string(client.TransactionPerSnap),
 		})
 		s.srv.channel = "candidate"
 	}
@@ -286,8 +290,9 @@ func (s *SnapOpSuite) TestInstallFromTrack(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"channel": "3.4",
+			"action":      "install",
+			"channel":     "3.4",
+			"transaction": string(client.TransactionPerSnap),
 		})
 		s.srv.channel = "3.4/stable"
 	}
@@ -307,8 +312,9 @@ func (s *SnapOpSuite) TestInstallFromBranch(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"channel": "3.4/stable/hotfix-1",
+			"action":      "install",
+			"channel":     "3.4/stable/hotfix-1",
+			"transaction": string(client.TransactionPerSnap),
 		})
 		s.srv.channel = "3.4/stable/hotfix-1"
 	}
@@ -327,8 +333,9 @@ func (s *SnapOpSuite) TestInstallSameRiskInTrack(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"channel": "latest/stable",
+			"action":      "install",
+			"channel":     "latest/stable",
+			"transaction": string(client.TransactionPerSnap),
 		})
 		s.srv.channel = "stable"
 		s.srv.trackingChannel = "latest/stable"
@@ -348,8 +355,9 @@ func (s *SnapOpSuite) TestInstallSameRiskInDefaultTrack(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"channel": "stable",
+			"action":      "install",
+			"channel":     "stable",
+			"transaction": string(client.TransactionPerSnap),
 		})
 		s.srv.channel = "18/stable"
 		s.srv.trackingChannel = "18/stable"
@@ -369,8 +377,9 @@ func (s *SnapOpSuite) TestInstallRiskChannelClosed(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"channel": "edge",
+			"action":      "install",
+			"channel":     "edge",
+			"transaction": string(client.TransactionPerSnap),
 		})
 		s.srv.channel = "stable"
 		s.srv.trackingChannel = "edge"
@@ -392,9 +401,10 @@ func (s *SnapOpSuite) TestInstallDevMode(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"devmode": true,
-			"channel": "beta",
+			"action":      "install",
+			"devmode":     true,
+			"channel":     "beta",
+			"transaction": string(client.TransactionPerSnap),
 		})
 		s.srv.channel = "beta"
 	}
@@ -413,8 +423,9 @@ func (s *SnapOpSuite) TestInstallClassic(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"classic": true,
+			"action":      "install",
+			"classic":     true,
+			"transaction": string(client.TransactionPerSnap),
 		})
 		s.srv.confinement = "classic"
 	}
@@ -433,8 +444,9 @@ func (s *SnapOpSuite) TestInstallStrictWithClassicFlag(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"classic": true,
+			"action":      "install",
+			"classic":     true,
+			"transaction": string(client.TransactionPerSnap),
 		})
 		s.srv.confinement = "strict"
 	}
@@ -453,8 +465,9 @@ func (s *SnapOpSuite) TestInstallUnaliased(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":    "install",
-			"unaliased": true,
+			"action":      "install",
+			"unaliased":   true,
+			"transaction": string(client.TransactionPerSnap),
 		})
 	}
 
@@ -803,7 +816,8 @@ func (s *SnapOpSuite) TestInstallPath(c *check.C) {
 		c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
 		c.Check(form.Value["devmode"], check.IsNil)
 		c.Check(form.Value["snap-path"], check.NotNil)
-		c.Check(form.Value, check.HasLen, 2)
+		c.Check(form.Value["transaction"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 3)
 
 		name, _, body := formFile(form, c)
 		c.Check(name, check.Equals, "snap")
@@ -834,7 +848,8 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 		c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
 		c.Check(form.Value["devmode"], check.DeepEquals, []string{"true"})
 		c.Check(form.Value["snap-path"], check.NotNil)
-		c.Check(form.Value, check.HasLen, 3)
+		c.Check(form.Value["transaction"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 4)
 
 		name, _, body := formFile(form, c)
 		c.Check(name, check.Equals, "snap")
@@ -865,7 +880,8 @@ func (s *SnapOpSuite) TestInstallPathClassic(c *check.C) {
 		c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
 		c.Check(form.Value["classic"], check.DeepEquals, []string{"true"})
 		c.Check(form.Value["snap-path"], check.NotNil)
-		c.Check(form.Value, check.HasLen, 3)
+		c.Check(form.Value["transaction"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 4)
 
 		name, _, body := formFile(form, c)
 		c.Check(name, check.Equals, "snap")
@@ -898,7 +914,8 @@ func (s *SnapOpSuite) TestInstallPathDangerous(c *check.C) {
 		c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
 		c.Check(form.Value["dangerous"], check.DeepEquals, []string{"true"})
 		c.Check(form.Value["snap-path"], check.NotNil)
-		c.Check(form.Value, check.HasLen, 3)
+		c.Check(form.Value["transaction"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 4)
 
 		name, _, body := formFile(form, c)
 		c.Check(name, check.Equals, "snap")
@@ -933,7 +950,7 @@ func (s *SnapOpSuite) TestInstallPathManyTransactional(c *check.C) {
 			form := testForm(r, c)
 			defer form.RemoveAll()
 			c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
-			c.Check(form.Value["transactional"], check.DeepEquals, []string{"true"})
+			c.Check(form.Value["transaction"], check.DeepEquals, []string{string(client.TransactionAllSnaps)})
 			c.Check(form.Value, check.HasLen, 2)
 			names, filenames, bodies := formFiles(form, c)
 			for i, name := range names {
@@ -963,7 +980,7 @@ func (s *SnapOpSuite) TestInstallPathManyTransactional(c *check.C) {
 		n++
 	})
 
-	args := []string{"install", "--transactional"}
+	args := []string{"install", "--transaction=all-snaps"}
 	for _, snap := range snaps {
 		path := filepath.Join(c.MkDir(), snap)
 		args = append(args, path)
@@ -993,7 +1010,8 @@ func (s *SnapOpSuite) TestInstallPathInstance(c *check.C) {
 		c.Check(form.Value["name"], check.DeepEquals, []string{"foo_bar"})
 		c.Check(form.Value["devmode"], check.IsNil)
 		c.Check(form.Value["snap-path"], check.NotNil)
-		c.Check(form.Value, check.HasLen, 3)
+		c.Check(form.Value["transaction"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 4)
 
 		name, _, body := formFile(form, c)
 		c.Check(name, check.Equals, "snap")
@@ -1030,7 +1048,8 @@ func (s *SnapOpSuite) TestInstallPathMany(c *check.C) {
 			form := testForm(r, c)
 			defer form.RemoveAll()
 			c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
-			c.Check(form.Value, check.HasLen, 1)
+			c.Check(form.Value["transaction"], check.NotNil)
+			c.Check(form.Value, check.HasLen, 2)
 			names, filenames, bodies := formFiles(form, c)
 			for i, name := range names {
 				c.Check(name, check.Equals, "snap")
@@ -1346,7 +1365,8 @@ func (s *SnapOpSuite) TestRefreshOne(c *check.C) {
 		c.Check(r.Method, check.Equals, "POST")
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action": "refresh",
+			"action":      "refresh",
+			"transaction": string(client.TransactionPerSnap),
 		})
 	}
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "foo"})
@@ -1361,8 +1381,9 @@ func (s *SnapOpSuite) TestRefreshOneSwitchChannel(c *check.C) {
 		c.Check(r.Method, check.Equals, "POST")
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "refresh",
-			"channel": "beta",
+			"action":      "refresh",
+			"channel":     "beta",
+			"transaction": string(client.TransactionPerSnap),
 		})
 		s.srv.channel = "beta"
 	}
@@ -1377,8 +1398,9 @@ func (s *SnapOpSuite) TestRefreshOneSwitchCohort(c *check.C) {
 		c.Check(r.Method, check.Equals, "POST")
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":     "refresh",
-			"cohort-key": "what",
+			"action":      "refresh",
+			"cohort-key":  "what",
+			"transaction": string(client.TransactionPerSnap),
 		})
 	}
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--cohort=what", "foo"})
@@ -1394,6 +1416,7 @@ func (s *SnapOpSuite) TestRefreshOneLeaveCohort(c *check.C) {
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":       "refresh",
 			"leave-cohort": true,
+			"transaction":  string(client.TransactionPerSnap),
 		})
 	}
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--leave-cohort", "foo"})
@@ -1407,8 +1430,9 @@ func (s *SnapOpSuite) TestRefreshOneWithPinnedTrack(c *check.C) {
 		c.Check(r.Method, check.Equals, "POST")
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "refresh",
-			"channel": "stable",
+			"action":      "refresh",
+			"channel":     "stable",
+			"transaction": string(client.TransactionPerSnap),
 		})
 		s.srv.channel = "18/stable"
 		s.srv.trackingChannel = "18/stable"
@@ -1424,8 +1448,9 @@ func (s *SnapOpSuite) TestRefreshOneClassic(c *check.C) {
 		c.Check(r.Method, check.Equals, "POST")
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "refresh",
-			"classic": true,
+			"action":      "refresh",
+			"classic":     true,
+			"transaction": string(client.TransactionPerSnap),
 		})
 	}
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--classic", "one"})
@@ -1438,8 +1463,9 @@ func (s *SnapOpSuite) TestRefreshOneDevmode(c *check.C) {
 		c.Check(r.Method, check.Equals, "POST")
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "refresh",
-			"devmode": true,
+			"action":      "refresh",
+			"devmode":     true,
+			"transaction": string(client.TransactionPerSnap),
 		})
 	}
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--devmode", "one"})
@@ -1452,8 +1478,9 @@ func (s *SnapOpSuite) TestRefreshOneJailmode(c *check.C) {
 		c.Check(r.Method, check.Equals, "POST")
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":   "refresh",
-			"jailmode": true,
+			"action":      "refresh",
+			"jailmode":    true,
+			"transaction": string(client.TransactionPerSnap),
 		})
 	}
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--jailmode", "one"})
@@ -1468,6 +1495,7 @@ func (s *SnapOpSuite) TestRefreshOneIgnoreValidation(c *check.C) {
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":            "refresh",
 			"ignore-validation": true,
+			"transaction":       string(client.TransactionPerSnap),
 		})
 	}
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--ignore-validation", "one"})
@@ -1480,7 +1508,8 @@ func (s *SnapOpSuite) TestRefreshOneRebooting(c *check.C) {
 		c.Check(r.Method, check.Equals, "POST")
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/core")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action": "refresh",
+			"action":      "refresh",
+			"transaction": string(client.TransactionPerSnap),
 		})
 	}
 	s.srv.restart = "reboot"
@@ -1499,7 +1528,8 @@ func (s *SnapOpSuite) TestRefreshOneHalting(c *check.C) {
 		c.Check(r.Method, check.Equals, "POST")
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/core")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action": "refresh",
+			"action":      "refresh",
+			"transaction": string(client.TransactionPerSnap),
 		})
 	}
 	s.srv.restart = "halt"
@@ -1518,7 +1548,8 @@ func (s *SnapOpSuite) TestRefreshOnePoweringOff(c *check.C) {
 		c.Check(r.Method, check.Equals, "POST")
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/core")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action": "refresh",
+			"action":      "refresh",
+			"transaction": string(client.TransactionPerSnap),
 		})
 	}
 	s.srv.restart = "poweroff"
@@ -1534,7 +1565,7 @@ func (s *SnapOpSuite) TestRefreshOnePoweringOff(c *check.C) {
 func (s *SnapOpSuite) TestRefreshOneChanDeprecated(c *check.C) {
 	var in, out string
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{"action": "refresh", "channel": out})
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{"action": "refresh", "channel": out, "transaction": string(client.TransactionPerSnap)})
 		fmt.Fprintln(w, `{"type": "error", "result": {"message": "snap not found", "value": "foo", "kind": "snap-not-found"}, "status-code": 404}`)
 	})
 
@@ -1568,6 +1599,37 @@ func (s *SnapOpSuite) TestRefreshAllChannel(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify mode or channel flags`)
 }
 
+func (s *SnapOpSuite) TestRefreshOneIgnoreRunning(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":         "refresh",
+			"ignore-running": true,
+			"transaction":    "per-snap",
+		})
+	}
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--ignore-running", "one"})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapOpSuite) TestRefreshManyIgnoreRunning(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":         "refresh",
+			"snaps":          []interface{}{"one", "two"},
+			"ignore-running": true,
+			"transaction":    "per-snap",
+		})
+	}
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--ignore-running", "one", "two"})
+	c.Assert(err, check.IsNil)
+}
+
 func (s *SnapOpSuite) TestRefreshManyChannel(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--beta", "one", "two"})
@@ -1592,8 +1654,9 @@ func (s *SnapOpSuite) TestRefreshOneAmend(c *check.C) {
 		c.Check(r.Method, check.Equals, "POST")
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action": "refresh",
-			"amend":  true,
+			"action":      "refresh",
+			"amend":       true,
+			"transaction": string(client.TransactionPerSnap),
 		})
 	}
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--amend", "one"})
@@ -1762,12 +1825,55 @@ func (s *SnapSuite) TestRefreshChannelDuplicationError(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "Please specify a single channel")
 }
 
+func (s *SnapOpSuite) TestNotInstalledError(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{
+			"type": "error",
+			"result": {
+				"message": "Snap was not installed",
+				"kind": "snap-not-installed",
+				"status-code": 400
+				}}`)
+	})
+
+	for _, t := range []struct {
+		cmd string
+		err bool
+	}{
+		{cmd: "refresh foo", err: true},
+		{cmd: "refresh foo bar", err: true},
+		{cmd: "install foo", err: true},
+		{cmd: "install foo bar", err: true},
+		{cmd: "revert foo", err: true},
+		{cmd: "switch --channel stable foo", err: true},
+		{cmd: "switch --channel stable foo bar", err: true},
+		{cmd: "enable foo", err: true},
+		{cmd: "enable foo bar", err: true},
+		{cmd: "disable foo", err: true},
+		{cmd: "disable foo bar", err: true},
+		{cmd: "list foo", err: true},
+		{cmd: "list foo bar", err: true},
+		{cmd: "save foo", err: true},
+		{cmd: "save foo bar", err: true},
+		{cmd: "remove foo", err: false},
+		{cmd: "remove foo bar", err: false},
+	} {
+		_, err := snap.Parser(snap.Client()).ParseArgs(strings.Fields(t.cmd))
+		if t.err {
+			c.Check(err, check.ErrorMatches, "Snap was not installed")
+		} else {
+			c.Check(err, check.IsNil)
+		}
+	}
+}
+
 func (s *SnapOpSuite) TestInstallFromChannel(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"channel": "edge",
+			"action":      "install",
+			"channel":     "edge",
+			"transaction": string(client.TransactionPerSnap),
 		})
 		s.srv.channel = "edge"
 	}
@@ -1790,6 +1896,7 @@ func (s *SnapOpSuite) TestInstallOneIgnoreValidation(c *check.C) {
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":            "install",
 			"ignore-validation": true,
+			"transaction":       string(client.TransactionPerSnap),
 		})
 	}
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--ignore-validation", "one"})
@@ -2036,8 +2143,9 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 		case 0:
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-				"action": "install",
-				"snaps":  []interface{}{"one", "two"},
+				"action":      "install",
+				"snaps":       []interface{}{"one", "two"},
+				"transaction": string(client.TransactionPerSnap),
 			})
 
 			c.Check(r.Method, check.Equals, "POST")

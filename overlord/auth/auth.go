@@ -139,7 +139,7 @@ func NewUser(st *state.State, username, email, macaroon string, discharges []str
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		authStateData = AuthState{}
 	} else if err != nil {
 		return nil, err
@@ -193,7 +193,7 @@ func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, ErrInvalidUser
 	}
 	if err != nil {
@@ -221,7 +221,7 @@ func Users(st *state.State) ([]*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, nil
 	}
 	if err != nil {
@@ -250,7 +250,7 @@ func findUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, ErrInvalidUser
 	}
 	if err != nil {
@@ -271,7 +271,7 @@ func UpdateUser(st *state.State, user *UserState) error {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return ErrInvalidUser
 	}
 	if err != nil {

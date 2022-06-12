@@ -1,10 +1,22 @@
 summary: Check basic core20 system functionality
 
-systems: [ubuntu-core-20-*]
+systems:
+  - ubuntu-core-20-*
+  # TODO:
+  #  depends on https://github.com/snapcore/core-base/issues/37
+  # - ubuntu-core-22-*
 
 execute: |
+    case "$SPREAD_SYSTEM" in
+      ubuntu-core-22-*)
+        base_snap=core22
+        ;;
+      ubuntu-core-20-*)
+        base_snap=core20
+        ;;
+    esac
     echo "Check that the system snaps are there"
-    snap list core20
+    snap list "${base_snap}"
     snap list snapd
     if snap list core; then
         echo "The old core snap is installed but should not"
@@ -15,8 +27,12 @@ execute: |
     snap changes | MATCH "Done.*Initialize system state"
 
     echo "Check that a simple shell snap"
-    snap install test-snapd-sh-core20
-    test-snapd-sh-core20.sh -c 'echo hello' | MATCH hello
+    if os.query is-core22; then
+        snap install --edge "test-snapd-sh-${base_snap}"
+    else
+        snap install "test-snapd-sh-${base_snap}"
+    fi
+    "test-snapd-sh-${base_snap}.sh" -c 'echo hello' | MATCH hello
 
     if python3 -m json.tool < /var/lib/snapd/system-key | grep '"build-id": ""'; then
         echo "The build-id of snapd must not be empty."
@@ -24,13 +40,12 @@ execute: |
     fi
 
     echo "Ensure passwd/group is available for snaps"
-    test-snapd-sh-core20.sh -c 'cat /var/lib/extrausers/passwd' | MATCH test
+    "test-snapd-sh-${base_snap}.sh" -c 'cat /var/lib/extrausers/passwd' | MATCH test
 
-    #shellcheck source=tests/lib/names.sh
-    . "$TESTSLIB"/names.sh
-
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-20-64 ]]; then
+    case "$SPREAD_SYSTEM" in
+      ubuntu-core-20-64|ubuntu-core-22-64)
         echo "Ensure extracted kernel.efi exists"
+        kernel_name="$(snaps.name kernel)"
         test -e /boot/grub/"$kernel_name"*/kernel.efi
 
         echo "Ensure kernel.efi is a symlink"
@@ -39,11 +54,13 @@ execute: |
         echo "Ensure we are using managed boot assets"
         MATCH '# Snapd-Boot-Config-Edition: [0-9]+' < /boot/grub/grub.cfg
         MATCH '# Snapd-Boot-Config-Edition: [0-9]+' < /run/mnt/ubuntu-seed/EFI/ubuntu/grub.cfg
-    else
+        ;;
+      *)
         echo "Ensure extracted {kernel,initrd}.img exists"
         test -e /run/mnt/ubuntu-seed/systems/*/kernel/kernel.img
         test -e /run/mnt/ubuntu-seed/systems/*/kernel/initrd.img
-    fi
+        ;;
+    esac
 
     echo "Ensure that model was written to ubuntu-boot"
     test -e /run/mnt/ubuntu-boot/device/model
@@ -60,7 +77,7 @@ execute: |
     # b) there was a cloud.cfg.d override (e.g. MAAS), then we must have more
     #    files in writable than in the core20 snap. The core20 content and the
     #    extra config will be merged
-    test -e /writable/system-data/etc/cloud/cloud-init.disabled || [ "$(find /writable/system-data/etc/cloud/cloud.cfg.d/ | wc -l)" -gt "$(find /snap/core20/current/etc/cloud/cloud.cfg.d/ | wc -l)" ]
+    test -e /writable/system-data/etc/cloud/cloud-init.disabled || [ "$(find /writable/system-data/etc/cloud/cloud.cfg.d/ | wc -l)" -gt "$(find /snap/${base_snap}/current/etc/cloud/cloud.cfg.d/ | wc -l)" ]
 
     # ensure that we have no symlinks from /var/lib/snapd/snaps to
     # /var/lib/snapd/seed
@@ -82,7 +99,7 @@ execute: |
     MODEL="$(snap model --verbose | grep '^model' | awk '{ print $2 }')"
     BRAND_ID="$(snap model --verbose | grep '^brand-id:' | awk '{print $2}')"
     if [ "$(snap known account "username=$BRAND_ID" | grep '^validation:' | awk '{print $2}')" != "unproven" ]; then
-        BRAND_ID="$BRAND_ID\*"
+        BRAND_ID="$BRAND_ID\*\*"
     fi
     snap recovery --unicode=never | MATCH "[0-9]+ +$BRAND_ID +$MODEL +current"
 

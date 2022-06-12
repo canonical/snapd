@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
@@ -166,6 +167,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 			Media:   update.Media,
 		},
 	}
+	snapsup.IgnoreRunning = globalFlags.IgnoreRunning
 	return &snapsup, snapst, nil
 }
 
@@ -302,6 +304,10 @@ func refreshRetain(st *state.State) int {
 	return retain
 }
 
+var excludeFromRefreshAppAwareness = func(t snap.Type) bool {
+	return t == snap.TypeSnapd || t == snap.TypeOS
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
 	// NB: we should strive not to need or propagate deviceCtx
 	// here, the resulting effects/changes were not pleasant at
@@ -358,7 +364,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
 
-		if experimentalRefreshAppAwareness && !snapsup.Flags.IgnoreRunning {
+		if experimentalRefreshAppAwareness && !excludeFromRefreshAppAwareness(snapsup.Type) && !snapsup.Flags.IgnoreRunning {
 			// Note that because we are modifying the snap state inside
 			// softCheckNothingRunningForRefresh, this block must be located
 			// after the conflict check done above.
@@ -975,7 +981,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 
 	var snapst SnapState
 	err = Get(st, instanceName, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, err
 	}
 
@@ -1084,7 +1090,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 
 	var snapst SnapState
 	err := Get(st, name, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if snapst.IsInstalled() {
@@ -1178,7 +1184,7 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 		}
 
 		var snapst SnapState
-		if err = Get(st, name, &snapst); err != nil && err != state.ErrNoState {
+		if err = Get(st, name, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 			return nil, err
 		}
 
@@ -1233,7 +1239,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 	for _, name := range names {
 		var snapst SnapState
 		err := Get(st, name, &snapst)
-		if err != nil && err != state.ErrNoState {
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return nil, nil, err
 		}
 		if snapst.IsInstalled() {
@@ -1267,7 +1273,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 	}
 
 	var transactionLane int
-	if flags.Transactional {
+	if flags.Transaction == client.TransactionAllSnaps {
 		transactionLane = st.NewLane()
 	}
 	tasksets := make([]*state.TaskSet, 0, len(installs))
@@ -1308,7 +1314,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 		// one fails the changes for all affected snaps will be
 		// undone. Otherwise, have different lanes per snap so failures
 		// only affect the culprit snap.
-		if flags.Transactional {
+		if flags.Transaction == client.TransactionAllSnaps {
 			ts.JoinLane(transactionLane)
 		} else {
 			ts.JoinLane(st.NewLane())
@@ -1546,7 +1552,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
 	var transactionLane int
-	if globalFlags.Transactional {
+	if globalFlags.Transaction == client.TransactionAllSnaps {
 		transactionLane = st.NewLane()
 	}
 	for _, update := range updates {
@@ -1572,7 +1578,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		// one fails the changes for all affected snaps will be
 		// undone. Otherwise, have different lanes per snap so failures
 		// only affect the culprit snap.
-		if globalFlags.Transactional {
+		if globalFlags.Transaction == client.TransactionAllSnaps {
 			ts.JoinLane(transactionLane)
 		} else {
 			ts.JoinLane(st.NewLane())
@@ -1914,7 +1920,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 	}
 	var snapst SnapState
 	err := Get(st, name, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if !snapst.IsInstalled() {
@@ -1993,7 +1999,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	}
 	var snapst SnapState
 	err := Get(st, name, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if !snapst.IsInstalled() {
@@ -2430,7 +2436,7 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, &snap.NotInstalledError{Snap: name}
 	}
 	if err != nil {
@@ -2542,7 +2548,7 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 func SwitchToNewGadget(st *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, &snap.NotInstalledError{Snap: name}
 	}
 	if err != nil {
@@ -2622,7 +2628,7 @@ func AddGadgetAssetsTasks(st *state.State, ts *state.TaskSet) (*state.TaskSet, e
 func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, &snap.NotInstalledError{Snap: name}
 	}
 	if err != nil {
@@ -2677,7 +2683,7 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 func Disable(st *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, &snap.NotInstalledError{Snap: name}
 	}
 	if err != nil {
@@ -2751,7 +2757,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	}
 
 	// check if this snap is required by any validation set in enforcing mode
-	enforcedSets, err := EnforcedValidationSets(st)
+	enforcedSets, err := EnforcedValidationSets(st, nil)
 	if err != nil {
 		return err
 	}
@@ -2820,7 +2826,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 func removeTasks(st *state.State, name string, revision snap.Revision, flags *RemoveFlags) (removeTs *state.TaskSet, snapshotSize uint64, err error) {
 	var snapst SnapState
 	err = Get(st, name, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, 0, err
 	}
 
@@ -3076,10 +3082,10 @@ func validateSnapNames(names []string) error {
 
 // Revert returns a set of tasks for reverting to the previous version of the snap.
 // Note that the state must be locked by the caller.
-func Revert(st *state.State, name string, flags Flags) (*state.TaskSet, error) {
+func Revert(st *state.State, name string, flags Flags, fromChange string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -3088,13 +3094,13 @@ func Revert(st *state.State, name string, flags Flags) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("no revision to revert to")
 	}
 
-	return RevertToRevision(st, name, pi.Revision, flags)
+	return RevertToRevision(st, name, pi.Revision, flags, fromChange)
 }
 
-func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Flags) (*state.TaskSet, error) {
+func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Flags, fromChange string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -3138,7 +3144,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
-	return doInstall(st, &snapst, snapsup, 0, "", nil)
+	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -3153,7 +3159,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet, error) {
 	var oldSnapst, newSnapst SnapState
 	err := Get(st, oldName, &oldSnapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if !oldSnapst.IsInstalled() {
@@ -3163,7 +3169,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	var all []*state.TaskSet
 	// install new core (if not already installed)
 	err = Get(st, newName, &newSnapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if !newSnapst.IsInstalled() {
@@ -3233,7 +3239,7 @@ func Installing(st *state.State) bool {
 func Info(st *state.State, name string, revision snap.Revision) (*snap.Info, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, &snap.NotInstalledError{Snap: name}
 	}
 	if err != nil {
@@ -3253,7 +3259,7 @@ func Info(st *state.State, name string, revision snap.Revision) (*snap.Info, err
 func CurrentInfo(st *state.State, name string) (*snap.Info, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	info, err := snapst.CurrentInfo()
@@ -3300,7 +3306,7 @@ func All(st *state.State) (map[string]*SnapState, error) {
 	// XXX: result is a map because sideloaded snaps carry no name
 	// atm in their sideinfos
 	var stateMap map[string]*SnapState
-	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
+	if err := st.Get("snaps", &stateMap); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	curStates := make(map[string]*SnapState, len(stateMap))
@@ -3335,7 +3341,7 @@ func InstalledSnaps(st *state.State) (snaps []*snapasserts.InstalledSnap, ignore
 // NumSnaps returns the number of installed snaps.
 func NumSnaps(st *state.State) (int, error) {
 	var snaps map[string]*json.RawMessage
-	if err := st.Get("snaps", &snaps); err != nil && err != state.ErrNoState {
+	if err := st.Get("snaps", &snaps); err != nil && !errors.Is(err, state.ErrNoState) {
 		return -1, err
 	}
 	return len(snaps), nil
@@ -3347,7 +3353,7 @@ func NumSnaps(st *state.State) (int, error) {
 func Set(st *state.State, name string, snapst *SnapState) {
 	var snaps map[string]*json.RawMessage
 	err := st.Get("snaps", &snaps)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		panic("internal error: cannot unmarshal snaps state: " + err.Error())
 	}
 	if snaps == nil {
@@ -3370,7 +3376,7 @@ func Set(st *state.State, name string, snapst *SnapState) {
 func ActiveInfos(st *state.State) ([]*snap.Info, error) {
 	var stateMap map[string]*SnapState
 	var infos []*snap.Info
-	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
+	if err := st.Get("snaps", &stateMap); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	for instanceName, snapst := range stateMap {
@@ -3389,7 +3395,7 @@ func ActiveInfos(st *state.State) ([]*snap.Info, error) {
 
 func HasSnapOfType(st *state.State, snapType snap.Type) (bool, error) {
 	var stateMap map[string]*SnapState
-	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
+	if err := st.Get("snaps", &stateMap); err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
 
@@ -3408,7 +3414,7 @@ func HasSnapOfType(st *state.State, snapType snap.Type) (bool, error) {
 
 func infosForType(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
 	var stateMap map[string]*SnapState
-	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
+	if err := st.Get("snaps", &stateMap); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -3512,8 +3518,7 @@ func coreInfo(st *state.State) (*snap.Info, error) {
 
 // ConfigDefaults returns the configuration defaults for the snap as
 // specified in the gadget for the given device context.
-// If gadget is absent or the snap has no snap-id it returns
-// ErrNoState.
+// If gadget is absent or the snap has no snap-id it returns ErrNoState.
 func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (map[string]interface{}, error) {
 	info, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
@@ -3524,7 +3529,7 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 	// configuring "core"
 	isSystemDefaults := snapName == defaultCoreSnapName
 	var snapst SnapState
-	if err := Get(st, snapName, &snapst); err != nil && err != state.ErrNoState {
+	if err := Get(st, snapName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -3588,7 +3593,7 @@ func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (res
 	return func() { osutilCheckFreeSpace = old }
 }
 
-func MockEnforcedValidationSets(f func(st *state.State) (*snapasserts.ValidationSets, error)) func() {
+func MockEnforcedValidationSets(f func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error)) func() {
 	osutil.MustBeTestBinary("mocking can be done only in tests")
 
 	old := EnforcedValidationSets

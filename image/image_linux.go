@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/store/tooling"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
 	"github.com/snapcore/snapd/image/preseed"
@@ -72,7 +73,7 @@ func (custo *Customizations) validate(model *asserts.Model) error {
 	kind := "UC16/18"
 	switch {
 	case core20:
-		kind = "UC20"
+		kind = "UC20+"
 		// TODO:UC20: consider supporting these with grade dangerous?
 		unsupportedConsoleConfDisable()
 		if custo.CloudInitUserData != "" {
@@ -97,7 +98,7 @@ func classicHasSnaps(model *asserts.Model, opts *Options) bool {
 	return model.Gadget() != "" || len(model.RequiredNoEssentialSnaps()) != 0 || len(opts.Snaps) != 0
 }
 
-var newToolingStoreFromModel = NewToolingStoreFromModel
+var newToolingStoreFromModel = tooling.NewToolingStoreFromModel
 
 func Prepare(opts *Options) error {
 	var model *asserts.Model
@@ -159,8 +160,7 @@ func Prepare(opts *Options) error {
 		if model.Base() != "core20" {
 			return fmt.Errorf("cannot preseed the image for a model other than core20")
 		}
-		// TODO: support signing key
-		return preseedCore20(opts.PrepareDir)
+		return preseedCore20(opts.PrepareDir, opts.PreseedSignKey, opts.AppArmorKernelFeaturesDir)
 	}
 
 	return nil
@@ -264,7 +264,7 @@ func makeLabel(now time.Time) string {
 	return now.UTC().Format("20060102")
 }
 
-var setupSeed = func(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
+var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
 	}
@@ -377,7 +377,7 @@ var setupSeed = func(tsto *ToolingStore, model *asserts.Model, opts *Options) er
 		return err
 	}
 
-	var curSnaps []*CurrentSnap
+	var curSnaps []*tooling.CurrentSnap
 	for _, sn := range localSnaps {
 		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, f, db)
 		if err != nil && !asserts.IsNotFound(err) {
@@ -399,7 +399,7 @@ var setupSeed = func(tsto *ToolingStore, model *asserts.Model, opts *Options) er
 		sn.ARefs = aRefs
 
 		if info.ID() != "" {
-			curSnaps = append(curSnaps, &CurrentSnap{
+			curSnaps = append(curSnaps, &tooling.CurrentSnap{
 				SnapName: info.SnapName(),
 				SnapID:   info.ID(),
 				Revision: info.Revision,
@@ -430,14 +430,14 @@ var setupSeed = func(tsto *ToolingStore, model *asserts.Model, opts *Options) er
 			}
 			return sn.Path, nil
 		}
-		snapToDownloadOptions := make([]SnapToDownload, len(toDownload))
+		snapToDownloadOptions := make([]tooling.SnapToDownload, len(toDownload))
 		for i, sn := range toDownload {
 			byName[sn.SnapName()] = sn
 			snapToDownloadOptions[i].Snap = sn
 			snapToDownloadOptions[i].Channel = sn.Channel
 			snapToDownloadOptions[i].CohortKey = opts.WideCohortKey
 		}
-		downloadedSnaps, err := tsto.DownloadMany(snapToDownloadOptions, curSnaps, DownloadManyOptions{
+		downloadedSnaps, err := tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
 			BeforeDownloadFunc: beforeDownload,
 			EnforceValidation:  opts.Customizations.Validation == "enforce",
 		})
@@ -460,7 +460,7 @@ var setupSeed = func(tsto *ToolingStore, model *asserts.Model, opts *Options) er
 			aRefs := f.Refs()[prev:]
 			sn.ARefs = aRefs
 
-			curSnaps = append(curSnaps, &CurrentSnap{
+			curSnaps = append(curSnaps, &tooling.CurrentSnap{
 				SnapName: sn.Info.SnapName(),
 				SnapID:   sn.Info.ID(),
 				Revision: sn.Info.Revision,

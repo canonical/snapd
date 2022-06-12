@@ -26,8 +26,10 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -94,12 +96,18 @@ func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() Boo
 	return o.currentTrustedRecoveryBootAssetsMap()
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentDataEncryptionKey() secboot.EncryptionKey {
+func (o *TrustedAssetsInstallObserver) CurrentDataEncryptionKey() keys.EncryptionKey {
 	return o.dataEncryptionKey
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentSaveEncryptionKey() secboot.EncryptionKey {
+func (o *TrustedAssetsInstallObserver) CurrentSaveEncryptionKey() keys.EncryptionKey {
 	return o.saveEncryptionKey
+}
+
+func MockSecbootProvisionTPM(f func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error) (restore func()) {
+	restore = testutil.Backup(&secbootProvisionTPM)
+	secbootProvisionTPM = f
+	return restore
 }
 
 func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error) (restore func()) {

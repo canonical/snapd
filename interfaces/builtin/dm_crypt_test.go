@@ -85,13 +85,15 @@ func (s *DmCryptInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/mapper/control")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/dm-[0-9]*")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/systemd/seats/*")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/cryptsetup/ r,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/cryptsetup/* rwk,")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,run/}media/{,**}")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "mount options=(ro,nosuid,nodev) /dev/dm-[0-9]*")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "mount options=(rw,nosuid,nodev) /dev/dm-[0-9]*")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,usr/}sbin/cryptsetup ixr,")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,usr/}bin/mount ixr,")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,usr/}bin/umount ixr,")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/mount/utab* wrlk,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,var/}run/mount/utab* wrlk,")
 }
 
 func (s *DmCryptInterfaceSuite) TestUDevSpec(c *C) {

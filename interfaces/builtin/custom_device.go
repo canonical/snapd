@@ -405,7 +405,7 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 
 	// Now write all the rules
 	for _, rule := range deviceRules {
-		spec.AddSnippet(rule)
+		spec.TagDevice(rule)
 	}
 
 	return nil

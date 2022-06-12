@@ -19,12 +19,32 @@
 
 package main
 
+import "github.com/snapcore/snapd/testutil"
+
 var (
 	Run = run
 )
 
 func MockOsGetuid(f func() int) (restore func()) {
-	oldOsGetuid := osGetuid
+	r := testutil.Backup(&osGetuid)
 	osGetuid = f
-	return func() { osGetuid = oldOsGetuid }
+	return r
+}
+
+func MockPreseedCore20(f func(dir, key, aaDir string) error) (restore func()) {
+	r := testutil.Backup(&preseedCore20)
+	preseedCore20 = f
+	return r
+}
+
+func MockPreseedClassic(f func(dir string) error) (restore func()) {
+	r := testutil.Backup(&preseedClassic)
+	preseedClassic = f
+	return r
+}
+
+func MockResetPreseededChroot(f func(dir string) error) (restore func()) {
+	r := testutil.Backup(&preseedResetPreseededChroot)
+	preseedResetPreseededChroot = f
+	return r
 }

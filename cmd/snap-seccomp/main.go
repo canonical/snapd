@@ -479,25 +479,26 @@ func (sc *SeccompData) SetArgs(args [6]uint64) {
 // the arg is known to be 32 bit (uid_t/gid_t) and the kernel accepts one
 // or both of uint32(-1) and uint64(-1) and does its own masking).
 var syscallsWithNegArgsMaskHi32 = map[string]bool{
-	"chown":       true,
-	"chown32":     true,
-	"fchown":      true,
-	"fchown32":    true,
-	"fchownat":    true,
-	"lchown":      true,
-	"lchown32":    true,
-	"setgid":      true,
-	"setgid32":    true,
-	"setregid":    true,
-	"setregid32":  true,
-	"setresgid":   true,
-	"setresgid32": true,
-	"setreuid":    true,
-	"setreuid32":  true,
-	"setresuid":   true,
-	"setresuid32": true,
-	"setuid":      true,
-	"setuid32":    true,
+	"chown":           true,
+	"chown32":         true,
+	"fchown":          true,
+	"fchown32":        true,
+	"fchownat":        true,
+	"lchown":          true,
+	"lchown32":        true,
+	"setgid":          true,
+	"setgid32":        true,
+	"setregid":        true,
+	"setregid32":      true,
+	"setresgid":       true,
+	"setresgid32":     true,
+	"setreuid":        true,
+	"setreuid32":      true,
+	"setresuid":       true,
+	"setresuid32":     true,
+	"setuid":          true,
+	"setuid32":        true,
+	"copy_file_range": true,
 }
 
 // The kernel uses uint32 for all syscall arguments, but seccomp takes a
@@ -729,7 +730,7 @@ func complainAction() seccomp.ScmpAction {
 	}
 
 	// Because ActLog is functionally ActAllow with logging, if we don't
-	// support ActLog, fallback to ActLog.
+	// support ActLog, fallback to ActAllow.
 	return seccomp.ActAllow
 }
 

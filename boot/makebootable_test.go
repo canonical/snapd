@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -63,6 +64,11 @@ func (s *makeBootableSuite) SetUpTest(c *C) {
 	s.forceBootloader(s.bootloader)
 
 	s.AddCleanup(archtest.MockArchitecture("amd64"))
+	snippets := []assets.ForEditions{
+		{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")},
+	}
+	s.AddCleanup(assets.MockSnippetsForEdition("grub.cfg:static-cmdline", snippets))
+	s.AddCleanup(assets.MockSnippetsForEdition("grub-recovery.cfg:static-cmdline", snippets))
 }
 
 func makeSnap(c *C, name, yaml string, revno snap.Revision) (fn string, info *snap.Info) {
@@ -166,6 +172,11 @@ func (s *makeBootable20Suite) SetUpTest(c *C) {
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir()).RecoveryAware()
 	s.forceBootloader(s.bootloader)
 	s.AddCleanup(archtest.MockArchitecture("amd64"))
+	snippets := []assets.ForEditions{
+		{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")},
+	}
+	s.AddCleanup(assets.MockSnippetsForEdition("grub.cfg:static-cmdline", snippets))
+	s.AddCleanup(assets.MockSnippetsForEdition("grub-recovery.cfg:static-cmdline", snippets))
 }
 
 func (s *makeBootable20UbootSuite) SetUpTest(c *C) {
@@ -443,7 +454,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	model := boottest.MakeMockModel()
 
 	err := boot.MakeRunnableSystem(model, nil, nil)
-	c.Assert(err, ErrorMatches, "internal error: cannot make non-uc20 system runnable")
+	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20(c *C) {
@@ -553,8 +564,8 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// set encryption key
-	myKey := secboot.EncryptionKey{}
-	myKey2 := secboot.EncryptionKey{}
+	myKey := keys.EncryptionKey{}
+	myKey2 := keys.EncryptionKey{}
 	for i := range myKey {
 		myKey[i] = byte(i)
 		myKey2[i] = byte(128 + i)
@@ -569,9 +580,18 @@ version: 5.0
 	})
 	defer restore()
 
+	provisionCalls := 0
+	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+		provisionCalls++
+		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+		c.Check(mode, Equals, secboot.TPMProvisionFull)
+		return nil
+	})
+	defer restore()
 	// set mock key sealing
 	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+		c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
 		sealKeysCalls++
 		switch sealKeysCalls {
 		case 1:
@@ -710,6 +730,8 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 	c.Check(copiedRecoveryGrubBin, testutil.FileEquals, "recovery grub content")
 	c.Check(copiedRecoveryShimBin, testutil.FileEquals, "recovery shim content")
 
+	// make sure TPM was provisioned
+	c.Check(provisionCalls, Equals, 1)
 	// make sure SealKey was called for the run object and the fallback object
 	c.Check(sealKeysCalls, Equals, 2)
 
@@ -896,8 +918,8 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// set encryption key
-	myKey := secboot.EncryptionKey{}
-	myKey2 := secboot.EncryptionKey{}
+	myKey := keys.EncryptionKey{}
+	myKey2 := keys.EncryptionKey{}
 	for i := range myKey {
 		myKey[i] = byte(i)
 		myKey2[i] = byte(128 + i)
@@ -912,6 +934,14 @@ version: 5.0
 	})
 	defer restore()
 
+	provisionCalls := 0
+	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+		provisionCalls++
+		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+		c.Check(mode, Equals, secboot.TPMProvisionFull)
+		return nil
+	})
+	defer restore()
 	// set mock key sealing
 	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
@@ -958,6 +988,8 @@ version: 5.0
 
 	err = boot.MakeRunnableSystem(model, bootWith, obs)
 	c.Assert(err, ErrorMatches, "cannot seal the encryption keys: seal error")
+	// the TPM was provisioned
+	c.Check(provisionCalls, Equals, 1)
 }
 
 func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelArgs(c *C, whichFile, content, errMsg string, cmdlines map[string]string) {
@@ -1079,6 +1111,14 @@ version: 5.0
 	})
 	defer restore()
 
+	provisionCalls := 0
+	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+		provisionCalls++
+		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+		c.Check(mode, Equals, secboot.TPMProvisionFull)
+		return nil
+	})
+	defer restore()
 	// set mock key sealing
 	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
@@ -1156,6 +1196,8 @@ current_trusted_boot_assets={"grubx64.efi":["5ee042c15e104b825d6bc15c41cdb026589
 current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"],"grubx64.efi":["aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"]}
 current_kernel_command_lines=["%v"]
 `, cmdlines["run"]))
+	// make sure the TPM was provisioned
+	c.Check(provisionCalls, Equals, 1)
 	// make sure SealKey was called for the run object and the fallback object
 	c.Check(sealKeysCalls, Equals, 2)
 
@@ -1334,7 +1376,7 @@ version: 5.0
 
 	// TODO:UC20: enable this use case
 	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
-	c.Assert(err, ErrorMatches, "non-empty uboot.env not supported on UC20 yet")
+	c.Assert(err, ErrorMatches, `non-empty uboot.env not supported on UC20\+ yet`)
 }
 
 func (s *makeBootable20UbootSuite) TestUbootMakeBootableImage20BootScr(c *C) {
