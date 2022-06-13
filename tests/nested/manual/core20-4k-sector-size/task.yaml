@@ -36,7 +36,7 @@ execute: |
     tests.nested exec "! snap list test-snapd-sh"
 
     echo "Verifying tpm working on the nested vm"
-    tests.nested exec "dmesg | grep -i tpm" | MATCH "efi: +SMBIOS=.* +TPMFinalLog=.*"
+    tests.nested exec "sudo dmesg | grep -i tpm" | MATCH "efi: +SMBIOS=.* +TPMFinalLog=.*"
     tests.nested exec "test -e /sys/kernel/security/tpm0/binary_bios_measurements"
 
     echo "and secure boot is enabled on the nested vm"
