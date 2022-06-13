@@ -107,7 +107,7 @@ reset_classic() {
 
         EXTRA_NC_ARGS="-q 1"
         case "$SPREAD_SYSTEM" in
-            fedora-34-*|debian-10-*)
+            debian-10-*)
                 # Param -q is not available on fedora 34
                 EXTRA_NC_ARGS="-w 1"
                 ;;

@@ -22,6 +22,7 @@ package ctlcmd
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -65,6 +66,18 @@ func addMockCmd(name string, hidden bool) *MockCommand {
 
 func RemoveCommand(name string) {
 	delete(commands, name)
+}
+
+func FormatLongPublisher(snapInfo *snap.Info, storeAccountID string) string {
+	var mf modelCommandFormatter
+
+	mf.snapInfo = snapInfo
+	return mf.LongPublisher(storeAccountID)
+}
+
+func FindSerialAssertion(st *state.State, modelAssertion *asserts.Model) (*asserts.Serial, error) {
+	var mc modelCommand
+	return mc.findSerialAssertion(st, modelAssertion)
 }
 
 type MockCommand struct {

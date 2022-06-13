@@ -2,7 +2,6 @@ summary: The portal-info command provides information about a confined process
 
 systems:
     - -ubuntu-14.04-*
-    - -fedora-33-*
     - -amazon-linux-*
     - -centos-7-*
 

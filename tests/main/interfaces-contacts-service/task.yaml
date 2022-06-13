@@ -17,10 +17,8 @@ systems:
     - -centos-*
     - -debian-11-*
     - -debian-sid-*
-    - -fedora-33-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -fedora-34-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -fedora-35-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -opensuse-15.2-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -fedora-36-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -opensuse-15.3-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -ubuntu-14.04-*  # no tests.session support, eds is too old
