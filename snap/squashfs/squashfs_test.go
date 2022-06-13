@@ -569,7 +569,7 @@ EOF
 cat >&2 <<EOF
 Write on output file failed because No space left on device
 
-FATAL ERROR: writer: failed to write file squashfs-root/etc/modprobe.d/blacklist.conf
+FATAL ERROR: writer: failed to write file squashfs-root/etc/modprobe.d/some.conf
 EOF
 exit 1
 `)
@@ -583,7 +583,7 @@ exit 1
 -----
 Write on output file failed because No space left on device
 
-FATAL ERROR: writer: failed to write file squashfs-root/etc/modprobe.d/blacklist.conf
+FATAL ERROR: writer: failed to write file squashfs-root/etc/modprobe.d/some.conf
 -----`)
 }
 
