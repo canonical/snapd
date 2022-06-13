@@ -3683,12 +3683,10 @@ func (m *SnapManager) doMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	st.Lock()
+	defer st.Unlock()
 	t.Set("undo-exposed-home-init", undo)
-	st.Unlock()
 	snapsup.MigratedToExposedHome = true
 
-	st.Lock()
-	defer st.Unlock()
 	return SetTaskSnapSetup(t, snapsup)
 }
 

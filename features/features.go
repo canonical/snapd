@@ -53,7 +53,7 @@ const (
 	DbusActivation
 	// HiddenSnapDataHomeDir controls if the snaps' data dir is ~/.snap/data instead of ~/snap
 	HiddenSnapDataHomeDir
-	// MoveSnapHomeDir controls whether snap user data under ~/snap (or ~/.snap/data) are moved to ~/Snap.
+	// MoveSnapHomeDir controls whether snap user data under ~/snap (or ~/.snap/data) can be moved to ~/Snap.
 	MoveSnapHomeDir
 	// CheckDiskSpaceRemove controls free disk space check on remove whenever automatic snapshot needs to be created.
 	CheckDiskSpaceRemove

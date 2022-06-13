@@ -2484,12 +2484,12 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 			tasks = append(tasks, t)
 		}
 
-		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), snapsup.InstanceName()))
+		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
 		stop.Set("stop-reason", "home-migration")
 		addTask(stop)
 		prev = stop
 
-		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapsup.InstanceName()))
+		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), name))
 		addTask(unlink)
 		prev = unlink
 
@@ -2498,12 +2498,12 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 		prev = migrate
 
 		// finalize (wrappers+current symlink)
-		linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system"), snapsup.InstanceName(), si.Revision))
+		linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system"), name, si.Revision))
 		addTask(linkSnap)
 		prev = linkSnap
 
 		// run new services
-		startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q (%s) services"), snapsup.InstanceName(), si.Revision))
+		startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q (%s) services"), name, si.Revision))
 		addTask(startSnapServices)
 		prev = startSnapServices
 
