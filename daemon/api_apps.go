@@ -210,9 +210,6 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		return AppNotFound("no matching services")
 	}
 
-	// group service names by their namespace
-	namespaces := make(map[string][]string)
-
 	c.d.overlord.State().Lock()
 	allQuotas, err := servicestate.AllQuotas(c.d.overlord.State())
 	if err != nil {
@@ -220,6 +217,9 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot get service quotas: %v", err)
 	}
 
+	// group service names by their namespace so we can make only one
+	// journctl call per namespace.
+	namespaces := make(map[string][]string)
 	for _, appInfo := range appInfos {
 		opts, err := servicestate.SnapServiceOptions(c.d.overlord.State(), appInfo.Snap.InstanceName(), allQuotas)
 		if err != nil {

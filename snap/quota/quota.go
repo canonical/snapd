@@ -257,6 +257,8 @@ func (grp *Group) SliceFileName() string {
 	return buf.String()
 }
 
+// JournalNamespaceName formats the current group's name into an appropriate
+// name to use as the journal log namespace name.
 func (grp *Group) JournalNamespaceName() string {
 	if grp.JournalLimit == nil {
 		return ""
