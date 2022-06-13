@@ -286,6 +286,10 @@ type journalLineReaderSeqResponse struct {
 	follow  bool
 }
 
+// readAllLogsSorted combines the output of multiple io.ReadCloser's into a single
+// list of systemd.Log objects. The final list of systemd.Log objects will be sorted by
+// their timestamps, and this function will also close all the readers after reading
+// their logs.
 func (rr *journalLineReaderSeqResponse) readAllLogsSorted() ([]systemd.Log, error) {
 	var logs []systemd.Log
 	for _, r := range rr.readers {
