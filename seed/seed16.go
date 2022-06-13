@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -120,11 +120,20 @@ func (s *seed16) Brand() (*asserts.Account, error) {
 	return findBrand(s, s.db)
 }
 
-func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, cache map[string]*Snap, tm timings.Measurer) (*Snap, error) {
+func (s *seed16) SetParallelism(int) {
+	// ignored
+}
+
+func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack string, handler SnapHandler, cache map[string]*Snap, tm timings.Measurer) (*Snap, error) {
 	path := filepath.Join(s.seedDir, "snaps", sn.File)
 
+	_, defaultHandler := handler.(defaultSnapHandler)
+
 	seedSnap := cache[path]
-	if seedSnap == nil {
+	// not cached, or ignore the cache if a non-default handler
+	// was passed, otherwise it would not be called which could be
+	// unexpected
+	if seedSnap == nil || !defaultHandler {
 		snapChannel := sn.Channel
 		if pinnedTrack != "" {
 			var err error
@@ -135,20 +144,43 @@ func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, cache map[stri
 			}
 		}
 		seedSnap = &Snap{
-			Path:    path,
 			Channel: snapChannel,
 			Classic: sn.Classic,
 			DevMode: sn.DevMode,
 		}
 
 		var sideInfo snap.SideInfo
+		var newPath string
 		if sn.Unasserted {
+			var err error
+			newPath, err = handler.HandleUnassertedSnap(sn.Name, path, tm)
+			if err != nil {
+				return nil, err
+			}
 			sideInfo.RealName = sn.Name
 		} else {
 			var si *snap.SideInfo
 			var err error
+
+			deriveRev := func(snapSHA3_384 string, snapSize uint64) (snap.Revision, error) {
+				if si == nil {
+					var err error
+					si, err = snapasserts.DeriveSideInfoFromDigestAndSize(path, snapSHA3_384, snapSize, s.db)
+					if err != nil {
+						return snap.Revision{}, err
+					}
+				}
+				return si.Revision, nil
+			}
 			timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
-				si, err = snapasserts.DeriveSideInfo(path, s.db)
+				var snapSHA3_384 string
+				var snapSize uint64
+				newPath, snapSHA3_384, snapSize, err = handler.HandleAndDigestAssertedSnap(sn.Name, path, essType, nil, deriveRev, tm)
+				if err != nil {
+					return
+				}
+				// sets si too
+				_, err = deriveRev(snapSHA3_384, snapSize)
 			})
 			if asserts.IsNotFound(err) {
 				return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
@@ -161,10 +193,15 @@ func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, cache map[stri
 			// TODO: consider whether to use this if we have links?
 			sideInfo.EditedContact = sn.Contact
 		}
+		origPath := path
+		if newPath != "" {
+			path = newPath
+		}
+		seedSnap.Path = path
 
 		seedSnap.SideInfo = &sideInfo
 		if cache != nil {
-			cache[path] = seedSnap
+			cache[origPath] = seedSnap
 		}
 	}
 
@@ -211,7 +248,7 @@ func (s *seed16) resetSnaps() {
 	s.essentialSnapsNum = 0
 }
 
-func (s *seed16) loadEssentialMeta(essentialTypes []snap.Type, required *naming.SnapSet, added map[string]bool, tm timings.Measurer) error {
+func (s *seed16) loadEssentialMeta(essentialTypes []snap.Type, required *naming.SnapSet, handler SnapHandler, added map[string]bool, tm timings.Measurer) error {
 	model := s.Model()
 
 	seeding := make(map[string]*internal.Snap16, len(s.yamlSnaps))
@@ -262,7 +299,7 @@ func (s *seed16) loadEssentialMeta(essentialTypes []snap.Type, required *naming.
 			return nil, &essentialSnapMissingError{SnapName: snapName}
 		}
 
-		seedSnap, err := s.addSnap(yamlSnap, pinnedTrack, s.essCache, tm)
+		seedSnap, err := s.addSnap(yamlSnap, essType, pinnedTrack, handler, s.essCache, tm)
 		if err != nil {
 			return nil, err
 		}
@@ -335,6 +372,10 @@ func (s *seed16) loadEssentialMeta(essentialTypes []snap.Type, required *naming.
 }
 
 func (s *seed16) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
+	return s.LoadEssentialMetaWithSnapHandler(essentialTypes, nil, tm)
+}
+
+func (s *seed16) LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler SnapHandler, tm timings.Measurer) error {
 	model := s.Model()
 
 	if err := s.loadYaml(); err != nil {
@@ -346,10 +387,17 @@ func (s *seed16) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 
 	s.resetSnaps()
 
-	return s.loadEssentialMeta(essentialTypes, required, added, tm)
+	if handler == nil {
+		handler = defaultSnapHandler{}
+	}
+
+	if len(essentialTypes) == 0 {
+		essentialTypes = nil
+	}
+	return s.loadEssentialMeta(essentialTypes, required, handler, added, tm)
 }
 
-func (s *seed16) LoadMeta(mode string, tm timings.Measurer) error {
+func (s *seed16) LoadMeta(mode string, handler SnapHandler, tm timings.Measurer) error {
 	if mode != AllModes && mode != "run" {
 		return fmt.Errorf("internal error: Core 16/18 have only run mode, got: %s", mode)
 	}
@@ -365,7 +413,11 @@ func (s *seed16) LoadMeta(mode string, tm timings.Measurer) error {
 
 	s.resetSnaps()
 
-	if err := s.loadEssentialMeta(nil, required, added, tm); err != nil {
+	if handler == nil {
+		handler = defaultSnapHandler{}
+	}
+
+	if err := s.loadEssentialMeta(nil, required, handler, added, tm); err != nil {
 		return err
 	}
 
@@ -374,7 +426,7 @@ func (s *seed16) LoadMeta(mode string, tm timings.Measurer) error {
 		if added[sn.Name] {
 			continue
 		}
-		seedSnap, err := s.addSnap(sn, "", nil, tm)
+		seedSnap, err := s.addSnap(sn, "", "", handler, nil, tm)
 		if err != nil {
 			return err
 		}

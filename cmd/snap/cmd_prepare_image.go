@@ -32,8 +32,12 @@ import (
 )
 
 type cmdPrepareImage struct {
-	Classic      bool   `long:"classic"`
-	Architecture string `long:"arch"`
+	Classic        bool   `long:"classic"`
+	Preseed        bool   `long:"preseed"`
+	PreseedSignKey string `long:"preseed-sign-key"`
+	// optional path to AppArmor kernel features directory
+	AppArmorKernelFeaturesDir string `long:"apparmor-features-dir"`
+	Architecture              string `long:"arch"`
 
 	Positional struct {
 		ModelAssertionFn string
@@ -64,6 +68,12 @@ For preparing classic images it supports a --classic mode`),
 		map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"classic": i18n.G("Enable classic mode to prepare a classic model image"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"preseed": i18n.G("Preseed (UC20+ only)"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"preseed-sign-key": i18n.G("Name of the key to use to sign preseed assertion, otherwise use the default key"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"apparmor-features-dir": i18n.G("Optional path to apparmor kernel features directory (UC20+ only)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"arch": i18n.G("Specify an architecture for snaps for --classic when the model does not"),
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -131,6 +141,13 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 
 	opts.PrepareDir = x.Positional.TargetDir
 	opts.Classic = x.Classic
+
+	if x.PreseedSignKey != "" && !x.Preseed {
+		return fmt.Errorf("--preseed-sign-key cannot be used without --preseed")
+	}
+	opts.Preseed = x.Preseed
+	opts.PreseedSignKey = x.PreseedSignKey
+	opts.AppArmorKernelFeaturesDir = x.AppArmorKernelFeaturesDir
 
 	return imagePrepare(opts)
 }

@@ -56,10 +56,22 @@ func Test(t *testing.T) { TestingT(t) }
 
 // systemd's testsuite
 type SystemdTestSuite struct {
+	// 'systemctl' command except for stop. These all
+	// run synchronously so they can share attributes.
 	i      int
 	argses [][]string
 	errors []error
 	outs   [][]byte
+	// 'systemctl stop' command requires some special
+	// mocking because it runs in its own thread. We
+	// have to track its own set of attributes otherwise
+	// the unit test arguments checks will intermittendly
+	// fail due to the random completion ordering. We
+	// do not care about output for 'systemctl stop'.
+	stopDelays []time.Duration
+	stopArgses [][]string
+	stopErrors []error
+	stopIter   int
 
 	j        int
 	jns      []string
@@ -88,11 +100,15 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	// force UTC timezone, for reproducible timestamps
 	os.Setenv("TZ", "")
 
-	s.restoreSystemctl = MockSystemctl(s.myRun)
+	s.restoreSystemctl = MockSystemctlWithDelay(s.myRun)
 	s.i = 0
 	s.argses = nil
 	s.errors = nil
 	s.outs = nil
+	s.stopDelays = nil
+	s.stopArgses = nil
+	s.stopErrors = nil
+	s.stopIter = 0
 
 	s.restoreJournalctl = MockJournalctl(s.myJctl)
 	s.j = 0
@@ -113,16 +129,35 @@ func (s *SystemdTestSuite) TearDownTest(c *C) {
 	s.restoreSELinux()
 }
 
-func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
-	s.argses = append(s.argses, args)
-	if s.i < len(s.outs) {
-		out = s.outs[s.i]
+func (s *SystemdTestSuite) myRun(args ...string) (out []byte, delay time.Duration, err error) {
+	// Default completion time for 'systemctl' operations
+	delayReq := time.Duration(0)
+
+	// We deal with 'systemctl stop' separately because this is a
+	// blocking call running inside a go routine (separate thread)
+	if args[0] == "stop" {
+		// 'systemctl stop' cases
+		s.stopArgses = append(s.stopArgses, args)
+		if s.stopIter < len(s.stopErrors) {
+			err = s.stopErrors[s.stopIter]
+		}
+		if s.stopIter < len(s.stopDelays) {
+			delayReq = s.stopDelays[s.stopIter]
+		}
+		s.stopIter++
+	} else {
+		// Other 'systemctl' cases
+		s.argses = append(s.argses, args)
+		if s.i < len(s.outs) {
+			out = s.outs[s.i]
+		}
+		if s.i < len(s.errors) {
+			err = s.errors[s.i]
+		}
+		s.i++
 	}
-	if s.i < len(s.errors) {
-		err = s.errors[s.i]
-	}
-	s.i++
-	return out, err
+
+	return out, delayReq, err
 }
 
 func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow bool) (io.ReadCloser, error) {
@@ -228,58 +263,177 @@ func (s *SystemdTestSuite) TestStartNoBlock(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "--no-block", "foo", "bar"}})
 }
 
-func (s *SystemdTestSuite) TestStop(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
+// Stop failed because systemctl stop returned an error
+func (s *SystemdTestSuite) TestStopSystemCtlStopError(c *C) {
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	defer restore()
+	s.stopErrors = []error{errors.New("mock error")}
+	err := New(SystemMode, s.rep).Stop([]string{"foo"})
+	c.Assert(err, ErrorMatches, "mock error")
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	// No notifications
+	c.Assert(len(s.rep.msgs), Equals, 0)
+}
+
+// Stop failed because systemctl show returned an error
+func (s *SystemdTestSuite) TestSystemCtlShowError(c *C) {
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
+	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+
+	// 'systemctl show'
+	s.errors = []error{errors.New("mock error")}
+
+	err := New(SystemMode, s.rep).Stop([]string{"foo"})
+	c.Assert(err, ErrorMatches, "mock error")
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	c.Assert(s.argses, HasLen, 1)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	// No notifications
+	c.Assert(len(s.rep.msgs), Equals, 0)
+}
+
+// The stop completed before the notification silence period expired so
+// no output (notification) is expected
+func (s *SystemdTestSuite) TestStopBeforeNotify(c *C) {
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
+	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+	s.stopErrors = []error{nil, errors.New("mock error")}
+
+	// 'systemctl show'
 	s.outs = [][]byte{
-		nil, // for the "stop" itself
+		[]byte("ActiveState=inactive\n"),
+	}
+	s.errors = []error{nil, errors.New("mock error")}
+
+	err := New(SystemMode, s.rep).Stop([]string{"foo"})
+	c.Assert(err, IsNil)
+	// 'systemctl stop'
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	// 'systemctl show'
+	c.Assert(s.argses, HasLen, 1)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+
+	// No notifications
+	c.Assert(len(s.rep.msgs), Equals, 0)
+}
+
+// The stop completed after the notification silence period expired
+func (s *SystemdTestSuite) TestStopAfterNotify(c *C) {
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
+	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+	s.stopErrors = []error{nil, errors.New("mock error")}
+
+	// 'systemctl show'
+	s.outs = [][]byte{
+		[]byte("ActiveState=whatever\n"),
+		[]byte("ActiveState=whatever\n"),
 		[]byte("ActiveState=whatever\n"),
 		[]byte("ActiveState=active\n"),
 		[]byte("ActiveState=inactive\n"),
 	}
-	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New(SystemMode, s.rep).Stop([]string{"foo"}, 1*time.Second)
+	// The timeout error output should never by reached because the 's.outs'
+	// entry before this slot indicates the unit has stopped
+	s.errors = []error{nil, nil, nil, nil, nil, errors.New("mock error")}
+
+	err := New(SystemMode, s.rep).Stop([]string{"foo"})
 	c.Assert(err, IsNil)
-	c.Assert(s.argses, HasLen, 4)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
-	c.Check(s.argses[1], DeepEquals, s.argses[2])
-	c.Check(s.argses[1], DeepEquals, s.argses[3])
+	// 'systemctl stop'
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	// 'systemctl show'
+	c.Assert(s.argses, HasLen, 5)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[0], DeepEquals, s.argses[1])
+	c.Check(s.argses[0], DeepEquals, s.argses[2])
+	c.Check(s.argses[0], DeepEquals, s.argses[3])
+	c.Check(s.argses[0], DeepEquals, s.argses[4])
+
+	// Only the initial notification will be shown because no
+	// list update are possible with only a single service unit
+	c.Assert(len(s.rep.msgs), Equals, 1)
+	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo" to stop.`)
 }
 
 func (s *SystemdTestSuite) TestStopMany(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+	s.stopErrors = []error{nil, errors.New("mock error")}
+
+	// 'systemctl show'
 	s.outs = [][]byte{
-		nil,                              // for the "stop" itself
+		[]byte("ActiveState=whatever\n"), // foo
+		[]byte("ActiveState=whatever\n"), // bar
+		[]byte("ActiveState=whatever\n"), // foo
+		[]byte("ActiveState=whatever\n"), // bar
+		[]byte("ActiveState=active\n"),   // foo
+		[]byte("ActiveState=whatever\n"), // bar
 		[]byte("ActiveState=inactive\n"), // foo
+		[]byte("ActiveState=active\n"),   // bar
 		[]byte("ActiveState=inactive\n"), // bar
 	}
-	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"}, 1*time.Second)
+	// The timeout error output should never by reached because the 's.outs'
+	// entry before this slot indicates the unit has stopped
+	s.errors = []error{nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("mock error")}
+	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
-	c.Assert(s.argses, HasLen, 3)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo", "bar"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
-	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
-}
+	// 'systemctl stop'
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo", "bar"})
+	// 'systemctl show'
+	c.Assert(s.argses, HasLen, 9)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[3], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[4], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[5], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[6], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[7], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[8], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
 
-func (s *SystemdTestSuite) TestStopTimesOut(c *C) {
-	restore := MockStopDelays(time.Millisecond, 4*time.Millisecond)
-	defer restore()
-	s.outs = [][]byte{
-		nil, // for the "stop" itself
-		[]byte("ActiveState=active\n"),
-		[]byte("ActiveState=active\n"),
-		[]byte("ActiveState=active\n"),
-	}
-	s.errors = []error{nil, nil, nil, nil, nil}
-	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"}, 3*time.Millisecond)
-	c.Assert(err, ErrorMatches, `"foo", "bar" failed to stop: timeout`)
-	c.Assert(len(s.argses) >= 3, Equals, true)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo", "bar"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
-	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Assert(len(s.rep.msgs), Equals, 2)
+	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo", "bar" to stop.`)
+	c.Check(s.rep.msgs[1], Equals, `Waiting for "bar" to stop.`)
 }
 
 func (s *SystemdTestSuite) TestStatus(c *C) {
@@ -603,24 +757,6 @@ NeedDaemonReload=no
 	c.Check(out, IsNil)
 }
 
-func (s *SystemdTestSuite) TestStopTimeout(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
-	defer restore()
-	err := New(SystemMode, s.rep).Stop([]string{"foo"}, 10*time.Millisecond)
-	c.Assert(err, FitsTypeOf, &Timeout{})
-	c.Assert(len(s.rep.msgs) > 0, Equals, true)
-	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo" to stop.`)
-}
-
-func (s *SystemdTestSuite) TestStopManyTimeout(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
-	defer restore()
-	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"}, 10*time.Millisecond)
-	c.Assert(err, FitsTypeOf, &Timeout{})
-	c.Assert(len(s.rep.msgs) > 0, Equals, true)
-	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo", "bar" to stop.`)
-}
-
 func (s *SystemdTestSuite) TestDisable(c *C) {
 	sysd := New(SystemMode, s.rep)
 	err := sysd.DisableNoReload([]string{"foo"})
@@ -724,39 +860,57 @@ func (s *SystemdTestSuite) TestUnmaskUnderRoot(c *C) {
 }
 
 func (s *SystemdTestSuite) TestRestart(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+
 	s.outs = [][]byte{
-		nil, // for the "stop" itself
 		[]byte("ActiveState=inactive\n"),
 		nil, // for the "start"
 	}
-	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New(SystemMode, s.rep).Restart([]string{"foo"}, 100*time.Millisecond)
+	s.errors = []error{nil, nil, errors.New("mock error")}
+	err := New(SystemMode, s.rep).Restart([]string{"foo"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, HasLen, 3)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
-	c.Check(s.argses[2], DeepEquals, []string{"start", "foo"})
+	c.Check(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	c.Check(s.argses, HasLen, 2)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[1], DeepEquals, []string{"start", "foo"})
 }
 
 func (s *SystemdTestSuite) TestRestartMany(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+
 	s.outs = [][]byte{
-		nil,                              // for the "stop" itself
 		[]byte("ActiveState=inactive\n"), // foo
 		[]byte("ActiveState=inactive\n"), // bar
 		nil,                              // for the "start"
 	}
-	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New(SystemMode, s.rep).Restart([]string{"foo", "bar"}, 100*time.Millisecond)
+	s.errors = []error{nil, nil, nil, errors.New("mock error")}
+	err := New(SystemMode, s.rep).Restart([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, HasLen, 4)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo", "bar"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
-	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
-	c.Check(s.argses[3], DeepEquals, []string{"start", "foo", "bar"})
+	c.Check(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo", "bar"})
+	c.Check(s.argses, HasLen, 3)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[2], DeepEquals, []string{"start", "foo", "bar"})
 }
 
 func (s *SystemdTestSuite) TestKill(c *C) {
@@ -764,13 +918,8 @@ func (s *SystemdTestSuite) TestKill(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP", "--kill-who=all"}})
 }
 
-func (s *SystemdTestSuite) TestIsTimeout(c *C) {
-	c.Check(IsTimeout(os.ErrInvalid), Equals, false)
-	c.Check(IsTimeout(&Timeout{}), Equals, true)
-}
-
 func (s *SystemdTestSuite) TestLogErrJctl(c *C) {
-	s.jerrs = []error{&Timeout{}}
+	s.jerrs = []error{errors.New("mock journalctl error")}
 
 	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false)
 	c.Check(err, NotNil)
@@ -1427,8 +1576,8 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	c.Check(sysd.DaemonReexec, Panics, "cannot call daemon-reexec with GlobalUserMode")
 	c.Check(func() { sysd.Start([]string{"foo"}) }, Panics, "cannot call start with GlobalUserMode")
 	c.Check(func() { sysd.StartNoBlock([]string{"foo"}) }, Panics, "cannot call start with GlobalUserMode")
-	c.Check(func() { sysd.Stop([]string{"foo"}, 0) }, Panics, "cannot call stop with GlobalUserMode")
-	c.Check(func() { sysd.Restart([]string{"foo"}, 0) }, Panics, "cannot call restart with GlobalUserMode")
+	c.Check(func() { sysd.Stop([]string{"foo"}) }, Panics, "cannot call stop with GlobalUserMode")
+	c.Check(func() { sysd.Restart([]string{"foo"}) }, Panics, "cannot call restart with GlobalUserMode")
 	c.Check(func() { sysd.Kill("foo", "HUP", "") }, Panics, "cannot call kill with GlobalUserMode")
 	c.Check(func() { sysd.IsActive("foo") }, Panics, "cannot call is-active with GlobalUserMode")
 }
@@ -1951,6 +2100,57 @@ func (s *SystemdTestSuite) TestInactiveEnterTimestampMalformedMore(c *C) {
 		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
 	})
 	c.Check(stamp.IsZero(), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestSystemdRunError(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "fail"; exit 11`)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	output, err := sysd.Run([]string{"bad-cmd", "arg1"}, nil)
+	c.Check(output, IsNil)
+	c.Assert(err, ErrorMatches, `cannot run \["bad-cmd" "arg1"\]: fail`)
+}
+
+func (s *SystemdTestSuite) TestSystemdRunHappy(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "happy output" && >&2 echo "to stderr"`)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	output, err := sysd.Run([]string{"happy-cmd", "arg1"}, nil)
+	c.Check(string(output), Equals, "happy output\nto stderr\n")
+	c.Check(err, IsNil)
+	c.Check(sr.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--wait", "--pipe", "--collect", "--service-type=exec", "--quiet", "--", "happy-cmd", "arg1"},
+	})
+}
+
+func (s *SystemdTestSuite) TestSystemdRunHappyWithStdin(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "some output" && cat - `)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	opts := &RunOptions{Stdin: bytes.NewBufferString("stdin input\n")}
+	output, err := sysd.Run([]string{"cmd-with-stdin", "arg1"}, opts)
+	c.Check(string(output), Equals, "some output\nstdin input\n")
+	c.Check(err, IsNil)
+	c.Check(sr.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--wait", "--pipe", "--collect", "--service-type=exec", "--quiet", "--", "cmd-with-stdin", "arg1"},
+	})
+}
+
+func (s *SystemdTestSuite) TestSystemdRunKeyringMode(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "happy output"`)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	opts := &RunOptions{KeyringMode: KeyringModePrivate}
+	output, err := sysd.Run([]string{"happy-cmd", "arg1"}, opts)
+	c.Check(string(output), Equals, "happy output\n")
+	c.Check(err, IsNil)
+	c.Check(sr.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--wait", "--pipe", "--collect", "--service-type=exec", "--quiet", "--property=KeyringMode=private", "--", "happy-cmd", "arg1"},
+	})
 }
 
 type systemdErrorSuite struct{}

@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 const (
@@ -58,7 +59,7 @@ func NewLoadChain(bf bootloader.BootFile, next ...*LoadChain) *LoadChain {
 
 type SealKeyRequest struct {
 	// The key to seal
-	Key EncryptionKey
+	Key keys.EncryptionKey
 	// The key name; identical keys should have identical names
 	KeyName string
 	// The path to store the sealed key file. The same Key/KeyName
@@ -86,6 +87,19 @@ type SealKeyModelParams struct {
 	KernelCmdlines []string
 }
 
+type TPMProvisionMode int
+
+const (
+	TPMProvisionNone TPMProvisionMode = iota
+	// TPMProvisionFull indicates a full provisioning of the TPM
+	TPMProvisionFull
+	// TPMPartialReprovision indicates a partial reprovisioning of the TPM
+	// which was previously already provisioned by secboot. Existing lockout
+	// authorization data from TPMLockoutAuthFile will be used to authorize
+	// provisioning and will get overwritten in the process.
+	TPMPartialReprovision
+)
+
 type SealKeysParams struct {
 	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
@@ -94,11 +108,6 @@ type SealKeysParams struct {
 	// The path to the authorization policy update key file (only relevant for TPM,
 	// if empty the key will not be saved)
 	TPMPolicyAuthKeyFile string
-	// The path to the lockout authorization file (only relevant for TPM and only
-	// used if TPMProvision is set to true)
-	TPMLockoutAuthFile string
-	// Whether we should provision the TPM
-	TPMProvision bool
 	// The handle at which to create a NV index for dynamic authorization policy revocation support
 	PCRPolicyCounterHandle uint32
 }
@@ -107,7 +116,7 @@ type SealKeysWithFDESetupHookParams struct {
 	// Initial model to bind sealed keys to.
 	Model ModelForSealing
 	// AuxKey is the auxiliary key used to bind models.
-	AuxKey AuxKey
+	AuxKey keys.AuxKey
 	// The path to the aux key file (if empty the key will not be
 	// saved)
 	AuxKeyFile string

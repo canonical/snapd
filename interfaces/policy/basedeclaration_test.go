@@ -678,6 +678,42 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionPosixMQOverride(c *C) {
+	cand := s.connectCand(c, "posix-mq", "", "")
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection not allowed by plug rule of interface \"posix-mq\"")
+
+	plugsSlots := `
+plugs:
+  posix-mq:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionSteamSupportOverride(c *C) {
+	cand := s.connectCand(c, "steam-support", "", "")
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"steam-support\"")
+
+	plugsSlots := `
+plugs:
+  steam-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -781,6 +817,7 @@ var (
 		"sd-control":                {"core"},
 		"serial-port":               {"core", "gadget"},
 		"spi":                       {"core", "gadget"},
+		"steam-support":             {"core"},
 		"storage-framework-service": {"app"},
 		"thumbnailer-service":       {"app"},
 		"ubuntu-download-manager":   {"app"},
@@ -799,6 +836,7 @@ var (
 		"docker":          nil,
 		"lxd":             nil,
 		"pkcs11":          nil,
+		"posix-mq":        nil,
 		"shared-memory":   nil,
 	}
 
@@ -904,6 +942,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"snap-refresh-control":  true,
 		"snap-themes-control":   true,
 		"snapd-control":         true,
+		"steam-support":         true,
 		"system-files":          true,
 		"tee":                   true,
 		"uinput":                true,
@@ -958,6 +997,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"maliit":                    true,
 		"mir":                       true,
 		"online-accounts-service":   true,
+		"posix-mq":                  true,
 		"raw-volume":                true,
 		"shared-memory":             true,
 		"storage-framework-service": true,
@@ -1147,12 +1187,14 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"packagekit-control":    true,
 		"personal-files":        true,
 		"pkcs11":                true,
+		"posix-mq":              true,
 		"polkit":                true,
 		"sd-control":            true,
 		"shared-memory":         true,
 		"snap-refresh-control":  true,
 		"snap-themes-control":   true,
 		"snapd-control":         true,
+		"steam-support":         true,
 		"system-files":          true,
 		"tee":                   true,
 		"udisks2":               true,

@@ -29,6 +29,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
@@ -48,6 +49,7 @@ var opts struct {
 func init() {
 	// plug/slot sanitization not used nor possible from snap-exec, make it no-op
 	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
+	logger.SimpleSetup()
 }
 
 func main() {
@@ -245,6 +247,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 
 	fullCmd = append(absoluteCommandChain(app.Snap, app.CommandChain), fullCmd...)
 
+	logger.StartupStageTimestamp("snap-exec to app")
 	if err := syscallExec(fullCmd[0], fullCmd, env.ForExec()); err != nil {
 		return fmt.Errorf("cannot exec %q: %s", fullCmd[0], err)
 	}

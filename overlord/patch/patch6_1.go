@@ -20,6 +20,8 @@
 package patch
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -108,7 +110,7 @@ func patch6_1(st *state.State) error {
 		var removed map[string]connStatePatch6_1
 		if task.Kind() == "discard-conns" {
 			err := task.Get("removed", &removed)
-			if err == state.ErrNoState {
+			if errors.Is(err, state.ErrNoState) {
 				continue
 			}
 			if err != nil {
@@ -129,7 +131,7 @@ func patch6_1(st *state.State) error {
 	// update conns
 	var conns map[string]connStatePatch6_1
 	err := st.Get("conns", &conns)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		// no connections to process
 		return nil
 	}

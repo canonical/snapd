@@ -20,6 +20,8 @@
 package servicestate_test
 
 import (
+	"errors"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -82,7 +84,7 @@ func mockMixedQuotaGroup(st *state.State, name string, snaps []string) error {
 
 	var quotas map[string]*quota.Group
 	if err := st.Get("quotas", &quotas); err != nil {
-		if err != state.ErrNoState {
+		if !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		quotas = make(map[string]*quota.Group)
@@ -641,7 +643,7 @@ func (s *quotaHandlersSuite) TestQuotaCreate(c *C) {
 
 	// trying to create a quota with too low of a memory limit fails
 	err = s.callDoQuotaControl(&qc2)
-	c.Assert(err, ErrorMatches, `memory limit 4096 is too small: size must be larger than 640KB`)
+	c.Assert(err, ErrorMatches, `memory limit 4096 is too small: size must be larger than 640 KiB`)
 
 	// but with an adequately sized memory limit, and a snap that exists, we can
 	// create it

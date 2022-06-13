@@ -138,6 +138,40 @@ func (as *assertsSuite) TestPrimaryKeyHelpers(c *C) {
 	c.Check(err, ErrorMatches, `must provide primary key: pk2`)
 }
 
+func (as *assertsSuite) TestPrimaryKeyHelpersOptionalPrimaryKeys(c *C) {
+	// optional primary key headers
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	defer r()
+
+	pk, err := asserts.PrimaryKeyFromHeaders(asserts.TestOnlyType, map[string]string{"primary-key": "k1"})
+	c.Assert(err, IsNil)
+	c.Check(pk, DeepEquals, []string{"k1", "o1-defl"})
+
+	pk, err = asserts.PrimaryKeyFromHeaders(asserts.TestOnlyType, map[string]string{"primary-key": "k1", "opt1": "B"})
+	c.Assert(err, IsNil)
+	c.Check(pk, DeepEquals, []string{"k1", "B"})
+
+	hdrs, err := asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"k1", "B"})
+	c.Assert(err, IsNil)
+	c.Check(hdrs, DeepEquals, map[string]string{
+		"primary-key": "k1",
+		"opt1":        "B",
+	})
+
+	hdrs, err = asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"k1"})
+	c.Assert(err, IsNil)
+	c.Check(hdrs, DeepEquals, map[string]string{
+		"primary-key": "k1",
+		"opt1":        "o1-defl",
+	})
+
+	_, err = asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, nil)
+	c.Check(err, ErrorMatches, `primary key has wrong length for "test-only" assertion`)
+
+	_, err = asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"pk", "opt1", "what"})
+	c.Check(err, ErrorMatches, `primary key has wrong length for "test-only" assertion`)
+}
+
 func (as *assertsSuite) TestRef(c *C) {
 	ref := &asserts.Ref{
 		Type:       asserts.TestOnly2Type,
@@ -188,6 +222,110 @@ func (as *assertsSuite) TestRefResolveError(c *C) {
 	}
 	_, err := ref.Resolve(nil)
 	c.Check(err, ErrorMatches, `"test-only-2" assertion reference primary key has the wrong length \(expected \[pk1 pk2\]\): \[abc\]`)
+}
+
+func (as *assertsSuite) TestReducePrimaryKey(c *C) {
+	// optional primary key headers
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt1", "o1-defl")()
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt2", "o2-defl")()
+
+	tests := []struct {
+		pk      []string
+		reduced []string
+	}{
+		{nil, nil},
+		{[]string{"k1"}, []string{"k1"}},
+		{[]string{"k1", "k2"}, []string{"k1", "k2"}},
+		{[]string{"k1", "k2", "A"}, []string{"k1", "k2", "A"}},
+		{[]string{"k1", "k2", "o1-defl"}, []string{"k1", "k2"}},
+		{[]string{"k1", "k2", "A", "o2-defl"}, []string{"k1", "k2", "A"}},
+		{[]string{"k1", "k2", "A", "B"}, []string{"k1", "k2", "A", "B"}},
+		{[]string{"k1", "k2", "o1-defl", "B"}, []string{"k1", "k2", "o1-defl", "B"}},
+		{[]string{"k1", "k2", "o1-defl", "o2-defl"}, []string{"k1", "k2"}},
+		{[]string{"k1", "k2", "o1-defl", "o2-defl", "what"}, []string{"k1", "k2", "o1-defl", "o2-defl", "what"}},
+	}
+
+	for _, t := range tests {
+		c.Check(asserts.ReducePrimaryKey(asserts.TestOnly2Type, t.pk), DeepEquals, t.reduced)
+	}
+}
+
+func (as *assertsSuite) TestRefOptionalPrimaryKeys(c *C) {
+	// optional primary key headers
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt1", "o1-defl")()
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt2", "o2-defl")()
+
+	ref := &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz")
+	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc)`)
+
+	ref = &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz", "o1-defl"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz")
+	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc)`)
+
+	ref = &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz", "o1-defl", "o2-defl"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz")
+	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc)`)
+
+	ref = &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz", "A"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz/A")
+	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc opt1:A)`)
+
+	ref = &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz", "A", "o2-defl"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz/A")
+	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc opt1:A)`)
+
+	ref = &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz", "o1-defl", "B"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz/o1-defl/B")
+	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc opt2:B)`)
+
+	ref = &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz", "A", "B"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz/A/B")
+	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc opt1:A opt2:B)`)
+}
+
+func (as *assertsSuite) TestAcceptablePrimaryKey(c *C) {
+	// optional primary key headers
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt1", "o1-defl")()
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt2", "o2-defl")()
+
+	tests := []struct {
+		pk []string
+		ok bool
+	}{
+		{nil, false},
+		{[]string{"k1"}, false},
+		{[]string{"k1", "k2"}, true},
+		{[]string{"k1", "k2", "A"}, true},
+		{[]string{"k1", "k2", "o1-defl"}, true},
+		{[]string{"k1", "k2", "A", "B"}, true},
+		{[]string{"k1", "k2", "o1-defl", "o2-defl", "what"}, false},
+	}
+
+	for _, t := range tests {
+		c.Check(asserts.TestOnly2Type.AcceptablePrimaryKey(t.pk), Equals, t.ok)
+	}
 }
 
 func (as *assertsSuite) TestAtRevisionString(c *C) {
@@ -241,7 +379,7 @@ const exampleEmptyBodyOptionalPrimaryKeySet = "type: test-only\n" +
 	"AXNpZw=="
 
 func (as *assertsSuite) TestDecodeOptionalPrimaryKeys(c *C) {
-	r := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
 	defer r()
 
 	a, err := asserts.Decode([]byte(exampleEmptyBodyAllDefaults))
@@ -846,7 +984,7 @@ func (as *assertsSuite) TestSignFormatAndRevision(c *C) {
 }
 
 func (as *assertsSuite) TestSignFormatOptionalPrimaryKeys(c *C) {
-	r := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
 	defer r()
 
 	headers := map[string]interface{}{

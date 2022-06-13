@@ -349,7 +349,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 				c.Check(snapst.Active, Equals, true)
 			case 2:
 				// Then link-snap is undone and the snap gets unlinked.
-				c.Check(err, Equals, state.ErrNoState)
+				c.Check(err, testutil.ErrorIs, state.ErrNoState)
 			}
 			return nil
 		},
@@ -388,7 +388,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	s.state.Lock()
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	// and check that the sequence file got updated
@@ -440,11 +440,20 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithIgnoreRunning(c *C) {
 	})
 	defer restore()
 
+	var called bool
+	restore = snapstate.MockExcludeFromRefreshAppAwareness(func(t snap.Type) bool {
+		called = true
+		c.Check(t, Equals, snap.TypeApp)
+		return false
+	})
+	defer restore()
+
 	// We can unlink the current revision of that snap, by setting IgnoreRunning flag.
 	task := s.state.NewTask("unlink-current-snap", "")
 	task.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Flags:    snapstate.Flags{IgnoreRunning: true},
+		Type:     "app",
 	})
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(task)
@@ -468,6 +477,7 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithIgnoreRunning(c *C) {
 		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
 	}}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+	c.Check(called, Equals, true)
 }
 
 func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
@@ -519,6 +529,11 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	expected := fakeOps{
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "foo",
+			inhibitHint: "refresh",
+		},
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "foo/11"),
@@ -572,8 +587,14 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapdNop(c *C) {
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(20))
 	c.Check(task.Status(), Equals, state.DoneStatus)
-	// backend was not called to unlink the snap
-	c.Check(s.fakeBackend.ops, HasLen, 0)
+	// backend unlink was not called
+	c.Check(s.fakeBackend.ops, HasLen, 1)
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "snapd",
+			inhibitHint: "refresh",
+		}})
 }
 
 func (s *linkSnapSuite) TestDoUnlinkSnapdUnlinks(c *C) {
@@ -691,7 +712,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	// state as expected
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	// tried to cleanup
 	expected := fakeOps{
@@ -988,7 +1009,7 @@ func (s *linkSnapSuite) TestDoLinkSnapdSnapCleanupOnErrorFirstInstall(c *C) {
 	// state as expected
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	// tried to cleanup
 	expected := fakeOps{
@@ -1055,7 +1076,7 @@ func (s *linkSnapSuite) TestDoLinkSnapdSnapCleanupOnErrorNthInstall(c *C) {
 	// state as expected
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	// tried to cleanup
 	expected := fakeOps{
@@ -1335,7 +1356,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapCoreClassic(c *C) {
 	s.state.Lock()
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "core", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartDaemon, restart.RestartDaemon})
@@ -1705,7 +1726,7 @@ func (s *linkSnapSuite) TestUndoLinkSnapdFirstInstall(c *C) {
 
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "snapd", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	expected := fakeOps{

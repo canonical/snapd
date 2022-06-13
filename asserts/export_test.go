@@ -255,22 +255,6 @@ func init() {
 	maxSupportedFormat[TestOnlySeqType.Name] = 2
 }
 
-func AddOptionalPrimaryKey(assertType *AssertionType, key, defaultValue string) (restore func()) {
-	oldPrimaryKey := assertType.PrimaryKey
-	assertType.PrimaryKey = append(assertType.PrimaryKey, key)
-	if assertType.OptionalPrimaryKeyDefaults == nil {
-		assertType.OptionalPrimaryKeyDefaults = make(map[string]string)
-	}
-	assertType.OptionalPrimaryKeyDefaults[key] = defaultValue
-	return func() {
-		assertType.PrimaryKey = oldPrimaryKey
-		delete(assertType.OptionalPrimaryKeyDefaults, key)
-		if len(assertType.OptionalPrimaryKeyDefaults) == 0 {
-			assertType.OptionalPrimaryKeyDefaults = nil
-		}
-	}
-}
-
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
 func AccountKeyIsKeyValidAt(ak *AccountKey, when time.Time) bool {
 	return ak.isValidAt(when)

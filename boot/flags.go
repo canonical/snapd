@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,7 +35,7 @@ import (
 )
 
 var (
-	errNotUC20 = fmt.Errorf("cannot get boot flags on non-UC20 device")
+	errNotUC20 = fmt.Errorf("cannot get boot flags on pre-UC20 device")
 
 	understoodBootFlags = []string{
 		// the factory boot flag is set to indicate that this is a

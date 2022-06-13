@@ -164,11 +164,13 @@ backends:
             - centos-8-64:
                   workers: 6
                   storage: preserve-size
-                  image: centos-stream-8
-            # unstable systems below
-            - opensuse-15.2-64:
+                  image: centos-8-64
+            - centos-9-64:
                   workers: 6
-                  manual: true
+                  storage: preserve-size
+                  image: centos-9-64
+
+            # unstable systems below
             - opensuse-15.3-64:
                   workers: 6
             - opensuse-tumbleweed-64:
@@ -212,6 +214,10 @@ backends:
                   image: ubuntu-2110-64-virt-enabled
                   storage: 20G
                   workers: 3
+            - ubuntu-22.04-64:
+                  image: ubuntu-2204-64-virt-enabled
+                  storage: 20G
+                  workers: 6
 
     qemu-nested:
         memory: 4G
@@ -296,9 +302,6 @@ backends:
             - amazon-linux-2-64:
                   username: ec2-user
                   password: ec2-user
-            - opensuse-15.2-64:
-                  username: opensuse
-                  password: opensuse
             - opensuse-tumbleweed-64:
                   username: opensuse
                   password: opensuse
@@ -957,7 +960,7 @@ suites:
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -989,6 +992,10 @@ suites:
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested prepare
+            if os.query is-xenial && ! command -v ubuntu-image >/dev/null; then
+                # This is needed because the snap in removed during on restore-each
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            fi
         restore-each: |
             tests.nested vm remove
             tests.nested restore
@@ -1001,7 +1008,7 @@ suites:
     tests/nested/classic/:
         summary: Tests for nested images
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -1048,7 +1055,7 @@ suites:
     tests/nested/core/:
         summary: Tests for nested images
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line

@@ -38,6 +38,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -69,7 +70,7 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
 	s.AddCleanup(restore)
@@ -499,6 +500,18 @@ func (snapshotSuite) TestSaveNoSnapsInState(c *check.C) {
 	c.Check(taskset.Tasks(), check.HasLen, 0)
 }
 
+func (snapshotSuite) TestSaveSnapNotInstalled(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	setID, saved, taskset, err := snapshotstate.Save(st, []string{"foo"}, nil)
+	c.Assert(err, check.ErrorMatches, `snap "foo" is not installed`)
+	c.Check(setID, check.Equals, uint64(0))
+	c.Check(saved, check.HasLen, 0)
+	c.Check(taskset, check.IsNil)
+}
+
 func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
 		return map[string]*snapstate.SnapState{
@@ -526,17 +539,23 @@ func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	c.Check(tasks[1].Summary(), check.Equals, `Save data of snap "c-snap" in snapshot set #1`)
 }
 
-func (snapshotSuite) TestSaveOneSnap(c *check.C) {
-	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
+func (s snapshotSuite) TestSaveOneSnap(c *check.C) {
+	defer snapshotstate.MockSnapstateAll(func(*state.State) (map[string]*snapstate.SnapState, error) {
 		// snapstate.All isn't called when a snap name is passed in
 		return nil, errors.New("bzzt")
-	}
-
-	defer snapshotstate.MockSnapstateAll(fakeSnapstateAll)()
+	})()
 
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
+
+	snapstate.Set(st, "a-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "a-snap", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+	})
 
 	setID, saved, taskset, err := snapshotstate.Save(st, []string{"a-snap"}, []string{"a-user"})
 	c.Assert(err, check.IsNil)
@@ -1099,8 +1118,9 @@ func (snapshotSuite) TestRestoreWorksWithCompatibleEpoch(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(found, check.DeepEquals, []string{"a-snap"})
 	tasks := taskset.Tasks()
-	c.Assert(tasks, check.HasLen, 1)
+	c.Assert(tasks, check.HasLen, 2)
 	c.Check(tasks[0].Kind(), check.Equals, "restore-snapshot")
+	c.Check(tasks[1].Kind(), check.Equals, "cleanup-after-restore")
 	c.Check(tasks[0].Summary(), check.Equals, `Restore data of snap "a-snap" from snapshot set #42`)
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
@@ -1135,8 +1155,9 @@ func (snapshotSuite) TestRestore(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(found, check.DeepEquals, []string{"a-snap"})
 	tasks := taskset.Tasks()
-	c.Assert(tasks, check.HasLen, 1)
+	c.Assert(tasks, check.HasLen, 2)
 	c.Check(tasks[0].Kind(), check.Equals, "restore-snapshot")
+	c.Check(tasks[1].Kind(), check.Equals, "cleanup-after-restore")
 	c.Check(tasks[0].Summary(), check.Equals, `Restore data of snap "a-snap" from snapshot set #42`)
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
@@ -1236,7 +1257,9 @@ func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOp
 	defer st.Unlock()
 
 	// the three restores warn about the missing home (but no errors, no panics)
-	for _, task := range change.Tasks() {
+	c.Assert(change.Tasks(), check.HasLen, 4)
+	restoreTasks := change.Tasks()[:3]
+	for _, task := range restoreTasks {
 		c.Check(strings.Join(task.Log(), "\n"), check.Matches, `.* Skipping restore of "[^"]+/home/b-user/[^"]+" as "[^"]+/home/b-user" doesn't exist.`)
 	}
 
@@ -1314,8 +1337,9 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	defer st.Unlock()
 
 	tasks := change.Tasks()
-	c.Check(tasks, check.HasLen, 3)
-	for _, task := range tasks {
+	c.Check(tasks, check.HasLen, 4)
+	restoreTasks := tasks[:3]
+	for _, task := range restoreTasks {
 		if strings.Contains(task.Summary(), `"too-snap"`) {
 			// too-snap was set up to fail, should always fail with
 			// 'permission denied' (see the mkdirall w/mode 0 above)

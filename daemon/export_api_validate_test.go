@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -36,7 +37,7 @@ func MockCheckInstalledSnaps(f func(vsets *snapasserts.ValidationSets, snaps []*
 	}
 }
 
-func MockAssertstateMonitorValidationSet(f func(st *state.State, accountID, name string, sequence int, userID int) error) func() {
+func MockAssertstateMonitorValidationSet(f func(st *state.State, accountID, name string, sequence int, userID int) (*assertstate.ValidationSetTracking, error)) func() {
 	old := assertstateMonitorValidationSet
 	assertstateMonitorValidationSet = f
 	return func() {
@@ -44,7 +45,7 @@ func MockAssertstateMonitorValidationSet(f func(st *state.State, accountID, name
 	}
 }
 
-func MockAssertstateEnforceValidationSet(f func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error) func() {
+func MockAssertstateEnforceValidationSet(f func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*assertstate.ValidationSetTracking, error)) func() {
 	old := assertstateEnforceValidationSet
 	assertstateEnforceValidationSet = f
 	return func() {
