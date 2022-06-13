@@ -14,7 +14,7 @@ prepare: |
     tests.nested create-vm core
 
 execute: |
-    cho "Wait for the system to be seeded first"
+    echo "Wait for the system to be seeded first"
     tests.nested exec "sudo snap wait system seed.loaded"
 
     echo "Ensure 'snap install' works"
