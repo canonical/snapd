@@ -33,6 +33,10 @@ func RemoveRecoveryKeys(map[RecoveryKeyDevice]string) error {
 	return errBuildWithoutSecboot
 }
 
-func ChangeEncryptionKey(node string, key keys.EncryptionKey) error {
+func StageEncryptionKeyChange(node string, key keys.EncryptionKey) error {
+	return errBuildWithoutSecboot
+}
+
+func TransitionEncryptionKeyChange(mountpoint string, key keys.EncryptionKey) error {
 	return errBuildWithoutSecboot
 }

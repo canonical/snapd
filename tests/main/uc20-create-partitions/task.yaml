@@ -74,6 +74,11 @@ debug: |
     udevadm info --query property "${LOOP}p5" || true
 
 execute: |
+    channel=20
+    if os.query is-jammy; then
+        channel=22
+    fi
+
     LOOP="$(cat loop.txt)"
 
     echo "Run the snap-bootstrap tool"
@@ -164,8 +169,13 @@ execute: |
     sfdisk -l "$LOOP" | MATCH "${LOOP}p1 .* 1M\s* BIOS boot"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1\.2G\s* EFI System"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p3 .* 750M\s* Linux filesystem"
-    sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 16M\s* Linux filesystem"
-    sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 16\.7G\s* Linux filesystem"
+    if [ "$channel" = "20" ]; then
+        sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 16M\s* Linux filesystem"
+        sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 16\.7G\s* Linux filesystem"
+    else
+        sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 32M\s* Linux filesystem"
+        sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 16\.7G\s* Linux filesystem"
+    fi
 
     echo "check that the filesystems are created and mounted"
     mount | MATCH /run/mnt/ubuntu-boot
@@ -226,8 +236,13 @@ execute: |
     jq -r '.pc.structure[3]."filesystem-label"' < "$DISK_MAPPING_JSON" | MATCH ubuntu-save
     jq -r '.pc.structure[3]."partition-label"'  < "$DISK_MAPPING_JSON" | MATCH ubuntu-save
     jq -r '.pc.structure[3].id'                 < "$DISK_MAPPING_JSON" | MATCH ""
-    jq -r '.pc.structure[3].offset'             < "$DISK_MAPPING_JSON" | MATCH 2046820352
-    jq -r '.pc.structure[3].size'               < "$DISK_MAPPING_JSON" | MATCH 16777216
+    if [ "$channel" = "20" ]; then
+        jq -r '.pc.structure[3].offset'         < "$DISK_MAPPING_JSON" | MATCH 2046820352
+        jq -r '.pc.structure[3].size'           < "$DISK_MAPPING_JSON" | MATCH 16777216
+    else
+        jq -r '.pc.structure[3].offset'         < "$DISK_MAPPING_JSON" | MATCH 2046820352
+        jq -r '.pc.structure[3].size'           < "$DISK_MAPPING_JSON" | MATCH 33554432
+    fi
 
     # fifth structure - ubuntu-data
     jq -r '.pc.structure[4]."device-path"'      < "$DISK_MAPPING_JSON" | MATCH "/sys/devices/virtual/block/$LOOP_BASENAME/${LOOP_BASENAME}p5"
@@ -235,5 +250,10 @@ execute: |
     jq -r '.pc.structure[4]."filesystem-label"' < "$DISK_MAPPING_JSON" | MATCH ubuntu-data
     jq -r '.pc.structure[4]."partition-label"'  < "$DISK_MAPPING_JSON" | MATCH ubuntu-data
     jq -r '.pc.structure[4].id'                 < "$DISK_MAPPING_JSON" | MATCH ""
-    jq -r '.pc.structure[4].offset'             < "$DISK_MAPPING_JSON" | MATCH 2063597568
-    jq -r '.pc.structure[4].size'               < "$DISK_MAPPING_JSON" | MATCH 17936385536
+    if [ "$channel" = "20" ]; then
+        jq -r '.pc.structure[4].offset'         < "$DISK_MAPPING_JSON" | MATCH 2063597568
+        jq -r '.pc.structure[4].size'           < "$DISK_MAPPING_JSON" | MATCH 17936385536
+    else
+        jq -r '.pc.structure[4].offset'         < "$DISK_MAPPING_JSON" | MATCH 2080374784
+        jq -r '.pc.structure[4].size'           < "$DISK_MAPPING_JSON" | MATCH 17919608320
+    fi
