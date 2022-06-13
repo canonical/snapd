@@ -73,14 +73,14 @@ func init() {
 }
 
 func updateHomedirsConfig(config string) error {
-	configPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system.info")
+	configPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system-params")
 	f, err := osOpenFile(configPath, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	if _, err := fmt.Fprintf(f, "Homedirs=%s\n", config); err != nil {
+	if _, err := fmt.Fprintf(f, "homedirs=%s\n", config); err != nil {
 		return err
 	}
 

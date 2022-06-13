@@ -31,8 +31,8 @@ execute: |
     echo "Enable the home directories under /home/users"
     snap set system homedirs=/home/users
 
-    echo "Verify that the system.info file has been created"
-    MATCH "^Homedirs=/home/users$" < /var/lib/snapd/system.info
+    echo "Verify that the system-params file has been created"
+    MATCH "^homedirs=/home/users$" < /var/lib/snapd/system-params
 
     echo "And that the AppArmor tunable file is proper"
     MATCH "^@{HOMEDIRS}\\+=\"/home/users\"$" < /etc/apparmor.d/tunables/home.d/snapd

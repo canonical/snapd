@@ -135,7 +135,7 @@ func (s *homedirsSuite) TestConfigureOpenFailure(c *C) {
 			"homedirs": "/home/existingDir",
 		},
 	})
-	expectedPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system.info")
+	expectedPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system-params")
 	c.Check(systemInfoPath, Equals, expectedPath)
 	c.Assert(err, ErrorMatches, "open failure")
 }
@@ -154,7 +154,7 @@ func (s *homedirsSuite) TestConfigureWriteFailure(c *C) {
 			"homedirs": "/home/existingDir",
 		},
 	})
-	c.Assert(err, ErrorMatches, "write .*system.info: file already closed")
+	c.Assert(err, ErrorMatches, "write .*system-params: file already closed")
 }
 
 func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
