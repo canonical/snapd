@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -77,15 +76,9 @@ func MockApparmorUpdateHomedirsTunable(f func([]string) error) func() {
 	return r
 }
 
-func MockApparmorLoadProfiles(f func([]string, string, apparmor.AaParserFlags) error) func() {
-	r := testutil.Backup(&apparmorLoadProfiles)
-	apparmorLoadProfiles = f
-	return r
-}
-
-func MockApparmorSnapConfineDistroProfilePath(f func() string) func() {
-	r := testutil.Backup(&apparmorSnapConfineDistroProfilePath)
-	apparmorSnapConfineDistroProfilePath = f
+func MockApparmorReloadAllSnapProfiles(f func() error) func() {
+	r := testutil.Backup(&apparmorReloadAllSnapProfiles)
+	apparmorReloadAllSnapProfiles = f
 	return r
 }
 

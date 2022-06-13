@@ -57,6 +57,18 @@ func MockAtomicWrite(f func(string, io.Reader, os.FileMode, osutil.AtomicWriteFl
 	return r
 }
 
+func MockLoadProfiles(f func([]string, string, AaParserFlags) error) func() {
+	r := testutil.Backup(&LoadProfiles)
+	LoadProfiles = f
+	return r
+}
+
+func MockSnapConfineDistroProfilePath(f func() string) func() {
+	r := testutil.Backup(&SnapConfineDistroProfilePath)
+	SnapConfineDistroProfilePath = f
+	return r
+}
+
 // MockProfilesPath mocks the file read by LoadedProfiles()
 func MockProfilesPath(t *testutil.BaseTest, profiles string) {
 	profilesPath = profiles

@@ -37,9 +37,8 @@ var (
 	osOpenFile = os.OpenFile
 	osStat     = os.Stat
 
-	apparmorUpdateHomedirsTunable        = apparmor.UpdateHomedirsTunable
-	apparmorLoadProfiles                 = apparmor.LoadProfiles
-	apparmorSnapConfineDistroProfilePath = apparmor.SnapConfineDistroProfilePath
+	apparmorUpdateHomedirsTunable = apparmor.UpdateHomedirsTunable
+	apparmorReloadAllSnapProfiles = apparmor.ReloadAllSnapProfiles
 )
 
 var (
@@ -96,28 +95,7 @@ func updateHomedirsConfig(config string) error {
 	// We must reload the apparmor profiles in order for our changes to become
 	// effective. In theory, all profiles are affected; in practice, we are a
 	// bit egoist and only care about snapd.
-	profiles, err := filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
-	if err != nil {
-		// This only happens if the pattern is malformed
-		return err
-	}
-
-	// We also need to reload the profile of snap-confine; it could come from
-	// the core snap, in which case the glob above will already include it, or
-	// from the distribution package, in which case it's under
-	// /etc/apparmor.d/.
-	if snapConfineProfile := apparmorSnapConfineDistroProfilePath(); snapConfineProfile != "" {
-		profiles = append(profiles, snapConfineProfile)
-	}
-
-	// We want to reload the profiles no matter what, so don't even bother
-	// checking if the cached profile is newer
-	aaFlags := apparmor.SkipReadCache
-	if err := apparmorLoadProfiles(profiles, apparmor.SystemCacheDir, aaFlags); err != nil {
-		return err
-	}
-
-	return nil
+	return apparmorReloadAllSnapProfiles()
 }
 
 func handleHomedirsConfiguration(tr config.Conf, opts *fsOnlyContext) error {

@@ -20,6 +20,7 @@
 package apparmor_test
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"path"
@@ -159,6 +160,80 @@ func (s *appArmorSuite) TestUnloadRemovesCachedProfileInForest(c *C) {
 	_, err = os.Stat(fname)
 	c.Check(os.IsNotExist(err), Equals, true)
 	c.Check(osutil.FileExists(features), Equals, true)
+}
+
+func (s *appArmorSuite) TestReloadAllSnapProfilesFailure(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// Create a couple of empty profiles
+	err := os.MkdirAll(dirs.SnapAppArmorDir, 0755)
+	defer func() {
+		os.RemoveAll(dirs.SnapAppArmorDir)
+	}()
+	c.Assert(err, IsNil)
+	var profiles []string
+	for _, profile := range []string{"app1", "second_app"} {
+		path := filepath.Join(dirs.SnapAppArmorDir, profile)
+		f, err := os.Create(path)
+		f.Close()
+		c.Assert(err, IsNil)
+		profiles = append(profiles, path)
+	}
+
+	var passedProfiles []string
+	restore := apparmor.MockLoadProfiles(func(paths []string, cacheDir string, flags apparmor.AaParserFlags) error {
+		passedProfiles = paths
+		return errors.New("reload error")
+	})
+	defer restore()
+	err = apparmor.ReloadAllSnapProfiles()
+	c.Check(passedProfiles, DeepEquals, profiles)
+	c.Assert(err, ErrorMatches, "reload error")
+}
+
+func (s *appArmorSuite) TestReloadAllSnapProfilesHappy(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// Create a couple of empty profiles
+	err := os.MkdirAll(dirs.SnapAppArmorDir, 0755)
+	defer func() {
+		os.RemoveAll(dirs.SnapAppArmorDir)
+	}()
+	c.Assert(err, IsNil)
+	var profiles []string
+	for _, profile := range []string{"first", "second", "third"} {
+		path := filepath.Join(dirs.SnapAppArmorDir, profile)
+		f, err := os.Create(path)
+		f.Close()
+		c.Assert(err, IsNil)
+		profiles = append(profiles, path)
+	}
+
+	const snapConfineProfile = "/etc/apparmor.d/some.where.snap-confine"
+	restore := apparmor.MockSnapConfineDistroProfilePath(func() string {
+		return snapConfineProfile
+	})
+	defer restore()
+	profiles = append(profiles, snapConfineProfile)
+
+	var passedProfiles []string
+	var passedCacheDir string
+	var passedFlags apparmor.AaParserFlags
+	restore = apparmor.MockLoadProfiles(func(paths []string, cacheDir string, flags apparmor.AaParserFlags) error {
+		passedProfiles = paths
+		passedCacheDir = cacheDir
+		passedFlags = flags
+		return nil
+	})
+	defer restore()
+
+	err = apparmor.ReloadAllSnapProfiles()
+	c.Check(passedProfiles, DeepEquals, profiles)
+	c.Check(passedCacheDir, Equals, filepath.Join(dirs.GlobalRootDir, "/var/cache/apparmor"))
+	c.Check(passedFlags, Equals, apparmor.SkipReadCache)
+	c.Assert(err, IsNil)
 }
 
 // Tests for LoadedProfiles()

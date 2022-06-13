@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/sandbox/apparmor"
 )
 
 type mockedFileInfo struct {
@@ -176,80 +175,34 @@ func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
 }
 
 func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
-	// Create a couple of empty profiles
-	err := os.MkdirAll(dirs.SnapAppArmorDir, 0755)
-	defer func() {
-		os.RemoveAll(dirs.SnapAppArmorDir)
-	}()
-	c.Assert(err, IsNil)
-	var profiles []string
-	for _, profile := range []string{"app1", "second_app"} {
-		path := filepath.Join(dirs.SnapAppArmorDir, profile)
-		f, err := os.Create(path)
-		f.Close()
-		c.Assert(err, IsNil)
-		profiles = append(profiles, path)
-	}
-
-	var passedProfiles []string
-	restore := configcore.MockApparmorLoadProfiles(func(paths []string, cacheDir string, flags apparmor.AaParserFlags) error {
-		passedProfiles = paths
+	restore := configcore.MockApparmorReloadAllSnapProfiles(func() error {
 		return errors.New("reload error")
 	})
 	defer restore()
-	err = configcore.Run(coreDev, &mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"homedirs": "/home/existingDir",
 		},
 	})
-	c.Check(passedProfiles, DeepEquals, profiles)
 	c.Assert(err, ErrorMatches, "reload error")
 }
 
 func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
-	// Create a couple of empty profiles
-	err := os.MkdirAll(dirs.SnapAppArmorDir, 0755)
-	defer func() {
-		os.RemoveAll(dirs.SnapAppArmorDir)
-	}()
-	c.Assert(err, IsNil)
-	var profiles []string
-	for _, profile := range []string{"first", "second", "third"} {
-		path := filepath.Join(dirs.SnapAppArmorDir, profile)
-		f, err := os.Create(path)
-		f.Close()
-		c.Assert(err, IsNil)
-		profiles = append(profiles, path)
-	}
-
-	const snapConfineProfile = "/etc/apparmor.d/some.where.snap-confine"
-	restore := configcore.MockApparmorSnapConfineDistroProfilePath(func() string {
-		return snapConfineProfile
-	})
-	defer restore()
-	profiles = append(profiles, snapConfineProfile)
-
-	var passedProfiles []string
-	var passedCacheDir string
-	var passedFlags apparmor.AaParserFlags
-	restore = configcore.MockApparmorLoadProfiles(func(paths []string, cacheDir string, flags apparmor.AaParserFlags) error {
-		passedProfiles = paths
-		passedCacheDir = cacheDir
-		passedFlags = flags
+	reloadProfilesCallCount := 0
+	restore := configcore.MockApparmorReloadAllSnapProfiles(func() error {
+		reloadProfilesCallCount++
 		return nil
 	})
 	defer restore()
 
-	err = configcore.Run(coreDev, &mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"homedirs": "/home/existingDir",
 		},
 	})
-	c.Check(passedProfiles, DeepEquals, profiles)
-	c.Check(passedCacheDir, Equals, filepath.Join(dirs.GlobalRootDir, "/var/cache/apparmor"))
-	c.Check(passedFlags, Equals, apparmor.SkipReadCache)
+	c.Check(reloadProfilesCallCount, Equals, 1)
 	c.Assert(err, IsNil)
 }
 
