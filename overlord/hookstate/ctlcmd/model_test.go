@@ -360,7 +360,7 @@ base:          core18
 gadget:        pc
 kernel:        pc-kernel
 timestamp:     %s
-`, time.Now().Format(time.RFC3339)))
+`, current.Timestamp().Format(time.RFC3339)))
 	c.Check(string(stderr), Equals, "")
 }
 
@@ -403,7 +403,7 @@ base:          core18
 gadget:        pc
 kernel:        pc-kernel
 timestamp:     %s
-`, time.Now().Format(time.RFC3339)))
+`, current.Timestamp().Format(time.RFC3339)))
 	c.Check(string(stderr), Equals, "")
 }
 
@@ -445,7 +445,7 @@ func (s *modelSuite) TestHappyModelCommandGadgetJson(c *C) {
   "model": "pc-model",
   "serial": null,
   "timestamp": "%s"
-}`, time.Now().Format(time.RFC3339)))
+}`, current.Timestamp().Format(time.RFC3339)))
 	c.Check(string(stderr), Equals, "")
 }
 
@@ -525,7 +525,7 @@ func (s *modelSuite) TestHappyModelCommandAssertionGadgetJson(c *C) {
     "timestamp": "%s",
     "type": "model"
   }
-}`, current.SignKeyID(), time.Now().Format(time.RFC3339)))
+}`, current.SignKeyID(), current.Timestamp().Format(time.RFC3339)))
 	c.Check(string(stderr), Equals, "")
 }
 
@@ -566,7 +566,7 @@ func (s *modelSuite) TestRunWithoutHook(c *C) {
   "model": "pc-model",
   "serial": null,
   "timestamp": "%s"
-}`, time.Now().Format(time.RFC3339)))
+}`, current.Timestamp().Format(time.RFC3339)))
 	c.Check(string(stderr), Equals, "")
 }
 
