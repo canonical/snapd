@@ -1190,7 +1190,7 @@ func restoreDeviceSerialFromSave(model *asserts.Model) error {
 }
 
 type factoryResetMarker struct {
-	FallbackSaveKeyHash string `json:"fallback-save-key-hash,omitempty"`
+	FallbackSaveKeyHash string `json:"fallback-save-key-sha3-384,omitempty"`
 }
 
 func fileDigest(p string) (string, error) {
