@@ -337,31 +337,68 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if trustedInstallObserver != nil {
-		// validity check
-		if len(installedSystem.KeyForRole) == 0 || installedSystem.KeyForRole[gadget.SystemData] == nil || installedSystem.KeyForRole[gadget.SystemSave] == nil {
-			return fmt.Errorf("internal error: system encryption keys are unset")
-		}
-		dataEncryptionKey := installedSystem.KeyForRole[gadget.SystemData]
-		saveEncryptionKey := installedSystem.KeyForRole[gadget.SystemSave]
-
-		// make note of the encryption keys
-		trustedInstallObserver.ChosenEncryptionKeys(dataEncryptionKey, saveEncryptionKey)
-
-		// keep track of recovery assets
-		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
-			return fmt.Errorf("cannot observe existing trusted recovery assets: err")
-		}
-		if err := saveKeys(installedSystem.KeyForRole); err != nil {
-			return err
-		}
-		// write markers containing a secret to pair data and save
-		if err := writeMarkers(); err != nil {
+		if err := prepareEncryptedSystemData(installedSystem.KeyForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
 
+	if err := prepareRunSystemData(model, gadgetDir, perfTimings); err != nil {
+		return err
+	}
+
+	// make it bootable, which should be the final step in the process, as
+	// it effectively makes it possible to boot into run mode
+	logger.Noticef("make system runnable")
+	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get boot base info: %v", err)
+	}
+	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
+	bootWith := &boot.BootableSet{
+		Base:              bootBaseInfo,
+		BasePath:          bootBaseInfo.MountFile(),
+		Kernel:            kernelInfo,
+		KernelPath:        kernelInfo.MountFile(),
+		RecoverySystemDir: recoverySystemDir,
+		UnpackedGadgetDir: gadgetDir,
+	}
+	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
+		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
+	})
+	if err != nil {
+		return fmt.Errorf("cannot make system runnable: %v", err)
+	}
+	return nil
+}
+
+func prepareEncryptedSystemData(keyForRole map[string]keys.EncryptionKey, trustedInstallObserver *boot.TrustedAssetsInstallObserver) error {
+	// validity check
+	if len(keyForRole) == 0 || keyForRole[gadget.SystemData] == nil || keyForRole[gadget.SystemSave] == nil {
+		return fmt.Errorf("internal error: system encryption keys are unset")
+	}
+	dataEncryptionKey := keyForRole[gadget.SystemData]
+	saveEncryptionKey := keyForRole[gadget.SystemSave]
+
+	// make note of the encryption keys
+	trustedInstallObserver.ChosenEncryptionKeys(dataEncryptionKey, saveEncryptionKey)
+
+	// keep track of recovery assets
+	if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
+		return fmt.Errorf("cannot observe existing trusted recovery assets: err")
+	}
+	if err := saveKeys(keyForRole); err != nil {
+		return err
+	}
+	// write markers containing a secret to pair data and save
+	if err := writeMarkers(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func prepareRunSystemData(model *asserts.Model, gadgetDir string, perfTimings timings.Measurer) error {
 	// keep track of the model we installed
-	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
 	if err != nil {
 		return fmt.Errorf("cannot store the model: %v", err)
 	}
@@ -398,29 +435,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	// filesystem from the install-device hook
 	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir); err != nil {
 		return err
-	}
-
-	// make it bootable, which should be the final step in the process, as
-	// it effectively makes it possible to boot into run mode
-	logger.Noticef("make system runnable")
-	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
-	if err != nil {
-		return fmt.Errorf("cannot get boot base info: %v", err)
-	}
-	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
-	bootWith := &boot.BootableSet{
-		Base:              bootBaseInfo,
-		BasePath:          bootBaseInfo.MountFile(),
-		Kernel:            kernelInfo,
-		KernelPath:        kernelInfo.MountFile(),
-		RecoverySystemDir: recoverySystemDir,
-		UnpackedGadgetDir: gadgetDir,
-	}
-	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
-		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
-	})
-	if err != nil {
-		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
 	return nil
 }
@@ -973,7 +987,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		}
 
 		// new encryption key for save
-		key, err := keys.NewEncryptionKey()
+		saveEncryptionKey, err := keys.NewEncryptionKey()
 		if err != nil {
 			return fmt.Errorf("cannot create encryption key: %v", err)
 		}
@@ -983,75 +997,23 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 			return fmt.Errorf("internal error: no system-save device")
 		}
 
-		if err := secbootStageEncryptionKeyChange(saveNode, key); err != nil {
+		if err := secbootStageEncryptionKeyChange(saveNode, saveEncryptionKey); err != nil {
 			return fmt.Errorf("cannot change encryption keys: %v", err)
 		}
+		// keep track of the new ubuntu-save encryption key
+		installedSystem.KeyForRole[gadget.SystemSave] = saveEncryptionKey
 
-		installedSystem.KeyForRole[gadget.SystemSave] = key
-
-		// sanity check
-		if len(installedSystem.KeyForRole) == 0 || installedSystem.KeyForRole[gadget.SystemData] == nil || installedSystem.KeyForRole[gadget.SystemSave] == nil {
-			return fmt.Errorf("internal error: system encryption keys are unset")
-		}
-		dataEncryptionKey := installedSystem.KeyForRole[gadget.SystemData]
-		saveEncryptionKey := installedSystem.KeyForRole[gadget.SystemSave]
-
-		// make note of the encryption keys
-		trustedInstallObserver.ChosenEncryptionKeys(dataEncryptionKey, saveEncryptionKey)
-
-		// keep track of recovery assets
-		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
-			return fmt.Errorf("cannot observe existing trusted recovery assets: err")
-		}
-		if err := saveKeys(installedSystem.KeyForRole); err != nil {
-			return err
-		}
-		// write markers containing a secret to pair data and save
-		if err := writeMarkers(); err != nil {
+		if err := prepareEncryptedSystemData(installedSystem.KeyForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
 
-	// TODO: splice into a common install/reset helper?
-
-	// keep track of the model we installed
-	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
-	if err != nil {
-		return fmt.Errorf("cannot store the model: %v", err)
-	}
-	err = writeModel(model, filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
-	if err != nil {
-		return fmt.Errorf("cannot store the model: %v", err)
-	}
-
-	// preserve systemd-timesyncd clock timestamp, so that RTC-less devices
-	// can start with a more recent time on the next boot
-	if err := writeTimesyncdClock(dirs.GlobalRootDir, boot.InstallHostWritableDir); err != nil {
-		return fmt.Errorf("cannot seed timesyncd clock: %v", err)
-	}
-
-	// configure the run system
-	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
-	// configure cloud init
-	setSysconfigCloudOptions(opts, gadgetDir, model)
-	timings.Run(perfTimings, "sysconfig-configure-target-system", "Configure target system", func(timings.Measurer) {
-		err = sysconfigConfigureTargetSystem(model, opts)
-	})
-	if err != nil {
+	if err := prepareRunSystemData(model, gadgetDir, perfTimings); err != nil {
 		return err
 	}
 
 	if err := restoreDeviceFromSave(model); err != nil {
 		return fmt.Errorf("cannot restore data from save: %v", err)
-	}
-
-	// on some specific devices, we need to create these directories in
-	// _writable_defaults in order to allow the install-device hook to install
-	// some files there, this eventually will go away when we introduce a proper
-	// mechanism not using system-files to install files onto the root
-	// filesystem from the install-device hook
-	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir); err != nil {
-		return err
 	}
 
 	// make it bootable
