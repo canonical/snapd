@@ -283,7 +283,7 @@ var jctl = func(svcs []string, namespace string, n int, follow bool) (io.ReadClo
 	if follow {
 		args = append(args, "-f") // ... + 1 == 6
 	}
-	if len(namespace) > 0 {
+	if namespace != "" {
 		args = append(args, fmt.Sprintf("--namespace=%s", namespace)) // ... + 1 == 7
 	}
 
