@@ -2461,7 +2461,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		// sha3-384 of the mocked ubuntu-save sealed key
 		c.Check(filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "factory-reset"),
 			testutil.FileEquals,
-			`{"fallback-save-key-hash":"d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b"}
+			`{"fallback-save-key-sha3-384":"d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b"}
 `)
 	} else {
 		c.Check(filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "factory-reset"),
