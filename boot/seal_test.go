@@ -2123,13 +2123,13 @@ func (s *sealSuite) TestCompleteFactoryReset(c *C) {
 			factoryKeyAlreadyMigrated: true,
 			pcrHandleOfKeyCalls:       1,
 			pcrHandleOfKeyErr:         errors.New("handle error"),
-			err:                       "cannot perform boot cleanup: cannot cleanup secboot state: cannot inspect fallback key: handle error",
+			err:                       "cannot perform post factory reset boot cleanup: cannot cleanup secboot state: cannot inspect fallback key: handle error",
 		}, {
 			encrypted: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
 			factoryKeyAlreadyMigrated: true,
 			pcrHandleOfKeyCalls:       1, releasePCRHandleCalls: 1,
 			releasePCRHandlesErr: errors.New("release error"),
-			err:                  "cannot perform boot cleanup: cannot cleanup secboot state: release error",
+			err:                  "cannot perform post factory reset boot cleanup: cannot cleanup secboot state: release error",
 		},
 	} {
 		c.Logf("tc %v", i)

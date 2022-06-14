@@ -482,7 +482,7 @@ func CompleteFactoryReset(encrypted bool) error {
 		return nil
 	}
 	if err := postFactoryResetCleanup(); err != nil {
-		return fmt.Errorf("cannot perform boot cleanup: %v", err)
+		return fmt.Errorf("cannot perform post factory reset boot cleanup: %v", err)
 	}
 	return nil
 }
