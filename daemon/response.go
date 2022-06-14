@@ -286,34 +286,17 @@ type journalLineReaderSeqResponse struct {
 	follow  bool
 }
 
-// readAllLogsSorted combines the output of multiple io.ReadCloser's into a single
-// list of systemd.Log objects. The final list of systemd.Log objects will be sorted by
-// their timestamps, and this function will also close all the readers after reading
-// their logs.
-func (rr *journalLineReaderSeqResponse) readAllLogsSorted() ([]systemd.Log, error) {
-	var logs []systemd.Log
-	for _, r := range rr.readers {
-		dec := json.NewDecoder(r)
-		for {
-			var log systemd.Log
-			if err := dec.Decode(&log); err != nil {
-				if err == io.EOF {
-					break
-				}
-				return nil, fmt.Errorf("cannot decode journal log: %v", err)
-			}
-			logs = append(logs, log)
+func (rr *journalLineReaderSeqResponse) logReader(r io.ReadCloser, c chan systemd.Log, e chan error) {
+	defer r.Close()
+	decoder := json.NewDecoder(r)
+	for {
+		var log systemd.Log
+		if err := decoder.Decode(&log); err != nil {
+			e <- err
+			break
 		}
-		r.Close()
+		c <- log
 	}
-
-	// sort by timestamp ascending
-	sort.Slice(logs, func(i, j int) bool {
-		ti, _ := logs[i].Time()
-		tj, _ := logs[j].Time()
-		return ti.Before(tj)
-	})
-	return logs, nil
 }
 
 func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -323,43 +306,107 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 	writer := bufio.NewWriter(w)
 	enc := json.NewEncoder(writer)
 
-	writeError := func(err error) {
-		if err == io.EOF {
-			return
-		}
+	// start all the readers
+	c := make(chan systemd.Log)
+	e := make(chan error)
+	for _, r := range rr.readers {
+		go rr.logReader(r, c, e)
+	}
 
+	writeError := func(err error) {
 		fmt.Fprintf(writer, `\x1E{"error": %q}\n`, err)
 		logger.Noticef("cannot stream response; problem reading: %v", err)
 	}
 
-	logEntries, err := rr.readAllLogsSorted()
-	if err != nil {
-		writeError(err)
-	}
+	writeLogs := func(logs []systemd.Log) error {
+		// sort by timestamp ascending
+		sort.Slice(logs, func(i, j int) bool {
+			ti, _ := logs[i].Time()
+			tj, _ := logs[j].Time()
+			return ti.Before(tj)
+		})
 
-	for _, logEntry := range logEntries {
-		writer.WriteByte(0x1E) // RS -- see ascii(7), and RFC7464
+		for _, l := range logs {
+			writer.WriteByte(0x1E) // RS -- see ascii(7), and RFC7464
 
-		// ignore the error...
-		t, _ := logEntry.Time()
-		if err = enc.Encode(client.Log{
-			Timestamp: t,
-			Message:   logEntry.Message(),
-			SID:       logEntry.SID(),
-			PID:       logEntry.PID(),
-		}); err != nil {
-			writeError(err)
-			break
+			// ignore the error...
+			t, _ := l.Time()
+			if err := enc.Encode(client.Log{
+				Timestamp: t,
+				Message:   l.Message(),
+				SID:       l.SID(),
+				PID:       l.PID(),
+			}); err != nil {
+				return err
+			}
 		}
 
 		if rr.follow {
-			if e := writer.Flush(); e != nil {
-				writeError(e)
-				break
+			if err := writer.Flush(); err != nil {
+				return nil
 			}
 			if hasFlusher {
 				flusher.Flush()
 			}
+		}
+		return nil
+	}
+
+	var logReadersDone int
+	for {
+		var logs []systemd.Log
+
+		// always block read on the first one to ensure we don't waste any
+		// time spinning on a channel that will never have any logs
+		select {
+		case log := <-c:
+			logs = append(logs, log)
+		case err := <-e:
+			if err != io.EOF {
+				writeError(err)
+			}
+			logReadersDone++
+		}
+
+		// Now we spend a small amount of time batch reading all available logs
+		// on the log/error channel, the reason we do this is to make sure we read
+		// everything available for the initial batch of logs (when following) or
+		// we read everything available when not following. It's done like this to
+		// ensure that output is consistent and sorted correctly by timestamp when
+		// multiple log-sources are in play.
+		timeout := time.After(time.Millisecond * 25)
+		for {
+			var terminate bool
+			select {
+			case log := <-c:
+				logs = append(logs, log)
+			case err := <-e:
+				if err != io.EOF {
+					logger.Noticef("cannot decode systemd log: %v", err)
+				}
+
+				logReadersDone++
+				if logReadersDone == len(rr.readers) {
+					// break early as this indicates all log sources
+					// have now been closed, which is relevant when doing
+					// no-follow
+					terminate = true
+				}
+			case <-timeout:
+				terminate = true
+			}
+
+			if terminate {
+				break
+			}
+		}
+
+		if err := writeLogs(logs); err != nil {
+			writeError(err)
+		}
+
+		if logReadersDone == len(rr.readers) {
+			break
 		}
 	}
 

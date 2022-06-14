@@ -181,6 +181,32 @@ func splitAppName(s string) (snap, app string) {
 	return s, ""
 }
 
+// groupAppsByNamespace groups service names by their namespace so we only make one
+// journctl call per namespace.
+func groupAppsByNamespace(c *Command, appInfos []*snap.AppInfo) (map[string][]string, *apiError) {
+	c.d.overlord.State().Lock()
+	defer c.d.overlord.State().Unlock()
+
+	allQuotas, err := servicestate.AllQuotas(c.d.overlord.State())
+	if err != nil {
+		return nil, InternalError("cannot get service quotas: %v", err)
+	}
+
+	namespaces := make(map[string][]string)
+	for _, appInfo := range appInfos {
+		opts, err := servicestate.SnapServiceOptions(c.d.overlord.State(), appInfo.Snap.InstanceName(), allQuotas)
+		if err != nil {
+			return nil, InternalError("cannot get service options for %q: %v", appInfo.Snap.InstanceName(), err)
+		}
+		namespace := ""
+		if opts.QuotaGroup != nil {
+			namespace = opts.QuotaGroup.JournalNamespaceName()
+		}
+		namespaces[namespace] = append(namespaces[namespace], appInfo.ServiceName())
+	}
+	return namespaces, nil
+}
+
 func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	n := 10
@@ -210,42 +236,23 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		return AppNotFound("no matching services")
 	}
 
-	c.d.overlord.State().Lock()
-	allQuotas, err := servicestate.AllQuotas(c.d.overlord.State())
-	if err != nil {
-		c.d.overlord.State().Unlock()
-		return InternalError("cannot get service quotas: %v", err)
+	namespaces, rspe := groupAppsByNamespace(c, appInfos)
+	if rspe != nil {
+		return rspe
 	}
-
-	// group service names by their namespace so we can make only one
-	// journctl call per namespace.
-	namespaces := make(map[string][]string)
-	for _, appInfo := range appInfos {
-		opts, err := servicestate.SnapServiceOptions(c.d.overlord.State(), appInfo.Snap.InstanceName(), allQuotas)
-		if err != nil {
-			c.d.overlord.State().Unlock()
-			return InternalError("cannot get service options for %q: %v", appInfo.Snap.InstanceName(), err)
-		}
-		namespace := ""
-		if opts.QuotaGroup != nil {
-			namespace = opts.QuotaGroup.JournalNamespaceName()
-		}
-		namespaces[namespace] = append(namespaces[namespace], appInfo.ServiceName())
-	}
-	c.d.overlord.State().Unlock()
 
 	sysd := systemd.New(systemd.SystemMode, progress.Null)
-	logs := make([]io.ReadCloser, 0, len(namespaces))
+	readers := make([]io.ReadCloser, 0, len(namespaces))
 	for namespace, services := range namespaces {
 		reader, err := sysd.LogReader(services, namespace, n, follow)
 		if err != nil {
 			return InternalError("cannot get logs: %v", err)
 		}
-		logs = append(logs, reader)
+		readers = append(readers, reader)
 	}
 
 	return &journalLineReaderSeqResponse{
-		readers: logs,
+		readers: readers,
 		follow:  follow,
 	}
 }
