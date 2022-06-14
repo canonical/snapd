@@ -11,17 +11,23 @@ systems:
   - -ubuntu-core-16-32
   - -ubuntu-core-18-32
 
-environment:
-    SNAP_NAME: test-content-layout-consumer
-
 prepare: |
+    if os.query is-arm64; then
+        SNAP_NAME=test-content-layout-consumer-arm64
+    elif os.query is-armhf; then
+        SNAP_NAME=test-content-layout-consumer-armhf
+    else
+        SNAP_NAME=test-content-layout-consumer-amd64
+    fi
+
     # Create mount points for the content interface (we would like to have them
     # in the repository, but git does not allow storing empty directories)
     mkdir -p "$SNAP_NAME/gnome-platform"
     mkdir -p "$SNAP_NAME/data-dir/themes"
     mkdir -p "$SNAP_NAME/data-dir/icons"
     mkdir -p "$SNAP_NAME/data-dir/sounds"
-    "$TESTSTOOLS"/snaps-state install-local $SNAP_NAME
+
+    "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"
 
 execute: |
     check_non_empty() {
@@ -29,6 +35,17 @@ execute: |
         echo "Checking $DIR"
         test "$($SNAP_NAME.cmd ls -1 "$DIR" 2> /dev/null | wc -l)" -gt 0
     }
+
+    if os.query is-arm64; then
+        SNAP_NAME=test-content-layout-consumer-arm64
+        LINUX_GNU_NAME=aarch64-linux-gnu
+    elif os.query is-armhf; then
+        SNAP_NAME=test-content-layout-consumer-armhf
+        LINUX_GNU_NAME=arm-linux-gnueabihf
+    else
+        SNAP_NAME=test-content-layout-consumer-amd64
+        LINUX_GNU_NAME=x86_64-linux-gnu
+    fi
 
     # Check a handful of directories that should have been bind-mounted from
     # the content snap (all those starting with "$SNAP/"), plus the directories
@@ -40,12 +57,12 @@ execute: |
     done <<-EOF
     $SNAP/gnome-platform/etc/X11/Xsession.d
     $SNAP/gnome-platform/lib/udev/rules.d
-    $SNAP/gnome-platform/lib/x86_64-linux-gnu
+    $SNAP/gnome-platform/lib/$LINUX_GNU_NAME
     $SNAP/gnome-platform/usr/lib/python3/dist-packages/gi/overrides
     $SNAP/gnome-platform/usr/lib/systemd/user
-    $SNAP/gnome-platform/usr/lib/x86_64-linux-gnu/gtk-3.0/3.0.0/immodules
-    $SNAP/gnome-platform/usr/lib/x86_64-linux-gnu/webkit2gtk-4.0
-    $SNAP/gnome-platform/usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/injected-bundle
+    $SNAP/gnome-platform/usr/lib/$LINUX_GNU_NAME/gtk-3.0/3.0.0/immodules
+    $SNAP/gnome-platform/usr/lib/$LINUX_GNU_NAME/webkit2gtk-4.0
+    $SNAP/gnome-platform/usr/lib/$LINUX_GNU_NAME/webkit2gtk-4.0/injected-bundle
     $SNAP/gnome-platform/usr/share/X11/locale/C
     $SNAP/gnome-platform/usr/share/glib-2.0/schemas
     $SNAP/gnome-platform/usr/share/gnome-control-center
@@ -54,12 +71,21 @@ execute: |
     $SNAP/data-dir/themes/Yaru/gtk-3.0
     $SNAP/data-dir/icons
     $SNAP/data-dir/sounds
-    /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0
-    /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0/injected-bundle
-    /usr/share/xml/iso-codes
     EOF
 
-    # We already know that /lib/x86_64-linux-gnu is not empty, since it comes
+    if os.query is-amd64; then
+        check_non_empty /usr/lib/$LINUX_GNU_NAME/webkit2gtk-4.0
+        check_non_empty/usr/lib/$LINUX_GNU_NAME/webkit2gtk-4.0/injected-bundle
+        check_non_empty /usr/share/xml/iso-codes
+    fi
+
+    # We already know that /lib/$LINUX_GNU_NAME is not empty, since it comes
     # from the base snap; so, here we check the existence of a specific file we
     # bind-mounted using the layout directive.
-    $SNAP_NAME.cmd test -f /lib/x86_64-linux-gnu/bindtextdomain.so
+    if os.query is-arm64; then
+        $SNAP_NAME.cmd test -f /lib/$LINUX_GNU_NAME/libSegFault.so
+    elif os.query is-armhf; then
+        $SNAP_NAME.cmd test -f /lib/$LINUX_GNU_NAME/libSegFault.so
+    else
+        $SNAP_NAME.cmd test -f /lib/$LINUX_GNU_NAME/bindtextdomain.so
+    fi
