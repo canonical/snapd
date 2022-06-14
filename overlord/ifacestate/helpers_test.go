@@ -193,11 +193,11 @@ func (s *helpersSuite) TestHotplugTaskHelpers(c *C) {
 
 	t := s.st.NewTask("foo", "")
 	_, _, err := ifacestate.GetHotplugAttrs(t)
-	c.Assert(err, ErrorMatches, `internal error: cannot get interface name from hotplug task: no state entry for key`)
+	c.Assert(err, ErrorMatches, `internal error: cannot get interface name from hotplug task: no state entry for key "interface"`)
 
 	t.Set("interface", "x")
 	_, _, err = ifacestate.GetHotplugAttrs(t)
-	c.Assert(err, ErrorMatches, `internal error: cannot get hotplug key from hotplug task: no state entry for key`)
+	c.Assert(err, ErrorMatches, `internal error: cannot get hotplug key from hotplug task: no state entry for key "hotplug-key"`)
 
 	ifacestate.SetHotplugAttrs(t, "iface", "key")
 
