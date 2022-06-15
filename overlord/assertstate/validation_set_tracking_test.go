@@ -278,7 +278,7 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSetsWithExtraSets(c *
 	}
 	assertstate.UpdateValidationSet(s.st, &tr)
 
-	vs1 := s.mockAssert(c, "foo", "2", "invalid")
+	vs1 := s.mockAssert(c, "foo", "2", "optional")
 	c.Assert(assertstate.Add(s.st, vs1), IsNil)
 
 	vs2 := s.mockAssert(c, "bar", "1", "required")
@@ -287,10 +287,11 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSetsWithExtraSets(c *
 	valsets, err := assertstate.EnforcedValidationSets(s.st)
 	c.Assert(err, IsNil)
 
-	// foo and bar are in conflict, use this as an indirect way of checking that extra validation sets are considered by validation sets and
-	// resolve the conflict.
 	err = valsets.Conflict()
-	c.Check(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "snap-b" as both invalid \(.*/foo\) and required at any revision \(.*/bar\)`)
+	c.Assert(err, IsNil)
+
+	// use extra validation sets that trigger conflicts to verify they are
+	// considered by EnforcedValidationSets.
 
 	// extra validation set "foo" replaces vs from the state
 	extra1 := s.mockAssert(c, "foo", "9", "required")
@@ -313,6 +314,21 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSetsWithExtraSets(c *
 	c.Assert(err, IsNil)
 	err = valsets.Conflict()
 	c.Assert(err, IsNil)
+
+	// extra validations set replace both foo and bar vs from the state
+	extra1 = s.mockAssert(c, "foo", "9", "required")
+	extra2 = s.mockAssert(c, "bar", "9", "invalid")
+	valsets, err = assertstate.EnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet))
+	c.Assert(err, IsNil)
+	err = valsets.Conflict()
+	c.Check(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "snap-b" as both invalid \(.*/bar\) and required at any revision \(.*/foo\)`)
+
+	// no conflict once both are invalid
+	extra1 = s.mockAssert(c, "foo", "9", "invalid")
+	valsets, err = assertstate.EnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet))
+	c.Assert(err, IsNil)
+	err = valsets.Conflict()
+	c.Check(err, IsNil)
 }
 
 func (s *validationSetTrackingSuite) TestAddToValidationSetsHistory(c *C) {
