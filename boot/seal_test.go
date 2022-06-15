@@ -2083,3 +2083,116 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 		},
 	})
 }
+
+func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
+
+	for i, tc := range []struct {
+		encrypted                 bool
+		factoryKeyAlreadyMigrated bool
+		pcrHandleOfKey            uint32
+		pcrHandleOfKeyErr         error
+		pcrHandleOfKeyCalls       int
+		releasePCRHandlesErr      error
+		releasePCRHandleCalls     int
+		hasFDEHook                bool
+		err                       string
+	}{
+		{
+			// unencrypted is a nop
+			encrypted: false,
+		}, {
+			// the old fallback key uses the main handle
+			encrypted: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
+			factoryKeyAlreadyMigrated: true, pcrHandleOfKeyCalls: 1, releasePCRHandleCalls: 1,
+		}, {
+			// the old fallback key uses the alt handle
+			encrypted: true, pcrHandleOfKey: secboot.AltFallbackObjectPCRPolicyCounterHandle,
+			factoryKeyAlreadyMigrated: true, pcrHandleOfKeyCalls: 1, releasePCRHandleCalls: 1,
+		}, {
+			// unexpected reboot, the key file was already moved
+			encrypted: true, pcrHandleOfKey: secboot.AltFallbackObjectPCRPolicyCounterHandle,
+			pcrHandleOfKeyCalls: 1, releasePCRHandleCalls: 1,
+		}, {
+			// do nothing if we have the FDE hook
+			encrypted: true, pcrHandleOfKeyErr: errors.New("unexpected call"),
+			hasFDEHook: true,
+		},
+		// error cases
+		{
+			encrypted: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
+			factoryKeyAlreadyMigrated: true,
+			pcrHandleOfKeyCalls:       1,
+			pcrHandleOfKeyErr:         errors.New("handle error"),
+			err:                       "cannot perform post factory reset boot cleanup: cannot cleanup secboot state: cannot inspect fallback key: handle error",
+		}, {
+			encrypted: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
+			factoryKeyAlreadyMigrated: true,
+			pcrHandleOfKeyCalls:       1, releasePCRHandleCalls: 1,
+			releasePCRHandlesErr: errors.New("release error"),
+			err:                  "cannot perform post factory reset boot cleanup: cannot cleanup secboot state: release error",
+		},
+	} {
+		c.Logf("tc %v", i)
+
+		saveSealedKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
+		saveSealedKeyByFactoryReset := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset")
+
+		if tc.encrypted {
+			c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0755), IsNil)
+			if tc.factoryKeyAlreadyMigrated {
+				c.Assert(ioutil.WriteFile(saveSealedKey, []byte{'o', 'l', 'd'}, 0644), IsNil)
+				c.Assert(ioutil.WriteFile(saveSealedKeyByFactoryReset, []byte{'n', 'e', 'w'}, 0644), IsNil)
+			} else {
+				c.Assert(ioutil.WriteFile(saveSealedKey, []byte{'n', 'e', 'w'}, 0644), IsNil)
+			}
+		}
+
+		restore := boot.MockHasFDESetupHook(func() (bool, error) {
+			return tc.hasFDEHook, nil
+		})
+		defer restore()
+
+		pcrHandleOfKeyCalls := 0
+		restore = boot.MockSecbootPCRHandleOfSealedKey(func(p string) (uint32, error) {
+			pcrHandleOfKeyCalls++
+			// XXX we're inspecting the current key after it got rotated
+			c.Check(p, Equals, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
+			return tc.pcrHandleOfKey, tc.pcrHandleOfKeyErr
+		})
+		defer restore()
+
+		releasePCRHandleCalls := 0
+		restore = boot.MockSecbootReleasePCRResourceHandles(func(handles ...uint32) error {
+			releasePCRHandleCalls++
+			if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
+				c.Check(handles, DeepEquals, []uint32{
+					secboot.AltRunObjectPCRPolicyCounterHandle,
+					secboot.AltFallbackObjectPCRPolicyCounterHandle,
+				})
+			} else {
+				c.Check(handles, DeepEquals, []uint32{
+					secboot.RunObjectPCRPolicyCounterHandle,
+					secboot.FallbackObjectPCRPolicyCounterHandle,
+				})
+			}
+			return tc.releasePCRHandlesErr
+		})
+		defer restore()
+
+		err := boot.MarkFactoryResetComplete(tc.encrypted)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Assert(err, IsNil)
+		}
+		c.Check(pcrHandleOfKeyCalls, Equals, tc.pcrHandleOfKeyCalls)
+		c.Check(releasePCRHandleCalls, Equals, tc.releasePCRHandleCalls)
+		if tc.encrypted {
+			c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+				testutil.FileEquals, []byte{'n', 'e', 'w'})
+			c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+				testutil.FileAbsent)
+		}
+	}
+
+}
