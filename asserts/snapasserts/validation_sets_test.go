@@ -400,6 +400,22 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
+	vs7 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "acme",
+		"series":       "16",
+		"account-id":   "acme",
+		"name":         "bahname",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-f",
+				"id":       "mysnapffffffffffffffffffffffffff",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
 	valsets := snapasserts.NewValidationSets()
 	c.Assert(valsets.Add(vs1), IsNil)
 	c.Assert(valsets.Add(vs2), IsNil)
@@ -407,6 +423,7 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 	c.Assert(valsets.Add(vs4), IsNil)
 	c.Assert(valsets.Add(vs5), IsNil)
 	c.Assert(valsets.Add(vs6), IsNil)
+	c.Assert(valsets.Add(vs7), IsNil)
 
 	snapA := snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1))
 	snapAlocal := snapasserts.NewInstalledSnap("snap-a", "", snap.R("x2"))
@@ -440,6 +457,7 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 					snap.R(0): {"acme/barname"},
 				},
 				"snap-f": {
+					snap.R(0): {"acme/bahname"},
 					snap.R(4): {"acme/duhname", "acme/huhname"},
 				},
 			},
@@ -457,6 +475,7 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 					snap.R(0): {"acme/barname"},
 				},
 				"snap-f": {
+					snap.R(0): {"acme/bahname"},
 					snap.R(4): {"acme/duhname", "acme/huhname"},
 				},
 			},
