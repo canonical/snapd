@@ -969,9 +969,16 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	logger.Noticef("devs: %+v", installedSystem.DeviceForRole)
 
 	if trustedInstallObserver != nil {
-		// at this point we removed boot and data. sealed keys are becoming
-		// useless
-		err := os.Remove(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"))
+		// at this point we removed boot and data. sealed fallback key
+		// for ubuntu-data is becoming useless
+		err := os.Remove(boot.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot cleanup obsolete key file: %v", err)
+		}
+
+		// it is possible that we reached this place again where a
+		// previously running factory reset was interrupted by a reboot
+		err = os.Remove(boot.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
 		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("cannot cleanup obsolete key file: %v", err)
 		}
