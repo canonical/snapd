@@ -1,3 +1,13 @@
+snapd (2.56.2-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1974147
+    - o/snapstate: exclude services from refresh app awareness hard
+      running check
+    - cmd/snap: support custom apparmor features dir with snap
+      prepare-image
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 15 Jun 2022 14:22:31 +0200
+
 snapd (2.56.1-1) unstable; urgency=medium
 
   * New upstream release, LP: #1974147
