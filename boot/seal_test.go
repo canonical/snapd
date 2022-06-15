@@ -2084,7 +2084,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 	})
 }
 
-func (s *sealSuite) TestCompleteFactoryReset(c *C) {
+func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 
 	for i, tc := range []struct {
 		encrypted                 bool
@@ -2179,7 +2179,7 @@ func (s *sealSuite) TestCompleteFactoryReset(c *C) {
 		})
 		defer restore()
 
-		err := boot.CompleteFactoryReset(tc.encrypted)
+		err := boot.MarkFactoryResetComplete(tc.encrypted)
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, tc.err)
 		} else {
