@@ -33,7 +33,7 @@ execute: |
     check_non_empty() {
         local DIR="$1"
         echo "Checking $DIR"
-        test "$($SNAP_NAME.cmd ls -1 "$DIR" 2> /dev/null | wc -l)" -gt 0
+        test "$("$SNAP_NAME.cmd" ls -1 "$DIR" 2> /dev/null | wc -l)" -gt 0
     }
 
     if os.query is-arm64; then
