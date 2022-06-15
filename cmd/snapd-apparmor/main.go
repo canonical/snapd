@@ -130,15 +130,18 @@ func loadAppArmorProfiles() error {
 		return nil
 	}
 	logger.Noticef("Loading profiles %v", profiles)
-	err = apparmor_sandbox.LoadProfiles(profiles, apparmor_sandbox.SystemCacheDir, 0)
-	if err != nil {
-		return err
-	}
-	return nil
+	return apparmor_sandbox.LoadProfiles(profiles, apparmor_sandbox.SystemCacheDir, 0)
 }
 
 func isContainer() bool {
 	return (exec.Command("systemd-detect-virt", "--quiet", "--container").Run() == nil)
+}
+
+func validateArgs(args []string) error {
+	if len(args) != 1 || args[0] != "start" {
+		return errors.New("Expected to be called with a single 'start' argument.")
+	}
+	return nil
 }
 
 func main() {
@@ -166,17 +169,5 @@ func run() error {
 		}
 	}
 
-	err := loadAppArmorProfiles()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func validateArgs(args []string) error {
-	if len(args) != 1 || args[0] != "start" {
-		return errors.New("Expected to be called with a single 'start' argument.")
-	}
-	return nil
+	return loadAppArmorProfiles()
 }
