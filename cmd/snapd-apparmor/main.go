@@ -85,7 +85,8 @@ func isContainerWithInternalPolicy() bool {
 	}
 
 	contents, err := ioutil.ReadFile(nsStackedPath)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		logger.Noticef("Failed to read %s: %v", nsStackedPath, err)
 		return false
 	}
 
@@ -94,7 +95,8 @@ func isContainerWithInternalPolicy() bool {
 	}
 
 	contents, err = ioutil.ReadFile(nsNamePath)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		logger.Noticef("Failed to read %s: %v", nsNamePath, err)
 		return false
 	}
 
