@@ -84,12 +84,6 @@ func isContainerWithInternalPolicy() bool {
 		return true
 	}
 
-	for _, path := range []string{nsStackedPath, nsNamePath} {
-		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-			return false
-		}
-	}
-
 	contents, err := ioutil.ReadFile(nsStackedPath)
 	if err != nil {
 		return false
