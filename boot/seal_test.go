@@ -101,25 +101,26 @@ func mockGadgetSeedSnap(c *C, files [][]string) *seed.Snap {
 
 func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 	for idx, tc := range []struct {
-		sealErr                error
-		provisionErr           error
-		factoryReset           bool
-		pcrHandleOfKey         uint32
-		pcrHandleOfKeyErr      error
-		expErr                 string
-		expProvisionCalls      int
-		expSealCalls           int
-		expPCRHandleOfKeyCalls int
+		sealErr                  error
+		provisionErr             error
+		factoryReset             bool
+		pcrHandleOfKey           uint32
+		pcrHandleOfKeyErr        error
+		expErr                   string
+		expProvisionCalls        int
+		expSealCalls             int
+		expReleasePCRHandleCalls int
+		expPCRHandleOfKeyCalls   int
 	}{
 		{
 			sealErr: nil, expErr: "",
 			expProvisionCalls: 1, expSealCalls: 2,
 		}, {
 			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
-			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1,
+			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1, expReleasePCRHandleCalls: 1,
 		}, {
 			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.AltFallbackObjectPCRPolicyCounterHandle,
-			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1,
+			expProvisionCalls: 1, expSealCalls: 2, expPCRHandleOfKeyCalls: 1, expReleasePCRHandleCalls: 1,
 		}, {
 			sealErr: nil, factoryReset: true, pcrHandleOfKeyErr: errors.New("PCR handle error"),
 			expErr:                 "PCR handle error",
@@ -213,6 +214,25 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 		defer restore()
 
+		releasePCRHandleCalls := 0
+		restore = boot.MockSecbootReleasePCRResourceHandles(func(handles ...uint32) error {
+			c.Check(tc.factoryReset, Equals, true)
+			releasePCRHandleCalls++
+			if tc.pcrHandleOfKey == secboot.FallbackObjectPCRPolicyCounterHandle {
+				c.Check(handles, DeepEquals, []uint32{
+					secboot.AltRunObjectPCRPolicyCounterHandle,
+					secboot.AltFallbackObjectPCRPolicyCounterHandle,
+				})
+			} else {
+				c.Check(handles, DeepEquals, []uint32{
+					secboot.RunObjectPCRPolicyCounterHandle,
+					secboot.FallbackObjectPCRPolicyCounterHandle,
+				})
+			}
+			return nil
+		})
+		defer restore()
+
 		// set mock key sealing
 		sealKeysCalls := 0
 		restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
@@ -302,6 +322,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		c.Check(pcrHandleOfKeyCalls, Equals, tc.expPCRHandleOfKeyCalls)
 		c.Check(provisionCalls, Equals, tc.expProvisionCalls)
 		c.Check(sealKeysCalls, Equals, tc.expSealCalls)
+		c.Check(releasePCRHandleCalls, Equals, tc.expReleasePCRHandleCalls)
 		if tc.expErr == "" {
 			c.Assert(err, IsNil)
 		} else {

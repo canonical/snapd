@@ -1,6 +1,6 @@
 summary: measuring basic properties of device cgroup
 
 # Disable the test on all systems that boot with cgroup v2
-systems: [ -fedora-33-*, -fedora-34-*, -fedora-35-*, -debian-11-*, -debian-sid-*, -arch-*, -opensuse-tumbleweed-*, -ubuntu-21.10-*, -ubuntu-22.04-*, -ubuntu-core-22-*]
+systems: [ -fedora-35-*, -fedora-36-*, -debian-11-*, -debian-sid-*, -arch-*, -opensuse-tumbleweed-*, -ubuntu-21.10-*, -ubuntu-22.04-*, -ubuntu-core-22-*]
 
 execute: ./task.sh
