@@ -109,11 +109,13 @@ func init() {
 	cmd := addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp,
 		func() flags.Commander { return &cmdSetQuota{} },
 		waitDescs.also(map[string]string{
-			"memory":  i18n.G("Memory quota"),
-			"cpu":     i18n.G("CPU quota"),
-			"cpu-set": i18n.G("CPU set quota"),
-			"threads": i18n.G("Threads quota"),
-			"parent":  i18n.G("Parent quota group"),
+			"memory":             i18n.G("Memory quota"),
+			"cpu":                i18n.G("CPU quota"),
+			"cpu-set":            i18n.G("CPU set quota"),
+			"threads":            i18n.G("Threads quota"),
+			"journal-size":       i18n.G("Journal size quota"),
+			"journal-rate-limit": i18n.G("Journal rate limit quota"),
+			"parent":             i18n.G("Parent quota group"),
 		}), nil)
 	cmd.hidden = true
 
@@ -175,25 +177,26 @@ func parseCpuQuota(cpuMax string) (count int, percentage int, err error) {
 func parseJournalRateQuota(journalRateLimit string) (count int, period time.Duration, err error) {
 	// the rate limit is a string of the form N/P, where N is the number of
 	// messages and P is the period as a time string (e.g 5s)
-	parseError := func(input string) error {
-		return fmt.Errorf("cannot parse journal rate limit string %q", input)
-	}
-
 	parts := strings.Split(journalRateLimit, "/")
 	if len(parts) != 2 {
-		return 0, 0, parseError(journalRateLimit)
+		return 0, 0, fmt.Errorf("missing number of messages and period")
 	}
 
 	count, err = strconv.Atoi(parts[0])
-	if err != nil || count == 0 {
-		return 0, 0, parseError(journalRateLimit)
+	if err != nil {
+		return 0, 0, err
+	}
+	if count == 0 {
+		return 0, 0, fmt.Errorf("messages count must be larger than 0")
 	}
 
 	period, err = time.ParseDuration(parts[1])
-	if err != nil || period == 0 {
-		return 0, 0, parseError(journalRateLimit)
+	if err != nil {
+		return 0, 0, fmt.Errorf("cannot parse pariod: %v", err)
 	}
-
+	if period == 0 {
+		return 0, 0, fmt.Errorf("period must be larger than 0")
+	}
 	return count, period, nil
 }
 
@@ -252,7 +255,7 @@ func (x *cmdSetQuota) parseQuotas() (*client.QuotaValues, error) {
 		if x.JournalSizeMax != "" {
 			value, err := strutil.ParseByteSize(x.JournalSizeMax)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("cannot parse journal size %q: %v", x.JournalSizeMax, err)
 			}
 			quotaValues.Journal.Size = quantity.Size(value)
 		}
@@ -260,7 +263,7 @@ func (x *cmdSetQuota) parseQuotas() (*client.QuotaValues, error) {
 		if x.JournalRateLimit != "" {
 			count, period, err := parseJournalRateQuota(x.JournalRateLimit)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("cannot parse journal rate limit %q: %v", x.JournalRateLimit, err)
 			}
 			quotaValues.Journal.RateCount = count
 			quotaValues.Journal.RatePeriod = period
@@ -409,6 +412,15 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 	if group.Constraints.Threads != 0 {
 		fmt.Fprintf(w, "  threads:\t%d\n", group.Constraints.Threads)
 	}
+	if group.Constraints.Journal != nil {
+		if group.Constraints.Journal.Size != 0 {
+			val := strings.TrimSpace(fmtSize(int64(group.Constraints.Journal.Size)))
+			fmt.Fprintf(w, "  journal-size:\t%s\n", val)
+		}
+		if group.Constraints.Journal.RateCount != 0 && group.Constraints.Journal.RatePeriod != 0 {
+			fmt.Fprintf(w, "  journal-rate:\t%d/%s\n", group.Constraints.Journal.RateCount, group.Constraints.Journal.RatePeriod)
+		}
+	}
 
 	memoryUsage := "0B"
 	currentThreads := 0
@@ -511,6 +523,16 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 		// format threads constraint as threads=N
 		if q.Constraints.Threads != 0 {
 			grpConstraints = append(grpConstraints, "threads="+strconv.Itoa(q.Constraints.Threads))
+		}
+
+		// format journal constraint as journal-size=xMB,journal-rate=x/y
+		if q.Constraints.Journal != nil {
+			if q.Constraints.Journal.Size != 0 {
+				grpConstraints = append(grpConstraints, "journal-size="+strings.TrimSpace(fmtSize(int64(q.Constraints.Journal.Size))))
+			}
+			if q.Constraints.Journal.RateCount != 0 && q.Constraints.Journal.RatePeriod != 0 {
+				grpConstraints = append(grpConstraints, fmt.Sprintf("journal-rate=%dx/%s", q.Constraints.Journal.RateCount, q.Constraints.Journal.RatePeriod))
+			}
 		}
 
 		// format current resource values as memory=N,threads=N
