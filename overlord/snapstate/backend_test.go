@@ -758,6 +758,8 @@ type fakeSnappyBackend struct {
 
 	// TODO cleanup triggers above
 	maybeInjectErr func(*fakeOp) error
+
+	infos map[string]*snap.Info
 }
 
 func (f *fakeSnappyBackend) maybeErrForLastOp() error {
@@ -935,8 +937,31 @@ apps:
 		info.Base = "core24"
 	}
 
+	if storedInfo, ok := f.infos[name]; ok {
+		storedInfo.SideInfo = *si
+		info = storedInfo
+	}
+
 	info.InstanceKey = instanceKey
 	return info, nil
+}
+
+func (f *fakeSnappyBackend) addSnapApp(name, app string) {
+	if f.infos == nil {
+		f.infos = make(map[string]*snap.Info)
+	}
+
+	snapYaml := fmt.Sprintf(`name: %s
+apps:
+  %s:
+`, name, app)
+
+	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	if err != nil {
+		panic(err)
+	}
+
+	f.infos[name] = info
 }
 
 func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info) {

@@ -23,6 +23,7 @@
 package assertstate
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -289,6 +290,24 @@ func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
 	return a.(*asserts.Account), nil
 }
 
+// PublisherStoreAccount returns the store account information from the publisher assertion.
+func PublisherStoreAccount(st *state.State, snapID string) (snap.StoreAccount, error) {
+	if snapID == "" {
+		return snap.StoreAccount{}, nil
+	}
+
+	pubAcct, err := Publisher(st, snapID)
+	if err != nil {
+		return snap.StoreAccount{}, fmt.Errorf("cannot find publisher details: %v", err)
+	}
+	return snap.StoreAccount{
+		ID:          pubAcct.AccountID(),
+		Username:    pubAcct.Username(),
+		DisplayName: pubAcct.DisplayName(),
+		Validation:  pubAcct.Validation(),
+	}, nil
+}
+
 // Store returns the store assertion with the given name/id if it is
 // present in the system assertion database.
 func Store(s *state.State, store string) (*asserts.Store, error) {
@@ -314,7 +333,13 @@ func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 	}
 	explicitAliases := decl.Aliases()
 	if len(explicitAliases) != 0 {
-		return explicitAliases, nil
+		aliasesForApps := make(map[string]string, len(explicitAliases))
+		for alias, app := range explicitAliases {
+			if _, ok := info.Apps[app]; ok {
+				aliasesForApps[alias] = app
+			}
+		}
+		return aliasesForApps, nil
 	}
 	// XXX: old header fallback, just to keep edge working while we fix the
 	// store, to remove before next release!
@@ -688,11 +713,11 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		// by RefreshValidationSetAssertions.
 		var tr ValidationSetTracking
 		trerr := GetValidationSet(st, accountID, name, &tr)
-		if trerr != nil && trerr != state.ErrNoState {
+		if trerr != nil && !errors.Is(trerr, state.ErrNoState) {
 			return nil, 0, trerr
 		}
 		// not tracked, update the assertion
-		if trerr == state.ErrNoState {
+		if errors.Is(trerr, state.ErrNoState) {
 			// update with pool
 			atSeq.Sequence = vs.Sequence()
 			atSeq.Revision = vs.Revision()

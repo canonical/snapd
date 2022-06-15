@@ -95,8 +95,6 @@ var (
 	IsStopping = isStopping
 
 	GetSnapDirOptions = getSnapDirOptions
-
-	ParseQuotas = parseQuotas
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
@@ -458,4 +456,15 @@ func MockAutostartSessionApps(f func(string) error) func() {
 	return func() {
 		autostartSessionApps = old
 	}
+}
+
+func ParseQuotaValues(maxMemory, cpuMax, cpuSet, threadsMax string) (*client.QuotaValues, error) {
+	var quotas cmdSetQuota
+
+	quotas.MemoryMax = maxMemory
+	quotas.CPUMax = cpuMax
+	quotas.CPUSet = cpuSet
+	quotas.ThreadsMax = threadsMax
+
+	return quotas.parseQuotas()
 }

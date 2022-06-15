@@ -20,6 +20,7 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -42,7 +43,7 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 	defer st.Unlock()
 
 	var seeded bool
-	if err := st.Get("seeded", &seeded); err != nil && err != state.ErrNoState {
+	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if seeded {

@@ -2371,7 +2371,7 @@ func (s *snapmgrTestSuite) TestUpdateMakesConfigSnapshot(c *C) {
 
 	var cfgs map[string]interface{}
 	// we don't have config snapshots yet
-	c.Assert(s.state.Get("revision-config", &cfgs), Equals, state.ErrNoState)
+	c.Assert(s.state.Get("revision-config", &cfgs), testutil.ErrorIs, state.ErrNoState)
 
 	chg := s.state.NewChange("update", "update a snap")
 	opts := &snapstate.RevisionOptions{Channel: "some-channel", Revision: snap.R(2)}
@@ -3758,6 +3758,9 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	s.fakeBackend.addSnapApp("some-snap", "cmdA")
+	s.fakeBackend.addSnapApp("other-snap", "cmdB")
+
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -3908,6 +3911,8 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	s.fakeBackend.addSnapApp("some-snap", "cmdA")
+	s.fakeBackend.addSnapApp("other-snap", "cmdB")
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -8138,7 +8143,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	c.Assert(linkSnapBase.Get("cannot-reboot", &cannotReboot), IsNil)
 	c.Assert(cannotReboot, Equals, true)
 	// but the link-snap of the kernel can issue a reboot
-	c.Assert(linkSnapKernel.Get("cannot-reboot", &cannotReboot), Equals, state.ErrNoState)
+	c.Assert(linkSnapKernel.Get("cannot-reboot", &cannotReboot), testutil.ErrorIs, state.ErrNoState)
 
 	// have fake backend indicate a need to reboot for both snaps
 	s.fakeBackend.linkSnapMaybeReboot = true
@@ -8426,7 +8431,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithGadget
 				}
 				var flag bool
 				// the flag isn't set for any of link-snap tasks
-				c.Assert(tsk.Get("cannot-reboot", &flag), Equals, state.ErrNoState)
+				c.Assert(tsk.Get("cannot-reboot", &flag), testutil.ErrorIs, state.ErrNoState)
 			}
 		}
 	}

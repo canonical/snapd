@@ -79,6 +79,9 @@ func init() {
 	// system.power-key-action
 	addFSOnlyHandler(nil, handlePowerButtonConfiguration, coreOnly)
 
+	// system.disable-ctrl-alt-del
+	addFSOnlyHandler(nil, handleCtrlAltDelConfiguration, coreOnly)
+
 	// pi-config.*
 	addFSOnlyHandler(nil, handlePiConfiguration, coreOnly)
 

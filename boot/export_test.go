@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -76,6 +77,7 @@ var (
 type BootAssetsMap = bootAssetsMap
 type BootCommandLines = bootCommandLines
 type TrackedAsset = trackedAsset
+type SealKeyToModeenvFlags = sealKeyToModeenvFlags
 
 func (t *TrackedAsset) Equals(blName, name, hash string) error {
 	equal := t.hash == hash &&
@@ -103,6 +105,12 @@ func (o *TrustedAssetsInstallObserver) CurrentSaveEncryptionKey() keys.Encryptio
 	return o.saveEncryptionKey
 }
 
+func MockSecbootProvisionTPM(f func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error) (restore func()) {
+	restore = testutil.Backup(&secbootProvisionTPM)
+	secbootProvisionTPM = f
+	return restore
+}
+
 func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error) (restore func()) {
 	old := secbootSealKeys
 	secbootSealKeys = f
@@ -125,6 +133,12 @@ func MockSeedReadSystemEssential(f func(seedDir, label string, essentialTypes []
 	return func() {
 		seedReadSystemEssential = old
 	}
+}
+
+func MockSecbootPCRHandleOfSealedKey(f func(p string) (uint32, error)) (restore func()) {
+	restore = testutil.Backup(&secbootPCRHandleOfSealedKey)
+	secbootPCRHandleOfSealedKey = f
+	return restore
 }
 
 func (o *TrustedAssetsUpdateObserver) InjectChangedAsset(blName, assetName, hash string, recovery bool) {

@@ -513,7 +513,7 @@ func (s *snapsSuite) testPostSnapsOp(c *check.C, extraJSON, contentType string) 
 	c.Check(chg.Get("api-data", &apiData), check.IsNil)
 	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"fake1", "fake2"})
 	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		c.Error(err)
 	}
 	return systemRestartImmediate
@@ -1346,7 +1346,7 @@ func (s *snapsSuite) testPostSnap(c *check.C, extraJSON string, checkOpts func(o
 
 	summary = chg.Summary()
 	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		c.Error(err)
 	}
 	return summary, systemRestartImmediate

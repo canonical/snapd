@@ -20,6 +20,7 @@
 package ctlcmd
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -189,7 +190,7 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	}
 
 	var candidates map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &candidates); err != nil && err != state.ErrNoState {
+	if err := st.Get("refresh-candidates", &candidates); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
