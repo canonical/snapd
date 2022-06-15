@@ -113,6 +113,7 @@ func isContainerWithInternalPolicy() bool {
 func loadAppArmorProfiles() error {
 	candidates, err := filepath.Glob(dirs.SnapAppArmorDir + "/*")
 	if err != nil {
+		err = fmt.Errorf("Failed to glob profiles from snap apparmor dir %s: %v", dirs.SnapAppArmorDir, err)
 		return err
 	}
 
