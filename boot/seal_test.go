@@ -2084,7 +2084,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 	})
 }
 
-func (s *sealSuite) TestCompleteFactoryReset(c *C) {
+func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 
 	for i, tc := range []struct {
 		encrypted                 bool
@@ -2123,13 +2123,13 @@ func (s *sealSuite) TestCompleteFactoryReset(c *C) {
 			factoryKeyAlreadyMigrated: true,
 			pcrHandleOfKeyCalls:       1,
 			pcrHandleOfKeyErr:         errors.New("handle error"),
-			err:                       "cannot perform boot cleanup: cannot cleanup secboot state: cannot inspect fallback key: handle error",
+			err:                       "cannot perform post factory reset boot cleanup: cannot cleanup secboot state: cannot inspect fallback key: handle error",
 		}, {
 			encrypted: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
 			factoryKeyAlreadyMigrated: true,
 			pcrHandleOfKeyCalls:       1, releasePCRHandleCalls: 1,
 			releasePCRHandlesErr: errors.New("release error"),
-			err:                  "cannot perform boot cleanup: cannot cleanup secboot state: release error",
+			err:                  "cannot perform post factory reset boot cleanup: cannot cleanup secboot state: release error",
 		},
 	} {
 		c.Logf("tc %v", i)
@@ -2179,7 +2179,7 @@ func (s *sealSuite) TestCompleteFactoryReset(c *C) {
 		})
 		defer restore()
 
-		err := boot.CompleteFactoryReset(tc.encrypted)
+		err := boot.MarkFactoryResetComplete(tc.encrypted)
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, tc.err)
 		} else {
