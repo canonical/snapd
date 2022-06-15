@@ -147,6 +147,11 @@ func runKeySealRequests(key keys.EncryptionKey) []secboot.SealKeyRequest {
 	}
 }
 
+// FallbackDataSealedKeyUnder returns the name of a fallback ubuntu data key.
+func FallbackDataSealedKeyUnder(dir string) string {
+	return filepath.Join(dir, "ubuntu-data.recovery.sealed-key")
+}
+
 // FallbackSaveSealedKeyUnder returns the name of a fallback ubuntu save key.
 func FallbackSaveSealedKeyUnder(dir string) string {
 	return filepath.Join(dir, "ubuntu-save.recovery.sealed-key")
