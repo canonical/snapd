@@ -294,7 +294,7 @@ func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *LaidOutVolume, 
 	numPartsOnDisk := len(diskLayout.Structure)
 
 	return s.Filesystem == "ext4" &&
-		s.Type == "0FC63DAF-8483-4772-8E79-3D69D8477DE4" && // TODO: check hybrid and on MBR/DOS too
+		(s.Type == "0FC63DAF-8483-4772-8E79-3D69D8477DE4" || s.Type == "83") &&
 		s.Label == "writable" &&
 		// DiskIndex is 1-based
 		s.DiskIndex == numPartsOnDisk &&
