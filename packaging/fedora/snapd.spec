@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.56.1
+Version:        2.56.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -981,6 +981,13 @@ fi
 
 
 %changelog
+* Wed Jun 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.56.2
+ - o/snapstate: exclude services from refresh app awareness hard
+   running check
+ - cmd/snap: support custom apparmor features dir with snap
+   prepare-image
+
 * Wed Jun 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.56.1
  - gadget/install: do not assume dm device has same block size as
