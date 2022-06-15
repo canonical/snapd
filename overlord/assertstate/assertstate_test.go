@@ -2849,7 +2849,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeMissingS
 	assertstate.UpdateValidationSet(s.state, &tr)
 
 	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0, nil), IsNil)
-	c.Assert(logbuf.String(), Matches, `.*cannot refresh to validation set assertions that do not satisfy installed snaps: validation sets assertions are not met:\n- missing required snaps:\n  - foo \(required by sets .*/foo\)\n`)
+	c.Assert(logbuf.String(), Matches, `.*cannot refresh to validation set assertions that do not satisfy installed snaps: validation sets assertions are not met:\n- missing required snaps:\n  - foo \(required at any revision by sets .*/foo\)\n`)
 
 	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
@@ -3133,8 +3133,10 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyMis
 	c.Assert(err, NotNil)
 	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
 	c.Assert(ok, Equals, true)
-	c.Check(verr.MissingSnaps, DeepEquals, map[string][]string{
-		"foo": {fmt.Sprintf("%s/bar", s.dev1Acct.AccountID())},
+	c.Check(verr.MissingSnaps, DeepEquals, map[string]map[snap.Revision][]string{
+		"foo": {
+			snap.R(1): []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID())},
+		},
 	})
 
 	// and it hasn't been committed
