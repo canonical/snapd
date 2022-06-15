@@ -1,3 +1,23 @@
+snapd (2.56.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1974147
+    - gadget/install: do not assume dm device has same block size as
+      disk
+    - gadget: check also mbr type when testing for implicit data
+      partition
+    - interfaces: update network-control interface with permissions
+      required by resolvectl
+    - interfaces/builtin: remove the name=org.freedesktop.DBus
+      restriction in cups-control AppArmor rules
+    - many: print valid/invalid status on snap validate --monitor ...
+    - o/snapstate: fix validation sets restoring and snap revert on
+      failed refresh
+    - interfaces/opengl: update allowed PCI accesses for RPi
+    - interfaces/shared-memory: Update AppArmor permissions for
+      mmap+linkpaths
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 15 Jun 2022 09:57:54 +0200
+
 snapd (2.56~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1974147
