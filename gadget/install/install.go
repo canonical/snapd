@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
@@ -164,6 +165,8 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 
 	for _, part := range created {
 		roleFmt := ""
+		fsSectorSize := diskLayout.SectorSize
+
 		if part.Role != "" {
 			roleFmt = fmt.Sprintf("role %v", part.Role)
 		}
@@ -223,6 +226,11 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 			}
 			keyForRole[part.Role] = encryptionKey
 			logger.Noticef("encrypted device %v", part.Node)
+			fsSectorSizeInt, err := disks.SectorSize(part.Node)
+			if err != nil {
+				return nil, err
+			}
+			fsSectorSize = quantity.Size(fsSectorSizeInt)
 		}
 
 		// use the diskLayout.SectorSize here instead of lv.SectorSize, we check
@@ -231,7 +239,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 		// size specified in the gadget.yaml, but we will always have the sector
 		// size from the physical disk device
 		timings.Run(perfTimings, fmt.Sprintf("make-filesystem[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create filesystem for %s", part.Node), func(timings.Measurer) {
-			err = makeFilesystem(&part, diskLayout.SectorSize)
+			err = makeFilesystem(&part, fsSectorSize)
 		})
 		if err != nil {
 			return nil, fmt.Errorf("cannot make filesystem for partition %s: %v", roleOrLabelOrName(part), err)
