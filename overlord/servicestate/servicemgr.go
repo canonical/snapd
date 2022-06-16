@@ -61,6 +61,7 @@ func Manager(st *state.State, runner *state.TaskRunner) *ServiceManager {
 
 	// TODO: undo handler
 	runner.AddHandler("quota-control", m.doQuotaControl, nil)
+	runner.AddHandler("quota-restart-services", m.doQuotaRestartServices, nil)
 
 	snapstate.AddAffectedSnapsByKind("quota-control", quotaControlAffectedSnaps)
 

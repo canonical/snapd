@@ -26,6 +26,7 @@ import (
 
 	tomb "gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
@@ -92,7 +93,7 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 
 	qc := qcs[0]
 
-	updated, appsToRestartBySnap, err := quotaStateAlreadyUpdated(t)
+	updated, servicesAffected, err := quotaStateAlreadyUpdated(t)
 	if err != nil {
 		return err
 	}
@@ -123,14 +124,14 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 		opts := &ensureSnapServicesForGroupOptions{
 			allGrps: allGrps,
 		}
-		appsToRestartBySnap, err = ensureSnapServicesForGroup(st, t, grp, opts)
+		servicesAffected, err = ensureSnapServicesForGroup(st, t, grp, opts)
 		if err != nil {
 			return err
 		}
 
 		// All persistent modifications to disk are made and the
 		// modifications to state will be committed by the
-		// unlocking in restartSnapServices. If snapd gets
+		// unlocking at the end of this task. If snapd gets
 		// restarted before the end of this task, all the
 		// modifications would be redone, and those
 		// non-idempotent parts of the task would fail.
@@ -138,22 +139,69 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 		// in state the fact that the changes were made,
 		// to avoid repeating them.
 		// What remains for this task handler is just to
-		// restart services which will happen regardless if we
-		// get rebooted after unlocking the state - if we got
-		// rebooted before unlocking the state, none of the
-		// changes we made to state would be persisted and we
-		// would run through everything above here again, but
-		// the second time around EnsureSnapServices would end
-		// up doing nothing since it is idempotent.  So in the
-		// rare case that snapd gets restarted but is not a
+		// refresh security profiles and restart services which
+		// will happen regardless if we get rebooted after
+		// unlocking the state - if we got rebooted before unlocking
+		// the state, none of the changes we made to state would
+		// be persisted and we would run through everything above
+		// here again, but the second time around EnsureSnapServices
+		// would end up doing nothing since it is idempotent.
+		// So in the rare case that snapd gets restarted but is not a
 		// reboot also record which services do need
 		// restarting. There is a small chance that services
 		// will be restarted again but is preferable to the
 		// quota not applying to them.
-		if err := rememberQuotaStateUpdated(t, appsToRestartBySnap); err != nil {
+		if err := rememberQuotaStateUpdated(t, servicesAffected); err != nil {
 			return err
 		}
+	}
 
+	// As long as there are apps to restart, we also do a profile refresh for them.
+	// We want to ensure that their profile is up to date after the quota changes. As of
+	// this moment only journal quotas can affect the security profiles, but it would be hard
+	// to reliably detect when this is necessary if we want to be robust in case that snapd
+	// restarts in the middle of this task. So we schedule profile updates as long as there have
+	// been services affected
+	if len(servicesAffected) > 0 {
+		chg := t.Change()
+		prevTask := t
+		for info := range servicesAffected {
+			setupProfilesTask := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Update snap %q (%s) security profiles"), info.SnapName(), info.Revision))
+			setupProfilesTask.Set("snap-setup", &snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{
+					RealName: info.SnapName(),
+					Revision: info.Revision,
+				},
+			})
+			setupProfilesTask.WaitFor(prevTask)
+			chg.AddTask(setupProfilesTask)
+			prevTask = setupProfilesTask
+		}
+
+		restartTask := st.NewTask("quota-restart-services", fmt.Sprintf("Restarting services for quota %q", qc.QuotaName))
+		if err := rememberQuotaStateUpdated(restartTask, servicesAffected); err != nil {
+			return err
+		}
+		restartTask.WaitFor(prevTask)
+
+		chg.AddTask(restartTask)
+	}
+
+	t.SetStatus(state.DoneStatus)
+	return nil
+}
+
+func (m *ServiceManager) doQuotaRestartServices(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	_, appsToRestartBySnap, err := quotaStateAlreadyUpdated(t)
+	if err != nil {
+		return err
 	}
 
 	if err := restartSnapServices(st, t, appsToRestartBySnap, perfTimings); err != nil {

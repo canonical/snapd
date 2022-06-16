@@ -40,6 +40,10 @@ func (m *ServiceManager) DoQuotaControl(t *state.Task, to *tomb.Tomb) error {
 	return m.doQuotaControl(t, to)
 }
 
+func (m *ServiceManager) DoQuotaServiceRestart(t *state.Task, to *tomb.Tomb) error {
+	return m.doQuotaRestartServices(t, to)
+}
+
 func MockOsutilBootID(mockID string) (restore func()) {
 	old := osutilBootID
 	osutilBootID = func() (string, error) {

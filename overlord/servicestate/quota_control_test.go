@@ -25,6 +25,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	tomb "gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -69,6 +70,15 @@ func (s *quotaControlSuite) SetUpTest(c *C) {
 		return nil
 	})
 	s.AddCleanup(r)
+
+	// Add fake handlers for tasks handled by interfaces manager
+	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		task.State().Lock()
+		_, err := snapstate.TaskSnapSetup(task)
+		task.State().Unlock()
+		return err
+	}
+	s.o.TaskRunner().AddHandler("setup-profiles", fakeHandler, fakeHandler)
 }
 
 type quotaGroupState struct {
