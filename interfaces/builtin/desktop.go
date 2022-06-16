@@ -298,6 +298,10 @@ dbus (send, receive)
       path=/org/freedesktop/IBus/InputContext_[0-9]*
       interface=org.freedesktop.IBus.InputContext
       peer=(label=unconfined),
+
+# Allow reading files extracted by an unconfined file-roller in a temporary
+# place (LP: #1968548)
+owner @{HOME}/.cache/.fr-*/* r,
 `
 
 type desktopInterface struct {
