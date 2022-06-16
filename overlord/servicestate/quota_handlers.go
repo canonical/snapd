@@ -93,7 +93,7 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 
 	qc := qcs[0]
 
-	updated, servicesAffected, err := quotaStateAlreadyUpdated(t)
+	updated, servicesAffected, refreshProfiles, err := quotaStateAlreadyUpdated(t)
 	if err != nil {
 		return err
 	}
@@ -107,11 +107,11 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 		var grp *quota.Group
 		switch qc.Action {
 		case "create":
-			grp, allGrps, err = quotaCreate(st, qc, allGrps)
+			grp, allGrps, refreshProfiles, err = quotaCreate(st, qc, allGrps)
 		case "remove":
-			grp, allGrps, err = quotaRemove(st, qc, allGrps)
+			grp, allGrps, refreshProfiles, err = quotaRemove(st, qc, allGrps)
 		case "update":
-			grp, allGrps, err = quotaUpdate(st, qc, allGrps)
+			grp, allGrps, refreshProfiles, err = quotaUpdate(st, qc, allGrps)
 		default:
 			return fmt.Errorf("unknown action %q requested", qc.Action)
 		}
@@ -151,43 +151,51 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 		// restarting. There is a small chance that services
 		// will be restarted again but is preferable to the
 		// quota not applying to them.
-		if err := rememberQuotaStateUpdated(t, servicesAffected); err != nil {
+		if err := rememberQuotaStateUpdated(t, servicesAffected, refreshProfiles); err != nil {
 			return err
 		}
 	}
 
-	// As long as there are apps to restart, we also do a profile refresh for them.
-	// We want to ensure that their profile is up to date after the quota changes. As of
-	// this moment only journal quotas can affect the security profiles, but it would be hard
-	// to reliably detect when this is necessary if we want to be robust in case that snapd
-	// restarts in the middle of this task. So we schedule profile updates as long as there have
-	// been services affected
 	if len(servicesAffected) > 0 {
-		chg := t.Change()
 		prevTask := t
-		for info := range servicesAffected {
-			setupProfilesTask := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Update snap %q (%s) security profiles"), info.SnapName(), info.Revision))
-			setupProfilesTask.Set("snap-setup", &snapstate.SnapSetup{
-				SideInfo: &snap.SideInfo{
-					RealName: info.SnapName(),
-					Revision: info.Revision,
-				},
-			})
-			setupProfilesTask.WaitFor(prevTask)
-			chg.AddTask(setupProfilesTask)
-			prevTask = setupProfilesTask
+		if refreshProfiles {
+			prevTask = addRefreshProfileTasks(st, prevTask, servicesAffected)
 		}
-
-		restartTask := st.NewTask("quota-restart-services", fmt.Sprintf("Restarting services for quota %q", qc.QuotaName))
-		if err := rememberQuotaStateUpdated(restartTask, servicesAffected); err != nil {
+		if err := addRestartServicesTask(st, prevTask, qc.QuotaName, servicesAffected); err != nil {
 			return err
 		}
-		restartTask.WaitFor(prevTask)
-
-		chg.AddTask(restartTask)
 	}
 
 	t.SetStatus(state.DoneStatus)
+	return nil
+}
+
+func addRefreshProfileTasks(st *state.State, t *state.Task, servicesAffected map[*snap.Info][]*snap.AppInfo) *state.Task {
+	chg := t.Change()
+	prevTask := t
+	for info := range servicesAffected {
+		setupProfilesTask := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Update snap %q (%s) security profiles"), info.SnapName(), info.Revision))
+		setupProfilesTask.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: info.SnapName(),
+				Revision: info.Revision,
+			},
+		})
+		setupProfilesTask.WaitFor(prevTask)
+		chg.AddTask(setupProfilesTask)
+		prevTask = setupProfilesTask
+	}
+	return prevTask
+}
+
+func addRestartServicesTask(st *state.State, t *state.Task, grpName string, servicesAffected map[*snap.Info][]*snap.AppInfo) error {
+	chg := t.Change()
+	restartTask := st.NewTask("quota-restart-services", fmt.Sprintf("Restarting services for quota %q", grpName))
+	if err := rememberQuotaStateUpdated(restartTask, servicesAffected, false); err != nil {
+		return err
+	}
+	restartTask.WaitFor(t)
+	chg.AddTask(restartTask)
 	return nil
 }
 
@@ -199,7 +207,7 @@ func (m *ServiceManager) doQuotaRestartServices(t *state.Task, _ *tomb.Tomb) err
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	_, appsToRestartBySnap, err := quotaStateAlreadyUpdated(t)
+	_, appsToRestartBySnap, _, err := quotaStateAlreadyUpdated(t)
 	if err != nil {
 		return err
 	}
@@ -216,9 +224,10 @@ var osutilBootID = osutil.BootID
 type quotaStateUpdated struct {
 	BootID              string              `json:"boot-id"`
 	AppsToRestartBySnap map[string][]string `json:"apps-to-restart,omitempty"`
+	RefreshProfiles     bool                `json:"refresh-profiles,omitempty"`
 }
 
-func rememberQuotaStateUpdated(t *state.Task, appsToRestartBySnap map[*snap.Info][]*snap.AppInfo) error {
+func rememberQuotaStateUpdated(t *state.Task, appsToRestartBySnap map[*snap.Info][]*snap.AppInfo, refreshProfiles bool) error {
 	bootID, err := osutilBootID()
 	if err != nil {
 		return err
@@ -234,26 +243,27 @@ func rememberQuotaStateUpdated(t *state.Task, appsToRestartBySnap map[*snap.Info
 	t.Set("state-updated", quotaStateUpdated{
 		BootID:              bootID,
 		AppsToRestartBySnap: appNamesBySnapName,
+		RefreshProfiles:     refreshProfiles,
 	})
 	return nil
 }
 
-func quotaStateAlreadyUpdated(t *state.Task) (ok bool, appsToRestartBySnap map[*snap.Info][]*snap.AppInfo, err error) {
+func quotaStateAlreadyUpdated(t *state.Task) (ok bool, appsToRestartBySnap map[*snap.Info][]*snap.AppInfo, refreshProfiles bool, err error) {
 	var updated quotaStateUpdated
 	if err := t.Get("state-updated", &updated); err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			return false, nil, nil
+			return false, nil, false, nil
 		}
-		return false, nil, err
+		return false, nil, false, err
 	}
 
 	bootID, err := osutilBootID()
 	if err != nil {
-		return false, nil, err
+		return false, nil, false, err
 	}
 	if bootID != updated.BootID {
 		// rebooted => nothing to restart
-		return true, nil, nil
+		return true, nil, false, nil
 	}
 
 	appsToRestartBySnap = make(map[*snap.Info][]*snap.AppInfo, len(updated.AppsToRestartBySnap))
@@ -266,7 +276,7 @@ func quotaStateAlreadyUpdated(t *state.Task) (ok bool, appsToRestartBySnap map[*
 				t.Logf("after snapd restart, snap %q went missing", instanceName)
 				continue
 			}
-			return false, nil, err
+			return false, nil, false, err
 		}
 		apps := make([]*snap.AppInfo, 0, len(appNames))
 		for _, appName := range appNames {
@@ -278,13 +288,13 @@ func quotaStateAlreadyUpdated(t *state.Task) (ok bool, appsToRestartBySnap map[*
 		}
 		appsToRestartBySnap[info] = apps
 	}
-	return true, appsToRestartBySnap, nil
+	return true, appsToRestartBySnap, updated.RefreshProfiles, nil
 }
 
-func quotaCreate(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
+func quotaCreate(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, bool, error) {
 	// make sure the group does not exist yet
 	if _, ok := allGrps[action.QuotaName]; ok {
-		return nil, nil, fmt.Errorf("group %q already exists", action.QuotaName)
+		return nil, nil, false, fmt.Errorf("group %q already exists", action.QuotaName)
 	}
 
 	// make sure that the parent group exists if we are creating a sub-group
@@ -293,47 +303,52 @@ func quotaCreate(st *state.State, action QuotaControlAction, allGrps map[string]
 		var ok bool
 		parentGrp, ok = allGrps[action.ParentName]
 		if !ok {
-			return nil, nil, fmt.Errorf("cannot create group under non-existent parent group %q", action.ParentName)
+			return nil, nil, false, fmt.Errorf("cannot create group under non-existent parent group %q", action.ParentName)
 		}
 	}
 
 	// make sure the resource limits for the group are valid
 	if err := action.ResourceLimits.Validate(); err != nil {
-		return nil, nil, fmt.Errorf("cannot create quota group %q: %v", action.QuotaName, err)
+		return nil, nil, false, fmt.Errorf("cannot create quota group %q: %v", action.QuotaName, err)
 	}
 
 	// make sure the specified snaps exist and aren't currently in another group
 	if err := validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, allGrps); err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
-	return internal.CreateQuotaInState(st, action.QuotaName, parentGrp, action.AddSnaps, action.ResourceLimits, allGrps)
+	grp, allGrps, err := internal.CreateQuotaInState(st, action.QuotaName, parentGrp, action.AddSnaps, action.ResourceLimits, allGrps)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	refreshProfiles := grp.JournalLimit != nil
+	return grp, allGrps, refreshProfiles, nil
 }
 
-func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
+func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, bool, error) {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {
-		return nil, nil, fmt.Errorf("cannot remove non-existent quota group %q", action.QuotaName)
+		return nil, nil, false, fmt.Errorf("cannot remove non-existent quota group %q", action.QuotaName)
 	}
 
 	// make sure some of the options are not set, it's an internal error if
 	// anything other than the name and action are set for a removal
 	if action.ParentName != "" {
-		return nil, nil, fmt.Errorf("internal error, ParentName option cannot be used with remove action")
+		return nil, nil, false, fmt.Errorf("internal error, ParentName option cannot be used with remove action")
 	}
 
 	if len(action.AddSnaps) != 0 {
-		return nil, nil, fmt.Errorf("internal error, AddSnaps option cannot be used with remove action")
+		return nil, nil, false, fmt.Errorf("internal error, AddSnaps option cannot be used with remove action")
 	}
 
 	if action.ResourceLimits.Memory != nil {
-		return nil, nil, fmt.Errorf("internal error, MemoryLimit option cannot be used with remove action")
+		return nil, nil, false, fmt.Errorf("internal error, MemoryLimit option cannot be used with remove action")
 	}
 
 	// XXX: remove this limitation eventually
 	if len(grp.SubGroups) != 0 {
-		return nil, nil, fmt.Errorf("cannot remove quota group with sub-groups, remove the sub-groups first")
+		return nil, nil, false, fmt.Errorf("cannot remove quota group with sub-groups, remove the sub-groups first")
 	}
 
 	// if this group has a parent, we need to remove the linkage to this
@@ -372,13 +387,14 @@ func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]
 	// make sure that the group set is consistent before saving it - we may need
 	// to delete old links from this group's parent to the child
 	if err := quota.ResolveCrossReferences(allGrps); err != nil {
-		return nil, nil, fmt.Errorf("cannot remove quota group %q: %v", action.QuotaName, err)
+		return nil, nil, false, fmt.Errorf("cannot remove quota group %q: %v", action.QuotaName, err)
 	}
 
 	// now set it in state
 	st.Set("quotas", allGrps)
 
-	return grp, allGrps, nil
+	refreshProfiles := grp.JournalLimit != nil
+	return grp, allGrps, refreshProfiles, nil
 }
 
 func quotaUpdateGroupLimits(grp *quota.Group, limits quota.Resources) error {
@@ -389,17 +405,17 @@ func quotaUpdateGroupLimits(grp *quota.Group, limits quota.Resources) error {
 	return grp.UpdateQuotaLimits(currentQuotas)
 }
 
-func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
+func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, bool, error) {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {
-		return nil, nil, fmt.Errorf("group %q does not exist", action.QuotaName)
+		return nil, nil, false, fmt.Errorf("group %q does not exist", action.QuotaName)
 	}
 
 	// check that ParentName is not set, since we don't currently support
 	// re-parenting
 	if action.ParentName != "" {
-		return nil, nil, fmt.Errorf("group %q cannot be moved to a different parent (re-parenting not yet supported)", action.QuotaName)
+		return nil, nil, false, fmt.Errorf("group %q cannot be moved to a different parent (re-parenting not yet supported)", action.QuotaName)
 	}
 
 	modifiedGrps := []*quota.Group{grp}
@@ -407,29 +423,35 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 	// ensure that the group we are modifying does not contain a mix of snaps and sub-groups
 	// as we no longer support this, and existing quota groups might have this
 	if err := ensureGroupIsNotMixed(action.QuotaName, allGrps); err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
 	// now ensure that all of the snaps mentioned in AddSnaps exist as snaps and
 	// that they aren't already in an existing quota group
 	if err := validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, allGrps); err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
 	// append the snaps list in the group
 	grp.Snaps = append(grp.Snaps, action.AddSnaps...)
 
+	// store the current status of journal quota, if it changes we need
+	// to refresh the profiles for the snaps in the groups
+	refreshProfiles := grp.JournalLimit != nil
+
 	// update resource limits for the group
 	if err := quotaUpdateGroupLimits(grp, action.ResourceLimits); err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
 	// update the quota group state
 	allGrps, err := internal.PatchQuotas(st, modifiedGrps...)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
-	return grp, allGrps, nil
+
+	refreshProfiles = refreshProfiles != (grp.JournalLimit != nil)
+	return grp, allGrps, refreshProfiles, nil
 }
 
 type ensureSnapServicesForGroupOptions struct {

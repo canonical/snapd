@@ -174,6 +174,9 @@ func (s *quotaHandlersSuite) TestDoQuotaControlCreateRestartOK(c *C) {
 
 	st.Lock()
 	c.Assert(err, IsNil)
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+
+	t.SetStatus(state.DoingStatus)
 	restartTask := chg.Tasks()[len(chg.Tasks())-1]
 	st.Unlock()
 
@@ -181,11 +184,8 @@ func (s *quotaHandlersSuite) TestDoQuotaControlCreateRestartOK(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Lock()
-	c.Assert(t.Status(), Equals, state.DoneStatus)
 
 	checkQuotaState(c, st, expectedQuotaState)
-
-	t.SetStatus(state.DoingStatus)
 
 	st.Unlock()
 	err = s.o.ServiceManager().DoQuotaControl(t, nil)
@@ -241,7 +241,9 @@ func (s *quotaHandlersSuite) TestQuotaStateAlreadyUpdatedBehavior(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(t.Status(), Equals, state.DoneStatus)
+	c.Assert(len(chg.Tasks()), Equals, 2)
 
+	t.SetStatus(state.DoingStatus)
 	restartTask := chg.Tasks()[len(chg.Tasks())-1]
 	st.Unlock()
 
@@ -249,9 +251,8 @@ func (s *quotaHandlersSuite) TestQuotaStateAlreadyUpdatedBehavior(c *C) {
 
 	st.Lock()
 	c.Assert(err, IsNil)
-	t.SetStatus(state.DoingStatus)
 
-	updated, appsToRestart, err := servicestate.QuotaStateAlreadyUpdated(t)
+	updated, appsToRestart, _, err := servicestate.QuotaStateAlreadyUpdated(t)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, true)
 	c.Assert(appsToRestart, HasLen, 1)
@@ -265,20 +266,20 @@ func (s *quotaHandlersSuite) TestQuotaStateAlreadyUpdatedBehavior(c *C) {
 	r = servicestate.MockOsutilBootID("other-boot")
 	defer r()
 
-	updated, appsToRestart, err = servicestate.QuotaStateAlreadyUpdated(t)
+	updated, appsToRestart, _, err = servicestate.QuotaStateAlreadyUpdated(t)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, true)
 	c.Check(appsToRestart, HasLen, 0)
 	r()
 
 	// restored
-	_, appsToRestart, err = servicestate.QuotaStateAlreadyUpdated(t)
+	_, appsToRestart, _, err = servicestate.QuotaStateAlreadyUpdated(t)
 	c.Assert(err, IsNil)
 	c.Check(appsToRestart, HasLen, 1)
 
 	// snap went missing
 	snapstate.Set(s.state, "test-snap", nil)
-	updated, appsToRestart, err = servicestate.QuotaStateAlreadyUpdated(t)
+	updated, appsToRestart, _, err = servicestate.QuotaStateAlreadyUpdated(t)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, true)
 	c.Check(appsToRestart, HasLen, 0)
@@ -500,6 +501,8 @@ func (s *quotaHandlersSuite) TestDoQuotaControlRemoveRestartOK(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(t.Status(), Equals, state.DoneStatus)
+
+	t.SetStatus(state.DoingStatus)
 	restartTask = chg.Tasks()[len(chg.Tasks())-1]
 	st.Unlock()
 
@@ -510,7 +513,6 @@ func (s *quotaHandlersSuite) TestDoQuotaControlRemoveRestartOK(c *C) {
 
 	checkQuotaState(c, st, nil)
 
-	t.SetStatus(state.DoingStatus)
 	st.Unlock()
 
 	err = s.o.ServiceManager().DoQuotaControl(t, nil)
