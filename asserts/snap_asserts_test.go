@@ -106,6 +106,110 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 		"Cmd-3": "cmd-3",
 		"CMD.4": "cmd-4",
 	})
+	c.Check(snapDecl.RevisionAuthority(""), IsNil)
+}
+
+func (sds *snapDeclSuite) TestDecodeOKWithRevisionAuthority(c *C) {
+	encoded := "type: snap-declaration\n" +
+		"authority-id: canonical\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-name: first\n" +
+		"publisher-id: dev-id1\n" +
+		"refresh-control:\n  - foo\n  - bar\n" +
+		sds.tsLine +
+		`revision-authority:
+  -
+    account-id: delegated-acc-id
+    provenance:
+      - prov1
+      - prov2
+    min-revision: 100
+    max-revision: 1000000
+    on-store:
+      - store1
+` +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
+	snapDecl := a.(*asserts.SnapDeclaration)
+	c.Check(snapDecl.AuthorityID(), Equals, "canonical")
+	c.Check(snapDecl.Timestamp(), Equals, sds.ts)
+	c.Check(snapDecl.Series(), Equals, "16")
+	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
+	c.Check(snapDecl.SnapName(), Equals, "first")
+	c.Check(snapDecl.PublisherID(), Equals, "dev-id1")
+	c.Check(snapDecl.RefreshControl(), DeepEquals, []string{"foo", "bar"})
+	ras := snapDecl.RevisionAuthority("prov1")
+	c.Check(ras, DeepEquals, []*asserts.RevisionAuthority{
+		{
+			AccountID:   "delegated-acc-id",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 100,
+			MaxRevision: 1000000,
+			DeviceScope: &asserts.DeviceScopeConstraint{
+				Store: []string{"store1"},
+			},
+		},
+	})
+}
+
+func (sds *snapDeclSuite) TestDecodeOKWithRevisionAuthorityDefaults(c *C) {
+	initial := "type: snap-declaration\n" +
+		"authority-id: canonical\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-name: first\n" +
+		"publisher-id: dev-id1\n" +
+		"refresh-control:\n  - foo\n  - bar\n" +
+		sds.tsLine +
+		`revision-authority:
+  -
+    account-id: delegated-acc-id
+    provenance:
+      - prov1
+      - prov2
+    min-revision: 100
+` +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+	tests := []struct {
+		original, replaced string
+		revAuth            asserts.RevisionAuthority
+	}{
+		{"min", "min", asserts.RevisionAuthority{
+			AccountID:   "delegated-acc-id",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 100,
+		}},
+		{"min", "max", asserts.RevisionAuthority{
+			AccountID:   "delegated-acc-id",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 1,
+			MaxRevision: 100,
+		}},
+		{"    min-revision: 100\n", "", asserts.RevisionAuthority{
+			AccountID:   "delegated-acc-id",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 1,
+		}},
+	}
+
+	for _, t := range tests {
+		encoded := strings.Replace(initial, t.original, t.replaced, 1)
+		a, err := asserts.Decode([]byte(encoded))
+		c.Assert(err, IsNil)
+		snapDecl := a.(*asserts.SnapDeclaration)
+		ras := snapDecl.RevisionAuthority("prov2")
+		c.Check(ras, HasLen, 1)
+		c.Check(*ras[0], DeepEquals, t.revAuth)
+	}
 }
 
 func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
@@ -205,6 +309,51 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		c.Check(err, ErrorMatches, snapDeclErrPrefix+test.expectedErr)
 	}
 
+}
+
+func (sds *snapDeclSuite) TestDecodeInvalidWithRevisionAuthority(c *C) {
+	const revAuth = `revision-authority:
+  -
+    account-id: delegated-acc-id
+    provenance:
+      - prov1
+      - prov2
+    min-revision: 100
+    max-revision: 1000000
+    on-store:
+      - store1
+`
+	encoded := "type: snap-declaration\n" +
+		"authority-id: canonical\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-name: first\n" +
+		"publisher-id: dev-id1\n" +
+		"refresh-control:\n  - foo\n  - bar\n" +
+		sds.tsLine +
+		revAuth +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{revAuth, "revision-authority: x\n", `revision-authority stanza must be a list of maps`},
+		{revAuth, "revision-authority:\n  - x\n", `revision-authority stanza must be a list of maps`},
+		{"    account-id: delegated-acc-id\n", "", `"account-id" in revision authority is mandatory`},
+		{"account-id: delegated-acc-id\n", "account-id: *\n", `"account-id" in revision authority contains invalid characters: "\*"`},
+		{"    provenance:\n      - prov1\n      - prov2\n", "    provenance: \n", `provenance in revision authority must be a list of strings`},
+		{"    min-revision: 100\n", "    min-revision: 0\n", `"min-revision" in revision authority must be >=1: 0`},
+		{"    max-revision: 1000000\n", "    max-revision: 0\n", `"max-revision" in revision authority must be >=1: 0`},
+		{"    max-revision: 1000000\n", "    max-revision: 10\n", `optional max-revision must greater than min-revision in revision-authority`},
+		{"    on-store:\n      - store1\n", "    on-store: foo", `on-store in revision-authority must be a list of strings`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, snapDeclErrPrefix+test.expectedErr)
+	}
 }
 
 func (sds *snapDeclSuite) TestDecodePlugsAndSlots(c *C) {
@@ -1026,46 +1175,168 @@ func (srs *snapRevSuite) TestSnapRevisionCheckMissingDeclaration(c *C) {
 	c.Assert(err, ErrorMatches, `snap-revision assertion for snap id "snap-id-1" does not have a matching snap-declaration assertion`)
 }
 
-func (srs *snapRevSuite) TestSnapRevisionDelegation(c *C) {
-	c.Skip("authority-delegation disabled")
-
+func (srs *snapRevSuite) TestRevisionAuthorityCheck(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
-	prereqDevAccount(c, storeDB, db)
-	prereqSnapDecl(c, storeDB, db)
-
-	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
-
-	since := time.Now()
+	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
 	headers := srs.makeHeaders(map[string]interface{}{
-		"authority-id": "canonical",
-		"signatory-id": "other",
-		"timestamp":    since.Format(time.RFC3339),
+		"authority-id":  "delegated-id",
+		"developer-id":  "delegated-id",
+		"snap-revision": "200",
+		"provenance":    "prov1",
 	})
-	snapRev, err := otherDB.Sign(asserts.SnapRevisionType, headers, nil, "")
+	a, err := delegatedDB.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+	snapRev := a.(*asserts.SnapRevision)
+
+	tests := []struct {
+		revAuth asserts.RevisionAuthority
+		err     string
+	}{
+		{asserts.RevisionAuthority{
+			AccountID:   "delegated-id",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 1,
+		}, ""},
+		{asserts.RevisionAuthority{
+			AccountID:   "delegated-id",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 1,
+			MaxRevision: 1000,
+		}, ""},
+		{asserts.RevisionAuthority{
+			AccountID:   "delegated-id",
+			Provenance:  []string{"prov2"},
+			MinRevision: 1,
+			MaxRevision: 1000,
+		}, "provenance mismatch"},
+		{asserts.RevisionAuthority{
+			AccountID:   "delegated-id-2",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 1,
+			MaxRevision: 1000,
+		}, "authority-id mismatch"},
+		{asserts.RevisionAuthority{
+			AccountID:   "delegated-id",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 1000,
+		}, "snap revision 200 is less than min-revision 1000"},
+		{asserts.RevisionAuthority{
+			AccountID:   "delegated-id",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 10,
+			MaxRevision: 110,
+		}, "snap revision 200 is greater than max-revision 110"},
+	}
+
+	for _, t := range tests {
+		err := t.revAuth.Check(snapRev)
+		if t.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
+}
+
+func (srs *snapRevSuite) TestSnapRevisionDelegation(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
+
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": "delegated-id",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
 	c.Assert(err, IsNil)
 
-	// now add authority-delegation
-	headers = map[string]interface{}{
-		"authority-id": "canonical",
-		"account-id":   "canonical",
-		"delegate-id":  "other",
-		"assertions": []interface{}{
-			map[string]interface{}{
-				"type": "snap-revision",
-				"headers": map[string]interface{}{
-					"snap-id": "snap-id-1",
-				},
-				"since": since.AddDate(0, -1, 0).Format(time.RFC3339),
-			},
-		},
-	}
-	ad, err := storeDB.Sign(asserts.AuthorityDelegationType, headers, nil, "")
+	headers := srs.makeHeaders(map[string]interface{}{
+		"authority-id": "delegated-id",
+		"developer-id": "delegated-id",
+		"provenance":   "prov1",
+	})
+	snapRev, err := delegatedDB.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
-	c.Check(db.Add(ad), IsNil)
 
 	err = db.Check(snapRev)
+	c.Check(err, ErrorMatches, `snap-revision assertion with provenance "prov1" for snap id "snap-id-1" is not signed by an authorized authority: delegated-id`)
+
+	// establish delegation
+	snapDecl, err = storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": "delegated-id",
+		"revision":     "1",
+		"revision-authority": []interface{}{
+			map[string]interface{}{
+				"account-id": "delegated-id",
+				"provenance": []interface{}{
+					"prov1",
+				},
+				// present but not checked at this level
+				"on-store": []interface{}{
+					"store1",
+				},
+			},
+		},
+		"timestamp": time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	// now revision should be accepted
+	err = db.Check(snapRev)
 	c.Check(err, IsNil)
+}
+
+func (srs *snapRevSuite) TestSnapRevisionDelegationRevisionOutOfRange(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
+
+	// establish delegation
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": "delegated-id",
+		"revision-authority": []interface{}{
+			map[string]interface{}{
+				"account-id": "delegated-id",
+				"provenance": []interface{}{
+					"prov1",
+				},
+				// present but not checked at this level
+				"on-store": []interface{}{
+					"store1",
+				},
+				"max-revision": "200",
+			},
+		},
+		"timestamp": time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	headers := srs.makeHeaders(map[string]interface{}{
+		"authority-id":  "delegated-id",
+		"developer-id":  "delegated-id",
+		"provenance":    "prov1",
+		"snap-revision": "1000",
+	})
+	snapRev, err := delegatedDB.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapRev)
+	c.Check(err, ErrorMatches, `snap-revision assertion with provenance "prov1" for snap id "snap-id-1" is not signed by an authorized authority: delegated-id`)
 }
 
 func (srs *snapRevSuite) TestSnapRevisionDelegationInconsistentTimestamp(c *C) {
