@@ -75,6 +75,7 @@ var (
 
 	snapTypeToMountDir = map[snap.Type]string{
 		snap.TypeBase:   "base",
+		snap.TypeGadget: "gadget",
 		snap.TypeKernel: "kernel",
 		snap.TypeSnapd:  "snapd",
 	}
@@ -1384,13 +1385,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 	systemSnaps := make(map[snap.Type]snap.PlaceInfo)
 
 	for _, essentialSnap := range essSnaps {
-		if essentialSnap.EssentialType == snap.TypeGadget {
-			// don't need to mount the gadget anywhere, but we use the snap
-			// later hence it is loaded
-			continue
-		}
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap.PlaceInfo()
-
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
 		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
 		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
@@ -1629,7 +1624,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	typs := []snap.Type{snap.TypeBase, snap.TypeKernel}
+	typs := []snap.Type{snap.TypeBase, snap.TypeGadget, snap.TypeKernel}
 
 	// 4.2 choose base and kernel snaps (this includes updating modeenv if
 	//     needed to try the base snap)
@@ -1645,7 +1640,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// 4.3 mount base and kernel snaps
 	// make sure this is a deterministic order
-	for _, typ := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
+	for _, typ := range []snap.Type{snap.TypeBase, snap.TypeGadget, snap.TypeKernel} {
 		if sn, ok := mounts[typ]; ok {
 			dir := snapTypeToMountDir[typ]
 			snapPath := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), sn.Filename())
