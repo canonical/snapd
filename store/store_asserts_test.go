@@ -131,8 +131,6 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 AXNpZw==`
 
 func (s *storeAssertsSuite) TestAssertionReducedPrimaryKey(c *C) {
-	// XXX undo this when snap-revision has provenance for real
-	defer asserts.MockOptionalPrimaryKey(asserts.SnapRevisionType, "provenance", "default-provenance")()
 	restore := asserts.MockMaxSupportedFormat(asserts.SnapRevisionType, 88)
 	defer restore()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -156,11 +154,11 @@ func (s *storeAssertsSuite) TestAssertionReducedPrimaryKey(c *C) {
 	dauthCtx := &testDauthContext{c: c, device: s.device}
 	sto := store.New(&cfg, dauthCtx)
 
-	a, err := sto.Assertion(asserts.SnapRevisionType, []string{"QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL", "default-provenance"}, nil)
+	a, err := sto.Assertion(asserts.SnapRevisionType, []string{"QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL", "global-upload"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(a, NotNil)
 	c.Check(a.Type(), Equals, asserts.SnapRevisionType)
-	c.Check(a.HeaderString("provenance"), Equals, "default-provenance")
+	c.Check(a.HeaderString("provenance"), Equals, "global-upload")
 }
 
 func (s *storeAssertsSuite) TestAssertionProxyStoreFromAuthContext(c *C) {

@@ -421,6 +421,12 @@ func (snaprev *SnapRevision) SnapSHA3_384() string {
 	return snaprev.HeaderString("snap-sha3-384")
 }
 
+// Provenance returns the optional provenance of the snap (defaults to
+// global-upload).
+func (snaprev *SnapRevision) Provenance() string {
+	return snaprev.HeaderString("provenance")
+}
+
 // SnapID returns the snap id of the snap.
 func (snaprev *SnapRevision) SnapID() string {
 	return snaprev.HeaderString("snap-id")

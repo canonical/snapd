@@ -887,6 +887,25 @@ func (srs *snapRevSuite) TestDecodeOK(c *C) {
 	c.Check(snapRev.SnapRevision(), Equals, 1)
 	c.Check(snapRev.DeveloperID(), Equals, "dev-id1")
 	c.Check(snapRev.Revision(), Equals, 1)
+	c.Check(snapRev.Provenance(), Equals, "global-upload")
+}
+
+func (srs *snapRevSuite) TestDecodeOKWithProvenance(c *C) {
+	encoded := srs.makeValidEncoded()
+	encoded = strings.Replace(encoded, "snap-id: snap-id-1", "provenance: foo\nsnap-id: snap-id-1", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SnapRevisionType)
+	snapRev := a.(*asserts.SnapRevision)
+	c.Check(snapRev.AuthorityID(), Equals, "store-id1")
+	c.Check(snapRev.Timestamp(), Equals, srs.ts)
+	c.Check(snapRev.SnapID(), Equals, "snap-id-1")
+	c.Check(snapRev.SnapSHA3_384(), Equals, blobSHA3_384)
+	c.Check(snapRev.SnapSize(), Equals, uint64(123))
+	c.Check(snapRev.SnapRevision(), Equals, 1)
+	c.Check(snapRev.DeveloperID(), Equals, "dev-id1")
+	c.Check(snapRev.Revision(), Equals, 1)
+	c.Check(snapRev.Provenance(), Equals, "foo")
 }
 
 const (
@@ -904,6 +923,7 @@ func (srs *snapRevSuite) TestDecodeInvalid(c *C) {
 		{digestHdr, "snap-sha3-384: \n", `"snap-sha3-384" header should not be empty`},
 		{digestHdr, "snap-sha3-384: #\n", `"snap-sha3-384" header cannot be decoded:.*`},
 		{digestHdr, "snap-sha3-384: eHl6\n", `"snap-sha3-384" header does not have the expected bit length: 24`},
+		{"snap-id: snap-id-1\n", "provenance: \nsnap-id: snap-id-1\n", `"provenance" header should not be empty`},
 		{"snap-size: 123\n", "", `"snap-size" header is mandatory`},
 		{"snap-size: 123\n", "snap-size: \n", `"snap-size" header should not be empty`},
 		{"snap-size: 123\n", "snap-size: -1\n", `"snap-size" header is not an unsigned integer: -1`},
