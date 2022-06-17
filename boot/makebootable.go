@@ -305,12 +305,12 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	//   install the boot.sel onto ubuntu-boot directly, but the file should be
 	//   managed by snapd instead
 
-	// copy kernel/base into the ubuntu-data partition
+	// copy kernel/base/gadget into the ubuntu-data partition
 	snapBlobDir := dirs.SnapBlobDirUnder(InstallHostWritableDir)
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
-	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath} {
+	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath, bootWith.GadgetPath} {
 		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
 		// if the source filename is a symlink, don't copy the symlink, copy the
 		// target file instead of copying the symlink, as the initramfs won't

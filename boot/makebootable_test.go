@@ -872,6 +872,12 @@ version: 5.0
 	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
 	err = os.Symlink(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
 
 	bootWith := &boot.BootableSet{
 		RecoverySystemDir: "20191216",
@@ -879,6 +885,8 @@ version: 5.0
 		Base:              baseInfo,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		Recovery:          false,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
@@ -972,6 +980,12 @@ version: 5.0
 	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
 	err = os.Symlink(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
 
 	bootWith := &boot.BootableSet{
 		RecoverySystemDir: "20191216",
@@ -979,6 +993,8 @@ version: 5.0
 		Base:              baseInfo,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		Recovery:          false,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
@@ -1399,6 +1415,12 @@ version: 5.0
 	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
 	err = os.Symlink(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
 
 	bootWith := &boot.BootableSet{
 		RecoverySystemDir: "20191216",
@@ -1406,6 +1428,8 @@ version: 5.0
 		Base:              baseInfo,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		Recovery:          false,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
