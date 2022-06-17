@@ -161,9 +161,7 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 		if refreshProfiles {
 			prevTask = addRefreshProfileTasks(st, prevTask, servicesAffected)
 		}
-		if err := addRestartServicesTask(st, prevTask, qc.QuotaName, servicesAffected); err != nil {
-			return err
-		}
+		addRestartServicesTasks(st, prevTask, qc.QuotaName, servicesAffected)
 	}
 
 	t.SetStatus(state.DoneStatus)
@@ -188,35 +186,37 @@ func addRefreshProfileTasks(st *state.State, t *state.Task, servicesAffected map
 	return prevTask
 }
 
-func addRestartServicesTask(st *state.State, t *state.Task, grpName string, servicesAffected map[*snap.Info][]*snap.AppInfo) error {
+func addRestartServicesTasks(st *state.State, t *state.Task, grpName string, servicesAffected map[*snap.Info][]*snap.AppInfo) {
 	chg := t.Change()
-	restartTask := st.NewTask("quota-restart-services", fmt.Sprintf("Restarting services for quota %q", grpName))
-	if err := rememberQuotaStateUpdated(restartTask, servicesAffected, false); err != nil {
-		return err
-	}
-	restartTask.WaitFor(t)
-	chg.AddTask(restartTask)
-	return nil
-}
 
-func (m *ServiceManager) doQuotaRestartServices(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	perfTimings := state.TimingsForTask(t)
-	defer perfTimings.Save(st)
-
-	_, appsToRestartBySnap, _, err := quotaStateAlreadyUpdated(t)
-	if err != nil {
-		return err
+	getServiceNames := func(services []*snap.AppInfo) []string {
+		var names []string
+		for _, svc := range services {
+			names = append(names, svc.Name)
+		}
+		return names
 	}
 
-	if err := restartSnapServices(st, t, appsToRestartBySnap, perfTimings); err != nil {
-		return err
+	sortedInfos := make([]*snap.Info, 0, len(servicesAffected))
+	for info := range servicesAffected {
+		sortedInfos = append(sortedInfos, info)
 	}
-	t.SetStatus(state.DoneStatus)
-	return nil
+	sort.Slice(sortedInfos, func(i, j int) bool {
+		return sortedInfos[i].InstanceName() < sortedInfos[j].InstanceName()
+	})
+
+	prevTask := t
+	for _, info := range sortedInfos {
+		restartTask := st.NewTask("service-control", fmt.Sprintf("Restarting services for snap %q", info.InstanceName()))
+		restartTask.Set("service-action", ServiceAction{
+			Action:   "restart",
+			SnapName: info.InstanceName(),
+			Services: getServiceNames(servicesAffected[info]),
+		})
+		restartTask.WaitFor(prevTask)
+		chg.AddTask(restartTask)
+		prevTask = restartTask
+	}
 }
 
 var osutilBootID = osutil.BootID

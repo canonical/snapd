@@ -128,6 +128,25 @@ func (s *quotaHandlersSuite) TestDoQuotaControlCreate(c *C) {
 	})
 }
 
+func (s *quotaHandlersSuite) getRestartTasks(chg *state.Change) []*state.Task {
+	var tasks []*state.Task
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "service-control" {
+			tasks = append(tasks, t)
+		}
+	}
+	return tasks
+}
+
+func (s *quotaHandlersSuite) runRestartTasks(tasks []*state.Task) error {
+	for _, t := range tasks {
+		if err := s.o.ServiceManager().DoServiceControl(t, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *quotaHandlersSuite) TestDoQuotaControlCreateRestartOK(c *C) {
 	// test a situation where because of restart the task is reentered
 	r := s.mockSystemctlCalls(c, join(
@@ -177,10 +196,10 @@ func (s *quotaHandlersSuite) TestDoQuotaControlCreateRestartOK(c *C) {
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
 	t.SetStatus(state.DoingStatus)
-	restartTask := chg.Tasks()[len(chg.Tasks())-1]
+	restartTasks := s.getRestartTasks(chg)
 	st.Unlock()
 
-	err = s.o.ServiceManager().DoQuotaServiceRestart(restartTask, nil)
+	err = s.runRestartTasks(restartTasks)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -195,7 +214,7 @@ func (s *quotaHandlersSuite) TestDoQuotaControlCreateRestartOK(c *C) {
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	st.Unlock()
 
-	err = s.o.ServiceManager().DoQuotaServiceRestart(restartTask, nil)
+	err = s.runRestartTasks(restartTasks)
 
 	st.Lock()
 	c.Assert(err, IsNil)
@@ -244,10 +263,10 @@ func (s *quotaHandlersSuite) TestQuotaStateAlreadyUpdatedBehavior(c *C) {
 	c.Assert(len(chg.Tasks()), Equals, 2)
 
 	t.SetStatus(state.DoingStatus)
-	restartTask := chg.Tasks()[len(chg.Tasks())-1]
+	restartTasks := s.getRestartTasks(chg)
 	st.Unlock()
 
-	err = s.o.ServiceManager().DoQuotaServiceRestart(restartTask, nil)
+	err = s.runRestartTasks(restartTasks)
 
 	st.Lock()
 	c.Assert(err, IsNil)
@@ -473,10 +492,10 @@ func (s *quotaHandlersSuite) TestDoQuotaControlRemoveRestartOK(c *C) {
 
 	st.Lock()
 	c.Assert(err, IsNil)
-	restartTask := chg.Tasks()[len(chg.Tasks())-1]
+	restartTasks := s.getRestartTasks(chg)
 	st.Unlock()
 
-	err = s.o.ServiceManager().DoQuotaServiceRestart(restartTask, nil)
+	err = s.runRestartTasks(restartTasks)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -503,10 +522,10 @@ func (s *quotaHandlersSuite) TestDoQuotaControlRemoveRestartOK(c *C) {
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
 	t.SetStatus(state.DoingStatus)
-	restartTask = chg.Tasks()[len(chg.Tasks())-1]
+	restartTasks = s.getRestartTasks(chg)
 	st.Unlock()
 
-	err = s.o.ServiceManager().DoQuotaServiceRestart(restartTask, nil)
+	err = s.runRestartTasks(restartTasks)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -522,7 +541,7 @@ func (s *quotaHandlersSuite) TestDoQuotaControlRemoveRestartOK(c *C) {
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	st.Unlock()
 
-	err = s.o.ServiceManager().DoQuotaServiceRestart(restartTask, nil)
+	err = s.runRestartTasks(restartTasks)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -547,9 +566,9 @@ func (s *quotaHandlersSuite) callDoQuotaControl(action *servicestate.QuotaContro
 		return err
 	}
 	st.Lock()
-	restartTask := chg.Tasks()[len(chg.Tasks())-1]
+	restartTasks := s.getRestartTasks(chg)
 	st.Unlock()
-	return s.o.ServiceManager().DoQuotaServiceRestart(restartTask, nil)
+	return s.runRestartTasks(restartTasks)
 }
 
 func (s *quotaHandlersSuite) TestQuotaCreatePreseeding(c *C) {
