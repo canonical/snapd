@@ -521,6 +521,13 @@ version: 5.0
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
 	err = os.Symlink(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
 type: kernel
 version: 5.0
@@ -537,6 +544,8 @@ version: 5.0
 		RecoverySystemDir: "20191216",
 		BasePath:          baseInSeed,
 		Base:              baseInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
 		Recovery:          false,
@@ -753,6 +762,7 @@ recovery_system=20191216
 current_recovery_systems=20191216
 good_recovery_systems=20191216
 base=core20_3.snap
+gadget=pc_4.snap
 current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous
@@ -1137,6 +1147,13 @@ version: 5.0
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
 	err = os.Symlink(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
 type: kernel
 version: 5.0
@@ -1153,6 +1170,8 @@ version: 5.0
 		RecoverySystemDir: "20191216",
 		BasePath:          baseInSeed,
 		Base:              baseInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
 		Recovery:          false,
@@ -1264,6 +1283,7 @@ recovery_system=20191216
 current_recovery_systems=20191216
 good_recovery_systems=20191216
 base=core20_3.snap
+gadget=pc_4.snap
 current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous
@@ -1559,6 +1579,13 @@ version: 5.0
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
 	err = os.Rename(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 	kernelSnapFiles := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
@@ -1577,6 +1604,8 @@ version: 5.0
 		RecoverySystemDir: "20191216",
 		BasePath:          baseInSeed,
 		Base:              baseInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
 		Recovery:          false,
@@ -1622,6 +1651,7 @@ recovery_system=20191216
 current_recovery_systems=20191216
 good_recovery_systems=20191216
 base=core20_3.snap
+gadget=pc_4.snap
 current_kernels=arm-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous

@@ -45,6 +45,12 @@ func InitramfsRunModeSelectSnapsToMount(
 		case snap.TypeBase:
 			bs := &bootState20Base{}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
+		case snap.TypeGadget:
+			// Do not mount if modeset does not have gadget entry
+			if modeenv.Gadget == "" {
+				continue
+			}
+			selectSnapFn = selectGadgetSnap
 		case snap.TypeKernel:
 			blOpts := &bootloader.Options{
 				Role:        bootloader.RoleRunMode,

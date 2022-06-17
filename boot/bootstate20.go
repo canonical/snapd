@@ -52,6 +52,26 @@ func loadModeenv() (*Modeenv, error) {
 	return modeenv, nil
 }
 
+// selectGadgetSnap finds the currently active gadget snap
+func selectGadgetSnap(modeenv *Modeenv) (snap.PlaceInfo, error) {
+	gadgetInfo, err := snap.ParsePlaceInfoFromSnapFileName(modeenv.Gadget)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get snap revision: modeenv gadget boot variable is invalid: %v", err)
+	}
+
+	// check that the current snap actually exists
+	file := modeenv.Gadget
+	snapPath := filepath.Join(dirs.SnapBlobDirUnder(InitramfsWritableDir), file)
+	if !osutil.FileExists(snapPath) {
+		// somehow the gadget snap doesn't exist in ubuntu-data
+		// this could happen if the modeenv is manipulated
+		// out-of-band from snapd
+		return nil, fmt.Errorf("gadget snap %q does not exist on ubuntu-data", file)
+	}
+
+	return gadgetInfo, nil
+}
+
 //
 // bootloaderKernelState20 methods
 //

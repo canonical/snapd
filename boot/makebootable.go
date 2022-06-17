@@ -38,6 +38,8 @@ type BootableSet struct {
 	BasePath   string
 	Kernel     *snap.Info
 	KernelPath string
+	Gadget     *snap.Info
+	GadgetPath string
 
 	RecoverySystemLabel string
 	// RecoverySystemDir is a path to a directory with recovery system
@@ -354,6 +356,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		CurrentKernelCommandLines: nil,
 		// keep this comment to make gofmt 1.9 happy
 		Base:           filepath.Base(bootWith.BasePath),
+		Gadget:         filepath.Base(bootWith.GadgetPath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 		BrandID:        model.BrandID(),
 		Model:          model.Model(),

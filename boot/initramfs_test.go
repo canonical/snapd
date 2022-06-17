@@ -130,8 +130,12 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 	base2, err := snap.ParsePlaceInfoFromSnapFileName("core20_2.snap")
 	c.Assert(err, IsNil)
 
+	gadget, err := snap.ParsePlaceInfoFromSnapFileName("pc_1.snap")
+	c.Assert(err, IsNil)
+
 	baseT := snap.TypeBase
 	kernelT := snap.TypeKernel
+	gadgetT := snap.TypeGadget
 
 	tt := []struct {
 		m              *boot.Modeenv
@@ -157,6 +161,14 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			snapsToMake: []snap.PlaceInfo{base1},
 			expected:    map[snap.Type]snap.PlaceInfo{baseT: base1},
 			comment:     "default base path",
+		},
+		// gadget base path
+		{
+			m:           &boot.Modeenv{Mode: "run", Gadget: gadget.Filename()},
+			typs:        []snap.Type{gadgetT},
+			snapsToMake: []snap.PlaceInfo{gadget},
+			expected:    map[snap.Type]snap.PlaceInfo{gadgetT: gadget},
+			comment:     "default gadget path",
 		},
 		// default kernel path
 		{
