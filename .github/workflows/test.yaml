@@ -321,6 +321,8 @@ jobs:
         path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
 
   code-coverage:
+    permissions:
+      contents: none
     needs: [unit-tests]
     runs-on: ubuntu-20.04
     env:

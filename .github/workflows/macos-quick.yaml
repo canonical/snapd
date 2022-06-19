@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: ["master", "release/**"]
 
+permissions:
+  contents: read
+
 jobs:
   macos-quick:
     runs-on: macos-latest
