@@ -550,6 +550,7 @@ ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
 Type=forking
 Slice=snap.foogroup.slice
+LogNamespace=snap-foogroup
 
 [Install]
 WantedBy=multi-user.target
@@ -575,7 +576,6 @@ MemoryAccounting=true
 # Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
 TasksAccounting=true
-LogNamespace=snap-foogroup
 `
 
 	jconfContent := fmt.Sprintf(jconfTempl, grp.Name)
@@ -653,6 +653,7 @@ ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
 TimeoutStopSec=30
 Type=forking
 Slice=snap.foogroup.slice
+LogNamespace=snap-foogroup
 
 [Install]
 WantedBy=multi-user.target
@@ -682,7 +683,6 @@ MemoryAccounting=true
 # Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
 TasksAccounting=true
-LogNamespace=snap-foogroup
 `
 
 	jconfContent := fmt.Sprintf(jconfTempl, grp.Name)
