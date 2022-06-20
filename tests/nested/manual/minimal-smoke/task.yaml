@@ -1,6 +1,6 @@
 summary: execute smoke tests in a nested Ubuntu Core VM that meets the minimal requirements
 
-systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
     NESTED_ENABLE_SECURE_BOOT/secboot_disabled: false
