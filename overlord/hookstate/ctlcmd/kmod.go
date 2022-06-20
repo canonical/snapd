@@ -67,7 +67,7 @@ type kmodCommand struct {
 type KModInsertCmd struct {
 	kmodNopExecuteMixin
 	Positional struct {
-		Module  string   `positional-arg-name:"<module>" required:"yes" description:"name of the kernel module to be loaded"`
+		Module  string   `positional-arg-name:"<module>" required:"yes" description:"kernel module name"`
 		Options []string `positional-arg-name:"<options>" description:"kernel module options"`
 	} `positional-args:"yes" required:"yes"`
 }
@@ -84,8 +84,7 @@ func (k *KModInsertCmd) Execute([]string) error {
 	}
 
 	if len(attributes) == 0 {
-		snapName := context.InstanceName()
-		return fmt.Errorf("snap %q lacks permissions to load the module %q", snapName, k.Positional.Module)
+		return fmt.Errorf("cannot load module %q, required interface not connected", k.Positional.Module)
 	}
 
 	if err := kmodLoadModule(k.Positional.Module, k.Positional.Options); err != nil {
@@ -98,7 +97,7 @@ func (k *KModInsertCmd) Execute([]string) error {
 type KModRemoveCmd struct {
 	kmodNopExecuteMixin
 	Positional struct {
-		Module string `positional-arg-name:"<module>" required:"yes" description:"name of the kernel module to be unloaded"`
+		Module string `positional-arg-name:"<module>" required:"yes" description:"kernel module name"`
 	} `positional-args:"yes" required:"yes"`
 	kmod *kmodCommand
 }
@@ -115,8 +114,7 @@ func (k *KModRemoveCmd) Execute([]string) error {
 	}
 
 	if len(attributes) == 0 {
-		snapName := context.InstanceName()
-		return fmt.Errorf("snap %q lacks permissions to unload the module %q", snapName, k.Positional.Module)
+		return fmt.Errorf("cannot unload module %q, required interface not connected", k.Positional.Module)
 	}
 
 	if err := kmodUnloadModule(k.Positional.Module); err != nil {
@@ -129,7 +127,8 @@ func (k *KModRemoveCmd) Execute([]string) error {
 // kmodMatchConnection checks whether the given kmod connection attributes give
 // the snap permission to execute the kmod command
 func kmodMatchConnection(attributes map[string]interface{}, moduleName string, moduleOptions []string) bool {
-	if attributes["load"].(string) != "dynamic" {
+	load, found := attributes["load"]
+	if !found || load.(string) != "dynamic" {
 		return false
 	}
 

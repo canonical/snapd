@@ -104,6 +104,8 @@ func (s *kmodSuite) TestMatchConnection(c *C) {
 		moduleOptions []string
 		expectedMatch bool
 	}{
+		// missing "load" attribute
+		{map[string]interface{}{}, "", []string{}, false},
 		// empty "load" attribute
 		{map[string]interface{}{"load": ""}, "", []string{}, false},
 		// "load" attribute must be set to "dynamic"
@@ -226,7 +228,7 @@ func (s *kmodSuite) TestInsertFailure(c *C) {
 		{
 			// no errors, but no matching connection
 			findMatching:  false,
-			expectedError: `snap "snap1" lacks permissions to load the module "moderr"`,
+			expectedError: `cannot load module "moderr", required interface not connected`,
 		},
 		{
 			// error calling modprobe
@@ -299,7 +301,7 @@ func (s *kmodSuite) TestRemoveFailure(c *C) {
 		{
 			// no errors, but no matching connection
 			findMatching:  false,
-			expectedError: `snap "snap1" lacks permissions to unload the module "moderr"`,
+			expectedError: `cannot unload module "moderr", required interface not connected`,
 		},
 		{
 			// error calling modprobe
