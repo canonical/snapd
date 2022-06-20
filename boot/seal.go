@@ -301,6 +301,16 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Mode
 		return err
 	}
 
+	if flags.FactoryReset {
+		// it is possible that we are sealing the keys again, after a
+		// previously running factory reset was interrupted by a reboot,
+		// in which case the PCR handles of the new sealed keys might
+		// have already been used
+		if err := secbootReleasePCRResourceHandles(runObjectKeyPCRHandle, fallbackObjectKeyPCRHandle); err != nil {
+			return err
+		}
+	}
+
 	// TODO: refactor sealing functions to take a struct instead of so many
 	// parameters
 	err = sealRunObjectKeys(key, pbc, authKey, roleToBlName, runObjectKeyPCRHandle)
