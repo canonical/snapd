@@ -3666,7 +3666,7 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 // of the refreshed snaps to their previous revisions to satisfy the restored
 // validation sets tracking.
 var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSnaps []string, fromChange string) ([]*state.TaskSet, error) {
-	enforcedSets, err := EnforcedValidationSets(st, nil)
+	enforcedSets, err := EnforcedValidationSets(st)
 	if err != nil {
 		return nil, err
 	}
@@ -3700,7 +3700,7 @@ var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSn
 	}
 
 	// we need to fetch enforced sets again because of RestoreValidationSetsTracking.
-	enforcedSets, err = EnforcedValidationSets(st, nil)
+	enforcedSets, err = EnforcedValidationSets(st)
 	if err != nil {
 		return nil, err
 	}
