@@ -19,6 +19,8 @@ prepare: |
   snap download "--channel=${SNAPD_CHANNEL}" snapd
   repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks /tmp
 
+  snap pack systemusers-snap
+
   mkdir -p "$STORE_DIR/asserts"
   echo Expose the needed assertions through the fakestore
   cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
@@ -51,7 +53,7 @@ execute: |
   SNAPD_SNAP=$(ls /tmp/snapd*.snap)
 
   # XXX: confusingly, the name of our test key is actually " (test)".
-  snap prepare-image --preseed --preseed-sign-key=" (test)" --channel=stable --snap="$SNAPD_SNAP" "$TESTSLIB"/assertions/developer1-20-dangerous.model "$PREPARE_IMAGE_DIR" > preseed.log 2>&1
+  snap prepare-image --preseed --preseed-sign-key=" (test)" --channel=stable --snap="$SNAPD_SNAP" --snap systemusers-snap_1.0_all.snap "$TESTSLIB"/assertions/developer1-20-dangerous.model "$PREPARE_IMAGE_DIR" > preseed.log 2>&1
 
   echo "Make sure no umount errors were reported during preseeding cleanup"
   NOMATCH "umount.*failed" < preseed.log
