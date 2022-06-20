@@ -11,6 +11,7 @@ usr/bin/snap-bootstrap /usr/lib/snapd/
 usr/bin/snap-preseed /usr/lib/snapd/
 usr/bin/snap-recovery-chooser /usr/lib/snapd/
 usr/bin/snap-fde-keymgr /usr/lib/snapd/
+usr/bin/snapd-apparmor /usr/lib/snapd/
 
 # bash completion
 data/completion/bash/snap /usr/share/bash-completion/completions
@@ -49,6 +50,3 @@ c-vendor/squashfuse/snapfuse usr/bin
 usr/lib/systemd/system-environment-generators
 # but system generators end up in lib
 lib/systemd/system-generators
-
-# service for loading apparmor profiles for snap applications
-usr/lib/snapd/snapd-apparmor
