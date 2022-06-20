@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -30,6 +31,7 @@ import (
 
 	snapd_apparmor "github.com/snapcore/snapd/cmd/snapd-apparmor"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -179,15 +181,63 @@ func (s *mainSuite) TestValidateArgs(c *C) {
 	}
 }
 
-func (s *mainSuite) TestRun(c *C) {
+type integrationSuite struct {
+	testutil.BaseTest
+
+	logBuf    *bytes.Buffer
+	parserCmd *testutil.MockCmd
+}
+
+var _ = Suite(&integrationSuite{})
+
+func (s *integrationSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+
+	logBuf, r := logger.MockLogger()
+	s.AddCleanup(r)
+	s.logBuf = logBuf
+
+	// simulate a single profile to load
+	s.parserCmd = testutil.MockCommand(c, "apparmor_parser", "")
+	s.AddCleanup(s.parserCmd.Restore)
+	err := os.MkdirAll(dirs.SnapAppArmorDir, 0755)
+	c.Assert(err, IsNil)
+	profile := filepath.Join(dirs.SnapAppArmorDir, "foo")
+	err = ioutil.WriteFile(profile, nil, 0644)
+	c.Assert(err, IsNil)
+
 	os.Args = []string{"snapd-apparmor", "start"}
+}
+
+func (s *integrationSuite) TestRunInContainerSkipsLoading(c *C) {
+	testutil.MockCommand(c, "systemd-detect-virt", "exit 0")
+
 	err := snapd_apparmor.Run()
 	c.Assert(err, IsNil)
+	c.Check(s.logBuf.String(), testutil.Contains, "DEBUG: inside container environment")
+	c.Check(s.logBuf.String(), testutil.Contains, "Inside container environment without internal policy")
+	c.Assert(s.parserCmd.Calls(), HasLen, 0)
+}
 
-	// simulate being inside a container environment
-	detectCmd := testutil.MockCommand(c, "systemd-detect-virt", "echo wsl")
+func (s *integrationSuite) TestRunInContainerWithInternalPolicyLoadsProfiles(c *C) {
+	testutil.MockCommand(c, "systemd-detect-virt", "echo wsl")
+
+	err := snapd_apparmor.Run()
+	c.Assert(err, IsNil)
+	c.Check(s.logBuf.String(), testutil.Contains, "DEBUG: inside container environment")
+	c.Check(s.logBuf.String(), Not(testutil.Contains), "Inside container environment without internal policy")
+	c.Assert(s.parserCmd.Calls(), HasLen, 1)
+}
+
+func (s *integrationSuite) TestRunNormalLoadsProfiles(c *C) {
+	// simulate a normal system (not a container)
+	testutil.MockCommand(c, "systemd-detect-virt", "exit 1")
+
+	detectCmd := testutil.MockCommand(c, "systemd-detect-virt", "exit 1")
 	defer detectCmd.Restore()
 
-	err = snapd_apparmor.Run()
+	err := snapd_apparmor.Run()
 	c.Assert(err, IsNil)
+	c.Assert(s.parserCmd.Calls(), HasLen, 1)
 }
