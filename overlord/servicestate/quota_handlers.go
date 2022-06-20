@@ -22,7 +22,6 @@ package servicestate
 import (
 	"errors"
 	"fmt"
-	"log"
 	"sort"
 
 	tomb "gopkg.in/tomb.v2"
@@ -157,7 +156,6 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	log.Println("[QUOTA]", "quota-control", len(servicesAffected), refreshProfiles)
 	if len(servicesAffected) > 0 {
 		var prevTaskSet *state.TaskSet
 		chg := t.Change()
@@ -448,7 +446,6 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 	// store the current status of journal quota, if it changes we need
 	// to refresh the profiles for the snaps in the groups
 	refreshProfiles := grp.JournalLimit != nil
-	log.Println("[DEBUG] quotaUpdate: refreshProfiles", refreshProfiles)
 
 	// update resource limits for the group
 	if err := quotaUpdateGroupLimits(grp, action.ResourceLimits); err != nil {
@@ -462,7 +459,6 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 	}
 
 	refreshProfiles = refreshProfiles != (grp.JournalLimit != nil)
-	log.Println("[DEBUG] quotaUpdate: refreshProfiles", refreshProfiles)
 	return grp, allGrps, refreshProfiles, nil
 }
 
