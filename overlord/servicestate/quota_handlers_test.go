@@ -21,12 +21,16 @@ package servicestate_test
 
 import (
 	"errors"
+	"time"
 
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
+	tomb "gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -128,10 +132,10 @@ func (s *quotaHandlersSuite) TestDoQuotaControlCreate(c *C) {
 	})
 }
 
-func (s *quotaHandlersSuite) getRestartTasks(chg *state.Change) []*state.Task {
+func (s *quotaHandlersSuite) getTasksOfKind(chg *state.Change, kind string) []*state.Task {
 	var tasks []*state.Task
 	for _, t := range chg.Tasks() {
-		if t.Kind() == "service-control" {
+		if t.Kind() == kind {
 			tasks = append(tasks, t)
 		}
 	}
@@ -196,7 +200,7 @@ func (s *quotaHandlersSuite) TestDoQuotaControlCreateRestartOK(c *C) {
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
 	t.SetStatus(state.DoingStatus)
-	restartTasks := s.getRestartTasks(chg)
+	restartTasks := s.getTasksOfKind(chg, "service-control")
 	st.Unlock()
 
 	err = s.runRestartTasks(restartTasks)
@@ -263,7 +267,7 @@ func (s *quotaHandlersSuite) TestQuotaStateAlreadyUpdatedBehavior(c *C) {
 	c.Assert(len(chg.Tasks()), Equals, 2)
 
 	t.SetStatus(state.DoingStatus)
-	restartTasks := s.getRestartTasks(chg)
+	restartTasks := s.getTasksOfKind(chg, "service-control")
 	st.Unlock()
 
 	err = s.runRestartTasks(restartTasks)
@@ -492,7 +496,7 @@ func (s *quotaHandlersSuite) TestDoQuotaControlRemoveRestartOK(c *C) {
 
 	st.Lock()
 	c.Assert(err, IsNil)
-	restartTasks := s.getRestartTasks(chg)
+	restartTasks := s.getTasksOfKind(chg, "service-control")
 	st.Unlock()
 
 	err = s.runRestartTasks(restartTasks)
@@ -522,7 +526,7 @@ func (s *quotaHandlersSuite) TestDoQuotaControlRemoveRestartOK(c *C) {
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
 	t.SetStatus(state.DoingStatus)
-	restartTasks = s.getRestartTasks(chg)
+	restartTasks = s.getTasksOfKind(chg, "service-control")
 	st.Unlock()
 
 	err = s.runRestartTasks(restartTasks)
@@ -566,7 +570,7 @@ func (s *quotaHandlersSuite) callDoQuotaControl(action *servicestate.QuotaContro
 		return err
 	}
 	st.Lock()
-	restartTasks := s.getRestartTasks(chg)
+	restartTasks := s.getTasksOfKind(chg, "service-control")
 	st.Unlock()
 	return s.runRestartTasks(restartTasks)
 }
@@ -751,7 +755,8 @@ func (s *quotaHandlersSuite) TestDoCreateSubGroupQuota(c *C) {
 	})
 
 	// foo-group exists as a slice too, but has no snap services in the slice
-	checkSliceState(c, systemd.EscapeUnitNamePath("foo-group"), quantity.SizeGiB)
+	checkSliceState(c, systemd.EscapeUnitNamePath("foo-group"),
+		quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
 }
 
 func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
@@ -904,7 +909,7 @@ func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
 	checkQuotaState(c, st, nil)
 
 	// foo is not mentioned in the service and doesn't exist
-	checkSvcAndSliceState(c, "test-snap.svc1", "foo", 0)
+	checkSvcAndSliceState(c, "test-snap.svc1", "foo", quota.NewResourcesBuilder().Build())
 }
 
 func (s *quotaHandlersSuite) TestQuotaSnapModifyExistingMixable(c *C) {
@@ -1260,6 +1265,253 @@ func (s *quotaHandlersSuite) TestQuotaUpdateChangeMemLimit(c *C) {
 	}
 	err = s.callDoQuotaControl(&qc3)
 	c.Assert(err, ErrorMatches, "cannot update limits for group \"foo\": cannot decrease memory limit, remove and re-create it to decrease the limit")
+}
+
+func (s *quotaHandlersSuite) TestCreateJournalQuota(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+	))
+	defer r()
+
+	// Add fake handlers for the setup-profiles task which should be invoked
+	// when creating the journal quota.
+	var setupProfilesCalled int
+	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		task.State().Lock()
+		_, err := snapstate.TaskSnapSetup(task)
+		task.State().Unlock()
+		setupProfilesCalled++
+		return err
+	}
+	s.o.TaskRunner().AddHandler("setup-profiles", fakeHandler, fakeHandler)
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	qc := servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB * 64).Build(),
+		AddSnaps:       []string{"test-snap"},
+	}
+	qcs := []*servicestate.QuotaControlAction{&qc}
+
+	chg := st.NewChange("quota-control-tasks", "...")
+	t := st.NewTask("quota-control", "...")
+	t.Set("quota-control-actions", &qcs)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	err := s.o.Settle(5 * time.Second)
+	st.Lock()
+	c.Check(err, IsNil)
+	c.Check(setupProfilesCalled, Equals, 1)
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			ResourceLimits: quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB * 64).Build(),
+			Snaps:          []string{"test-snap"},
+		},
+	})
+}
+
+func (s *quotaHandlersSuite) TestAddJournalQuota(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+
+		// UpdateQuota for foo
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForServiceRestart("test-snap"),
+	))
+	defer r()
+
+	// Add fake handlers for the setup-profiles task which should be invoked
+	// when creating the journal quota.
+	var setupProfilesCalled int
+	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		task.State().Lock()
+		_, err := snapstate.TaskSnapSetup(task)
+		task.State().Unlock()
+		setupProfilesCalled++
+		return err
+	}
+	s.o.TaskRunner().AddHandler("setup-profiles", fakeHandler, fakeHandler)
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	qc := servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+		AddSnaps:       []string{"test-snap"},
+	}
+	qcs := []*servicestate.QuotaControlAction{&qc}
+
+	chg := st.NewChange("quota-control-tasks", "...")
+	t := st.NewTask("quota-control", "...")
+	t.Set("quota-control-actions", &qcs)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	err := s.o.Settle(5 * time.Second)
+	st.Lock()
+	c.Check(err, IsNil)
+	c.Check(setupProfilesCalled, Equals, 0)
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+			Snaps:          []string{"test-snap"},
+		},
+	})
+
+	qc = servicestate.QuotaControlAction{
+		Action:         "update",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB * 64).Build(),
+	}
+	qcs = []*servicestate.QuotaControlAction{&qc}
+
+	chg = st.NewChange("quota-control-tasks", "...")
+	t = st.NewTask("quota-control", "...")
+	t.Set("quota-control-actions", &qcs)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	err = s.o.Settle(5 * time.Second)
+	st.Lock()
+	c.Check(err, IsNil)
+	c.Check(setupProfilesCalled, Equals, 1)
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).WithJournalSize(quantity.SizeMiB * 64).Build(),
+			Snaps:          []string{"test-snap"},
+		},
+	})
+}
+
+func (s *quotaHandlersSuite) TestUpdateJournalQuota(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForSliceStart("foo"),
+		systemctlCallsForServiceRestart("test-snap"),
+	))
+	defer r()
+
+	// Add fake handlers for the setup-profiles task which should be invoked
+	// when creating the journal quota.
+	var setupProfilesCalled int
+	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		task.State().Lock()
+		_, err := snapstate.TaskSnapSetup(task)
+		task.State().Unlock()
+		setupProfilesCalled++
+		return err
+	}
+	s.o.TaskRunner().AddHandler("setup-profiles", fakeHandler, fakeHandler)
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// setup an existing quota group we can update it
+	err := servicestatetest.MockQuotaInState(st, "foo", "", []string{"test-snap"}, quota.NewResourcesBuilder().WithJournalSize(16*quantity.SizeMiB).Build())
+	c.Assert(err, check.IsNil)
+
+	qc := servicestate.QuotaControlAction{
+		Action:         "update",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithJournalRate(150, time.Millisecond*10).Build(),
+	}
+	qcs := []*servicestate.QuotaControlAction{&qc}
+
+	chg := st.NewChange("quota-control-tasks", "...")
+	t := st.NewTask("quota-control", "...")
+	t.Set("quota-control-actions", &qcs)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	err = s.o.Settle(5 * time.Second)
+	st.Lock()
+	c.Check(err, IsNil)
+	c.Check(setupProfilesCalled, Equals, 0)
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			ResourceLimits: quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB*16).WithJournalRate(150, time.Millisecond*10).Build(),
+			Snaps:          []string{"test-snap"},
+		},
+	})
+}
+
+func (s *quotaHandlersSuite) TestRemoveJournalQuota(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// RemoveQuota for foo
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForSliceStop("foo"),
+		systemctlCallsForServiceRestart("test-snap"),
+	))
+	defer r()
+
+	// Add fake handlers for the setup-profiles task which should be invoked
+	// when creating the journal quota.
+	var setupProfilesCalled int
+	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		task.State().Lock()
+		_, err := snapstate.TaskSnapSetup(task)
+		task.State().Unlock()
+		setupProfilesCalled++
+		return err
+	}
+	s.o.TaskRunner().AddHandler("setup-profiles", fakeHandler, fakeHandler)
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// setup an existing quota group we can remove
+	err := servicestatetest.MockQuotaInState(st, "foo", "", []string{"test-snap"}, quota.NewResourcesBuilder().WithJournalSize(16*quantity.SizeMiB).Build())
+	c.Assert(err, check.IsNil)
+
+	qc := servicestate.QuotaControlAction{
+		Action:    "remove",
+		QuotaName: "foo",
+	}
+	qcs := []*servicestate.QuotaControlAction{&qc}
+
+	chg := st.NewChange("quota-control-tasks", "...")
+	t := st.NewTask("quota-control", "...")
+	t.Set("quota-control-actions", &qcs)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	err = s.o.Settle(5 * time.Second)
+	st.Lock()
+	c.Check(err, IsNil)
+	c.Check(setupProfilesCalled, Equals, 1)
 }
 
 func (s *quotaHandlersSuite) TestQuotaUpdateAddSnap(c *C) {

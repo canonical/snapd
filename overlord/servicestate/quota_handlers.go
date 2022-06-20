@@ -22,6 +22,7 @@ package servicestate
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 
 	tomb "gopkg.in/tomb.v2"
@@ -156,21 +157,32 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	log.Println("[QUOTA]", "quota-control", len(servicesAffected), refreshProfiles)
 	if len(servicesAffected) > 0 {
-		prevTask := t
-		if refreshProfiles {
-			prevTask = addRefreshProfileTasks(st, prevTask, servicesAffected)
+		var prevTaskSet *state.TaskSet
+		chg := t.Change()
+		queueTasks := func(ts *state.TaskSet) {
+			if prevTaskSet != nil {
+				prevTaskSet.WaitAll(ts)
+			} else {
+				ts.WaitFor(t)
+			}
+			chg.AddAll(ts)
+			prevTaskSet = ts
 		}
-		addRestartServicesTasks(st, prevTask, qc.QuotaName, servicesAffected)
+
+		if refreshProfiles {
+			queueTasks(addRefreshProfileTasks(st, servicesAffected))
+		}
+		queueTasks(addRestartServicesTasks(st, qc.QuotaName, servicesAffected))
 	}
 
 	t.SetStatus(state.DoneStatus)
 	return nil
 }
 
-func addRefreshProfileTasks(st *state.State, t *state.Task, servicesAffected map[*snap.Info][]*snap.AppInfo) *state.Task {
-	chg := t.Change()
-	prevTask := t
+func addRefreshProfileTasks(st *state.State, servicesAffected map[*snap.Info][]*snap.AppInfo) *state.TaskSet {
+	ts := state.NewTaskSet()
 	for info := range servicesAffected {
 		setupProfilesTask := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Update snap %q (%s) security profiles"), info.SnapName(), info.Revision))
 		setupProfilesTask.Set("snap-setup", &snapstate.SnapSetup{
@@ -179,15 +191,14 @@ func addRefreshProfileTasks(st *state.State, t *state.Task, servicesAffected map
 				Revision: info.Revision,
 			},
 		})
-		setupProfilesTask.WaitFor(prevTask)
-		chg.AddTask(setupProfilesTask)
-		prevTask = setupProfilesTask
+		setupProfilesTask.WaitAll(ts)
+		ts.AddTask(setupProfilesTask)
 	}
-	return prevTask
+	return ts
 }
 
-func addRestartServicesTasks(st *state.State, t *state.Task, grpName string, servicesAffected map[*snap.Info][]*snap.AppInfo) {
-	chg := t.Change()
+func addRestartServicesTasks(st *state.State, grpName string, servicesAffected map[*snap.Info][]*snap.AppInfo) *state.TaskSet {
+	ts := state.NewTaskSet()
 
 	getServiceNames := func(services []*snap.AppInfo) []string {
 		var names []string
@@ -205,7 +216,6 @@ func addRestartServicesTasks(st *state.State, t *state.Task, grpName string, ser
 		return sortedInfos[i].InstanceName() < sortedInfos[j].InstanceName()
 	})
 
-	prevTask := t
 	for _, info := range sortedInfos {
 		restartTask := st.NewTask("service-control", fmt.Sprintf("Restarting services for snap %q", info.InstanceName()))
 		restartTask.Set("service-action", ServiceAction{
@@ -213,10 +223,10 @@ func addRestartServicesTasks(st *state.State, t *state.Task, grpName string, ser
 			SnapName: info.InstanceName(),
 			Services: getServiceNames(servicesAffected[info]),
 		})
-		restartTask.WaitFor(prevTask)
-		chg.AddTask(restartTask)
-		prevTask = restartTask
+		restartTask.WaitAll(ts)
+		ts.AddTask(restartTask)
 	}
+	return ts
 }
 
 var osutilBootID = osutil.BootID
@@ -438,6 +448,7 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 	// store the current status of journal quota, if it changes we need
 	// to refresh the profiles for the snaps in the groups
 	refreshProfiles := grp.JournalLimit != nil
+	log.Println("[DEBUG] quotaUpdate: refreshProfiles", refreshProfiles)
 
 	// update resource limits for the group
 	if err := quotaUpdateGroupLimits(grp, action.ResourceLimits); err != nil {
@@ -451,6 +462,7 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 	}
 
 	refreshProfiles = refreshProfiles != (grp.JournalLimit != nil)
+	log.Println("[DEBUG] quotaUpdate: refreshProfiles", refreshProfiles)
 	return grp, allGrps, refreshProfiles, nil
 }
 
@@ -522,6 +534,15 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 
 	grpsToStart := []*quota.Group{}
 	appsToRestartBySnap = map[*snap.Info][]*snap.AppInfo{}
+	markAppForRestart := func(info *snap.Info, app *snap.AppInfo) {
+		// make sure it is not already in the list
+		for _, a := range appsToRestartBySnap[info] {
+			if a.Name == app.Name {
+				return
+			}
+		}
+		appsToRestartBySnap[info] = append(appsToRestartBySnap[info], app)
+	}
 
 	collectModifiedUnits := func(app *snap.AppInfo, grp *quota.Group, unitType string, name, old, new string) {
 		switch unitType {
@@ -564,12 +585,22 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 			// in this case, the only way that a service could have been changed
 			// was if it was moved into or out of a slice, in both cases we need
 			// to restart the service
-			sn := app.Snap
-			appsToRestartBySnap[sn] = append(appsToRestartBySnap[sn], app)
+			markAppForRestart(app.Snap, app)
 
 			// TODO: what about sockets and timers? activation units just start
 			// the full unit, so as long as the full unit is restarted we should
 			// be okay?
+
+		case "journald":
+			// this happens when a journal quota is either added, modified or removed, and
+			// in this case we need to restart all services in the quota group
+			for info := range snapSvcMap {
+				for _, app := range info.Apps {
+					if app.IsService() {
+						markAppForRestart(info, app)
+					}
+				}
+			}
 		}
 	}
 	if err := wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, collectModifiedUnits, meterLocked); err != nil {
@@ -616,23 +647,12 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	return appsToRestartBySnap, nil
 }
 
-// restartSnapServices is used to restart the services for each snap
-// that was newly moved into a quota group iterate in a sorted order
-// over the snaps to restart their apps for easy tests.
-func restartSnapServices(st *state.State, t *state.Task, appsToRestartBySnap map[*snap.Info][]*snap.AppInfo, perfTimings *timings.Timings) error {
+// restartSnapServices is used to restart the services for snaps that
+// have been modified. Snaps and services are sorted before they are
+// restarted to provide a consistent ordering of restarts to be testable.
+func restartSnapServices(st *state.State, appsToRestartBySnap map[*snap.Info][]*snap.AppInfo) error {
 	if len(appsToRestartBySnap) == 0 {
 		return nil
-	}
-
-	var meterUnlocked progress.Meter
-	if t == nil {
-		meterUnlocked = progress.Null
-	} else {
-		meterUnlocked = snapstate.NewTaskProgressAdapterUnlocked(t)
-	}
-
-	if perfTimings == nil {
-		perfTimings = &timings.Timings{}
 	}
 
 	st.Unlock()
@@ -653,7 +673,7 @@ func restartSnapServices(st *state.State, t *state.Task, appsToRestartBySnap map
 			return err
 		}
 
-		err = wrappers.RestartServices(startupOrdered, nil, nil, meterUnlocked, perfTimings)
+		err = wrappers.RestartServices(startupOrdered, nil, nil, progress.Null, &timings.Timings{})
 		if err != nil {
 			return err
 		}
@@ -661,13 +681,17 @@ func restartSnapServices(st *state.State, t *state.Task, appsToRestartBySnap map
 	return nil
 }
 
-// ensureSnapServicesStateForGroup combines ensureSnapServicesForGroup and restartSnapServices
+// ensureSnapServicesStateForGroup combines ensureSnapServicesForGroup and restartSnapServices.
+// This does not refresh security profiles for snaps in the quota group, which is required
+// for modifications to a journal quota. Currently this function is used when removing a
+// snap from the system which will cause an update(removal) of security profiles,
+// and thus won't should not cause a conflict.
 func ensureSnapServicesStateForGroup(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions) error {
 	appsToRestartBySnap, err := ensureSnapServicesForGroup(st, nil, grp, opts)
 	if err != nil {
 		return err
 	}
-	return restartSnapServices(st, nil, appsToRestartBySnap, nil)
+	return restartSnapServices(st, appsToRestartBySnap)
 }
 
 func ensureGroupIsNotMixed(group string, allGrps map[string]*quota.Group) error {

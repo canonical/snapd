@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -95,8 +96,6 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 	for name, grp := range m {
 		expGrp, ok := exp[name]
 		c.Assert(ok, Equals, true, Commentf("unexpected group %q in state", name))
-		c.Assert(expGrp.ResourceLimits.Memory, NotNil)
-		c.Assert(grp.MemoryLimit, Equals, expGrp.ResourceLimits.Memory.Limit)
 		c.Assert(grp.ParentGroup, Equals, expGrp.ParentGroup)
 
 		c.Assert(grp.Snaps, HasLen, len(expGrp.Snaps))
@@ -110,7 +109,7 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 				if grp.ParentGroup != "" {
 					slicePath = grp.ParentGroup + "/" + name
 				}
-				checkSvcAndSliceState(c, sn+".svc1", slicePath, grp.MemoryLimit)
+				checkSvcAndSliceState(c, sn+".svc1", slicePath, grp.GetQuotaResources())
 			}
 		}
 
@@ -121,28 +120,50 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 	}
 }
 
-func checkSvcAndSliceState(c *C, snapSvc string, slicePath string, sliceMem quantity.Size) {
+func shouldMentionSlice(resources quota.Resources) bool {
+	// If no quota is set, then Validate returns an error. And only
+	// valid quotas will get written to the slice file.
+	if err := resources.Validate(); err != nil {
+		return false
+	}
+	return true
+}
+
+func checkSvcAndSliceState(c *C, snapSvc string, slicePath string, resources quota.Resources) {
 	slicePath = systemd.EscapeUnitNamePath(slicePath)
 	// make sure the service file exists
 	svcFileName := filepath.Join(dirs.SnapServicesDir, "snap."+snapSvc+".service")
 	c.Assert(svcFileName, testutil.FilePresent)
 
-	if sliceMem != 0 {
+	if shouldMentionSlice(resources) {
 		// the service file should mention this slice
 		c.Assert(svcFileName, testutil.FileContains, fmt.Sprintf("\nSlice=snap.%s.slice\n", slicePath))
 	} else {
 		c.Assert(svcFileName, Not(testutil.FileContains), fmt.Sprintf("Slice=snap.%s.slice", slicePath))
 	}
-	checkSliceState(c, slicePath, sliceMem)
+	checkSliceState(c, slicePath, resources)
 }
 
-func checkSliceState(c *C, sliceName string, sliceMem quantity.Size) {
+func checkSliceState(c *C, sliceName string, resources quota.Resources) {
 	sliceFileName := filepath.Join(dirs.SnapServicesDir, "snap."+sliceName+".slice")
-	if sliceMem != 0 {
-		c.Assert(sliceFileName, testutil.FilePresent)
-		c.Assert(sliceFileName, testutil.FileContains, fmt.Sprintf("\nMemoryMax=%s\n", sliceMem.String()))
-	} else {
-		c.Assert(sliceFileName, testutil.FileAbsent)
+	if !shouldMentionSlice(resources) {
+		c.Assert(sliceFileName, Not(testutil.FilePresent))
+		return
+	}
+
+	c.Assert(sliceFileName, testutil.FilePresent)
+	if resources.Memory != nil {
+		c.Assert(sliceFileName, testutil.FileContains, fmt.Sprintf("\nMemoryMax=%s\n", resources.Memory.Limit.String()))
+	}
+	if resources.CPU != nil {
+		c.Assert(sliceFileName, testutil.FileContains, fmt.Sprintf("\nCPUQuota=%d%%\n", resources.CPU.Count*resources.CPU.Percentage))
+	}
+	if resources.CPUSet != nil {
+		allowedCpusValue := strutil.IntsToCommaSeparated(resources.CPUSet.CPUs)
+		c.Assert(sliceFileName, testutil.FileContains, fmt.Sprintf("\nAllowedCPUs=%s\n", allowedCpusValue))
+	}
+	if resources.Threads != nil {
+		c.Assert(sliceFileName, testutil.FileContains, fmt.Sprintf("\nThreadsMax=%d\n", resources.Threads.Limit))
 	}
 }
 
