@@ -165,3 +165,6 @@ execute: |
   MATCH "^var/lib/snapd/assertions/asserts-v0/model/16/developer1/testkeys-snapd-dangerous-core-20-amd64/" < files.log
   MATCH "^var/lib/snapd/assertions/asserts-v0/snap-revision/.*" < files.log
   MATCH "^var/lib/snapd/assertions/asserts-v0/account-key/.*" < files.log
+
+  MATCH "^var/lib/extrausers/group" < files.log
+  MATCH "^var/lib/extrausers/passwd" < files.log
