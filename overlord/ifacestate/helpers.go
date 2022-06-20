@@ -41,7 +41,15 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
+)
+
+var (
+	snapdAppArmorServiceIsDisabled = snapdAppArmorServiceIsDisabledImpl
+	profilesNeedRegeneration       = profilesNeedRegenerationImpl
+
+	writeSystemKey = interfaces.WriteSystemKey
 )
 
 func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
@@ -141,8 +149,13 @@ func profilesNeedRegenerationImpl() bool {
 	return mismatch
 }
 
-var profilesNeedRegeneration = profilesNeedRegenerationImpl
-var writeSystemKey = interfaces.WriteSystemKey
+// snapdAppArmorServiceIsDisabledImpl returns true if the snapd.apparmor
+// service unit exists but is disabled
+func snapdAppArmorServiceIsDisabledImpl() bool {
+	sysd := systemd.New(systemd.SystemMode, nil)
+	isEnabled, err := sysd.IsEnabled("snapd.apparmor")
+	return err == nil && !isEnabled
+}
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
 func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) error {

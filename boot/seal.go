@@ -45,11 +45,12 @@ import (
 )
 
 var (
-	secbootProvisionTPM             = secboot.ProvisionTPM
-	secbootSealKeys                 = secboot.SealKeys
-	secbootSealKeysWithFDESetupHook = secboot.SealKeysWithFDESetupHook
-	secbootResealKeys               = secboot.ResealKeys
-	secbootPCRHandleOfSealedKey     = secboot.PCRHandleOfSealedKey
+	secbootProvisionTPM              = secboot.ProvisionTPM
+	secbootSealKeys                  = secboot.SealKeys
+	secbootSealKeysWithFDESetupHook  = secboot.SealKeysWithFDESetupHook
+	secbootResealKeys                = secboot.ResealKeys
+	secbootPCRHandleOfSealedKey      = secboot.PCRHandleOfSealedKey
+	secbootReleasePCRResourceHandles = secboot.ReleasePCRResourceHandles
 
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
@@ -303,6 +304,16 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Mode
 	}
 	if err := secbootProvisionTPM(tpmProvisionMode, lockoutAuthFile); err != nil {
 		return err
+	}
+
+	if flags.FactoryReset {
+		// it is possible that we are sealing the keys again, after a
+		// previously running factory reset was interrupted by a reboot,
+		// in which case the PCR handles of the new sealed keys might
+		// have already been used
+		if err := secbootReleasePCRResourceHandles(runObjectKeyPCRHandle, fallbackObjectKeyPCRHandle); err != nil {
+			return err
+		}
 	}
 
 	// TODO: refactor sealing functions to take a struct instead of so many
@@ -898,4 +909,51 @@ func isResealNeeded(pbc predictableBootChains, bootChainsFile string, expectRese
 	case bootChainDifferent:
 	}
 	return true, c + 1, nil
+}
+
+func postFactoryResetCleanupSecboot() error {
+	// we are inspecting a key which was generated during factory reset, in
+	// the simplest case the sealed key generated previously used the main
+	// handles, while the current key uses alt handles, hence we need to
+	// release the main handles corresponding to the old key
+	handles := []uint32{secboot.RunObjectPCRPolicyCounterHandle, secboot.FallbackObjectPCRPolicyCounterHandle}
+	usesAlt, err := usesAltPCRHandles()
+	if err != nil {
+		return fmt.Errorf("cannot inspect fallback key: %v", err)
+	}
+	if !usesAlt {
+		// current fallback key using the main handles, which is
+		// possible of there were subsequent factory reset steps,
+		// release the alt handles associated with the old key
+		handles = []uint32{secboot.AltRunObjectPCRPolicyCounterHandle, secboot.AltFallbackObjectPCRPolicyCounterHandle}
+	}
+	return secbootReleasePCRResourceHandles(handles...)
+}
+
+func postFactoryResetCleanup() error {
+	hasHook, err := HasFDESetupHook()
+	if err != nil {
+		return fmt.Errorf("cannot check for fde-setup hook %v", err)
+	}
+
+	saveFallbackKeyFactory := FactoryResetFallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir)
+	saveFallbackKey := FallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir)
+	if err := os.Rename(saveFallbackKeyFactory, saveFallbackKey); err != nil {
+		// it is possible that the key file was already renamed if we
+		// came back here after an unexpected reboot
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("cannot rotate fallback key: %v", err)
+		}
+	}
+
+	if hasHook {
+		// TODO: do we need to invoke FDE hook?
+		return nil
+	}
+
+	if err := postFactoryResetCleanupSecboot(); err != nil {
+		return fmt.Errorf("cannot cleanup secboot state: %v", err)
+	}
+
+	return nil
 }
