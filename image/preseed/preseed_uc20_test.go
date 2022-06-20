@@ -232,6 +232,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir s
 		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/etc/systemd"), filepath.Join(preseedTmpDir, "etc/systemd")},
 		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/etc/dbus-1"), filepath.Join(preseedTmpDir, "etc/dbus-1")},
 		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/etc/udev/rules.d"), filepath.Join(preseedTmpDir, "etc/udev/rules.d")},
+		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/var/lib/extrausers"), filepath.Join(preseedTmpDir, "var/lib/extrausers")},
 		{"mount", "--bind", filepath.Join(targetSnapdRoot, "/usr/lib/snapd"), filepath.Join(preseedTmpDir, "usr/lib/snapd")},
 		{"mount", "--bind", filepath.Join(tmpDir, "system-seed"), filepath.Join(preseedTmpDir, "var/lib/snapd/seed")},
 	}
@@ -239,6 +240,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir s
 	expectedUmountCalls := [][]string{
 		{"umount", filepath.Join(preseedTmpDir, "var/lib/snapd/seed")},
 		{"umount", filepath.Join(preseedTmpDir, "usr/lib/snapd")},
+		{"umount", filepath.Join(preseedTmpDir, "var/lib/extrausers")},
 		{"umount", filepath.Join(preseedTmpDir, "etc/udev/rules.d")},
 		{"umount", filepath.Join(preseedTmpDir, "etc/dbus-1")},
 		{"umount", filepath.Join(preseedTmpDir, "etc/systemd")},
