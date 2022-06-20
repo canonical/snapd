@@ -7,6 +7,7 @@ environment:
     NESTED_ENABLE_TPM/secboot_disabled: false
     NESTED_ENABLE_SECURE_BOOT/secboot_enabled: true
     NESTED_ENABLE_TPM/secboot_enabled: true
+    NESTED_PARAM_RTC/disable_rtc: -rtc base=2000-01-01,clock=vm
 
 prepare: |
     tests.nested build-image core
