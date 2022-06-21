@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -240,4 +241,7 @@ func (s *integrationSuite) TestRunNormalLoadsProfiles(c *C) {
 	err := snapd_apparmor.Run()
 	c.Assert(err, IsNil)
 	c.Assert(s.parserCmd.Calls(), HasLen, 1)
+	logLines := strings.Split(strings.TrimSpace(s.logBuf.String()), "\n")
+	c.Check(logLines, HasLen, 1)
+	c.Check(logLines[0], Matches, `.* main.go:[0-9]+: Loading profiles \[.*/var/lib/snapd/apparmor/profiles/foo\]`)
 }
