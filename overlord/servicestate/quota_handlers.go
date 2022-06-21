@@ -439,7 +439,7 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 
 	// store the current status of journal quota, if it changes we need
 	// to refresh the profiles for the snaps in the groups
-	refreshProfiles := grp.JournalLimit != nil
+	hadJournalLimit := grp.JournalLimit != nil
 
 	// update resource limits for the group
 	if err := quotaUpdateGroupLimits(grp, action.ResourceLimits); err != nil {
@@ -452,7 +452,8 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 		return nil, nil, false, err
 	}
 
-	refreshProfiles = refreshProfiles != (grp.JournalLimit != nil)
+	hasJournalLimit := (grp.JournalLimit != nil)
+	refreshProfiles := hadJournalLimit != hasJournalLimit
 	return grp, allGrps, refreshProfiles, nil
 }
 

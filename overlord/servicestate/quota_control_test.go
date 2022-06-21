@@ -89,44 +89,6 @@ type quotaGroupState struct {
 	Snaps          []string
 }
 
-func assertQuotaResources(c *C, grp *quota.Group, expected quota.Resources) {
-	if grp.MemoryLimit != 0 || expected.Memory != nil {
-		c.Assert(expected.Memory, NotNil)
-		c.Assert(grp.MemoryLimit > 0, Equals, true)
-		c.Check(grp.MemoryLimit, Equals, expected.Memory.Limit)
-	}
-	if grp.CPULimit != nil || expected.CPU != nil || expected.CPUSet != nil {
-		c.Assert(grp.CPULimit, NotNil)
-
-		if grp.CPULimit.Count != 0 || grp.CPULimit.Percentage != 0 || expected.CPU != nil {
-			c.Assert(expected.CPU, NotNil)
-			c.Check(grp.CPULimit.Count, Equals, expected.CPU.Count)
-			c.Check(grp.CPULimit.Percentage, Equals, expected.CPU.Percentage)
-		}
-		if len(grp.CPULimit.AllowedCPUs) > 0 || expected.CPUSet != nil {
-			c.Assert(expected.CPUSet, NotNil)
-			c.Check(grp.CPULimit.AllowedCPUs, DeepEquals, expected.CPUSet.CPUs)
-		}
-	}
-	if grp.TaskLimit != 0 || expected.Threads != nil {
-		c.Assert(expected.Threads, NotNil)
-		c.Check(grp.TaskLimit, Equals, expected.Threads.Limit)
-	}
-	if grp.JournalLimit != nil || expected.Journal != nil {
-		c.Assert(grp.JournalLimit, NotNil)
-		c.Assert(expected.Journal, NotNil)
-		if grp.JournalLimit.Size != 0 {
-			c.Assert(expected.Journal.Size, NotNil)
-			c.Check(grp.JournalLimit.Size, Equals, expected.Journal.Size.Limit)
-		}
-		if grp.JournalLimit.RateCount != 0 && grp.JournalLimit.RatePeriod != 0 {
-			c.Assert(expected.Journal.Rate, NotNil)
-			c.Check(grp.JournalLimit.RateCount, Equals, expected.Journal.Rate.Count)
-			c.Check(grp.JournalLimit.RatePeriod, Equals, expected.Journal.Rate.Period)
-		}
-	}
-}
-
 func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 	m, err := servicestate.AllQuotas(st)
 	c.Assert(err, IsNil)
@@ -135,7 +97,8 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 		expGrp, ok := exp[name]
 		c.Assert(ok, Equals, true, Commentf("unexpected group %q in state", name))
 		c.Assert(grp.ParentGroup, Equals, expGrp.ParentGroup)
-		assertQuotaResources(c, grp, expGrp.ResourceLimits)
+		groupResources := grp.GetQuotaResources()
+		c.Assert(groupResources, DeepEquals, expGrp.ResourceLimits)
 
 		c.Assert(grp.Snaps, HasLen, len(expGrp.Snaps))
 		if len(expGrp.Snaps) != 0 {
@@ -148,7 +111,7 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 				if grp.ParentGroup != "" {
 					slicePath = grp.ParentGroup + "/" + name
 				}
-				checkSvcAndSliceState(c, sn+".svc1", slicePath, grp.GetQuotaResources())
+				checkSvcAndSliceState(c, sn+".svc1", slicePath, groupResources)
 			}
 		}
 
