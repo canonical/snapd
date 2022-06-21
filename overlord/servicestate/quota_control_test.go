@@ -159,10 +159,13 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 	}
 }
 
+// shouldMentionSlice returns whether or not a slice file
+// should be mentioned in the service unit file. It does in the case
+// when a quota is set.
 func shouldMentionSlice(resources quota.Resources) bool {
-	// If no quota is set, then Validate returns an error. And only
-	// valid quotas will get written to the slice file.
-	if err := resources.Validate(); err != nil {
+	if resources.Memory == nil && resources.CPU == nil &&
+		resources.CPUSet == nil && resources.Threads == nil &&
+		resources.Journal == nil {
 		return false
 	}
 	return true

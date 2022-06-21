@@ -157,29 +157,28 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if len(servicesAffected) > 0 {
-		var prevTaskSet *state.TaskSet
-		chg := t.Change()
-		queueTasks := func(ts *state.TaskSet) {
-			if prevTaskSet != nil {
-				prevTaskSet.WaitAll(ts)
-			} else {
-				ts.WaitFor(t)
+		ts := state.NewTaskSet()
+		var prevTask *state.Task
+		queueTask := func(task *state.Task) {
+			if prevTask != nil {
+				task.WaitFor(prevTask)
 			}
-			chg.AddAll(ts)
-			prevTaskSet = ts
+			ts.AddTask(task)
+			prevTask = task
 		}
 
 		if refreshProfiles {
-			queueTasks(addRefreshProfileTasks(st, servicesAffected))
+			addRefreshProfileTasks(st, queueTask, servicesAffected)
 		}
-		queueTasks(addRestartServicesTasks(st, qc.QuotaName, servicesAffected))
+		addRestartServicesTasks(st, queueTask, qc.QuotaName, servicesAffected)
+		snapstate.InjectTasks(t, ts)
 	}
 
 	t.SetStatus(state.DoneStatus)
 	return nil
 }
 
-func addRefreshProfileTasks(st *state.State, servicesAffected map[*snap.Info][]*snap.AppInfo) *state.TaskSet {
+func addRefreshProfileTasks(st *state.State, queueTask func(task *state.Task), servicesAffected map[*snap.Info][]*snap.AppInfo) *state.TaskSet {
 	ts := state.NewTaskSet()
 	for info := range servicesAffected {
 		setupProfilesTask := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Update snap %q (%s) security profiles"), info.SnapName(), info.Revision))
@@ -189,15 +188,12 @@ func addRefreshProfileTasks(st *state.State, servicesAffected map[*snap.Info][]*
 				Revision: info.Revision,
 			},
 		})
-		setupProfilesTask.WaitAll(ts)
-		ts.AddTask(setupProfilesTask)
+		queueTask(setupProfilesTask)
 	}
 	return ts
 }
 
-func addRestartServicesTasks(st *state.State, grpName string, servicesAffected map[*snap.Info][]*snap.AppInfo) *state.TaskSet {
-	ts := state.NewTaskSet()
-
+func addRestartServicesTasks(st *state.State, queueTask func(task *state.Task), grpName string, servicesAffected map[*snap.Info][]*snap.AppInfo) {
 	getServiceNames := func(services []*snap.AppInfo) []string {
 		var names []string
 		for _, svc := range services {
@@ -221,10 +217,8 @@ func addRestartServicesTasks(st *state.State, grpName string, servicesAffected m
 			SnapName: info.InstanceName(),
 			Services: getServiceNames(servicesAffected[info]),
 		})
-		restartTask.WaitAll(ts)
-		ts.AddTask(restartTask)
+		queueTask(restartTask)
 	}
-	return ts
 }
 
 var osutilBootID = osutil.BootID
