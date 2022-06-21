@@ -1342,6 +1342,95 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 	return updateManyFiltered(ctx, st, names, userID, nil, flags, "")
 }
 
+func EnforceSnaps(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) (tasksets []*state.TaskSet, names []string, err error) {
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var affected []string
+	var prev *state.TaskSet
+
+	if validErr != nil {
+		affected = make([]string, 0, len(validErr.InvalidSnaps)+len(validErr.MissingSnaps)+len(validErr.WrongRevisionSnaps))
+
+		// TODO: use single lane for install, update, remove tasks
+
+		// install snaps
+
+		if len(validErr.MissingSnaps) > 0 {
+			for snapName, revAndVs := range validErr.MissingSnaps {
+				for rev, vs := range revAndVs {
+					opts := &RevisionOptions{Revision: rev, ValidationSets: vs}
+					affected = append(affected, snapName)
+
+					// TODO: InstallMany + revisions?
+					ts, err := InstallWithDeviceContext(ctx, st, snapName, opts, userID, Flags{Required: true}, deviceCtx, "")
+					if err != nil {
+						return nil, nil, err
+					}
+					if prev != nil {
+						ts.WaitAll(prev)
+					}
+					prev = ts
+					tasksets = append(tasksets, ts)
+					break
+				}
+			}
+		}
+
+		// refresh snaps to specific revisions
+		if len(validErr.WrongRevisionSnaps) > 0 {
+			for snapName, revAndVs := range validErr.WrongRevisionSnaps {
+				for rev, vs := range revAndVs {
+					opts := &RevisionOptions{Revision: rev, ValidationSets: vs}
+					// TODO: UpdateMany + revisions?
+					ts, err := UpdateWithDeviceContext(st, snapName, opts, userID, Flags{NoReRefresh: true}, deviceCtx, "")
+					if err != nil {
+						return nil, nil, err
+					}
+					if prev != nil {
+						ts.WaitAll(prev)
+					}
+					prev = ts
+					tasksets = append(tasksets, ts)
+					affected = append(affected, snapName)
+					break
+				}
+			}
+		}
+
+		if len(validErr.InvalidSnaps) > 0 {
+			remove := make([]string, 0, len(validErr.InvalidSnaps))
+			for sn := range validErr.InvalidSnaps {
+				remove = append(remove, sn)
+				affected = append(affected, sn)
+			}
+			_, tss, err := RemoveMany(st, remove)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			// all remove tasks need to wait for installs/refreshes
+			if prev != nil {
+				for _, ts := range tss {
+					ts.WaitAll(prev)
+				}
+			}
+			tasksets = append(tasksets, tss...)
+		}
+	}
+
+	updateTrackingTask := st.NewTask("update-validation-set-tracking", "Update validation sets tracking")
+	updateTrackingTask.Set("validation-sets", validationSets)
+	if prev != nil {
+		updateTrackingTask.WaitAll(prev)
+	}
+	tasksets = append(tasksets, state.NewTaskSet(updateTrackingTask))
+
+	return tasksets, affected, nil
+}
+
 // updateFilter is the type of function that can be passed to
 // updateManyFromChange so it filters the updates.
 //
@@ -1972,6 +2061,8 @@ type RevisionOptions struct {
 	Revision    snap.Revision
 	CohortKey   string
 	LeaveCohort bool
+
+	ValidationSets []string
 }
 
 // Update initiates a change updating a snap.
@@ -2162,7 +2253,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name string, opts *Revisi
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return updateToRevisionInfo(st, snapst, opts.Revision, userID, flags, deviceCtx)
+		return updateToRevisionInfo(st, snapst, opts, userID, flags, deviceCtx)
 	}
 
 	// refresh-to-local, this assumes the snap revision is mounted

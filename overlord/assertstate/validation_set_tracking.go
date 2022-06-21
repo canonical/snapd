@@ -26,8 +26,10 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"gopkg.in/tomb.v2"
 )
 
 // maximum number of entries kept in validation-sets-history in the state
@@ -292,5 +294,26 @@ func RestoreValidationSetsTracking(st *state.State) error {
 		return state.ErrNoState
 	}
 	st.Set("validation-sets", trackingState)
+	return nil
+}
+
+func doUpdateValidationSetTracking(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var validationSets []string
+	if err := t.Get("validation-sets", &validationSets); err != nil {
+		return err
+	}
+
+	snaps, ignoreValidation, err := snapstate.InstalledSnaps(st)
+	if err != nil {
+		return err
+	}
+	if err := TryEnforceValidationSets(st, validationSets, 0, snaps, ignoreValidation); err != nil {
+		return fmt.Errorf("internal error: cannot enforce validation sets: %v", err)
+	}
+
 	return nil
 }

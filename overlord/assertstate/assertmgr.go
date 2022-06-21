@@ -42,6 +42,7 @@ func Manager(s *state.State, runner *state.TaskRunner) (*AssertManager, error) {
 	delayedCrossMgrInit()
 
 	runner.AddHandler("validate-snap", doValidateSnap, nil)
+	runner.AddHandler("update-validation-set-tracking", doUpdateValidationSetTracking, nil)
 
 	db, err := sysdb.Open()
 	if err != nil {
