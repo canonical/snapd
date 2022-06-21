@@ -878,6 +878,7 @@ version: 5.0
 `, snap.R(4))
 	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
 	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
 		RecoverySystemDir: "20191216",
@@ -986,6 +987,7 @@ version: 5.0
 `, snap.R(4))
 	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
 	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
 		RecoverySystemDir: "20191216",
@@ -1421,6 +1423,7 @@ version: 5.0
 `, snap.R(4))
 	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
 	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
 		RecoverySystemDir: "20191216",

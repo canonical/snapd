@@ -116,12 +116,14 @@ func (s *bootenvSuite) SetUpTest(c *C) {
 type baseBootenv20Suite struct {
 	baseBootenvSuite
 
-	kern1  snap.PlaceInfo
-	kern2  snap.PlaceInfo
-	ukern1 snap.PlaceInfo
-	ukern2 snap.PlaceInfo
-	base1  snap.PlaceInfo
-	base2  snap.PlaceInfo
+	kern1   snap.PlaceInfo
+	kern2   snap.PlaceInfo
+	ukern1  snap.PlaceInfo
+	ukern2  snap.PlaceInfo
+	base1   snap.PlaceInfo
+	base2   snap.PlaceInfo
+	gadget1 snap.PlaceInfo
+	gadget2 snap.PlaceInfo
 
 	normalDefaultState      *bootenv20Setup
 	normalTryingKernelState *bootenv20Setup
@@ -146,6 +148,11 @@ func (s *baseBootenv20Suite) SetUpTest(c *C) {
 	s.base2, err = snap.ParsePlaceInfoFromSnapFileName("core20_2.snap")
 	c.Assert(err, IsNil)
 
+	s.gadget1, err = snap.ParsePlaceInfoFromSnapFileName("pc_1.snap")
+	c.Assert(err, IsNil)
+	s.gadget2, err = snap.ParsePlaceInfoFromSnapFileName("pc_2.snap")
+	c.Assert(err, IsNil)
+
 	// default boot state for robustness tests, etc.
 	s.normalDefaultState = &bootenv20Setup{
 		modeenv: &boot.Modeenv{
@@ -155,6 +162,8 @@ func (s *baseBootenv20Suite) SetUpTest(c *C) {
 			TryBase: "",
 			// base status is default
 			BaseStatus: boot.DefaultStatus,
+			// gadget is gadget1
+			Gadget: s.gadget1.Filename(),
 			// current kernels is just kern1
 			CurrentKernels: []string{s.kern1.Filename()},
 			// operating mode is run
@@ -181,6 +190,8 @@ func (s *baseBootenv20Suite) SetUpTest(c *C) {
 			TryBase: "",
 			// base status is default
 			BaseStatus: boot.DefaultStatus,
+			// gadget is gadget2
+			Gadget: s.gadget2.Filename(),
 			// current kernels is kern1 + kern2
 			CurrentKernels: []string{s.kern1.Filename(), s.kern2.Filename()},
 		},
@@ -548,6 +559,7 @@ func (s *bootenvSuite) TestParticipant(c *C) {
 func (s *bootenvSuite) TestParticipantBaseWithModel(c *C) {
 	core := &snap.Info{SideInfo: snap.SideInfo{RealName: "core"}, SnapType: snap.TypeOS}
 	core18 := &snap.Info{SideInfo: snap.SideInfo{RealName: "core18"}, SnapType: snap.TypeBase}
+	core20 := &snap.Info{SideInfo: snap.SideInfo{RealName: "core20"}, SnapType: snap.TypeBase}
 
 	type tableT struct {
 		with  *snap.Info
@@ -592,6 +604,55 @@ func (s *bootenvSuite) TestParticipantBaseWithModel(c *C) {
 		{
 			with:  core,
 			model: "core@install",
+			nop:   true,
+		},
+		{
+			with:  core20,
+			model: "core@run",
+			nop:   true,
+		},
+	}
+
+	for i, t := range table {
+		dev := boottest.MockDevice(t.model)
+		bp := boot.Participant(t.with, t.with.Type(), dev)
+		c.Check(bp.IsTrivial(), Equals, t.nop, Commentf("%d", i))
+		if !t.nop {
+			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.Type(), dev))
+		}
+	}
+}
+
+func (s *bootenvSuite) TestParticipantGadgetWithModel(c *C) {
+	gadget := &snap.Info{SideInfo: snap.SideInfo{RealName: "pc"}, SnapType: snap.TypeGadget}
+
+	type tableT struct {
+		with  *snap.Info
+		model string
+		nop   bool
+	}
+
+	table := []tableT{
+		{
+			with:  gadget,
+			model: "",
+			nop:   true,
+		}, {
+			with:  gadget,
+			model: "pc",
+			nop:   true,
+		}, {
+			with:  gadget,
+			model: "pc@run",
+			nop:   false,
+		}, {
+			with:  gadget,
+			model: "other-gadget",
+			nop:   true,
+		},
+		{
+			with:  gadget,
+			model: "pc@install",
 			nop:   true,
 		},
 	}
@@ -4225,4 +4286,64 @@ func (s *bootenv20RebootBootloaderSuite) TestCoreParticipant20WithRebootBootload
 	m2, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename(), s.kern2.Filename()})
+}
+
+func (s *bootenv20Suite) TestCoreParticipant20SetNextSameGadgetSnap(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		s.normalDefaultState,
+	)
+	defer r()
+
+	// get the gadget participant
+	bootGadget := boot.Participant(s.gadget1, snap.TypeGadget, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootGadget.IsTrivial(), Equals, false)
+
+	// make the gadget used on next boot
+	rebootRequired, err := bootGadget.SetNextBoot()
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
+
+	// the modeenv is still the same
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.Gadget, Equals, s.gadget1.Filename())
+
+	// we didn't call SetBootVars on the bootloader (unneeded for gadget)
+	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
+}
+
+func (s *bootenv20Suite) TestCoreParticipant20SetNextNewGadgetSnap(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		s.normalDefaultState,
+	)
+	defer r()
+
+	// get the gadget participant
+	bootGadget := boot.Participant(s.gadget2, snap.TypeGadget, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootGadget.IsTrivial(), Equals, false)
+
+	// make the gadget used on next boot
+	rebootRequired, err := bootGadget.SetNextBoot()
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
+
+	// and that the modeenv now contains gadget2
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.Gadget, Equals, s.gadget2.Filename())
+
+	// we didn't call SetBootVars on the bootloader (unneeded for gadget)
+	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
 }
