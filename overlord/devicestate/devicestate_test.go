@@ -2038,7 +2038,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C
 	devicestate.SetBootOkRan(s.mgr, false)
 	devicestate.SetSystemMode(s.mgr, "run")
 
-	// encrypted system
+	// mock the factory reset marker of a system that isn't encrypted
 	c.Assert(os.MkdirAll(dirs.SnapDeviceDir, 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), []byte("{}"), 0644), IsNil)
 
