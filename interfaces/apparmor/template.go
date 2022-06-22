@@ -191,9 +191,9 @@ var templateCommon = `
 
   # systemd native journal API (see sd_journal_print(4)). This should be in
   # AppArmor's base abstraction, but until it is, include here.
-  /run/systemd/journal{,.*}/socket w,
-  /run/systemd/journal{,.*}/stdout rw, # 'r' shouldn't be needed, but journald
-                                  # doesn't leak anything so allow
+  /run/systemd/journal{,.snap-*}/socket w,
+  /run/systemd/journal{,.snap-*}/stdout rw, # 'r' shouldn't be needed, but journald
+                                            # doesn't leak anything so allow
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
