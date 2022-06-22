@@ -343,15 +343,24 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 		Flags:   storeFlags,
 	}
 
+	if len(opts.ValidationSets) > 0 {
+		// update to a specific revision is handled by updateToRevisionInfo.
+		// updating without a revision while enforcing validation sets is not a
+		// viable scenario (although we could handle it if desired), we only install/refresh
+		// what's missing and explicitly required by requested validation sets.
+		return nil, fmt.Errorf("internal error: list of validation sets is not expected for update without revision")
+	}
+
 	var requiredRevision snap.Revision
 	var requiredValsets []string
 
 	if !flags.IgnoreValidation {
-		if len(opts.ValidationSets) > 0 {
-			requiredRevision = opts.Revision
-			requiredValsets = opts.ValidationSets
-		} else {
-			enforcedSets, err := EnforcedValidationSets(st)
+		enforcedSets, err := EnforcedValidationSets(st)
+		if err != nil {
+			return nil, err
+		}
+		if enforcedSets != nil {
+			requiredValsets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(curInfo.InstanceName()))
 			if err != nil {
 				return nil, err
 			}
@@ -515,12 +524,13 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revOpts *RevisionO
 					}
 				}
 			}
-			if len(requiredValsets) > 0 {
-				setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
-			}
 		}
 	} else {
 		storeFlags = store.SnapActionIgnoreValidation
+	}
+
+	if len(requiredValsets) > 0 {
+		setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
 	}
 
 	action.Flags = storeFlags

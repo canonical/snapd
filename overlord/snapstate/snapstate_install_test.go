@@ -4397,6 +4397,33 @@ func (s *validationSetsSuite) TestInstallSnapInvalidByValidationSetIgnoreValidat
 	c.Assert(s.fakeBackend.ops[1], DeepEquals, expectedOp)
 }
 
+func (s *validationSetsSuite) TestInstallSnapWithValidationSets(c *C) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return nil, fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	opts := &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSets: []string{"16/foo/bar", "16/foo/baz"}}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// validation sets are not set on the action
+	expectedOp := fakeOp{
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:         "install",
+			InstanceName:   "some-snap",
+			ValidationSets: [][]string{{"16", "foo", "bar"}, {"16", "foo", "baz"}},
+			Revision:       snap.R(11),
+		},
+		revno: snap.R(11),
+	}
+	c.Assert(s.fakeBackend.ops[1], DeepEquals, expectedOp)
+}
+
 func (s *snapmgrTestSuite) TestInstallPrerequisiteWithSameDeviceContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

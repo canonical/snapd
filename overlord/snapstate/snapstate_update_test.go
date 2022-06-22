@@ -7041,6 +7041,59 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAlreadyAtRequ
 	c.Assert(s.fakeBackend.ops[1], DeepEquals, expectedOp)
 }
 
+func (s *validationSetsSuite) TestUpdateToRevisionWithValidationSets(c *C) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return nil, fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snaptest.MockSnap(c, `name: some-snap`, si)
+
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
+
+	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSets: []string{"16/foo/bar", "16/foo/baz"}}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	var snapsup snapstate.SnapSetup
+	err = ts.Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+
+	// new snap revision from the store
+	c.Check(snapsup.Revision(), Equals, snap.R(11))
+
+	c.Assert(s.fakeBackend.ops, HasLen, 2)
+	expectedOps := fakeOps{{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
+			InstanceName:  "some-snap",
+			SnapID:        "some-snap-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("1*"),
+			RefreshedDate: refreshedDate,
+		}}}, {
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:         "refresh",
+			InstanceName:   "some-snap",
+			SnapID:         "some-snap-id",
+			Revision:       snap.R(11),
+			ValidationSets: [][]string{{"16", "foo", "bar"}, {"16", "foo", "baz"}},
+		},
+		revno: snap.R(11),
+	}}
+	c.Assert(s.fakeBackend.ops, DeepEquals, expectedOps)
+}
+
 func (s *snapmgrTestSuite) TestUpdatePrerequisiteWithSameDeviceContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
