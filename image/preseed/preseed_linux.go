@@ -291,7 +291,8 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 	for _, dir := range []string{
 		"etc/udev/rules.d", "etc/systemd/system", "etc/dbus-1/session.d",
 		"var/lib/snapd/seed", "var/cache/snapd", "var/cache/apparmor",
-		"var/snap", "snap", "var/lib/extrausers"} {
+		"var/snap", "snap", "var/lib/extrausers",
+	} {
 		if err = os.MkdirAll(filepath.Join(writable, dir), 0755); err != nil {
 			return nil, err
 		}
