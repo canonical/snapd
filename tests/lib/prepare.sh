@@ -446,7 +446,7 @@ repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
 
     # data/preseed.json is not included in the deb, use the latest
     # version from source tree to replace the one in the re-packed snapd snap.
-    cp /home/gopath/src/github.com/snapcore/snapd/data/preseed.json "$UNPACK_DIR"/usr/lib/snapd
+    cp "$PROJECT_PATH/data/preseed.json" "$UNPACK_DIR"/usr/lib/snapd
 
     # clean snap apparmor.d to ensure we put the right snap-confine apparmor
     # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
