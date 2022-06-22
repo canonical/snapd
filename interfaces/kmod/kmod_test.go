@@ -47,7 +47,7 @@ func (s *kmodSuite) TestModprobeCall(c *C) {
 		module  string
 		options []string
 	}
-	calls := make([]CallRecord, 0)
+	var calls []CallRecord
 	restore := kmod.MockLoadModule(func(module string, options []string) error {
 		calls = append(calls, CallRecord{module, options})
 		return nil
