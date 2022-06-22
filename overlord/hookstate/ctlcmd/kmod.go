@@ -47,11 +47,7 @@ func init() {
 	})
 }
 
-type kmodNopExecuteMixin struct {
-	kmod *kmodCommand
-}
-
-func (m *kmodNopExecuteMixin) Execute([]string) error {
+func (m *kmodCommand) Execute([]string) error {
 	// This is needed in order to implement the interface, but it's never
 	// called.
 	return nil
@@ -59,17 +55,16 @@ func (m *kmodNopExecuteMixin) Execute([]string) error {
 
 type kmodCommand struct {
 	baseCommand
-	kmodNopExecuteMixin
 	InsertCmd KModInsertCmd `command:"insert" description:"load a kernel module"`
 	RemoveCmd KModRemoveCmd `command:"remove" description:"unload a kernel module"`
 }
 
 type KModInsertCmd struct {
-	kmodNopExecuteMixin
 	Positional struct {
 		Module  string   `positional-arg-name:"<module>" required:"yes" description:"kernel module name"`
 		Options []string `positional-arg-name:"<options>" description:"kernel module options"`
 	} `positional-args:"yes" required:"yes"`
+	kmod *kmodCommand
 }
 
 func (k *KModInsertCmd) Execute([]string) error {
@@ -95,7 +90,6 @@ func (k *KModInsertCmd) Execute([]string) error {
 }
 
 type KModRemoveCmd struct {
-	kmodNopExecuteMixin
 	Positional struct {
 		Module string `positional-arg-name:"<module>" required:"yes" description:"kernel module name"`
 	} `positional-args:"yes" required:"yes"`

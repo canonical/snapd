@@ -42,7 +42,7 @@ var (
 	KmodMatchConnection = kmodMatchConnection
 )
 
-type KmodNopExecuteMixin = kmodNopExecuteMixin
+type KmodCommand = kmodCommand
 
 func MockKmodFindConnection(f func(*hookstate.Context, string, []string) (map[string]interface{}, error)) (restore func()) {
 	r := testutil.Backup(&kmodFindConnection)

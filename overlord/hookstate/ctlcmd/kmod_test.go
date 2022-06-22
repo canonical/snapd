@@ -339,10 +339,10 @@ func (s *kmodSuite) TestRemoveHappy(c *C) {
 	c.Check(unloadModuleCalls, Equals, 1)
 }
 
-func (s *kmodSuite) TestNopExecuteMixin(c *C) {
+func (s *kmodSuite) TestkmodCommandExecute(c *C) {
 	// This is a useless test just to make test coverage greener. The Execute()
 	// method exercised here is never called in real life.
-	cmd := &ctlcmd.KmodNopExecuteMixin{}
+	cmd := &ctlcmd.KmodCommand{}
 	err := cmd.Execute([]string{})
 	c.Check(err, IsNil)
 }
