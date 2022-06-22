@@ -665,7 +665,7 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 		return nil, fmt.Errorf("snap names cannot be specified with validation sets to enforce")
 	}
 
-	snaps, ignoreValidation, err := snapstate.InstalledSnaps(st)
+	snaps, ignoreValidationSnaps, err := snapstate.InstalledSnaps(st)
 	if err != nil {
 		return nil, err
 	}
@@ -674,16 +674,16 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 		return nil, err
 	}
 
-	var validErr *snapasserts.ValidationSetsValidationError
-	err = assertstateTryEnforceValidationSets(st, inst.ValidationSets, inst.userID, snaps, ignoreValidation)
+	var validationErr *snapasserts.ValidationSetsValidationError
+	err = assertstateTryEnforceValidationSets(st, inst.ValidationSets, inst.userID, snaps, ignoreValidationSnaps)
 	if err != nil {
 		var ok bool
-		validErr, ok = err.(*snapasserts.ValidationSetsValidationError)
+		validationErr, ok = err.(*snapasserts.ValidationSetsValidationError)
 		if !ok {
 			return nil, err
 		}
 	}
-	tss, affected, err := snapstateEnforceSnaps(context.TODO(), st, inst.ValidationSets, validErr, inst.userID)
+	tss, affected, err := snapstateEnforceSnaps(context.TODO(), st, inst.ValidationSets, validationErr, inst.userID)
 	if err != nil {
 		return nil, err
 	}
