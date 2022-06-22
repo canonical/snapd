@@ -1,4 +1,4 @@
-name: test-content-layout-consumer
+name: test-content-layout-consumer-armhf
 version: 1.0
 apps:
   cmd:
@@ -14,12 +14,10 @@ apps:
 base: core18
 
 layout:
-  /lib/x86_64-linux-gnu/bindtextdomain.so:
-    bind-file: $SNAP/gnome-platform/lib/x86_64-linux-gnu/bindtextdomain.so
-  /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0:
-    bind: $SNAP/gnome-platform/usr/lib/x86_64-linux-gnu/webkit2gtk-4.0
-  /usr/share/xml/iso-codes:
-    bind: $SNAP/gnome-platform/usr/share/xml/iso-codes
+  /lib/arm-linux-gnueabihf/libSegFault.so:
+    bind-file: $SNAP/gnome-platform/lib/arm-linux-gnueabihf/libSegFault.so
+  /usr/lib/arm-linux-gnueabihf/libSegFault.so:
+    bind: $SNAP/gnome-platform/usr/lib/arm-linux-gnueabihf/libSegFault.so
 plugs:
   gnome-3-38-2004:
     interface: content

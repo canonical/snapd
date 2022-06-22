@@ -2757,7 +2757,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	}
 
 	// check if this snap is required by any validation set in enforcing mode
-	enforcedSets, err := EnforcedValidationSets(st, nil)
+	enforcedSets, err := EnforcedValidationSets(st)
 	if err != nil {
 		return err
 	}
@@ -3593,7 +3593,7 @@ func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (res
 	return func() { osutilCheckFreeSpace = old }
 }
 
-func MockEnforcedValidationSets(f func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error)) func() {
+func MockEnforcedValidationSets(f func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error)) func() {
 	osutil.MustBeTestBinary("mocking can be done only in tests")
 
 	old := EnforcedValidationSets

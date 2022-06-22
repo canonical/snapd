@@ -608,6 +608,18 @@ version: 5.0
 	})
 	defer restore()
 
+	releasePCRHandleCalls := 0
+	restore = boot.MockSecbootReleasePCRResourceHandles(func(handles ...uint32) error {
+		c.Check(factoryReset, Equals, true)
+		releasePCRHandleCalls++
+		c.Check(handles, DeepEquals, []uint32{
+			secboot.AltRunObjectPCRPolicyCounterHandle,
+			secboot.AltFallbackObjectPCRPolicyCounterHandle,
+		})
+		return nil
+	})
+	defer restore()
+
 	// set mock key sealing
 	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
@@ -783,8 +795,10 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 	// PCR handle checks
 	if factoryReset {
 		c.Check(pcrHandleOfKeyCalls, Equals, 1)
+		c.Check(releasePCRHandleCalls, Equals, 1)
 	} else {
 		c.Check(pcrHandleOfKeyCalls, Equals, 0)
+		c.Check(releasePCRHandleCalls, Equals, 0)
 	}
 
 	// make sure the marker file for sealed key was created
