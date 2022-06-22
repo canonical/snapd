@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -59,12 +60,13 @@ import (
 )
 
 var (
-	bootMakeRunnable                = boot.MakeRunnableSystem
-	bootMakeRunnableAfterDataReset  = boot.MakeRunnableSystemAfterDataReset
-	bootEnsureNextBootToRunMode     = boot.EnsureNextBootToRunMode
-	installRun                      = install.Run
-	installFactoryReset             = install.FactoryReset
-	secbootStageEncryptionKeyChange = secboot.StageEncryptionKeyChange
+	bootMakeRunnable                     = boot.MakeRunnableSystem
+	bootMakeRunnableAfterDataReset       = boot.MakeRunnableSystemAfterDataReset
+	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
+	installRun                           = install.Run
+	installFactoryReset                  = install.FactoryReset
+	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
+	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
 	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 )
@@ -1193,4 +1195,56 @@ func writeFactoryResetMarker(marker string, hasEncryption bool) error {
 		logger.Noticef("writing factory-reset marker at %v", marker)
 	}
 	return osutil.AtomicWriteFile(marker, buf.Bytes(), 0644, 0)
+}
+
+func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
+	f, err := os.Open(marker)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	var frm factoryResetMarker
+	if err := json.NewDecoder(f).Decode(&frm); err != nil {
+		return err
+	}
+	if hasEncryption {
+		saveFallbackKeyFactory := boot.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+		d, err := fileDigest(saveFallbackKeyFactory)
+		if err != nil {
+			// possible that there was unexpected reboot
+			// before, after the key was moved, but before
+			// the marker was removed, in which case the
+			// actual fallback key should have the right
+			// digest
+			if !os.IsNotExist(err) {
+				// unless it's a different error
+				return err
+			}
+			saveFallbackKeyFactory := boot.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+			d, err = fileDigest(saveFallbackKeyFactory)
+			if err != nil {
+				return err
+			}
+		}
+		if d != frm.FallbackSaveKeyHash {
+			return fmt.Errorf("fallback sealed key digest mismatch, got %v expected %v", d, frm.FallbackSaveKeyHash)
+		}
+	} else {
+		if frm.FallbackSaveKeyHash != "" {
+			return fmt.Errorf("unexpected non-empty fallback key digest")
+		}
+	}
+	return nil
+}
+
+func rotateEncryptionKeys() error {
+	kd, err := ioutil.ReadFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"))
+	if err != nil {
+		return fmt.Errorf("cannot open encryption key file: %v", err)
+	}
+	// does the right thing if the key has already been transitioned
+	if err := secbootTransitionEncryptionKeyChange(boot.InitramfsUbuntuSaveDir, keys.EncryptionKey(kd)); err != nil {
+		return fmt.Errorf("cannot transition the encryption key: %v", err)
+	}
+	return nil
 }

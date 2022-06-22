@@ -91,19 +91,36 @@ execute: |
     tests.nested exec test -e /run/mnt/ubuntu-seed/marker
 
     # the temp factory-reset key is gone
-    # TODO enable those checks one cleanup lands
     # TODO this is a very weak check
-    # tests.nested exec test ! -e /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset
+    tests.nested exec test ! -e /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset
     # no factory reset marker
-    # tests.nested exec test ! -e /var/lib/snapd/device/factory-reset
+    tests.nested exec test ! -e /var/lib/snapd/device/factory-reset
 
     # verify that the factory-reset log was collected
     tests.nested exec "zcat /var/log/factory-reset-mode.log.gz" | MATCH 'performing factory reset on an installed system'
 
-    # TODO enable checks once the save fallback key is rotated
-    #tests.nested exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > post-reset-save-fallback-key
+    tests.nested exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > post-reset-save-fallback-key
     # not a great check as the fallback key may have been resealed, but it
     # should be different nonetheless
-    #not cmp pre-reset-save-fallback-key post-reset-save-fallback-key
+    not cmp pre-reset-save-fallback-key post-reset-save-fallback-key
 
-    # TODO perform subsequent factory reset once post-factory reset cleanup lands
+    echo "Perform subsequent factory reset"
+    tests.nested exec "sudo snap reboot --factory-reset" || true
+    tests.nested wait-for reboot "${boot_id}"
+    tests.nested exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
+    tests.nested wait-for snap-command
+    # TODO investigate why does this have to be much longer than what is needed for the
+    # initial wait and one after the first reset?
+    retry -n 60 --wait 2 tests.nested exec "sudo snap wait system seed.loaded"
+    retry -n 60 --wait 2 tests.nested exec snap model --serial
+    tests.nested exec snap model --serial > subsequent-serial
+    # still the same serial
+    diff -u initial-serial subsequent-serial
+
+    # the markers are still there
+    tests.nested exec test -e /run/mnt/ubuntu-save/marker
+    tests.nested exec test -e /run/mnt/ubuntu-seed/marker
+    # get the key
+    tests.nested exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > subsequent-reset-save-fallback-key
+    # and the key is different again
+    not cmp post-reset-save-fallback-key subsequent-reset-save-fallback-key
