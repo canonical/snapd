@@ -26,6 +26,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -33,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func APICommands() []*Command {
@@ -114,6 +116,12 @@ func MockAssertstateRefreshSnapAssertions(mock func(*state.State, int, *assertst
 	return func() {
 		assertstateRefreshSnapAssertions = oldAssertstateRefreshSnapAssertions
 	}
+}
+
+func MockAssertstateTryEnforceValidationSets(f func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error) (restore func()) {
+	r := testutil.Backup(&assertstateTryEnforceValidationSets)
+	assertstateTryEnforceValidationSets = f
+	return r
 }
 
 func MockSnapstateInstall(mock func(context.Context, *state.State, string, *snapstate.RevisionOptions, int, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
@@ -202,6 +210,12 @@ func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.
 	return func() {
 		snapstateInstallPathMany = old
 	}
+}
+
+func MockSnapstateEnforceSnaps(f func(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) ([]*state.TaskSet, []string, error)) func() {
+	r := testutil.Backup(&assertstateTryEnforceValidationSets)
+	snapstateEnforceSnaps = f
+	return r
 }
 
 func MockReboot(f func(boot.RebootAction, time.Duration, *boot.RebootInfo) error) func() {
