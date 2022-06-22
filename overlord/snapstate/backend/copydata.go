@@ -272,12 +272,10 @@ type UndoInfo struct {
 }
 
 // InitExposedSnapHome creates and initializes ~/Snap/<snapName> based on the
-// specified revision. Must be called after the snap has been migrated. If no
-// error occurred, returns a non-nil undoInfo so that the operation can be undone.
-// If an error occurred, an attempt is made to undo so no undoInfo is returned.
-func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (undoInfo *UndoInfo, err error) {
-	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
-
+// specified revision. If no error occurred, returns a non-nil undoInfo so that
+// the operation can be undone. If an error occurred, an attempt is made to undo
+// so no undoInfo is returned.
+func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision, opts *dirs.SnapDirOptions) (undoInfo *UndoInfo, err error) {
 	users, err := allUsers(opts)
 	if err != nil {
 		return nil, err

@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.56
+Version:        2.56.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -981,6 +981,30 @@ fi
 
 
 %changelog
+* Wed Jun 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.56.2
+ - o/snapstate: exclude services from refresh app awareness hard
+   running check
+ - cmd/snap: support custom apparmor features dir with snap
+   prepare-image
+
+* Wed Jun 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.56.1
+ - gadget/install: do not assume dm device has same block size as
+   disk
+ - gadget: check also mbr type when testing for implicit data
+   partition
+ - interfaces: update network-control interface with permissions
+   required by resolvectl
+ - interfaces/builtin: remove the name=org.freedesktop.DBus
+   restriction in cups-control AppArmor rules
+ - many: print valid/invalid status on snap validate --monitor ...
+ - o/snapstate: fix validation sets restoring and snap revert on
+   failed refresh
+ - interfaces/opengl: update allowed PCI accesses for RPi
+ - interfaces/shared-memory: Update AppArmor permissions for
+   mmap+linkpaths
+
 * Thu May 19 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.56
  - portal-info: Add CommonID Field

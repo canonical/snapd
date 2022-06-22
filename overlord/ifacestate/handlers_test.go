@@ -159,8 +159,8 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 
 	c.Check(err, IsNil)
 	c.Assert(len(opts.ExtraLayouts), Equals, 1)
-	c.Check(opts.ExtraLayouts[0].Bind, Equals, path.Join(dirs.SnapSystemdDir, "journal.snap-foo"))
-	c.Check(opts.ExtraLayouts[0].Path, Equals, path.Join(dirs.SnapSystemdDir, "journal"))
+	c.Check(opts.ExtraLayouts[0].Bind, Equals, path.Join(dirs.SnapSystemdRunDir, "journal.snap-foo"))
+	c.Check(opts.ExtraLayouts[0].Path, Equals, path.Join(dirs.SnapSystemdRunDir, "journal"))
 	c.Check(opts.Classic, Equals, flags.Classic)
 	c.Check(opts.DevMode, Equals, flags.DevMode)
 	c.Check(opts.JailMode, Equals, flags.JailMode)

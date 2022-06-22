@@ -100,7 +100,7 @@ fmt:: $(filter-out $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildc
 # The hack target helps developers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
-hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns snap-device-helper/snap-device-helper
+hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns snap-device-helper/snap-device-helper snapd-apparmor/snapd-apparmor
 	sudo install -D -m 4755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
 	if [ -d /etc/apparmor.d ]; then sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real; fi
 	sudo install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
@@ -109,6 +109,7 @@ hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-up
 	sudo install -m 755 snap-discard-ns/snap-discard-ns $(DESTDIR)$(libexecdir)/snap-discard-ns
 	sudo install -m 755 snap-seccomp/snap-seccomp $(DESTDIR)$(libexecdir)/snap-seccomp
 	sudo install -m 755 snap-device-helper/snap-device-helper $(DESTDIR)$(libexecdir)/snap-device-helper
+	sudo install -m 755 snapd-apparmor/snapd-apparmor $(DESTDIR)$(libexecdir)/snapd-apparmor
 	if [ "$$(command -v restorecon)" != "" ]; then sudo restorecon -R -v $(DESTDIR)$(libexecdir)/; fi
 
 # for the hack target also:
@@ -117,6 +118,8 @@ snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
 		-ldflags='-extldflags=-static -linkmode=external' -v
 snap-seccomp/snap-seccomp: snap-seccomp/*.go
 	cd snap-seccomp && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
+snapd-apparmor/snapd-apparmor: snapd-apparmor/*.go
+	cd snapd-apparmor && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
 
 ##
 ## libsnap-confine-private.a
@@ -571,14 +574,5 @@ dist_man_MANS += snapd-env-generator/snapd-env-generator.8
 CLEANFILES += snapd-env-generator/snapd-env-generator.8
 endif
 
-##
-## snapd-apparmor
-##
-
-EXTRA_DIST += snapd-apparmor/snapd-apparmor
-
 install-exec-local::
 	install -d -m 755 $(DESTDIR)$(libexecdir)
-if APPARMOR
-	install -m 755 $(srcdir)/snapd-apparmor/snapd-apparmor $(DESTDIR)$(libexecdir)
-endif
