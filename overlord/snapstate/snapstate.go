@@ -1977,9 +1977,9 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 type RevisionOptions struct {
 	Channel        string
 	Revision       snap.Revision
+	ValidationSets []string
 	CohortKey      string
 	LeaveCohort    bool
-	ValidationSets []string
 }
 
 // Update initiates a change updating a snap.

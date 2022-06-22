@@ -4410,7 +4410,7 @@ func (s *validationSetsSuite) TestInstallSnapWithValidationSets(c *C) {
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	// validation sets are not set on the action
+	// validation sets are set on the action
 	expectedOp := fakeOp{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
