@@ -204,6 +204,14 @@ func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.
 	}
 }
 
+func MockSnapstateMigrate(mock func(*state.State, []string) ([]*state.TaskSet, error)) (restore func()) {
+	oldSnapstateMigrate := snapstateMigrateHome
+	snapstateMigrateHome = mock
+	return func() {
+		snapstateMigrateHome = oldSnapstateMigrate
+	}
+}
+
 func MockReboot(f func(boot.RebootAction, time.Duration, *boot.RebootInfo) error) func() {
 	reboot = f
 	return func() { reboot = boot.Reboot }

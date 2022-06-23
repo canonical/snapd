@@ -53,6 +53,7 @@ type debugAction struct {
 
 		RecoverySystemLabel string `json:"recovery-system-label"`
 	} `json:"params"`
+	Snaps []string `json:"snaps"`
 }
 
 type connectivityStatus struct {
@@ -411,6 +412,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return getStacktraces()
 	case "create-recovery-system":
 		return createRecovery(st, a.Params.RecoverySystemLabel)
+	case "migrate-home":
+		return migrateHome(st, a.Snaps)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}

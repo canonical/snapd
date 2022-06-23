@@ -2288,6 +2288,7 @@ func (s *SnapOpSuite) TestWaitServerError(c *check.C) {
 		{"disable", "foo"},
 		{"try", "."},
 		{"switch", "--channel=foo", "bar"},
+		{"debug", "migrate-home", "foo"},
 		// commands that use waitMixin from elsewhere
 		{"start", "foo"},
 		{"stop", "foo"},
