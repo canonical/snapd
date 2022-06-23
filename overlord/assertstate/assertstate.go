@@ -856,14 +856,14 @@ func TryEnforceValidationSets(st *state.State, validationSets []string, userID i
 
 		valsets, err := EnforcedValidationSets(st, extraVs...)
 		if err != nil {
-			// the returned error may be ValidationSetsValidationError which is normal and means we cannot enforce
-			// the new validation sets - the caller should resolve the error and retry.
 			return err
 		}
 		if err := valsets.Conflict(); err != nil {
 			return err
 		}
 		if err := valsets.CheckInstalledSnaps(snaps, ignoreValidation); err != nil {
+			// the returned error may be ValidationSetsValidationError which is normal and means we cannot enforce
+			// the new validation sets - the caller should resolve the error and retry.
 			return err
 		}
 
