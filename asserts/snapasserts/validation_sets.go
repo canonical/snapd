@@ -589,29 +589,32 @@ func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]string,
 // ParseValidationSet parses a validation set string (account/name or account/name=sequence)
 // and returns its individual components, or an error.
 func ParseValidationSet(arg string) (account, name string, seq int, err error) {
+	errPrefix := func() string {
+		return fmt.Sprintf("cannot parse validation set %q", arg)
+	}
 	parts := strings.Split(arg, "=")
 	if len(parts) > 2 {
-		return "", "", 0, fmt.Errorf("cannot parse validation set, expected account/name=seq")
+		return "", "", 0, fmt.Errorf("%s: expected account/name=seq", errPrefix())
 	}
 	if len(parts) == 2 {
 		seq, err = strconv.Atoi(parts[1])
 		if err != nil {
-			return "", "", 0, fmt.Errorf("cannot parse sequence: %v", err)
+			return "", "", 0, fmt.Errorf("%s: invalid sequence: %v", errPrefix(), err)
 		}
 	}
 
 	parts = strings.Split(parts[0], "/")
 	if len(parts) != 2 {
-		return "", "", 0, fmt.Errorf("expected a single account/name")
+		return "", "", 0, fmt.Errorf("%s: expected a single account/name", errPrefix())
 	}
 
 	account = parts[0]
 	name = parts[1]
 	if !asserts.IsValidAccountID(account) {
-		return "", "", 0, fmt.Errorf("invalid account ID %q", account)
+		return "", "", 0, fmt.Errorf("%s: invalid account ID %q", errPrefix(), account)
 	}
 	if !asserts.IsValidValidationSetName(name) {
-		return "", "", 0, fmt.Errorf("invalid validation set name %q", name)
+		return "", "", 0, fmt.Errorf("%s: invalid validation set name %q", errPrefix(), name)
 	}
 
 	return account, name, seq, nil

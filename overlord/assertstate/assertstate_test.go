@@ -3763,7 +3763,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 	})
 	c.Check(verr.InvalidSnaps, DeepEquals, map[string][]string{"invalid-snap": {fmt.Sprintf("%s/baz", s.dev1Acct.AccountID())}})
 
-	// new assertions were not commited
+	// new assertions were not committed
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
@@ -3834,7 +3834,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsOK(c *C) {
 	err := assertstate.TryEnforceValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz=1", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
 	c.Assert(err, IsNil)
 
-	// new assertions were commited
+	// new assertions were committed
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
@@ -3943,7 +3943,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsAlreadyTrackedUpd
 	err := assertstate.TryEnforceValidationSets(st, []string{fmt.Sprintf("%s/foo", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
 	c.Assert(err, IsNil)
 
-	// new assertion was commited
+	// new assertion was committed
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
@@ -4026,7 +4026,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsConflictError(c *
 	c.Assert(ok, Equals, true)
 	c.Assert(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "some-snap" as both invalid \(.*/bar\) and required at any revision \(.*/foo\).*`)
 
-	// new assertion wasn't commited
+	// new assertion wasn't committed
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),

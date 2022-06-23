@@ -1349,7 +1349,11 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 	return updateManyFiltered(ctx, st, names, userID, nil, flags, "")
 }
 
-func EnforceSnaps(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) (tasksets []*state.TaskSet, names []string, err error) {
+// EnforceSnaps installs/updates/removes snaps reported by validationErrorToSolve.
+// validationSets is the list of sets passed by the user and it's used in the
+// final stage to update validation-sets tracking in the state.
+// userID is used for store auth.
+func EnforceSnaps(ctx context.Context, st *state.State, validationSets []string, validationErrorToSolve *snapasserts.ValidationSetsValidationError, userID int) (tasksets []*state.TaskSet, names []string, err error) {
 	deviceCtx, err := DeviceCtx(st, nil, nil)
 	if err != nil {
 		return nil, nil, err
@@ -1358,15 +1362,15 @@ func EnforceSnaps(ctx context.Context, st *state.State, validationSets []string,
 	var affected []string
 	var prev *state.TaskSet
 
-	if validErr != nil {
-		affected = make([]string, 0, len(validErr.InvalidSnaps)+len(validErr.MissingSnaps)+len(validErr.WrongRevisionSnaps))
+	if validationErrorToSolve != nil {
+		affected = make([]string, 0, len(validationErrorToSolve.InvalidSnaps)+len(validationErrorToSolve.MissingSnaps)+len(validationErrorToSolve.WrongRevisionSnaps))
 
 		// TODO: use single lane for install, update, remove tasks
 
 		// install snaps
 
-		if len(validErr.MissingSnaps) > 0 {
-			for snapName, revAndVs := range validErr.MissingSnaps {
+		if len(validationErrorToSolve.MissingSnaps) > 0 {
+			for snapName, revAndVs := range validationErrorToSolve.MissingSnaps {
 				for rev, vs := range revAndVs {
 					opts := &RevisionOptions{Revision: rev, ValidationSets: vs}
 					affected = append(affected, snapName)
@@ -1387,8 +1391,8 @@ func EnforceSnaps(ctx context.Context, st *state.State, validationSets []string,
 		}
 
 		// refresh snaps to specific revisions
-		if len(validErr.WrongRevisionSnaps) > 0 {
-			for snapName, revAndVs := range validErr.WrongRevisionSnaps {
+		if len(validationErrorToSolve.WrongRevisionSnaps) > 0 {
+			for snapName, revAndVs := range validationErrorToSolve.WrongRevisionSnaps {
 				for rev, vs := range revAndVs {
 					opts := &RevisionOptions{Revision: rev, ValidationSets: vs}
 					// TODO: UpdateMany + revisions?
@@ -1407,9 +1411,9 @@ func EnforceSnaps(ctx context.Context, st *state.State, validationSets []string,
 			}
 		}
 
-		if len(validErr.InvalidSnaps) > 0 {
-			remove := make([]string, 0, len(validErr.InvalidSnaps))
-			for sn := range validErr.InvalidSnaps {
+		if len(validationErrorToSolve.InvalidSnaps) > 0 {
+			remove := make([]string, 0, len(validationErrorToSolve.InvalidSnaps))
+			for sn := range validationErrorToSolve.InvalidSnaps {
 				remove = append(remove, sn)
 				affected = append(affected, sn)
 			}

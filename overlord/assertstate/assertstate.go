@@ -858,14 +858,14 @@ func TryEnforceValidationSets(st *state.State, validationSets []string, userID i
 
 		valsets, err := EnforcedValidationSets(st, extraVs...)
 		if err != nil {
-			// the returned error may be ValidationSetsValidationError which is normal and means we cannot enforce
-			// the new validation sets - the caller should resolve the error and retry.
 			return err
 		}
 		if err := valsets.Conflict(); err != nil {
 			return err
 		}
 		if err := valsets.CheckInstalledSnaps(snaps, ignoreValidation); err != nil {
+			// the returned error may be ValidationSetsValidationError which is normal and means we cannot enforce
+			// the new validation sets - the caller should resolve the error and retry.
 			return err
 		}
 
@@ -884,7 +884,7 @@ func TryEnforceValidationSets(st *state.State, validationSets []string, userID i
 		// get latest assertion from the db to determine current
 		a, err := db.FindSequence(asserts.ValidationSetType, extraVsHeaders[i], -1, -1)
 		if err != nil {
-			// this is unexpected since all asserts should be resolved and commited at this point
+			// this is unexpected since all asserts should be resolved and committed at this point
 			return fmt.Errorf("internal error: cannot find validation set assertion: %v", err)
 		}
 		vs := a.(*asserts.ValidationSet)

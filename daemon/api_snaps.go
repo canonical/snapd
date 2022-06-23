@@ -662,30 +662,40 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 
 func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	if len(inst.ValidationSets) > 0 && len(inst.Snaps) != 0 {
-		return nil, fmt.Errorf("snap names cannot be specified with validation sets")
+		return nil, fmt.Errorf("snap names cannot be specified with validation sets to enforce")
 	}
 
-	snaps, ignoreValidation, err := snapstate.InstalledSnaps(st)
+	snaps, ignoreValidationSnaps, err := snapstate.InstalledSnaps(st)
 	if err != nil {
 		return nil, err
 	}
 
-	var validErr *snapasserts.ValidationSetsValidationError
-	err = assertstateTryEnforceValidationSets(st, inst.ValidationSets, inst.userID, snaps, ignoreValidation)
+	// we need refreshed snap-declarations, this ensures that snap-declarations
+	// and their prerequisite assertions are updated regularly; do not update all
+	// validation-set assertions (this is implied by passing nil opts) - only
+	// those requested via inst.ValidationSets will get updated by
+	// assertstateTryEnforceValidationSets below.
+	if err := assertstateRefreshSnapAssertions(st, inst.userID, nil); err != nil {
+		return nil, err
+	}
+
+	var validationErr *snapasserts.ValidationSetsValidationError
+	err = assertstateTryEnforceValidationSets(st, inst.ValidationSets, inst.userID, snaps, ignoreValidationSnaps)
 	if err != nil {
 		var ok bool
-		validErr, ok = err.(*snapasserts.ValidationSetsValidationError)
+		validationErr, ok = err.(*snapasserts.ValidationSetsValidationError)
 		if !ok {
 			return nil, err
 		}
 	}
-	tss, affected, err := snapstateEnforceSnaps(context.TODO(), st, inst.ValidationSets, validErr, inst.userID)
+
+	tss, affected, err := snapstateEnforceSnaps(context.TODO(), st, inst.ValidationSets, validationErr, inst.userID)
 	if err != nil {
 		return nil, err
 	}
 
 	return &snapInstructionResult{
-		Summary:  fmt.Sprintf("Enforced validation sets: %s ", strutil.Quoted(inst.ValidationSets)),
+		Summary:  fmt.Sprintf("Enforced validation sets: %s", strutil.Quoted(inst.ValidationSets)),
 		Affected: affected,
 		Tasksets: tss,
 	}, nil
