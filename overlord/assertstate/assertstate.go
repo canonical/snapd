@@ -772,6 +772,14 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 	return vs, latest, err
 }
 
+// TryEnforceValidationSets tries to fetch the given validation sets and enforce them (together with currently tracked validation sets) against installed snaps,
+// but doesn't update tracking information. It may return snapasserts.ValidationSetsValidationError which can be used to install/remove snaps as required
+// to satisfy validation sets constraints.
+func TryEnforceValidationSets(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+	// TODO
+	return fmt.Errorf("not implemented")
+}
+
 // EnforceValidationSet tries to fetch the given validation set and enforce it.
 // If all validation sets constrains are satisfied, the current validation sets
 // tracking state is saved in validation sets history.
