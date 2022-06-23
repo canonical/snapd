@@ -893,6 +893,10 @@ func (s *assertMgrSuite) validationSetAssert(c *C, name, sequence, revision stri
 	if requiredRevision != "" {
 		snaps[0].(map[string]interface{})["revision"] = requiredRevision
 	}
+	return s.validationSetAssertForSnaps(c, name, sequence, revision, snaps)
+}
+
+func (s *assertMgrSuite) validationSetAssertForSnaps(c *C, name, sequence, revision string, snaps []interface{}) *asserts.ValidationSet {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"account-id":   s.dev1Acct.AccountID(),
@@ -3684,6 +3688,353 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionIgnoreValidation(c *C)
 		Current:   2,
 	})
 	c.Check(tr, DeepEquals, *tracking)
+}
+
+func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
+	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
+
+	// pretend we are already enforcing a validation set foo
+	snaps3 := []interface{}{
+		map[string]interface{}{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "some-snap",
+			"presence": "required",
+		}}
+	vsetAs3 := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps3)
+	c.Assert(assertstate.Add(st, vsetAs3), IsNil)
+	assertstate.UpdateValidationSet(st, &assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "foo",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	})
+
+	// add validation set assertions to the store
+	snaps1 := []interface{}{
+		map[string]interface{}{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "some-snap",
+			"presence": "required",
+			"revision": "3",
+		},
+		map[string]interface{}{
+			"id":       "aAqKhntON3vR7kwEbVPsILm7bUViPDaa",
+			"name":     "other-snap",
+			"presence": "required",
+		}}
+	vsetAs := s.validationSetAssertForSnaps(c, "bar", "2", "2", snaps1)
+	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
+	snaps2 := []interface{}{
+		map[string]interface{}{
+			"id":       "cccchntON3vR7kwEbVPsILm7bUViPDcc",
+			"name":     "invalid-snap",
+			"presence": "invalid",
+		}}
+	vsetAs2 := s.validationSetAssertForSnaps(c, "baz", "1", "1", snaps2)
+	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
+
+	// try to enforce extra validation sets bar and baz. some-snap is present (and required by foo at any revision),
+	// but needs to be at revision 3 to satisfy bar. invalid-snap is present but is invalid for baz.
+	installedSnaps := []*snapasserts.InstalledSnap{
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+		snapasserts.NewInstalledSnap("invalid-snap", "cccchntON3vR7kwEbVPsILm7bUViPDcc", snap.Revision{N: 1}),
+	}
+	err := assertstate.TryEnforceValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
+	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
+	c.Assert(ok, Equals, true)
+	c.Check(verr.WrongRevisionSnaps, DeepEquals, map[string]map[snap.Revision][]string{
+		"some-snap": {
+			snap.R(3): []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID())},
+		},
+	})
+	c.Check(verr.MissingSnaps, DeepEquals, map[string]map[snap.Revision][]string{
+		"other-snap": {
+			snap.R(0): []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID())},
+		},
+	})
+	c.Check(verr.InvalidSnaps, DeepEquals, map[string][]string{"invalid-snap": {fmt.Sprintf("%s/baz", s.dev1Acct.AccountID())}})
+
+	// new assertions were not committed
+	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "bar",
+		"sequence":   "2",
+	})
+	c.Assert(asserts.IsNotFound(err), Equals, true)
+	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "baz",
+		"sequence":   "1",
+	})
+	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Check(s.fakeStore.(*fakeStore).opts.IsAutoRefresh, Equals, false)
+}
+
+func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsOK(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
+	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
+
+	// pretend we are already enforcing a validation set foo
+	snaps3 := []interface{}{
+		map[string]interface{}{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "some-snap",
+			"presence": "required",
+		}}
+	vsetAs3 := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps3)
+	c.Assert(assertstate.Add(st, vsetAs3), IsNil)
+	assertstate.UpdateValidationSet(st, &assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "foo",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	})
+
+	// add validation set assertions to the store
+	snaps1 := []interface{}{
+		map[string]interface{}{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "some-snap",
+			"presence": "required",
+			"revision": "3",
+		}}
+	vsetAs := s.validationSetAssertForSnaps(c, "bar", "2", "2", snaps1)
+	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
+	snaps2 := []interface{}{
+		map[string]interface{}{
+			"id":       "aAqKhntON3vR7kwEbVPsILm7bUViPDaa",
+			"name":     "other-snap",
+			"presence": "optional",
+		}}
+	vsetAs2 := s.validationSetAssertForSnaps(c, "baz", "1", "1", snaps2)
+	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
+
+	installedSnaps := []*snapasserts.InstalledSnap{
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}),
+	}
+	err := assertstate.TryEnforceValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz=1", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
+	c.Assert(err, IsNil)
+
+	// new assertions were committed
+	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "bar",
+		"sequence":   "2",
+	})
+	c.Assert(err, IsNil)
+
+	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "baz",
+		"sequence":   "1",
+	})
+	c.Assert(err, IsNil)
+	c.Check(s.fakeStore.(*fakeStore).opts.IsAutoRefresh, Equals, false)
+
+	// tracking was updated
+	var tr assertstate.ValidationSetTracking
+	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
+	c.Check(tr, DeepEquals, assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		Current:   2,
+	})
+	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "baz", &tr), IsNil)
+	c.Check(tr, DeepEquals, assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "baz",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+		PinnedAt:  1,
+	})
+
+	// and it was added to the history
+	// note, normally there would be a map with just "foo" as well, but there isn't one
+	// since we created the initial state in the test manually.
+	vshist, err := assertstate.ValidationSetsHistory(st)
+	c.Assert(err, IsNil)
+	c.Check(vshist, DeepEquals, []map[string]*assertstate.ValidationSetTracking{{
+		fmt.Sprintf("%s/foo", s.dev1Acct.AccountID()): {
+			AccountID: s.dev1Acct.AccountID(),
+			Name:      "foo",
+			Mode:      assertstate.Enforce,
+			Current:   1,
+		},
+		fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()): {
+			AccountID: s.dev1Acct.AccountID(),
+			Name:      "bar",
+			Mode:      assertstate.Enforce,
+			Current:   2,
+		},
+		fmt.Sprintf("%s/baz", s.dev1Acct.AccountID()): {
+			AccountID: s.dev1Acct.AccountID(),
+			Name:      "baz",
+			Mode:      assertstate.Enforce,
+			PinnedAt:  1,
+			Current:   1,
+		},
+	}})
+}
+
+func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsAlreadyTrackedUpdateOK(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
+	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
+
+	// pretend we are already enforcing a validation set foo
+	snaps3 := []interface{}{
+		map[string]interface{}{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "some-snap",
+			"presence": "required",
+		}}
+	vsetAs1 := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps3)
+	c.Assert(assertstate.Add(st, vsetAs1), IsNil)
+	assertstate.UpdateValidationSet(st, &assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "foo",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	})
+
+	// add validation set assertions to the store
+	snaps1 := []interface{}{
+		map[string]interface{}{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "some-snap",
+			"presence": "required",
+			"revision": "3",
+		}}
+	vsetAs2 := s.validationSetAssertForSnaps(c, "foo", "2", "2", snaps1)
+	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
+
+	installedSnaps := []*snapasserts.InstalledSnap{
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}),
+	}
+	err := assertstate.TryEnforceValidationSets(st, []string{fmt.Sprintf("%s/foo", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
+	c.Assert(err, IsNil)
+
+	// new assertion was committed
+	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "foo",
+		"sequence":   "2",
+	})
+	c.Assert(err, IsNil)
+	c.Check(s.fakeStore.(*fakeStore).opts.IsAutoRefresh, Equals, false)
+
+	// tracking was updated
+	var tr assertstate.ValidationSetTracking
+	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", &tr), IsNil)
+	c.Check(tr, DeepEquals, assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "foo",
+		Mode:      assertstate.Enforce,
+		Current:   2,
+	})
+
+	// and it was added to the history
+	// note, normally there would be a map with just "foo" as well, but there isn't one
+	// since we created the initial state in the test manually.
+	vshist, err := assertstate.ValidationSetsHistory(st)
+	c.Assert(err, IsNil)
+	c.Check(vshist, DeepEquals, []map[string]*assertstate.ValidationSetTracking{{
+		fmt.Sprintf("%s/foo", s.dev1Acct.AccountID()): {
+			AccountID: s.dev1Acct.AccountID(),
+			Name:      "foo",
+			Mode:      assertstate.Enforce,
+			Current:   2,
+		},
+	}})
+}
+
+func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsConflictError(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
+	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
+
+	// pretend we are already enforcing a validation set foo
+	snaps3 := []interface{}{
+		map[string]interface{}{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "some-snap",
+			"presence": "required",
+		}}
+	vsetAs3 := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps3)
+	c.Assert(assertstate.Add(st, vsetAs3), IsNil)
+	assertstate.UpdateValidationSet(st, &assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "foo",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	})
+
+	// add a validation set assertion to the store
+	snaps1 := []interface{}{
+		map[string]interface{}{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "some-snap",
+			"presence": "invalid",
+		}}
+	vsetAs := s.validationSetAssertForSnaps(c, "bar", "2", "2", snaps1)
+	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
+
+	// try to enforce extra validation sets bar and baz. some-snap is present (and required by foo at any revision),
+	// but needs to be at revision 3 to satisfy bar. invalid-snap is present but is invalid for baz.
+	installedSnaps := []*snapasserts.InstalledSnap{
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
+	}
+	err := assertstate.TryEnforceValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
+	_, ok := err.(*snapasserts.ValidationSetsConflictError)
+	c.Assert(ok, Equals, true)
+	c.Assert(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "some-snap" as both invalid \(.*/bar\) and required at any revision \(.*/foo\).*`)
+
+	// new assertion wasn't committed
+	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "bar",
+		"sequence":   "2",
+	})
+	c.Assert(asserts.IsNotFound(err), Equals, true)
+	c.Check(s.fakeStore.(*fakeStore).opts.IsAutoRefresh, Equals, false)
 }
 
 func (s *assertMgrSuite) TestMonitorValidationSet(c *C) {
