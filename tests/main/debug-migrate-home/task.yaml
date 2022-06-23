@@ -4,10 +4,7 @@ environment:
     NAME: test-snapd-tools
 
 prepare: |
-  snap pack "$TESTSLIB/snaps/$NAME"
   "$TESTSTOOLS"/snaps-state install-local "$NAME"
-
-  snap pack "$TESTSLIB"/snaps/basic
   "$TESTSTOOLS"/snaps-state install-local basic
 
 restore: |
@@ -37,8 +34,7 @@ execute: |
   MATCH "foo" < "$HOME/Snap/$NAME/foo"
 
   echo "Check that the snap's environment variables and AppArmor rules are correct"
-  snapEnv=$("$NAME".env)
-  echo "$snapEnv" | MATCH "HOME=$HOME/Snap/$NAME"
+  "$NAME".env | MATCH "HOME=$HOME/Snap/$NAME"
 
   #shellcheck disable=SC2016
   "$NAME".cmd sh -c 'echo "bar" > $HOME/bar'
