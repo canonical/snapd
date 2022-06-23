@@ -207,6 +207,10 @@ func SetTriedSystemsRan(m *DeviceManager, b bool) {
 	m.ensureTriedRecoverySystemRan = b
 }
 
+func SetPostFactoryResetRan(m *DeviceManager, b bool) {
+	m.ensurePostFactoryResetRan = b
+}
+
 func StartTime() time.Time {
 	return startTime
 }
@@ -360,6 +364,12 @@ func MockSecbootStageEncryptionKeyChange(f func(node string, key keys.Encryption
 	return restore
 }
 
+func MockSecbootTransitionEncryptionKeyChange(f func(mountpoint string, key keys.EncryptionKey) error) (restore func()) {
+	restore = testutil.Backup(&secbootTransitionEncryptionKeyChange)
+	secbootTransitionEncryptionKeyChange = f
+	return restore
+}
+
 func MockCloudInitStatus(f func() (sysconfig.CloudInitState, error)) (restore func()) {
 	old := cloudInitStatus
 	cloudInitStatus = f
@@ -421,5 +431,11 @@ func MockSecbootEnsureRecoveryKey(f func(recoveryKeyFile string, rkeyDevs []secb
 func MockSecbootRemoveRecoveryKeys(f func(rkeyDevToKey map[secboot.RecoveryKeyDevice]string) error) (restore func()) {
 	restore = testutil.Backup(&secbootRemoveRecoveryKeys)
 	secbootRemoveRecoveryKeys = f
+	return restore
+}
+
+func MockMarkFactoryResetComplete(f func(encrypted bool) error) (restore func()) {
+	restore = testutil.Backup(&bootMarkFactoryResetComplete)
+	bootMarkFactoryResetComplete = f
 	return restore
 }
