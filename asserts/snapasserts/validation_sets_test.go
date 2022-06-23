@@ -1052,6 +1052,18 @@ func (s *validationSetsSuite) TestParseValidationSet(c *C) {
 			input:  "foo/bar=x",
 			errMsg: `cannot parse sequence: strconv.Atoi: parsing "x": invalid syntax`,
 		},
+		{
+			input:  "foo=bar=",
+			errMsg: "cannot parse validation set, expected account/name=seq",
+		},
+		{
+			input:  "$foo/bar",
+			errMsg: `invalid account ID "\$foo"`,
+		},
+		{
+			input:  "foo/$bar",
+			errMsg: `invalid validation set name "\$bar"`,
+		},
 	} {
 		account, name, seq, err := snapasserts.ParseValidationSet(tc.input)
 		if tc.errMsg != "" {
