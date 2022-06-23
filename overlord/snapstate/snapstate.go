@@ -1349,11 +1349,11 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 	return updateManyFiltered(ctx, st, names, userID, nil, flags, "")
 }
 
-// EnforceSnaps installs/updates/removes snaps reported by validErr.
+// EnforceSnaps installs/updates/removes snaps reported by validationErrorToSolve.
 // validationSets is the list of sets passed by the user and it's used in the
 // final stage to update validation-sets tracking in the state.
 // userID is used for store auth.
-func EnforceSnaps(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) (tasksets []*state.TaskSet, names []string, err error) {
+func EnforceSnaps(ctx context.Context, st *state.State, validationSets []string, validationErrorToSolve *snapasserts.ValidationSetsValidationError, userID int) (tasksets []*state.TaskSet, names []string, err error) {
 	// TODO
 	return nil, nil, fmt.Errorf("not implemented")
 }

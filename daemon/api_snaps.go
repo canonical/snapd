@@ -670,6 +670,11 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 		return nil, err
 	}
 
+	// we need refreshed snap-declarations, this ensures that snap-declarations
+	// and their prerequisite assertions are updated regularly; do not update all
+	// validation-set assertions (this is implied by passing nil opts) - only
+	// those requested via inst.ValidationSets will get updated by
+	// assertstateTryEnforceValidationSets below.
 	if err := assertstateRefreshSnapAssertions(st, inst.userID, nil); err != nil {
 		return nil, err
 	}
