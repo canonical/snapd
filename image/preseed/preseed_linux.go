@@ -22,6 +22,7 @@ package preseed
 import (
 	"crypto"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -539,6 +540,11 @@ func runUC20PreseedMode(opts *preseedOpts) error {
 	fmt.Fprintf(Stdout, "starting to preseed UC20+ system: %s\n", opts.PreseedChrootDir)
 
 	if err := cmd.Run(); err != nil {
+		var errno syscall.Errno
+		if errors.As(err, &errno) && errno == syscall.ENOEXEC {
+			return fmt.Errorf(`error running snapd, please try installing the "qemu-user-static" package: %v`, err)
+		}
+
 		return fmt.Errorf("error running snapd in preseed mode: %v\n", err)
 	}
 
