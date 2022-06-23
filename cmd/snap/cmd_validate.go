@@ -107,7 +107,7 @@ func (cmd *cmdValidate) Execute(args []string) error {
 	if cmd.Positional.ValidationSet != "" {
 		accountID, name, seq, err = snapasserts.ParseValidationSet(cmd.Positional.ValidationSet)
 		if err != nil {
-			return fmt.Errorf("cannot parse validation set %q: %v", cmd.Positional.ValidationSet, err)
+			return err
 		}
 	}
 

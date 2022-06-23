@@ -1034,35 +1034,35 @@ func (s *validationSetsSuite) TestParseValidationSet(c *C) {
 		},
 		{
 			input:  "foo",
-			errMsg: "expected a single account/name",
+			errMsg: `cannot parse validation set "foo": expected a single account/name`,
 		},
 		{
 			input:  "foo/bar/baz",
-			errMsg: "expected a single account/name",
+			errMsg: `cannot parse validation set "foo/bar/baz": expected a single account/name`,
 		},
 		{
 			input:  "",
-			errMsg: "expected a single account/name",
+			errMsg: `cannot parse validation set "": expected a single account/name`,
 		},
 		{
 			input:  "foo=1",
-			errMsg: "expected a single account/name",
+			errMsg: `cannot parse validation set "foo=1": expected a single account/name`,
 		},
 		{
 			input:  "foo/bar=x",
-			errMsg: `cannot parse sequence: strconv.Atoi: parsing "x": invalid syntax`,
+			errMsg: `cannot parse validation set "foo/bar=x": invalid sequence: strconv.Atoi: parsing "x": invalid syntax`,
 		},
 		{
 			input:  "foo=bar=",
-			errMsg: "cannot parse validation set, expected account/name=seq",
+			errMsg: `cannot parse validation set "foo=bar=": expected account/name=seq`,
 		},
 		{
 			input:  "$foo/bar",
-			errMsg: `invalid account ID "\$foo"`,
+			errMsg: `cannot parse validation set "\$foo/bar": invalid account ID "\$foo"`,
 		},
 		{
 			input:  "foo/$bar",
-			errMsg: `invalid validation set name "\$bar"`,
+			errMsg: `cannot parse validation set "foo/\$bar": invalid validation set name "\$bar"`,
 		},
 	} {
 		account, name, seq, err := snapasserts.ParseValidationSet(tc.input)
