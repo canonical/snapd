@@ -25,7 +25,6 @@ package assertstate
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -774,19 +773,11 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 }
 
 // TryEnforceValidationSets tries to fetch the given validation sets and enforce them (together with currently tracked validation sets) against installed snaps,
-// but doesn't update tracking information. It may return snapasserts.ValidationSetsValidationError which can be used to install/remove snaps as required
-// to satisfy validation sets constraints.
+// but doesn't update tracking information in case of an error. It may return snapasserts.ValidationSetsValidationError which can be used to install/remove snaps
+// as required to satisfy validation sets constraints.
 func TryEnforceValidationSets(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
-		return err
-	}
-
-	opts := &RefreshAssertionsOptions{IsAutoRefresh: false}
-
-	// refresh all currently tracked validation set assertions (this may or may not
-	// include the one requested by the caller).
-	if err = RefreshValidationSetAssertions(st, userID, opts); err != nil {
 		return err
 	}
 
@@ -794,30 +785,15 @@ func TryEnforceValidationSets(st *state.State, validationSets []string, userID i
 	pool := asserts.NewPool(db, maxGroups)
 
 	extraVsHeaders := make([]map[string]string, 0, len(validationSets))
+	newTracking := make([]*ValidationSetTracking, 0, len(validationSets))
 
 	for _, vsstr := range validationSets {
-		// XXX: do we have a helper for this already?
-		parts := strings.Split(vsstr, "/")
-		if len(parts) != 2 {
-			return fmt.Errorf("cannot parse validation set: %s", vsstr)
-		}
-		accountID, name := parts[0], parts[1]
-		seqParts := strings.Split(name, "=")
-		var sequence int
-		if len(seqParts) > 2 {
-			return fmt.Errorf("cannot parse validation-set sequence %s", name)
-		}
-		if len(seqParts) == 2 {
-			sequence, err = strconv.Atoi(seqParts[1])
-			if err != nil {
-				return fmt.Errorf("cannot parse validation-set sequence %s: %v", seqParts[1], err)
-			}
+		accountID, name, sequence, err := snapasserts.ParseValidationSet(vsstr)
+		if err != nil {
+			return err
 		}
 
-		// try to get existing from the db. It will be the latest one if it was
-		// tracked already and thus refreshed via RefreshValidationSetAssertions.
-		// Otherwise, it may be a local assertion that was tracked in the past and
-		// then forgotten, in which case we need to refresh it explicitly.
+		// try to get existing from the db
 		headers := map[string]string{
 			"series":     release.Series,
 			"account-id": accountID,
@@ -834,28 +810,27 @@ func TryEnforceValidationSets(st *state.State, validationSets []string, userID i
 			Revision:    asserts.RevisionNotKnown,
 			Pinned:      sequence > 0,
 		}
+
+		// prepare tracking data, note current is not known yet
+		tr := &ValidationSetTracking{
+			AccountID: headers["account-id"],
+			Name:      headers["name"],
+			Mode:      Enforce,
+			// may be 0 meaning no pinning
+			PinnedAt: sequence,
+		}
+
 		extraVsHeaders = append(extraVsHeaders, headers)
+		newTracking = append(newTracking, tr)
 
 		vs, err := getSpecificSequenceOrLatest(db, headers)
 		// found locally
 		if err == nil {
-			// check if we were tracking it already; if not, that
-			// means we found an old assertion (it was very likely tracked in the
-			// past) and we need to update it as it wasn't covered
-			// by RefreshValidationSetAssertions.
-			var tr ValidationSetTracking
-			trerr := GetValidationSet(st, accountID, name, &tr)
-			if trerr != nil && !errors.Is(trerr, state.ErrNoState) {
-				return trerr
-			}
-			// not tracked, update the assertion
-			if errors.Is(trerr, state.ErrNoState) {
-				// update with pool
-				atSeq.Sequence = vs.Sequence()
-				atSeq.Revision = vs.Revision()
-				if err := pool.AddSequenceToUpdate(atSeq, atSeq.Unique()); err != nil {
-					return err
-				}
+			// update with pool
+			atSeq.Sequence = vs.Sequence()
+			atSeq.Revision = vs.Revision()
+			if err := pool.AddSequenceToUpdate(atSeq, atSeq.Unique()); err != nil {
+				return err
 			}
 		} else {
 			if !asserts.IsNotFound(err) {
@@ -883,6 +858,8 @@ func TryEnforceValidationSets(st *state.State, validationSets []string, userID i
 
 		valsets, err := EnforcedValidationSets(st, extraVs...)
 		if err != nil {
+			// the returned error may be ValidationSetsValidationError which is normal and means we cannot enforce
+			// the new validation sets - the caller should resolve the error and retry.
 			return err
 		}
 		if err := valsets.Conflict(); err != nil {
@@ -897,13 +874,28 @@ func TryEnforceValidationSets(st *state.State, validationSets []string, userID i
 		return nil
 	}
 
+	opts := &RefreshAssertionsOptions{}
 	if err := resolvePoolNoFallback(st, pool, checkBeforeCommit, userID, deviceCtx, opts); err != nil {
 		return err
 	}
 
-	// TODO: update tracking for all vsets
+	// no error, all validation-sets can be enforced, update tracking for all vsets
+	for i := 0; i < len(extraVsHeaders); i++ {
+		// get latest assertion from the db to determine current
+		a, err := db.FindSequence(asserts.ValidationSetType, extraVsHeaders[i], -1, -1)
+		if err != nil {
+			// this is unexpected since all asserts should be resolved and commited at this point
+			return fmt.Errorf("internal error: cannot find validation set assertion: %v", err)
+		}
+		vs := a.(*asserts.ValidationSet)
+		tr := newTracking[i]
+		tr.Current = vs.Sequence()
+	}
+	for _, tr := range newTracking {
+		UpdateValidationSet(st, tr)
+	}
 
-	return nil
+	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
 // EnforceValidationSet tries to fetch the given validation set and enforce it.

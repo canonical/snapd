@@ -1012,3 +1012,55 @@ func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(vsKeys, HasLen, 0)
 }
+
+func (s *validationSetsSuite) TestParseValidationSet(c *C) {
+	for _, tc := range []struct {
+		input    string
+		errMsg   string
+		account  string
+		name     string
+		sequence int
+	}{
+		{
+			input:   "foo/bar",
+			account: "foo",
+			name:    "bar",
+		},
+		{
+			input:    "foo/bar=9",
+			account:  "foo",
+			name:     "bar",
+			sequence: 9,
+		},
+		{
+			input:  "foo",
+			errMsg: "expected a single account/name",
+		},
+		{
+			input:  "foo/bar/baz",
+			errMsg: "expected a single account/name",
+		},
+		{
+			input:  "",
+			errMsg: "expected a single account/name",
+		},
+		{
+			input:  "foo=1",
+			errMsg: "expected a single account/name",
+		},
+		{
+			input:  "foo/bar=x",
+			errMsg: `cannot parse sequence: strconv.Atoi: parsing "x": invalid syntax`,
+		},
+	} {
+		account, name, seq, err := snapasserts.ParseValidationSet(tc.input)
+		if tc.errMsg != "" {
+			c.Assert(err, ErrorMatches, tc.errMsg)
+		} else {
+			c.Assert(err, IsNil)
+		}
+		c.Check(account, Equals, tc.account)
+		c.Check(name, Equals, tc.name)
+		c.Check(seq, Equals, tc.sequence)
+	}
+}
