@@ -1278,10 +1278,13 @@ func (s *quotaHandlersSuite) TestCreateJournalQuota(c *C) {
 	// when creating the journal quota.
 	var setupProfilesCalled int
 	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		task.State().Lock()
-		_, err := snapstate.TaskSnapSetup(task)
-		task.State().Unlock()
 		setupProfilesCalled++
+		task.State().Lock()
+		snapInfo, err := snapstate.TaskSnapSetup(task)
+		task.State().Unlock()
+		c.Assert(err, IsNil)
+		c.Check(snapInfo.InstanceName(), Equals, "test-snap")
+		c.Check(snapInfo.SideInfo.Revision, Equals, s.testSnapSideInfo.Revision)
 		return err
 	}
 	s.o.TaskRunner().AddHandler("setup-profiles", fakeHandler, fakeHandler)
@@ -1336,10 +1339,13 @@ func (s *quotaHandlersSuite) TestAddJournalQuota(c *C) {
 	// when creating the journal quota.
 	var setupProfilesCalled int
 	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		task.State().Lock()
-		_, err := snapstate.TaskSnapSetup(task)
-		task.State().Unlock()
 		setupProfilesCalled++
+		task.State().Lock()
+		snapInfo, err := snapstate.TaskSnapSetup(task)
+		task.State().Unlock()
+		c.Assert(err, IsNil)
+		c.Check(snapInfo.InstanceName(), Equals, "test-snap")
+		c.Check(snapInfo.SideInfo.Revision, Equals, s.testSnapSideInfo.Revision)
 		return err
 	}
 	s.o.TaskRunner().AddHandler("setup-profiles", fakeHandler, fakeHandler)
@@ -1416,10 +1422,13 @@ func (s *quotaHandlersSuite) TestUpdateJournalQuota(c *C) {
 	// when creating the journal quota.
 	var setupProfilesCalled int
 	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		task.State().Lock()
-		_, err := snapstate.TaskSnapSetup(task)
-		task.State().Unlock()
 		setupProfilesCalled++
+		task.State().Lock()
+		snapInfo, err := snapstate.TaskSnapSetup(task)
+		task.State().Unlock()
+		c.Assert(err, IsNil)
+		c.Check(snapInfo.InstanceName(), Equals, "test-snap")
+		c.Check(snapInfo.SideInfo.Revision, Equals, s.testSnapSideInfo.Revision)
 		return err
 	}
 	s.o.TaskRunner().AddHandler("setup-profiles", fakeHandler, fakeHandler)
@@ -1475,10 +1484,13 @@ func (s *quotaHandlersSuite) TestRemoveJournalQuota(c *C) {
 	// when creating the journal quota.
 	var setupProfilesCalled int
 	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		task.State().Lock()
-		_, err := snapstate.TaskSnapSetup(task)
-		task.State().Unlock()
 		setupProfilesCalled++
+		task.State().Lock()
+		snapInfo, err := snapstate.TaskSnapSetup(task)
+		task.State().Unlock()
+		c.Assert(err, IsNil)
+		c.Check(snapInfo.InstanceName(), Equals, "test-snap")
+		c.Check(snapInfo.SideInfo.Revision, Equals, s.testSnapSideInfo.Revision)
 		return err
 	}
 	s.o.TaskRunner().AddHandler("setup-profiles", fakeHandler, fakeHandler)
