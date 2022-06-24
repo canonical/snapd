@@ -1,20 +1,17 @@
 summary: Check the debug command migrate-home migrates snaps' homes
 
-environment:
-    NAME: test-snapd-tools
-
 prepare: |
-  "$TESTSTOOLS"/snaps-state install-local "$NAME"
+  "$TESTSTOOLS"/snaps-state install-local "test-snapd-tools"
   "$TESTSTOOLS"/snaps-state install-local basic
 
 restore: |
   snap unset system experimental.move-snap-home-dir
   snap remove --purge basic
-  snap remove --purge "$NAME"
+  snap remove --purge test-snapd-tools
 
 execute: |
   echo "Check that migrate home doesn't work without setting the experimental flag"
-  if got=$(snap debug migrate-home "$NAME" 2>&1); then
+  if got=$(snap debug migrate-home test-snapd-tools 2>&1); then
     echo 'Calling "snap debug migrate-home" without setting "experimental.move-snap-home-dir" should fail'
     exit 1
   fi
@@ -25,17 +22,17 @@ execute: |
   snap set system experimental.move-snap-home-dir=true
 
   #shellcheck disable=SC2016
-  "$NAME".cmd sh -c 'echo foo > $HOME/foo'
-  MATCH "foo" < "$HOME/snap/$NAME/current/foo"
+  test-snapd-tools.cmd sh -c 'echo foo > $HOME/foo'
+  MATCH "foo" < "$HOME/snap/test-snapd-tools/current/foo"
   not test -e "$HOME"/Snap
 
-  snap debug migrate-home "$NAME" basic
+  snap debug migrate-home test-snapd-tools basic
 
-  MATCH "foo" < "$HOME/Snap/$NAME/foo"
+  MATCH "foo" < "$HOME/Snap/test-snapd-tools/foo"
 
   echo "Check that the snap's environment variables and AppArmor rules are correct"
-  "$NAME".env | MATCH "HOME=$HOME/Snap/$NAME"
+  test-snapd-tools.env | MATCH "HOME=$HOME/Snap/test-snapd-tools"
 
   #shellcheck disable=SC2016
-  "$NAME".cmd sh -c 'echo "bar" > $HOME/bar'
-  MATCH "bar" < "$HOME/Snap/$NAME/bar"
+  test-snapd-tools.cmd sh -c 'echo "bar" > $HOME/bar'
+  MATCH "bar" < "$HOME/Snap/test-snapd-tools/bar"
