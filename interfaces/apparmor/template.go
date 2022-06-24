@@ -190,7 +190,9 @@ var templateCommon = `
   /usr/lib/os-release k,
 
   # systemd native journal API (see sd_journal_print(4)). This should be in
-  # AppArmor's base abstraction, but until it is, include here.
+  # AppArmor's base abstraction, but until it is, include here. We include
+  # the base journal path as well as the journal namespace pattern path. Each
+  # journal namespace for quota groups will be prefixed with 'snap-'.
   /run/systemd/journal{,.snap-*}/socket w,
   /run/systemd/journal{,.snap-*}/stdout rw, # 'r' shouldn't be needed, but journald
                                             # doesn't leak anything so allow
