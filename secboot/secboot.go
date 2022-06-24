@@ -33,9 +33,15 @@ import (
 )
 
 const (
-	// Handles are in the block reserved for TPM owner objects (0x01800000 - 0x01bfffff)
-	RunObjectPCRPolicyCounterHandle      = 0x01880001
-	FallbackObjectPCRPolicyCounterHandle = 0x01880002
+	// Handles are in the block reserved for TPM owner objects (0x01800000 - 0x01bfffff).
+	//
+	// Handles are rotated during factory reset, depending on the PCR handle
+	// thet was used when sealing key objects during installation (or a
+	// previous factory reset).
+	RunObjectPCRPolicyCounterHandle         = uint32(0x01880001)
+	FallbackObjectPCRPolicyCounterHandle    = uint32(0x01880002)
+	AltRunObjectPCRPolicyCounterHandle      = uint32(0x01880003)
+	AltFallbackObjectPCRPolicyCounterHandle = uint32(0x01880004)
 )
 
 // WithSecbootSupport is true if this package was built with githbu.com/snapcore/secboot.
