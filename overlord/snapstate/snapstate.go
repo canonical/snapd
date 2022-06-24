@@ -1349,6 +1349,15 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 	return updateManyFiltered(ctx, st, names, userID, nil, flags, "")
 }
 
+// EnforceSnaps installs/updates/removes snaps reported by validationErrorToSolve.
+// validationSets is the list of sets passed by the user and it's used in the
+// final stage to update validation-sets tracking in the state.
+// userID is used for store auth.
+func EnforceSnaps(ctx context.Context, st *state.State, validationSets []string, validationErrorToSolve *snapasserts.ValidationSetsValidationError, userID int) (tasksets []*state.TaskSet, names []string, err error) {
+	// TODO
+	return nil, nil, fmt.Errorf("not implemented")
+}
+
 // updateFilter is the type of function that can be passed to
 // updateManyFromChange so it filters the updates.
 //
@@ -1975,10 +1984,11 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 
 // RevisionOptions control the selection of a snap revision.
 type RevisionOptions struct {
-	Channel     string
-	Revision    snap.Revision
-	CohortKey   string
-	LeaveCohort bool
+	Channel        string
+	Revision       snap.Revision
+	ValidationSets []string
+	CohortKey      string
+	LeaveCohort    bool
 }
 
 // Update initiates a change updating a snap.
@@ -2169,7 +2179,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name string, opts *Revisi
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return updateToRevisionInfo(st, snapst, opts.Revision, userID, flags, deviceCtx)
+		return updateToRevisionInfo(st, snapst, opts, userID, flags, deviceCtx)
 	}
 
 	// refresh-to-local, this assumes the snap revision is mounted

@@ -12,6 +12,9 @@ adopt-info: snapd-deb
 # build-base is needed here for snapcraft to build this snap as with "modern"
 # snapcraft
 build-base: core
+package-repositories:
+  - type: apt
+    ppa: snappy-dev/image
 grade: stable
 license: GPL-3.0
 
