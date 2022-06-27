@@ -98,6 +98,13 @@ func createQuotaValues(grp *quota.Group) *client.QuotaValues {
 			CPUs: grp.CPULimit.AllowedCPUs,
 		}
 	}
+	if grp.JournalLimit != nil {
+		constraints.Journal = &client.QuotaJournalValues{
+			Size:       grp.JournalLimit.Size,
+			RateCount:  grp.JournalLimit.RateCount,
+			RatePeriod: grp.JournalLimit.RatePeriod,
+		}
+	}
 	return &constraints
 }
 
