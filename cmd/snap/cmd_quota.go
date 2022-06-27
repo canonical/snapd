@@ -358,10 +358,18 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 	}
 
 	memoryUsage := "0B"
-	currentThreads := 0
+	currentThreads := "0"
 	if group.Current != nil {
-		memoryUsage = strings.TrimSpace(fmtSize(int64(group.Current.Memory)))
-		currentThreads = group.Current.Threads
+		if group.Current.MemoryErr != "" {
+			memoryUsage = "error: " + group.Current.MemoryErr
+		} else {
+			memoryUsage = strings.TrimSpace(fmtSize(int64(group.Current.Memory)))
+		}
+		if group.Current.ThreadsErr != "" {
+			currentThreads = "error: " + group.Current.ThreadsErr
+		} else {
+			currentThreads = strconv.Itoa(group.Current.Threads)
+		}
 	}
 
 	fmt.Fprintf(w, "current:\n")
@@ -369,7 +377,7 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 		fmt.Fprintf(w, "  memory:\t%s\n", memoryUsage)
 	}
 	if group.Constraints.Threads != 0 {
-		fmt.Fprintf(w, "  threads:\t%d\n", currentThreads)
+		fmt.Fprintf(w, "  threads:\t%s\n", currentThreads)
 	}
 
 	if len(group.Subgroups) > 0 {

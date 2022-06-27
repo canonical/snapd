@@ -54,10 +54,16 @@ type QuotaCPUSetValues struct {
 }
 
 type QuotaValues struct {
-	Memory  quantity.Size      `json:"memory,omitempty"`
-	CPU     *QuotaCPUValues    `json:"cpu,omitempty"`
-	CPUSet  *QuotaCPUSetValues `json:"cpu-set,omitempty"`
-	Threads int                `json:"threads,omitempty"`
+	Memory quantity.Size `json:"memory,omitempty"`
+	// MemoryErr is set if the current memory quota cannot be retrieved
+	MemoryErr string `json:"memory-err,omitempty"`
+
+	CPU    *QuotaCPUValues    `json:"cpu,omitempty"`
+	CPUSet *QuotaCPUSetValues `json:"cpu-set,omitempty"`
+
+	Threads int `json:"threads,omitempty"`
+	// MemoryErr is set if the current threads quota cannot be retrieved
+	ThreadsErr string `json:"threads-err,omitempty"`
 }
 
 // EnsureQuota creates a quota group or updates an existing group.
