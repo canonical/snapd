@@ -4,6 +4,8 @@ hooks:
       - modprobe-conf
       - modules-load-conf
       - udev-rules-conf
+      - systemd-journald-conf
+      - netplan-extra-yaml
 
 plugs:
   modprobe-conf:
@@ -18,3 +20,11 @@ plugs:
     interface: system-files
     write:
       - /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/udev/rules.d/09-my-custom-udev.rules
+  systemd-journald-conf:
+    interface: system-files
+    write:
+      - /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/systemd/journald.conf
+  netpaln-extra-yaml:
+    interface: system-files
+    write:
+      - /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/netplan/10-extra.yaml

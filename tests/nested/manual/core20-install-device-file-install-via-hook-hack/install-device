@@ -18,3 +18,14 @@ EOF
 cat << EOF > /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/udev/rules.d/09-my-custom-udev.rules
 # do udev rules things here
 EOF
+
+# add systemd/sleep.conf
+cat << EOF > /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/systemd/sleep.conf
+# add sleep.conf here
+[Sleep]
+EOF
+
+# add extra netplan config
+cat << EOF > /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/netplan/10-extra.yaml
+# add netplan config here
+EOF
