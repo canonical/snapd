@@ -6,9 +6,6 @@ summary: verify a UC20 to UC22 remodel
 
 systems: [ubuntu-20.04-64]
 
-# TODO: re-enable the test once lp:1979197 is fixed
-manual: true
-
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-{VERSION}.model
   # TODO: disable TPM for now and investigate why the system cannot be booted
