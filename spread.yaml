@@ -229,6 +229,9 @@ backends:
             - ubuntu-20.04-64:
                   username: ubuntu
                   password: ubuntu
+            - ubuntu-22.04-64:
+                  username: ubuntu
+                  password: ubuntu
 
     qemu:
         systems:

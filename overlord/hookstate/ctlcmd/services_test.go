@@ -203,7 +203,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	s.st.Set("refresh-privacy-key", "privacy-key")
 	s.AddCleanup(snapstatetest.UseFallbackDeviceModel())
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
 	s.AddCleanup(restore)

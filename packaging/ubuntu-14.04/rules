@@ -217,7 +217,7 @@ override_dh_install:
 
 	# On Ubuntu and Debian we don't need to install the apparmor helper service.
 	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.apparmor.service
-	rm $(CURDIR)/debian/tmp/usr/lib/snapd/snapd-apparmor
+	rm $(CURDIR)/debian/tmp/usr/bin/snapd-apparmor
 
 	dh_install
 

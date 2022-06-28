@@ -366,11 +366,64 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
+	vs5 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "acme",
+		"series":       "16",
+		"account-id":   "acme",
+		"name":         "huhname",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-f",
+				"id":       "mysnapffffffffffffffffffffffffff",
+				"revision": "4",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	vs6 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "acme",
+		"series":       "16",
+		"account-id":   "acme",
+		"name":         "duhname",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-f",
+				"id":       "mysnapffffffffffffffffffffffffff",
+				"revision": "4",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	vs7 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "acme",
+		"series":       "16",
+		"account-id":   "acme",
+		"name":         "bahname",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snap-f",
+				"id":       "mysnapffffffffffffffffffffffffff",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
 	valsets := snapasserts.NewValidationSets()
 	c.Assert(valsets.Add(vs1), IsNil)
 	c.Assert(valsets.Add(vs2), IsNil)
 	c.Assert(valsets.Add(vs3), IsNil)
 	c.Assert(valsets.Add(vs4), IsNil)
+	c.Assert(valsets.Add(vs5), IsNil)
+	c.Assert(valsets.Add(vs6), IsNil)
+	c.Assert(valsets.Add(vs7), IsNil)
 
 	snapA := snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1))
 	snapAlocal := snapasserts.NewInstalledSnap("snap-a", "", snap.R("x2"))
@@ -383,21 +436,30 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 	snapDrev99 := snapasserts.NewInstalledSnap("snap-d", "mysnapdddddddddddddddddddddddddd", snap.R(99))
 	snapDlocal := snapasserts.NewInstalledSnap("snap-d", "", snap.R("x3"))
 	snapE := snapasserts.NewInstalledSnap("snap-e", "mysnapeeeeeeeeeeeeeeeeeeeeeeeeee", snap.R(2))
+	snapF := snapasserts.NewInstalledSnap("snap-f", "mysnapffffffffffffffffffffffffff", snap.R(4))
 	// extra snap, not referenced by any validation set
 	snapZ := snapasserts.NewInstalledSnap("snap-z", "mysnapzzzzzzzzzzzzzzzzzzzzzzzzzz", snap.R(1))
 
 	tests := []struct {
 		snaps            []*snapasserts.InstalledSnap
 		expectedInvalid  map[string][]string
-		expectedMissing  map[string][]string
+		expectedMissing  map[string]map[snap.Revision][]string
 		expectedWrongRev map[string]map[snap.Revision][]string
 	}{
 		{
 			// required snaps not installed
 			snaps: nil,
-			expectedMissing: map[string][]string{
-				"snap-b": {"acme/fooname"},
-				"snap-d": {"acme/barname"},
+			expectedMissing: map[string]map[snap.Revision][]string{
+				"snap-b": {
+					snap.R(3): {"acme/fooname"},
+				},
+				"snap-d": {
+					snap.R(0): {"acme/barname"},
+				},
+				"snap-f": {
+					snap.R(0): {"acme/bahname"},
+					snap.R(4): {"acme/duhname", "acme/huhname"},
+				},
 			},
 		},
 		{
@@ -405,9 +467,17 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 			snaps: []*snapasserts.InstalledSnap{
 				snapZ,
 			},
-			expectedMissing: map[string][]string{
-				"snap-b": {"acme/fooname"},
-				"snap-d": {"acme/barname"},
+			expectedMissing: map[string]map[snap.Revision][]string{
+				"snap-b": {
+					snap.R(3): {"acme/fooname"},
+				},
+				"snap-d": {
+					snap.R(0): {"acme/barname"},
+				},
+				"snap-f": {
+					snap.R(0): {"acme/bahname"},
+					snap.R(4): {"acme/duhname", "acme/huhname"},
+				},
 			},
 		},
 		{
@@ -415,7 +485,10 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				// covered by acme/fooname validation-set
 				snapB,
 				// covered by acme/barname validation-set. snap-e not installed but optional
-				snapDrev99},
+				snapDrev99,
+				// covered by acme/duhname and acme/huhname
+				snapF,
+			},
 			// ale fine
 		},
 		{
@@ -424,7 +497,10 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				snapA,
 				snapB,
 				// covered by acme/barname validation-set. snap-e not installed but optional
-				snapDrev99},
+				snapDrev99,
+				// covered by acme/duhname and acme/huhname
+				snapF,
+			},
 			expectedInvalid: map[string][]string{
 				"snap-a": {"acme/booname", "acme/fooname"},
 			},
@@ -434,12 +510,16 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				// covered by acme/fooname and acme/booname validation-sets, snapB missing, snap-a presence is invalid
 				snapA,
 				// covered by acme/barname validation-set. snap-e not installed but optional
-				snapDrev99},
+				snapDrev99,
+				snapF,
+			},
 			expectedInvalid: map[string][]string{
 				"snap-a": {"acme/booname", "acme/fooname"},
 			},
-			expectedMissing: map[string][]string{
-				"snap-b": {"acme/fooname"},
+			expectedMissing: map[string]map[snap.Revision][]string{
+				"snap-b": {
+					snap.R(3): {"acme/fooname"},
+				},
 			},
 		},
 		{
@@ -448,7 +528,10 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				snapB,
 				snapC,
 				// covered by acme/barname validation-set. snap-e not installed but optional
-				snapD},
+				snapD,
+				// covered by acme/duhname and acme/huhname
+				snapF,
+			},
 			// ale fine
 		},
 		{
@@ -457,7 +540,10 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				snapB,
 				snapCinvRev,
 				// covered by acme/barname validation-set. snap-e not installed but optional
-				snapD},
+				snapD,
+				// covered by acme/duhname and acme/huhname
+				snapF,
+			},
 			expectedWrongRev: map[string]map[snap.Revision][]string{
 				"snap-c": {
 					snap.R(2): {"acme/fooname"},
@@ -469,7 +555,10 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				// covered by acme/fooname validation-set but wrong revision
 				snapBinvRev,
 				// covered by acme/barname validation-set.
-				snapD},
+				snapD,
+				// covered by acme/duhname and acme/huhname
+				snapF,
+			},
 			expectedWrongRev: map[string]map[snap.Revision][]string{
 				"snap-b": {
 					snap.R(3): {"acme/fooname"},
@@ -481,9 +570,14 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				// covered by acme/fooname validation-set
 				snapB,
 				// covered by acme/barname validation-set. snap-d not installed.
-				snapE},
-			expectedMissing: map[string][]string{
-				"snap-d": {"acme/barname"},
+				snapE,
+				// covered by acme/duhname and acme/huhname
+				snapF,
+			},
+			expectedMissing: map[string]map[snap.Revision][]string{
+				"snap-d": {
+					snap.R(0): {"acme/barname"},
+				},
 			},
 		},
 		{
@@ -491,9 +585,14 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				// required snaps from acme/fooname are not installed.
 				// covered by acme/barname validation-set
 				snapDrev99,
-				snapE},
-			expectedMissing: map[string][]string{
-				"snap-b": {"acme/fooname"},
+				snapE,
+				// covered by acme/duhname and acme/huhname
+				snapF,
+			},
+			expectedMissing: map[string]map[snap.Revision][]string{
+				"snap-b": {
+					snap.R(3): {"acme/fooname"},
+				},
 			},
 		},
 		{
@@ -501,10 +600,17 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				// covered by acme/fooname validation-set, required missing.
 				snapC,
 				// covered by acme/barname validation-set, required missing.
-				snapE},
-			expectedMissing: map[string][]string{
-				"snap-b": {"acme/fooname"},
-				"snap-d": {"acme/barname"},
+				snapE,
+				// covered by acme/duhname and acme/huhname
+				snapF,
+			},
+			expectedMissing: map[string]map[snap.Revision][]string{
+				"snap-b": {
+					snap.R(3): {"acme/fooname"},
+				},
+				"snap-d": {
+					snap.R(0): {"acme/barname"},
+				},
 			},
 		},
 		// local snaps
@@ -513,7 +619,10 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				// covered by acme/fooname validation-set.
 				snapB,
 				// covered by acme/barname validation-set, local snap-d.
-				snapDlocal},
+				snapDlocal,
+				// covered by acme/duhname and acme/huhname
+				snapF,
+			},
 			// all fine
 		},
 		{
@@ -522,7 +631,9 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				snapAlocal,
 				snapB,
 				// covered by acme/barname validation-set.
-				snapD},
+				snapD,
+				snapF,
+			},
 			expectedInvalid: map[string][]string{
 				"snap-a": {"acme/booname", "acme/fooname"},
 			},
@@ -532,7 +643,10 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 				// covered by acme/fooname validation-set, snap-b is wrong rev (local).
 				snapBlocal,
 				// covered by acme/barname validation-set.
-				snapD},
+				snapD,
+				// covered by acme/duhname and acme/huhname
+				snapF,
+			},
 			expectedWrongRev: map[string]map[snap.Revision][]string{
 				"snap-b": {
 					snap.R(3): {"acme/fooname"},
@@ -561,9 +675,9 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 		}
 		verr, ok := err.(*snapasserts.ValidationSetsValidationError)
 		c.Assert(ok, Equals, true, Commentf("#%d", i))
-		c.Assert(tc.expectedInvalid, DeepEquals, verr.InvalidSnaps, Commentf("#%d", i))
-		c.Assert(tc.expectedMissing, DeepEquals, verr.MissingSnaps, Commentf("#%d", i))
-		c.Assert(tc.expectedWrongRev, DeepEquals, verr.WrongRevisionSnaps, Commentf("#%d", i))
+		c.Assert(verr.InvalidSnaps, DeepEquals, tc.expectedInvalid, Commentf("#%d", i))
+		c.Assert(verr.MissingSnaps, DeepEquals, tc.expectedMissing, Commentf("#%d", i))
+		c.Assert(verr.WrongRevisionSnaps, DeepEquals, tc.expectedWrongRev, Commentf("#%d", i))
 		checkSets(verr.InvalidSnaps, verr.Sets)
 	}
 }
@@ -654,7 +768,6 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
 			map[string]interface{}{
 				"name":     "snap-b",
 				"id":       "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb",
-				"revision": "5",
 				"presence": "required",
 			},
 		},
@@ -663,6 +776,9 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
 	valsets := snapasserts.NewValidationSets()
 	c.Assert(valsets.Add(vs1), IsNil)
 	c.Assert(valsets.Add(vs2), IsNil)
+
+	// not strictly important, but ensures test data makes sense and avoids confusing results
+	c.Assert(valsets.Conflict(), IsNil)
 
 	snapA := snapasserts.NewInstalledSnap("snap-a", "mysnapaaaaaaaaaaaaaaaaaaaaaaaaaa", snap.R(1))
 	snapBlocal := snapasserts.NewInstalledSnap("snap-b", "", snap.R("x3"))
@@ -675,13 +791,13 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
 			nil,
 			"validation sets assertions are not met:\n" +
 				"- missing required snaps:\n" +
-				"  - snap-b \\(required by sets acme/barname,acme/fooname\\)",
+				"  - snap-b \\(required at any revision by sets acme/barname, at revision 3 by sets acme/fooname\\)",
 		},
 		{
 			[]*snapasserts.InstalledSnap{snapA},
 			"validation sets assertions are not met:\n" +
 				"- missing required snaps:\n" +
-				"  - snap-b \\(required by sets acme/barname,acme/fooname\\)\n" +
+				"  - snap-b \\(required at any revision by sets acme/barname, at revision 3 by sets acme/fooname\\)\n" +
 				"- invalid snaps:\n" +
 				"  - snap-a \\(invalid for sets acme/fooname\\)",
 		},
@@ -689,7 +805,7 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsErrorFormat(c *C) {
 			[]*snapasserts.InstalledSnap{snapBlocal},
 			"validation sets assertions are not met:\n" +
 				"- snaps at wrong revisions:\n" +
-				"  - snap-b \\(required at revision 3 by sets acme/fooname, at revision 5 by sets acme/barname\\)",
+				"  - snap-b \\(required at revision 3 by sets acme/fooname\\)",
 		},
 	}
 

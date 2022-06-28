@@ -74,11 +74,6 @@ execute: |
         tests.nested exec "cat /etc/hostname" | MATCH "foo"
         tests.nested exec "hostname" | MATCH "foo"
 
-        # TODO: 2022.04.19 exercise netplan checks once
-        # https://bugs.launchpad.net/ubuntu/+source/netplan.io/+bug/1967084 is
-        # fixed
-        return
-
         # netplan config defaults are applied
         tests.nested exec "cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54
         tests.nested exec "netplan get bridges.br54.dhcp4" | MATCH true
