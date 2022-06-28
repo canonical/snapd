@@ -1,10 +1,8 @@
-summary: Check basic core20 system functionality
+summary: Check basic core20 and later system functionality
 
 systems:
   - ubuntu-core-20-*
-  # TODO:
-  #  depends on https://github.com/snapcore/core-base/issues/37
-  # - ubuntu-core-22-*
+  - ubuntu-core-22-*
 
 execute: |
     case "$SPREAD_SYSTEM" in

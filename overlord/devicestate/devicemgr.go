@@ -101,8 +101,9 @@ type DeviceManager struct {
 
 	ensureSeedInConfigRan bool
 
-	ensureInstalledRan    bool
-	ensureFactoryResetRan bool
+	ensureInstalledRan        bool
+	ensureFactoryResetRan     bool
+	ensurePostFactoryResetRan bool
 
 	ensureTriedRecoverySystemRan bool
 
@@ -1348,6 +1349,67 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	return nil
 }
 
+var bootMarkFactoryResetComplete = boot.MarkFactoryResetComplete
+
+func (m *DeviceManager) ensurePostFactoryReset() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
+		return nil
+	}
+
+	if m.ensurePostFactoryResetRan {
+		return nil
+	}
+
+	mode := m.SystemMode(SysHasModeenv)
+	if mode != "run" {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	m.ensurePostFactoryResetRan = true
+
+	factoryResetMarker := filepath.Join(dirs.SnapDeviceDir, "factory-reset")
+	if !osutil.FileExists(factoryResetMarker) {
+		// marker is gone already
+		return nil
+	}
+
+	encrypted := true
+	// XXX have a helper somewhere for this?
+	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
+		encrypted = false
+	}
+
+	// verify the marker
+	if err := verifyFactoryResetMarkerInRun(factoryResetMarker, encrypted); err != nil {
+		return fmt.Errorf("cannot verify factory reset marker: %v", err)
+	}
+
+	// if encrypted, rotates the fallback keys on disk
+	if err := bootMarkFactoryResetComplete(encrypted); err != nil {
+		return fmt.Errorf("cannot complete factory reset: %v", err)
+	}
+
+	if encrypted {
+		if err := rotateEncryptionKeys(); err != nil {
+			return fmt.Errorf("cannot transition encryption keys: %v", err)
+		}
+	}
+
+	return os.Remove(factoryResetMarker)
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -1403,6 +1465,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensureFactoryReset(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensurePostFactoryReset(); err != nil {
 			errs = append(errs, err)
 		}
 	}

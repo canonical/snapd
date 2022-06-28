@@ -2340,6 +2340,11 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	s.state.Unlock()
 
 	var saveKey keys.EncryptionKey
+	restore = devicestate.MockSecbootTransitionEncryptionKeyChange(func(node string, key keys.EncryptionKey) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
 	restore = devicestate.MockSecbootStageEncryptionKeyChange(func(node string, key keys.EncryptionKey) error {
 		if tc.encrypt {
 			c.Check(node, Equals, "/dev/foo-save")
