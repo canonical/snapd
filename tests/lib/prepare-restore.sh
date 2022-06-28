@@ -133,13 +133,6 @@ build_rpm() {
     done
     distro_install_package "${deps[@]}"
 
-    # TODO: remove this
-    # Force the version file generation in centos-9, This is needed because when
-    # the rpm is built, the file version_generated.go is not used to build the binary.
-    if os.query is-centos-9; then
-        ./mkversion.sh "$version-$release"
-    fi
-
     # And now build our binary package
     unshare -n -- \
             rpmbuild \
