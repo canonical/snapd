@@ -86,6 +86,7 @@ ptrace (read),
 /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us r,
 /sys/fs/cgroup/cpu,cpuacct/cpu.shares r,
 /sys/fs/cgroup/cpu,cpuacct/cpu.stat r,
+/sys/fs/cgroup/memory/memory.stat r,
 
 #include <abstractions/dbus-strict>
 
