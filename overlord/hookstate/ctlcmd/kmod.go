@@ -74,7 +74,7 @@ func (k *KModInsertCmd) Execute([]string) error {
 		return err
 	}
 
-	if err := kmodEnsureConnection(context, k.Positional.Module, k.Positional.Options); err != nil {
+	if err := kmodCheckConnection(context, k.Positional.Module, k.Positional.Options); err != nil {
 		return fmt.Errorf("cannot load module %q: %v", k.Positional.Module, err)
 	}
 
@@ -98,7 +98,7 @@ func (k *KModRemoveCmd) Execute([]string) error {
 		return err
 	}
 
-	if err := kmodEnsureConnection(context, k.Positional.Module, []string{}); err != nil {
+	if err := kmodCheckConnection(context, k.Positional.Module, []string{}); err != nil {
 		return fmt.Errorf("cannot unload module %q: %v", k.Positional.Module, err)
 	}
 
@@ -133,10 +133,10 @@ func kmodMatchConnection(attributes map[string]interface{}, moduleName string, m
 	return true
 }
 
-// kmodFindConnections walks through the established connections to find one which
+// kmodCheckConnection walks through the established connections to find one which
 // is compatible with a kmod operation on the given moduleName and
 // moduleOptions. Returns an error if not found.
-var kmodEnsureConnection = func(context *hookstate.Context, moduleName string, moduleOptions []string) (err error) {
+var kmodCheckConnection = func(context *hookstate.Context, moduleName string, moduleOptions []string) (err error) {
 	snapName := context.InstanceName()
 
 	st := context.State()

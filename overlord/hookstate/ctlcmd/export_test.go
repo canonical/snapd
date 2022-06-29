@@ -39,15 +39,15 @@ const (
 var (
 	AttributesTask = attributesTask
 
-	KmodEnsureConnection = kmodEnsureConnection
-	KmodMatchConnection  = kmodMatchConnection
+	KmodCheckConnection = kmodCheckConnection
+	KmodMatchConnection = kmodMatchConnection
 )
 
 type KmodCommand = kmodCommand
 
-func MockKmodEnsureConnection(f func(*hookstate.Context, string, []string) error) (restore func()) {
-	r := testutil.Backup(&kmodEnsureConnection)
-	kmodEnsureConnection = f
+func MockKmodCheckConnection(f func(*hookstate.Context, string, []string) error) (restore func()) {
+	r := testutil.Backup(&kmodCheckConnection)
+	kmodCheckConnection = f
 	return r
 }
 

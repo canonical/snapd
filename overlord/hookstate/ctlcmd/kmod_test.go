@@ -140,7 +140,7 @@ func (s *kmodSuite) TestFindConnectionBadConnection(c *C) {
 	ctx, err := hookstate.NewContext(task, state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
-	err = ctlcmd.KmodEnsureConnection(ctx, "module1", []string{"one", "two"})
+	err = ctlcmd.KmodCheckConnection(ctx, "module1", []string{"one", "two"})
 	c.Assert(err, ErrorMatches, `.*internal error: cannot get connections: .*`)
 }
 
@@ -176,14 +176,14 @@ func (s *kmodSuite) TestFindConnectionMissingProperPlug(c *C) {
 	s.state.Set("conns", connections)
 	s.state.Unlock()
 
-	err := ctlcmd.KmodEnsureConnection(s.mockContext, "module3", []string{"opt1=v1"})
+	err := ctlcmd.KmodCheckConnection(s.mockContext, "module3", []string{"opt1=v1"})
 	c.Check(err, ErrorMatches, "required interface not connected")
 }
 
 func (s *kmodSuite) TestFindConnectionHappy(c *C) {
 	s.injectSnapWithProperPlug(c)
 
-	err := ctlcmd.KmodEnsureConnection(s.mockContext, "module2", []string{"opt1=v1"})
+	err := ctlcmd.KmodCheckConnection(s.mockContext, "module2", []string{"opt1=v1"})
 	c.Check(err, IsNil)
 }
 
@@ -193,7 +193,7 @@ func (s *kmodSuite) TestInsertFailure(c *C) {
 	var loadModuleError error
 	var ensureConnectionError error
 
-	r1 := ctlcmd.MockKmodEnsureConnection(func(ctx *hookstate.Context, moduleName string, moduleOptions []string) error {
+	r1 := ctlcmd.MockKmodCheckConnection(func(ctx *hookstate.Context, moduleName string, moduleOptions []string) error {
 		c.Check(moduleName, Equals, "moderr")
 		c.Check(moduleOptions, DeepEquals, []string{"o1=v1", "o2=v2"})
 		return ensureConnectionError
@@ -254,7 +254,7 @@ func (s *kmodSuite) TestRemoveFailure(c *C) {
 	var loadModuleError error
 	var ensureConnectionError error
 
-	r1 := ctlcmd.MockKmodEnsureConnection(func(ctx *hookstate.Context, moduleName string, moduleOptions []string) error {
+	r1 := ctlcmd.MockKmodCheckConnection(func(ctx *hookstate.Context, moduleName string, moduleOptions []string) error {
 		c.Check(moduleName, Equals, "moderr")
 		c.Check(moduleOptions, HasLen, 0)
 		return ensureConnectionError
