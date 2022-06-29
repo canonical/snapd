@@ -119,7 +119,7 @@ build_rpm() {
 
     # Build our source package
     unshare -n -- \
-            rpmbuild --with testkeys -bs "$packaging_path/snapd.spec"
+            rpmbuild --with testkeys -bs "$rpm_dir/SOURCES/snapd.spec"
 
     # .. and we need all necessary build dependencies available
     deps=()
