@@ -117,7 +117,6 @@ build_rpm() {
     # Cleanup all artifacts from previous builds
     rm -rf "$rpm_dir"/BUILD/*
 
-
     # Build our source package
     unshare -n -- \
             rpmbuild --with testkeys -bs "$packaging_path/snapd.spec"
@@ -139,7 +138,7 @@ build_rpm() {
             --with testkeys \
             --nocheck \
             -ba \
-            "$packaging_path/snapd.spec"
+            "$rpm_dir/SOURCES/snapd.spec"
 
     find "$rpm_dir"/RPMS -name '*.rpm' -exec cp -v {} "${GOPATH%%:*}" \;
 }
