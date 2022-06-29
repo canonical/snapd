@@ -291,6 +291,11 @@ func (rr *journalLineReaderSeqResponse) logReader(r io.ReadCloser, c chan system
 	decoder := json.NewDecoder(r)
 	for {
 		var log systemd.Log
+
+		// This will always cause an error before or later because of an
+		// io.EOF. This means we can rely on this being our termination
+		// condition for the read loop, and then do the error handling in
+		// the main go routine.
 		if err := decoder.Decode(&log); err != nil {
 			e <- err
 			break
