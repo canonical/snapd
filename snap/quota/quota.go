@@ -257,13 +257,9 @@ func (grp *Group) SliceFileName() string {
 	return buf.String()
 }
 
-// JournalNamespaceName formats the current group's name into an appropriate
-// name to use as the journal log namespace name.
+// JournalNamespaceName returns the snap formatted name of the log namespace
 func (grp *Group) JournalNamespaceName() string {
-	if grp.JournalLimit == nil {
-		return ""
-	}
-	return "snap-" + grp.Name
+	return fmt.Sprintf("snap-%s", grp.Name)
 }
 
 // JournalFileName returns the name of the journal configuration file that should
