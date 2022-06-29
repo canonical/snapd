@@ -146,6 +146,7 @@ network netlink raw,
 
 # some devices use this information to set serial, etc. for Ubuntu Core devices
 /sys/devices/virtual/dmi/id/product_name r,
+/sys/devices/virtual/dmi/id/product_serial r,
 /sys/devices/virtual/dmi/id/sys_vendor r,
 
 # allow read access to thermal sysfs
