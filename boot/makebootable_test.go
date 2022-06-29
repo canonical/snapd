@@ -457,7 +457,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
-func (s *makeBootable20Suite) TestMakeSystemRunnable20(c *C) {
+func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, factoryReset bool) {
 	bootloader.Force(nil)
 
 	model := boottest.MakeMockUC20Model()
@@ -580,18 +580,81 @@ version: 5.0
 	})
 	defer restore()
 
+	provisionCalls := 0
+	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+		provisionCalls++
+		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+		if factoryReset {
+			c.Check(mode, Equals, secboot.TPMPartialReprovision)
+		} else {
+			c.Check(mode, Equals, secboot.TPMProvisionFull)
+		}
+		return nil
+	})
+	defer restore()
+
+	pcrHandleOfKeyCalls := 0
+	restore = boot.MockSecbootPCRHandleOfSealedKey(func(p string) (uint32, error) {
+		pcrHandleOfKeyCalls++
+		c.Check(provisionCalls, Equals, 0)
+		if !factoryReset {
+			c.Errorf("unexpected call in non-factory-reset scenario")
+			return 0, fmt.Errorf("unexpected call")
+		}
+		c.Check(p, Equals,
+			filepath.Join(s.rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
+		// trigger use of alt handles as current key is using the main handle
+		return secboot.FallbackObjectPCRPolicyCounterHandle, nil
+	})
+	defer restore()
+
+	releasePCRHandleCalls := 0
+	restore = boot.MockSecbootReleasePCRResourceHandles(func(handles ...uint32) error {
+		c.Check(factoryReset, Equals, true)
+		releasePCRHandleCalls++
+		c.Check(handles, DeepEquals, []uint32{
+			secboot.AltRunObjectPCRPolicyCounterHandle,
+			secboot.AltFallbackObjectPCRPolicyCounterHandle,
+		})
+		return nil
+	})
+	defer restore()
+
 	// set mock key sealing
 	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+		c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
 		sealKeysCalls++
 		switch sealKeysCalls {
 		case 1:
 			c.Check(keys, HasLen, 1)
 			c.Check(keys[0].Key, DeepEquals, myKey)
+			c.Check(keys[0].KeyFile, Equals,
+				filepath.Join(s.rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
+			if factoryReset {
+				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltRunObjectPCRPolicyCounterHandle)
+			} else {
+				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.RunObjectPCRPolicyCounterHandle)
+			}
 		case 2:
 			c.Check(keys, HasLen, 2)
 			c.Check(keys[0].Key, DeepEquals, myKey)
 			c.Check(keys[1].Key, DeepEquals, myKey2)
+			c.Check(keys[0].KeyFile, Equals,
+				filepath.Join(s.rootdir,
+					"/run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"))
+			if factoryReset {
+				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltFallbackObjectPCRPolicyCounterHandle)
+				c.Check(keys[1].KeyFile, Equals,
+					filepath.Join(s.rootdir,
+						"/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset"))
+
+			} else {
+				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.FallbackObjectPCRPolicyCounterHandle)
+				c.Check(keys[1].KeyFile, Equals,
+					filepath.Join(s.rootdir,
+						"/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
+			}
 		default:
 			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 		}
@@ -638,7 +701,11 @@ version: 5.0
 	})
 	defer restore()
 
-	err = boot.MakeRunnableSystem(model, bootWith, obs)
+	if !factoryReset {
+		err = boot.MakeRunnableSystem(model, bootWith, obs)
+	} else {
+		err = boot.MakeRunnableSystemAfterDataReset(model, bootWith, obs)
+	}
 	c.Assert(err, IsNil)
 
 	// also do the logical thing and make the next boot go to run mode
@@ -721,14 +788,34 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 	c.Check(copiedRecoveryGrubBin, testutil.FileEquals, "recovery grub content")
 	c.Check(copiedRecoveryShimBin, testutil.FileEquals, "recovery shim content")
 
+	// make sure TPM was provisioned
+	c.Check(provisionCalls, Equals, 1)
 	// make sure SealKey was called for the run object and the fallback object
 	c.Check(sealKeysCalls, Equals, 2)
+	// PCR handle checks
+	if factoryReset {
+		c.Check(pcrHandleOfKeyCalls, Equals, 1)
+		c.Check(releasePCRHandleCalls, Equals, 1)
+	} else {
+		c.Check(pcrHandleOfKeyCalls, Equals, 0)
+		c.Check(releasePCRHandleCalls, Equals, 0)
+	}
 
 	// make sure the marker file for sealed key was created
 	c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), testutil.FilePresent)
 
 	// make sure we wrote the boot chains data file
 	c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"), testutil.FilePresent)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20Install(c *C) {
+	const factoryReset = false
+	s.testMakeSystemRunnable20(c, factoryReset)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryReset(c *C) {
+	const factoryReset = true
+	s.testMakeSystemRunnable20(c, factoryReset)
 }
 
 func (s *makeBootable20Suite) TestMakeRunnableSystem20ModeInstallBootConfigErr(c *C) {
@@ -923,6 +1010,14 @@ version: 5.0
 	})
 	defer restore()
 
+	provisionCalls := 0
+	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+		provisionCalls++
+		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+		c.Check(mode, Equals, secboot.TPMProvisionFull)
+		return nil
+	})
+	defer restore()
 	// set mock key sealing
 	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
@@ -969,6 +1064,8 @@ version: 5.0
 
 	err = boot.MakeRunnableSystem(model, bootWith, obs)
 	c.Assert(err, ErrorMatches, "cannot seal the encryption keys: seal error")
+	// the TPM was provisioned
+	c.Check(provisionCalls, Equals, 1)
 }
 
 func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelArgs(c *C, whichFile, content, errMsg string, cmdlines map[string]string) {
@@ -1090,6 +1187,14 @@ version: 5.0
 	})
 	defer restore()
 
+	provisionCalls := 0
+	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+		provisionCalls++
+		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+		c.Check(mode, Equals, secboot.TPMProvisionFull)
+		return nil
+	})
+	defer restore()
 	// set mock key sealing
 	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
@@ -1167,6 +1272,8 @@ current_trusted_boot_assets={"grubx64.efi":["5ee042c15e104b825d6bc15c41cdb026589
 current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"],"grubx64.efi":["aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"]}
 current_kernel_command_lines=["%v"]
 `, cmdlines["run"]))
+	// make sure the TPM was provisioned
+	c.Check(provisionCalls, Equals, 1)
 	// make sure SealKey was called for the run object and the fallback object
 	c.Check(sealKeysCalls, Equals, 2)
 

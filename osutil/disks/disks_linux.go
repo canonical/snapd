@@ -977,3 +977,7 @@ func PartitionUUID(node string) (string, error) {
 	}
 	return partUUID, nil
 }
+
+func SectorSize(devname string) (uint64, error) {
+	return blockDeviceSectorSize(devname)
+}

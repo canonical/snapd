@@ -24,13 +24,17 @@ import (
 	"compress/gzip"
 	"crypto"
 	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 
+	_ "golang.org/x/crypto/sha3"
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
@@ -56,10 +60,13 @@ import (
 )
 
 var (
-	bootMakeRunnable            = boot.MakeRunnableSystem
-	bootEnsureNextBootToRunMode = boot.EnsureNextBootToRunMode
-	installRun                  = install.Run
-	installFactoryReset         = install.FactoryReset
+	bootMakeRunnable                     = boot.MakeRunnableSystem
+	bootMakeRunnableAfterDataReset       = boot.MakeRunnableSystemAfterDataReset
+	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
+	installRun                           = install.Run
+	installFactoryReset                  = install.FactoryReset
+	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
+	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
 	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 )
@@ -332,31 +339,68 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if trustedInstallObserver != nil {
-		// validity check
-		if len(installedSystem.KeyForRole) == 0 || installedSystem.KeyForRole[gadget.SystemData] == nil || installedSystem.KeyForRole[gadget.SystemSave] == nil {
-			return fmt.Errorf("internal error: system encryption keys are unset")
-		}
-		dataEncryptionKey := installedSystem.KeyForRole[gadget.SystemData]
-		saveEncryptionKey := installedSystem.KeyForRole[gadget.SystemSave]
-
-		// make note of the encryption keys
-		trustedInstallObserver.ChosenEncryptionKeys(dataEncryptionKey, saveEncryptionKey)
-
-		// keep track of recovery assets
-		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
-			return fmt.Errorf("cannot observe existing trusted recovery assets: err")
-		}
-		if err := saveKeys(installedSystem.KeyForRole); err != nil {
-			return err
-		}
-		// write markers containing a secret to pair data and save
-		if err := writeMarkers(); err != nil {
+		if err := prepareEncryptedSystemData(installedSystem.KeyForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
 
+	if err := prepareRunSystemData(model, gadgetDir, perfTimings); err != nil {
+		return err
+	}
+
+	// make it bootable, which should be the final step in the process, as
+	// it effectively makes it possible to boot into run mode
+	logger.Noticef("make system runnable")
+	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get boot base info: %v", err)
+	}
+	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
+	bootWith := &boot.BootableSet{
+		Base:              bootBaseInfo,
+		BasePath:          bootBaseInfo.MountFile(),
+		Kernel:            kernelInfo,
+		KernelPath:        kernelInfo.MountFile(),
+		RecoverySystemDir: recoverySystemDir,
+		UnpackedGadgetDir: gadgetDir,
+	}
+	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
+		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
+	})
+	if err != nil {
+		return fmt.Errorf("cannot make system runnable: %v", err)
+	}
+	return nil
+}
+
+func prepareEncryptedSystemData(keyForRole map[string]keys.EncryptionKey, trustedInstallObserver *boot.TrustedAssetsInstallObserver) error {
+	// validity check
+	if len(keyForRole) == 0 || keyForRole[gadget.SystemData] == nil || keyForRole[gadget.SystemSave] == nil {
+		return fmt.Errorf("internal error: system encryption keys are unset")
+	}
+	dataEncryptionKey := keyForRole[gadget.SystemData]
+	saveEncryptionKey := keyForRole[gadget.SystemSave]
+
+	// make note of the encryption keys
+	trustedInstallObserver.ChosenEncryptionKeys(dataEncryptionKey, saveEncryptionKey)
+
+	// keep track of recovery assets
+	if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
+		return fmt.Errorf("cannot observe existing trusted recovery assets: err")
+	}
+	if err := saveKeys(keyForRole); err != nil {
+		return err
+	}
+	// write markers containing a secret to pair data and save
+	if err := writeMarkers(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func prepareRunSystemData(model *asserts.Model, gadgetDir string, perfTimings timings.Measurer) error {
 	// keep track of the model we installed
-	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
 	if err != nil {
 		return fmt.Errorf("cannot store the model: %v", err)
 	}
@@ -393,29 +437,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	// filesystem from the install-device hook
 	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir); err != nil {
 		return err
-	}
-
-	// make it bootable, which should be the final step in the process, as
-	// it effectively makes it possible to boot into run mode
-	logger.Noticef("make system runnable")
-	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
-	if err != nil {
-		return fmt.Errorf("cannot get boot base info: %v", err)
-	}
-	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
-	bootWith := &boot.BootableSet{
-		Base:              bootBaseInfo,
-		BasePath:          bootBaseInfo.MountFile(),
-		Kernel:            kernelInfo,
-		KernelPath:        kernelInfo.MountFile(),
-		RecoverySystemDir: recoverySystemDir,
-		UnpackedGadgetDir: gadgetDir,
-	}
-	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
-		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
-	})
-	if err != nil {
-		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
 	return nil
 }
@@ -920,57 +941,88 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
+	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
+	// get a nice nil interface by default
+	var installObserver gadget.ContentObserver
+	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption)
+	if err != nil && err != boot.ErrObserverNotApplicable {
+		return fmt.Errorf("cannot setup asset install observer: %v", err)
+	}
+	if err == nil {
+		installObserver = trustedInstallObserver
+		if !useEncryption {
+			// there will be no key sealing, so past the
+			// installation pass no other methods need to be called
+			trustedInstallObserver = nil
+		}
+	}
+
+	var installedSystem *install.InstalledSystemSideData
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
 	timings.Run(perfTimings, "factory-reset", "Factory reset", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		_, err = installFactoryReset(model, gadgetDir, kernelDir, "", bopts, nil, tm)
+		installedSystem, err = installFactoryReset(model, gadgetDir, kernelDir, "", bopts, installObserver, tm)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot perform factory reset: %v", err)
 	}
+	logger.Noticef("devs: %+v", installedSystem.DeviceForRole)
 
-	// TODO: splice into a common install/reset helper?
+	if trustedInstallObserver != nil {
+		// at this point we removed boot and data. sealed fallback key
+		// for ubuntu-data is becoming useless
+		err := os.Remove(boot.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot cleanup obsolete key file: %v", err)
+		}
 
-	// keep track of the model we installed
-	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
-	if err != nil {
-		return fmt.Errorf("cannot store the model: %v", err)
+		// it is possible that we reached this place again where a
+		// previously running factory reset was interrupted by a reboot
+		err = os.Remove(boot.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot cleanup obsolete key file: %v", err)
+		}
+
+		// it is ok if the recovery key file on disk does not exist;
+		// ubuntu-save was opened during boot, so the removal operation
+		// can be authorized with a key from the keyring
+		err = secbootRemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"),
+		})
+		if err != nil {
+			return fmt.Errorf("cannot remove recovery key: %v", err)
+		}
+
+		// new encryption key for save
+		saveEncryptionKey, err := keys.NewEncryptionKey()
+		if err != nil {
+			return fmt.Errorf("cannot create encryption key: %v", err)
+		}
+
+		saveNode := installedSystem.DeviceForRole[gadget.SystemSave]
+		if saveNode == "" {
+			return fmt.Errorf("internal error: no system-save device")
+		}
+
+		if err := secbootStageEncryptionKeyChange(saveNode, saveEncryptionKey); err != nil {
+			return fmt.Errorf("cannot change encryption keys: %v", err)
+		}
+		// keep track of the new ubuntu-save encryption key
+		installedSystem.KeyForRole[gadget.SystemSave] = saveEncryptionKey
+
+		if err := prepareEncryptedSystemData(installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+			return err
+		}
 	}
-	err = writeModel(model, filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
-	if err != nil {
-		return fmt.Errorf("cannot store the model: %v", err)
-	}
 
-	// preserve systemd-timesyncd clock timestamp, so that RTC-less devices
-	// can start with a more recent time on the next boot
-	if err := writeTimesyncdClock(dirs.GlobalRootDir, boot.InstallHostWritableDir); err != nil {
-		return fmt.Errorf("cannot seed timesyncd clock: %v", err)
-	}
-
-	// configure the run system
-	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
-	// configure cloud init
-	setSysconfigCloudOptions(opts, gadgetDir, model)
-	timings.Run(perfTimings, "sysconfig-configure-target-system", "Configure target system", func(timings.Measurer) {
-		err = sysconfigConfigureTargetSystem(model, opts)
-	})
-	if err != nil {
+	if err := prepareRunSystemData(model, gadgetDir, perfTimings); err != nil {
 		return err
 	}
 
 	if err := restoreDeviceFromSave(model); err != nil {
 		return fmt.Errorf("cannot restore data from save: %v", err)
-	}
-
-	// on some specific devices, we need to create these directories in
-	// _writable_defaults in order to allow the install-device hook to install
-	// some files there, this eventually will go away when we introduce a proper
-	// mechanism not using system-files to install files onto the root
-	// filesystem from the install-device hook
-	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir); err != nil {
-		return err
 	}
 
 	// make it bootable
@@ -989,10 +1041,16 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		UnpackedGadgetDir: gadgetDir,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
-		err = bootMakeRunnable(deviceCtx.Model(), bootWith, nil)
+		err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith, trustedInstallObserver)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
+	}
+
+	// leave a marker that factory reset was performed
+	factoryResetMarker := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "factory-reset")
+	if err := writeFactoryResetMarker(factoryResetMarker, useEncryption); err != nil {
+		return fmt.Errorf("cannot write the marker file: %v", err)
 	}
 	return nil
 }
@@ -1098,6 +1156,95 @@ func restoreDeviceSerialFromSave(model *asserts.Model) error {
 	}
 	if err := b.CommitTo(toDB, nil); err != nil {
 		return fmt.Errorf("cannot commit assertions: %v", err)
+	}
+	return nil
+}
+
+type factoryResetMarker struct {
+	FallbackSaveKeyHash string `json:"fallback-save-key-sha3-384,omitempty"`
+}
+
+func fileDigest(p string) (string, error) {
+	digest, _, err := osutil.FileDigest(p, crypto.SHA3_384)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(digest), nil
+}
+
+func writeFactoryResetMarker(marker string, hasEncryption bool) error {
+	keyDigest := ""
+	if hasEncryption {
+		d, err := fileDigest(boot.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
+		if err != nil {
+			return err
+		}
+		keyDigest = d
+	}
+	var buf bytes.Buffer
+	err := json.NewEncoder(&buf).Encode(factoryResetMarker{
+		FallbackSaveKeyHash: keyDigest,
+	})
+	if err != nil {
+		return err
+	}
+
+	if hasEncryption {
+		logger.Noticef("writing factory-reset marker at %v with key digest %q", marker, keyDigest)
+	} else {
+		logger.Noticef("writing factory-reset marker at %v", marker)
+	}
+	return osutil.AtomicWriteFile(marker, buf.Bytes(), 0644, 0)
+}
+
+func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
+	f, err := os.Open(marker)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	var frm factoryResetMarker
+	if err := json.NewDecoder(f).Decode(&frm); err != nil {
+		return err
+	}
+	if hasEncryption {
+		saveFallbackKeyFactory := boot.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+		d, err := fileDigest(saveFallbackKeyFactory)
+		if err != nil {
+			// possible that there was unexpected reboot
+			// before, after the key was moved, but before
+			// the marker was removed, in which case the
+			// actual fallback key should have the right
+			// digest
+			if !os.IsNotExist(err) {
+				// unless it's a different error
+				return err
+			}
+			saveFallbackKeyFactory := boot.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+			d, err = fileDigest(saveFallbackKeyFactory)
+			if err != nil {
+				return err
+			}
+		}
+		if d != frm.FallbackSaveKeyHash {
+			return fmt.Errorf("fallback sealed key digest mismatch, got %v expected %v", d, frm.FallbackSaveKeyHash)
+		}
+	} else {
+		if frm.FallbackSaveKeyHash != "" {
+			return fmt.Errorf("unexpected non-empty fallback key digest")
+		}
+	}
+	return nil
+}
+
+func rotateEncryptionKeys() error {
+	kd, err := ioutil.ReadFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"))
+	if err != nil {
+		return fmt.Errorf("cannot open encryption key file: %v", err)
+	}
+	// does the right thing if the key has already been transitioned
+	if err := secbootTransitionEncryptionKeyChange(boot.InitramfsUbuntuSaveDir, keys.EncryptionKey(kd)); err != nil {
+		return fmt.Errorf("cannot transition the encryption key: %v", err)
 	}
 	return nil
 }

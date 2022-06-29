@@ -36,6 +36,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
@@ -2073,12 +2074,12 @@ func (s *snapsSuite) testRevertSnap(inst *daemon.SnapInstruction, c *check.C) {
 	instFlags, err := inst.ModeFlags()
 	c.Assert(err, check.IsNil)
 
-	defer daemon.MockSnapstateRevert(func(s *state.State, name string, flags snapstate.Flags) (*state.TaskSet, error) {
+	defer daemon.MockSnapstateRevert(func(s *state.State, name string, flags snapstate.Flags, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, instFlags)
 		queue = append(queue, name)
 		return nil, nil
 	})()
-	defer daemon.MockSnapstateRevertToRevision(func(s *state.State, name string, rev snap.Revision, flags snapstate.Flags) (*state.TaskSet, error) {
+	defer daemon.MockSnapstateRevertToRevision(func(s *state.State, name string, rev snap.Revision, flags snapstate.Flags, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, instFlags)
 		queue = append(queue, fmt.Sprintf("%s (%s)", name, rev))
 		return nil, nil
@@ -2300,4 +2301,115 @@ func (s *snapsSuite) TestPostSnapWrongTransaction(c *check.C) {
 		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
 		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
 	}
+}
+
+func (s *snapsSuite) TestRefreshEnforce(c *check.C) {
+	var refreshSnapAssertions bool
+
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		refreshSnapAssertions = true
+		c.Check(opts, check.IsNil)
+		return nil
+	})()
+
+	var tryEnforceValidationSets bool
+	defer daemon.MockAssertstateTryEnforceValidationSets(func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+		tryEnforceValidationSets = true
+		return nil
+	})()
+
+	defer daemon.MockSnapstateEnforceSnaps(func(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) ([]*state.TaskSet, []string, error) {
+		c.Check(validationSets, check.DeepEquals, []string{"foo/bar=2", "foo/baz"})
+		t := st.NewTask("fake-enforce-snaps", "...")
+		return []*state.TaskSet{state.NewTaskSet(t)}, []string{"some-snap", "other-snap"}, nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{Action: "refresh", ValidationSets: []string{"foo/bar=2", "foo/baz"}}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	res, err := inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.IsNil)
+	c.Check(res.Summary, check.Equals, `Enforced validation sets: "foo/bar=2", "foo/baz"`)
+	c.Check(res.Affected, check.DeepEquals, []string{"some-snap", "other-snap"})
+	c.Check(refreshSnapAssertions, check.Equals, true)
+	c.Check(tryEnforceValidationSets, check.Equals, true)
+}
+
+func (s *snapsSuite) TestRefreshEnforceTryEnforceValidationSetsError(c *check.C) {
+	var refreshSnapAssertions int
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		refreshSnapAssertions++
+		c.Check(opts, check.IsNil)
+		return nil
+	})()
+
+	tryEnforceErr := fmt.Errorf("boom")
+	defer daemon.MockAssertstateTryEnforceValidationSets(func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+		return tryEnforceErr
+	})()
+
+	var snapstateEnforceSnaps int
+	defer daemon.MockSnapstateEnforceSnaps(func(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) ([]*state.TaskSet, []string, error) {
+		snapstateEnforceSnaps++
+		c.Check(validErr, check.NotNil)
+		return nil, nil, nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{Action: "refresh", ValidationSets: []string{"foo/baz"}}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.ErrorMatches, `boom`)
+	c.Check(refreshSnapAssertions, check.Equals, 1)
+	c.Check(snapstateEnforceSnaps, check.Equals, 0)
+
+	// ValidationSetsValidationError is expected and fine
+	tryEnforceErr = &snapasserts.ValidationSetsValidationError{}
+
+	_, err = inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.IsNil)
+	c.Check(refreshSnapAssertions, check.Equals, 2)
+	c.Check(snapstateEnforceSnaps, check.Equals, 1)
+}
+
+func (s *snapsSuite) TestRefreshEnforceWithSnapsIsAnError(c *check.C) {
+	var refreshSnapAssertions bool
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		refreshSnapAssertions = true
+		c.Check(opts, check.IsNil)
+		return fmt.Errorf("unexptected")
+	})()
+
+	var tryEnforceValidationSets bool
+	defer daemon.MockAssertstateTryEnforceValidationSets(func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+		tryEnforceValidationSets = true
+		return fmt.Errorf("unexpected")
+	})()
+
+	var snapstateEnforceSnaps bool
+	defer daemon.MockSnapstateEnforceSnaps(func(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) ([]*state.TaskSet, []string, error) {
+		snapstateEnforceSnaps = true
+		return nil, nil, fmt.Errorf("unexpected")
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{Action: "refresh", Snaps: []string{"some-snap"}, ValidationSets: []string{"foo/baz"}}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.ErrorMatches, `snap names cannot be specified with validation sets to enforce`)
+	c.Check(refreshSnapAssertions, check.Equals, false)
+	c.Check(tryEnforceValidationSets, check.Equals, false)
+	c.Check(snapstateEnforceSnaps, check.Equals, false)
 }

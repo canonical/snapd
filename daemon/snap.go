@@ -62,7 +62,7 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 		return aboutSnap{}, fmt.Errorf("cannot read snap details: %v", err)
 	}
 
-	info.Publisher, err = publisherAccount(st, info.SnapID)
+	info.Publisher, err = assertstate.PublisherStoreAccount(st, info.SnapID)
 	if err != nil {
 		return aboutSnap{}, err
 	}
@@ -118,7 +118,7 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 					// clear the error
 					err = nil
 				}
-				info.Publisher, err = publisherAccount(st, seq.SnapID)
+				info.Publisher, err = assertstate.PublisherStoreAccount(st, seq.SnapID)
 				if err != nil && firstErr == nil {
 					firstErr = err
 				}
@@ -127,7 +127,7 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		} else {
 			info, err = snapst.CurrentInfo()
 			if err == nil {
-				info.Publisher, err = publisherAccount(st, info.SnapID)
+				info.Publisher, err = assertstate.PublisherStoreAccount(st, info.SnapID)
 				aboutThis = append(aboutThis, aboutSnap{info, snapst, health})
 			}
 		}
@@ -143,23 +143,6 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 	}
 
 	return about, firstErr
-}
-
-func publisherAccount(st *state.State, snapID string) (snap.StoreAccount, error) {
-	if snapID == "" {
-		return snap.StoreAccount{}, nil
-	}
-
-	pubAcct, err := assertstate.Publisher(st, snapID)
-	if err != nil {
-		return snap.StoreAccount{}, fmt.Errorf("cannot find publisher details: %v", err)
-	}
-	return snap.StoreAccount{
-		ID:          pubAcct.AccountID(),
-		Username:    pubAcct.Username(),
-		DisplayName: pubAcct.DisplayName(),
-		Validation:  pubAcct.Validation(),
-	}, nil
 }
 
 func clientHealthFromHealthstate(h *healthstate.HealthState) *client.SnapHealth {

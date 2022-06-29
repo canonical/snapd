@@ -159,6 +159,40 @@ X-Snappy=yes
 	return buf.Bytes()
 }
 
+func formatJournalSizeConf(grp *quota.Group) string {
+	if grp.JournalLimit.Size == 0 {
+		return ""
+	}
+	return fmt.Sprintf(`SystemMaxUse=%[1]d
+RuntimeMaxUse=%[1]d
+`, grp.JournalLimit.Size)
+}
+
+func formatJournalRateConf(grp *quota.Group) string {
+	if grp.JournalLimit.RateCount == 0 || grp.JournalLimit.RatePeriod == 0 {
+		return ""
+	}
+	return fmt.Sprintf(`RateLimitIntervalSec=%dus
+RateLimitBurst=%d
+`, grp.JournalLimit.RatePeriod.Microseconds(), grp.JournalLimit.RateCount)
+}
+
+func generateJournaldConfFile(grp *quota.Group) []byte {
+	if grp.JournalLimit == nil {
+		return nil
+	}
+
+	sizeOptions := formatJournalSizeConf(grp)
+	rateOptions := formatJournalRateConf(grp)
+	template := `# Journald configuration for snap quota group %[1]s
+[Journal]
+`
+	buf := bytes.Buffer{}
+	fmt.Fprintf(&buf, template, grp.Name)
+	fmt.Fprint(&buf, sizeOptions, rateOptions)
+	return buf.Bytes()
+}
+
 func stopUserServices(cli *client.Client, inter Interacter, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
@@ -695,6 +729,48 @@ func (es *ensureSnapServicesContext) ensureSnapSlices(quotaGroups *quota.QuotaGr
 	return nil
 }
 
+func (es *ensureSnapServicesContext) ensureSnapJournaldUnits(quotaGroups *quota.QuotaGroupSet) error {
+	handleJournalModification := func(grp *quota.Group, path string, content []byte) error {
+		old, modifiedFile, err := tryFileUpdate(path, content)
+		if err != nil {
+			return err
+		}
+
+		if !modifiedFile {
+			return nil
+		}
+
+		// suppress any event and restart if we actually did not do anything
+		// as it seems modifiedFile is set even when the file does not exist
+		// and when the new content is nil.
+		if (old == nil || len(old.Content) == 0) && len(content) == 0 {
+			return nil
+		}
+
+		if es.observeChange != nil {
+			var oldContent []byte
+			if old != nil {
+				oldContent = old.Content
+			}
+			es.observeChange(nil, grp, "journald", grp.Name, string(oldContent), string(content))
+		}
+
+		es.modifiedUnits[path] = old
+		return nil
+	}
+
+	for _, grp := range quotaGroups.AllQuotaGroups() {
+		contents := generateJournaldConfFile(grp)
+		fileName := grp.JournalFileName()
+
+		path := filepath.Join(dirs.SnapSystemdDir, fileName)
+		if err := handleJournalModification(grp, path, contents); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // EnsureSnapServices will ensure that the specified snap services' file states
 // are up to date with the specified options and infos. It will add new services
 // if those units don't already exist, but it does not delete existing service
@@ -738,8 +814,11 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 		return err
 	}
 
-	err = context.ensureSnapSlices(quotaGroups)
-	if err != nil {
+	if err := context.ensureSnapSlices(quotaGroups); err != nil {
+		return err
+	}
+
+	if err := context.ensureSnapJournaldUnits(quotaGroups); err != nil {
 		return err
 	}
 
@@ -1120,6 +1199,9 @@ OOMScoreAdjust={{.OOMAdjustScore}}
 {{- if .SliceUnit}}
 Slice={{.SliceUnit}}
 {{- end}}
+{{- if .LogNamespace}}
+LogNamespace={{.LogNamespace}}
+{{- end}}
 {{- if not (or .App.Sockets .App.Timer .App.ActivatesOn) }}
 
 [Install]
@@ -1192,6 +1274,7 @@ WantedBy={{.ServicesTarget}}
 		After                    []string
 		InterfaceServiceSnippets string
 		SliceUnit                string
+		LogNamespace             string
 
 		Home    string
 		EnvVars string
@@ -1236,6 +1319,9 @@ WantedBy={{.ServicesTarget}}
 	// check the quota group slice
 	if opts.QuotaGroup != nil {
 		wrapperData.SliceUnit = opts.QuotaGroup.SliceFileName()
+		if opts.QuotaGroup.JournalLimit != nil {
+			wrapperData.LogNamespace = "snap-" + opts.QuotaGroup.Name
+		}
 	}
 
 	// Add extra "After" targets

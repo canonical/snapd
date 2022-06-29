@@ -3086,7 +3086,7 @@ apps:
 	c.Assert(err, ErrorMatches, ".*no such file.*")
 
 	// now do the revert
-	ts, err := snapstate.Revert(st, "foo", snapstate.Flags{})
+	ts, err := snapstate.Revert(st, "foo", snapstate.Flags{}, "")
 	c.Assert(err, IsNil)
 	chg := st.NewChange("revert-snap", "...")
 	chg.AddAll(ts)
@@ -3646,6 +3646,148 @@ apps:
 	dest, err = os.Readlink(app3Alias)
 	c.Assert(err, IsNil)
 	c.Check(dest, Equals, "bar.app3")
+}
+
+func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateWithAndWithoutAppsForAutoAliases(c *C) {
+	// there is a single snap declaration that covers all tracks/channels,
+	// because of this it can list auto aliases for apps that do not exist
+	// in a particular channel the the snap is installed from and track
+	s.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name": "foo",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app1", "target": "app1"},
+			map[string]interface{}{"name": "app2", "target": "app2"},
+		},
+	})
+
+	fooYamlJustApp1 := `name: foo
+version: @VERSION@
+apps:
+ app1:
+  command: bin/app1
+`
+
+	fooPath, _ := s.makeStoreTestSnap(c, strings.Replace(fooYamlJustApp1, "@VERSION@", "1.0", -1), "10")
+	s.serveSnap(fooPath, "10")
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Install(context.TODO(), st, "foo", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	info, err := snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(10))
+	c.Check(info.Version, Equals, "1.0")
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app1": {Auto: "app1"},
+	})
+
+	app1Alias := filepath.Join(dirs.SnapBinariesDir, "app1")
+	app2Alias := filepath.Join(dirs.SnapBinariesDir, "app2")
+	c.Check(app1Alias, testutil.SymlinkTargetEquals, "foo.app1")
+	c.Check(app2Alias, testutil.FileAbsent)
+
+	fooYamlBothApps := `name: foo
+version: @VERSION@
+apps:
+ app1:
+  command: bin/app1
+ app2:
+  command: bin/app2
+`
+
+	// new foo version/revision with both apps
+	fooPath, _ = s.makeStoreTestSnap(c, strings.Replace(fooYamlBothApps, "@VERSION@", "1.5", -1), "15")
+	s.serveSnap(fooPath, "15")
+
+	// refresh all
+	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(updated, DeepEquals, []string{"foo"})
+	c.Assert(tss, HasLen, 2)
+	verifyLastTasksetIsRerefresh(c, tss)
+	chg = st.NewChange("upgrade-snaps", "...")
+	chg.AddAll(tss[0])
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	info, err = snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(15))
+	c.Check(info.Version, Equals, "1.5")
+
+	var snapst2 snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst2)
+	c.Assert(err, IsNil)
+	c.Check(snapst2.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst2.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app1": {Auto: "app1"},
+		"app2": {Auto: "app2"},
+	})
+
+	c.Check(app1Alias, testutil.SymlinkTargetEquals, "foo.app1")
+	c.Check(app2Alias, testutil.SymlinkTargetEquals, "foo.app2")
+
+	// new revision has just one app again
+	fooPath, _ = s.makeStoreTestSnap(c, strings.Replace(fooYamlJustApp1, "@VERSION@", "2.0", -1), "20")
+	s.serveSnap(fooPath, "20")
+
+	// refresh all
+	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(updated, DeepEquals, []string{"foo"})
+	c.Assert(tss, HasLen, 2)
+	verifyLastTasksetIsRerefresh(c, tss)
+	chg = st.NewChange("upgrade-snaps", "...")
+	chg.AddAll(tss[0])
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	info, err = snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(20))
+	c.Check(info.Version, Equals, "2.0")
+
+	var snapst3 snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst3)
+	c.Assert(err, IsNil)
+	c.Check(snapst3.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst3.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app1": {Auto: "app1"},
+	})
+
+	c.Check(app1Alias, testutil.SymlinkTargetEquals, "foo.app1")
+	c.Check(app2Alias, testutil.FileAbsent)
 }
 
 func (s *mgrsSuite) TestHappyStopWhileDownloadingHeader(c *C) {
