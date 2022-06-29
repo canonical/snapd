@@ -76,7 +76,7 @@ execute: |
 
     echo "Check that snapctl cannot be invoked with the disconnected interface"
     test-snapd-kernel-module-load.cmd snapctl kmod insert xcbc 2>&1 \
-        | MATCH ".*cannot load module \"xcbc\", required interface not connected"
+        | MATCH ".*cannot load module \"xcbc\": required interface not connected"
 
     # Now we want to verify that removing the snap does not leave any leftovers
     echo "Reconnect the interface"

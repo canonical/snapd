@@ -20,6 +20,7 @@
 package ctlcmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/i18n"
@@ -73,13 +74,8 @@ func (k *KModInsertCmd) Execute([]string) error {
 		return err
 	}
 
-	attributes, err := kmodFindConnection(context, k.Positional.Module, k.Positional.Options)
-	if err != nil {
+	if err := kmodEnsureConnection(context, k.Positional.Module, k.Positional.Options); err != nil {
 		return fmt.Errorf("cannot load module %q: %v", k.Positional.Module, err)
-	}
-
-	if len(attributes) == 0 {
-		return fmt.Errorf("cannot load module %q, required interface not connected", k.Positional.Module)
 	}
 
 	if err := kmodLoadModule(k.Positional.Module, k.Positional.Options); err != nil {
@@ -102,13 +98,8 @@ func (k *KModRemoveCmd) Execute([]string) error {
 		return err
 	}
 
-	attributes, err := kmodFindConnection(context, k.Positional.Module, []string{})
-	if err != nil {
+	if err := kmodEnsureConnection(context, k.Positional.Module, []string{}); err != nil {
 		return fmt.Errorf("cannot unload module %q: %v", k.Positional.Module, err)
-	}
-
-	if len(attributes) == 0 {
-		return fmt.Errorf("cannot unload module %q, required interface not connected", k.Positional.Module)
 	}
 
 	if err := kmodUnloadModule(k.Positional.Module); err != nil {
@@ -144,8 +135,8 @@ func kmodMatchConnection(attributes map[string]interface{}, moduleName string, m
 
 // kmodFindConnections walks through the established connections to find one which
 // is compatible with a kmod operation on the given moduleName and
-// moduleOptions. If found, it returns the connection's attributes.
-var kmodFindConnection = func(context *hookstate.Context, moduleName string, moduleOptions []string) (attributes map[string]interface{}, err error) {
+// moduleOptions. Returns an error if not found.
+var kmodEnsureConnection = func(context *hookstate.Context, moduleName string, moduleOptions []string) (err error) {
 	snapName := context.InstanceName()
 
 	st := context.State()
@@ -154,7 +145,7 @@ var kmodFindConnection = func(context *hookstate.Context, moduleName string, mod
 
 	conns, err := ifacestate.ConnectionStates(st)
 	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot get connections: %s", err)
+		return fmt.Errorf("internal error: cannot get connections: %s", err)
 	}
 
 	for connId, connState := range conns {
@@ -168,7 +159,7 @@ var kmodFindConnection = func(context *hookstate.Context, moduleName string, mod
 
 		connRef, err := interfaces.ParseConnRef(connId)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if connRef.PlugRef.Snap != snapName {
@@ -183,9 +174,9 @@ var kmodFindConnection = func(context *hookstate.Context, moduleName string, mod
 		for _, moduleAttributes := range modules {
 			attributes := moduleAttributes.(map[string]interface{})
 			if kmodMatchConnection(attributes, moduleName, moduleOptions) {
-				return attributes, nil
+				return nil
 			}
 		}
 	}
-	return nil, nil
+	return errors.New("required interface not connected")
 }

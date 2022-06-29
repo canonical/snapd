@@ -140,7 +140,7 @@ func (s *kmodSuite) TestFindConnectionBadConnection(c *C) {
 	ctx, err := hookstate.NewContext(task, state, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 
-	_, err = ctlcmd.KmodFindConnection(ctx, "module1", []string{"one", "two"})
+	err = ctlcmd.KmodEnsureConnection(ctx, "module1", []string{"one", "two"})
 	c.Assert(err, ErrorMatches, `.*internal error: cannot get connections: .*`)
 }
 
@@ -176,34 +176,27 @@ func (s *kmodSuite) TestFindConnectionMissingProperPlug(c *C) {
 	s.state.Set("conns", connections)
 	s.state.Unlock()
 
-	match, err := ctlcmd.KmodFindConnection(s.mockContext, "module3", []string{"opt1=v1"})
-	c.Check(err, IsNil)
-	c.Check(match, IsNil)
+	err := ctlcmd.KmodEnsureConnection(s.mockContext, "module3", []string{"opt1=v1"})
+	c.Check(err, ErrorMatches, "required interface not connected")
 }
 
 func (s *kmodSuite) TestFindConnectionHappy(c *C) {
 	s.injectSnapWithProperPlug(c)
 
-	match, err := ctlcmd.KmodFindConnection(s.mockContext, "module2", []string{"opt1=v1"})
+	err := ctlcmd.KmodEnsureConnection(s.mockContext, "module2", []string{"opt1=v1"})
 	c.Check(err, IsNil)
-	c.Check(match, DeepEquals, map[string]interface{}{
-		"load":    "dynamic",
-		"name":    "module2",
-		"options": "*",
-	})
 }
 
 func (s *kmodSuite) TestInsertFailure(c *C) {
 	s.injectSnapWithProperPlug(c)
 
 	var loadModuleError error
-	var findConnectionError error
-	var findConnectionResult map[string]interface{}
+	var ensureConnectionError error
 
-	r1 := ctlcmd.MockKmodFindConnection(func(ctx *hookstate.Context, moduleName string, moduleOptions []string) (map[string]interface{}, error) {
+	r1 := ctlcmd.MockKmodEnsureConnection(func(ctx *hookstate.Context, moduleName string, moduleOptions []string) error {
 		c.Check(moduleName, Equals, "moderr")
 		c.Check(moduleOptions, DeepEquals, []string{"o1=v1", "o2=v2"})
-		return findConnectionResult, findConnectionError
+		return ensureConnectionError
 	})
 	defer r1()
 
@@ -215,34 +208,22 @@ func (s *kmodSuite) TestInsertFailure(c *C) {
 	defer r2()
 
 	for _, td := range []struct {
-		findConnectionError error
-		findMatching        bool
+		ensureConnectionError error
 		loadModuleError     error
 		expectedError       string
 	}{
 		{
 			// error retrieving the snap connections
-			findConnectionError: errors.New("state error"),
+			ensureConnectionError: errors.New("state error"),
 			expectedError:       `cannot load module "moderr": state error`,
 		},
 		{
-			// no errors, but no matching connection
-			findMatching:  false,
-			expectedError: `cannot load module "moderr", required interface not connected`,
-		},
-		{
 			// error calling modprobe
-			findMatching:    true,
 			loadModuleError: errors.New("modprobe failure"),
 			expectedError:   `cannot load module "moderr": modprobe failure`,
 		},
 	} {
-		findConnectionError = td.findConnectionError
-		if td.findMatching {
-			findConnectionResult = map[string]interface{}{"something": "doesntmatter"}
-		} else {
-			findConnectionResult = nil
-		}
+		ensureConnectionError = td.ensureConnectionError
 		loadModuleError = td.loadModuleError
 		_, _, err := ctlcmd.Run(s.mockContext, []string{"kmod", "insert", "moderr", "o1=v1", "o2=v2"}, 0)
 		c.Check(err, ErrorMatches, td.expectedError)
@@ -271,13 +252,12 @@ func (s *kmodSuite) TestRemoveFailure(c *C) {
 	s.injectSnapWithProperPlug(c)
 
 	var loadModuleError error
-	var findConnectionError error
-	var findConnectionResult map[string]interface{}
+	var ensureConnectionError error
 
-	r1 := ctlcmd.MockKmodFindConnection(func(ctx *hookstate.Context, moduleName string, moduleOptions []string) (map[string]interface{}, error) {
+	r1 := ctlcmd.MockKmodEnsureConnection(func(ctx *hookstate.Context, moduleName string, moduleOptions []string) error {
 		c.Check(moduleName, Equals, "moderr")
 		c.Check(moduleOptions, HasLen, 0)
-		return findConnectionResult, findConnectionError
+		return ensureConnectionError
 	})
 	defer r1()
 
@@ -288,34 +268,22 @@ func (s *kmodSuite) TestRemoveFailure(c *C) {
 	defer r2()
 
 	for _, td := range []struct {
-		findConnectionError error
-		findMatching        bool
+		ensureConnectionError error
 		loadModuleError     error
 		expectedError       string
 	}{
 		{
 			// error retrieving the snap connections
-			findConnectionError: errors.New("state error"),
+			ensureConnectionError: errors.New("state error"),
 			expectedError:       `cannot unload module "moderr": state error`,
 		},
 		{
-			// no errors, but no matching connection
-			findMatching:  false,
-			expectedError: `cannot unload module "moderr", required interface not connected`,
-		},
-		{
 			// error calling modprobe
-			findMatching:    true,
 			loadModuleError: errors.New("modprobe failure"),
 			expectedError:   `cannot unload module "moderr": modprobe failure`,
 		},
 	} {
-		findConnectionError = td.findConnectionError
-		if td.findMatching {
-			findConnectionResult = map[string]interface{}{"something": "doesntmatter"}
-		} else {
-			findConnectionResult = nil
-		}
+		ensureConnectionError = td.ensureConnectionError
 		loadModuleError = td.loadModuleError
 		_, _, err := ctlcmd.Run(s.mockContext, []string{"kmod", "remove", "moderr"}, 0)
 		c.Check(err, ErrorMatches, td.expectedError)
