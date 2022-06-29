@@ -596,13 +596,16 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 	if otherProvenance {
 		decl := a.(*SnapDeclaration)
 		ras := decl.RevisionAuthority(snaprev.Provenance())
+		matchingRevAuthority := false
 		for _, ra := range ras {
 			if err := ra.Check(snaprev); err == nil {
-				return nil
+				matchingRevAuthority = true
+				break
 			}
 		}
-		return fmt.Errorf("snap-revision assertion with provenance %q for snap id %q is not signed by an authorized authority: %s", snaprev.Provenance(), snaprev.SnapID(), snaprev.AuthorityID())
-
+		if !matchingRevAuthority {
+			return fmt.Errorf("snap-revision assertion with provenance %q for snap id %q is not signed by an authorized authority: %s", snaprev.Provenance(), snaprev.SnapID(), snaprev.AuthorityID())
+		}
 	}
 	return nil
 }
