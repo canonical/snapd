@@ -878,9 +878,9 @@ func TryEnforceValidationSets(st *state.State, validationSets []string, userID i
 	}
 
 	// no error, all validation-sets can be enforced, update tracking for all vsets
-	for i := 0; i < len(extraVsHeaders); i++ {
+	for i, headers := range extraVsHeaders {
 		// get latest assertion from the db to determine current
-		a, err := db.FindSequence(asserts.ValidationSetType, extraVsHeaders[i], -1, -1)
+		a, err := db.FindSequence(asserts.ValidationSetType, headers, -1, -1)
 		if err != nil {
 			// this is unexpected since all asserts should be resolved and committed at this point
 			return fmt.Errorf("internal error: cannot find validation set assertion: %v", err)
