@@ -74,3 +74,7 @@ func PartitionUUIDFromMountPoint(mountpoint string, opts *Options) (string, erro
 func PartitionUUID(node string) (string, error) {
 	return "", osutil.ErrDarwin
 }
+
+func SectorSize(devname string) (uint64, error) {
+	return 0, osutil.ErrDarwin
+}

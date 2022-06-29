@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1152,6 +1152,13 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
+// InstallPathMany returns a set of tasks for installing snaps from a file paths
+// and snap.Infos.
+//
+// The state must be locked by the caller.
+// The provided SideInfos can contain just a name which results in a
+// local revision and sideloading, or full metadata in which case
+// the snaps will appear as installed from the store.
 func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
@@ -1340,6 +1347,15 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // Note that the state must be locked by the caller.
 func UpdateMany(ctx context.Context, st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
 	return updateManyFiltered(ctx, st, names, userID, nil, flags, "")
+}
+
+// EnforceSnaps installs/updates/removes snaps reported by validationErrorToSolve.
+// validationSets is the list of sets passed by the user and it's used in the
+// final stage to update validation-sets tracking in the state.
+// userID is used for store auth.
+func EnforceSnaps(ctx context.Context, st *state.State, validationSets []string, validationErrorToSolve *snapasserts.ValidationSetsValidationError, userID int) (tasksets []*state.TaskSet, names []string, err error) {
+	// TODO
+	return nil, nil, fmt.Errorf("not implemented")
 }
 
 // updateFilter is the type of function that can be passed to
@@ -1968,10 +1984,11 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 
 // RevisionOptions control the selection of a snap revision.
 type RevisionOptions struct {
-	Channel     string
-	Revision    snap.Revision
-	CohortKey   string
-	LeaveCohort bool
+	Channel        string
+	Revision       snap.Revision
+	ValidationSets []string
+	CohortKey      string
+	LeaveCohort    bool
 }
 
 // Update initiates a change updating a snap.
@@ -2162,7 +2179,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name string, opts *Revisi
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return updateToRevisionInfo(st, snapst, opts.Revision, userID, flags, deviceCtx)
+		return updateToRevisionInfo(st, snapst, opts, userID, flags, deviceCtx)
 	}
 
 	// refresh-to-local, this assumes the snap revision is mounted
@@ -2429,6 +2446,87 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 	}
 
 	return nil
+}
+
+// MigrateHome migrates a set of snaps to use a ~/Snap sub-directory as HOME.
+// The state must be locked by the caller.
+func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
+	tr := config.NewTransaction(st)
+	moveDir, err := features.Flag(tr, features.MoveSnapHomeDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if !moveDir {
+		_, confName := features.MoveSnapHomeDir.ConfigOption()
+		return nil, fmt.Errorf("cannot migrate to ~/Snap: flag %q is not set", confName)
+	}
+
+	allSnaps, err := All(st)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, name := range snaps {
+		if snapst, ok := allSnaps[name]; !ok {
+			return nil, snap.NotInstalledError{Snap: name}
+		} else if snapst.MigratedToExposedHome {
+			return nil, fmt.Errorf("cannot migrate %q to ~/Snap: already migrated", name)
+		}
+	}
+
+	var tss []*state.TaskSet
+	for _, name := range snaps {
+		si := allSnaps[name].CurrentSideInfo()
+		snapsup := &SnapSetup{
+			SideInfo: si,
+		}
+
+		var tasks []*state.Task
+		prepare := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s)"), name, si.Revision))
+		prepare.Set("snap-setup", snapsup)
+		tasks = append(tasks, prepare)
+
+		prev := prepare
+		addTask := func(t *state.Task) {
+			t.Set("snap-setup-task", prepare.ID())
+			t.WaitFor(prev)
+			tasks = append(tasks, t)
+		}
+
+		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
+		stop.Set("stop-reason", "home-migration")
+		addTask(stop)
+		prev = stop
+
+		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), name))
+		addTask(unlink)
+		prev = unlink
+
+		migrate := st.NewTask("migrate-snap-home", fmt.Sprintf(i18n.G("Migrate %q to ~/Snap"), name))
+		addTask(migrate)
+		prev = migrate
+
+		// finalize (wrappers+current symlink)
+		linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system"), name, si.Revision))
+		addTask(linkSnap)
+		prev = linkSnap
+
+		// run new services
+		startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q (%s) services"), name, si.Revision))
+		addTask(startSnapServices)
+		prev = startSnapServices
+
+		var ts state.TaskSet
+		for _, t := range tasks {
+			ts.AddTask(t)
+		}
+
+		ts.JoinLane(st.NewLane())
+		tss = append(tss, &ts)
+	}
+
+	return tss, nil
 }
 
 // LinkNewBaseOrKernel creates a new task set with prepare/link-snap, and
@@ -2757,7 +2855,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	}
 
 	// check if this snap is required by any validation set in enforcing mode
-	enforcedSets, err := EnforcedValidationSets(st, nil)
+	enforcedSets, err := EnforcedValidationSets(st)
 	if err != nil {
 		return err
 	}
@@ -3593,7 +3691,7 @@ func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (res
 	return func() { osutilCheckFreeSpace = old }
 }
 
-func MockEnforcedValidationSets(f func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error)) func() {
+func MockEnforcedValidationSets(f func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error)) func() {
 	osutil.MustBeTestBinary("mocking can be done only in tests")
 
 	old := EnforcedValidationSets

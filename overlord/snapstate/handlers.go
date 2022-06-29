@@ -1282,7 +1282,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapsup.MigratedHidden = true
 		fallthrough
 	case home:
-		undo, err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision)
+		undo, err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision, opts.getSnapDirOpts())
 		if err != nil {
 			return err
 		}
@@ -3660,13 +3660,73 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 	return nil
 }
 
+func (m *SnapManager) doMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
+	opts, err := getDirMigrationOpts(st, snapst, snapsup)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	dirOpts := opts.getSnapDirOpts()
+	undo, err := m.backend.InitExposedSnapHome(snapsup.InstanceName(), snapsup.Revision(), dirOpts)
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
+	defer st.Unlock()
+	t.Set("undo-exposed-home-init", undo)
+	snapsup.MigratedToExposedHome = true
+
+	return SetTaskSnapSetup(t, snapsup)
+}
+
+func (m *SnapManager) undoMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	var undo backend.UndoInfo
+
+	st.Lock()
+	err = t.Get("undo-exposed-home-init", &undo)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	if err := m.backend.UndoInitExposedSnapHome(snapsup.InstanceName(), &undo); err != nil {
+		return err
+	}
+
+	snapsup.MigratedToExposedHome = false
+	snapst.MigratedToExposedHome = false
+
+	st.Lock()
+	defer st.Unlock()
+	return writeMigrationStatus(t, snapst, snapsup)
+}
+
 // maybeRestoreValidationSetsAndRevertSnaps restores validation-sets to their
 // previous state using validation sets stack if there are any enforced
 // validation sets and - if necessary - creates tasksets to revert some or all
 // of the refreshed snaps to their previous revisions to satisfy the restored
 // validation sets tracking.
 var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSnaps []string, fromChange string) ([]*state.TaskSet, error) {
-	enforcedSets, err := EnforcedValidationSets(st, nil)
+	enforcedSets, err := EnforcedValidationSets(st)
 	if err != nil {
 		return nil, err
 	}
@@ -3700,7 +3760,7 @@ var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSn
 	}
 
 	// we need to fetch enforced sets again because of RestoreValidationSetsTracking.
-	enforcedSets, err = EnforcedValidationSets(st, nil)
+	enforcedSets, err = EnforcedValidationSets(st)
 	if err != nil {
 		return nil, err
 	}

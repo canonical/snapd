@@ -46,5 +46,10 @@ prepare: |
   tests.nested build-image core
   tests.nested create-vm core
 
+restore: |
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+  teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+
 execute: |
   tests.nested exec "snap connections" | MATCH 'serial-port  *connections:serial-1  *pc:serial-1'

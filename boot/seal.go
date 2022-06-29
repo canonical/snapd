@@ -45,10 +45,12 @@ import (
 )
 
 var (
-	secbootProvisionTPM             = secboot.ProvisionTPM
-	secbootSealKeys                 = secboot.SealKeys
-	secbootSealKeysWithFDESetupHook = secboot.SealKeysWithFDESetupHook
-	secbootResealKeys               = secboot.ResealKeys
+	secbootProvisionTPM              = secboot.ProvisionTPM
+	secbootSealKeys                  = secboot.SealKeys
+	secbootSealKeysWithFDESetupHook  = secboot.SealKeysWithFDESetupHook
+	secbootResealKeys                = secboot.ResealKeys
+	secbootPCRHandleOfSealedKey      = secboot.PCRHandleOfSealedKey
+	secbootReleasePCRResourceHandles = secboot.ReleasePCRResourceHandles
 
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
@@ -102,10 +104,16 @@ func recoveryBootChainsFileUnder(rootdir string) string {
 	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "recovery-boot-chains")
 }
 
+type sealKeyToModeenvFlags struct {
+	// FactoryReset indicates that the sealing is happening during factory
+	// reset.
+	FactoryReset bool
+}
+
 // sealKeyToModeenv seals the supplied keys to the parameters specified
 // in modeenv.
 // It assumes to be invoked in install mode.
-func sealKeyToModeenv(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
+func sealKeyToModeenv(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
 	// make sure relevant locations exist
 	for _, p := range []string{
 		InitramfsSeedEncryptionKeyDir,
@@ -124,10 +132,10 @@ func sealKeyToModeenv(key, saveKey keys.EncryptionKey, model *asserts.Model, mod
 		return fmt.Errorf("cannot check for fde-setup hook %v", err)
 	}
 	if hasHook {
-		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, modeenv)
+		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, modeenv, flags)
 	}
 
-	return sealKeyToModeenvUsingSecboot(key, saveKey, modeenv)
+	return sealKeyToModeenvUsingSecboot(key, saveKey, modeenv, flags)
 }
 
 func runKeySealRequests(key keys.EncryptionKey) []secboot.SealKeyRequest {
@@ -140,7 +148,31 @@ func runKeySealRequests(key keys.EncryptionKey) []secboot.SealKeyRequest {
 	}
 }
 
-func fallbackKeySealRequests(key, saveKey keys.EncryptionKey) []secboot.SealKeyRequest {
+// FallbackDataSealedKeyUnder returns the name of a fallback ubuntu data key.
+func FallbackDataSealedKeyUnder(dir string) string {
+	return filepath.Join(dir, "ubuntu-data.recovery.sealed-key")
+}
+
+// FallbackSaveSealedKeyUnder returns the name of a fallback ubuntu save key.
+func FallbackSaveSealedKeyUnder(dir string) string {
+	return filepath.Join(dir, "ubuntu-save.recovery.sealed-key")
+}
+
+// FactoryResetFallbackSaveSealedKeyUnder returns the name of a fallback ubuntu
+// save key object generated during factory reset.
+func FactoryResetFallbackSaveSealedKeyUnder(dir string) string {
+	return filepath.Join(dir, "ubuntu-save.recovery.sealed-key.factory-reset")
+}
+
+func fallbackKeySealRequests(key, saveKey keys.EncryptionKey, factoryReset bool) []secboot.SealKeyRequest {
+	saveFallbackKey := FallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir)
+
+	if factoryReset {
+		// factory reset uses alternative sealed key location, such that
+		// until we boot into the run mode, both sealed keys are present
+		// on disk
+		saveFallbackKey = FactoryResetFallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir)
+	}
 	return []secboot.SealKeyRequest{
 		{
 			Key:     key,
@@ -150,12 +182,12 @@ func fallbackKeySealRequests(key, saveKey keys.EncryptionKey) []secboot.SealKeyR
 		{
 			Key:     saveKey,
 			KeyName: "ubuntu-save",
-			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+			KeyFile: saveFallbackKey,
 		},
 	}
 }
 
-func sealKeyToModeenvUsingFDESetupHook(key, saveKey keys.EncryptionKey, modeenv *Modeenv) error {
+func sealKeyToModeenvUsingFDESetupHook(key, saveKey keys.EncryptionKey, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
 	// XXX: Move the auxKey creation to a more generic place, see
 	// PR#10123 for a possible way of doing this. However given
 	// that the equivalent key for the TPM case is also created in
@@ -171,7 +203,8 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey keys.EncryptionKey, modeenv 
 		AuxKey:     auxKey,
 		AuxKeyFile: filepath.Join(InstallHostFDESaveDir, "aux-key"),
 	}
-	skrs := append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...)
+	factoryReset := flags.FactoryReset
+	skrs := append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey, factoryReset)...)
 	if err := secbootSealKeysWithFDESetupHook(RunFDESetupHook, skrs, &params); err != nil {
 		return err
 	}
@@ -183,7 +216,7 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey keys.EncryptionKey, modeenv 
 	return nil
 }
 
-func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Modeenv) error {
+func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,
@@ -241,17 +274,58 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Mode
 		return fmt.Errorf("cannot generate key for signing dynamic authorization policies: %v", err)
 	}
 
+	runObjectKeyPCRHandle := uint32(secboot.RunObjectPCRPolicyCounterHandle)
+	fallbackObjectKeyPCRHandle := uint32(secboot.FallbackObjectPCRPolicyCounterHandle)
+	if flags.FactoryReset {
+		// during factory reset we may need to rotate the PCR handles,
+		// seal the new keys using a new set of handles such that the
+		// old sealed ubuntu-save key is still usable, for this we
+		// switch between two sets of handles in a round robin fashion,
+		// first looking at the PCR handle used by the current fallback
+		// key and then using the other set when sealing the new keys;
+		// the currently used handles will be released during the first
+		// boot of a new run system
+		usesAlt, err := usesAltPCRHandles()
+		if err != nil {
+			return err
+		}
+		if !usesAlt {
+			logger.Noticef("using alternative PCR handles")
+			runObjectKeyPCRHandle = secboot.AltRunObjectPCRPolicyCounterHandle
+			fallbackObjectKeyPCRHandle = secboot.AltFallbackObjectPCRPolicyCounterHandle
+		}
+	}
+
 	// we are preparing a new system, hence the TPM needs to be provisioned
 	lockoutAuthFile := filepath.Join(InstallHostFDESaveDir, "tpm-lockout-auth")
-	if err := secbootProvisionTPM(secboot.TPMProvisionFull, lockoutAuthFile); err != nil {
+	tpmProvisionMode := secboot.TPMProvisionFull
+	if flags.FactoryReset {
+		tpmProvisionMode = secboot.TPMPartialReprovision
+	}
+	if err := secbootProvisionTPM(tpmProvisionMode, lockoutAuthFile); err != nil {
 		return err
 	}
 
-	if err := sealRunObjectKeys(key, pbc, authKey, roleToBlName); err != nil {
+	if flags.FactoryReset {
+		// it is possible that we are sealing the keys again, after a
+		// previously running factory reset was interrupted by a reboot,
+		// in which case the PCR handles of the new sealed keys might
+		// have already been used
+		if err := secbootReleasePCRResourceHandles(runObjectKeyPCRHandle, fallbackObjectKeyPCRHandle); err != nil {
+			return err
+		}
+	}
+
+	// TODO: refactor sealing functions to take a struct instead of so many
+	// parameters
+	err = sealRunObjectKeys(key, pbc, authKey, roleToBlName, runObjectKeyPCRHandle)
+	if err != nil {
 		return err
 	}
 
-	if err := sealFallbackObjectKeys(key, saveKey, rpbc, authKey, roleToBlName); err != nil {
+	err = sealFallbackObjectKeys(key, saveKey, rpbc, authKey, roleToBlName, flags.FactoryReset,
+		fallbackObjectKeyPCRHandle)
+	if err != nil {
 		return err
 	}
 
@@ -272,7 +346,18 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Mode
 	return nil
 }
 
-func sealRunObjectKeys(key keys.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string) error {
+func usesAltPCRHandles() (bool, error) {
+	saveFallbackKey := filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
+	// inspect the PCR handle of the ubuntu-save fallback key
+	handle, err := secbootPCRHandleOfSealedKey(saveFallbackKey)
+	if err != nil {
+		return false, err
+	}
+	logger.Noticef("fallback sealed key %v PCR handle: %#x", saveFallbackKey, handle)
+	return handle == secboot.AltFallbackObjectPCRPolicyCounterHandle, nil
+}
+
+func sealRunObjectKeys(key keys.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, pcrHandle uint32) error {
 	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return fmt.Errorf("cannot prepare for key sealing: %v", err)
@@ -282,8 +367,10 @@ func sealRunObjectKeys(key keys.EncryptionKey, pbc predictableBootChains, authKe
 		ModelParams:            modelParams,
 		TPMPolicyAuthKey:       authKey,
 		TPMPolicyAuthKeyFile:   filepath.Join(InstallHostFDESaveDir, "tpm-policy-auth-key"),
-		PCRPolicyCounterHandle: secboot.RunObjectPCRPolicyCounterHandle,
+		PCRPolicyCounterHandle: pcrHandle,
 	}
+
+	logger.Debugf("sealing run key with PCR handle: %#x", sealKeyParams.PCRPolicyCounterHandle)
 	// The run object contains only the ubuntu-data key; the ubuntu-save key
 	// is then stored inside the encrypted data partition, so that the normal run
 	// path only unseals one object because unsealing is expensive.
@@ -296,7 +383,7 @@ func sealRunObjectKeys(key keys.EncryptionKey, pbc predictableBootChains, authKe
 	return nil
 }
 
-func sealFallbackObjectKeys(key, saveKey keys.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string) error {
+func sealFallbackObjectKeys(key, saveKey keys.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string, factoryReset bool, pcrHandle uint32) error {
 	// also seal the keys to the recovery bootchains as a fallback
 	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
@@ -305,12 +392,14 @@ func sealFallbackObjectKeys(key, saveKey keys.EncryptionKey, pbc predictableBoot
 	sealKeyParams := &secboot.SealKeysParams{
 		ModelParams:            modelParams,
 		TPMPolicyAuthKey:       authKey,
-		PCRPolicyCounterHandle: secboot.FallbackObjectPCRPolicyCounterHandle,
+		PCRPolicyCounterHandle: pcrHandle,
 	}
+	logger.Debugf("sealing fallback key with PCR handle: %#x", sealKeyParams.PCRPolicyCounterHandle)
 	// The fallback object contains the ubuntu-data and ubuntu-save keys. The
 	// key files are stored on ubuntu-seed, separate from ubuntu-data so they
 	// can be used if ubuntu-data and ubuntu-boot are corrupted or unavailable.
-	if err := secbootSealKeys(fallbackKeySealRequests(key, saveKey), sealKeyParams); err != nil {
+
+	if err := secbootSealKeys(fallbackKeySealRequests(key, saveKey, factoryReset), sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the fallback encryption keys: %v", err)
 	}
 
@@ -820,4 +909,51 @@ func isResealNeeded(pbc predictableBootChains, bootChainsFile string, expectRese
 	case bootChainDifferent:
 	}
 	return true, c + 1, nil
+}
+
+func postFactoryResetCleanupSecboot() error {
+	// we are inspecting a key which was generated during factory reset, in
+	// the simplest case the sealed key generated previously used the main
+	// handles, while the current key uses alt handles, hence we need to
+	// release the main handles corresponding to the old key
+	handles := []uint32{secboot.RunObjectPCRPolicyCounterHandle, secboot.FallbackObjectPCRPolicyCounterHandle}
+	usesAlt, err := usesAltPCRHandles()
+	if err != nil {
+		return fmt.Errorf("cannot inspect fallback key: %v", err)
+	}
+	if !usesAlt {
+		// current fallback key using the main handles, which is
+		// possible of there were subsequent factory reset steps,
+		// release the alt handles associated with the old key
+		handles = []uint32{secboot.AltRunObjectPCRPolicyCounterHandle, secboot.AltFallbackObjectPCRPolicyCounterHandle}
+	}
+	return secbootReleasePCRResourceHandles(handles...)
+}
+
+func postFactoryResetCleanup() error {
+	hasHook, err := HasFDESetupHook()
+	if err != nil {
+		return fmt.Errorf("cannot check for fde-setup hook %v", err)
+	}
+
+	saveFallbackKeyFactory := FactoryResetFallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir)
+	saveFallbackKey := FallbackSaveSealedKeyUnder(InitramfsSeedEncryptionKeyDir)
+	if err := os.Rename(saveFallbackKeyFactory, saveFallbackKey); err != nil {
+		// it is possible that the key file was already renamed if we
+		// came back here after an unexpected reboot
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("cannot rotate fallback key: %v", err)
+		}
+	}
+
+	if hasHook {
+		// TODO: do we need to invoke FDE hook?
+		return nil
+	}
+
+	if err := postFactoryResetCleanupSecboot(); err != nil {
+		return fmt.Errorf("cannot cleanup secboot state: %v", err)
+	}
+
+	return nil
 }
