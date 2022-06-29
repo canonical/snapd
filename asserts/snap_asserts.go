@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"crypto"
 	"fmt"
+	"regexp"
 	"time"
 
 	// expected for digests
@@ -353,8 +354,7 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 			if err != nil {
 				return nil, err
 			}
-			// XXX validity pattern?
-			prov, err := checkStringListInMap(m, "provenance", "provenance in revision authority", nil)
+			prov, err := checkStringListInMap(m, "provenance", "provenance in revision authority", validProvenance)
 			if err != nil {
 				return nil, err
 			}
@@ -633,8 +633,15 @@ func checkSnapRevisionWhat(headers map[string]interface{}, name, what string) (s
 	return snapRevision, nil
 }
 
+var validProvenance = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
+
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkStringMatches(assert.headers, "provenance", validProvenance)
 	if err != nil {
 		return nil, err
 	}
