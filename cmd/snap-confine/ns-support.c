@@ -315,7 +315,7 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 		}
 	}
 	debug("base snap device %d:%d not found in existing mount ns",
-	      mie->dev_major, mie->dev_minor);
+	      major(base_snap_dev), minor(base_snap_dev));
 	return true;
 }
 
