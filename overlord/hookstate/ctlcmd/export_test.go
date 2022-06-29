@@ -39,8 +39,8 @@ const (
 var (
 	AttributesTask = attributesTask
 
-	KmodEnsureConnection  = kmodEnsureConnection
-	KmodMatchConnection = kmodMatchConnection
+	KmodEnsureConnection = kmodEnsureConnection
+	KmodMatchConnection  = kmodMatchConnection
 )
 
 type KmodCommand = kmodCommand

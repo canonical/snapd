@@ -209,13 +209,13 @@ func (s *kmodSuite) TestInsertFailure(c *C) {
 
 	for _, td := range []struct {
 		ensureConnectionError error
-		loadModuleError     error
-		expectedError       string
+		loadModuleError       error
+		expectedError         string
 	}{
 		{
 			// error retrieving the snap connections
 			ensureConnectionError: errors.New("state error"),
-			expectedError:       `cannot load module "moderr": state error`,
+			expectedError:         `cannot load module "moderr": state error`,
 		},
 		{
 			// error calling modprobe
@@ -269,13 +269,13 @@ func (s *kmodSuite) TestRemoveFailure(c *C) {
 
 	for _, td := range []struct {
 		ensureConnectionError error
-		loadModuleError     error
-		expectedError       string
+		loadModuleError       error
+		expectedError         string
 	}{
 		{
 			// error retrieving the snap connections
 			ensureConnectionError: errors.New("state error"),
-			expectedError:       `cannot unload module "moderr": state error`,
+			expectedError:         `cannot unload module "moderr": state error`,
 		},
 		{
 			// error calling modprobe
