@@ -91,7 +91,7 @@ func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapCommonSave(c *C) {
-	varSaveData := snap.CommonSaveDir("hello")
+	varSaveData := snap.CommonDataSaveDir("hello")
 	err := os.MkdirAll(varSaveData, 0755)
 	c.Assert(err, IsNil)
 
@@ -104,7 +104,7 @@ func (s *snapdataSuite) TestRemoveSnapCommonSave(c *C) {
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
-	err = s.be.RemoveSnapSaveData(info, nil)
+	err = s.be.RemoveSnapSaveData(info)
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(varSaveData), Equals, false)
 	c.Check(osutil.FileExists(filepath.Dir(varSaveData)), Equals, true)

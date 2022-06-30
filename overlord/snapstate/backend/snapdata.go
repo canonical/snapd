@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -53,8 +54,12 @@ func (b Backend) RemoveSnapCommonData(snap *snap.Info, opts *dirs.SnapDirOptions
 }
 
 // RemoveSnapSaveData removes the common save data between versions of the given snap.
-func (b Backend) RemoveSnapSaveData(snapInfo *snap.Info, opts *dirs.SnapDirOptions) error {
-	saveDir := snap.CommonSaveDir(snapInfo.InstanceName())
+func (b Backend) RemoveSnapSaveData(snapInfo *snap.Info) error {
+	if release.OnClassic {
+		return nil
+	}
+
+	saveDir := snap.CommonDataSaveDir(snapInfo.InstanceName())
 	if exists, _, err := osutil.DirExists(saveDir); err != nil || !exists {
 		return nil
 	}

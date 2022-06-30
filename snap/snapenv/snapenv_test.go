@@ -86,7 +86,6 @@ func (ts *HTestSuite) TestBasic(c *C) {
 		"SNAP":               fmt.Sprintf("%s/foo/17", dirs.CoreSnapMountDir),
 		"SNAP_COMMON":        "/var/snap/foo/common",
 		"SNAP_DATA":          "/var/snap/foo/17",
-		"SNAP_SAVE_DATA":     "/var/lib/snapd/save/snap/foo",
 		"SNAP_NAME":          "foo",
 		"SNAP_INSTANCE_NAME": "foo",
 		"SNAP_INSTANCE_KEY":  "",
@@ -96,6 +95,17 @@ func (ts *HTestSuite) TestBasic(c *C) {
 		"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 		"SNAP_REEXEC":        "",
 	})
+}
+
+func (ts *HTestSuite) TestSaveDataEnvironment(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	ts.AddCleanup(func() { dirs.SetRootDir("") })
+	c.Assert(os.MkdirAll(snap.CommonDataSaveDir(mockSnapInfo.InstanceName()), 0755), IsNil)
+
+	// The snap environment should now include SNAP_SAVE_DATA with the above path. It should
+	// only be added when the folder exists.
+	env := basicEnv(mockSnapInfo)
+	c.Assert(env["SNAP_SAVE_DATA"], Equals, snap.CommonDataSaveDir(mockSnapInfo.InstanceName()))
 }
 
 func (ts *HTestSuite) TestUser(c *C) {
@@ -159,7 +169,6 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"SNAP":               fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
 			"SNAP_COMMON":        "/var/snap/snapname/common",
 			"SNAP_DATA":          "/var/snap/snapname/42",
-			"SNAP_SAVE_DATA":     "/var/lib/snapd/save/snap/snapname",
 			"SNAP_NAME":          "snapname",
 			"SNAP_INSTANCE_NAME": "snapname",
 			"SNAP_INSTANCE_KEY":  "",
@@ -203,7 +212,6 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 			"SNAP":               fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
 			"SNAP_COMMON":        "/var/snap/snapname/common",
 			"SNAP_DATA":          "/var/snap/snapname/42",
-			"SNAP_SAVE_DATA":     "/var/lib/snapd/save/snap/snapname_foo",
 			"SNAP_NAME":          "snapname",
 			"SNAP_INSTANCE_NAME": "snapname_foo",
 			"SNAP_INSTANCE_KEY":  "foo",

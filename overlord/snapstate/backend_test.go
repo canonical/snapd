@@ -1004,6 +1004,14 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	return f.maybeErrForLastOp()
 }
 
+func (f *fakeSnappyBackend) SetupSnapSaveData(info *snap.Info, meter progress.Meter) error {
+	f.appendOp(&fakeOp{
+		op:   "setup-snap-save-data",
+		path: info.CommonDataSaveDir(),
+	})
+	return f.maybeErrForLastOp()
+}
+
 func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootInfo boot.RebootInfo, err error) {
 	if info.MountDir() == f.linkSnapWaitTrigger {
 		f.linkSnapWaitCh <- 1
@@ -1137,6 +1145,19 @@ func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.I
 	return f.maybeErrForLastOp()
 }
 
+func (f *fakeSnappyBackend) UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, meter progress.Meter) error {
+	old := "<no-old>"
+	if oldInfo != nil {
+		old = oldInfo.CommonDataSaveDir()
+	}
+	f.appendOp(&fakeOp{
+		op:   "undo-setup-snap-save-data",
+		path: newInfo.CommonDataSaveDir(),
+		old:  old,
+	})
+	return f.maybeErrForLastOp()
+}
+
 func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkContext, meter progress.Meter) error {
 	meter.Notify("unlink")
 	f.appendOp(&fakeOp{
@@ -1174,7 +1195,7 @@ func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.Sna
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveSnapSaveData(info *snap.Info, opts *dirs.SnapDirOptions) error {
+func (f *fakeSnappyBackend) RemoveSnapSaveData(info *snap.Info) error {
 	f.appendOp(&fakeOp{
 		op:   "remove-snap-save-data",
 		path: info.MountDir(),
