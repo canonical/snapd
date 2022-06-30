@@ -52,11 +52,12 @@ type RebootInfo struct {
 
 // A BootParticipant handles the boot process details for a snap involved in it.
 type BootParticipant interface {
-	// SetNextBoot will schedule the snap to be used in the next boot. For
-	// base snaps it is up to the caller to select the right bootable base
-	// (from the model assertion). It is a noop for not relevant snaps.
-	// Otherwise it returns whether a reboot is required.
-	SetNextBoot() (rebootInfo RebootInfo, err error)
+	// SetNextBoot will schedule the snap to be used in the next
+	// boot. isUndo specifies if this is undoing an installation. For base
+	// snaps it is up to the caller to select the right bootable base (from
+	// the model assertion). It is a noop for not relevant snaps.  Otherwise
+	// it returns whether a reboot is required.
+	SetNextBoot(isUndo bool) (rebootInfo RebootInfo, err error)
 
 	// Is this a trivial implementation of the interface?
 	IsTrivial() bool
@@ -77,7 +78,9 @@ type BootKernel interface {
 
 type trivial struct{}
 
-func (trivial) SetNextBoot() (RebootInfo, error)         { return RebootInfo{RebootRequired: false}, nil }
+func (trivial) SetNextBoot(isUndo bool) (RebootInfo, error) {
+	return RebootInfo{RebootRequired: false}, nil
+}
 func (trivial) IsTrivial() bool                          { return true }
 func (trivial) RemoveKernelAssets() error                { return nil }
 func (trivial) ExtractKernelAssets(snap.Container) error { return nil }
@@ -175,11 +178,12 @@ type bootState interface {
 	// curSnap instead if the error is only for the trySnap or tryingStatus.
 	revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error)
 
-	// setNext lazily implements setting the next boot target for
-	// the type's boot snap. actually committing the update
-	// is done via the returned bootStateUpdate's commit method.
-	// It will return information for rebooting if necessary.
-	setNext(s snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error)
+	// setNext lazily implements setting the next boot target for the type's
+	// boot snap. isUndo specifies if this is reverting an installed
+	// snap. Actually committing the update is done via the returned
+	// bootStateUpdate's commit method. It will return information for
+	// rebooting if necessary.
+	setNext(isUndo bool, s snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error)
 
 	// markSuccessful lazily implements marking the boot
 	// successful for the type's boot snap. The actual committing

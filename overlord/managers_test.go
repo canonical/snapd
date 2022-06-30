@@ -2973,9 +2973,9 @@ type: kernel`
 	restarting, _ = restart.Pending(st)
 	c.Check(restarting, Equals, true)
 
-	// we need to reboot with a "new" try kernel, so kernel_status was set again
+	// we revert to the previous working kernel, so kernel_status is unset now
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
-		"kernel_status": boot.TryStatus,
+		"kernel_status": "",
 	})
 
 	// we should not have extracted any more kernel assets than before, since
@@ -2992,16 +2992,14 @@ type: kernel`
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Current, DeepEquals, snap.R(1))
 
-	// since we need to do a reboot to go back to the old kernel, we should now
-	// have kernel on the bootloader as the new one, and the try kernel on the
-	// booloader as the old one
+	// we will reboot to go back to the old kernel, we should now
+	// have the old kernel on the bootloader and no try kernel
 	finalCurrentKernel, err := bloader.Kernel()
 	c.Assert(err, IsNil)
-	c.Assert(finalCurrentKernel.Filename(), Equals, kernelSnapInfo.Filename())
+	c.Assert(finalCurrentKernel.Filename(), Equals, firstKernel.Filename())
 
-	finalTryKernel, err := bloader.TryKernel()
-	c.Assert(err, IsNil)
-	c.Assert(finalTryKernel.Filename(), Equals, firstKernel.Filename())
+	_, err = bloader.TryKernel()
+	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
 
 	// TODO:UC20: this test should probably simulate another reboot and confirm
 	// that at the end of everything we have GetCurrentBoot() return the old

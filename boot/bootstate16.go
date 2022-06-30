@@ -159,7 +159,7 @@ func (s16 *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate,
 	return u16, nil
 }
 
-func (s16 *bootState16) setNext(s snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error) {
+func (s16 *bootState16) setNext(isUndo bool, s snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error) {
 	nextBoot := s.Filename()
 
 	nextBootVar := fmt.Sprintf("snap_try_%s", s16.varSuffix)

@@ -764,7 +764,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(false)
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -807,7 +807,7 @@ func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextSameKernelSnap(
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(false)
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -847,7 +847,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(false)
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -960,7 +960,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(false)
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -1073,7 +1073,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(false)
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -1185,7 +1185,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(false)
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -1303,7 +1303,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(false)
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -1346,7 +1346,7 @@ func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextNewKernelSnap(c
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(false)
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -1534,7 +1534,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
 	c.Assert(bootBase.IsTrivial(), Equals, false)
 
 	// make the base used on next boot
-	rebootRequired, err := bootBase.SetNextBoot()
+	rebootRequired, err := bootBase.SetNextBoot(false)
 	c.Assert(err, IsNil)
 
 	// we don't need to reboot because it's the same base snap
@@ -1573,7 +1573,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
 	c.Assert(bootBase.IsTrivial(), Equals, false)
 
 	// make the base used on next boot
-	rebootRequired, err := bootBase.SetNextBoot()
+	rebootRequired, err := bootBase.SetNextBoot(false)
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -1667,7 +1667,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnapNoReseal(c *C) {
 	c.Assert(bootBase.IsTrivial(), Equals, false)
 
 	// make the base used on next boot
-	rebootRequired, err := bootBase.SetNextBoot()
+	rebootRequired, err := bootBase.SetNextBoot(false)
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -4207,7 +4207,7 @@ func (s *bootenv20RebootBootloaderSuite) TestCoreParticipant20WithRebootBootload
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(false)
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired.RebootRequired, Equals, true)
 	// Test that we retrieve a RebootBootloader interface
