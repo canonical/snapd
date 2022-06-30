@@ -195,6 +195,10 @@ func (iface *posixMQInterface) getPaths(attrs interfaces.Attrer, name string) ([
 	}
 
 	for i, path := range pathList {
+		if len(path) == 0 {
+			return nil, fmt.Errorf(`posix-mq slot "path" attribute values cannot be empty`)
+		}
+
 		// Path must begin with a /
 		if path[0] != '/' {
 			path = "/" + path
