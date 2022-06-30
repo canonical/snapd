@@ -672,23 +672,23 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, `
-Quota    Parent  Constraints                                Current
-cp0              memory=9.9kB,cpu=90%                       memory=10.0kB
-cp1              cpu=2x,cpu=90%                             
-cps0     cp1     cpu=40%                                    
-js0      cp1     journal-size=1.05MB,journal-rate=50x/1m0s  
-cp2              cpu=2x,cpu=100%,cpu-set=0,1                
-cps1     cp2     memory=9.9kB,cpu=50%,cpu-set=1             memory=10.0kB
-ggg              memory=1000B,threads=100                   memory=3000B
-hhh              threads=100                                
-xxx              memory=9.9kB                               memory=10.0kB
-yyyyyyy          memory=1000B                               
-zzz              memory=5000B                               
-aaa      zzz     memory=1000B                               
-ccc      aaa     memory=400B                                
-ddd      aaa     memory=400B                                
-fff      aaa     memory=1000B                               
-bbb      zzz     memory=1000B                               memory=400B
+Quota    Parent  Constraints                               Current
+cp0              memory=9.9kB,cpu=90%                      memory=10.0kB
+cp1              cpu=2x,cpu=90%                            
+cps0     cp1     cpu=40%                                   
+js0      cp1     journal-size=1.05MB,journal-rate=50/1m0s  
+cp2              cpu=2x,cpu=100%,cpu-set=0,1               
+cps1     cp2     memory=9.9kB,cpu=50%,cpu-set=1            memory=10.0kB
+ggg              memory=1000B,threads=100                  memory=3000B
+hhh              threads=100                               
+xxx              memory=9.9kB                              memory=10.0kB
+yyyyyyy          memory=1000B                              
+zzz              memory=5000B                              
+aaa      zzz     memory=1000B                              
+ccc      aaa     memory=400B                               
+ddd      aaa     memory=400B                               
+fff      aaa     memory=1000B                              
+bbb      zzz     memory=1000B                              memory=400B
 `[1:])
 	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 1)
 }

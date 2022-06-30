@@ -531,7 +531,7 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 				grpConstraints = append(grpConstraints, "journal-size="+strings.TrimSpace(fmtSize(int64(q.Constraints.Journal.Size))))
 			}
 			if q.Constraints.Journal.RateCount != 0 && q.Constraints.Journal.RatePeriod != 0 {
-				grpConstraints = append(grpConstraints, fmt.Sprintf("journal-rate=%dx/%s", q.Constraints.Journal.RateCount, q.Constraints.Journal.RatePeriod))
+				grpConstraints = append(grpConstraints, fmt.Sprintf("journal-rate=%d/%s", q.Constraints.Journal.RateCount, q.Constraints.Journal.RatePeriod))
 			}
 		}
 
