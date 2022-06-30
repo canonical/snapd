@@ -1436,12 +1436,12 @@ func (f *snapdBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.SnapDirO
 	return f.fakeSnappyBackend.RemoveSnapCommonData(info, nil)
 }
 
-func (f *snapdBackend) RemoveSnapSaveData(info *snap.Info, opts *dirs.SnapDirOptions) error {
-	dir := snap.CommonSaveDir(info.InstanceName())
+func (f *snapdBackend) RemoveSnapSaveData(info *snap.Info) error {
+	dir := snap.CommonDataSaveDir(info.InstanceName())
 	if err := os.Remove(dir); err != nil {
 		return fmt.Errorf("unexpected error: %v", err)
 	}
-	return f.fakeSnappyBackend.RemoveSnapSaveData(info, nil)
+	return f.fakeSnappyBackend.RemoveSnapSaveData(info)
 }
 
 func isUndone(c *C, tasks []*state.Task, kind string, numExpected int) {
@@ -1500,7 +1500,7 @@ func makeTestSnaps(c *C, st *state.State) {
 	c.Assert(os.MkdirAll(snap.DataDir("some-snap", si1.Revision), 0755), IsNil)
 	c.Assert(os.MkdirAll(snap.DataDir("some-snap", si2.Revision), 0755), IsNil)
 	c.Assert(os.MkdirAll(snap.CommonDataDir("some-snap"), 0755), IsNil)
-	c.Assert(os.MkdirAll(snap.CommonSaveDir("some-snap"), 0755), IsNil)
+	c.Assert(os.MkdirAll(snap.CommonDataSaveDir("some-snap"), 0755), IsNil)
 }
 
 func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {

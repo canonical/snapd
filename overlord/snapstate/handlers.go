@@ -1204,44 +1204,6 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doCreateSnapSave(t *state.Task, _ *tomb.Tomb) (err error) {
-	st := t.State()
-	st.Lock()
-	snapsup, _, err := snapSetupAndState(t)
-	st.Unlock()
-	if err != nil {
-		return err
-	}
-
-	// verify that ubuntu-save has been mounted under the expected path and
-	// that it is indeed a mount-point.
-	if hasSave, err := osutil.IsMounted(dirs.SnapSaveDir); err != nil || !hasSave {
-		if err != nil {
-			return fmt.Errorf("cannot check if ubuntu-save is mounted: %v", err)
-		}
-		return nil
-	}
-
-	saveDir := snap.CommonSaveDir(snapsup.InstanceName())
-	return os.MkdirAll(saveDir, 0755)
-}
-
-func (m *SnapManager) undoCreateSnapSave(t *state.Task, _ *tomb.Tomb) (err error) {
-	st := t.State()
-	st.Lock()
-	snapsup, _, err := snapSetupAndState(t)
-	st.Unlock()
-	if err != nil {
-		return err
-	}
-
-	saveDir := snap.CommonSaveDir(snapsup.InstanceName())
-	if exists, _, err := osutil.DirExists(saveDir); err != nil || !exists {
-		return nil
-	}
-	return os.RemoveAll(saveDir)
-}
-
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
@@ -1292,6 +1254,10 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 			t.Errorf("cannot undo partial snap %q data copy, failed removing shared directory: %v", snapsup.InstanceName(), err)
 		}
 		return copyDataErr
+	}
+
+	if err := m.backend.SetupSnapSaveData(newInfo, pb); err != nil {
+		return err
 	}
 
 	var oldBase string
@@ -1449,6 +1415,9 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
 	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, dirOpts); err != nil {
+		return err
+	}
+	if err := m.backend.UndoSetupSnapSaveData(newInfo, oldInfo, pb); err != nil {
 		return err
 	}
 
@@ -2797,7 +2766,7 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 
-		if err = m.backend.RemoveSnapSaveData(info, dirOpts); err != nil {
+		if err = m.backend.RemoveSnapSaveData(info); err != nil {
 			return err
 		}
 

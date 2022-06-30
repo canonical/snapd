@@ -5488,6 +5488,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			old:  "<no-old>",
 		},
 		{
+			op:   "setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "core"),
+		},
+		{
 			op:    "setup-profiles:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -7746,6 +7750,10 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 			old:  filepath.Join(dirs.SnapMountDir, "snapd/1"),
 		},
 		{
+			op:   "setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "snapd"),
+		},
+		{
 			op:    "setup-profiles:Doing",
 			name:  "snapd",
 			revno: snap.R(11),
@@ -7905,7 +7913,6 @@ func (s *snapmgrTestSuite) addSnapsForRemodel(c *C) {
 
 var nonReLinkKinds = []string{
 	"copy-snap-data",
-	"create-snap-save",
 	"setup-profiles",
 	"auto-connect",
 	"set-auto-aliases",
