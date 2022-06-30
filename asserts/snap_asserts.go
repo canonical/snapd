@@ -378,7 +378,7 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 				}
 			}
 			if maxRevision != 0 && maxRevision < minRevision {
-				return nil, fmt.Errorf("optional max-revision must greater than min-revision in revision-authority")
+				return nil, fmt.Errorf("optional max-revision cannot be less than min-revision in revision-authority")
 			}
 			devscope, err := compileDeviceScopeConstraint(m, "revision-authority")
 			if err != nil {

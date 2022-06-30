@@ -346,7 +346,7 @@ func (sds *snapDeclSuite) TestDecodeInvalidWithRevisionAuthority(c *C) {
 		{"prov2\n", "*\n", `provenance in revision authority contains an invalid element: "\*"`},
 		{"    min-revision: 100\n", "    min-revision: 0\n", `"min-revision" in revision authority must be >=1: 0`},
 		{"    max-revision: 1000000\n", "    max-revision: 0\n", `"max-revision" in revision authority must be >=1: 0`},
-		{"    max-revision: 1000000\n", "    max-revision: 10\n", `optional max-revision must greater than min-revision in revision-authority`},
+		{"    max-revision: 1000000\n", "    max-revision: 10\n", `optional max-revision cannot be less than min-revision in revision-authority`},
 		{"    on-store:\n      - store1\n", "    on-store: foo", `on-store in revision-authority must be a list of strings`},
 	}
 
