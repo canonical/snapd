@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,24 +20,15 @@
 package kmod
 
 import (
-	kmod_wrapper "github.com/snapcore/snapd/osutil/kmod"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
-	kmodLoadModule = kmod_wrapper.LoadModule
+	ModprobeCommand = modprobeCommand
 )
 
-// loadModules loads given list of modules via modprobe.
-// Since different kernels may not have the requested module, we treat any
-// error from modprobe as non-fatal and subsequent module loads are attempted
-// (otherwise failure to load a module means failure to connect the interface
-// and the other security backends)
-func (b *Backend) loadModules(modules []string) {
-	if b.preseed {
-		return
-	}
-	for _, mod := range modules {
-		// ignore errors which are logged by loadModule() via syslog
-		_ = kmodLoadModule(mod, []string{})
-	}
+func MockModprobeCommand(f func(args ...string) error) (restore func()) {
+	r := testutil.Backup(&modprobeCommand)
+	modprobeCommand = f
+	return r
 }

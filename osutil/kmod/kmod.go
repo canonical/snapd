@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,15 +20,29 @@
 package kmod
 
 import (
-	"github.com/snapcore/snapd/testutil"
+	"fmt"
+	"os/exec"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
-func MockLoadModule(f func(module string, options []string) error) (restore func()) {
-	r := testutil.Backup(&kmodLoadModule)
-	kmodLoadModule = f
-	return r
+var modprobeCommand = func(args ...string) error {
+	allArgs := append([]string{"--syslog"}, args...)
+	err := exec.Command("modprobe", allArgs...).Run()
+	if err != nil {
+		exitCode, err := osutil.ExitCode(err)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("modprobe failed with exit status %d (see syslog for details)", exitCode)
+	}
+	return nil
 }
 
-func (b *Backend) LoadModules(modules []string) {
-	b.loadModules(modules)
+func LoadModule(module string, options []string) error {
+	return modprobeCommand(append([]string{module}, options...)...)
+}
+
+func UnloadModule(module string) error {
+	return modprobeCommand("-r", module)
 }
