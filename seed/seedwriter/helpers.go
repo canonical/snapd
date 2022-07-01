@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -160,10 +160,12 @@ func (fnd *finderFromFetcher) Find(assertionType *asserts.AssertionType, headers
 // DeriveSideInfo tries to construct a SideInfo for the given snap
 // using its digest to fetch the relevant snap assertions. It will
 // fail with an asserts.NotFoundError if it cannot find them.
-func DeriveSideInfo(snapPath string, rf RefAssertsFetcher, db asserts.RODatabase) (*snap.SideInfo, []*asserts.Ref, error) {
+// model is used to cross check that the found snap-revision is applicable
+// on the device.
+func DeriveSideInfo(snapPath string, model *asserts.Model, rf RefAssertsFetcher, db asserts.RODatabase) (*snap.SideInfo, []*asserts.Ref, error) {
 	fnd := &finderFromFetcher{f: rf, db: db}
 	prev := len(rf.Refs())
-	si, err := snapasserts.DeriveSideInfo(snapPath, fnd)
+	si, err := snapasserts.DeriveSideInfo(snapPath, model, fnd)
 	if err != nil {
 		return nil, nil, err
 	}
