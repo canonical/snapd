@@ -948,6 +948,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"uinput":                true,
 		"unity8":                true,
 		"xilinx-dma":            true,
+		"zfs":                   true,
 	}
 
 	for _, iface := range all {
@@ -1202,6 +1203,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"unity8":                true,
 		"wayland":               true,
 		"xilinx-dma":            true,
+		"zfs":                   true,
 	}
 
 	for _, iface := range all {
