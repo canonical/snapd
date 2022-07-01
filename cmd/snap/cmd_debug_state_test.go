@@ -449,6 +449,40 @@ func (s *SnapSuite) TestDebugConnectionDetails(c *C) {
 	}
 }
 
+func (s *SnapSuite) TestDebugConnectionPlugAndSlot(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(ioutil.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
+
+	for i, connArg := range []string{"gnome-calculator:network,core:network"} {
+		s.ResetStdStreams()
+		rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", fmt.Sprintf("--connection=%s", connArg), stateFile})
+		c.Assert(err, IsNil)
+		c.Assert(rest, DeepEquals, []string{})
+		c.Check(s.Stdout(), Matches,
+			"id: gnome-calculator:network core:network\n"+
+				"auto: true\n"+
+				"by-gadget: false\n"+
+				"interface: network\n"+
+				"undesired: false\n"+
+				"\n", Commentf("#%d: %s", i, connArg))
+		c.Check(s.Stderr(), Equals, "")
+	}
+}
+
+func (s *SnapSuite) TestDebugConnectionInvalidCombination(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(ioutil.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
+
+	for _, connArg := range []string{"gnome-calculator,core:network"} {
+		s.ResetStdStreams()
+		_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", fmt.Sprintf("--connection=%s", connArg), stateFile})
+		c.Assert(err, ErrorMatches, fmt.Sprintf("invalid command with connection args: %s", connArg))
+		c.Check(s.Stdout(), Equals, "")
+	}
+}
+
 func (s *SnapSuite) TestDebugConnectionDetailsMany(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
