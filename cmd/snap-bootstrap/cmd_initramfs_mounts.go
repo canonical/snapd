@@ -1626,8 +1626,8 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	typs := []snap.Type{snap.TypeBase, snap.TypeGadget, snap.TypeKernel}
 
-	// 4.2 choose base and kernel snaps (this includes updating modeenv if
-	//     needed to try the base snap)
+	// 4.2 choose base, gadget and kernel snaps (this includes updating
+	//     modeenv if needed to try the base snap)
 	mounts, err := boot.InitramfsRunModeSelectSnapsToMount(typs, modeEnv)
 	if err != nil {
 		return err
@@ -1638,7 +1638,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	//            to the function above to make decisions there, or perhaps this
 	//            code actually belongs in the bootloader implementation itself
 
-	// 4.3 mount base and kernel snaps
+	// 4.3 mount base, gadget and kernel snaps
 	// make sure this is a deterministic order
 	for _, typ := range []snap.Type{snap.TypeBase, snap.TypeGadget, snap.TypeKernel} {
 		if sn, ok := mounts[typ]; ok {
