@@ -4789,10 +4789,6 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
 	i++
-	if !release.OnClassic {
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Create snap "%s" save data directory`, name))
-		i++
-	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (%s) available to the system`, name, revno))
@@ -4842,10 +4838,6 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
 	i++
-	if !release.OnClassic {
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Create snap "%s" save data directory`, name))
-		i++
-	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (%s) available to the system`, name, revno))
