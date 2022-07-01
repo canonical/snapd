@@ -53,8 +53,14 @@ func findSnapDeclaration(snapID, name string, db Finder) (*asserts.SnapDeclarati
 	return snapDecl, nil
 }
 
-// CrossCheck tries to cross check the instance name, hash digest and size of a snap plus its metadata in a SideInfo with the relevant snap assertions in a database that should have been populated with them.
-func CrossCheck(instanceName, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo, db Finder) error {
+// CrossCheck tries to cross check the instance name, hash digest and
+// size of a snap plus its metadata in a SideInfo with the relevant
+// snap assertions in a database that should have been populated with
+// them.
+// The optional model assertion must be passed to have full cross
+// checks in the case of delegated authority snap-revisions before
+// installing a snap.
+func CrossCheck(instanceName, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo, model *asserts.Model, db Finder) error {
 	// get relevant assertions and do cross checks
 	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": snapSHA3_384,
