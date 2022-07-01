@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -454,6 +454,42 @@ func makeTestSnap(c *C, snapYaml string) string {
 	c.Assert(err, IsNil)
 
 	return dest
+}
+
+func (s *infoSuite) TestReadProvenanceFromSnapFile(c *C) {
+	yaml := `name: foo
+version: 1
+provenance: prov-1
+`
+	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
+	snapf, err := snapfile.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	prov, err := snap.ReadProvenanceFromSnapFile(snapf)
+	c.Assert(err, IsNil)
+	c.Check(prov, Equals, "prov-1")
+
+	yaml = `name: foo
+version: 1
+`
+	snapPath = snaptest.MakeTestSnapWithFiles(c, yaml, nil)
+	snapf, err = snapfile.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	prov, err = snap.ReadProvenanceFromSnapFile(snapf)
+	c.Assert(err, IsNil)
+	c.Check(prov, Equals, "")
+
+	yaml = `name: foo
+version: 1
+provenance: [1]
+`
+	snapPath = snaptest.MakeTestSnapWithFiles(c, yaml, nil)
+	snapf, err = snapfile.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadProvenanceFromSnapFile(snapf)
+	c.Assert(err, ErrorMatches, `(?s)cannot unmarshal provenance from snap\.yaml: .*`)
 }
 
 // produce descrs for empty hooks suitable for snaptest.PopulateDir

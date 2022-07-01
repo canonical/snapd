@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/metautil"
@@ -1481,4 +1483,21 @@ func (a AppInfoBySnapApp) Less(i, j int) bool {
 		return a[i].Name < a[j].Name
 	}
 	return iName < jName
+}
+
+// ReadProvenanceFromSnapFile reads the provenance field form the given Container metadata.
+// It returns the empty string is the field is not set explicitly.
+func ReadProvenanceFromSnapFile(snapf Container) (string, error) {
+	// XXX use something safer
+	meta, err := snapf.ReadFile("meta/snap.yaml")
+	if err != nil {
+		return "", err
+	}
+	var m struct {
+		Provenance string `yaml:"provenance"`
+	}
+	if err := yaml.Unmarshal(meta, &m); err != nil {
+		return "", fmt.Errorf("cannot unmarshal provenance from snap.yaml: %v", err)
+	}
+	return m.Provenance, nil
 }
