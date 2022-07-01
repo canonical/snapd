@@ -179,23 +179,17 @@ func parseJournalRateQuota(journalRateLimit string) (count int, period time.Dura
 	// messages and P is the period as a time string (e.g 5s)
 	parts := strings.Split(journalRateLimit, "/")
 	if len(parts) != 2 {
-		return 0, 0, fmt.Errorf("missing number of messages and period")
+		return 0, 0, fmt.Errorf("rate limit must be of the form <number of messages>/<period duration>")
 	}
 
 	count, err = strconv.Atoi(parts[0])
 	if err != nil {
 		return 0, 0, err
 	}
-	if count == 0 {
-		return 0, 0, fmt.Errorf("messages count must be larger than 0")
-	}
 
 	period, err = time.ParseDuration(parts[1])
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot parse pariod: %v", err)
-	}
-	if period == 0 {
-		return 0, 0, fmt.Errorf("period must be larger than 0")
 	}
 	return count, period, nil
 }

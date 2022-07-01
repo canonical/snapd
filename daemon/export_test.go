@@ -37,6 +37,8 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+var CreateQuotaValues = createQuotaValues
+
 func APICommands() []*Command {
 	return api
 }
