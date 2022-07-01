@@ -379,7 +379,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 
 	var curSnaps []*tooling.CurrentSnap
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, f, db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, f, db)
 		if err != nil && !asserts.IsNotFound(err) {
 			return err
 		}

@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
@@ -63,6 +64,19 @@ func (s *sideloadSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+}
+
+func (s *sideloadSuite) markSeeded(d *daemon.Daemon) {
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	st.Set("seeded", true)
+	model := s.Brands.Model("can0nical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "kernel",
+	})
+	snapstatetest.MockDeviceModel(model)
 }
 
 var sideLoadBodyWithoutDevMode = "" +
@@ -143,6 +157,7 @@ func (s *sideloadSuite) TestSideloadSnapJailMode(c *check.C) {
 
 func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedInstanceName string, expectedFlags snapstate.Flags) (summary string, systemRestartImmediate bool) {
 	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
 
 	soon := 0
 	var origEnsureStateSoon func(*state.State)
@@ -279,6 +294,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 
 func (s *sideloadSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 	d := s.daemonWithOverlordMockAndStore()
+	s.markSeeded(d)
 	// add the assertions first
 	st := d.Overlord().State()
 
@@ -356,7 +372,8 @@ func (s *sideloadSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMockAndStore()
+	d := s.daemonWithOverlordMockAndStore()
+	s.markSeeded(d)
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
@@ -405,7 +422,8 @@ func (s *sideloadSuite) TestSideloadSnapChangeConflict(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMockAndStore()
+	d := s.daemonWithOverlordMockAndStore()
+	s.markSeeded(d)
 
 	defer daemon.MockUnsafeReadSnapInfo(func(path string) (*snap.Info, error) {
 		return &snap.Info{SuggestedName: "foo"}, nil
@@ -448,7 +466,8 @@ func (s *sideloadSuite) TestSideloadSnapInstanceNameNoKey(c *check.C) {
 }
 
 func (s *sideloadSuite) TestSideloadSnapInstanceNameMismatch(c *check.C) {
-	s.daemonWithFakeSnapManager(c)
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
 
 	defer daemon.MockUnsafeReadSnapInfo(func(path string) (*snap.Info, error) {
 		return &snap.Info{SuggestedName: "bar"}, nil
@@ -650,6 +669,7 @@ func (s *sideloadSuite) TestSideloadCleanUpUnusedTempSnapFiles(c *check.C) {
 
 func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
 	expectedFlags := &snapstate.Flags{RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionAllSnaps}
 
 	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
@@ -818,6 +838,7 @@ func (s *sideloadSuite) errReadInfo(c *check.C, body string) {
 
 func (s *sideloadSuite) TestSideloadManySnapsAsserted(c *check.C) {
 	d := s.daemonWithOverlordMockAndStore()
+	s.markSeeded(d)
 	st := d.Overlord().State()
 	snaps := []string{"one", "two"}
 	s.mockAssertions(c, st, snaps)
@@ -829,6 +850,7 @@ func (s *sideloadSuite) TestSideloadManySnapsAsserted(c *check.C) {
 
 func (s *sideloadSuite) TestSideloadManySnapsOneNotAsserted(c *check.C) {
 	d := s.daemonWithOverlordMockAndStore()
+	s.markSeeded(d)
 	st := d.Overlord().State()
 	snaps := []string{"one", "two"}
 	s.mockAssertions(c, st, []string{"one"})

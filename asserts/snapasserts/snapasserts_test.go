@@ -248,7 +248,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoHappy(c *C) {
 	err = ioutil.WriteFile(snapPath, fakeSnap(42), 0644)
 	c.Assert(err, IsNil)
 
-	si, err := snapasserts.DeriveSideInfo(snapPath, s.localDB)
+	si, err := snapasserts.DeriveSideInfo(snapPath, nil, s.localDB)
 	c.Assert(err, IsNil)
 	c.Check(si, DeepEquals, &snap.SideInfo{
 		RealName: "foo",
@@ -264,7 +264,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoNoSignatures(c *C) {
 	err := ioutil.WriteFile(snapPath, fakeSnap(42), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = snapasserts.DeriveSideInfo(snapPath, s.localDB)
+	_, err = snapasserts.DeriveSideInfo(snapPath, nil, s.localDB)
 	// cannot find signatures with metadata for snap
 	c.Assert(asserts.IsNotFound(err), Equals, true)
 }
@@ -290,7 +290,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoSizeMismatch(c *C) {
 	err = ioutil.WriteFile(snapPath, fakeSnap(42), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = snapasserts.DeriveSideInfo(snapPath, s.localDB)
+	_, err = snapasserts.DeriveSideInfo(snapPath, nil, s.localDB)
 	c.Check(err, ErrorMatches, fmt.Sprintf(`snap %q does not have expected size according to signatures \(broken or tampered\): %d != %d`, snapPath, size, size+5))
 }
 
@@ -329,6 +329,6 @@ func (s *snapassertsSuite) TestDeriveSideInfoRevokedSnapDecl(c *C) {
 	err = ioutil.WriteFile(snapPath, fakeSnap(42), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = snapasserts.DeriveSideInfo(snapPath, s.localDB)
+	_, err = snapasserts.DeriveSideInfo(snapPath, nil, s.localDB)
 	c.Check(err, ErrorMatches, fmt.Sprintf(`cannot install snap %q with a revoked snap declaration`, snapPath))
 }

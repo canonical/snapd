@@ -287,7 +287,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	c.Assert(err, IsNil)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, rf, db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, rf, db)
 		if !asserts.IsNotFound(err) {
 			c.Assert(err, IsNil)
 		}
