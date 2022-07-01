@@ -46,7 +46,7 @@ func InitramfsRunModeSelectSnapsToMount(
 			bs := &bootState20Base{}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
 		case snap.TypeGadget:
-			// Do not mount if modeset does not have gadget entry
+			// Do not mount if modeenv does not have gadget entry
 			if modeenv.Gadget == "" {
 				continue
 			}
