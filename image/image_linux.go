@@ -454,7 +454,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 
 			// fetch snap assertions
 			prev := len(f.Refs())
-			if _, err = FetchAndCheckSnapAssertions(dlsn.Path, dlsn.Info, f, db); err != nil {
+			if _, err = FetchAndCheckSnapAssertions(dlsn.Path, dlsn.Info, model, f, db); err != nil {
 				return err
 			}
 			aRefs := f.Refs()[prev:]
