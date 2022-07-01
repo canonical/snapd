@@ -1,7 +1,7 @@
 summary: Test that snap-confine errors in the right way
 
-environment:
-    BASE_SNAP: core20
+# Skip 32-bit architectures because the core20 snap is not available there
+systems: [-*-32]
 
 prepare: |
     echo "Install test snap"
