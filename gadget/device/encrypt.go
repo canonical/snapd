@@ -62,6 +62,10 @@ func RecoveryKeyUnder(deviceFDEDir string) string {
 	return filepath.Join(deviceFDEDir, "recovery.key")
 }
 
+func TpmLockoutAuthUnder(saveDeviceFDEDir string) string {
+	return filepath.Join(saveDeviceFDEDir, "tpm-lockout-auth")
+}
+
 // FallbackDataSealedKeyUnder returns the name of a fallback ubuntu data key.
 func FallbackDataSealedKeyUnder(seedDeviceFDEDir string) string {
 	return filepath.Join(seedDeviceFDEDir, "ubuntu-data.recovery.sealed-key")

@@ -37,6 +37,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/efi"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
@@ -631,5 +633,37 @@ func ReleasePCRResourceHandles(handles ...uint32) error {
 	if errCnt := len(errs); errCnt != 0 {
 		return fmt.Errorf("cannot release TPM resources for %v handles:\n%v", errCnt, strings.Join(errs, "\n"))
 	}
+	return nil
+}
+
+func MarkSuccessful() error {
+	encrypted := device.HasEncryptedMarkerUnder(dirs.SnapFDEDir)
+	if encrypted {
+		lockoutAuthFile := device.TpmLockoutAuthUnder(dirs.SnapFDEDirUnderSave(dirs.SnapSaveDir))
+		if err := resetLockoutCounter(lockoutAuthFile); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func resetLockoutCounter(lockoutAuthFile string) error {
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		return fmt.Errorf("cannot connect to TPM: %v", err)
+	}
+	defer tpm.Close()
+
+	lockoutAuth, err := ioutil.ReadFile(lockoutAuthFile)
+	if err != nil {
+		return fmt.Errorf("cannot read existing lockout auth: %v", err)
+	}
+	tpm.LockoutHandleContext().SetAuthValue(lockoutAuth)
+
+	if err := tpm.DictionaryAttackLockReset(tpm.LockoutHandleContext(), tpm.HmacSession()); err != nil {
+		return err
+	}
+
 	return nil
 }

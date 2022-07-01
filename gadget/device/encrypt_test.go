@@ -81,4 +81,6 @@ func (s *deviceSuite) TestLocations(c *C) {
 		"/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/marker")
 	c.Check(device.EncryptionMarkerUnder(boot.InstallHostFDESaveDir), Equals,
 		"/run/mnt/ubuntu-save/device/fde/marker")
+	c.Check(device.TpmLockoutAuthUnder(dirs.SnapFDEDirUnderSave(dirs.SnapSaveDir)), Equals,
+		"/var/lib/snapd/save/device/fde/tpm-lockout-auth")
 }

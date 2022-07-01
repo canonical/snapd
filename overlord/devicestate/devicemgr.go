@@ -67,6 +67,8 @@ import (
 var (
 	cloudInitStatus   = sysconfig.CloudInitStatus
 	restrictCloudInit = sysconfig.RestrictCloudInit
+
+	secbootMarkSuccessful = secboot.MarkSuccessful
 )
 
 // EarlyConfig is a hook set by configstate that can process early configuration
@@ -889,6 +891,10 @@ func (m *DeviceManager) ensureBootOk() error {
 				return err
 			}
 		}
+		if err := secbootMarkSuccessful(); err != nil {
+			return err
+		}
+
 		m.bootOkRan = true
 	}
 
