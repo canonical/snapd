@@ -2766,6 +2766,8 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 
+		// Same for the common snap save data directory, we only remove it if this
+		// is the last version.
 		if err = m.backend.RemoveSnapSaveData(info); err != nil {
 			return err
 		}
