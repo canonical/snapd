@@ -24,7 +24,7 @@ execute: |
         # before systemd 239, the tool was named systemd-resolve some systems do not support
         if command -v resolvectl; then
             resolvectl flush-caches
-        elif systemd-resolve -h 2&>1 | grep flush-caches; then
+        elif systemd-resolve -h | MATCH flush-caches; then
             # centos 7: doesn't support caching dns, so no flushing required
             # ubuntu-core 16: systemd-resolve doesn't support flush-caches
             systemd-resolve --flush-caches
