@@ -25,7 +25,6 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/gadget/quantity"
-	"golang.org/x/xerrors"
 )
 
 type postQuotaData struct {
@@ -45,26 +44,36 @@ type QuotaGroupResult struct {
 	Current     *QuotaValues `json:"current,omitempty"`
 }
 
+type QuotaCPUValues struct {
+	Count      int `json:"count,omitempty"`
+	Percentage int `json:"percentage,omitempty"`
+}
+
+type QuotaCPUSetValues struct {
+	CPUs []int `json:"cpus,omitempty"`
+}
+
 type QuotaValues struct {
-	Memory quantity.Size `json:"memory,omitempty"`
+	Memory  quantity.Size      `json:"memory,omitempty"`
+	CPU     *QuotaCPUValues    `json:"cpu,omitempty"`
+	CPUSet  *QuotaCPUSetValues `json:"cpu-set,omitempty"`
+	Threads int                `json:"threads,omitempty"`
 }
 
 // EnsureQuota creates a quota group or updates an existing group.
 // The list of snaps can be empty.
-func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, maxMemory quantity.Size) (changeID string, err error) {
+func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, constraints *QuotaValues) (changeID string, err error) {
 	if groupName == "" {
-		return "", xerrors.Errorf("cannot create or update quota group without a name")
+		return "", fmt.Errorf("cannot create or update quota group without a name")
 	}
 	// TODO: use naming.ValidateQuotaGroup()
 
 	data := &postQuotaData{
-		Action:    "ensure",
-		GroupName: groupName,
-		Parent:    parent,
-		Snaps:     snaps,
-		Constraints: &QuotaValues{
-			Memory: maxMemory,
-		},
+		Action:      "ensure",
+		GroupName:   groupName,
+		Parent:      parent,
+		Snaps:       snaps,
+		Constraints: constraints,
 	}
 
 	var body bytes.Buffer
@@ -81,7 +90,7 @@ func (client *Client) EnsureQuota(groupName string, parent string, snaps []strin
 
 func (client *Client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error) {
 	if groupName == "" {
-		return nil, xerrors.Errorf("cannot get quota group without a name")
+		return nil, fmt.Errorf("cannot get quota group without a name")
 	}
 
 	var res *QuotaGroupResult
@@ -95,7 +104,7 @@ func (client *Client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error)
 
 func (client *Client) RemoveQuotaGroup(groupName string) (changeID string, err error) {
 	if groupName == "" {
-		return "", xerrors.Errorf("cannot remove quota group without a name")
+		return "", fmt.Errorf("cannot remove quota group without a name")
 	}
 	data := &postQuotaData{
 		Action:    "remove",
@@ -108,8 +117,7 @@ func (client *Client) RemoveQuotaGroup(groupName string) (changeID string, err e
 	}
 	chgID, err := client.doAsync("POST", "/v2/quotas", nil, nil, &body)
 	if err != nil {
-		fmt := "cannot remove quota group: %w"
-		return "", xerrors.Errorf(fmt, err)
+		return "", fmt.Errorf("cannot remove quota group: %w", err)
 	}
 
 	return chgID, nil

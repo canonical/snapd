@@ -32,10 +32,23 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+type MissingContextError struct {
+	subcommand string
+}
+
+func (e *MissingContextError) Error() string {
+	return fmt.Sprintf(`cannot invoke snapctl operation commands (here %q) from outside of a snap`, e.subcommand)
+}
+
 type baseCommand struct {
 	stdout io.Writer
 	stderr io.Writer
 	c      *hookstate.Context
+	name   string
+}
+
+func (c *baseCommand) setName(name string) {
+	c.name = name
 }
 
 func (c *baseCommand) setStdout(w io.Writer) {
@@ -66,7 +79,16 @@ func (c *baseCommand) context() *hookstate.Context {
 	return c.c
 }
 
+func (c *baseCommand) ensureContext() (context *hookstate.Context, err error) {
+	if c.c == nil {
+		err = &MissingContextError{c.name}
+	}
+	return c.c, err
+}
+
 type command interface {
+	setName(name string)
+
 	setStdout(w io.Writer)
 	setStderr(w io.Writer)
 
@@ -115,7 +137,7 @@ func (f ForbiddenCommandError) Error() string {
 
 // nonRootAllowed lists the commands that can be performed even when snapctl
 // is invoked not by root.
-var nonRootAllowed = []string{"get", "services", "set-health", "is-connected", "system-mode"}
+var nonRootAllowed = []string{"get", "services", "set-health", "is-connected", "system-mode", "model"}
 
 // Run runs the requested command.
 func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr []byte, err error) {
@@ -134,6 +156,7 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 	var stderrBuffer bytes.Buffer
 	for name, cmdInfo := range commands {
 		cmd := cmdInfo.generator()
+		cmd.setName(name)
 		cmd.setStdout(&stdoutBuffer)
 		cmd.setStderr(&stderrBuffer)
 		cmd.setContext(context)

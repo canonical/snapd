@@ -60,7 +60,7 @@ type remodelLogicBaseSuite struct {
 	brands       *assertstest.SigningAccounts
 
 	capturedDevBE storecontext.DeviceBackend
-	dummyStore    snapstate.StoreService
+	testStore     snapstate.StoreService
 }
 
 func (s *remodelLogicBaseSuite) SetUpTest(c *C) {
@@ -91,11 +91,11 @@ func (s *remodelLogicBaseSuite) SetUpTest(c *C) {
 		assertstatetest.AddMany(s.state, s.brands.AccountsAndKeys("my-brand")...)
 	}()
 
-	s.dummyStore = new(storetest.Store)
+	s.testStore = new(storetest.Store)
 
 	newStore := func(devBE storecontext.DeviceBackend) snapstate.StoreService {
 		s.capturedDevBE = devBE
-		return s.dummyStore
+		return s.testStore
 	}
 
 	hookMgr, err := hookstate.Manager(s.state, o.TaskRunner())
@@ -455,10 +455,10 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextStore(c *C) {
 	})
 
 	sto := remodCtx.Store()
-	c.Check(sto, Equals, s.dummyStore)
+	c.Check(sto, Equals, s.testStore)
 
 	// store is kept and not rebuilt
-	s.dummyStore = nil
+	s.testStore = nil
 
 	sto1 := remodCtx.Store()
 	c.Check(sto1, Equals, sto)
@@ -720,19 +720,19 @@ func (s *remodelLogicSuite) TestRemodelContextForTaskNo(c *C) {
 
 	// task is nil
 	remodCtx1, err := devicestate.DeviceCtx(s.state, nil, nil)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(remodCtx1, IsNil)
 
 	// no change
 	t := s.state.NewTask("random-task", "...")
 	_, err = devicestate.DeviceCtx(s.state, t, nil)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// not a remodel change
 	chg := s.state.NewChange("not-remodel", "...")
 	chg.AddTask(t)
 	_, err = devicestate.DeviceCtx(s.state, t, nil)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *remodelLogicSuite) setupForRereg(c *C) (oldModel, newModel *asserts.Model) {
@@ -896,13 +896,13 @@ func (s *remodelLogicSuite) TestReregRemodelContextNewSerial(c *C) {
 
 	// no new serial yet
 	_, err = devBE.Serial()
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	chg := s.state.NewChange("remodel", "...")
 
 	remodCtx.Init(chg)
 
-	// sanity check
+	// validity check
 	device1, err := devBE.Device()
 	c.Assert(err, IsNil)
 	c.Check(device1, DeepEquals, &auth.DeviceState{
@@ -912,13 +912,13 @@ func (s *remodelLogicSuite) TestReregRemodelContextNewSerial(c *C) {
 
 	// still no new serial
 	_, err = devBE.Serial()
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	newSerial := makeSerialAssertionInState(c, s.brands, s.state, "my-brand", "other-model", "serialserialserial2")
 
 	// same
 	_, err = devBE.Serial()
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// finish registration
 	regCtx := remodCtx.(devicestate.RegistrationContext)
@@ -1008,6 +1008,11 @@ func (s *uc20RemodelLogicSuite) SetUpTest(c *C) {
 	err = devicestate.RecordSeededSystem(s.mgr, s.state, &sys)
 	c.Assert(err, IsNil)
 	s.oldSeededTs = sys.SeedTime
+
+	err = s.bootloader.SetBootVars(map[string]string{
+		"snapd_good_recovery_systems": "0000",
+	})
+	c.Assert(err, IsNil)
 }
 
 var uc20ModelDefaults = map[string]interface{}{
@@ -1068,7 +1073,7 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 
 	remodCtx.Init(chg)
 
-	// sanity check
+	// validity check
 	device1, err := devBE.Device()
 	c.Assert(err, IsNil)
 	c.Check(device1, DeepEquals, &auth.DeviceState{
@@ -1149,6 +1154,11 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 		"seed-time": "",
 	})
 	c.Assert(newSeedTs.After(s.oldSeededTs), Equals, true)
+	env, err := s.bootloader.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Assert(env, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "0000,1234",
+	})
 }
 
 func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
@@ -1248,6 +1258,11 @@ func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
 		"seed-time": "",
 	})
 	c.Assert(newSeedTs.After(s.oldSeededTs), Equals, true)
+	env, err := s.bootloader.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Assert(env, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "0000,1234",
+	})
 }
 
 func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
@@ -1318,4 +1333,9 @@ func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
 		"timestamp": s.oldModel.Timestamp().Format(time.RFC3339Nano),
 		"seed-time": s.oldSeededTs.Format(time.RFC3339Nano),
 	}})
+	env, err := s.bootloader.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Assert(env, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "0000",
+	})
 }

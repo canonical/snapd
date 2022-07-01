@@ -33,9 +33,12 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type taskRunnerSuite struct{}
+type taskRunnerSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&taskRunnerSuite{})
 
@@ -57,8 +60,6 @@ func (b *stateBackend) EnsureBefore(d time.Duration) {
 		b.ensureBeforeSeen <- true
 	}
 }
-
-func (b *stateBackend) RequestRestart(t state.RestartType) {}
 
 func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change) {
 	for i := 0; i < 20; i++ {
@@ -141,6 +142,10 @@ var sequenceTests = []struct{ setup, result string }{{
 	setup:  "t11:was-done:1 t12:was-done:2 t21:was-done:2 t31:was-done:2 t32:do-error:2",
 	result: "t31:undo t32:do t32:do-error t21:undo",
 }}
+
+func (ts *taskRunnerSuite) SetUpTest(c *C) {
+	ts.BaseTest.SetUpTest(c)
+}
 
 func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 	sb := &stateBackend{}
@@ -343,6 +348,206 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 	}
 }
 
+func (ts *taskRunnerSuite) TestAbortAcrossLanesDescendantTask(c *C) {
+
+	// <task>(<lane>)
+	//  t11(1) -> t12(1)                                                  => t15(1)
+	//                   \                                               /
+	//                    => t13(1,2) => t14(1,2) => t23(1,2) => t24(1,2)
+	//                   /                                               \
+	//  t21(2) -> t22(2)                                                  => t25(2)
+	//
+	names := strings.Fields("t11 t12 t13 t14 t15 t21 t22 t23 t24 t25")
+
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(len(st.Tasks()), Equals, 0)
+
+	chg := st.NewChange("install", "...")
+	tasks := make(map[string]*state.Task)
+	for _, name := range names {
+		tasks[name] = st.NewTask("do", name)
+		chg.AddTask(tasks[name])
+	}
+	tasks["t12"].WaitFor(tasks["t11"])
+	tasks["t13"].WaitFor(tasks["t12"])
+	tasks["t14"].WaitFor(tasks["t13"])
+	tasks["t15"].WaitFor(tasks["t14"])
+	for lane, names := range map[int][]string{
+		1: {"t11", "t12", "t13", "t14", "t15", "t23", "t24"},
+		2: {"t21", "t22", "t23", "t24", "t25", "t13", "t14"},
+	} {
+		for _, name := range names {
+			tasks[name].JoinLane(lane)
+		}
+	}
+
+	tasks["t22"].WaitFor(tasks["t21"])
+	tasks["t23"].WaitFor(tasks["t22"])
+	tasks["t24"].WaitFor(tasks["t23"])
+	tasks["t25"].WaitFor(tasks["t24"])
+
+	tasks["t13"].WaitFor(tasks["t22"])
+	tasks["t15"].WaitFor(tasks["t24"])
+	tasks["t23"].WaitFor(tasks["t14"])
+
+	ch := make(chan string, 256)
+	do := func(task *state.Task, tomb *tomb.Tomb) error {
+		c.Logf("do %q", task.Summary())
+		label := task.Summary()
+		if label == "t15" {
+			ch <- fmt.Sprintf("t15:error")
+			return fmt.Errorf("mock error")
+		}
+		ch <- fmt.Sprintf("%s:do", label)
+		return nil
+	}
+	undo := func(task *state.Task, tomb *tomb.Tomb) error {
+		c.Logf("undo %q", task.Summary())
+		label := task.Summary()
+		ch <- fmt.Sprintf("%s:undo", label)
+		return nil
+	}
+	r.AddHandler("do", do, undo)
+
+	c.Logf("-----")
+
+	st.Unlock()
+	ensureChange(c, r, sb, chg)
+	st.Lock()
+	close(ch)
+	var sequence []string
+	for event := range ch {
+		sequence = append(sequence, event)
+	}
+	for _, name := range names {
+		task := tasks[name]
+		c.Logf("%5s %5s lanes: %v status: %v", task.ID(), task.Summary(), task.Lanes(), task.Status())
+	}
+	c.Assert(sequence[:4], testutil.DeepUnsortedMatches, []string{
+		"t11:do", "t12:do",
+		"t21:do", "t22:do",
+	})
+	c.Assert(sequence[4:8], DeepEquals, []string{
+		"t13:do", "t14:do", "t23:do", "t24:do",
+	})
+	c.Assert(sequence[8:10], testutil.DeepUnsortedMatches, []string{
+		"t25:do",
+		"t15:error",
+	})
+	c.Assert(sequence[10:11], testutil.DeepUnsortedMatches, []string{
+		"t25:undo",
+	})
+	c.Assert(sequence[11:15], DeepEquals, []string{
+		"t24:undo", "t23:undo", "t14:undo", "t13:undo",
+	})
+	c.Assert(sequence[15:19], testutil.DeepUnsortedMatches, []string{
+		"t21:undo", "t22:undo",
+		"t12:undo", "t11:undo",
+	})
+}
+
+func (ts *taskRunnerSuite) TestAbortAcrossLanesStriclyOrderedTasks(c *C) {
+
+	// <task>(<lane>)
+	//  t11(1) -> t12(1)
+	//                   \
+	//                    => t13(1,2) => t14(1,2) => t23(1,2) => t24(1,2)
+	//                   /
+	//  t21(2) -> t22(2)
+	//
+	names := strings.Fields("t11 t12 t13 t14 t21 t22 t23 t24")
+
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(len(st.Tasks()), Equals, 0)
+
+	chg := st.NewChange("install", "...")
+	tasks := make(map[string]*state.Task)
+	for _, name := range names {
+		tasks[name] = st.NewTask("do", name)
+		chg.AddTask(tasks[name])
+	}
+	tasks["t12"].WaitFor(tasks["t11"])
+	tasks["t13"].WaitFor(tasks["t12"])
+	tasks["t14"].WaitFor(tasks["t13"])
+	for lane, names := range map[int][]string{
+		1: {"t11", "t12", "t13", "t14", "t23", "t24"},
+		2: {"t21", "t22", "t23", "t24", "t13", "t14"},
+	} {
+		for _, name := range names {
+			tasks[name].JoinLane(lane)
+		}
+	}
+
+	tasks["t22"].WaitFor(tasks["t21"])
+	tasks["t23"].WaitFor(tasks["t22"])
+	tasks["t24"].WaitFor(tasks["t23"])
+
+	tasks["t13"].WaitFor(tasks["t22"])
+	tasks["t23"].WaitFor(tasks["t14"])
+
+	ch := make(chan string, 256)
+	do := func(task *state.Task, tomb *tomb.Tomb) error {
+		c.Logf("do %q", task.Summary())
+		label := task.Summary()
+		if label == "t24" {
+			ch <- fmt.Sprintf("t24:error")
+			return fmt.Errorf("mock error")
+		}
+		ch <- fmt.Sprintf("%s:do", label)
+		return nil
+	}
+	undo := func(task *state.Task, tomb *tomb.Tomb) error {
+		c.Logf("undo %q", task.Summary())
+		label := task.Summary()
+		ch <- fmt.Sprintf("%s:undo", label)
+		return nil
+	}
+	r.AddHandler("do", do, undo)
+
+	c.Logf("-----")
+
+	st.Unlock()
+	ensureChange(c, r, sb, chg)
+	st.Lock()
+	close(ch)
+	var sequence []string
+	for event := range ch {
+		sequence = append(sequence, event)
+	}
+	for _, name := range names {
+		task := tasks[name]
+		c.Logf("%5s %5s lanes: %v status: %v", task.ID(), task.Summary(), task.Lanes(), task.Status())
+	}
+	c.Assert(sequence[:4], testutil.DeepUnsortedMatches, []string{
+		"t11:do", "t12:do",
+		"t21:do", "t22:do",
+	})
+	c.Assert(sequence[4:8], DeepEquals, []string{
+		"t13:do", "t14:do", "t23:do", "t24:error",
+	})
+	c.Assert(sequence[8:11], DeepEquals, []string{
+		"t23:undo", "t14:undo", "t13:undo",
+	})
+	c.Assert(sequence[11:], testutil.DeepUnsortedMatches, []string{
+		"t21:undo", "t22:undo",
+		"t12:undo", "t11:undo",
+	})
+}
+
 func (ts *taskRunnerSuite) TestExternalAbort(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
@@ -371,6 +576,101 @@ func (ts *taskRunnerSuite) TestExternalAbort(c *C) {
 
 	// The Abort above must make Ensure kill the task, or this will never end.
 	ensureChange(c, r, sb, chg)
+}
+
+func (ts *taskRunnerSuite) TestUndoSingleLane(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	r.AddHandler("noop", func(t *state.Task, tb *tomb.Tomb) error {
+		return nil
+	}, func(t *state.Task, tb *tomb.Tomb) error {
+		return nil
+	})
+
+	r.AddHandler("noop-slow", func(t *state.Task, tb *tomb.Tomb) error {
+		time.Sleep(10 * time.Millisecond)
+		t.State().Lock()
+		defer t.State().Unlock()
+		// critical
+		t.SetStatus(state.DoneStatus)
+		return nil
+	}, func(t *state.Task, tb *tomb.Tomb) error {
+		return nil
+	})
+
+	r.AddHandler("fail", func(t *state.Task, tb *tomb.Tomb) error {
+		return fmt.Errorf("fail")
+	}, nil)
+
+	st.Lock()
+
+	lane := st.NewLane()
+	chg := st.NewChange("install", "...")
+
+	// first taskset
+	var prev *state.Task
+	for i := 0; i < 10; i++ {
+		t := st.NewTask("noop-slow", "...")
+		if prev != nil {
+			t.WaitFor(prev)
+		}
+		chg.AddTask(t)
+		t.JoinLane(lane)
+
+		prev = t
+	}
+
+	// second taskset with a failing task that triggers undo of the change
+	prev = nil
+	for i := 0; i < 10; i++ {
+		t := st.NewTask("noop", "...")
+		if prev != nil {
+			t.WaitFor(prev)
+		}
+		chg.AddTask(t)
+		t.JoinLane(lane)
+		prev = t
+	}
+
+	// error trigger
+	t := st.NewTask("fail", "...")
+	t.WaitFor(prev)
+	chg.AddTask(t)
+	t.JoinLane(lane)
+
+	st.Unlock()
+
+	var done bool
+	for !done {
+		c.Assert(r.Ensure(), Equals, nil)
+		st.Lock()
+		done = chg.IsReady() && chg.IsClean()
+		st.Unlock()
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	// make sure all tasks are either undone or on hold (except for "fail" task which
+	// is in error).
+	for _, t := range st.Tasks() {
+		switch t.Kind() {
+		case "fail":
+			c.Assert(t.Status(), Equals, state.ErrorStatus)
+		case "noop", "noop-slow":
+			if t.Status() != state.UndoneStatus && t.Status() != state.HoldStatus {
+				for _, tsk := range st.Tasks() {
+					fmt.Printf("%s -> %s\n", tsk.Kind(), tsk.Status())
+				}
+				c.Fatalf("unexpected status: %s", t.Status())
+			}
+		default:
+			c.Fatalf("unexpected kind: %s", t.Kind())
+		}
+	}
 }
 
 func (ts *taskRunnerSuite) TestStopHandlerJustFinishing(c *C) {
@@ -824,7 +1124,7 @@ func (ts *taskRunnerSuite) TestUndoSequence(c *C) {
 	terr.WaitFor(prev)
 	chg.AddTask(terr)
 
-	c.Check(chg.Tasks(), HasLen, 9) // sanity check
+	c.Check(chg.Tasks(), HasLen, 9) // validity check
 
 	st.Unlock()
 

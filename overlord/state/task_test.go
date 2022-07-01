@@ -127,7 +127,7 @@ func (ts *taskSuite) TestClear(c *C) {
 
 	t.Clear("a")
 
-	c.Check(t.Get("a", &v), Equals, state.ErrNoState)
+	c.Check(t.Get("a", &v), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (ts *taskSuite) TestStatusAndSetStatus(c *C) {
@@ -142,6 +142,18 @@ func (ts *taskSuite) TestStatusAndSetStatus(c *C) {
 	t.SetStatus(state.DoneStatus)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (ts *taskSuite) TestSetDoneAfterAbortNoop(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+	t.SetStatus(state.AbortStatus)
+	c.Check(t.Status(), Equals, state.AbortStatus)
+	t.SetStatus(state.DoneStatus)
+	c.Check(t.Status(), Equals, state.AbortStatus)
 }
 
 func (ts *taskSuite) TestIsCleanAndSetClean(c *C) {
@@ -561,6 +573,7 @@ func (cs *taskSuite) TestTaskSetEdge(c *C) {
 	// edges are just typed strings
 	edge1 := state.TaskSetEdge("on-edge")
 	edge2 := state.TaskSetEdge("eddie")
+	edge3 := state.TaskSetEdge("not-found")
 
 	// nil task causes panic
 	c.Check(func() { ts.MarkEdge(nil, edge1) }, PanicMatches, `cannot set edge "on-edge" with nil task`)
@@ -593,6 +606,12 @@ func (cs *taskSuite) TestTaskSetEdge(c *C) {
 	t, err = ts.Edge(edge1)
 	c.Assert(t, Equals, t3)
 	c.Assert(err, IsNil)
+
+	// it is possible to check if edge exists without failing
+	t = ts.MaybeEdge(edge1)
+	c.Assert(t, Equals, t3)
+	t = ts.MaybeEdge(edge3)
+	c.Assert(t, IsNil)
 }
 
 func (cs *taskSuite) TestTaskAddAllWithEdges(c *C) {

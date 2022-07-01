@@ -21,6 +21,7 @@ package devicestate
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -49,7 +51,7 @@ func taskRecoverySystemSetup(t *state.Task) (*recoverySystemSetup, error) {
 	if err == nil {
 		return &setup, nil
 	}
-	if err != state.ErrNoState {
+	if !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	// find the task which holds the data
@@ -144,8 +146,44 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 
 	// get all infos
 	infoGetter := func(name string) (info *snap.Info, present bool, err error) {
-		// snap may be present in the system in which case info comes
-		// from snapstate
+		// snaps are either being fetched or present in the system
+
+		if isRemodel {
+			// in a remodel scenario, the snaps may need to be
+			// fetched and thus their content can be different from
+			// what we have in already installed snaps, so we should
+			// first check the download tasks before consulting
+			// snapstate
+			logger.Debugf("requested info for snap %q being installed during remodel", name)
+			for _, tskID := range setup.SnapSetupTasks {
+				taskWithSnapSetup := st.Task(tskID)
+				snapsup, err := snapstate.TaskSnapSetup(taskWithSnapSetup)
+				if err != nil {
+					return nil, false, err
+				}
+				if snapsup.SnapName() != name {
+					continue
+				}
+				// by the time this task runs, the file has already been
+				// downloaded and validated
+				snapFile, err := snapfile.Open(snapsup.MountFile())
+				if err != nil {
+					return nil, false, err
+				}
+				info, err = snap.ReadInfoFromSnapFile(snapFile, snapsup.SideInfo)
+				if err != nil {
+					return nil, false, err
+				}
+
+				return info, true, nil
+			}
+		}
+
+		// either a remodel scenario, in which case the snap is not
+		// among the ones being fetched, or just creating a recovery
+		// system, in which case we use the snaps that are already
+		// installed
+
 		info, err = snapstate.CurrentInfo(st, name)
 		if err == nil {
 			hash, _, err := asserts.SnapFileSHA3_384(info.MountFile())
@@ -157,40 +195,6 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 		}
 		if _, ok := err.(*snap.NotInstalledError); !ok {
 			return nil, false, err
-		}
-		logger.Debugf("requested info for not yet installed snap %q", name)
-
-		if !isRemodel {
-			// when not in remodel, a recovery system can only be
-			// created from snaps that are already installed
-			return nil, false, nil
-		}
-
-		// in a remodel scenario, the snaps may need to be fetched, and
-		// thus we can pull the relevant information from the tasks
-		// carrying snap-setup
-
-		for _, tskID := range setup.SnapSetupTasks {
-			taskWithSnapSetup := st.Task(tskID)
-			snapsup, err := snapstate.TaskSnapSetup(taskWithSnapSetup)
-			if err != nil {
-				return nil, false, err
-			}
-			if snapsup.SnapName() != name {
-				continue
-			}
-			// by the time this task runs, the file has already been
-			// downloaded and validated
-			snapFile, err := snapfile.Open(snapsup.MountFile())
-			if err != nil {
-				return nil, false, err
-			}
-			info, err = snap.ReadInfoFromSnapFile(snapFile, snapsup.SideInfo)
-			if err != nil {
-				return nil, false, err
-			}
-
-			return info, true, nil
 		}
 		return nil, false, nil
 	}
@@ -272,7 +276,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 	t.SetStatus(state.DoneStatus)
 
 	logger.Noticef("restarting into candidate system %q", label)
-	m.state.RequestRestart(state.RestartSystemNow)
+	restart.Request(m.state, restart.RestartSystemNow, nil)
 	return nil
 }
 
@@ -326,7 +330,7 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 	st.Lock()
 	defer st.Unlock()
 
-	if ok, _ := st.Restarting(); ok {
+	if ok, _ := restart.Pending(st); ok {
 		// don't continue until we are in the restarted snapd
 		t.Logf("Waiting for system reboot...")
 		return &state.Retry{}

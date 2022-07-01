@@ -9,6 +9,10 @@ details: |
 
 systems: [fedora-*, centos-*]
 
+environment:
+    # OOM occasionally
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
@@ -34,6 +38,8 @@ restore: |
     tests.session -u test restore
     # Stop dbus activated by test-snapd-desktop snap.
     systemctl --user stop dbus.service || true
+
+    rm -rf /home/test/foo
 
 execute: |
     systemctl restart snapd.socket

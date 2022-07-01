@@ -33,7 +33,7 @@ type diskLabelSuite struct{}
 
 var _ = Suite(&diskLabelSuite{})
 
-func (ts *diskLabelSuite) TestEncodeHexBlkIDFormat(c *C) {
+func (ts *diskLabelSuite) TestBlkIDEncodeDecodeLabelHappy(c *C) {
 	// Test output obtained with the following program:
 	//
 	// #include <string.h>
@@ -72,8 +72,9 @@ func (ts *diskLabelSuite) TestEncodeHexBlkIDFormat(c *C) {
 
 		// these are "unsafe" chars, so they get encoded
 		{"ubuntu data", `ubuntu\x20data`},
-		{"ubuntu\ttab", `ubuntu\x9tab`},
-		{"ubuntu\nnewline", `ubuntu\xanewline`},
+		{"ubuntu\ttab", `ubuntu\x09tab`},
+		{"ubuntu\t9tab", `ubuntu\x099tab`},
+		{"ubuntu\nnewline", `ubuntu\x0anewline`},
 		{"foo bar", `foo\x20bar`},
 		{"foo/bar", `foo\x2fbar`},
 		{"foo/../bar", `foo\x2f..\x2fbar`},
@@ -81,9 +82,72 @@ func (ts *diskLabelSuite) TestEncodeHexBlkIDFormat(c *C) {
 		{"pinkié pie", `pinkié\x20pie`},
 		{"(EFI Boot)", `\x28EFI\x20Boot\x29`},
 		{"[System Boot]", `\x5bSystem\x20Boot\x5d`},
+		// 0x7e is just a 1-rune long character that is not in the allowed set
+		// to demonstrate that these two input strings are encoded/decoded
+		// properly with the constant double width
+		{"ubuntu\x7etab", `ubuntu\x7etab`},
+		{"ubuntu\x07" + "etab", `ubuntu\x07etab`},
+		// works when the only character is an escaped one too
+		{"\t", `\x09`},
 	}
 	for _, t := range tt {
 		c.Logf("tc: %v %q", t.in, t.out)
 		c.Assert(disks.BlkIDEncodeLabel(t.in), Equals, t.out)
+
+		// make sure the other way around works too
+		expin, err := disks.BlkIDDecodeLabel(t.out)
+		c.Assert(err, IsNil)
+
+		c.Assert(expin, Equals, t.in)
+	}
+}
+
+func (ts *diskLabelSuite) TestBlkIDDecodeLabelUnhappy(c *C) {
+	tt := []struct {
+		in     string
+		experr string
+	}{
+		{
+			`\x7z`,
+			`string is malformed, unparsable escape sequence at "\\x7z"`,
+		},
+		{
+			`\x09\x7y`,
+			`string is malformed, unparsable escape sequence at "\\x7y"`,
+		},
+		{
+			`\z`,
+			`string is malformed, unparsable escape sequence at "\\z"`,
+		},
+		{
+			`\`,
+			`string is malformed, unparsable escape sequence at "\\"`,
+		},
+		{
+			`\x40\`,
+			`string is malformed, unparsable escape sequence at "\\"`,
+		},
+		{
+			`\x`,
+			`string is malformed, unparsable escape sequence at "\\x"`,
+		},
+		{
+			`\x40\x`,
+			`string is malformed, unparsable escape sequence at "\\x"`,
+		},
+		{
+			`\x0`,
+			`string is malformed, unparsable escape sequence at "\\x0"`,
+		},
+		{
+			`\x40\x4`,
+			`string is malformed, unparsable escape sequence at "\\x4"`,
+		},
+	}
+
+	for _, t := range tt {
+		c.Logf("input: %q", t.in)
+		_, err := disks.BlkIDDecodeLabel(t.in)
+		c.Assert(err, ErrorMatches, t.experr)
 	}
 }

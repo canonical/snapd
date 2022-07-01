@@ -27,8 +27,8 @@ import (
 	"gopkg.in/check.v1"
 
 	snapCmd "github.com/snapcore/snapd/cmd/snap"
-	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store/tooling"
 )
 
 // these only cover errors that happen before hitting the network,
@@ -87,7 +87,7 @@ func (s *SnapSuite) TestPrintInstalHint(c *check.C) {
 
 func (s *SnapSuite) TestDownloadDirect(c *check.C) {
 	var n int
-	restore := snapCmd.MockDownloadDirect(func(snapName string, revision snap.Revision, dlOpts image.DownloadOptions) error {
+	restore := snapCmd.MockDownloadDirect(func(snapName string, revision snap.Revision, dlOpts tooling.DownloadSnapOptions) error {
 		c.Check(snapName, check.Equals, "a-snap")
 		c.Check(revision, check.Equals, snap.R(0))
 		c.Check(dlOpts.Basename, check.Equals, "some-base-name")
@@ -114,7 +114,7 @@ func (s *SnapSuite) TestDownloadDirect(c *check.C) {
 
 func (s *SnapSuite) TestDownloadDirectErrors(c *check.C) {
 	var n int
-	restore := snapCmd.MockDownloadDirect(func(snapName string, revision snap.Revision, dlOpts image.DownloadOptions) error {
+	restore := snapCmd.MockDownloadDirect(func(snapName string, revision snap.Revision, dlOpts tooling.DownloadSnapOptions) error {
 		n++
 		return fmt.Errorf("some-error")
 	})

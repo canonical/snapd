@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -43,7 +44,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -84,8 +87,12 @@ type SnapSetup struct {
 	//
 	// Prereq is a list of snap-names that need to get installed
 	// together with this snap. Typically used when installing
-	// content-snaps with default-providers.
+	// content-snaps with default-providers. Should be set along
+	// with PrereqContentAttrs (and match its keys) for forward-compatibility.
 	Prereq []string `json:"prereq,omitempty"`
+
+	// PrereqContentAttrs maps default providers snap names to the content they provide.
+	PrereqContentAttrs map[string][]string `json:"prereq-content-attrs,omitempty"`
 
 	Flags
 
@@ -98,6 +105,34 @@ type SnapSetup struct {
 	// InstanceKey is set by the user during installation and differs for
 	// each instance of given snap
 	InstanceKey string `json:"instance-key,omitempty"`
+
+	// MigratedHidden is set if the user's snap dir has been migrated to
+	// ~/.snap/data in the current change. So a 'false' value doesn't mean the
+	// dir isn't hidden. This prevents us from always having to set it.
+	MigratedHidden bool `json:"migrated-hidden,omitempty"`
+
+	// UndidHiddenMigration is set if the migration to a hidden snap dir was undone in
+	// the current change. A 'false' value doesn't mean the dir is hidden, just
+	// that it wasn't exposed in this change.
+	UndidHiddenMigration bool `json:"migrated-exposed,omitempty"`
+
+	// MigratedToExposedHome is set if the ~/Snap dir was created and initialized in the
+	// current change. A 'false' value doesn't that ~/Snap doesn't exist, just
+	// that it wasn't create in the current change.
+	MigratedToExposedHome bool `json:"migrated-exposed-home,omitempty"`
+
+	// RemovedExposedHome is set if the ~/Snap sub directory was removed. This
+	// should only happen when undoing the creation of that directory in the same
+	// (failed) change. To disable usage of the exposed home in a change after it
+	// was created, SnapSetup.DisableExposedHome should be used.
+	RemovedExposedHome bool `json:"removed-exposed-home,omitempty"`
+
+	// EnableExposedHome is set if the ~/Snap sub directory already exists and
+	// should be used.
+	EnableExposedHome bool `json:"enable-exposed-home,omitempty"`
+
+	// DisabledExposedHome is set if ~/Snap should not be used as $HOME.
+	DisableExposedHome bool `json:"disable-exposed-home,omitempty"`
 }
 
 func (snapsup *SnapSetup) InstanceName() string {
@@ -127,11 +162,25 @@ func (snapsup *SnapSetup) MountFile() string {
 	return snap.MountFile(snapsup.InstanceName(), snapsup.Revision())
 }
 
+// RevertStatus is a status of a snap revert; anything other than DefaultStatus
+// denotes a reverted snap revision that needs special handling in terms of
+// refresh blocking.
+type RevertStatus int
+
+const (
+	DefaultStatus RevertStatus = iota
+	NotBlocked
+)
+
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
 	SnapType string           `json:"type"` // Use Type and SetType
 	Sequence []*snap.SideInfo `json:"sequence"`
-	Active   bool             `json:"active,omitempty"`
+
+	// RevertStatus maps revisions to RevertStatus for revisions that
+	// need special handling in Block().
+	RevertStatus map[int]RevertStatus `json:"revert-status,omitempty"`
+	Active       bool                 `json:"active,omitempty"`
 
 	// LastActiveDisabledServices is a list of services that were disabled in
 	// this snap when it was last active - i.e. when it was disabled, before
@@ -175,6 +224,14 @@ type SnapState struct {
 
 	// LastRefreshTime records the time when the snap was last refreshed.
 	LastRefreshTime *time.Time `json:"last-refresh-time,omitempty"`
+
+	// MigratedHidden is set if the user's snap dir has been migrated
+	// to ~/.snap/data.
+	MigratedHidden bool `json:"migrated-hidden,omitempty"`
+
+	// MigratedToExposedHome is set if ~/Snap was created and initialized. If set, ~/Snap
+	// should be used as the snap's HOME.
+	MigratedToExposedHome bool `json:"migrated-exposed-home,omitempty"`
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {
@@ -260,16 +317,23 @@ func (snapst *SnapState) LastIndex(revision snap.Revision) int {
 }
 
 // Block returns revisions that should be blocked on refreshes,
-// computed from Sequence[currentRevisionIndex+1:].
+// computed from Sequence[currentRevisionIndex+1:] and considering
+// special casing resulting from snapst.RevertStatus map.
 func (snapst *SnapState) Block() []snap.Revision {
-	// return revisions from Sequence[currentIndex:]
+	// return revisions from Sequence[currentIndex:], potentially excluding
+	// some of them based on RevertStatus.
 	currentIndex := snapst.LastIndex(snapst.Current)
 	if currentIndex < 0 || currentIndex+1 == len(snapst.Sequence) {
 		return nil
 	}
-	out := make([]snap.Revision, len(snapst.Sequence)-currentIndex-1)
-	for i, si := range snapst.Sequence[currentIndex+1:] {
-		out[i] = si.Revision
+	out := []snap.Revision{}
+	for _, si := range snapst.Sequence[currentIndex+1:] {
+		if status, ok := snapst.RevertStatus[si.Revision.N]; ok {
+			if status == NotBlocked {
+				continue
+			}
+		}
+		out = append(out, si.Revision)
 	}
 	return out
 }
@@ -464,6 +528,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 
 	// misc
 	runner.AddHandler("switch-snap", m.doSwitchSnap, nil)
+	runner.AddHandler("migrate-snap-home", m.doMigrateSnapHome, m.undoMigrateSnapHome)
 
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
@@ -498,7 +563,7 @@ func genRefreshRequestSalt(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
 
-	if err := st.Get("refresh-privacy-key", &refreshPrivacyKey); err != nil && err != state.ErrNoState {
+	if err := st.Get("refresh-privacy-key", &refreshPrivacyKey); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if refreshPrivacyKey != "" {
@@ -578,6 +643,134 @@ func (m *SnapManager) EnsureAutoRefreshesAreDelayed(delay time.Duration) ([]*sta
 	return autoRefreshChgsInFlight, nil
 }
 
+func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
+	// Do not do anything if we have already done this removal before on this
+	// device. This is because if, after we have removed vulnerable snaps the
+	// user decides to refresh to a vulnerable version of snapd, that is their
+	// choice and furthermore, this removal is itself really just a last minute
+	// circumvention for the issue where vulnerable snaps are left in place, we
+	// do not intend to ever do this again and instead will unmount or remount
+	// vulnerable old snaps as nosuid to prevent the suid snap-confine binaries
+	// in them from being available to abuse for fixed vulnerabilies that are
+	// not exploitable in the current versions of snapd/core snaps.
+	var alreadyRemoved bool
+	key := fmt.Sprintf("%s-snap-cve-2021-44731-vuln-removed", name)
+	if err := m.state.Get(key, &alreadyRemoved); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if alreadyRemoved {
+		return nil
+	}
+	var snapSt SnapState
+	err := Get(m.state, name, &snapSt)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if errors.Is(err, state.ErrNoState) {
+		// not installed, nothing to do
+		return nil
+	}
+
+	// check if the installed, active version is fixed
+	fixedVersionInstalled := false
+	inactiveVulnRevisions := []snap.Revision{}
+	for _, si := range snapSt.Sequence {
+		// check this version
+		s := snap.Info{SideInfo: *si}
+		ver, _, err := snapdtool.SnapdVersionFromInfoFile(filepath.Join(s.MountDir(), dirs.CoreLibExecDir))
+		if err != nil {
+			return err
+		}
+		// res is < 0 if "ver" is lower than "2.54.3"
+		res, err := strutil.VersionCompare(ver, "2.54.3")
+		if err != nil {
+			return err
+		}
+		revIsVulnerable := (res < 0)
+		switch {
+		case !revIsVulnerable && si.Revision == snapSt.Current:
+			fixedVersionInstalled = true
+		case revIsVulnerable && si.Revision == snapSt.Current:
+			// The active installed revision is not fixed, we can break out
+			// early since we know we won't be able to remove old revisions.
+			// Note that we do not attempt to refresh the snap right now, partly
+			// because it may not work due to validations on the core/snapd snap
+			// on some devices, but also because doing so out of band from
+			// normal, controllable refresh schedules introduces non-trivial
+			// load on store services and ignores user settings around refresh
+			// schedules which we ought to obey as best we can.
+			return nil
+		case revIsVulnerable && si.Revision != snapSt.Current:
+			// si revision is not fixed, but is not active, so it is a candidate
+			// for removal
+			inactiveVulnRevisions = append(inactiveVulnRevisions, si.Revision)
+		default:
+			// si revision is not active, but it is fixed, so just ignore it
+		}
+	}
+
+	if !fixedVersionInstalled {
+		return nil
+	}
+
+	// remove all the inactive vulnerable revisions
+	for _, rev := range inactiveVulnRevisions {
+		tss, err := Remove(m.state, name, rev, nil)
+
+		if err != nil {
+			// in case of conflict, just trigger another ensure in a little
+			// bit and try again later
+			if _, ok := err.(*ChangeConflictError); ok {
+				m.state.EnsureBefore(time.Minute)
+				return nil
+			}
+			return fmt.Errorf("cannot make task set for removing %s snap: %v", name, err)
+		}
+
+		msg := fmt.Sprintf(i18n.G("Remove inactive vulnerable %q snap (%v)"), name, rev)
+
+		chg := m.state.NewChange("remove-snap", msg)
+		chg.AddAll(tss)
+		chg.Set("snap-names", []string{name})
+	}
+
+	// TODO: is it okay to set state here as done or should we do this
+	// elsewhere after the change is done somehow?
+
+	// mark state as done
+	m.state.Set(key, true)
+
+	// not strictly necessary, but does not hurt to ensure anyways
+	m.state.EnsureBefore(0)
+
+	return nil
+}
+
+func (m *SnapManager) ensureVulnerableSnapConfineVersionsRemovedOnClassic() error {
+	// only remove snaps on classic
+	if !release.OnClassic {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// we have to remove vulnerable versions of both the core and snapd snaps
+	// only when we now have fixed versions installed / active
+	// the fixed version is 2.54.3, so if the version of the current core/snapd
+	// snap is that or higher, then we proceed (if we didn't already do this)
+
+	if err := m.ensureVulnerableSnapRemoved("snapd"); err != nil {
+		return err
+	}
+
+	if err := m.ensureVulnerableSnapRemoved("core"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // ensureForceDevmodeDropsDevmodeFromState undoes the forced devmode
 // in snapstate for forced devmode distros.
 func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
@@ -590,7 +783,7 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 
 	// int because we might want to come back and do a second pass at cleanup
 	var fixed int
-	if err := m.state.Get("fix-forced-devmode", &fixed); err != nil && err != state.ErrNoState {
+	if err := m.state.Get("fix-forced-devmode", &fixed); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -600,7 +793,7 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 
 	for _, name := range []string{"core", "ubuntu-core"} {
 		var snapst SnapState
-		if err := Get(m.state, name, &snapst); err == state.ErrNoState {
+		if err := Get(m.state, name, &snapst); errors.Is(err, state.ErrNoState) {
 			// nothing to see here
 			continue
 		} else if err != nil {
@@ -644,7 +837,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 	// check if snapd snap is installed
 	var snapst SnapState
 	err := Get(m.state, "snapd", &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	// nothing to do
@@ -677,7 +870,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 	// Note that state.ErrNoState should never happen in practise. However
 	// if it *does* happen we still want to fix those systems by installing
 	// the snapd snap.
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	coreChannel := snapst.TrackingChannel
@@ -694,7 +887,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 	// ensure we limit the retries in case something goes wrong
 	var lastSnapdTransitionAttempt time.Time
 	err = m.state.Get("snapd-transition-last-retry-time", &lastSnapdTransitionAttempt)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	now := time.Now()
@@ -705,7 +898,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 
 	var retryCount int
 	err = m.state.Get("snapd-transition-retry", &retryCount)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	m.state.Set("snapd-transition-retry", retryCount+1)
@@ -730,10 +923,10 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 
 	var snapst SnapState
 	err := Get(m.state, "ubuntu-core", &snapst)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -747,7 +940,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	// ensure we limit the retries in case something goes wrong
 	var lastUbuntuCoreTransitionAttempt time.Time
 	err = m.state.Get("ubuntu-core-transition-last-retry-time", &lastUbuntuCoreTransitionAttempt)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	now := time.Now()
@@ -765,7 +958,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 
 	var retryCount int
 	err = m.state.Get("ubuntu-core-transition-retry", &retryCount)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	m.state.Set("ubuntu-core-transition-retry", retryCount+1)
@@ -789,7 +982,7 @@ func (m *SnapManager) atSeed() error {
 	defer m.state.Unlock()
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != state.ErrNoState {
+	if !errors.Is(err, state.ErrNoState) {
 		// already seeded or other error
 		return err
 	}
@@ -877,6 +1070,7 @@ func (m *SnapManager) Ensure() error {
 		m.refreshHints.Ensure(),
 		m.catalogRefresh.Ensure(),
 		m.localInstallCleanup(),
+		m.ensureVulnerableSnapConfineVersionsRemovedOnClassic(),
 	}
 
 	//FIXME: use firstErr helper

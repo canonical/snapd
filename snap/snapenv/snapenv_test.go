@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/user"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -97,7 +98,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 }
 
 func (ts *HTestSuite) TestUser(c *C) {
-	env := userEnv(mockSnapInfo, "/root")
+	env := userEnv(mockSnapInfo, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
 		"SNAP_USER_DATA":   "/root/snap/foo/17",
@@ -114,7 +115,7 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 
 	// With the classic-preserves-xdg-runtime-dir feature disabled the snap
 	// per-user environment contains an override for XDG_RUNTIME_DIR.
-	env := userEnv(mockClassicSnapInfo, "/root")
+	env := userEnv(mockClassicSnapInfo, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
@@ -127,7 +128,7 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 	// per-user environment contains no overrides for XDG_RUNTIME_DIR.
 	f := features.ClassicPreservesXdgRuntimeDir
 	c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0644), IsNil)
-	env = userEnv(mockClassicSnapInfo, "/root")
+	env = userEnv(mockClassicSnapInfo, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
@@ -152,7 +153,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			os.Setenv("HOME", "")
 		}
 
-		env := snapEnv(info)
+		env := snapEnv(info, nil)
 		c.Assert(env, DeepEquals, osutil.Environment{
 			"SNAP":               fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
 			"SNAP_COMMON":        "/var/snap/snapname/common",
@@ -193,7 +194,7 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 			os.Setenv("HOME", "")
 		}
 
-		env := snapEnv(info)
+		env := snapEnv(info, nil)
 		c.Check(env, DeepEquals, osutil.Environment{
 			// Those are mapped to snap-specific directories by
 			// mount namespace setup
@@ -222,7 +223,7 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 func (ts *HTestSuite) TestParallelInstallUser(c *C) {
 	info := *mockSnapInfo
 	info.InstanceKey = "bar"
-	env := userEnv(&info, "/root")
+	env := userEnv(&info, "/root", nil)
 
 	c.Assert(env, DeepEquals, osutil.Environment{
 		"SNAP_USER_COMMON": "/root/snap/foo_bar/common",
@@ -243,7 +244,7 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 
 	// With the classic-preserves-xdg-runtime-dir feature disabled the snap
 	// per-user environment contains an override for XDG_RUNTIME_DIR.
-	env := userEnv(&info, "/root")
+	env := userEnv(&info, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		"SNAP_USER_COMMON": "/root/snap/foo_bar/common",
 		"SNAP_USER_DATA":   "/root/snap/foo_bar/17",
@@ -255,7 +256,7 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 	// per-user environment contains no overrides for XDG_RUNTIME_DIR.
 	f := features.ClassicPreservesXdgRuntimeDir
 	c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0644), IsNil)
-	env = userEnv(&info, "/root")
+	env = userEnv(&info, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		// NOTE, Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON": "/root/snap/foo_bar/common",
@@ -267,7 +268,7 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 func (s *HTestSuite) TestExtendEnvForRunForNonClassic(c *C) {
 	env := osutil.Environment{"TMPDIR": "/var/tmp"}
 
-	ExtendEnvForRun(env, mockSnapInfo)
+	ExtendEnvForRun(env, mockSnapInfo, nil)
 
 	c.Assert(env["SNAP_NAME"], Equals, "foo")
 	c.Assert(env["SNAP_COMMON"], Equals, "/var/snap/foo/common")
@@ -279,11 +280,62 @@ func (s *HTestSuite) TestExtendEnvForRunForNonClassic(c *C) {
 func (s *HTestSuite) TestExtendEnvForRunForClassic(c *C) {
 	env := osutil.Environment{"TMPDIR": "/var/tmp"}
 
-	ExtendEnvForRun(env, mockClassicSnapInfo)
+	ExtendEnvForRun(env, mockClassicSnapInfo, nil)
 
 	c.Assert(env["SNAP_NAME"], Equals, "foo")
 	c.Assert(env["SNAP_COMMON"], Equals, "/var/snap/foo/common")
 	c.Assert(env["SNAP_DATA"], Equals, "/var/snap/foo/17")
 
 	c.Assert(env["TMPDIR"], Equals, "/var/tmp")
+}
+
+func (s *HTestSuite) TestHiddenDirEnv(c *C) {
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	testDir := c.MkDir()
+	usr.HomeDir = testDir
+
+	restore := MockUserCurrent(func() (*user.User, error) {
+		return usr, nil
+	})
+	defer restore()
+
+	for _, t := range []struct {
+		dir  string
+		opts *dirs.SnapDirOptions
+	}{
+		{dir: dirs.UserHomeSnapDir, opts: nil},
+		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}},
+		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}}} {
+		env := osutil.Environment{}
+		ExtendEnvForRun(env, mockSnapInfo, t.opts)
+
+		c.Check(env["SNAP_USER_COMMON"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, "common"))
+		c.Check(env["SNAP_USER_DATA"], DeepEquals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
+
+		if t.opts != nil && t.opts.MigratedToExposedHome {
+			exposedSnapDir := filepath.Join(testDir, dirs.ExposedSnapHomeDir, mockSnapInfo.SuggestedName)
+			c.Check(env["HOME"], DeepEquals, exposedSnapDir)
+			c.Check(env["SNAP_USER_HOME"], DeepEquals, exposedSnapDir)
+
+			c.Check(env["XDG_DATA_HOME"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String(), "xdg-data"))
+			c.Check(env["XDG_CONFIG_HOME"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String(), "xdg-config"))
+			c.Check(env["XDG_CACHE_HOME"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String(), "xdg-cache"))
+		} else {
+			c.Check(env["HOME"], DeepEquals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
+			c.Check(env["SNAP_USER_HOME"], Equals, "")
+
+			c.Check(env["XDG_DATA_HOME"], Equals, "")
+			c.Check(env["XDG_CONFIG_HOME"], Equals, "")
+			c.Check(env["XDG_CACHE_HOME"], Equals, "")
+		}
+	}
+}
+
+func MockUserCurrent(f func() (*user.User, error)) func() {
+	old := userCurrent
+	userCurrent = f
+	return func() {
+		userCurrent = old
+	}
 }

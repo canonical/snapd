@@ -1,1 +1,1 @@
-./setregid.c
+setregid.c

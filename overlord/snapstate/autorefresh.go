@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -48,8 +49,11 @@ const maxPostponement = 95 * 24 * time.Hour
 // buffer for maxPostponement when holding snaps with auto-refresh gating
 const maxPostponementBuffer = 5 * 24 * time.Hour
 
-// cannot inhibit refreshes for more than maxInhibition
-const maxInhibition = 14 * 24 * time.Hour
+// cannot inhibit refreshes for more than maxInhibition;
+// deduct 1s so it doesn't look confusing initially when two notifications
+// get displayed in short period of time and it immediately goes from "14 days"
+// to "13 days" left.
+const maxInhibition = 14*24*time.Hour - time.Second
 
 // hooks setup by devicestate
 var (
@@ -228,7 +232,7 @@ func canRefreshOnMeteredConnection(st *state.State) (bool, error) {
 	tr := config.NewTransaction(st)
 	var onMetered string
 	err := tr.GetMaybe("core", "refresh.metered", &onMetered)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
 
@@ -364,7 +368,7 @@ func (m *autoRefresh) Ensure() error {
 				return nil
 			}
 
-			err = m.launchAutoRefresh(refreshSchedule)
+			err = m.launchAutoRefresh()
 			if _, ok := err.(*httputil.PersistentNetworkError); !ok {
 				m.nextRefresh = time.Time{}
 			} // else - refresh will be retried after refreshRetryDelay
@@ -489,7 +493,7 @@ func autoRefreshSummary(updated []string) string {
 }
 
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
-func (m *autoRefresh) launchAutoRefresh(refreshSchedule []*timeutil.Schedule) error {
+func (m *autoRefresh) launchAutoRefresh() error {
 	perfTimings := timings.New(map[string]string{"ensure": "auto-refresh"})
 	tm := perfTimings.StartSpan("auto-refresh", "query store and setup auto-refresh change")
 	defer func() {
@@ -601,7 +605,7 @@ func refreshScheduleManaged(st *state.State) (managed, requested, legacy bool) {
 func getTime(st *state.State, timeKey string) (time.Time, error) {
 	var t1 time.Time
 	err := st.Get(timeKey, &t1)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return time.Time{}, err
 	}
 	return t1, nil

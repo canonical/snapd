@@ -1,9 +1,6 @@
 summary: test snapshots work when core snap is refreshed and reverted
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     echo "Configure hosts file"
     # shellcheck disable=SC2016
     tests.nested exec 'echo "127.0.1.1 $HOSTNAME" | sudo tee /etc/hosts'
@@ -16,9 +13,6 @@ prepare: |
     tests.nested exec "sudo snap install test-snapd-rsync"
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     echo "Make sure the core in the nested vm is the correct one"
     tests.nested exec "sudo snap refresh core --${NESTED_CORE_CHANNEL}"
 

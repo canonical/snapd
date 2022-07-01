@@ -20,9 +20,11 @@
 package snapstate
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 // A DeviceContext provides for operating as a given device and with
@@ -43,8 +45,8 @@ type DeviceContext interface {
 	// SystemMode returns the system  mode (run,install,recover,...).
 	SystemMode() string
 
-	// DeviceContext should be usable as boot.Device
-	boot.Device
+	// DeviceContext should be usable as snap.Device
+	snap.Device
 }
 
 // Hook setup by devicestate to pick a device context from state,
@@ -56,7 +58,7 @@ var (
 
 // Hook setup by devicestate to know whether a remodeling is in progress.
 var (
-	Remodeling func(st *state.State) bool
+	RemodelingChange func(st *state.State) *state.Change
 )
 
 // ModelFromTask returns a model assertion through the device context for the task.
@@ -77,10 +79,10 @@ func ModelFromTask(task *state.Task) (*asserts.Model, error) {
 func DevicePastSeeding(st *state.State, providedDeviceCtx DeviceContext) (DeviceContext, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
-	if Remodeling(st) {
+	if chg := RemodelingChange(st); chg != nil {
 		// a remodeling is in progress and this is not called
 		// as part of it. The 2nd check should not be needed
 		// in practice.
@@ -89,11 +91,12 @@ func DevicePastSeeding(st *state.State, providedDeviceCtx DeviceContext) (Device
 				Message: "remodeling in progress, no other " +
 					"changes allowed until this is done",
 				ChangeKind: "remodel",
+				ChangeID:   chg.ID(),
 			}
 		}
 	}
 	devCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	// when seeded devCtx should not be nil except in the rare
@@ -116,7 +119,7 @@ func DevicePastSeeding(st *state.State, providedDeviceCtx DeviceContext) (Device
 func DeviceCtxFromState(st *state.State, providedDeviceCtx DeviceContext) (DeviceContext, error) {
 	deviceCtx, err := DeviceCtx(st, nil, providedDeviceCtx)
 	if err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			return nil, &ChangeConflictError{
 				Message:    "too early for operation, device model not yet acknowledged",
 				ChangeKind: "seed",

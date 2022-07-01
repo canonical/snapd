@@ -20,9 +20,9 @@
 package install_test
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -31,8 +31,10 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,9 +64,8 @@ func (s *partitionTestSuite) SetUpTest(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", `echo "lsblk was not mocked"; exit 1`)
 	s.AddCleanup(cmdLsblk.Restore)
 
-	// we test different sector sizes elsewhere, here we always use it to get the sector size
-	cmdBlockdev := testutil.MockCommand(c, "blockdev", blockdevSectorSize512Script)
-	s.AddCleanup(cmdBlockdev.Restore)
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", `echo "udevadm was not mocked"; exit 1`)
+	s.AddCleanup(cmdUdevadm.Restore)
 }
 
 const (
@@ -73,113 +74,74 @@ const (
 	scriptPartitionsBiosSeedData
 )
 
-func makeSfdiskScript(num int) string {
-	var b bytes.Buffer
+func makeMockDiskMappingIncludingPartitions(num int) *disks.MockDiskMapping {
+	disk := &disks.MockDiskMapping{
+		DevNum:              "42:0",
+		DiskSizeInBytes:     (8388574 + 34) * 512,
+		DiskUsableSectorEnd: 8388574 + 1,
+		DiskSchema:          "gpt",
+		ID:                  "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+		SectorSizeBytes:     512,
+		Structure:           []disks.Partition{},
+		DevNode:             "/dev/node",
+	}
 
-	b.WriteString(`
->&2 echo "Some warning from sfdisk"
-echo '{
-  "partitiontable": {
-    "label": "gpt",
-    "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
-    "device": "/dev/node",
-    "unit": "sectors",
-    "firstlba": 34,
-    "lastlba": 8388574,
-    "partitions": [`)
-
-	// BIOS boot partition
 	if num >= scriptPartitionsBios {
-		b.WriteString(`
-      {
-        "node": "/dev/node1",
-        "start": 2048,
-        "size": 2048,
-        "type": "21686148-6449-6E6F-744E-656564454649",
-        "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F",
-        "name": "BIOS Boot"
-      }`)
+		disk.Structure = append(disk.Structure, disks.Partition{
+			KernelDeviceNode: "/dev/node1",
+			StartInBytes:     2048 * 512,
+			SizeInBytes:      2048 * 512,
+			PartitionType:    "21686148-6449-6E6F-744E-656564454649",
+			PartitionUUID:    "2E59D969-52AB-430B-88AC-F83873519F6F",
+			PartitionLabel:   "BIOS Boot",
+			Major:            42,
+			Minor:            1,
+			DiskIndex:        1,
+		})
 	}
 
-	// Seed partition
 	if num >= scriptPartitionsBiosSeed {
-		b.WriteString(`,
-      {
-        "node": "/dev/node2",
-        "start": 4096,
-        "size": 2457600,
-        "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-        "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
-        "name": "Recovery"
-      }`)
+		disk.Structure = append(disk.Structure, disks.Partition{
+			KernelDeviceNode: "/dev/node2",
+			StartInBytes:     4096 * 512,
+			SizeInBytes:      2457600 * 512,
+			PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			PartitionUUID:    "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
+			PartitionLabel:   "Recovery",
+			Major:            42,
+			Minor:            2,
+			DiskIndex:        2,
+			FilesystemType:   "vfat",
+			FilesystemUUID:   "A644-B807",
+			FilesystemLabel:  "ubuntu-seed",
+		})
 	}
 
-	// Data partition
 	if num >= scriptPartitionsBiosSeedData {
-		b.WriteString(`,
-      {
-        "node": "/dev/node3",
-        "start": 2461696,
-        "size": 2457600,
-        "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-        "uuid": "f940029d-bfbb-4887-9d44-321e85c63866",
-        "name": "Writable"
-      }`)
+		disk.Structure = append(disk.Structure, disks.Partition{
+			KernelDeviceNode: "/dev/node3",
+			StartInBytes:     2461696 * 512,
+			SizeInBytes:      2457600 * 512,
+			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			PartitionUUID:    "F940029D-BFBB-4887-9D44-321E85C63866",
+			PartitionLabel:   "Writable",
+			Major:            42,
+			Minor:            3,
+			DiskIndex:        3,
+			FilesystemType:   "ext4",
+			FilesystemUUID:   "8781-433a",
+			FilesystemLabel:  "ubuntu-data",
+		})
 	}
 
-	b.WriteString(`
-    ]
-  }
-}'`)
-	return b.String()
+	return disk
 }
-
-func makeLsblkScript(num int) string {
-	var b bytes.Buffer
-
-	// BIOS boot partition
-	if num >= scriptPartitionsBios {
-		b.WriteString(`
-[ "$3" == "/dev/node1" ] && echo '{
-    "blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
-}'`)
-	}
-
-	// Seed partition
-	if num >= scriptPartitionsBiosSeed {
-		b.WriteString(`
-[ "$3" == "/dev/node2" ] && echo '{
-    "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
-}'`)
-	}
-
-	// Data partition
-	if num >= scriptPartitionsBiosSeedData {
-		b.WriteString(`
-[ "$3" == "/dev/node3" ] && echo '{
-    "blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-data", "uuid": "8781-433a", "mountpoint": null} ]
-}'`)
-	}
-
-	b.WriteString(`
-exit 0`)
-
-	return b.String()
-}
-
-const blockdevSectorSize512Script = `
-if [ "$1" == "--getss" ]; then
-	echo 512
-	exit 0
-fi
-echo "unexpected cmdline opts $*"
-exit 1
-`
 
 var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 	Node: "/dev/node3",
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
+			VolumeName: "pc",
 			Name:       "Writable",
 			Size:       1258291200,
 			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
@@ -188,8 +150,12 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 			Filesystem: "ext4",
 		},
 		StartOffset: 1260388352,
-		Index:       3,
+		YamlIndex:   3,
 	},
+	// Note the DiskIndex appears to be the same as the YamlIndex, but this is
+	// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
+	// yaml structure (the MBR) that does not appear on disk
+	DiskIndex: 3,
 	// expanded to fill the disk
 	Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
 }
@@ -198,6 +164,7 @@ var mockOnDiskStructureSave = gadget.OnDiskStructure{
 	Node: "/dev/node3",
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
+			VolumeName: "pc",
 			Name:       "Save",
 			Size:       128 * quantity.SizeMiB,
 			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
@@ -206,15 +173,20 @@ var mockOnDiskStructureSave = gadget.OnDiskStructure{
 			Filesystem: "ext4",
 		},
 		StartOffset: 1260388352,
-		Index:       3,
+		YamlIndex:   3,
 	},
-	Size: 128 * quantity.SizeMiB,
+	// Note the DiskIndex appears to be the same as the YamlIndex, but this is
+	// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
+	// yaml structure (the MBR) that does not appear on disk
+	DiskIndex: 3,
+	Size:      128 * quantity.SizeMiB,
 }
 
 var mockOnDiskStructureWritableAfterSave = gadget.OnDiskStructure{
 	Node: "/dev/node4",
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
+			VolumeName: "pc",
 			Name:       "Writable",
 			Size:       1200 * quantity.SizeMiB,
 			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
@@ -223,35 +195,14 @@ var mockOnDiskStructureWritableAfterSave = gadget.OnDiskStructure{
 			Filesystem: "ext4",
 		},
 		StartOffset: 1394606080,
-		Index:       4,
+		YamlIndex:   4,
 	},
+	// Note the DiskIndex appears to be the same as the YamlIndex, but this is
+	// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
+	// yaml structure (the MBR) that does not appear on disk
+	DiskIndex: 4,
 	// expanded to fill the disk
 	Size: 2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
-}
-
-// mustLayOutVolumeFromGadget takes a gadget rootdir and lays out the
-// partitions as specified. This function does not handle multiple volumes and
-// is meant for test helpers only. For runtime users, with multiple volumes
-// handled by choosing the ubuntu-* role volume, see LaidOutSystemVolumeFromGadget
-func mustLayOutVolumeFromGadget(c *C, gadgetRoot, kernelRoot string, model gadget.Model) (*gadget.LaidOutVolume, error) {
-	info, err := gadget.ReadInfo(gadgetRoot, model)
-	c.Assert(err, IsNil)
-
-	c.Assert(info.Volumes, HasLen, 1, Commentf("only single volumes supported in test helper"))
-
-	constraints := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-	}
-
-	for _, vol := range info.Volumes {
-		pvol, err := gadget.LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
-		c.Assert(err, IsNil)
-		// we know  info.Volumes map has size 1 so we can return here
-		return pvol, nil
-	}
-	// this is impossible to reach, we already asserted that info.Volumes has a
-	// length of 1
-	panic("impossible test error")
 }
 
 type uc20Model struct{}
@@ -262,15 +213,16 @@ func (c uc20Model) Grade() asserts.ModelGrade { return asserts.ModelSigned }
 var uc20Mod = uc20Model{}
 
 func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeed))
-	defer cmdSfdisk.Restore()
+	m := map[string]*disks.MockDiskMapping{
+		"/dev/node": makeMockDiskMappingIncludingPartitions(scriptPartitionsBiosSeed),
+	}
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeed))
-	defer cmdLsblk.Restore()
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
 
 	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
 	c.Assert(err, IsNil)
-	pv, err := mustLayOutVolumeFromGadget(c, s.gadgetRoot, "", uc20Mod)
+	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -278,7 +230,8 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 
 	// the expected expanded writable partition size is:
 	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
-	sfdiskInput, create := install.BuildPartitionList(dl, pv)
+	sfdiskInput, create, err := install.BuildPartitionList(dl, pv)
+	c.Assert(err, IsNil)
 	c.Assert(sfdiskInput.String(), Equals,
 		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
 /dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
@@ -287,15 +240,48 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureSave, mockOnDiskStructureWritableAfterSave})
 }
 
+func (s *partitionTestSuite) TestBuildPartitionListOnlyCreatablePartitions(c *C) {
+	// drop the "BIOS Boot" partition from the mock disk so that we only have
+	// ubuntu-seed (at normal location for the second partition, as if the first
+	// partition just vanished from the disk)
+	mockDisk := makeMockDiskMappingIncludingPartitions(scriptPartitionsBiosSeed)
+	mockDisk.Structure = mockDisk.Structure[1:]
+	mockDisk.Structure[0].DiskIndex = 1
+	m := map[string]*disks.MockDiskMapping{
+		"/dev/node": mockDisk,
+	}
+
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
+
+	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
+	c.Assert(err, IsNil)
+	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
+	c.Assert(err, IsNil)
+
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, IsNil)
+
+	_, _, err = install.BuildPartitionList(dl, pv)
+	c.Assert(err, ErrorMatches, `cannot create partition #1 \(\"BIOS Boot\"\)`)
+}
+
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeed))
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", "")
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeed))
-	defer cmdLsblk.Restore()
+	m := map[string]*disks.MockDiskMapping{
+		"/dev/node": makeMockDiskMappingIncludingPartitions(scriptPartitionsBiosSeed),
+	}
+
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
+
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer cmdUdevadm.Restore()
 
 	calls := 0
-	restore := install.MockEnsureNodesExist(func(ds []gadget.OnDiskStructure, timeout time.Duration) error {
+	restore = install.MockEnsureNodesExist(func(ds []gadget.OnDiskStructure, timeout time.Duration) error {
 		calls++
 		c.Assert(ds, HasLen, 1)
 		c.Assert(ds[0].Node, Equals, "/dev/node3")
@@ -305,19 +291,18 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 
 	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := mustLayOutVolumeFromGadget(c, s.gadgetRoot, "", uc20Mod)
+	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
-	created, err := install.CreateMissingPartitions(dl, pv)
+	created, err := install.CreateMissingPartitions(s.gadgetRoot, dl, pv)
 	c.Assert(err, IsNil)
 	c.Assert(created, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureWritable})
 	c.Assert(calls, Equals, 1)
 
-	// Check partition table read and write
+	// Check partition table write
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
-		{"sfdisk", "--json", "/dev/node"},
 		{"sfdisk", "--append", "--no-reread", "/dev/node"},
 	})
 
@@ -325,112 +310,439 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	c.Assert(s.cmdPartx.Calls(), DeepEquals, [][]string{
 		{"partx", "-u", "/dev/node"},
 	})
+
+	c.Assert(cmdUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "settle", "--timeout=180"},
+	})
 }
 
 func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 	// no locally created partitions
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBios))
-	defer cmdSfdisk.Restore()
+	m := map[string]*disks.MockDiskMapping{
+		"/dev/node": makeMockDiskMappingIncludingPartitions(scriptPartitionsBios),
+	}
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBios))
-	defer cmdLsblk.Restore()
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
 
 	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := mustLayOutVolumeFromGadget(c, s.gadgetRoot, "", uc20Mod)
+	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
-	err = install.RemoveCreatedPartitions(pv, dl)
+	err = install.RemoveCreatedPartitions(s.gadgetRoot, pv, dl)
 	c.Assert(err, IsNil)
-
-	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
-		{"sfdisk", "--json", "/dev/node"},
-	})
-
-	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
-		{"lsblk", "--fs", "--json", "/dev/node1"},
-	})
 }
 
 func (s *partitionTestSuite) TestRemovePartitions(c *C) {
-	const mockSfdiskScriptRemovablePartition = `
-if [ -f %[1]s/2 ]; then
-   rm %[1]s/[0-9]
-elif [ -f %[1]s/1 ]; then
-   touch %[1]s/2
-   exit 0
-else
-   PART=',
-   {"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery"},
-   {"node": "/dev/node3", "start": 2461696, "size": 2457600, "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery"}
-   '
-   touch %[1]s/1
-fi
-echo '{
-   "partitiontable": {
-      "label": "gpt",
-      "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
-      "device": "/dev/node",
-      "unit": "sectors",
-      "firstlba": 34,
-      "lastlba": 8388574,
-      "partitions": [
-         {"node": "/dev/node1", "start": 2048, "size": 2048, "type": "21686148-6449-6E6F-744E-656564454649", "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F", "name": "BIOS Boot"}
-         '"$PART
-      ]
-   }
-}"`
+	m := map[string]*disks.MockDiskMapping{
+		"/dev/node": {
+			DevNum:  "42:0",
+			DevNode: "/dev/node",
+			// assume GPT backup header section is 34 sectors long
+			DiskSizeInBytes:     (8388574 + 34) * 512,
+			DiskUsableSectorEnd: 8388574 + 1,
+			DiskSchema:          "gpt",
+			ID:                  "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+			SectorSizeBytes:     512,
+			Structure: []disks.Partition{
+				// all 3 partitions present
+				{
+					KernelDeviceNode: "/dev/node1",
+					StartInBytes:     2048 * 512,
+					SizeInBytes:      2048 * 512,
+					PartitionType:    "21686148-6449-6E6F-744E-656564454649",
+					PartitionUUID:    "2E59D969-52AB-430B-88AC-F83873519F6F",
+					PartitionLabel:   "BIOS Boot",
+					Major:            42,
+					Minor:            1,
+					DiskIndex:        1,
+				},
+				{
+					KernelDeviceNode: "/dev/node2",
+					StartInBytes:     4096 * 512,
+					SizeInBytes:      2457600 * 512,
+					PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+					PartitionUUID:    "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
+					PartitionLabel:   "Recovery",
+					Major:            42,
+					Minor:            2,
+					DiskIndex:        2,
+					FilesystemType:   "vfat",
+					FilesystemUUID:   "A644-B807",
+					FilesystemLabel:  "ubuntu-seed",
+				},
+				{
+					KernelDeviceNode: "/dev/node3",
+					StartInBytes:     2461696 * 512,
+					SizeInBytes:      2457600 * 512,
+					PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					PartitionUUID:    "F940029D-BFBB-4887-9D44-321E85C63866",
+					PartitionLabel:   "Writable",
+					Major:            42,
+					Minor:            3,
+					DiskIndex:        3,
+					FilesystemType:   "ext4",
+					FilesystemUUID:   "8781-433a",
+					FilesystemLabel:  "ubuntu-data",
+				},
+			},
+		},
+	}
 
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", fmt.Sprintf(mockSfdiskScriptRemovablePartition, s.dir))
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
+
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", "")
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeedData))
-	defer cmdLsblk.Restore()
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer cmdUdevadm.Restore()
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
-	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
-		{"lsblk", "--fs", "--json", "/dev/node1"},
-		{"lsblk", "--fs", "--json", "/dev/node2"},
-		{"lsblk", "--fs", "--json", "/dev/node3"},
-	})
-
 	err = makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := mustLayOutVolumeFromGadget(c, s.gadgetRoot, "", uc20Mod)
+	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
-	err = install.RemoveCreatedPartitions(pv, dl)
+	err = install.RemoveCreatedPartitions(s.gadgetRoot, pv, dl)
 	c.Assert(err, IsNil)
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
-		{"sfdisk", "--json", "/dev/node"},
 		{"sfdisk", "--no-reread", "--delete", "/dev/node", "3"},
-		{"sfdisk", "--json", "/dev/node"},
+	})
+
+	c.Assert(s.cmdPartx.Calls(), DeepEquals, [][]string{
+		{"partx", "-u", "/dev/node"},
+	})
+
+	// check that the OnDiskVolume was updated as expected
+	c.Assert(dl.Structure, DeepEquals, []gadget.OnDiskStructure{
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name: "BIOS Boot",
+					Size: 1024 * 1024,
+					Type: "21686148-6449-6E6F-744E-656564454649",
+					ID:   "2E59D969-52AB-430B-88AC-F83873519F6F",
+				},
+				StartOffset: 1024 * 1024,
+			},
+			DiskIndex: 1,
+			Node:      "/dev/node1",
+			Size:      1024 * 1024,
+		},
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Label:      "ubuntu-seed",
+					Name:       "Recovery",
+					Size:       2457600 * 512,
+					Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+					ID:         "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
+					Filesystem: "vfat",
+				},
+
+				StartOffset: 1024*1024 + 1024*1024,
+			},
+			DiskIndex: 2,
+			Node:      "/dev/node2",
+			Size:      2457600 * 512,
+		},
 	})
 }
 
-func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeedData))
+func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
+	devPath := filepath.Join(s.dir, "/sys/foo/")
+	m := map[string]*disks.MockDiskMapping{
+		"/dev/node": {
+			DevNum:  "42:0",
+			DevNode: "/dev/node",
+			DevPath: devPath,
+			// assume GPT backup header section is 34 sectors long
+			DiskSizeInBytes:     (8388574 + 34) * 512,
+			DiskUsableSectorEnd: 8388574 + 1,
+			DiskSchema:          "gpt",
+			ID:                  "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+			SectorSizeBytes:     512,
+			Structure: []disks.Partition{
+				// all 3 partitions present
+				{
+					KernelDeviceNode: "/dev/node1",
+					StartInBytes:     2048 * 512,
+					SizeInBytes:      2048 * 512,
+					PartitionType:    "21686148-6449-6E6F-744E-656564454649",
+					PartitionUUID:    "2E59D969-52AB-430B-88AC-F83873519F6F",
+					PartitionLabel:   "BIOS Boot",
+					Major:            42,
+					Minor:            1,
+					DiskIndex:        1,
+				},
+				{
+					KernelDeviceNode: "/dev/node2",
+					StartInBytes:     4096 * 512,
+					SizeInBytes:      2457600 * 512,
+					PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+					PartitionUUID:    "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
+					PartitionLabel:   "Recovery",
+					Major:            42,
+					Minor:            2,
+					DiskIndex:        2,
+					FilesystemType:   "vfat",
+					FilesystemUUID:   "A644-B807",
+					FilesystemLabel:  "ubuntu-seed",
+				},
+				{
+					KernelDeviceNode: "/dev/node3",
+					StartInBytes:     2461696 * 512,
+					SizeInBytes:      2457600 * 512,
+					PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					PartitionUUID:    "F940029D-BFBB-4887-9D44-321E85C63866",
+					PartitionLabel:   "Writable",
+					Major:            42,
+					Minor:            3,
+					DiskIndex:        3,
+					FilesystemType:   "ext4",
+					FilesystemUUID:   "8781-433a",
+					FilesystemLabel:  "ubuntu-data",
+				},
+			},
+		},
+	}
+
+	// make empty device rescan file
+
+	err := os.MkdirAll(filepath.Join(devPath, "device"), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(devPath, "device", "rescan"), nil, 0755)
+	c.Assert(err, IsNil)
+
+	fmt.Println("wrote", devPath)
+
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
+
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", "")
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeedData))
-	defer cmdLsblk.Restore()
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer cmdUdevadm.Restore()
 
-	dl, err := gadget.OnDiskVolumeFromDevice("node")
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
 	err = makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := mustLayOutVolumeFromGadget(c, s.gadgetRoot, "", uc20Mod)
+
+	// add the file to indicate we should do the device/rescan trick
+	err = ioutil.WriteFile(filepath.Join(s.gadgetRoot, "meta", "force-partition-table-reload-via-device-rescan"), nil, 0755)
 	c.Assert(err, IsNil)
 
-	err = install.RemoveCreatedPartitions(pv, dl)
-	c.Assert(err, ErrorMatches, "cannot remove partitions: /dev/node3")
+	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
+	c.Assert(err, IsNil)
+
+	err = install.RemoveCreatedPartitions(s.gadgetRoot, pv, dl)
+	c.Assert(err, IsNil)
+
+	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--no-reread", "--delete", "/dev/node", "3"},
+	})
+
+	// didn't call partx
+	c.Assert(s.cmdPartx.Calls(), HasLen, 0)
+
+	// but we did write to the sysfs file
+	c.Assert(filepath.Join(devPath, "device", "rescan"), testutil.FileEquals, "1\n")
+
+	// check that the OnDiskVolume was updated as expected
+	c.Assert(dl.Structure, DeepEquals, []gadget.OnDiskStructure{
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name: "BIOS Boot",
+					Size: 1024 * 1024,
+					Type: "21686148-6449-6E6F-744E-656564454649",
+					ID:   "2E59D969-52AB-430B-88AC-F83873519F6F",
+				},
+				StartOffset: 1024 * 1024,
+			},
+			DiskIndex: 1,
+			Node:      "/dev/node1",
+			Size:      1024 * 1024,
+		},
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Label:      "ubuntu-seed",
+					Name:       "Recovery",
+					Size:       2457600 * 512,
+					Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+					ID:         "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
+					Filesystem: "vfat",
+				},
+
+				StartOffset: 1024*1024 + 1024*1024,
+			},
+			DiskIndex: 2,
+			Node:      "/dev/node2",
+			Size:      2457600 * 512,
+		},
+	})
+}
+
+const gadgetContentDifferentOrder = `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        content:
+          - image: pc-core.img
+      - name: Writable
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1200M
+      - name: Recovery
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+`
+
+func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
+	m := map[string]*disks.MockDiskMapping{
+		"/dev/node": {
+			DevNum:  "42:0",
+			DevNode: "/dev/node",
+			// assume GPT backup header section is 34 sectors long
+			DiskSizeInBytes:     (8388574 + 34) * 512,
+			DiskUsableSectorEnd: 8388574 + 1,
+			DiskSchema:          "gpt",
+			ID:                  "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+			SectorSizeBytes:     512,
+			Structure: []disks.Partition{
+				// all 3 partitions present
+				{
+					KernelDeviceNode: "/dev/node1",
+					StartInBytes:     1024 * 1024,
+					SizeInBytes:      2048 * 512,
+					PartitionType:    "21686148-6449-6E6F-744E-656564454649",
+					PartitionUUID:    "2E59D969-52AB-430B-88AC-F83873519F6F",
+					PartitionLabel:   "BIOS Boot",
+					Major:            42,
+					Minor:            1,
+					DiskIndex:        1,
+				},
+				{
+					KernelDeviceNode: "/dev/node2",
+					StartInBytes:     1024*1024 + 1024*1024,
+					SizeInBytes:      2457600 * 512,
+					PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					PartitionUUID:    "F940029D-BFBB-4887-9D44-321E85C63866",
+					PartitionLabel:   "Writable",
+					Major:            42,
+					Minor:            2,
+					DiskIndex:        2,
+					FilesystemType:   "ext4",
+					FilesystemUUID:   "8781-433a",
+					FilesystemLabel:  "ubuntu-data",
+				},
+				{
+					KernelDeviceNode: "/dev/node3",
+					StartInBytes:     1024*1024 + 1024*1024 + 2457600*512,
+					SizeInBytes:      2457600 * 512,
+					PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+					PartitionUUID:    "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
+					PartitionLabel:   "Recovery",
+					Major:            42,
+					Minor:            3,
+					DiskIndex:        3,
+					FilesystemType:   "vfat",
+					FilesystemUUID:   "A644-B807",
+					FilesystemLabel:  "ubuntu-seed",
+				},
+			},
+		},
+	}
+
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
+
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", "")
+	defer cmdSfdisk.Restore()
+
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer cmdUdevadm.Restore()
+
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, IsNil)
+
+	err = makeMockGadget(s.gadgetRoot, gadgetContentDifferentOrder)
+	c.Assert(err, IsNil)
+	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
+	c.Assert(err, IsNil)
+
+	err = install.RemoveCreatedPartitions(s.gadgetRoot, pv, dl)
+	c.Assert(err, IsNil)
+
+	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--no-reread", "--delete", "/dev/node", "2"},
+	})
+
+	// check that the OnDiskVolume was updated as expected
+	c.Assert(dl.Structure, DeepEquals, []gadget.OnDiskStructure{
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name: "BIOS Boot",
+					Size: 1024 * 1024,
+					Type: "21686148-6449-6E6F-744E-656564454649",
+					ID:   "2E59D969-52AB-430B-88AC-F83873519F6F",
+				},
+				StartOffset: 1024 * 1024,
+			},
+			DiskIndex: 1,
+			Node:      "/dev/node1",
+			Size:      1024 * 1024,
+		},
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Label:      "ubuntu-seed",
+					Name:       "Recovery",
+					Size:       2457600 * 512,
+					Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+					ID:         "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
+					Filesystem: "vfat",
+				},
+
+				StartOffset: 1024*1024 + 1024*1024 + 2457600*512,
+			},
+
+			Node:      "/dev/node3",
+			DiskIndex: 3,
+			Size:      2457600 * 512,
+		},
+	})
 }
 
 func (s *partitionTestSuite) TestEnsureNodesExist(c *C) {
@@ -517,78 +829,79 @@ const gptGadgetContentWithSave = `volumes:
 `
 
 func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
-	cmdLsblk := testutil.MockCommand(c, "lsblk", `
-case $3 in
-	/dev/node1)
-		echo '{ "blockdevices": [ {"fstype":"ext4", "label":null} ] }'
-		;;
-	/dev/node2)
-		echo '{ "blockdevices": [ {"fstype":"ext4", "label":"ubuntu-seed"} ] }'
-		;;
-	/dev/node3)
-		echo '{ "blockdevices": [ {"fstype":"ext4", "label":"ubuntu-save"} ] }'
-		;;
-	/dev/node4)
-		echo '{ "blockdevices": [ {"fstype":"ext4", "label":"ubuntu-data"} ] }'
-		;;
-	*)
-		echo "unexpected args: $*"
-		exit 1
-		;;
-esac
-`)
-	defer cmdLsblk.Restore()
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `
-echo '{
-  "partitiontable": {
-    "label": "gpt",
-    "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
-    "device": "/dev/node",
-    "unit": "sectors",
-    "firstlba": 34,
-    "lastlba": 8388574,
-    "partitions": [
-     {
-         "node": "/dev/node1",
-         "start": 2048,
-         "size": 2048,
-         "type": "21686148-6449-6E6F-744E-656564454649",
-         "uuid": "30a26851-4b08-4b8d-8aea-f686e723ed8c",
-         "name": "BIOS boot partition"
-     },
-     {
-         "node": "/dev/node2",
-         "start": 4096,
-         "size": 2457600,
-         "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-         "uuid": "7ea3a75a-3f6d-4647-8134-89ae61fe88d5",
-         "name": "Linux filesystem"
-     },
-     {
-         "node": "/dev/node3",
-         "start": 2461696,
-         "size": 262144,
-         "type": "0fc63daf-8483-4772-8e79-3d69d8477de4",
-         "uuid": "641764aa-a680-4d36-a7ad-f7bd01fd8d12",
-         "name": "Linux filesystem"
-     },
-     {
-         "node": "/dev/node4",
-         "start": 2723840,
-         "size": 2457600,
-         "type": "0fc63daf-8483-4772-8e79-3d69d8477de4",
-         "uuid": "8ab3e8fd-d53d-4d72-9c5e-56146915fd07",
-         "name": "Another Linux filesystem"
-     }
-     ]
-  }
-}'
-`)
-	defer cmdSfdisk.Restore()
+	m := map[string]*disks.MockDiskMapping{
+		"node": {
+			DevNum:              "42:0",
+			DiskSizeInBytes:     (8388574 + 34) * 512,
+			DiskUsableSectorEnd: 8388574 + 1,
+			DiskSchema:          "gpt",
+			ID:                  "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+			SectorSizeBytes:     512,
+			DevNode:             "/dev/node",
+			Structure: []disks.Partition{
+				{
+					KernelDeviceNode: "/dev/node1",
+					StartInBytes:     2048 * 512,
+					SizeInBytes:      2048 * 512,
+					PartitionType:    "21686148-6449-6E6F-744E-656564454649",
+					PartitionUUID:    "2E59D969-52AB-430B-88AC-F83873519F6F",
+					PartitionLabel:   "BIOS Boot",
+					Major:            42,
+					Minor:            1,
+					DiskIndex:        1,
+				},
+				{
+					KernelDeviceNode: "/dev/node2",
+					StartInBytes:     4096 * 512,
+					SizeInBytes:      2457600 * 512,
+					PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+					PartitionUUID:    "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
+					PartitionLabel:   "ubuntu-seed",
+					Major:            42,
+					Minor:            2,
+					DiskIndex:        2,
+					FilesystemType:   "vfat",
+					FilesystemUUID:   "A644-B807",
+					FilesystemLabel:  "ubuntu-seed",
+				},
+				{
+					KernelDeviceNode: "/dev/node3",
+					StartInBytes:     2461696 * 512,
+					SizeInBytes:      262144 * 512,
+					PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					PartitionUUID:    "F940029D-BFBB-4887-9D44-321E85C63866",
+					PartitionLabel:   "ubuntu-boot",
+					Major:            42,
+					Minor:            3,
+					DiskIndex:        3,
+					FilesystemType:   "ext4",
+					FilesystemUUID:   "8781-433a",
+					FilesystemLabel:  "ubuntu-boot",
+				},
+				{
+					KernelDeviceNode: "/dev/node4",
+					StartInBytes:     2723840 * 512,
+					SizeInBytes:      2457600 * 512,
+					PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					PartitionUUID:    "G940029D-BFBB-4887-9D44-321E85C63866",
+					PartitionLabel:   "ubuntu-data",
+					Major:            42,
+					Minor:            4,
+					DiskIndex:        4,
+					FilesystemType:   "ext4",
+					FilesystemUUID:   "8123-433a",
+					FilesystemLabel:  "ubuntu-data",
+				},
+			},
+		},
+	}
+
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
 
 	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
 	c.Assert(err, IsNil)
-	pv, err := mustLayOutVolumeFromGadget(c, s.gadgetRoot, "", uc20Mod)
+	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("node")
@@ -633,102 +946,89 @@ const mbrGadgetContentWithSave = `volumes:
 `
 
 func (s *partitionTestSuite) TestCreatedDuringInstallMBR(c *C) {
-	cmdLsblk := testutil.MockCommand(c, "lsblk", `
-what=
-shift 2
-case "$1" in
-   /dev/node1)
-      what='{"name": "node1", "fstype":"ext4", "label":"ubuntu-seed"}'
-      ;;
-   /dev/node2)
-      what='{"name": "node2", "fstype":"vfat", "label":"ubuntu-boot"}'
-      ;;
-   /dev/node3)
-      what='{"name": "node3", "fstype":"ext4", "label":"ubuntu-save"}'
-      ;;
-   /dev/node4)
-      what='{"name": "node4", "fstype":"ext4", "label":"ubuntu-data"}'
-      ;;
-  *)
-    echo "unexpected call"
-    exit 1
-esac
 
-cat <<EOF
-{
-"blockdevices": [
-   $what
-  ]
-}
-EOF`)
-	defer cmdLsblk.Restore()
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `
-echo '{
-  "partitiontable": {
-    "label": "dos",
-    "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
-    "device": "/dev/node",
-    "unit": "sectors",
-    "firstlba": 0,
-    "lastlba": 8388574,
-    "partitions": [
-     {
-         "node": "/dev/node1",
-         "start": 0,
-         "size": 2460672,
-         "type": "0a"
-     },
-     {
-         "node": "/dev/node2",
-         "start": 2461696,
-         "size": 2460672,
-         "type": "b"
-     },
-     {
-         "node": "/dev/node3",
-         "start": 4919296,
-         "size": 262144,
-         "type": "c"
-     },
-     {
-         "node": "/dev/node4",
-         "start": 5181440,
-         "size": 2460672,
-         "type": "0d"
-     }
-     ]
-  }
-}'
-`)
-	defer cmdSfdisk.Restore()
-	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
-if [ "$1" == "--getss" ]; then
-	echo 512
-	exit 0
-elif [ "$1" == "--getsz" ]; then
-	echo 1234567
-	exit 0
-fi
-echo "unexpected cmdline opts $*"
-exit 1
-`)
-	defer cmdBlockdev.Restore()
+	const (
+		twoMeg                   = 2 * 1024 * 1024
+		oneHundredTwentyEightMeg = 128 * 1024 * 1024
+		twelveHundredMeg         = 1200 * 1024 * 1024
+	)
+	m := map[string]*disks.MockDiskMapping{
+		"node": {
+			DevNum:              "42:0",
+			DevNode:             "/dev/node",
+			DiskSizeInBytes:     (8388574 + 34) * 512,
+			DiskUsableSectorEnd: 8388574 + 1,
+			DiskSchema:          "dos",
+			ID:                  "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+			SectorSizeBytes:     512,
+			Structure: []disks.Partition{
+				{
+					KernelDeviceNode: "/dev/node1",
+					StartInBytes:     twoMeg,
+					SizeInBytes:      twelveHundredMeg,
+					PartitionType:    "0a",
+					PartitionLabel:   "Recovery",
+					Major:            42,
+					Minor:            1,
+					DiskIndex:        1,
+					FilesystemType:   "vfat",
+					FilesystemUUID:   "A644-B807",
+					FilesystemLabel:  "ubuntu-seed",
+				},
+				{
+					KernelDeviceNode: "/dev/node2",
+					StartInBytes:     twelveHundredMeg + twoMeg,
+					SizeInBytes:      twelveHundredMeg,
+					PartitionType:    "b",
+					PartitionLabel:   "Boot",
+					Major:            42,
+					Minor:            2,
+					DiskIndex:        2,
+					FilesystemType:   "vfat",
+					FilesystemUUID:   "A644-B807",
+					FilesystemLabel:  "ubuntu-boot",
+				},
+				{
+					KernelDeviceNode: "/dev/node3",
+					StartInBytes:     twoMeg + twelveHundredMeg + twelveHundredMeg,
+					SizeInBytes:      oneHundredTwentyEightMeg,
+					PartitionType:    "c",
+					PartitionLabel:   "Save",
+					Major:            42,
+					Minor:            3,
+					DiskIndex:        3,
+					FilesystemType:   "ext4",
+					FilesystemUUID:   "8781-433a",
+					FilesystemLabel:  "ubuntu-save",
+				},
+				{
+					KernelDeviceNode: "/dev/node4",
+					StartInBytes:     twoMeg + twelveHundredMeg + twelveHundredMeg + oneHundredTwentyEightMeg,
+					SizeInBytes:      twelveHundredMeg,
+					PartitionType:    "0d",
+					PartitionLabel:   "Data",
+					Major:            42,
+					Minor:            4,
+					DiskIndex:        4,
+					FilesystemType:   "ext4",
+					FilesystemUUID:   "8123-433a",
+					FilesystemLabel:  "ubuntu-data",
+				},
+			},
+		},
+	}
+
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
 
 	dl, err := gadget.OnDiskVolumeFromDevice("node")
 	c.Assert(err, IsNil)
 
 	err = makeMockGadget(s.gadgetRoot, mbrGadgetContentWithSave)
 	c.Assert(err, IsNil)
-	pv, err := mustLayOutVolumeFromGadget(c, s.gadgetRoot, "", uc20Mod)
+	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	list := install.CreatedDuringInstall(pv, dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node3", "/dev/node4"})
-}
-
-func (s *partitionTestSuite) TestCreationSupported(c *C) {
-	winBasic := "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7"
-
-	c.Check(install.CreationSupported(winBasic), Equals, true)
-	c.Check(install.CreationSupported("invalid-partion-uuid"), Equals, false)
 }

@@ -74,7 +74,11 @@ reset_classic() {
         systemctl start snap.mount.service
     fi
 
-    rm -rf /root/.snap/gnupg
+    # Clean root home
+    rm -rf /root/snap /root/.snap/gnupg /root/.{bash_history,local,cache,config} /root/.snap/data
+    # Clean test home
+    rm -rf /home/test/snap /home/test/.{bash_history,local,cache,config} /home/test/.snap/data
+    # Clean /tmp
     rm -f /tmp/core* /tmp/ubuntu-core*
 
     if [ "$1" = "--reuse-core" ]; then
@@ -95,12 +99,15 @@ reset_classic() {
         rm -f /run/user/0/snapd-session-agent.socket
     fi
 
+    # Make sure the systemd user wants directories exist
+    mkdir -p /etc/systemd/user/sockets.target.wants /etc/systemd/user/timers.target.wants /etc/systemd/user/default.target.wants
+
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.socket
 
         EXTRA_NC_ARGS="-q 1"
         case "$SPREAD_SYSTEM" in
-            fedora-34-*|debian-10-*)
+            debian-10-*)
                 # Param -q is not available on fedora 34
                 EXTRA_NC_ARGS="-w 1"
                 ;;
@@ -122,51 +129,12 @@ reset_all_snap() {
         systemctl start snapd.service snapd.socket
     fi
 
-    # shellcheck source=tests/lib/names.sh
-    . "$TESTSLIB/names.sh"
-    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    remove_bases=""
-    # remove all app snaps first
-    for snap in "$SNAP_MOUNT_DIR"/*; do
-        snap="${snap:6}"
-        case "$snap" in
-            "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "snapd" |README)
-                ;;
-            *)
-                # Check if a snap should be kept, there's a list of those in spread.yaml.
-                keep=0
-                for precious_snap in $SKIP_REMOVE_SNAPS; do
-                    if [ "$snap" = "$precious_snap" ]; then
-                        keep=1
-                        break
-                    fi
-                done
-                if [ "$keep" -eq 0 ]; then
-                    if snap info --verbose "$snap" | grep -E '^type: +(base|core)'; then
-                        if [ -z "$remove_bases" ]; then
-                            remove_bases="$snap"
-                        else
-                            remove_bases="$remove_bases $snap"
-                        fi
-                    else
-                        snap remove --purge "$snap"
-                    fi
-                fi
-                ;;
-        esac
+    skip_snaps=""
+    for skip_remove_snap in $SKIP_REMOVE_SNAPS; do
+        skip_snaps="$skip_snaps --skip $skip_remove_snap"
     done
-    # remove all base/os snaps at the end
-    if [ -n "$remove_bases" ]; then
-        for base in $remove_bases; do
-            snap remove --purge "$base"
-            if [ -d "$SNAP_MOUNT_DIR/$base" ]; then
-                echo "Error: removing base $base has unexpected leftover dir $SNAP_MOUNT_DIR/$base"
-                ls -al "$SNAP_MOUNT_DIR"
-                ls -al "$SNAP_MOUNT_DIR/$base"
-                exit 1
-            fi
-        done
-    fi
+    # shellcheck disable=SC2086
+    "$TESTSTOOLS"/snaps.cleanup $skip_snaps
 
     # purge may have removed udev rules, retrigger device events
     udevadm trigger
@@ -182,7 +150,7 @@ reset_all_snap() {
     fi
 
     # Exit in case there is a snap in broken state after restoring the snapd state
-    if snap list | grep -E "broken$"; then
+    if snap list --all | grep -E "broken$"; then
         echo "snap in broken state"
         exit 1
     fi
@@ -207,11 +175,7 @@ reset_all_snap() {
 # 2021-04-23T20:11:20Z INFO Waiting for automatic snapd restart...
 # snapd 2.49.2 installed
 #
-
-snap list --all | grep disabled | while read -r name _ revision _ ; do
-    snap remove "$name" --revision="$revision"
-done
-
+remove_disabled_snaps
 
 # When the variable REUSE_SNAPD is set to 1, we don't remove and purge snapd.
 # In that case we just cleanup the environment by removing installed snaps as

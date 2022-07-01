@@ -330,7 +330,7 @@ func newMountedFilesystemUpdater(ps *LaidOutStructure, backupDir string, mountLo
 }
 
 func fsStructBackupPath(backupDir string, ps *LaidOutStructure) string {
-	return filepath.Join(backupDir, fmt.Sprintf("struct-%v", ps.Index))
+	return filepath.Join(backupDir, fmt.Sprintf("struct-%v", ps.YamlIndex))
 }
 
 // entryDestPaths resolves destination and backup paths for given
@@ -611,7 +611,7 @@ func (f *mountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, back
 	return nil
 }
 
-func (f *mountedFilesystemUpdater) ignoreChange(change *ContentChange, backupPath string) error {
+func (f *mountedFilesystemUpdater) ignoreChange(backupPath string) error {
 	preserveStamp := backupPath + ".preserve"
 	backupName := backupPath + ".backup"
 	sameStamp := backupPath + ".same"
@@ -640,7 +640,7 @@ func (f *mountedFilesystemUpdater) observedBackupOrCheckpointFile(dstRoot, sourc
 		}
 		if act == ChangeIgnore {
 			// observer asked for the change to be ignored
-			if err := f.ignoreChange(change, backupPath); err != nil {
+			if err := f.ignoreChange(backupPath); err != nil {
 				return fmt.Errorf("cannot ignore content change: %v", err)
 			}
 		}

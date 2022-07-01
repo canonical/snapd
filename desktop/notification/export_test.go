@@ -19,6 +19,32 @@
 
 package notification
 
+import "github.com/godbus/dbus"
+
 var (
-	ProcessSignal = processSignal
+	NewFdoBackend = newFdoBackend
+	NewGtkBackend = newGtkBackend
 )
+
+type FdoBackend = fdoBackend
+type GtkBackend = gtkBackend
+
+func (srv *fdoBackend) ProcessSignal(sig *dbus.Signal, observer Observer) error {
+	return srv.processSignal(sig, observer)
+}
+
+func MockNewFdoBackend(f func(conn *dbus.Conn, desktopID string) NotificationManager) (restore func()) {
+	old := newFdoBackend
+	newFdoBackend = f
+	return func() {
+		newFdoBackend = old
+	}
+}
+
+func MockNewGtkBackend(f func(conn *dbus.Conn, desktopID string) (NotificationManager, error)) (restore func()) {
+	old := newGtkBackend
+	newGtkBackend = f
+	return func() {
+		newGtkBackend = old
+	}
+}

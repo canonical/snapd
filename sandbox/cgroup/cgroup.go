@@ -101,7 +101,7 @@ func probeCgroupVersion() (version int, err error) {
 	cgroupMount := filepath.Join(rootPath, cgroupMountPoint)
 	typ, err := fsTypeForPath(cgroupMount)
 	if err != nil {
-		return Unknown, fmt.Errorf("cannot determine filesystem type: %v", err)
+		return Unknown, fmt.Errorf("cannot determine cgroup version: %v", err)
 	}
 	if typ == cgroup2SuperMagic {
 		return V2, nil

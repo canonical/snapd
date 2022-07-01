@@ -36,7 +36,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -263,8 +263,8 @@ type TrustedAssetsInstallObserver struct {
 	trustedRecoveryAssets []string
 	trackedRecoveryAssets bootAssetsMap
 
-	dataEncryptionKey secboot.EncryptionKey
-	saveEncryptionKey secboot.EncryptionKey
+	dataEncryptionKey keys.EncryptionKey
+	saveEncryptionKey keys.EncryptionKey
 }
 
 // Observe observes the operation related to the content of a given gadget
@@ -339,7 +339,7 @@ func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() boo
 	return o.trackedRecoveryAssets
 }
 
-func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(key, saveKey secboot.EncryptionKey) {
+func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(key, saveKey keys.EncryptionKey) {
 	o.dataEncryptionKey = key
 	o.saveEncryptionKey = saveKey
 }
@@ -518,16 +518,16 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affect
 	}
 	switch op {
 	case gadget.ContentUpdate:
-		return o.observeUpdate(whichBootloader, isRecovery, root, relativeTarget, data)
+		return o.observeUpdate(whichBootloader, isRecovery, relativeTarget, data)
 	case gadget.ContentRollback:
-		return o.observeRollback(whichBootloader, isRecovery, root, relativeTarget, data)
+		return o.observeRollback(whichBootloader, isRecovery, root, relativeTarget)
 	default:
 		// we only care about update and rollback actions
 		return gadget.ChangeApply, nil
 	}
 }
 
-func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, recovery bool, root, relativeTarget string, change *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, recovery bool, relativeTarget string, change *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	modeenvBefore, err := o.modeenv.Copy()
 	if err != nil {
 		return gadget.ChangeAbort, fmt.Errorf("cannot copy modeenv: %v", err)
@@ -594,7 +594,7 @@ func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, re
 	return gadget.ChangeApply, nil
 }
 
-func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, recovery bool, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, recovery bool, root, relativeTarget string) (gadget.ContentChangeAction, error) {
 	trustedAssets := &o.modeenv.CurrentTrustedBootAssets
 	otherTrustedAssets := o.modeenv.CurrentTrustedRecoveryBootAssets
 	if recovery {
@@ -611,7 +611,7 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 
 	// new assets are appended to the list
 	expectedOldHash := hashList[0]
-	// sanity check, make sure that the current file is what we expect
+	// validity check, make sure that the current file is what we expect
 	newlyAdded := false
 	ondiskHash, err := o.cache.fileHash(filepath.Join(root, relativeTarget))
 	if err != nil {

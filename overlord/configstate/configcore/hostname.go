@@ -38,21 +38,22 @@ func init() {
 	config.RegisterExternalConfig("core", "system.hostname", getHostnameFromSystemHelper)
 }
 
-// We are conservative here and follow hostname(7). The hostnamectl
-// binary is more liberal but let's err on the side of caution for
-// now.
-var validHostname = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}$`).MatchString
+// The hostname can also be set via hostnamectl so we cannot be more strict
+// than hostnamectl itself.
+// See: systemd/src/basic/hostname-util.c:ostname_is_valid
+var validHostnameRegexp = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}(\.[a-zA-Z0-9-]{1,63})*$`).MatchString
 
-func validateHostnameSettings(tr config.ConfGetter) error {
-	hostname, err := coreCfg(tr, "system.hostname")
-	if err != nil {
-		return err
-	}
-	if hostname == "" {
-		return nil
-	}
-	if !validHostname(hostname) {
+// Note that HOST_NAME_MAX is 64 on Linux, but DNS allows domain names
+// up to 255 characters
+const HOST_NAME_MAX = 64
+
+func validateHostname(hostname string) error {
+	validHostname := validHostnameRegexp(hostname)
+	if !validHostname {
 		return fmt.Errorf("cannot set hostname %q: name not valid", hostname)
+	}
+	if len(hostname) > HOST_NAME_MAX {
+		return fmt.Errorf("cannot set hostname %q: name too long", hostname)
 	}
 
 	return nil
@@ -81,6 +82,10 @@ func handleHostnameConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts 
 			return fmt.Errorf("cannot set hostname: %v", osutil.OutputErr(output, err))
 		}
 	} else {
+		if err := validateHostname(hostname); err != nil {
+			return err
+		}
+
 		// On the UC16/UC18/UC20 images the file /etc/hostname is a
 		// symlink to /etc/writable/hostname. The /etc/hostname is
 		// not part of the "writable-path" so we must set the file
@@ -103,7 +108,18 @@ func getHostnameFromSystemHelper(key string) (interface{}, error) {
 }
 
 func getHostnameFromSystem() (string, error) {
-	output, err := exec.Command("hostname").CombinedOutput()
+	// try pretty hostname first
+	output, err := exec.Command("hostnamectl", "status", "--pretty").CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("cannot get hostname (pretty): %v", osutil.OutputErr(output, err))
+	}
+	prettyHostname := strings.TrimSpace(string(output))
+	if len(prettyHostname) > 0 {
+		return prettyHostname, nil
+	}
+
+	// then static hostname
+	output, err = exec.Command("hostnamectl", "status", "--static").CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("cannot get hostname: %v", osutil.OutputErr(output, err))
 	}

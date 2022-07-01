@@ -12,12 +12,21 @@ architectures:
   - build-on: amd64
     run-on: all
 
+apps:
+  pending:
+    command: pending
+  proceed:
+    command: proceed
+
 parts:
   test-snapd-refresh-control:
-    plugin: nil
+    plugin: dump
+    source: bin
 
 plugs:
   content:
     interface: content
     content: test-content
     target: $SNAP/content
+  snap-refresh-control:
+    interface: snap-refresh-control

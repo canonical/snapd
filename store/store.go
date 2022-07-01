@@ -68,6 +68,8 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
+var requestTimeout = 10 * time.Second
+
 // the LimitTime should be slightly more than 3 times of our http.Client
 // Timeout value
 var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(38*time.Second,
@@ -394,7 +396,7 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		userAgent:          userAgent,
 	}
 	store.client = store.newHTTPClient(&httputil.ClientOptions{
-		Timeout:    10 * time.Second,
+		Timeout:    requestTimeout,
 		MayLogBody: true,
 	})
 	store.SetCacheDownloads(cfg.CacheDownloads)
@@ -700,6 +702,7 @@ var (
 type deviceAuthNeed int
 
 const (
+	//nolint:deadcode
 	deviceAuthPreferred deviceAuthNeed = iota
 	deviceAuthCustomStoreOnly
 )

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,10 +23,13 @@ package devicestate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -44,7 +47,9 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -116,6 +121,14 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, nil
 	}
 
+	// Try to ensure we have an accurate time before doing any
+	// refreshy stuff. Note that this call will not block.
+	devMgr := deviceMgr(st)
+	maxWait := 10 * time.Minute
+	if !devMgr.ntpSyncedOrWaitedLongerThan(maxWait) {
+		return false, nil
+	}
+
 	// Either we have a serial or we try anyway if we attempted
 	// for a while to get a serial, this would allow us to at
 	// least upgrade core if that can help.
@@ -123,10 +136,10 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return true, nil
 	}
 
-	// Check model exists, for sanity. We always have a model, either
+	// Check model exists, for validity. We always have a model, either
 	// seeded or a generic one that ships with snapd.
 	_, err := findModel(st)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return false, nil
 	}
 	if err != nil {
@@ -134,7 +147,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	}
 
 	_, err = findSerial(st, nil)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return false, nil
 	}
 	if err != nil {
@@ -218,7 +231,7 @@ func checkGadgetValid(st *state.State, snapInfo, _ *snap.Info, snapf snap.Contai
 		return nil
 	}
 
-	// do basic validity checks on the gadget against its model constraints
+	// do basic precondition checks on the gadget against its model constraints
 	_, err := gadget.ReadInfoFromSnapFile(snapf, deviceCtx.Model())
 	return err
 }
@@ -235,7 +248,7 @@ func delayedCrossMgrInit() {
 	snapstate.CanManageRefreshes = CanManageRefreshes
 	snapstate.IsOnMeteredConnection = netutil.IsOnMeteredConnection
 	snapstate.DeviceCtx = DeviceCtx
-	snapstate.Remodeling = Remodeling
+	snapstate.RemodelingChange = RemodelingChange
 }
 
 // proxyStore returns the store assertion for the proxy store if one is set.
@@ -318,12 +331,14 @@ func getAllRequiredSnapsForModel(model *asserts.Model) *naming.SnapSet {
 	return naming.NewSnapSet(reqSnaps)
 }
 
-// extractDownloadInstallEdgesFromTs extracts the first, last download
+var errNoBeforeLocalModificationsEdge = fmt.Errorf("before-local-modifications edge not found")
+
+// extractBeforeLocalModificationsEdgesTs extracts the first, last download
 // phase and install phase tasks from a TaskSet
-func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task, err error) {
-	edgeTask, err := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
-	if err != nil {
-		return nil, nil, nil, nil, err
+func extractBeforeLocalModificationsEdgesTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task, err error) {
+	edgeTask := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	if edgeTask == nil {
+		return nil, nil, nil, nil, errNoBeforeLocalModificationsEdge
 	}
 	tasks := ts.Tasks()
 	// we know we always start with downloads
@@ -341,98 +356,361 @@ func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firs
 	return firstDl, tasks[edgeTaskIndex], tasks[edgeTaskIndex+1], lastInst, nil
 }
 
+func isNotInstalled(err error) bool {
+	_, ok := err.(*snap.NotInstalledError)
+	return ok
+}
+
 func notInstalled(st *state.State, name string) (bool, error) {
 	_, err := snapstate.CurrentInfo(st, name)
-	_, isNotInstalled := err.(*snap.NotInstalledError)
-	if isNotInstalled {
+	if isNotInstalled(err) {
 		return true, nil
 	}
 	return false, err
+}
+
+func installedSnapChannelChanged(st *state.State, modelSnapName, declaredChannel string) (changed bool, err error) {
+	if declaredChannel == "" {
+		return false, nil
+	}
+	var ss snapstate.SnapState
+	if err := snapstate.Get(st, modelSnapName, &ss); err != nil {
+		// this is unexpected as we know the snap exists
+		return false, err
+	}
+	if ss.Current.Local() {
+		// currently installed snap has a local revision, since it's
+		// unasserted we cannot say whether it needs a change or not
+		return false, nil
+	}
+	if ss.TrackingChannel != declaredChannel {
+		return true, nil
+	}
+	return false, nil
+}
+
+func modelSnapChannelFromDefaultOrPinnedTrack(new *asserts.Model, s *asserts.ModelSnap) (string, error) {
+	if new.Grade() == asserts.ModelGradeUnset {
+		if s == nil {
+			// it was possible to not specify the base snap in UC16
+			return "", nil
+		}
+		if (s.SnapType == "kernel" || s.SnapType == "gadget") && s.PinnedTrack != "" {
+			return s.PinnedTrack, nil
+		}
+		return "", nil
+	}
+	return channel.Full(s.DefaultChannel)
+}
+
+// pass both the snap name and the model snap, as it is possible that
+// the model snap is nil for UC16 models
+type modelSnapsForRemodel struct {
+	currentSnap      string
+	currentModelSnap *asserts.ModelSnap
+	new              *asserts.Model
+	newSnap          string
+	newModelSnap     *asserts.ModelSnap
+}
+
+func (ms *modelSnapsForRemodel) canHaveUC18PinnedTrack() bool {
+	return ms.newModelSnap != nil &&
+		(ms.newModelSnap.SnapType == "kernel" || ms.newModelSnap.SnapType == "gadget")
+}
+
+func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSnapsForRemodel, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	userID := 0
+	newModelSnapChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(ms.new, ms.newModelSnap)
+	if err != nil {
+		return nil, err
+	}
+
+	addExistingSnapTasks := snapstate.LinkNewBaseOrKernel
+	if ms.newModelSnap != nil && ms.newModelSnap.SnapType == "gadget" {
+		addExistingSnapTasks = snapstate.SwitchToNewGadget
+	}
+
+	if ms.currentSnap == ms.newSnap {
+		// new model uses the same base, kernel or gadget snap
+		changed := false
+		if ms.new.Grade() != asserts.ModelGradeUnset {
+			// UC20 models can specify default channel for all snaps
+			// including base, kernel and gadget
+			changed, err = installedSnapChannelChanged(st, ms.newSnap, newModelSnapChannel)
+			if err != nil {
+				return nil, err
+			}
+		} else if ms.canHaveUC18PinnedTrack() {
+			// UC18 models could only specify track for the kernel
+			// and gadget snaps
+			changed = ms.currentModelSnap.PinnedTrack != ms.newModelSnap.PinnedTrack
+		}
+		if changed {
+			// new modes specifies the same snap, but with a new channel
+			return snapstateUpdateWithDeviceContext(st, ms.newSnap,
+				&snapstate.RevisionOptions{Channel: newModelSnapChannel},
+				userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+		}
+		return nil, nil
+	}
+
+	// new model specifies a different snap
+	needsInstall, err := notInstalled(st, ms.newModelSnap.SnapName())
+	if err != nil {
+		return nil, err
+	}
+	if needsInstall {
+		// which needs to be installed
+		return snapstateInstallWithDeviceContext(ctx, st, ms.newSnap,
+			&snapstate.RevisionOptions{Channel: newModelSnapChannel},
+			userID, snapstate.Flags{}, deviceCtx, fromChange)
+	}
+
+	if ms.new.Grade() != asserts.ModelGradeUnset {
+		// in UC20+ models, the model can specify a channel for each
+		// snap, thus making it possible to change already installed
+		// kernel or base snaps
+		changed, err := installedSnapChannelChanged(st, ms.newModelSnap.SnapName(), newModelSnapChannel)
+		if err != nil {
+			return nil, err
+		}
+		if changed {
+			ts, err := snapstateUpdateWithDeviceContext(st, ms.newSnap,
+				&snapstate.RevisionOptions{Channel: newModelSnapChannel},
+				userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+			if err != nil {
+				return nil, err
+			}
+			if ts != nil {
+				if edgeTask := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge); edgeTask != nil {
+					// no task is marked as being last
+					// before local modifications are
+					// introduced, indicating that the
+					// update is a simple
+					// switch-snap-channel
+					return ts, nil
+				} else {
+					if ms.newModelSnap.SnapType == "kernel" || ms.newModelSnap.SnapType == "base" {
+						// in other cases make sure that
+						// the kernel or base is linked
+						// and available, and that
+						// kernel updates boot assets if
+						// needed
+						ts, err = snapstate.AddLinkNewBaseOrKernel(st, ts)
+						if err != nil {
+							return nil, err
+						}
+					} else if ms.newModelSnap.SnapType == "gadget" {
+						// gadget snaps may need gadget
+						// related tasks such as assets
+						// update or command line update
+						ts, err = snapstate.AddGadgetAssetsTasks(st, ts)
+						if err != nil {
+							return nil, err
+						}
+					}
+					return ts, nil
+				}
+			}
+		}
+	}
+	return addExistingSnapTasks(st, ms.newSnap)
+}
+
+// collect all prerequisites of a given snap from its task set
+func prereqsFromSnapTaskSet(ts *state.TaskSet) ([]string, error) {
+	for _, t := range ts.Tasks() {
+		// find the first task that carries snap setup
+		sup, err := snapstate.TaskSnapSetup(t)
+		if err != nil {
+			if !errors.Is(err, state.ErrNoState) {
+				return nil, err
+			}
+			// try the next one
+			continue
+		}
+		var prereqs []string
+		if sup.Base != "" {
+			prereqs = append(prereqs, sup.Base)
+		}
+		if len(sup.Prereq) > 0 {
+			prereqs = append(prereqs, sup.Prereq...)
+		}
+		return prereqs, nil
+	}
+	return nil, fmt.Errorf("internal error: cannot identify task-snap-setup in taskset")
 }
 
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
 	userID := 0
 	var tss []*state.TaskSet
 
+	snapsAccountedFor := make(map[string]bool)
+	neededSnaps := make(map[string]bool)
+
+	updateNeededSnapsFromTs := func(ts *state.TaskSet) error {
+		prereqs, err := prereqsFromSnapTaskSet(ts)
+		if err != nil {
+			return err
+		}
+		for _, p := range prereqs {
+			neededSnaps[p] = true
+		}
+		return nil
+	}
+
 	// kernel
-	if current.Kernel() == new.Kernel() && current.KernelTrack() != new.KernelTrack() {
-		ts, err := snapstateUpdateWithDeviceContext(st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
-		if err != nil {
-			return nil, err
-		}
+	kms := modelSnapsForRemodel{
+		currentSnap:      current.Kernel(),
+		currentModelSnap: current.KernelSnap(),
+		new:              new,
+		newSnap:          new.Kernel(),
+		newModelSnap:     new.KernelSnap(),
+	}
+	ts, err := remodelEssentialSnapTasks(ctx, st, kms, deviceCtx, fromChange)
+	if err != nil {
+		return nil, err
+	}
+	if ts != nil {
 		tss = append(tss, ts)
 	}
-
-	var ts *state.TaskSet
-	if current.Kernel() != new.Kernel() {
-		needsInstall, err := notInstalled(st, new.Kernel())
-		if err != nil {
-			return nil, err
-		}
-		if needsInstall {
-			ts, err = snapstateInstallWithDeviceContext(ctx, st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{}, deviceCtx, fromChange)
-		} else {
-			ts, err = snapstate.LinkNewBaseOrKernel(st, new.Base())
-		}
-		if err != nil {
-			return nil, err
-		}
+	snapsAccountedFor[new.Kernel()] = true
+	// base
+	bms := modelSnapsForRemodel{
+		currentSnap:      current.Base(),
+		currentModelSnap: current.BaseSnap(),
+		new:              new,
+		newSnap:          new.Base(),
+		newModelSnap:     new.BaseSnap(),
+	}
+	ts, err = remodelEssentialSnapTasks(ctx, st, bms, deviceCtx, fromChange)
+	if err != nil {
+		return nil, err
+	}
+	if ts != nil {
 		tss = append(tss, ts)
 	}
-	if current.Base() != new.Base() {
-		needsInstall, err := notInstalled(st, new.Base())
-		if err != nil {
-			return nil, err
-		}
-		if needsInstall {
-			ts, err = snapstateInstallWithDeviceContext(ctx, st, new.Base(), nil, userID, snapstate.Flags{}, deviceCtx, fromChange)
-		} else {
-			ts, err = snapstate.LinkNewBaseOrKernel(st, new.Base())
-		}
-		if err != nil {
-			return nil, err
-		}
-		tss = append(tss, ts)
-	}
+	snapsAccountedFor[new.Base()] = true
 	// gadget
-	if current.Gadget() == new.Gadget() && current.GadgetTrack() != new.GadgetTrack() {
-		ts, err := snapstateUpdateWithDeviceContext(st, new.Gadget(), &snapstate.RevisionOptions{Channel: new.GadgetTrack()}, userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
-		if err != nil {
+	gms := modelSnapsForRemodel{
+		currentSnap:      current.Gadget(),
+		currentModelSnap: current.GadgetSnap(),
+		new:              new,
+		newSnap:          new.Gadget(),
+		newModelSnap:     new.GadgetSnap(),
+	}
+	ts, err = remodelEssentialSnapTasks(ctx, st, gms, deviceCtx, fromChange)
+	if err != nil {
+		return nil, err
+	}
+	if ts != nil {
+		tss = append(tss, ts)
+		if err := updateNeededSnapsFromTs(ts); err != nil {
 			return nil, err
 		}
-		tss = append(tss, ts)
 	}
-	if current.Gadget() != new.Gadget() {
-		ts, err := snapstateInstallWithDeviceContext(ctx, st, new.Gadget(), &snapstate.RevisionOptions{Channel: new.GadgetTrack()}, userID, snapstate.Flags{}, deviceCtx, fromChange)
-		if err != nil {
-			return nil, err
-		}
-		tss = append(tss, ts)
-	}
+	snapsAccountedFor[new.Gadget()] = true
 
-	// add new required-snaps, no longer required snaps will be cleaned
-	// in "set-model"
-	for _, snapRef := range new.RequiredNoEssentialSnaps() {
+	// go through all the model snaps, see if there are new required snaps
+	// or a track for existing ones needs to be updated
+	for _, modelSnap := range new.SnapsWithoutEssential() {
 		// TODO|XXX: have methods that take refs directly
 		// to respect the snap ids
-		needsInstall, err := notInstalled(st, snapRef.SnapName())
+		currentInfo, err := snapstate.CurrentInfo(st, modelSnap.SnapName())
+		needsInstall := false
+		if err != nil {
+			if !isNotInstalled(err) {
+				return nil, err
+			}
+			if modelSnap.Presence == "required" {
+				needsInstall = true
+			}
+		}
+		// default channel can be set only in UC20 models
+		newModelSnapChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(new, modelSnap)
 		if err != nil {
 			return nil, err
 		}
+		var ts *state.TaskSet
 		if needsInstall {
 			// If the snap is not installed we need to install it now.
-			ts, err := snapstateInstallWithDeviceContext(ctx, st, snapRef.SnapName(), nil, userID, snapstate.Flags{Required: true}, deviceCtx, fromChange)
+			ts, err = snapstateInstallWithDeviceContext(ctx, st, modelSnap.SnapName(),
+				&snapstate.RevisionOptions{Channel: newModelSnapChannel},
+				userID,
+				snapstate.Flags{Required: true}, deviceCtx, fromChange)
 			if err != nil {
 				return nil, err
 			}
 			tss = append(tss, ts)
+		} else if currentInfo != nil && newModelSnapChannel != "" {
+			// the snap is already installed and has its default
+			// channel declared in the model, but the local install
+			// may be tracking a different channel
+			changed, err := installedSnapChannelChanged(st, modelSnap.SnapName(), newModelSnapChannel)
+			if err != nil {
+				return nil, err
+			}
+			if changed {
+				ts, err = snapstateUpdateWithDeviceContext(st, modelSnap.SnapName(),
+					&snapstate.RevisionOptions{Channel: newModelSnapChannel},
+					userID, snapstate.Flags{NoReRefresh: true},
+					deviceCtx, fromChange)
+				if err != nil {
+					return nil, err
+				}
+				tss = append(tss, ts)
+			}
+		}
+		if currentInfo == nil {
+			// snap is not installed, we have a task set then
+			if err := updateNeededSnapsFromTs(ts); err != nil {
+				return nil, err
+			}
+		} else {
+			// snap is installed already, so we have 2 possible
+			// scenarios, one the snap will be updated, in which
+			// case we have a task set and should make sure that the
+			// prerequisites of the new revision are accounted for,
+			// or two, the snap revision is not being modified so
+			// grab whatever is required for the current revision
+			if ts != nil && ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge) != nil {
+				// not a simple task snap-switch-channel, so
+				// take the prerequisites needed by the new
+				// revision we're updating to
+				if err := updateNeededSnapsFromTs(ts); err != nil {
+					return nil, err
+				}
+			} else {
+				if currentInfo.Base != "" {
+					neededSnaps[currentInfo.Base] = true
+				}
+				// deal with content providers
+				for defProvider := range snap.NeededDefaultProviders(currentInfo) {
+					neededSnaps[defProvider] = true
+				}
+			}
+		}
+		snapsAccountedFor[modelSnap.SnapName()] = true
+	}
+	// Now we know what snaps are in the model and whether they have any
+	// dependencies. Verify that the model is self contained, in the sense
+	// that all prerequisites of the snaps in the model, i.e. bases and
+	// default content providers are explicitly listed in the model
+	var missingSnaps []string
+	for needed := range neededSnaps {
+		if !snapsAccountedFor[needed] {
+			missingSnaps = append(missingSnaps, needed)
 		}
 	}
-	// TODO: Validate that all bases and default-providers are part
-	//       of the install tasksets and error if not. If the
-	//       prereq task handler check starts adding installs into
-	//       our remodel change our carefully constructed wait chain
-	//       breaks down.
+	if len(missingSnaps) != 0 {
+		sort.Strings(missingSnaps)
+		return nil, fmt.Errorf("cannot remodel with incomplete model, the following snaps are required but not listed: %s", strutil.Quoted(missingSnaps))
+	}
+
+	// TODO: fix the prerequisite task getting stuck during a remodel by
+	// making it a NOP, but ensure that the dependencies of new snaps are
+	// getting installed or updated if needed and are properly ordered wrt
+	// to the tasks that require them (eg. run-hooks)
 
 	// Keep track of downloads tasks carrying snap-setup which is needed for
 	// recovery system tasks
@@ -448,7 +726,9 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		// Terminology
 		// A <- B means B waits for A
 		// "download,verify" are part of the "Download" phase
-		// "link,start" is part of "Install" phase
+		// "link,start" is part of "Install" phase which introduces
+		// system modifications. The last task of the "Download" phase
+		// is marked with LastBeforeLocalModificationsEdge.
 		//
 		// - all tasks inside ts{Download,Install} already wait for
 		//   each other so the chains look something like this:
@@ -465,8 +745,18 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		//     verify2 <- download3 (added)
 		//     install1  <- install2 (added)
 		//     install2  <- install3 (added)
-		downloadStart, downloadLast, installFirst, installLast, err := extractDownloadInstallEdgesFromTs(ts)
+		downloadStart, downloadLast, installFirst, installLast, err := extractBeforeLocalModificationsEdgesTs(ts)
 		if err != nil {
+			if err == errNoBeforeLocalModificationsEdge {
+				// there is no task in the task set marked with
+				// as being last before system modification
+				// edge, which can happen when there is a simple
+				// channel switch if the snap which is part of
+				// remodel has the same revision in the current
+				// channel and one that will be used after
+				// remodel
+				continue
+			}
 			return nil, fmt.Errorf("cannot remodel: %v", err)
 		}
 		if prevDownload != nil {
@@ -547,21 +837,6 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	return tss, nil
 }
 
-var allowUC20RemodelTesting = false
-
-// AllowUC20RemodelTesting is a temporary helper to allow testing remodeling of
-// UC20 before the implementation is complete and the policy for this settled.
-// It will be removed once remodel is fully implemented and made available for
-// general use.
-func AllowUC20RemodelTesting(allow bool) (restore func()) {
-	osutil.MustBeTestBinary("uc20 remodel testing only can be mocked in tests")
-	oldAllowUC20RemodelTesting := allowUC20RemodelTesting
-	allowUC20RemodelTesting = allow
-	return func() {
-		allowUC20RemodelTesting = oldAllowUC20RemodelTesting
-	}
-}
-
 // Remodel takes a new model assertion and generates a change that
 // takes the device from the old to the new model or an error if the
 // transition is not possible.
@@ -575,7 +850,7 @@ func AllowUC20RemodelTesting(allow bool) (restore func()) {
 func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if !seeded {
@@ -588,7 +863,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	}
 
 	if _, err := findSerial(st, nil); err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			return nil, fmt.Errorf("cannot remodel without a serial")
 		}
 		return nil, err
@@ -598,20 +873,16 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		return nil, fmt.Errorf("cannot remodel to different series yet")
 	}
 
-	// TODO:UC20: support remodel, also ensure we never remodel to a lower
+	// TODO:UC20: ensure we never remodel to a lower
 	// grade
-	if !allowUC20RemodelTesting {
-		if current.Grade() != asserts.ModelGradeUnset {
-			return nil, fmt.Errorf("cannot remodel Ubuntu Core 20 models yet")
+
+	// also disallow remodel from non-UC20 (grade unset) to UC20
+	if current.Grade() != new.Grade() {
+		if current.Grade() == asserts.ModelGradeUnset && new.Grade() != asserts.ModelGradeUnset {
+			// a case of pre-UC20 -> UC20 remodel
+			return nil, fmt.Errorf("cannot remodel from pre-UC20 to UC20+ models")
 		}
-		if new.Grade() != asserts.ModelGradeUnset {
-			return nil, fmt.Errorf("cannot remodel to Ubuntu Core 20 models yet")
-		}
-	} else {
-		// also disallows remodel from non-UC20 (grade unset) to UC20
-		if current.Grade() != new.Grade() {
-			return nil, fmt.Errorf("cannot remodel from grade %v to grade %v", current.Grade(), new.Grade())
-		}
+		return nil, fmt.Errorf("cannot remodel from grade %v to grade %v", current.Grade(), new.Grade())
 	}
 
 	// TODO: we need dedicated assertion language to permit for
@@ -685,8 +956,12 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		return nil, &snapstate.ChangeConflictError{Message: fmt.Sprintf("cannot start remodel, clashing with concurrent remodel to %v/%v (%v)", current1.BrandID(), current1.Model(), current1.Revision())}
 	}
 	// make sure another unfinished remodel wasn't already setup either
-	if Remodeling(st) {
-		return nil, &snapstate.ChangeConflictError{Message: "cannot start remodel, clashing with concurrent one"}
+	if chg := RemodelingChange(st); chg != nil {
+		return nil, &snapstate.ChangeConflictError{
+			Message:    "cannot start remodel, clashing with concurrent one",
+			ChangeKind: chg.Kind(),
+			ChangeID:   chg.ID(),
+		}
 	}
 
 	var msg string
@@ -705,14 +980,14 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	return chg, nil
 }
 
-// Remodeling returns true whether there's a remodeling in progress
-func Remodeling(st *state.State) bool {
+// RemodelingChange returns a remodeling change in progress, if there is one
+func RemodelingChange(st *state.State) *state.Change {
 	for _, chg := range st.Changes() {
 		if !chg.IsReady() && chg.Kind() == "remodel" {
-			return true
+			return chg
 		}
 	}
-	return false
+	return nil
 }
 
 type recoverySystemSetup struct {
@@ -757,7 +1032,7 @@ func pickRecoverySystemLabel(labelBase string) (string, error) {
 }
 
 func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string) (*state.TaskSet, error) {
-	// sanity check, the directory should not exist yet
+	// precondition check, the directory should not exist yet
 	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
 	exists, _, err := osutil.DirExists(systemDirectory)
 	if err != nil {
@@ -786,7 +1061,7 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 func CreateRecoverySystem(st *state.State, label string) (*state.Change, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if !seeded {

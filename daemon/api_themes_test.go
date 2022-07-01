@@ -71,6 +71,11 @@ func (s *themesSuite) daemon(c *C) *daemon.Daemon {
 	return s.apiBaseSuite.daemonWithStore(c, s)
 }
 
+func (s *themesSuite) expectThemesAccess() {
+	s.expectReadAccess(daemon.ThemesOpenAccess{})
+	s.expectWriteAccess(daemon.ThemesAuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+}
+
 func (s *themesSuite) TestInstalledThemes(c *C) {
 	d := s.daemon(c)
 	s.mockSnap(c, `name: snap1
@@ -324,6 +329,7 @@ slots:
 }
 
 func (s *themesSuite) TestThemesCmdGet(c *C) {
+	s.expectThemesAccess()
 	s.daemon(c)
 	s.available = map[string]*snap.Info{
 		"gtk-theme-foo": {
@@ -366,7 +372,7 @@ func (s *themesSuite) TestThemesCmdGet(c *C) {
 }
 
 func (s *themesSuite) daemonWithIfaceMgr(c *C) *daemon.Daemon {
-	d := s.apiBaseSuite.daemonWithOverlordMock(c)
+	d := s.apiBaseSuite.daemonWithOverlordMock()
 
 	overlord := d.Overlord()
 	st := overlord.State()
@@ -387,6 +393,7 @@ func (s *themesSuite) daemonWithIfaceMgr(c *C) *daemon.Daemon {
 }
 
 func (s *themesSuite) TestThemesCmdPost(c *C) {
+	s.expectThemesAccess()
 	s.daemonWithIfaceMgr(c)
 
 	s.available = map[string]*snap.Info{
@@ -409,7 +416,7 @@ func (s *themesSuite) TestThemesCmdPost(c *C) {
 			},
 		},
 	}
-	restore := daemon.MockSnapstateInstallMany(func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+	restore := daemon.MockSnapstateInstallMany(func(s *state.State, names []string, userID int, _ *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		t := s.NewTask("fake-theme-install", "Theme install")
 		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})

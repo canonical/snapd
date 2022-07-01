@@ -35,8 +35,8 @@ contributing, please take a look at our [Code of Conduct](CODE_OF_CONDUCT.md)
 first.
 
 - to report an issue, please file [a bug
-  report](https://bugs.launchpad.net/snappy/+filebug) on our [Launchpad issue
-tracker](https://bugs.launchpad.net/snappy/)
+  report](https://bugs.launchpad.net/snapd/+filebug) on our [Launchpad issue
+tracker](https://bugs.launchpad.net/snapd/)
 - for suggestions and constructive feedback, create a post on the [Snapcraft
   forum](https://forum.snapcraft.io/c/snapd)
 - to build snapd manually, or to get started with snapd development, see
@@ -58,12 +58,11 @@ and on [Facebook](https://www.facebook.com/snapcraftio).
 
 | Service | Status |
 |-----|:---|
-| [Travis](https://travis-ci.org/) |  ![Build Status][travis-image]  |
+| [Github Actions](https://github.com/actions/) |  ![Build Status][actions-image]  |
 | [GoReport](https://goreportcard.com/) |  [![Go Report Card][goreportcard-image]][goreportcard-url] |
 | [Codecov](https://codecov.io/) |  [![codecov][codecov-image]][codecov-url] |
 
-[travis-image]: https://travis-ci.org/snapcore/snapd.svg?branch=master
-[travis-url]: https://travis-ci.org/snapcore/snapd
+[actions-image]: https://github.com/snapcore/snapd/actions
 
 [goreportcard-image]: https://goreportcard.com/badge/github.com/snapcore/snapd
 [goreportcard-url]: https://goreportcard.com/report/github.com/snapcore/snapd

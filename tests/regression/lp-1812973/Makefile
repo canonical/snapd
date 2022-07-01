@@ -1,6 +1,9 @@
-name=lp-1812973
+name = lp-1812973
 
-CFLAGS=-Wall -Werror
+CFLAGS = -Wall -Werror
+# build the test binary statically as it will be running inside the snap mount
+# namespace that may use a base with an older version of glibc
+LDFLAGS = -static
 
 .PHONY: all
 all: $(name)

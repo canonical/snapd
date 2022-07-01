@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -61,11 +62,23 @@ func (iface *contentInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              contentSummary,
 		BaseDeclarationSlots: contentBaseDeclarationSlots,
+
+		AffectsPlugOnRefresh: true,
 	}
 }
 
 func cleanSubPath(path string) bool {
 	return filepath.Clean(path) == path && path != ".." && !strings.HasPrefix(path, "../")
+}
+
+func validatePath(path string) error {
+	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(path); err != nil {
+		return fmt.Errorf("content interface path is invalid: %v", err)
+	}
+	if ok := cleanSubPath(path); !ok {
+		return fmt.Errorf("content interface path is not clean: %q", path)
+	}
+	return nil
 }
 
 func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
@@ -79,14 +92,11 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	}
 
 	// Error if "read" or "write" are present alongside "source".
-	// TODO: use slot.Lookup() once PR 4510 lands.
-	var unused map[string]interface{}
-	if err := slot.Attr("source", &unused); err == nil {
-		var unused []interface{}
-		if err := slot.Attr("read", &unused); err == nil {
+	if _, found := slot.Lookup("source"); found {
+		if _, found := slot.Lookup("read"); found {
 			return fmt.Errorf(`move the "read" attribute into the "source" section`)
 		}
-		if err := slot.Attr("write", &unused); err == nil {
+		if _, found := slot.Lookup("write"); found {
 			return fmt.Errorf(`move the "write" attribute into the "source" section`)
 		}
 	}
@@ -102,8 +112,8 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	paths := rpath
 	paths = append(paths, wpath...)
 	for _, p := range paths {
-		if !cleanSubPath(p) {
-			return fmt.Errorf("content interface path is not clean: %q", p)
+		if err := validatePath(p); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -122,8 +132,8 @@ func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if !ok || len(target) == 0 {
 		return fmt.Errorf("content plug must contain target path")
 	}
-	if !cleanSubPath(target) {
-		return fmt.Errorf("content interface target path is not clean: %q", target)
+	if err := validatePath(target); err != nil {
+		return err
 	}
 
 	return nil
@@ -224,13 +234,13 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 # directory.
 `)
 		for i, w := range writePaths {
-			fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
+			fmt.Fprintf(contentSnippet, "\"%s/**\" mrwklix,\n",
 				resolveSpecialVariable(w, slot.Snap()))
 			source, target := sourceTarget(plug, slot, w)
 			emit("  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
-			emit("  mount options=(bind, rw) %s/ -> %s{,-[0-9]*}/,\n", source, target)
-			emit("  mount options=(rprivate) -> %s{,-[0-9]*}/,\n", target)
-			emit("  umount %s{,-[0-9]*}/,\n", target)
+			emit("  mount options=(bind, rw) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", source, target)
+			emit("  mount options=(rprivate) -> \"%s{,-[0-9]*}/\",\n", target)
+			emit("  umount \"%s{,-[0-9]*}/\",\n", target)
 			// TODO: The assumed prefix depth could be optimized to be more
 			// precise since content sharing can only take place in a fixed
 			// list of places with well-known paths (well, constrained set of
@@ -249,15 +259,15 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 # read-only.
 `)
 		for i, r := range readPaths {
-			fmt.Fprintf(contentSnippet, "%s/** mrkix,\n",
+			fmt.Fprintf(contentSnippet, "\"%s/**\" mrkix,\n",
 				resolveSpecialVariable(r, slot.Snap()))
 
 			source, target := sourceTarget(plug, slot, r)
 			emit("  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
-			emit("  mount options=(bind) %s/ -> %s{,-[0-9]*}/,\n", source, target)
-			emit("  remount options=(bind, ro) %s{,-[0-9]*}/,\n", target)
-			emit("  mount options=(rprivate) -> %s{,-[0-9]*}/,\n", target)
-			emit("  umount %s{,-[0-9]*}/,\n", target)
+			emit("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", source, target)
+			emit("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target)
+			emit("  mount options=(rprivate) -> \"%s{,-[0-9]*}/\",\n", target)
+			emit("  umount \"%s{,-[0-9]*}/\",\n", target)
 			// Look at the TODO comment above.
 			apparmor.GenWritableProfile(emit, source, 1)
 			apparmor.GenWritableProfile(emit, target, 1)
@@ -281,7 +291,7 @@ func (iface *contentInterface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 `)
 		for _, w := range writePaths {
 			_, target := sourceTarget(plug, slot, w)
-			fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
+			fmt.Fprintf(contentSnippet, "\"%s/**\" mrwklix,\n",
 				target)
 		}
 	}

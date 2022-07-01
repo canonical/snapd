@@ -11,9 +11,6 @@ environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
 
 prepare: |
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
 
@@ -24,8 +21,8 @@ prepare: |
   # create a VM and mount a cloud image
   tests.nested build-image classic
   mkdir -p "$IMAGE_MOUNTPOINT"
-  IMAGE_NAME=$(nested_get_image_name classic)
-  mount_ubuntu_image "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$IMAGE_MOUNTPOINT"
+  IMAGE_NAME=$(tests.nested get image-name classic)
+  mount_ubuntu_image "$(tests.nested get images-path)/$IMAGE_NAME" "$IMAGE_MOUNTPOINT"
 
   # on 20.04 snapd from the deb is newer than snapd from seeds;
   # this is not a sensible scenario for preseeding but since
@@ -43,6 +40,7 @@ prepare: |
   if [ "$(find "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/snaps" -name 'core18*.snap' | wc -l)" = 0 ]; then
       snap download --edge --basename=core18 core18
       inject_snap_into_seed "$IMAGE_MOUNTPOINT" core18
+      rm core18.snap
   fi
 
   # inject a snap that uses system-usernames into the seed to confirm that works
@@ -57,9 +55,7 @@ prepare: |
   SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
 
 restore: |
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-  nested_destroy_vm
+  tests.nested vm remove
 
   # any of the restore commands can fail depending on where execute part stopped,
   # account for that with ||true.
@@ -68,8 +64,6 @@ restore: |
   umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
 
 execute: |
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
 
@@ -88,9 +82,6 @@ execute: |
 
   tests.nested create-vm classic
 
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-  
   echo "Waiting for firstboot seeding to finish"
   tests.nested exec "sudo snap wait system seed.loaded"
   tests.nested exec "snap changes" | MATCH "Done .+ Initialize system state"
@@ -101,7 +92,7 @@ execute: |
   # the host VM as the nested VM, currently we are not, and as such there is a 
   # diff between the preseed apparmor-features and the nested VM actual 
   # system-key
-  if [ "$SPREAD_SYSTEM" != "ubuntu-20.04-64" ]; then
+  if not os.query is-focal && not os.query is-jammy; then
     # note, this doesn't actually test the functionality, but acts as a canary:
     # the test is run against a vm image with ubuntu release matching that from spread host;
     # system-key check can fail if the nested vm image differs too much from the spread host system,

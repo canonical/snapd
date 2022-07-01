@@ -1,0 +1,126 @@
+summary: Verify factory reset of a UC20 system
+
+details: |
+    This test checks that UC20 can be reset to factory state
+
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+environment:
+    NESTED_ENABLE_SECURE_BOOT: true
+    NESTED_ENABLE_TPM: true
+
+execute: |
+    echo "Wait for the system to be seeded first"
+    tests.nested exec "sudo snap wait system seed.loaded"
+    tests.nested wait-for device-initialized
+
+    tests.nested exec snap model > initial-model
+    tests.nested exec snap model --serial > initial-serial
+    tests.nested exec sudo blkid |grep -v /dev/loop > initial-disk
+
+    echo "Request factory reset"
+    boot_id=$(tests.nested boot-id)
+
+    # leave some marker files
+    tests.nested exec sudo touch /run/mnt/ubuntu-seed/marker
+    tests.nested exec sudo touch /run/mnt/ubuntu-save/marker
+    tests.nested exec sudo touch /run/mnt/ubuntu-boot/marker
+    tests.nested exec sudo touch /writable/marker
+
+    # grab the ubuntu-save key
+    tests.nested exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > pre-reset-save-fallback-key
+
+    # add || true in case the SSH connection is broken while executing this
+    # since this command causes an immediate reboot
+    tests.nested exec "sudo snap reboot --factory-reset" || true
+
+    tests.nested wait-for reboot "${boot_id}"
+
+    # check that we are back in run mode
+    tests.nested exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
+
+    # wait for the system to get setup and finish seeding
+    tests.nested wait-for snap-command
+    retry -n 10 --wait 2 tests.nested exec "sudo snap wait system seed.loaded"
+
+    # wait up to two minutes for serial registration
+    retry -n 60 --wait 2 tests.nested exec snap model --serial
+
+    # post factory reset world
+
+    tests.nested exec snap model > current-model
+    tests.nested exec snap model --serial > current-serial
+    tests.nested exec sudo blkid |grep -v /dev/loop > current-disk
+    # serials should be identical
+    diff -u initial-model current-model
+    diff -u initial-serial current-serial
+
+    # check ubuntu-seed
+    old_ubuntu_seed="$(grep LABEL=\"ubuntu-seed\" < initial-disk)"
+    new_ubuntu_seed="$(grep LABEL=\"ubuntu-seed\" < current-disk)"
+    # ubuntu seed is identical
+    test "$old_ubuntu_seed" = "$new_ubuntu_seed"
+
+    # check ubuntu-save
+    old_ubuntu_save="$(grep ' LABEL="ubuntu-save-enc"' < initial-disk)"
+    new_ubuntu_save="$(grep ' LABEL="ubuntu-save-enc"' < current-disk)"
+    # ubuntu save is identical
+    test "$old_ubuntu_save" = "$new_ubuntu_save"
+
+    # check ubuntu-boot
+    old_ubuntu_boot="$(grep LABEL=\"ubuntu-boot\" < initial-disk)"
+    new_ubuntu_boot="$(grep LABEL=\"ubuntu-boot\" < current-disk)"
+    # the device name should be the same
+    test "$(echo "$old_ubuntu_boot" | cut -f1 -d:)" = "$(echo "$new_ubuntu_boot" | cut -f1 -d:)"
+    # but otherwise the UUIDs are different, as we have a new partition
+    test "$old_ubuntu_boot" != "$new_ubuntu_boot"
+
+    # check ubuntu-data
+    old_ubuntu_data="$(grep ' LABEL="ubuntu-data-enc"' < initial-disk)"
+    new_ubuntu_data="$(grep ' LABEL="ubuntu-data-enc"' < current-disk)"
+    # again same device
+    test "$(echo "$old_ubuntu_data" | cut -f1 -d:)" = "$(echo "$new_ubuntu_data" | cut -f1 -d:)"
+    # again, the UUIDs are different
+    test "$old_ubuntu_data" != "$new_ubuntu_data"
+
+    # reaffirm that marker files are gone where we expected new partitions, but
+    # are still present where we expected the partitions to be preserved
+    tests.nested exec test ! -e /run/mnt/ubuntu-boot/marker
+    tests.nested exec test ! -e /writable/marker
+    tests.nested exec test -e /run/mnt/ubuntu-save/marker
+    tests.nested exec test -e /run/mnt/ubuntu-seed/marker
+
+    # the temp factory-reset key is gone
+    # TODO this is a very weak check
+    tests.nested exec test ! -e /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset
+    # no factory reset marker
+    tests.nested exec test ! -e /var/lib/snapd/device/factory-reset
+
+    # verify that the factory-reset log was collected
+    tests.nested exec "zcat /var/log/factory-reset-mode.log.gz" | MATCH 'performing factory reset on an installed system'
+
+    tests.nested exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > post-reset-save-fallback-key
+    # not a great check as the fallback key may have been resealed, but it
+    # should be different nonetheless
+    not cmp pre-reset-save-fallback-key post-reset-save-fallback-key
+
+    echo "Perform subsequent factory reset"
+    tests.nested exec "sudo snap reboot --factory-reset" || true
+    tests.nested wait-for reboot "${boot_id}"
+    tests.nested exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
+    tests.nested wait-for snap-command
+    # TODO investigate why does this have to be much longer than what is needed for the
+    # initial wait and one after the first reset?
+    retry -n 60 --wait 2 tests.nested exec "sudo snap wait system seed.loaded"
+    retry -n 60 --wait 2 tests.nested exec snap model --serial
+    tests.nested exec snap model --serial > subsequent-serial
+    # still the same serial
+    diff -u initial-serial subsequent-serial
+
+    # the markers are still there
+    tests.nested exec test -e /run/mnt/ubuntu-save/marker
+    tests.nested exec test -e /run/mnt/ubuntu-seed/marker
+    # get the key
+    tests.nested exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > subsequent-reset-save-fallback-key
+    # and the key is different again
+    not cmp post-reset-save-fallback-key subsequent-reset-save-fallback-key

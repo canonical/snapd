@@ -86,9 +86,10 @@ func (s *deviceCtxSuite) TestDevicePastSeedingProvided(c *C) {
 	c.Assert(deviceCtx, Equals, deviceCtx1)
 
 	// remodeling is also ok
+	chg := s.st.NewChange("remodel", "test remodeling")
 	deviceCtx2 := &snapstatetest.TrivialDeviceContext{DeviceModel: MakeModel(nil), Remodeling: true}
-	defer snapstatetest.ReplaceRemodelingHook(func(*state.State) bool {
-		return true
+	defer snapstatetest.ReplaceRemodelingHook(func(*state.State) *state.Change {
+		return chg
 	})()
 	deviceCtx, err = snapstate.DevicePastSeeding(s.st, deviceCtx2)
 	c.Assert(err, IsNil)
@@ -98,6 +99,7 @@ func (s *deviceCtxSuite) TestDevicePastSeedingProvided(c *C) {
 		Message: "remodeling in progress, no other " +
 			"changes allowed until this is done",
 		ChangeKind: "remodel",
+		ChangeID:   chg.ID(),
 	}
 
 	// should not happen in practice but correct
@@ -147,14 +149,17 @@ func (s *deviceCtxSuite) TestDevicePastSeedingButRemodeling(c *C) {
 
 	r := snapstatetest.MockDeviceModel(DefaultModel())
 	defer r()
-	defer snapstatetest.ReplaceRemodelingHook(func(*state.State) bool {
-		return true
+
+	chg := s.st.NewChange("remodel", "test remodeling")
+	defer snapstatetest.ReplaceRemodelingHook(func(*state.State) *state.Change {
+		return chg
 	})()
 
 	expectedErr := &snapstate.ChangeConflictError{
 		Message: "remodeling in progress, no other " +
 			"changes allowed until this is done",
 		ChangeKind: "remodel",
+		ChangeID:   chg.ID(),
 	}
 
 	_, err := snapstate.DevicePastSeeding(s.st, nil)

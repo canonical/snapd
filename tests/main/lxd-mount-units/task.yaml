@@ -5,20 +5,12 @@ details: |
     are correct for snapfuse.
 
 # only 20.04+, we want lxd images that come with snaps preinstalled.
-# TODO: enable for ubuntu-21.10+ once the lxd image is published
-systems: [ubuntu-20*, ubuntu-21.04*]
+systems: [ubuntu-20*, ubuntu-21.10*]
 
 restore: |
     lxd.lxc stop ubuntu --force || true
     lxd.lxc delete ubuntu || true
     snap remove --purge lxd
-
-    # Remove manually the snap.lxd.workaround.service systemd unit. This unit is needed to
-    # avoid systemd wiping lxd cgroups when snapd disables all lxd units during refresh
-    # TODO: remove this when lxd removes automatically the service
-    if systemctl is-active snap.lxd.workaround.service; then
-        systemctl stop snap.lxd.workaround.service
-    fi
 
 execute: |
     echo "Install lxd"
@@ -27,11 +19,8 @@ execute: |
     lxd waitready
     lxd init --auto
 
-    if os.query is-focal; then
-        core_snap=core18
-    else
-        core_snap=core20
-    fi
+    # Define the core snap for the current system
+    core_snap=core20
 
     echo "Setting up proxy for lxc"
     if [ -n "${http_proxy:-}" ]; then
@@ -51,18 +40,21 @@ execute: |
     if [ -n "${https_proxy:-}" ]; then
         lxd.lxc exec ubuntu -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
     fi
+    # wait for the container to be fully up
+    retry -n 30 sh -c 'lxd.lxc exec ubuntu -- systemctl is-system-running | MATCH "(running|degraded)"'
 
     lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "ubuntu/root/"
 
     DEB=$(basename "$GOHOME"/snapd_*.deb)
+    lxd.lxc exec ubuntu -- apt update
     lxd.lxc exec ubuntu -- apt install -y /root/"$DEB"
     lxd.lxc restart ubuntu
 
-    echo "Sanity check that mount overrides were generated inside the container"
+    echo "Precondition check that mount overrides were generated inside the container"
     lxd.lxc exec ubuntu -- find /var/run/systemd/generator/ -name container.conf | MATCH "/var/run/systemd/generator/snap-${core_snap}.*mount.d/container.conf"
     lxd.lxc exec ubuntu -- test -f /var/run/systemd/generator/snap.mount
 
-    echo "Sanity check that $core_snap snap is mounted correctly"
+    echo "Precondition check that $core_snap snap is mounted correctly"
     # Make sure $core_snap is mounted and readable for a regular user
     retry -n 5 --wait 1 sh -c "lxd.lxc exec ubuntu -- sudo --user ubuntu --login ls /snap/${core_snap}/current"
     retry -n 5 --wait 1 sh -c "lxd.lxc exec ubuntu -- sudo --user ubuntu --login mount | grep $core_snap | grep allow_other"

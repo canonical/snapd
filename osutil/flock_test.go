@@ -103,10 +103,6 @@ func flockSupportsConflictExitCodeSwitch(c *C) bool {
 
 // Test that Lock and Unlock work as expected.
 func (s *flockSuite) TestLockUnlockWorks(c *C) {
-	if os.Getenv("TRAVIS_BUILD_NUMBER") != "" {
-		c.Skip("Cannot use this under travis")
-		return
-	}
 	if !flockSupportsConflictExitCodeSwitch(c) {
 		c.Skip("flock too old for this test")
 	}
@@ -140,10 +136,6 @@ func (s *flockSuite) TestLockUnlockWorks(c *C) {
 
 // Test that ReadLock and Unlock work as expected.
 func (s *flockSuite) TestReadLockUnlockWorks(c *C) {
-	if os.Getenv("TRAVIS_BUILD_NUMBER") != "" {
-		c.Skip("Cannot use this under travis")
-		return
-	}
 	if !flockSupportsConflictExitCodeSwitch(c) {
 		c.Skip("flock too old for this test")
 	}
@@ -214,11 +206,6 @@ func (s *flockSuite) TestUsingClosedLock(c *C) {
 
 // Test that non-blocking locking reports error on pre-acquired lock.
 func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
-	if os.Getenv("TRAVIS_BUILD_NUMBER") != "" {
-		c.Skip("Cannot use this under travis")
-		return
-	}
-
 	// Use the "flock" command to grab a lock for 9999 seconds in another process.
 	lockPath := filepath.Join(c.MkDir(), "lock")
 	sleeperKillerPath := filepath.Join(c.MkDir(), "pid")

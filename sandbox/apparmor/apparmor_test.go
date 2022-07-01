@@ -129,13 +129,13 @@ func (*apparmorSuite) TestMockAppArmorFeatures(c *C) {
 	restore()
 
 	// Complete parser features but apparmor is unusable because of missing required kernel features.
-	// The dummy feature is there to pretend that apparmor in the kernel is not entirely disabled.
-	restore = apparmor.MockFeatures([]string{"dummy-feature"}, nil, apparmor.RequiredParserFeatures, nil)
+	// The test feature is there to pretend that apparmor in the kernel is not entirely disabled.
+	restore = apparmor.MockFeatures([]string{"test-feature"}, nil, apparmor.RequiredParserFeatures, nil)
 	c.Check(apparmor.ProbedLevel(), Equals, apparmor.Unusable)
 	c.Check(apparmor.Summary(), Equals, "apparmor is enabled but required kernel features are missing: file")
 	features, err = apparmor.KernelFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"dummy-feature"})
+	c.Check(features, DeepEquals, []string{"test-feature"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, apparmor.RequiredParserFeatures)
@@ -193,29 +193,88 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 }
 
 func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
-	d := c.MkDir()
 
 	var testcases = []struct {
-		exit     string
-		features []string
+		exitCodes   []int
+		expFeatures []string
 	}{
-		{"exit 1", []string{}},
-		{"exit 0", []string{"unsafe"}},
+		{
+			exitCodes: []int{1, 1, 1, 1, 1},
+		},
+		{
+			exitCodes:   []int{1, 0, 1, 1, 1},
+			expFeatures: []string{"qipcrtr-socket"},
+		},
+		{
+			exitCodes:   []int{0, 1, 1, 1, 1},
+			expFeatures: []string{"unsafe"},
+		},
+		{
+			exitCodes:   []int{1, 1, 1, 0, 1},
+			expFeatures: []string{"cap-audit-read"},
+		},
+		{
+			exitCodes:   []int{0, 0, 1, 1, 1},
+			expFeatures: []string{"qipcrtr-socket", "unsafe"},
+		},
+		{
+			exitCodes:   []int{0, 0, 0, 0, 0},
+			expFeatures: []string{"cap-audit-read", "cap-bpf", "mqueue", "qipcrtr-socket", "unsafe"},
+		},
 	}
 
 	for _, t := range testcases {
-		mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fmt.Sprintf("cat > %s/stdin; %s", d, t.exit))
+		d := c.MkDir()
+		contents := ""
+		for _, code := range t.exitCodes {
+			contents += fmt.Sprintf("%d ", code)
+		}
+		err := ioutil.WriteFile(filepath.Join(d, "codes"), []byte(contents), 0755)
+		c.Assert(err, IsNil)
+		mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fmt.Sprintf(`
+cat >> %[1]s/stdin
+echo "" >> %[1]s/stdin
+
+read -r EXIT_CODE CODES_FOR_NEXT_CALLS < %[1]s/codes
+echo "$CODES_FOR_NEXT_CALLS" > %[1]s/codes
+
+exit "$EXIT_CODE"
+`, d))
 		defer mockParserCmd.Restore()
 		restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
 		defer restore()
 
 		features, err := apparmor.ProbeParserFeatures()
 		c.Assert(err, IsNil)
-		c.Check(features, DeepEquals, t.features)
-		c.Check(mockParserCmd.Calls(), DeepEquals, [][]string{{"apparmor_parser", "--preprocess"}})
+		if len(t.expFeatures) == 0 {
+			c.Check(features, HasLen, 0)
+		} else {
+			c.Check(features, DeepEquals, t.expFeatures)
+		}
+
+		var expectedCalls [][]string
+		for range t.exitCodes {
+			expectedCalls = append(expectedCalls, []string{"apparmor_parser", "--preprocess"})
+		}
+		c.Check(mockParserCmd.Calls(), DeepEquals, expectedCalls)
 		data, err := ioutil.ReadFile(filepath.Join(d, "stdin"))
 		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, "profile snap-test {\n change_profile unsafe /**,\n}")
+		c.Check(string(data), Equals, `profile snap-test {
+ change_profile unsafe /**,
+}
+profile snap-test {
+ network qipcrtr dgram,
+}
+profile snap-test {
+ capability bpf,
+}
+profile snap-test {
+ capability audit_read,
+}
+profile snap-test {
+ mqueue,
+}
+`)
 	}
 
 	// Pretend that we just don't have apparmor_parser at all.
@@ -247,7 +306,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"unsafe"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "mqueue", "qipcrtr-socket", "unsafe"})
 }
 
 func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
@@ -287,7 +346,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"unsafe"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "mqueue", "qipcrtr-socket", "unsafe"})
 
 	// this makes probing fails but is not done again
 	err = os.RemoveAll(d)
@@ -302,4 +361,20 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 
 	_, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
+}
+
+func (s *apparmorSuite) TestValidateFreeFromAAREUnhappy(c *C) {
+	var testCases = []string{"a?", "*b", "c[c", "dd]", "e{", "f}", "g^", `h"`, "f\000", "g\x00"}
+
+	for _, s := range testCases {
+		c.Check(apparmor.ValidateNoAppArmorRegexp(s), ErrorMatches, ".* contains a reserved apparmor char from .*", Commentf("%q is not raising an error", s))
+	}
+}
+
+func (s *apparmorSuite) TestValidateFreeFromAAREhappy(c *C) {
+	var testCases = []string{"foo", "BaR", "b-z", "foo+bar", "b00m!", "be/ep", "a%b", "a&b", "a(b", "a)b", "a=b", "a#b", "a~b", "a'b", "a_b", "a,b", "a;b", "a>b", "a<b", "a|b"}
+
+	for _, s := range testCases {
+		c.Check(apparmor.ValidateNoAppArmorRegexp(s), IsNil, Commentf("%q raised an error but shouldn't", s))
+	}
 }

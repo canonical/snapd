@@ -34,7 +34,10 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -79,6 +82,9 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.fakeBackend = &fakeSnappyBackend{}
 	bs.o = overlord.Mock()
 	bs.state = bs.o.State()
+	bs.state.Lock()
+	restart.Init(bs.state, "boot-id-0", nil)
+	bs.state.Unlock()
 	bs.snapmgr, err = snapstate.Manager(bs.state, bs.o.TaskRunner())
 	c.Assert(err, IsNil)
 
@@ -94,6 +100,11 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 		return nil, nil
 	}
 	bs.restore = snapstatetest.MockDeviceModel(DefaultModel())
+
+	bs.state.Lock()
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(bs.state, repo)
+	bs.state.Unlock()
 
 	oldSnapServiceOptions := snapstate.SnapServiceOptions
 	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
@@ -265,8 +276,8 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsLate(c *C) {
 		Current:  snap.R(2),
 	})
 
-	// put core into the state but add no files on disk
-	// will break in the tasks
+	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1", osSI1)
+	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 2", osSI2)
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
@@ -307,13 +318,13 @@ func (bs *bootedSuite) TestFinishRestartCore(c *C) {
 	snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeOS}
 
 	// core snap, restarting ... wait
-	state.MockRestarting(st, state.RestartSystem)
+	restart.MockPending(st, restart.RestartSystem)
 	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1", si)
 	err = snapstate.FinishRestart(task, snapsup)
 	c.Check(err, FitsTypeOf, &state.Retry{})
 
 	// core snap, restarted, waiting for current core revision
-	state.MockRestarting(st, state.RestartUnset)
+	restart.MockPending(st, restart.RestartUnset)
 	bs.bootloader.BootVars["snap_mode"] = boot.TryingStatus
 	err = snapstate.FinishRestart(task, snapsup)
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
@@ -359,12 +370,12 @@ func (bs *bootedSuite) TestFinishRestartBootableBase(c *C) {
 	snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeBase}
 	snaptest.MockSnap(c, "name: core18\ntype: base\nversion: 1", si)
 	// core snap, restarting ... wait
-	state.MockRestarting(st, state.RestartSystem)
+	restart.MockPending(st, restart.RestartSystem)
 	err = snapstate.FinishRestart(task, snapsup)
 	c.Check(err, FitsTypeOf, &state.Retry{})
 
 	// core snap, restarted, waiting for current core revision
-	state.MockRestarting(st, state.RestartUnset)
+	restart.MockPending(st, restart.RestartUnset)
 	bs.bootloader.BootVars["snap_mode"] = boot.TryingStatus
 	err = snapstate.FinishRestart(task, snapsup)
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
@@ -411,12 +422,12 @@ func (bs *bootedSuite) TestFinishRestartKernel(c *C) {
 	snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeKernel}
 	snaptest.MockSnap(c, "name: kernel\ntype: kernel\nversion: 1", si)
 	// kernel snap, restarting ... wait
-	state.MockRestarting(st, state.RestartSystem)
+	restart.MockPending(st, restart.RestartSystem)
 	err = snapstate.FinishRestart(task, snapsup)
 	c.Check(err, FitsTypeOf, &state.Retry{})
 
 	// kernel snap, restarted, waiting for current core revision
-	state.MockRestarting(st, state.RestartUnset)
+	restart.MockPending(st, restart.RestartUnset)
 	bs.bootloader.BootVars["snap_mode"] = boot.TryingStatus
 	err = snapstate.FinishRestart(task, snapsup)
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})

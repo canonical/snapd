@@ -9,30 +9,26 @@ environment:
     NESTED_ENABLE_TPM/secboot_enabled: true
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    nested_fetch_spread
     tests.nested build-image core
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
+    SPREAD="$(tests.nested download spread)"
 
     # see https://docs.ubuntu.com/core/en/#advantages-for-iot for minimum
     # requirements
     MINIMAL_MEM=256
 
-    if nested_is_core_20_system ; then
+    if tests.nested is-nested uc20; then
         # TODO:UC20: this should written down in the official docs
-        if nested_is_secure_boot_enabled; then
+        if tests.nested is-enabled secboot; then
             MINIMAL_MEM=512
         else
             MINIMAL_MEM=384
         fi
         NESTED_SPREAD_SYSTEM=ubuntu-core-20-64
-    elif nested_is_core_18_system; then
+    elif tests.nested is-nested uc18; then
         NESTED_SPREAD_SYSTEM=ubuntu-core-18-64
-    elif nested_is_core_16_system; then
+    elif tests.nested is-nested uc16; then
         NESTED_SPREAD_SYSTEM=ubuntu-core-16-64
     else
         echo "unsupported nested system"
@@ -44,4 +40,4 @@ execute: |
     echo "Run spread smoke tests using mem: $MINIMAL_MEM"
     set +x
     export SPREAD_EXTERNAL_ADDRESS=localhost:8022
-    "$NESTED_WORK_DIR/spread" -v "external:$NESTED_SPREAD_SYSTEM:tests/smoke/..."
+    "$SPREAD" -v "external:$NESTED_SPREAD_SYSTEM:tests/smoke/..."

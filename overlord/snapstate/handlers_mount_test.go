@@ -40,7 +40,7 @@ type mountSnapSuite struct {
 var _ = Suite(&mountSnapSuite{})
 
 func (s *mountSnapSuite) SetUpTest(c *C) {
-	s.setup(c, nil)
+	s.baseHandlerSuite.SetUpTest(c)
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
 
@@ -59,7 +59,7 @@ func (s *mountSnapSuite) TestDoMountSnapDoesNotRemovesSnaps(c *C) {
 		SnapPath:     testSnap,
 		DownloadInfo: &snap.DownloadInfo{DownloadURL: "https://some"},
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	s.state.Unlock()
 
@@ -94,7 +94,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 		SideInfo: si2,
 		SnapPath: testSnap,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
@@ -162,7 +162,7 @@ func (s *mountSnapSuite) TestDoMountSnapErrorReadInfo(c *C) {
 		SideInfo: si2,
 		SnapPath: testSnap,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -226,7 +226,7 @@ func (s *mountSnapSuite) TestDoMountSnapEpochError(c *C) {
 		SideInfo: si2,
 		SnapPath: testSnap,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -263,7 +263,7 @@ func (s *mountSnapSuite) TestDoMountSnapErrorSetupSnap(c *C) {
 		SideInfo: si,
 		SnapPath: testSnap,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -321,7 +321,7 @@ func (s *mountSnapSuite) TestDoMountSnapUndoError(c *C) {
 		SideInfo: si2,
 		SnapPath: testSnap,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -388,7 +388,7 @@ func (s *mountSnapSuite) TestDoMountSnapErrorNotFound(c *C) {
 		SideInfo: si2,
 		SnapPath: testSnap,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -468,7 +468,7 @@ func (s *mountSnapSuite) TestDoMountNotMountedRetryRetry(c *C) {
 		SideInfo: si2,
 		SnapPath: testSnap,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()

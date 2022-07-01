@@ -200,7 +200,7 @@ func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	dbusSpec := &dbus.Specification{}
 	err = dbusSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(dbusSpec.SecurityTags(), HasLen, 1)
+	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
 
 	dbusSpec = &dbus.Specification{}
 	err = dbusSpec.AddPermanentSlot(s.iface, s.slotInfo)
@@ -212,7 +212,7 @@ func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(udevSpec.Snippets(), HasLen, 3)
 	c.Assert(udevSpec.Snippets()[0], testutil.Contains, `SUBSYSTEMS=="usb"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# modem-manager
-KERNEL=="tty[a-zA-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="snap_modem-manager_mm"`)
+KERNEL=="rfcomm*|tty[a-zA-Z]*[0-9]*|cdc-wdm[0-9]*|*MBIM|*QMI|*AT|*QCDM", TAG+="snap_modem-manager_mm"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_modem-manager_mm", RUN+="%v/snap-device-helper $env{ACTION} snap_modem-manager_mm $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
@@ -235,16 +235,25 @@ func (s *ModemManagerInterfaceSuite) TestPermanentSlotSecComp(c *C) {
 }
 
 func (s *ModemManagerInterfaceSuite) TestConnectedPlugDBus(c *C) {
+	release.OnClassic = false
 	plugSnap := snaptest.MockInfo(c, modemmgrMockPlugSnapInfoYaml, nil)
 	plug := interfaces.NewConnectedPlug(plugSnap.Plugs["modem-manager"], nil, nil)
 
 	dbusSpec := &dbus.Specification{}
 	err := dbusSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.modem-manager.mmcli"})
-	snippet := dbusSpec.SnippetForTag("snap.modem-manager.mmcli")
-	c.Assert(snippet, testutil.Contains, "deny own=\"org.freedesktop.ModemManager1\"")
-	c.Assert(snippet, testutil.Contains, "deny send_destination=\"org.freedesktop.ModemManager1\"")
+	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string(nil))
+}
+
+func (s *ModemManagerInterfaceSuite) TestConnectedPlugDBusClassic(c *C) {
+	plugSnap := snaptest.MockInfo(c, modemmgrMockPlugSnapInfoYaml, nil)
+	plug := interfaces.NewConnectedPlug(plugSnap.Plugs["modem-manager"], nil, nil)
+
+	release.OnClassic = true
+	dbusSpec := &dbus.Specification{}
+	err := dbusSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string(nil))
 }
 
 func (s *ModemManagerInterfaceSuite) TestInterfaces(c *C) {

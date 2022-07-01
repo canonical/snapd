@@ -1,60 +1,80 @@
-#!/usr/bin/env python3
-from __future__ import print_function, absolute_import, unicode_literals
+#!/bin/bash -e
 
-import argparse
-import os
-import subprocess
+show_help() {
+    echo "usage: user-state remove-with-group <user>"
+    echo "usage: user-state list-users"
+    echo "usage: user-state list-groups"
+    echo ""
+    echo "The tool is used to manage users and groups."
+}
 
-# Define MYPY as False and use it as a conditional for typing import. Despite
-# this declaration mypy will really treat MYPY as True when type-checking.
-# This is required so that we can import typing on Python 2.x without the
-# typing module installed. For more details see:
-# https://mypy.readthedocs.io/en/latest/common_issues.html#import-cycles
-MYPY = False
-if MYPY:
-    from typing import Text
+remove_with_group() {
+    USER=$1
+    if [ -z "$USER" ]; then
+        echo "user-state: user is a required parameter"
+        exit 1
+    fi
 
+    if getent passwd "$USER"; then
+        if [ -f /var/lib/extrausers/passwd ]; then
+            userdel --extrausers --force --remove "$USER"
+        else
+            userdel --force --remove "$USER"
+        fi
+        if getent passwd "$USER"; then
+            echo "user-state: user exists after removal"
+            exit 1
+        fi
+    fi
 
-def remove_user_with_group(user_name):
-    # type: (Text) -> None
-    """remove the user and group with the same name, if present."""
-    if os.path.exists("/var/lib/extrausers/passwd"):
-        subprocess.call(["userdel", "--extrausers", "--force", "--remove", user_name])
-    else:
-        subprocess.call(["userdel", "--force", "--remove", user_name])
-        # Some systems do not set "USERGROUPS_ENAB yes" so we need to cleanup
-        # the group manually. Use "-f" (force) when available, older versions
-        # do not have it.
-        proc = subprocess.Popen(["groupdel", "-h"], stdout=subprocess.PIPE)
-        out, _ = proc.communicate()
-        if b"force" in out:
-            subprocess.call(["groupdel", "-f", user_name])
-        else:
-            subprocess.call(["groupdel", user_name])
-    # Ensure the user user really got deleted
-    if subprocess.call(["getent", "passwd", user_name]) == 0:
-        raise SystemExit("user exists after removal?")
-    if subprocess.call(["getent", "group", user_name]) == 0:
-        raise SystemExit("group exists after removal?")
+    if getent group "$USER"; then
+        if groupdel -h | grep -q force; then
+            groupdel -f "$USER"
+        else
+            groupdel "$USER"
+        fi
+        if getent group "$USER"; then
+            echo "user-state: group exists after removal"
+            exit 1
+        fi
+    fi
+}
 
+list_users() {
+    getent passwd | cut -d: -f1
+}
 
-def main():
-    # type: () -> None
-    parser = argparse.ArgumentParser()
-    sub = parser.add_subparsers()
-    cmd = sub.add_parser(
-        "remove-with-group",
-        description="Remove system user and group, if present",
-        help="remove system user and group, if present",
-    )
-    cmd.set_defaults(func=lambda ns: remove_user_with_group(ns.user))
-    cmd.add_argument("user", help="name of the user and group to remove")
-    ns = parser.parse_args()
-    if hasattr(ns, "func"):
-        ns.func(ns)
-    else:
-        parser.print_help()
+list_groups () {
+    getent group | cut -d: -f1
+}
 
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
 
-if __name__ == "__main__":
-    main()
+    local subcommand="$1"
+    local action=
+
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            action=$(echo "$subcommand" | tr '-' '_')
+            shift
+            ;;
+    esac
+
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "user-state: no such command: $subcommand"
+        show_help
+        exit 1
+    fi
+
+    "$action" "$@"
+}
+
+main "$@"

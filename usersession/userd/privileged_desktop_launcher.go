@@ -95,18 +95,18 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 		return dbus.MakeFailedError(err)
 	}
 
-	ver, err := systemd.Version()
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-	// systemd 236 introduced the --collect option to systemd-run,
-	// which specifies that the unit should be garbage collected
-	// even if it fails.
-	//   https://github.com/systemd/systemd/pull/7314
-	if ver >= 236 {
+	err = systemd.EnsureAtLeast(236)
+	if err == nil {
+		// systemd 236 introduced the --collect option to systemd-run,
+		// which specifies that the unit should be garbage collected
+		// even if it fails.
+		//   https://github.com/systemd/systemd/pull/7314
 		args = append([]string{"systemd-run", "--user", "--collect", "--"}, args...)
-	} else {
+	} else if systemd.IsSystemdTooOld(err) {
 		args = append([]string{"systemd-run", "--user", "--"}, args...)
+	} else {
+		// systemd not available
+		return dbus.MakeFailedError(err)
 	}
 
 	cmd := exec.Command(args[0], args[1:]...)

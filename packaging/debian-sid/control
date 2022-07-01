@@ -32,7 +32,6 @@ Build-Depends: autoconf,
                golang-github-kr-text-dev,
                golang-github-mvo5-goconfigparser-dev,
                golang-github-seccomp-libseccomp-golang-dev,
-               golang-go,
                golang-go-flags-dev,
                golang-golang-x-crypto-dev,
                golang-golang-x-net-dev,
@@ -43,6 +42,7 @@ Build-Depends: autoconf,
                golang-gopkg-mgo.v2-dev,
                golang-gopkg-retry.v1-dev,
                golang-gopkg-tylerb-graceful.v1-dev,
+               golang-gopkg-yaml.v3-dev,
                golang-github-gosexy-gettext-dev,
                golang-go (>=2:1.13),
                indent,
@@ -95,7 +95,8 @@ Depends: adduser,
          systemd,
          udev,
          ${misc:Depends},
-         ${shlibs:Depends}
+         ${shlibs:Depends},
+         default-dbus-session-bus | dbus-session-bus
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0)
 Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0), ${snapd:Breaks}
 Recommends: gnupg

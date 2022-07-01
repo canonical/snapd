@@ -4,12 +4,6 @@ summary: test chattr
 # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2503
 systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
 
-environment:
-    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
-    # packages referenced by their import paths while under the tests directory,
-    # need to disable go modules supportfor this test
-    GO111MODULE: off
-
 prepare: |
   go build -o toggle ./toggle.go
 

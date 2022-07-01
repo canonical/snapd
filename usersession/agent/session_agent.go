@@ -34,6 +34,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
@@ -42,12 +43,13 @@ import (
 )
 
 type SessionAgent struct {
-	Version  string
-	bus      *dbus.Conn
-	listener net.Listener
-	serve    *http.Server
-	tomb     tomb.Tomb
-	router   *mux.Router
+	Version         string
+	bus             *dbus.Conn
+	listener        net.Listener
+	serve           *http.Server
+	tomb            tomb.Tomb
+	router          *mux.Router
+	notificationMgr notification.NotificationManager
 
 	idle        *idleTracker
 	IdleTimeout time.Duration
@@ -180,6 +182,13 @@ func (s *SessionAgent) Init() error {
 	if err != nil {
 		return err
 	}
+
+	// Set up notification manager
+	// Note that session bus may be nil, see the comment in tryConnectSessionBus.
+	if s.bus != nil {
+		s.notificationMgr = notification.NewNotificationManager(s.bus, "io.snapcraft.SessionAgent")
+	}
+
 	agentSocket := fmt.Sprintf("%s/%d/snapd-session-agent.socket", dirs.XdgRuntimeDirBase, os.Getuid())
 	if l, err := netutil.GetListener(agentSocket, listenerMap); err != nil {
 		return fmt.Errorf("cannot listen on socket %s: %v", agentSocket, err)
@@ -238,6 +247,9 @@ func (s *SessionAgent) Start() {
 	s.tomb.Go(s.runServer)
 	s.tomb.Go(s.shutdownServerOnKill)
 	s.tomb.Go(s.exitOnIdle)
+	if s.notificationMgr != nil {
+		s.tomb.Go(s.handleNotifications)
+	}
 	systemd.SdNotify("READY=1")
 }
 
@@ -278,8 +290,15 @@ Loop:
 		case <-s.tomb.Dying():
 			break Loop
 		case <-timer.C:
-			// Have we been idle
+			// Have we been idle? Consult idle duration from connection tracker
+			// and from notification manager, pick the lower one.
 			idleDuration := s.idle.idleDuration()
+			// notificationMgr may be nil if session bus is not available
+			if s.notificationMgr != nil {
+				if dur := s.notificationMgr.IdleDuration(); dur < idleDuration {
+					idleDuration = dur
+				}
+			}
 			if idleDuration >= s.IdleTimeout {
 				s.tomb.Kill(nil)
 				break Loop
@@ -291,9 +310,25 @@ Loop:
 	return nil
 }
 
+// handleNotifications handles notifications in a blocking manner.
+// This should only be called when notificationMgr is available (i.e. s.bus is set).
+func (s *SessionAgent) handleNotifications() error {
+	err := s.notificationMgr.HandleNotifications(s.tomb.Context(context.Background()))
+	if err != nil {
+		logger.Noticef("%v", err)
+	}
+	return nil
+}
+
 // Stop performs a graceful shutdown of the session agent and waits up to 5
 // seconds for it to complete.
 func (s *SessionAgent) Stop() error {
+	if s.bus != nil {
+		_, err := s.bus.ReleaseName(sessionAgentBusName)
+		if err != nil {
+			logger.Noticef("%v", err)
+		}
+	}
 	s.tomb.Kill(nil)
 	return s.tomb.Wait()
 }

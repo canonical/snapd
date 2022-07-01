@@ -36,17 +36,12 @@ debug: |
     env | sort | grep NESTED_ || true
     cat pc-gadget/meta/gadget.yaml || true
     ls "$PWD" || true
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    GADGET_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap || true)
+    GADGET_SNAP=$(ls "$(tests.nested get assets-path)"/pc_*.snap || true)
     unsquashfs -d unpacked-pc-gadget "$GADGET_SNAP" || true
     cat unpacked-pc-gadget/meta/gadget.yaml || true
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
-    if [ "${NESTED_UBUNTU_SAVE:-}" != "add" ] && ! nested_is_tpm_enabled; then
+    if [ "${NESTED_UBUNTU_SAVE:-}" != "add" ] && ! tests.nested is-enabled tpm; then
         echo "Check that ubuntu-save is not mounted"
         tests.nested exec "! mountpoint /run/mnt/ubuntu-save"
         tests.nested exec "! mountpoint /var/lib/snapd/save"
@@ -56,7 +51,7 @@ execute: |
         # Filesystem                                                   1B-blocks  Used Available Use% Mounted on
         # /dev/mapper/ubuntu-save-0bed13ef-f71f-418f-b046-b1ce32dd04a7   5079040 28672   4390912   1% /run/mnt/ubuntu-save
         save_out="$(tests.nested exec "df -B1 /run/mnt/ubuntu-save | tail -1")"
-        if nested_is_tpm_enabled; then
+        if tests.nested is-enabled tpm; then
             # when encrypted, ubuntu-save is mounted from a dm device
             echo "$save_out" | MATCH '^/dev/mapper/ubuntu-save-[0-9a-z-]+\s+'
         else
@@ -80,17 +75,17 @@ execute: |
 
     echo "Transition to recovery mode and check again"
     recovery_system=$(tests.nested exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
-    nested_uc20_transition_to_system_mode "$recovery_system" "recover"
+    tests.nested transition "$recovery_system" "recover"
 
     # happily running in recover mode
 
-    if [ "${NESTED_UBUNTU_SAVE:-}" != "add" ] && ! nested_is_tpm_enabled; then
+    if [ "${NESTED_UBUNTU_SAVE:-}" != "add" ] && ! tests.nested is-enabled tpm; then
         # no ubuntu-save
         tests.nested exec "! mountpoint /run/mnt/ubuntu-save"
         tests.nested exec "! mountpoint /var/lib/snapd/save"
     else
         recover_save_out="$(tests.nested exec "df -B1 /run/mnt/ubuntu-save | tail -1")"
-        if nested_is_tpm_enabled; then
+        if tests.nested is-enabled tpm; then
             # when encrypted, ubuntu-save is mounted from a dm device
             echo "$recover_save_out" | MATCH '^/dev/mapper/ubuntu-save-[0-9a-z-]+\s+'
         else

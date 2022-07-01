@@ -75,7 +75,7 @@ func includesType(which []snap.Type, t snap.Type) bool {
 			return true
 		}
 	}
-	return true
+	return false
 }
 
 func exactlyType(which []snap.Type, t snap.Type) bool {
@@ -166,4 +166,18 @@ func (b20 RunBootenv20) SetRollbackAcrossReboot(which []snap.Type) error {
 	// clean try bootvars and snap_mode
 	b20.BootVars["kernel_status"] = ""
 	return nil
+}
+
+// RunBootenvNotScript20 implements manipulating a UC20 run-mode boot
+// env for testing, for the case of not scriptable bootloader
+// (i.e. piboot).
+type RunBootenvNotScript20 struct {
+	*bootloadertest.MockExtractedRecoveryKernelNotScriptableBootloader
+}
+
+// MockUC20RunBootenvNotScript wraps a mock bootloader for UC20
+// run-mode boot env manipulation, for the case of not scriptable
+// bootloader (i.e. piboot).
+func MockUC20RunBootenvNotScript(b *bootloadertest.MockBootloader) *RunBootenvNotScript20 {
+	return &RunBootenvNotScript20{b.RecoveryAware().WithNotScriptable().WithExtractedRecoveryKernel()}
 }

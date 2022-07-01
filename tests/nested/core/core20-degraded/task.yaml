@@ -1,21 +1,18 @@
 summary: Transition to recover mode with things missing so we use degraded mode
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
   DEGRADED_JSON: /run/snapd/snap-bootstrap/degraded.json
 
 execute: |
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   # wait for the system to be seeded first
-
   tests.nested wait-for snap-command
   tests.nested exec "sudo snap wait system seed.loaded"
 
   echo "Install jq in the host environment"
   snap install jq
+  tests.cleanup defer snap remove jq
 
   echo "Move the run key for ubuntu-save out of the way so we use the fallback key to unlock ubuntu-save"
   tests.nested exec "sudo mv /run/mnt/data/system-data/var/lib/snapd/device/fde/ubuntu-save.key /run/mnt/data/system-data/var/lib/snapd/device/fde/ubuntu-save.key.bk"
@@ -23,7 +20,7 @@ execute: |
   recoverySystem=$(tests.nested exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
 
   echo "Transition to recover mode"
-  nested_uc20_transition_to_system_mode "$recoverySystem" recover
+  tests.nested transition "$recoverySystem" recover
 
   tests.nested wait-for snap-command
   tests.nested exec "sudo snap wait system seed.loaded"
@@ -34,14 +31,14 @@ execute: |
 
   echo "Move the run object key for ubuntu-save back and go back to run mode"
   tests.nested exec "sudo mv /run/mnt/host/ubuntu-data/system-data/var/lib/snapd/device/fde/ubuntu-save.key.bk /run/mnt/host/ubuntu-data/system-data/var/lib/snapd/device/fde/ubuntu-save.key"
-  nested_uc20_transition_to_system_mode "$recoverySystem" run
+  tests.nested transition "$recoverySystem" run
 
   tests.nested wait-for snap-command
   tests.nested exec "sudo snap wait system seed.loaded"
 
   echo "Now move the run object key on ubuntu-boot out of the way so we use the fallback key to unlock ubuntu-data"
   tests.nested exec "sudo mv /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key.bk"
-  nested_uc20_transition_to_system_mode "$recoverySystem" recover
+  tests.nested transition "$recoverySystem" recover
 
   tests.nested wait-for snap-command
   tests.nested exec "sudo snap wait system seed.loaded"

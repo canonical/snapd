@@ -2,6 +2,18 @@
 
 set -ex
 
+# TODO: Remove the refresh once the issue https://github.com/lxc/lxd/issues/10079 is release to 4.0/candidate
+# Make sure the lxd snap is updated before removing it
+for _ in $(seq 30); do
+    if snap changes | grep -qE "Done.*Initialize device"; then
+        break
+    fi
+    sleep 1
+done
+snap wait system seed.loaded
+snap refresh lxd --channel=latest/stable
+snap remove lxd
+
 # XXX: remove once the "umount /snap" change in postrm has propagated all
 #      the way to the image
 if [ -e /var/lib/dpkg/info/snapd.postrm ]; then

@@ -49,6 +49,8 @@ type commonInterface struct {
 	implicitOnCore    bool
 	implicitOnClassic bool
 
+	affectsPlugOnRefresh bool
+
 	baseDeclarationPlugs string
 	baseDeclarationSlots string
 
@@ -65,9 +67,12 @@ type commonInterface struct {
 	permanentPlugKModModules []string
 	permanentSlotKModModules []string
 
-	usesPtraceTrace      bool
-	suppressPtraceTrace  bool
-	suppressHomeIx       bool
+	usesPtraceTrace             bool
+	suppressPtraceTrace         bool
+	suppressHomeIx              bool
+	usesSysModuleCapability     bool
+	suppressSysModuleCapability bool
+
 	controlsDeviceCgroup bool
 
 	serviceSnippets []string
@@ -87,6 +92,8 @@ func (iface *commonInterface) StaticInfo() interfaces.StaticInfo {
 		ImplicitOnClassic:    iface.implicitOnClassic,
 		BaseDeclarationPlugs: iface.baseDeclarationPlugs,
 		BaseDeclarationSlots: iface.baseDeclarationSlots,
+		// affects the plug snap because of mount backend
+		AffectsPlugOnRefresh: iface.affectsPlugOnRefresh,
 	}
 }
 
@@ -102,6 +109,11 @@ func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	}
 	if iface.suppressHomeIx {
 		spec.SetSuppressHomeIx()
+	}
+	if iface.usesSysModuleCapability {
+		spec.SetUsesSysModuleCapability()
+	} else if iface.suppressSysModuleCapability {
+		spec.SetSuppressSysModuleCapability()
 	}
 	if snippet := iface.connectedPlugAppArmor; snippet != "" {
 		spec.AddSnippet(snippet)

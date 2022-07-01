@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -629,4 +630,120 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			}
 		}
 	}
+}
+
+func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVars(c *C) {
+	bloader := bootloadertest.Mock("noscripts", c.MkDir()).WithNotScriptable()
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	tt := []struct {
+		cmdline       string
+		initialStatus string
+		finalStatus   string
+	}{
+		{
+			cmdline:       "kernel_status=trying",
+			initialStatus: "try",
+			finalStatus:   "trying",
+		},
+		{
+			cmdline:       "kernel_status=trying",
+			initialStatus: "badstate",
+			finalStatus:   "",
+		},
+		{
+			cmdline:       "kernel_status=trying",
+			initialStatus: "",
+			finalStatus:   "",
+		},
+		{
+			cmdline:       "",
+			initialStatus: "try",
+			finalStatus:   "",
+		},
+		{
+			cmdline:       "",
+			initialStatus: "trying",
+			finalStatus:   "",
+		},
+		{
+			cmdline:       "quiet splash",
+			initialStatus: "try",
+			finalStatus:   "",
+		},
+	}
+
+	for _, t := range tt {
+		bloader.SetBootVars(map[string]string{"kernel_status": t.initialStatus})
+
+		cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
+		err := ioutil.WriteFile(cmdlineFile, []byte(t.cmdline), 0644)
+		c.Assert(err, IsNil)
+		r := osutil.MockProcCmdline(cmdlineFile)
+		defer r()
+
+		err = boot.InitramfsRunModeUpdateBootloaderVars()
+		c.Assert(err, IsNil)
+		vars, err := bloader.GetBootVars("kernel_status")
+		c.Assert(err, IsNil)
+		c.Assert(vars, DeepEquals, map[string]string{"kernel_status": t.finalStatus})
+	}
+}
+
+func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsNotNotScriptable(c *C) {
+	// Make sure the method does not change status if the
+	// bootloader does not implement NotScriptableBootloader
+
+	bloader := bootloadertest.Mock("noscripts", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	bloader.SetBootVars(map[string]string{"kernel_status": "try"})
+
+	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
+	err := ioutil.WriteFile(cmdlineFile, []byte("kernel_status=trying"), 0644)
+	c.Assert(err, IsNil)
+	r := osutil.MockProcCmdline(cmdlineFile)
+	defer r()
+
+	err = boot.InitramfsRunModeUpdateBootloaderVars()
+	c.Assert(err, IsNil)
+	vars, err := bloader.GetBootVars("kernel_status")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{"kernel_status": "try"})
+}
+
+func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsErrOnGetBootVars(c *C) {
+	bloader := bootloadertest.Mock("noscripts", c.MkDir()).WithNotScriptable()
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	errMsg := "cannot get boot environment"
+	bloader.GetErr = fmt.Errorf(errMsg)
+
+	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
+	err := ioutil.WriteFile(cmdlineFile, []byte("kernel_status=trying"), 0644)
+	c.Assert(err, IsNil)
+	r := osutil.MockProcCmdline(cmdlineFile)
+	defer r()
+
+	err = boot.InitramfsRunModeUpdateBootloaderVars()
+	c.Assert(err, ErrorMatches, errMsg)
+}
+
+func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsErrNoCmdline(c *C) {
+	bloader := bootloadertest.Mock("noscripts", c.MkDir()).WithNotScriptable()
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	bloader.SetBootVars(map[string]string{"kernel_status": "try"})
+
+	err := boot.InitramfsRunModeUpdateBootloaderVars()
+	c.Assert(err, ErrorMatches, ".*cmdline: no such file or directory")
+}
+
+func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsNoBootloaderHappy(c *C) {
+	err := boot.InitramfsRunModeUpdateBootloaderVars()
+	c.Assert(err, IsNil)
 }

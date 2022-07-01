@@ -35,7 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/systemd"
-	"github.com/snapcore/snapd/timeout"
+	"github.com/snapcore/snapd/usersession/client"
 )
 
 var restApi = []*Command{
@@ -65,6 +65,11 @@ var (
 		Path: "/v1/notifications/pending-refresh",
 		POST: postPendingRefreshNotification,
 	}
+
+	finishRefreshNotificationCmd = &Command{
+		Path: "/v1/notifications/finish-refresh",
+		POST: postRefreshFinishedNotification,
+	}
 )
 
 func sessionInfo(c *Command, r *http.Request) Response {
@@ -79,11 +84,6 @@ type serviceInstruction struct {
 	Services []string `json:"services"`
 }
 
-var (
-	stopTimeout = time.Duration(timeout.DefaultTimeout)
-	killWait    = 5 * time.Second
-)
-
 func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	// Refuse to start non-snap services
 	for _, service := range inst.Services {
@@ -95,7 +95,7 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	startErrors := make(map[string]string)
 	var started []string
 	for _, service := range inst.Services {
-		if err := sysd.Start(service); err != nil {
+		if err := sysd.Start([]string{service}); err != nil {
 			startErrors[service] = err.Error()
 			break
 		}
@@ -105,7 +105,7 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	stopErrors := make(map[string]string)
 	if len(startErrors) != 0 {
 		for _, service := range started {
-			if err := sysd.Stop(service, stopTimeout); err != nil {
+			if err := sysd.Stop([]string{service}); err != nil {
 				stopErrors[service] = err.Error()
 			}
 		}
@@ -137,7 +137,7 @@ func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
 
 	stopErrors := make(map[string]string)
 	for _, service := range inst.Services {
-		if err := sysd.Stop(service, stopTimeout); err != nil {
+		if err := sysd.Stop([]string{service}); err != nil {
 			stopErrors[service] = err.Error()
 		}
 	}
@@ -175,9 +175,9 @@ var serviceInstructionDispTable = map[string]func(*serviceInstruction, systemd.S
 
 var systemdLock sync.Mutex
 
-type dummyReporter struct{}
+type noopReporter struct{}
 
-func (dummyReporter) Notify(string) {}
+func (noopReporter) Notify(string) {}
 
 func validateJSONRequest(r *http.Request) (valid bool, errResp Response) {
 	contentType := r.Header.Get("Content-Type")
@@ -215,7 +215,7 @@ func postServiceControl(c *Command, r *http.Request) Response {
 	// Prevent multiple systemd actions from being carried out simultaneously
 	systemdLock.Lock()
 	defer systemdLock.Unlock()
-	sysd := systemd.New(systemd.UserMode, dummyReporter{})
+	sysd := systemd.New(systemd.UserMode, noopReporter{})
 	return impl(&inst, sysd)
 }
 
@@ -244,14 +244,10 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 			Type:   ResponseTypeError,
 			Status: 500,
 			Result: &errorResult{
-				Message: fmt.Sprintf("cannot connect to the session bus"),
+				Message: "cannot connect to the session bus",
 			},
 		})
 	}
-
-	// TODO: support desktop-specific notification APIs if they provide a better
-	// experience. For example, the GNOME notification API.
-	notifySrv := notification.New(c.s.bus)
 
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
 	summary := fmt.Sprintf(i18n.G("Pending update of %q snap"), refreshInfo.InstanceName)
@@ -290,7 +286,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 
 	msg := &notification.Message{
 		AppName: refreshInfo.BusyAppName,
-		Summary: summary,
+		Title:   summary,
 		Icon:    icon,
 		Body:    body,
 		Hints:   hints,
@@ -298,12 +294,47 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 
 	// TODO: silently ignore error returned when the notification server does not exist.
 	// TODO: track returned notification ID and respond to actions, if supported.
-	if _, err := notifySrv.SendNotification(msg); err != nil {
+	if err := c.s.notificationMgr.SendNotification(notification.ID(refreshInfo.InstanceName), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,
 			Result: &errorResult{
 				Message: fmt.Sprintf("cannot send notification message: %v", err),
+			},
+		})
+	}
+	return SyncResponse(nil)
+}
+
+func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	var finishRefresh client.FinishedSnapRefreshInfo
+	if err := decoder.Decode(&finishRefresh); err != nil {
+		return BadRequest("cannot decode request body into finish refresh notification info: %v", err)
+	}
+
+	// Note that since the connection is shared, we are not closing it.
+	if c.s.bus == nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: "cannot connect to the session bus",
+			},
+		})
+	}
+
+	if err := c.s.notificationMgr.CloseNotification(notification.ID(finishRefresh.InstanceName)); err != nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: fmt.Sprintf("cannot send close notification message: %v", err),
 			},
 		})
 	}

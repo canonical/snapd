@@ -174,6 +174,10 @@ func (m *InterfaceManager) StartUp() error {
 			return err
 		}
 	}
+	if snapdAppArmorServiceIsDisabled() {
+		s.Warnf(`the snapd.apparmor service is disabled; snap applications will likely not start.
+Run "systemctl enable --now snapd.apparmor" to correct this.`)
+	}
 
 	ifacerepo.Replace(s, m.repo)
 
@@ -264,6 +268,12 @@ type ConnectionState struct {
 	StaticSlotAttrs  map[string]interface{}
 	DynamicSlotAttrs map[string]interface{}
 	HotplugGone      bool
+}
+
+// Active returns true if connection is not undesired and not removed by
+// hotplug.
+func (c ConnectionState) Active() bool {
+	return !(c.Undesired || c.HotplugGone)
 }
 
 // ConnectionStates return the state of connections stored in the state.

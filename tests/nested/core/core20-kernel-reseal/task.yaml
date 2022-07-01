@@ -1,16 +1,13 @@
 summary: Check that a kernel refresh reseals
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 prepare: |
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   # we cannot use the kernel from store as it may have a version of
   # snap-bootstrap that will not be able to unseal the keys and unlock the
   # encrypted volumes, instead use the kernel we repacked when building the UC20
   # image
-  KERNEL_SNAP="$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)"
+  KERNEL_SNAP="$(ls "$(tests.nested get assets-path)"/pc-kernel_*.snap)"
   unsquashfs -d pc-kernel "$KERNEL_SNAP"
   # ensure we really have the header we expect
   grep -q -a "This program cannot be run in DOS mode" pc-kernel/kernel.efi
@@ -18,10 +15,10 @@ prepare: |
   sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-kernel/kernel.efi
   grep -q -a "This program cannot be run in XXX mode" pc-kernel/kernel.efi
 
-  KEY_NAME=$(nested_get_snakeoil_key)
+  KEY_NAME=$(tests.nested download snakeoil-key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-  nested_secboot_sign_file "$PWD/pc-kernel/kernel.efi" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+  tests.nested secboot-sign file "$PWD/pc-kernel/kernel.efi" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
   snap pack pc-kernel
   rm -rf pc-kernel
@@ -29,14 +26,11 @@ prepare: |
   tests.nested copy new-pc-kernel.snap
 
 execute: |
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   SEALED_KEY_MTIME_1="$(tests.nested exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
   RESEAL_COUNT_1="$(tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
 
   echo "Install new (unasserted) kernel and wait for reboot/change finishing"
-  boot_id="$( nested_get_boot_id )"
+  boot_id="$( tests.nested boot-id )"
   REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous new-pc-kernel.snap --no-wait)
   tests.nested wait-for reboot "${boot_id}"
   tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"

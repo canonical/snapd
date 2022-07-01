@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // check helpers
@@ -88,40 +87,10 @@ func checkDeviceScope(c *asserts.DeviceScopeConstraint, model *asserts.Model, st
 	if c == nil {
 		return nil
 	}
-	if model == nil {
-		return fmt.Errorf("cannot match on-store/on-brand/on-model without model")
+	opts := asserts.DeviceScopeConstraintCheckOptions{
+		UseFriendlyStores: true,
 	}
-	if store != nil && store.Store() != model.Store() {
-		return fmt.Errorf("store assertion and model store must match")
-	}
-	if len(c.Store) != 0 {
-		if !strutil.ListContains(c.Store, model.Store()) {
-			mismatch := true
-			if store != nil {
-				for _, sto := range c.Store {
-					if strutil.ListContains(store.FriendlyStores(), sto) {
-						mismatch = false
-						break
-					}
-				}
-			}
-			if mismatch {
-				return fmt.Errorf("on-store mismatch")
-			}
-		}
-	}
-	if len(c.Brand) != 0 {
-		if !strutil.ListContains(c.Brand, model.BrandID()) {
-			return fmt.Errorf("on-brand mismatch")
-		}
-	}
-	if len(c.Model) != 0 {
-		brandModel := fmt.Sprintf("%s/%s", model.BrandID(), model.Model())
-		if !strutil.ListContains(c.Model, brandModel) {
-			return fmt.Errorf("on-model mismatch")
-		}
-	}
-	return nil
+	return c.Check(model, store, &opts)
 }
 
 func checkNameConstraints(c *asserts.NameConstraints, iface, which, name string) error {
@@ -234,7 +203,7 @@ func checkSlotConnectionAltConstraints(connc *ConnectCandidate, altConstraints [
 	return nil, firstErr
 }
 
-func checkSnapTypeSlotInstallationConstraints1(ic *InstallCandidateMinimalCheck, slot *snap.SlotInfo, constraints *asserts.SlotInstallationConstraints) error {
+func checkSnapTypeSlotInstallationConstraints1(slot *snap.SlotInfo, constraints *asserts.SlotInstallationConstraints) error {
 	if err := checkSnapType(slot.Snap, constraints.SlotSnapTypes); err != nil {
 		return err
 	}
@@ -244,7 +213,7 @@ func checkSnapTypeSlotInstallationConstraints1(ic *InstallCandidateMinimalCheck,
 	return nil
 }
 
-func checkMinimalSlotInstallationAltConstraints(ic *InstallCandidateMinimalCheck, slot *snap.SlotInfo, altConstraints []*asserts.SlotInstallationConstraints) (bool, error) {
+func checkMinimalSlotInstallationAltConstraints(slot *snap.SlotInfo, altConstraints []*asserts.SlotInstallationConstraints) (bool, error) {
 	var firstErr error
 	var hasSnapTypeConstraints bool
 	// OR of constraints
@@ -253,7 +222,7 @@ func checkMinimalSlotInstallationAltConstraints(ic *InstallCandidateMinimalCheck
 			continue
 		}
 		hasSnapTypeConstraints = true
-		err := checkSnapTypeSlotInstallationConstraints1(ic, slot, constraints)
+		err := checkSnapTypeSlotInstallationConstraints1(slot, constraints)
 		if err == nil {
 			return true, nil
 		}
@@ -274,6 +243,9 @@ func checkSlotInstallationConstraints1(ic *InstallCandidate, slot *snap.SlotInfo
 		return err
 	}
 	if err := checkSnapType(slot.Snap, constraints.SlotSnapTypes); err != nil {
+		return err
+	}
+	if err := checkID("snap id", ic.snapID(), constraints.SlotSnapIDs, nil); err != nil {
 		return err
 	}
 	if err := checkOnClassic(constraints.OnClassic); err != nil {
@@ -310,6 +282,9 @@ func checkPlugInstallationConstraints1(ic *InstallCandidate, plug *snap.PlugInfo
 		return err
 	}
 	if err := checkSnapType(plug.Snap, constraints.PlugSnapTypes); err != nil {
+		return err
+	}
+	if err := checkID("snap id", ic.snapID(), constraints.PlugSnapIDs, nil); err != nil {
 		return err
 	}
 	if err := checkOnClassic(constraints.OnClassic); err != nil {

@@ -36,12 +36,12 @@ execute: |
 
   # create another sub-group which will serve as the poisoned branch on buggy
   # systems
-  snap set-quota --memory=5000B --parent=top sub2
+  snap set-quota --memory=50MB --parent=top sub2
 
   # now create a quota group under sub2 with no services in it, but still has a
   # snap in it so that the systemd slice underlying the quota group is generated
   # and exists
-  snap set-quota --memory=4900B --parent=sub2 sub21 hello-world
+  snap set-quota --memory=49MB --parent=sub2 sub21 hello-world
 
   # check that usage is still sensible for the groups that have real usage - 
   # here 18.4EB is how we format the maximum size of a 64-bit unsigned integer

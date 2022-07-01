@@ -20,7 +20,6 @@
 package systemd
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -39,80 +38,90 @@ type emulation struct {
 	rootDir string
 }
 
-var errNotImplemented = errors.New("not implemented in emulation mode")
+type notImplementedError struct {
+	op string
+}
+
+func (e *notImplementedError) Error() string {
+	return fmt.Sprintf("%q is not implemented in emulation mode", e.op)
+}
+
+func (s *emulation) Backend() Backend {
+	return EmulationModeBackend
+}
 
 func (s *emulation) DaemonReload() error {
-	return errNotImplemented
+	return nil
 }
 
 func (s *emulation) DaemonReexec() error {
-	return errNotImplemented
+	return &notImplementedError{"DaemonReexec"}
 }
 
-func (s *emulation) Enable(service string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "enable", service)
+func (s *emulation) EnableNoReload(services []string) error {
+	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "enable"}, services...)...)
 	return err
 }
 
-func (s *emulation) Disable(service string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "disable", service)
+func (s *emulation) DisableNoReload(services []string) error {
+	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "disable"}, services...)...)
 	return err
 }
 
-func (s *emulation) Start(service ...string) error {
-	return errNotImplemented
+func (s *emulation) Start(services []string) error {
+	return nil
 }
 
-func (s *emulation) StartNoBlock(service ...string) error {
-	return errNotImplemented
+func (s *emulation) StartNoBlock(services []string) error {
+	return nil
 }
 
-func (s *emulation) Stop(service string, timeout time.Duration) error {
-	return errNotImplemented
+func (s *emulation) Stop(services []string) error {
+	return nil
 }
 
 func (s *emulation) Kill(service, signal, who string) error {
-	return errNotImplemented
+	return &notImplementedError{"Kill"}
 }
 
-func (s *emulation) Restart(service string, timeout time.Duration) error {
-	return errNotImplemented
+func (s *emulation) Restart(services []string) error {
+	return nil
 }
 
 func (s *emulation) ReloadOrRestart(service string) error {
-	return errNotImplemented
+	return &notImplementedError{"ReloadOrRestart"}
 }
 
 func (s *emulation) RestartAll(service string) error {
-	return errNotImplemented
+	return &notImplementedError{"RestartAll"}
 }
 
-func (s *emulation) Status(units ...string) ([]*UnitStatus, error) {
-	return nil, errNotImplemented
+func (s *emulation) Status(units []string) ([]*UnitStatus, error) {
+	return nil, &notImplementedError{"Status"}
 }
 
 func (s *emulation) InactiveEnterTimestamp(unit string) (time.Time, error) {
-	return time.Time{}, errNotImplemented
+	return time.Time{}, &notImplementedError{"InactiveEnterTimestamp"}
 }
 
 func (s *emulation) CurrentMemoryUsage(unit string) (quantity.Size, error) {
-	return 0, errNotImplemented
+	return 0, &notImplementedError{"CurrentMemoryUsage"}
 }
 
 func (s *emulation) CurrentTasksCount(unit string) (uint64, error) {
-	return 0, errNotImplemented
+	return 0, &notImplementedError{"CurrentTasksCount"}
 }
 
 func (s *emulation) IsEnabled(service string) (bool, error) {
-	return false, errNotImplemented
+	return false, &notImplementedError{"IsEnabled"}
 }
 
 func (s *emulation) IsActive(service string) (bool, error) {
-	return false, errNotImplemented
+	return false, &notImplementedError{"IsActive"}
 }
 
 func (s *emulation) LogReader(services []string, n int, follow bool) (io.ReadCloser, error) {
-	return nil, errNotImplemented
+	return nil, fmt.Errorf("LogReader")
 }
 
 func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
@@ -125,7 +134,15 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 	// This means that when preseeding in a lxd container, the snap will be
 	// mounted with fuse, but mount unit will use squashfs.
 	mountUnitOptions := append(fsMountOptions(fstype), squashfs.StandardOptions()...)
-	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, fstype, mountUnitOptions)
+	mountUnitName, err := writeMountUnitFile(&MountUnitOptions{
+		Lifetime: Persistent,
+		SnapName: snapName,
+		Revision: revision,
+		What:     what,
+		Where:    where,
+		Fstype:   fstype,
+		Options:  mountUnitOptions,
+	})
 	if err != nil {
 		return "", err
 	}
@@ -148,6 +165,10 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 		return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
 	}
 	return mountUnitName, nil
+}
+
+func (s *emulation) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
+	return "", &notImplementedError{"AddMountUnitFileWithOptions"}
 }
 
 func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
@@ -180,6 +201,10 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 	return nil
 }
 
+func (s *emulation) ListMountUnits(snapName, origin string) ([]string, error) {
+	return nil, &notImplementedError{"ListMountUnits"}
+}
+
 func (s *emulation) Mask(service string) error {
 	_, err := systemctlCmd("--root", s.rootDir, "mask", service)
 	return err
@@ -191,9 +216,13 @@ func (s *emulation) Unmask(service string) error {
 }
 
 func (s *emulation) Mount(what, where string, options ...string) error {
-	return errNotImplemented
+	return &notImplementedError{"Mount"}
 }
 
 func (s *emulation) Umount(whatOrWhere string) error {
-	return errNotImplemented
+	return &notImplementedError{"Umount"}
+}
+
+func (s *emulation) Run(command []string, opts *RunOptions) ([]byte, error) {
+	return nil, &notImplementedError{"Run"}
 }

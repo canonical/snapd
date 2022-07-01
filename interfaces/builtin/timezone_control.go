@@ -59,6 +59,13 @@ dbus (send)
     member="SetTimezone"
     peer=(label=unconfined),
 
+dbus (send)
+    bus=system
+    path=/org/freedesktop/timedate1
+    interface=org.freedesktop.timedate1
+    member="ListTimezones"
+    peer=(label=unconfined),
+
 # Read all properties from timedate1
 # do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)

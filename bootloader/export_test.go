@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/snap"
 )
 
 // creates a new Androidboot bootloader object
@@ -123,17 +124,41 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 		lkBootDisk := &disks.MockDiskMapping{
 			// mock the partition labels, since these structures won't have
 			// filesystems, but they will have partition labels
-			PartitionLabelToPartUUID: map[string]string{
-				"snapbootsel":        "snapbootsel-partuuid",
-				"snapbootselbak":     "snapbootselbak-partuuid",
-				"snaprecoverysel":    "snaprecoverysel-partuuid",
-				"snaprecoveryselbak": "snaprecoveryselbak-partuuid",
+			Structure: []disks.Partition{
+				{
+					PartitionLabel: "snapbootsel",
+					PartitionUUID:  "snapbootsel-partuuid",
+				},
+				{
+					PartitionLabel: "snapbootselbak",
+					PartitionUUID:  "snapbootselbak-partuuid",
+				},
+				{
+					PartitionLabel: "snaprecoverysel",
+					PartitionUUID:  "snaprecoverysel-partuuid",
+				},
+				{
+					PartitionLabel: "snaprecoveryselbak",
+					PartitionUUID:  "snaprecoveryselbak-partuuid",
+				},
 				// for run mode kernel snaps
-				"boot_a": "boot-a-partuuid",
-				"boot_b": "boot-b-partuuid",
+				{
+					PartitionLabel: "boot_a",
+					PartitionUUID:  "boot-a-partuuid",
+				},
+				{
+					PartitionLabel: "boot_b",
+					PartitionUUID:  "boot-b-partuuid",
+				},
 				// for recovery system kernel snaps
-				"boot_ra": "boot-ra-partuuid",
-				"boot_rb": "boot-rb-partuuid",
+				{
+					PartitionLabel: "boot_ra",
+					PartitionUUID:  "boot-ra-partuuid",
+				},
+				{
+					PartitionLabel: "boot_rb",
+					PartitionUUID:  "boot-rb-partuuid",
+				},
 			},
 			DiskHasPartitions: true,
 			DevNum:            "lk-boot-disk-dev-num",
@@ -144,7 +169,7 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 		}
 
 		// mock the disk
-		r := disks.MockDeviceNameDisksToPartitionMapping(m)
+		r := disks.MockDeviceNameToDiskMapping(m)
 		cleanups = append(cleanups, r)
 
 		// now mock the kernel command line
@@ -216,6 +241,84 @@ func MockAddBootloaderToFind(blConstructor func(string, *Options) Bootloader) (r
 	return func() {
 		bootloaders = bootloaders[:oldLen]
 	}
+}
+
+func NewPiboot(rootdir string, opts *Options) ExtractedRecoveryKernelImageBootloader {
+	return newPiboot(rootdir, opts).(ExtractedRecoveryKernelImageBootloader)
+}
+
+func MockPibootFiles(c *C, rootdir string, blOpts *Options) func() {
+	oldSeedPartDir := ubuntuSeedDir
+	ubuntuSeedDir = rootdir
+
+	p := &piboot{rootdir: rootdir}
+	p.setDefaults()
+	p.processBlOpts(blOpts)
+	err := os.MkdirAll(p.dir(), 0755)
+	c.Assert(err, IsNil)
+
+	// ensure that we have a valid piboot.conf
+	env, err := ubootenv.Create(p.envFile(), 4096)
+	c.Assert(err, IsNil)
+	err = env.Save()
+	c.Assert(err, IsNil)
+
+	// Create configuration files expected to come from the gadget
+	cmdLineFile, err := os.Create(filepath.Join(rootdir, "cmdline.txt"))
+	c.Assert(err, IsNil)
+	cmdLineFile.Close()
+	cfgFile, err := os.Create(filepath.Join(rootdir, "config.txt"))
+	c.Assert(err, IsNil)
+	cfgFile.Close()
+
+	return func() { ubuntuSeedDir = oldSeedPartDir }
+}
+
+func MockRPi4Files(c *C, rootdir string, rpiRevisionCode, eepromTimeStamp []byte) func() {
+	oldRevCodePath := rpi4RevisionCodesPath
+	oldEepromTs := rpi4EepromTimeStampPath
+	rpi4RevisionCodesPath = filepath.Join(rootdir, "linux,revision")
+	rpi4EepromTimeStampPath = filepath.Join(rootdir, "build-timestamp")
+
+	files := []struct {
+		path string
+		data []byte
+	}{
+		{
+			path: rpi4RevisionCodesPath,
+			data: rpiRevisionCode,
+		},
+		{
+			path: rpi4EepromTimeStampPath,
+			data: eepromTimeStamp,
+		},
+	}
+	for _, file := range files {
+		if len(file.data) == 0 {
+			continue
+		}
+		fd, err := os.Create(file.path)
+		c.Assert(err, IsNil)
+		defer fd.Close()
+		written, err := fd.Write(file.data)
+		c.Assert(err, IsNil)
+		c.Assert(written, Equals, len(file.data))
+	}
+
+	return func() {
+		rpi4RevisionCodesPath = oldRevCodePath
+		rpi4EepromTimeStampPath = oldEepromTs
+	}
+}
+
+func PibootConfigFile(b Bootloader) string {
+	p := b.(*piboot)
+	return p.envFile()
+}
+
+func LayoutKernelAssetsToDir(b Bootloader, snapf snap.Container, dstDir string) error {
+	p := b.(*piboot)
+	return p.layoutKernelAssetsToDir(snapf, dstDir)
 }
 
 var (

@@ -44,13 +44,8 @@ var (
 
 	Flatten = flatten
 
-	FilesystemInfo = filesystemInfo
-
 	NewRawStructureUpdater      = newRawStructureUpdater
 	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
-
-	FindDeviceForStructureWithFallback = findDeviceForStructureWithFallback
-	FindMountPointForStructure         = findMountPointForStructure
 
 	ParseRelativeOffset = parseRelativeOffset
 
@@ -59,6 +54,17 @@ var (
 	ResolveVolumeContent = resolveVolumeContent
 
 	GadgetVolumeConsumesOneKernelUpdateAsset = gadgetVolumeConsumesOneKernelUpdateAsset
+	GadgetVolumeKernelUpdateAssetsConsumed   = gadgetVolumeKernelUpdateAssetsConsumed
+
+	BuildNewVolumeToDeviceMapping = buildNewVolumeToDeviceMapping
+	ErrSkipUpdateProceedRefresh   = errSkipUpdateProceedRefresh
+
+	BuildVolumeStructureToLocation = buildVolumeStructureToLocation
+	VolumeStructureToLocationMap   = volumeStructureToLocationMap
+
+	OnDiskStructureIsLikelyImplicitSystemDataRole = onDiskStructureIsLikelyImplicitSystemDataRole
+
+	SearchForVolumeWithTraits = searchForVolumeWithTraits
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
@@ -71,4 +77,9 @@ func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
 
 func (m *MountedFilesystemWriter) WriteDirectory(volumeRoot, src, dst string, preserveInDst []string) error {
 	return m.writeDirectory(volumeRoot, src, dst, preserveInDst)
+}
+
+// to test handling of unknown keys when we un-marshal
+func (s *StructureEncryptionParameters) SetUnknownKeys(m map[string]string) {
+	s.unknownKeys = m
 }

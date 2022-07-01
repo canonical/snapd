@@ -9,6 +9,7 @@ cmd/VERSION
 .vscode/
 .idea/
 vendor/*/
+vendor/modules.txt
 c-vendor/*/
 .spread-reuse*.yaml
 po/snappy.pot
@@ -36,6 +37,7 @@ cmd/snap-mgmt/snap-mgmt
 cmd/snap-seccomp/snap-seccomp
 cmd/snap-update-ns/snap-update-ns
 cmd/snap-update-ns/unit-tests
+cmd/snapd-apparmor/snapd-apparmor
 cmd/snapd-env-generator/snapd-env-generator
 cmd/snapd-generator/snapd-generator
 cmd/system-shutdown/system-shutdown

@@ -22,8 +22,10 @@ package devicestate_test
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -51,23 +54,25 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
 )
 
 var (
-	settleTimeout = testutil.HostScaledTimeout(15 * time.Second)
+	settleTimeout = testutil.HostScaledTimeout(30 * time.Second)
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
@@ -89,7 +94,7 @@ type deviceMgrBaseSuite struct {
 
 	ancillary []asserts.Assertion
 
-	restartRequests []state.RestartType
+	restartRequests []restart.RestartType
 	restartObserve  func()
 
 	newFakeStore func(storecontext.DeviceBackend) snapstate.StoreService
@@ -132,7 +137,7 @@ var (
 	brandPrivKey3, _ = assertstest.GenerateKey(752)
 )
 
-func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
+func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
@@ -153,19 +158,19 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	bootloader.Force(s.bootloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 
-	s.AddCleanup(release.MockOnClassic(false))
+	s.AddCleanup(release.MockOnClassic(classic))
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.restartObserve = nil
-	s.o = overlord.MockWithStateAndRestartHandler(nil, func(req state.RestartType) {
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+	s.state.Lock()
+	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType) {
 		s.restartRequests = append(s.restartRequests, req)
 		if s.restartObserve != nil {
 			s.restartObserve()
 		}
-	})
-	s.state = s.o.State()
-	s.state.Lock()
-	s.state.VerifyReboot("boot-id-0")
+	}))
 	s.state.Unlock()
 	s.se = s.o.StateEngine()
 
@@ -237,6 +242,10 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(func() { s.ancillary = nil })
 	s.AddCleanup(func() { s.newFakeStore = nil })
+
+	s.AddCleanup(devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		return true, nil
+	}))
 }
 
 func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
@@ -257,7 +266,7 @@ func (s *deviceMgrBaseSuite) seeding() {
 func (s *deviceMgrBaseSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]interface{}) *asserts.Model {
 	modelAs := s.brands.Model(brandID, model, extras)
 
-	s.setupBrands(c)
+	s.setupBrands()
 	assertstatetest.AddMany(s.state, modelAs)
 	return modelAs
 }
@@ -278,7 +287,7 @@ func (s *deviceMgrBaseSuite) setPCModelInState(c *C) {
 	})
 }
 
-func (s *deviceMgrBaseSuite) setupBrands(c *C) {
+func (s *deviceMgrBaseSuite) setupBrands() {
 	assertstatetest.AddMany(s.state, s.brands.AccountsAndKeys("my-brand")...)
 	otherAcct := assertstest.NewAccount(s.storeSigning, "other-brand", map[string]interface{}{
 		"account-id": "other-brand",
@@ -341,6 +350,11 @@ func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *s
 
 func (s *deviceMgrBaseSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) *asserts.Serial {
 	return makeSerialAssertionInState(c, s.brands, s.state, brandID, model, serialN)
+}
+
+func (s *deviceMgrSuite) SetUpTest(c *C) {
+	classic := false
+	s.setupBaseTest(c, classic)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerSetTimeOnce(c *C) {
@@ -610,7 +624,7 @@ func (s *deviceMgrSuite) TestCheckGadget(c *C) {
 
 	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: other-gadget, version: 0}", nil)
 
-	s.setupBrands(c)
+	s.setupBrands()
 	// model assertion in device context
 	model := fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
@@ -668,7 +682,7 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassic(c *C) {
 
 	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: other-gadget, version: 0}", nil)
 
-	s.setupBrands(c)
+	s.setupBrands()
 	// model assertion in device context
 	model := fakeMyModel(map[string]interface{}{
 		"classic": "true",
@@ -720,7 +734,7 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassicGadgetNotSpecified(c *C) {
 
 	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 
-	s.setupBrands(c)
+	s.setupBrands()
 	// model assertion in device context
 	model := fakeMyModel(map[string]interface{}{
 		"classic": "true",
@@ -772,7 +786,7 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	c.Check(err, ErrorMatches, `cannot install a kernel snap on classic`)
 	release.OnClassic = false
 
-	s.setupBrands(c)
+	s.setupBrands()
 	// model assertion in device context
 	model := fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
@@ -892,7 +906,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshNoSerialFallback(c *C) {
 	// third attempt ongoing, or done
 	// fallback, try auto-refresh
 	devicestate.IncEnsureOperationalAttempts(s.state)
-	// sanity
+	// validity
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 3)
 	c.Check(canAutoRefresh(), Equals, true)
 }
@@ -1560,7 +1574,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookHappy(c *C) {
 	})
 	st.Unlock()
 
-	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
+	mockKey := keys.EncryptionKey{1, 2, 3, 4}
 
 	var hookCalled []string
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
@@ -1778,4 +1792,275 @@ func (s *startOfOperationTimeSuite) TestStartOfOperationErrorIfPreseed(c *C) {
 	defer st.Unlock()
 	_, err := mgr.StartOfOperationTime()
 	c.Assert(err, ErrorMatches, `internal error: unexpected call to StartOfOperationTime in preseed mode`)
+}
+
+func (s *deviceMgrSuite) TestCanAutoRefreshNTP(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// CanAutoRefresh is ready
+	s.state.Set("seeded", true)
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "8989",
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
+
+	// now check that the ntp-sync information is honored
+	n := 0
+	ntpSynced := false
+	restore := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		n++
+		return ntpSynced, nil
+	})
+	defer restore()
+
+	// not ntp-synced
+	ok, err := devicestate.CanAutoRefresh(s.state)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, false)
+	c.Check(n, Equals, 1)
+
+	// now ntp-synced
+	ntpSynced = true
+	ok, err = devicestate.CanAutoRefresh(s.state)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
+	c.Check(n, Equals, 2)
+
+	// and the result was cached
+	ok, err = devicestate.CanAutoRefresh(s.state)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
+	c.Check(n, Equals, 2)
+}
+
+func (s *deviceMgrSuite) TestNTPSyncedOrWaitedLongerThan(c *C) {
+	restore := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		return false, nil
+	})
+	defer restore()
+
+	// NTP is not synced yet and the (arbitrary selected) wait
+	// time of 12h since the device manager got started is not
+	// over yet
+	syncedOrWaited := devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 12*time.Hour)
+	c.Check(syncedOrWaited, Equals, false)
+
+	// NTP is also not synced here but the wait time of 1
+	// Nanosecond since the device manager got started is
+	// certainly over
+	syncedOrWaited = devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 1*time.Nanosecond)
+	c.Check(syncedOrWaited, Equals, true)
+}
+
+func (s *deviceMgrSuite) TestNTPSyncedOrWaitedNoTimedate1(c *C) {
+	n := 0
+	restore := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		n++
+		// no timedate1
+		return false, timeutil.NoTimedate1Error{Err: fmt.Errorf("boom")}
+	})
+	defer restore()
+
+	// There is no timedate1 dbus service, no point in waiting
+	syncedOrWaited := devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 12*time.Hour)
+	c.Check(syncedOrWaited, Equals, true)
+	c.Check(n, Equals, 1)
+
+	// and the result was cached
+	syncedOrWaited = devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 12*time.Hour)
+	c.Check(syncedOrWaited, Equals, true)
+	c.Check(n, Equals, 1)
+}
+
+func (s *deviceMgrSuite) TestVoidDirPermissionsGetFixed(c *C) {
+	// create /var/lib/snapd/void with the wrong permissions
+	err := os.MkdirAll(dirs.SnapVoidDir, 0755)
+	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	st, err := os.Stat(dirs.SnapVoidDir)
+	c.Assert(err, IsNil)
+	c.Check(int(st.Mode().Perm()), Equals, 0111)
+	msgs := strings.TrimSpace(logbuf.String())
+	c.Check(msgs, Matches, "(?sm).*fixing permissions of .*/var/lib/snapd/void to 0111")
+	c.Check(strings.Split(msgs, "\n"), HasLen, 1)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) {
+	defer release.MockOnClassic(false)
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+	devicestate.SetBootOkRan(s.mgr, false)
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	// encrypted system
+	mockSnapFDEFile(c, "marker", nil)
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"),
+		[]byte("save-key"), 0644)
+	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0755), IsNil)
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+		[]byte("old"), 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+		[]byte("save"), 0644)
+	c.Assert(err, IsNil)
+	// matches the .factory key
+	factoryResetMarkercontent := []byte(`{"fallback-save-key-sha3-384":"d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b"}
+`)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+
+	completeCalls := 0
+	restore := devicestate.MockMarkFactoryResetComplete(func(encrypted bool) error {
+		completeCalls++
+		c.Check(encrypted, Equals, true)
+		return nil
+	})
+	defer restore()
+	transitionCalls := 0
+	restore = devicestate.MockSecbootTransitionEncryptionKeyChange(func(mountpoint string, key keys.EncryptionKey) error {
+		transitionCalls++
+		c.Check(mountpoint, Equals, boot.InitramfsUbuntuSaveDir)
+		c.Check(key, DeepEquals, keys.EncryptionKey([]byte("save-key")))
+		return nil
+	})
+	defer restore()
+
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	c.Check(completeCalls, Equals, 1)
+	c.Check(transitionCalls, Equals, 1)
+	// factory reset marker is gone, the key was verified successfully
+	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.SnapFDEDir, "marker"), testutil.FilePresent)
+
+	completeCalls = 0
+	transitionCalls = 0
+	// try again, no marker, nothing should happen
+	devicestate.SetPostFactoryResetRan(s.mgr, false)
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	// nothing was called
+	c.Check(completeCalls, Equals, 0)
+	c.Check(transitionCalls, Equals, 0)
+
+	// have the marker, but migrate the key as if boot code would do it and
+	// try again, in this setup the marker hash matches the migrated key
+	c.Check(os.Rename(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")),
+		IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+
+	devicestate.SetPostFactoryResetRan(s.mgr, false)
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(completeCalls, Equals, 1)
+	c.Check(transitionCalls, Equals, 1)
+	// the marker was again removed
+	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c *C) {
+	defer release.MockOnClassic(false)
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+	devicestate.SetBootOkRan(s.mgr, false)
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	// encrypted system
+	mockSnapFDEFile(c, "marker", nil)
+	c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0755), IsNil)
+	err := ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+		[]byte("old"), 0644)
+	c.Check(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+		[]byte("save"), 0644)
+	c.Check(err, IsNil)
+	// does not match the save key
+	factoryResetMarkercontent := []byte(`{"fallback-save-key-sha3-384":"uh-oh"}
+`)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+
+	completeCalls := 0
+	restore := devicestate.MockMarkFactoryResetComplete(func(encrypted bool) error {
+		completeCalls++
+		c.Check(encrypted, Equals, true)
+		return nil
+	})
+	defer restore()
+
+	err = s.mgr.Ensure()
+	c.Assert(err, ErrorMatches, "devicemgr: cannot verify factory reset marker: fallback sealed key digest mismatch, got d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b expected uh-oh")
+
+	c.Check(completeCalls, Equals, 0)
+	// factory reset marker is gone, the key was verified successfully
+	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapFDEDir, "marker"), testutil.FilePresent)
+
+	// try again, no marker, hit the same error
+	devicestate.SetPostFactoryResetRan(s.mgr, false)
+	err = s.mgr.Ensure()
+	c.Assert(err, ErrorMatches, "devicemgr: cannot verify factory reset marker: fallback sealed key digest mismatch, got d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b expected uh-oh")
+	c.Check(completeCalls, Equals, 0)
+
+	// and again, but not resetting the 'ran' check, so nothing is checked or called
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(completeCalls, Equals, 0)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C) {
+	defer release.MockOnClassic(false)
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+	devicestate.SetBootOkRan(s.mgr, false)
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	// mock the factory reset marker of a system that isn't encrypted
+	c.Assert(os.MkdirAll(dirs.SnapDeviceDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), []byte("{}"), 0644), IsNil)
+
+	completeCalls := 0
+	restore := devicestate.MockMarkFactoryResetComplete(func(encrypted bool) error {
+		completeCalls++
+		c.Check(encrypted, Equals, false)
+		return nil
+	})
+	defer restore()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	c.Check(completeCalls, Equals, 1)
+	// factory reset marker is gone
+	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
+
+	// try again, no marker, nothing should happen
+	devicestate.SetPostFactoryResetRan(s.mgr, false)
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	// nothing was called
+	c.Check(completeCalls, Equals, 1)
 }

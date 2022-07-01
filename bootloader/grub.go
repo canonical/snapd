@@ -25,13 +25,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
-// sanity - grub implements the required interfaces
+// grub implements the required interfaces
 var (
 	_ Bootloader                        = (*grub)(nil)
 	_ RecoveryAwareBootloader           = (*grub)(nil)
@@ -47,6 +48,7 @@ type grub struct {
 	uefiRunKernelExtraction bool
 	recovery                bool
 	nativePartitionLayout   bool
+	prepareImageTime        bool
 }
 
 // newGrub create a new Grub bootloader object
@@ -60,6 +62,7 @@ func newGrub(rootdir string, opts *Options) Bootloader {
 		g.uefiRunKernelExtraction = opts.Role == RoleRunMode
 		g.recovery = opts.Role == RoleRecovery
 		g.nativePartitionLayout = opts.NoSlashBoot || g.recovery
+		g.prepareImageTime = opts.PrepareImageTime
 	}
 	if g.nativePartitionLayout {
 		g.basedir = "EFI/ubuntu"
@@ -81,13 +84,13 @@ func (g *grub) dir() string {
 	return filepath.Join(g.rootdir, g.basedir)
 }
 
-func (g *grub) installManagedRecoveryBootConfig(gadgetDir string) error {
+func (g *grub) installManagedRecoveryBootConfig() error {
 	assetName := g.Name() + "-recovery.cfg"
 	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
 	return genericSetBootConfigFromAsset(systemFile, assetName)
 }
 
-func (g *grub) installManagedBootConfig(gadgetDir string) error {
+func (g *grub) installManagedBootConfig() error {
 	assetName := g.Name() + ".cfg"
 	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
 	return genericSetBootConfigFromAsset(systemFile, assetName)
@@ -96,11 +99,11 @@ func (g *grub) installManagedBootConfig(gadgetDir string) error {
 func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) error {
 	if opts != nil && opts.Role == RoleRecovery {
 		// install managed config for the recovery partition
-		return g.installManagedRecoveryBootConfig(gadgetDir)
+		return g.installManagedRecoveryBootConfig()
 	}
 	if opts != nil && opts.Role == RoleRunMode {
 		// install managed boot config that can handle kernel.efi
-		return g.installManagedBootConfig(gadgetDir)
+		return g.installManagedBootConfig()
 	}
 
 	gadgetFile := filepath.Join(gadgetDir, g.Name()+".conf")
@@ -446,19 +449,50 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 	return string(cmdline)
 }
 
-var (
-	grubRecoveryModeTrustedAssets = []string{
-		// recovery mode shim EFI binary
-		"EFI/boot/bootx64.efi",
-		// recovery mode grub EFI binary
-		"EFI/boot/grubx64.efi",
-	}
+// grubBootAssetPath contains the paths for assets in the boot chain.
+type grubBootAssetPath struct {
+	shimBinary string
+	grubBinary string
+}
 
-	grubRunModeTrustedAssets = []string{
-		// run mode grub EFI binary
-		"EFI/boot/grubx64.efi",
+// grubBootAssetsForArch contains the paths for assets for different
+// architectures in a map
+var grubBootAssetsForArch = map[string]grubBootAssetPath{
+	"amd64": {
+		shimBinary: filepath.Join("EFI/boot/", "bootx64.efi"),
+		grubBinary: filepath.Join("EFI/boot/", "grubx64.efi")},
+	"arm64": {
+		shimBinary: filepath.Join("EFI/boot/", "bootaa64.efi"),
+		grubBinary: filepath.Join("EFI/boot/", "grubaa64.efi")},
+}
+
+func (g *grub) getGrubBootAssetsForArch() (*grubBootAssetPath, error) {
+	if g.prepareImageTime {
+		return nil, fmt.Errorf("internal error: retrieving boot assets at prepare image time")
 	}
-)
+	assets := grubBootAssetsForArch[arch.DpkgArchitecture()]
+	return &assets, nil
+}
+
+// getGrubRecoveryModeTrustedAssets returns the assets for recovery mode,
+// which are shim and grub from the seed partition.
+func (g *grub) getGrubRecoveryModeTrustedAssets() ([]string, error) {
+	assets, err := g.getGrubBootAssetsForArch()
+	if err != nil {
+		return nil, err
+	}
+	return []string{assets.shimBinary, assets.grubBinary}, nil
+}
+
+// getGrubRunModeTrustedAssets returns the assets for run mode, which is
+// grub from the boot partition.
+func (g *grub) getGrubRunModeTrustedAssets() ([]string, error) {
+	assets, err := g.getGrubBootAssetsForArch()
+	if err != nil {
+		return nil, err
+	}
+	return []string{assets.grubBinary}, nil
+}
 
 // TrustedAssets returns the list of relative paths to assets inside
 // the bootloader's rootdir that are measured in the boot process in the
@@ -468,9 +502,9 @@ func (g *grub) TrustedAssets() ([]string, error) {
 		return nil, fmt.Errorf("internal error: trusted assets called without native host-partition layout")
 	}
 	if g.recovery {
-		return grubRecoveryModeTrustedAssets, nil
+		return g.getGrubRecoveryModeTrustedAssets()
 	}
-	return grubRunModeTrustedAssets, nil
+	return g.getGrubRunModeTrustedAssets()
 }
 
 // RecoveryBootChain returns the load chain for recovery modes.
@@ -481,8 +515,12 @@ func (g *grub) RecoveryBootChain(kernelPath string) ([]BootFile, error) {
 	}
 
 	// add trusted assets to the recovery chain
-	chain := make([]BootFile, 0, len(grubRecoveryModeTrustedAssets)+1)
-	for _, ta := range grubRecoveryModeTrustedAssets {
+	assets, err := g.getGrubRecoveryModeTrustedAssets()
+	if err != nil {
+		return nil, err
+	}
+	chain := make([]BootFile, 0, len(assets)+1)
+	for _, ta := range assets {
 		chain = append(chain, NewBootFile("", ta, RoleRecovery))
 	}
 	// add recovery kernel to the recovery chain
@@ -503,11 +541,19 @@ func (g *grub) BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error
 	}
 
 	// add trusted assets to the recovery chain
-	chain := make([]BootFile, 0, len(grubRecoveryModeTrustedAssets)+len(grubRunModeTrustedAssets)+1)
-	for _, ta := range grubRecoveryModeTrustedAssets {
+	recoveryModeAssets, err := g.getGrubRecoveryModeTrustedAssets()
+	if err != nil {
+		return nil, err
+	}
+	runModeAssets, err := g.getGrubRunModeTrustedAssets()
+	if err != nil {
+		return nil, err
+	}
+	chain := make([]BootFile, 0, len(recoveryModeAssets)+len(runModeAssets)+1)
+	for _, ta := range recoveryModeAssets {
 		chain = append(chain, NewBootFile("", ta, RoleRecovery))
 	}
-	for _, ta := range grubRunModeTrustedAssets {
+	for _, ta := range runModeAssets {
 		chain = append(chain, NewBootFile("", ta, RoleRunMode))
 	}
 	// add kernel to the boot chain

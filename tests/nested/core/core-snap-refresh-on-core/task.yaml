@@ -8,11 +8,8 @@ details: |
 systems: [ubuntu-16.04-64]
     
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
-    INITIAL_REV="$(nested_get_core_revision_for_channel "${NESTED_CORE_CHANNEL}")"
-    NEW_REV="$(nested_get_core_revision_for_channel "${NESTED_CORE_REFRESH_CHANNEL}")"
+    INITIAL_REV="$(tests.nested snap-rev core "${NESTED_CORE_CHANNEL}")"
+    NEW_REV="$(tests.nested snap-rev core "${NESTED_CORE_REFRESH_CHANNEL}")"
 
     if [ "$INITIAL_REV" = "$NEW_REV" ]; then
         echo "Initial and target revisions are the same, skipping..."
@@ -31,7 +28,7 @@ execute: |
     tests.nested exec "sudo snap install core_*.snap"
 
     echo "Check the initial core is installed and snaps can be executed"
-    test "$(get_nested_core_revision_installed)" = "${INITIAL_REV}"
+    test "$(tests.nested snap-rev core)" = "${INITIAL_REV}"
 
     echo "Ensure test-snapd-sh works"
     tests.nested exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
@@ -40,7 +37,7 @@ execute: |
     refresh_to_new_core "$NESTED_CORE_REFRESH_CHANNEL"
 
     echo "After refresh, check new core is installed"
-    test "$(get_nested_core_revision_installed)" = "${NEW_REV}"
+    test "$(tests.nested snap-rev core)" = "${NEW_REV}"
 
     echo "Ensure test-snapd-sh works"
     tests.nested exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
@@ -51,7 +48,7 @@ execute: |
     nested_tests.nested wait-for ssh
 
     echo "After revert, check initial core is installed"
-    test "$(get_nested_core_revision_installed)" = "${INITIAL_REV}"
+    test "$(tests.nested snap-rev core)" = "${INITIAL_REV}"
 
     echo "Ensure test-snapd-sh works"
     tests.nested exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello

@@ -1,15 +1,13 @@
 summary: Check that a gadget refresh reseals
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 execute: |
-    # shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
     SEALED_KEY_MTIME_1="$(tests.nested exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
     RESEAL_COUNT_1="$(tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
     
     echo "Install new (unasserted) gadget without changes and wait for change without reboot"
-    boot_id="$( nested_get_boot_id )"
+    boot_id="$( tests.nested boot-id )"
     REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous /var/lib/snapd/snaps/pc_*.snap --no-wait)
     # no reboot here, no gadget changes
     tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
@@ -21,13 +19,13 @@ execute: |
     test "$RESEAL_COUNT_2" = "$RESEAL_COUNT_1"
 
     echo "Create modified boot assets"
-    KEY_NAME=$(nested_get_snakeoil_key)
+    KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
     
     echo "Ensure clean pc-gadget dir"
     rm -rf pc-gadget
-    GADGET_SNAP="$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)"
+    GADGET_SNAP="$(ls "$(tests.nested get assets-path)"/pc_*.snap)"
     unsquashfs -d pc-gadget "$GADGET_SNAP"
     
     echo "Change a few bytes in the compat header and check sed worked"
@@ -38,8 +36,8 @@ execute: |
     mv modified_gadget.yaml pc-gadget/meta/gadget.yaml
 
     echo "Resign both assets"
-    nested_secboot_sign_file pc-gadget/shim.efi.signed "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-    nested_secboot_sign_file pc-gadget/grubx64.efi "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    tests.nested secboot-sign file pc-gadget/shim.efi.signed "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    tests.nested secboot-sign file pc-gadget/grubx64.efi "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
     rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
     snap pack pc-gadget/
 

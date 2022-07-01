@@ -15,6 +15,13 @@ restore: |
         snap set system experimental.parallel-instances=null
     fi
 
+debug: |
+    # GCE does not always NTP sync, try to figure out why here
+    # (LP: 1949886)
+    systemctl status systemd-timedated || true
+    journalctl -u systemd-timedated || true
+    timedatectl || true
+
 execute: |
     echo "Auto refresh information is shown"
     output=$(snap refresh --time)
@@ -38,24 +45,15 @@ execute: |
     systemctl stop snapd.{service,socket}
 
     echo "Modify the snap to track the edge channel"
-    jq ".data.snaps[\"$SNAP_NAME\"].channel = \"edge\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
-    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+    "$TESTSTOOLS"/snapd-state change-snap-channel "$SNAP_NAME" edge
 
     echo "And force auto-refresh to happen"
-    jq ".data[\"last-refresh\"] = \"2007-08-22T09:30:44.449455783+01:00\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
-    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+    "$TESTSTOOLS"/snapd-state force-autorefresh
 
     systemctl start snapd.{service,socket}
 
     echo "wait for auto-refresh to happen"
-    for _ in $(seq 120); do
-        if snap changes|grep -q "Done.*Auto-refresh snap \"$SNAP_NAME\""; then
-            break
-        fi
-        echo "Ensure refresh"
-        snap debug ensure-state-soon
-        sleep 5
-    done
+    "$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$SNAP_NAME"
 
     echo "Ensure our snap got updated"
     snap list|MATCH "$SNAP_NAME +[0-9]+\\.[0-9]+\\+fake1"

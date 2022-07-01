@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -73,7 +73,7 @@ func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableS
 	if !bootWith.Recovery {
 		return fmt.Errorf("internal error: MakeBootableImage called at runtime, use MakeRunnableSystem instead")
 	}
-	return makeBootable20(model, rootdir, bootWith, bootFlags)
+	return makeBootable20(rootdir, bootWith, bootFlags)
 }
 
 // makeBootable16 setups the image filesystem for boot with UC16
@@ -153,7 +153,7 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	return nil
 }
 
-func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet, bootFlags []string) error {
+func makeBootable20(rootdir string, bootWith *BootableSet, bootFlags []string) error {
 	// we can only make a single recovery system bootable right now
 	recoverySystems, err := filepath.Glob(filepath.Join(rootdir, "systems/*"))
 	if err != nil {
@@ -290,18 +290,13 @@ func MakeRecoverySystemBootable(rootdir string, relativeRecoverySystemDir string
 	return nil
 }
 
-// MakeRunnableSystem is like MakeBootableImage in that it sets up a system to
-// be able to boot, but is unique in that it is intended to be called from UC20
-// install mode and makes the run system bootable (hence it is called
-// "runnable").
-// Note that this function does not update the recovery bootloader env to
-// actually transition to run mode here, that is left to the caller via
-// something like boot.EnsureNextBootToRunMode(). This is to enable separately
-// setting up a run system and actually transitioning to it, with hooks, etc.
-// running in between.
-func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+type makeRunnableOptions struct {
+	AfterDataReset bool
+}
+
+func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver, makeOpts makeRunnableOptions) error {
 	if model.Grade() == asserts.ModelGradeUnset {
-		return fmt.Errorf("internal error: cannot make non-uc20 system runnable")
+		return fmt.Errorf("internal error: cannot make pre-UC20 system runnable")
 	}
 	// TODO:UC20:
 	// - figure out what to do for uboot gadgets, currently we require them to
@@ -457,11 +452,41 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	}
 
 	if sealer != nil {
+		flags := sealKeyToModeenvFlags{
+			FactoryReset: makeOpts.AfterDataReset,
+		}
 		// seal the encryption key to the parameters specified in modeenv
-		if err := sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, model, modeenv); err != nil {
+		if err := sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, model, modeenv, flags); err != nil {
 			return err
 		}
 	}
 
+	// so far so good, we managed to install the system, so it can be used
+	// for recovery as well
+	if err := MarkRecoveryCapableSystem(recoverySystemLabel); err != nil {
+		return fmt.Errorf("cannot record %q as a recovery capable system: %v", recoverySystemLabel, err)
+	}
 	return nil
+}
+
+// MakeRunnableSystem is like MakeBootableImage in that it sets up a system to
+// be able to boot, but is unique in that it is intended to be called from UC20
+// install mode and makes the run system bootable (hence it is called
+// "runnable").
+// Note that this function does not update the recovery bootloader env to
+// actually transition to run mode here, that is left to the caller via
+// something like boot.EnsureNextBootToRunMode(). This is to enable separately
+// setting up a run system and actually transitioning to it, with hooks, etc.
+// running in between.
+func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{})
+}
+
+// MakeRunnableSystemAfterDataReset sets up the system to be able to boot, but it is
+// intended to be called from UC20 factory reset mode right before switching
+// back to the new run system.
+func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
+		AfterDataReset: true,
+	})
 }

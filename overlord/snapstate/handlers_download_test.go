@@ -24,6 +24,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -31,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type downloadSnapSuite struct {
@@ -42,7 +45,7 @@ type downloadSnapSuite struct {
 var _ = Suite(&downloadSnapSuite{})
 
 func (s *downloadSnapSuite) SetUpTest(c *C) {
-	s.setup(c, nil)
+	s.baseHandlerSuite.SetUpTest(c)
 
 	s.fakeStore = &fakeStore{
 		state:       s.state,
@@ -54,6 +57,11 @@ func (s *downloadSnapSuite) SetUpTest(c *C) {
 	s.state.Set("refresh-privacy-key", "privacy-key")
 
 	s.AddCleanup(snapstatetest.UseFallbackDeviceModel())
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
+	s.AddCleanup(restore)
 }
 
 func (s *downloadSnapSuite) TestDoDownloadSnapCompatibility(c *C) {
@@ -71,7 +79,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatibility(c *C) {
 		// snapstate.{Install,Update} directly.
 		DownloadInfo: nil,
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	s.state.Unlock()
 
@@ -131,7 +139,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 			DownloadURL: "http://some-url.com/snap",
 		},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -195,7 +203,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapWithDeviceContext(c *C) {
 			DownloadURL: "http://some-url.com/snap",
 		},
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	s.state.Unlock()
 
@@ -224,7 +232,7 @@ func (s *downloadSnapSuite) TestDoUndoDownloadSnap(c *C) {
 			DownloadURL: "http://something.com/snap",
 		},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
@@ -247,7 +255,7 @@ func (s *downloadSnapSuite) TestDoUndoDownloadSnap(c *C) {
 	// and nothing is in the state for "foo"
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 }
 
@@ -275,7 +283,7 @@ func (s *downloadSnapSuite) TestDoDownloadRateLimitedIntegration(c *C) {
 			IsAutoRefresh: true,
 		},
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	s.state.Unlock()
 

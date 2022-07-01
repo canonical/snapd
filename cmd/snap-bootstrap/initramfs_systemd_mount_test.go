@@ -22,6 +22,7 @@ package main_test
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -155,11 +156,21 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			where: "/run/mnt/data",
 			opts: &main.SystemdMountOptions{
 				NoSuid: true,
-				Bind: true,
+				Bind:   true,
 			},
 			timeNowTimes:     []time.Time{testStart, testStart},
 			isMountedReturns: []bool{true},
 			comment:          "happy nosuid+bind",
+		},
+		{
+			what:  "/run/mnt/data/some.snap",
+			where: "/run/mnt/base",
+			opts: &main.SystemdMountOptions{
+				ReadOnly: true,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy ro",
 		},
 	}
 
@@ -221,36 +232,70 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 		} else {
 			c.Assert(err, IsNil)
 
+			c.Assert(len(cmd.Calls()), Equals, 1)
+			call := cmd.Calls()[0]
 			args := []string{
 				"systemd-mount", t.what, t.where, "--no-pager", "--no-ask-password",
 			}
-			if opts.Tmpfs {
-				args = append(args, "--type=tmpfs")
-			}
-			if opts.NeedsFsck {
-				args = append(args, "--fsck=yes")
-			} else {
-				args = append(args, "--fsck=no")
-			}
-			if opts.NoWait {
-				args = append(args, "--no-block")
-			}
-			if opts.Bind && opts.NoSuid {
-				args = append(args, "--options=nosuid,bind")
-			} else if opts.NoSuid {
-				args = append(args, "--options=nosuid")
-			} else if opts.Bind {
-				args = append(args, "--options=bind")
-			}
+			c.Assert(call[:len(args)], DeepEquals, args)
 
-			c.Assert(cmd.Calls(), DeepEquals, [][]string{args})
+			foundTypeTmpfs := false
+			foundFsckYes := false
+			foundFsckNo := false
+			foundNoBlock := false
+			foundBeforeInitrdfsTarget := false
+			foundNoSuid := false
+			foundBind := false
+			foundReadOnly := false
+			foundPrivate := false
+
+			for _, arg := range call[len(args):] {
+				switch {
+				case arg == "--type=tmpfs":
+					foundTypeTmpfs = true
+				case arg == "--fsck=yes":
+					foundFsckYes = true
+				case arg == "--fsck=no":
+					foundFsckNo = true
+				case arg == "--no-block":
+					foundNoBlock = true
+				case arg == "--property=Before=initrd-fs.target":
+					foundBeforeInitrdfsTarget = true
+				case strings.HasPrefix(arg, "--options="):
+					for _, opt := range strings.Split(strings.TrimPrefix(arg, "--options="), ",") {
+						switch opt {
+						case "nosuid":
+							foundNoSuid = true
+						case "bind":
+							foundBind = true
+						case "ro":
+							foundReadOnly = true
+						case "private":
+							foundPrivate = true
+						default:
+							c.Logf("Option '%s' unexpected", opt)
+							c.Fail()
+						}
+					}
+				default:
+					c.Logf("Argument '%s' unexpected", arg)
+					c.Fail()
+				}
+			}
+			c.Assert(foundTypeTmpfs, Equals, opts.Tmpfs)
+			c.Assert(foundFsckYes, Equals, opts.NeedsFsck)
+			c.Assert(foundFsckNo, Equals, !opts.NeedsFsck)
+			c.Assert(foundNoBlock, Equals, opts.NoWait)
+			c.Assert(foundBeforeInitrdfsTarget, Equals, !opts.Ephemeral)
+			c.Assert(foundNoSuid, Equals, opts.NoSuid)
+			c.Assert(foundBind, Equals, opts.Bind)
+			c.Assert(foundReadOnly, Equals, opts.ReadOnly)
+			c.Assert(foundPrivate, Equals, opts.Private)
 
 			// check that the overrides are present if opts.Ephemeral is false,
 			// or check the overrides are not present if opts.Ephemeral is true
 			for _, initrdUnit := range []string{
-				"initrd.target",
 				"initrd-fs.target",
-				"initrd-switch-root.target",
 				"local-fs.target",
 			} {
 				mountUnit := systemd.EscapeUnitNamePath(t.where)
@@ -260,8 +305,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					c.Assert(unitFile, testutil.FileAbsent)
 				} else {
 					c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
-Requires=%[1]s
-After=%[1]s
+Wants=%[1]s
 `, mountUnit+".mount"))
 				}
 			}

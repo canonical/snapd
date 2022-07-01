@@ -71,6 +71,7 @@ func DebugDumpBootVars(w io.Writer, dir string, uc20 bool) error {
 			"kernel_status",
 			"recovery_system_status",
 			"try_recovery_system",
+			"snapd_good_recovery_systems",
 			"snapd_extra_cmdline_args",
 			"snapd_full_cmdline_args",
 		}

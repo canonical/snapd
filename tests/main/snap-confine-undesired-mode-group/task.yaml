@@ -1,5 +1,8 @@
 summary: the snap-{run,confine,exec} chain does not create files with undesired properties.
 
+# ubuntu-14.04: the test sets up a user session, which requires more recent systemd
+systems: [-ubuntu-14.04-*]
+
 prepare: |
     # Install a snap with opengl and joystick plugs.
     # This gives us all of the usual snap-confine configuration, along with all
@@ -8,13 +11,15 @@ prepare: |
     snap install --dangerous ./test-snapd-app_1.0_all.snap
     snap connect test-snapd-app:opengl
     snap connect test-snapd-app:joystick
+    tests.session -u test prepare
 
 restore: |
+    tests.session -u test restore
     rm -rf /tmp/snap.test-snapd-app
 
 execute: |
     # Run the snap as a non-root user.
-    su test -c 'snap run test-snapd-app.sh -c /bin/true'
+    tests.session -u test exec sh -c 'snap run test-snapd-app.sh -c /bin/true'
 
     # Look for files that are owned by the test user, group owned by the test
     # user or are world-writable in /run/snapd, /sys/fs/cgroup and in /tmp

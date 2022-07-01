@@ -20,7 +20,6 @@ package hookstate
 import (
 	"fmt"
 	"regexp"
-	"sort"
 	"time"
 
 	"github.com/snapcore/snapd/cmd/snaplock"
@@ -234,14 +233,15 @@ func (h *gateAutoRefreshHookHandler) Error(hookErr error) (ignoreHookErr bool, e
 	// the hook didn't request --hold, or it was --proceed. since the hook
 	// errored out, assume hold.
 
-	var affecting []string
-	if err := ctx.Get("affecting-snaps", &affecting); err != nil {
-		return false, fmt.Errorf("internal error: cannot get affecting-snaps")
+	affecting, err := snapstate.AffectingSnapsForAffectedByRefreshCandidates(st, snapName)
+	if err != nil {
+		// becomes error of the handler
+		return false, err
 	}
 
 	// no duration specified, use maximum allowed for this gating snap.
 	var holdDuration time.Duration
-	if err := snapstate.HoldRefresh(st, snapName, holdDuration, affecting...); err != nil {
+	if _, err := snapstate.HoldRefresh(st, snapName, holdDuration, affecting...); err != nil {
 		// log the original hook error as we either ignore it or error out from
 		// this handler, in both cases hookErr won't be logged by hook manager.
 		h.context.Errorf("error: %v (while handling previous hook error: %v)", err, hookErr)
@@ -266,24 +266,14 @@ func NewGateAutoRefreshHookHandler(context *Context) *gateAutoRefreshHookHandler
 	}
 }
 
-func SetupGateAutoRefreshHook(st *state.State, snapName string, base, restart bool, affectingSnaps map[string]bool) *state.Task {
+func SetupGateAutoRefreshHook(st *state.State, snapName string) *state.Task {
 	hookSup := &HookSetup{
 		Snap:     snapName,
 		Hook:     "gate-auto-refresh",
 		Optional: true,
 	}
-	affecting := make([]string, 0, len(affectingSnaps))
-	for sn := range affectingSnaps {
-		affecting = append(affecting, sn)
-	}
-	sort.Strings(affecting)
 	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookSup.Hook, hookSup.Snap)
-	hookCtx := map[string]interface{}{
-		"base":            base,
-		"restart":         restart,
-		"affecting-snaps": affecting,
-	}
-	task := HookTask(st, summary, hookSup, hookCtx)
+	task := HookTask(st, summary, hookSup, nil)
 	return task
 }
 

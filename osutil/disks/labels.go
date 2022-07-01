@@ -22,6 +22,8 @@ package disks
 import (
 	"bytes"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -39,10 +41,42 @@ func BlkIDEncodeLabel(in string) string {
 		case utf8.RuneLen(r) > 1:
 			buf.WriteRune(r)
 		case !strings.ContainsRune(allowed, r):
-			fmt.Fprintf(buf, `\x%x`, r)
+			fmt.Fprintf(buf, `\x%02x`, r)
 		default:
 			buf.WriteRune(r)
 		}
 	}
 	return buf.String()
+}
+
+var hexCode = regexp.MustCompile(`\\x[0-9a-f]{2}`)
+
+// BlkIDDecodeLabel decodes a string such as a filesystem or partition label
+// encoded by udev in BlkIDEncodeLabel for normal comparison, i.e.
+// "BIOS\x20Boot" becomes "BIOS Boot"
+func BlkIDDecodeLabel(in string) (string, error) {
+	out := strings.Builder{}
+	pos := 0
+	for _, m := range hexCode.FindAllStringIndex(in, -1) {
+		start := m[0]
+		beforeMatch := in[pos:start]
+		if i := strings.IndexRune(beforeMatch, '\\'); i >= 0 {
+			return "", fmt.Errorf(`string is malformed, unparsable escape sequence at "%s"`, beforeMatch[i:])
+		}
+		out.WriteString(beforeMatch)
+		hex := in[start+2 : start+4]
+		n, err := strconv.ParseUint(hex, 16, 8)
+		if err != nil {
+			// This cannot really happen, since the regexp wouldn't match otherwise
+			return "", fmt.Errorf("internal error: cannot parse hex %q despite matching regexp", hex)
+		}
+		out.WriteRune(rune(n))
+		pos = m[1]
+	}
+	remaining := in[pos:]
+	if i := strings.IndexRune(remaining, '\\'); i >= 0 {
+		return "", fmt.Errorf(`string is malformed, unparsable escape sequence at "%s"`, remaining[i:])
+	}
+	out.WriteString(remaining)
+	return out.String(), nil
 }

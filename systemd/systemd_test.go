@@ -22,6 +22,7 @@ package systemd_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -55,10 +56,22 @@ func Test(t *testing.T) { TestingT(t) }
 
 // systemd's testsuite
 type SystemdTestSuite struct {
+	// 'systemctl' command except for stop. These all
+	// run synchronously so they can share attributes.
 	i      int
 	argses [][]string
 	errors []error
 	outs   [][]byte
+	// 'systemctl stop' command requires some special
+	// mocking because it runs in its own thread. We
+	// have to track its own set of attributes otherwise
+	// the unit test arguments checks will intermittendly
+	// fail due to the random completion ordering. We
+	// do not care about output for 'systemctl stop'.
+	stopDelays []time.Duration
+	stopArgses [][]string
+	stopErrors []error
+	stopIter   int
 
 	j        int
 	jns      []string
@@ -80,16 +93,22 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapRuntimeServicesDir, 0755)
+	c.Assert(err, IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755), IsNil)
 
 	// force UTC timezone, for reproducible timestamps
 	os.Setenv("TZ", "")
 
-	s.restoreSystemctl = MockSystemctl(s.myRun)
+	s.restoreSystemctl = MockSystemctlWithDelay(s.myRun)
 	s.i = 0
 	s.argses = nil
 	s.errors = nil
 	s.outs = nil
+	s.stopDelays = nil
+	s.stopArgses = nil
+	s.stopErrors = nil
+	s.stopIter = 0
 
 	s.restoreJournalctl = MockJournalctl(s.myJctl)
 	s.j = 0
@@ -110,16 +129,35 @@ func (s *SystemdTestSuite) TearDownTest(c *C) {
 	s.restoreSELinux()
 }
 
-func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
-	s.argses = append(s.argses, args)
-	if s.i < len(s.outs) {
-		out = s.outs[s.i]
+func (s *SystemdTestSuite) myRun(args ...string) (out []byte, delay time.Duration, err error) {
+	// Default completion time for 'systemctl' operations
+	delayReq := time.Duration(0)
+
+	// We deal with 'systemctl stop' separately because this is a
+	// blocking call running inside a go routine (separate thread)
+	if args[0] == "stop" {
+		// 'systemctl stop' cases
+		s.stopArgses = append(s.stopArgses, args)
+		if s.stopIter < len(s.stopErrors) {
+			err = s.stopErrors[s.stopIter]
+		}
+		if s.stopIter < len(s.stopDelays) {
+			delayReq = s.stopDelays[s.stopIter]
+		}
+		s.stopIter++
+	} else {
+		// Other 'systemctl' cases
+		s.argses = append(s.argses, args)
+		if s.i < len(s.outs) {
+			out = s.outs[s.i]
+		}
+		if s.i < len(s.errors) {
+			err = s.errors[s.i]
+		}
+		s.i++
 	}
-	if s.i < len(s.errors) {
-		err = s.errors[s.i]
-	}
-	s.i++
-	return out, err
+
+	return out, delayReq, err
 }
 
 func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow bool) (io.ReadCloser, error) {
@@ -145,6 +183,50 @@ func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow bool) (io.ReadClo
 	return ioutil.NopCloser(bytes.NewReader(out)), err
 }
 
+func (s *SystemdTestSuite) TestMockVersion(c *C) {
+	for _, tc := range []struct {
+		version int
+		err     error
+	}{
+		{0, errors.New("some error")},
+		{123, nil},
+	} {
+		restore := MockSystemdVersion(tc.version, tc.err)
+		defer restore()
+
+		version, err := Version()
+		c.Check(version, Equals, tc.version)
+		c.Check(err, Equals, tc.err)
+	}
+}
+
+func (s *SystemdTestSuite) TestEnsureAtLeastFail(c *C) {
+	for _, tc := range []struct {
+		requiredVersion int
+		mockedVersion   int
+		mockedErr       error
+		expectedErr     string
+	}{
+		{123, 0, errors.New("some error"), "some error"},
+		{140, 139, nil, `systemd version 139 is too old \(expected at least 140\)`},
+		{149, 150, nil, ""},
+	} {
+		restore := MockSystemdVersion(tc.mockedVersion, tc.mockedErr)
+		defer restore()
+
+		err := EnsureAtLeast(tc.requiredVersion)
+		if tc.expectedErr != "" {
+			c.Check(err, ErrorMatches, tc.expectedErr)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+}
+
+func (s *SystemdTestSuite) TestBackend(c *C) {
+	c.Check(New(SystemMode, s.rep).Backend(), Equals, RunningSystemdBackend)
+}
+
 func (s *SystemdTestSuite) TestDaemonReload(c *C) {
 	err := New(SystemMode, s.rep).DaemonReload()
 	c.Assert(err, IsNil)
@@ -158,34 +240,200 @@ func (s *SystemdTestSuite) TestDaemonReexec(c *C) {
 }
 
 func (s *SystemdTestSuite) TestStart(c *C) {
-	err := New(SystemMode, s.rep).Start("foo")
+	sysd := New(SystemMode, s.rep)
+	err := sysd.Start([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo"}})
-}
 
-func (s *SystemdTestSuite) TestStartMany(c *C) {
-	err := New(SystemMode, s.rep).Start("foo", "bar", "baz")
+	s.argses = nil
+	err = sysd.Start([]string{"foo", "bar", "baz"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo", "bar", "baz"}})
 }
 
-func (s *SystemdTestSuite) TestStop(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
+func (s *SystemdTestSuite) TestStartNoBlock(c *C) {
+	sysd := New(SystemMode, s.rep)
+	err := sysd.StartNoBlock([]string{"foo"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"start", "--no-block", "foo"}})
+
+	s.argses = nil
+	err = sysd.StartNoBlock([]string{"foo", "bar"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"start", "--no-block", "foo", "bar"}})
+}
+
+// Stop failed because systemctl stop returned an error
+func (s *SystemdTestSuite) TestStopSystemCtlStopError(c *C) {
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	defer restore()
+	s.stopErrors = []error{errors.New("mock error")}
+	err := New(SystemMode, s.rep).Stop([]string{"foo"})
+	c.Assert(err, ErrorMatches, "mock error")
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	// No notifications
+	c.Assert(len(s.rep.msgs), Equals, 0)
+}
+
+// Stop failed because systemctl show returned an error
+func (s *SystemdTestSuite) TestSystemCtlShowError(c *C) {
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
+	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+
+	// 'systemctl show'
+	s.errors = []error{errors.New("mock error")}
+
+	err := New(SystemMode, s.rep).Stop([]string{"foo"})
+	c.Assert(err, ErrorMatches, "mock error")
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	c.Assert(s.argses, HasLen, 1)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	// No notifications
+	c.Assert(len(s.rep.msgs), Equals, 0)
+}
+
+// The stop completed before the notification silence period expired so
+// no output (notification) is expected
+func (s *SystemdTestSuite) TestStopBeforeNotify(c *C) {
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
+	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+	s.stopErrors = []error{nil, errors.New("mock error")}
+
+	// 'systemctl show'
 	s.outs = [][]byte{
-		nil, // for the "stop" itself
+		[]byte("ActiveState=inactive\n"),
+	}
+	s.errors = []error{nil, errors.New("mock error")}
+
+	err := New(SystemMode, s.rep).Stop([]string{"foo"})
+	c.Assert(err, IsNil)
+	// 'systemctl stop'
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	// 'systemctl show'
+	c.Assert(s.argses, HasLen, 1)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+
+	// No notifications
+	c.Assert(len(s.rep.msgs), Equals, 0)
+}
+
+// The stop completed after the notification silence period expired
+func (s *SystemdTestSuite) TestStopAfterNotify(c *C) {
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
+	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+	s.stopErrors = []error{nil, errors.New("mock error")}
+
+	// 'systemctl show'
+	s.outs = [][]byte{
+		[]byte("ActiveState=whatever\n"),
+		[]byte("ActiveState=whatever\n"),
 		[]byte("ActiveState=whatever\n"),
 		[]byte("ActiveState=active\n"),
 		[]byte("ActiveState=inactive\n"),
 	}
-	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New(SystemMode, s.rep).Stop("foo", 1*time.Second)
+	// The timeout error output should never by reached because the 's.outs'
+	// entry before this slot indicates the unit has stopped
+	s.errors = []error{nil, nil, nil, nil, nil, errors.New("mock error")}
+
+	err := New(SystemMode, s.rep).Stop([]string{"foo"})
 	c.Assert(err, IsNil)
-	c.Assert(s.argses, HasLen, 4)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
-	c.Check(s.argses[1], DeepEquals, s.argses[2])
-	c.Check(s.argses[1], DeepEquals, s.argses[3])
+	// 'systemctl stop'
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	// 'systemctl show'
+	c.Assert(s.argses, HasLen, 5)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[0], DeepEquals, s.argses[1])
+	c.Check(s.argses[0], DeepEquals, s.argses[2])
+	c.Check(s.argses[0], DeepEquals, s.argses[3])
+	c.Check(s.argses[0], DeepEquals, s.argses[4])
+
+	// Only the initial notification will be shown because no
+	// list update are possible with only a single service unit
+	c.Assert(len(s.rep.msgs), Equals, 1)
+	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo" to stop.`)
+}
+
+func (s *SystemdTestSuite) TestStopMany(c *C) {
+	// Poll rate = 2ms, Silence timeout = 4ms
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
+	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+	s.stopErrors = []error{nil, errors.New("mock error")}
+
+	// 'systemctl show'
+	s.outs = [][]byte{
+		[]byte("ActiveState=whatever\n"), // foo
+		[]byte("ActiveState=whatever\n"), // bar
+		[]byte("ActiveState=whatever\n"), // foo
+		[]byte("ActiveState=whatever\n"), // bar
+		[]byte("ActiveState=active\n"),   // foo
+		[]byte("ActiveState=whatever\n"), // bar
+		[]byte("ActiveState=inactive\n"), // foo
+		[]byte("ActiveState=active\n"),   // bar
+		[]byte("ActiveState=inactive\n"), // bar
+	}
+	// The timeout error output should never by reached because the 's.outs'
+	// entry before this slot indicates the unit has stopped
+	s.errors = []error{nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("mock error")}
+	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"})
+	c.Assert(err, IsNil)
+	// 'systemctl stop'
+	c.Assert(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo", "bar"})
+	// 'systemctl show'
+	c.Assert(s.argses, HasLen, 9)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[3], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[4], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[5], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[6], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[7], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[8], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+
+	c.Assert(len(s.rep.msgs), Equals, 2)
+	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo", "bar" to stop.`)
+	c.Check(s.rep.msgs[1], Equals, `Waiting for "bar" to stop.`)
 }
 
 func (s *SystemdTestSuite) TestStatus(c *C) {
@@ -193,98 +441,191 @@ func (s *SystemdTestSuite) TestStatus(c *C) {
 		[]byte(`
 Type=simple
 Id=foo.service
+Names=foo.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 
 Type=simple
 Id=bar.service
+Names=bar.service
 ActiveState=reloading
 UnitFileState=static
+NeedDaemonReload=no
 
 Type=potato
 Id=baz.service
+Names=baz.service
 ActiveState=inactive
 UnitFileState=disabled
+NeedDaemonReload=yes
 
 Type=
 Id=missing.service
+Names=missing.service
 ActiveState=inactive
 UnitFileState=
+NeedDaemonReload=no
 `[1:]),
 		[]byte(`
 Id=some.timer
+Names=some.timer
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=yes
 
 Id=other.socket
+Names=other.socket
 ActiveState=active
 UnitFileState=disabled
+NeedDaemonReload=yes
+
+Id=reboot.target
+Names=reboot.target ctrl-alt-del.target
+ActiveState=inactive
+UnitFileState=enabled
+NeedDaemonReload=yes
+
+Id=reboot.target
+Names=reboot.target ctrl-alt-del.target
+ActiveState=inactive
+UnitFileState=enabled
+NeedDaemonReload=yes
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "baz.service", "missing.service", "some.timer", "other.socket")
+	units := []string{
+		"foo.service", "bar.service", "baz.service",
+		"missing.service", "some.timer", "other.socket",
+		"reboot.target", "ctrl-alt-del.target",
+	}
+	out, err := New(SystemMode, s.rep).Status(units)
 	c.Assert(err, IsNil)
 	c.Check(out, DeepEquals, []*UnitStatus{
 		{
-			Daemon:    "simple",
-			UnitName:  "foo.service",
-			Active:    true,
-			Enabled:   true,
-			Installed: true,
+			Daemon:           "simple",
+			Name:             "foo.service",
+			Names:            []string{"foo.service"},
+			Active:           true,
+			Enabled:          true,
+			Installed:        true,
+			Id:               "foo.service",
+			NeedDaemonReload: false,
 		}, {
-			Daemon:    "simple",
-			UnitName:  "bar.service",
-			Active:    true,
-			Enabled:   true,
-			Installed: true,
+			Daemon:           "simple",
+			Name:             "bar.service",
+			Names:            []string{"bar.service"},
+			Active:           true,
+			Enabled:          true,
+			Installed:        true,
+			Id:               "bar.service",
+			NeedDaemonReload: false,
 		}, {
-			Daemon:    "potato",
-			UnitName:  "baz.service",
-			Active:    false,
-			Enabled:   false,
-			Installed: true,
+			Daemon:           "potato",
+			Name:             "baz.service",
+			Names:            []string{"baz.service"},
+			Active:           false,
+			Enabled:          false,
+			Installed:        true,
+			Id:               "baz.service",
+			NeedDaemonReload: true,
 		}, {
-			Daemon:    "",
-			UnitName:  "missing.service",
-			Active:    false,
-			Enabled:   false,
-			Installed: false,
+			Daemon:           "",
+			Name:             "missing.service",
+			Names:            []string{"missing.service"},
+			Active:           false,
+			Enabled:          false,
+			Installed:        false,
+			Id:               "missing.service",
+			NeedDaemonReload: false,
 		}, {
-			UnitName:  "some.timer",
-			Active:    true,
-			Enabled:   true,
-			Installed: true,
+			Name:             "some.timer",
+			Names:            []string{"some.timer"},
+			Active:           true,
+			Enabled:          true,
+			Installed:        true,
+			Id:               "some.timer",
+			NeedDaemonReload: true,
 		}, {
-			UnitName:  "other.socket",
-			Active:    true,
-			Enabled:   false,
-			Installed: true,
+			Name:             "other.socket",
+			Names:            []string{"other.socket"},
+			Active:           true,
+			Enabled:          false,
+			Installed:        true,
+			Id:               "other.socket",
+			NeedDaemonReload: true,
+		}, {
+			Name:             "reboot.target",
+			Names:            []string{"reboot.target", "ctrl-alt-del.target"},
+			Active:           false,
+			Enabled:          true,
+			Installed:        true,
+			Id:               "reboot.target",
+			NeedDaemonReload: true,
+		}, {
+			Name:             "ctrl-alt-del.target",
+			Names:            []string{"reboot.target", "ctrl-alt-del.target"},
+			Active:           false,
+			Enabled:          true,
+			Installed:        true,
+			Id:               "reboot.target",
+			NeedDaemonReload: true,
 		},
 	})
 	c.Check(s.rep.msgs, IsNil)
 	c.Assert(s.argses, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service", "missing.service"},
-		{"show", "--property=Id,ActiveState,UnitFileState", "some.timer", "other.socket"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "foo.service", "bar.service", "baz.service", "missing.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", "some.timer", "other.socket", "reboot.target", "ctrl-alt-del.target"},
 	})
 }
 
-func (s *SystemdTestSuite) TestStatusBadNumberOfValues(c *C) {
+func (s *SystemdTestSuite) TestStatusTooManyNumberOfValues(c *C) {
 	s.outs = [][]byte{
 		[]byte(`
 Type=simple
 Id=foo.service
+Names=foo.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 
 Type=simple
 Id=foo.service
+Names=foo.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service")
-	c.Check(err, ErrorMatches, "cannot get unit status: expected 1 results, got 2")
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
+	c.Check(err, ErrorMatches, "cannot get unit status: got more results than expected")
+	c.Check(out, IsNil)
+	c.Check(s.rep.msgs, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusTooFewNumberOfValues(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+Names=foo.service
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+
+Type=simple
+Id=bar.service
+Names=foo.service
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+`[1:]),
+	}
+	s.errors = []error{nil}
+	units := []string{"foo.service", "bar.service", "test.service"}
+	out, err := New(SystemMode, s.rep).Status(units)
+	c.Check(err, ErrorMatches, "cannot get unit status: expected 3 results, got 2")
 	c.Check(out, IsNil)
 	c.Check(s.rep.msgs, IsNil)
 }
@@ -294,13 +635,14 @@ func (s *SystemdTestSuite) TestStatusBadLine(c *C) {
 		[]byte(`
 Type=simple
 Id=foo.service
+Names=foo.service
 ActiveState=active
 UnitFileState=enabled
 Potatoes
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service")
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
 	c.Assert(err, ErrorMatches, `.* bad line "Potatoes" .*`)
 	c.Check(out, IsNil)
 }
@@ -310,12 +652,14 @@ func (s *SystemdTestSuite) TestStatusBadId(c *C) {
 		[]byte(`
 Type=simple
 Id=bar.service
+Names=bar.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service")
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
 	c.Assert(err, ErrorMatches, `.* queried status of "foo.service" but got status of "bar.service"`)
 	c.Check(out, IsNil)
 }
@@ -325,13 +669,15 @@ func (s *SystemdTestSuite) TestStatusBadField(c *C) {
 		[]byte(`
 Type=simple
 Id=foo.service
+Names=foo.service
 ActiveState=active
 UnitFileState=enabled
 Potatoes=false
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service")
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
 	c.Assert(err, ErrorMatches, `.* unexpected field "Potatoes" .*`)
 	c.Check(out, IsNil)
 }
@@ -341,11 +687,12 @@ func (s *SystemdTestSuite) TestStatusMissingRequiredFieldService(c *C) {
 		[]byte(`
 Id=foo.service
 ActiveState=active
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service")
-	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Type .*`)
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
+	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Type.*`)
 	c.Check(out, IsNil)
 }
 
@@ -357,8 +704,21 @@ ActiveState=active
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.timer")
-	c.Assert(err, ErrorMatches, `.* missing UnitFileState .*`)
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.timer"})
+	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Names.*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusMissingRequiredFieldTarget(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Id=reboot.target
+ActiveState=active
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New(SystemMode, s.rep).Status([]string{"reboot.target"})
+	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Names.*`)
 	c.Check(out, IsNil)
 }
 
@@ -367,13 +727,15 @@ func (s *SystemdTestSuite) TestStatusDupeField(c *C) {
 		[]byte(`
 Type=simple
 Id=foo.service
+Names=foo.service
 ActiveState=active
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service")
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
 	c.Assert(err, ErrorMatches, `.* duplicate field "ActiveState" .*`)
 	c.Check(out, IsNil)
 }
@@ -383,33 +745,32 @@ func (s *SystemdTestSuite) TestStatusEmptyField(c *C) {
 		[]byte(`
 Type=simple
 Id=
+Names=foo.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service")
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
 	c.Assert(err, ErrorMatches, `.* empty field "Id" .*`)
 	c.Check(out, IsNil)
 }
 
-func (s *SystemdTestSuite) TestStopTimeout(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
-	defer restore()
-	err := New(SystemMode, s.rep).Stop("foo", 10*time.Millisecond)
-	c.Assert(err, FitsTypeOf, &Timeout{})
-	c.Assert(len(s.rep.msgs) > 0, Equals, true)
-	c.Check(s.rep.msgs[0], Equals, "Waiting for foo to stop.")
-}
-
 func (s *SystemdTestSuite) TestDisable(c *C) {
-	err := New(SystemMode, s.rep).Disable("foo")
+	sysd := New(SystemMode, s.rep)
+	err := sysd.DisableNoReload([]string{"foo"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"disable", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo"}})
+
+	s.argses = nil
+	err = sysd.DisableNoReload([]string{"foo", "bar"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestUnderRootDisable(c *C) {
-	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Disable("foo")
+	err := NewUnderRoot("xyzzy", SystemMode, s.rep).DisableNoReload([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo"}})
 }
@@ -457,13 +818,19 @@ func (s *SystemdTestSuite) TestVersion(c *C) {
 }
 
 func (s *SystemdTestSuite) TestEnable(c *C) {
-	err := New(SystemMode, s.rep).Enable("foo")
+	sysd := New(SystemMode, s.rep)
+	err := sysd.EnableNoReload([]string{"foo"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"enable", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "enable", "foo"}})
+
+	s.argses = nil
+	err = sysd.EnableNoReload([]string{"foo", "bar"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "enable", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestEnableUnderRoot(c *C) {
-	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Enable("foo")
+	err := NewUnderRoot("xyzzy", SystemMode, s.rep).EnableNoReload([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
 }
@@ -493,20 +860,57 @@ func (s *SystemdTestSuite) TestUnmaskUnderRoot(c *C) {
 }
 
 func (s *SystemdTestSuite) TestRestart(c *C) {
-	restore := MockStopDelays(time.Millisecond, 25*time.Second)
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+
 	s.outs = [][]byte{
-		nil, // for the "stop" itself
 		[]byte("ActiveState=inactive\n"),
 		nil, // for the "start"
 	}
-	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New(SystemMode, s.rep).Restart("foo", 100*time.Millisecond)
+	s.errors = []error{nil, nil, errors.New("mock error")}
+	err := New(SystemMode, s.rep).Restart([]string{"foo"})
 	c.Assert(err, IsNil)
+	c.Check(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
+	c.Check(s.argses, HasLen, 2)
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[1], DeepEquals, []string{"start", "foo"})
+}
+
+func (s *SystemdTestSuite) TestRestartMany(c *C) {
+	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
+	defer restore()
+
+	// 'systemctl stop'
+	s.stopDelays = []time.Duration{
+		// The delay we set here applies to the systemctl stop
+		// command. The purpose is to simulate how long systemd
+		// tries to stop the supplied services before returning.
+		50 * time.Millisecond,
+	}
+
+	s.outs = [][]byte{
+		[]byte("ActiveState=inactive\n"), // foo
+		[]byte("ActiveState=inactive\n"), // bar
+		nil,                              // for the "start"
+	}
+	s.errors = []error{nil, nil, nil, errors.New("mock error")}
+	err := New(SystemMode, s.rep).Restart([]string{"foo", "bar"})
+	c.Assert(err, IsNil)
+	c.Check(s.stopArgses, HasLen, 1)
+	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo", "bar"})
 	c.Check(s.argses, HasLen, 3)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
-	c.Check(s.argses[2], DeepEquals, []string{"start", "foo"})
+	c.Check(s.argses[0], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[2], DeepEquals, []string{"start", "foo", "bar"})
 }
 
 func (s *SystemdTestSuite) TestKill(c *C) {
@@ -514,13 +918,8 @@ func (s *SystemdTestSuite) TestKill(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP", "--kill-who=all"}})
 }
 
-func (s *SystemdTestSuite) TestIsTimeout(c *C) {
-	c.Check(IsTimeout(os.ErrInvalid), Equals, false)
-	c.Check(IsTimeout(&Timeout{}), Equals, true)
-}
-
 func (s *SystemdTestSuite) TestLogErrJctl(c *C) {
-	s.jerrs = []error{&Timeout{}}
+	s.jerrs = []error{errors.New("mock journalctl error")}
 
 	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false)
 	c.Check(err, NotNil)
@@ -810,8 +1209,55 @@ WantedBy=multi-user.target
 
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"enable", "snap-snapname-x1.mount"},
+		{"--no-reload", "enable", "snap-snapname-x1.mount"},
 		{"start", "snap-snapname-x1.mount"},
+	})
+}
+
+func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
+	rootDir := dirs.GlobalRootDir
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	addMountUnitOptions := &MountUnitOptions{
+		Lifetime: Transient,
+		SnapName: "foo",
+		What:     mockSnapPath,
+		Where:    "/snap/snapname/345",
+		Fstype:   "squashfs",
+		Options:  []string{"remount,ro"},
+		Origin:   "bar",
+	}
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).AddMountUnitFileWithOptions(addMountUnitOptions)
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	c.Assert(filepath.Join(dirs.SnapRuntimeServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo via bar
+Before=snapd.service
+After=zfs-mount.service
+
+[Mount]
+What=%s
+Where=/snap/snapname/345
+Type=squashfs
+Options=remount,ro
+LazyUnmount=yes
+
+[Install]
+WantedBy=multi-user.target
+X-SnapdOrigin=bar
+`[1:], mockSnapPath))
+
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--root", rootDir, "enable", "snap-snapname-345.mount"},
+		{"start", "snap-snapname-345.mount"},
 	})
 }
 
@@ -1059,10 +1505,10 @@ func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
 }
 
 func (s *SystemdTestSuite) TestDaemonReloadMutex(c *C) {
-	s.testDaemonReloadMutex(c, Systemd.DaemonReload)
+	s.testDaemonOpWithMutex(c, Systemd.DaemonReload)
 }
 
-func (s *SystemdTestSuite) testDaemonReloadMutex(c *C, reload func(Systemd) error) {
+func (s *SystemdTestSuite) testDaemonOpWithMutex(c *C, testFunc func(Systemd) error) {
 	rootDir := dirs.GlobalRootDir
 	sysd := NewUnderRoot(rootDir, SystemMode, nil)
 
@@ -1074,7 +1520,7 @@ func (s *SystemdTestSuite) testDaemonReloadMutex(c *C, reload func(Systemd) erro
 	stoppedCh := make(chan bool, 1)
 	go func() {
 		for {
-			sysd.DaemonReload()
+			testFunc(sysd)
 			select {
 			case <-stopCh:
 				close(stoppedCh)
@@ -1096,16 +1542,16 @@ func (s *SystemdTestSuite) testDaemonReloadMutex(c *C, reload func(Systemd) erro
 }
 
 func (s *SystemdTestSuite) TestDaemonReexecMutex(c *C) {
-	s.testDaemonReloadMutex(c, Systemd.DaemonReexec)
+	s.testDaemonOpWithMutex(c, Systemd.DaemonReexec)
 }
 
 func (s *SystemdTestSuite) TestUserMode(c *C) {
 	rootDir := dirs.GlobalRootDir
 	sysd := NewUnderRoot(rootDir, UserMode, nil)
 
-	c.Assert(sysd.Enable("foo"), IsNil)
+	c.Assert(sysd.EnableNoReload([]string{"foo"}), IsNil)
 	c.Check(s.argses[0], DeepEquals, []string{"--user", "--root", rootDir, "enable", "foo"})
-	c.Assert(sysd.Start("foo"), IsNil)
+	c.Assert(sysd.Start([]string{"foo"}), IsNil)
 	c.Check(s.argses[1], DeepEquals, []string{"--user", "start", "foo"})
 }
 
@@ -1113,9 +1559,9 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	rootDir := dirs.GlobalRootDir
 	sysd := NewUnderRoot(rootDir, GlobalUserMode, nil)
 
-	c.Assert(sysd.Enable("foo"), IsNil)
+	c.Assert(sysd.EnableNoReload([]string{"foo"}), IsNil)
 	c.Check(s.argses[0], DeepEquals, []string{"--user", "--global", "--root", rootDir, "enable", "foo"})
-	c.Assert(sysd.Disable("foo"), IsNil)
+	c.Assert(sysd.DisableNoReload([]string{"foo"}), IsNil)
 	c.Check(s.argses[1], DeepEquals, []string{"--user", "--global", "--root", rootDir, "disable", "foo"})
 	c.Assert(sysd.Mask("foo"), IsNil)
 	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "mask", "foo"})
@@ -1128,10 +1574,10 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	// Commands that don't make sense for GlobalUserMode panic
 	c.Check(sysd.DaemonReload, Panics, "cannot call daemon-reload with GlobalUserMode")
 	c.Check(sysd.DaemonReexec, Panics, "cannot call daemon-reexec with GlobalUserMode")
-	c.Check(func() { sysd.Start("foo") }, Panics, "cannot call start with GlobalUserMode")
-	c.Check(func() { sysd.StartNoBlock("foo") }, Panics, "cannot call start with GlobalUserMode")
-	c.Check(func() { sysd.Stop("foo", 0) }, Panics, "cannot call stop with GlobalUserMode")
-	c.Check(func() { sysd.Restart("foo", 0) }, Panics, "cannot call restart with GlobalUserMode")
+	c.Check(func() { sysd.Start([]string{"foo"}) }, Panics, "cannot call start with GlobalUserMode")
+	c.Check(func() { sysd.StartNoBlock([]string{"foo"}) }, Panics, "cannot call start with GlobalUserMode")
+	c.Check(func() { sysd.Stop([]string{"foo"}) }, Panics, "cannot call stop with GlobalUserMode")
+	c.Check(func() { sysd.Restart([]string{"foo"}) }, Panics, "cannot call restart with GlobalUserMode")
 	c.Check(func() { sysd.Kill("foo", "HUP", "") }, Panics, "cannot call kill with GlobalUserMode")
 	c.Check(func() { sysd.IsActive("foo") }, Panics, "cannot call is-active with GlobalUserMode")
 }
@@ -1147,30 +1593,35 @@ func (s *SystemdTestSuite) TestStatusGlobalUserMode(c *C) {
 
 	rootDir := dirs.GlobalRootDir
 	sysd := NewUnderRoot(rootDir, GlobalUserMode, nil)
-	sts, err := sysd.Status("foo", "bar", "baz")
+	sts, err := sysd.Status([]string{"foo", "bar", "baz"})
 	c.Check(err, IsNil)
 	c.Check(sts, DeepEquals, []*UnitStatus{
-		{UnitName: "foo", Enabled: true},
-		{UnitName: "bar", Enabled: false},
-		{UnitName: "baz", Enabled: true},
+		{Name: "foo", Enabled: true},
+		{Name: "bar", Enabled: false},
+		{Name: "baz", Enabled: true},
 	})
 	c.Check(s.argses[0], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "foo", "bar", "baz"})
 
 	// Output is collected if systemctl has a non-zero exit status
-	sts, err = sysd.Status("one", "two", "three")
+	sts, err = sysd.Status([]string{"one", "two", "three"})
 	c.Check(err, IsNil)
 	c.Check(sts, DeepEquals, []*UnitStatus{
-		{UnitName: "one", Enabled: true},
-		{UnitName: "two", Enabled: false},
-		{UnitName: "three", Enabled: true},
+		{Name: "one", Enabled: true},
+		{Name: "two", Enabled: false},
+		{Name: "three", Enabled: true},
 	})
 	c.Check(s.argses[1], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "one", "two", "three"})
 
 	// An error is returned if the wrong number of statuses are returned
-	sts, err = sysd.Status("one")
+	sts, err = sysd.Status([]string{"one"})
 	c.Check(err, ErrorMatches, "cannot get enabled status of services: expected 1 results, got 3")
 	c.Check(sts, IsNil)
 	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "one"})
+}
+
+func (s *SystemdTestSuite) TestEmulationModeBackend(c *C) {
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+	c.Check(sysd.Backend(), Equals, EmulationModeBackend)
 }
 
 const unitTemplate = `
@@ -1323,10 +1774,10 @@ func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {
 
 func (s *SystemdTestSuite) TestEnableInEmulationMode(c *C) {
 	sysd := NewEmulationMode("/path")
-	c.Assert(sysd.Enable("foo"), IsNil)
+	c.Assert(sysd.EnableNoReload([]string{"foo"}), IsNil)
 
 	sysd = NewEmulationMode("")
-	c.Assert(sysd.Enable("bar"), IsNil)
+	c.Assert(sysd.EnableNoReload([]string{"bar"}), IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", "/path", "enable", "foo"},
 		{"--root", dirs.GlobalRootDir, "enable", "bar"}})
@@ -1334,7 +1785,7 @@ func (s *SystemdTestSuite) TestEnableInEmulationMode(c *C) {
 
 func (s *SystemdTestSuite) TestDisableInEmulationMode(c *C) {
 	sysd := NewEmulationMode("/path")
-	c.Assert(sysd.Disable("foo"), IsNil)
+	c.Assert(sysd.DisableNoReload([]string{"foo"}), IsNil)
 
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", "/path", "disable", "foo"}})
@@ -1354,6 +1805,88 @@ func (s *SystemdTestSuite) TestUnmaskInEmulationMode(c *C) {
 
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", "/path", "unmask", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsEmpty(c *C) {
+	s.outs = [][]byte{
+		[]byte("\n"),
+	}
+
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "")
+	c.Check(units, HasLen, 0)
+	c.Check(err, IsNil)
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsMalformed(c *C) {
+	s.outs = [][]byte{
+		[]byte(`Description=Mount unit for some-snap, revision x1
+Where=/somewhere/here
+FragmentPath=/etc/systemd/system/somewhere-here.mount
+HereIsOneLineWithoutAnEqualSign
+`),
+	}
+
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "")
+	c.Check(units, HasLen, 0)
+	c.Check(err, ErrorMatches, "cannot parse systemctl output:.*")
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsHappy(c *C) {
+	tmpDir, err := ioutil.TempDir("/tmp", "snapd-systemd-test-list-mounts-*")
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(tmpDir)
+
+	var systemctlOutput string
+	createFakeUnit := func(fileName, snapName, where, origin string) error {
+		path := filepath.Join(tmpDir, fileName)
+		if len(systemctlOutput) > 0 {
+			systemctlOutput += "\n\n"
+		}
+		systemctlOutput += fmt.Sprintf(`Description=Mount unit for %s, revision x1
+Where=%s
+FragmentPath=%s
+`, snapName, where, path)
+		contents := fmt.Sprintf(`[Unit]
+Description=Mount unit for %s, revision x1
+
+[Mount]
+What=/does/not/matter
+Where=%s
+Type=doesntmatter
+Options=do,not,matter,either
+
+[Install]
+WantedBy=multi-user.target
+X-SnapdOrigin=%s
+`, snapName, where, origin)
+		return ioutil.WriteFile(path, []byte(contents), 0644)
+	}
+
+	// Prepare the unit files
+	err = createFakeUnit("somepath-somedir.mount", "some-snap", "/somepath/somedir", "module1")
+	c.Assert(err, IsNil)
+	err = createFakeUnit("somewhere-here.mount", "some-other-snap", "/somewhere/here", "module2")
+	c.Assert(err, IsNil)
+	err = createFakeUnit("somewhere-there.mount", "some-snap", "/somewhere/there", "module3")
+	c.Assert(err, IsNil)
+
+	s.outs = [][]byte{
+		[]byte(systemctlOutput),
+	}
+	sysd := New(SystemMode, nil)
+
+	// First, get all mount units for some-snap, without filter on the origin module
+	units, err := sysd.ListMountUnits("some-snap", "")
+	c.Check(units, DeepEquals, []string{"/somepath/somedir", "/somewhere/there"})
+	c.Check(err, IsNil)
+
+	// Now repeat the same, filtering on the origin module
+	s.i = 0 // this resets the systemctl output iterator back to the beginning
+	units, err = sysd.ListMountUnits("some-snap", "module3")
+	c.Check(units, DeepEquals, []string{"/somewhere/there"})
+	c.Check(err, IsNil)
 }
 
 func (s *SystemdTestSuite) TestMountHappy(c *C) {
@@ -1567,6 +2100,57 @@ func (s *SystemdTestSuite) TestInactiveEnterTimestampMalformedMore(c *C) {
 		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
 	})
 	c.Check(stamp.IsZero(), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestSystemdRunError(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "fail"; exit 11`)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	output, err := sysd.Run([]string{"bad-cmd", "arg1"}, nil)
+	c.Check(output, IsNil)
+	c.Assert(err, ErrorMatches, `cannot run \["bad-cmd" "arg1"\]: fail`)
+}
+
+func (s *SystemdTestSuite) TestSystemdRunHappy(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "happy output" && >&2 echo "to stderr"`)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	output, err := sysd.Run([]string{"happy-cmd", "arg1"}, nil)
+	c.Check(string(output), Equals, "happy output\nto stderr\n")
+	c.Check(err, IsNil)
+	c.Check(sr.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--wait", "--pipe", "--collect", "--service-type=exec", "--quiet", "--", "happy-cmd", "arg1"},
+	})
+}
+
+func (s *SystemdTestSuite) TestSystemdRunHappyWithStdin(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "some output" && cat - `)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	opts := &RunOptions{Stdin: bytes.NewBufferString("stdin input\n")}
+	output, err := sysd.Run([]string{"cmd-with-stdin", "arg1"}, opts)
+	c.Check(string(output), Equals, "some output\nstdin input\n")
+	c.Check(err, IsNil)
+	c.Check(sr.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--wait", "--pipe", "--collect", "--service-type=exec", "--quiet", "--", "cmd-with-stdin", "arg1"},
+	})
+}
+
+func (s *SystemdTestSuite) TestSystemdRunKeyringMode(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "happy output"`)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	opts := &RunOptions{KeyringMode: KeyringModePrivate}
+	output, err := sysd.Run([]string{"happy-cmd", "arg1"}, opts)
+	c.Check(string(output), Equals, "happy output\n")
+	c.Check(err, IsNil)
+	c.Check(sr.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--wait", "--pipe", "--collect", "--service-type=exec", "--quiet", "--property=KeyringMode=private", "--", "happy-cmd", "arg1"},
+	})
 }
 
 type systemdErrorSuite struct{}

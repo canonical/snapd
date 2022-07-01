@@ -645,7 +645,7 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	// Sanity check
+	// Validity check
 	if plugSnapName == "" {
 		return fmt.Errorf("cannot disconnect, plug snap name is empty")
 	}
@@ -928,6 +928,21 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	}
 
 	spec := backend.NewSpecification()
+
+	// XXX: If either of the AddConnected{Plug,Slot} methods for a connection
+	// fail resiliently as-in they can never succeed (such as the case where a
+	// bit of policy generated is unable to be used on this system), we may be
+	// stuck never able to modify the policy without restarting snapd. This is
+	// because the (broken) connection is still left inside the in-memory
+	// repository so the next time we try to do any modification to this snap's
+	// plugs or slots, we will try to add that connection again and fail. It is
+	// resolved by restarting snapd since we just store the repository in-memory
+	// and don't persist new connections until after these bits are successful.
+	// We may want to consider removing connections which fail when we try to
+	// generate/add policy for them. This may just be a transitory failure
+	// however, so maybe the right thing to do is try again, but we don't know
+	// if the error is transient so we also don't want to infinitely loop trying
+	// to add a connected plug that will never work.
 
 	// slot side
 	for _, slotInfo := range r.slots[snapName] {

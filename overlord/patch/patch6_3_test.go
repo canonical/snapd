@@ -328,7 +328,7 @@ func (s *patch63Suite) TestPatch63(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapsup.Channel, Equals, "latest/stable")
 
-	// sanity check that old stuff is untouched
+	// validity check that old stuff is untouched
 	c.Check(snapsup.Flags.IsAutoRefresh, Equals, true)
 	c.Assert(snapsup.Media, HasLen, 5)
 	c.Check(snapsup.Media[0].URL, Equals, "a")

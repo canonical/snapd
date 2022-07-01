@@ -18,12 +18,12 @@ Build-Depends: autoconf,
                gettext,
                grub-common,
                gnupg2,
-               golang-go (>=2:1.13)  [!powerpc] | golang-1.13 [!powerpc],
+               golang-go (>=2:1.13~)  [!powerpc] | golang-1.13 [!powerpc],
                indent,
                init-system-helpers,
                libapparmor-dev,
                libcap-dev,
-               libfuse-dev,
+               libfuse3-dev (>= 3.10.5-1) | libfuse-dev,
                libglib2.0-dev,
                liblzma-dev,
                liblzo2-dev,
@@ -70,10 +70,12 @@ Depends: adduser,
          systemd,
          udev,
          ${misc:Depends},
-         ${shlibs:Depends}
+         ${shlibs:Depends},
+         ${dbussession:Depends}
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0)
 Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0), ${snapd:Breaks}
-Recommends: gnupg
+Recommends: gnupg,
+            fuse3 (>= 3.10.5-1) | fuse
 Suggests: zenity | kdialog
 Conflicts: snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${Built-Using} ${misc:Built-Using}

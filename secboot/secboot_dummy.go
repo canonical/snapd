@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build nosecboot
 // +build nosecboot
 
 /*
@@ -41,5 +42,17 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 }
 
 func ResealKeys(params *ResealKeysParams) error {
+	return errBuildWithoutSecboot
+}
+
+func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
+	return errBuildWithoutSecboot
+}
+
+func PCRHandleOfSealedKey(p string) (uint32, error) {
+	return 0, errBuildWithoutSecboot
+}
+
+func ReleasePCRResourceHandles(handles ...uint32) error {
 	return errBuildWithoutSecboot
 }

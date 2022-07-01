@@ -62,6 +62,10 @@ var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelIma
 var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelImageBootloader)(nil)
 var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareTrustedAssetsBootloader)(nil)
 var _ bootloader.TrustedAssetsBootloader = (*MockRecoveryAwareTrustedAssetsBootloader)(nil)
+var _ bootloader.NotScriptableBootloader = (*MockNotScriptableBootloader)(nil)
+var _ bootloader.NotScriptableBootloader = (*MockExtractedRecoveryKernelNotScriptableBootloader)(nil)
+var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelNotScriptableBootloader)(nil)
+var _ bootloader.RebootBootloader = (*MockRebootBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -252,11 +256,10 @@ func (b *MockExtractedRecoveryKernelImageBootloader) ExtractRecoveryKernelAssets
 // MockExtractedRunKernelImageMixin implements the
 // ExtractedRunKernelImageBootloader interface.
 type MockExtractedRunKernelImageMixin struct {
-	runKernelImageEnableKernelCalls     []snap.PlaceInfo
-	runKernelImageEnableTryKernelCalls  []snap.PlaceInfo
-	runKernelImageDisableTryKernelCalls []snap.PlaceInfo
-	runKernelImageEnabledKernel         snap.PlaceInfo
-	runKernelImageEnabledTryKernel      snap.PlaceInfo
+	runKernelImageEnableKernelCalls    []snap.PlaceInfo
+	runKernelImageEnableTryKernelCalls []snap.PlaceInfo
+	runKernelImageEnabledKernel        snap.PlaceInfo
+	runKernelImageEnabledTryKernel     snap.PlaceInfo
 
 	runKernelImageMockedErrs     map[string]error
 	runKernelImageMockedNumCalls map[string]int
@@ -516,6 +519,81 @@ type MockRecoveryAwareTrustedAssetsBootloader struct {
 
 func (b *MockBootloader) WithRecoveryAwareTrustedAssets() *MockRecoveryAwareTrustedAssetsBootloader {
 	return &MockRecoveryAwareTrustedAssetsBootloader{
+		MockBootloader: b,
+	}
+}
+
+// MockNotScriptableBootloader implements the
+// bootloader.NotScriptableBootloader interface.
+type MockNotScriptableBootloader struct {
+	*MockBootloader
+}
+
+func (b *MockBootloader) WithNotScriptable() *MockNotScriptableBootloader {
+	return &MockNotScriptableBootloader{
+		MockBootloader: b,
+	}
+}
+
+func (b *MockNotScriptableBootloader) SetBootVarsFromInitramfs(values map[string]string) error {
+	for k, v := range values {
+		b.BootVars[k] = v
+	}
+	return nil
+}
+
+// MockExtractedRecoveryKernelNotScriptableBootloader implements the
+// bootloader.ExtractedRecoveryKernelImageBootloader interface and
+// includes MockNotScriptableBootloader
+type MockExtractedRecoveryKernelNotScriptableBootloader struct {
+	*MockNotScriptableBootloader
+
+	ExtractRecoveryKernelAssetsCalls []ExtractedRecoveryKernelCall
+}
+
+func (b *MockNotScriptableBootloader) WithExtractedRecoveryKernel() *MockExtractedRecoveryKernelNotScriptableBootloader {
+	return &MockExtractedRecoveryKernelNotScriptableBootloader{
+		MockNotScriptableBootloader: b,
+	}
+}
+
+// ExtractRecoveryKernelAssets extracts the kernel assets for the provided
+// kernel snap into the specified recovery system dir; part of
+// RecoveryAwareBootloader.
+func (b *MockExtractedRecoveryKernelNotScriptableBootloader) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error {
+	if recoverySystemDir == "" {
+		panic("MockBootloader.ExtractRecoveryKernelAssets called without recoverySystemDir")
+	}
+
+	b.ExtractRecoveryKernelAssetsCalls = append(
+		b.ExtractRecoveryKernelAssetsCalls,
+		ExtractedRecoveryKernelCall{
+			S:                 s,
+			RecoverySystemDir: recoverySystemDir},
+	)
+	return nil
+}
+
+// MockRebootBootloaderMixin implements the bootloader.RebootBootloader
+// interface.
+type MockRebootBootloaderMixin struct {
+	RebootArgs string
+}
+
+// MockRebootBootloader mocks a bootloader implementing the
+// bootloader.RebootBootloader interface.
+type MockRebootBootloader struct {
+	*MockBootloader
+
+	MockRebootBootloaderMixin
+}
+
+func (b *MockRebootBootloaderMixin) GetRebootArguments() (string, error) {
+	return b.RebootArgs, nil
+}
+
+func (b *MockBootloader) WithRebootBootloader() *MockRebootBootloader {
+	return &MockRebootBootloader{
 		MockBootloader: b,
 	}
 }

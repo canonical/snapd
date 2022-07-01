@@ -16,7 +16,7 @@ details: |
     (instead they rely on snap run to run the right tool in the first place)
     this is safe to do.
 
-systems: [ubuntu-16.04-64]
+systems: [ubuntu-18.04-64]
 
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic

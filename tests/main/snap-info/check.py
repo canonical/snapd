@@ -54,7 +54,7 @@ def verRelRevNotesRx(s):
     )
 
 
-if os.environ["SNAPPY_USE_STAGING_STORE"] == "1":
+if os.environ.get("SNAPPY_USE_STAGING_STORE", "") == "1":
     snap_ids = {
         "test-snapd-tools": "02AHdOomTzby7gTaiLX3M3SGMmXDfLJp",
         "test-snapd-devmode": "FcHyKyMiQh71liP8P82SsyMXtZI5mvVj",
@@ -67,7 +67,7 @@ else:
         "test-snapd-python-webserver": "Wcs8QL2iRQMjsPYQ4qz4V1uOlElZ1ZOb",
     }
 
-res = list(yaml.load_all(sys.stdin))
+res = list(yaml.safe_load_all(sys.stdin))
 
 equals("number of entries", len(res), 7)
 

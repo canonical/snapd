@@ -1,8 +1,8 @@
 #!/bin/bash
 
-SNAPD_STATE_PATH="$SPREAD_PATH/tests/snapd-state"
-SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state/snapd-state.tar"
-RUNTIME_STATE_PATH="$SPREAD_PATH/tests/runtime-state"
+SNAPD_STATE_PATH="$TESTSTMP/snapd-state"
+SNAPD_STATE_FILE="$TESTSTMP/snapd-state/snapd-state.tar"
+RUNTIME_STATE_PATH="$TESTSTMP/runtime-state"
 SNAPD_ACTIVE_UNITS="$RUNTIME_STATE_PATH/snapd-active-units"
 
 # shellcheck source=tests/lib/systemd.sh
@@ -28,6 +28,7 @@ is_snapd_state_saved() {
 }
 
 save_snapd_state() {
+    prepare_state
     if os.query is-core; then
         boot_path="$("$TESTSTOOLS"/boot-state boot-path)"
         test -n "$boot_path" || return 1
@@ -121,7 +122,7 @@ restore_snapd_lib() {
     # Synchronize snaps, seed and cache directories. The this is done separately in order to avoid copying
     # the snap files due to it is a heavy task and take most of the time of the restore phase.
     rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/snaps /var/lib/snapd
-    if os.query is-core20 ; then
+    if os.query is-core20 || os.query is-core22; then
         # TODO:UC20: /var/lib/snapd/seed is a read only bind mount, use the rw
         # mount or later mount seed as needed
         rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/seed/ /run/mnt/ubuntu-seed/
@@ -129,4 +130,10 @@ restore_snapd_lib() {
         rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/seed/ /var/lib/snapd/seed/
     fi
     rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/cache /var/lib/snapd
+}
+
+remove_disabled_snaps() {
+    snap list --all | grep disabled | while read -r name _ revision _ ; do
+        snap remove "$name" --revision="$revision"
+    done
 }

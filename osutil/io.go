@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/randutil"
@@ -57,6 +58,7 @@ type AtomicFile struct {
 	tmpname string
 	uid     sys.UserID
 	gid     sys.GroupID
+	mtime   time.Time
 	closed  bool
 	renamed bool
 }
@@ -145,6 +147,11 @@ var chown = sys.Chown
 
 const NoChown = sys.FlagID
 
+// SetModTime sets the given modification time on the created file.
+func (aw *AtomicFile) SetModTime(t time.Time) {
+	aw.mtime = t
+}
+
 func (aw *AtomicFile) commit() error {
 	if aw.uid != NoChown || aw.gid != NoChown {
 		if err := chown(aw.File, aw.uid, aw.gid); err != nil {
@@ -169,6 +176,12 @@ func (aw *AtomicFile) commit() error {
 
 	if err := aw.Close(); err != nil {
 		return err
+	}
+
+	if !aw.mtime.IsZero() {
+		if err := os.Chtimes(aw.tmpname, time.Now(), aw.mtime); err != nil {
+			return err
+		}
 	}
 
 	if err := os.Rename(aw.tmpname, aw.target); err != nil {
@@ -255,6 +268,11 @@ func AtomicRename(oldName, newName string) error {
 	// snapdUnsafeIO controls the ability to ignore expensive disk
 	// synchronization. It is only used inside tests.
 	if !snapdUnsafeIO {
+		// if called with a path with trailing '/', filepath.Dir
+		// returns the dir itself instead of the parent
+		oldName = filepath.Clean(oldName)
+		newName = filepath.Clean(newName)
+
 		oldDirPath := filepath.Dir(oldName)
 		newDirPath := filepath.Dir(newName)
 

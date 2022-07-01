@@ -45,7 +45,7 @@ func (s *humanSuite) SetUpSuite(c *check.C) {
 	s.beforeDSTends = time.Date(2017, 10, 29, 0, 59, 0, 0, loc).Add(60 * time.Minute)
 	s.afterDSTends = time.Date(2017, 10, 29, 1, 1, 0, 0, loc)
 
-	// sanity check
+	// validity check
 	c.Check(s.beforeDSTbegins.Format("MST"), check.Equals, s.afterDSTends.Format("MST"))
 	c.Check(s.beforeDSTbegins.Format("MST"), check.Equals, "GMT")
 	c.Check(s.afterDSTbegins.Format("MST"), check.Equals, s.beforeDSTends.Format("MST"))

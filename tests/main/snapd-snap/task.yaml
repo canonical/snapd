@@ -25,6 +25,10 @@ systems:
     # locale, see https://bugs.launchpad.net/snapcraft/+bug/1922140
     # a separate error occurs on centos 8, see https://bugs.launchpad.net/snapcraft/+bug/1922981
     - -centos-*
+    # ubuntu-18.04-32: i386 is not supported by lxd
+    # TODO: enable i386 by using lxd 3.0, currently snapcraft is failing to get the
+    #       lxd image when it is trying to build snapd
+    - -ubuntu-18.04-32
 
 # Start early as it takes a long time.
 priority: 100
@@ -36,9 +40,19 @@ environment:
     SNAPCRAFT_BUILD_ENVIRONMENT/lxd: lxd
 
 prepare: |
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
     # only run the destructive mode variant on xenial
     if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
         echo "Skipping destructive mode build on non-xenial"
+        exit 0
+    fi
+
+    if is_cgroupv2 && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
+        # snapd snap uses core build base (16.04) which cannot be booted
+        # properly on a host using unified hierarchy
+        echo "Skipping LXD build with unified cgroup hierarchy"
         exit 0
     fi
 
@@ -106,18 +120,32 @@ prepare: |
         # on top of the repacked one, then snapd will just serve the correct
         # file over HTTP to snapcraft when it asks for it
 
-        CORE_SNAP_REV=$(snap list core | grep -v Name | awk '{print $3}')
-        CORE_SNAP="/var/lib/snapd/snaps/core_${CORE_SNAP_REV}.snap"
-        ORIG_CORE_SNAP=${CORE_SNAP}.orig
-        
-        mount --bind "$ORIG_CORE_SNAP" "$CORE_SNAP"
-        tests.cleanup defer umount "$CORE_SNAP"
+        # When the SRU validation tests are executed, the core snap is not repacked
+        # and the var MODIFY_CORE_SNAP_FOR_REEXEC is 0
+        if [ "$MODIFY_CORE_SNAP_FOR_REEXEC" = 1 ]; then
+            CORE_SNAP_REV=$(snap list core | grep -v Name | awk '{print $3}')
+            CORE_SNAP="/var/lib/snapd/snaps/core_${CORE_SNAP_REV}.snap"
+            ORIG_CORE_SNAP=${CORE_SNAP}.orig
+
+            mount --bind "$ORIG_CORE_SNAP" "$CORE_SNAP"
+            tests.cleanup defer umount "$CORE_SNAP"
+        fi
     fi
 
 execute: |
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
     # only run the destructive mode variant on xenial
     if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
         echo "Skipping destructive mode build on non-xenial"
+        exit 0
+    fi
+
+    if is_cgroupv2 && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
+        # snapd snap uses core build base (16.04) which cannot be booted
+        # properly on a host using unified hierarchy
+        echo "Skipping LXD build with unified cgroup hierarchy"
         exit 0
     fi
 
@@ -129,7 +157,7 @@ execute: |
 
     mv "$PROJECT_PATH/snapd_spread-test.snap" "$PWD/snapd_spread-test.snap"
 
-    # meh it doesn't work well to use quotas and "&&" in the arguments to sh -c
+    # meh it doesn't work well to use quotes and "&&" in the arguments to sh -c
     # with defer, so just put what we want to run in a script and execute that
     cat >> snapcraft-cleanup.sh <<EOF
     #!/bin/sh
@@ -139,18 +167,28 @@ execute: |
     chmod +x snapcraft-cleanup.sh
     tests.cleanup defer sh -c "$PWD/snapcraft-cleanup.sh"
 
+    echo "Unsquash the snapd snap"
+    unsquashfs snapd_spread-test.snap
+
     echo "Ensure we have the fc-cache binaries"
-    unsquashfs -ll snapd_spread-test.snap | MATCH bin/fc-cache-v6
-    unsquashfs -ll snapd_spread-test.snap | MATCH bin/fc-cache-v7
+    test -f squashfs-root/bin/fc-cache-v6
+    test -f squashfs-root/bin/fc-cache-v7
 
     echo "Ensure we have xdelta3"
-    unsquashfs -ll snapd_spread-test.snap | MATCH bin/xdelta3
+    test -f squashfs-root/usr/bin/xdelta3
 
     echo "Ensure we have mksquashfs (and the dependencies)"
-    unsquashfs -ll snapd_spread-test.snap | MATCH bin/mksquashfs
-    unsquashfs -ll snapd_spread-test.snap | MATCH liblzma.so.5
+    test -f squashfs-root/usr/bin/mksquashfs
+    find squashfs-root | MATCH liblzma.so.5
 
-    echo "Ensure we have ld.so.conf"
-    unsquashfs -ll snapd_spread-test.snap | MATCH etc/ld.so.conf
     echo "Ensure we have libc"
-    unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
+    find squashfs-root | MATCH libc.so
+    echo "Ensure we have ld.so.conf"
+    test -f squashfs-root/etc/ld.so.conf
+
+    echo "Ensure we have preseed.json"
+    test -f squashfs-root/usr/lib/snapd/preseed.json
+
+    echo "Check /usr/lib/snapd/info"
+    test -f squashfs-root/usr/lib/snapd/info
+    MATCH SNAPD_ASSERTS_FORMATS < squashfs-root/usr/lib/snapd/info

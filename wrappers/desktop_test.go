@@ -71,7 +71,6 @@ var mockDesktopFile = []byte(`
 [Desktop Entry]
 Name=foo
 Icon=${SNAP}/foo.png`)
-var desktopContents = ""
 
 func (s *desktopSuite) TestAddPackageDesktopFiles(c *C) {
 	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")

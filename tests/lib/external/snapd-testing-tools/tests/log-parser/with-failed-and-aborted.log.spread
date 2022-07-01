@@ -1,0 +1,265 @@
+2020-11-27 19:30:40 Project content is packed for delivery (169.92KB).
+2020-11-27 19:30:40 Sequence of jobs produced with -seed=1606505440
+2020-11-27 19:30:40 If killed, discard servers with: spread -reuse-pid=313960 -discard
+2020-11-27 19:30:40 Allocating google:opensuse-tumbleweed-64...
+2020-11-27 19:30:40 Allocating google:opensuse-tumbleweed-64...
+2020-11-27 19:30:40 Allocating google:opensuse-tumbleweed-64...
+2020-11-27 19:30:40 Allocating google:opensuse-tumbleweed-64...
+2020-11-27 19:30:40 Allocating google:opensuse-tumbleweed-64...
+2020-11-27 19:30:40 Allocating google:opensuse-tumbleweed-64...
+2020-11-27 19:30:49 Waiting for google:opensuse-tumbleweed-64 (nov271930-268545) to boot at 35.229.111.181...
+2020-11-27 19:30:52 Waiting for google:opensuse-tumbleweed-64 (nov271930-268322) to boot at 35.243.146.54...
+2020-11-27 19:30:53 Waiting for google:opensuse-tumbleweed-64 (nov271930-268530) to boot at 35.243.170.137...
+2020-11-27 19:30:54 Waiting for google:opensuse-tumbleweed-64 (nov271930-268552) to boot at 34.73.120.227...
+2020-11-27 19:30:54 Waiting for google:opensuse-tumbleweed-64 (nov271930-268558) to boot at 35.237.32.105...
+2020-11-27 19:30:54 Waiting for google:opensuse-tumbleweed-64 (nov271930-268563) to boot at 34.74.49.214...
+2020-11-27 19:31:29 Allocated google:opensuse-tumbleweed-64 (nov271930-268530).
+2020-11-27 19:31:29 Connecting to google:opensuse-tumbleweed-64 (nov271930-268530)...
+2020-11-27 19:31:29 Connected to google:opensuse-tumbleweed-64 (nov271930-268530) at 35.243.170.137.
+2020-11-27 19:31:29 Sending project content to google:opensuse-tumbleweed-64 (nov271930-268530)...
+2020-11-27 19:31:30 Allocated google:opensuse-tumbleweed-64 (nov271930-268552).
+2020-11-27 19:31:30 Connecting to google:opensuse-tumbleweed-64 (nov271930-268552)...
+2020-11-27 19:31:30 Connected to google:opensuse-tumbleweed-64 (nov271930-268552) at 34.73.120.227.
+2020-11-27 19:31:30 Sending project content to google:opensuse-tumbleweed-64 (nov271930-268552)...
+2020-11-27 19:31:30 Allocated google:opensuse-tumbleweed-64 (nov271930-268558).
+2020-11-27 19:31:30 Connecting to google:opensuse-tumbleweed-64 (nov271930-268558)...
+2020-11-27 19:31:30 Preparing google:opensuse-tumbleweed-64 (nov271930-268530)...
+2020-11-27 20:01:27 Preparing google:opensuse-tumbleweed-64:tests/main/user-data-handling (nov271930-268530)...
+2020-11-27 20:01:30 Error preparing google:opensuse-tumbleweed-64 (nov271930-268552) : 
+-----
++ cat
++ mv gai.conf /etc/gai.conf
++ command -v restorecon
++ [[ opensuse-tumbleweed-64 == fedora-* ]]
++ [[ opensuse-tumbleweed-64 == opensuse-* ]]
++ zypper ref
+Retrieving repository 'Cloud:Tools (openSUSE_Tumbleweed)' metadata [.done]
+Building repository 'Cloud:Tools (openSUSE_Tumbleweed)' cache [....done]
+Retrieving repository 'kernel-repo' metadata [..done]
+Building repository 'kernel-repo' cache [....done]
+Retrieving repository 'repo-debug' metadata [............done]
+Building repository 'repo-debug' cache [....done]
+Retrieving repository 'repo-non-oss' metadata [..done]
+Building repository 'repo-non-oss' cache [....done]
+Retrieving repository 'repo-oss' metadata [......done]
+Building repository 'repo-oss' cache [....done]
+Repository 'repo-update' is up to date.
+All repositories have been refreshed.
++ cat
++ [[ opensuse-tumbleweed-64 == arch-* ]]
++ [[ opensuse-tumbleweed-64 == debian-* ]]
++ [[ opensuse-tumbleweed-64 == centos-* ]]
++ [[ opensuse-tumbleweed-64 == ubuntu-* ]]
++ '[' -f current.delta ']'
+++ mktemp
++ tf=/tmp/tmp.xq251br0RX
++ case "$SPREAD_SYSTEM" in
++ zypper -q --gpg-auto-import-keys refresh
++ zypper -q install -y xdelta3 curl
++ quiet govendor sync
+
+<kill-timeout reached>
+-----
+.
+2020-11-27 20:01:30 Discarding google:opensuse-tumbleweed-64 (nov271930-268552)...
+2020-11-27 20:01:30 Error preparing google:opensuse-tumbleweed-64 (nov271930-268558) : 
+-----
++ cat
++ mv gai.conf /etc/gai.conf
++ command -v restorecon
++ [[ opensuse-tumbleweed-64 == fedora-* ]]
++ [[ opensuse-tumbleweed-64 == opensuse-* ]]
++ zypper ref
++ go get -u github.com/kardianos/govendor
+++ seq 10
++ for _ in $(seq 10)
++ quiet govendor sync
+
+<kill-timeout reached>
+-----
+.
+2020-11-27 20:01:30 Discarding google:opensuse-tumbleweed-64 (nov271930-268558)...
+2020-11-27 20:01:30 Error preparing google:opensuse-tumbleweed-64 (nov271930-268563) : 
+-----
++ cat
++ mv gai.conf /etc/gai.conf
++ command -v restorecon
++ [[ opensuse-tumbleweed-64 == fedora-* ]]
++ [[ opensuse-tumbleweed-64 == opensuse-* ]]
++ zypper ref
+Retrieving repository 'Cloud:Tools (openSUSE_Tumbleweed)' metadata [...done]
+Building repository 'Cloud:Tools (openSUSE_Tumbleweed)' cache [....done]
+Retrieving repository 'kernel-repo' metadata [..done]
+Building repository 'kernel-repo' cache [....done]
++ loginctl enable-linger test
++ loginctl disable-linger test
++ '[' '' = yes ']'
++ case "$SPREAD_SYSTEM" in
+++ command -v govendor
++ '[' -z '' ']'
++ rm -rf /home/gopath/src/github.com/kardianos/govendor
++ go get -u github.com/kardianos/govendor
+++ seq 10
++ for _ in $(seq 10)
++ quiet govendor sync
+
+<kill-timeout reached>
+-----
+.
+2020-11-27 20:01:30 Discarding google:opensuse-tumbleweed-64 (nov271930-268563)...
+2020-11-27 20:01:30 Error preparing google:opensuse-tumbleweed-64 (nov271930-268545) : 
+-----
++ cat
++ mv gai.conf /etc/gai.conf
++ command -v restorecon
++ [[ opensuse-tumbleweed-64 == fedora-* ]]
+++ command -v govendor
++ '[' -z '' ']'
++ rm -rf /home/gopath/src/github.com/kardianos/govendor
++ go get -u github.com/kardianos/govendor
+++ seq 10
++ for _ in $(seq 10)
++ quiet govendor sync
+
+<kill-timeout reached>
+-----
+.
+2020-11-27 20:01:30 Discarding google:opensuse-tumbleweed-64 (nov271930-268545)...
+2020-11-27 20:51:19 Preparing google:opensuse-tumbleweed-64:tests/main/interfaces-kvm (nov271930-268530)...
+2020-11-27 20:51:30 Executing google:opensuse-tumbleweed-64:tests/main/interfaces-kvm (nov271930-268530) (338/425)...
+2020-11-27 20:51:30 Restoring google:opensuse-tumbleweed-64:tests/main/interfaces-kvm (nov271930-268530)...
+2020-11-27 20:51:31 Preparing google:opensuse-tumbleweed-64:tests/main/snap-disconnect (nov271930-268530)...
+2020-11-27 20:51:45 Executing google:opensuse-tumbleweed-64:tests/main/snap-disconnect (nov271930-268530) (339/425)...
+2020-11-27 20:51:59 Restoring google:opensuse-tumbleweed-64:tests/main/snap-disconnect (nov271930-268530)...
+2020-11-27 20:52:00 Preparing google:opensuse-tumbleweed-64:tests/main/services-disable-install-hook (nov271930-268530)...
+2020-11-27 20:52:02 Error executing google:opensuse-tumbleweed-64:tests/main/interfaces-x11-unix-socket (nov271930-268322) : 
+-----
++ echo 'Install test snaps'
+Install test snaps
++ /home/gopath/src/github.com/snapcore/snapd/tests/lib/tools/snaps-state install-local x11-client
+x11-client 1.0 installed
++ /home/gopath/src/github.com/snapcore/snapd/tests/lib/tools/snaps-state install-local x11-server
+x11-server 1.0 installed
++ echo 'Ensure x11 plug is not connected to implicit slot'
+Ensure x11 plug is not connected to implicit slot
++ snap disconnect x11-client:x11
++ echo 'Connect x11-client to x11-server'
+Connect x11-client to x11-server
++ snap connect x11-client:x11 x11-server:x11
++ echo 'The snaps can communicate via the unix domain socket in /tmp'
+The snaps can communicate via the unix domain socket in /tmp
++ retry -n 4 --wait 0.5 test -e /tmp/snap.x11-server/tmp/.X11-unix/X0
++ x11-server
+retry: command test -e /tmp/snap.x11-server/tmp/.X11-unix/X0 failed with code 1
+retry: next attempt in 0.5 second(s) (attempt 1 of 4)
++ MATCH 'Hello from xserver'
++ x11-client
+nc: create unix socket failed
+grep error: pattern not found, got:
+
+
+<kill-timeout reached>
+-----
+.
+2020-11-27 20:52:02 Debug output for google:opensuse-tumbleweed-64:tests/main/interfaces-x11-unix-socket (nov271930-268322) : 
+-----
++ '[' 1 = 1 ']'
++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/state.sh
+++ SNAPD_STATE_PATH=/home/gopath/src/github.com/snapcore/snapd/tests/snapd-state
+++ SNAPD_STATE_FILE=/home/gopath/src/github.com/snapcore/snapd/tests/snapd-state/snapd-state.tar
+++ RUNTIME_STATE_PATH=/home/gopath/src/github.com/snapcore/snapd/tests/runtime-state
+++ SNAPD_ACTIVE_UNITS=/home/gopath/src/github.com/snapcore/snapd/tests/runtime-state/snapd-active-units
+++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/dirs.sh
++++ export SNAP_MOUNT_DIR=/snap
++++ SNAP_MOUNT_DIR=/snap
++++ export LIBEXECDIR=/usr/lib
++++ LIBEXECDIR=/usr/lib
++++ export MEDIA_DIR=/media
+-----
+.
+2020-11-27 20:52:03 Discarding google:opensuse-tumbleweed-64 (nov271930-268322)...
+2020-11-27 20:52:06 Executing google:opensuse-tumbleweed-64:tests/main/services-disable-install-hook (nov271930-268530) (340/425)...
+2020-11-27 20:52:12 Restoring google:opensuse-tumbleweed-64:tests/main/services-disable-install-hook (nov271930-268530)...
+2020-11-27 20:52:13 Preparing google:opensuse-tumbleweed-64:tests/main/snap-debug-state (nov271930-268530)...
+2020-11-27 20:52:24 Executing google:opensuse-tumbleweed-64:tests/main/snap-debug-state (nov271930-268530) (341/425)...
+2020-11-27 20:52:24 Restoring google:opensuse-tumbleweed-64:tests/main/snap-debug-state (nov271930-268530)...
+2020-11-27 20:52:26 Preparing google:opensuse-tumbleweed-64:tests/main/refresh-all (nov271930-268530)...
+2020-11-27 20:52:45 Executing google:opensuse-tumbleweed-64:tests/main/refresh-all (nov271930-268530) (342/425)...
+2020-11-27 20:53:06 Restoring google:opensuse-tumbleweed-64:tests/main/refresh-all (nov271930-268530)...
+2020-11-27 20:53:08 Preparing google:opensuse-tumbleweed-64:tests/main/snap-service (nov271930-268530)...
+2020-11-27 20:53:15 Executing google:opensuse-tumbleweed-64:tests/main/snap-service (nov271930-268530) (343/425)...
+2020-11-27 20:53:47 Restoring google:opensuse-tumbleweed-64:tests/main/snap-service (nov271930-268530)...
+2020-11-27 20:53:48 Preparing google:opensuse-tumbleweed-64:tests/main/snapctl-is-connected (nov271930-268530)...
+2020-11-27 20:54:03 Executing google:opensuse-tumbleweed-64:tests/main/snapctl-is-connected (nov271930-268530) (344/425)...
+2020-11-27 21:15:00 Preparing google:opensuse-tumbleweed-64:tests/main/install-sideload:reexec0 (nov271930-268530)...
+2020-11-27 21:15:04 Error preparing google:opensuse-tumbleweed-64:tests/main/install-sideload:reexec0 (nov271930-268530) : 
+-----
++ /home/gopath/src/github.com/snapcore/snapd/tests/lib/prepare-restore.sh --prepare-project-each
++ set -e
++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/quiet.sh
++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/dirs.sh
+++ export SNAP_MOUNT_DIR=/snap
+++ SNAP_MOUNT_DIR=/snap
+++ export LIBEXECDIR=/usr/lib
+++ LIBEXECDIR=/usr/lib
+++ export MEDIA_DIR=/media
+++ MEDIA_DIR=/media
+++ case "$SPREAD_SYSTEM" in
+++ export SNAP_MOUNT_DIR=/snap
+++ SNAP_MOUNT_DIR=/snap
+++ export MEDIA_DIR=/run/media
+++ MEDIA_DIR=/run/media
++++ . /etc/os-release
+++++ NAME='openSUSE Tumbleweed'
+++++ ID=opensuse-tumbleweed
+++++ ID_LIKE='opensuse suse'
+++++ VERSION_ID=20201107
+++++ PRETTY_NAME='openSUSE Tumbleweed'
+++++ ANSI_COLOR='0;32'
+++++ CPE_NAME=cpe:/o:opensuse:tumbleweed:20201107
+++++ BUG_REPORT_URL=https://bugs.opensuse.org
+++++ HOME_URL=https://www.opensuse.org/
+++++ DOCUMENTATION_URL=https://en.opensuse.org/Portal:Tumbleweed
+++++ LOGO=distributor-logo
++++ echo opensuse-tumbleweed
+++ '[' opensuse-tumbleweed = opensuse-tumbleweed ']'
+++ export LIBEXECDIR=/usr/libexec
+++ LIBEXECDIR=/usr/libexec
++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/pkgdb.sh
+++ . /home/gopath/src/github.com/snapcore/snapd/tests/lib/quiet.sh
+Stopping snap-core-10475.mount
+Stopping snap-core-10475.mount
+Removing snap core
+Removing snap-core-10475.mount
+Stopping snap-core16-46.mount
+Stopping snap-core16-46.mount
+Removing snap core16
+Removing snap-core16-46.mount
+Stopping snap-test\x2dsnapd\x2dsh\x2dcore16-x1.mount
+Stopping snap-test\x2dsnapd\x2dsh\x2dcore16-x1.mount
+Removing snap test-snapd-sh-core16
+Removing snap-test\x2dsnapd\x2dsh\x2dcore16-x1.mount
+Discarding preserved snap namespaces
+Removing downloaded snaps
+Removing features exported from snapd to helper tools
+Final directory cleanup
+Removing leftover snap shared state data
+Removing snapd catalog cache
+Removing extra snap-confine apparmor rules
+active
+-----
+.
+2020-11-27 21:15:04 Error debugging google:opensuse-tumbleweed-64:tests/main/install-sideload:reexec0 (nov271930-268530) : EOF
+2020-11-27 21:15:04 Discarding google:opensuse-tumbleweed-64 (nov271930-268530)...
+error: unsuccessful run
+2020-11-27 21:15:04 Successful tasks: 400
+2020-11-27 21:15:04 Aborted tasks: 24
+2020-11-27 21:15:04 Failed tasks: 1
+    - google:opensuse-tumbleweed-64:tests/main/interfaces-x11-unix-socket
+2020-11-27 21:15:04 Failed task prepare: 1
+    - google:opensuse-tumbleweed-64:tests/main/install-sideload:reexec0
+2020-11-27 21:15:04 Failed project prepare: 4
+    - google:opensuse-tumbleweed-64:project
+    - google:opensuse-tumbleweed-64:project
+    - google:opensuse-tumbleweed-64:project
+    - google:opensuse-tumbleweed-64:project

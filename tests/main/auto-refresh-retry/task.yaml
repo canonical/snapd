@@ -23,12 +23,10 @@ execute: |
     systemctl stop snapd.{service,socket}
 
     echo "Modify the snap to track the edge channel"
-    jq ".data.snaps[\"test-snapd-tools\"].channel = \"edge\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
-    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+    "$TESTSTOOLS"/snapd-state change-snap-channel test-snapd-tools edge
 
     echo "And force auto-refresh to happen"
-    jq ".data[\"last-refresh\"] = \"2007-08-22T09:30:44.449455783+01:00\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
-    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+    "$TESTSTOOLS"/snapd-state force-autorefresh
 
     # restart snapd in a network namespace
     ip netns add testns
@@ -57,15 +55,7 @@ execute: |
     systemctl start snapd.{socket,service}
 
     echo "wait for auto-refresh to happen"
-    for _ in $(seq 120); do
-        if snap changes|grep -q "Done.*Auto-refresh snap \"test-snapd-tools\""; then
-            break
-        fi
-        echo "Ensure refresh"
-        snap debug ensure-state-soon
-        sleep 5
-    done
+    "$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "test-snapd-tools"
 
     echo "Ensure our snap got updated"
     snap list|MATCH "test-snapd-tools +[0-9]+\\.[0-9]+\\+fake1"
-

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -34,9 +34,11 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/store/tooling"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
+	"github.com/snapcore/snapd/image/preseed"
+	"github.com/snapcore/snapd/osutil"
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
@@ -50,6 +52,8 @@ import (
 var (
 	Stdout io.Writer = os.Stdout
 	Stderr io.Writer = os.Stderr
+
+	preseedCore20 = preseed.Core20
 )
 
 func (custo *Customizations) validate(model *asserts.Model) error {
@@ -69,7 +73,7 @@ func (custo *Customizations) validate(model *asserts.Model) error {
 	kind := "UC16/18"
 	switch {
 	case core20:
-		kind = "UC20"
+		kind = "UC20+"
 		// TODO:UC20: consider supporting these with grade dangerous?
 		unsupportedConsoleConfDisable()
 		if custo.CloudInitUserData != "" {
@@ -94,10 +98,23 @@ func classicHasSnaps(model *asserts.Model, opts *Options) bool {
 	return model.Gadget() != "" || len(model.RequiredNoEssentialSnaps()) != 0 || len(opts.Snaps) != 0
 }
 
+var newToolingStoreFromModel = tooling.NewToolingStoreFromModel
+
 func Prepare(opts *Options) error {
-	model, err := decodeModelAssertion(opts)
-	if err != nil {
-		return err
+	var model *asserts.Model
+	var err error
+	if opts.Classic && opts.ModelFile == "" {
+		// ubuntu-image has a use case for preseeding snaps in an arbitrary rootfs
+		// using its --filesystem flag. This rootfs may or may not already have
+		// snaps preseeded in it. In the case where the provided rootfs has no
+		// snaps seeded image.Prepare will be called with no model assertion,
+		// and we then use the GenericClassicModel.
+		model = sysdb.GenericClassicModel()
+	} else {
+		model, err = decodeModelAssertion(opts)
+		if err != nil {
+			return err
+		}
 	}
 
 	if model.Architecture() != "" && opts.Architecture != "" && model.Architecture() != opts.Architecture {
@@ -117,7 +134,7 @@ func Prepare(opts *Options) error {
 		}
 	}
 
-	tsto, err := NewToolingStoreFromModel(model, opts.Architecture)
+	tsto, err := newToolingStoreFromModel(model, opts.Architecture)
 	if err != nil {
 		return err
 	}
@@ -131,7 +148,22 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
-	return setupSeed(tsto, model, opts)
+	if err := setupSeed(tsto, model, opts); err != nil {
+		return err
+	}
+
+	if opts.Preseed {
+		// TODO: support UC22
+		if model.Classic() {
+			return fmt.Errorf("cannot preseed the image for a classic model")
+		}
+		if model.Base() != "core20" {
+			return fmt.Errorf("cannot preseed the image for a model other than core20")
+		}
+		return preseedCore20(opts.PrepareDir, opts.PreseedSignKey, opts.AppArmorKernelFeaturesDir)
+	}
+
+	return nil
 }
 
 // these are postponed, not implemented or abandoned, not finalized,
@@ -232,7 +264,7 @@ func makeLabel(now time.Time) string {
 	return now.UTC().Format("20060102")
 }
 
-func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
+var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
 	}
@@ -253,7 +285,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		}
 		seedDir = dirs.SnapSeedDirUnder(rootDir)
 
-		// sanity check target
+		// validity check target
 		if osutil.FileExists(dirs.SnapStateFileUnder(rootDir)) {
 			return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(rootDir))
 		}
@@ -267,7 +299,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		label = makeLabel(time.Now())
 		bootRootDir = seedDir
 
-		// sanity check target
+		// validity check target
 		if systems, _ := filepath.Glob(filepath.Join(seedDir, "systems", "*")); len(systems) > 0 {
 			return fmt.Errorf("expected empty systems dir in system-seed, got: %v", systems)
 		}
@@ -333,11 +365,19 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
+	if opts.Customizations.Validation == "" && !opts.Classic {
+		fmt.Fprintf(Stderr, "WARNING: proceeding to download snaps ignoring validations, this default will change in the future. For now use --validation=enforce for validations to be taken into account, pass instead --validation=ignore to preserve current behavior going forward\n")
+	}
+	if opts.Customizations.Validation == "" {
+		opts.Customizations.Validation = "ignore"
+	}
+
 	localSnaps, err := w.LocalSnaps()
 	if err != nil {
 		return err
 	}
 
+	var curSnaps []*tooling.CurrentSnap
 	for _, sn := range localSnaps {
 		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, f, db)
 		if err != nil && !asserts.IsNotFound(err) {
@@ -357,6 +397,15 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			return err
 		}
 		sn.ARefs = aRefs
+
+		if info.ID() != "" {
+			curSnaps = append(curSnaps, &tooling.CurrentSnap{
+				SnapName: info.SnapName(),
+				SnapID:   info.ID(),
+				Revision: info.Revision,
+				Epoch:    info.Epoch,
+			})
+		}
 	}
 
 	if err := w.InfoDerived(); err != nil {
@@ -369,36 +418,55 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			return err
 		}
 
-		for _, sn := range toDownload {
+		byName := make(map[string]*seedwriter.SeedSnap, len(toDownload))
+		beforeDownload := func(info *snap.Info) (string, error) {
+			sn := byName[info.SnapName()]
+			if sn == nil {
+				return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
+			}
 			fmt.Fprintf(Stdout, "Fetching %s\n", sn.SnapName())
+			if err := w.SetInfo(sn, info); err != nil {
+				return "", err
+			}
+			return sn.Path, nil
+		}
+		snapToDownloadOptions := make([]tooling.SnapToDownload, len(toDownload))
+		for i, sn := range toDownload {
+			byName[sn.SnapName()] = sn
+			snapToDownloadOptions[i].Snap = sn
+			snapToDownloadOptions[i].Channel = sn.Channel
+			snapToDownloadOptions[i].CohortKey = opts.WideCohortKey
+		}
+		downloadedSnaps, err := tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
+			BeforeDownloadFunc: beforeDownload,
+			EnforceValidation:  opts.Customizations.Validation == "enforce",
+		})
+		if err != nil {
+			return err
+		}
 
-			targetPathFunc := func(info *snap.Info) (string, error) {
-				if err := w.SetInfo(sn, info); err != nil {
-					return "", err
-				}
-				return sn.Path, nil
-			}
+		for _, sn := range toDownload {
+			dlsn := downloadedSnaps[sn.SnapName()]
 
-			dlOpts := DownloadOptions{
-				TargetPathFunc: targetPathFunc,
-				Channel:        sn.Channel,
-				CohortKey:      opts.WideCohortKey,
-			}
-			fn, info, redirectChannel, err := tsto.DownloadSnap(sn.SnapName(), dlOpts) // TODO|XXX make this take the SnapRef really
-			if err != nil {
-				return err
-			}
-			if err := w.SetRedirectChannel(sn, redirectChannel); err != nil {
+			if err := w.SetRedirectChannel(sn, dlsn.RedirectChannel); err != nil {
 				return err
 			}
 
 			// fetch snap assertions
 			prev := len(f.Refs())
-			if _, err = FetchAndCheckSnapAssertions(fn, info, f, db); err != nil {
+			if _, err = FetchAndCheckSnapAssertions(dlsn.Path, dlsn.Info, f, db); err != nil {
 				return err
 			}
 			aRefs := f.Refs()[prev:]
 			sn.ARefs = aRefs
+
+			curSnaps = append(curSnaps, &tooling.CurrentSnap{
+				SnapName: sn.Info.SnapName(),
+				SnapID:   sn.Info.ID(),
+				Revision: sn.Info.Revision,
+				Epoch:    sn.Info.Epoch,
+				Channel:  sn.Channel,
+			})
 		}
 
 		complete, err := w.Downloaded()
@@ -496,10 +564,6 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
-		return err
-	}
-
 	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
 	if err != nil {
 		return err
@@ -511,6 +575,10 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 
 	// write resolved content to structure root
 	if err := writeResolvedContent(opts.PrepareDir, gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
+		return err
+	}
+
+	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
 		return err
 	}
 

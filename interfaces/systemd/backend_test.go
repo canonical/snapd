@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/snap"
 	sysd "github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type backendSuite struct {
@@ -57,6 +58,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 		s.systemctlArgs = append(s.systemctlArgs, append([]string{"systemctl"}, args...))
 		return []byte("ActiveState=inactive"), nil
 	})
+	s.systemctlArgs = nil
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
@@ -90,11 +92,14 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	c.Check(err, IsNil)
 	// the service was also started (whee)
 	c.Check(sysdLog, DeepEquals, [][]string{
+		// units added removed
 		{"daemon-reload"},
-		{"enable", "snap.samba.interface.foo.service"},
+		{"--no-reload", "enable", "snap.samba.interface.foo.service"},
 		{"stop", "snap.samba.interface.foo.service"},
 		{"show", "--property=ActiveState", "snap.samba.interface.foo.service"},
 		{"start", "snap.samba.interface.foo.service"},
+		// update systemd's enabled/disabled state
+		{"daemon-reload"},
 	})
 }
 
@@ -112,7 +117,7 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 		c.Check(os.IsNotExist(err), Equals, true)
 		// the service was stopped
 		c.Check(s.systemctlArgs, DeepEquals, [][]string{
-			{"systemctl", "disable", "snap.samba.interface.foo.service"},
+			{"systemctl", "--no-reload", "disable", "snap.samba.interface.foo.service"},
 			{"systemctl", "stop", "snap.samba.interface.foo.service"},
 			{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.foo.service"},
 			{"systemctl", "daemon-reload"},
@@ -120,7 +125,7 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 	}
 }
 
-func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
+func (s *backendSuite) TestSettingInstallManyUpdateSecurityWithFewerServices(c *C) {
 	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *snap.SlotInfo) error {
 		err := spec.AddService("foo", &systemd.Service{ExecStart: "/bin/true"})
 		if err != nil {
@@ -128,15 +133,27 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 		}
 		return spec.AddService("bar", &systemd.Service{ExecStart: "/bin/false"})
 	}
-	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
-	s.systemctlArgs = nil
 	serviceFoo := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
 	serviceBar := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.bar.service")
+	// verify known test state
+	c.Check(serviceFoo, testutil.FileAbsent)
+	c.Check(serviceBar, testutil.FileAbsent)
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
 	// the services were created
-	_, err := os.Stat(serviceFoo)
-	c.Check(err, IsNil)
-	_, err = os.Stat(serviceBar)
-	c.Check(err, IsNil)
+	c.Check(serviceFoo, testutil.FilePresent)
+	c.Check(serviceBar, testutil.FilePresent)
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"systemctl", "daemon-reload"},
+		// units were added
+		{"systemctl", "--no-reload", "enable", "snap.samba.interface.bar.service", "snap.samba.interface.foo.service"},
+		{"systemctl", "stop", "snap.samba.interface.bar.service", "snap.samba.interface.foo.service"},
+		{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.bar.service"},
+		{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.foo.service"},
+		{"systemctl", "start", "snap.samba.interface.bar.service", "snap.samba.interface.foo.service"},
+		// update state in systemd
+		{"systemctl", "daemon-reload"},
+	})
+	s.systemctlArgs = nil
 
 	// Change what the interface returns to simulate some useful change
 	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *snap.SlotInfo) error {
@@ -144,9 +161,9 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 	}
 	// Update over to the same snap to regenerate security
 	s.UpdateSnap(c, snapInfo, interfaces.ConfinementOptions{}, ifacetest.SambaYamlV1, 0)
-	// The bar service should have been stopped
+	// The bar service should have been stopped, foo service is unchanged
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"systemctl", "disable", "snap.samba.interface.bar.service"},
+		{"systemctl", "--no-reload", "disable", "snap.samba.interface.bar.service"},
 		{"systemctl", "stop", "snap.samba.interface.bar.service"},
 		{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.bar.service"},
 		{"systemctl", "daemon-reload"},

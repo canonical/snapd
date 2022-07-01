@@ -22,12 +22,16 @@ package daemon_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strings"
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -39,7 +43,7 @@ type postDebugSuite struct {
 }
 
 func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 	s.expectRootAccess()
 
 	soon := 0
@@ -119,7 +123,7 @@ func mockDurationThreshold() func() {
 func (s *postDebugSuite) getDebugTimings(c *check.C, request string) []interface{} {
 	defer mockDurationThreshold()()
 
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 
 	req, err := http.NewRequest("GET", request, nil)
 	c.Assert(err, check.IsNil)
@@ -206,7 +210,7 @@ func (s *postDebugSuite) TestGetDebugTimingsEnsureAll(c *check.C) {
 }
 
 func (s *postDebugSuite) TestGetDebugTimingsError(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 
 	req, err := http.NewRequest("GET", "/v2/debug?aspect=change-timings&ensure=unknown", nil)
 	c.Assert(err, check.IsNil)
@@ -235,6 +239,100 @@ func (s *postDebugSuite) TestMinLane(c *check.C) {
 	t.JoinLane(lane2)
 	c.Check(daemon.MinLane(t), check.Equals, lane1)
 
-	// sanity
+	// validity
 	c.Check(t.Lanes(), check.DeepEquals, []int{lane1, lane2})
+}
+
+func (s *postDebugSuite) TestMigrateHome(c *check.C) {
+	d := s.daemonWithOverlordMock()
+	s.expectRootAccess()
+
+	restore := daemon.MockSnapstateMigrate(func(*state.State, []string) ([]*state.TaskSet, error) {
+		st := state.New(nil)
+		st.Lock()
+		defer st.Unlock()
+
+		var ts state.TaskSet
+		ts.AddTask(st.NewTask("bar", ""))
+		return []*state.TaskSet{&ts}, nil
+	})
+	defer restore()
+
+	body := strings.NewReader(`{"action": "migrate-home", "snaps": ["foo", "bar"]}`)
+	req, err := http.NewRequest("POST", "/v2/debug", body)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil)
+	c.Assert(rsp, check.FitsTypeOf, &daemon.RespJSON{})
+
+	rspJSON := rsp.(*daemon.RespJSON)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.Change(rspJSON.Change)
+	var snaps map[string][]string
+	c.Assert(chg.Get("api-data", &snaps), check.IsNil)
+	c.Assert(snaps["snap-names"], check.DeepEquals, []string{"foo", "bar"})
+}
+
+func (s *postDebugSuite) TestMigrateHomeNoSnaps(c *check.C) {
+	s.daemonWithOverlordMock()
+	s.expectRootAccess()
+
+	body := strings.NewReader(`{"action": "migrate-home"}`)
+	req, err := http.NewRequest("POST", "/v2/debug", body)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil)
+	c.Assert(rsp, check.FitsTypeOf, &daemon.APIError{})
+	apiErr := rsp.(*daemon.APIError)
+
+	c.Check(apiErr.Status, check.Equals, 400)
+	c.Check(apiErr.Message, check.Equals, "no snaps were provided")
+}
+
+func (s *postDebugSuite) TestMigrateHomeNotInstalled(c *check.C) {
+	s.daemonWithOverlordMock()
+	s.expectRootAccess()
+
+	restore := daemon.MockSnapstateMigrate(func(*state.State, []string) ([]*state.TaskSet, error) {
+		return nil, snap.NotInstalledError{Snap: "some-snap"}
+	})
+	defer restore()
+
+	body := strings.NewReader(`{"action": "migrate-home", "snaps": ["some-snap"]}`)
+	req, err := http.NewRequest("POST", "/v2/debug", body)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil)
+	c.Assert(rsp, check.FitsTypeOf, &daemon.APIError{})
+	apiErr := rsp.(*daemon.APIError)
+
+	c.Check(apiErr.Status, check.Equals, 404)
+	c.Check(apiErr.Message, check.Equals, `snap "some-snap" is not installed`)
+	c.Check(apiErr.Kind, check.Equals, client.ErrorKindSnapNotFound)
+	c.Check(apiErr.Value, check.Equals, "some-snap")
+}
+
+func (s *postDebugSuite) TestMigrateHomeInternalError(c *check.C) {
+	s.daemonWithOverlordMock()
+	s.expectRootAccess()
+
+	restore := daemon.MockSnapstateMigrate(func(*state.State, []string) ([]*state.TaskSet, error) {
+		return nil, errors.New("boom")
+	})
+	defer restore()
+
+	body := strings.NewReader(`{"action": "migrate-home", "snaps": ["some-snap"]}`)
+	req, err := http.NewRequest("POST", "/v2/debug", body)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil)
+	c.Assert(rsp, check.FitsTypeOf, &daemon.APIError{})
+	apiErr := rsp.(*daemon.APIError)
+
+	c.Check(apiErr.Status, check.Equals, 500)
+	c.Check(apiErr.Message, check.Equals, `boom`)
 }

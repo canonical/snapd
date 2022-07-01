@@ -46,7 +46,7 @@ const networkControlConnectedPlugAppArmor = `
 #
 # Allow access to the safe members of the systemd-resolved D-Bus API:
 #
-#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#   https://www.freedesktop.org/software/systemd/man/org.freedesktop.resolve1.html
 #
 # This API may be used directly over the D-Bus system bus or it may be used
 # indirectly via the nss-resolve plugin:
@@ -59,13 +59,53 @@ dbus send
      path="/org/freedesktop/resolve1"
      interface="org.freedesktop.resolve1.Manager"
      member="Resolve{Address,Hostname,Record,Service}"
-     peer=(name="org.freedesktop.resolve1"),
+     peer=(name="org.freedesktop.resolve1", label=unconfined),
+
+dbus (send)
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="SetLink{DefaultRoute,DNSOverTLS,DNS,DNSEx,DNSSEC,DNSSECNegativeTrustAnchors,MulticastDNS,Domains,LLMNR}"
+     peer=(label=unconfined),
+
+# required by resolvectl command
+dbus (send)
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface=org.freedesktop.DBus.Properties
+     member=Get{,All}
+     peer=(label=unconfined),
+
+# required by resolvectl command
+dbus (receive)
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface=org.freedesktop.DBus.Properties
+     member=PropertiesChanged
+     peer=(label=unconfined),
+
+# required by resolvectl command
+dbus (send)
+     bus=system
+     path="/org/freedesktop/resolve1/link/*"
+     interface="org.freedesktop.DBus.Properties"
+     member=Get{,All}
+     peer=(label=unconfined),
+
+# required by resolvectl command
+dbus (receive)
+     bus=system
+     path="/org/freedesktop/resolve1/link/*"
+     interface="org.freedesktop.DBus.Properties"
+     member=PropertiesChanged
+     peer=(label=unconfined),
 
 #include <abstractions/ssl_certs>
 
 capability net_admin,
 capability net_raw,
 capability setuid, # ping
+capability net_broadcast, # openvswitchd
 
 # Allow protocols except those that we blacklist in
 # /etc/modprobe.d/blacklist-rare-network.conf
@@ -123,6 +163,7 @@ network sna,
 /{,usr/}{,s}bin/pppdump ixr,
 /{,usr/}{,s}bin/pppoe-discovery ixr,
 #/{,usr/}{,s}bin/pppstats ixr,            # needs sys_module
+/{,usr/}{,s}bin/resolvectl ixr,
 /{,usr/}{,s}bin/route ixr,
 /{,usr/}{,s}bin/routef ixr,
 /{,usr/}{,s}bin/routel ixr,
@@ -140,6 +181,9 @@ network sna,
 /sys/class/rfkill/ r,
 /sys/devices/{pci[0-9a-f]*,platform,virtual}/**/rfkill[0-9]*/{,**} r,
 /sys/devices/{pci[0-9a-f]*,platform,virtual}/**/rfkill[0-9]*/state w,
+
+# For reading the address of a particular ethernet interface
+/sys/devices/{pci[0-9a-f]*,platform,virtual}/**/net/*/address r,
 
 # arp
 network netlink dgram,
@@ -199,6 +243,9 @@ capability setuid,
 # We only need to tag /dev/net/tun since the tap[0-9]* and tun[0-9]* devices
 # are virtual and don't show up in /dev
 /dev/net/tun rw,
+
+# Access to sysfs interfaces for tun/tap/mstp/bchat device settings.
+/sys/devices/virtual/net/{tap*,mstp*,bchat*}/** rw,
 
 # access to bridge sysfs interfaces for bridge settings
 /sys/devices/virtual/net/*/bridge/* rw,
@@ -345,7 +392,10 @@ func init() {
 		connectedPlugMount:            networkControlConnectedPlugMount,
 		connectedPlugUpdateNSAppArmor: networkControlConnectedPlugUpdateNSAppArmor,
 
-		suppressPtraceTrace: true,
-	})
+		suppressPtraceTrace:         true,
+		suppressSysModuleCapability: true,
 
+		// affects the plug snap because of mount backend
+		affectsPlugOnRefresh: true,
+	})
 }

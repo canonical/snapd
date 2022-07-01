@@ -54,11 +54,33 @@ const ambarellaDspConnectedPlugApparmor = `
 # The cavalry device node is used for managing the CV2x vector processor (VP).
 /dev/cavalry rw,
 
+# Ambarella kernel debug driver to allow user space setting the CV2x registers
+/dev/ambad rw,
+
 # another DSP device node
 /dev/lens rw,
 
-# also needed for interfacing with the DSP
-/proc/ambarella/vin0_idsp rw,
+# various ambarella specific DSP control parameters
+/proc/ambarella/iav r,
+/proc/ambarella/ambnl/** rw,
+/proc/ambarella/udc r,
+/proc/ambarella/clock r,
+/proc/ambarella/dsp_print rw,
+/proc/ambarella/hdmi_edid r,
+/proc/ambarella/cma r,
+/proc/ambarella/ambarella_hwtimer rw,
+/proc/ambarella/ambarella_hwtimer_outfreq rw,
+/proc/ambarella/vapi_sync r,
+/proc/ambarella/dsp_state r,
+
+# to match vin0_idsp, vin1_idsp, vin2_idsp, etc.
+/proc/ambarella/vin[0-9]_idsp r,
+
+# to match e0021000.dma and e0020000.dma
+/proc/ambarella/[0-9a-e][0-9a-e][0-9a-e][0-9a-e][0-9a-e][0-9a-e][0-9a-e][0-9a-e].dma rw,
+
+# needed to control the usb device attached to the DSP
+/proc/ambarella/usbphy0 rw,
 `
 
 var ambarellaDspConnectedPlugUDev = []string{
@@ -66,6 +88,7 @@ var ambarellaDspConnectedPlugUDev = []string{
 	`KERNEL=="cavalry"`,
 	`KERNEL=="ucode"`,
 	`KERNEL=="lens"`,
+	`KERNEL=="ambad"`,
 }
 
 type dspInterface struct {

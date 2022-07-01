@@ -17,15 +17,12 @@ environment:
     SNAPD_2_45_CORE_SNAP: https://storage.googleapis.com/snapd-spread-tests/snaps/core_2.45_9289.snap
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     # build an unrelated empty cdrom drive to provide to first boot with no 
     # real files on it to use as a placeholder in qemu args
-    nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/emptykthxbai" seed.iso notcidata emptykthxbai
+    tests.nested build-seed "$TESTSLIB/cloud-init-seeds/emptykthxbai" seed.iso notcidata emptykthxbai
 
     # build the attacker cloud-init NoCloud cdrom drive
-    nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
+    tests.nested build-seed "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
 
     # if we are not building from current, then we need to seed the specific,
     # old version of snapd that was vulnerable into the image to start there,
@@ -33,21 +30,22 @@ prepare: |
     # thus this test would no longer be testing that old vulnerable devices 
     # become safe after refreshing to the fix
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "false" ]; then
-        snap install http --devmode # devmode so it can save to any dir
-
-        mkdir -p "$(nested_get_extra_snaps_path)"
+        snap install test-snapd-curl --edge --devmode # devmode so it can save to any dir
 
         if os.query is-xenial; then
             # uc16 uses core snap
-            http --quiet --download --output core_2.45.snap GET "$SNAPD_2_45_CORE_SNAP"
+            test-snapd-curl.curl -s -o core_2.45.snap "$SNAPD_2_45_CORE_SNAP"
             # The core snap is unpacked and repacked to prevent it is auto-refreshed when
             # it is installed with --dangerous as it has a different hash
             unsquashfs -d core-snap core_2.45.snap
-            snap pack core-snap/ "$(nested_get_extra_snaps_path)"
+            snap pack core-snap/ "$(tests.nested get extra-snaps-path)"
         else 
             # uc18 uses snapd snap
-            http --quiet --download --output snapd_2.45.snap GET "$SNAPD_2_45_SNAPD_SNAP"
-            cp snapd_2.45.snap "$(nested_get_extra_snaps_path)"
+            test-snapd-curl.curl -s -o snapd_2.45.snap "$SNAPD_2_45_SNAPD_SNAP"
+            # The snapd snap is unpacked and repacked to prevent it from being
+            # auto-refreshed when it is installed
+            unsquashfs -d snapd-snap snapd_2.45.snap
+            snap pack snapd-snap/ "$(tests.nested get extra-snaps-path)"
         fi
     fi
 
@@ -62,15 +60,10 @@ debug: |
         echo "logs before reboot"
         cat snapd-before-reboot.logs
     fi
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
     echo "logs from current nested VM boot snapd"
     tests.nested exec "sudo journalctl -e --no-pager -u snapd" || true
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     echo "The VM here will not ever had used cloud-init so snapd should disable"
     # cloud-init when it is installed
 
@@ -92,7 +85,7 @@ execute: |
             tests.nested exec "sudo snap install core-from-snapd-deb.snap --dangerous"
 
             # now we wait for the reboot for the new core snap
-            nested_wait_for_no_ssh
+            tests.nested wait-for no-ssh
             tests.nested wait-for ssh
             
         else
@@ -124,7 +117,7 @@ execute: |
     echo "Waiting for snapd to react to cloud-init"
     # It is needed || true because in ubuntu-core-16 there is not any cloud-init message in the journal log
     retry --wait 1 -n 60 sh -c 'tests.nested exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'
-    
+
     # ensure that snapd disabled cloud-init with the cloud-init.disabled file
     echo "Ensuring that snapd restricted cloud-init"
     tests.nested exec "cloud-init status" | MATCH "status: disabled"
@@ -135,14 +128,14 @@ execute: |
     tests.nested exec "sudo journalctl -e --no-pager -u snapd" > snapd-before-reboot.logs
 
     echo "Gracefully shutting down the nested VM to prepare a simulated attack"
-    boot_id="$(nested_get_boot_id)"
-    tests.nested stop-vm
+    boot_id="$(tests.nested boot-id)"
+    tests.nested vm stop
 
     echo "Replace the empty seed.iso with the new attacker iso"
     mv seed2.iso seed.iso
 
     echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
-    tests.nested start-vm
+    tests.nested vm start
     tests.nested wait-for reboot "${boot_id}"
 
     # cloud-init should not actually run, since it was disabled, but in case the

@@ -73,6 +73,7 @@ if [ "$1" = "purge" ]; then
             done
             # modules
             rm -f "/etc/modules-load.d/snap.${snap}.conf"
+            rm -f "/etc/modprobe.d/snap.${snap}.conf"
             # udev rules
             find /etc/udev/rules.d -name "*-snap.${snap}.rules" -execdir rm -f "{}" \;
             # dbus policy files
@@ -96,6 +97,8 @@ if [ "$1" = "purge" ]; then
         rm -f "/etc/systemd/system/$unit"
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
     done
+    # Units may have been removed do a reload
+    systemctl -q daemon-reload || true
 
     # snapd session-agent
     rm -f /etc/systemd/user/snapd.session-agent.socket

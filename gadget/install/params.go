@@ -21,24 +21,23 @@ package install
 
 import (
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 type Options struct {
 	// Also mount the filesystems after creation
 	Mount bool
-	// Encrypt the data partition
-	Encrypt bool
-}
-
-// EncryptionKeySet is a set of encryption keys.
-type EncryptionKeySet struct {
-	Key         secboot.EncryptionKey
-	RecoveryKey secboot.RecoveryKey
+	// Encrypt the data/save partitions
+	EncryptionType secboot.EncryptionType
 }
 
 // InstalledSystemSideData carries side data of an installed system, eg. secrets
 // to access its partitions.
 type InstalledSystemSideData struct {
 	// KeysForRoles contains key sets for the relevant structure roles.
-	KeysForRoles map[string]*EncryptionKeySet
+	KeyForRole map[string]keys.EncryptionKey
+	// DeviceForRole maps a roles to their corresponding device nodes. For
+	// structures with roles that require data to be encrypted, the device
+	// is the raw encrypted device node (eg. /dev/mmcblk0p1).
+	DeviceForRole map[string]string
 }

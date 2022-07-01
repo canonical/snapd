@@ -1,9 +1,8 @@
 summary: Ensure that the security rules related to device cgroups work.
 
-# fedora, opensuse: we don't run the native kernel on these distributions yet so
-#                   we can't load kernel modules coming from distribution packages yet
-# debian-sid, arch: cgroup v2 which we do not fully support yet
-systems: [-fedora-*, -opensuse-*, -debian-sid-*, -arch-* ]
+systems:
+  #TODO: bpftool is not available on core22 and tests.device-cgroup needs it for cgroups v2
+  - -ubuntu-core-22-*
 
 environment:
     DEVICE_NAME/kmsg: kmsg
@@ -69,6 +68,7 @@ restore: |
 
     if [ -e /etc/udev/rules.d/70-snap.test-snapd-sh.rules ]; then
         rm /etc/udev/rules.d/70-snap.test-snapd-sh.rules
+        systemctl restart systemd-udevd
         udevadm control --reload-rules
         udevadm trigger
     fi
@@ -80,68 +80,77 @@ execute: |
         exit 0
     fi
 
-    if [ "$SPREAD_REBOOT" = 0 ]; then
-        echo "Given a snap is installed"
-        "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
-
-        echo "Then the device is not assigned to that snap"
-        udevadm info "$UDEVADM_PATH" | NOMATCH "E: TAGS=.*snap_test-snapd-sh_sh"
-        udevadm info "$UDEVADM_PATH" | NOMATCH "E: CURRENT_TAGS=.*snap_test-snapd-sh_sh"
-
-        echo "And the device is not shown in the snap device list"
-        # FIXME: this is, apparently, a layered can of worms. Zyga says he needs to fix it.
-        if [ -e /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list ]; then
-            NOMATCH "$DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
-        fi
-
-        echo "When a udev rule assigning the device to the snap is added"
-        content="KERNEL==\"$DEVICE_NAME\", TAG+=\"snap_test-snapd-sh_sh\""
-        echo "$content" > /etc/udev/rules.d/70-snap.test-snapd-sh.rules
-        udevadm control --reload-rules
-        udevadm settle
-        udevadm trigger
-        udevadm settle
-
-        echo "Then the device is shown as assigned to the snap"
-        udevadm info "$UDEVADM_PATH" | MATCH "E: TAGS=.*snap_test-snapd-sh_sh"
-        # CURRENT_TAGS just available on systemd 247+
-        if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 247 ]; then
-            udevadm info "$UDEVADM_PATH" | MATCH "E: CURRENT_TAGS=.*snap_test-snapd-sh_sh"
-        fi
-
-        echo "And other devices are not shown as assigned to the snap"
-        udevadm info "$OTHER_UDEVADM_PATH" | NOMATCH "E: TAGS=.*snap_test-snapd-sh_sh"
-        udevadm info "$OTHER_UDEVADM_PATH" | NOMATCH "E: CURRENT_TAGS=.*snap_test-snapd-sh_sh"
-
-        echo "When a snap command is called"
-        test-snapd-sh.sh -c 'true'
-
-        echo "Then the device is shown in the snap device list"
-        MATCH "$DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
-
-        echo "And other devices are not shown in the snap device list"
-        NOMATCH "$OTHER_DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
-
-        echo "But existing nvidia devices are in the snap's device cgroup"
-        MATCH "c 195:0 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
-        MATCH "c 195:255 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
-        MATCH "c 247:0 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
-
-        echo "But nonexisting nvidia devices are not"
-        NOMATCH "c 195:254 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
-
-        echo "But the existing uhid device is in the snap's device cgroup"
-        MATCH "c 10:239 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
-
-        echo "Once the snap is removed, the current tags are automatically removed"
-        snap remove test-snapd-sh
-        udevadm info "$UDEVADM_PATH" | NOMATCH "E: CURRENT_TAGS=.*snap_test-snapd-sh_sh"
-        test ! -f /etc/udev/rules.d/70-snap.test-snapd-sh.rules
-
-        # Reboot needed just on systemd 247+
-        if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 247 ]; then
-            REBOOT
-        fi
+    tags_are_sticky=0
+    if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 247 ]; then
+        # with systemd versions 247+, the TAGS are sticky, but CURRENT_TAGS is
+        # updated to reflect the latest state of DB
+        tags_are_sticky=1
     fi
 
+    echo "Given snap is installed"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    echo "Then the device is not assigned to that snap"
     udevadm info "$UDEVADM_PATH" | NOMATCH "E: TAGS=.*snap_test-snapd-sh_sh"
+    udevadm info "$UDEVADM_PATH" | NOMATCH "E: CURRENT_TAGS=.*snap_test-snapd-sh_sh"
+
+    echo "And the device is not shown in the snap device list"
+    tests.device-cgroup test-snapd-sh.sh dump | NOMATCH "$DEVICE_ID"
+
+    echo "When a udev rule assigning the device to the snap is added"
+    content="KERNEL==\"$DEVICE_NAME\", TAG+=\"snap_test-snapd-sh_sh\""
+    echo "$content" > /etc/udev/rules.d/70-snap.test-snapd-sh.rules
+    udevadm control --reload-rules
+    udevadm settle
+    udevadm trigger
+    udevadm settle
+
+    echo "Then the device is shown as assigned to the snap"
+    udevadm info "$UDEVADM_PATH" | MATCH "E: TAGS=.*snap_test-snapd-sh_sh"
+    # CURRENT_TAGS just available on systemd 247+
+    if [ "$tags_are_sticky" = "1" ]; then
+        udevadm info "$UDEVADM_PATH" | MATCH "E: CURRENT_TAGS=.*snap_test-snapd-sh_sh"
+    fi
+
+    echo "And other devices are not shown as assigned to the snap"
+    if [ "$tags_are_sticky" = "1" ]; then
+        # no point in checking TAGS are other variant of the test could have
+        # executed on the same host and thus TAGS will be tainted
+        udevadm info "$OTHER_UDEVADM_PATH" | NOMATCH "E: CURRENT_TAGS=.*snap_test-snapd-sh_sh"
+    else
+        udevadm info "$OTHER_UDEVADM_PATH" | NOMATCH "E: TAGS=.*snap_test-snapd-sh_sh"
+    fi
+
+    echo "When a snap command is called"
+    test-snapd-sh.sh -c 'true'
+
+    tests.device-cgroup test-snapd-sh.sh dump > devices.list
+
+    echo "Then the device is shown in the snap device list"
+    MATCH "$DEVICE_ID" < devices.list
+
+    echo "And other devices are not shown in the snap device list"
+    NOMATCH "$OTHER_DEVICE_ID" < devices.list
+
+    echo "But existing nvidia devices are in the snap's device cgroup"
+    tests.device-cgroup test-snapd-sh.sh dump > devices.list
+    MATCH "c 195:0 rwm" < devices.list
+    MATCH "c 195:255 rwm" < devices.list
+    MATCH "c 247:0 rwm" < devices.list
+
+    echo "But nonexisting nvidia devices are not"
+    NOMATCH "c 195:254 rwm" < devices.list
+
+    echo "But the existing uhid device is in the snap's device cgroup"
+    MATCH "c 10:239 rwm" < devices.list
+
+    echo "Once the snap is removed, the current tags are automatically removed"
+    snap remove test-snapd-sh
+    udevadm info "$UDEVADM_PATH" | NOMATCH "E: CURRENT_TAGS=.*snap_test-snapd-sh_sh"
+    test ! -f /etc/udev/rules.d/70-snap.test-snapd-sh.rules
+
+    if [ "$tags_are_sticky" = "1" ]; then
+        udevadm info "$UDEVADM_PATH" | MATCH "E: TAGS=.*snap_test-snapd-sh_sh"
+    else
+        udevadm info "$UDEVADM_PATH" | NOMATCH "E: TAGS=.*snap_test-snapd-sh_sh"
+    fi

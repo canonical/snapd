@@ -28,7 +28,6 @@ import (
 	"text/tabwriter"
 	"time"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/yaml.v2"
@@ -98,7 +97,7 @@ func (iw *infoWriter) maybePrintHealth() {
 	fmt.Fprintln(iw, "health:")
 	fmt.Fprintf(iw, "  status:\t%s\n", health.Status)
 	if health.Message != "" {
-		wrapGeneric(iw, quotedIfNeeded(health.Message), "  message:\t", "    ", iw.termWidth)
+		strutil.WordWrap(iw, quotedIfNeeded(health.Message), "  message:\t", "    ", iw.termWidth)
 	}
 	if health.Code != "" {
 		fmt.Fprintf(iw, "  code:\t%s\n", health.Code)
@@ -139,98 +138,10 @@ func norm(path string) string {
 	return path
 }
 
-// runesTrimRightSpace returns text, with any trailing whitespace dropped.
-func runesTrimRightSpace(text []rune) []rune {
-	j := len(text)
-	for j > 0 && unicode.IsSpace(text[j-1]) {
-		j--
-	}
-	return text[:j]
-}
-
-// runesLastIndexSpace returns the index of the last whitespace rune
-// in the text. If the text has no whitespace, returns -1.
-func runesLastIndexSpace(text []rune) int {
-	for i := len(text) - 1; i >= 0; i-- {
-		if unicode.IsSpace(text[i]) {
-			return i
-		}
-	}
-	return -1
-}
-
-// wrapLine wraps a line, assumed to be part of a block-style yaml
-// string, to fit into termWidth, preserving the line's indent, and
-// writes it out prepending padding to each line.
-func wrapLine(out io.Writer, text []rune, pad string, termWidth int) error {
-	// discard any trailing whitespace
-	text = runesTrimRightSpace(text)
-	// establish the indent of the whole block
-	idx := 0
-	for idx < len(text) && unicode.IsSpace(text[idx]) {
-		idx++
-	}
-	indent := pad + string(text[:idx])
-	text = text[idx:]
-	if len(indent) > termWidth/2 {
-		// If indent is too big there's not enough space for the actual
-		// text, in the pathological case the indent can even be bigger
-		// than the terminal which leads to lp:1828425.
-		// Rather than let that happen, give up.
-		indent = pad + "  "
-	}
-	return wrapGeneric(out, text, indent, indent, termWidth)
-}
-
 // wrapFlow wraps the text using yaml's flow style, allowing indent
 // characters for the first line.
 func wrapFlow(out io.Writer, text []rune, indent string, termWidth int) error {
-	return wrapGeneric(out, text, indent, "  ", termWidth)
-}
-
-// wrapGeneric wraps the given text to the given width, prefixing the
-// first line with indent and the remaining lines with indent2
-func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, termWidth int) error {
-	// Note: this is _wrong_ for much of unicode (because the width of a rune on
-	//       the terminal is anything between 0 and 2, not always 1 as this code
-	//       assumes) but fixing that is Hard. Long story short, you can get close
-	//       using a couple of big unicode tables (which is what wcwidth
-	//       does). Getting it 100% requires a terminfo-alike of unicode behaviour.
-	//       However, before this we'd count bytes instead of runes, so we'd be
-	//       even more broken. Think of it as successive approximations... at least
-	//       with this work we share tabwriter's opinion on the width of things!
-
-	// This (and possibly printDescr below) should move to strutil once
-	// we're happy with it getting wider (heh heh) use.
-
-	indentWidth := utf8.RuneCountInString(indent)
-	delta := indentWidth - utf8.RuneCountInString(indent2)
-	width := termWidth - indentWidth
-
-	// establish the indent of the whole block
-	var err error
-	for len(text) > width && err == nil {
-		// find a good place to chop the text
-		idx := runesLastIndexSpace(text[:width+1])
-		if idx < 0 {
-			// there's no whitespace; just chop at line width
-			idx = width
-		}
-		_, err = fmt.Fprint(out, indent, string(text[:idx]), "\n")
-		// prune any remaining whitespace before the start of the next line
-		for idx < len(text) && unicode.IsSpace(text[idx]) {
-			idx++
-		}
-		text = text[idx:]
-		width += delta
-		indent = indent2
-		delta = 0
-	}
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprint(out, indent, string(text), "\n")
-	return err
+	return strutil.WordWrap(out, text, indent, "  ", termWidth)
 }
 
 func quotedIfNeeded(raw string) []rune {
@@ -258,7 +169,7 @@ func printDescr(w io.Writer, descr string, termWidth int) error {
 	var err error
 	descr = strings.TrimRightFunc(descr, unicode.IsSpace)
 	for _, line := range strings.Split(descr, "\n") {
-		err = wrapLine(w, []rune(line), "  ", termWidth)
+		err = strutil.WordWrapPadded(w, []rune(line), "  ", termWidth)
 		if err != nil {
 			break
 		}

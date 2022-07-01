@@ -46,7 +46,7 @@ type snapshotSuite struct {
 
 func (s *snapshotSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 	s.expectAuthenticatedAccess()
 	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 }

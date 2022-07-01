@@ -41,6 +41,13 @@ type InstallCandidate struct {
 	Store *asserts.Store
 }
 
+func (ic *InstallCandidate) snapID() string {
+	if ic.SnapDeclaration != nil {
+		return ic.SnapDeclaration.SnapID()
+	}
+	return "" // never a valid snap-id
+}
+
 func (ic *InstallCandidate) checkSlotRule(slot *snap.SlotInfo, rule *asserts.SlotRule, snapRule bool) error {
 	context := ""
 	if snapRule {
@@ -281,12 +288,12 @@ type InstallCandidateMinimalCheck struct {
 }
 
 func (ic *InstallCandidateMinimalCheck) checkSlotRule(slot *snap.SlotInfo, rule *asserts.SlotRule) error {
-	if hasConstraints, err := checkMinimalSlotInstallationAltConstraints(ic, slot, rule.DenyInstallation); hasConstraints && err == nil {
+	if hasConstraints, err := checkMinimalSlotInstallationAltConstraints(slot, rule.DenyInstallation); hasConstraints && err == nil {
 		return fmt.Errorf("installation denied by %q slot rule of interface %q", slot.Name, slot.Interface)
 	}
 
 	// TODO check that the snap is an app or gadget if allow-installation had no slot-snap-type constraints
-	if _, err := checkMinimalSlotInstallationAltConstraints(ic, slot, rule.AllowInstallation); err != nil {
+	if _, err := checkMinimalSlotInstallationAltConstraints(slot, rule.AllowInstallation); err != nil {
 		return fmt.Errorf("installation not allowed by %q slot rule of interface %q", slot.Name, slot.Interface)
 	}
 	return nil

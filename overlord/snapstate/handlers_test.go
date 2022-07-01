@@ -24,6 +24,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -33,14 +36,12 @@ import (
 
 type handlersSuite struct {
 	baseHandlerSuite
-
-	stateBackend *witnessRestartReqStateBackend
 }
 
 var _ = Suite(&handlersSuite{})
 
 func (s *handlersSuite) SetUpTest(c *C) {
-	s.setup(c, s.stateBackend)
+	s.baseHandlerSuite.SetUpTest(c)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
@@ -62,7 +63,7 @@ func (s *handlersSuite) TestSetTaskSnapSetupFirstTask(c *C) {
 		UserID:  2,
 	}
 	t.Set("snap-setup", snapsup)
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	// mutate it and rewrite it with the helper
 	snapsup.Channel = "edge"
@@ -100,7 +101,7 @@ func (s *handlersSuite) TestSetTaskSnapSetupLaterTask(c *C) {
 	t2 := s.state.NewTask("next-task-snap", "test2")
 	t2.Set("snap-setup-task", t.ID())
 
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 	chg.AddTask(t2)
 
@@ -282,4 +283,108 @@ func (s *handlersSuite) TestNotifyLinkParticipantsErrorHandling(c *C) {
 	logs := t.Log()
 	c.Assert(logs, HasLen, 1)
 	c.Check(logs[0], testutil.Contains, "ERROR something failed")
+}
+
+func (s *handlersSuite) TestGetHiddenDirOptionsFromSnapState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+
+	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
+	err := tr.Set("core", confKey, "true")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	// check options reflect flag and SnapState
+	snapst := &snapstate.SnapState{MigratedHidden: true}
+	opts, err := snapstate.GetDirMigrationOpts(s.state, snapst, nil)
+
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &snapstate.DirMigrationOptions{UseHidden: true, MigratedToHidden: true})
+}
+
+func (s *handlersSuite) TestGetHiddenDirOptionsFromSnapSetup(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, t := range []struct {
+		snapsup   snapstate.SnapSetup
+		opts      *snapstate.DirMigrationOptions
+		expectErr bool
+	}{
+		{snapstate.SnapSetup{MigratedHidden: true}, &snapstate.DirMigrationOptions{MigratedToHidden: true}, false},
+		{snapstate.SnapSetup{UndidHiddenMigration: true}, &snapstate.DirMigrationOptions{}, false},
+		{snapstate.SnapSetup{}, &snapstate.DirMigrationOptions{}, false},
+		{snapstate.SnapSetup{MigratedToExposedHome: true}, &snapstate.DirMigrationOptions{MigratedToExposedHome: true}, false},
+		{snapstate.SnapSetup{EnableExposedHome: true}, &snapstate.DirMigrationOptions{MigratedToExposedHome: true}, false},
+		{snapstate.SnapSetup{RemovedExposedHome: true}, &snapstate.DirMigrationOptions{}, false},
+		{snapstate.SnapSetup{DisableExposedHome: true}, &snapstate.DirMigrationOptions{}, false},
+		{snapstate.SnapSetup{EnableExposedHome: true, DisableExposedHome: true}, nil, true},
+		{snapstate.SnapSetup{EnableExposedHome: true, RemovedExposedHome: true}, nil, true},
+		{snapstate.SnapSetup{MigratedToExposedHome: true, RemovedExposedHome: true}, nil, true},
+		{snapstate.SnapSetup{MigratedToExposedHome: true, DisableExposedHome: true}, nil, true},
+		{snapstate.SnapSetup{MigratedHidden: true, UndidHiddenMigration: true}, nil, true},
+	} {
+
+		opts, err := snapstate.GetDirMigrationOpts(s.state, nil, &t.snapsup)
+		if t.expectErr {
+			c.Check(err, Not(IsNil))
+		} else {
+			c.Check(err, IsNil)
+			c.Check(opts, DeepEquals, t.opts)
+		}
+	}
+}
+
+func (s *handlersSuite) TestGetHiddenDirOptionsSnapSetupOverrideSnapState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+
+	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
+	err := tr.Set("core", confKey, "true")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	snapst := &snapstate.SnapState{MigratedHidden: true, MigratedToExposedHome: false}
+	snapsup := &snapstate.SnapSetup{UndidHiddenMigration: true, MigratedToExposedHome: true}
+	opts, err := snapstate.GetDirMigrationOpts(s.state, snapst, snapsup)
+
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &snapstate.DirMigrationOptions{UseHidden: true, MigratedToHidden: false, MigratedToExposedHome: true})
+}
+
+func (s *handlersSuite) TestGetSnapDirOptsFromState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstate.MockGetHiddenDirOptions(func(*state.State, *snapstate.SnapState, *snapstate.SnapSetup) (*snapstate.DirMigrationOptions, error) {
+		return &snapstate.DirMigrationOptions{UseHidden: true, MigratedToHidden: true, MigratedToExposedHome: true}, nil
+	})
+	defer restore()
+
+	opts, err := snapstate.GetSnapDirOpts(s.state, "")
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true})
+}
+
+func (s *handlersSuite) TestGetHiddenDirOptionsNoState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+
+	// set feature flag
+	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
+	err := tr.Set("core", confKey, "true")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	// check options reflect flag and no SnapState
+	opts, err := snapstate.GetDirMigrationOpts(s.state, nil, nil)
+
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &snapstate.DirMigrationOptions{UseHidden: true})
 }

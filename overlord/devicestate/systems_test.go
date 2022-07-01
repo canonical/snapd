@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -75,7 +75,8 @@ var (
 )
 
 func (s *createSystemSuite) SetUpTest(c *C) {
-	s.deviceMgrBaseSuite.SetUpTest(c)
+	classic := false
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
 	s.ss = &seedtest.SeedSnaps{
 		StoreSigning: s.storeSigning,
@@ -149,7 +150,7 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.setupBrands(c)
+	s.setupBrands()
 	infos := s.makeEssentialSnapInfos(c)
 	infos["other-present"] = s.makeSnap(c, "other-present", snap.R(5))
 	infos["other-required"] = s.makeSnap(c, "other-required", snap.R(6))
@@ -265,7 +266,7 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.setupBrands(c)
+	s.setupBrands()
 	infos := s.makeEssentialSnapInfos(c)
 	// unasserted with local revision
 	infos["other-unasserted"] = s.makeSnap(c, "other-unasserted", snap.R(-1))
@@ -350,7 +351,7 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.setupBrands(c)
+	s.setupBrands()
 	infos := s.makeEssentialSnapInfos(c)
 	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
 		"architecture": "amd64",
@@ -482,7 +483,7 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.setupBrands(c)
+	s.setupBrands()
 	// missing info for the pc snap
 	infos["pc-kernel"] = s.makeSnap(c, "pc-kernel", snap.R(1))
 	infos["core20"] = s.makeSnap(c, "core20", snap.R(3))
@@ -575,7 +576,7 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.setupBrands(c)
+	s.setupBrands()
 	// missing info for the pc snap
 	infos := s.makeEssentialSnapInfos(c)
 	infos["other-required"] = s.makeSnap(c, "other-required", snap.R(5))
@@ -655,7 +656,7 @@ func (s *createSystemSuite) TestCreateSystemNonUC20(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.setupBrands(c)
+	s.setupBrands()
 	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		"base":         "core18",
@@ -673,7 +674,7 @@ func (s *createSystemSuite) TestCreateSystemNonUC20(c *C) {
 	}
 	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
 		infoGetter, snapWriteObserver)
-	c.Assert(err, ErrorMatches, `cannot create a system for non UC20 model`)
+	c.Assert(err, ErrorMatches, `cannot create a system for pre-UC20 model`)
 	c.Check(dir, Equals, "")
 }
 
@@ -683,7 +684,7 @@ func (s *createSystemSuite) TestCreateSystemImplicitSnaps(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.setupBrands(c)
+	s.setupBrands()
 	infos := s.makeEssentialSnapInfos(c)
 
 	// snapd snap is implicitly required
@@ -741,7 +742,7 @@ func (s *createSystemSuite) TestCreateSystemObserverErr(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.setupBrands(c)
+	s.setupBrands()
 	infos := s.makeEssentialSnapInfos(c)
 
 	// snapd snap is implicitly required

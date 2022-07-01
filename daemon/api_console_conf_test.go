@@ -41,7 +41,7 @@ type consoleConfSuite struct {
 
 func (s *consoleConfSuite) TestPostConsoleConfStartRoutine(c *C) {
 	t0 := time.Now()
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMock()
 	snapMgr, err := snapstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, IsNil)
 	d.Overlord().AddManager(snapMgr)

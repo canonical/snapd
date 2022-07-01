@@ -25,9 +25,12 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/polkit"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
 var polkitCheckAuthorization = polkit.CheckAuthorization
@@ -150,4 +153,94 @@ func (ac snapAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, us
 	}
 	// FIXME: should snapctl access be allowed on the main socket?
 	return Forbidden("access denied")
+}
+
+var (
+	cgroupSnapNameFromPid = cgroup.SnapNameFromPid
+	requireThemeApiAccess = requireThemeApiAccessImpl
+)
+
+func requireThemeApiAccessImpl(d *Daemon, ucred *ucrednet) *apiError {
+	if ucred == nil {
+		return Forbidden("access denied")
+	}
+
+	switch ucred.Socket {
+	case dirs.SnapdSocket:
+		// Allow access on main snapd.socket
+		return nil
+
+	case dirs.SnapSocket:
+		// Handled below
+	default:
+		return Forbidden("access denied")
+	}
+
+	// Access on snapd-snap.socket requires a connected
+	// snap-themes-control plug.
+	snapName, err := cgroupSnapNameFromPid(int(ucred.Pid))
+	if err != nil {
+		return Forbidden("could not determine snap name for pid: %s", err)
+	}
+
+	st := d.state
+	st.Lock()
+	defer st.Unlock()
+	conns, err := ifacestate.ConnectionStates(st)
+	if err != nil {
+		return Forbidden("internal error: cannot get connections: %s", err)
+	}
+	for refStr, connState := range conns {
+		if !connState.Active() || connState.Interface != "snap-themes-control" {
+			continue
+		}
+		connRef, err := interfaces.ParseConnRef(refStr)
+		if err != nil {
+			return Forbidden("internal error: %s", err)
+		}
+		if connRef.PlugRef.Snap == snapName {
+			return nil
+		}
+	}
+	return Forbidden("access denied")
+}
+
+// themesOpenAccess behaves like openAccess, but allows requests from
+// snapd-snap.socket for snaps that plug snap-themes-control.
+type themesOpenAccess struct{}
+
+func (ac themesOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	return requireThemeApiAccess(d, ucred)
+}
+
+// themesAuthenticatedAccess behaves like authenticatedAccess, but
+// allows requests from snapd-snap.socket for snaps that plug
+// snap-themes-control.
+type themesAuthenticatedAccess struct {
+	Polkit string
+}
+
+func (ac themesAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	if rspe := requireThemeApiAccess(d, ucred); rspe != nil {
+		return rspe
+	}
+
+	// check as well that we have admin permission to proceed with
+	// the theme operation
+	if user != nil {
+		return nil
+	}
+
+	if ucred.Uid == 0 {
+		return nil
+	}
+
+	// We check polkit last because it may result in the user
+	// being prompted for authorisation. This should be avoided if
+	// access is otherwise granted.
+	if ac.Polkit != "" {
+		return checkPolkitAction(r, ucred, ac.Polkit)
+	}
+
+	return Unauthorized("access denied")
 }

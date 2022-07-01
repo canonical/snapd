@@ -76,13 +76,9 @@ execute: |
     echo "Then the snap is not able to access an evdev keyboard"
     retry -n 5 --wait 1 sh -c '! test-snapd-event "-event-kbd" 2> call.error'
 
-    if os.query is-hirsute || os.query is-impish; then
-        # Cgroups is 'Operation not permitted' which is expected with default policy
-        MATCH "Operation not permitted" < call.error
-    else
-        # AppArmor is 'Permission denied' which is expected with default policy
-        MATCH "Permission denied" < call.error
-    fi
+    # AppArmor is 'Permission denied' which is expected with default policy, and
+    # the AppArmor LSM being evaluated first
+    MATCH "Permission denied" < call.error
 
     echo "When the device-buttons plug is connected"
     snap connect test-snapd-event:device-buttons
@@ -95,5 +91,6 @@ execute: |
 
     # device cgroup is 'Operation not permitted' which is expected when the
     # device-buttons interface is connected since a keyboard shouldn't be added
-    # to the device cgroup.
+    # to the device cgroup. Even though AppArmor path-based permissions allow
+    # access to given device, it still gets blocked by device cgroup filtering.
     MATCH "Operation not permitted" < call.error

@@ -51,7 +51,7 @@ func (s *baseSystemsSuite) SetUpTest(c *C) {
 type systemsSuite struct {
 	baseSystemsSuite
 
-	uc20dev boot.Device
+	uc20dev snap.Device
 
 	runKernelBf      bootloader.BootFile
 	recoveryKernelBf bootloader.BootFile
@@ -96,7 +96,7 @@ func (s *systemsSuite) SetUpTest(c *C) {
 	s.recoveryKernelBf = bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
 		"kernel.efi", bootloader.RoleRecovery)
 
-	s.seedKernelSnap = mockKernelSeedSnap(c, snap.R(1))
+	s.seedKernelSnap = mockKernelSeedSnap(snap.R(1))
 	s.seedGadgetSnap = mockGadgetSeedSnap(c, nil)
 }
 
@@ -156,6 +156,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=1234 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=run static cmdline",
@@ -167,6 +168,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return nil
@@ -278,6 +280,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=run static cmdline",
 			})
@@ -293,6 +296,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return nil
@@ -991,6 +995,7 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return nil
@@ -1389,6 +1394,8 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				fmt.Sprintf("snapd_recovery_mode=factory-reset snapd_recovery_system=%s static cmdline", systemLabel),
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s static cmdline", systemLabel),
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
@@ -1399,6 +1406,8 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				fmt.Sprintf("snapd_recovery_mode=factory-reset snapd_recovery_system=%s static cmdline", systemLabel),
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s static cmdline", systemLabel),
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
@@ -1413,6 +1422,7 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return nil
@@ -1426,6 +1436,7 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return tc.resealRecoveryKeyDuringCleanupErr
@@ -1654,6 +1665,7 @@ func (s *systemsSuite) testDropRecoverySystem(c *C, systemLabel string, tc recov
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return nil
@@ -1663,6 +1675,7 @@ func (s *systemsSuite) testDropRecoverySystem(c *C, systemLabel string, tc recov
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 static cmdline",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return tc.resealRecoveryKeyErr
@@ -1733,6 +1746,143 @@ func (s *systemsSuite) TestDropRecoverySystemResealErr(c *C) {
 		expectedGoodSystemsList:    []string{"20200825"},
 		expectedCurrentSystemsList: []string{"20200825"},
 	})
+}
+
+func (s *systemsSuite) TestMarkRecoveryCapableSystemHappy(c *C) {
+	rbl := bootloadertest.Mock("recovery", c.MkDir()).RecoveryAware()
+	bootloader.Force(rbl)
+
+	err := boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err := rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "1234",
+	})
+	// try the same system again
+	err = boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		// still a single entry
+		"snapd_good_recovery_systems": "1234",
+	})
+
+	// try something new
+	err = boot.MarkRecoveryCapableSystem("4567")
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		// entry added
+		"snapd_good_recovery_systems": "1234,4567",
+	})
+
+	// try adding the old one again
+	err = boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		// system got moved to the end of the list
+		"snapd_good_recovery_systems": "4567,1234",
+	})
+
+	// and the new one again
+	err = boot.MarkRecoveryCapableSystem("4567")
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		// and it became the last entry
+		"snapd_good_recovery_systems": "1234,4567",
+	})
+}
+
+func (s *systemsSuite) TestMarkRecoveryCapableSystemAlwaysLast(c *C) {
+	rbl := bootloadertest.Mock("recovery", c.MkDir()).RecoveryAware()
+	bootloader.Force(rbl)
+
+	err := rbl.SetBootVars(map[string]string{
+		"snapd_good_recovery_systems": "1234,2222",
+	})
+	c.Assert(err, IsNil)
+
+	err = boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err := rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "2222,1234",
+	})
+
+	err = rbl.SetBootVars(map[string]string{
+		"snapd_good_recovery_systems": "1111,1234,2222",
+	})
+	c.Assert(err, IsNil)
+	err = boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "1111,2222,1234",
+	})
+
+	err = rbl.SetBootVars(map[string]string{
+		"snapd_good_recovery_systems": "1111,2222",
+	})
+	c.Assert(err, IsNil)
+	err = boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "1111,2222,1234",
+	})
+}
+
+func (s *systemsSuite) TestMarkRecoveryCapableSystemErr(c *C) {
+	rbl := bootloadertest.Mock("recovery", c.MkDir()).RecoveryAware()
+	bootloader.Force(rbl)
+
+	err := boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err := rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "1234",
+	})
+
+	rbl.SetErr = fmt.Errorf("mocked error")
+	err = boot.MarkRecoveryCapableSystem("4567")
+	c.Assert(err, ErrorMatches, "mocked error")
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		// mocked error is returned after variable is set
+		"snapd_good_recovery_systems": "1234,4567",
+	})
+
+	// but mocked panic happens earlier
+	rbl.SetMockToPanic("SetBootVars")
+	c.Assert(func() { boot.MarkRecoveryCapableSystem("9999") },
+		PanicMatches, "mocked reboot panic in SetBootVars")
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "1234,4567",
+	})
+
+}
+
+func (s *systemsSuite) TestMarkRecoveryCapableSystemNonRecoveryAware(c *C) {
+	bl := bootloadertest.Mock("recovery", c.MkDir())
+	bootloader.Force(bl)
+
+	err := boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	c.Check(bl.SetBootVarsCalls, Equals, 0)
 }
 
 type initramfsMarkTryRecoverySystemSuite struct {

@@ -45,6 +45,9 @@ capability sys_admin,
 /etc/modprobe.d/{,*} r,
 /{,usr/}lib/modprobe.d/{,*} r,
 
+# for reading the available input devices on the system
+/proc/bus/input/devices r,
+
 # files in /sys pertaining to hardware (eg, 'lspci -A linux-sysfs')
 /sys/{block,bus,class,devices,firmware}/{,**} r,
 
@@ -97,6 +100,12 @@ network netlink raw,
 /sys/kernel/debug/usb/devices r,
 @{PROC}/sys/abi/{,*} r,
 
+# hwinfo --short
+@{PROC}/ioports r,
+@{PROC}/dma r,
+@{PROC}/tty/driver/serial r,
+@{PROC}/sys/dev/cdrom/info r,
+
 # status of hugepages and transparent_hugepage, but not the pages themselves
 /sys/kernel/mm/{hugepages,transparent_hugepage}/{,**} r,
 
@@ -134,6 +143,14 @@ network netlink raw,
 # determine if it is running in a chroot. Like above, this is best granted via
 # system-observe.
 #ptrace (read) peer=unconfined,
+
+# some devices use this information to set serial, etc. for Ubuntu Core devices
+/sys/devices/virtual/dmi/id/product_name r,
+/sys/devices/virtual/dmi/id/sys_vendor r,
+
+# allow read access to thermal sysfs
+/sys/devices/virtual/thermal/cooling_device[0-9]*/** r,
+/sys/devices/virtual/thermal/thermal_zone[0-9]*/** r,
 `
 
 const hardwareObserveConnectedPlugSecComp = `

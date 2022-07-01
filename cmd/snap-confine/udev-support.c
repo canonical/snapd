@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <stdint.h>
+#include <dlfcn.h>
 
 #include <libudev.h>
 
@@ -227,9 +228,50 @@ static void sc_cleanup_udev_enumerate(struct udev_enumerate **enumerate)
 	}
 }
 
+/* __sc_udev_device_has_current_tag will be filled at runtime if the libudev has
+ * this symbol.
+ *
+ * Note that we could try to define udev_device_has_current_tag with a weak
+ * attribute, which should in the normal case be the filled by ld.so when
+ * loading snap-confined. However this was observed to work in practice only
+ * when the binary itself is build with recent enough toolchain (eg. gcc &
+ * binutils on Ubuntu 20.04)
+ */
+static int (*__sc_udev_device_has_current_tag)(struct udev_device * udev_device,
+					       const char *tag) = NULL;
+static void setup_current_tags_support(void)
+{
+	void *lib = dlopen("libudev.so.1", RTLD_NOW);
+	if (lib == NULL) {
+		debug("cannot load libudev.so.1: %s", dlerror());
+		/* bit unexpected as we use the library from the host and it's stable */
+		return;
+	}
+	/* check whether we have the symbol introduced in systemd v247 to inspect
+	 * the CURRENT_TAGS property */
+	void *sym = dlsym(lib, "udev_device_has_current_tag");
+	if (sym == NULL) {
+		debug("cannot find current tags symbol: %s", dlerror());
+		/* symbol is not found in the library version */
+		(void)dlclose(lib);
+		return;
+	}
+	debug("libudev has current tags support");
+	__sc_udev_device_has_current_tag = sym;
+	/* lib goes out of scope and is leaked but we need sym and hence
+	 * lib to be valid for the entire lifetime of the application
+	 * lifecycle so this is fine. */
+	/* coverity[leaked_storage] */
+}
+
 void sc_setup_device_cgroup(const char *security_tag)
 {
 	debug("setting up device cgroup");
+
+	setup_current_tags_support();
+	if (__sc_udev_device_has_current_tag == NULL) {
+		debug("no current tags support present");
+	}
 
 	/* Derive the udev tag from the snap security tag.
 	 *
@@ -269,13 +311,9 @@ void sc_setup_device_cgroup(const char *security_tag)
 		return;
 	}
 
-	/* Note that -1 is the neutral value for a file descriptor.
-	 * The cleanup function associated with this variable closes
-	 * descriptors other than -1. */
-	sc_device_cgroup *cgroup SC_CLEANUP(sc_device_cgroup_cleanup) =
-	    sc_device_cgroup_new(security_tag, 0);
-	/* Setup the device group access control list */
-	sc_udev_setup_acls_common(cgroup);
+	/* cgroup wrapper is lazily initialized when devices are actually
+	 * assigned */
+	sc_device_cgroup *cgroup SC_CLEANUP(sc_device_cgroup_cleanup) = NULL;
 	for (struct udev_list_entry * entry = assigned; entry != NULL;
 	     entry = udev_list_entry_get_next(entry)) {
 		const char *path = udev_list_entry_get_name(entry);
@@ -294,12 +332,41 @@ void sc_setup_device_cgroup(const char *security_tag)
 			debug("cannot find device from syspath %s", path);
 			continue;
 		}
+		/* If we are able to query if the device has a current tag,
+		 * do so and if there are no current tags, continue to prevent
+		 * allowing assigned devices to the cgroup - this has the net
+		 * desired effect of not re-creating device cgroups that were
+		 * previously created/setup but should no longer be setup due
+		 * to interface disconnection, etc. */
+		if (__sc_udev_device_has_current_tag != NULL) {
+			if (__sc_udev_device_has_current_tag(device, udev_tag)
+			    <= 0) {
+				debug("device %s has no matching current tag",
+				      path);
+				udev_device_unref(device);
+				continue;
+			}
+			debug("device %s has matching current tag", path);
+		}
 
+		if (cgroup == NULL) {
+			/* initialize cgroup wrapper only when we are sure that there are
+			 * devices assigned to this snap */
+			cgroup = sc_device_cgroup_new(security_tag, 0);
+			/* Setup the device group access control list */
+			sc_udev_setup_acls_common(cgroup);
+		}
 		sc_udev_allow_assigned_device(cgroup, device);
 		udev_device_unref(device);
 	}
-	/* Move ourselves to the device cgroup */
-	sc_device_cgroup_attach_pid(cgroup, getpid());
-	debug("associated snap application process %i with device cgroup %s",
-	      getpid(), security_tag);
+	if (cgroup != NULL) {
+		/* Move ourselves to the device cgroup */
+		sc_device_cgroup_attach_pid(cgroup, getpid());
+		debug
+		    ("associated snap application process %i with device cgroup %s",
+		     getpid(), security_tag);
+	} else {
+		debug("no devices tagged with %s, skipping device cgroup setup",
+		      udev_tag);
+	}
 }

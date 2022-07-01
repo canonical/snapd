@@ -57,9 +57,9 @@ func (s *unsetCommand) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("unset which option?"))
 	}
 
-	context := s.context()
-	if context == nil {
-		return fmt.Errorf("cannot unset without a context")
+	context, err := s.ensureContext()
+	if err != nil {
+		return err
 	}
 
 	context.Lock()

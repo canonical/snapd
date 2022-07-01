@@ -1,6 +1,6 @@
 summary: Test that gadget config defaults are applied early on core20.
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
     NESTED_IMAGE_ID: core20-early-config
@@ -9,43 +9,44 @@ environment:
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
-    mkdir extra-snaps
-
     # Get the snakeoil key and cert
-    KEY_NAME=$(nested_get_snakeoil_key)
+    KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
     # modify and repack gadget snap (add defaults section and install hook)
-    snap download --basename=pc --channel="20/edge" pc
+    VERSION="$(tests.nested show version)"
+    snap download --basename=pc --channel="$VERSION/edge" pc
     unsquashfs -d pc-gadget pc.snap
 
     cat defaults.yaml >> pc-gadget/meta/gadget.yaml
     mkdir -p pc-gadget/meta/hooks
     cp install pc-gadget/meta/hooks/
 
-    nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-    snap pack pc-gadget/ extra-snaps/
+    tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
 
     rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
     tests.nested build-image core
     tests.nested create-vm core
 
-execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
+restore: |
+    tests.nested exec "sudo rm -f /etc/netplan/90-snapd-config.yaml" || true
 
+debug: |
+    # show if anything went wrong during seeding
+    tests.nested exec "snap change 1"
+
+execute: |
     check_core20_early_config(){
-        # sanity - check that defaults were applied; note this doesn't guarantee
+        # precondition - check that defaults were applied; note this doesn't guarantee
         # that defaults were applied early - that is checked further down.
-        echo "Sanity check of the gadget defaults"
+        echo "Precondition check of the gadget defaults"
         tests.nested exec "sudo snap get system service.rsyslog.disable" | MATCH "true"
         tests.nested exec "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
         tests.nested exec "sudo snap get system system.power-key-action" | MATCH "ignore"
+        tests.nested exec "sudo snap get system system.ctrl-alt-del-action" | MATCH "none"
         tests.nested exec "sudo snap get system system.disable-backlight-service" | MATCH "true"
 
         tests.nested exec "test -L /etc/systemd/system/rsyslog.service"
@@ -72,13 +73,25 @@ execute: |
         tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "hostname: foo"
         tests.nested exec "cat /etc/hostname" | MATCH "foo"
         tests.nested exec "hostname" | MATCH "foo"
+
+        # netplan config defaults are applied
+        tests.nested exec "cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54
+        tests.nested exec "netplan get bridges.br54.dhcp4" | MATCH true
+        tests.nested exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH true
+        tests.nested exec "netplan get ethernets.ens3.dhcp4" | MATCH false
+        # and updating netplan works
+        tests.nested exec "sudo snap set system system.network.netplan.network.bridges.br54.dhcp4=false"
+        tests.nested exec "netplan get bridges.br54.dhcp4" | MATCH false
+        tests.nested exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH false
+        # ensure the test can be repeated
+        tests.nested exec "sudo rm -f /etc/netplan/90-snapd-config.yaml"
     }
 
     check_core20_early_config
 
     echo "Transition to recover mode and check it again"
-    recoverySystem=$(nested_exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
-    nested_uc20_transition_to_system_mode "$recoverySystem" recover
+    recoverySystem=$(tests.nested exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
+    tests.nested transition "$recoverySystem" recover
 
     echo "Wait for the snap command to be available since recover mode needs to seed itself"
     tests.nested wait-for snap-command

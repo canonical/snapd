@@ -563,7 +563,7 @@ func (mod *Model) checkConsistency(db RODatabase, acck *AccountKey) error {
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*Model)(nil)
 
 // limit model to only lowercase for now

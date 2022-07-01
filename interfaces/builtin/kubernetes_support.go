@@ -63,6 +63,16 @@ capability sys_resource,
 
 capability dac_override,
 
+# Lock file used by Calico's IPAM plugin. This is configurable via the
+# (undocumented) "ipam_lock_file" configuration key:
+# https://github.com/projectcalico/cni-plugin/blob/master/pkg/types/types.go
+/{,var/}run/calico/ipam.lock rwk,
+
+# manually add java certs here
+# see also https://bugs.launchpad.net/apparmor/+bug/1816372
+/etc/ssl/certs/java/{,*} r,
+#include <abstractions/ssl_certs>
+
 /{,usr/}bin/systemd-run Cxr -> systemd_run,
 /run/systemd/private r,
 profile systemd_run (attach_disconnected,mediate_deleted) {

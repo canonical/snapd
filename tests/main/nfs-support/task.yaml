@@ -92,6 +92,10 @@ restore: |
             ;;
     esac
 
+debug: |
+    lsof | grep /home
+    fuser -mv /home
+
 execute: |
     # only needed because we do it 11 times (!)
     restart_snapd() {
@@ -111,6 +115,23 @@ execute: |
             test ! -e /var/lib/snapd/apparmor/snap-confine/nfs-support
             NOMATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
         fi
+    }
+
+    # This test calls umount right after executing a "su" command with the
+    # "test" user. But this can randomly fail, because entering the user
+    # session causes systemd to activate the dbus.service unit for the "test"
+    # user for the duration of the command, but its shutdown (which happens in
+    # the background) might take a little longer and leave the dbus-daemon
+    # "using" the /home/test directory, therefore preventing the umount.
+    umount_with_retry() {
+        # systemd-logind has a 10 seconds timeout for shutting down the user
+        # session, but we don't want to wait that long: let's kill all the
+        # processes belonging to the test user ourselves.
+        ps -U test -o pid= | while read -r PID
+        do
+            kill -9 "$PID" || true
+        done
+        retry -n 10 --wait 0.5 umount "$1"
     }
 
     # Export /home over NFS.
@@ -175,7 +196,7 @@ execute: |
     su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs3-tcp"' test
 
     # Unmount /home and restart snapd so that we can check another thing.
-    umount /home
+    umount_with_retry /home
     restart_snapd
 
     # Ensure that this removed the extra permissions.
@@ -185,7 +206,7 @@ execute: |
     # - arch: mount.nfs: requested NFS version or transport protocol is not supported
     # - debian-sid: mount.nfs: an incorrect mount option was specified
     # - ubuntu-2*: mount.nfs: an incorrect mount option was specified
-    if not os.query is-arch-linux && not os.query is-debian-sid && [[ "$SPREAD_SYSTEM" != ubuntu-2* ]]; then
+    if not os.query is-arch-linux && not os.query is-debian-sid && not os.query is-debian-11 && [[ "$SPREAD_SYSTEM" != ubuntu-2* ]]; then
         # Mount NFS-exported /home over real /home using NFSv3 and UDP transport
         mount -t nfs localhost:/home /home -o nfsvers=3,proto=udp
 
@@ -201,7 +222,7 @@ execute: |
         su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs3-udp"' test
 
         # Unmount /home and restart snapd so that we can check another thing.
-        umount /home
+        umount_with_retry /home
         restart_snapd
 
         # Ensure that this removed the extra permissions.
@@ -223,7 +244,7 @@ execute: |
     su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs4"' test
 
     # Unmount /home and restart snapd so that we can check another thing.
-    umount /home
+    umount_with_retry /home
     restart_snapd
 
     # Ensure that this removed the extra permissions.

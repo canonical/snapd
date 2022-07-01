@@ -36,6 +36,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
@@ -418,7 +419,7 @@ func (s *snapsSuite) TestSnapsInfoFilterRemote(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapsVerifyMultiSnapInstruction(c *check.C) {
-	s.daemonWithOverlordMockAndStore(c)
+	s.daemonWithOverlordMockAndStore()
 
 	buf := strings.NewReader(`{"action": "install","snaps":["ubuntu-core"]}`)
 	req, err := http.NewRequest("POST", "/v2/snaps", buf)
@@ -431,7 +432,7 @@ func (s *snapsSuite) TestPostSnapsVerifyMultiSnapInstruction(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapsUnsupportedMultiOp(c *check.C) {
-	s.daemonWithOverlordMockAndStore(c)
+	s.daemonWithOverlordMockAndStore()
 
 	buf := strings.NewReader(`{"action": "switch","snaps":["foo"]}`)
 	req, err := http.NewRequest("POST", "/v2/snaps", buf)
@@ -444,7 +445,7 @@ func (s *snapsSuite) TestPostSnapsUnsupportedMultiOp(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
-	s.daemonWithOverlordMockAndStore(c)
+	s.daemonWithOverlordMockAndStore()
 
 	// one could add more actions here ... 🤷
 	for _, action := range []string{"install", "refresh", "remove"} {
@@ -470,24 +471,34 @@ func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapsOp(c *check.C) {
-	s.testPostSnapsOp(c, "application/json")
+	systemRestartImmediate := s.testPostSnapsOp(c, "", "application/json")
+	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
 func (s *snapsSuite) TestPostSnapsOpMoreComplexContentType(c *check.C) {
-	s.testPostSnapsOp(c, "application/json; charset=utf-8")
+	systemRestartImmediate := s.testPostSnapsOp(c, "", "application/json; charset=utf-8")
+	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
-func (s *snapsSuite) testPostSnapsOp(c *check.C, contentType string) {
-	defer daemon.MockAssertstateRefreshSnapDeclarations(func(*state.State, int, *assertstate.RefreshAssertionsOptions) error { return nil })()
+func (s *snapsSuite) TestPostSnapsOpSystemRestartImmediate(c *check.C) {
+	systemRestartImmediate := s.testPostSnapsOp(c, `"system-restart-immediate": true`, "application/json")
+	c.Check(systemRestartImmediate, check.Equals, true)
+}
+
+func (s *snapsSuite) testPostSnapsOp(c *check.C, extraJSON, contentType string) (systemRestartImmediate bool) {
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(*state.State, int, *assertstate.RefreshAssertionsOptions) error { return nil })()
 	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
 		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 
-	buf := bytes.NewBufferString(`{"action": "refresh"}`)
+	if extraJSON != "" {
+		extraJSON = "," + extraJSON
+	}
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"action": "refresh"%s}`, extraJSON))
 	req, err := http.NewRequest("POST", "/v2/snaps", buf)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", contentType)
@@ -502,6 +513,11 @@ func (s *snapsSuite) testPostSnapsOp(c *check.C, contentType string) {
 	var apiData map[string]interface{}
 	c.Check(chg.Get("api-data", &apiData), check.IsNil)
 	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"fake1", "fake2"})
+	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		c.Error(err)
+	}
+	return systemRestartImmediate
 }
 
 func (s *snapsSuite) TestPostSnapsOpInvalidCharset(c *check.C) {
@@ -518,10 +534,12 @@ func (s *snapsSuite) TestPostSnapsOpInvalidCharset(c *check.C) {
 }
 
 func (s *snapsSuite) TestRefreshAll(c *check.C) {
-	refreshSnapDecls := false
-	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
-		refreshSnapDecls = true
-		return assertstate.RefreshSnapDeclarations(s, userID, opts)
+	refreshSnapAssertions := false
+	var refreshAssertionsOpts *assertstate.RefreshAssertionsOptions
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		refreshSnapAssertions = true
+		refreshAssertionsOpts = opts
+		return assertstate.RefreshSnapAssertions(s, userID, opts)
 	})()
 
 	d := s.daemon(c)
@@ -534,7 +552,8 @@ func (s *snapsSuite) TestRefreshAll(c *check.C) {
 		{[]string{"fake"}, `Refresh snap "fake"`},
 		{[]string{"fake1", "fake2"}, `Refresh snaps "fake1", "fake2"`},
 	} {
-		refreshSnapDecls = false
+		refreshSnapAssertions = false
+		refreshAssertionsOpts = nil
 
 		defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 			c.Check(names, check.HasLen, 0)
@@ -549,15 +568,17 @@ func (s *snapsSuite) TestRefreshAll(c *check.C) {
 		st.Unlock()
 		c.Assert(err, check.IsNil)
 		c.Check(res.Summary, check.Equals, tst.msg)
-		c.Check(refreshSnapDecls, check.Equals, true)
+		c.Check(refreshSnapAssertions, check.Equals, true)
+		c.Assert(refreshAssertionsOpts, check.NotNil)
+		c.Check(refreshAssertionsOpts.IsRefreshOfAllSnaps, check.Equals, true)
 	}
 }
 
 func (s *snapsSuite) TestRefreshAllNoChanges(c *check.C) {
-	refreshSnapDecls := false
-	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
-		refreshSnapDecls = true
-		return assertstate.RefreshSnapDeclarations(s, userID, opts)
+	refreshSnapAssertions := false
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		refreshSnapAssertions = true
+		return assertstate.RefreshSnapAssertions(s, userID, opts)
 	})()
 
 	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
@@ -573,13 +594,83 @@ func (s *snapsSuite) TestRefreshAllNoChanges(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Refresh all snaps: no updates`)
-	c.Check(refreshSnapDecls, check.Equals, true)
+	c.Check(refreshSnapAssertions, check.Equals, true)
+}
+
+func (s *snapsSuite) TestRefreshAllRestoresValidationSets(c *check.C) {
+	refreshSnapAssertions := false
+	var refreshAssertionsOpts *assertstate.RefreshAssertionsOptions
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		refreshSnapAssertions = true
+		refreshAssertionsOpts = opts
+		return nil
+	})()
+
+	defer daemon.MockAssertstateRestoreValidationSetsTracking(func(s *state.State) error {
+		return nil
+	})()
+
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+		return nil, nil, fmt.Errorf("boom")
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{Action: "refresh"}
+	st := d.Overlord().State()
+	st.Lock()
+	_, err := inst.DispatchForMany()(inst, st)
+	st.Unlock()
+	c.Assert(err, check.ErrorMatches, "boom")
+	c.Check(refreshSnapAssertions, check.Equals, true)
+	c.Assert(refreshAssertionsOpts, check.NotNil)
+	c.Check(refreshAssertionsOpts.IsRefreshOfAllSnaps, check.Equals, true)
+}
+
+func (s *snapsSuite) TestRefreshManyTransactionally(c *check.C) {
+	var calledFlags *snapstate.Flags
+
+	refreshSnapAssertions := false
+	var refreshAssertionsOpts *assertstate.RefreshAssertionsOptions
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		refreshSnapAssertions = true
+		refreshAssertionsOpts = opts
+		return nil
+	})()
+
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+		calledFlags = flags
+
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-refresh-2", "Refreshing two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action:      "refresh",
+		Transaction: client.TransactionAllSnaps,
+		Snaps:       []string{"foo", "bar"},
+	}
+	st := d.Overlord().State()
+	st.Lock()
+	res, err := inst.DispatchForMany()(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(res.Summary, check.Equals, `Refresh snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
+	c.Check(refreshSnapAssertions, check.Equals, true)
+	c.Assert(refreshAssertionsOpts, check.NotNil)
+	c.Check(refreshAssertionsOpts.IsRefreshOfAllSnaps, check.Equals, false)
+
+	c.Check(calledFlags.Transaction, check.Equals, client.TransactionAllSnaps)
 }
 
 func (s *snapsSuite) TestRefreshMany(c *check.C) {
-	refreshSnapDecls := false
-	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int, _ *assertstate.RefreshAssertionsOptions) error {
-		refreshSnapDecls = true
+	refreshSnapAssertions := false
+	var refreshAssertionsOpts *assertstate.RefreshAssertionsOptions
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		refreshSnapAssertions = true
+		refreshAssertionsOpts = opts
 		return nil
 	})()
 
@@ -598,13 +689,45 @@ func (s *snapsSuite) TestRefreshMany(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Refresh snaps "foo", "bar"`)
 	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
-	c.Check(refreshSnapDecls, check.Equals, true)
+	c.Check(refreshSnapAssertions, check.Equals, true)
+	c.Assert(refreshAssertionsOpts, check.NotNil)
+	c.Check(refreshAssertionsOpts.IsRefreshOfAllSnaps, check.Equals, false)
+}
+
+func (s *snapsSuite) TestRefreshManyIgnoreRunning(c *check.C) {
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		return nil
+	})()
+
+	var calledFlags *snapstate.Flags
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+		calledFlags = flags
+
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-refresh-2", "Refreshing two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action:        "refresh",
+		Snaps:         []string{"foo", "bar"},
+		IgnoreRunning: true,
+	}
+	st := d.Overlord().State()
+	st.Lock()
+	res, err := inst.DispatchForMany()(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(res.Summary, check.Equals, `Refresh snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
+	c.Check(calledFlags.IgnoreRunning, check.Equals, true)
 }
 
 func (s *snapsSuite) TestRefreshMany1(c *check.C) {
-	refreshSnapDecls := false
-	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int, _ *assertstate.RefreshAssertionsOptions) error {
-		refreshSnapDecls = true
+	refreshSnapAssertions := false
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		refreshSnapAssertions = true
 		return nil
 	})()
 
@@ -623,11 +746,11 @@ func (s *snapsSuite) TestRefreshMany1(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Refresh snap "foo"`)
 	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
-	c.Check(refreshSnapDecls, check.Equals, true)
+	c.Check(refreshSnapAssertions, check.Equals, true)
 }
 
 func (s *snapsSuite) TestInstallMany(c *check.C) {
-	defer daemon.MockSnapstateInstallMany(func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallMany(func(s *state.State, names []string, userID int, _ *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 2)
 		t := s.NewTask("fake-install-2", "Install two")
 		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
@@ -644,8 +767,37 @@ func (s *snapsSuite) TestInstallMany(c *check.C) {
 	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 }
 
+func (s *snapsSuite) TestInstallManyTransactionally(c *check.C) {
+	var calledFlags *snapstate.Flags
+
+	defer daemon.MockSnapstateInstallMany(func(s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+		calledFlags = flags
+
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-install-2", "Install two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action:      "install",
+		Transaction: client.TransactionAllSnaps,
+		Snaps:       []string{"foo", "bar"},
+	}
+
+	st := d.Overlord().State()
+	st.Lock()
+	res, err := inst.DispatchForMany()(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(res.Summary, check.Equals, `Install snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
+
+	c.Check(calledFlags.Transaction, check.Equals, client.TransactionAllSnaps)
+}
+
 func (s *snapsSuite) TestInstallManyEmptyName(c *check.C) {
-	defer daemon.MockSnapstateInstallMany(func(_ *state.State, _ []string, _ int) ([]string, []*state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallMany(func(_ *state.State, _ []string, _ int, _ *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		return nil, nil, errors.New("should not be called")
 	})()
 	d := s.daemon(c)
@@ -728,48 +880,65 @@ apps:
 	s.SysctlBufs = [][]byte{
 		[]byte(`Type=simple
 Id=snap.foo.svc1.service
+Names=snap.foo.svc1.service
 ActiveState=fumbling
 UnitFileState=enabled
+NeedDaemonReload=no
 `),
 		[]byte(`Type=forking
 Id=snap.foo.svc2.service
+Names=snap.foo.svc2.service
 ActiveState=active
 UnitFileState=disabled
+NeedDaemonReload=no
 `),
 		[]byte(`Type=oneshot
 Id=snap.foo.svc3.service
+Names=snap.foo.svc3.service
 ActiveState=reloading
 UnitFileState=static
+NeedDaemonReload=no
 `),
 		[]byte(`Type=notify
 Id=snap.foo.svc4.service
+Names=snap.foo.svc4.service
 ActiveState=inactive
 UnitFileState=potatoes
+NeedDaemonReload=no
 `),
 		[]byte(`Type=simple
 Id=snap.foo.svc5.service
+Names=snap.foo.svc5.service
 ActiveState=inactive
 UnitFileState=static
+NeedDaemonReload=no
 `),
 		[]byte(`Id=snap.foo.svc5.timer
+Names=snap.foo.svc5.timer
 ActiveState=active
 UnitFileState=enabled
 `),
 		[]byte(`Type=simple
 Id=snap.foo.svc6.service
+Names=snap.foo.svc6.service
 ActiveState=inactive
 UnitFileState=static
+NeedDaemonReload=no
 `),
 		[]byte(`Id=snap.foo.svc6.sock.socket
+Names=snap.foo.svc6.sock.socket
 ActiveState=active
 UnitFileState=enabled
 `),
 		[]byte(`Type=simple
 Id=snap.foo.svc7.service
+Names=snap.foo.svc7.service
 ActiveState=inactive
 UnitFileState=static
+NeedDaemonReload=no
 `),
 		[]byte(`Id=snap.foo.svc7.other-sock.socket
+Names=snap.foo.svc7.other-sock.socket
 ActiveState=inactive
 UnitFileState=enabled
 `),
@@ -1106,15 +1275,32 @@ func (s *snapsSuite) TestPostSnapBadChannel(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnap(c *check.C) {
-	s.testPostSnap(c, false)
+	checkOpts := func(opts *snapstate.RevisionOptions) {
+		// no channel in -> no channel out
+		c.Check(opts.Channel, check.Equals, "")
+	}
+	summary, systemRestartImmediate := s.testPostSnap(c, "", checkOpts)
+	c.Check(summary, check.Equals, `Install "foo" snap`)
+	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
 func (s *snapsSuite) TestPostSnapWithChannel(c *check.C) {
-	s.testPostSnap(c, true)
+	checkOpts := func(opts *snapstate.RevisionOptions) {
+		// channel in -> channel out
+		c.Check(opts.Channel, check.Equals, "xyzzy")
+	}
+	summary, systemRestartImmediate := s.testPostSnap(c, `"channel": "xyzzy"`, checkOpts)
+	c.Check(summary, check.Equals, `Install "foo" snap from "xyzzy" channel`)
+	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
-func (s *snapsSuite) testPostSnap(c *check.C, withChannel bool) {
-	d := s.daemonWithOverlordMock(c)
+func (s *snapsSuite) TestPostSnapSystemRestartImmediate(c *check.C) {
+	_, systemRestartImmediate := s.testPostSnap(c, `"system-restart-immediate": true`, nil)
+	c.Check(systemRestartImmediate, check.Equals, true)
+}
+
+func (s *snapsSuite) testPostSnap(c *check.C, extraJSON string, checkOpts func(opts *snapstate.RevisionOptions)) (summary string, systemRestartImmediate bool) {
+	d := s.daemonWithOverlordMock()
 
 	soon := 0
 	var origEnsureStateSoon func(*state.State)
@@ -1126,25 +1312,19 @@ func (s *snapsSuite) testPostSnap(c *check.C, withChannel bool) {
 
 	checked := false
 	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		if withChannel {
-			// channel in -> channel out
-			c.Check(opts.Channel, check.Equals, "xyzzy")
-		} else {
-			// no channel in -> no channel out
-			c.Check(opts.Channel, check.Equals, "")
+		if checkOpts != nil {
+			checkOpts(opts)
 		}
 		checked = true
-
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	})()
 
 	var buf *bytes.Buffer
-	if withChannel {
-		buf = bytes.NewBufferString(`{"action": "install", "channel": "xyzzy"}`)
-	} else {
-		buf = bytes.NewBufferString(`{"action": "install"}`)
+	if extraJSON != "" {
+		extraJSON = "," + extraJSON
 	}
+	buf = bytes.NewBufferString(fmt.Sprintf(`{"action": "install"%s}`, extraJSON))
 	req, err := http.NewRequest("POST", "/v2/snaps/foo", buf)
 	c.Assert(err, check.IsNil)
 
@@ -1155,11 +1335,7 @@ func (s *snapsSuite) testPostSnap(c *check.C, withChannel bool) {
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
-	if withChannel {
-		c.Check(chg.Summary(), check.Equals, `Install "foo" snap from "xyzzy" channel`)
-	} else {
-		c.Check(chg.Summary(), check.Equals, `Install "foo" snap`)
-	}
+
 	var names []string
 	err = chg.Get("snap-names", &names)
 	c.Assert(err, check.IsNil)
@@ -1168,10 +1344,17 @@ func (s *snapsSuite) testPostSnap(c *check.C, withChannel bool) {
 	c.Check(checked, check.Equals, true)
 	c.Check(soon, check.Equals, 1)
 	c.Check(chg.Tasks()[0].Summary(), check.Equals, "Doing a fake install")
+
+	summary = chg.Summary()
+	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		c.Error(err)
+	}
+	return summary, systemRestartImmediate
 }
 
 func (s *snapsSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 
 	buf := bytes.NewBufferString(`{"action": "install"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps/ubuntu-core", buf)
@@ -1183,7 +1366,7 @@ func (s *snapsSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapCohortUnsupportedAction(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 	const expectedErr = "cohort-key can only be specified for install, refresh, or switch"
 
 	for _, action := range []string{"remove", "revert", "enable", "disable", "xyzzy"} {
@@ -1198,7 +1381,7 @@ func (s *snapsSuite) TestPostSnapCohortUnsupportedAction(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapLeaveCohortUnsupportedAction(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 	const expectedErr = "leave-cohort can only be specified for refresh or switch"
 
 	for _, action := range []string{"install", "remove", "revert", "enable", "disable", "xyzzy"} {
@@ -1213,7 +1396,7 @@ func (s *snapsSuite) TestPostSnapLeaveCohortUnsupportedAction(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapCohortIncompat(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 	type T struct {
 		opts   string
 		errmsg string
@@ -1434,7 +1617,7 @@ func (s *snapsSuite) TestInstallIgnoreValidation(c *check.C) {
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	})()
-	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
 		return nil
 	})()
 
@@ -1600,7 +1783,7 @@ func (s *snapsSuite) TestRefresh(c *check.C) {
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	})()
-	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
 		assertstateCalledUserID = userID
 		return nil
 	})()
@@ -1639,7 +1822,7 @@ func (s *snapsSuite) TestRefreshDevMode(c *check.C) {
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	})()
-	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int, _ *assertstate.RefreshAssertionsOptions) error {
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
 		return nil
 	})()
 
@@ -1673,7 +1856,7 @@ func (s *snapsSuite) TestRefreshClassic(c *check.C) {
 		calledFlags = flags
 		return nil, nil
 	})()
-	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int, _ *assertstate.RefreshAssertionsOptions) error {
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
 		return nil
 	})()
 
@@ -1707,7 +1890,7 @@ func (s *snapsSuite) TestRefreshIgnoreValidation(c *check.C) {
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	})()
-	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int, _ *assertstate.RefreshAssertionsOptions) error {
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
 		return nil
 	})()
 
@@ -1746,7 +1929,7 @@ func (s *snapsSuite) TestRefreshIgnoreRunning(c *check.C) {
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	})()
-	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int, _ *assertstate.RefreshAssertionsOptions) error {
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
 		return nil
 	})()
 
@@ -1781,7 +1964,7 @@ func (s *snapsSuite) TestRefreshCohort(c *check.C) {
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	})()
-	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int, _ *assertstate.RefreshAssertionsOptions) error {
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
 		return nil
 	})()
 
@@ -1811,7 +1994,7 @@ func (s *snapsSuite) TestRefreshLeaveCohort(c *check.C) {
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	})()
-	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int, _ *assertstate.RefreshAssertionsOptions) error {
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
 		return nil
 	})()
 
@@ -1891,12 +2074,12 @@ func (s *snapsSuite) testRevertSnap(inst *daemon.SnapInstruction, c *check.C) {
 	instFlags, err := inst.ModeFlags()
 	c.Assert(err, check.IsNil)
 
-	defer daemon.MockSnapstateRevert(func(s *state.State, name string, flags snapstate.Flags) (*state.TaskSet, error) {
+	defer daemon.MockSnapstateRevert(func(s *state.State, name string, flags snapstate.Flags, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, instFlags)
 		queue = append(queue, name)
 		return nil, nil
 	})()
-	defer daemon.MockSnapstateRevertToRevision(func(s *state.State, name string, rev snap.Revision, flags snapstate.Flags) (*state.TaskSet, error) {
+	defer daemon.MockSnapstateRevertToRevision(func(s *state.State, name string, rev snap.Revision, flags snapstate.Flags, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, instFlags)
 		queue = append(queue, fmt.Sprintf("%s (%s)", name, rev))
 		return nil, nil
@@ -2088,4 +2271,145 @@ func (s *snapsSuite) TestErrToResponseForChangeConflict(c *check.C) {
 			"change-kind": "some-global-op",
 		},
 	})
+}
+
+func (s *snapsSuite) TestPostSnapInvalidTransaction(c *check.C) {
+	s.daemonWithOverlordMock()
+
+	for _, action := range []string{"remove", "revert", "enable", "disable", "xyzzy"} {
+		expectedErr := fmt.Sprintf(`transaction type is unsupported for "%s" actions`, action)
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "transaction": "per-snap"}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
+func (s *snapsSuite) TestPostSnapWrongTransaction(c *check.C) {
+	s.daemonWithOverlordMock()
+	const expectedErr = "invalid value for transaction type: xyz"
+
+	for _, action := range []string{"install", "refresh"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "transaction": "xyz"}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
+func (s *snapsSuite) TestRefreshEnforce(c *check.C) {
+	var refreshSnapAssertions bool
+
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		refreshSnapAssertions = true
+		c.Check(opts, check.IsNil)
+		return nil
+	})()
+
+	var tryEnforceValidationSets bool
+	defer daemon.MockAssertstateTryEnforceValidationSets(func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+		tryEnforceValidationSets = true
+		return nil
+	})()
+
+	defer daemon.MockSnapstateEnforceSnaps(func(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) ([]*state.TaskSet, []string, error) {
+		c.Check(validationSets, check.DeepEquals, []string{"foo/bar=2", "foo/baz"})
+		t := st.NewTask("fake-enforce-snaps", "...")
+		return []*state.TaskSet{state.NewTaskSet(t)}, []string{"some-snap", "other-snap"}, nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{Action: "refresh", ValidationSets: []string{"foo/bar=2", "foo/baz"}}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	res, err := inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.IsNil)
+	c.Check(res.Summary, check.Equals, `Enforced validation sets: "foo/bar=2", "foo/baz"`)
+	c.Check(res.Affected, check.DeepEquals, []string{"some-snap", "other-snap"})
+	c.Check(refreshSnapAssertions, check.Equals, true)
+	c.Check(tryEnforceValidationSets, check.Equals, true)
+}
+
+func (s *snapsSuite) TestRefreshEnforceTryEnforceValidationSetsError(c *check.C) {
+	var refreshSnapAssertions int
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		refreshSnapAssertions++
+		c.Check(opts, check.IsNil)
+		return nil
+	})()
+
+	tryEnforceErr := fmt.Errorf("boom")
+	defer daemon.MockAssertstateTryEnforceValidationSets(func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+		return tryEnforceErr
+	})()
+
+	var snapstateEnforceSnaps int
+	defer daemon.MockSnapstateEnforceSnaps(func(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) ([]*state.TaskSet, []string, error) {
+		snapstateEnforceSnaps++
+		c.Check(validErr, check.NotNil)
+		return nil, nil, nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{Action: "refresh", ValidationSets: []string{"foo/baz"}}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.ErrorMatches, `boom`)
+	c.Check(refreshSnapAssertions, check.Equals, 1)
+	c.Check(snapstateEnforceSnaps, check.Equals, 0)
+
+	// ValidationSetsValidationError is expected and fine
+	tryEnforceErr = &snapasserts.ValidationSetsValidationError{}
+
+	_, err = inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.IsNil)
+	c.Check(refreshSnapAssertions, check.Equals, 2)
+	c.Check(snapstateEnforceSnaps, check.Equals, 1)
+}
+
+func (s *snapsSuite) TestRefreshEnforceWithSnapsIsAnError(c *check.C) {
+	var refreshSnapAssertions bool
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		refreshSnapAssertions = true
+		c.Check(opts, check.IsNil)
+		return fmt.Errorf("unexptected")
+	})()
+
+	var tryEnforceValidationSets bool
+	defer daemon.MockAssertstateTryEnforceValidationSets(func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+		tryEnforceValidationSets = true
+		return fmt.Errorf("unexpected")
+	})()
+
+	var snapstateEnforceSnaps bool
+	defer daemon.MockSnapstateEnforceSnaps(func(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) ([]*state.TaskSet, []string, error) {
+		snapstateEnforceSnaps = true
+		return nil, nil, fmt.Errorf("unexpected")
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{Action: "refresh", Snaps: []string{"some-snap"}, ValidationSets: []string{"foo/baz"}}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.ErrorMatches, `snap names cannot be specified with validation sets to enforce`)
+	c.Check(refreshSnapAssertions, check.Equals, false)
+	c.Check(tryEnforceValidationSets, check.Equals, false)
+	c.Check(snapstateEnforceSnaps, check.Equals, false)
 }

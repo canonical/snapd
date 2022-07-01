@@ -37,27 +37,29 @@ import (
 // them through snap-confine (for classic confined snaps).
 const PreservedUnsafePrefix = "SNAP_SAVED_"
 
+var userCurrent = user.Current
+
 // ExtendEnvForRun extends the given environment with what is is
 // required for snap-{confine,exec}, that means SNAP_{NAME,REVISION}
 // etc are all set.
 //
 // It ensures all SNAP_* override any pre-existing environment
 // variables.
-func ExtendEnvForRun(env osutil.Environment, info *snap.Info) {
+func ExtendEnvForRun(env osutil.Environment, info *snap.Info, opts *dirs.SnapDirOptions) {
 	// Set various SNAP_ environment variables as well as some non-SNAP variables,
 	// depending on snap confinement mode. Note that this does not include environment
 	// set by snap-exec.
-	for k, v := range snapEnv(info) {
+	for k, v := range snapEnv(info, opts) {
 		env[k] = v
 	}
 }
 
-func snapEnv(info *snap.Info) osutil.Environment {
+func snapEnv(info *snap.Info, opts *dirs.SnapDirOptions) osutil.Environment {
 	// Environment variables with basic properties of a snap.
 	env := basicEnv(info)
-	if usr, err := user.Current(); err == nil && usr.HomeDir != "" {
+	if usr, err := userCurrent(); err == nil && usr.HomeDir != "" {
 		// Environment variables with values specific to the calling user.
-		for k, v := range userEnv(info, usr.HomeDir) {
+		for k, v := range userEnv(info, usr.HomeDir, opts) {
 			env[k] = v
 		}
 	}
@@ -99,12 +101,16 @@ func basicEnv(info *snap.Info) osutil.Environment {
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func userEnv(info *snap.Info, home string) osutil.Environment {
+func userEnv(info *snap.Info, home string, opts *dirs.SnapDirOptions) osutil.Environment {
+	if opts == nil {
+		opts = &dirs.SnapDirOptions{}
+	}
+
 	// To keep things simple the user variables always point to the
 	// instance-specific directories.
 	env := osutil.Environment{
-		"SNAP_USER_COMMON": info.UserCommonDataDir(home),
-		"SNAP_USER_DATA":   info.UserDataDir(home),
+		"SNAP_USER_COMMON": info.UserCommonDataDir(home, opts),
+		"SNAP_USER_DATA":   info.UserDataDir(home, opts),
 	}
 	if info.NeedsClassic() {
 		// Snaps using classic confinement don't have an override for
@@ -115,10 +121,19 @@ func userEnv(info *snap.Info, home string) osutil.Environment {
 	} else {
 		// Snaps using strict or devmode confinement get an override for both
 		// HOME and XDG_RUNTIME_DIR.
-		env["HOME"] = info.UserDataDir(home)
+		env["HOME"] = info.UserDataDir(home, opts)
 		env["XDG_RUNTIME_DIR"] = info.UserXdgRuntimeDir(sys.Geteuid())
 	}
 	// Provide the location of the real home directory.
 	env["SNAP_REAL_HOME"] = home
+
+	if opts.MigratedToExposedHome {
+		env["XDG_DATA_HOME"] = filepath.Join(info.UserDataDir(home, opts), "xdg-data")
+		env["XDG_CONFIG_HOME"] = filepath.Join(info.UserDataDir(home, opts), "xdg-config")
+		env["XDG_CACHE_HOME"] = filepath.Join(info.UserDataDir(home, opts), "xdg-cache")
+
+		env["SNAP_USER_HOME"] = info.UserExposedHomeDir(home)
+		env["HOME"] = info.UserExposedHomeDir(home)
+	}
 	return env
 }

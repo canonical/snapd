@@ -20,8 +20,6 @@
 package ctlcmd
 
 import (
-	"fmt"
-
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/i18n"
@@ -62,9 +60,9 @@ type systemModeResult struct {
 }
 
 func (c *systemModeCommand) Execute(args []string) error {
-	context := c.context()
-	if context == nil {
-		return fmt.Errorf("cannot run system-mode without a context")
+	context, err := c.ensureContext()
+	if err != nil {
+		return err
 	}
 
 	st := context.State()

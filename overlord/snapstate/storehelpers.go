@@ -21,14 +21,18 @@ package snapstate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -38,7 +42,7 @@ var currentSnaps = currentSnapsImpl
 // EnforcedValidationSets allows to hook getting of validation sets in enforce
 // mode into installation/refresh/removal of snaps. It gets hooked from
 // assertstate.
-var EnforcedValidationSets func(st *state.State) (*snapasserts.ValidationSets, error)
+var EnforcedValidationSets func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error)
 
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
@@ -81,7 +85,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 		opts = *origOpts
 	}
 
-	if err := st.Get("refresh-privacy-key", &opts.PrivacyKey); err != nil && err != state.ErrNoState {
+	if err := st.Get("refresh-privacy-key", &opts.PrivacyKey); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("cannot obtain store request salt: %v", err)
 	}
 	if opts.PrivacyKey == "" {
@@ -91,7 +95,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 }
 
 // installSize returns total download size of snaps and their prerequisites
-// (bases and default content providers), querying the store as neccessarry,
+// (bases and default content providers), querying the store as necessary,
 // potentially more than once. It assumes the initial list of snaps already has
 // download infos set.
 // The state must be locked by the caller.
@@ -109,6 +113,12 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 	accountedSnaps := map[string]bool{}
 	for _, snap := range curSnaps {
 		accountedSnaps[snap.InstanceName] = true
+	}
+
+	// if the prerequisites are included in the install, don't query the store
+	// for info on them
+	for _, snap := range snaps {
+		accountedSnaps[snap.InstanceName()] = true
 	}
 
 	var prereqs []string
@@ -201,9 +211,20 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 	return total, nil
 }
 
-func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (store.SnapActionResult, error) {
-	// TODO: support ignore-validation
+func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valsets []string, requiredRevision snap.Revision) {
+	for _, vs := range valsets {
+		keyParts := strings.Split(vs, "/")
+		action.ValidationSets = append(action.ValidationSets, keyParts)
+	}
+	if !requiredRevision.Unset() {
+		action.Revision = requiredRevision
+		// channel cannot be present if revision is set (store would
+		// respond with revision-conflict error).
+		action.Channel = ""
+	}
+}
 
+func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (store.SnapActionResult, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return store.SnapActionResult{}, err
@@ -224,15 +245,62 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 		InstanceName: name,
 	}
 
-	// cannot specify both with the API
-	if revOpts.Revision.Unset() {
-		// the desired channel
-		action.Channel = revOpts.Channel
-		// the desired cohort key
-		action.CohortKey = revOpts.CohortKey
-	} else {
-		// the desired revision
-		action.Revision = revOpts.Revision
+	if flags.IgnoreValidation {
+		action.Flags = store.SnapActionIgnoreValidation
+	}
+
+	var requiredRevision snap.Revision
+	var requiredValSets []string
+
+	if !flags.IgnoreValidation {
+		if len(revOpts.ValidationSets) > 0 {
+			requiredRevision = revOpts.Revision
+			requiredValSets = revOpts.ValidationSets
+		} else {
+			enforcedSets, err := EnforcedValidationSets(st)
+			if err != nil {
+				return store.SnapActionResult{}, err
+			}
+
+			if enforcedSets != nil {
+				// check for invalid presence first to have a list of sets where it's invalid
+				invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
+				if err != nil {
+					if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
+						return store.SnapActionResult{}, err
+					} // else presence is optional or required, carry on
+				}
+				if len(invalidForValSets) > 0 {
+					return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, strings.Join(invalidForValSets, ","))
+				}
+				requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
+				if err != nil {
+					return store.SnapActionResult{}, err
+				}
+			}
+
+			// check if desired revision matches the revision required by validation sets
+			if !requiredRevision.Unset() && !revOpts.Revision.Unset() && revOpts.Revision.N != requiredRevision.N {
+				return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q at requested revision %s without --ignore-validation, revision %s required by validation sets: %s",
+					name, revOpts.Revision, requiredRevision, strings.Join(requiredValSets, ","))
+			}
+		}
+	}
+
+	if len(requiredValSets) > 0 {
+		setActionValidationSetsAndRequiredRevision(action, requiredValSets, requiredRevision)
+	}
+
+	if requiredRevision.Unset() {
+		// cannot specify both with the API
+		if revOpts.Revision.Unset() {
+			// the desired channel
+			action.Channel = revOpts.Channel
+			// the desired cohort key
+			action.CohortKey = revOpts.CohortKey
+		} else {
+			action.Revision = revOpts.Revision
+		}
 	}
 
 	theStore := Store(st, deviceCtx)
@@ -271,9 +339,53 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 		InstanceName: curInfo.InstanceName(),
 		SnapID:       curInfo.SnapID,
 		// the desired channel
-		Channel:   opts.Channel,
-		CohortKey: opts.CohortKey,
-		Flags:     storeFlags,
+		Channel: opts.Channel,
+		Flags:   storeFlags,
+	}
+
+	if len(opts.ValidationSets) > 0 {
+		// update to a specific revision is handled by updateToRevisionInfo.
+		// updating without a revision while enforcing validation sets is not a
+		// viable scenario (although we could handle it if desired), we only install/refresh
+		// what's missing and explicitly required by requested validation sets.
+		return nil, fmt.Errorf("internal error: list of validation sets is not expected for update without revision")
+	}
+
+	var requiredRevision snap.Revision
+	var requiredValsets []string
+
+	if !flags.IgnoreValidation {
+		enforcedSets, err := EnforcedValidationSets(st)
+		if err != nil {
+			return nil, err
+		}
+		if enforcedSets != nil {
+			requiredValsets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(curInfo.InstanceName()))
+			if err != nil {
+				return nil, err
+			}
+			if !requiredRevision.Unset() && snapst.Current == requiredRevision {
+				logger.Debugf("snap %q is already at the revision %s required by validation sets: %s, skipping",
+					curInfo.InstanceName(), snapst.Current, strings.Join(requiredValsets, ","))
+				return nil, store.ErrNoUpdateAvailable
+			}
+			if len(requiredValsets) > 0 {
+				setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
+			}
+		}
+	}
+
+	// only set cohort if validation sets don't require a specific revision
+	if action.Revision.Unset() {
+		action.CohortKey = opts.CohortKey
+	} else {
+		// specific revision is required, reset cohort in current snaps
+		for _, sn := range curSnaps {
+			if sn.InstanceName == curInfo.InstanceName() {
+				sn.CohortKey = ""
+				break
+			}
+		}
 	}
 
 	if curInfo.SnapID == "" { // amend
@@ -346,9 +458,7 @@ func singleActionResult(name, action string, results []store.SnapActionResult, e
 	return store.SnapActionResult{}, e
 }
 
-func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revision, userID int, deviceCtx DeviceContext) (*snap.Info, error) {
-	// TODO: support ignore-validation?
-
+func updateToRevisionInfo(st *state.State, snapst *SnapState, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*snap.Info, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return nil, err
@@ -369,8 +479,54 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 		SnapID:       curInfo.SnapID,
 		InstanceName: curInfo.InstanceName(),
 		// the desired revision
-		Revision: revision,
+		Revision: revOpts.Revision,
 	}
+
+	var requiredRevision snap.Revision
+	var requiredValsets []string
+
+	var storeFlags store.SnapActionFlags
+	if !flags.IgnoreValidation {
+		if len(revOpts.ValidationSets) > 0 {
+			requiredRevision = revOpts.Revision
+			requiredValsets = revOpts.ValidationSets
+		} else {
+			enforcedSets, err := EnforcedValidationSets(st)
+			if err != nil {
+				return nil, err
+			}
+			if enforcedSets != nil {
+				requiredValsets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(curInfo.InstanceName()))
+				if err != nil {
+					return nil, err
+				}
+				if !requiredRevision.Unset() {
+					if revOpts.Revision != requiredRevision {
+						return nil, fmt.Errorf("cannot update snap %q to revision %s without --ignore-validation, revision %s is required by validation sets: %s",
+							curInfo.InstanceName(), revOpts.Revision, requiredRevision, strings.Join(requiredValsets, ","))
+					}
+					// note, not checking if required revision matches snapst.Current because
+					// this is already indirectly prevented by infoForUpdate().
+
+					// specific revision is required, reset cohort in current snaps
+					for _, sn := range curSnaps {
+						if sn.InstanceName == curInfo.InstanceName() {
+							sn.CohortKey = ""
+							break
+						}
+					}
+				}
+			}
+		}
+	} else {
+		storeFlags = store.SnapActionIgnoreValidation
+	}
+
+	if len(requiredValsets) > 0 {
+		setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
+	}
+
+	action.Flags = storeFlags
 
 	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
@@ -392,11 +548,10 @@ func currentSnapsImpl(st *state.State) ([]*store.CurrentSnap, error) {
 		return nil, nil
 	}
 
-	curSnaps := collectCurrentSnaps(snapStates, nil)
-	return curSnaps, nil
+	return collectCurrentSnaps(snapStates, nil)
 }
 
-func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.CurrentSnap, *SnapState)) (curSnaps []*store.CurrentSnap) {
+func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.CurrentSnap, *SnapState) error) (curSnaps []*store.CurrentSnap, err error) {
 	curSnaps = make([]*store.CurrentSnap, 0, len(snapStates))
 
 	for _, snapst := range snapStates {
@@ -432,11 +587,13 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 		curSnaps = append(curSnaps, installed)
 
 		if consider != nil {
-			consider(installed, snapst)
+			if err := consider(installed, snapst); err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	return curSnaps
+	return curSnaps, nil
 }
 
 func refreshCandidates(ctx context.Context, st *state.State, names []string, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
@@ -472,20 +629,54 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	ignoreValidationByInstanceName := make(map[string]bool)
 	nCands := 0
 
-	addCand := func(installed *store.CurrentSnap, snapst *SnapState) {
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	addCand := func(installed *store.CurrentSnap, snapst *SnapState) error {
 		// FIXME: snaps that are not active are skipped for now
 		//        until we know what we want to do
 		if !snapst.Active {
-			return
+			return nil
 		}
 
 		if len(names) == 0 && snapst.DevMode {
 			// no auto-refresh for devmode
-			return
+			return nil
 		}
 
 		if len(names) > 0 && !strutil.SortedListContains(names, installed.InstanceName) {
-			return
+			return nil
+		}
+
+		action := &store.SnapAction{
+			Action:       "refresh",
+			SnapID:       installed.SnapID,
+			InstanceName: installed.InstanceName,
+		}
+
+		if !snapst.IgnoreValidation {
+			if enforcedSets != nil {
+				requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(installed.InstanceName))
+				// note, this errors out the entire refresh
+				if err != nil {
+					return err
+				}
+				// if the snap is already at the required revision then skip it from
+				// candidates.
+				if !requiredRevision.Unset() && installed.Revision == requiredRevision {
+					return nil
+				}
+				if len(requiredValsets) > 0 {
+					setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
+				}
+			}
+		}
+
+		if !action.Revision.Unset() {
+			// ignore cohort if revision is specified
+			installed.CohortKey = ""
 		}
 
 		stateByInstanceName[installed.InstanceName] = snapst
@@ -498,18 +689,18 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		if userID == 0 {
 			userID = fallbackID
 		}
-		actionsByUserID[userID] = append(actionsByUserID[userID], &store.SnapAction{
-			Action:       "refresh",
-			SnapID:       installed.SnapID,
-			InstanceName: installed.InstanceName,
-		})
+		actionsByUserID[userID] = append(actionsByUserID[userID], action)
 		if snapst.IgnoreValidation {
 			ignoreValidationByInstanceName[installed.InstanceName] = true
 		}
 		nCands++
+		return nil
 	}
 	// determine current snaps and collect candidates for refresh
-	curSnaps := collectCurrentSnaps(snapStates, addCand)
+	curSnaps, err := collectCurrentSnaps(snapStates, addCand)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
 	actionsForUser := make(map[*auth.UserState][]*store.SnapAction, len(actionsByUserID))
 	noUserActions := actionsByUserID[0]
@@ -576,14 +767,40 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 		return nil, err
 	}
 
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+
 	actions := make([]*store.SnapAction, len(names))
 	for i, name := range names {
-		actions[i] = &store.SnapAction{
+		action := &store.SnapAction{
 			Action:       "install",
 			InstanceName: name,
 			// the desired channel
 			Channel: channel,
 		}
+
+		if enforcedSets != nil {
+			// check for invalid presence first to have a list of sets where it's invalid
+			invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
+			if err != nil {
+				if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
+					return nil, err
+				} // else presence is optional or required, carry on
+			}
+			if len(invalidForValSets) > 0 {
+				return nil, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, strings.Join(invalidForValSets, ","))
+			}
+			requiredValSets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(name))
+			if err != nil {
+				return nil, err
+			}
+			if len(requiredValSets) > 0 {
+				setActionValidationSetsAndRequiredRevision(action, requiredValSets, requiredRevision)
+			}
+		}
+		actions[i] = action
 	}
 
 	// TODO: possibly support a deviceCtx

@@ -20,10 +20,8 @@
 # Test keys: used for internal testing in snapd.
 %bcond_with testkeys
 
-# Enable AppArmor on openSUSE Tumbleweed (post 15.0) or higher
-# N.B.: Prior to openSUSE Tumbleweed in May 2018, the AppArmor userspace in SUSE
-# did not support what we needed to be able to turn on basic integration.
-%if 0%{?suse_version} >= 1550
+# Enable apparmor on Tumbleweed and Leap 15.3+
+%if 0%{?suse_version} >= 1550 || 0%{?sle_version} >= 150300
 %bcond_without apparmor
 %else
 %bcond_with apparmor
@@ -83,7 +81,7 @@
 
 
 Name:           snapd
-Version:        2.51.6
+Version:        2.56.2
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -91,14 +89,11 @@ Group:          System/Packages
 Url:            https://%{import_path}
 Source0:        https://github.com/snapcore/snapd/releases/download/%{version}/%{name}_%{version}.vendor.tar.xz
 Source1:        snapd-rpmlintrc
-%if (0%{?sle_version} >= 120200 || 0%{?suse_version} >= 1500) && 0%{?is_opensuse}
-BuildRequires:  ShellCheck
-%endif
 BuildRequires:  autoconf
 BuildRequires:  automake
 BuildRequires:  glib2-devel
 BuildRequires:  glibc-devel-static
-BuildRequires:  go >= 1.9
+BuildRequires:  go >= 1.13
 BuildRequires:  gpg2
 BuildRequires:  indent
 BuildRequires:  libcap-devel
@@ -130,6 +125,7 @@ BuildRequires:  ca-certificates-mozilla
 %if %{with apparmor}
 BuildRequires:  libapparmor-devel
 BuildRequires:  apparmor-rpm-macros
+BuildRequires:  apparmor-parser
 %endif
 
 PreReq:         permissions
@@ -147,7 +143,7 @@ Requires:       system-user-daemon
 # Old versions of xdg-document-portal can expose data belonging to
 # other confied apps.  Older OpenSUSE releases are unlikely to change,
 # so for now limit this to Tumbleweed.
-%if 0%{?suse_version} >= 1550
+%if 0%{?suse_version} >= 1550 || 0%{?sle_version} >= 150300
 Conflicts:      xdg-desktop-portal < 0.11
 %endif
 
@@ -180,6 +176,7 @@ tar -axf %{_sourcedir}/%{name}_%{version}.vendor.tar.xz --strip-components=1 -C 
 # Patch the source in the place it got extracted to.
 pushd %{indigo_srcdir}
 # Add patch0 -p1 ... as appropriate here.
+%autopatch -p1
 popd
 
 # Generate snapd.defines.mk, this file is included by snapd.mk. It contains a
@@ -198,6 +195,7 @@ datadir = %{_datadir}
 localstatedir = %{_localstatedir}
 sharedstatedir = %{_sharedstatedir}
 unitdir = %{_unitdir}
+builddir = %{_builddir}
 # Build configuration
 with_core_bits = 0
 with_alt_snap_mount_dir = %{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_dir:1}
@@ -255,7 +253,9 @@ popd
 #
 # NOTE: indigo_gopath takes priority over GOPATH. This ensures that we
 # build the code that we intended in case GOPATH points to another copy.
-%make_build -f %{indigo_srcdir}/packaging/snapd.mk GOPATH=%{indigo_gopath}:$GOPATH all
+%make_build -C %{indigo_srcdir} -f %{indigo_srcdir}/packaging/snapd.mk \
+            GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
+            all
 
 %check
 for binary in snap-exec snap-update-ns snapctl; do
@@ -264,19 +264,24 @@ done
 
 %make_build -C %{indigo_srcdir}/cmd check
 # Use the common packaging helper for testing.
-%make_build -f %{indigo_srcdir}/packaging/snapd.mk GOPATH=%{indigo_gopath}:$GOPATH check
+%make_build -C %{indigo_srcdir} -f %{indigo_srcdir}/packaging/snapd.mk \
+            GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
+            check
 
 %install
 # Install all systemd and dbus units, and env files.
 %make_install -C %{indigo_srcdir}/data \
 		BINDIR=%{_bindir} \
 		LIBEXECDIR=%{_libexecdir} \
+		DATADIR=%{_datadir} \
 		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
 		SNAP_MOUNT_DIR=%{snap_mount_dir}
 # Install all the C executables.
 %make_install -C %{indigo_srcdir}/cmd
 # Use the common packaging helper for bulk of installation.
-%make_install -f %{indigo_srcdir}/packaging/snapd.mk install
+%make_install -f %{indigo_srcdir}/packaging/snapd.mk \
+            GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
+            install
 
 # Undo special permissions of the void directory. We handle that in RPM files
 # section below.
@@ -327,12 +332,27 @@ install -m 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_data
 %endif
 %service_add_post %{systemd_services_list}
 %systemd_user_post %{systemd_user_services_list}
+%if %{with apparmor}
+if [ -x /usr/bin/systemctl ]; then
+    if systemctl is-enabled snapd.service >/dev/null 2>&1 || systemctl is-enabled snapd.socket >/dev/null 2>&1; then
+        # either the snapd.service or the snapd.socket are enabled, meaning snapd is
+        # being actively used
+        if systemctl is-enabled apparmor.service >/dev/null 2>&1 && ! systemctl is-enabled snapd.apparmor.service >/dev/null 2>&1; then
+            # also apparmor appears to be enabled, but loading of apparmor profiles
+            # of the snaps is not, so enable that now so that the snaps continue to
+            # work after the update
+            systemctl enable --now snapd.apparmor.service || :
+        fi
+    fi
+fi
+%endif
+
 case ":$PATH:" in
     *:/snap/bin:*)
         ;;
     *)
         echo "Please reboot, logout/login or source /etc/profile to have /snap/bin added to PATH."
-        echo "On a Tumbleweed system you need to run: systemctl enable snapd.apparmor.service"
+        echo "On a Tumbleweed and Leap 15.3+ systems you need to run: systemctl enable snapd.apparmor.service"
         ;;
 esac
 
@@ -398,6 +418,9 @@ fi
 # this is typically owned by zsh, but we do not want to explicitly require zsh
 %dir %{_datadir}/zsh
 %dir %{_datadir}/zsh/site-functions
+# similar case for fish
+%dir %{_datadir}/fish
+%dir %{_datadir}/fish/vendor_conf.d
 
 # Ghost entries for things created at runtime
 %ghost %dir %{_localstatedir}/snap
@@ -421,6 +444,7 @@ fi
 %{_datadir}/dbus-1/session.d/snapd.session-services.conf
 %{_datadir}/dbus-1/system.d/snapd.system-services.conf
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
+%{_datadir}/fish/vendor_conf.d/snapd.fish
 %{_environmentdir}/990-snapd.conf
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh

@@ -103,7 +103,9 @@ clock_gettime64
 clock_nanosleep
 clock_nanosleep_time64
 clone
+clone3
 close
+close_range
 
 # needed by ls -l
 connect
@@ -145,6 +147,7 @@ fork
 ftime
 futex
 futex_time64
+futex_waitv
 get_mempolicy
 get_robust_list
 get_thread_area
@@ -256,16 +259,6 @@ mknodat - - |S_IFSOCK -
 modify_ldt
 mprotect
 
-# LP: #1448184 - these aren't currently mediated by AppArmor. Deny for now
-#mq_getsetattr
-#mq_notify
-#mq_open
-#mq_timedreceive
-#mq_timedreceive_time64
-#mq_timedsend
-#mq_timedsend_time64
-#mq_unlink
-
 mremap
 msgctl
 msgget
@@ -342,6 +335,10 @@ renameat2
 restart_syscall
 
 rmdir
+
+# glibc 2.35 unconditionally calls rseq for all threads
+rseq
+
 rt_sigaction
 rt_sigpending
 rt_sigprocmask
@@ -480,6 +477,7 @@ socket AF_NFC
 socket AF_VSOCK
 socket AF_MPLS
 socket AF_IB
+socket AF_QIPCRTR
 
 # For usrsctp, AppArmor doesn't support 'network conn,' since AF_CONN is
 # userspace and encapsulated in other domains that are mediated. As such, do

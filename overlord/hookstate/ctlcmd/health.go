@@ -20,6 +20,7 @@
 package ctlcmd
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -115,10 +116,9 @@ func (c *healthCommand) Execute([]string) error {
 		}
 	}
 
-	ctx := c.context()
-	if ctx == nil {
-		// reuses the i18n'ed error message from service ctl
-		return fmt.Errorf(i18n.G("cannot %s without a context"), "set-health")
+	ctx, err := c.ensureContext()
+	if err != nil {
+		return err
 	}
 	ctx.Lock()
 	defer ctx.Unlock()
@@ -127,8 +127,8 @@ func (c *healthCommand) Execute([]string) error {
 
 	// if 'health' is there we've either already added an OnDone (and the
 	// following Set("health"), or we're in the set-health hook itself
-	// (which sets it to a dummy entry for this purpose).
-	if err := ctx.Get("health", &v); err == state.ErrNoState {
+	// (which sets it to a fake entry for this purpose).
+	if err := ctx.Get("health", &v); errors.Is(err, state.ErrNoState) {
 		ctx.OnDone(func() error {
 			return healthstate.SetFromHookContext(ctx)
 		})

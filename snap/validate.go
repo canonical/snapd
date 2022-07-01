@@ -32,6 +32,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/spdx"
 	"github.com/snapcore/snapd/strutil"
@@ -249,17 +250,17 @@ func validateSocketAddrAbstract(socket *SocketInfo, fieldName string, path strin
 func validateSocketAddrNet(socket *SocketInfo, fieldName string, address string) error {
 	lastIndex := strings.LastIndex(address, ":")
 	if lastIndex >= 0 {
-		if err := validateSocketAddrNetHost(socket, fieldName, address[:lastIndex]); err != nil {
+		if err := validateSocketAddrNetHost(fieldName, address[:lastIndex]); err != nil {
 			return err
 		}
-		return validateSocketAddrNetPort(socket, fieldName, address[lastIndex+1:])
+		return validateSocketAddrNetPort(fieldName, address[lastIndex+1:])
 	}
 
 	// Address only contains a port
-	return validateSocketAddrNetPort(socket, fieldName, address)
+	return validateSocketAddrNetPort(fieldName, address)
 }
 
-func validateSocketAddrNetHost(socket *SocketInfo, fieldName string, address string) error {
+func validateSocketAddrNetHost(fieldName string, address string) error {
 	validAddresses := []string{"127.0.0.1", "[::1]", "[::]"}
 	for _, valid := range validAddresses {
 		if address == valid {
@@ -270,7 +271,7 @@ func validateSocketAddrNetHost(socket *SocketInfo, fieldName string, address str
 	return fmt.Errorf("invalid %q address %q, must be one of: %s", fieldName, address, strings.Join(validAddresses, ", "))
 }
 
-func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string) error {
+func validateSocketAddrNetPort(fieldName string, port string) error {
 	var val uint64
 	var err error
 	retErr := fmt.Errorf("invalid %q port number %q", fieldName, port)
@@ -428,6 +429,9 @@ func ValidateLayoutAll(info *Info) error {
 	// Validate that each source path is not a new top-level directory
 	for _, layout := range info.Layout {
 		cleanPathSrc := info.ExpandSnapVariables(filepath.Clean(layout.Path))
+		if err := apparmor.ValidateNoAppArmorRegexp(layout.Path); err != nil {
+			return fmt.Errorf("invalid layout path: %v", err)
+		}
 		elems := strings.SplitN(cleanPathSrc, string(os.PathSeparator), 3)
 		switch len(elems) {
 		// len(1) is either relative path or empty string, will be validated
@@ -1011,6 +1015,10 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 			!strings.HasPrefix(mountSource, si.ExpandSnapVariables("$SNAP_COMMON")) {
 			return fmt.Errorf("layout %q uses invalid bind mount source %q: must start with $SNAP, $SNAP_DATA or $SNAP_COMMON", layout.Path, mountSource)
 		}
+		// Ensure that the path does not express an AppArmor pattern
+		if err := apparmor.ValidateNoAppArmorRegexp(mountSource); err != nil {
+			return fmt.Errorf("layout %q uses invalid mount source: %s", layout.Path, err)
+		}
 	}
 
 	switch layout.Type {
@@ -1037,6 +1045,10 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 			!strings.HasPrefix(oldname, si.ExpandSnapVariables("$SNAP_DATA")) &&
 			!strings.HasPrefix(oldname, si.ExpandSnapVariables("$SNAP_COMMON")) {
 			return fmt.Errorf("layout %q uses invalid symlink old name %q: must start with $SNAP, $SNAP_DATA or $SNAP_COMMON", layout.Path, oldname)
+		}
+		// Ensure that the path does not express an AppArmor pattern
+		if err := apparmor.ValidateNoAppArmorRegexp(oldname); err != nil {
+			return fmt.Errorf("layout %q uses invalid symlink: %s", layout.Path, err)
 		}
 	}
 

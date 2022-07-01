@@ -14,7 +14,11 @@
     # any abstractions
     /etc/ld.so.cache r,
     /etc/ld.so.preload r,
-    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld-*.so mrix,
+
+    # Do not assume that the interpreter is always named like
+    # ld-linux-x86_64.so, as on some architectures there can be a version after
+    # the .so suffix, eg. ld-linux-aarch64.so.1
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so* mrix,
     # libc, you are funny
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
@@ -40,6 +44,17 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
 
     @LIBEXECDIR@/snap-confine mr,
+
+    # This rule is needed when executing from a "base: core" devmode snap on 
+    # UC18 and newer where the /usr/lib/snapd/snap-confine inside the 
+    # "base: core" mount namespace always comes from the snapd snap, and thus
+    # we will execute snap-confine via this path, and thus need to be able to
+    # read this path when executing. It's also necessary on classic where both
+    # the snapd and the core snap are installed at the same time.
+    # TODO: remove this rule when we stop supporting executing other snaps from
+    # inside devmode snaps, ideally even in the short term we would only include
+    # this rule on core only, and specifically uc18 and newer where we need it
+    #@VERBATIM_LIBEXECDIR_SNAP_CONFINE@ mr,
 
     /dev/null rw,
     /dev/full rw,
@@ -72,6 +87,13 @@
 
     # cgroup: reading own cgroup
     @{PROC}/@{pid}/cgroup r,
+
+    # cgroup: manage bpf map for device cgroup
+    /sys/fs/bpf/ r,
+    /sys/fs/bpf/snap/ rw,
+    /sys/fs/bpf/snap/* rw,
+    # s-c may need to raise the memlock limit
+    capability sys_resource,
 
     # querying udev
     /etc/udev/udev.conf r,
@@ -128,6 +150,9 @@
 
     # reading seccomp filters
     /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin r,
+
+    # adding a missing bpf mount
+    mount fstype=bpf options=(rw) bpf -> /sys/fs/bpf/,
 
     # LP: #1668659 and parallel instaces of classic snaps
     mount options=(rw rbind) /snap/ -> /snap/,
@@ -360,6 +385,11 @@
     @{HOME}/ r,
     @{HOME}/snap/{,*/,*/*/} rw,
 
+    # experimental
+    @{HOME}/.snap/                rw,
+    @{HOME}/.snap/data/{,*/,*/*/} rw,
+    @{HOME}/Snap/{,*/,*/*/}       rw,
+
     # Special case for *classic* snaps that are used by users with existing dirs
     # in /var/lib/. Like jenkins, postgresql, mysql, puppet, ...
     # (see https://forum.snapcraft.io/t/9717)
@@ -385,10 +415,10 @@
     # stacked filesystems generally.
     # encrypted ~/.Private and old-style encrypted $HOME
     @{HOME}/.Private/ r,
-    @{HOME}/.Private/** mrixwlk,
+    @{HOME}/.Private/** mrwlk,
     # new-style encrypted $HOME
     @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
-    @{HOMEDIRS}/.ecryptfs/*/.Private/** mrixwlk,
+    @{HOMEDIRS}/.ecryptfs/*/.Private/** mrwlk,
 
     # Allow snap-confine to move to the void, creating it if necessary.
     /var/lib/snapd/void/ rw,
@@ -454,7 +484,7 @@
         # We run privileged, so be fanatical about what we include and don't use
         # any abstractions
         /etc/ld.so.cache r,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld-*.so mrix,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so* mrix,
         # libc, you are funny
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,

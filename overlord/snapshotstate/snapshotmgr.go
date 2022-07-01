@@ -29,6 +29,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
@@ -53,6 +54,8 @@ var (
 	backendCleanupAbandondedImports = backend.CleanupAbandondedImports
 
 	autoExpirationInterval = time.Hour * 24 // interval between forgetExpiredSnapshots runs as part of Ensure()
+
+	getSnapDirOpts = snapstate.GetSnapDirOpts
 )
 
 // SnapshotManager takes snapshots of active snaps
@@ -70,7 +73,7 @@ func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
 	runner.AddHandler("forget-snapshot", doForget, nil)
 	runner.AddHandler("check-snapshot", doCheck, nil)
 	runner.AddHandler("restore-snapshot", doRestore, undoRestore)
-	runner.AddCleanup("restore-snapshot", cleanupRestore)
+	runner.AddHandler("cleanup-after-restore", doCleanupAfterRestore, nil)
 
 	manager := &SnapshotManager{
 		state: st,
@@ -220,9 +223,17 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users)
+	st := task.State()
+
+	st.Lock()
+	opts, err := getSnapDirOpts(st, snapshot.Snap)
+	st.Unlock()
 	if err != nil {
-		st := task.State()
+		return err
+	}
+
+	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, opts)
+	if err != nil {
 		st.Lock()
 		defer st.Unlock()
 		removeSnapshotState(st, snapshot.SetID)
@@ -299,7 +310,14 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 		task.Logf(format, args...)
 	}
 
-	restoreState, err := backendRestore(reader, tomb.Context(nil), snapshot.Current, snapshot.Users, logf)
+	st.Lock()
+	opts, err := getSnapDirOpts(st, snapshot.Snap)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	restoreState, err := backendRestore(reader, tomb.Context(nil), snapshot.Current, snapshot.Users, logf, opts)
 	if err != nil {
 		return err
 	}
@@ -350,6 +368,23 @@ func undoRestore(task *state.Task, _ *tomb.Tomb) error {
 
 	backendRevert(&restoreState)
 
+	return nil
+}
+
+func doCleanupAfterRestore(task *state.Task, tomb *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	restoreTasks := task.WaitTasks()
+	st.Unlock()
+	for _, t := range restoreTasks {
+		if err := cleanupRestore(t, tomb); err != nil {
+			logger.Noticef("Cleanup of restore task %s failed: %v", task.ID(), err)
+			// do not quit the loop: we must perform all cleanups anyway
+		}
+	}
+
+	// Also, do not return an error here: we don't want a failed cleanup to
+	// trigger an undo of the restore operation
 	return nil
 }
 
@@ -432,7 +467,7 @@ func delayedCrossMgrInit() {
 	snapstate.EstimateSnapshotSize = EstimateSnapshotSize
 }
 
-func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string) (*client.Snapshot, error)) (restore func()) {
+func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string, *dirs.SnapDirOptions) (*client.Snapshot, error)) (restore func()) {
 	old := backendSave
 	backendSave = f
 	return func() {

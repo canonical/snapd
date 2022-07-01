@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -37,6 +38,8 @@ type ChangeConflictError struct {
 	ChangeKind string
 	// a Message is optional, otherwise one is composed from the other information
 	Message string
+	// ChangeID can optionally be set to the ID of the change with which the operation conflicts
+	ChangeID string
 }
 
 func (e *ChangeConflictError) Error() string {
@@ -57,7 +60,7 @@ var (
 	affectedSnapsByKind = make(map[string]AffectedSnapsFunc)
 )
 
-// AddAffectedSnapsByAttrs registers an AffectedSnapsFunc for returning the affected snaps for tasks sporting the given identifying attribute, to use in conflicts detection.
+// AddAffectedSnapsByAttr registers an AffectedSnapsFunc for returning the affected snaps for tasks sporting the given identifying attribute, to use in conflicts detection.
 func AddAffectedSnapsByAttr(attr string, f AffectedSnapsFunc) {
 	affectedSnapsByAttr[attr] = f
 }
@@ -100,11 +103,13 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 			return &ChangeConflictError{
 				Message:    "ubuntu-core to core transition in progress, no other changes allowed until this is done",
 				ChangeKind: "transition-ubuntu-core",
+				ChangeID:   chg.ID(),
 			}
 		case "transition-to-snapd-snap":
 			return &ChangeConflictError{
 				Message:    "transition to snapd snap in progress, no other changes allowed until this is done",
 				ChangeKind: "transition-to-snapd-snap",
+				ChangeID:   chg.ID(),
 			}
 		case "remodel":
 			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
@@ -113,6 +118,7 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 			return &ChangeConflictError{
 				Message:    "remodeling in progress, no other changes allowed until this is done",
 				ChangeKind: "remodel",
+				ChangeID:   chg.ID(),
 			}
 		case "create-recovery-system":
 			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
@@ -121,6 +127,7 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 			return &ChangeConflictError{
 				Message:    "creating recovery system in progress, no other changes allowed until this is done",
 				ChangeKind: "create-recovery-system",
+				ChangeID:   chg.ID(),
 			}
 		default:
 			if newExclusiveChangeKind != "" {
@@ -131,6 +138,7 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 				return &ChangeConflictError{
 					Message:    msg,
 					ChangeKind: chg.Kind(),
+					ChangeID:   chg.ID(),
 				}
 			}
 		}
@@ -185,7 +193,11 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 
 		for _, snap := range snaps {
 			if snapMap[snap] {
-				return &ChangeConflictError{Snap: snap, ChangeKind: chg.Kind()}
+				return &ChangeConflictError{
+					Snap:       snap,
+					ChangeKind: chg.Kind(),
+					ChangeID:   chg.ID(),
+				}
 			}
 		}
 	}
@@ -214,7 +226,7 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, 
 		// install, while getting the snap info; for refresh, when
 		// getting what needs refreshing).
 		var cursnapst SnapState
-		if err := Get(st, instanceName, &cursnapst); err != nil && err != state.ErrNoState {
+		if err := Get(st, instanceName, &cursnapst); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 

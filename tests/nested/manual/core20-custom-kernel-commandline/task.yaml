@@ -3,7 +3,7 @@ summary: Verify custom kernel command line handling in UC20
 details: |
     This test checks support for customized kernel command line arguments in UC20
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
     NESTED_IMAGE_ID: core20-kernel-commandline
@@ -12,22 +12,20 @@ environment:
     NESTED_ENABLE_SECURE_BOOT: true
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
-    KEY_NAME=$(nested_get_snakeoil_key)
+    KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
     echo "Grab and prepare the gadget snap"
-    snap download --basename=pc --channel="20/edge" pc
+    VERSION="$(tests.nested show version)"
+    snap download --basename=pc --channel="$VERSION/edge" pc
     unsquashfs -d pc-gadget pc.snap
 
     echo "Sign the shim binary"
-    nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
     echo 'snapd.debug=1 hello from test' > pc-gadget/cmdline.extra
-    snap pack pc-gadget/ extra-snaps/
+    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
 
     echo 'snapd.debug=1 updated hello from test' > pc-gadget/cmdline.extra
     snap pack pc-gadget --filename=pc-gadget-cmdline-extra-updated.snap
@@ -58,10 +56,7 @@ debug: |
     cat system.cmdline.recover || true
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
-    boot_id="$(nested_get_boot_id)"
+    boot_id="$(tests.nested boot-id)"
 
     echo "Make sure the system is encrypted"
     # in which case the boot chains must exist
@@ -80,7 +75,7 @@ execute: |
 
     echo "Wait for reboot"
     tests.nested wait-for reboot "${boot_id}"
-    boot_id="$(nested_get_boot_id)"
+    boot_id="$(tests.nested boot-id)"
     tests.nested exec 'sudo cat /proc/cmdline' | MATCH 'snapd_recovery_mode=run .* updated hello from test'
     # wait for previous change to finish before proceeding
     tests.nested exec sudo snap watch "$REMOTE_CHG_ID"
@@ -88,7 +83,7 @@ execute: |
     echo "Update to gadget with no command line"
     REMOTE_CHG_ID=$(tests.nested exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-none.snap')
     tests.nested wait-for reboot "${boot_id}"
-    boot_id="$(nested_get_boot_id)"
+    boot_id="$(tests.nested boot-id)"
     echo "Verify that custom command line elements are not present"
     tests.nested exec 'sudo cat /proc/cmdline' | NOMATCH 'hello from test'
     # wait for previous change to finish before proceeding
@@ -97,7 +92,7 @@ execute: |
     echo "Update to gadget with full command line"
     REMOTE_CHG_ID=$(tests.nested exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-full.snap')
     tests.nested wait-for reboot "${boot_id}"
-    boot_id="$(nested_get_boot_id)"
+    boot_id="$(tests.nested boot-id)"
     tests.nested exec 'sudo cat /proc/cmdline' | MATCH 'snapd_recovery_mode=run snapd.debug=1 console=ttyS0 full hello from test'
     # wait for previous change to finish before proceeding
     tests.nested exec sudo snap watch "$REMOTE_CHG_ID"

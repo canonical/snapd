@@ -4,6 +4,10 @@ summary: Test refreshing snapd and running new units
 # for UC16
 systems: [-ubuntu-core-16-*]
 
+environment:
+    # uploading large snap triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 restore: |
     # Remove all inactive revisions of snapd.
     current=$(readlink /snap/snapd/current)

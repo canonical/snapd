@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -63,11 +64,7 @@ func checkAssumes(si *snap.Info) error {
 		}
 	}
 	if len(missing) > 0 {
-		hint := "try to refresh the core or snapd snaps"
-		if release.OnClassic {
-			hint = "try to update snapd and refresh the core snap"
-		}
-		return fmt.Errorf("snap %q assumes unsupported features: %s (%s)", si.InstanceName(), strings.Join(missing, ", "), hint)
+		return fmt.Errorf("snap %q assumes unsupported features: %s (try to refresh snapd)", si.InstanceName(), strings.Join(missing, ", "))
 	}
 	return nil
 }
@@ -317,7 +314,7 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Contain
 		return nil
 	}
 	core, err := coreInfo(st)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
 	if err != nil {
@@ -369,8 +366,8 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 		return nil
 	}
 
-	currentSnap, err := infoForDeviceSnap(st, deviceCtx, kind, whichName)
-	if err == state.ErrNoState {
+	currentSnap, err := infoForDeviceSnap(st, deviceCtx, whichName)
+	if errors.Is(err, state.ErrNoState) {
 		// check if we are in the remodel case
 		if deviceCtx != nil && deviceCtx.ForRemodeling() {
 			if whichName(deviceCtx.Model()) == snapInfo.InstanceName() {
@@ -451,7 +448,7 @@ func checkEpochs(_ *state.State, snapInfo, curInfo *snap.Info, _ snap.Container,
 }
 
 // check that the snap installed in the system (via snapst) can be
-// upgraded to info (i.e. that info's epoch can read sanpst's epoch)
+// upgraded to info (i.e. that info's epoch can read snapst's epoch)
 func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 	if snapst == nil {
 		// no snapst, no problem

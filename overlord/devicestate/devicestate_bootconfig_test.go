@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -48,7 +49,8 @@ type deviceMgrBootconfigSuite struct {
 var _ = Suite(&deviceMgrBootconfigSuite{})
 
 func (s *deviceMgrBootconfigSuite) SetUpTest(c *C) {
-	s.deviceMgrBaseSuite.SetUpTest(c)
+	classic := false
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
 	s.managedbl = bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
 	bootloader.Force(s.managedbl)
@@ -103,8 +105,9 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, updateAttempted
 
 	s.state.Lock()
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
+	chg.Set("system-restart-immediate", true)
 	s.state.Unlock()
 
 	s.settle(c)
@@ -128,7 +131,7 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, updateAttempted
 			c.Assert(log, HasLen, 1)
 			c.Check(log[0], Matches, ".* updated boot config assets")
 			// update was applied, thus a restart was requested
-			c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 		} else {
 			// update was not applied or failed
 			c.Check(s.restartRequests, HasLen, 0)
@@ -264,7 +267,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigRemodelDoNothing(c *C) {
 	// be extra sure
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	remodCtx.Init(chg)
 	// replace the bootloader with something that always fails

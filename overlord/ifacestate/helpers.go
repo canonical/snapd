@@ -22,6 +22,7 @@ package ifacestate
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -40,7 +41,15 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
+)
+
+var (
+	snapdAppArmorServiceIsDisabled = snapdAppArmorServiceIsDisabledImpl
+	profilesNeedRegeneration       = profilesNeedRegenerationImpl
+
+	writeSystemKey = interfaces.WriteSystemKey
 )
 
 func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
@@ -67,7 +76,39 @@ func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
 }
 
 func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error {
-	opts := interfaces.SecurityBackendOptions{Preseed: m.preseed}
+	// get the snapd snap info if it is installed
+	var snapdSnap snapstate.SnapState
+	var snapdSnapInfo *snap.Info
+	err := snapstate.Get(m.state, "snapd", &snapdSnap)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return fmt.Errorf("cannot access snapd snap state: %v", err)
+	}
+	if err == nil {
+		snapdSnapInfo, err = snapdSnap.CurrentInfo()
+		if err != nil && err != snapstate.ErrNoCurrent {
+			return fmt.Errorf("cannot access snapd snap info: %v", err)
+		}
+	}
+
+	// get the core snap info if it is installed
+	var coreSnap snapstate.SnapState
+	var coreSnapInfo *snap.Info
+	err = snapstate.Get(m.state, "core", &coreSnap)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return fmt.Errorf("cannot access core snap state: %v", err)
+	}
+	if err == nil {
+		coreSnapInfo, err = coreSnap.CurrentInfo()
+		if err != nil && err != snapstate.ErrNoCurrent {
+			return fmt.Errorf("cannot access core snap info: %v", err)
+		}
+	}
+
+	opts := interfaces.SecurityBackendOptions{
+		Preseed:       m.preseed,
+		CoreSnapInfo:  coreSnapInfo,
+		SnapdSnapInfo: snapdSnapInfo,
+	}
 	for _, backend := range backends.All {
 		if err := backend.Initialize(&opts); err != nil {
 			return err
@@ -108,8 +149,13 @@ func profilesNeedRegenerationImpl() bool {
 	return mismatch
 }
 
-var profilesNeedRegeneration = profilesNeedRegenerationImpl
-var writeSystemKey = interfaces.WriteSystemKey
+// snapdAppArmorServiceIsDisabledImpl returns true if the snapd.apparmor
+// service unit exists but is disabled
+func snapdAppArmorServiceIsDisabledImpl() bool {
+	sysd := systemd.New(systemd.SystemMode, nil)
+	isEnabled, err := sysd.IsEnabled("snapd.apparmor")
+	return err == nil && !isEnabled
+}
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
 func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) error {
@@ -144,7 +190,11 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
 			logger.Noticef("cannot get state of snap %q: %s", snapName, err)
 		}
-		return confinementOptions(snapst.Flags)
+		opts, err := buildConfinementOptions(m.state, snapst.InstanceName(), snapst.Flags)
+		if err != nil {
+			logger.Noticef("cannot get confinement options for snap %q: %s", snapName, err)
+		}
+		return opts
 	}
 
 	// For each backend:
@@ -214,14 +264,14 @@ var removeStaleConnections = func(st *state.State) error {
 		}
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, connRef.PlugRef.Snap, &snapst); err != nil {
-			if err != state.ErrNoState {
+			if !errors.Is(err, state.ErrNoState) {
 				return err
 			}
 			staleConns = append(staleConns, id)
 			continue
 		}
 		if err := snapstate.Get(st, connRef.SlotRef.Snap, &snapst); err != nil {
-			if err != state.ErrNoState {
+			if !errors.Is(err, state.ErrNoState) {
 				return err
 			}
 			staleConns = append(staleConns, id)
@@ -238,6 +288,22 @@ var removeStaleConnections = func(st *state.State) error {
 	return nil
 }
 
+func isBroken(st *state.State, snapName string) (bool, error) {
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, snapName, &snapst)
+	if errors.Is(err, state.ErrNoState) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	snapInfo, _ := snapst.CurrentInfo()
+	if snapInfo != nil && snapInfo.Broken != "" {
+		return true, nil
+	}
+	return false, nil
+}
+
 // reloadConnections reloads connections stored in the state in the repository.
 // Using non-empty snapName the operation can be scoped to connections
 // affecting a given snap.
@@ -251,6 +317,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 
 	connStateChanged := false
 	affected := make(map[string]bool)
+ConnsLoop:
 	for connId, connState := range conns {
 		// Skip entries that just mark a connection as undesired. Those don't
 		// carry attributes that can go stale. In the same spirit, skip
@@ -280,6 +347,18 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 			// as long as it wasn't disconnected manually; note that undesired flag is taken care of at
 			// the beginning of the loop.
 			if connState.Auto && !connState.ByGadget && connState.Interface != "core-support" {
+				// only do anything about this connection if snap isn't in a broken state, otherwise
+				// leave the connection untouched.
+				for _, snapName := range []string{connRef.PlugRef.Snap, connRef.SlotRef.Snap} {
+					broken, err := isBroken(m.state, snapName)
+					if err != nil {
+						return nil, err
+					}
+					if broken {
+						logger.Noticef("Snap %q is broken, ignored by reloadConnections", snapName)
+						continue ConnsLoop
+					}
+				}
 				delete(conns, connId)
 				connStateChanged = true
 			}
@@ -291,10 +370,12 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		staticPlugAttrs := connState.StaticPlugAttrs
 		staticSlotAttrs := connState.StaticSlotAttrs
 
-		// XXX: Refresh the copy of the static connection attributes for "content" interface as long
-		// as its "content" attribute
+		// XXX: Refresh the copy of the static connection attributes for "content"
+		// and "system-files" interfaces.
 		// This is a partial and temporary solution to https://bugs.launchpad.net/snapd/+bug/1825883
-		if plugInfo.Interface == "content" {
+		// and https://bugs.launchpad.net/snapd/+bug/1942266.
+		switch plugInfo.Interface {
+		case "content":
 			var plugContent, slotContent string
 			plugInfo.Attr("content", &plugContent)
 			slotInfo.Attr("content", &slotContent)
@@ -306,6 +387,10 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 			} else {
 				logger.Noticef("cannot refresh static attributes of the connection %q", connId)
 			}
+		case "system-files":
+			staticPlugAttrs = utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
+			staticSlotAttrs = utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
+			updateStaticAttrs = true
 		}
 
 		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
@@ -484,7 +569,7 @@ func newGadgetConnect(s *state.State, task *state.Task, repo *interfaces.Reposit
 func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.ConnRef, conns map[string]*connState, conflictError func(*state.Retry, error) error) error {
 	var seeded bool
 	err := gc.st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	// we apply gadget connections only during seeding or a remodeling
@@ -512,7 +597,7 @@ func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.Co
 
 	gconns, err := snapstate.GadgetConnections(gc.st, gc.deviceCtx)
 	if err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			// no gadget yet, nothing to do
 			return nil
 		}
@@ -868,7 +953,7 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 func getConns(st *state.State) (conns map[string]*connState, err error) {
 	var raw *json.RawMessage
 	err = st.Get("conns", &raw)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("cannot obtain raw data about existing connections: %s", err)
 	}
 	if raw != nil {
@@ -1162,7 +1247,7 @@ func getHotplugAttrs(task *state.Task) (ifaceName string, hotplugKey snap.Hotplu
 
 func allocHotplugSeq(st *state.State) (int, error) {
 	var seq int
-	if err := st.Get("hotplug-seq", &seq); err != nil && err != state.ErrNoState {
+	if err := st.Get("hotplug-seq", &seq); err != nil && !errors.Is(err, state.ErrNoState) {
 		return 0, fmt.Errorf("internal error: cannot allocate hotplug sequence number: %s", err)
 	}
 	seq++
@@ -1214,7 +1299,7 @@ func getHotplugSlots(st *state.State) (map[string]*HotplugSlotInfo, error) {
 	var slots map[string]*HotplugSlotInfo
 	err := st.Get("hotplug-slots", &slots)
 	if err != nil {
-		if err != state.ErrNoState {
+		if !errors.Is(err, state.ErrNoState) {
 			return nil, err
 		}
 		slots = make(map[string]*HotplugSlotInfo)

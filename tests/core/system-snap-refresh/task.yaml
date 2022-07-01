@@ -7,6 +7,10 @@ details: |
 
 systems: [ubuntu-core-*]
 
+environment:
+    # uploading the core or otherwise large snap triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 restore: |
     TARGET_SNAP_NAME=core
     if os.query is-core18; then
@@ -26,7 +30,9 @@ execute: |
         TARGET_SNAP_NAME=core18
     elif os.query is-core20; then
         TARGET_SNAP_NAME=core20
-    fi    
+    elif os.query is-core22; then
+        TARGET_SNAP_NAME=core22
+    fi
 
     # After installing a new version of the core/core18 snap the system is rebooted
     if [ "$SPREAD_REBOOT" = 0 ]; then
@@ -40,22 +46,10 @@ execute: |
         fi
 
         # install new target snap
-
-        snap install --dangerous "/var/lib/snapd/snaps/${TARGET_SNAP_NAME}_${currRev}.snap" &> refresh.log
-        MATCH "snapd is about to reboot the system" < refresh.log
+        snap install --dangerous --no-wait "/var/lib/snapd/snaps/${TARGET_SNAP_NAME}_${currRev}.snap"
 
         # Detect in the logs when the reboot can been triggered
-        for _ in $(seq 50); do
-            if "$TESTSTOOLS"/journal-state match-log "Waiting for system reboot"; then
-                 break
-            fi
-            sleep 2
-        done
-
-        if ! "$TESTSTOOLS"/journal-state match-log "Waiting for system reboot"; then
-            echo "Taking too long to reach waiting for reboot"
-            exit 1
-        fi
+        "$TESTSTOOLS"/journal-state match-log -n 50 --wait 2 "Waiting for system reboot"
 
         REBOOT
     elif [ "$SPREAD_REBOOT" = 1 ]; then
@@ -71,17 +65,7 @@ execute: |
         MATCH "snapd is about to reboot the system" < revert.log
 
         # Detect in the logs when the reboot can been triggered
-        for _ in $(seq 50); do
-            if "$TESTSTOOLS"/journal-state match-log "Waiting for system reboot" -b; then
-                 break
-            fi
-            sleep 2
-        done
-
-        if ! "$TESTSTOOLS"/journal-state match-log "Waiting for system reboot" -b; then
-            echo "Taking too long to reach waiting for reboot"
-            exit 1
-        fi
+        "$TESTSTOOLS"/journal-state match-log -n 50 --wait 2 "Waiting for system reboot"
 
         REBOOT
     elif [  "$SPREAD_REBOOT" = 2 ]; then

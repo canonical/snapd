@@ -26,12 +26,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap/naming"
@@ -70,7 +70,7 @@ type PlaceInfo interface {
 	DataDir() string
 
 	// UserDataDir returns the per user data directory of the snap.
-	UserDataDir(home string) string
+	UserDataDir(home string, opts *dirs.SnapDirOptions) string
 
 	// CommonDataDir returns the data directory common across revisions of the
 	// snap.
@@ -78,22 +78,25 @@ type PlaceInfo interface {
 
 	// UserCommonDataDir returns the per user data directory common across
 	// revisions of the snap.
-	UserCommonDataDir(home string) string
+	UserCommonDataDir(home string, opts *dirs.SnapDirOptions) string
 
 	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
 	UserXdgRuntimeDir(userID sys.UserID) string
 
-	// DataHomeDir returns the a glob that matches all per user data directories
+	// DataHomeDir returns a glob that matches all per user data directories
 	// of a snap.
-	DataHomeDir() string
+	DataHomeDir(opts *dirs.SnapDirOptions) string
 
 	// CommonDataHomeDir returns a glob that matches all per user data
 	// directories common across revisions of the snap.
-	CommonDataHomeDir() string
+	CommonDataHomeDir(opts *dirs.SnapDirOptions) string
 
 	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR
 	// directories for all users of the snap.
 	XdgRuntimeDirs() string
+
+	// UserExposedHomeDir returns the snap's new home directory under ~/Snap.
+	UserExposedHomeDir(home string) string
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a
@@ -198,28 +201,50 @@ func HooksDir(name string, revision Revision) string {
 	return filepath.Join(MountDir(name, revision), "meta", "hooks")
 }
 
+func snapDataDir(opts *dirs.SnapDirOptions) string {
+	if opts == nil {
+		opts = &dirs.SnapDirOptions{}
+	}
+
+	if opts.HiddenSnapDataDir {
+		return dirs.HiddenSnapDataHomeDir
+	}
+
+	return dirs.UserHomeSnapDir
+}
+
 // UserDataDir returns the user-specific data directory for given snap name. The
 // name can be either a snap name or snap instance name.
-func UserDataDir(home string, name string, revision Revision) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, name, revision.String())
+func UserDataDir(home string, name string, revision Revision, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts), name, revision.String())
 }
 
 // UserCommonDataDir returns the user-specific common data directory for given
 // snap name. The name can be either a snap name or snap instance name.
-func UserCommonDataDir(home string, name string) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, name, "common")
+func UserCommonDataDir(home string, name string, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts), name, "common")
 }
 
 // UserSnapDir returns the user-specific directory for given
 // snap name. The name can be either a snap name or snap instance name.
-func UserSnapDir(home string, name string) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, name)
+func UserSnapDir(home string, name string, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts), name)
+}
+
+// UserExposedHomeDir returns the snap's directory in the exposed home dir.
+func UserExposedHomeDir(home string, snapName string) string {
+	return filepath.Join(home, dirs.ExposedSnapHomeDir, snapName)
 }
 
 // UserXdgRuntimeDir returns the user-specific XDG_RUNTIME_DIR directory for
 // given snap name. The name can be either a snap name or snap instance name.
 func UserXdgRuntimeDir(euid sys.UserID, name string) string {
 	return filepath.Join(dirs.XdgRuntimeDirBase, fmt.Sprintf("%d/snap.%s", euid, name))
+}
+
+// SnapDir returns the user-specific snap directory.
+func SnapDir(home string, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts))
 }
 
 // SideInfo holds snap metadata that is crucial for the tracking of
@@ -286,7 +311,7 @@ type Info struct {
 	Broken string
 
 	// The information in these fields is ephemeral, available only from the
-	// store.
+	// store or when read from a snap file.
 	DownloadInfo
 
 	Prices  map[string]float64
@@ -499,14 +524,19 @@ func (s *Info) DataDir() string {
 }
 
 // UserDataDir returns the user-specific data directory of the snap.
-func (s *Info) UserDataDir(home string) string {
-	return UserDataDir(home, s.InstanceName(), s.Revision)
+func (s *Info) UserDataDir(home string, opts *dirs.SnapDirOptions) string {
+	return UserDataDir(home, s.InstanceName(), s.Revision, opts)
 }
 
 // UserCommonDataDir returns the user-specific data directory common across
 // revision of the snap.
-func (s *Info) UserCommonDataDir(home string) string {
-	return UserCommonDataDir(home, s.InstanceName())
+func (s *Info) UserCommonDataDir(home string, opts *dirs.SnapDirOptions) string {
+	return UserCommonDataDir(home, s.InstanceName(), opts)
+}
+
+// UserExposedHomeDir returns the new upper-case snap directory in the user home.
+func (s *Info) UserExposedHomeDir(home string) string {
+	return filepath.Join(home, dirs.ExposedSnapHomeDir, s.InstanceName())
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
@@ -514,15 +544,28 @@ func (s *Info) CommonDataDir() string {
 	return CommonDataDir(s.InstanceName())
 }
 
+// DataHomeGlob returns the globbing expression for the snap directories in use
+func DataHomeGlob(opts *dirs.SnapDirOptions) string {
+	if opts == nil {
+		opts = &dirs.SnapDirOptions{}
+	}
+
+	if opts.HiddenSnapDataDir {
+		return dirs.HiddenSnapDataHomeGlob
+	}
+
+	return dirs.SnapDataHomeGlob
+}
+
 // DataHomeDir returns the per user data directory of the snap.
-func (s *Info) DataHomeDir() string {
-	return filepath.Join(dirs.SnapDataHomeGlob, s.InstanceName(), s.Revision.String())
+func (s *Info) DataHomeDir(opts *dirs.SnapDirOptions) string {
+	return filepath.Join(DataHomeGlob(opts), s.InstanceName(), s.Revision.String())
 }
 
 // CommonDataHomeDir returns the per user data directory common across revisions
 // of the snap.
-func (s *Info) CommonDataHomeDir() string {
-	return filepath.Join(dirs.SnapDataHomeGlob, s.InstanceName(), "common")
+func (s *Info) CommonDataHomeDir(opts *dirs.SnapDirOptions) string {
+	return filepath.Join(DataHomeGlob(opts), s.InstanceName(), "common")
 }
 
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a
@@ -675,8 +718,19 @@ type DeltaInfo struct {
 	Sha3_384        string `json:"sha3-384,omitempty"`
 }
 
-// sanity check that Info is a PlaceInfo
+// check that Info is a PlaceInfo
 var _ PlaceInfo = (*Info)(nil)
+
+type AttributeNotFoundError struct{ Err error }
+
+func (e AttributeNotFoundError) Error() string {
+	return e.Err.Error()
+}
+
+func (e AttributeNotFoundError) Is(target error) bool {
+	_, ok := target.(AttributeNotFoundError)
+	return ok
+}
 
 // PlugInfo provides information about a plug.
 type PlugInfo struct {
@@ -714,21 +768,10 @@ func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
 func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
 	v, ok := lookupAttr(attrs, key)
 	if !ok {
-		return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
+		return AttributeNotFoundError{fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)}
 	}
 
-	rt := reflect.TypeOf(val)
-	if rt.Kind() != reflect.Ptr || val == nil {
-		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
-	}
-
-	if reflect.TypeOf(v) != rt.Elem() {
-		return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
-	}
-	rv := reflect.ValueOf(val)
-	rv.Elem().Set(reflect.ValueOf(v))
-
-	return nil
+	return metautil.SetValueFromAttribute(snapName, ifaceName, key, v, val)
 }
 
 func (plug *PlugInfo) Attr(key string, val interface{}) error {
@@ -871,7 +914,7 @@ func (st StopModeType) KillSignal() string {
 // Validate ensures that the StopModeType has an valid value.
 func (st StopModeType) Validate() error {
 	switch st {
-	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
+	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all", "sigint", "sigint-all":
 		// valid
 		return nil
 	}
@@ -1256,14 +1299,18 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	err = addImplicitHooksFromContainer(info, snapf)
-	if err != nil {
-		return nil, err
-	}
+	addImplicitHooksFromContainer(info, snapf)
 
 	bindImplicitHooks(info, strk)
 
 	err = Validate(info)
+	if err != nil {
+		return nil, err
+	}
+
+	// As part of the validation, also read the snapshot manifest file: we
+	// don't care about its contents now, but we need to make sure it's valid.
+	_, err = ReadSnapshotYamlFromSnapFile(snapf)
 	if err != nil {
 		return nil, err
 	}

@@ -23,12 +23,15 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 )
 
+type MkfsParams = mkfsParams
+
 var (
-	MakeFilesystem  = makeFilesystem
-	WriteContent    = writeContent
-	MountFilesystem = mountFilesystem
+	MakeFilesystem         = makeFilesystem
+	WriteFilesystemContent = writeFilesystemContent
+	MountFilesystem        = mountFilesystem
 
 	CreateMissingPartitions = createMissingPartitions
 	BuildPartitionList      = buildPartitionList
@@ -36,16 +39,7 @@ var (
 	EnsureNodesExist        = ensureNodesExist
 
 	CreatedDuringInstall = createdDuringInstall
-	CreationSupported    = creationSupported
 )
-
-func MockContentMountpoint(new string) (restore func()) {
-	old := contentMountpoint
-	contentMountpoint = new
-	return func() {
-		contentMountpoint = old
-	}
-}
 
 func MockSysMount(f func(source, target, fstype string, flags uintptr, data string) error) (restore func()) {
 	old := sysMount
@@ -68,5 +62,13 @@ func MockEnsureNodesExist(f func(dss []gadget.OnDiskStructure, timeout time.Dura
 	ensureNodesExist = f
 	return func() {
 		ensureNodesExist = old
+	}
+}
+
+func MockMkfsMake(f func(typ, img, label string, devSize, sectorSize quantity.Size) error) (restore func()) {
+	old := mkfsImpl
+	mkfsImpl = f
+	return func() {
+		mkfsImpl = old
 	}
 }

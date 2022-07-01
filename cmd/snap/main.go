@@ -50,11 +50,6 @@ func init() {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
 	snapdenv.SetUserAgentFromVersion(snapdtool.Version, nil, "snap")
 
-	if osutil.GetenvBool("SNAPD_DEBUG") || snapdenv.Testing() {
-		// in tests or when debugging, enforce the "tidy" lint checks
-		noticef = logger.Panicf
-	}
-
 	// plug/slot sanitization not used by snap commands (except for snap pack
 	// which re-sets it), make it no-op.
 	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
@@ -67,8 +62,6 @@ var (
 	Stderr io.Writer = os.Stderr
 	// overridden for testing
 	ReadPassword = terminal.ReadPassword
-	// set to logger.Panicf in testing
-	noticef = logger.Noticef
 )
 
 type options struct {
@@ -171,7 +164,7 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 		r, _ := utf8.DecodeRuneInString(desc)
 		// note IsLower != !IsUpper for runes with no upper/lower.
 		if unicode.IsLower(r) && !strings.HasPrefix(desc, "login.ubuntu.com") && !strings.HasPrefix(desc, cmdName) {
-			noticef("description of %s's %q is lowercase in locale %q: %q", cmdName, optName, i18n.CurrentLocale(), desc)
+			panicOnDebug("description of %s's %q is lowercase in locale %q: %q", cmdName, optName, i18n.CurrentLocale(), desc)
 		}
 	}
 }
@@ -185,7 +178,7 @@ func lintArg(cmdName, optName, desc, origDesc string) {
 		// see comment in fixupArg about the >s case
 		return
 	}
-	noticef("argument %q's %q should begin with < and end with >", cmdName, optName)
+	panicOnDebug("argument %q's %q should begin with < and end with >", cmdName, optName)
 }
 
 func fixupArg(optName string) string {
@@ -563,7 +556,7 @@ func run() error {
 			}
 		}
 
-		msg, err := errorToCmdMessage("", err, nil)
+		msg, err := errorToCmdMessage("", strings.ToLower(parser.Active.Name), err, nil)
 
 		if cmdline := strings.Join(os.Args, " "); strings.ContainsAny(cmdline, wrongDashes) {
 			// TRANSLATORS: the %+q is the commandline (+q means quoted, with any non-ascii character called out). Please keep the lines to at most 80 characters.
@@ -588,4 +581,10 @@ fixed-width fonts, so it can be hard to tell.
 	maybePresentWarnings(cli.WarningsSummary())
 
 	return nil
+}
+
+func panicOnDebug(msg string, v ...interface{}) {
+	if osutil.GetenvBool("SNAPD_DEBUG") || snapdenv.Testing() {
+		logger.Panicf(msg, v...)
+	}
 }

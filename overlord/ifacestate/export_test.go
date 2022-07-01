@@ -22,8 +22,10 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -60,12 +62,17 @@ var (
 
 	BatchConnectTasks                = batchConnectTasks
 	FirstTaskAfterBootWhenPreseeding = firstTaskAfterBootWhenPreseeding
+	BuildConfinementOptions          = buildConfinementOptions
 )
 
 type ConnectOpts = connectOpts
 
 func NewConnectOptsWithAutoSet() connectOpts {
 	return connectOpts{AutoConnect: true, ByGadget: false}
+}
+
+func NewDisconnectOptsWithAutoSet() disconnectOpts {
+	return disconnectOpts{AutoDisconnect: true}
 }
 
 func NewDisconnectOptsWithByHotplugSet() disconnectOpts {
@@ -80,6 +87,12 @@ func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) 
 	old := removeStaleConnections
 	removeStaleConnections = f
 	return func() { removeStaleConnections = old }
+}
+
+func MockSnapdAppArmorServiceIsDisabled(f func() bool) (restore func()) {
+	r := testutil.Backup(&snapdAppArmorServiceIsDisabled)
+	snapdAppArmorServiceIsDisabled = f
+	return r
 }
 
 func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
@@ -162,6 +175,14 @@ func MockWriteSystemKey(fn func() error) func() {
 	old := writeSystemKey
 	writeSystemKey = fn
 	return func() { writeSystemKey = old }
+}
+
+func MockSnapstateFinishRestart(f func(task *state.Task, snapsup *snapstate.SnapSetup) error) (restore func()) {
+	old := snapstateFinishRestart
+	snapstateFinishRestart = f
+	return func() {
+		snapstateFinishRestart = old
+	}
 }
 
 func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, oldName, newName string) error {

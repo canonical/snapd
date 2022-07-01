@@ -44,3 +44,18 @@ func removeMountUnit(mountDir string, meter progress.Meter) error {
 	sysd := systemd.New(systemd.SystemMode, meter)
 	return sysd.RemoveMountUnitFile(mountDir)
 }
+
+func (b Backend) RemoveSnapMountUnits(s snap.PlaceInfo, meter progress.Meter) error {
+	sysd := systemd.New(systemd.SystemMode, meter)
+	originFilter := ""
+	mountPoints, err := sysd.ListMountUnits(s.InstanceName(), originFilter)
+	if err != nil {
+		return err
+	}
+	for _, mountPoint := range mountPoints {
+		if err := sysd.RemoveMountUnitFile(mountPoint); err != nil {
+			return err
+		}
+	}
+	return nil
+}

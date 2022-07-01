@@ -38,7 +38,7 @@ execute: |
   tc filter add dev ens4 parent ffff: protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1
 
   echo "Installing a large snap fails if connection is very slow"
-  snap install lxd 2>&1 | MATCH "download too slow:"
+  snap install --edge test-snapd-huge 2>&1 | MATCH "download too slow:"
 
   echo "Downloading a large snap fails too"
-  snap download lxd 2>&1 | MATCH "download too slow:"
+  snap download --edge test-snapd-huge 2>&1 | MATCH "download too slow:"

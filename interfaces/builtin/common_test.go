@@ -97,7 +97,7 @@ func MockReadDir(test *testutil.BaseTest, fn func(string) ([]os.FileInfo, error)
 	})
 }
 
-func (s *commonIfaceSuite) TestSuppressPtraceTrace(c *C) {
+func (s *commonIfaceSuite) TestSuppressFeatures(c *C) {
 	plug, _ := MockConnectedPlug(c, `
 name: consumer
 version: 0
@@ -112,92 +112,110 @@ slots:
   common:
 `, nil, "common")
 
-	// setting nothing
-	iface := &commonInterface{
-		name:                "common",
-		suppressPtraceTrace: false,
-		usesPtraceTrace:     false,
+	type Checks []struct {
+		getter        func(spec *apparmor.Specification) bool
+		expectedValue bool
 	}
-	spec := &apparmor.Specification{}
-	c.Assert(spec.UsesPtraceTrace(), Equals, false)
-	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
-	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
-	c.Assert(spec.UsesPtraceTrace(), Equals, false)
-	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
 
-	// setting only uses
-	iface = &commonInterface{
-		name:                "common",
-		suppressPtraceTrace: false,
-		usesPtraceTrace:     true,
+	tests := []struct {
+		iface  *commonInterface
+		checks Checks
+	}{
+		// PtraceTrace
+		{
+			// setting nothing
+			&commonInterface{name: "common", suppressPtraceTrace: false, usesPtraceTrace: false},
+			Checks{
+				{(*apparmor.Specification).UsesPtraceTrace, false},
+				{(*apparmor.Specification).SuppressPtraceTrace, false},
+			},
+		},
+		{
+			// setting only uses
+			&commonInterface{name: "common", suppressPtraceTrace: false, usesPtraceTrace: true},
+			Checks{
+				{(*apparmor.Specification).UsesPtraceTrace, true},
+				{(*apparmor.Specification).SuppressPtraceTrace, false},
+			},
+		},
+		{
+			// setting only suppress
+			&commonInterface{name: "common", suppressPtraceTrace: true, usesPtraceTrace: false},
+			Checks{
+				{(*apparmor.Specification).UsesPtraceTrace, false},
+				{(*apparmor.Specification).SuppressPtraceTrace, true},
+			},
+		},
+		{
+			// setting both, only uses is set
+			&commonInterface{name: "common", suppressPtraceTrace: true, usesPtraceTrace: true},
+			Checks{
+				{(*apparmor.Specification).UsesPtraceTrace, true},
+				{(*apparmor.Specification).SuppressPtraceTrace, false},
+			},
+		},
+		// HomeIx
+		{
+			// setting nothing
+			&commonInterface{name: "common", suppressHomeIx: false},
+			Checks{
+				{(*apparmor.Specification).SuppressHomeIx, false},
+			},
+		},
+		{
+			// setting suppress
+			&commonInterface{name: "common", suppressHomeIx: true},
+			Checks{
+				{(*apparmor.Specification).SuppressHomeIx, true},
+			},
+		},
+		// sys_module capability
+		{
+			// setting nothing
+			&commonInterface{name: "common", suppressSysModuleCapability: false, usesSysModuleCapability: false},
+			Checks{
+				{(*apparmor.Specification).UsesSysModuleCapability, false},
+				{(*apparmor.Specification).SuppressSysModuleCapability, false},
+			},
+		},
+		{
+			// setting only uses
+			&commonInterface{name: "common", suppressSysModuleCapability: false, usesSysModuleCapability: true},
+			Checks{
+				{(*apparmor.Specification).UsesSysModuleCapability, true},
+				{(*apparmor.Specification).SuppressSysModuleCapability, false},
+			},
+		},
+		{
+			// setting only suppress
+			&commonInterface{name: "common", suppressSysModuleCapability: true, usesSysModuleCapability: false},
+			Checks{
+				{(*apparmor.Specification).UsesSysModuleCapability, false},
+				{(*apparmor.Specification).SuppressSysModuleCapability, true},
+			},
+		},
+		{
+			// setting both, only uses is set
+			&commonInterface{name: "common", suppressSysModuleCapability: true, usesSysModuleCapability: true},
+			Checks{
+				{(*apparmor.Specification).UsesSysModuleCapability, true},
+				{(*apparmor.Specification).SuppressSysModuleCapability, false},
+			},
+		},
 	}
-	spec = &apparmor.Specification{}
-	c.Assert(spec.UsesPtraceTrace(), Equals, false)
-	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
-	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
-	c.Assert(spec.UsesPtraceTrace(), Equals, true)
-	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
 
-	// setting only suppress
-	iface = &commonInterface{
-		name:                "common",
-		suppressPtraceTrace: true,
-		usesPtraceTrace:     false,
+	for _, test := range tests {
+		spec := &apparmor.Specification{}
+		iface := test.iface
+		// before connection, everything should be set to false
+		for _, check := range test.checks {
+			c.Check(check.getter(spec), Equals, false)
+		}
+		c.Check(spec.AddConnectedPlug(iface, plug, slot), IsNil)
+		for _, check := range test.checks {
+			c.Check(check.getter(spec), Equals, check.expectedValue)
+		}
 	}
-	spec = &apparmor.Specification{}
-	c.Assert(spec.UsesPtraceTrace(), Equals, false)
-	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
-	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
-	c.Assert(spec.UsesPtraceTrace(), Equals, false)
-	c.Assert(spec.SuppressPtraceTrace(), Equals, true)
-
-	// setting both, only uses is set
-	iface = &commonInterface{
-		name:                "common",
-		suppressPtraceTrace: true,
-		usesPtraceTrace:     true,
-	}
-	spec = &apparmor.Specification{}
-	c.Assert(spec.UsesPtraceTrace(), Equals, false)
-	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
-	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
-	c.Assert(spec.UsesPtraceTrace(), Equals, true)
-	c.Assert(spec.SuppressPtraceTrace(), Equals, false)
-}
-
-func (s *commonIfaceSuite) TestSuppressHomeIx(c *C) {
-	plug, _ := MockConnectedPlug(c, `
-name: consumer
-version: 0
-apps:
-  app:
-    plugs: [common]
-`, nil, "common")
-	slot, _ := MockConnectedSlot(c, `
-name: producer
-version: 0
-slots:
-  common:
-`, nil, "common")
-
-	// setting nothing
-	iface := &commonInterface{
-		name:           "common",
-		suppressHomeIx: false,
-	}
-	spec := &apparmor.Specification{}
-	c.Assert(spec.SuppressHomeIx(), Equals, false)
-	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
-	c.Assert(spec.SuppressHomeIx(), Equals, false)
-
-	iface = &commonInterface{
-		name:           "common",
-		suppressHomeIx: true,
-	}
-	spec = &apparmor.Specification{}
-	c.Assert(spec.SuppressHomeIx(), Equals, false)
-	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
-	c.Assert(spec.SuppressHomeIx(), Equals, true)
 }
 
 func (s *commonIfaceSuite) TestControlsDeviceCgroup(c *C) {

@@ -16,6 +16,8 @@ environment:
     # snap-id of 'pc-kernel' snap
     PC_KERNEL_ID: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
     START_REVISION: 1000
+    # uploading a large snap makes OOM kill snapd
+    SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -56,10 +58,12 @@ prepare: |
     cat <<EOF > rev-headers.json
     {"snap-id": "$PC_KERNEL_ID", "snap-revision": "$START_REVISION"}
     EOF
-    p=$(new_snap_declaration "$BLOB_DIR" pc-kernel_x1.snap --snap-decl-json decl-headers.json)
+    p=$(fakestore new-snap-declaration --dir "$BLOB_DIR" pc-kernel --snap-decl-json decl-headers.json)
     snap ack "$p"
-    p=$(new_snap_revision "$BLOB_DIR" pc-kernel_x1.snap --snap-rev-json rev-headers.json)
+    p=$(fakestore new-snap-revision --dir "$BLOB_DIR" pc-kernel_x1.snap --snap-rev-json rev-headers.json)
     snap ack "$p"
+    cp -av pc-kernel_x1.snap "$BLOB_DIR/"
+
     # new gadget
     cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
     unsquashfs -d pc-snap gadget.snap
@@ -78,10 +82,11 @@ prepare: |
     cat <<EOF > rev-headers.json
     {"snap-id": "$PC_SNAP_ID", "snap-revision": "$START_REVISION"}
     EOF
-    p=$(new_snap_declaration "$BLOB_DIR" pc_x1.snap --snap-decl-json decl-headers.json)
+    p=$(fakestore new-snap-declaration --dir "$BLOB_DIR" pc --snap-decl-json decl-headers.json)
     snap ack "$p"
-    p=$(new_snap_revision "$BLOB_DIR" pc_x1.snap --snap-rev-json rev-headers.json)
+    p=$(fakestore new-snap-revision --dir "$BLOB_DIR" pc_x1.snap --snap-rev-json rev-headers.json)
     snap ack "$p"
+    cp -av pc_x1.snap "$BLOB_DIR/"
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"

@@ -82,7 +82,7 @@ func (s *AppstreamMetadataInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 1)
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/var/cache/app-info/** r,`)
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/var/cache/{app-info,swcatalog}/** r,`)
 	c.Check(spec.UpdateNS(), testutil.Contains, "  # Read-only access to /usr/share/metainfo\n")
 }
 
@@ -92,15 +92,19 @@ func (s *AppstreamMetadataInterfaceSuite) TestMountConnectedPlug(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/metainfo"), 0777), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/appdata"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/app-info"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/app-info"), 0777), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/lib/app-info"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/swcatalog"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/swcatalog"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/lib/swcatalog"), 0777), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/lib/apt/lists"), 0777), IsNil)
+
+	c.Assert(os.Symlink("swcatalog", filepath.Join(tmpdir, "/usr/share/app-info")), IsNil)
+	c.Assert(os.Symlink("swcatalog", filepath.Join(tmpdir, "/var/cache/app-info")), IsNil)
+	c.Assert(os.Symlink("swcatalog", filepath.Join(tmpdir, "/var/lib/app-info")), IsNil)
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	entries := spec.MountEntries()
-	c.Assert(entries, HasLen, 6)
+	c.Assert(entries, HasLen, 9)
 
 	const hostfs = "/var/lib/snapd/hostfs"
 	c.Check(entries[0].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/usr/share/metainfo"))
@@ -111,16 +115,25 @@ func (s *AppstreamMetadataInterfaceSuite) TestMountConnectedPlug(c *C) {
 	c.Check(entries[1].Options, DeepEquals, []string{"bind", "ro"})
 	c.Check(entries[2].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/usr/share/app-info"))
 	c.Check(entries[2].Dir, Equals, "/usr/share/app-info")
-	c.Check(entries[2].Options, DeepEquals, []string{"bind", "ro"})
-	c.Check(entries[3].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/var/cache/app-info"))
-	c.Check(entries[3].Dir, Equals, "/var/cache/app-info")
+	c.Check(entries[2].Options, DeepEquals, []string{"x-snapd.kind=symlink", "x-snapd.symlink=swcatalog"})
+	c.Check(entries[3].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/usr/share/swcatalog"))
+	c.Check(entries[3].Dir, Equals, "/usr/share/swcatalog")
 	c.Check(entries[3].Options, DeepEquals, []string{"bind", "ro"})
-	c.Check(entries[4].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/var/lib/app-info"))
-	c.Check(entries[4].Dir, Equals, "/var/lib/app-info")
-	c.Check(entries[4].Options, DeepEquals, []string{"bind", "ro"})
-	c.Check(entries[5].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/var/lib/apt/lists"))
-	c.Check(entries[5].Dir, Equals, "/var/lib/apt/lists")
+	c.Check(entries[4].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/var/cache/app-info"))
+	c.Check(entries[4].Dir, Equals, "/var/cache/app-info")
+	c.Check(entries[4].Options, DeepEquals, []string{"x-snapd.kind=symlink", "x-snapd.symlink=swcatalog"})
+	c.Check(entries[5].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/var/cache/swcatalog"))
+	c.Check(entries[5].Dir, Equals, "/var/cache/swcatalog")
 	c.Check(entries[5].Options, DeepEquals, []string{"bind", "ro"})
+	c.Check(entries[6].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/var/lib/app-info"))
+	c.Check(entries[6].Dir, Equals, "/var/lib/app-info")
+	c.Check(entries[6].Options, DeepEquals, []string{"x-snapd.kind=symlink", "x-snapd.symlink=swcatalog"})
+	c.Check(entries[7].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/var/lib/swcatalog"))
+	c.Check(entries[7].Dir, Equals, "/var/lib/swcatalog")
+	c.Check(entries[7].Options, DeepEquals, []string{"bind", "ro"})
+	c.Check(entries[8].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/var/lib/apt/lists"))
+	c.Check(entries[8].Dir, Equals, "/var/lib/apt/lists")
+	c.Check(entries[8].Options, DeepEquals, []string{"bind", "ro"})
 }
 
 func (s *AppstreamMetadataInterfaceSuite) TestStaticInfo(c *C) {
@@ -129,6 +142,7 @@ func (s *AppstreamMetadataInterfaceSuite) TestStaticInfo(c *C) {
 	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.Summary, Equals, "allows access to AppStream metadata")
 	c.Check(si.BaseDeclarationSlots, testutil.Contains, "appstream-metadata")
+	c.Check(si.AffectsPlugOnRefresh, Equals, true)
 }
 
 func (s *AppstreamMetadataInterfaceSuite) TestInterfaces(c *C) {

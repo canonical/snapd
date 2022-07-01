@@ -30,8 +30,11 @@ execute: |
             ;;
         ubuntu-21.10-64)
             # Some mount units failing which are installed in the prebuilt image 
-            systemctl reset-failed snap-google-cloud-sdk-*.mount
-            systemctl reset-failed snap-lxd-*.mount
+            systemctl reset-failed --type mount
+            ;;
+        centos-8-*)
+            # tries to load ipmi_si module which fails with ENODEV
+            systemctl reset-failed systemd-modules-load.service
             ;;
     esac
 

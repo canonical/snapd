@@ -63,8 +63,9 @@ func (e *ValidationSetsConflictError) Error() string {
 // ValidationSetsValidationError describes an error arising
 // from validation of snaps against ValidationSets.
 type ValidationSetsValidationError struct {
-	// MissingSnaps maps missing snap names to the validation sets requiring them.
-	MissingSnaps map[string][]string
+	// MissingSnaps maps missing snap names to the expected revisions and respective validation sets requiring them.
+	// Revisions may be unset if no specific revision is required
+	MissingSnaps map[string]map[snap.Revision][]string
 	// InvalidSnaps maps snap names to the validation sets declaring them invalid.
 	InvalidSnaps map[string][]string
 	// WronRevisionSnaps maps snap names to the expected revisions and respective
@@ -94,9 +95,27 @@ func (e *ValidationSetsValidationError) Error() string {
 		}
 	}
 
-	printDetails("missing required snaps", e.MissingSnaps, func(snapName string, validationSetKeys []string) string {
-		return fmt.Sprintf("%s (required by sets %s)", snapName, strings.Join(validationSetKeys, ","))
-	})
+	if len(e.MissingSnaps) > 0 {
+		fmt.Fprintf(buf, "\n- missing required snaps:")
+		for snapName, revisions := range e.MissingSnaps {
+			revisionsSorted := make([]snap.Revision, 0, len(revisions))
+			for rev := range revisions {
+				revisionsSorted = append(revisionsSorted, rev)
+			}
+			sort.Sort(byRevision(revisionsSorted))
+			t := make([]string, 0, len(revisionsSorted))
+			for _, rev := range revisionsSorted {
+				keys := revisions[rev]
+				if rev.Unset() {
+					t = append(t, fmt.Sprintf("at any revision by sets %s", strings.Join(keys, ",")))
+				} else {
+					t = append(t, fmt.Sprintf("at revision %s by sets %s", rev, strings.Join(keys, ",")))
+				}
+			}
+			fmt.Fprintf(buf, "\n  - %s (required %s)", snapName, strings.Join(t, ", "))
+		}
+	}
+
 	printDetails("invalid snaps", e.InvalidSnaps, func(snapName string, validationSetKeys []string) string {
 		return fmt.Sprintf("%s (invalid for sets %s)", snapName, strings.Join(validationSetKeys, ","))
 	})
@@ -359,7 +378,7 @@ func (v *ValidationSets) Conflict() error {
 }
 
 // CheckInstalledSnaps checks installed snaps against the validation sets.
-func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
+func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValidation map[string]bool) error {
 	installed := naming.NewSnapSet(nil)
 	for _, sn := range snaps {
 		installed.Add(sn)
@@ -367,7 +386,7 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 
 	// snapName -> validationSet key -> validation set
 	invalid := make(map[string]map[string]bool)
-	missing := make(map[string]map[string]bool)
+	missing := make(map[string]map[snap.Revision]map[string]bool)
 	wrongrev := make(map[string]map[snap.Revision]map[string]bool)
 	sets := make(map[string]*asserts.ValidationSet)
 
@@ -376,6 +395,10 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 			for _, rc := range revCstr {
 				sn := installed.Lookup(rc)
 				isInstalled := sn != nil
+
+				if isInstalled && ignoreValidation[rc.Name] {
+					continue
+				}
 
 				switch {
 				case !isInstalled && (cstrs.presence == asserts.PresenceOptional || cstrs.presence == asserts.PresenceInvalid):
@@ -401,11 +424,18 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 						sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 					}
 				default:
-					// not installed but required
+					// not installed but required.
+					// note, not checking ignoreValidation here because it's not a viable scenario (it's not
+					// possible to have enforced validation set while not having the required snap at all - it
+					// is only possible to have it with a wrong revision, or installed while invalid, in both
+					// cases through --ignore-validation flag).
 					if missing[rc.Name] == nil {
-						missing[rc.Name] = make(map[string]bool)
+						missing[rc.Name] = make(map[snap.Revision]map[string]bool)
 					}
-					missing[rc.Name][rc.validationSetKey] = true
+					if missing[rc.Name][rev] == nil {
+						missing[rc.Name][rev] = make(map[string]bool)
+					}
+					missing[rc.Name][rev][rc.validationSetKey] = true
 					sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 				}
 			}
@@ -430,8 +460,19 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 	if len(invalid) > 0 || len(missing) > 0 || len(wrongrev) > 0 {
 		verr := &ValidationSetsValidationError{
 			InvalidSnaps: setsToLists(invalid),
-			MissingSnaps: setsToLists(missing),
 			Sets:         sets,
+		}
+		if len(missing) > 0 {
+			verr.MissingSnaps = make(map[string]map[snap.Revision][]string)
+			for snapName, revs := range missing {
+				verr.MissingSnaps[snapName] = make(map[snap.Revision][]string)
+				for rev, keys := range revs {
+					for key := range keys {
+						verr.MissingSnaps[snapName][rev] = append(verr.MissingSnaps[snapName][rev], key)
+					}
+					sort.Strings(verr.MissingSnaps[snapName][rev])
+				}
+			}
 		}
 		if len(wrongrev) > 0 {
 			verr.WrongRevisionSnaps = make(map[string]map[snap.Revision][]string)
@@ -495,7 +536,11 @@ func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]string
 	var keys []string
 	for rev, revCstr := range cstrs.revisions {
 		for _, rc := range revCstr {
-			keys = append(keys, rc.validationSetKey)
+			vs := v.sets[rc.validationSetKey]
+			if vs == nil {
+				return nil, unspecifiedRevision, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
+			}
+			keys = append(keys, strings.Join(vs.Ref().PrimaryKey, "/"))
 			// there may be constraints without revision; only set snapRev if
 			// it wasn't already determined. Note that if revisions are set,
 			// then they are the same, otherwise validation sets would be in
@@ -527,7 +572,11 @@ func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]string,
 	for _, revCstr := range cstrs.revisions {
 		for _, rc := range revCstr {
 			if rc.Presence == asserts.PresenceInvalid {
-				keys = append(keys, rc.validationSetKey)
+				vs := v.sets[rc.validationSetKey]
+				if vs == nil {
+					return nil, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
+				}
+				keys = append(keys, strings.Join(vs.Ref().PrimaryKey, "/"))
 			}
 		}
 	}

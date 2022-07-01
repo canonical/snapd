@@ -10,6 +10,8 @@ usr/bin/snap-seccomp /usr/lib/snapd/
 usr/bin/snap-bootstrap /usr/lib/snapd/
 usr/bin/snap-preseed /usr/lib/snapd/
 usr/bin/snap-recovery-chooser /usr/lib/snapd/
+usr/bin/snap-fde-keymgr /usr/lib/snapd/
+usr/bin/snapd-apparmor /usr/lib/snapd/
 
 # bash completion
 data/completion/bash/snap /usr/share/bash-completion/completions
@@ -42,12 +44,9 @@ usr/lib/snapd/snap-gdb-shim
 usr/lib/snapd/snap-gdbserver-shim
 
 # install squashfuse as snapfuse to ensure it is available in e.g. lxd
-c-vendor/squashfuse/src/snapfuse usr/bin
+c-vendor/squashfuse/snapfuse usr/bin
 
 # use "usr/lib" here because apparently systemd looks only there
 usr/lib/systemd/system-environment-generators
 # but system generators end up in lib
 lib/systemd/system-generators
-
-# service for loading apparmor profiles for snap applications
-usr/lib/snapd/snapd-apparmor

@@ -102,12 +102,13 @@ func (s *SnapSuite) TestDebugGetSetBootvarsWithParams(c *check.C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	err := bloader.SetBootVars(map[string]string{
-		"snapd_recovery_system":  "1234",
-		"snapd_recovery_mode":    "run",
-		"unrelated":              "thing",
-		"snap_kernel":            "pc-kernel_3.snap",
-		"recovery_system_status": "try",
-		"try_recovery_system":    "9999",
+		"snapd_recovery_system":       "1234",
+		"snapd_recovery_mode":         "run",
+		"unrelated":                   "thing",
+		"snap_kernel":                 "pc-kernel_3.snap",
+		"recovery_system_status":      "try",
+		"try_recovery_system":         "9999",
+		"snapd_good_recovery_systems": "0000",
 	})
 	c.Assert(err, check.IsNil)
 
@@ -122,6 +123,7 @@ snap_try_kernel=
 kernel_status=
 recovery_system_status=try
 try_recovery_system=9999
+snapd_good_recovery_systems=0000
 snapd_extra_cmdline_args=
 snapd_full_cmdline_args=
 `)
@@ -149,7 +151,7 @@ snapd_full_cmdline_args=
 		"foo": "recovery",
 	})
 
-	// but basic sanity checks are still done
+	// but basic validity checks are still done
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars", "--recovery", "--root-dir", boot.InitramfsUbuntuBootDir, "foo=recovery"})
 	c.Assert(err, check.ErrorMatches, "cannot use run bootloader root-dir with a recovery flag")
 }

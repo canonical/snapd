@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -39,8 +39,6 @@ import (
 type Backend interface {
 	Checkpoint(data []byte) error
 	EnsureBefore(d time.Duration)
-	// TODO: take flags to ask for reboot vs restart?
-	RequestRestart(t RestartType)
 }
 
 type customData map[string]*json.RawMessage
@@ -48,7 +46,7 @@ type customData map[string]*json.RawMessage
 func (data customData) get(key string, value interface{}) error {
 	entryJSON := data[key]
 	if entryJSON == nil {
-		return ErrNoState
+		return &NoStateError{Key: key}
 	}
 	err := json.Unmarshal(*entryJSON, value)
 	if err != nil {
@@ -73,25 +71,6 @@ func (data customData) set(key string, value interface{}) {
 	entryJSON := json.RawMessage(serialized)
 	data[key] = &entryJSON
 }
-
-type RestartType int
-
-const (
-	RestartUnset RestartType = iota
-	RestartDaemon
-	RestartSystem
-	// RestartSystemNow is like RestartSystem but action is immediate
-	RestartSystemNow
-	// RestartSocket will restart the daemon so that it goes into
-	// socket activation mode.
-	RestartSocket
-	// Stop just stops the daemon (used with image pre-seeding)
-	StopDaemon
-	// RestartSystemHaltNow will shutdown --halt the system asap
-	RestartSystemHaltNow
-	// RestartSystemPoweroffNow will shutdown --poweroff the system asap
-	RestartSystemPoweroffNow
-)
 
 // State represents an evolving system state that persists across restarts.
 //
@@ -118,10 +97,6 @@ type State struct {
 	modified bool
 
 	cache map[interface{}]interface{}
-
-	restarting RestartType
-	restartLck sync.Mutex
-	bootID     string
 }
 
 // New returns a new empty state.
@@ -263,72 +238,30 @@ func (s *State) EnsureBefore(d time.Duration) {
 	}
 }
 
-// RequestRestart asks for a restart of the managing process.
-// The state needs to be locked to request a RestartSystem.
-func (s *State) RequestRestart(t RestartType) {
-	if s.backend != nil {
-		switch t {
-		case RestartSystem, RestartSystemNow, RestartSystemHaltNow, RestartSystemPoweroffNow:
-			if s.bootID == "" {
-				panic("internal error: cannot request a system restart if current boot ID was not provided via VerifyReboot")
-			}
-			s.Set("system-restart-from-boot-id", s.bootID)
-		}
-		s.restartLck.Lock()
-		s.restarting = t
-		s.restartLck.Unlock()
-		s.backend.RequestRestart(t)
-	}
-}
-
-// Restarting returns whether a restart was requested with RequestRestart and of which type.
-func (s *State) Restarting() (bool, RestartType) {
-	s.restartLck.Lock()
-	defer s.restartLck.Unlock()
-	return s.restarting != RestartUnset, s.restarting
-}
-
-var ErrExpectedReboot = errors.New("expected reboot did not happen")
-
-// VerifyReboot checks if the state remembers that a system restart was
-// requested and whether it succeeded based on the provided current
-// boot id.  It returns ErrExpectedReboot if the expected reboot did
-// not happen yet.  It must be called early in the usage of state and
-// before an RequestRestart with RestartSystem is attempted.
-// It must be called with the state lock held.
-func (s *State) VerifyReboot(curBootID string) error {
-	var fromBootID string
-	err := s.Get("system-restart-from-boot-id", &fromBootID)
-	if err != nil && err != ErrNoState {
-		return err
-	}
-	s.bootID = curBootID
-	if fromBootID == "" {
-		return nil
-	}
-	if fromBootID == curBootID {
-		return ErrExpectedReboot
-	}
-	// we rebooted alright
-	s.ClearReboot()
-	return nil
-}
-
-// ClearReboot clears state information about tracking requested reboots.
-func (s *State) ClearReboot() {
-	s.Set("system-restart-from-boot-id", nil)
-}
-
-func MockRestarting(s *State, restarting RestartType) RestartType {
-	s.restartLck.Lock()
-	defer s.restartLck.Unlock()
-	old := s.restarting
-	s.restarting = restarting
-	return old
-}
-
 // ErrNoState represents the case of no state entry for a given key.
 var ErrNoState = errors.New("no state entry for key")
+
+// NoStateError represents the case where no state could be found for a given key.
+type NoStateError struct {
+	// Key is the key for which no state could be found.
+	Key string
+}
+
+func (e *NoStateError) Error() string {
+	var keyMsg string
+	if e.Key != "" {
+		keyMsg = fmt.Sprintf(" %q", e.Key)
+	}
+
+	return fmt.Sprintf("no state entry for key%s", keyMsg)
+}
+
+// Is returns true if the error is of type *NoStateError or equal to ErrNoState.
+// NoStateError's key isn't compared between errors.
+func (e *NoStateError) Is(err error) bool {
+	_, ok := err.(*NoStateError)
+	return ok || errors.Is(err, ErrNoState)
+}
 
 // Get unmarshals the stored value associated with the provided key
 // into the value parameter.
@@ -494,7 +427,7 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 				chg.Abort()
 				delete(s.changes, chg.ID())
 			} else if spawnTime.Before(abortLimit) {
-				chg.Abort()
+				chg.AbortUnreadyLanes()
 			}
 			continue
 		}
@@ -520,8 +453,7 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 
 // GetMaybeTimings implements timings.GetSaver
 func (s *State) GetMaybeTimings(timings interface{}) error {
-	err := s.Get("timings", timings)
-	if err != nil && err != ErrNoState {
+	if err := s.Get("timings", timings); err != nil && !errors.Is(err, ErrNoState) {
 		return err
 	}
 	return nil

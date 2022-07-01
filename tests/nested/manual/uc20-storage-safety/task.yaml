@@ -1,6 +1,6 @@
 summary: Test that storage-safety prefer-unencrypted works
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
     NESTED_ENABLE_TPM: true
@@ -9,7 +9,7 @@ environment:
     NESTED_USE_CLOUD_INIT: true
 
     MODEL_STORAGE_SAFETY/preferunencrypted: prefer-unencrypted
-    NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-storage-safety-${MODEL_STORAGE_SAFETY}.model
+    NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-storage-safety-${MODEL_STORAGE_SAFETY}.model
     NESTED_IMAGE_ID: core20-storage-safety-${MODEL_STORAGE_SAFETY}
     NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
     NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
@@ -20,9 +20,6 @@ prepare: |
         exit
     fi
   
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
 
@@ -57,9 +54,6 @@ execute: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
 
     echo "Verify that no fde keys are generated"
     tests.nested exec "test ! -d /var/lib/snapd/device/fde"

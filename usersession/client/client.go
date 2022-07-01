@@ -52,6 +52,7 @@ func dialSessionAgent(network, address string) (net.Conn, error) {
 
 type Client struct {
 	doer *http.Client
+	uids []int
 }
 
 func New() *Client {
@@ -59,6 +60,14 @@ func New() *Client {
 	return &Client{
 		doer: &http.Client{Transport: transport},
 	}
+}
+
+// NewForUids creates a Client that sends requests to a specific list of uids
+// only.
+func NewForUids(uids ...int) *Client {
+	cli := New()
+	cli.uids = append(cli.uids, uids...)
+	return cli
 }
 
 type Error struct {
@@ -94,6 +103,49 @@ func (resp *response) checkError() {
 	}
 }
 
+func (client *Client) sendRequest(ctx context.Context, socket string, method, urlpath string, query url.Values, headers map[string]string, body []byte) *response {
+	uidStr := filepath.Base(filepath.Dir(socket))
+	uid, err := strconv.Atoi(uidStr)
+	if err != nil {
+		// Ignore directories that do not
+		// appear to be valid XDG runtime dirs
+		// (i.e. /run/user/NNNN).
+		return nil
+	}
+	response := &response{uid: uid}
+
+	u := url.URL{
+		Scheme:   "http",
+		Host:     uidStr,
+		Path:     urlpath,
+		RawQuery: query.Encode(),
+	}
+	req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(body))
+	if err != nil {
+		response.err = fmt.Errorf("internal error: %v", err)
+		return response
+	}
+	req = req.WithContext(ctx)
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	httpResp, err := client.doer.Do(req)
+	if err != nil {
+		response.err = err
+		return response
+	}
+	defer httpResp.Body.Close()
+	response.statusCode = httpResp.StatusCode
+	response.err = decodeInto(httpResp.Body, &response)
+	response.checkError()
+	return response
+}
+
+// doMany sends the given request to all active user sessions or a subset of them
+// defined by optional client.uids field. Please be careful when using this
+// method, because it is not aware of the physical user who triggered the request
+// and blindly forwards it to all logged in users. Some of them might not have
+// the right to see the request (let alone to respond to it).
 func (client *Client) doMany(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body []byte) ([]*response, error) {
 	sockets, err := filepath.Glob(filepath.Join(dirs.XdgRuntimeDirGlob, "snapd-session-agent.socket"))
 	if err != nil {
@@ -104,49 +156,35 @@ func (client *Client) doMany(ctx context.Context, method, urlpath string, query 
 		mu        sync.Mutex
 		responses []*response
 	)
+
+	var uids map[string]bool
+	if len(client.uids) > 0 {
+		uids = make(map[string]bool)
+		for _, uid := range client.uids {
+			uids[fmt.Sprintf("%d", uid)] = true
+		}
+	}
+
 	for _, socket := range sockets {
+		// filter out sockets based on uids
+		if len(uids) > 0 {
+			// XXX: alternatively we could Stat() the socket and
+			// and check Uid field of stat.Sys().(*syscall.Stat_t), but it's
+			// more annyoing to unit-test.
+			userPart := filepath.Base(filepath.Dir(socket))
+			if !uids[userPart] {
+				continue
+			}
+		}
 		wg.Add(1)
 		go func(socket string) {
 			defer wg.Done()
-			uidStr := filepath.Base(filepath.Dir(socket))
-			uid, err := strconv.Atoi(uidStr)
-			if err != nil {
-				// Ignore directories that do not
-				// appear to be valid XDG runtime dirs
-				// (i.e. /run/user/NNNN).
-				return
-			}
-			response := response{uid: uid}
-			defer func() {
+			response := client.sendRequest(ctx, socket, method, urlpath, query, headers, body)
+			if response != nil {
 				mu.Lock()
 				defer mu.Unlock()
-				responses = append(responses, &response)
-			}()
-
-			u := url.URL{
-				Scheme:   "http",
-				Host:     uidStr,
-				Path:     urlpath,
-				RawQuery: query.Encode(),
+				responses = append(responses, response)
 			}
-			req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(body))
-			if err != nil {
-				response.err = fmt.Errorf("internal error: %v", err)
-				return
-			}
-			req = req.WithContext(ctx)
-			for key, value := range headers {
-				req.Header.Set(key, value)
-			}
-			httpResp, err := client.doer.Do(req)
-			if err != nil {
-				response.err = err
-				return
-			}
-			defer httpResp.Body.Close()
-			response.statusCode = httpResp.StatusCode
-			response.err = decodeInto(httpResp.Body, &response)
-			response.checkError()
 		}(socket)
 	}
 	wg.Wait()
@@ -285,5 +323,21 @@ func (client *Client) PendingRefreshNotification(ctx context.Context, refreshInf
 		return err
 	}
 	_, err = client.doMany(ctx, "POST", "/v1/notifications/pending-refresh", nil, headers, reqBody)
+	return err
+}
+
+// FinishedSnapRefreshInfo holds information about a finished refresh provided to userd.
+type FinishedSnapRefreshInfo struct {
+	InstanceName string `json:"instance-name"`
+}
+
+// FinishRefreshNotification closes notification about a snap refresh.
+func (client *Client) FinishRefreshNotification(ctx context.Context, closeInfo *FinishedSnapRefreshInfo) error {
+	headers := map[string]string{"Content-Type": "application/json"}
+	reqBody, err := json.Marshal(closeInfo)
+	if err != nil {
+		return err
+	}
+	_, err = client.doMany(ctx, "POST", "/v1/notifications/finish-refresh", nil, headers, reqBody)
 	return err
 }

@@ -1,13 +1,12 @@
 summary: Integration tests for the bootstrap.Run autodetect
 
 # use the same system and tooling as uc20
-systems: [ubuntu-20.04-64]
+systems:
+  - ubuntu-20.04-64
+  - ubuntu-22.04-64
 
 environment:
-    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
-    # packages referenced by their import paths while under the tests directory,
-    # need to disable go modules support for this test
-    GO111MODULE: off
+    SNAPD_DEBUG: "1"
 
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
@@ -49,11 +48,19 @@ restore: |
     if [ -f loop.txt ]; then
         LOOP="$(cat loop.txt)"
         losetup -d "$LOOP"
+        sync
         losetup -l | NOMATCH "$LOOP"
     fi
 
 debug: |
     cat /proc/partitions
+    LOOP="$(cat loop.txt)"
+    udevadm info --query property "${LOOP}" || true
+    udevadm info --query property "${LOOP}p1" || true
+    udevadm info --query property "${LOOP}p2" || true
+    udevadm info --query property "${LOOP}p3" || true
+    udevadm info --query property "${LOOP}p4" || true
+    udevadm info --query property "${LOOP}p5" || true
 
 execute: |
     LOOP="$(cat loop.txt)"
@@ -62,7 +69,6 @@ execute: |
     udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
 
     echo "Run the snap-bootstrap tool in auto-detect mode"
-    go get ../../lib/uc20-create-partitions
     # TODO:UC20: make kernel-dir non-empty once we have a gadget that has a
     #            "$kernel:" style ref in the meta/gadget.yaml
     kerneldir=""

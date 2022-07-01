@@ -8,6 +8,9 @@ apps:
   account-control:
     command: bin/run
     plugs: [ account-control ]
+  acrn-support:
+    command: bin/run
+    plugs: [ acrn-support ]
   adb-support:
     command: bin/run
     plugs: [ adb-support ]
@@ -83,6 +86,9 @@ apps:
   cups-control:
     command: bin/run
     plugs: [ cups-control ]
+  custom-device:
+    command: bin/run
+    plugs: [ custom-device ]
   dbus-session:
     command: bin/run
     plugs: [ dbus-session ]
@@ -194,6 +200,9 @@ apps:
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
+  ion-memory-control:
+    command: bin/run
+    plugs: [ ion-memory-control ]
   jack1:
     command: bin/run
     plugs: [ jack1 ]
@@ -209,6 +218,9 @@ apps:
   kernel-module-control:
     command: bin/run
     plugs: [ kernel-module-control ]
+  kernel-module-load:
+    command: bin/run
+    plugs: [ kernel-module-load ]
   kernel-module-observe:
     command: bin/run
     plugs: [ kernel-module-observe ]
@@ -254,12 +266,18 @@ apps:
   media-hub:
     command: bin/run
     plugs: [ media-hub ]
+  microstack-support:
+    command: bin/run
+    plugs: [ microstack-support ]
   mir:
     command: bin/run
     plugs: [ mir ]
   modem-manager:
     command: bin/run
     plugs: [ modem-manager ]
+  mount-control:
+    command: bin/run
+    plugs: [ mount-control ]
   mount-observe:
     command: bin/run
     plugs: [ mount-observe ]
@@ -332,6 +350,15 @@ apps:
   physical-memory-observe:
     command: bin/run
     plugs: [ physical-memory-observe ]
+  pkcs11:
+    command: bin/run
+    plugs: [ pkcs11 ]
+  polkit:
+    command: bin/run
+    plugs: [ polkit ]
+  posix-mq:
+    command: bin/run
+    plugs: [ posix-mq ]
   power-control:
     command: bin/run
     plugs: [ power-control ]
@@ -347,6 +374,9 @@ apps:
   pulseaudio:
     command: bin/run
     plugs: [ pulseaudio ]
+  qualcomm-ipc-router:
+    command: bin/run
+    plugs: [ qualcomm-ipc-router ]
   raw-input:
     command: bin/run
     plugs: [ raw-input ]
@@ -365,12 +395,21 @@ apps:
   screencast-legacy:
     command: bin/run
     plugs: [ screencast-legacy ]
+  scsi-generic:
+    command: bin/run
+    plugs: [ scsi-generic ]
   shutdown:
     command: bin/run
     plugs: [ shutdown ]
   snapd-control:
     command: bin/run
     plugs: [ snapd-control ]
+  snap-refresh-control:
+    command: bin/run
+    plugs: [ snap-refresh-control ]
+  snap-themes-control:
+    command: bin/run
+    plugs: [ snap-themes-control ]
   service-watchdog:
     command: bin/run
     plugs: [ daemon-notify ]
@@ -380,12 +419,18 @@ apps:
   sd-control:
     command: bin/run
     plugs: [ sd-control ]
+  shared-memory:
+    command: bin/run
+    plugs: [ shared-memory ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]
   ssh-public-keys:
     command: bin/run
     plugs: [ ssh-public-keys ]
+  steam-support:
+    command: bin/run
+    plugs: [ steam-support ]
   storage-framework-service:
     command: bin/run
     plugs: [ storage-framework-service ]
@@ -398,9 +443,9 @@ apps:
   system-trace:
     command: bin/run
     plugs: [ system-trace ]
-  dummy:
+  empty:
     command: bin/run
-    plugs: [ dummy ]
+    plugs: [ empty ]
   tee:
     command: bin/run
     plugs: [ tee ]
@@ -461,6 +506,9 @@ apps:
   x11:
     command: bin/run
     plugs: [ x11 ]
+  xilinx-dma:
+    command: bin/run
+    plugs: [ xilinx-dma ]
 
 plugs:
   browser-sandbox:
@@ -470,6 +518,9 @@ plugs:
     interface: content
     content: test-content
     target: $SNAP/content
+  custom-device:
+    interface: custom-device
+    custom-device: mydevice
   dbus-session:
     interface: dbus
     bus: session
@@ -478,6 +529,23 @@ plugs:
     interface: dbus
     bus: system
     name: test.system
+  kernel-module-load:
+    interface: kernel-module-load
+    modules:
+      - name: mymodule
+        load: denied
+  mount-control:
+    interface: mount-control
+    mount:
+      - what: /dev/sda1
+        where: /media/myfiles
+        options: [rw]
+  polkit:
+    interface: polkit
+    action-prefix: io.snapcraft.example
+  shared-memory:
+    interface: shared-memory
+    private: true
   system-files:
     interface: system-files
     read: [/file1]
@@ -486,8 +554,8 @@ plugs:
     interface: personal-files
     read: [$HOME/file1]
     write: [$HOME/dir1]
-  dummy:
-    interface: dummy
+  empty:
+    interface: empty
   sd-control:
     interface: sd-control
     flavor: dual-sd

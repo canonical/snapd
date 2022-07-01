@@ -1,7 +1,7 @@
 summary: Check that a broken kernel snap automatically rolls itself back
 
 # TODO:UC20: write equivalent test for base snap failover
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 prepare: |
   echo "Build a broken kernel snap where the initramfs panic's"
@@ -9,22 +9,20 @@ prepare: |
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB/prepare.sh"
 
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   # use the kernel snap from the nested VM and repack it so that it panic's in
   # the initramfs and rolls back to the original version
   # TODO:UC20: this doesn't work for some reason when we copy it from the 
   #            running system, we should look into that, but for now just 
   #            re-download the snap
-  snap download pc-kernel --channel=20/edge --basename=pc-kernel
+  version=20
+  if tests.nested is-nested uc22; then
+    version=22
+  fi
+  snap download pc-kernel --channel="$version/edge" --basename=pc-kernel
   uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
   mv pc-kernel_*.snap panicking-initramfs-kernel.snap
 
 execute: |
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   echo "Copy the broken initramfs kernel snap to the UC20 VM"
   tests.nested copy panicking-initramfs-kernel.snap
 
@@ -42,7 +40,7 @@ execute: |
     exit 1
   fi
 
-  boot_id="$( nested_get_boot_id )"
+  boot_id="$( tests.nested boot-id )"
 
   echo "Install it and get the ID for the change"
   REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous panicking-initramfs-kernel.snap --no-wait)

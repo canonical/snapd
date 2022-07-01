@@ -1,5 +1,9 @@
 summary: Ensure network retry works correctly
 
+environment:
+    # on core systems, the test was seen to misbehave when memory limit is set
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 prepare: |
     echo "Break DNS"
     if os.query is-core; then

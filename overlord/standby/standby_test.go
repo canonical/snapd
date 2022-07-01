@@ -1,6 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,6 +23,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -126,11 +128,13 @@ func (s *standbySuite) TestStartChecks(c *C) {
 	ch2 := make(chan struct{})
 
 	defer standby.MockStandbyWait(time.Millisecond)()
-	defer standby.MockStateRequestRestart(func(_ *state.State, t state.RestartType) {
-		c.Check(t, Equals, state.RestartSocket)
+	s.state.Lock()
+	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+		c.Check(t, Equals, restart.RestartSocket)
 		n++
 		ch2 <- struct{}{}
-	})()
+	}))
+	s.state.Unlock()
 
 	m := standby.New(s.state)
 	m.AddOpinion(opine(func() bool {
@@ -156,9 +160,11 @@ func (s *standbySuite) TestStartChecks(c *C) {
 
 func (s *standbySuite) TestStopWaits(c *C) {
 	defer standby.MockStandbyWait(time.Millisecond)()
-	defer standby.MockStateRequestRestart(func(*state.State, state.RestartType) {
+	s.state.Lock()
+	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		c.Fatal("request restart should have not been called")
-	})()
+	}))
+	s.state.Unlock()
 
 	ch := make(chan struct{})
 	opineReady := make(chan struct{})

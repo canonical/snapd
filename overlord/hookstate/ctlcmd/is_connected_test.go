@@ -134,7 +134,7 @@ var isConnectedTests = []struct {
 	exitCode: ctlcmd.ClassicSnapCode,
 }}
 
-func mockInstalledSnap(c *C, st *state.State, snapYaml string) {
+func mockInstalledSnap(c *C, st *state.State, snapYaml, cohortKey string) {
 	info := snaptest.MockSnapCurrent(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
 	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
 		Active: true,
@@ -145,7 +145,9 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string) {
 				SnapID:   info.InstanceName() + "-id",
 			},
 		},
-		Current: info.Revision,
+		Current:         info.Revision,
+		TrackingChannel: "stable",
+		CohortKey:       cohortKey,
 	})
 }
 
@@ -164,11 +166,11 @@ slots:
   cc:
     interface: cups-control
   audio-record:
-    interface: audio-record`)
+    interface: audio-record`, "")
 	mockInstalledSnap(c, s.st, `name: snap2
 slots:
   slot2:
-    interface: x11`)
+    interface: x11`, "")
 	mockInstalledSnap(c, s.st, `name: snap3
 plugs:
   plug4:
@@ -177,16 +179,16 @@ plugs:
     interface: cups-control
 slots:
   slot3:
-    interface: x11`)
+    interface: x11`, "")
 	mockInstalledSnap(c, s.st, `name: snap4
 slots:
   slot4:
-    interface: x11`)
+    interface: x11`, "")
 	mockInstalledSnap(c, s.st, `name: snap5
 confinement: classic
 plugs:
   cc:
-    interface: cups-control`)
+    interface: cups-control`, "")
 	restore := ctlcmd.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
 		switch {
 		case 1000 < pid && pid < 1100:
@@ -249,7 +251,7 @@ func (s *isConnectedSuite) TestIsConnectedFromApp(c *C) {
 	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
 	c.Check(err, IsNil)
 
-	// sanity
+	// validity
 	c.Assert(mockContext.IsEphemeral(), Equals, true)
 
 	s.testIsConnected(c, mockContext)
@@ -257,7 +259,7 @@ func (s *isConnectedSuite) TestIsConnectedFromApp(c *C) {
 
 func (s *isConnectedSuite) TestNoContextError(c *C) {
 	stdout, stderr, err := ctlcmd.Run(nil, []string{"is-connected", "foo"}, 0)
-	c.Check(err, ErrorMatches, `cannot check connection status without a context`)
+	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "is-connected"\) from outside of a snap`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }
@@ -268,7 +270,7 @@ func (s *isConnectedSuite) TestGetRegularUser(c *C) {
 	mockInstalledSnap(c, s.st, `name: snap1
 plugs:
   plug1:
-    interface: x11`)
+    interface: x11`, "")
 
 	s.st.Set("conns", map[string]interface{}{
 		"snap1:plug1 snap2:slot2": map[string]interface{}{},

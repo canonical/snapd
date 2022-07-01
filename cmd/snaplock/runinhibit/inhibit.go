@@ -115,7 +115,7 @@ func Unlock(snapName string) error {
 
 // IsLocked returns the state of the run inhibition lock for the given snap.
 //
-// It returns the current, non-empty hit if inhibition is in place. Otherwise
+// It returns the current, non-empty hint if inhibition is in place. Otherwise
 // it returns an empty hint.
 func IsLocked(snapName string) (Hint, error) {
 	fname := filepath.Join(InhibitDir, snapName+".lock")

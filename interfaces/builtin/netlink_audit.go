@@ -19,6 +19,14 @@
 
 package builtin
 
+import (
+	"errors"
+
+	"github.com/snapcore/snapd/interfaces"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/strutil"
+)
+
 const netlinkAuditSummary = `allows access to kernel audit system through netlink`
 
 const netlinkAuditBaseDeclarationSlots = `
@@ -51,8 +59,31 @@ capability audit_read,
 capability audit_write,
 `
 
+type netlinkAuditInterface struct {
+	commonInterface
+}
+
+func (iface *netlinkAuditInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
+	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Unsupported {
+		// no apparmor means we don't have to deal with parser features
+		return nil
+	}
+	features, err := apparmor_sandbox.ParserFeatures()
+	if err != nil {
+		return err
+	}
+
+	if !strutil.ListContains(features, "cap-audit-read") {
+		// the host system doesn't have the required feature to compile the
+		// policy (that happens in 14.04)
+		return errors.New("cannot connect plug on system without audit_read support")
+	}
+
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
+	registerIface(&netlinkAuditInterface{commonInterface{
 		name:                  "netlink-audit",
 		summary:               netlinkAuditSummary,
 		implicitOnCore:        true,
@@ -60,5 +91,5 @@ func init() {
 		baseDeclarationSlots:  netlinkAuditBaseDeclarationSlots,
 		connectedPlugSecComp:  netlinkAuditConnectedPlugSecComp,
 		connectedPlugAppArmor: netlinkAuditConnectedPlugAppArmor,
-	})
+	}})
 }

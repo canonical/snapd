@@ -80,6 +80,8 @@ func (s *KernelModuleControlInterfaceSuite) TestSanitizePlug(c *C) {
 func (s *KernelModuleControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.SuppressSysModuleCapability(), Equals, false)
+	c.Check(spec.UsesSysModuleCapability(), Equals, true)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "capability sys_module,")
 }

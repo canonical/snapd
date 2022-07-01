@@ -67,7 +67,7 @@ func (s *unsetSuite) TestUnsetOne(c *C) {
 	tr.Commit()
 	s.mockContext.State().Unlock()
 
-	// Sanity check
+	// Validity check
 	var value interface{}
 	s.mockContext.State().Lock()
 	tr = config.NewTransaction(s.mockContext.State())
@@ -158,5 +158,5 @@ func (s *unsetSuite) TestUnsetHelpRegularUserAllowed(c *C) {
 
 func (s *unsetSuite) TestCommandWithoutContext(c *C) {
 	_, _, err := ctlcmd.Run(nil, []string{"unset", "foo"}, 0)
-	c.Check(err, ErrorMatches, ".*cannot unset without a context.*")
+	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "unset"\) from outside of a snap`)
 }

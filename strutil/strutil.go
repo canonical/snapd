@@ -21,13 +21,15 @@ package strutil
 
 import (
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
-// Convert the given size in btes to a readable string
+// SizeToStr converts the given size in bytes to a readable string
 func SizeToStr(size int64) string {
 	suffixes := []string{"B", "kB", "MB", "GB", "TB", "PB", "EB"}
 	for _, suf := range suffixes {
@@ -37,6 +39,19 @@ func SizeToStr(size int64) string {
 		size /= 1000
 	}
 	panic("SizeToStr got a size bigger than math.MaxInt64")
+}
+
+// IntsToCommaSeparated converts an int array to a comma-separated string without whitespace
+func IntsToCommaSeparated(vals []int) string {
+	b := &strings.Builder{}
+	last := len(vals) - 1
+	for i, v := range vals {
+		b.WriteString(strconv.Itoa(v))
+		if i != last {
+			b.WriteRune(',')
+		}
+	}
+	return b.String()
 }
 
 // Quoted formats a slice of strings to a quoted list of
@@ -245,4 +260,98 @@ func ElliptLeft(str string, n int) string {
 	}
 
 	return "…" + string(rstr[len(rstr)-n+1:])
+}
+
+// Deduplicate returns a newly allocated slice with the same contents
+// as the input, excluding duplicates.
+func Deduplicate(sl []string) []string {
+	dedup := make([]string, 0, len(sl))
+	seen := make(map[string]struct{}, len(sl))
+
+	for _, str := range sl {
+		if _, ok := seen[str]; !ok {
+			seen[str] = struct{}{}
+			dedup = append(dedup, str)
+		}
+	}
+
+	return dedup
+}
+
+// runesLastIndexSpace returns the index of the last whitespace rune
+// in the text. If the text has no whitespace, returns -1.
+func runesLastIndexSpace(text []rune) int {
+	for i := len(text) - 1; i >= 0; i-- {
+		if unicode.IsSpace(text[i]) {
+			return i
+		}
+	}
+	return -1
+}
+
+// WordWrap wraps the given text to the given width, prefixing the
+// first line with indent and the remaining lines with indent2
+func WordWrap(out io.Writer, text []rune, indent, indent2 string, termWidth int) error {
+	// Note: this is _wrong_ for much of unicode (because the width of a rune on
+	//       the terminal is anything between 0 and 2, not always 1 as this code
+	//       assumes) but fixing that is Hard. Long story short, you can get close
+	//       using a couple of big unicode tables (which is what wcwidth
+	//       does). Getting it 100% requires a terminfo-alike of unicode behaviour.
+	//       However, before this we'd count bytes instead of runes, so we'd be
+	//       even more broken. Think of it as successive approximations... at least
+	//       with this work we share tabwriter's opinion on the width of things!
+	indentWidth := utf8.RuneCountInString(indent)
+	delta := indentWidth - utf8.RuneCountInString(indent2)
+	width := termWidth - indentWidth
+	if width < 1 {
+		width = 1
+	}
+
+	// establish the indent of the whole block
+	var err error
+	for len(text) > width && err == nil {
+		// find a good place to chop the text
+		idx := runesLastIndexSpace(text[:width+1])
+		if idx < 0 {
+			// there's no whitespace; just chop at line width
+			idx = width
+		}
+		_, err = fmt.Fprint(out, indent, string(text[:idx]), "\n")
+		// prune any remaining whitespace before the start of the next line
+		for idx < len(text) && unicode.IsSpace(text[idx]) {
+			idx++
+		}
+		text = text[idx:]
+		width += delta
+		indent = indent2
+		delta = 0
+	}
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(out, indent, string(text), "\n")
+	return err
+}
+
+// WordWrapPadded wraps the given text, assumed to be part of a block-style yaml
+// string, to fit into termWidth, preserving the line's indent, and
+// writes it out prepending padding to each line.
+func WordWrapPadded(out io.Writer, text []rune, pad string, termWidth int) error {
+	// discard any trailing whitespace
+	text = []rune(strings.TrimRightFunc(string(text), unicode.IsSpace))
+	// establish the indent of the whole block
+	idx := 0
+	for idx < len(text) && unicode.IsSpace(text[idx]) {
+		idx++
+	}
+	indent := pad + string(text[:idx])
+	text = text[idx:]
+	if len(indent) > termWidth/2 {
+		// If indent is too big there's not enough space for the actual
+		// text, in the pathological case the indent can even be bigger
+		// than the terminal which leads to lp:1828425.
+		// Rather than let that happen, give up.
+		indent = pad + "  "
+	}
+	return WordWrap(out, text, indent, indent, termWidth)
 }

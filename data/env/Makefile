@@ -15,22 +15,35 @@
 
 SNAP_MOUNT_DIR := /snap
 ENVD := /etc/profile.d
+DATADIR ?= /usr/share
 
 %.sh: %.sh.in
 	sed   < $< > $@ \
 		s:@SNAP_MOUNT_DIR@:${SNAP_MOUNT_DIR}:g
 
-GENERATED = snapd.sh
+%.fish: %.fish.in
+	sed   < $< > $@ \
+		s:@SNAP_MOUNT_DIR@:${SNAP_MOUNT_DIR}:g
 
+GENERATED_SH = snapd.sh
+GENERATED_FISH = snapd.fish
+GENERATED = ${GENERATED_SH} ${GENERATED_FISH}
 
 all: ${GENERATED}
 .PHONY: all
 
-install: ${GENERATED}
+install-sh: ${GENERATED_SH}
 	# NOTE: old (e.g. 14.04) GNU coreutils doesn't -D with -t
 	install -d -m 0755 ${DESTDIR}/${ENVD}
 	install -m 0644 -t ${DESTDIR}/${ENVD} $^
-.PHONY: install
+
+# fish uses a separate directory to store vendor configuration files
+install-fish: ${GENERATED_FISH}
+	install -d -m 0755 ${DESTDIR}/${DATADIR}/fish/vendor_conf.d
+	install -m 0644 -t ${DESTDIR}/${DATADIR}/fish/vendor_conf.d $^
+
+install: install-sh install-fish
+.PHONY: install install-sh install-fish
 
 clean:
 	$(RM) ${GENERATED}

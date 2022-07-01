@@ -2,9 +2,17 @@ summary: Check that refreshing snapd does not interfere with snap services
 
 # TODO: we should also run it on classic later
 
-systems: [ubuntu-core-18-*, ubuntu-core-20-*]
+systems:
+  - ubuntu-core-18-*
+  - ubuntu-core-20-*
+  # TODO: 2.49.2 does not work on UC22 because of ABI breakage and missing
+  # libgcc_s.so.1
+  # - ubuntu-core-22-*
 
 environment:
+  # uploading the snapd snap triggers OOM
+  SNAPD_NO_MEMORY_LIMIT: 1
+
   SNAPD_VERSION_UNDER_TEST/start_w_pr: pr
   SNAPD_VERSION_UNDER_TEST/start_w_stable: stable
   SNAPD_VERSION_UNDER_TEST/start_w_2_49_2: "2.49.2"
@@ -23,7 +31,7 @@ prepare: |
   # install http snap to download files, jq + remarshal to simplify the check if
   # stable == 2.49.2 so we can skip that case automatically until a new version
   # is released to stable
-  snap install http --devmode # devmode so it can save to any dir
+  snap install test-snapd-curl --edge --devmode # devmode so it can save to any dir
   snap install jq remarshal
   # save the current version of snapd for later
   INITIAL_REV=$(snap list snapd | tail -n +2 | awk '{print $3}')
@@ -62,11 +70,11 @@ execute: |
   # introduced so we can install a snap service that will not have Requires= in
   # it
   if os.query is-pc-amd64; then
-    http --quiet --download --output snapd_2.49.1.snap GET "$SNAPD_2_49_1_X86"
+    test-snapd-curl.curl -s -o snapd_2.49.1.snap "$SNAPD_2_49_1_X86"
   elif os.query is-arm64; then
-    http --quiet --download --output snapd_2.49.1.snap GET "$SNAPD_2_49_1_ARM64"
+    test-snapd-curl.curl -s -o snapd_2.49.1.snap "$SNAPD_2_49_1_ARM64"
   elif os.query is-armhf; then
-    http --quiet --download --output snapd_2.49.1.snap GET "$SNAPD_2_49_1_ARMHF"
+    test-snapd-curl.curl -s -o snapd_2.49.1.snap "$SNAPD_2_49_1_ARMHF"
   fi
 
   snap install --dangerous snapd_2.49.1.snap
@@ -93,11 +101,11 @@ execute: |
   elif [ "${SNAPD_VERSION_UNDER_TEST}" = "2.49.2" ]; then
     # download and install snapd 2.49.2
     if os.query is-pc-amd64; then
-      http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2_X86"
+      test-snapd-curl.curl -s -o snapd_2.49.2.snap "$SNAPD_2_49_2_X86"
     elif os.query is-arm64; then
-      http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2_ARM64"
+      test-snapd-curl.curl -s -o snapd_2.49.2.snap "$SNAPD_2_49_2_ARM64"
     elif os.query is-armhf; then
-      http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2_ARMHF"
+      test-snapd-curl.curl -s -o snapd_2.49.2.snap "$SNAPD_2_49_2_ARMHF"
     fi
 
     echo "Refreshing snapd to 2.49.2"

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,8 @@
 package asserts_test
 
 import (
+	"strings"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -535,5 +537,99 @@ func (mbss *memBackstoreSuite) TestSequenceMemberAfter(c *C) {
 	_, err = bs.SequenceMemberAfter(asserts.TestOnlySeqType, []string{"s2"}, -1, 2)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.TestOnlySeqType,
+	})
+}
+
+func (mbss *memBackstoreSuite) TestOptionalPrimaryKeys(c *C) {
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	defer r()
+	bs := mbss.bs
+
+	a1, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: k1\n" +
+		"marker: a1\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a1)
+	c.Assert(err, IsNil)
+
+	a2, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: k2\n" +
+		"opt1: A\n" +
+		"marker: a2\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a2)
+	c.Assert(err, IsNil)
+
+	a, err := bs.Get(asserts.TestOnlyType, []string{"k1"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(a.Ref().PrimaryKey, DeepEquals, []string{"k1", "o1-defl"})
+	c.Check(a.HeaderString("marker"), Equals, "a1")
+
+	a, err = bs.Get(asserts.TestOnlyType, []string{"k1", "o1-defl"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(a.Ref().PrimaryKey, DeepEquals, []string{"k1", "o1-defl"})
+	c.Check(a.HeaderString("marker"), Equals, "a1")
+
+	a, err = bs.Get(asserts.TestOnlyType, []string{"k2", "A"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(a.Ref().PrimaryKey, DeepEquals, []string{"k2", "A"})
+	c.Check(a.HeaderString("marker"), Equals, "a2")
+
+	a, err = bs.Get(asserts.TestOnlyType, []string{"k2"}, 0)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+	})
+
+	a, err = bs.Get(asserts.TestOnlyType, []string{}, 0)
+	c.Check(err, ErrorMatches, `internal error: Backstore.Get given a key missing mandatory elements for "test-only":.*`)
+
+	var found map[string]string
+	cb := func(a asserts.Assertion) {
+		if found == nil {
+			found = make(map[string]string)
+		}
+		found[strings.Join(a.Ref().PrimaryKey, "/")] = a.HeaderString("marker")
+
+	}
+	err = mbss.bs.Search(asserts.TestOnlyType, nil, cb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k1/o1-defl": "a1",
+		"k2/A":       "a2",
+	})
+
+	found = nil
+	err = mbss.bs.Search(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k1",
+	}, cb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k1/o1-defl": "a1",
+	})
+
+	found = nil
+	err = mbss.bs.Search(asserts.TestOnlyType, map[string]string{
+		"opt1": "o1-defl",
+	}, cb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k1/o1-defl": "a1",
+	})
+
+	found = nil
+	err = mbss.bs.Search(asserts.TestOnlyType, map[string]string{
+		"opt1": "A",
+	}, cb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k2/A": "a2",
 	})
 }

@@ -164,6 +164,21 @@ func (s *specSuite) TestMountEntryFromLayout(c *C) {
 	})
 }
 
+func (s *specSuite) TestMountEntryFromExtraLayouts(c *C) {
+	extraLayouts := []snap.Layout{
+		{
+			Path: "/test",
+			Bind: "/usr/home/test",
+			Mode: 0755,
+		},
+	}
+
+	s.spec.AddExtraLayouts(extraLayouts)
+	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		{Dir: "/test", Name: "/usr/home/test", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
+	})
+}
+
 func (s *specSuite) TestParallelInstanceMountEntryFromLayout(c *C) {
 	snapInfo := snaptest.MockInfo(c, snapWithLayout, &snap.SideInfo{Revision: snap.R(42)})
 	snapInfo.InstanceKey = "instance"

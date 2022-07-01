@@ -27,11 +27,14 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/tooling"
+	usersessionclient "github.com/snapcore/snapd/usersession/client"
 )
 
 var RunMain = run
@@ -49,7 +52,6 @@ var (
 	Antialias           = antialias
 	FormatChannel       = fmtChannel
 	PrintDescr          = printDescr
-	WrapFlow            = wrapFlow
 	TrueishJSON         = trueishJSON
 	CompletionHandler   = completionHandler
 	MarkForNoCompletion = markForNoCompletion
@@ -92,8 +94,7 @@ var (
 
 	IsStopping = isStopping
 
-	GetKeypairManager = getKeypairManager
-	GenerateKey       = generateKey
+	GetSnapDirOptions = getSnapDirOptions
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
@@ -137,6 +138,9 @@ var (
 	MaybePrintSum               = (*infoWriter).maybePrintSum
 	MaybePrintCohortKey         = (*infoWriter).maybePrintCohortKey
 	MaybePrintHealth            = (*infoWriter).maybePrintHealth
+	WaitInhibitUnlock           = waitInhibitUnlock
+	WaitWhileInhibited          = waitWhileInhibited
+	IsLocked                    = isLocked
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -184,14 +188,6 @@ func MockGetEnv(f func(name string) string) (restore func()) {
 	osGetenv = f
 	return func() {
 		osGetenv = osGetenvOrig
-	}
-}
-
-func MockMountInfoPath(newMountInfoPath string) (restore func()) {
-	mountInfoPathOrig := mountInfoPath
-	mountInfoPath = newMountInfoPath
-	return func() {
-		mountInfoPath = mountInfoPathOrig
 	}
 }
 
@@ -380,7 +376,7 @@ func MockIoutilTempDir(f func(string, string) (string, error)) (restore func()) 
 	}
 }
 
-func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts image.DownloadOptions) error) (restore func()) {
+func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts tooling.DownloadSnapOptions) error) (restore func()) {
 	old := downloadDirect
 	downloadDirect = f
 	return func() {
@@ -410,4 +406,65 @@ func MockOsChmod(f func(string, os.FileMode) error) (restore func()) {
 	return func() {
 		osChmod = old
 	}
+}
+
+func MockWaitInhibitUnlock(f func(snapName string, waitFor runinhibit.Hint) (bool, error)) (restore func()) {
+	old := waitInhibitUnlock
+	waitInhibitUnlock = f
+	return func() {
+		waitInhibitUnlock = old
+	}
+}
+
+func MockIsLocked(f func(snapName string) (runinhibit.Hint, error)) (restore func()) {
+	old := isLocked
+	isLocked = f
+	return func() {
+		isLocked = old
+	}
+}
+
+func MockIsGraphicalSession(graphical bool) (restore func()) {
+	old := isGraphicalSession
+	isGraphicalSession = func() bool {
+		return graphical
+	}
+	return func() {
+		isGraphicalSession = old
+	}
+}
+
+func MockPendingRefreshNotification(f func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error) (restore func()) {
+	old := pendingRefreshNotification
+	pendingRefreshNotification = f
+	return func() {
+		pendingRefreshNotification = old
+	}
+}
+
+func MockFinishRefreshNotification(f func(refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error) (restore func()) {
+	old := finishRefreshNotification
+	finishRefreshNotification = f
+	return func() {
+		finishRefreshNotification = old
+	}
+}
+
+func MockAutostartSessionApps(f func(string) error) func() {
+	old := autostartSessionApps
+	autostartSessionApps = f
+	return func() {
+		autostartSessionApps = old
+	}
+}
+
+func ParseQuotaValues(maxMemory, cpuMax, cpuSet, threadsMax string) (*client.QuotaValues, error) {
+	var quotas cmdSetQuota
+
+	quotas.MemoryMax = maxMemory
+	quotas.CPUMax = cpuMax
+	quotas.CPUSet = cpuSet
+	quotas.ThreadsMax = threadsMax
+
+	return quotas.parseQuotas()
 }

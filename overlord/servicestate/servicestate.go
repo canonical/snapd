@@ -20,6 +20,7 @@
 package servicestate
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -92,7 +93,7 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 	for _, snapName := range sortedNames {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, snapName, &snapst); err != nil {
-			if err == state.ErrNoState {
+			if errors.Is(err, state.ErrNoState) {
 				return nil, fmt.Errorf("snap not found: %s", snapName)
 			}
 			return nil, err
@@ -127,7 +128,20 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 		sort.Strings(explicitSvcs)
 		cmd.ExplicitServices = explicitSvcs
 
-		summary := fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
+		// When composing the task summary, prefer using the explicit
+		// services, if that's not empty
+		var summary string
+		if len(explicitSvcs) > 0 {
+			svcs = explicitSvcs
+		} else if inst.Action == "restart" {
+			// Use a generic message, since we cannot know the exact list of
+			// services affected
+			summary = fmt.Sprintf("Run service command %q for running services of snap %q", cmd.Action, cmd.SnapName)
+		}
+
+		if summary == "" {
+			summary = fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
+		}
 		task := st.NewTask("service-control", summary)
 		task.Set("service-action", cmd)
 		if prev != nil {
@@ -292,7 +306,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 
 	// sysd.Status() makes sure that we get only the units we asked
 	// for and raises an error otherwise
-	sts, err := sysd.Status(serviceNames...)
+	sts, err := sysd.Status(serviceNames)
 	if err != nil {
 		return fmt.Errorf("cannot get status of services of app %q: %v", appInfo.Name, err)
 	}
@@ -300,7 +314,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 		return fmt.Errorf("cannot get status of services of app %q: expected %d results, got %d", appInfo.Name, len(serviceNames), len(sts))
 	}
 	for _, st := range sts {
-		switch filepath.Ext(st.UnitName) {
+		switch filepath.Ext(st.Name) {
 		case ".service":
 			appInfo.Enabled = st.Enabled
 			appInfo.Active = st.Active
@@ -313,7 +327,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 			})
 		case ".socket":
 			appInfo.Activators = append(appInfo.Activators, client.AppActivator{
-				Name:    sockSvcFileToName[st.UnitName],
+				Name:    sockSvcFileToName[st.Name],
 				Enabled: st.Enabled,
 				Active:  st.Active,
 				Type:    "socket",
@@ -352,7 +366,7 @@ func SnapServiceOptions(st *state.State, instanceName string, quotaGroups map[st
 	// if quotaGroups was not provided to us, then go get that
 	if quotaGroups == nil {
 		allGrps, err := AllQuotas(st)
-		if err != nil && err != state.ErrNoState {
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return nil, err
 		}
 		quotaGroups = allGrps

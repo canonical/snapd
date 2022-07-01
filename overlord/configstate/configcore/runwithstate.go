@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
 // +build !nomanagers
 
 /*
@@ -25,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -56,6 +58,9 @@ func init() {
 	addWithStateHandler(validateRefreshSchedule, nil, validateOnly)
 	addWithStateHandler(validateRefreshRateLimit, nil, validateOnly)
 	addWithStateHandler(validateAutomaticSnapshotsExpiration, nil, validateOnly)
+
+	// netplan.*
+	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, &flags{coreOnlyConfig: true})
 }
 
 type withStateHandler struct {
@@ -115,6 +120,10 @@ func applyHandlers(dev sysconfig.Device, cfg config.Conf, handlers []configHandl
 		case strings.HasPrefix(k, "core.store-certs."):
 			if !validCertOption(k) {
 				return fmt.Errorf("cannot set store ssl certificate under name %q: name must only contain word characters or a dash", k)
+			}
+		case isNetplanChange(k):
+			if release.OnClassic {
+				return fmt.Errorf("cannot set netplan configuration on classic")
 			}
 		case !supportedConfigurations[k]:
 			return fmt.Errorf("cannot set %q: unsupported system option", k)

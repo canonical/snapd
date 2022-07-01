@@ -5,10 +5,11 @@ show_help() {
 	echo
 	echo "Supported invariants:"
 	echo "    root-files-in-home: most of /home/* does not contain root-owned files"
-	echo "    crashed-snap-confine: /tmp/snap.rootfs_* does not exist"
+	echo "    crashed-snap-confine: $TESTSTMP/snap.rootfs_* does not exist"
 	echo "    lxcfs-mounted: /var/lib/lxcfs is a mount point"
 	echo "    stray-dbus-daemon: at most one dbus-daemon is running"
 	echo "    leftover-defer-sh: defer.sh must not be left over by tests"
+	echo "    broken-snaps: snaps must not be left around that are in a broken state"
 }
 
 if [ $# -eq 0 ]; then
@@ -47,31 +48,31 @@ check_root_files_in_home() {
 	# - The /home/ubuntu directory is root owned but is not used by the tests so we ignore it
 	# - The /home/gopath and everything inside it comes from spread.yaml and is too inconvenient to change
 	# As a note, the working theory for the origin of /home/ubuntu is cloud-init and data from GCE.
-	find /home -mindepth 1 -user root -a ! -path "/home/ubuntu" -a ! -path "$GOHOME" -a ! -path "$GOHOME/*" 2>/dev/null >"/tmp/tests.invariant.$n"
-	if [ -s "/tmp/tests.invariant.$n" ]; then
+	find /home -mindepth 1 -user root -a ! -path "/home/ubuntu" -a ! -path "$GOHOME" -a ! -path "$GOHOME/*" 2>/dev/null >"$TESTSTMP/tests.invariant.$n"
+	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
 		echo "tests.invariant: the following files should not be owned by root" >&2
-		cat "/tmp/tests.invariant.$n" >&2
+		cat "$TESTSTMP/tests.invariant.$n" >&2
 		return 1
 	fi
 }
 
 check_crashed_snap_confine() {
 	n="$1" # invariant name
-	find /tmp -name 'snap.rootfs_*' > "/tmp/tests.invariant.$n"
+	find "$TESTSTMP" -name 'snap.rootfs_*' > "$TESTSTMP/tests.invariant.$n"
 	# NOTE: it may be a mount point but we are not checking that here.
-	if [ -s "/tmp/tests.invariant.$n" ]; then
+	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
 		echo "tests.invariant: it seems snap-confine has crashed" >&2
-		cat "/tmp/tests.invariant.$n" >&2
+		cat "$TESTSTMP/tests.invariant.$n" >&2
 		return 1
 	fi
 }
 
 check_lxcfs_mounted() {
 	n="$1" # invariant name
-	"$TESTSTOOLS"/mountinfo.query /var/lib/lxcfs > "/tmp/tests.invariant.$n"
-	if [ -s "/tmp/tests.invariant.$n" ]; then
+	"$TESTSTOOLS"/mountinfo.query /var/lib/lxcfs > "$TESTSTMP/tests.invariant.$n"
+	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
 		echo "tests.invariant: it seems lxcfs is mounted" >&2
-		cat "/tmp/tests.invariant.$n" >&2
+		cat "$TESTSTMP/tests.invariant.$n" >&2
 		return 1
 	fi
 }
@@ -81,7 +82,7 @@ check_stray_dbus_daemon() {
 	(
 		skipped_system=0
 		skipped_root_session=0
-		for pid in $(pgrep dbus-daemon); do
+		for pid in $(pgrep -x dbus-daemon); do
 			cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline")"
 			# Ignore one dbus-daemon responsible for the system bus.
 			if echo "$cmdline" | grep -q 'dbus-daemon --system' && [ "$skipped_system" -eq 0 ]; then
@@ -102,10 +103,10 @@ check_stray_dbus_daemon() {
 			# Report stray dbus-daemon.
 			echo "pid:$pid user:$user cmdline:$cmdline"
 		done
-	) > "/tmp/tests.invariant.$n"
-	if [ -s "/tmp/tests.invariant.$n" ]; then
+	) > "$TESTSTMP/tests.invariant.$n"
+	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
 		echo "tests.invariant: more than one dbus-daemon running" >&2
-		cat "/tmp/tests.invariant.$n" >&2
+		cat "$TESTSTMP/tests.invariant.$n" >&2
 		return 1
 	fi
 }
@@ -113,11 +114,30 @@ check_stray_dbus_daemon() {
 check_leftover_defer_sh() {
 	n="$1" # invariant name
 	(
-		find "$PROJECT_PATH" -name defer.sh > "/tmp/tests.invariant.$n"
-	) > "/tmp/tests.invariant.$n"
-	if [ -s "/tmp/tests.invariant.$n" ]; then
+		find "$PROJECT_PATH" -name defer.sh > "$TESTSTMP/tests.invariant.$n"
+	) > "$TESTSTMP/tests.invariant.$n"
+	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
 		echo "tests.invariant: leftover defer.sh script" >&2
-		cat "/tmp/tests.invariant.$n" >&2
+		cat "$TESTSTMP/tests.invariant.$n" >&2
+		return 1
+	fi
+}
+
+check_broken_snaps() {
+	n="$1" # invariant name
+	(
+		SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+		# first column is the snap name, revision is 3rd
+		snap list --all | awk '/,?broken,?/ {print $1,$3}' | while read -r name rev; do
+			echo "snap $name ($rev) is broken:"
+			systemctl status "$(systemd-escape -p "$SNAP_MOUNT_DIR/${name}/${rev}).mount")" || true
+			ls -l "/${SNAP_MOUNT_DIR}/${name}/" || true
+			echo "---"
+		done
+	) > "$TESTSTMP/tests.invariant.$n"
+	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
+		echo "tests.invariant: broken snaps" >&2
+		cat "$TESTSTMP/tests.invariant.$n" >&2
 		return 1
 	fi
 }
@@ -139,6 +159,9 @@ check_invariant() {
 		leftover-defer-sh)
 			check_leftover_defer_sh "$1"
 			;;
+		broken-snaps)
+			check_broken_snaps "$1"
+			;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
 			exit 1
@@ -147,7 +170,7 @@ check_invariant() {
 }
 
 main() {
-	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh"
+	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh broken-snaps"
 
 	case "$action" in
 		check)

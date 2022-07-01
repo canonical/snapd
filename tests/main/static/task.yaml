@@ -4,12 +4,6 @@ summary: Check that snapd can be built without cgo
 # of the verbatim tree
 systems: [-ubuntu-core-*, -debian-sid-*]
 
-environment:
-    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
-    # packages referenced by their import paths while under the tests directory,
-    # need to disable go modules supportfor this test
-    GO111MODULE: off
-
 execute: |
     CGO_ENABLED=0 go build -o snapd.static github.com/snapcore/snapd/cmd/snapd
     ldd snapd.static 2>&1 | MATCH 'not a dynamic executable'

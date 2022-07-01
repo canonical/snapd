@@ -95,7 +95,7 @@ func (s *groupingsSuite) TestOutsideRange(c *C) {
 	gr, err := internal.NewGroupings(16)
 	c.Assert(err, IsNil)
 
-	// sanity
+	// validity
 	err = gr.AddTo(&g, 15)
 	c.Assert(err, IsNil)
 

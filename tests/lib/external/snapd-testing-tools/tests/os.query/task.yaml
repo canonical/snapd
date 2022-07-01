@@ -1,0 +1,101 @@
+summary: smoke test for the os.query tool
+
+execute: |
+    os.query --help | MATCH 'usage: os.query is-core, is-classic'
+    os.query -h | MATCH 'usage: os.query is-core, is-classic'
+
+    case "$SPREAD_SYSTEM" in
+        ubuntu-14.04-64)
+            os.query is-trusty
+            os.query is-classic
+            ! os.query is-core
+            ! os.query is-s390x
+            ;;
+        ubuntu-16.04-64)
+            os.query is-xenial
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        ubuntu-18.04-32)
+            os.query is-bionic
+            os.query is-classic
+            ! os.query is-core
+            os.query is-pc-i386
+            ;;       
+        ubuntu-18.04-64)
+            os.query is-bionic
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        ubuntu-20.04-64)
+            os.query is-focal
+            os.query is-ubuntu
+            ! os.query is-debian
+            os.query is-classic
+            ! os.query is-core
+            os.query is-pc-amd64
+            ! os.query is-arm
+            ;;
+        ubuntu-21.10-64)
+            os.query is-impish
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        ubuntu-22.04-64)
+            os.query is-jammy
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        debian-10-64)
+            os.query is-debian
+            os.query is-debian-10
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        debian-sid-64)
+            os.query is-debian
+            os.query is-debian-sid
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        fedora-34-64)
+            os.query is-fedora
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        fedora-35-64)
+            os.query is-fedora
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        arch-linux-64)
+            os.query is-arch-linux
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        amazon-linux-2-64)
+            os.query is-amazon-linux
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        centos-7-64)
+            os.query is-centos-7
+            os.query is-centos
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        centos-8-64)
+            os.query is-centos-8
+            os.query is-centos
+            ! os.query is-core
+            ;;
+        opensuse-15.3-64)
+            os.query is-opensuse
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        *)
+            echo "System $SPREAD_SYSTEM not supported" 
+            exit 1
+            ;;
+    esac

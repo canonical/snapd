@@ -22,6 +22,7 @@ package state
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -45,10 +46,6 @@ func (b *checkpointOnlyBackend) Checkpoint(data []byte) error {
 
 func (b *checkpointOnlyBackend) EnsureBefore(d time.Duration) {
 	panic("cannot use EnsureBefore in checkpointOnlyBackend")
-}
-
-func (b *checkpointOnlyBackend) RequestRestart(t RestartType) {
-	panic("cannot use RequestRestart in checkpointOnlyBackend")
 }
 
 // copyData will copy the given subkeys specifier from srcData to dstData.
@@ -127,7 +124,7 @@ func CopyState(srcStatePath, dstStatePath string, dataEntries []string) error {
 	dstData := make(map[string]interface{})
 	for _, dataEntry := range dataEntries {
 		subkeys := strings.Split(dataEntry, ".")
-		if err := copyData(subkeys, 0, srcState.data, dstData); err != nil && err != ErrNoState {
+		if err := copyData(subkeys, 0, srcState.data, dstData); err != nil && !errors.Is(err, ErrNoState) {
 			return err
 		}
 	}

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@ package devicestate
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"sort"
 
 	"github.com/snapcore/snapd/asserts"
@@ -38,6 +39,8 @@ import (
 )
 
 var errNothingToDo = errors.New("nothing to do")
+
+var runtimeNumCPU = runtime.NumCPU
 
 func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
 	if sn.Required {
@@ -105,7 +108,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if seeded {
@@ -126,7 +129,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	}
 
 	timings.Run(tm, "load-verified-snap-metadata", "load verified snap metadata from seed", func(nested timings.Measurer) {
-		err = deviceSeed.LoadMeta(nested)
+		err = deviceSeed.LoadMeta(mode, nil, nested)
 	})
 	if release.OnClassic && err == seed.ErrNoMeta {
 		if preseed {
@@ -371,7 +374,7 @@ func importAssertionsFromSeed(st *state.State, sysLabel string) (seed.Seed, erro
 // it is meant to be used before and during seeding.
 // It is an error to call it with different sysLabel values once one
 // seed has been loaded and cached.
-func loadDeviceSeed(st *state.State, sysLabel string) (deviceSeed seed.Seed, err error) {
+var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.Seed, err error) {
 	cached := st.Cached(loadedDeviceSeedKey{})
 	if cached != nil {
 		loaded := cached.(*loadedDeviceSeed)
@@ -393,6 +396,12 @@ func loadDeviceSeed(st *state.State, sysLabel string) (deviceSeed seed.Seed, err
 	deviceSeed, err = seed.Open(dirs.SnapSeedDir, sysLabel)
 	if err != nil {
 		return nil, err
+	}
+
+	if runtimeNumCPU() > 1 {
+		// XXX set parallelism experimentally to 2 as I/O
+		// itself becomes a bottleneck ultimately
+		deviceSeed.SetParallelism(2)
 	}
 
 	// collect and

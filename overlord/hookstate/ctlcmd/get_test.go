@@ -247,7 +247,7 @@ func (s *getSuite) TestGetRegularUser(c *C) {
 
 func (s *getSuite) TestCommandWithoutContext(c *C) {
 	_, _, err := ctlcmd.Run(nil, []string{"get", "foo"}, 0)
-	c.Check(err, ErrorMatches, ".*cannot get without a context.*")
+	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "get"\) from outside of a snap`)
 }
 
 func (s *setSuite) TestNull(c *C) {

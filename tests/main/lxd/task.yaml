@@ -6,8 +6,8 @@ backends: [-autopkgtest]
 
 # Only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
-# TODO: enable for ubuntu-21.10+ once the lxd image is published
-systems: [ubuntu-16*, ubuntu-18*, ubuntu-20*, ubuntu-21.04-*, ubuntu-core-*]
+# ubuntu-18.04-32: i386 is not supported by lxd
+systems: [ubuntu-16*, ubuntu-18.04-64, ubuntu-20*, ubuntu-core-*]
 
 # Start before anything else as it can take a really long time.
 priority: 1000
@@ -49,6 +49,8 @@ restore: |
     snap remove --purge lxd-demo-server
 
     "$TESTSTOOLS"/lxd-state undo-mount-changes
+
+    # unset refresh-app-awareness, this means it's enabled by default.
     snap unset system experimental.refresh-app-awareness
     # Stop the dbus.service of the user session of the root user. This test
     # runs in several configurations, not all of which have this capability.
@@ -57,13 +59,6 @@ restore: |
     # run. This session-level dbus daemon is detected as spurious by the
     # invariant checker.
     systemctl --user stop dbus.service || true
-
-    # Remove manually the snap.lxd.workaround.service systemd unit. This unit is needed to
-    # avoid systemd wiping lxd cgroups when snapd disables all lxd units during refresh
-    # TODO: remove this when lxd removes automatically the service
-    if systemctl is-active snap.lxd.workaround.service; then
-        systemctl stop snap.lxd.workaround.service
-    fi
 
 debug: |
     # debug output from lxd
@@ -167,35 +162,43 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- lxd waitready
     lxd.lxc exec my-nesting-ubuntu -- lxd init --auto
 
-    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "ubuntu:${VERSION_ID:-}" my-inner-ubuntu
-    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
+    # We can't launch the inner ubuntu lxd container in google cloud images
+    # See https://github.com/lxc/lxd/issues/10492
+    # See https://bugs.launchpad.net/cloud-images/+bug/1976552
+    if [ "$SPREAD_BACKEND" != "google" ]; then
+        lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "ubuntu:${VERSION_ID:-}" my-inner-ubuntu
+        lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
+    fi
 
     # finally check that we can't run snapd inside a nested lxd container as
     # current apparmor does not support this, so if this works it is probably a
     # confinement bug
-    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc file push --quiet prep-snapd-in-lxd.sh my-inner-ubuntu/root/
-    snapdDeb=$(lxd.lxc exec my-nesting-ubuntu -- sh -c 'ls snapd_*.deb')
-    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc file push --quiet "$snapdDeb" my-inner-ubuntu/root/
-    echo "Setting up proxy for the *inside nested* container"
-    if [ -n "${http_proxy:-}" ]; then
-        lxd.lxc exec my-nesting-ubuntu -- \
-            lxd.lxc exec my-inner-ubuntu -- \
-                sh -c "echo http_proxy=$http_proxy >> /etc/environment"
-    fi
-    if [ -n "${https_proxy:-}" ]; then
-        lxd.lxc exec my-nesting-ubuntu -- \
-            lxd.lxc exec my-inner-ubuntu -- \
-                sh -c "echo https_proxy=$https_proxy >> /etc/environment"
-    fi
-    lxd.lxc exec my-nesting-ubuntu -- \
-        lxd.lxc exec my-inner-ubuntu -- \
-            /root/prep-snapd-in-lxd.sh
+    #
+    # 2021-11-02: disabled because of https://github.com/lxc/lxd/issues/9447
+    #
+    #lxd.lxc exec my-nesting-ubuntu -- lxd.lxc file push --quiet prep-snapd-in-lxd.sh my-inner-ubuntu/root/
+    #snapdDeb=$(lxd.lxc exec my-nesting-ubuntu -- sh -c 'ls snapd_*.deb')
+    #lxd.lxc exec my-nesting-ubuntu -- lxd.lxc file push --quiet "$snapdDeb" my-inner-ubuntu/root/
+    #echo "Setting up proxy for the *inside nested* container"
+    #if [ -n "${http_proxy:-}" ]; then
+    #    lxd.lxc exec my-nesting-ubuntu -- \
+    #        lxd.lxc exec my-inner-ubuntu -- \
+    #            sh -c "echo http_proxy=$http_proxy >> /etc/environment"
+    #fi
+    #if [ -n "${https_proxy:-}" ]; then
+    #    lxd.lxc exec my-nesting-ubuntu -- \
+    #        lxd.lxc exec my-inner-ubuntu -- \
+    #            sh -c "echo https_proxy=$https_proxy >> /etc/environment"
+    #fi
+    #lxd.lxc exec my-nesting-ubuntu -- \
+    #    lxd.lxc exec my-inner-ubuntu -- \
+    #        /root/prep-snapd-in-lxd.sh
 
-    not lxd.lxc exec my-nesting-ubuntu -- \
-        lxd.lxc exec my-inner-ubuntu -- \
-            snap install test-snapd-sh 2>stderr.log
+    #not lxd.lxc exec my-nesting-ubuntu -- \
+    #    lxd.lxc exec my-inner-ubuntu -- \
+    #        snap install test-snapd-sh 2>stderr.log
     # replace newlines with spaces to get one long line
-    tr '\n' ' ' < stderr.log | MATCH "error:\s+system\s+does\s+not\s+fully\s+support\s+snapd:\s+apparmor\s+detected\s+but\s+insufficient\s+permissions\s+to\s+use\s+it"
+    #tr '\n' ' ' < stderr.log | MATCH "error:\s+system\s+does\s+not\s+fully\s+support\s+snapd:\s+apparmor\s+detected\s+but\s+insufficient\s+permissions\s+to\s+use\s+it"
 
     echo "Install lxd-demo server to exercise the lxd interface"
     snap install lxd-demo-server

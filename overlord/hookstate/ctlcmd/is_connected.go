@@ -90,9 +90,9 @@ func isConnectedPidCheckAllowed(info *snap.Info, plugOrSlot string) bool {
 func (c *isConnectedCommand) Execute(args []string) error {
 	plugOrSlot := c.Positional.PlugOrSlotSpec
 
-	context := c.context()
-	if context == nil {
-		return fmt.Errorf("cannot check connection status without a context")
+	context, err := c.ensureContext()
+	if err != nil {
+		return err
 	}
 
 	snapName := context.InstanceName()
@@ -152,7 +152,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 	// hooks). plug and slot names are unique within a snap, so there is no
 	// ambiguity when matching.
 	for refStr, connState := range conns {
-		if connState.Undesired || connState.HotplugGone {
+		if !connState.Active() {
 			continue
 		}
 		connRef, err := interfaces.ParseConnRef(refStr)

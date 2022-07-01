@@ -135,9 +135,9 @@ func (c *getCommand) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("get which option?"))
 	}
 
-	context := c.context()
-	if context == nil {
-		return fmt.Errorf("cannot get without a context")
+	context, err := c.ensureContext()
+	if err != nil {
+		return err
 	}
 
 	if c.Typed && c.Document {

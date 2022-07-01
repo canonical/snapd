@@ -36,6 +36,18 @@ const cpuControlConnectedPlugAppArmor = `
 /sys/devices/system/cpu/smt/*       r,
 /sys/devices/system/cpu/smt/control w,
 
+/sys/module/cpu_boost/parameters/input_boost_freq rw,
+/sys/module/cpu_boost/parameters/input_boost_ms rw,
+/sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_min_freq rw,
+/sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_max_freq rw,
+/sys/devices/system/cpu/cpu[0-9]*/core_ctl/min_cpus rw,
+/sys/devices/system/cpu/cpu[0-9]*/core_ctl/busy_up_thres rw,
+/sys/devices/system/cpu/cpu[0-9]*/core_ctl/busy_down_thres rw,
+/sys/devices/system/cpu/cpu[0-9]*/core_ctl/offline_delay_ms rw,
+/sys/devices/system/cpu/cpu[0-9]*/core_ctl/task_thres rw,
+/sys/devices/system/cpu/cpu[0-9]*/core_ctl/nr_prev_assist_thresh rw,
+/sys/devices/system/cpu/cpu[0-9]*/core_ctl/enable rw,
+
 # https://www.kernel.org/doc/html/latest/admin-guide/pm/cpufreq.html#policy-interface-in-sysfs
 /sys/devices/system/cpu/cpufreq/{,**} r,
 /sys/devices/system/cpu/cpufreq/policy*/energy_performance_preference w,
@@ -43,6 +55,10 @@ const cpuControlConnectedPlugAppArmor = `
 /sys/devices/system/cpu/cpufreq/policy*/scaling_max_freq w,
 /sys/devices/system/cpu/cpufreq/policy*/scaling_min_freq w,
 /sys/devices/system/cpu/cpufreq/policy*/scaling_setspeed w,
+/sys/devices/system/cpu/cpufreq/policy*/schedutil/up_rate_limit_us rw,
+/sys/devices/system/cpu/cpufreq/policy*/schedutil/down_rate_limit_us rw,
+/sys/devices/system/cpu/cpufreq/policy*/schedutil/hispeed_freq rw,
+/sys/devices/system/cpu/cpufreq/policy*/schedutil/pl rw,
 /sys/devices/system/cpu/cpufreq/boost w,
 
 # https://www.kernel.org/doc/html/latest/admin-guide/pm/intel_pstate.html#user-space-interface-in-sysfs
@@ -52,6 +68,17 @@ const cpuControlConnectedPlugAppArmor = `
 /sys/devices/system/cpu/intel_pstate/min_perf_pct w,
 /sys/devices/system/cpu/intel_pstate/no_turbo w,
 /sys/devices/system/cpu/intel_pstate/status w,
+
+/proc/sys/kernel/sched_upmigrate rw,
+/proc/sys/kernel/sched_downmigrate rw,
+/proc/sys/kernel/sched_group_upmigrate rw,
+/proc/sys/kernel/sched_group_downmigrate rw,
+/proc/sys/kernel/sched_walt_rotate_big_tasks rw,
+/proc/sys/kernel/sched_boost rw,
+
+# see https://www.osadl.org/monitoring/add-on-patches/4.16.7-rt1...4.16.15-rt7/sched-add-per-cpu-load-measurement.patch.html
+/proc/idleruntime/{all,cpu[0-9]*}/data r,
+/proc/idleruntime/{all,cpu[0-9]*}/reset w,
 `
 
 func init() {

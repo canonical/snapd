@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 // +build !nosecboot
 
 /*
@@ -126,15 +127,15 @@ func isV1EncryptedKeyFile(p string) bool {
 // 2. Key created with v2 data-format on disk (json), v1 hook created the data (no handle) and reads the data (hook output not json but raw binary data)
 // 3. Key created with v1 data-format on disk (raw), v2 hook
 // 4. Key created with v2 data-format on disk (json), v2 hook [easy]
-func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+func unlockVolumeUsingSealedKeyFDERevealKey(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 	// deal with v1 keys
 	if isV1EncryptedKeyFile(sealedEncryptionKeyFile) {
-		return unlockVolumeUsingSealedKeyFDERevealKeyV1(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+		return unlockVolumeUsingSealedKeyFDERevealKeyV1(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName)
 	}
-	return unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+	return unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
 }
 
-func unlockVolumeUsingSealedKeyFDERevealKeyV1(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+func unlockVolumeUsingSealedKeyFDERevealKeyV1(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string) (UnlockResult, error) {
 	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
 
 	sealedKey, err := ioutil.ReadFile(sealedEncryptionKeyFile)
@@ -160,7 +161,7 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV1(name, sealedEncryptionKeyFile, sou
 	return res, nil
 }
 
-func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (res UnlockResult, err error) {
+func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (res UnlockResult, err error) {
 	res = UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
 
 	f, err := sb.NewFileKeyDataReader(sealedEncryptionKeyFile)

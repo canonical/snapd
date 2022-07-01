@@ -4,7 +4,7 @@ details: |
     This test checks support for shutting down the device at the end of install
     mode via the install-device hook
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
     NESTED_IMAGE_ID: core20-install-device
@@ -13,28 +13,26 @@ environment:
     NESTED_ENABLE_SECURE_BOOT: true
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     # needed for inspecting the partitions
     snap install jq
     tests.cleanup defer snap remove jq
 
-    KEY_NAME=$(nested_get_snakeoil_key)
+    KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
     echo "Grab and prepare the gadget snap"
-    snap download --basename=pc --channel="20/edge" pc
+    VERSION="$(tests.nested show version)"
+    snap download --basename=pc --channel="$VERSION/edge" pc
     unsquashfs -d pc-gadget pc.snap
 
     echo "Sign the shim binary"
-    nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
     echo "Add the install-device hook"
     mkdir -p pc-gadget/meta/hooks
     cp install-device pc-gadget/meta/hooks/install-device
-    snap pack pc-gadget/ extra-snaps/
+    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
 
     tests.nested build-image core
 
@@ -44,11 +42,10 @@ restore: |
     tests.cleanup restore
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
 
     # we expect the VM to shut itself down so don't wait for SSH, etc. to become
     # available
@@ -57,10 +54,10 @@ execute: |
     # below is extracted from nested_start_core_vm, we don't want the 
     # nested_prepare_ssh to run yet, since it will fail when the VM shuts itself
     # down, we need to manually run it later
-    CURRENT_NAME="$(nested_get_current_image_name)"
-    CURRENT_IMAGE="$NESTED_IMAGES_DIR/$CURRENT_NAME"
-    IMAGE_NAME="$(nested_get_image_name core)"
-    IMAGE_FILE="$NESTED_IMAGES_DIR/$IMAGE_NAME"
+    CURRENT_NAME="$(tests.nested get current-name)"
+    CURRENT_IMAGE="$(tests.nested get images-path)/$CURRENT_NAME"
+    IMAGE_NAME="$(tests.nested get image-name core)"
+    IMAGE_FILE="$(tests.nested get images-path)/$IMAGE_NAME"
     cp -v "$IMAGE_FILE" "$CURRENT_IMAGE"
 
     NESTED_EXPECT_SHUTDOWN=1 nested_start_core_vm_unit "$IMAGE_FILE"
@@ -81,7 +78,7 @@ execute: |
     MATCH "ubuntu-data" < partitions.txt
 
     echo "Now starting the VM again will proceed to run mode appropriately"
-    tests.nested start-vm
+    tests.nested vm start
 
     # setup SSH since that was not done with the previous stage, as the device
     # shut down while still in install mode, we need to manually do this stage

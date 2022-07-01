@@ -54,20 +54,18 @@ func addImplicitHooks(snapInfo *Info) error {
 //
 // Existing hooks (i.e. ones defined in the YAML) are not changed; only missing
 // hooks are added.
-func addImplicitHooksFromContainer(snapInfo *Info, snapf Container) error {
+func addImplicitHooksFromContainer(snapInfo *Info, snapf Container) {
 	// Read the hooks directory. If this fails we assume the hooks directory
 	// doesn't exist, which means there are no implicit hooks to load (not an
 	// error).
 	fileNames, err := snapf.ListDir("meta/hooks")
 	if err != nil {
-		return nil
+		return
 	}
 
 	for _, fileName := range fileNames {
 		addHookIfValid(snapInfo, fileName)
 	}
-
-	return nil
 }
 
 func addHookIfValid(snapInfo *Info, hookName string) {

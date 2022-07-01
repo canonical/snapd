@@ -46,48 +46,84 @@ func (s *hostnameSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
 	c.Assert(err, IsNil)
 
-	s.mockedHostnamectl = testutil.MockCommand(c, "hostnamectl", "")
+	script := `if [ "$1" = "status" ]; then echo bar; fi`
+	s.mockedHostnamectl = testutil.MockCommand(c, "hostnamectl", script)
 	s.AddCleanup(s.mockedHostnamectl.Restore)
+
+	restore := release.MockOnClassic(false)
+	s.AddCleanup(restore)
 }
 
-func (s *hostnameSuite) TestConfigureHostnameInvalid(c *C) {
+func (s *hostnameSuite) TestConfigureHostnameFsOnlyInvalid(c *C) {
+	tmpdir := c.MkDir()
+
+	filler := strings.Repeat("x", 60)
 	invalidHostnames := []string{
-		"-no-start-with-dash", "no-upper-A", "no-ä", "no/slash",
-		"ALL-CAPS-IS-NEVER-OKAY", "no-SHOUTING-allowed",
+		"-no-start-with-dash", "no-ä", "no/slash", "foo..bar",
 		strings.Repeat("x", 64),
+		strings.Join([]string{filler, filler, filler, filler, filler}, "."),
+		// systemd testcases, see test-hostname-util.c
+		"foobar.com.", "fooBAR.", "fooBAR.com.", "fööbar",
+		".", "..", "foobar.", ".foobar", "foo..bar", "foo.bar..",
+		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"au-xph5-rvgrdsb5hcxc-47et3a5vvkrc-server-wyoz4elpdpe3.openstack.local",
 	}
 
 	for _, name := range invalidHostnames {
-		err := configcore.Run(coreDev, &mockConf{
-			state: s.state,
-			conf: map[string]interface{}{
-				"system.hostname": name,
-			},
+		conf := configcore.PlainCoreConfig(map[string]interface{}{
+			"system.hostname": name,
 		})
-		c.Assert(err, ErrorMatches, `cannot set hostname.*`)
+		err := configcore.FilesystemOnlyApply(coreDev, tmpdir, conf)
+		c.Assert(err, ErrorMatches, `cannot set hostname.*`, Commentf("%v", name))
 	}
 
 	c.Check(s.mockedHostnamectl.Calls(), HasLen, 0)
 }
 
-func (s *hostnameSuite) TestConfigureHostnameIntegration(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
+func (s *hostnameSuite) TestConfigureHostnameFsOnlyHappy(c *C) {
+	tmpdir := c.MkDir()
 
-	mockedHostname := testutil.MockCommand(c, "hostname", "echo bar")
-	defer mockedHostname.Restore()
-
+	filler := strings.Repeat("x", 16)
 	validHostnames := []string{
+		"a",
 		"foo",
 		strings.Repeat("x", 63),
 		"foo-bar",
 		"foo-------bar",
 		"foo99",
 		"99foo",
+		"localhost.localdomain",
+		"foo.-bar.com",
 		"can-end-with-a-dash-",
+		// can look like a serial
+		"C253432146-00214",
+		"C253432146-00214UPPERATTHEENDTOO",
+		// FQDN is ok too
+		"CS1.lse.ac.uk.edu",
+		// 3*16 + 12 + 3 dots = 63
+		strings.Join([]string{filler, filler, filler, strings.Repeat("x", 12)}, "."),
+		// systemd testcases, see test-hostname-util.c
+		"foobar", "foobar.com", "fooBAR", "fooBAR.com",
 	}
 
-	for _, hostname := range validHostnames {
+	for _, name := range validHostnames {
+		conf := configcore.PlainCoreConfig(map[string]interface{}{
+			"system.hostname": name,
+		})
+		err := configcore.FilesystemOnlyApply(coreDev, tmpdir, conf)
+		c.Assert(err, IsNil)
+	}
+
+	c.Check(s.mockedHostnamectl.Calls(), HasLen, 0)
+}
+
+func (s *hostnameSuite) TestConfigureHostnameWithStateOnlyHostnamectlValidates(c *C) {
+	hostnames := []string{
+		"good",
+		"bäd-hostname-is-only-validated-by-hostnamectl",
+	}
+
+	for _, hostname := range hostnames {
 		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
@@ -95,39 +131,82 @@ func (s *hostnameSuite) TestConfigureHostnameIntegration(c *C) {
 			},
 		})
 		c.Assert(err, IsNil)
-		c.Check(mockedHostname.Calls(), DeepEquals, [][]string{
-			{"hostname"},
-		})
 		c.Check(s.mockedHostnamectl.Calls(), DeepEquals, [][]string{
+			{"hostnamectl", "status", "--pretty"},
 			{"hostnamectl", "set-hostname", hostname},
 		})
 		s.mockedHostnamectl.ForgetCalls()
-		mockedHostname.ForgetCalls()
 	}
 }
 
-func (s *hostnameSuite) TestConfigureHostnameIntegrationSameHostname(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
+func (s *hostnameSuite) TestConfigureHostnameWithStateOnlyHostnamectlUnhappy(c *C) {
+	script := `
+if [ "$1" = "status" ]; then
+    echo bar;
+else
+    echo "some error"
+    exit 1
+fi`
+	mockedHostnamectl := testutil.MockCommand(c, "hostnamectl", script)
+	defer mockedHostnamectl.Restore()
 
-	// pretent current hostname is "foo"
-	mockedHostname := testutil.MockCommand(c, "hostname", "echo foo")
-	defer mockedHostname.Restore()
-	// and set new hostname to "foo"
+	hostname := "simulated-invalid-hostname"
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"system.hostname": "foo",
+			"system.hostname": hostname,
+		},
+	})
+	c.Assert(err, ErrorMatches, "cannot set hostname: some error")
+	c.Check(mockedHostnamectl.Calls(), DeepEquals, [][]string{
+		{"hostnamectl", "status", "--pretty"},
+		{"hostnamectl", "set-hostname", hostname},
+	})
+}
+
+func (s *hostnameSuite) TestConfigureHostnameIntegrationSameHostname(c *C) {
+	// and set new hostname to "bar" but the "s.mockedHostnamectl" is
+	// already returning "bar"
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			// hostname is already "bar"
+			"system.hostname": "bar",
 		},
 	})
 	c.Assert(err, IsNil)
-	c.Check(mockedHostname.Calls(), DeepEquals, [][]string{
-		{"hostname"},
+	c.Check(s.mockedHostnamectl.Calls(), DeepEquals, [][]string{
+		{"hostnamectl", "status", "--pretty"},
 	})
-	c.Check(s.mockedHostnamectl.Calls(), HasLen, 0)
 }
 
-func (s *hostnameSuite) TestFilesystemOnlyApply(c *C) {
+func (s *hostnameSuite) TestConfigureHostnameIntegrationSameHostnameNoPretty(c *C) {
+	script := `
+if [ "$1" = "status" ] && [ "$2" = "--pretty" ]; then
+    # no pretty hostname, only a static one
+    exit 0;
+elif [ "$1" = "status" ] && [ "$2" = "--static" ]; then
+    echo bar;
+fi`
+	mockedHostnamectl := testutil.MockCommand(c, "hostnamectl", script)
+	defer mockedHostnamectl.Restore()
+
+	// and set new hostname to "bar"
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			// hostname is already "bar"
+			"system.hostname": "bar",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(mockedHostnamectl.Calls(), DeepEquals, [][]string{
+		{"hostnamectl", "status", "--pretty"},
+		{"hostnamectl", "status", "--static"},
+	})
+}
+
+func (s *hostnameSuite) TestFilesystemOnlyApplyHappy(c *C) {
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
 		"system.hostname": "bar",
 	})

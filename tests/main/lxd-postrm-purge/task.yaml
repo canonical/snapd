@@ -3,7 +3,8 @@ summary: Check that package remove and purge works inside LXD containers
 # Since it's only apt remove --purge and lxd tests are rather long, limit to a
 # couple of systems only. The postrm purge is more thoroughly checked in
 # tests/main/postrm-purge.
-systems: [ubuntu-18.04-*, ubuntu-20.04-*]
+# ubuntu-18.04-32: i386 is not supported by lxd
+systems: [ubuntu-18.04-64, ubuntu-20.04-*]
 
 # start early
 priority: 1000
@@ -30,7 +31,7 @@ prepare: |
     # distro we build on. So we need to launch the right ubuntu version.
     VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
     lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
-    # sanity check
+    # precondition check
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
         snap info lxd
@@ -66,13 +67,6 @@ restore: |
     snap remove --purge lxd-demo-server
 
     "$TESTSTOOLS"/lxd-state undo-mount-changes
-
-    # Remove manually the snap.lxd.workaround.service systemd unit. This unit is needed to
-    # avoid systemd wiping lxd cgroups when snapd disables all lxd units during refresh
-    # TODO: remove this when lxd removes automatically the service
-    if systemctl is-active snap.lxd.workaround.service; then
-        systemctl stop snap.lxd.workaround.service
-    fi
 
 debug: |
     # debug output from lxd

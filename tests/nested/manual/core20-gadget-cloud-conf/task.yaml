@@ -1,7 +1,7 @@
-summary: Test that UC20 can boot with gadget provided cloud.conf for all grades
+summary: Test that UC2* can boot with gadget provided cloud.conf for all grades
 
 # TODO: enable similar test for UC18 and UC16 gadgets that use cloud.conf?
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
   # use tpm + secure boot to get full disk encryption, this is explicitly needed
@@ -22,7 +22,7 @@ environment:
 
   # use the testrootorg auto-import assertion
   # TODO: commit the Go code used to create this assertion from the json file
-  NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-auto-import.assert
+  NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-{VERSION}-auto-import.assert
 
   # three variants, for dangerous, signed, and secured grades
   MODEL_GRADE/secured: secured
@@ -31,7 +31,7 @@ environment:
   # TODO: enable after creating an associated auto-import assertion + model
   # MODEL_GRADE/dangerous: dangerous
 
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-${MODEL_GRADE}.model
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-${MODEL_GRADE}.model
   NESTED_IMAGE_ID: gadget-cloud-conf-testkeys-${MODEL_GRADE}
 
   # for the fake store
@@ -47,9 +47,6 @@ prepare: |
       echo "This test needs test keys to be trusted"
       exit
   fi
-
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
 
   #shellcheck source=tests/lib/store.sh
   . "$TESTSLIB"/store.sh
@@ -68,14 +65,16 @@ prepare: |
 
   # modify and repack gadget snap to add a defaults section and use our own
   # prepare-device hook to use the fakedevicesvc
-  mkdir "$(nested_get_extra_snaps_path)"
 
   # Get the snakeoil key and cert for signing gadget assets (shim)
-  KEY_NAME=$(nested_get_snakeoil_key)
+  KEY_NAME=$(tests.nested download snakeoil-key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
-  snap download --basename=pc --channel="20/edge" pc
+  # Get the nested system version
+  VERSION="$(tests.nested show version)"
+
+  snap download --basename=pc --channel="$VERSION/edge" pc
   unsquashfs -d pc-gadget pc.snap
 
   # delay all refreshes for a week from now, as otherwise refreshes for our
@@ -93,8 +92,8 @@ prepare: |
   mkdir -p pc-gadget/meta/hooks/
   cp prepare-device pc-gadget/meta/hooks/
 
-  nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-  snap pack pc-gadget/ "$(nested_get_extra_snaps_path)"
+  tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+  snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
 
   # start fake device svc
   systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
@@ -126,14 +125,11 @@ execute: |
       exit
   fi
 
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   echo "The initial cloud-init user was created"
   tests.nested exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
 
   echo "And we can run things as the normal user"
-  tests.nested exec_as normal-user ubuntu "sudo true"
+  tests.nested exec --user normal-user --pwd ubuntu "sudo true"
 
   echo "Waiting for snapd to react to cloud-init"
   retry --wait 1 -n 60 sh -c 'tests.nested exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'

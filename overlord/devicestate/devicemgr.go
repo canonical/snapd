@@ -21,9 +21,9 @@ package devicestate
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
@@ -44,11 +45,14 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -56,6 +60,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -96,7 +101,9 @@ type DeviceManager struct {
 
 	ensureSeedInConfigRan bool
 
-	ensureInstalledRan bool
+	ensureInstalledRan        bool
+	ensureFactoryResetRan     bool
+	ensurePostFactoryResetRan bool
 
 	ensureTriedRecoverySystemRan bool
 
@@ -108,8 +115,12 @@ type DeviceManager struct {
 	becomeOperationalBackoff     time.Duration
 	registered                   bool
 	reg                          chan struct{}
+	noRegister                   bool
 
-	preseed bool
+	preseed            bool
+	preseedSystemLabel string
+
+	ntpSyncedOrTimedOut bool
 }
 
 // Manager returns a new device manager.
@@ -124,12 +135,26 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		preseed:  snapdenv.Preseeding(),
 	}
 
-	modeEnv, err := maybeReadModeenv()
-	if err != nil {
-		return nil, err
-	}
-	if modeEnv != nil {
-		m.sysMode = modeEnv.Mode
+	if !m.preseed {
+		modeEnv, err := maybeReadModeenv()
+		if err != nil {
+			return nil, err
+		}
+		if modeEnv != nil {
+			m.sysMode = modeEnv.Mode
+		}
+	} else {
+		// cache system label for preseeding of core20; note, this will fail on
+		// core16/core18 (they are not supported by preseeding) as core20 system
+		// label is expected.
+		if !release.OnClassic {
+			var err error
+			m.preseedSystemLabel, err = systemForPreseeding()
+			if err != nil {
+				return nil, err
+			}
+			m.sysMode = "run"
+		}
 	}
 
 	s.Lock()
@@ -148,6 +173,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
+	runner.AddHandler("factory-reset-run-system", m.doFactoryResetRunSystem, nil)
 	runner.AddHandler("restart-system-to-run-mode", m.doRestartSystemToRunMode, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
@@ -179,6 +205,20 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
 
 	return m, nil
+}
+
+func ensureFileDirPermissions() error {
+	// Ensure the /var/lib/snapd/void dir has correct permissions, we
+	// do this in the postinst for classic systems already but it's
+	// needed here for Core systems.
+	st, err := os.Stat(dirs.SnapVoidDir)
+	if err == nil && st.Mode().Perm() != 0111 {
+		logger.Noticef("fixing permissions of %v to 0111", dirs.SnapVoidDir)
+		if err := os.Chmod(dirs.SnapVoidDir, 0111); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type genericHook struct{}
@@ -246,6 +286,11 @@ func (m *DeviceManager) StartUp() error {
 		if err := m.maybeSetupUbuntuSave(); err != nil {
 			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
 		}
+	}
+
+	// ensure /var/lib/snapd/void permissions are ok
+	if err := ensureFileDirPermissions(); err != nil {
+		logger.Noticef("%v", fmt.Errorf("cannot ensure device file/dir permissions: %v", err))
 	}
 
 	// TODO: setup proper timings measurements for this
@@ -443,7 +488,7 @@ func (m *DeviceManager) ensureOperational() error {
 
 	var seeded bool
 	err = m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -459,13 +504,18 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
+	if m.noRegister {
+		return nil
+	}
+	// noregister marker file is checked below after mostly in-memory checks
+
 	if m.changeInFlight("become-operational") {
 		return nil
 	}
 
 	var storeID, gadget string
 	model, err := m.Model()
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if err == nil {
@@ -488,6 +538,12 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
+	// registration is blocked until reboot
+	if osutil.FileExists(filepath.Join(dirs.SnapRunDir, "noregister")) {
+		m.noRegister = true
+		return nil
+	}
+
 	var hasPrepareDeviceHook bool
 	// if there's a gadget specified wait for it
 	if gadget != "" {
@@ -504,6 +560,23 @@ func (m *DeviceManager) ensureOperational() error {
 			return err
 		}
 		hasPrepareDeviceHook = (gadgetInfo.Hooks["prepare-device"] != nil)
+	}
+	if device.KeyID == "" && model.Grade() != "" {
+		// UC20+ devices support factory reset
+		serial, err := m.maybeRestoreAfterReset(device)
+		if err != nil {
+			return err
+		}
+		if serial != nil {
+			device.KeyID = serial.DeviceKey().ID()
+			device.Serial = serial.Serial()
+			if err := m.setDevice(device); err != nil {
+				return fmt.Errorf("cannot set device for restored serial and key: %v", err)
+			}
+			logger.Noticef("restored serial %v for %v/%v signed with key %v",
+				device.Serial, device.Brand, device.Model, device.KeyID)
+			return nil
+		}
 	}
 
 	// have some backoff between full retries
@@ -548,6 +621,52 @@ func (m *DeviceManager) ensureOperational() error {
 	return nil
 }
 
+// maybeRestoreAfterReset attempts to restore the serial assertion with a
+// matching key in a post-factory reset scenario. It is possible that it is
+// called when the device was unregistered, but when doing so, the device key is
+// removed.
+func (m *DeviceManager) maybeRestoreAfterReset(device *auth.DeviceState) (*asserts.Serial, error) {
+	// there should be a serial assertion for the current model
+	serials, err := assertstate.DB(m.state).FindMany(asserts.SerialType, map[string]string{
+		"brand-id": device.Brand,
+		"model":    device.Model,
+	})
+	if err != nil {
+		if asserts.IsNotFound(err) {
+			// no serial assertion
+			return nil, nil
+		}
+		return nil, err
+	}
+	for _, serial := range serials {
+		serialAs := serial.(*asserts.Serial)
+		deviceKeyID := serialAs.DeviceKey().ID()
+		logger.Debugf("processing candidate serial assertion for %v/%v signed with key %v",
+			device.Brand, device.Model, deviceKeyID)
+		// serial assertion is signed with the device key, its ID is in
+		// the header; factory-reset would have restored the serial
+		// assertion and a matching device key, OTOH when the device is
+		// unregistered we explicitly remove the key, hence should this
+		// code process such serial assertion, there will be no matching
+		// key for it
+		err = m.withKeypairMgr(func(kpmgr asserts.KeypairManager) error {
+			_, err := kpmgr.Get(deviceKeyID)
+			return err
+		})
+		if err != nil {
+			if asserts.IsKeyNotFound(err) {
+				// there is no key matching this serial assertion,
+				// perhaps device was unregistered at some point
+				continue
+			}
+			return nil, err
+		}
+		return serialAs, nil
+	}
+	// none of the assertions has a matching key
+	return nil, nil
+}
+
 var startTime time.Time
 
 func init() {
@@ -557,7 +676,7 @@ func init() {
 func (m *DeviceManager) setTimeOnce(name string, t time.Time) error {
 	var prev time.Time
 	err := m.state.Get(name, &prev)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !prev.IsZero() {
@@ -590,14 +709,27 @@ func (m *DeviceManager) seedStart() (*timings.Timings, error) {
 	return perfTimings, nil
 }
 
+func (m *DeviceManager) systemForPreseeding() string {
+	if m.preseedSystemLabel == "" {
+		panic("no system to preseed")
+	}
+	return m.preseedSystemLabel
+}
+
 func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) {
 	var sysLabel string
-	modeEnv, err := maybeReadModeenv()
-	if err != nil {
-		return nil, nil, err
+	if m.preseed && !release.OnClassic {
+		sysLabel = m.systemForPreseeding()
 	}
-	if modeEnv != nil {
-		sysLabel = modeEnv.RecoverySystem
+
+	if !m.preseed {
+		modeEnv, err := maybeReadModeenv()
+		if err != nil {
+			return nil, nil, err
+		}
+		if modeEnv != nil {
+			sysLabel = modeEnv.RecoverySystem
+		}
 	}
 
 	// we time preloadGadget + first ensureSeeded together
@@ -673,7 +805,7 @@ func (m *DeviceManager) ensureSeeded() error {
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if seeded {
@@ -695,6 +827,10 @@ func (m *DeviceManager) ensureSeeded() error {
 	var opts *populateStateFromSeedOptions
 	if m.preseed {
 		opts = &populateStateFromSeedOptions{Preseed: true}
+		if !release.OnClassic {
+			opts.Mode = "run"
+			opts.Label = m.systemForPreseeding()
+		}
 	} else {
 		modeEnv, err := maybeReadModeenv()
 		if err != nil {
@@ -745,7 +881,7 @@ func (m *DeviceManager) ensureBootOk() error {
 
 	if !m.bootOkRan {
 		deviceCtx, err := DeviceCtx(m.state, nil, nil)
-		if err != nil && err != state.ErrNoState {
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if err == nil {
@@ -776,8 +912,20 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
+	}
+
+	if !seeded {
+		// we need to wait until we are seeded
+		return nil
+	}
+
+	if release.OnClassic {
+		// don't re-run on classic since classic devices don't get subject to
+		// the cloud-init restricting that core devices do
+		m.cloudInitAlreadyRestricted = true
+		return nil
 	}
 
 	// On Ubuntu Core devices that have been seeded, we want to restrict
@@ -789,138 +937,136 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 	// boots but disallows arbitrary cloud-init {user,meta,vendor}-data to be
 	// attached to a device via a USB drive and inject code onto the device.
 
-	if seeded && !release.OnClassic {
-		opts := &sysconfig.CloudInitRestrictOptions{}
+	opts := &sysconfig.CloudInitRestrictOptions{}
 
-		// check the current state of cloud-init, if it is disabled or already
-		// restricted then we have nothing to do
-		cloudInitStatus, err := cloudInitStatus()
-		if err != nil {
-			return err
-		}
-		statusMsg := ""
-
-		switch cloudInitStatus {
-		case sysconfig.CloudInitDisabledPermanently, sysconfig.CloudInitRestrictedBySnapd:
-			// already been permanently disabled, nothing to do
-			m.cloudInitAlreadyRestricted = true
-			return nil
-		case sysconfig.CloudInitNotFound:
-			// no cloud init at all
-			statusMsg = "not found"
-		case sysconfig.CloudInitUntriggered:
-			// hasn't been used
-			statusMsg = "reported to be in disabled state"
-		case sysconfig.CloudInitDone:
-			// is done being used
-			statusMsg = "reported to be done"
-		case sysconfig.CloudInitErrored:
-			// cloud-init errored, so we give the device admin / developer a few
-			// minutes to reboot the machine to re-run cloud-init and try again,
-			// otherwise we will disable cloud-init permanently
-
-			// initialize the time we first saw cloud-init in error state
-			if m.cloudInitErrorAttemptStart == nil {
-				// save the time we started the attempt to restrict
-				now := timeNow()
-				m.cloudInitErrorAttemptStart = &now
-				logger.Noticef("System initialized, cloud-init reported to be in error state, will disable in 3 minutes")
-			}
-
-			// check if 3 minutes have elapsed since we first saw cloud-init in
-			// error state
-			timeSinceFirstAttempt := timeNow().Sub(*m.cloudInitErrorAttemptStart)
-			if timeSinceFirstAttempt <= 3*time.Minute {
-				// we need to keep waiting for cloud-init, up to 3 minutes
-				nextCheck := 3*time.Minute - timeSinceFirstAttempt
-				m.state.EnsureBefore(nextCheck)
-				return nil
-			}
-			// otherwise, we timed out waiting for cloud-init to be fixed or
-			// rebooted and should restrict cloud-init
-			// we will restrict cloud-init below, but we need to force the
-			// disable, as by default RestrictCloudInit will error on state
-			// CloudInitErrored
-			opts.ForceDisable = true
-			statusMsg = "reported to be in error state after 3 minutes"
-		default:
-			// in unknown states we are conservative and let the device run for
-			// a while to see if it transitions to a known state, but eventually
-			// will disable anyways
-			fallthrough
-		case sysconfig.CloudInitEnabled:
-			// we will give cloud-init up to 5 minutes to try and run, if it
-			// still has not transitioned to some other known state, then we
-			// will give up waiting for it and disable it anyways
-
-			// initialize the first time we saw cloud-init in enabled state
-			if m.cloudInitEnabledInactiveAttemptStart == nil {
-				// save the time we started the attempt to restrict
-				now := timeNow()
-				m.cloudInitEnabledInactiveAttemptStart = &now
-			}
-
-			// keep re-scheduling again in 10 seconds until we hit 5 minutes
-			timeSinceFirstAttempt := timeNow().Sub(*m.cloudInitEnabledInactiveAttemptStart)
-			if timeSinceFirstAttempt <= 5*time.Minute {
-				// TODO: should we log a message here about waiting for cloud-init
-				//       to be in a "known state"?
-				m.state.EnsureBefore(10 * time.Second)
-				return nil
-			}
-
-			// otherwise, we gave cloud-init 5 minutes to run, if it's still not
-			// done disable it anyways
-			// note we we need to force the disable, as by default
-			// RestrictCloudInit will error on state CloudInitEnabled
-			opts.ForceDisable = true
-			statusMsg = "failed to transition to done or error state after 5 minutes"
-		}
-
-		// we should always have a model if we are seeded and are not on classic
-		model, err := m.Model()
-		if err != nil {
-			return err
-		}
-
-		// For UC20, we want to always disable cloud-init after it has run on
-		// first boot unless we are in a "real cloud", i.e. not using NoCloud,
-		// or if we installed cloud-init configuration from the gadget
-		if model.Grade() != asserts.ModelGradeUnset {
-			// always disable NoCloud/local datasources after first boot on
-			// uc20, this is because even if the gadget has a cloud.conf
-			// configuring NoCloud, the config installed by cloud-init should
-			// not work differently for later boots, so it's sufficient that
-			// NoCloud runs on first-boot and never again
-			opts.DisableAfterLocalDatasourcesRun = true
-		}
-
-		// now restrict/disable cloud-init
-		res, err := restrictCloudInit(cloudInitStatus, opts)
-		if err != nil {
-			return err
-		}
-
-		// log a message about what we did
-		actionMsg := ""
-		switch res.Action {
-		case "disable":
-			actionMsg = "disabled permanently"
-		case "restrict":
-			// log different messages depending on what datasource was used
-			if res.DataSource == "NoCloud" {
-				actionMsg = "set datasource_list to [ NoCloud ] and disabled auto-import by filesystem label"
-			} else {
-				// all other datasources just log that we limited it to that datasource
-				actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.DataSource)
-			}
-		default:
-			return fmt.Errorf("internal error: unexpected action %s taken while restricting cloud-init", res.Action)
-		}
-		logger.Noticef("System initialized, cloud-init %s, %s", statusMsg, actionMsg)
-
-		m.cloudInitAlreadyRestricted = true
+	// check the current state of cloud-init, if it is disabled or already
+	// restricted then we have nothing to do
+	cloudInitStatus, err := cloudInitStatus()
+	if err != nil {
+		return err
 	}
+	statusMsg := ""
+
+	switch cloudInitStatus {
+	case sysconfig.CloudInitDisabledPermanently, sysconfig.CloudInitRestrictedBySnapd:
+		// already been permanently disabled, nothing to do
+		m.cloudInitAlreadyRestricted = true
+		return nil
+	case sysconfig.CloudInitNotFound:
+		// no cloud init at all
+		statusMsg = "not found"
+	case sysconfig.CloudInitUntriggered:
+		// hasn't been used
+		statusMsg = "reported to be in disabled state"
+	case sysconfig.CloudInitDone:
+		// is done being used
+		statusMsg = "reported to be done"
+	case sysconfig.CloudInitErrored:
+		// cloud-init errored, so we give the device admin / developer a few
+		// minutes to reboot the machine to re-run cloud-init and try again,
+		// otherwise we will disable cloud-init permanently
+
+		// initialize the time we first saw cloud-init in error state
+		if m.cloudInitErrorAttemptStart == nil {
+			// save the time we started the attempt to restrict
+			now := timeNow()
+			m.cloudInitErrorAttemptStart = &now
+			logger.Noticef("System initialized, cloud-init reported to be in error state, will disable in 3 minutes")
+		}
+
+		// check if 3 minutes have elapsed since we first saw cloud-init in
+		// error state
+		timeSinceFirstAttempt := timeNow().Sub(*m.cloudInitErrorAttemptStart)
+		if timeSinceFirstAttempt <= 3*time.Minute {
+			// we need to keep waiting for cloud-init, up to 3 minutes
+			nextCheck := 3*time.Minute - timeSinceFirstAttempt
+			m.state.EnsureBefore(nextCheck)
+			return nil
+		}
+		// otherwise, we timed out waiting for cloud-init to be fixed or
+		// rebooted and should restrict cloud-init
+		// we will restrict cloud-init below, but we need to force the
+		// disable, as by default RestrictCloudInit will error on state
+		// CloudInitErrored
+		opts.ForceDisable = true
+		statusMsg = "reported to be in error state after 3 minutes"
+	default:
+		// in unknown states we are conservative and let the device run for
+		// a while to see if it transitions to a known state, but eventually
+		// will disable anyways
+		fallthrough
+	case sysconfig.CloudInitEnabled:
+		// we will give cloud-init up to 5 minutes to try and run, if it
+		// still has not transitioned to some other known state, then we
+		// will give up waiting for it and disable it anyways
+
+		// initialize the first time we saw cloud-init in enabled state
+		if m.cloudInitEnabledInactiveAttemptStart == nil {
+			// save the time we started the attempt to restrict
+			now := timeNow()
+			m.cloudInitEnabledInactiveAttemptStart = &now
+		}
+
+		// keep re-scheduling again in 10 seconds until we hit 5 minutes
+		timeSinceFirstAttempt := timeNow().Sub(*m.cloudInitEnabledInactiveAttemptStart)
+		if timeSinceFirstAttempt <= 5*time.Minute {
+			// TODO: should we log a message here about waiting for cloud-init
+			//       to be in a "known state"?
+			m.state.EnsureBefore(10 * time.Second)
+			return nil
+		}
+
+		// otherwise, we gave cloud-init 5 minutes to run, if it's still not
+		// done disable it anyways
+		// note we we need to force the disable, as by default
+		// RestrictCloudInit will error on state CloudInitEnabled
+		opts.ForceDisable = true
+		statusMsg = "failed to transition to done or error state after 5 minutes"
+	}
+
+	// we should always have a model if we are seeded and are not on classic
+	model, err := m.Model()
+	if err != nil {
+		return err
+	}
+
+	// For UC20, we want to always disable cloud-init after it has run on
+	// first boot unless we are in a "real cloud", i.e. not using NoCloud,
+	// or if we installed cloud-init configuration from the gadget
+	if model.Grade() != asserts.ModelGradeUnset {
+		// always disable NoCloud/local datasources after first boot on
+		// uc20, this is because even if the gadget has a cloud.conf
+		// configuring NoCloud, the config installed by cloud-init should
+		// not work differently for later boots, so it's sufficient that
+		// NoCloud runs on first-boot and never again
+		opts.DisableAfterLocalDatasourcesRun = true
+	}
+
+	// now restrict/disable cloud-init
+	res, err := restrictCloudInit(cloudInitStatus, opts)
+	if err != nil {
+		return err
+	}
+
+	// log a message about what we did
+	actionMsg := ""
+	switch res.Action {
+	case "disable":
+		actionMsg = "disabled permanently"
+	case "restrict":
+		// log different messages depending on what datasource was used
+		if res.DataSource == "NoCloud" {
+			actionMsg = "set datasource_list to [ NoCloud ] and disabled auto-import by filesystem label"
+		} else {
+			// all other datasources just log that we limited it to that datasource
+			actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.DataSource)
+		}
+	default:
+		return fmt.Errorf("internal error: unexpected action %s taken while restricting cloud-init", res.Action)
+	}
+	logger.Noticef("System initialized, cloud-init %s, %s", statusMsg, actionMsg)
+
+	m.cloudInitAlreadyRestricted = true
 
 	return nil
 }
@@ -943,21 +1089,17 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
 		return nil
 	}
 
-	if m.changeInFlight("install-system") {
-		return nil
-	}
-
 	perfTimings := timings.New(map[string]string{"ensure": "install-system"})
 
 	model, err := m.Model()
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if err != nil {
@@ -1017,6 +1159,50 @@ func (m *DeviceManager) ensureInstalled() error {
 	return nil
 }
 
+func (m *DeviceManager) ensureFactoryReset() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
+		return nil
+	}
+
+	if m.ensureFactoryResetRan {
+		return nil
+	}
+
+	if m.SystemMode(SysHasModeenv) != "factory-reset" {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	perfTimings := timings.New(map[string]string{"ensure": "factory-reset"})
+
+	m.ensureFactoryResetRan = true
+
+	factoryReset := m.state.NewTask("factory-reset-run-system", i18n.G("Perform factory reset of the system"))
+	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
+	restartSystem.WaitFor(factoryReset)
+
+	// TODO: add factory-reset hooks?
+
+	chg := m.state.NewChange("factory-reset", i18n.G("Perform factory reset"))
+	chg.AddAll(state.NewTaskSet(factoryReset, restartSystem))
+
+	state.TagTimingsWithChange(perfTimings, chg)
+	perfTimings.Save(m.state)
+
+	return nil
+}
+
 var timeNow = time.Now
 
 // StartOfOperationTime returns the time when snapd started operating,
@@ -1032,14 +1218,14 @@ func (m *DeviceManager) StartOfOperationTime() (time.Time, error) {
 	if err == nil {
 		return opTime, nil
 	}
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return opTime, err
 	}
 
 	// start-of-operation-time not set yet, use seed-time if available
 	var seedTime time.Time
 	err = m.state.Get("seed-time", &seedTime)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return opTime, err
 	}
 	if err == nil {
@@ -1073,7 +1259,7 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 	if !m.ensureSeedInConfigRan {
 		// get global seeded option
 		var seeded bool
-		if err := m.state.Get("seeded", &seeded); err != nil && err != state.ErrNoState {
+		if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if !seeded {
@@ -1100,7 +1286,7 @@ func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
 	// state is locked by the caller
 
 	var triedSystems []string
-	if err := m.state.Get("tried-systems", &triedSystems); err != nil && err != state.ErrNoState {
+	if err := m.state.Get("tried-systems", &triedSystems); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if strutil.ListContains(triedSystems, label) {
@@ -1128,7 +1314,7 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	defer m.state.Unlock()
 
 	deviceCtx, err := DeviceCtx(m.state, nil, nil)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	outcome, label, err := boot.InspectTryRecoverySystemOutcome(deviceCtx)
@@ -1161,6 +1347,67 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 
 	m.ensureTriedRecoverySystemRan = true
 	return nil
+}
+
+var bootMarkFactoryResetComplete = boot.MarkFactoryResetComplete
+
+func (m *DeviceManager) ensurePostFactoryReset() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
+		return nil
+	}
+
+	if m.ensurePostFactoryResetRan {
+		return nil
+	}
+
+	mode := m.SystemMode(SysHasModeenv)
+	if mode != "run" {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	m.ensurePostFactoryResetRan = true
+
+	factoryResetMarker := filepath.Join(dirs.SnapDeviceDir, "factory-reset")
+	if !osutil.FileExists(factoryResetMarker) {
+		// marker is gone already
+		return nil
+	}
+
+	encrypted := true
+	// XXX have a helper somewhere for this?
+	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
+		encrypted = false
+	}
+
+	// verify the marker
+	if err := verifyFactoryResetMarkerInRun(factoryResetMarker, encrypted); err != nil {
+		return fmt.Errorf("cannot verify factory reset marker: %v", err)
+	}
+
+	// if encrypted, rotates the fallback keys on disk
+	if err := bootMarkFactoryResetComplete(encrypted); err != nil {
+		return fmt.Errorf("cannot complete factory reset: %v", err)
+	}
+
+	if encrypted {
+		if err := rotateEncryptionKeys(); err != nil {
+			return fmt.Errorf("cannot transition encryption keys: %v", err)
+		}
+	}
+
+	return os.Remove(factoryResetMarker)
 }
 
 type ensureError struct {
@@ -1216,6 +1463,14 @@ func (m *DeviceManager) Ensure() error {
 		if err := m.ensureTriedRecoverySystem(); err != nil {
 			errs = append(errs, err)
 		}
+
+		if err := m.ensureFactoryReset(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensurePostFactoryReset(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	if len(errs) > 0 {
@@ -1241,7 +1496,7 @@ var errNoSaveSupport = errors.New("no save directory before UC20")
 func (m *DeviceManager) withSaveDir(f func() error) error {
 	// we use the model to check whether this is a UC20 device
 	model, err := m.Model()
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot access save dir before a model is set")
 	}
 	if err != nil {
@@ -1285,7 +1540,7 @@ func (m *DeviceManager) withKeypairMgr(f func(asserts.KeypairManager) error) err
 	// to deal with that, this code typically will return the old location
 	// until a restart
 	model, err := m.Model()
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot access device keypair manager before a model is set")
 	}
 	if err != nil {
@@ -1349,6 +1604,56 @@ func (m *DeviceManager) Registered() <-chan struct{} {
 	return m.reg
 }
 
+type UnregisterOptions struct {
+	NoRegistrationUntilReboot bool
+}
+
+// Unregister unregisters the device forgetting its serial
+// plus the additional behavior described by the UnregisterOptions
+func (m *DeviceManager) Unregister(opts *UnregisterOptions) error {
+	device, err := m.device()
+	if err != nil {
+		return err
+	}
+	if !release.OnClassic || (device.Brand != "generic" && device.Brand != "canonical") {
+		return fmt.Errorf("cannot currently unregister device if not classic or model brand is not generic or canonical")
+	}
+
+	if opts == nil {
+		opts = &UnregisterOptions{}
+	}
+	if opts.NoRegistrationUntilReboot {
+		if err := os.MkdirAll(dirs.SnapRunDir, 0755); err != nil {
+			return err
+		}
+		if err := ioutil.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0644); err != nil {
+			return err
+		}
+	}
+	oldKeyID := device.KeyID
+	device.Serial = ""
+	device.KeyID = ""
+	device.SessionMacaroon = ""
+	if err := m.setDevice(device); err != nil {
+		return err
+	}
+	// commit forgetting serial and key
+	m.state.Unlock()
+	m.state.Lock()
+	// delete the device key
+	err = m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) error {
+		err := keypairMgr.Delete(oldKeyID)
+		if err != nil {
+			return fmt.Errorf("cannot delete device key pair: %v", err)
+		}
+		return nil
+	})
+
+	m.lastBecomeOperationalAttempt = time.Time{}
+	m.becomeOperationalBackoff = 0
+	return err
+}
+
 // device returns current device state.
 func (m *DeviceManager) device() (*auth.DeviceState, error) {
 	return internal.Device(m.state)
@@ -1380,7 +1685,7 @@ type SystemModeInfo struct {
 // SystemModeInfo returns details about the current system mode the device is in.
 func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
 	deviceCtx, err := DeviceCtx(m.state, nil, nil)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("cannot report system mode information before device model is acknowledged")
 	}
 	if err != nil {
@@ -1389,7 +1694,7 @@ func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
 
 	var seeded bool
 	err = m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -1440,10 +1745,12 @@ var defaultSystemActions = []SystemAction{
 var currentSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
 	{Title: "Recover", Mode: "recover"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 	{Title: "Run normally", Mode: "run"},
 }
 var recoverSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 	{Title: "Run normally", Mode: "run"},
 }
 
@@ -1495,7 +1802,7 @@ var ErrUnsupportedAction = errors.New("unsupported action")
 func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	rebootCurrent := func() {
 		logger.Noticef("rebooting system")
-		m.state.RequestRestart(state.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow, nil)
 	}
 
 	// most simple case: just reboot
@@ -1519,7 +1826,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 
 	switched := func(systemLabel string, sysAction *SystemAction) {
 		logger.Noticef("rebooting into system %q in %q mode", systemLabel, sysAction.Mode)
-		m.state.RequestRestart(state.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow, nil)
 	}
 	// even if we are already in the right mode we restart here by
 	// passing rebootCurrent as this is what the user requested
@@ -1538,7 +1845,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	nop := func() {}
 	switched := func(systemLabel string, sysAction *SystemAction) {
 		logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
-		m.state.RequestRestart(state.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow, nil)
 	}
 	// we do nothing (nop) if the mode and system are the same
 	return m.switchToSystemAndMode(systemLabel, action.Mode, nop, switched)
@@ -1596,8 +1903,9 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 			sameSystemAndMode()
 			return nil
 		}
-	case "install":
-		// requesting system actions in install mode does not make sense atm
+	case "install", "factory-reset":
+		// requesting system actions in install or factory-reset modes
+		// does not make sense atm
 		//
 		// TODO:UC20: maybe factory hooks will be able to something like
 		// this?
@@ -1650,7 +1958,7 @@ func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, 
 	}
 
 	privKey, err := scb.DeviceManager.keyPair()
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
 	}
 	if err != nil {
@@ -1673,6 +1981,32 @@ func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, 
 
 func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 	return storeContextBackend{m}
+}
+
+var timeutilIsNTPSynchronized = timeutil.IsNTPSynchronized
+
+func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool {
+	if m.ntpSyncedOrTimedOut {
+		return true
+	}
+	if time.Now().After(startTime.Add(maxWait)) {
+		logger.Noticef("no NTP sync after %v, trying auto-refresh anyway", maxWait)
+		m.ntpSyncedOrTimedOut = true
+		return true
+	}
+
+	var err error
+	m.ntpSyncedOrTimedOut, err = timeutilIsNTPSynchronized()
+	if errors.As(err, &timeutil.NoTimedate1Error{}) {
+		// no timedate1 dbus service, no need to wait for it
+		m.ntpSyncedOrTimedOut = true
+		return true
+	}
+	if err != nil {
+		logger.Debugf("cannot check if ntp is syncronized: %v", err)
+	}
+
+	return m.ntpSyncedOrTimedOut
 }
 
 func (m *DeviceManager) hasFDESetupHook() (bool, error) {
@@ -1735,33 +2069,22 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 	return hookOutput, nil
 }
 
-func (m *DeviceManager) checkFDEFeatures(st *state.State) error {
-	// TODO: move most of this to kernel/fde.Features
+func (m *DeviceManager) checkFDEFeatures() (et secboot.EncryptionType, err error) {
 	// Run fde-setup hook with "op":"features". If the hook
 	// returns any {"features":[...]} reply we consider the
 	// hardware supported. If the hook errors or if it returns
 	// {"error":"hardware-unsupported"} we don't.
-	req := &fde.SetupRequest{
-		Op: "features",
-	}
-	output, err := m.runFDESetupHook(req)
+	features, err := fde.CheckFeatures(m.runFDESetupHook)
 	if err != nil {
-		return err
+		return et, err
 	}
-	var res struct {
-		Features []string `json:"features"`
-		Error    string   `json:"error"`
+	if strutil.ListContains(features, "device-setup") {
+		et = secboot.EncryptionTypeDeviceSetupHook
+	} else {
+		et = secboot.EncryptionTypeLUKS
 	}
-	if err := json.Unmarshal(output, &res); err != nil {
-		return fmt.Errorf("cannot parse hook output %q: %v", output, err)
-	}
-	if res.Features == nil && res.Error == "" {
-		return fmt.Errorf(`cannot use hook: neither "features" nor "error" returned`)
-	}
-	if res.Error != "" {
-		return fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
-	}
-	return nil
+
+	return et, nil
 }
 
 func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
@@ -1787,4 +2110,107 @@ func (h fdeSetupHandler) Done() error {
 
 func (h fdeSetupHandler) Error(err error) (bool, error) {
 	return false, nil
+}
+
+var (
+	secbootEnsureRecoveryKey  = secboot.EnsureRecoveryKey
+	secbootRemoveRecoveryKeys = secboot.RemoveRecoveryKeys
+)
+
+// EnsureRecoveryKeys makes sure appropriate recovery keys exist and
+// returns them. Usually a single recovery key is created/used, but
+// older systems might return both a recovery key for ubuntu-data and a
+// reinstall key for ubuntu-save.
+func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse, error) {
+	fdeDir := dirs.SnapFDEDir
+	mode := m.SystemMode(SysAny)
+	if mode == "install" {
+		fdeDir = boot.InstallHostFDEDataDir
+	} else if mode != "run" {
+		return nil, fmt.Errorf("cannot ensure recovery keys from system mode %q", mode)
+	}
+	sysKeys := &client.SystemRecoveryKeysResponse{}
+	// backward compatibility
+	reinstallKeyFile := filepath.Join(fdeDir, "reinstall.key")
+	if osutil.FileExists(reinstallKeyFile) {
+		rkey, err := keys.RecoveryKeyFromFile(filepath.Join(fdeDir, "recovery.key"))
+		if err != nil {
+			return nil, err
+		}
+		sysKeys.RecoveryKey = rkey.String()
+
+		reinstallKey, err := keys.RecoveryKeyFromFile(reinstallKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		sysKeys.ReinstallKey = reinstallKey.String()
+		return sysKeys, nil
+	}
+	// XXX have a helper somewhere for this? gadget or secboot?
+	if !osutil.FileExists(filepath.Join(fdeDir, "marker")) {
+		return nil, fmt.Errorf("system does not use disk encryption")
+	}
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
+	}
+	if len(dataMountPoints) == 0 {
+		// shouldn't happen as the marker file is under ubuntu-data
+		return nil, fmt.Errorf("cannot ensure recovery keys without any ubuntu-data mount points")
+	}
+	recoveryKeyDevices := []secboot.RecoveryKeyDevice{
+		{
+			Mountpoint: dataMountPoints[0],
+			// TODO ubuntu-data key in install mode? key isn't
+			// available in the keyring nor exists on disk
+		},
+		{
+			Mountpoint: boot.InitramfsUbuntuSaveDir,
+			AuthorizingKeyFile: filepath.Join(
+				dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data")),
+				"ubuntu-save.key",
+			),
+		},
+	}
+	rkey, err := secbootEnsureRecoveryKey(filepath.Join(fdeDir, "recovery.key"), recoveryKeyDevices)
+	if err != nil {
+		return nil, err
+	}
+	sysKeys.RecoveryKey = rkey.String()
+	return sysKeys, nil
+}
+
+// RemoveRecoveryKeys removes and disables all recovery keys.
+func (m *DeviceManager) RemoveRecoveryKeys() error {
+	mode := m.SystemMode(SysAny)
+	if mode != "run" {
+		return fmt.Errorf("cannot remove recovery keys from system mode %q", mode)
+	}
+	// XXX have a helper somewhere for this? gadget or secboot?
+	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
+		return fmt.Errorf("system does not use disk encryption")
+	}
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	if err != nil {
+		return fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
+	}
+	recoveryKeyDevices := make(map[secboot.RecoveryKeyDevice]string, 2)
+	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
+	recoveryKeyDevices[secboot.RecoveryKeyDevice{
+		Mountpoint: dataMountPoints[0],
+		// authorization from keyring
+	}] = rkey
+	reinstallKeyFile := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
+	if !osutil.FileExists(reinstallKeyFile) {
+		reinstallKeyFile = rkey
+	}
+	recoveryKeyDevices[secboot.RecoveryKeyDevice{
+		Mountpoint: boot.InitramfsUbuntuSaveDir,
+		AuthorizingKeyFile: filepath.Join(
+			dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data")),
+			"ubuntu-save.key",
+		),
+	}] = reinstallKeyFile
+
+	return secbootRemoveRecoveryKeys(recoveryKeyDevices)
 }

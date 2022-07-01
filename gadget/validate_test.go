@@ -30,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
 )
@@ -213,7 +214,7 @@ func (s *validateGadgetTestSuite) TestVolumeRulesConsistencyNoModel(c *C) {
 	c.Assert(err, ErrorMatches, "model does not support the system-save role")
 }
 
-func (s *validateGadgetTestSuite) TestValidateConsistencyWithoutModelCharateristics(c *C) {
+func (s *validateGadgetTestSuite) TestValidateConsistencyWithoutModelCharacteristics(c *C) {
 	for i, tc := range []struct {
 		role  string
 		label string
@@ -265,7 +266,7 @@ volumes:
 	}
 }
 
-func (s *validateGadgetTestSuite) TestValidateConsistencyWithModelCharateristics(c *C) {
+func (s *validateGadgetTestSuite) TestValidateConsistencyWithModelCharacteristics(c *C) {
 	bloader := `
 volumes:
   pc:
@@ -340,9 +341,9 @@ volumes:
 
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, b.Bytes())
 
-		mod := &modelCharateristics{
-			classic:    false,
-			systemSeed: tc.requireSeed,
+		mod := &gadgettest.ModelCharacteristics{
+			IsClassic:  false,
+			SystemSeed: tc.requireSeed,
 		}
 		ginfo, err := gadget.ReadInfo(s.dir, mod)
 		c.Assert(err, IsNil)
@@ -357,8 +358,8 @@ volumes:
 	// test error with no volumes
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(bloader))
 
-	mod := &modelCharateristics{
-		systemSeed: true,
+	mod := &gadgettest.ModelCharacteristics{
+		SystemSeed: true,
 	}
 
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
@@ -533,8 +534,8 @@ func (s *validateGadgetTestSuite) TestRuleValidateHybridGadget(c *C) {
         size: 750M
 `)
 
-	mod := &modelCharateristics{
-		classic: false,
+	mod := &gadgettest.ModelCharacteristics{
+		IsClassic: false,
 	}
 	giMeta, err := gadget.InfoFromGadgetYaml(hybridyGadgetYaml, mod)
 	c.Assert(err, IsNil)
@@ -584,8 +585,8 @@ func (s *validateGadgetTestSuite) TestRuleValidateHybridGadgetBrokenDupRole(c *C
         size: 750M
 `)
 
-	mod := &modelCharateristics{
-		classic: false,
+	mod := &gadgettest.ModelCharacteristics{
+		IsClassic: false,
 	}
 	giMeta, err := gadget.InfoFromGadgetYaml(brokenGadgetYaml, mod)
 	c.Assert(err, IsNil)
@@ -716,7 +717,7 @@ var gadgetYamlContentWithSave = gadgetYamlContentNoSave + `
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportErr(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentNoSave))
 
-	mod := &modelCharateristics{systemSeed: true}
+	mod := &gadgettest.ModelCharacteristics{SystemSeed: true}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
@@ -727,7 +728,7 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportErr(c *C) {
 
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportHappy(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentWithSave))
-	mod := &modelCharateristics{systemSeed: true}
+	mod := &gadgettest.ModelCharacteristics{SystemSeed: true}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
@@ -739,7 +740,7 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportHappy(c *C) {
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportNoUC20(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlPC))
 
-	mod := &modelCharateristics{systemSeed: false}
+	mod := &gadgettest.ModelCharacteristics{SystemSeed: false}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
@@ -750,7 +751,7 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportNoUC20(c *C) {
 
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportMultiVolumeHappy(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(mockMultiVolumeUC20GadgetYaml))
-	mod := &modelCharateristics{systemSeed: true}
+	mod := &gadgettest.ModelCharacteristics{SystemSeed: true}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
@@ -904,34 +905,44 @@ func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
 	}
 
 	for _, tc := range []struct {
-		volumeContent []gadget.VolumeContent
-		kinfo         *kernel.Info
-		expectedErr   string
+		volumeContent  []gadget.VolumeContent
+		kinfo          *kernel.Info
+		consumed       bool
+		consumedErr    string
+		consumesOneErr string
 	}{
 		// happy case: trivial
-		{contentNoKernelRef, kInfoNoRefs, ""},
+		{contentNoKernelRef, kInfoNoRefs, false, "", ""},
 
 		// happy case: if kernel asset has "Update: false"
-		{contentNoKernelRef, kInfoOneRefButUpdateFlagFalse, ""},
+		{contentNoKernelRef, kInfoOneRefButUpdateFlagFalse, false, "", ""},
 
 		// unhappy case: kernel has one or more unresolved references in gadget
-		{contentNoKernelRef, kInfoOneRef, `gadget does not consume any of the kernel assets needing synced update "ref"`},
-		{contentNoKernelRef, kInfoTwoRefs, `gadget does not consume any of the kernel assets needing synced update "ref", "ref2"`},
+		{contentNoKernelRef, kInfoOneRef, false, "", "gadget does not consume any of the kernel assets needing synced update \"ref\""},
+		{contentNoKernelRef, kInfoTwoRefs, false, "", "gadget does not consume any of the kernel assets needing synced update \"ref\", \"ref2\""},
 
 		// unhappy case: gadget needs different asset than kernel provides
-		{contentOneKernelRef, kInfoOneRefDifferentName, `gadget does not consume any of the kernel assets needing synced update "ref-other"`},
+		{contentOneKernelRef, kInfoOneRefDifferentName, false, "", "gadget does not consume any of the kernel assets needing synced update \"ref-other\""},
 
 		// happy case: exactly one matching kernel ref
-		{contentOneKernelRef, kInfoOneRef, ""},
+		{contentOneKernelRef, kInfoOneRef, true, "", ""},
 		// happy case: one matching, one missing kernel ref, still considered fine
-		{contentTwoKernelRefs, kInfoTwoRefs, ""},
+		{contentTwoKernelRefs, kInfoTwoRefs, true, "", ""},
 	} {
 		lv.Structure[0].Content = tc.volumeContent
-		err := gadget.GadgetVolumeConsumesOneKernelUpdateAsset(lv.Volume, tc.kinfo)
-		if tc.expectedErr == "" {
+		consumed, err := gadget.GadgetVolumeKernelUpdateAssetsConsumed(lv.Volume, tc.kinfo)
+		if tc.consumedErr == "" {
+			c.Check(err, IsNil, Commentf("should not fail %v", tc.volumeContent))
+			c.Check(consumed, Equals, tc.consumed)
+		} else {
+			c.Check(err, ErrorMatches, tc.consumedErr, Commentf("should fail %v", tc.volumeContent))
+		}
+
+		err = gadget.GadgetVolumeConsumesOneKernelUpdateAsset(lv.Volume, tc.kinfo)
+		if tc.consumesOneErr == "" {
 			c.Check(err, IsNil, Commentf("should not fail %v", tc.volumeContent))
 		} else {
-			c.Check(err, ErrorMatches, tc.expectedErr, Commentf("should fail %v", tc.volumeContent))
+			c.Check(err, ErrorMatches, tc.consumesOneErr, Commentf("should fail %v", tc.volumeContent))
 		}
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/godbus/dbus"
@@ -88,6 +89,7 @@ func CreateTransientScopeForTracking(securityTag string, opts *TrackingOptions) 
 	unitName := fmt.Sprintf("%s.%s.scope", securityTag, uuid)
 
 	pid := osGetpid()
+	start := time.Now()
 tryAgain:
 	// Create a transient scope by talking to systemd over DBus.
 	if err := doCreateTransientScope(conn, unitName, pid); err != nil {
@@ -129,7 +131,6 @@ tryAgain:
 	// Verify the effective tracking cgroup and check that our scope name is
 	// contained therein.
 	hasTracking := false
-	start := time.Now()
 	for tries := 0; tries < 100; tries++ {
 		path, err := cgroupProcessPathInTrackingCgroup(pid)
 		if err != nil {
@@ -211,14 +212,18 @@ var (
 	errDBusUnknownMethod    = &handledDBusError{msg: "unknown dbus object method", dbusError: "org.freedesktop.DBus.Error.UnknownMethod"}
 	errDBusNameHasNoOwner   = &handledDBusError{msg: "dbus name has no owner", dbusError: "org.freedesktop.DBus.Error.NameHasNoOwner"}
 	errDBusSpawnChildExited = &handledDBusError{msg: "dbus spawned child process exited", dbusError: "org.freedesktop.DBus.Error.Spawn.ChildExited"}
+
+	// pick a decent fit-all timeout
+	createScopeJobTimeout = 10 * time.Second
 )
 
-// doCreateTransientScope creates a systemd transient scope with specified properties.
+// startTransientScope requests systemd to create a transient unit and returns
+// the associated systemd job path.
 //
 // The scope is created by asking systemd via the specified DBus connection.
 // The unit name and the PID to attach are provided as well. The DBus method
 // call is performed outside confinement established by snap-confine.
-var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) error {
+func startTransientScope(conn *dbus.Conn, unitName string, pid int) (job dbus.ObjectPath, err error) {
 	// Documentation of StartTransientUnit is available at
 	// https://www.freedesktop.org/wiki/Software/systemd/dbus/
 	//
@@ -284,7 +289,6 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 		properties,
 		aux,
 	)
-	var job dbus.ObjectPath
 	if err := call.Store(&job); err != nil {
 		if dbusErr, ok := err.(dbus.Error); ok {
 			logger.Debugf("StartTransientUnit failed with %q: %v", dbusErr.Name, dbusErr.Body)
@@ -293,29 +297,158 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 			case "org.freedesktop.DBus.Error.NameHasNoOwner":
 				// Nothing is providing systemd bus name. This is, most likely,
 				// an Ubuntu 14.04 system with the special deputy systemd.
-				return errDBusNameHasNoOwner
+				return "", errDBusNameHasNoOwner
 			case "org.freedesktop.DBus.Error.UnknownMethod":
 				// The DBus API is not supported on this system. This can happen on
 				// very old versions of Systemd, for instance on Ubuntu 14.04.
-				return errDBusUnknownMethod
+				return "", errDBusUnknownMethod
 			case "org.freedesktop.DBus.Error.Spawn.ChildExited":
 				// We tried to socket-activate dbus-daemon or bus-activate
 				// systemd --user but it failed.
-				return errDBusSpawnChildExited
+				return "", errDBusSpawnChildExited
 			case "org.freedesktop.systemd1.UnitExists":
 				// Starting a scope with a name that already exists is an
 				// error. Normally this should never happen.
-				return fmt.Errorf("cannot create transient scope: scope %q clashed: %s", unitName, err)
+				return "", fmt.Errorf("cannot create transient scope: scope %q clashed: %s", unitName, err)
 			default:
-				return fmt.Errorf("cannot create transient scope: DBus error %q: %v", dbusErr.Name, dbusErr.Body)
+				return "", fmt.Errorf("cannot create transient scope: DBus error %q: %v", dbusErr.Name, dbusErr.Body)
 			}
 		}
-		if err != nil {
-			return fmt.Errorf("cannot create transient scope: %s", err)
-		}
+		return "", fmt.Errorf("cannot create transient scope: %s", err)
 	}
-	logger.Debugf("created transient scope as object: %s", job)
+	logger.Debugf("create transient scope job: %s", job)
+	return job, nil
+}
+
+// doCreateTransientScopeOpportunisticSync creates a transient scope with a
+// given unit name asking systemd to move the provided pid to that scope, does
+// not wait for the systemd job to complete
+func doCreateTransientScopeNoSync(conn *dbus.Conn, unitName string, pid int) error {
+	_, err := startTransientScope(conn, unitName, pid)
+	return err
+}
+
+// doCreateTransientScopeOpportunisticSync creates a transient scope with a
+// given unit name asking systemd to move the provided pid to that scope, and
+// waits for the systemd job to finish
+func doCreateTransientScopeJobRemovedSync(conn *dbus.Conn, unitName string, pid int) error {
+	// set up a watch for JobRemoved signals, so that we'll know when our
+	// request has completed
+	jobRemoveMatch := []dbus.MatchOption{
+		dbus.WithMatchInterface("org.freedesktop.systemd1.Manager"),
+		dbus.WithMatchMember("JobRemoved"),
+	}
+	if err := conn.AddMatchSignal(jobRemoveMatch...); err != nil {
+		return fmt.Errorf("cannot subscribe to systemd signals: %v", err)
+	}
+	// signal channel with buffer for some messages
+	signals := make(chan *dbus.Signal, 10)
+	// for receiving job results
+	jobResultChan := make(chan string, 1)
+	// for passing the job we want to observe
+	jobWaitFor := make(chan dbus.ObjectPath, 1)
+	// and start watching for signals, we do this before even sending a
+	// request, so that we won't miss any signals from systemd
+	conn.Signal(signals)
+
+	var wg sync.WaitGroup
+	defer func() {
+		close(jobWaitFor)
+		// wait for the signal handling to finish before returning
+		wg.Wait()
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		jobResults := make(map[dbus.ObjectPath]string, 10)
+		expectedJob := dbus.ObjectPath("")
+		for {
+			select {
+			case job, ok := <-jobWaitFor:
+				if !ok {
+					// the channel got closed, meaning it's
+					// time to clean up
+					conn.RemoveSignal(signals)
+					conn.RemoveMatchSignal(jobRemoveMatch...)
+					close(jobResultChan)
+					close(signals)
+					return
+				}
+				if result, ok := jobResults[job]; ok {
+					// maybe we already have result for this job
+					jobResultChan <- result
+				} else {
+					expectedJob = job
+				}
+			case sig, ok := <-signals:
+				if !ok {
+					continue
+				}
+				// make sure the signal name is as expected, although the
+				// match selectors should ensure we only receive
+				// JobRemoved signals
+				if sig.Name != "org.freedesktop.systemd1.Manager.JobRemoved" {
+					continue
+				}
+				var id uint32
+				var jobFromSignal dbus.ObjectPath
+				var unit string
+				var result string
+				if err := dbus.Store(sig.Body, &id, &jobFromSignal, &unit, &result); err != nil {
+					continue
+				}
+				if jobFromSignal == expectedJob {
+					// we are already expecting results for this job
+					jobResultChan <- result
+				} else {
+					// or not, just keep result for now, as
+					// a request to track a job may come
+					// later
+					jobResults[jobFromSignal] = result
+				}
+			}
+		}
+	}()
+	job, err := startTransientScope(conn, unitName, pid)
+	if err != nil {
+		return err
+	}
+	jobWaitFor <- job
+	select {
+	case result := <-jobResultChan:
+		logger.Debugf("job result is %q", result)
+		if result != "done" {
+			return fmt.Errorf("transient scope could not be started, job %v finished with result %v", job, result)
+		}
+	case <-time.After(createScopeJobTimeout):
+		return fmt.Errorf("transient scope not created in %v", createScopeJobTimeout)
+	}
+	logger.Debugf("transient scope %v created", unitName)
 	return nil
+}
+
+// doCreateTransientScope creates a systemd transient scope with specified properties.
+//
+// The scope is created by asking systemd via the specified DBus connection.
+// The unit name and the PID to attach are provided as well. The DBus method
+// call is performed outside confinement established by snap-confine.
+var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) error {
+	// in theory we could use a single implementation that sync with job
+	// removed signal and inspects the result, however some older
+	// distributions sport an unpatched and broken version of systemd, which
+	// prevents the job from being correctly moved to new scope when
+	// creating one on the user systemd instance, and thus we always get an
+	// error. Fortunately, it so happens that distributions that have
+	// switched to a unified cgroup hierarchy, carry a systemd version that
+	// has so far been able to successfully create user scopes in user
+	// sessions
+	if IsUnified() {
+		// when using cgroup v2, we absolutely must be sure that the
+		// tracking group has been created, otherwise we risk
+		// establishing a device cgroup filtering in the wrong group
+		return doCreateTransientScopeJobRemovedSync(conn, unitName, pid)
+	}
+	return doCreateTransientScopeNoSync(conn, unitName, pid)
 }
 
 var randomUUID = func() (string, error) {

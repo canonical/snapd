@@ -39,7 +39,7 @@ type ServiceState struct {
 func HandleMockAllUnitsActiveOutput(cmd []string, states map[string]ServiceState) []byte {
 	osutil.MustBeTestBinary("mocking systemctl output can only be done from tests")
 	if cmd[0] != "show" ||
-		cmd[1] != "--property=Id,ActiveState,UnitFileState,Type" {
+		cmd[1] != "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload" {
 		return nil
 	}
 	var output []byte
@@ -52,10 +52,43 @@ func HandleMockAllUnitsActiveOutput(cmd []string, states map[string]ServiceState
 			state = ServiceState{"active", "enabled"}
 		}
 		output = append(output, []byte(fmt.Sprintf(`Id=%s
+Names=%s
 ActiveState=%s
 UnitFileState=%s
 Type=simple
-`, unit, state.ActiveState, state.UnitFileState))...)
+NeedDaemonReload=no
+`, unit, unit, state.ActiveState, state.UnitFileState))...)
 	}
 	return output
+}
+
+type MountUnitInfo struct {
+	Description  string
+	Where        string
+	FragmentPath string
+}
+
+// HandleMockListMountUnitsOutput returns the output for systemctl in the case
+// where units have the state as described by states.
+// If `cmd` is the command issued by systemd.Status(), this function returns
+// the output to be produced by the command so that the queried services will
+// appear having the ActiveState and UnitFileState according to the data
+// passed in the `states` map.
+func HandleMockListMountUnitsOutput(cmd []string, mounts []MountUnitInfo) ([]byte, bool) {
+	osutil.MustBeTestBinary("mocking systemctl output can only be done from tests")
+	if cmd[0] != "show" ||
+		cmd[1] != "--property=Description,Where,FragmentPath" {
+		return nil, false
+	}
+	var output []byte
+	for _, mountInfo := range mounts {
+		if len(output) > 0 {
+			output = append(output, byte('\n'))
+		}
+		output = append(output, []byte(fmt.Sprintf(`Description=%s
+Where=%s
+FragmentPath=%s
+`, mountInfo.Description, mountInfo.Where, mountInfo.FragmentPath))...)
+	}
+	return output, true
 }

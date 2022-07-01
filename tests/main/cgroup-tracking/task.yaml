@@ -14,10 +14,6 @@ environment:
     USER/test: test
 
 prepare: |
-    # This feature depends on the release-app-awareness feature
-    snap set core experimental.refresh-app-awareness=true
-    tests.cleanup defer snap unset core experimental.refresh-app-awareness
-
     snap pack test-snapd-tracking
     tests.cleanup defer rm -f test-snapd-tracking_1_all.snap
 
@@ -172,3 +168,19 @@ execute: |
 
     wait "$session3_pid" || true  # same as above
     retry -n 10 test ! -e "${base_cg_path}${pid3_tracking_cg_path}"
+
+    if [ "$USER" != "root" ]; then
+        # since the service we run here writes under /var/snap/ we need to make
+        # that location writable
+        chmod a+w /var/snap/test-snapd-tracking/common
+    fi
+    echo "A service run directly as the user will also get a tracking scope"
+    rm -f /var/snap/test-snapd-tracking/common/nap.cgroup
+    tests.session -p /tmp/4.pid -u "$USER" exec snap run test-snapd-tracking.nap &
+    session4_pid=$!
+    retry -n 30 test -e /var/snap/test-snapd-tracking/common/nap.cgroup
+    pid4=$(cat /tmp/4.pid)
+    pid4_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid4/cgroup" | cut -d : -f 3)"
+    echo "$pid4_tracking_cg_path" | MATCH '.*/snap\.test-snapd-tracking\.nap\.[0-9a-f-]+\.scope'
+    kill "$pid4"
+    wait "$session4_pid" || true

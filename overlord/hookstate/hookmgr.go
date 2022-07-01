@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ package hookstate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/settings"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -225,7 +227,7 @@ func hookSetup(task *state.Task, key string) (*HookSetup, *snapstate.SnapState, 
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(task.State(), hooksup.Snap, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, fmt.Errorf("cannot handle %q snap: %v", hooksup.Snap, err)
 	}
 
@@ -275,7 +277,7 @@ func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	hooksup, snapst, err := hookSetup(task, "undo-hook-setup")
 	task.State().Unlock()
 	if err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			// no undo hook setup
 			return nil
 		}
@@ -314,6 +316,20 @@ func (m *HookManager) runHookForTask(task *state.Task, tomb *tomb.Tomb, snapst *
 	return m.runHook(context, snapst, hooksup, tomb)
 }
 
+// runHookGuardForRestarting helps avoiding running a hook if we are
+// restarting by returning state.Retry in such case.
+func (m *HookManager) runHookGuardForRestarting(context *Context) error {
+	context.Lock()
+	defer context.Unlock()
+	if ok, _ := restart.Pending(m.state); ok {
+		return &state.Retry{}
+	}
+
+	// keep count of running hooks
+	atomic.AddInt32(&m.runningHooks, 1)
+	return nil
+}
+
 func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hooksup *HookSetup, tomb *tomb.Tomb) error {
 	mustHijack := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
 	hookExists := false
@@ -336,13 +352,9 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 
 	if hookExists || mustHijack {
 		// we will run something, not a noop
-		if ok, _ := m.state.Restarting(); ok {
-			// don't start running a hook if we are restarting
-			return &state.Retry{}
+		if err := m.runHookGuardForRestarting(context); err != nil {
+			return err
 		}
-
-		// keep count of running hooks
-		atomic.AddInt32(&m.runningHooks, 1)
 		defer atomic.AddInt32(&m.runningHooks, -1)
 	} else if !hooksup.Always {
 		// a noop with no 'always' flag: bail

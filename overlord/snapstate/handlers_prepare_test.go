@@ -44,13 +44,13 @@ type baseHandlerSuite struct {
 	fakeBackend *fakeSnappyBackend
 }
 
-func (s *baseHandlerSuite) setup(c *C, b state.Backend) {
+func (s *baseHandlerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
 
 	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = state.New(b)
+	s.state = state.New(nil)
 	s.runner = state.NewTaskRunner(s.state)
 
 	var err error
@@ -83,10 +83,6 @@ func (s *baseHandlerSuite) setup(c *C, b state.Backend) {
 	s.AddCleanup(restoreSecurityProfilesDiscardLate)
 }
 
-func (s *baseHandlerSuite) SetUpTest(c *C) {
-	s.setup(c, nil)
-}
-
 type prepareSnapSuite struct {
 	baseHandlerSuite
 }
@@ -101,7 +97,7 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 			RealName: "foo",
 		},
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	s.state.Unlock()
 

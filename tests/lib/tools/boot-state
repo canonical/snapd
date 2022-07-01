@@ -107,7 +107,7 @@ bootenv_set() {
     if run_grub_editenv set "$var=$value"; then
         return
     elif [ -s "$grubenv_file" ]; then
-        sed -i "/^$var=/d" "$grubenv_file"
+        sed --follow-symlinks -i "/^$var=/d" "$grubenv_file"
         #The grubenv file could not have a new line at the end
         if [ -n "$(tail -n 1 "$grubenv_file")" ]; then
             echo "" >> "$grubenv_file"
@@ -132,7 +132,7 @@ bootenv_unset() {
     if run_grub_editenv "$grubenv_file" unset "$var"; then
         return
     elif [ -s "$grubenv_file" ]; then
-        sed -i "/^$var=/d" "$grubenv_file"
+        sed --follow-symlinks -i "/^$var=/d" "$grubenv_file"
     else
         fw_setenv "$var"
     fi
@@ -147,6 +147,8 @@ boot_path() {
         echo "/boot/grub/"
     elif [ -f /boot/grub2/grubenv ]; then
         echo "/boot/grub2/"
+    elif [ -f /boot/piboot/piboot.conf ]; then
+        echo "/boot/piboot/"
     else
         echo "boot-state: cannot determine boot path" >&2
         ls -alR /boot

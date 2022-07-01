@@ -1,6 +1,6 @@
 summary: Check that the boot config is correctly updated when snapd is refreshed
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
   VARIANT/nogadget: "no-gadget"
@@ -20,10 +20,7 @@ prepare: |
       exit
   fi
 
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
-  "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
+  "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd
   echo "Repack the snapd snap with a marker file"
   unsquashfs -d snapd-snap snapd-from-deb.snap
 
@@ -35,14 +32,18 @@ prepare: |
 
   if [ "$VARIANT" != "no-gadget" ]; then
     echo "Grab and prepare the gadget snap"
-    snap download --basename=pc --channel="20/edge" pc
+    version=20
+    if tests.nested is-nested uc22; then
+        version=22
+    fi
+    snap download --basename=pc --channel="$version/edge" pc
     unsquashfs -d pc-gadget pc.snap
 
     echo "Sign the shim binary"
-    KEY_NAME=$(nested_get_snakeoil_key)
+    KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-    nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
     case "$VARIANT" in
       gadget-extra)
@@ -57,7 +58,7 @@ prepare: |
         exit 1
         ;;
     esac
-    snap pack pc-gadget/ extra-snaps/
+    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
   fi
 
   tests.nested build-image core
@@ -74,9 +75,6 @@ execute: |
       echo "This test needs a build of snapd with testing features enabled"
       exit
   fi
-
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
 
   tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
   SEALED_KEY_MTIME_1="$(tests.nested exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
@@ -95,7 +93,7 @@ execute: |
   esac
 
   echo "Install new (unasserted) snapd and wait for reboot/change finishing"
-  boot_id="$( nested_get_boot_id )"
+  boot_id="$( tests.nested boot-id )"
   REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous snapd-boot-config-update.snap --no-wait)
   tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
   if [ "$VARIANT" != "gadget-full" ]; then

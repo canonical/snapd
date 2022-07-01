@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 type bootAssetsMap map[string][]string
@@ -154,6 +155,10 @@ func modeenvFile(rootdir string) string {
 // ReadModeenv attempts to read the modeenv file at
 // <rootdir>/var/iib/snapd/modeenv.
 func ReadModeenv(rootdir string) (*Modeenv, error) {
+	if snapdenv.Preseeding() {
+		return nil, fmt.Errorf("internal error: modeenv cannot be read during preseeding")
+	}
+
 	modeenvPath := modeenvFile(rootdir)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
@@ -266,6 +271,10 @@ func (m *Modeenv) Write() error {
 
 // WriteTo outputs the modeenv to the file at <rootdir>/var/lib/snapd/modeenv.
 func (m *Modeenv) WriteTo(rootdir string) error {
+	if snapdenv.Preseeding() {
+		return fmt.Errorf("internal error: modeenv cannot be written during preseeding")
+	}
+
 	modeenvPath := modeenvFile(rootdir)
 
 	if err := os.MkdirAll(filepath.Dir(modeenvPath), 0755); err != nil {
@@ -337,7 +346,7 @@ type modelForSealing struct {
 	modelSignKeyID string
 }
 
-// dummy to verify interface match
+// verify interface match
 var _ secboot.ModelForSealing = (*modelForSealing)(nil)
 
 func (m *modelForSealing) BrandID() string           { return m.brandID }

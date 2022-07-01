@@ -29,6 +29,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -42,12 +43,11 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/testutil"
 )
 
 var _ = check.Suite(&systemsSuite{})
@@ -127,7 +127,7 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -191,6 +191,7 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 				Actions: []client.SystemAction{
 					{Title: "Reinstall", Mode: "install"},
 					{Title: "Recover", Mode: "recover"},
+					{Title: "Factory reset", Mode: "factory-reset"},
 					{Title: "Run normally", Mode: "run"},
 				},
 			},
@@ -205,7 +206,7 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// model assertion setup
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -233,7 +234,7 @@ func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
@@ -320,8 +321,17 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 	bootloader.Force(bt)
 	defer func() { bootloader.Force(nil) }()
 
-	cmd := testutil.MockCommand(c, "shutdown", "")
-	defer cmd.Restore()
+	nRebootCall := 0
+	rebootCheck := func(ra boot.RebootAction, d time.Duration, ri *boot.RebootInfo) error {
+		nRebootCall++
+		// slow reboot schedule
+		c.Check(ra, check.Equals, boot.RebootReboot)
+		c.Check(d, check.Equals, 10*time.Minute)
+		c.Check(ri, check.IsNil)
+		return nil
+	}
+	r := daemon.MockReboot(rebootCheck)
+	defer r()
 
 	restore := s.mockSystemSeeds(c)
 	defer restore()
@@ -353,6 +363,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		"seed-time": "2009-11-10T23:00:00Z",
 	}}
 
+	numExpRestart := 0
 	tt := []struct {
 		currentMode    string
 		actionMode     string
@@ -381,14 +392,23 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 			comment:     "run mode to run mode",
 		},
 		{
-			// from recover mode -> run mode works to stop recovering and "restore" the system to normal
+			// from run mode -> factory-reset
+			currentMode: "run",
+			actionMode:  "factory-reset",
+			expRestart:  true,
+			comment:     "run mode to factory-reset mode",
+		},
+		{
+			// from recover mode -> run mode works to stop
+			// recovering and "restore" the system to normal
 			currentMode: "recover",
 			actionMode:  "run",
 			expRestart:  true,
 			comment:     "recover mode to run mode",
 		},
 		{
-			// from recover mode -> install mode works to stop recovering and reinstall the system if all is lost
+			// from recover mode -> install mode works to stop
+			// recovering and reinstall the system if all is lost
 			currentMode: "recover",
 			actionMode:  "install",
 			expRestart:  true,
@@ -400,6 +420,13 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 			actionMode:     "recover",
 			expUnsupported: true,
 			comment:        "recover mode to recover mode",
+		},
+		{
+			// from recover mode -> factory-reset works
+			currentMode: "recover",
+			actionMode:  "factory-reset",
+			expRestart:  true,
+			comment:     "recover mode to factory-reset mode",
 		},
 		{
 			// from install mode -> install mode is no-no
@@ -439,12 +466,12 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		d := s.daemon(c)
 		st := d.Overlord().State()
 		st.Lock()
-		// devicemgr needs boot id to request a reboot
-		st.VerifyReboot("boot-id-0")
+		// make things look like a reboot
+		restart.ReplaceBootID(st, "boot-id-1")
 		// device model
 		assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 		assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
-		s.mockModel(c, st, model)
+		s.mockModel(st, model)
 		if tc.currentMode == "run" {
 			// only set in run mode
 			st.Set("seeded-systems", currentSystem)
@@ -505,22 +532,18 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 				// daemon is not started, only check whether reboot was scheduled as expected
 
 				// reboot flag
-				c.Check(d.RequestedRestart(), check.Equals, state.RestartSystemNow, check.Commentf(tc.comment))
-				// slow reboot schedule
-				c.Check(cmd.Calls(), check.DeepEquals, [][]string{
-					{"shutdown", "-r", "+10", "reboot scheduled to update the system"},
-				},
-					check.Commentf(tc.comment),
-				)
+				numExpRestart++
+				c.Check(d.RequestedRestart(), check.Equals, restart.RestartSystemNow, check.Commentf(tc.comment))
 			}
 		}
 
 		c.Assert(rspBody, check.DeepEquals, expResp, check.Commentf(tc.comment))
 
-		cmd.ForgetCalls()
 		s.resetDaemon()
 	}
 
+	// we must have called reboot numExpRestart times
+	c.Check(nRebootCall, check.Equals, numExpRestart)
 }
 
 func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
@@ -530,7 +553,7 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -558,7 +581,7 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 }
 
 func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -622,8 +645,10 @@ func (s *systemsSuite) TestSystemRebootHappy(c *check.C) {
 		{"20200101", ""},
 		{"", "run"},
 		{"", "recover"},
+		{"", "factory-reset"},
 		{"20200101", "run"},
 		{"20200101", "recover"},
+		{"20200101", "factory-reset"},
 	} {
 		called := 0
 		restore := daemon.MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {

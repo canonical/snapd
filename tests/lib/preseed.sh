@@ -15,9 +15,14 @@ mount_ubuntu_image() {
 
     # Run qemu-nbd as a service, so that it does not interact with ssh
     # stdin/stdout it would otherwise inherit from the spread session.
-    systemd-run --system --service-type=forking --unit=qemu-nbd-preseed.service "$(command -v qemu-nbd)" --fork -c /dev/nbd0 "$CLOUD_IMAGE"
+    systemd-run --system --service-type=forking --unit=qemu-nbd-preseed.service "$(command -v qemu-nbd)" -v --fork -c /dev/nbd0 "$CLOUD_IMAGE"
     # nbd0p1 may take a short while to become available
-    retry -n 5 --wait 1 test -e /dev/nbd0p1
+    if ! retry -n 30 --wait 1 test -e /dev/nbd0p1; then
+        echo "ERROR: /dev/nbd0p1 did not show up"
+        journalctl -u qemu-nbd-preseed.service
+        find /dev/ -name "nbd0*" -ls        
+        exit 1
+    fi
     mount /dev/nbd0p1 "$IMAGE_MOUNTPOINT"
     mount -t proc /proc "$IMAGE_MOUNTPOINT/proc"
     mount -t sysfs sysfs "$IMAGE_MOUNTPOINT/sys"

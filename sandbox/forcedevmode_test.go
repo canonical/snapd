@@ -49,13 +49,15 @@ func (s *forceDevModeSuite) TestForceDevMode(c *C) {
 
 	for _, tc := range []struct {
 		apparmorLevel apparmor.LevelType
+		// cgroup v2 used to be a factor when checking for forced dev
+		// mode
 		cgroupVersion int
 		exp           bool
 	}{
 		{apparmor.Full, cgroup.V1, false},
 		{apparmor.Partial, cgroup.V1, true},
 		// unified mode
-		{apparmor.Full, cgroup.V2, true},
+		{apparmor.Full, cgroup.V2, false},
 		{apparmor.Partial, cgroup.V2, true},
 	} {
 		runTest(tc.apparmorLevel, tc.cgroupVersion, tc.exp)

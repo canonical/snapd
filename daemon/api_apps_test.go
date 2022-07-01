@@ -99,7 +99,7 @@ func (s *appsSuite) fakeServiceControl(st *state.State, appInfos []*snap.AppInfo
 		serviceCommand.options = "reload"
 	}
 	// only one flag should ever be set (depending on Action), but appending
-	// them below acts as an extra sanity check.
+	// them below acts as an extra validity check.
 	if inst.StartOptions.Enable {
 		serviceCommand.options += "enable"
 	}
@@ -111,7 +111,7 @@ func (s *appsSuite) fakeServiceControl(st *state.State, appInfos []*snap.AppInfo
 	}
 	s.serviceControlCalls = append(s.serviceControlCalls, serviceCommand)
 
-	t := st.NewTask("dummy", "")
+	t := st.NewTask("sample", "")
 	ts := state.NewTaskSet(t)
 	return []*state.TaskSet{ts}, nil
 }
@@ -181,9 +181,11 @@ func (s *appsSuite) TestGetAppsInfo(c *check.C) {
 	for _, name := range svcNames {
 		s.SysctlBufs = append(s.SysctlBufs, []byte(fmt.Sprintf(`
 Id=snap.%s.service
+Names=snap.%[1]s.service
 Type=simple
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:], name)))
 	}
 	// System services from inactive snaps
@@ -269,9 +271,11 @@ func (s *appsSuite) TestGetAppsInfoServices(c *check.C) {
 	for _, name := range svcNames {
 		s.SysctlBufs = append(s.SysctlBufs, []byte(fmt.Sprintf(`
 Id=snap.%s.service
+Names=snap.%[1]s.service
 Type=simple
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:], name)))
 	}
 	// System services from inactive snaps
