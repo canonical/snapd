@@ -170,6 +170,14 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			expected:    map[snap.Type]snap.PlaceInfo{gadgetT: gadget},
 			comment:     "default gadget path",
 		},
+		// gadget base path, but not in modeenv, so it is not selected
+		{
+			m:           &boot.Modeenv{Mode: "run"},
+			typs:        []snap.Type{gadgetT},
+			snapsToMake: []snap.PlaceInfo{gadget},
+			expected:    map[snap.Type]snap.PlaceInfo{},
+			comment:     "default gadget path",
+		},
 		// default kernel path
 		{
 			m:           &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename()}},
