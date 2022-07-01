@@ -63,9 +63,9 @@ func MakeFakeRefreshForSnaps(snap string, blobDir string, snapBlob string) error
 	var cliConfig client.Config
 	cli := client.New(&cliConfig)
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		headers := make(map[string]string)
-		for i, k := range ref.Type.PrimaryKey {
-			headers[k] = ref.PrimaryKey[i]
+		headers, err := asserts.HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey)
+		if err != nil {
+			return nil, err
 		}
 		as, err := cli.Known(ref.Type.Name, headers, nil)
 		if err != nil {
@@ -102,7 +102,7 @@ func MakeFakeRefreshForSnaps(snap string, blobDir string, snapBlob string) error
 
 func writeAssert(a asserts.Assertion, targetDir string) (string, error) {
 	ref := a.Ref()
-	fn := fmt.Sprintf("%s.%s", strings.Join(ref.PrimaryKey, ","), ref.Type.Name)
+	fn := fmt.Sprintf("%s.%s", strings.Join(asserts.ReducePrimaryKey(ref.Type, ref.PrimaryKey), ","), ref.Type.Name)
 	p := filepath.Join(targetDir, "asserts", fn)
 	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
 		return "", err

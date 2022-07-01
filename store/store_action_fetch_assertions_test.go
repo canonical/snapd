@@ -873,9 +873,6 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceFormingCommonGroupin
 }
 
 func (s *storeActionFetchAssertionsSuite) TestFetchOptionalPrimaryKeys(c *C) {
-	// XXX undo this when snap-revision has provenance for real
-	defer asserts.MockOptionalPrimaryKey(asserts.SnapRevisionType, "provenance", "default-provenance")()
-
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -919,7 +916,7 @@ func (s *storeActionFetchAssertionsSuite) TestFetchOptionalPrimaryKeys(c *C) {
      "result": "fetch-assertions",
      "key": "g1",
      "assertion-stream-urls": [
-        "https://api.snapcraft.io/v2/assertions/snap-revision/QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL/default-provenance"
+        "https://api.snapcraft.io/v2/assertions/snap-revision/QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL/global-upload"
       ]
      }
    ]
@@ -943,7 +940,7 @@ func (s *storeActionFetchAssertionsSuite) TestFetchOptionalPrimaryKeys(c *C) {
 					Type: asserts.SnapRevisionType,
 					PrimaryKey: []string{
 						"QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL",
-						"default-provenance",
+						"global-upload",
 					},
 				},
 				Revision: asserts.RevisionNotKnown,
@@ -958,6 +955,6 @@ func (s *storeActionFetchAssertionsSuite) TestFetchOptionalPrimaryKeys(c *C) {
 	c.Check(aresults, HasLen, 1)
 	c.Check(aresults[0].Grouping, Equals, asserts.Grouping("g1"))
 	c.Check(aresults[0].StreamURLs, DeepEquals, []string{
-		"https://api.snapcraft.io/v2/assertions/snap-revision/QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL/default-provenance",
+		"https://api.snapcraft.io/v2/assertions/snap-revision/QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL/global-upload",
 	})
 }
