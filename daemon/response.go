@@ -288,7 +288,7 @@ type journalLineReaderSeqResponse struct {
 	follow  bool
 }
 
-var errCannotWriteToClient = errors.New("cannot write data to client, endpoint may have hung up unexpectedly")
+var errCannotWriteToClient = errors.New("cannot write data, client may have hung up unexpectedly")
 
 func (rr *journalLineReaderSeqResponse) safeSendError(c chan error, value error) (closed bool) {
 	defer func() {
