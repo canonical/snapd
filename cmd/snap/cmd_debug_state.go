@@ -363,7 +363,7 @@ func (c *cmdDebugState) showConnectionDetails(st *state.State, connArg string) e
 	}
 
 	var conns map[string]*connState
-	if err := st.Get("conns", &conns); err != nil && err != state.ErrNoState {
+	if err := st.Get("conns", &conns); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -419,7 +419,7 @@ func (c *cmdDebugState) showConnections(st *state.State) error {
 	defer st.Unlock()
 
 	var conns map[string]*connState
-	if err := st.Get("conns", &conns); err != nil && err != state.ErrNoState {
+	if err := st.Get("conns", &conns); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
