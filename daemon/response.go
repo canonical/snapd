@@ -22,8 +22,10 @@ package daemon
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -286,6 +288,28 @@ type journalLineReaderSeqResponse struct {
 	follow  bool
 }
 
+var errCannotWriteToClient = errors.New("cannot write data to client, endpoint may have hung up unexpectedly")
+
+func (rr *journalLineReaderSeqResponse) safeSendError(c chan error, value error) (closed bool) {
+	defer func() {
+		if recover() != nil {
+			closed = true
+		}
+	}()
+	c <- value
+	return false
+}
+
+func (rr *journalLineReaderSeqResponse) safeSendLog(c chan systemd.Log, value systemd.Log) (closed bool) {
+	defer func() {
+		if recover() != nil {
+			closed = true
+		}
+	}()
+	c <- value
+	return false
+}
+
 func (rr *journalLineReaderSeqResponse) logReader(r io.ReadCloser, c chan systemd.Log, e chan error) {
 	defer r.Close()
 	decoder := json.NewDecoder(r)
@@ -297,10 +321,15 @@ func (rr *journalLineReaderSeqResponse) logReader(r io.ReadCloser, c chan system
 		// condition for the read loop, and then do the error handling in
 		// the main go routine.
 		if err := decoder.Decode(&log); err != nil {
-			e <- err
+			// Ignore the return value here as we are breaking out
+			// anyway and not sending more messages.
+			rr.safeSendError(e, err)
 			break
 		}
-		c <- log
+
+		if closed := rr.safeSendLog(c, log); closed {
+			break
+		}
 	}
 }
 
@@ -311,9 +340,11 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 	writer := bufio.NewWriter(w)
 	enc := json.NewEncoder(writer)
 
-	// start all the readers
-	c := make(chan systemd.Log)
-	e := make(chan error)
+	// Buffer 128 (arbitrary, seems appropriate) messages, and
+	// the number of readers in errors as we know exactly how
+	// many errors to expect on the channel.
+	c := make(chan systemd.Log, 128)
+	e := make(chan error, len(rr.readers))
 	for _, r := range rr.readers {
 		go rr.logReader(r, c, e)
 	}
@@ -348,7 +379,7 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 
 		if rr.follow {
 			if err := writer.Flush(); err != nil {
-				return nil
+				return errCannotWriteToClient
 			}
 			if hasFlusher {
 				flusher.Flush()
@@ -367,6 +398,7 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 		case log := <-c:
 			logs = append(logs, log)
 		case err := <-e:
+			log.Println("error waiting for logs:", err)
 			if err != io.EOF {
 				writeError(err)
 			}
@@ -375,7 +407,7 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 
 		// Now we spend a small amount of time batch reading all available logs
 		// on the log/error channel, the reason we do this is to make sure we read
-		// everything available for the initial batch of logs (when following) or
+		// everything available for the initial/final batch of logs (when following) or
 		// we read everything available when not following. It's done like this to
 		// ensure that output is consistent and sorted correctly by timestamp when
 		// multiple log-sources are in play.
@@ -386,17 +418,12 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 			case log := <-c:
 				logs = append(logs, log)
 			case err := <-e:
+				log.Println("error reading logs:", err)
 				if err != io.EOF {
 					logger.Noticef("cannot decode systemd log: %v", err)
 				}
 
 				logReadersDone++
-				if logReadersDone == len(rr.readers) {
-					// break early as this indicates all log sources
-					// have now been closed, which is relevant when doing
-					// no-follow
-					terminate = true
-				}
 			case <-timeout:
 				terminate = true
 			}
@@ -407,13 +434,22 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 		}
 
 		if err := writeLogs(logs); err != nil {
-			writeError(err)
+			if err != errCannotWriteToClient {
+				writeError(err)
+			}
+			break
 		}
 
 		if logReadersDone == len(rr.readers) {
 			break
 		}
 	}
+
+	// Close the channels to clean up if we have terminated early
+	// due to errors. This can cause the go routines to panic, but
+	// the safeSend should catch this and then terminate cleanly
+	close(c)
+	close(e)
 
 	if err := writer.Flush(); err != nil {
 		logger.Noticef("cannot stream response; problem writing: %v", err)
