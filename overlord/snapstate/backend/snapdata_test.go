@@ -91,6 +91,9 @@ func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapCommonSave(c *C) {
+	restore := mockUbuntuCore()
+	defer restore()
+
 	varSaveData := snap.CommonDataSaveDir("hello")
 	err := os.MkdirAll(varSaveData, 0755)
 	c.Assert(err, IsNil)
