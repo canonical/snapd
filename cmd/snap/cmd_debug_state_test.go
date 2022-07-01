@@ -406,15 +406,15 @@ func (s *SnapSuite) TestDebugConnections(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
-	"Interface       Plug                             Slot                            Notes\n" +
-	"desktop-legacy  gnome-calculator:desktop-legacy  core:desktop-legacy             auto\n" +
-	"content         gnome-calculator:gtk-3-themes    gtk-common-themes:gtk-3-themes  auto\n" +
-	"content         gnome-calculator:icon-themes     gtk-common-themes:icon-themes   auto\n" +
-	"network         gnome-calculator:network         core:network                    auto\n" +
-	"x11             gnome-calculator:x11             core:x11                        auto\n" +
-	"network         some-snap:network                core:network                    auto,by-gadget\n" +
-	"network         vlc:network                      core:network                    auto,undesired\n" +
-	"x11             vlc:x11                          core:x11                        auto\n")
+		"Interface       Plug                             Slot                            Notes\n"+
+			"desktop-legacy  gnome-calculator:desktop-legacy  core:desktop-legacy             auto\n"+
+			"content         gnome-calculator:gtk-3-themes    gtk-common-themes:gtk-3-themes  auto\n"+
+			"content         gnome-calculator:icon-themes     gtk-common-themes:icon-themes   auto\n"+
+			"network         gnome-calculator:network         core:network                    auto\n"+
+			"x11             gnome-calculator:x11             core:x11                        auto\n"+
+			"network         some-snap:network                core:network                    auto,by-gadget\n"+
+			"network         vlc:network                      core:network                    auto,undesired\n"+
+			"x11             vlc:x11                          core:x11                        auto\n")
 	c.Check(s.Stderr(), Equals, "")
 }
 
@@ -429,22 +429,22 @@ func (s *SnapSuite) TestDebugConnectionDetails(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(rest, DeepEquals, []string{})
 		c.Check(s.Stdout(), Matches,
-		"id: gnome-calculator:gtk-3-themes gtk-common-themes:gtk-3-themes\n" +
-			"auto: true\n" +
-			"by-gadget: false\n" +
-			"interface: content\n" +
-			"undesired: false\n" +
-			"plug-static:\n" +
-			"  content: gtk-3-themes\n" +
-			"  default-provider: gtk-common-themes\n" +
-			"  target: \\$SNAP/data-dir/themes\n" +
-			"slot-static:\n" +
-			"  content: gtk-3-themes\n" +
-			"  source:\n" +
-			"    read:\n" +
-			"    - \\$SNAP/share/themes/Adwaita\n" +
-			"    - \\$SNAP/share/themes/Materia-light-compact\n" +
-			"\n", Commentf("#%d: %s", i, connArg))
+			"id: gnome-calculator:gtk-3-themes gtk-common-themes:gtk-3-themes\n"+
+				"auto: true\n"+
+				"by-gadget: false\n"+
+				"interface: content\n"+
+				"undesired: false\n"+
+				"plug-static:\n"+
+				"  content: gtk-3-themes\n"+
+				"  default-provider: gtk-common-themes\n"+
+				"  target: \\$SNAP/data-dir/themes\n"+
+				"slot-static:\n"+
+				"  content: gtk-3-themes\n"+
+				"  source:\n"+
+				"    read:\n"+
+				"    - \\$SNAP/share/themes/Adwaita\n"+
+				"    - \\$SNAP/share/themes/Materia-light-compact\n"+
+				"\n", Commentf("#%d: %s", i, connArg))
 		c.Check(s.Stderr(), Equals, "")
 	}
 }
@@ -458,42 +458,42 @@ func (s *SnapSuite) TestDebugConnectionDetailsMany(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
-	"id: gnome-calculator:desktop-legacy core:desktop-legacy\n" +
-	"auto: true\n" +
-	"by-gadget: false\n" +
-	"interface: desktop-legacy\n" +
-	"undesired: false\n" +
-	"\n" +
-	"id: gnome-calculator:network core:network\n" +
-	"auto: true\n" +
-	"by-gadget: false\n" +
-	"interface: network\n" +
-	"undesired: false\n" +
-	"\n" +
-	"id: gnome-calculator:x11 core:x11\n" +
-	"auto: true\n" +
-	"by-gadget: false\n" +
-	"interface: x11\n" +
-	"undesired: false\n" +
-	"\n" +
-	"id: some-snap:network core:network\n" +
-	"auto: true\n" +
-	"by-gadget: true\n" +
-	"interface: network\n" +
-	"undesired: false\n" +
-	"\n" +
-	"id: vlc:network core:network\n" +
-	"auto: true\n" +
-	"by-gadget: false\n" +
-	"interface: network\n" +
-	"undesired: true\n" +
-	"\n" +
-	"id: vlc:x11 core:x11\n" +
-	"auto: true\n" +
-	"by-gadget: false\n" +
-	 "interface: x11\n" +
-	 "undesired: false\n" +
-	"\n")
+		"id: gnome-calculator:desktop-legacy core:desktop-legacy\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: desktop-legacy\n"+
+			"undesired: false\n"+
+			"\n"+
+			"id: gnome-calculator:network core:network\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: network\n"+
+			"undesired: false\n"+
+			"\n"+
+			"id: gnome-calculator:x11 core:x11\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: x11\n"+
+			"undesired: false\n"+
+			"\n"+
+			"id: some-snap:network core:network\n"+
+			"auto: true\n"+
+			"by-gadget: true\n"+
+			"interface: network\n"+
+			"undesired: false\n"+
+			"\n"+
+			"id: vlc:network core:network\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: network\n"+
+			"undesired: true\n"+
+			"\n"+
+			"id: vlc:x11 core:x11\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: x11\n"+
+			"undesired: false\n"+
+			"\n")
 
 	c.Check(s.Stderr(), Equals, "")
 }
@@ -507,16 +507,16 @@ func (s *SnapSuite) TestDebugConnectionDetailsManySlotSide(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
-    "id: gnome-calculator:x11 core:x11\n" +
-"auto: true\n" +
-"by-gadget: false\n" +
-"interface: x11\n" +
-"undesired: false\n" +
-"\n" +
-"id: vlc:x11 core:x11\n" +
-"auto: true\n" +
-"by-gadget: false\n" +
-"interface: x11\n" +
-"undesired: false\n" +
-"\n")
+		"id: gnome-calculator:x11 core:x11\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: x11\n"+
+			"undesired: false\n"+
+			"\n"+
+			"id: vlc:x11 core:x11\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: x11\n"+
+			"undesired: false\n"+
+			"\n")
 }
