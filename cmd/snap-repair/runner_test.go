@@ -868,7 +868,7 @@ func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Se
 	var mockServer *httptest.Server
 	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ua := r.Header.Get("User-Agent")
-		c.Check(strings.Contains(ua, "snap-repair"), Equals, true)
+		c.Check(ua, testutil.Contains, "snap-repair")
 
 		urlPath := r.URL.Path
 		if redirectFirst && r.Header.Get("Accept") == asserts.MediaType {

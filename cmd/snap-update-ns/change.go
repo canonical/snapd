@@ -543,6 +543,13 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		}
 		skipDir = "" // reset skip prefix as it no longer applies
 
+		if current[i].XSnapdOrigin() == "rootfs" {
+			// This is the rootfs setup by snap-confine, we should not touch it
+			logger.Debugf("reusing rootfs")
+			reuse[dir] = true
+			continue
+		}
+
 		// Reuse synthetic entries if their needed-by entry is desired.
 		// Synthetic entries cannot exist on their own and always couple to a
 		// non-synthetic entry.
