@@ -315,7 +315,7 @@ func (rr *journalLineReaderSeqResponse) logReader(r io.ReadCloser, c chan system
 	for {
 		var log systemd.Log
 
-		// This will always cause an error before or later because of an
+		// This will always cause an error sooner or later because of an
 		// io.EOF. This means we can rely on this being our termination
 		// condition for the read loop, and then do the error handling in
 		// the main go routine.
@@ -349,6 +349,7 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 	}
 
 	writeError := func(err error) {
+		// RS -- see ascii(7), and RFC7464
 		fmt.Fprintf(writer, `\x1E{"error": %q}\n`, err)
 		logger.Noticef("cannot stream response; problem reading: %v", err)
 	}
