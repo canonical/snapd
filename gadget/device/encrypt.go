@@ -62,32 +62,32 @@ func WriteEncryptionMarkers(dataFDEDir, saveFDEDir string, markerSecret []byte) 
 	return osutil.AtomicWriteFile(encryptionMarkerUnder(saveFDEDir), markerSecret, 0600, 0)
 }
 
-// DataSealedKeyUnder returns the name of the sealed key for ubuntu-data.
+// DataSealedKeyUnder returns the path of the sealed key for ubuntu-data.
 func DataSealedKeyUnder(deviceFDEDir string) string {
 	return filepath.Join(deviceFDEDir, "ubuntu-data.sealed-key")
 }
 
-// SaveKeyUnder returns the name of a plain encryption key for ubuntu-save.
+// SaveKeyUnder returns the path of a plain encryption key for ubuntu-save.
 func SaveKeyUnder(deviceFDEDir string) string {
 	return filepath.Join(deviceFDEDir, "ubuntu-save.key")
 }
 
-// RecoveryKeyUnder returns the name of the recovery key.
+// RecoveryKeyUnder returns the path of the recovery key.
 func RecoveryKeyUnder(deviceFDEDir string) string {
 	return filepath.Join(deviceFDEDir, "recovery.key")
 }
 
-// FallbackDataSealedKeyUnder returns the name of a fallback ubuntu data key.
+// FallbackDataSealedKeyUnder returns the path of a fallback ubuntu data key.
 func FallbackDataSealedKeyUnder(seedDeviceFDEDir string) string {
 	return filepath.Join(seedDeviceFDEDir, "ubuntu-data.recovery.sealed-key")
 }
 
-// FallbackSaveSealedKeyUnder returns the name of a fallback ubuntu save key.
+// FallbackSaveSealedKeyUnder returns the path of a fallback ubuntu save key.
 func FallbackSaveSealedKeyUnder(seedDeviceFDEDir string) string {
 	return filepath.Join(seedDeviceFDEDir, "ubuntu-save.recovery.sealed-key")
 }
 
-// FactoryResetFallbackSaveSealedKeyUnder returns the name of a fallback ubuntu
+// FactoryResetFallbackSaveSealedKeyUnder returns the path of a fallback ubuntu
 // save key object generated during factory reset.
 func FactoryResetFallbackSaveSealedKeyUnder(seedDeviceFDEDir string) string {
 	return filepath.Join(seedDeviceFDEDir, "ubuntu-save.recovery.sealed-key.factory-reset")
