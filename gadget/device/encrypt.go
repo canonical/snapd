@@ -62,6 +62,7 @@ func RecoveryKeyUnder(deviceFDEDir string) string {
 	return filepath.Join(deviceFDEDir, "recovery.key")
 }
 
+// TpmLockoutAuthUnder return the path of the tpm lockout authority key.
 func TpmLockoutAuthUnder(saveDeviceFDEDir string) string {
 	return filepath.Join(saveDeviceFDEDir, "tpm-lockout-auth")
 }
