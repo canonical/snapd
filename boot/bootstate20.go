@@ -117,6 +117,9 @@ type bootStateUpdate20 struct {
 
 	// tasks to run after the modeenv has been written
 	postModeenvTasks []bootCommitTask
+
+	// resealNeeded set if we need to reseal keys
+	resealNeeded bool
 }
 
 func (u20 *bootStateUpdate20) preModeenv(task bootCommitTask) {
@@ -143,6 +146,8 @@ func newBootStateUpdate20(m *Modeenv) (*bootStateUpdate20, error) {
 	if err != nil {
 		return nil, err
 	}
+	// resealing is not needed only for gadget change case
+	u20.resealNeeded = true
 	return u20, nil
 }
 
@@ -176,18 +181,20 @@ func (u20 *bootStateUpdate20) commit() error {
 		modeenvRewritten = true
 	}
 
-	// next reseal using the modeenv values, we do this before any
-	// post-modeenv tasks so if we are rebooted at any point after
-	// the reseal even before the post tasks are completed, we
-	// still boot properly
+	if u20.resealNeeded {
+		// next reseal using the modeenv values, we do this before any
+		// post-modeenv tasks so if we are rebooted at any point after
+		// the reseal even before the post tasks are completed, we
+		// still boot properly
 
-	// if there is ambiguity whether the boot chains have
-	// changed because of unasserted kernels, then pass a
-	// flag as hint whether to reseal based on whether we
-	// wrote the modeenv
-	expectReseal := modeenvRewritten
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.writeModeenv, expectReseal); err != nil {
-		return err
+		// if there is ambiguity whether the boot chains have
+		// changed because of unasserted kernels, then pass a
+		// flag as hint whether to reseal based on whether we
+		// wrote the modeenv
+		expectReseal := modeenvRewritten
+		if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.writeModeenv, expectReseal); err != nil {
+			return err
+		}
 	}
 
 	// finally handle any post-modeenv writing tasks
@@ -423,6 +430,7 @@ func (bs20 *bootState20Gadget) setNext(next snap.PlaceInfo) (rbi RebootInfo, u b
 	}
 
 	u20.writeModeenv.Gadget = next.Filename()
+	u20.resealNeeded = false
 
 	return RebootInfo{RebootRequired: false}, u20, err
 }
