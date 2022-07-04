@@ -20,31 +20,46 @@
 package device
 
 import (
+	"io/ioutil"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
 )
 
-// EncryptionMarkerUnder returns the path of the encrypted system marker under a
+// encryptionMarkerUnder returns the path of the encrypted system marker under a
 // given directory.
-func EncryptionMarkerUnder(deviceFDEDir string) string {
+func encryptionMarkerUnder(deviceFDEDir string) string {
 	return filepath.Join(deviceFDEDir, "marker")
 }
 
 // HasEncryptedMarkerUnder returns true when there is an encryption marker in a
 // given directory.
 func HasEncryptedMarkerUnder(deviceFDEDir string) bool {
-	return osutil.FileExists(EncryptionMarkerUnder(deviceFDEDir))
+	return osutil.FileExists(encryptionMarkerUnder(deviceFDEDir))
+}
+
+// ReadEncryptionMarkers reads the encryption marker files at the appropriate
+// locations.
+func ReadEncryptionMarkers(dataFDEDir, saveFDEDir string) ([]byte, []byte, error) {
+	marker1, err := ioutil.ReadFile(encryptionMarkerUnder(dataFDEDir))
+	if err != nil {
+		return nil, nil, err
+	}
+	marker2, err := ioutil.ReadFile(encryptionMarkerUnder(saveFDEDir))
+	if err != nil {
+		return nil, nil, err
+	}
+	return marker1, marker2, nil
 }
 
 // WriteEncryptionMarkers writes the encryption marker files at the appropriate
 // locations.
 func WriteEncryptionMarkers(dataFDEDir, saveFDEDir string, markerSecret []byte) error {
-	err := osutil.AtomicWriteFile(EncryptionMarkerUnder(dataFDEDir), markerSecret, 0600, 0)
+	err := osutil.AtomicWriteFile(encryptionMarkerUnder(dataFDEDir), markerSecret, 0600, 0)
 	if err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(EncryptionMarkerUnder(saveFDEDir), markerSecret, 0600, 0)
+	return osutil.AtomicWriteFile(encryptionMarkerUnder(saveFDEDir), markerSecret, 0600, 0)
 }
 
 // DataSealedKeyUnder returns the name of the sealed key for ubuntu-data.
