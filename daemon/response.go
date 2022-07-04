@@ -397,7 +397,8 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 		// everything available for the initial/final batch of logs (when following) or
 		// we read everything available when not following. It's done like this to
 		// ensure that output is consistent and sorted correctly by timestamp when
-		// multiple log-sources are in play.
+		// multiple log-sources are in play. The timeout should be small enough so
+		// the user won't notice the speed of logs appearing on the stream.
 		timeout := time.After(time.Millisecond * 25)
 		for {
 			var terminate bool
