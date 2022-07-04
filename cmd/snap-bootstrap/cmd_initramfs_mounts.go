@@ -1283,13 +1283,7 @@ func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 // checkDataAndSavePairing make sure that ubuntu-data and ubuntu-save
 // come from the same install by comparing secret markers in them
 func checkDataAndSavePairing(rootdir string) (bool, error) {
-	// read the secret marker file from ubuntu-data
-	marker1, err := ioutil.ReadFile(device.EncryptionMarkerUnder(dirs.SnapFDEDirUnder(rootdir)))
-	if err != nil {
-		return false, err
-	}
-	// read the secret marker file from ubuntu-save
-	marker2, err := ioutil.ReadFile(device.EncryptionMarkerUnder(dirs.SnapFDEDirUnderSave(boot.InitramfsUbuntuSaveDir)))
+	marker1, marker2, err := device.ReadEncryptionMarkers(dirs.SnapFDEDirUnder(rootdir), dirs.SnapFDEDirUnderSave(boot.InitramfsUbuntuSaveDir))
 	if err != nil {
 		return false, err
 	}
