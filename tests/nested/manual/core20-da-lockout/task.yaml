@@ -1,0 +1,37 @@
+summary: Check that an unclean shutdown on UC20 devices works
+
+details: |
+    This test checks that an unclean shutdown of a UC20 device does
+    not cause an eventual DA lockout (LP: 1979185)
+
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+# test takes a long time
+kill-timeout: 2h
+
+environment:
+  NESTED_ENABLE_TPM/encrypted: "true"
+  NESTED_ENABLE_SECURE_BOOT/encrypted: "true"
+
+execute: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+    tests.nested exec "sudo snap wait system seed.loaded"
+    tests.nested wait-for device-initialized
+
+    # XXX: this test takes forever
+    # secboot provisioning.go has maxTries=32 so unclean shutdown
+    # for 33 times to ensure we trigger the da lockout
+    # (see https://bugs.launchpad.net/snapd/+bug/1979185)
+    for i in $(seq 33); do
+        echo "Iteration $i"
+        boot_id=$(tests.nested boot-id)
+        tests.nested exec "sudo sync"
+        tests.nested exec "echo b | sudo tee /proc/sysrq-trigger" || true
+        tests.nested wait-for reboot "${boot_id}"
+        tests.nested wait-for snap-command
+    done
+
+    tests.nested exec "echo hello" | MATCH hello
+    
