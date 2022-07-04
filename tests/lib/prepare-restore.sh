@@ -70,7 +70,7 @@ build_deb(){
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
 
-    if os.query is-debian-sid; then
+    if os.query is-debian sid; then
         # ensure we really build without vendored packages
         rm -rf vendor/*/*
     fi
@@ -308,7 +308,7 @@ prepare_project() {
     fi
 
     # debian-sid packaging is special
-    if os.query is-debian-sid; then
+    if os.query is-debian sid; then
         if [ ! -d packaging/debian-sid ]; then
             echo "no packaging/debian-sid/ directory "
             echo "broken test setup"
