@@ -318,6 +318,18 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, essType snap.Typ
 		snapPath = newPath
 	}
 
+	signedProv, err := snapasserts.CrossCheckProvenance(snapName, snapRev, snapDecl, s.model, s.db)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	// we have an authorized snap-revision with matching hash for
+	// the blob, double check that the snap metadata provenance is
+	// as expected
+	if err := snapasserts.CheckProvenance(snapPath, signedProv); err != nil {
+		return "", nil, nil, err
+	}
+
 	return snapPath, snapRev, snapDecl, nil
 }
 

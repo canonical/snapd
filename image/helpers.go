@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -40,13 +40,18 @@ func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, model *assert
 		return nil, err
 	}
 
+	expectedProv := info.Provenance()
 	// this assumes series "16"
-	if err := snapasserts.FetchSnapAssertions(f, sha3_384); err != nil {
+	if err := snapasserts.FetchSnapAssertions(f, sha3_384, expectedProv); err != nil {
 		return nil, fmt.Errorf("cannot fetch snap signatures/assertions: %v", err)
 	}
 
 	// cross checks
-	if err := snapasserts.CrossCheck(info.InstanceName(), sha3_384, size, &info.SideInfo, model, db); err != nil {
+	signedProv, err := snapasserts.CrossCheck(info.InstanceName(), sha3_384, expectedProv, size, &info.SideInfo, model, db)
+	if err != nil {
+		return nil, err
+	}
+	if err := snapasserts.CheckProvenance(snapPath, signedProv); err != nil {
 		return nil, err
 	}
 

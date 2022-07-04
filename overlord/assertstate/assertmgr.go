@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -102,9 +102,10 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	modelAs := deviceCtx.Model()
+	expectedProv := snapsup.ExpectedProvenance
 
 	err = doFetch(st, snapsup.UserID, deviceCtx, func(f asserts.Fetcher) error {
-		if err := snapasserts.FetchSnapAssertions(f, sha3_384); err != nil {
+		if err := snapasserts.FetchSnapAssertions(f, sha3_384, expectedProv); err != nil {
 			return err
 		}
 
@@ -134,11 +135,18 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	db := DB(st)
-	err = snapasserts.CrossCheck(snapsup.InstanceName(), sha3_384, snapSize, snapsup.SideInfo, modelAs, db)
+	signedProv, err := snapasserts.CrossCheck(snapsup.InstanceName(), sha3_384, expectedProv, snapSize, snapsup.SideInfo, modelAs, db)
 	if err != nil {
 		// TODO: trigger a global validity check
 		// that will generate the changes to deal with this
 		// for things like snap-decl revocation and renames?
+		return err
+	}
+
+	// we have an authorized snap-revision with matching hash for
+	// the blob, double check that the snap metadata provenance
+	// matches
+	if err := snapasserts.CheckProvenance(snapsup.SnapPath, signedProv); err != nil {
 		return err
 	}
 

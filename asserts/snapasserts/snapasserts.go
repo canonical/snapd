@@ -26,6 +26,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 type Finder interface {
@@ -53,42 +55,117 @@ func findSnapDeclaration(snapID, name string, db Finder) (*asserts.SnapDeclarati
 	return snapDecl, nil
 }
 
-// CrossCheck tries to cross check the instance name, hash digest and
-// size of a snap plus its metadata in a SideInfo with the relevant
+// CrossCheck tries to cross check the instance name, hash digest, provenance
+// and size of a snap plus its metadata in a SideInfo with the relevant
 // snap assertions in a database that should have been populated with
 // them.
 // The optional model assertion must be passed to have full cross
 // checks in the case of delegated authority snap-revisions before
 // installing a snap.
-func CrossCheck(instanceName, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo, model *asserts.Model, db Finder) error {
+// It returns also the provenance if different from the default.
+// Ultimately if not default the provenance must also be checked
+// with the provenance in the snap metadata by the caller as well,
+// if the provenance provided to the function was not read safely from
+// there already.
+func CrossCheck(instanceName, snapSHA3_384, provenance string, snapSize uint64, si *snap.SideInfo, model *asserts.Model, db Finder) (signedProvenance string, err error) {
 	// get relevant assertions and do cross checks
-	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
+	headers := map[string]string{
 		"snap-sha3-384": snapSHA3_384,
-	})
+	}
+	if provenance != "" {
+		headers["provenance"] = provenance
+	}
+	a, err := db.Find(asserts.SnapRevisionType, headers)
 	if err != nil {
-		return fmt.Errorf("internal error: cannot find pre-populated snap-revision assertion for %q: %s", instanceName, snapSHA3_384)
+		provInf := ""
+		if provenance != "" {
+			provInf = fmt.Sprintf(" provenance: %s", provenance)
+		}
+		return "", fmt.Errorf("internal error: cannot find pre-populated snap-revision assertion for %q: %s%s", instanceName, snapSHA3_384, provInf)
 	}
 	snapRev := a.(*asserts.SnapRevision)
 
 	if snapRev.SnapSize() != snapSize {
-		return fmt.Errorf("snap %q file does not have expected size according to signatures (download is broken or tampered): %d != %d", instanceName, snapSize, snapRev.SnapSize())
+		return "", fmt.Errorf("snap %q file does not have expected size according to signatures (download is broken or tampered): %d != %d", instanceName, snapSize, snapRev.SnapSize())
 	}
 
 	snapID := si.SnapID
 
 	if snapRev.SnapID() != snapID || snapRev.SnapRevision() != si.Revision.N {
-		return fmt.Errorf("snap %q does not have expected ID or revision according to assertions (metadata is broken or tampered): %s / %s != %d / %s", instanceName, si.Revision, snapID, snapRev.SnapRevision(), snapRev.SnapID())
+		return "", fmt.Errorf("snap %q does not have expected ID or revision according to assertions (metadata is broken or tampered): %s / %s != %d / %s", instanceName, si.Revision, snapID, snapRev.SnapRevision(), snapRev.SnapID())
 	}
 
 	snapDecl, err := findSnapDeclaration(snapID, instanceName, db)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if snapDecl.SnapName() != snap.InstanceSnap(instanceName) {
-		return fmt.Errorf("cannot install %q, snap %q is undergoing a rename to %q", instanceName, snap.InstanceSnap(instanceName), snapDecl.SnapName())
+		return "", fmt.Errorf("cannot install %q, snap %q is undergoing a rename to %q", instanceName, snap.InstanceSnap(instanceName), snapDecl.SnapName())
 	}
 
+	return CrossCheckProvenance(instanceName, snapRev, snapDecl, model, db)
+}
+
+// CrossCheckProvenance tries to cross check the given snap-revision
+// if it has a non default provenance with the revision-authority
+// constraints of the given snap-declaration including any device
+// scope constraints using model (and implied store).
+// It returns also the provenance if different from the default.
+// Ultimately if not default the provenance must also be checked
+// with the provenance in the snap metadata by the caller.
+func CrossCheckProvenance(instanceName string, snapRev *asserts.SnapRevision, snapDecl *asserts.SnapDeclaration, model *asserts.Model, db Finder) (signedProvenance string, err error) {
+	if snapRev.Provenance() == "global-upload" {
+		// nothing to check
+		return "", nil
+	}
+	var store *asserts.Store
+	if model != nil && model.Store() != "" {
+		a, err := db.Find(asserts.StoreType, map[string]string{
+			"store": model.Store(),
+		})
+		if err != nil && !asserts.IsNotFound(err) {
+			return "", err
+		}
+		if a != nil {
+			store = a.(*asserts.Store)
+		}
+	}
+	ras := snapDecl.RevisionAuthority(snapRev.Provenance())
+	matchingRevAuthority := false
+	for _, ra := range ras {
+		if err := ra.Check(snapRev, model, store); err == nil {
+			matchingRevAuthority = true
+			break
+		}
+	}
+	if !matchingRevAuthority {
+		return "", fmt.Errorf("snap %q revision assertion with provenance %q is not signed by an authority authorized on this device: %s", instanceName, snapRev.Provenance(), snapRev.AuthorityID())
+	}
+	return snapRev.Provenance(), nil
+}
+
+// CheckProvenance checks that the given snap has the provided provenance.
+// It is intended to be called safely on snaps for which a matching
+// and authorized snap-revision has been already found which specify
+// the given provenance.
+// Its purpose is to check that a blob has not been re-signed under an
+// inappropriate provenance.
+func CheckProvenance(snapPath, provenance string) error {
+	snapf, err := snapfile.Open(snapPath)
+	if err != nil {
+		return err
+	}
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	if err != nil {
+		return err
+	}
+	if provenance == "" {
+		provenance = naming.DefaultProvenance
+	}
+	if provenance != info.Provenance() {
+		return fmt.Errorf("snap %q has been signed under provenance %q different from the metadata one: %q", snapPath, provenance, info.Provenance())
+	}
 	return nil
 }
 
@@ -147,12 +224,15 @@ func SideInfoFromSnapAssertions(snapDecl *asserts.SnapDeclaration, snapRev *asse
 	}
 }
 
-// FetchSnapAssertions fetches the assertions matching the snap file digest using the given fetcher.
-func FetchSnapAssertions(f asserts.Fetcher, snapSHA3_384 string) error {
+// FetchSnapAssertions fetches the assertions matching the snap file digest and optional provenance using the given fetcher.
+func FetchSnapAssertions(f asserts.Fetcher, snapSHA3_384, provenance string) error {
 	// for now starting from the snap-revision will get us all other relevant assertions
 	ref := &asserts.Ref{
 		Type:       asserts.SnapRevisionType,
 		PrimaryKey: []string{snapSHA3_384},
+	}
+	if provenance != "" {
+		ref.PrimaryKey = append(ref.PrimaryKey, provenance)
 	}
 
 	return f.Fetch(ref)
