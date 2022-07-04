@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,8 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 // AssertManager is responsible for the enforcement of assertions in
@@ -96,6 +98,15 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	snapf, err := snapfile.Open(snapsup.SnapPath)
+	if err != nil {
+		return err
+	}
+	prov, err := snap.ReadProvenanceFromSnapFile(snapf)
+	if err != nil {
+		return err
+	}
+
 	deviceCtx, err := snapstate.DeviceCtx(st, t, nil)
 	if err != nil {
 		return err
@@ -104,7 +115,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	modelAs := deviceCtx.Model()
 
 	err = doFetch(st, snapsup.UserID, deviceCtx, func(f asserts.Fetcher) error {
-		if err := snapasserts.FetchSnapAssertions(f, sha3_384); err != nil {
+		if err := snapasserts.FetchSnapAssertions(f, sha3_384, prov); err != nil {
 			return err
 		}
 
@@ -134,7 +145,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	db := DB(st)
-	err = snapasserts.CrossCheck(snapsup.InstanceName(), sha3_384, snapSize, snapsup.SideInfo, modelAs, db)
+	err = snapasserts.CrossCheck(snapsup.InstanceName(), sha3_384, prov, snapSize, snapsup.SideInfo, modelAs, db)
 	if err != nil {
 		// TODO: trigger a global validity check
 		// that will generate the changes to deal with this

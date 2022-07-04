@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -316,6 +317,24 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, essType snap.Typ
 
 	if newPath != "" {
 		snapPath = newPath
+	}
+
+	snapf, err := snapfile.Open(snapPath)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	prov, err := snap.ReadProvenanceFromSnapFile(snapf)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	if prov == "" {
+		prov = "global-upload"
+	}
+	if prov != snapRev.Provenance() {
+		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), provenance mismatch with snap-revision", snapPath, snapName, snapID)
+	}
+	if err := snapasserts.CrossCheckProvenance(snapName, snapRev, snapDecl, s.model, s.db); err != nil {
+		return "", nil, nil, err
 	}
 
 	return snapPath, snapRev, snapDecl, nil

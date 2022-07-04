@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 // FetchAndCheckSnapAssertions fetches and cross checks the snap assertions matching the given snap file using the provided asserts.Fetcher and assertion database. The optional model assertion must be passed for full cross checks.
@@ -40,13 +41,22 @@ func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, model *assert
 		return nil, err
 	}
 
+	snapf, err := snapfile.Open(snapPath)
+	if err != nil {
+		return nil, err
+	}
+	prov, err := snap.ReadProvenanceFromSnapFile(snapf)
+	if err != nil {
+		return nil, err
+	}
+
 	// this assumes series "16"
-	if err := snapasserts.FetchSnapAssertions(f, sha3_384); err != nil {
+	if err := snapasserts.FetchSnapAssertions(f, sha3_384, prov); err != nil {
 		return nil, fmt.Errorf("cannot fetch snap signatures/assertions: %v", err)
 	}
 
 	// cross checks
-	if err := snapasserts.CrossCheck(info.InstanceName(), sha3_384, size, &info.SideInfo, model, db); err != nil {
+	if err := snapasserts.CrossCheck(info.InstanceName(), sha3_384, prov, size, &info.SideInfo, model, db); err != nil {
 		return nil, err
 	}
 
