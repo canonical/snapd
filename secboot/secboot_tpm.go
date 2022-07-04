@@ -70,6 +70,8 @@ var (
 	sbTPMEnsureProvisioned = (*sb_tpm2.Connection).EnsureProvisioned
 	tpmReleaseResources    = tpmReleaseResourcesImpl
 
+	sbTPMDictionaryAttackLockReset = (*sb_tpm2.Connection).DictionaryAttackLockReset
+
 	// check whether the interfaces match
 	_ (sb.SnapModel) = ModelForSealing(nil)
 )
@@ -661,7 +663,7 @@ func resetLockoutCounter(lockoutAuthFile string) error {
 	}
 	tpm.LockoutHandleContext().SetAuthValue(lockoutAuth)
 
-	if err := tpm.DictionaryAttackLockReset(tpm.LockoutHandleContext(), tpm.HmacSession()); err != nil {
+	if err := sbTPMDictionaryAttackLockReset(tpm, tpm.LockoutHandleContext(), tpm.HmacSession()); err != nil {
 		return err
 	}
 
