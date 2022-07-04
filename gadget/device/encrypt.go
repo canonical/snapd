@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// EncryptionMarkerUnder returns the name of the encrypted system marker under a
+// EncryptionMarkerUnder returns the path of the encrypted system marker under a
 // given directory.
 func EncryptionMarkerUnder(deviceFDEDir string) string {
 	return filepath.Join(deviceFDEDir, "marker")

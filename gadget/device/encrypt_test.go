@@ -81,4 +81,6 @@ func (s *deviceSuite) TestLocations(c *C) {
 		"/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/marker")
 	c.Check(device.EncryptionMarkerUnder(boot.InstallHostFDESaveDir), Equals,
 		"/run/mnt/ubuntu-save/device/fde/marker")
+	c.Check(device.RecoveryKeyUnder(dirs.SnapFDEDir), Equals,
+		"/var/lib/snapd/device/fde/recovery.key")
 }
