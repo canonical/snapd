@@ -59,6 +59,7 @@ func (s *deviceSuite) TestEncryptionMarkers(c *C) {
 	c.Check(filepath.Join(d, boot.InstallHostFDESaveDir, "marker"), testutil.FileEquals, "foo")
 	// and can be read with device.ReadEncryptionMarkers
 	m1, m2, err := device.ReadEncryptionMarkers(filepath.Join(d, boot.InstallHostFDEDataDir), filepath.Join(d, boot.InstallHostFDESaveDir))
+	c.Assert(err, IsNil)
 	c.Check(m1, DeepEquals, []byte("foo"))
 	c.Check(m2, DeepEquals, []byte("foo"))
 
