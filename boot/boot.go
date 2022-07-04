@@ -156,6 +156,7 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
 	case snap.TypeGadget:
 		// First condition: gadget is not a boot participant for UC16/18
 		// Second condition: a remodel might leave you in this state
+		//     (as gadget snap name might be different now)
 		if !dev.HasModeenv() || s.InstanceName() != dev.Gadget() {
 			return false
 		}
