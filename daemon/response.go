@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -392,19 +391,6 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 	for {
 		var logs []systemd.Log
 
-		// always block read on the first one to ensure we don't waste any
-		// time spinning on a channel that will never have any logs
-		select {
-		case log := <-c:
-			logs = append(logs, log)
-		case err := <-e:
-			log.Println("error waiting for logs:", err)
-			if err != io.EOF {
-				writeError(err)
-			}
-			logReadersDone++
-		}
-
 		// Now we spend a small amount of time batch reading all available logs
 		// on the log/error channel, the reason we do this is to make sure we read
 		// everything available for the initial/final batch of logs (when following) or
@@ -418,11 +404,9 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 			case log := <-c:
 				logs = append(logs, log)
 			case err := <-e:
-				log.Println("error reading logs:", err)
 				if err != io.EOF {
 					logger.Noticef("cannot decode systemd log: %v", err)
 				}
-
 				logReadersDone++
 			case <-timeout:
 				terminate = true
