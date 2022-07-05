@@ -75,10 +75,8 @@ execute: |
       if [ "$VERSION" -eq 16 ]; then
           SNAP=core
       fi
-      # shellcheck disable=SC2016
-      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_core=${SNAP}_x1.snap$"'
+      tests.nested exec "cat /boot/grub/grubenv | MATCH \"^snap_core=${SNAP}_x1.snap$\""
       tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_mode=$"'
       tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_try_core=$"'
-      # shellcheck disable=SC2016
-      tests.nested exec 'cat /proc/cmdline | MATCH snap_core=${SNAP}_x1.snap'
+      tests.nested exec "cat /proc/cmdline | MATCH snap_core=${SNAP}_x1.snap"
   fi
