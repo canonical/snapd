@@ -5,8 +5,7 @@ details: |
   that already booted can be reverted properly if something else fails, like a
   post-refresh hook.
 
-# this is a UC20+ specific test
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
 
 execute: |
   echo "Build kernel with failing post-refresh hook"
@@ -49,6 +48,15 @@ execute: |
   echo "Check that change finished with failure and that the old snap is being used"
   tests.nested exec "snap info pc-kernel | MATCH 'installed:.*\(x1\)'"
   tests.nested exec "snap changes | MATCH \"^$chg_id.*Error\""
-  # shellcheck disable=SC2016
-  tests.nested exec 'test $(readlink /run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi) = pc-kernel_x1.snap/kernel.efi'
-  tests.nested exec 'cat /run/mnt/ubuntu-boot/EFI/ubuntu/grubenv | MATCH "^kernel_status=$"'
+  if [ "$VERSION" -ge 20 ]; then
+      # shellcheck disable=SC2016
+      tests.nested exec 'test $(readlink /run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi) = pc-kernel_x1.snap/kernel.efi'
+      tests.nested exec 'cat /run/mnt/ubuntu-boot/EFI/ubuntu/grubenv | MATCH "^kernel_status=$"'
+      echo "Check that modeenv has only the old kernel"
+      tests.nested exec 'cat /var/lib/snapd/modeenv | MATCH "^current_kernels=pc-kernel_x1.snap$"'
+  else
+      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_kernel=pc-kernel_x1.snap$"'
+      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_mode=$"'
+      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_try_kernel=$"'
+      tests.nested exec 'cat /proc/cmdline | MATCH snap_kernel=pc-kernel_x1.snap'
+  fi

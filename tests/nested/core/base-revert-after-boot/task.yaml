@@ -5,8 +5,7 @@ details: |
   that already booted can be reverted properly if something else fails, like a
   post-refresh hook.
 
-# this is a UC20+ specific test
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
 
 execute: |
   echo "Build base with failing post-refresh hook"
@@ -21,7 +20,9 @@ execute: |
   # Note that actually the hook will not find bash and will fail with:
   # ERROR run hook "post-refresh": cannot locate base snap core: No such file or directory
   # but that is enough for the test to make sense
-  # TODO find out why
+  # This is because support for hooks is broken atm (the base should use itself as base
+  # when running the hook), nonetheless the test result does not depend on that
+  # and should have the same behavior when this gets fixed.
   cat > "$POST_REFRESH_P" << EOF
   \#!/bin/bash -ex
   exit 1
@@ -54,16 +55,30 @@ execute: |
   echo "Check that change finished with failure and that the old snap is being used"
   tests.nested exec "snap info $base | MATCH 'installed:.*\(x1\)'"
   tests.nested exec "snap changes | MATCH \"^$chg_id.*Error\""
-  modeenv_data=$(tests.nested exec 'cat /var/lib/snapd/modeenv')
-  if ! [[ "$modeenv_data" == *base=${base}_x1.snap* ]]; then
-      echo "Incorrect base in modeenv: $modeenv_data"
-      exit 1
-  fi
-  if [[ "$modeenv_data" == *try_base=* ]]; then
-      echo "try_base should not be set in modeenv: $modeenv_data"
-      exit 1
-  fi
-  if [[ "$modeenv_data" == *base_status=* ]]; then
-      echo "base_status should not be set in modeenv: $modeenv_data"
-      exit 1
+
+  if [ "$VERSION" -ge 20 ]; then
+      modeenv_data=$(tests.nested exec 'cat /var/lib/snapd/modeenv')
+      if ! [[ "$modeenv_data" == *base=${base}_x1.snap* ]]; then
+              echo "Incorrect base in modeenv: $modeenv_data"
+              exit 1
+          fi
+          if [[ "$modeenv_data" == *try_base=* ]]; then
+              echo "try_base should not be set in modeenv: $modeenv_data"
+              exit 1
+          fi
+          if [[ "$modeenv_data" == *base_status=* ]]; then
+              echo "base_status should not be set in modeenv: $modeenv_data"
+              exit 1
+          fi
+  else
+      SNAP=core"$VERSION"
+      if [ "$VERSION" -eq 16 ]; then
+          SNAP=core
+      fi
+      # shellcheck disable=SC2016
+      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_core=${SNAP}_x1.snap$"'
+      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_mode=$"'
+      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_try_core=$"'
+      # shellcheck disable=SC2016
+      tests.nested exec 'cat /proc/cmdline | MATCH snap_core=${SNAP}_x1.snap'
   fi
