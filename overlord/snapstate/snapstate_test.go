@@ -226,6 +226,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	})
 
 	s.state.Lock()
+	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 	s.user, err = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	c.Assert(err, IsNil)
@@ -266,9 +267,14 @@ SNAPD_APPARMOR_REEXEC=0
 		}
 	}
 
+	// enable refresh-app-awareness (it's disabled by default) but we
+	// want to enable soon(ish) so testing with it is preferred
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness", true)
+	tr.Commit()
+
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
-	s.state.Unlock()
 
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
