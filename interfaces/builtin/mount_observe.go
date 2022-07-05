@@ -39,16 +39,25 @@ const mountObserveConnectedPlugAppArmor = `
 
 # Needed by 'df'. This is an information leak
 @{PROC}/mounts r,
+# Needed by 'htop' to detect whether it's running under lxc/lxd/docker
+@{PROC}/1/mounts r,
+
 owner @{PROC}/@{pid}/mounts r,
 owner @{PROC}/@{pid}/mountinfo r,
 owner @{PROC}/@{pid}/mountstats r,
 /sys/devices/*/block/{,**} r,
+
+# Needed by 'htop' to calculate RAM usage more accurately (and informational purposes, if enabled)
+@{PROC}/spl/kstat/zfs/arcstats r,
 
 @{PROC}/swaps r,
 
 # This is often out of date but some apps insist on using it
 /etc/mtab r,
 /etc/fstab r,
+
+# some apps also insist on consulting utab
+/run/mount/utab r,
 `
 
 const mountObserveConnectedPlugSecComp = `

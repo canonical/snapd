@@ -112,15 +112,12 @@ func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 }
 
 func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
-	// Regular services are blocking hard refresh check.
-	// We were expecting them to be gone by now.
+	// Services are ignored by hard refresh check.
 	s.pids = map[string][]int{
 		"snap.pkg.daemon": {100},
 	}
 	err := snapstate.HardNothingRunningRefreshCheck(s.info)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "pkg" has running apps (daemon), pids: 100`)
-	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{100})
+	c.Assert(err, IsNil)
 
 	// When the service is supposed to endure refreshes it will not be
 	// stopped. As such such services cannot block refresh.

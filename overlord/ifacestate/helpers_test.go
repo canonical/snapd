@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -192,11 +193,11 @@ func (s *helpersSuite) TestHotplugTaskHelpers(c *C) {
 
 	t := s.st.NewTask("foo", "")
 	_, _, err := ifacestate.GetHotplugAttrs(t)
-	c.Assert(err, ErrorMatches, `internal error: cannot get interface name from hotplug task: no state entry for key`)
+	c.Assert(err, ErrorMatches, `internal error: cannot get interface name from hotplug task: no state entry for key "interface"`)
 
 	t.Set("interface", "x")
 	_, _, err = ifacestate.GetHotplugAttrs(t)
-	c.Assert(err, ErrorMatches, `internal error: cannot get hotplug key from hotplug task: no state entry for key`)
+	c.Assert(err, ErrorMatches, `internal error: cannot get hotplug key from hotplug task: no state entry for key "hotplug-key"`)
 
 	ifacestate.SetHotplugAttrs(t, "iface", "key")
 
@@ -599,7 +600,7 @@ func (s *helpersSuite) TestAllocHotplugSeq(c *C) {
 	var stateSeq int
 
 	// precondition
-	c.Assert(s.st.Get("hotplug-seq", &stateSeq), Equals, state.ErrNoState)
+	c.Assert(s.st.Get("hotplug-seq", &stateSeq), testutil.ErrorIs, state.ErrNoState)
 
 	seq, err := ifacestate.AllocHotplugSeq(s.st)
 	c.Assert(err, IsNil)

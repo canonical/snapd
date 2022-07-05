@@ -1,0 +1,69 @@
+summary: Check that preseeding of core20 works and the image boots.
+
+details: |
+  This test checks that preseeding of UC20 image with ubuntu-image works
+  and that the resulting image boots.
+
+systems: [ubuntu-20.04-64]
+
+environment:
+  NESTED_UBUNTU_IMAGE_PRESEED_KEY: "\" (test)\""
+  NESTED_IMAGE_ID: core20-preseeding
+  NESTED_ENABLE_TPM: false
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-dangerous.model
+  # for the fake store
+  STORE_ADDR: localhost:11028
+  NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+
+prepare: |
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+  setup_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+
+  echo "Expose the needed assertions through the fakestore"
+  cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR"/asserts
+  cp "$TESTSLIB"/assertions/developer1.account-key "$NESTED_FAKESTORE_BLOB_DIR"/asserts
+  cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$NESTED_FAKESTORE_BLOB_DIR"/asserts
+
+  teardown_staging_store
+
+  echo "Creating a new key without a password"
+  mkdir -p ~/.snap/gnupg
+  gendeveloper1 show-key | gpg --homedir=~/.snap/gnupg --import
+
+restore: |
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+
+  rm -rf ~/.snap/gnupg
+
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+  teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+
+debug: |
+  # show if anything went wrong during seeding
+  tests.nested exec "snap change 1" || true
+  echo "gpg key id:$NESTED_UBUNTU_IMAGE_PRESEED_KEY"
+
+execute: |
+  # have snap use the fakestore for assertions (but nothing else)
+  export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+
+  echo "Running pre-seeding"
+  tests.nested build-image core
+  tests.nested create-vm core
+
+  echo "Wait for snap seeding to be done"
+  tests.nested exec "sudo snap wait system seed.loaded"
+
+  echo "Verify that the image was preseeded"
+  tests.nested exec "snap debug seeding" | MATCH "^preseeded: +true"
+
+  echo "Check that no snaps are broken"
+  tests.nested exec "snap list" | NOMATCH "broken"
+  tests.nested exec "snap list" | MATCH "core20"
+  tests.nested exec "snap list" | MATCH "snapd"

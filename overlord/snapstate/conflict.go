@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -225,7 +226,7 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, 
 		// install, while getting the snap info; for refresh, when
 		// getting what needs refreshing).
 		var cursnapst SnapState
-		if err := Get(st, instanceName, &cursnapst); err != nil && err != state.ErrNoState {
+		if err := Get(st, instanceName, &cursnapst); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 

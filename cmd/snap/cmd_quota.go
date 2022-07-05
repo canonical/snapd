@@ -101,7 +101,15 @@ An existing sub group cannot be moved from one parent to another.
 
 func init() {
 	// TODO: unhide the commands when non-experimental
-	cmd := addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp, func() flags.Commander { return &cmdSetQuota{} }, nil, nil)
+	cmd := addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp,
+		func() flags.Commander { return &cmdSetQuota{} },
+		waitDescs.also(map[string]string{
+			"memory":  i18n.G("Memory quota"),
+			"cpu":     i18n.G("CPU quota"),
+			"cpu-set": i18n.G("CPU set quota"),
+			"threads": i18n.G("Threads quota"),
+			"parent":  i18n.G("Parent quota group"),
+		}), nil)
 	cmd.hidden = true
 
 	cmd = addCommand("quota", shortQuotaHelp, longQuotaHelp, func() flags.Commander { return &cmdQuota{} }, nil, nil)
@@ -157,23 +165,19 @@ func parseCpuQuota(cpuMax string) (count int, percentage int, err error) {
 	return count, percentage, nil
 }
 
-func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadsMax string) (*client.QuotaValues, error) {
-	var mem int64
-	var cpuCount int
-	var cpuPercentage int
-	var cpus []int
-	var threads int
+func (x *cmdSetQuota) parseQuotas() (*client.QuotaValues, error) {
+	var quotaValues client.QuotaValues
 
-	if maxMemory != "" {
-		value, err := strutil.ParseByteSize(maxMemory)
+	if x.MemoryMax != "" {
+		value, err := strutil.ParseByteSize(x.MemoryMax)
 		if err != nil {
 			return nil, err
 		}
-		mem = value
+		quotaValues.Memory = quantity.Size(value)
 	}
 
-	if cpuMax != "" {
-		countValue, percentageValue, err := parseCpuQuota(cpuMax)
+	if x.CPUMax != "" {
+		countValue, percentageValue, err := parseCpuQuota(x.CPUMax)
 		if err != nil {
 			return nil, err
 		}
@@ -181,12 +185,15 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadsMax stri
 			return nil, fmt.Errorf("cannot use value %v: cpu quota percentage must be between 1 and 100", percentageValue)
 		}
 
-		cpuCount = countValue
-		cpuPercentage = percentageValue
+		quotaValues.CPU = &client.QuotaCPUValues{
+			Count:      countValue,
+			Percentage: percentageValue,
+		}
 	}
 
-	if cpuSet != "" {
-		cpuTokens := strutil.CommaSeparatedList(cpuSet)
+	if x.CPUSet != "" {
+		var cpus []int
+		cpuTokens := strutil.CommaSeparatedList(x.CPUSet)
 		for _, cpuToken := range cpuTokens {
 			cpu, err := strconv.ParseUint(cpuToken, 10, 32)
 			if err != nil {
@@ -194,31 +201,29 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadsMax stri
 			}
 			cpus = append(cpus, int(cpu))
 		}
-	}
 
-	if threadsMax != "" {
-		value, err := strconv.ParseUint(threadsMax, 10, 32)
-		if err != nil {
-			return nil, fmt.Errorf("cannot use threads value %q", threadsMax)
-		}
-		threads = int(value)
-	}
-
-	return &client.QuotaValues{
-		Memory: quantity.Size(mem),
-		CPU: &client.QuotaCPUValues{
-			Count:      cpuCount,
-			Percentage: cpuPercentage,
-		},
-		CPUSet: &client.QuotaCPUSetValues{
+		quotaValues.CPUSet = &client.QuotaCPUSetValues{
 			CPUs: cpus,
-		},
-		Threads: threads,
-	}, nil
+		}
+	}
+
+	if x.ThreadsMax != "" {
+		value, err := strconv.ParseUint(x.ThreadsMax, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("cannot use threads value %q", x.ThreadsMax)
+		}
+		quotaValues.Threads = int(value)
+	}
+
+	return &quotaValues, nil
+}
+
+func (x *cmdSetQuota) hasQuotaSet() bool {
+	return x.MemoryMax != "" || x.CPUMax != "" || x.CPUSet != "" || x.ThreadsMax != ""
 }
 
 func (x *cmdSetQuota) Execute(args []string) (err error) {
-	quotaProvided := x.MemoryMax != "" || x.CPUMax != "" || x.CPUSet != "" || x.ThreadsMax != ""
+	quotaProvided := x.hasQuotaSet()
 
 	names := installedSnapNames(x.Positional.Snaps)
 
@@ -259,7 +264,7 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// we have a limits to set for this group, so specify that along
 		// with whatever snaps may have been provided and whatever parent may
 		// have been specified
-		quotaValues, err := parseQuotas(x.MemoryMax, x.CPUMax, x.CPUSet, x.ThreadsMax)
+		quotaValues, err := x.parseQuotas()
 		if err != nil {
 			return err
 		}

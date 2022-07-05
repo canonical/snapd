@@ -81,6 +81,9 @@ network packet,
 /sys/devices/virtual/net/**/dev_id r,
 /sys/devices/**/net/**/ifindex r,
 
+# access to bridge sysfs interfaces for bridge settings
+/sys/devices/virtual/net/*/bridge/* rw,
+
 /dev/rfkill rw,
 
 /run/udev/data/* r,

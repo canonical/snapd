@@ -79,21 +79,29 @@ var _ = Suite(&initramfsMountsSuite{})
 
 var (
 	tmpfsMountOpts = &main.SystemdMountOptions{
-		Tmpfs:  true,
-		NoSuid: true,
+		Tmpfs:   true,
+		NoSuid:  true,
+		Private: true,
 	}
 	needsFsckDiskMountOpts = &main.SystemdMountOptions{
 		NeedsFsck: true,
+		Private:   true,
 	}
 	needsFsckAndNoSuidDiskMountOpts = &main.SystemdMountOptions{
 		NeedsFsck: true,
 		NoSuid:    true,
+		Private:   true,
 	}
 	needsNoSuidDiskMountOpts = &main.SystemdMountOptions{
-		NoSuid: true,
+		NoSuid:  true,
+		Private: true,
 	}
 	snapMountOpts = &main.SystemdMountOptions{
 		ReadOnly: true,
+		Private:  true,
+	}
+	mountOpts = &main.SystemdMountOptions{
+		Private: true,
 	}
 
 	seedPart = disks.Partition{
@@ -1255,6 +1263,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--options=private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1263,7 +1272,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro",
+			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1272,7 +1281,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro",
+			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1281,7 +1290,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro",
+			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1291,7 +1300,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--type=tmpfs",
 			"--fsck=no",
-			"--options=nosuid",
+			"--options=nosuid,private",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -1428,6 +1437,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--options=private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1436,7 +1446,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro",
+			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1445,7 +1455,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro",
+			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1454,7 +1464,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro",
+			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1464,7 +1474,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--type=tmpfs",
 			"--fsck=no",
-			"--options=nosuid",
+			"--options=nosuid,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1473,6 +1483,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--options=private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1481,7 +1492,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=nosuid",
+			"--options=nosuid,private",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -1581,6 +1592,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--options=private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1589,7 +1601,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro",
+			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1598,7 +1610,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro",
+			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1607,7 +1619,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro",
+			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1617,7 +1629,7 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--type=tmpfs",
 			"--fsck=no",
-			"--options=nosuid",
+			"--options=nosuid,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1626,6 +1638,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--options=private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1634,7 +1647,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=nosuid",
+			"--options=nosuid,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1643,6 +1656,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=private",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -1759,6 +1773,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--options=private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1767,6 +1782,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--options=private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1775,7 +1791,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--options=nosuid",
+			"--options=nosuid,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1784,7 +1800,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro",
+			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1793,7 +1809,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro",
+			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -1880,6 +1896,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--options=private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1888,6 +1905,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--options=private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1896,7 +1914,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--options=nosuid",
+			"--options=nosuid,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1905,6 +1923,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--options=private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1913,7 +1932,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro",
+			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1922,7 +1941,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=ro",
+			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -2947,7 +2966,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -3035,7 +3054,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHap
 			{
 				"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 				boot.InitramfsUbuntuSaveDir,
-				nil,
+				mountOpts,
 				nil,
 			},
 		}, nil)
@@ -3118,7 +3137,7 @@ defaults:
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -3202,7 +3221,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -3321,7 +3340,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -3479,7 +3498,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -3656,7 +3675,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -3820,7 +3839,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -3982,7 +4001,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -4149,7 +4168,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -4337,7 +4356,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataU
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -4793,7 +4812,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnen
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -4932,7 +4951,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -5309,7 +5328,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -5519,7 +5538,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -5584,7 +5603,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 			systemdMount{
 				"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 				boot.InitramfsUbuntuSaveDir,
-				nil,
+				mountOpts,
 				nil,
 			})
 
@@ -5706,7 +5725,7 @@ func (s *initramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, tr
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -6337,7 +6356,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -6444,7 +6463,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			nil,
 		},
 	}, nil)
@@ -6730,7 +6749,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyMountEn
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			nil,
+			mountOpts,
 			fmt.Errorf("mount failed"),
 		},
 	}, nil)

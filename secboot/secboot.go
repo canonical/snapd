@@ -33,9 +33,15 @@ import (
 )
 
 const (
-	// Handles are in the block reserved for TPM owner objects (0x01800000 - 0x01bfffff)
-	RunObjectPCRPolicyCounterHandle      = 0x01880001
-	FallbackObjectPCRPolicyCounterHandle = 0x01880002
+	// Handles are in the block reserved for TPM owner objects (0x01800000 - 0x01bfffff).
+	//
+	// Handles are rotated during factory reset, depending on the PCR handle
+	// thet was used when sealing key objects during installation (or a
+	// previous factory reset).
+	RunObjectPCRPolicyCounterHandle         = uint32(0x01880001)
+	FallbackObjectPCRPolicyCounterHandle    = uint32(0x01880002)
+	AltRunObjectPCRPolicyCounterHandle      = uint32(0x01880003)
+	AltFallbackObjectPCRPolicyCounterHandle = uint32(0x01880004)
 )
 
 // WithSecbootSupport is true if this package was built with githbu.com/snapcore/secboot.
@@ -87,6 +93,19 @@ type SealKeyModelParams struct {
 	KernelCmdlines []string
 }
 
+type TPMProvisionMode int
+
+const (
+	TPMProvisionNone TPMProvisionMode = iota
+	// TPMProvisionFull indicates a full provisioning of the TPM
+	TPMProvisionFull
+	// TPMPartialReprovision indicates a partial reprovisioning of the TPM
+	// which was previously already provisioned by secboot. Existing lockout
+	// authorization data from TPMLockoutAuthFile will be used to authorize
+	// provisioning and will get overwritten in the process.
+	TPMPartialReprovision
+)
+
 type SealKeysParams struct {
 	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
@@ -95,11 +114,6 @@ type SealKeysParams struct {
 	// The path to the authorization policy update key file (only relevant for TPM,
 	// if empty the key will not be saved)
 	TPMPolicyAuthKeyFile string
-	// The path to the lockout authorization file (only relevant for TPM and only
-	// used if TPMProvision is set to true)
-	TPMLockoutAuthFile string
-	// Whether we should provision the TPM
-	TPMProvision bool
 	// The handle at which to create a NV index for dynamic authorization policy revocation support
 	PCRPolicyCounterHandle uint32
 }

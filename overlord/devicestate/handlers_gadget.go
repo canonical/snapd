@@ -19,6 +19,7 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,7 +49,7 @@ func makeRollbackDir(name string) (string, error) {
 
 func currentGadgetInfo(st *state.State, curDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
 	currentInfo, err := snapstate.GadgetInfo(st, curDeviceCtx)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if currentInfo == nil {
@@ -258,7 +259,7 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
@@ -299,7 +300,7 @@ func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb)
 
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {

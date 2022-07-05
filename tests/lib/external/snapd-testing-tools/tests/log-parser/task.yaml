@@ -1,4 +1,4 @@
-summary: test for the log analyzer tool
+summary: test for the log parser tool
 
 # Github actions agents are just running in bionic and focal
 systems: [ubuntu-18.04-64, ubuntu-20.04-64]
@@ -46,7 +46,39 @@ execute: |
     test "$TESTS_FAILED_TASK" = "1"
     test "$TESTS_FAILED_PROJECT" = "4"
     test "$TESTS_ABORTED" = "24"
+
+    # Check results with all the failed levels
+    log-parser with-all-results.log.spread
+    TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Successful") | .number' spread-results.json)
+    TESTS_FAILED_TASKS=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed")  | select(.level == "tasks") | .number' spread-results.json)
+    TESTS_FAILED_TASK_PREPARE=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed")  | select(.level == "task") | select(.stage == "prepare") | .number' spread-results.json)
+    TESTS_FAILED_TASK_RESTORE=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed")  | select(.level == "task") | select(.stage == "restore") | .number' spread-results.json)
+    TESTS_FAILED_SUITE_PREPARE=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed")  | select(.level == "suite") | select(.stage == "prepare") | .number' spread-results.json)
+    TESTS_FAILED_SUITE_RESTORE=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed")  | select(.level == "suite") | select(.stage == "restore") | .number' spread-results.json)
+    TESTS_FAILED_PROJECT_PREPARE=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed")  | select(.level == "project") | select(.stage == "prepare") | .number' spread-results.json)
+    TESTS_FAILED_PROJECT_RESTORE=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed")  | select(.level == "project") | select(.stage == "restore") | .number' spread-results.json)
+    TESTS_ABORTED=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Aborted") | .number' spread-results.json)
+    test "$TESTS_SUCCESSFUL" = "7376"
+    test "$TESTS_FAILED_TASKS" = "2"
+    test "$TESTS_FAILED_TASK_PREPARE" = "3"
+    test "$TESTS_FAILED_TASK_RESTORE" = "2"
+    test "$TESTS_FAILED_SUITE_PREPARE" = "1"
+    test "$TESTS_FAILED_SUITE_RESTORE" = "2"
+    test "$TESTS_FAILED_PROJECT_PREPARE" = "1"
+    test "$TESTS_FAILED_PROJECT_RESTORE" = "2"
+    test "$TESTS_ABORTED" = "3061"
     
+    # Check results when a detail contains results
+    log-parser with-results-in-detail.log.spread
+    TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Successful") | .number' spread-results.json)
+    TESTS_FAILED_TASKS=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed")  | select(.level == "tasks") | .number' spread-results.json)
+    TESTS_ABORTED=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Aborted") | .number' spread-results.json)
+    test "$TESTS_SUCCESSFUL" = "7376"
+    test "$TESTS_FAILED_TASKS" = "2"
+    test "$TESTS_ABORTED" = "3061"
+    jq -r '.[] | select( .type == "result") | select( .result_type == "Failed")  | select(.level == "tasks") | .detail' spread-results.json | NOMATCH "cloud-init-never-used-not-vuln"
+    jq -r '.[] | select( .type == "result") | select( .result_type == "Failed")  | select(.level == "tasks") | .detail' spread-results.json | MATCH "degraded"
+
     # Check the filter
     test "$(log-parser with-failed-and-aborted.log.spread -pd error | grep -c "Error preparing")" -eq 5
     test "$(log-parser with-failed-and-aborted.log.spread -pd error | grep -c "command -v restorecon")" -eq 4
@@ -69,3 +101,4 @@ execute: |
     log-parser with-failed-and-aborted.log.spread -pr aborted | grep -c "Aborted tasks: 24"
     log-parser all-successful.log.spread -pr successful | grep -q "Successful tasks: 434"
     log-parser all-successful.log.spread -pr failed | grep -v "Aborted tasks"
+
