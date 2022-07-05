@@ -440,7 +440,7 @@ func MockMarkFactoryResetComplete(f func(encrypted bool) error) (restore func())
 	return restore
 }
 
-func MockSecbootMarkSuccessful(f func() ( error)) (restore func()) {
+func MockSecbootMarkSuccessful(f func() error) (restore func()) {
 	r := testutil.Backup(&secbootMarkSuccessful)
 	secbootMarkSuccessful = f
 	return r
