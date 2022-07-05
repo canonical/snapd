@@ -172,29 +172,33 @@ func (u20 *bootStateUpdate20) commit() error {
 		}
 	}
 
-	modeenvRewritten := false
+	expectReseal := false
 	// next write the modeenv if it changed
 	if !u20.writeModeenv.deepEqual(u20.modeenv) {
 		if err := u20.writeModeenv.Write(); err != nil {
 			return err
 		}
-		modeenvRewritten = true
+		// reseal might not be needed if the only change in modeenv is
+		// the gadget (if the boot assets change that is detected in
+		// resealKeyToModeenv() and reseal will happen anyway)
+		auxModeEnv := *u20.writeModeenv
+		auxModeEnv.Gadget = u20.modeenv.Gadget
+		if !auxModeEnv.deepEqual(u20.modeenv) {
+			expectReseal = true
+		}
 	}
 
-	if u20.resealNeeded {
-		// next reseal using the modeenv values, we do this before any
-		// post-modeenv tasks so if we are rebooted at any point after
-		// the reseal even before the post tasks are completed, we
-		// still boot properly
+	// next reseal using the modeenv values, we do this before any
+	// post-modeenv tasks so if we are rebooted at any point after
+	// the reseal even before the post tasks are completed, we
+	// still boot properly
 
-		// if there is ambiguity whether the boot chains have
-		// changed because of unasserted kernels, then pass a
-		// flag as hint whether to reseal based on whether we
-		// wrote the modeenv
-		expectReseal := modeenvRewritten
-		if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.writeModeenv, expectReseal); err != nil {
-			return err
-		}
+	// if there is ambiguity whether the boot chains have
+	// changed because of unasserted kernels, then pass a
+	// flag as hint whether to reseal based on whether we
+	// wrote the modeenv
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.writeModeenv, expectReseal); err != nil {
+		return err
 	}
 
 	// finally handle any post-modeenv writing tasks
