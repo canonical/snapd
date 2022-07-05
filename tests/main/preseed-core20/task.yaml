@@ -142,9 +142,9 @@ execute: |
   MATCH "^snap/core20/current" < files.log
   MATCH "^snap/snapd/current" < files.log
 
-  MATCH "^var/cache/apparmor/11143a61.0/snap.pc.hook.configure" < files.log
-  MATCH "^var/cache/apparmor/11143a61.0/snap-update-ns.pc" < files.log
-  MATCH "^var/cache/apparmor/11143a61.0/snap-confine.snapd.x1" < files.log
+  MATCH "^var/cache/apparmor/08ba9d86.0/snap.pc.hook.configure" < files.log
+  MATCH "^var/cache/apparmor/08ba9d86.0/snap-update-ns.pc" < files.log
+  MATCH "^var/cache/apparmor/08ba9d86.0/snap-confine.snapd.x1" < files.log
 
   MATCH "^var/lib/snapd/apparmor/profiles/snap.pc.hook.configure" < files.log
   MATCH "^var/lib/snapd/apparmor/profiles/snap-update-ns.pc" < files.log
