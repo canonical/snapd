@@ -2025,7 +2025,7 @@ func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) error {
 		return err
 	}
 	bp := boot.Participant(info, info.Type(), groundDeviceCtx)
-	rebootInfo, err := bp.SetNextBoot(false)
+	rebootInfo, err := bp.SetNextBoot(boot.NextBootContext{IsUndoingInstall: false})
 	if err != nil {
 		return err
 	}

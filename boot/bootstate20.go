@@ -305,7 +305,7 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 	return u20, nil
 }
 
-func (ks20 *bootState20Kernel) setNext(isUndo bool, next snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error) {
+func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo, bootCtx NextBootContext) (rbi RebootInfo, u bootStateUpdate, err error) {
 	u20, rebootRequired, err := genericSetNext(ks20, next)
 	if err != nil {
 		return RebootInfo{RebootRequired: false}, nil, err
@@ -315,7 +315,7 @@ func (ks20 *bootState20Kernel) setNext(isUndo bool, next snap.PlaceInfo) (rbi Re
 	rbi.RebootRequired = rebootRequired
 	if rbi.RebootRequired {
 		// if we need to reboot and we are not undoing, we set the try status
-		if !isUndo {
+		if !bootCtx.IsUndoingInstall {
 			nextStatus = TryStatus
 		}
 		// kernels are usually loaded directly by the bootloader, for
@@ -330,7 +330,7 @@ func (ks20 *bootState20Kernel) setNext(isUndo bool, next snap.PlaceInfo) (rbi Re
 	currentKernel := ks20.bks.kernel()
 	if next.Filename() != currentKernel.Filename() {
 		// on commit, add this kernel to the modeenv
-		if isUndo {
+		if bootCtx.IsUndoingInstall {
 			// when undoing, the current kernel is being removed
 			u20.writeModeenv.CurrentKernels = []string{next.Filename()}
 		} else {
@@ -342,7 +342,7 @@ func (ks20 *bootState20Kernel) setNext(isUndo bool, next snap.PlaceInfo) (rbi Re
 	}
 
 	bootTask := func() error { return ks20.bks.setNextKernel(next, nextStatus) }
-	if isUndo {
+	if bootCtx.IsUndoingInstall {
 		// force revert to "next" kernel (actually it is the old one)
 		// and ignore the try status, that will be empty in this case.
 		bootTask = func() error { return ks20.bks.setKernel(next) }
@@ -462,7 +462,7 @@ func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUp
 	return u20, nil
 }
 
-func (bs20 *bootState20Base) setNext(isUndo bool, next snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error) {
+func (bs20 *bootState20Base) setNext(next snap.PlaceInfo, bootCtx NextBootContext) (rbi RebootInfo, u bootStateUpdate, err error) {
 	u20, rebootRequired, err := genericSetNext(bs20, next)
 	if err != nil {
 		return RebootInfo{RebootRequired: false}, nil, err
@@ -471,7 +471,7 @@ func (bs20 *bootState20Base) setNext(isUndo bool, next snap.PlaceInfo) (rbi Rebo
 	nextStatus := DefaultStatus
 	rbi.RebootRequired = rebootRequired
 	if rbi.RebootRequired {
-		if isUndo {
+		if bootCtx.IsUndoingInstall {
 			// we must make sure we boot with the base we revert to
 			u20.writeModeenv.Base = next.Filename()
 			u20.writeModeenv.TryBase = ""

@@ -143,8 +143,9 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 
 	var rebootInfo boot.RebootInfo
 	if !b.preseed {
+		bootCtx := boot.NextBootContext{IsUndoingInstall: linkCtx.IsUndo}
 		rebootInfo, err = boot.Participant(
-			info, info.Type(), dev).SetNextBoot(linkCtx.IsUndo)
+			info, info.Type(), dev).SetNextBoot(bootCtx)
 		if err != nil {
 			return boot.RebootInfo{}, err
 		}
