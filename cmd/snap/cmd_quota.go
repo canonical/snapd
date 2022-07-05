@@ -114,7 +114,7 @@ func init() {
 			"cpu-set":            i18n.G("CPU set quota"),
 			"threads":            i18n.G("Threads quota"),
 			"journal-size":       i18n.G("Journal size quota"),
-			"journal-rate-limit": i18n.G("Journal rate limit quota"),
+			"journal-rate-limit": i18n.G("Journal rate limit as <message count>/<message period>"),
 			"parent":             i18n.G("Parent quota group"),
 		}), nil)
 	cmd.hidden = true
