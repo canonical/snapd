@@ -66,5 +66,5 @@ proc brexit {} {
 # tests to fail.
 spawn env -u PS1 bash --norc -i
 next
-send ". /usr/share/bash-completion/bash_completion; . ../../../data/completion/snap\n"
+send ". /usr/share/bash-completion/bash_completion; . ../../../data/completion/bash/snap\n"
 next

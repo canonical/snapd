@@ -432,6 +432,8 @@ StandardOutput=journal+console
 StandardError=journal+console
 EOF
 
+    cp "${SPREAD_PATH}"/data/completion/bash/complete.sh "${UNPACK_DIR}"/usr/lib/snapd/complete.sh
+
     snap pack --filename="$TARGET" "$UNPACK_DIR"
 
     rm -rf "$UNPACK_DIR"
@@ -523,6 +525,8 @@ systemctl reload ssh
 touch /root/spread-setup-done
 EOF
     chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+
+    cp "${SPREAD_PATH}"/data/completion/bash/complete.sh "${UNPACK_DIR}"/usr/lib/snapd/complete.sh
 
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
