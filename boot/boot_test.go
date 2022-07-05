@@ -4298,9 +4298,8 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameGadgetSnap(c *C) {
 		s.normalDefaultState,
 	)
 	defer r()
-	resealCalls := 0
-	r = boot.MockResealKeyToModeenv(func(_ string, _ *boot.Modeenv, _ bool) error {
-		resealCalls++
+	r = boot.MockResealKeyToModeenv(func(_ string, _ *boot.Modeenv, expectReseal bool) error {
+		c.Assert(expectReseal, Equals, false)
 		return nil
 	})
 	defer r()
@@ -4322,8 +4321,6 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameGadgetSnap(c *C) {
 
 	// we didn't call SetBootVars on the bootloader (unneeded for gadget)
 	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
-	// no reseal expected for gadget installs
-	c.Check(resealCalls, Equals, 0)
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20SetNextNewGadgetSnap(c *C) {
@@ -4336,9 +4333,8 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewGadgetSnap(c *C) {
 		s.normalDefaultState,
 	)
 	defer r()
-	resealCalls := 0
-	r = boot.MockResealKeyToModeenv(func(_ string, _ *boot.Modeenv, _ bool) error {
-		resealCalls++
+	r = boot.MockResealKeyToModeenv(func(_ string, _ *boot.Modeenv, expectReseal bool) error {
+		c.Assert(expectReseal, Equals, false)
 		return nil
 	})
 	defer r()
@@ -4360,6 +4356,4 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewGadgetSnap(c *C) {
 
 	// we didn't call SetBootVars on the bootloader (unneeded for gadget)
 	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
-	// no reseal expected for gadget installs, even if modeenv changes
-	c.Check(resealCalls, Equals, 0)
 }
