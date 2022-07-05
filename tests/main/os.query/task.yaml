@@ -69,7 +69,6 @@ execute: |
             ;;
         ubuntu-21.10-*)
             os.query is-classic
-            os.query is-impish
             not os.query is-focal
             not os.query is-core
             os.query is-ubuntu
