@@ -73,12 +73,12 @@ type bootloaderKernelState20 interface {
 	// markSuccessfulKernel marks the specified kernel as having booted
 	// successfully, whether that kernel is the current kernel or the try-kernel
 	markSuccessfulKernel(sn snap.PlaceInfo) error
-	// setKernel sets the specified kernel as the next boot kernel, without
-	// the "try" logic. This shall be used only when we have already booted
-	// to a new kernel but for some reason we need to revert to the previous
-	// kernel (for instance, in a transactional update when the failing snap
-	// is not the kernel).
-	setKernel(sn snap.PlaceInfo) error
+	// setNextKernelNoTry changes boot configuration so the specified kernel will
+	// be the one used in next boot, without the "try" logic. This shall be
+	// used only when we have already booted to a new kernel but for some
+	// reason we need to revert to the previous kernel (for instance, in a
+	// transactional update when the failing snap is not the kernel).
+	setNextKernelNoTry(sn snap.PlaceInfo) error
 }
 
 //
@@ -345,7 +345,7 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo, bootCtx NextBootCont
 	if bootCtx.IsUndoingInstall {
 		// force revert to "next" kernel (actually it is the old one)
 		// and ignore the try status, that will be empty in this case.
-		bootTask = func() error { return ks20.bks.setKernel(next) }
+		bootTask = func() error { return ks20.bks.setNextKernelNoTry(next) }
 	}
 
 	// On commit, if we are about to try an update, and need to set the next
@@ -463,6 +463,9 @@ func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUp
 }
 
 func (bs20 *bootState20Base) setNext(next snap.PlaceInfo, bootCtx NextBootContext) (rbi RebootInfo, u bootStateUpdate, err error) {
+	// bases are handled by snap-bootstrap, hence we are not interested in
+	// the bootloader's opinion (no need for rbi.RebootBootloader, so it is
+	// not filled anywhere in this method).
 	u20, rebootRequired, err := genericSetNext(bs20, next)
 	if err != nil {
 		return RebootInfo{RebootRequired: false}, nil, err
@@ -480,9 +483,6 @@ func (bs20 *bootState20Base) setNext(next snap.PlaceInfo, bootCtx NextBootContex
 			// and set appropriately the base we want to try
 			nextStatus = TryStatus
 			u20.writeModeenv.TryBase = next.Filename()
-			// a 'try' base is handled by snap-bootstrap, hence we are not
-			// interested in the bootloader's opinion (no need for
-			// rbi.RebootBootloader, so it is not filled).
 		}
 	}
 

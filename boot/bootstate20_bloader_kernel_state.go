@@ -177,7 +177,7 @@ func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn snap.P
 	return nil
 }
 
-func (bks *extractedRunKernelImageBootloaderKernelState) setKernel(sn snap.PlaceInfo) error {
+func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernelNoTry(sn snap.PlaceInfo) error {
 	if sn.Filename() != bks.currentKernel.Filename() {
 		err := bks.ebl.EnableKernel(sn)
 		if err != nil {
@@ -314,7 +314,7 @@ func (envbks *envRefExtractedKernelBootloaderKernelState) setNextKernel(sn snap.
 	return nil
 }
 
-func (envbks *envRefExtractedKernelBootloaderKernelState) setKernel(sn snap.PlaceInfo) error {
+func (envbks *envRefExtractedKernelBootloaderKernelState) setNextKernelNoTry(sn snap.PlaceInfo) error {
 	envbks.toCommit["kernel_status"] = ""
 	bootenvChanged := envbks.commonStateCommitUpdate(sn, "snap_kernel")
 
