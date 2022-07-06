@@ -638,10 +638,21 @@ func ReleasePCRResourceHandles(handles ...uint32) error {
 	return nil
 }
 
+// MarkSuccessful marks the secure boot parts of the boot as
+// successful.
+//
+//This means that the dictionary attack (DA) lockout counter is reset.
 func MarkSuccessful() error {
 	encrypted := device.HasEncryptedMarkerUnder(dirs.SnapFDEDir)
 	if encrypted {
 		lockoutAuthFile := device.TpmLockoutAuthUnder(dirs.SnapFDEDirUnderSave(dirs.SnapSaveDir))
+		// each unclean shtutdown will increase the DA lockout
+		// counter. So on a successful boot we need to clear
+		// this counter to avoid eventually hitting the
+		// snapcore/secboot:tpm2/provisioning.go limit of
+		// maxTries=32. Note that on a clean shtudown linux
+		// will call TPM2_Shutdown which ensure no DA lockout
+		// is increased.
 		if err := resetLockoutCounter(lockoutAuthFile); err != nil {
 			return err
 		}
