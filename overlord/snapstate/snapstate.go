@@ -531,6 +531,16 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = installHook
 	}
 
+	// Add a quota control task before we start services up
+	if snapsup.QuotaGroupName != "" {
+		quotaControlTask := st.NewTask("quota-on-install", fmt.Sprintf(i18n.G("Adding snap %q%s to quota group %q"),
+			snapsup.InstanceName(), revisionStr, snapsup.QuotaGroupName))
+		quotaControlTask.Set("quota-on-install-snapnames", []string{snapsup.InstanceName()})
+		quotaControlTask.Set("quota-on-install-quotaname", snapsup.QuotaGroupName)
+		addTask(quotaControlTask)
+		prev = quotaControlTask
+	}
+
 	// run new services
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
 	addTask(startSnapServices)
@@ -1044,6 +1054,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		Type:               info.Type(),
 		PlugsOnly:          len(info.Slots) == 0,
 		InstanceKey:        info.InstanceKey,
+		QuotaGroupName:     flags.QuotaGroupName,
 	}
 
 	ts, err := doInstall(st, &snapst, snapsup, instFlags, "", inUseFor(deviceCtx))
@@ -1138,6 +1149,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		Type:               info.Type(),
 		PlugsOnly:          len(info.Slots) == 0,
 		InstanceKey:        info.InstanceKey,
+		QuotaGroupName:     flags.QuotaGroupName,
 		auxStoreInfo: auxStoreInfo{
 			Media:   info.Media,
 			Website: info.Website,

@@ -133,6 +133,10 @@ type SnapSetup struct {
 
 	// DisabledExposedHome is set if ~/Snap should not be used as $HOME.
 	DisableExposedHome bool `json:"disable-exposed-home,omitempty"`
+
+	// QuotaGroupName is set if the snap should be put into a quota group
+	// upon install
+	QuotaGroupName string `json:"quota-group-name,omitempty"`
 }
 
 func (snapsup *SnapSetup) InstanceName() string {
