@@ -625,7 +625,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/uptime ixr,
   /{,usr/}bin/vdir ixr,
   /{,usr/}bin/wc ixr,
-  /{,usr/}bin/which ixr,
+  /{,usr/}bin/which{,.debianutils} ixr,
   /{,usr/}bin/xargs ixr,
   /{,usr/}bin/xz ixr,
   /{,usr/}bin/yes ixr,
