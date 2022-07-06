@@ -6,34 +6,30 @@ details: |
 
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
-# This test takes about 2h to run so we won't enable it by default
-manual: true
-
-kill-timeout: 3h
-
 environment:
   NESTED_ENABLE_TPM/encrypted: "true"
   NESTED_ENABLE_SECURE_BOOT/encrypted: "true"
 
-execute: |
+prepare: |
     tests.nested build-image core
     tests.nested create-vm core
 
+    go build ./getdalockout.go
+    tests.nested copy ./getdalockout
+
+execute: |
     tests.nested exec "sudo snap wait system seed.loaded"
     tests.nested wait-for device-initialized
 
-    # snapcore/secboot has code in tpm2/provisioning.go that sets
-    # maxTries=32 for the DA lockout.  So when uncleanly shutdown for
-    # 33 times we trigger the da lockout (see
-    # https://bugs.launchpad.net/snapd/+bug/1979185)
-    for i in $(seq 33); do
-        echo "Unclean shutdown no $i"
-        boot_id=$(tests.nested boot-id)
-        tests.nested exec "sudo sync"
-        tests.nested exec "echo b | sudo tee /proc/sysrq-trigger" || true
-        tests.nested wait-for reboot "${boot_id}"
-        tests.nested wait-for snap-command
-    done
-
-    tests.nested exec "echo hello" | MATCH hello
+    # lockout value is zero initially
+    tests.nested exec sudo ./getdalockout | MATCH "lockout counter value: 0"
     
+    boot_id=$(tests.nested boot-id)
+    tests.nested exec "sudo sync"
+    tests.nested exec "echo b | sudo tee /proc/sysrq-trigger" || true
+    tests.nested wait-for reboot "${boot_id}"
+    tests.nested wait-for snap-command
+
+    # and is still zero after a unclean shutdown
+    tests.nested exec sudo ./getdalockout | MATCH "lockout counter value: 0"
+
