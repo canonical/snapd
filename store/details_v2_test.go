@@ -308,6 +308,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"SideInfo.EditedLinks",         // TODO: take this value from the store
 		"DownloadInfo.AnonDownloadURL", // TODO: going away at some point
 		"SystemUsernames",
+		"SnapProvenance", // TODO: take this value
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {

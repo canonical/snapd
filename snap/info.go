@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -296,6 +296,8 @@ type Info struct {
 	OriginalSummary     string
 	OriginalDescription string
 
+	SnapProvenance string
+
 	Environment strutil.OrderedMap
 
 	LicenseAgreement string
@@ -414,6 +416,19 @@ type ChannelSnapInfo struct {
 	Epoch       Epoch           `json:"epoch"`
 	Size        int64           `json:"size"`
 	ReleasedAt  time.Time       `json:"released-at"`
+}
+
+// Provenance returns the provenance of the snap, this is a label set
+// e.g to distinguish snaps that are not expected to be processed by the global
+// store. Constraints on this value are used to allow for delegated
+// snap-revision signing.
+// This returns naming.DefaultProvenance if no value is set explicitly
+// in the snap metadata.
+func (s *Info) Provenance() string {
+	if s.SnapProvenance == "" {
+		return naming.DefaultProvenance
+	}
+	return s.SnapProvenance
 }
 
 // InstanceName returns the blessed name of the snap decorated with instance

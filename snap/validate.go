@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -298,11 +298,26 @@ func validateTitle(title string) error {
 	return nil
 }
 
+func validateProvenance(prov string) error {
+	if prov == "" {
+		// empty means default
+		return nil
+	}
+	if prov == naming.DefaultProvenance {
+		return fmt.Errorf("provenance cannot be set to default (global-upload) explicitly")
+	}
+	return naming.ValidateProvenance(prov)
+}
+
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
 	name := info.InstanceName()
 	if name == "" {
 		return errors.New("snap name cannot be empty")
+	}
+
+	if err := validateProvenance(info.SnapProvenance); err != nil {
+		return err
 	}
 
 	if err := ValidateName(info.SnapName()); err != nil {
