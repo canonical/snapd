@@ -6,8 +6,10 @@ details: |
 
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
-# test takes a long time
-kill-timeout: 2h
+# This test takes about 2h to run so we won't enable it by default
+manual: true
+
+kill-timeout: 3h
 
 environment:
   NESTED_ENABLE_TPM/encrypted: "true"
@@ -20,12 +22,12 @@ execute: |
     tests.nested exec "sudo snap wait system seed.loaded"
     tests.nested wait-for device-initialized
 
-    # XXX: this test takes forever
-    # secboot provisioning.go has maxTries=32 so unclean shutdown
-    # for 33 times to ensure we trigger the da lockout
-    # (see https://bugs.launchpad.net/snapd/+bug/1979185)
+    # snapcore/secboot has code in tpm2/provisioning.go that sets
+    # maxTries=32 for the DA lockout.  So when uncleanly shutdown for
+    # 33 times we trigger the da lockout (see
+    # https://bugs.launchpad.net/snapd/+bug/1979185)
     for i in $(seq 33); do
-        echo "Iteration $i"
+        echo "Unclean shutdown no $i"
         boot_id=$(tests.nested boot-id)
         tests.nested exec "sudo sync"
         tests.nested exec "echo b | sudo tee /proc/sysrq-trigger" || true
