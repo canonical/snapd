@@ -11,6 +11,9 @@ execute: |
   echo "Build base with failing post-refresh hook"
   VERSION="$(tests.nested show version)"
   base=core"$VERSION"
+  if [ "$VERSION" -eq 16 ]; then
+      base=core
+  fi
   rm -rf "$base"  
   snap download --basename="$base" "$base"
   unsquashfs -d "$base" "$base".snap
