@@ -2028,7 +2028,15 @@ func (s *secbootSuite) TestMarkSuccessfulNotEncrypted(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *secbootSuite) TestMarkSuccessfulEncrypted(c *C) {
+func (s *secbootSuite) TestMarkSuccessfulEncryptedTPM(c *C) {
+	s.testMarkSuccessfulEncrypted(c, device.SealingMethodTPM, 1)
+}
+
+func (s *secbootSuite) TestMarkSuccessfulEncryptedFDE(c *C) {
+	s.testMarkSuccessfulEncrypted(c, device.SealingMethodFDESetupHook, 0)
+}
+
+func (s *secbootSuite) testMarkSuccessfulEncrypted(c *C, sealingMethod device.SealingMethod, expectedDaLockResetCalls int) {
 	_, restore := mockSbTPMConnection(c, nil)
 	defer restore()
 
@@ -2037,6 +2045,9 @@ func (s *secbootSuite) TestMarkSuccessfulEncrypted(c *C) {
 	c.Assert(err, IsNil)
 	saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDir)
 	err = os.MkdirAll(saveFDEDir, 0700)
+	c.Assert(err, IsNil)
+
+	err = device.StampSealedKeys(dirs.GlobalRootDir, sealingMethod)
 	c.Assert(err, IsNil)
 
 	err = device.WriteEncryptionMarkers(dirs.SnapFDEDir, saveFDEDir, []byte("foo"))
@@ -2061,5 +2072,5 @@ func (s *secbootSuite) TestMarkSuccessfulEncrypted(c *C) {
 	err = secboot.MarkSuccessful()
 	c.Check(err, IsNil)
 
-	c.Check(daLockResetCalls, Equals, 1)
+	c.Check(daLockResetCalls, Equals, expectedDaLockResetCalls)
 }

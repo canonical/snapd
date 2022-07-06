@@ -201,8 +201,11 @@ func EncryptedPartitionName(name string) string {
 //
 //This means that the dictionary attack (DA) lockout counter is reset.
 func MarkSuccessful() error {
-	encrypted := device.HasEncryptedMarkerUnder(dirs.SnapFDEDir)
-	if encrypted {
+	sealingMethod, err := device.SealedKeysMethod(dirs.GlobalRootDir)
+	if err != nil && err != device.ErrNoSealedKeys {
+		return err
+	}
+	if sealingMethod == device.SealingMethodTPM {
 		lockoutAuthFile := device.TpmLockoutAuthUnder(dirs.SnapFDEDirUnderSave(dirs.SnapSaveDir))
 		// each unclean shtutdown will increase the DA lockout
 		// counter. So on a successful boot we need to clear
