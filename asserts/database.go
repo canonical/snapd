@@ -746,7 +746,11 @@ func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, deleg
 		return nil, nil
 	}
 	if !signingKey.isValidAssumingCurTimeWithin(checkTimeEarliest, checkTimeLatest) {
-		return nil, fmt.Errorf("assertion is signed with expired public key %q from %q", assert.SignKeyID(), assert.SignatoryID())
+		validFrom, validTo := checkTimeEarliest.Format(time.RFC3339), checkTimeLatest.Format(time.RFC3339)
+		keyFrom, keyTo := signingKey.since.Format(time.RFC3339), signingKey.until.Format(time.RFC3339)
+
+		return nil, fmt.Errorf("assertion is signed with expired public key %q from %q: expected range is [%s, %s] but key is valid during [%s, %s]",
+			assert.SignKeyID(), assert.SignatoryID(), validFrom, validTo, keyFrom, keyTo)
 	}
 	return delegationConstraints, nil
 }

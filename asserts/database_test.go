@@ -24,9 +24,11 @@ import (
 	"crypto"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"testing"
 	"time"
@@ -235,17 +237,28 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 }
 
 func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
+	fixedTimeStr := "0003-01-01T00:00:00Z"
+	fixedTime, err := time.Parse(time.RFC3339, fixedTimeStr)
+	c.Assert(err, IsNil)
+
+	restore := asserts.MockTimeNow(fixedTime)
+	defer restore()
+
 	trustedKey := testPrivKey0
 
+	expiredAccKey := asserts.ExpiredAccountKeyForTest("canonical", trustedKey.PublicKey())
 	cfg := &asserts.DatabaseConfig{
 		Backstore: chks.bs,
-		Trusted:   []asserts.Assertion{asserts.ExpiredAccountKeyForTest("canonical", trustedKey.PublicKey())},
+		Trusted:   []asserts.Assertion{expiredAccKey},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 
+	expSince := regexp.QuoteMeta(expiredAccKey.Since().Format(time.RFC3339))
+	expUntil := regexp.QuoteMeta(expiredAccKey.Until().Format(time.RFC3339))
+	curTime := regexp.QuoteMeta(fixedTimeStr)
 	err = db.Check(chks.a)
-	c.Assert(err, ErrorMatches, `assertion is signed with expired public key "[[:alnum:]_-]+" from "canonical"`)
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`assertion is signed with expired public key "[[:alnum:]_-]+" from "canonical": expected range is \[%s, %s\] but key is valid during \[%s, %s\]`, curTime, curTime, expSince, expUntil))
 }
 
 func (chks *checkSuite) TestCheckForgery(c *C) {
