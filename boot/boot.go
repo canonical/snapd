@@ -142,7 +142,9 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
 	switch t {
 	case snap.TypeKernel:
 		if s.InstanceName() != dev.Kernel() {
-			// a remodel might leave you in this state
+			// a remodel might leave behind installed a kernel that
+			// is not the device kernel anymore, ignore such a
+			// kernel by checking the name
 			return false
 		}
 	case snap.TypeBase, snap.TypeOS:
@@ -155,8 +157,9 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
 		}
 	case snap.TypeGadget:
 		// First condition: gadget is not a boot participant for UC16/18
-		// Second condition: a remodel might leave you in this state
-		//     (as gadget snap name might be different now)
+		// Second condition: a remodel might leave behind installed a
+		// gadget that is not the device gadget anymore, ignore such a
+		// gadget by checking the name
 		if !dev.HasModeenv() || s.InstanceName() != dev.Gadget() {
 			return false
 		}
