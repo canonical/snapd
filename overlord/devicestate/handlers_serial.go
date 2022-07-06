@@ -248,7 +248,7 @@ func (rc *initialRegistrationContext) FinishRegistration(serial *asserts.Serial)
 // registrationCtx returns a registrationContext appropriate for the task and its change.
 func (m *DeviceManager) registrationCtx(t *state.Task) (registrationContext, error) {
 	remodCtx, err := remodelCtxFromTask(t)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if regCtx, ok := remodCtx.(registrationContext); ok {
@@ -316,7 +316,7 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 	// slower full retries
 	var nTentatives int
 	err := t.Get("pre-poll-tentatives", &nTentatives)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", err
 	}
 	nTentatives++
@@ -484,7 +484,7 @@ var httputilNewHTTPClient = httputil.NewHTTPClient
 func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (serial *asserts.Serial, ancillaryBatch *asserts.Batch, err error) {
 	var serialSup serialSetup
 	err = t.Get("serial-setup", &serialSup)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, err
 	}
 
@@ -585,7 +585,7 @@ func getSerialRequestConfig(t *state.Task, regCtx registrationContext, client *h
 
 	st := t.State()
 	tr := config.NewTransaction(st)
-	if proxyStore, err := proxyStore(st, tr); err != nil && err != state.ErrNoState {
+	if proxyStore, err := proxyStore(st, tr); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	} else if proxyStore != nil {
 		proxyURL = proxyStore.URL()
@@ -666,7 +666,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 
 	// NB: the keyPair is fixed for now
 	privKey, err := m.keyPair()
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot find device key pair")
 	}
 	if err != nil {

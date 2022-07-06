@@ -33,8 +33,10 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
@@ -51,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -99,8 +102,9 @@ type DeviceManager struct {
 
 	ensureSeedInConfigRan bool
 
-	ensureInstalledRan    bool
-	ensureFactoryResetRan bool
+	ensureInstalledRan        bool
+	ensureFactoryResetRan     bool
+	ensurePostFactoryResetRan bool
 
 	ensureTriedRecoverySystemRan bool
 
@@ -485,7 +489,7 @@ func (m *DeviceManager) ensureOperational() error {
 
 	var seeded bool
 	err = m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -512,7 +516,7 @@ func (m *DeviceManager) ensureOperational() error {
 
 	var storeID, gadget string
 	model, err := m.Model()
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if err == nil {
@@ -673,7 +677,7 @@ func init() {
 func (m *DeviceManager) setTimeOnce(name string, t time.Time) error {
 	var prev time.Time
 	err := m.state.Get(name, &prev)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !prev.IsZero() {
@@ -802,7 +806,7 @@ func (m *DeviceManager) ensureSeeded() error {
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if seeded {
@@ -878,7 +882,7 @@ func (m *DeviceManager) ensureBootOk() error {
 
 	if !m.bootOkRan {
 		deviceCtx, err := DeviceCtx(m.state, nil, nil)
-		if err != nil && err != state.ErrNoState {
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if err == nil {
@@ -909,7 +913,7 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -1086,7 +1090,7 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
@@ -1096,7 +1100,7 @@ func (m *DeviceManager) ensureInstalled() error {
 	perfTimings := timings.New(map[string]string{"ensure": "install-system"})
 
 	model, err := m.Model()
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if err != nil {
@@ -1174,7 +1178,7 @@ func (m *DeviceManager) ensureFactoryReset() error {
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
@@ -1215,14 +1219,14 @@ func (m *DeviceManager) StartOfOperationTime() (time.Time, error) {
 	if err == nil {
 		return opTime, nil
 	}
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return opTime, err
 	}
 
 	// start-of-operation-time not set yet, use seed-time if available
 	var seedTime time.Time
 	err = m.state.Get("seed-time", &seedTime)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return opTime, err
 	}
 	if err == nil {
@@ -1256,7 +1260,7 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 	if !m.ensureSeedInConfigRan {
 		// get global seeded option
 		var seeded bool
-		if err := m.state.Get("seeded", &seeded); err != nil && err != state.ErrNoState {
+		if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if !seeded {
@@ -1283,7 +1287,7 @@ func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
 	// state is locked by the caller
 
 	var triedSystems []string
-	if err := m.state.Get("tried-systems", &triedSystems); err != nil && err != state.ErrNoState {
+	if err := m.state.Get("tried-systems", &triedSystems); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if strutil.ListContains(triedSystems, label) {
@@ -1311,7 +1315,7 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	defer m.state.Unlock()
 
 	deviceCtx, err := DeviceCtx(m.state, nil, nil)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	outcome, label, err := boot.InspectTryRecoverySystemOutcome(deviceCtx)
@@ -1344,6 +1348,67 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 
 	m.ensureTriedRecoverySystemRan = true
 	return nil
+}
+
+var bootMarkFactoryResetComplete = boot.MarkFactoryResetComplete
+
+func (m *DeviceManager) ensurePostFactoryReset() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
+		return nil
+	}
+
+	if m.ensurePostFactoryResetRan {
+		return nil
+	}
+
+	mode := m.SystemMode(SysHasModeenv)
+	if mode != "run" {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	m.ensurePostFactoryResetRan = true
+
+	factoryResetMarker := filepath.Join(dirs.SnapDeviceDir, "factory-reset")
+	if !osutil.FileExists(factoryResetMarker) {
+		// marker is gone already
+		return nil
+	}
+
+	encrypted := true
+	// XXX have a helper somewhere for this?
+	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
+		encrypted = false
+	}
+
+	// verify the marker
+	if err := verifyFactoryResetMarkerInRun(factoryResetMarker, encrypted); err != nil {
+		return fmt.Errorf("cannot verify factory reset marker: %v", err)
+	}
+
+	// if encrypted, rotates the fallback keys on disk
+	if err := bootMarkFactoryResetComplete(encrypted); err != nil {
+		return fmt.Errorf("cannot complete factory reset: %v", err)
+	}
+
+	if encrypted {
+		if err := rotateEncryptionKeys(); err != nil {
+			return fmt.Errorf("cannot transition encryption keys: %v", err)
+		}
+	}
+
+	return os.Remove(factoryResetMarker)
 }
 
 type ensureError struct {
@@ -1403,6 +1468,10 @@ func (m *DeviceManager) Ensure() error {
 		if err := m.ensureFactoryReset(); err != nil {
 			errs = append(errs, err)
 		}
+
+		if err := m.ensurePostFactoryReset(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	if len(errs) > 0 {
@@ -1428,7 +1497,7 @@ var errNoSaveSupport = errors.New("no save directory before UC20")
 func (m *DeviceManager) withSaveDir(f func() error) error {
 	// we use the model to check whether this is a UC20 device
 	model, err := m.Model()
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot access save dir before a model is set")
 	}
 	if err != nil {
@@ -1472,7 +1541,7 @@ func (m *DeviceManager) withKeypairMgr(f func(asserts.KeypairManager) error) err
 	// to deal with that, this code typically will return the old location
 	// until a restart
 	model, err := m.Model()
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot access device keypair manager before a model is set")
 	}
 	if err != nil {
@@ -1617,7 +1686,7 @@ type SystemModeInfo struct {
 // SystemModeInfo returns details about the current system mode the device is in.
 func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
 	deviceCtx, err := DeviceCtx(m.state, nil, nil)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("cannot report system mode information before device model is acknowledged")
 	}
 	if err != nil {
@@ -1626,7 +1695,7 @@ func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
 
 	var seeded bool
 	err = m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -1890,7 +1959,7 @@ func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, 
 	}
 
 	privKey, err := scb.DeviceManager.keyPair()
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
 	}
 	if err != nil {
@@ -2042,4 +2111,100 @@ func (h fdeSetupHandler) Done() error {
 
 func (h fdeSetupHandler) Error(err error) (bool, error) {
 	return false, nil
+}
+
+var (
+	secbootEnsureRecoveryKey  = secboot.EnsureRecoveryKey
+	secbootRemoveRecoveryKeys = secboot.RemoveRecoveryKeys
+)
+
+// EnsureRecoveryKeys makes sure appropriate recovery keys exist and
+// returns them. Usually a single recovery key is created/used, but
+// older systems might return both a recovery key for ubuntu-data and a
+// reinstall key for ubuntu-save.
+func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse, error) {
+	fdeDir := dirs.SnapFDEDir
+	mode := m.SystemMode(SysAny)
+	if mode == "install" {
+		fdeDir = boot.InstallHostFDEDataDir
+	} else if mode != "run" {
+		return nil, fmt.Errorf("cannot ensure recovery keys from system mode %q", mode)
+	}
+	sysKeys := &client.SystemRecoveryKeysResponse{}
+	// backward compatibility
+	reinstallKeyFile := filepath.Join(fdeDir, "reinstall.key")
+	if osutil.FileExists(reinstallKeyFile) {
+		rkey, err := keys.RecoveryKeyFromFile(device.RecoveryKeyUnder(fdeDir))
+		if err != nil {
+			return nil, err
+		}
+		sysKeys.RecoveryKey = rkey.String()
+
+		reinstallKey, err := keys.RecoveryKeyFromFile(reinstallKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		sysKeys.ReinstallKey = reinstallKey.String()
+		return sysKeys, nil
+	}
+	if !device.HasEncryptedMarkerUnder(fdeDir) {
+		return nil, fmt.Errorf("system does not use disk encryption")
+	}
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
+	}
+	if len(dataMountPoints) == 0 {
+		// shouldn't happen as the marker file is under ubuntu-data
+		return nil, fmt.Errorf("cannot ensure recovery keys without any ubuntu-data mount points")
+	}
+	recoveryKeyDevices := []secboot.RecoveryKeyDevice{
+		{
+			Mountpoint: dataMountPoints[0],
+			// TODO ubuntu-data key in install mode? key isn't
+			// available in the keyring nor exists on disk
+		},
+		{
+			Mountpoint:         boot.InitramfsUbuntuSaveDir,
+			AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data"))),
+		},
+	}
+	rkey, err := secbootEnsureRecoveryKey(device.RecoveryKeyUnder(fdeDir), recoveryKeyDevices)
+	if err != nil {
+		return nil, err
+	}
+	sysKeys.RecoveryKey = rkey.String()
+	return sysKeys, nil
+}
+
+// RemoveRecoveryKeys removes and disables all recovery keys.
+func (m *DeviceManager) RemoveRecoveryKeys() error {
+	mode := m.SystemMode(SysAny)
+	if mode != "run" {
+		return fmt.Errorf("cannot remove recovery keys from system mode %q", mode)
+	}
+	if !device.HasEncryptedMarkerUnder(dirs.SnapFDEDir) {
+		return fmt.Errorf("system does not use disk encryption")
+	}
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	if err != nil {
+		return fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
+	}
+	recoveryKeyDevices := make(map[secboot.RecoveryKeyDevice]string, 2)
+	rkey := device.RecoveryKeyUnder(dirs.SnapFDEDir)
+	recoveryKeyDevices[secboot.RecoveryKeyDevice{
+		Mountpoint: dataMountPoints[0],
+		// authorization from keyring
+	}] = rkey
+	// reinstall.key is deprecated, there is no path helper for it
+	reinstallKeyFile := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
+	if !osutil.FileExists(reinstallKeyFile) {
+		reinstallKeyFile = rkey
+	}
+	recoveryKeyDevices[secboot.RecoveryKeyDevice{
+		Mountpoint:         boot.InitramfsUbuntuSaveDir,
+		AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data"))),
+	}] = reinstallKeyFile
+
+	return secbootRemoveRecoveryKeys(recoveryKeyDevices)
 }

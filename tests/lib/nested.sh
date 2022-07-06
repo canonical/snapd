@@ -22,6 +22,9 @@ NESTED_FAKESTORE_BLOB_DIR="${NESTED_FAKESTORE_BLOB_DIR:-$NESTED_WORK_DIR/fakesto
 NESTED_SIGN_SNAPS_FAKESTORE="${NESTED_SIGN_SNAPS_FAKESTORE:-false}"
 NESTED_FAKESTORE_SNAP_DECL_PC_GADGET="${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:-}"
 NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:-}"
+NESTED_UBUNTU_IMAGE_PRESEED_KEY="${NESTED_UBUNTU_IMAGE_PRESEED_KEY:-}"
+
+NESTED_PHYSICAL_4K_SECTOR_SIZE="${NESTED_PHYSICAL_4K_SECTOR_SIZE:-}"
 
 nested_wait_for_ssh() {
     # TODO:UC20: the retry count should be lowered to something more reasonable.
@@ -250,7 +253,9 @@ nested_create_assertions_disk() {
     # use custom assertion if set
     local AUTO_IMPORT_ASSERT
     if [ -n "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" ]; then
-        AUTO_IMPORT_ASSERT=$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION
+        VERSION="$(nested_get_version)"
+        # shellcheck disable=SC2001
+        AUTO_IMPORT_ASSERT="$(echo "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" | sed "s/{VERSION}/$VERSION/g")"
     else
         local per_model_auto
         per_model_auto="$(nested_model_authority).auto-import.assert"
@@ -541,10 +546,24 @@ nested_download_image() {
     fi
 }
 
+nested_get_version() {
+    if nested_is_core_16_system; then
+        echo "16"
+    elif nested_is_core_18_system; then
+        echo "18"
+    elif nested_is_core_20_system; then
+        echo "20"
+    elif nested_is_core_22_system; then
+        echo "22"
+    fi
+}
+
 nested_get_model() {
     # use custom model if defined
     if [ -n "$NESTED_CUSTOM_MODEL" ]; then
-        echo "$NESTED_CUSTOM_MODEL"
+        VERSION="$(nested_get_version)"
+        # shellcheck disable=SC2001
+        echo "$NESTED_CUSTOM_MODEL" | sed "s/{VERSION}/$VERSION/g"
         return
     fi
     case "$SPREAD_SYSTEM" in
@@ -649,10 +668,7 @@ nested_create_core_vm() {
                     fi
 
                 elif nested_is_core_20_system || nested_is_core_22_system; then
-                    VERSION=20
-                    if nested_is_core_22_system; then
-                        VERSION=22
-                    fi
+                    VERSION="$(nested_get_version)"
                     if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
                         echo "Repacking kernel snap"
                         snap download --basename=pc-kernel --channel="$VERSION/edge" pc-kernel
@@ -747,9 +763,9 @@ EOF
                     fi
 
                     if [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
-                        snap download --channel="$CORE_CHANNEL" --basename=core20 core20
-                        repack_core_snap_with_tweaks "core20.snap" "new-core20.snap"
-                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
+                        snap download --channel="$CORE_CHANNEL" --basename="core$VERSION" "core$VERSION"
+                        repack_core_snap_with_tweaks "core$VERSION.snap" "new-core$VERSION.snap"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core$VERSION.snap"
                     fi
 
                     # sign the snapd snap with fakestore if requested
@@ -784,13 +800,21 @@ EOF
             else 
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
+
+            declare -a UBUNTU_IMAGE_PRESEED_ARGS
+            if [ -n "$NESTED_UBUNTU_IMAGE_PRESEED_KEY" ]; then
+                # shellcheck disable=SC2191
+                UBUNTU_IMAGE_PRESEED_ARGS+=(--preseed  --preseed-sign-key=\""$NESTED_UBUNTU_IMAGE_PRESEED_KEY"\")
+            fi
             # ubuntu-image creates sparse image files
             # shellcheck disable=SC2086
             "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
                 $UBUNTU_IMAGE_CHANNEL_ARG \
+                "${UBUNTU_IMAGE_PRESEED_ARGS[@]:-}" \
                 --output-dir "$NESTED_IMAGES_DIR" \
                 $EXTRA_FUNDAMENTAL \
                 $EXTRA_SNAPS
+
             # ubuntu-image dropped the --output parameter, so we have to rename
             # the image ourselves, the images are named after volumes listed in
             # gadget.yaml
@@ -1111,6 +1135,9 @@ nested_start_core_vm_unit() {
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
     else
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw"
+    fi
+    if [ "$NESTED_PHYSICAL_4K_SECTOR_SIZE" = "true" ]; then
+       PARAM_IMAGE="$PARAM_IMAGE,physical_block_size=4096,logical_block_size=512"
     fi
 
     # ensure we have a log dir

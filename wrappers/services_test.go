@@ -20,6 +20,7 @@
 package wrappers_test
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -77,7 +78,7 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 		s.sysdLog = append(s.sysdLog, cmd)
 		return []byte("ActiveState=inactive\n"), nil
 	})
-	s.delaysRestorer = systemd.MockStopDelays(time.Millisecond, 25*time.Second)
+	s.delaysRestorer = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	s.perfTimings = timings.New(nil)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
@@ -486,6 +487,215 @@ TasksAccounting=true
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name)
 
 	exp := []changesObservation{
+		{
+			snapName: "hello-snap",
+			unitType: "service",
+			name:     "svc1",
+			old:      "",
+			new:      svcContent,
+		},
+		{
+			grp:      grp,
+			unitType: "slice",
+			new:      sliceContent,
+			old:      "",
+			name:     "foogroup",
+		},
+	}
+	r, observe := expChangeObserver(c, exp)
+	defer r()
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	c.Assert(svcFile, testutil.FileEquals, svcContent)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalNamespaceOnly(c *C) {
+	// Ensure that the journald.conf file is correctly written
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	// set up arbitrary quotas for the group to test they get written correctly to the slice
+	resourceLimits := quota.NewResourcesBuilder().
+		WithJournalNamespace().
+		Build()
+	grp, err := quota.NewGroup("foogroup", resourceLimits)
+	c.Assert(err, IsNil)
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {QuotaGroup: grp},
+	}
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	svcContent := fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+Slice=snap.foogroup.slice
+LogNamespace=snap-foogroup
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+	)
+	jconfTempl := `# Journald configuration for snap quota group %s
+[Journal]
+`
+
+	sliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+X-Snappy=yes
+
+[Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
+`
+
+	jconfContent := fmt.Sprintf(jconfTempl, grp.Name)
+	sliceContent := fmt.Sprintf(sliceTempl, grp.Name)
+
+	exp := []changesObservation{
+		{
+			grp:      grp,
+			unitType: "journald",
+			new:      jconfContent,
+			old:      "",
+			name:     "foogroup",
+		},
+		{
+			snapName: "hello-snap",
+			unitType: "service",
+			name:     "svc1",
+			old:      "",
+			new:      svcContent,
+		},
+		{
+			grp:      grp,
+			unitType: "slice",
+			new:      sliceContent,
+			old:      "",
+			name:     "foogroup",
+		},
+	}
+	r, observe := expChangeObserver(c, exp)
+	defer r()
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	c.Assert(svcFile, testutil.FileEquals, svcContent)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotas(c *C) {
+	// Ensure that the journald.conf file is correctly written
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	// set up arbitrary quotas for the group to test they get written correctly to the slice
+	resourceLimits := quota.NewResourcesBuilder().
+		WithJournalSize(10*quantity.SizeMiB).
+		WithJournalRate(15, 5*time.Second).
+		Build()
+	grp, err := quota.NewGroup("foogroup", resourceLimits)
+	c.Assert(err, IsNil)
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {QuotaGroup: grp},
+	}
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	svcContent := fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+Slice=snap.foogroup.slice
+LogNamespace=snap-foogroup
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+	)
+	jconfTempl := `# Journald configuration for snap quota group %s
+[Journal]
+SystemMaxUse=10485760
+RuntimeMaxUse=10485760
+RateLimitIntervalSec=5000000us
+RateLimitBurst=15
+`
+
+	sliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+X-Snappy=yes
+
+[Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
+`
+
+	jconfContent := fmt.Sprintf(jconfTempl, grp.Name)
+	sliceContent := fmt.Sprintf(sliceTempl, grp.Name)
+
+	exp := []changesObservation{
+		{
+			grp:      grp,
+			unitType: "journald",
+			new:      jconfContent,
+			old:      "",
+			name:     "foogroup",
+		},
 		{
 			snapName: "hello-snap",
 			unitType: "service",
@@ -2060,8 +2270,9 @@ func (s *servicesTestSuite) TestRemoveSnapPackageFallbackToKill(c *C) {
 		// StopServices generates
 		if cmd[0] != "show" {
 			sysdLog = append(sysdLog, cmd)
+			return nil, nil
 		}
-		return []byte("ActiveState=active\n"), nil
+		return []byte("ActiveState=active\n"), errors.New("mock systemctl error")
 	})
 	defer r()
 
@@ -2082,13 +2293,10 @@ apps:
 	svcFName := "snap.wat.wat.service"
 
 	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "mock systemctl error")
 
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"stop", svcFName},
-		// check kill invocations
-		{"kill", svcFName, "-s", "TERM", "--kill-who=all"},
-		{"kill", svcFName, "-s", "KILL", "--kill-who=all"},
 	})
 }
 
@@ -2919,19 +3127,17 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Logf("sysdlog: %v", sysdLog)
-	c.Assert(sysdLog, HasLen, 16, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 14, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--no-reload", "enable", svc2SocketName, svc3SocketName, svc1Name},
 		{"daemon-reload"},
 		{"start", svc2SocketName},
 		{"start", svc3SocketName}, // start failed, what follows is the cleanup
-		{"stop", svc3SocketName},
+		{"stop", svc3SocketName, svc3Name},
 		{"show", "--property=ActiveState", svc3SocketName},
-		{"stop", svc3Name},
 		{"show", "--property=ActiveState", svc3Name},
-		{"stop", svc2SocketName},
+		{"stop", svc2SocketName, svc2Name},
 		{"show", "--property=ActiveState", svc2SocketName},
-		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
@@ -2988,20 +3194,18 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartNoEnableNoDisable
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Logf("sysdlog: %v", sysdLog)
-	c.Assert(sysdLog, HasLen, 17, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 15, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--no-reload", "enable", svc2SocketName, svc3SocketName},
 		{"daemon-reload"},
 		{"start", svc2SocketName},
 		{"start", svc3SocketName},
 		{"start", svc1Name}, // start failed, what follows is the cleanup
-		{"stop", svc3SocketName},
+		{"stop", svc3SocketName, svc3Name},
 		{"show", "--property=ActiveState", svc3SocketName},
-		{"stop", svc3Name},
 		{"show", "--property=ActiveState", svc3Name},
-		{"stop", svc2SocketName},
+		{"stop", svc2SocketName, svc2Name},
 		{"show", "--property=ActiveState", svc2SocketName},
-		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
@@ -3339,8 +3543,6 @@ apps:
 			c.Check(s.sysdLog, DeepEquals, [][]string{
 				{"stop", filepath.Base(survivorFile)},
 				{"show", "--property=ActiveState", "snap.survive-snap.srv.service"},
-				{"kill", filepath.Base(survivorFile), "-s", "TERM", "--kill-who=all"},
-				{"kill", filepath.Base(survivorFile), "-s", "KILL", "--kill-who=all"},
 			})
 		default:
 			panic("not reached")
@@ -3448,14 +3650,13 @@ func (s *servicesTestSuite) TestStartSnapTimerCleanup(c *C) {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
-	c.Assert(sysdLog, HasLen, 11, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--no-reload", "enable", svc2Timer, svc1Name},
 		{"daemon-reload"},
 		{"start", svc2Timer}, // this call fails
-		{"stop", svc2Timer},
+		{"stop", svc2Timer, svc2Name},
 		{"show", "--property=ActiveState", svc2Timer},
-		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},

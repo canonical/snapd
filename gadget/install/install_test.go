@@ -3,7 +3,7 @@
 // +build !nosecboot
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -68,7 +69,7 @@ func (s *installSuite) TestInstallRunError(c *C) {
 	c.Check(sys, IsNil)
 
 	sys, err = install.Run(&gadgettest.ModelCharacteristics{}, c.MkDir(), "", "", install.Options{}, nil, timings.New(nil))
-	c.Assert(err, ErrorMatches, `cannot run install mode on non-UC20\+ system`)
+	c.Assert(err, ErrorMatches, `cannot run install mode on pre-UC20 system`)
 	c.Check(sys, IsNil)
 }
 
@@ -151,6 +152,11 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
 	defer mockCryptsetup.Restore()
+
+	if opts.encryption {
+		mockBlockdev := testutil.MockCommand(c, "blockdev", "case ${1} in --getss) echo 4096; exit 0;; esac; exit 1")
+		defer mockBlockdev.Restore()
+	}
 
 	restore = install.MockEnsureNodesExist(func(dss []gadget.OnDiskStructure, timeout time.Duration) error {
 		c.Assert(timeout, Equals, 5*time.Second)
@@ -256,22 +262,24 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 			c.Assert(typ, Equals, "ext4")
 			if opts.encryption {
 				c.Assert(img, Equals, "/dev/mapper/ubuntu-save")
+				c.Assert(sectorSize, Equals, quantity.Size(4096))
 			} else {
 				c.Assert(img, Equals, "/dev/mmcblk0p3")
+				c.Assert(sectorSize, Equals, quantity.Size(512))
 			}
 			c.Assert(label, Equals, "ubuntu-save")
 			c.Assert(devSize, Equals, 16*quantity.SizeMiB)
-			c.Assert(sectorSize, Equals, quantity.Size(512))
 		case 3:
 			c.Assert(typ, Equals, "ext4")
 			if opts.encryption {
 				c.Assert(img, Equals, "/dev/mapper/ubuntu-data")
+				c.Assert(sectorSize, Equals, quantity.Size(4096))
 			} else {
 				c.Assert(img, Equals, "/dev/mmcblk0p4")
+				c.Assert(sectorSize, Equals, quantity.Size(512))
 			}
 			c.Assert(label, Equals, "ubuntu-data")
 			c.Assert(devSize, Equals, (30528-(1+1200+750+16))*quantity.SizeMiB)
-			c.Assert(sectorSize, Equals, quantity.Size(512))
 		default:
 			c.Errorf("unexpected call (%d) to mkfs.Make()", mkfsCall)
 			return fmt.Errorf("test broken")
@@ -280,17 +288,13 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	})
 	defer restore()
 
-	mockMountpoint := c.MkDir()
-	restore = install.MockContentMountpoint(mockMountpoint)
-	defer restore()
-
 	mountCall := 0
 	restore = install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
 		mountCall++
 		switch mountCall {
 		case 1:
 			c.Assert(source, Equals, "/dev/mmcblk0p2")
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "2"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/2"))
 			c.Assert(fstype, Equals, "vfat")
 			c.Assert(flags, Equals, uintptr(0))
 			c.Assert(data, Equals, "")
@@ -300,7 +304,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 			} else {
 				c.Assert(source, Equals, "/dev/mmcblk0p3")
 			}
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "3"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/3"))
 			c.Assert(fstype, Equals, "ext4")
 			c.Assert(flags, Equals, uintptr(0))
 			c.Assert(data, Equals, "")
@@ -310,7 +314,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 			} else {
 				c.Assert(source, Equals, "/dev/mmcblk0p4")
 			}
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "4"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/4"))
 			c.Assert(fstype, Equals, "ext4")
 			c.Assert(flags, Equals, uintptr(0))
 			c.Assert(data, Equals, "")
@@ -327,13 +331,13 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		umountCall++
 		switch umountCall {
 		case 1:
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "2"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/2"))
 			c.Assert(flags, Equals, 0)
 		case 2:
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "3"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/3"))
 			c.Assert(flags, Equals, 0)
 		case 3:
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "4"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/4"))
 			c.Assert(flags, Equals, 0)
 		default:
 			c.Errorf("unexpected umount call (%d)", umountCall)
@@ -346,10 +350,10 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml)
 	c.Assert(err, IsNil)
 
-	var savePrimaryKey, dataPrimaryKey secboot.EncryptionKey
+	var saveEncryptionKey, dataEncryptionKey keys.EncryptionKey
 
 	secbootFormatEncryptedDeviceCall := 0
-	restore = install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
+	restore = install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string) error {
 		if !opts.encryption {
 			c.Error("unexpected call to secboot.FormatEncryptedDevice when encryption is off")
 			return fmt.Errorf("no encryption functions should be called")
@@ -360,45 +364,14 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 			c.Assert(key, HasLen, 32)
 			c.Assert(label, Equals, "ubuntu-save-enc")
 			c.Assert(node, Equals, "/dev/mmcblk0p3")
-			savePrimaryKey = key
+			saveEncryptionKey = key
 		case 2:
 			c.Assert(key, HasLen, 32)
 			c.Assert(label, Equals, "ubuntu-data-enc")
 			c.Assert(node, Equals, "/dev/mmcblk0p4")
-			dataPrimaryKey = key
+			dataEncryptionKey = key
 		default:
 			c.Errorf("unexpected call to secboot.FormatEncryptedDevice (%d)", secbootFormatEncryptedDeviceCall)
-			return fmt.Errorf("test broken")
-		}
-
-		return nil
-	})
-	defer restore()
-
-	var saveRecoveryKey, dataRecoveryKey secboot.RecoveryKey
-
-	secbootAddRecoveryKeyCall := 0
-	restore = install.MockSecbootAddRecoveryKey(func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error {
-		if !opts.encryption {
-			c.Error("unexpected call to secboot.AddRecoveryKey when encryption is off")
-			return fmt.Errorf("no encryption functions should be called")
-		}
-		secbootAddRecoveryKeyCall++
-		switch secbootAddRecoveryKeyCall {
-		case 1:
-			c.Assert(key, HasLen, 32)
-			c.Assert(key, DeepEquals, savePrimaryKey)
-			c.Assert(rkey, HasLen, 16)
-			c.Assert(node, Equals, "/dev/mmcblk0p3")
-			saveRecoveryKey = rkey
-		case 2:
-			c.Assert(key, HasLen, 32)
-			c.Assert(key, DeepEquals, dataPrimaryKey)
-			c.Assert(rkey, HasLen, 16)
-			c.Assert(node, Equals, "/dev/mmcblk0p4")
-			dataRecoveryKey = rkey
-		default:
-			c.Errorf("unexpected call to secboot.AddRecoveryKey (%d)", secbootAddRecoveryKeyCall)
 			return fmt.Errorf("test broken")
 		}
 
@@ -417,19 +390,24 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	if opts.encryption {
 		c.Check(sys, Not(IsNil))
 		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
-			KeysForRoles: map[string]*install.EncryptionKeySet{
-				gadget.SystemData: {
-					Key:         dataPrimaryKey,
-					RecoveryKey: dataRecoveryKey,
-				},
-				gadget.SystemSave: {
-					Key:         savePrimaryKey,
-					RecoveryKey: saveRecoveryKey,
-				},
+			KeyForRole: map[string]keys.EncryptionKey{
+				gadget.SystemData: dataEncryptionKey,
+				gadget.SystemSave: saveEncryptionKey,
+			},
+			DeviceForRole: map[string]string{
+				"system-boot": "/dev/mmcblk0p2",
+				"system-save": "/dev/mmcblk0p3",
+				"system-data": "/dev/mmcblk0p4",
 			},
 		})
 	} else {
-		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{})
+		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
+			DeviceForRole: map[string]string{
+				"system-boot": "/dev/mmcblk0p2",
+				"system-save": "/dev/mmcblk0p3",
+				"system-data": "/dev/mmcblk0p4",
+			},
+		})
 	}
 
 	expSfdiskCalls := [][]string{}
@@ -476,10 +454,8 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	c.Assert(umountCall, Equals, 3)
 	if opts.encryption {
 		c.Assert(secbootFormatEncryptedDeviceCall, Equals, 2)
-		c.Assert(secbootAddRecoveryKeyCall, Equals, 2)
 	} else {
 		c.Assert(secbootFormatEncryptedDeviceCall, Equals, 0)
-		c.Assert(secbootAddRecoveryKeyCall, Equals, 0)
 	}
 
 	// check the disk-mapping.json that was written as well
@@ -621,15 +597,12 @@ type factoryResetOpts struct {
 }
 
 func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
-	cleanups := []func(){}
-	defer func() {
-		for _, r := range cleanups {
-			r()
-		}
-	}()
-
 	uc20Mod := &gadgettest.ModelCharacteristics{
 		SystemSeed: true,
+	}
+
+	if opts.noSave && opts.encryption {
+		c.Fatalf("unsupported test scenario, cannot use encryption without ubuntu-save")
 	}
 
 	s.setupMockUdevSymlinks(c, "mmcblk0p1")
@@ -658,9 +631,17 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
 	defer mockCryptsetup.Restore()
 
+	if opts.encryption {
+		mockBlockdev := testutil.MockCommand(c, "blockdev", "case ${1} in --getss) echo 4096; exit 0;; esac; exit 1")
+		defer mockBlockdev.Restore()
+	}
+
 	dataDev := "/dev/mmcblk0p4"
 	if opts.noSave {
 		dataDev = "/dev/mmcblk0p3"
+	}
+	if opts.encryption {
+		dataDev = "/dev/mapper/ubuntu-data"
 	}
 	restore = install.MockEnsureNodesExist(func(dss []gadget.OnDiskStructure, timeout time.Duration) error {
 		c.Assert(timeout, Equals, 5*time.Second)
@@ -777,7 +758,11 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 			} else {
 				c.Assert(devSize, Equals, (30528-(1+1200+750+16))*quantity.SizeMiB)
 			}
-			c.Assert(sectorSize, Equals, quantity.Size(512))
+			if opts.encryption {
+				c.Assert(sectorSize, Equals, quantity.Size(4096))
+			} else {
+				c.Assert(sectorSize, Equals, quantity.Size(512))
+			}
 		default:
 			c.Errorf("unexpected call (%d) to mkfs.Make()", mkfsCall)
 			return fmt.Errorf("test broken")
@@ -786,26 +771,22 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	})
 	defer restore()
 
-	mockMountpoint := c.MkDir()
-	restore = install.MockContentMountpoint(mockMountpoint)
-	defer restore()
-
 	mountCall := 0
 	restore = install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
 		mountCall++
 		switch mountCall {
 		case 1:
 			c.Assert(source, Equals, "/dev/mmcblk0p2")
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "2"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/2"))
 			c.Assert(fstype, Equals, "vfat")
 			c.Assert(flags, Equals, uintptr(0))
 			c.Assert(data, Equals, "")
 		case 2:
 			c.Assert(source, Equals, dataDev)
 			if opts.noSave {
-				c.Assert(target, Equals, filepath.Join(mockMountpoint, "3"))
+				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/3"))
 			} else {
-				c.Assert(target, Equals, filepath.Join(mockMountpoint, "4"))
+				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/4"))
 			}
 			c.Assert(fstype, Equals, "ext4")
 			c.Assert(flags, Equals, uintptr(0))
@@ -823,13 +804,13 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 		umountCall++
 		switch umountCall {
 		case 1:
-			c.Assert(target, Equals, filepath.Join(mockMountpoint, "2"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/2"))
 			c.Assert(flags, Equals, 0)
 		case 2:
 			if opts.noSave {
-				c.Assert(target, Equals, filepath.Join(mockMountpoint, "3"))
+				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/3"))
 			} else {
-				c.Assert(target, Equals, filepath.Join(mockMountpoint, "4"))
+				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/4"))
 			}
 			c.Assert(flags, Equals, 0)
 		default:
@@ -843,9 +824,25 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), opts.gadgetYaml)
 	c.Assert(err, IsNil)
 
-	restore = install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
-		c.Error("unexpected call to secboot.FormatEncryptedDevice")
-		return fmt.Errorf("unexpected call")
+	var dataPrimaryKey keys.EncryptionKey
+	secbootFormatEncryptedDeviceCall := 0
+	restore = install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string) error {
+		if !opts.encryption {
+			c.Error("unexpected call to secboot.FormatEncryptedDevice")
+			return fmt.Errorf("unexpected call")
+		}
+		secbootFormatEncryptedDeviceCall++
+		switch secbootFormatEncryptedDeviceCall {
+		case 1:
+			c.Assert(key, HasLen, 32)
+			c.Assert(label, Equals, "ubuntu-data-enc")
+			c.Assert(node, Equals, "/dev/mmcblk0p4")
+			dataPrimaryKey = key
+		default:
+			c.Errorf("unexpected call to secboot.FormatEncryptedDevice (%d)", secbootFormatEncryptedDeviceCall)
+			return fmt.Errorf("test broken")
+		}
+		return nil
 	})
 	defer restore()
 
@@ -862,7 +859,29 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 		return
 	}
 	c.Assert(err, IsNil)
-	c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{})
+	devsForRoles := map[string]string{
+		"system-boot": "/dev/mmcblk0p2",
+		"system-save": "/dev/mmcblk0p3",
+		"system-data": "/dev/mmcblk0p4",
+	}
+	if opts.noSave {
+		devsForRoles = map[string]string{
+			"system-boot": "/dev/mmcblk0p2",
+			"system-data": "/dev/mmcblk0p3",
+		}
+	}
+	if !opts.encryption {
+		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
+			DeviceForRole: devsForRoles,
+		})
+	} else {
+		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
+			KeyForRole: map[string]keys.EncryptionKey{
+				gadget.SystemData: dataPrimaryKey,
+			},
+			DeviceForRole: devsForRoles,
+		})
+	}
 
 	c.Assert(mockSfdisk.Calls(), HasLen, 0)
 	c.Assert(mockPartx.Calls(), HasLen, 0)
@@ -931,12 +950,12 @@ func (s *installSuite) TestFactoryResetHappyWithoutSave(c *C) {
 	})
 }
 
-func (s *installSuite) TestFactoryResetUnhappyEncrypted(c *C) {
+func (s *installSuite) TestFactoryResetHappyEncrypted(c *C) {
 	s.testFactoryReset(c, factoryResetOpts{
 		encryption: true,
-		disk:       gadgettest.ExpectedRaspiMockDiskMapping,
+		disk:       gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping,
 		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
-		err:        "factory-reset on encrypted system is unsupported",
-		// partitions do not matter here really
+		traitsJSON: gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON,
+		traits:     gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
 	})
 }

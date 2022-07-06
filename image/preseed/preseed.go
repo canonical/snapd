@@ -55,6 +55,8 @@ type preseedOpts struct {
 	SystemLabel      string
 	WritableDir      string
 	PreseedSignKey   string
+	// optional path to AppArmor kernel features directory
+	AppArmorKernelFeaturesDir string
 }
 
 type targetSnapdInfo struct {
@@ -118,7 +120,7 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedOpts) error {
 	model := sd.Model()
 
 	tm := timings.New(nil)
-	if err := sd.LoadMeta("run", tm); err != nil {
+	if err := sd.LoadMeta("run", nil, tm); err != nil {
 		return err
 	}
 

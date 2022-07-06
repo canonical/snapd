@@ -78,7 +78,7 @@ func (s *toolingStore) Assertion(assertType *asserts.AssertionType, primaryKey [
 	return as, nil
 }
 
-func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
+func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir string) {
 
 	testKey, _ := assertstest.GenerateKey(752)
 
@@ -209,11 +209,11 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), []byte(`hello world`), 0644), IsNil)
 
-	c.Assert(preseed.Core20(tmpDir, ""), IsNil)
+	c.Assert(preseed.Core20(tmpDir, "", customAppArmorFeaturesDir), IsNil)
 
 	c.Check(mockChootCmd.Calls()[0], DeepEquals, []string{"chroot", preseedTmpDir, "/usr/lib/snapd/snapd"})
 
-	c.Check(mockMountCmd.Calls(), DeepEquals, [][]string{
+	expectedMountCalls := [][]string{
 		{"mount", "-o", "loop", "/a/base.snap", preseedTmpDir},
 		{"mount", "-o", "loop", "/a/snapd.snap", targetSnapdRoot},
 		{"mount", "-t", "tmpfs", "tmpfs", filepath.Join(preseedTmpDir, "run")},
@@ -232,18 +232,15 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/etc/systemd"), filepath.Join(preseedTmpDir, "etc/systemd")},
 		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/etc/dbus-1"), filepath.Join(preseedTmpDir, "etc/dbus-1")},
 		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/etc/udev/rules.d"), filepath.Join(preseedTmpDir, "etc/udev/rules.d")},
+		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/var/lib/extrausers"), filepath.Join(preseedTmpDir, "var/lib/extrausers")},
 		{"mount", "--bind", filepath.Join(targetSnapdRoot, "/usr/lib/snapd"), filepath.Join(preseedTmpDir, "usr/lib/snapd")},
 		{"mount", "--bind", filepath.Join(tmpDir, "system-seed"), filepath.Join(preseedTmpDir, "var/lib/snapd/seed")},
-	})
+	}
 
-	c.Check(mockTar.Calls(), DeepEquals, [][]string{
-		{"tar", "-czf", filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), "-p", "-C",
-			filepath.Join(writableTmpDir, "system-data"), "--exclude", "foo", "etc/bar/a", "etc/bar/b"},
-	})
-
-	c.Check(mockUmountCmd.Calls(), DeepEquals, [][]string{
+	expectedUmountCalls := [][]string{
 		{"umount", filepath.Join(preseedTmpDir, "var/lib/snapd/seed")},
 		{"umount", filepath.Join(preseedTmpDir, "usr/lib/snapd")},
+		{"umount", filepath.Join(preseedTmpDir, "var/lib/extrausers")},
 		{"umount", filepath.Join(preseedTmpDir, "etc/udev/rules.d")},
 		{"umount", filepath.Join(preseedTmpDir, "etc/dbus-1")},
 		{"umount", filepath.Join(preseedTmpDir, "etc/systemd")},
@@ -261,10 +258,24 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 		{"umount", filepath.Join(preseedTmpDir, "var/tmp")},
 		{"umount", filepath.Join(preseedTmpDir, "run")},
 		{"umount", filepath.Join(tmpDir, "target-core-mounted-here")},
-		{"umount", preseedTmpDir},
 		// from handle-writable-paths
 		{"umount", filepath.Join(preseedTmpDir, "somepath")},
+		{"umount", preseedTmpDir},
+	}
+
+	if customAppArmorFeaturesDir != "" {
+		expectedMountCalls = append(expectedMountCalls, []string{"mount", "--bind", "/custom-aa-features", filepath.Join(preseedTmpDir, "sys/kernel/security/apparmor/features")})
+		// order of umounts is reversed, prepend
+		expectedUmountCalls = append([][]string{{"umount", filepath.Join(preseedTmpDir, "/sys/kernel/security/apparmor/features")}}, expectedUmountCalls...)
+	}
+	c.Check(mockMountCmd.Calls(), DeepEquals, expectedMountCalls)
+
+	c.Check(mockTar.Calls(), DeepEquals, [][]string{
+		{"tar", "-czf", filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), "-p", "-C",
+			filepath.Join(writableTmpDir, "system-data"), "--exclude", "foo", "etc/bar/a", "etc/bar/b"},
 	})
+
+	c.Check(mockUmountCmd.Calls(), DeepEquals, expectedUmountCalls)
 
 	// validity check; -1 to account for handle-writable-paths mock which doesn’t trigger mount in the test
 	c.Check(len(mockMountCmd.Calls()), Equals, len(mockUmountCmd.Calls())-1)
@@ -315,4 +326,30 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 		"account-key:my-brand": true,
 		"preseed":              true,
 	})
+}
+
+func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
+	s.testRunPreseedUC20Happy(c, "")
+}
+
+func (s *preseedSuite) TestRunPreseedUC20HappyCustomApparmorFeaturesDir(c *C) {
+	s.testRunPreseedUC20Happy(c, "/custom-aa-features")
+}
+
+func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
+	tmpdir := c.MkDir()
+
+	// Mock an exec-format error - the first thing that runUC20PreseedMode
+	// does is start snapd in a chroot. So we can override the "chroot"
+	// call with a simulated exec format error to simulate the error a
+	// user would get when running preseeding on a architecture that is
+	// not the image target architecture.
+	mockChrootCmd := testutil.MockCommand(c, "chroot", "")
+	defer mockChrootCmd.Restore()
+	err := ioutil.WriteFile(mockChrootCmd.Exe(), []byte("invalid-exe"), 0755)
+	c.Check(err, IsNil)
+
+	opts := &preseed.PreseedOpts{PreseedChrootDir: tmpdir}
+	err = preseed.RunUC20PreseedMode(opts)
+	c.Check(err, ErrorMatches, `error running snapd, please try installing the "qemu-user-static" package: fork/exec .* exec format error`)
 }

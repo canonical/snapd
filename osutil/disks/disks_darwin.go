@@ -66,3 +66,15 @@ var mountPointsForPartitionRoot = func(p Partition, opts map[string]string) ([]s
 var diskFromPartitionDeviceNode = func(node string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
+
+func PartitionUUIDFromMountPoint(mountpoint string, opts *Options) (string, error) {
+	return "", osutil.ErrDarwin
+}
+
+func PartitionUUID(node string) (string, error) {
+	return "", osutil.ErrDarwin
+}
+
+func SectorSize(devname string) (uint64, error) {
+	return 0, osutil.ErrDarwin
+}

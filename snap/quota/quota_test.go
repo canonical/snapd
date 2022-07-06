@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -307,6 +308,18 @@ func (ts *quotaTestSuite) TestGroupUnmixableSnapsSubgroups(c *C) {
 	// add a subgroup to the parent group, this should fail as the group now has snaps
 	_, err = parent.NewSubGroup("sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, ErrorMatches, "cannot mix sub groups with snaps in the same group")
+}
+
+func (ts *quotaTestSuite) TestJournalNamespaceName(c *C) {
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalNamespaceName(), Equals, "snap-foo")
+}
+
+func (ts *quotaTestSuite) TestJournalFileName(c *C) {
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalFileName(), Equals, "journald@snap-foo.conf")
 }
 
 func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
@@ -1288,4 +1301,39 @@ func (ts *quotaTestSuite) TestCombinedCpuPercentageWithLowCoreCount(c *C) {
 	// Verify that the number of cpus are now correctly reported as the one explicitly set
 	// by the quota
 	c.Check(subgrp2.GetCPUQuotaPercentage(), Equals, 200)
+}
+
+func (ts *quotaTestSuite) TestJournalQuotasSetCorrectly(c *C) {
+	grp1, err := quota.NewGroup("groot1", quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	c.Assert(err, IsNil)
+	c.Assert(grp1.JournalLimit, NotNil)
+
+	grp2, err := quota.NewGroup("groot2", quota.NewResourcesBuilder().WithJournalRate(15, time.Second).Build())
+	c.Assert(err, IsNil)
+	c.Assert(grp2.JournalLimit, NotNil)
+	c.Check(grp2.JournalLimit.RateCount, Equals, 15)
+	c.Check(grp2.JournalLimit.RatePeriod, Equals, time.Second)
+
+	grp3, err := quota.NewGroup("groot3", quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Assert(grp3.JournalLimit, NotNil)
+	c.Check(grp3.JournalLimit.Size, Equals, quantity.SizeMiB)
+}
+
+func (ts *quotaTestSuite) TestJournalQuotasUpdatesCorrectly(c *C) {
+	grp1, err := quota.NewGroup("groot1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+	c.Assert(grp1.JournalLimit, IsNil)
+
+	grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	c.Assert(grp1.JournalLimit, NotNil)
+	c.Check(grp1.JournalLimit.Size, Equals, quantity.Size(0))
+	c.Check(grp1.JournalLimit.RateCount, Equals, 0)
+	c.Check(grp1.JournalLimit.RatePeriod, Equals, time.Duration(0))
+
+	grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithJournalRate(15, time.Microsecond*5).WithJournalSize(quantity.SizeMiB).Build())
+	c.Assert(grp1.JournalLimit, NotNil)
+	c.Check(grp1.JournalLimit.Size, Equals, quantity.SizeMiB)
+	c.Check(grp1.JournalLimit.RateCount, Equals, 15)
+	c.Check(grp1.JournalLimit.RatePeriod, Equals, time.Microsecond*5)
 }

@@ -36,7 +36,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -263,8 +263,8 @@ type TrustedAssetsInstallObserver struct {
 	trustedRecoveryAssets []string
 	trackedRecoveryAssets bootAssetsMap
 
-	dataEncryptionKey secboot.EncryptionKey
-	saveEncryptionKey secboot.EncryptionKey
+	dataEncryptionKey keys.EncryptionKey
+	saveEncryptionKey keys.EncryptionKey
 }
 
 // Observe observes the operation related to the content of a given gadget
@@ -339,7 +339,7 @@ func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() boo
 	return o.trackedRecoveryAssets
 }
 
-func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(key, saveKey secboot.EncryptionKey) {
+func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(key, saveKey keys.EncryptionKey) {
 	o.dataEncryptionKey = key
 	o.saveEncryptionKey = saveKey
 }

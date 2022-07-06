@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
@@ -68,7 +69,7 @@ func (upCtx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	// remapping for parallel installs only when the snap has an instance key
 	as := &Assumptions{}
 	instanceName := upCtx.InstanceName()
-	as.AddUnrestrictedPaths("/tmp", "/var/snap", "/snap/"+instanceName, "/dev/shm")
+	as.AddUnrestrictedPaths("/tmp", "/var/snap", "/snap/"+instanceName, "/dev/shm", "/run/systemd")
 	if snapName := snap.InstanceSnap(instanceName); snapName != instanceName {
 		as.AddUnrestrictedPaths("/snap/" + snapName)
 	}
@@ -80,14 +81,14 @@ func (upCtx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	// As such, provide write access to all of /tmp.
 	as.AddUnrestrictedPaths("/var/lib/snapd/hostfs/tmp")
 	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*", 0700)
-	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*/tmp", 01777)
+	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*/tmp", 0777|os.ModeSticky)
 	// This is to ensure that unprivileged users can create the socket. This
 	// permission only matters if the plug-side app constructs its mount
 	// namespace before the slot-side app is launched.
-	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*/tmp/.X11-unix", 01777)
+	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*/tmp/.X11-unix", 0777|os.ModeSticky)
 	// This is to ensure private shared-memory directories have
 	// the right permissions.
-	as.AddModeHint("/dev/shm/snap.*", 01777)
+	as.AddModeHint("/dev/shm/snap.*", 0777|os.ModeSticky)
 	return as
 }
 

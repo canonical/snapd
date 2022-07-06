@@ -190,10 +190,12 @@ var templateCommon = `
   /usr/lib/os-release k,
 
   # systemd native journal API (see sd_journal_print(4)). This should be in
-  # AppArmor's base abstraction, but until it is, include here.
-  /run/systemd/journal/socket w,
-  /run/systemd/journal/stdout rw, # 'r' shouldn't be needed, but journald
-                                  # doesn't leak anything so allow
+  # AppArmor's base abstraction, but until it is, include here. We include
+  # the base journal path as well as the journal namespace pattern path. Each
+  # journal namespace for quota groups will be prefixed with 'snap-'.
+  /run/systemd/journal{,.snap-*}/socket w,
+  /run/systemd/journal{,.snap-*}/stdout rw, # 'r' shouldn't be needed, but journald
+                                            # doesn't leak anything so allow
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
@@ -285,6 +287,7 @@ var templateCommon = `
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /sys/fs/cgroup/memory/{,user.slice/}memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
+  /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.stat r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.shares r,
@@ -578,6 +581,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/mv ixr,
   /{,usr/}bin/nice ixr,
   /{,usr/}bin/nohup ixr,
+  /{,usr/}bin/numfmt ixr,
   /{,usr/}bin/od ixr,
   /{,usr/}bin/openssl ixr, # may cause harmless capability block_suspend denial
   /{,usr/}bin/paste ixr,

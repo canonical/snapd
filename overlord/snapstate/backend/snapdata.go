@@ -120,6 +120,10 @@ func snapCommonDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, e
 		return nil, err
 	}
 
+	// then the root user's common data dir
+	rootCommon := snap.UserCommonDataDir(filepath.Join(dirs.GlobalRootDir, "/root/"), opts)
+	found = append(found, rootCommon)
+
 	// then XDG_RUNTIME_DIRs for the users
 	foundXdg, err := filepath.Glob(snap.XdgRuntimeDirs())
 	if err != nil {

@@ -34,6 +34,8 @@ import (
 var (
 	ErrNoAssertions = errors.New("no seed assertions")
 	ErrNoMeta       = errors.New("no seed metadata")
+
+	open = Open
 )
 
 // Snap holds the details of a snap in a seed.
@@ -106,6 +108,19 @@ type Seed interface {
 	// It will panic if called before LoadAssertions.
 	LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error
 
+	// LoadEssentialMetaWithSnapHandler loads the seed's snaps metadata
+	// for the essential snaps with types in the essentialTypes
+	// set while verifying them against assertions. It can return
+	// ErrNoMeta if there is no metadata nor snaps in the seed,
+	// this is legitimate only on classic. It can be called
+	// multiple times if needed before invoking LoadMeta.
+	// It will panic if called before LoadAssertions.
+	// A SnapHandler can be passed to perform dedicated seed snap
+	// handling at the same time as digest computation.
+	// No caching of essential snaps across Load*Meta* methods is
+	// performed if a handler is provided.
+	LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler SnapHandler, tm timings.Measurer) error
+
 	// LoadMeta loads the seed and seed's snaps metadata while
 	// verifying the underlying snaps against assertions. It can
 	// return ErrNoMeta if there is no metadata nor snaps in the
@@ -115,7 +130,11 @@ type Seed interface {
 	// load the metadata only for the snaps of that mode.
 	// At which point ModeSnaps will only accept that mode
 	// and Iter and NumSnaps only consider the snaps for that mode.
-	LoadMeta(mode string, tm timings.Measurer) error
+	// An optional SnapHandler can be passed to perform dedicated
+	// seed snap handling at the same time as digest computation.
+	// No caching of essential snaps across Load*Meta* methods is
+	// performed if a handler is provided.
+	LoadMeta(mode string, handler SnapHandler, tm timings.Measurer) error
 
 	// UsesSnapdSnap returns whether the system as defined by the
 	// seed will use the snapd snap, after LoadMeta.
@@ -138,6 +157,28 @@ type Seed interface {
 	// Iter provides a way to iterately perform a function on
 	// each of the snaps for which LoadMeta loaded their metadata.
 	Iter(f func(sn *Snap) error) error
+}
+
+// A SnapHandler can be used to perform any dedicated handling of seed
+// snaps and their digest computation while seed snap metadata loading
+// and verification is being performed.
+type SnapHandler interface {
+	// HandleAndDigestAssertedSnap should compute the digest of
+	// the given snap and perform any dedicated
+	// handling. essentialType is provided only for essential
+	// snaps.
+	// snapRev is provided by UC20+ seeds.
+	// deriveRev is provided by UC16/18 seeds, it can be used
+	// to get early access to the snap revision based on the digest.
+	// A different path can be returned if the snap has been copied
+	// elsewhere.
+	HandleAndDigestAssertedSnap(name, path string, essentialType snap.Type, snapRev *asserts.SnapRevision, deriveRev func(snapSHA3_384 string, snapSize uint64) (snap.Revision, error), tm timings.Measurer) (newPath, snapSHA3_384 string, snapSize uint64, err error)
+
+	// HandleUnassertedSnap should perfrom any dedicated handling
+	// for the given unasserted snap.
+	// A different path can be returned if the snap has been copied
+	// elsewhere.
+	HandleUnassertedSnap(name, path string, tm timings.Measurer) (newPath string, err error)
 }
 
 // Open returns a Seed implementation for the seed at seedDir.
@@ -180,19 +221,24 @@ func ReadSystemEssential(seedDir, label string, essentialTypes []snap.Type, tm t
 // ReadSystemEssentialAndBetterEarliestTime retrieves in one go
 // information about the model and essential snaps of the given types
 // for the Core 20 recovery system seed specified by seedDir and label
-// (which cannot be empty).
+// (which cannot be empty). numJobs specifies the suggested number of
+// jobs to run in parallel (0 disables parallelism).
 // It can operate even if current system time is unreliable by taking
 // a earliestTime lower bound for current time.
 // It returns as well an improved lower bound by considering
 // appropriate assertions in the seed.
-func ReadSystemEssentialAndBetterEarliestTime(seedDir, label string, essentialTypes []snap.Type, earliestTime time.Time, tm timings.Measurer) (*asserts.Model, []*Snap, time.Time, error) {
+func ReadSystemEssentialAndBetterEarliestTime(seedDir, label string, essentialTypes []snap.Type, earliestTime time.Time, numJobs int, tm timings.Measurer) (*asserts.Model, []*Snap, time.Time, error) {
 	if label == "" {
 		return nil, nil, time.Time{}, fmt.Errorf("system label cannot be empty")
 	}
-	seed20, err := Open(seedDir, label)
+	seed20, err := open(seedDir, label)
 	if err != nil {
 		return nil, nil, time.Time{}, err
 
+	}
+
+	if numJobs > 0 {
+		seed20.SetParallelism(numJobs)
 	}
 
 	improve := func(a asserts.Assertion) {

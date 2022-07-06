@@ -33,6 +33,8 @@ import (
 var (
 	GlobalRootDir string
 
+	RunDir string
+
 	SnapMountDir string
 
 	DistroLibExecDir string
@@ -100,6 +102,8 @@ var (
 	SnapDesktopFilesDir    string
 	SnapDesktopIconsDir    string
 	SnapPolkitPolicyDir    string
+	SnapSystemdDir         string
+	SnapSystemdRunDir      string
 
 	SnapDBusSessionPolicyDir   string
 	SnapDBusSystemPolicyDir    string
@@ -121,6 +125,8 @@ var (
 	XdgRuntimeDirGlob string
 
 	CompletionHelperInCore string
+	BashCompletionScript   string
+	LegacyCompletersDir    string
 	CompletersDir          string
 
 	SystemFontsDir            string
@@ -368,6 +374,7 @@ func SetRootDir(rootdir string) {
 	// freedesktop.org specifications
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	SnapDesktopIconsDir = filepath.Join(rootdir, snappyDir, "desktop", "icons")
+	RunDir = filepath.Join(rootdir, "/run")
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")
@@ -417,6 +424,8 @@ func SetRootDir(rootdir string) {
 	SnapRuntimeServicesDir = filepath.Join(rootdir, "/run/systemd/system")
 	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
 	SnapSystemdConfDir = SnapSystemdConfDirUnder(rootdir)
+	SnapSystemdDir = filepath.Join(rootdir, "/etc/systemd")
+	SnapSystemdRunDir = filepath.Join(rootdir, "/run/systemd")
 
 	SnapDBusSystemPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 	SnapDBusSessionPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/session.d")
@@ -468,7 +477,9 @@ func SetRootDir(rootdir string) {
 	XdgRuntimeDirGlob = filepath.Join(XdgRuntimeDirBase, "*/")
 
 	CompletionHelperInCore = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
-	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
+	BashCompletionScript = filepath.Join(rootdir, "/usr/share/bash-completion/bash_completion")
+	LegacyCompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
+	CompletersDir = filepath.Join(rootdir, snappyDir, "desktop/bash-completion/completions/")
 
 	// These paths agree across all supported distros
 	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")

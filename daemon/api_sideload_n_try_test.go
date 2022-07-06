@@ -222,7 +222,7 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 
 	summary = chg.Summary()
 	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		c.Error(err)
 	}
 	return summary, systemRestartImmediate

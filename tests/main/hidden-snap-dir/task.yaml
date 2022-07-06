@@ -1,9 +1,5 @@
 summary: Check that the experimental hidden dir feature migrates the dir
 
-# this test is flaky on CentOS and openSUSE due to an issue w/ 'snap remove'
-# https://bugs.launchpad.net/snapd/+bug/1959036
-systems: [-centos-*, -opensuse-*]
-
 environment:
     NAME: test-snapd-tools
 
@@ -32,8 +28,8 @@ execute: |
 
       if [ "$CHECK_EXPOSED_HOME" = "yes" ]; then
         echo "Checking core22 migration related env vars"
-        echo "$snapEnv" | MATCH "HOME=$HOME/Snap"
-        echo "$snapEnv" | MATCH "SNAP_USER_HOME=$HOME/Snap"
+        echo "$snapEnv" | MATCH "HOME=$HOME/Snap/$NAME"
+        echo "$snapEnv" | MATCH "SNAP_USER_HOME=$HOME/Snap/$NAME"
         echo "$snapEnv" | MATCH "XDG_DATA_HOME=$HOME/\.snap/data/$NAME/$REV/xdg-data"
         echo "$snapEnv" | MATCH "XDG_CACHE_HOME=$HOME/\.snap/data/$NAME/$REV/xdg-cache"
         echo "$snapEnv" | MATCH "XDG_CONFIG_HOME=$HOME/\.snap/data/$NAME/$REV/xdg-config"
@@ -118,11 +114,11 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
     # Check env vars, dirs and data after the migration
-    check_env "x2"
+    check_env x2
     # Note: some dirs are created just before the snap runs for the 1st time,
     # so this check must come after a snap run
-    check_dirs "x2" ""
-    check_data "x2" "$data"
+    check_dirs x2
+    check_data x2 "$data"
 
     echo "Check the snap can write to the new dirs"
     #shellcheck disable=SC2016
@@ -130,7 +126,7 @@ execute: |
     #shellcheck disable=SC2016
     "$NAME".cmd sh -c 'echo "new_data" > "$SNAP_USER_COMMON"/file'
 
-    check_data "x2" "new_data"
+    check_data x2 new_data
 
     echo "Restore snapshot and check data was restored"
     snap restore "$snapshot"
@@ -140,13 +136,13 @@ execute: |
     snap remove --purge "$NAME"
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
-    check_env "x1"
-    check_dirs "x1"
+    check_env x1
+    check_dirs x1
 
     data="new_data"
     "$NAME".echo "$data" > "$HOME/.snap/data/$NAME/x1/file"
     "$NAME".echo "$data" > "$HOME/.snap/data/$NAME/common/file"
-    check_data "x1" "$data"
+    check_data x1 "$data"
 
     echo "Revert migration (unset flag and refresh)"
     snap unset system experimental.hidden-snap-folder
@@ -174,6 +170,13 @@ execute: |
       exit 0
     fi
 
+
+    # TODO:Snap-folder: no automatic migration for core22 snaps to
+    # ~/Snap folder for now
+    #
+    echo "SKIP this part of the test"
+    exit 0
+    
     echo "Update snap to core22"
     # write a file in a default XDG dir so we can check it's migrated
     mkdir "$HOME/snap/$NAME/x2/.config"
@@ -185,9 +188,9 @@ execute: |
     snap pack "$PWD/$NAME"
     snap install --dangerous "$NAME"_1.0_all.snap
 
-    check_env "--with-exposed-home" "x3"
-    check_dirs "--with-exposed-home" "x3"
-    check_data "--with-exposed-home" "x3" "$data"
+    check_env --with-exposed-home x3
+    check_dirs --with-exposed-home x3
+    check_data --with-exposed-home x3 "$data"
 
     # the XDG dirs shouldn't be copied to the new HOME (they stay under the rev dir)
     not test -d "$HOME/Snap/$NAME/.config"
@@ -231,9 +234,9 @@ execute: |
     snap revert "$NAME" --revision="x3"
 
     # check everything is restored after reverting back to x3
-    check_env "--with-exposed-home" "x3"
-    check_dirs "--with-exposed-home" "x3"
-    check_data "--with-exposed-home" "x3" "x3"
+    check_env --with-exposed-home x3
+    check_dirs --with-exposed-home x3
+    check_data --with-exposed-home x3 x3
 
     # write something to the new XDG dirs so we can check that a refresh always
     # re-initializes them from the default XDG (even if refreshing after a revert)
@@ -279,8 +282,8 @@ execute: |
 
     snap install --dangerous "$NAME"_1.0_all.snap
 
-    check_env "--with-exposed-home" "x4"
-    check_dirs "--with-exposed-home" "x4"
+    check_env --with-exposed-home x4
+    check_dirs --with-exposed-home x4
 
     MATCH "$data" < "$HOME/.snap/data/$NAME/x4/file"
     # data under ~/Snap isn't rewritten
@@ -324,3 +327,46 @@ execute: |
     test -d "$HOME/.snap/data/$NAME"
     not test -e "$HOME/snap/$NAME"
 
+    echo "Refresh from core22 base to another core22 base revision"
+    # reset everything
+    snap unset system experimental.hidden-snap-folder
+    snap remove --purge "$NAME"
+    rm -rf ~/.snap ~/snap ~/Snap
+
+    snap pack "$PWD/$NAME"
+    snap install --dangerous "$NAME"_1.0_all.snap
+    data="fresh"
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo fresh > "$SNAP_USER_DATA/file"'
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo fresh > "$SNAP_USER_COMMON/file"'
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo fresh > "$HOME/file"'
+    snap install --dangerous "$NAME"_1.0_all.snap
+
+    check_env --with-exposed-home x2
+    check_dirs --with-exposed-home x2
+    check_data --with-exposed-home x2 "$data"
+
+    echo "Check fresh install of core22 based snap"
+    snap remove --purge "$NAME"
+    rm -rf "$HOME"/Snap "$HOME"/.snap/data "$HOME/snap/$NAME"
+
+    snap install --dangerous "$NAME"_1.0_all.snap
+
+    check_env --with-exposed-home x1
+    check_dirs --with-exposed-home x1
+
+    "$NAME".cmd sh -c 'true'
+
+    echo "Check remove of freshly installed core22 based snap"
+    snap remove --purge "$NAME"
+    not test -e "$HOME/.snap/data/$NAME/x1"
+    not test -e "$HOME/.snap/data/$NAME/common"
+
+    echo "Now re-install"
+    snap install --dangerous "$NAME"_1.0_all.snap
+    "$NAME".cmd sh -c 'true'
+
+    check_env --with-exposed-home x1
+    check_dirs --with-exposed-home x1

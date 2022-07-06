@@ -94,6 +94,9 @@ type PlaceInfo interface {
 	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR
 	// directories for all users of the snap.
 	XdgRuntimeDirs() string
+
+	// UserExposedHomeDir returns the snap's new home directory under ~/Snap.
+	UserExposedHomeDir(home string) string
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a
@@ -1056,6 +1059,11 @@ func (app *AppInfo) WrapperPath() string {
 // CompleterPath returns the path to the completer snippet for the app binary.
 func (app *AppInfo) CompleterPath() string {
 	return filepath.Join(dirs.CompletersDir, JoinSnapApp(app.Snap.InstanceName(), app.Name))
+}
+
+// CompleterPath returns the legacy path to the completer snippet for the app binary.
+func (app *AppInfo) LegacyCompleterPath() string {
+	return filepath.Join(dirs.LegacyCompletersDir, JoinSnapApp(app.Snap.InstanceName(), app.Name))
 }
 
 func (app *AppInfo) launcherCommand(command string) string {

@@ -167,21 +167,28 @@ execute: |
     chmod +x snapcraft-cleanup.sh
     tests.cleanup defer sh -c "$PWD/snapcraft-cleanup.sh"
 
+    echo "Unsquash the snapd snap"
+    unsquashfs snapd_spread-test.snap
+
     echo "Ensure we have the fc-cache binaries"
-    unsquashfs -ll snapd_spread-test.snap | MATCH bin/fc-cache-v6
-    unsquashfs -ll snapd_spread-test.snap | MATCH bin/fc-cache-v7
+    test -f squashfs-root/bin/fc-cache-v6
+    test -f squashfs-root/bin/fc-cache-v7
 
     echo "Ensure we have xdelta3"
-    unsquashfs -ll snapd_spread-test.snap | MATCH bin/xdelta3
+    test -f squashfs-root/usr/bin/xdelta3
 
     echo "Ensure we have mksquashfs (and the dependencies)"
-    unsquashfs -ll snapd_spread-test.snap | MATCH bin/mksquashfs
-    unsquashfs -ll snapd_spread-test.snap | MATCH liblzma.so.5
+    test -f squashfs-root/usr/bin/mksquashfs
+    find squashfs-root | MATCH liblzma.so.5
 
-    echo "Ensure we have ld.so.conf"
-    unsquashfs -ll snapd_spread-test.snap | MATCH etc/ld.so.conf
     echo "Ensure we have libc"
-    unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
+    find squashfs-root | MATCH libc.so
+    echo "Ensure we have ld.so.conf"
+    test -f squashfs-root/etc/ld.so.conf
 
     echo "Ensure we have preseed.json"
-    unsquashfs -ll snapd_spread-test.snap | MATCH usr/lib/snapd/preseed.json
+    test -f squashfs-root/usr/lib/snapd/preseed.json
+
+    echo "Check /usr/lib/snapd/info"
+    test -f squashfs-root/usr/lib/snapd/info
+    MATCH SNAPD_ASSERTS_FORMATS < squashfs-root/usr/lib/snapd/info

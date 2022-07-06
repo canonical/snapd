@@ -3288,7 +3288,7 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughUndoContextOptional(c *C) {
 	mountTask := tasks[len(tasks)-11]
 	c.Assert(mountTask.Kind(), Equals, "mount-snap")
 	var installRecord backend.InstallRecord
-	c.Assert(mountTask.Get("install-record", &installRecord), Equals, state.ErrNoState)
+	c.Assert(mountTask.Get("install-record", &installRecord), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *snapmgrTestSuite) TestInstallDefaultProviderCircular(c *C) {
@@ -3516,9 +3516,9 @@ func (s *snapmgrTestSuite) TestInstallManyTransactionallyFails(c *C) {
 
 	var snapSt snapstate.SnapState
 	// some-other-snap not installed due to download failure
-	c.Assert(snapstate.Get(s.state, "some-other-snap", &snapSt), Equals, state.ErrNoState)
+	c.Assert(snapstate.Get(s.state, "some-other-snap", &snapSt), testutil.ErrorIs, state.ErrNoState)
 	// some-snap not installed as this was a transactional install
-	c.Assert(snapstate.Get(s.state, "some-snap", &snapSt), Equals, state.ErrNoState)
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapSt), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyDiskSpaceError(c *C) {
@@ -3747,7 +3747,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 
 	c.Assert(runHooks[0].Kind(), Equals, "run-hook")
 	err = runHooks[0].Get("hook-context", &m)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func makeInstalledMockCoreSnap(c *C) {
@@ -3827,7 +3827,7 @@ version: 1.0
 	})
 	// use-defaults flag is part of hook-context which isn't set
 	err = runHooks[1].Get("hook-context", &m)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *snapmgrTestSuite) TestGadgetDefaultsAreNormalizedForConfigHook(c *C) {
@@ -3897,7 +3897,7 @@ func (s *snapmgrTestSuite) TestInstallContentProviderDownloadFailure(c *C) {
 
 	var snapSt snapstate.SnapState
 	// content provider not installed due to download failure
-	c.Assert(snapstate.Get(s.state, "snap-content-slot", &snapSt), Equals, state.ErrNoState)
+	c.Assert(snapstate.Get(s.state, "snap-content-slot", &snapSt), testutil.ErrorIs, state.ErrNoState)
 
 	// but content consumer gets installed
 	c.Assert(snapstate.Get(s.state, "snap-content-plug", &snapSt), IsNil)
@@ -3947,7 +3947,7 @@ func (s *validationSetsSuite) installSnapReferencedByValidationSet(c *C, presenc
 		flags = &snapstate.Flags{}
 	}
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		someSnap := map[string]interface{}{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
@@ -4052,7 +4052,7 @@ func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevis
 }
 
 func (s *validationSetsSuite) installManySnapReferencedByValidationSet(c *C, snapOnePresence, snapOneRequiredRev, snapTwoPresence, snapTwoRequiredRev string) error {
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		snapOne := map[string]interface{}{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
@@ -4151,7 +4151,7 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 }
 
 func (s *validationSetsSuite) testInstallSnapRequiredByValidationSetWithBase(c *C, presenceForBase string) error {
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		someSnap := map[string]interface{}{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
@@ -4397,6 +4397,33 @@ func (s *validationSetsSuite) TestInstallSnapInvalidByValidationSetIgnoreValidat
 	c.Assert(s.fakeBackend.ops[1], DeepEquals, expectedOp)
 }
 
+func (s *validationSetsSuite) TestInstallSnapWithValidationSets(c *C) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return nil, fmt.Errorf("unexpected")
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	opts := &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSets: []string{"16/foo/bar", "16/foo/baz"}}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// validation sets are set on the action
+	expectedOp := fakeOp{
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:         "install",
+			InstanceName:   "some-snap",
+			ValidationSets: [][]string{{"16", "foo", "bar"}, {"16", "foo", "baz"}},
+			Revision:       snap.R(11),
+		},
+		revno: snap.R(11),
+	}
+	c.Assert(s.fakeBackend.ops[1], DeepEquals, expectedOp)
+}
+
 func (s *snapmgrTestSuite) TestInstallPrerequisiteWithSameDeviceContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -4478,7 +4505,7 @@ func (s *snapmgrTestSuite) TestUndoMigrationIfInstallFails(c *C) {
 	assertMigrationInSeqFile(c, "some-snap", nil)
 
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), Equals, state.ErrNoState)
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *snapmgrTestSuite) TestUndoMigrationIfInstallFailsAfterSettingState(c *C) {
@@ -4516,7 +4543,7 @@ func (s *snapmgrTestSuite) TestUndoMigrationIfInstallFailsAfterSettingState(c *C
 	assertMigrationInSeqFile(c, "some-snap", nil)
 
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), Equals, state.ErrNoState)
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *snapmgrTestSuite) TestInstallDeduplicatesSnapNames(c *C) {
@@ -5175,6 +5202,8 @@ type: base
 }
 
 func (s *snapmgrTestSuite) TestMigrateOnInstallWithCore24(c *C) {
+	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -5218,6 +5247,8 @@ func (s *snapmgrTestSuite) TestUndoMigrateOnInstallWithCore22OnExposedMigration(
 }
 
 func (s *snapmgrTestSuite) testUndoMigrateOnInstallWithCore22(c *C, expectSeqFile bool, prepFail prepFailFunc) {
+	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -5238,7 +5269,7 @@ func (s *snapmgrTestSuite) testUndoMigrateOnInstallWithCore22(c *C, expectSeqFil
 
 	// nothing in state
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, snapName, &snapst), Equals, state.ErrNoState)
+	c.Assert(snapstate.Get(s.state, snapName, &snapst), testutil.ErrorIs, state.ErrNoState)
 
 	if expectSeqFile {
 		// seq file exists but is zeroed out

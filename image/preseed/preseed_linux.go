@@ -22,6 +22,7 @@ package preseed
 import (
 	"crypto"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -119,7 +120,7 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 		fmt.Fprintf(Stdout, "ubuntu classic preseeding")
 	} else {
 		if model.Base() == "core20" {
-			fmt.Fprintf(Stdout, "UC20 preseeding")
+			fmt.Fprintf(Stdout, "UC20+ preseeding\n")
 		} else {
 			// TODO: support uc20+
 			return "", "", fmt.Errorf("preseeding of ubuntu core with base %s is not supported", model.Base())
@@ -202,7 +203,7 @@ func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 	return &targetSnapdInfo{path: snapdPath, version: whichVer}, nil
 }
 
-func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlob, baseSnapBlob, writable string) (cleanupMounts func(), err error) {
+func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlob, baseSnapBlob, aaFeaturesDir, writable string) (cleanupMounts func(), err error) {
 	underPreseed := func(path string) string {
 		return filepath.Join(tmpPreseedChrootDir, path)
 	}
@@ -217,13 +218,19 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 
 	var mounted []string
 
+	doUnmount := func(mnt string) {
+		cmd := exec.Command("umount", mnt)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			fmt.Fprintf(Stdout, "cannot unmount: %v\n'umount %s' failed with: %s", err, mnt, out)
+		}
+	}
+
 	cleanupMounts = func() {
-		for i := len(mounted) - 1; i >= 0; i-- {
+		// unmount all the mounts but the first one, which is the base
+		// and it is cleaned up last
+		for i := len(mounted) - 1; i > 0; i-- {
 			mnt := mounted[i]
-			cmd := exec.Command("umount", mnt)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				fmt.Fprintf(Stdout, "cannot unmount: %v\n'umount %s' failed with: %s", err, mnt, out)
-			}
+			doUnmount(mnt)
 		}
 
 		entries, err := osutil.LoadMountInfo()
@@ -233,12 +240,14 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 		}
 		// cleanup after handle-writable-paths
 		for _, ent := range entries {
-			if strings.HasPrefix(ent.MountDir, tmpPreseedChrootDir) {
-				cmd := exec.Command("umount", ent.MountDir)
-				if out, err := cmd.CombinedOutput(); err != nil {
-					fmt.Fprintf(Stdout, "cannot unmount: %v\n'umount %s' failed with: %s", err, ent.MountDir, out)
-				}
+			if ent.MountDir != tmpPreseedChrootDir && strings.HasPrefix(ent.MountDir, tmpPreseedChrootDir) {
+				doUnmount(ent.MountDir)
 			}
+		}
+
+		// finally, umount the base snap
+		if len(mounted) > 0 {
+			doUnmount(mounted[0])
 		}
 	}
 
@@ -283,7 +292,8 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 	for _, dir := range []string{
 		"etc/udev/rules.d", "etc/systemd/system", "etc/dbus-1/session.d",
 		"var/lib/snapd/seed", "var/cache/snapd", "var/cache/apparmor",
-		"var/snap", "snap"} {
+		"var/snap", "snap", "var/lib/extrausers",
+	} {
 		if err = os.MkdirAll(filepath.Join(writable, dir), 0755); err != nil {
 			return nil, err
 		}
@@ -301,8 +311,13 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 		{"--bind", underWritable("system-data/etc/systemd"), underPreseed("etc/systemd")},
 		{"--bind", underWritable("system-data/etc/dbus-1"), underPreseed("etc/dbus-1")},
 		{"--bind", underWritable("system-data/etc/udev/rules.d"), underPreseed("etc/udev/rules.d")},
+		{"--bind", underWritable("system-data/var/lib/extrausers"), underPreseed("var/lib/extrausers")},
 		{"--bind", filepath.Join(snapdMountPath, "/usr/lib/snapd"), underPreseed("/usr/lib/snapd")},
 		{"--bind", filepath.Join(prepareImageDir, "system-seed"), underPreseed("var/lib/snapd/seed")},
+	}
+
+	if aaFeaturesDir != "" {
+		mounts = append(mounts, []string{"--bind", aaFeaturesDir, underPreseed("sys/kernel/security/apparmor/features")})
 	}
 
 	for _, mountArgs := range mounts {
@@ -335,7 +350,7 @@ var makeWritableTempDir = func() (string, error) {
 	return ioutil.TempDir("", "writable-")
 }
 
-func prepareCore20Chroot(prepareImageDir string) (preseed *preseedOpts, cleanup func(), err error) {
+func prepareCore20Chroot(prepareImageDir, aaFeaturesDir string) (preseed *preseedOpts, cleanup func(), err error) {
 	sysDir := filepath.Join(prepareImageDir, "system-seed")
 	sysLabel, err := systemForPreseeding(sysDir)
 	if err != nil {
@@ -362,7 +377,7 @@ func prepareCore20Chroot(prepareImageDir string) (preseed *preseedOpts, cleanup 
 		return nil, nil, fmt.Errorf("cannot prepare uc20 chroot: %v", err)
 	}
 
-	cleanupMounts, err := prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapPath, baseSnapPath, writableTmpDir)
+	cleanupMounts, err := prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapPath, baseSnapPath, aaFeaturesDir, writableTmpDir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot prepare uc20 mountpoints: %v", err)
 	}
@@ -524,9 +539,14 @@ func runUC20PreseedMode(opts *preseedOpts) error {
 	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
 	cmd.Stderr = Stderr
 	cmd.Stdout = Stdout
-	fmt.Fprintf(Stdout, "starting to preseed UC20 system: %s", opts.PreseedChrootDir)
+	fmt.Fprintf(Stdout, "starting to preseed UC20+ system: %s\n", opts.PreseedChrootDir)
 
 	if err := cmd.Run(); err != nil {
+		var errno syscall.Errno
+		if errors.As(err, &errno) && errno == syscall.ENOEXEC {
+			return fmt.Errorf(`error running snapd, please try installing the "qemu-user-static" package: %v`, err)
+		}
+
 		return fmt.Errorf("error running snapd in preseed mode: %v\n", err)
 	}
 
@@ -545,14 +565,14 @@ func runUC20PreseedMode(opts *preseedOpts) error {
 // Core20 runs preseeding of UC20 system prepared by prepare-image in prepareImageDir
 // and stores the resulting preseed preseed.tgz file in system-seed/systems/<systemlabel>/preseed.tgz.
 // Expects single systemlabel under systems directory.
-func Core20(prepareImageDir, preseedSignKey string) error {
+func Core20(prepareImageDir, preseedSignKey, aaFeaturesDir string) error {
 	var err error
 	prepareImageDir, err = filepath.Abs(prepareImageDir)
 	if err != nil {
 		return err
 	}
 
-	popts, cleanup, err := prepareCore20Chroot(prepareImageDir)
+	popts, cleanup, err := prepareCore20Chroot(prepareImageDir, aaFeaturesDir)
 	if err != nil {
 		return err
 	}

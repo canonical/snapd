@@ -14,6 +14,10 @@ environment:
     USER/test: test
 
 prepare: |
+    # This feature depends on the release-app-awareness feature
+    snap set core experimental.refresh-app-awareness=true
+    tests.cleanup defer snap unset core experimental.refresh-app-awareness
+
     snap pack test-snapd-tracking
     tests.cleanup defer rm -f test-snapd-tracking_1_all.snap
 

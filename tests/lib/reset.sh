@@ -107,7 +107,7 @@ reset_classic() {
 
         EXTRA_NC_ARGS="-q 1"
         case "$SPREAD_SYSTEM" in
-            fedora-34-*|debian-10-*)
+            debian-10-*)
                 # Param -q is not available on fedora 34
                 EXTRA_NC_ARGS="-w 1"
                 ;;
@@ -129,51 +129,12 @@ reset_all_snap() {
         systemctl start snapd.service snapd.socket
     fi
 
-    # shellcheck source=tests/lib/names.sh
-    . "$TESTSLIB/names.sh"
-    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    remove_bases=""
-    # remove all app snaps first
-    for snap in "$SNAP_MOUNT_DIR"/*; do
-        snap="${snap:6}"
-        case "$snap" in
-            "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "snapd" |README)
-                ;;
-            *)
-                # Check if a snap should be kept, there's a list of those in spread.yaml.
-                keep=0
-                for precious_snap in $SKIP_REMOVE_SNAPS; do
-                    if [ "$snap" = "$precious_snap" ]; then
-                        keep=1
-                        break
-                    fi
-                done
-                if [ "$keep" -eq 0 ]; then
-                    if snap info --verbose "$snap" | grep -E '^type: +(base|core)'; then
-                        if [ -z "$remove_bases" ]; then
-                            remove_bases="$snap"
-                        else
-                            remove_bases="$remove_bases $snap"
-                        fi
-                    else
-                        snap remove --purge "$snap"
-                    fi
-                fi
-                ;;
-        esac
+    skip_snaps=""
+    for skip_remove_snap in $SKIP_REMOVE_SNAPS; do
+        skip_snaps="$skip_snaps --skip $skip_remove_snap"
     done
-    # remove all base/os snaps at the end
-    if [ -n "$remove_bases" ]; then
-        for base in $remove_bases; do
-            snap remove --purge "$base"
-            if [ -d "$SNAP_MOUNT_DIR/$base" ]; then
-                echo "Error: removing base $base has unexpected leftover dir $SNAP_MOUNT_DIR/$base"
-                ls -al "$SNAP_MOUNT_DIR"
-                ls -al "$SNAP_MOUNT_DIR/$base"
-                exit 1
-            fi
-        done
-    fi
+    # shellcheck disable=SC2086
+    "$TESTSTOOLS"/snaps.cleanup $skip_snaps
 
     # purge may have removed udev rules, retrigger device events
     udevadm trigger

@@ -27,7 +27,7 @@ execute: |
     NAME=core
     VERSION=$CORE_GIT_VERSION
     REV=$NUMBER_REV
-    PUBLISHER="canonical\\*"
+    PUBLISHER="canonical\\*\\*"
     TRACKING=-
     NOTES=core
 
@@ -54,7 +54,7 @@ execute: |
         echo "On the external device the core snap tested could be in any track"
         TRACKING="(latest/)?(edge|beta|candidate|stable)"
 
-    elif [ "$SPREAD_BACKEND" = "external" ] && { os.query is-core18 || os.query is-core20; }; then
+    elif [ "$SPREAD_BACKEND" = "external" ] && { os.query is-core18 || os.query is-core20 || os.query is-core22; }; then
         echo "On the external device the snapd snap tested could be in any track"
         NAME=snapd
         VERSION=$SNAPD_GIT_VERSION
