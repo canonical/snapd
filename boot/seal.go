@@ -957,3 +957,14 @@ func postFactoryResetCleanup() error {
 
 	return nil
 }
+
+// resealExpectedByModeenvChange returns true if resealing is expected
+// due to modeenv changes, false otherwise. Reseal might not be needed
+// if the only change in modeenv is the gadget (if the boot assets
+// change that is detected in resealKeyToModeenv() and reseal will
+// happen anyway)
+func resealExpectedByModeenvChange(old *Modeenv, new *Modeenv) bool {
+	auxModeenv := *new
+	auxModeenv.Gadget = old.Gadget
+	return !auxModeenv.deepEqual(old)
+}

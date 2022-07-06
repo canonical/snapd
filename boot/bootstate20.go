@@ -117,9 +117,6 @@ type bootStateUpdate20 struct {
 
 	// tasks to run after the modeenv has been written
 	postModeenvTasks []bootCommitTask
-
-	// resealNeeded set if we need to reseal keys
-	resealNeeded bool
 }
 
 func (u20 *bootStateUpdate20) preModeenv(task bootCommitTask) {
@@ -146,8 +143,6 @@ func newBootStateUpdate20(m *Modeenv) (*bootStateUpdate20, error) {
 	if err != nil {
 		return nil, err
 	}
-	// resealing is not needed only for gadget change case
-	u20.resealNeeded = true
 	return u20, nil
 }
 
@@ -178,14 +173,7 @@ func (u20 *bootStateUpdate20) commit() error {
 		if err := u20.writeModeenv.Write(); err != nil {
 			return err
 		}
-		// reseal might not be needed if the only change in modeenv is
-		// the gadget (if the boot assets change that is detected in
-		// resealKeyToModeenv() and reseal will happen anyway)
-		auxModeEnv := *u20.writeModeenv
-		auxModeEnv.Gadget = u20.modeenv.Gadget
-		if !auxModeEnv.deepEqual(u20.modeenv) {
-			expectReseal = true
-		}
+		expectReseal = resealExpectedByModeenvChange(u20.writeModeenv, u20.modeenv)
 	}
 
 	// next reseal using the modeenv values, we do this before any
@@ -434,7 +422,6 @@ func (bs20 *bootState20Gadget) setNext(next snap.PlaceInfo) (rbi RebootInfo, u b
 	}
 
 	u20.writeModeenv.Gadget = next.Filename()
-	u20.resealNeeded = false
 
 	return RebootInfo{RebootRequired: false}, u20, err
 }
