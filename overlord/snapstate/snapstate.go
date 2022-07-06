@@ -485,6 +485,17 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = copyData
 	}
 
+	// Add a quota control task before we refresh profiles as this might
+	// impact how security is done for the snap
+	if snapsup.QuotaGroupName != "" {
+		quotaControlTask := st.NewTask("quota-on-install", fmt.Sprintf(i18n.G("Adding snap %q%s to quota group %q"),
+			snapsup.InstanceName(), revisionStr, snapsup.QuotaGroupName))
+		quotaControlTask.Set("quota-on-install-snapnames", []string{snapsup.InstanceName()})
+		quotaControlTask.Set("quota-on-install-quotaname", snapsup.QuotaGroupName)
+		addTask(quotaControlTask)
+		prev = quotaControlTask
+	}
+
 	// security
 	setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q%s security profiles"), snapsup.InstanceName(), revisionStr))
 	addTask(setupSecurity)
@@ -529,16 +540,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		installHook = SetupInstallHook(st, snapsup.InstanceName())
 		addTask(installHook)
 		prev = installHook
-	}
-
-	// Add a quota control task before we start services up
-	if snapsup.QuotaGroupName != "" {
-		quotaControlTask := st.NewTask("quota-on-install", fmt.Sprintf(i18n.G("Adding snap %q%s to quota group %q"),
-			snapsup.InstanceName(), revisionStr, snapsup.QuotaGroupName))
-		quotaControlTask.Set("quota-on-install-snapnames", []string{snapsup.InstanceName()})
-		quotaControlTask.Set("quota-on-install-quotaname", snapsup.QuotaGroupName)
-		addTask(quotaControlTask)
-		prev = quotaControlTask
 	}
 
 	// run new services

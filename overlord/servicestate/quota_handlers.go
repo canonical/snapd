@@ -222,6 +222,68 @@ func addRestartServicesTasks(st *state.State, queueTask func(task *state.Task), 
 	}
 }
 
+func (m *ServiceManager) doAddSnapToQuota(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	var quotaGroupName string
+	var snapNames []string
+	if err := t.Get("quota-on-install-snapnames", &snapNames); err != nil {
+		return fmt.Errorf("internal error: cannot get quota-control-actions: %v", err)
+	}
+	if err := t.Get("quota-on-install-quotaname", &quotaGroupName); err != nil {
+		return fmt.Errorf("internal error: cannot get quota-control-actions: %v", err)
+	}
+
+	allGrps, err := AllQuotas(st)
+	if err != nil {
+		return err
+	}
+
+	qc := QuotaControlAction{
+		Action:    "update",
+		QuotaName: quotaGroupName,
+		AddSnaps:  snapNames,
+	}
+	grp, allGrps, _, err := quotaUpdate(st, qc, allGrps)
+	if err != nil {
+		return err
+	}
+
+	// ensure service and slices on disk and their states are updated
+	opts := &ensureSnapServicesForGroupOptions{
+		allGrps: allGrps,
+	}
+	if _, err := ensureSnapServicesForGroup(st, t, grp, opts); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *ServiceManager) undoAddSnapToQuota(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	var snapNames []string
+	if err := t.Get("quota-on-install-snapnames", &snapNames); err != nil {
+		return fmt.Errorf("internal error: cannot get quota-control-actions: %v", err)
+	}
+	for _, snapName := range snapNames {
+		if err := EnsureSnapAbsentFromQuota(st, snapName); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 var osutilBootID = osutil.BootID
 
 type quotaStateUpdated struct {
