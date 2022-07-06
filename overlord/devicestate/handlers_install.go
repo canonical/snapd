@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -483,17 +484,7 @@ func writeMarkers() error {
 		return fmt.Errorf("cannot create ubuntu-data/save marker secret: %v", err)
 	}
 
-	dataMarker := filepath.Join(boot.InstallHostFDEDataDir, "marker")
-	if err := osutil.AtomicWriteFile(dataMarker, markerSecret, 0600, 0); err != nil {
-		return err
-	}
-
-	saveMarker := filepath.Join(boot.InstallHostFDESaveDir, "marker")
-	if err := osutil.AtomicWriteFile(saveMarker, markerSecret, 0600, 0); err != nil {
-		return err
-	}
-
-	return nil
+	return device.WriteEncryptionMarkers(boot.InstallHostFDEDataDir, boot.InstallHostFDESaveDir, markerSecret)
 }
 
 func saveKeys(keyForRole map[string]keys.EncryptionKey) error {
@@ -506,8 +497,7 @@ func saveKeys(keyForRole map[string]keys.EncryptionKey) error {
 	if err := os.MkdirAll(boot.InstallHostFDEDataDir, 0755); err != nil {
 		return err
 	}
-	saveKey := filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key")
-	if err := saveEncryptionKey.Save(saveKey); err != nil {
+	if err := saveEncryptionKey.Save(device.SaveKeyUnder(boot.InstallHostFDEDataDir)); err != nil {
 		return fmt.Errorf("cannot store system save key: %v", err)
 	}
 	return nil
@@ -914,7 +904,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	}
 	bopts.EncryptionType = encryptionType
 	useEncryption := (encryptionType != secboot.EncryptionTypeNone)
-	hasMarker := osutil.FileExists(filepath.Join(boot.InstallHostFDESaveDir, "marker"))
+	hasMarker := device.HasEncryptedMarkerUnder(boot.InstallHostFDESaveDir)
 	// TODO verify that the same encryption mechanism is used
 	if hasMarker != useEncryption {
 		prevStatus := "encrypted"
@@ -973,14 +963,14 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	if trustedInstallObserver != nil {
 		// at this point we removed boot and data. sealed fallback key
 		// for ubuntu-data is becoming useless
-		err := os.Remove(boot.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
+		err := os.Remove(device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
 		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("cannot cleanup obsolete key file: %v", err)
 		}
 
 		// it is possible that we reached this place again where a
 		// previously running factory reset was interrupted by a reboot
-		err = os.Remove(boot.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
+		err = os.Remove(device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
 		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("cannot cleanup obsolete key file: %v", err)
 		}
@@ -989,7 +979,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		// ubuntu-save was opened during boot, so the removal operation
 		// can be authorized with a key from the keyring
 		err = secbootRemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
-			{Mountpoint: boot.InitramfsUbuntuSaveDir}: filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"),
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: device.RecoveryKeyUnder(boot.InstallHostFDEDataDir),
 		})
 		if err != nil {
 			return fmt.Errorf("cannot remove recovery key: %v", err)
@@ -1175,7 +1165,7 @@ func fileDigest(p string) (string, error) {
 func writeFactoryResetMarker(marker string, hasEncryption bool) error {
 	keyDigest := ""
 	if hasEncryption {
-		d, err := fileDigest(boot.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
+		d, err := fileDigest(device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
 		if err != nil {
 			return err
 		}
@@ -1208,7 +1198,7 @@ func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
 		return err
 	}
 	if hasEncryption {
-		saveFallbackKeyFactory := boot.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+		saveFallbackKeyFactory := device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
 		d, err := fileDigest(saveFallbackKeyFactory)
 		if err != nil {
 			// possible that there was unexpected reboot
@@ -1220,7 +1210,7 @@ func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
 				// unless it's a different error
 				return err
 			}
-			saveFallbackKeyFactory := boot.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+			saveFallbackKeyFactory := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
 			d, err = fileDigest(saveFallbackKeyFactory)
 			if err != nil {
 				return err
