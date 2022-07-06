@@ -465,6 +465,12 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				logger.Debugf("cannot remove a mount point on read-only filesystem %q", path)
 				return nil
 			}
+			if err == syscall.EBUSY {
+				// It's still unclear how this can happen. For the time being
+				// let the operation succeed and log the event.
+				logger.Debugf("cannot remove mount point, got EBUSY: %q", path)
+				return nil
+			}
 			// If we were removing a directory but it was not empty then just
 			// ignore the error. This is the equivalent of the non-empty file
 			// check we do above. See rmdir(2) for explanation why we accept
