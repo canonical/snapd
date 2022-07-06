@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -79,6 +80,46 @@ func mockQuotas(st *state.State, c *check.C) {
 	c.Assert(err, check.IsNil)
 	err = servicestatetest.MockQuotaInState(st, "baz", "foo", nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, check.IsNil)
+}
+
+func (s *apiQuotaSuite) TestCreateQuotaValues(c *check.C) {
+	st := s.d.Overlord().State()
+	st.Lock()
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil,
+		quota.NewResourcesBuilder().
+			WithMemoryLimit(quantity.SizeMiB).
+			WithCPUCount(1).
+			WithCPUPercentage(100).
+			WithThreadLimit(256).
+			WithAllowedCPUs([]int{0, 1}).
+			WithJournalRate(150, time.Second).
+			WithJournalSize(quantity.SizeMiB).
+			Build())
+	allGroups, err2 := servicestate.AllQuotas(st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Assert(err2, check.IsNil)
+
+	c.Check(allGroups, check.HasLen, 1)
+
+	grp := allGroups["ginger-ale"]
+	c.Check(grp, check.NotNil)
+
+	quotaValues := daemon.CreateQuotaValues(grp)
+	c.Check(quotaValues.Memory, check.DeepEquals, quantity.SizeMiB)
+	c.Check(quotaValues.Threads, check.DeepEquals, 256)
+	c.Check(quotaValues.CPU, check.DeepEquals, &client.QuotaCPUValues{
+		Count:      1,
+		Percentage: 100,
+	})
+	c.Check(quotaValues.CPUSet, check.DeepEquals, &client.QuotaCPUSetValues{
+		CPUs: []int{0, 1},
+	})
+	c.Check(quotaValues.Journal, check.DeepEquals, &client.QuotaJournalValues{
+		Size:       quantity.SizeMiB,
+		RateCount:  150,
+		RatePeriod: time.Second,
+	})
 }
 
 func (s *apiQuotaSuite) TestPostQuotaUnknownAction(c *check.C) {
