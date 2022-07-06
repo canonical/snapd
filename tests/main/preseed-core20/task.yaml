@@ -33,6 +33,10 @@ prepare: |
   mkdir -p ~/.snap/gnupg
   gendeveloper1 show-key | gpg --homedir=~/.snap/gnupg --import
 
+  echo "Downloading the apparmor features directory"
+  wget -O apparmor-features-dir-uc20.tar.gz https://storage.googleapis.com/snapd-spread-tests/dependencies/apparmor-features-dir-uc20.tar.gz
+  tar -xvzf apparmor-features-dir-uc20.tar.gz
+
 restore: |
   rm -rf "$PREPARE_IMAGE_DIR"
 
@@ -51,7 +55,7 @@ execute: |
   SNAPD_SNAP=$(ls /tmp/snapd*.snap)
 
   # XXX: confusingly, the name of our test key is actually " (test)".
-  snap prepare-image --preseed --preseed-sign-key=" (test)" --channel=stable --snap="$SNAPD_SNAP" "$TESTSLIB"/assertions/developer1-20-dangerous.model "$PREPARE_IMAGE_DIR" > preseed.log 2>&1
+  snap prepare-image --preseed --preseed-sign-key=" (test)" --channel=stable --snap="$SNAPD_SNAP" --apparmor-features-dir="$PWD/apparmor-features-dir" "$TESTSLIB"/assertions/developer1-20-dangerous.model "$PREPARE_IMAGE_DIR" > preseed.log 2>&1
 
   echo "Make sure no umount errors were reported during preseeding cleanup"
   NOMATCH "umount.*failed" < preseed.log
@@ -142,9 +146,9 @@ execute: |
   MATCH "^snap/core20/current" < files.log
   MATCH "^snap/snapd/current" < files.log
 
-  MATCH "^var/cache/apparmor/08ba9d86.0/snap.pc.hook.configure" < files.log
-  MATCH "^var/cache/apparmor/08ba9d86.0/snap-update-ns.pc" < files.log
-  MATCH "^var/cache/apparmor/08ba9d86.0/snap-confine.snapd.x1" < files.log
+  MATCH "^var/cache/apparmor/b678de58.0/snap.pc.hook.configure" < files.log
+  MATCH "^var/cache/apparmor/b678de58.0/snap-update-ns.pc" < files.log
+  MATCH "^var/cache/apparmor/b678de58.0/snap-confine.snapd.x1" < files.log
 
   MATCH "^var/lib/snapd/apparmor/profiles/snap.pc.hook.configure" < files.log
   MATCH "^var/lib/snapd/apparmor/profiles/snap-update-ns.pc" < files.log
