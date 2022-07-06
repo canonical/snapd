@@ -20,9 +20,13 @@
 package device
 
 import (
+	"errors"
+	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -96,4 +100,41 @@ func FactoryResetFallbackSaveSealedKeyUnder(seedDeviceFDEDir string) string {
 // TpmLockoutAuthUnder return the path of the tpm lockout authority key.
 func TpmLockoutAuthUnder(saveDeviceFDEDir string) string {
 	return filepath.Join(saveDeviceFDEDir, "tpm-lockout-auth")
+}
+
+/// ErrNoSealedKeys error if there are no sealed keys
+var ErrNoSealedKeys = errors.New("no sealed keys")
+
+// SealingMethod represents the sealing method
+type SealingMethod string
+
+const (
+	SealingMethodLegacyTPM    = SealingMethod("")
+	SealingMethodTPM          = SealingMethod("tpm")
+	SealingMethodFDESetupHook = SealingMethod("fde-setup-hook")
+)
+
+// StampSealedKeys writes what sealing method was used for key sealing
+func StampSealedKeys(rootdir string, content SealingMethod) error {
+	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
+		return fmt.Errorf("cannot create device fde state directory: %v", err)
+	}
+
+	if err := osutil.AtomicWriteFile(stamp, []byte(content), 0644, 0); err != nil {
+		return fmt.Errorf("cannot create fde sealed keys stamp file: %v", err)
+	}
+	return nil
+}
+
+// SealedKeysMethod return whether any keys were sealed at all
+func SealedKeysMethod(rootdir string) (sm SealingMethod, err error) {
+	// TODO:UC20: consider more than the marker for cases where we reseal
+	// outside of run mode
+	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	content, err := ioutil.ReadFile(stamp)
+	if os.IsNotExist(err) {
+		return sm, ErrNoSealedKeys
+	}
+	return SealingMethod(content), err
 }
