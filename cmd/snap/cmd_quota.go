@@ -184,12 +184,12 @@ func parseJournalRateQuota(journalRateLimit string) (count int, period time.Dura
 
 	count, err = strconv.Atoi(parts[0])
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, fmt.Errorf("cannot parse message count: %v", err)
 	}
 
 	period, err = time.ParseDuration(parts[1])
 	if err != nil {
-		return 0, 0, fmt.Errorf("cannot parse pariod: %v", err)
+		return 0, 0, fmt.Errorf("cannot parse period: %v", err)
 	}
 	return count, period, nil
 }

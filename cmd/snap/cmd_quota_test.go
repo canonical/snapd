@@ -237,8 +237,8 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 		{threadsMax: "xxx", err: `cannot use threads value "xxx"`},
 		{threadsMax: "-3", err: `cannot use threads value "-3"`},
 		{journalRateLimit: "0", err: `cannot parse journal rate limit "0": rate limit must be of the form <number of messages>/<period duration>`},
-		{journalRateLimit: "x/5m", err: `cannot parse journal rate limit "x/5m": strconv.Atoi: parsing "x": invalid syntax`},
-		{journalRateLimit: "1/wow", err: `cannot parse journal rate limit "1/wow": cannot parse pariod: time: invalid duration ["]?wow["]?`},
+		{journalRateLimit: "x/5m", err: `cannot parse journal rate limit "x/5m": cannot parse message count: strconv.Atoi: parsing "x": invalid syntax`},
+		{journalRateLimit: "1/wow", err: `cannot parse journal rate limit "1/wow": cannot parse period: time: invalid duration ["]?wow["]?`},
 	} {
 		quotas, err := main.ParseQuotaValues(testData.maxMemory, testData.cpuMax,
 			testData.cpuSet, testData.threadsMax, testData.journalSizeMax, testData.journalRateLimit)
