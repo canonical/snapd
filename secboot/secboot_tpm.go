@@ -37,8 +37,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/efi"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
@@ -635,29 +633,6 @@ func ReleasePCRResourceHandles(handles ...uint32) error {
 	if errCnt := len(errs); errCnt != 0 {
 		return fmt.Errorf("cannot release TPM resources for %v handles:\n%v", errCnt, strings.Join(errs, "\n"))
 	}
-	return nil
-}
-
-// MarkSuccessful marks the secure boot parts of the boot as
-// successful.
-//
-//This means that the dictionary attack (DA) lockout counter is reset.
-func MarkSuccessful() error {
-	encrypted := device.HasEncryptedMarkerUnder(dirs.SnapFDEDir)
-	if encrypted {
-		lockoutAuthFile := device.TpmLockoutAuthUnder(dirs.SnapFDEDirUnderSave(dirs.SnapSaveDir))
-		// each unclean shtutdown will increase the DA lockout
-		// counter. So on a successful boot we need to clear
-		// this counter to avoid eventually hitting the
-		// snapcore/secboot:tpm2/provisioning.go limit of
-		// maxTries=32. Note that on a clean shtudown linux
-		// will call TPM2_Shutdown which ensure no DA lockout
-		// is increased.
-		if err := resetLockoutCounter(lockoutAuthFile); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 

@@ -57,6 +57,6 @@ func ReleasePCRResourceHandles(handles ...uint32) error {
 	return errBuildWithoutSecboot
 }
 
-func MarkSuccessful() error {
+func resetLockoutCounter(lockoutAuthFile string) error {
 	return errBuildWithoutSecboot
 }
