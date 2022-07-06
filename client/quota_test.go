@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -54,6 +55,11 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 			CPUs: []int{0},
 		},
 		Threads: 32,
+		Journal: &client.QuotaJournalValues{
+			Size:       quantity.SizeMiB,
+			RateCount:  150,
+			RatePeriod: time.Minute,
+		},
 	}
 
 	chgID, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a", "snap-b"}, quotaValues)
@@ -81,6 +87,11 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 				"cpus": []interface{}{json.Number("0")},
 			},
 			"threads": json.Number("32"),
+			"journal": map[string]interface{}{
+				"size":        json.Number("1048576"),
+				"rate-count":  json.Number("150"),
+				"rate-period": json.Number("60000000000"),
+			},
 		},
 	})
 }
