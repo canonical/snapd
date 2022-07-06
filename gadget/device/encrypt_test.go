@@ -20,6 +20,7 @@
 package device_test
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -40,7 +41,7 @@ type deviceSuite struct{}
 
 var _ = Suite(&deviceSuite{})
 
-func (s *deviceSuite) TestEncryptionMarkers(c *C) {
+func (s *deviceSuite) TestEncryptionMarkersRunThrough(c *C) {
 	d := c.MkDir()
 	c.Check(device.HasEncryptedMarkerUnder(d), Equals, false)
 
@@ -51,15 +52,42 @@ func (s *deviceSuite) TestEncryptionMarkers(c *C) {
 	c.Check(device.HasEncryptedMarkerUnder(filepath.Join(d, boot.InstallHostFDEDataDir)), Equals, false)
 	c.Check(device.HasEncryptedMarkerUnder(filepath.Join(d, boot.InstallHostFDESaveDir)), Equals, false)
 
-	err := device.WriteEncryptionMarkers(filepath.Join(d, boot.InstallHostFDEDataDir),
-		filepath.Join(d, boot.InstallHostFDESaveDir), []byte("foo"))
+	err := device.WriteEncryptionMarkers(filepath.Join(d, boot.InstallHostFDEDataDir), filepath.Join(d, boot.InstallHostFDESaveDir), []byte("foo"))
 	c.Assert(err, IsNil)
 	// both markers were written
 	c.Check(filepath.Join(d, boot.InstallHostFDEDataDir, "marker"), testutil.FileEquals, "foo")
 	c.Check(filepath.Join(d, boot.InstallHostFDESaveDir, "marker"), testutil.FileEquals, "foo")
-
+	// and can be read with device.ReadEncryptionMarkers
+	m1, m2, err := device.ReadEncryptionMarkers(filepath.Join(d, boot.InstallHostFDEDataDir), filepath.Join(d, boot.InstallHostFDESaveDir))
+	c.Assert(err, IsNil)
+	c.Check(m1, DeepEquals, []byte("foo"))
+	c.Check(m2, DeepEquals, []byte("foo"))
+	// and are found via HasEncryptedMarkerUnder()
 	c.Check(device.HasEncryptedMarkerUnder(filepath.Join(d, boot.InstallHostFDEDataDir)), Equals, true)
 	c.Check(device.HasEncryptedMarkerUnder(filepath.Join(d, boot.InstallHostFDESaveDir)), Equals, true)
+}
+
+func (s *deviceSuite) TestReadEncryptionMarkers(c *C) {
+	tmpdir := c.MkDir()
+
+	// simulate two different markers in "ubuntu-data" and "ubuntu-save"
+	p1 := filepath.Join(tmpdir, boot.InstallHostFDEDataDir, "marker")
+	err := os.MkdirAll(filepath.Dir(p1), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(p1, []byte("marker-p1"), 0600)
+	c.Assert(err, IsNil)
+
+	p2 := filepath.Join(tmpdir, boot.InstallHostFDESaveDir, "marker")
+	err = os.MkdirAll(filepath.Dir(p2), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(p2, []byte("marker-p2"), 0600)
+	c.Assert(err, IsNil)
+
+	// reading them returns the two different values
+	m1, m2, err := device.ReadEncryptionMarkers(filepath.Join(tmpdir, boot.InstallHostFDEDataDir), filepath.Join(tmpdir, boot.InstallHostFDESaveDir))
+	c.Assert(err, IsNil)
+	c.Check(m1, DeepEquals, []byte("marker-p1"))
+	c.Check(m2, DeepEquals, []byte("marker-p2"))
 }
 
 func (s *deviceSuite) TestLocations(c *C) {
@@ -73,14 +101,7 @@ func (s *deviceSuite) TestLocations(c *C) {
 		"/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key")
 	c.Check(device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir), Equals,
 		"/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset")
-	c.Check(device.EncryptionMarkerUnder(dirs.SnapFDEDir), Equals,
-		"/var/lib/snapd/device/fde/marker")
-	c.Check(device.EncryptionMarkerUnder(dirs.SnapDeviceSaveDir+"/fde"), Equals,
-		"/var/lib/snapd/save/device/fde/marker")
-	c.Check(device.EncryptionMarkerUnder(boot.InstallHostFDEDataDir), Equals,
-		"/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/marker")
-	c.Check(device.EncryptionMarkerUnder(boot.InstallHostFDESaveDir), Equals,
-		"/run/mnt/ubuntu-save/device/fde/marker")
+
 	c.Check(device.TpmLockoutAuthUnder(dirs.SnapFDEDirUnderSave(dirs.SnapSaveDir)), Equals,
 		"/var/lib/snapd/save/device/fde/tpm-lockout-auth")
 }

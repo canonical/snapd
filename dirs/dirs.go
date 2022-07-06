@@ -125,6 +125,8 @@ var (
 	XdgRuntimeDirGlob string
 
 	CompletionHelperInCore string
+	BashCompletionScript   string
+	LegacyCompletersDir    string
 	CompletersDir          string
 
 	SystemFontsDir            string
@@ -475,7 +477,9 @@ func SetRootDir(rootdir string) {
 	XdgRuntimeDirGlob = filepath.Join(XdgRuntimeDirBase, "*/")
 
 	CompletionHelperInCore = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
-	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
+	BashCompletionScript = filepath.Join(rootdir, "/usr/share/bash-completion/bash_completion")
+	LegacyCompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
+	CompletersDir = filepath.Join(rootdir, snappyDir, "desktop/bash-completion/completions/")
 
 	// These paths agree across all supported distros
 	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")

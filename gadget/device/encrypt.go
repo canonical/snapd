@@ -20,65 +20,80 @@
 package device
 
 import (
+	"io/ioutil"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
 )
 
-// EncryptionMarkerUnder returns the name of the encrypted system marker under a
+// encryptionMarkerUnder returns the path of the encrypted system marker under a
 // given directory.
-func EncryptionMarkerUnder(deviceFDEDir string) string {
+func encryptionMarkerUnder(deviceFDEDir string) string {
 	return filepath.Join(deviceFDEDir, "marker")
 }
 
 // HasEncryptedMarkerUnder returns true when there is an encryption marker in a
 // given directory.
 func HasEncryptedMarkerUnder(deviceFDEDir string) bool {
-	return osutil.FileExists(EncryptionMarkerUnder(deviceFDEDir))
+	return osutil.FileExists(encryptionMarkerUnder(deviceFDEDir))
+}
+
+// ReadEncryptionMarkers reads the encryption marker files at the appropriate
+// locations.
+func ReadEncryptionMarkers(dataFDEDir, saveFDEDir string) ([]byte, []byte, error) {
+	marker1, err := ioutil.ReadFile(encryptionMarkerUnder(dataFDEDir))
+	if err != nil {
+		return nil, nil, err
+	}
+	marker2, err := ioutil.ReadFile(encryptionMarkerUnder(saveFDEDir))
+	if err != nil {
+		return nil, nil, err
+	}
+	return marker1, marker2, nil
 }
 
 // WriteEncryptionMarkers writes the encryption marker files at the appropriate
 // locations.
 func WriteEncryptionMarkers(dataFDEDir, saveFDEDir string, markerSecret []byte) error {
-	err := osutil.AtomicWriteFile(EncryptionMarkerUnder(dataFDEDir), markerSecret, 0600, 0)
+	err := osutil.AtomicWriteFile(encryptionMarkerUnder(dataFDEDir), markerSecret, 0600, 0)
 	if err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(EncryptionMarkerUnder(saveFDEDir), markerSecret, 0600, 0)
+	return osutil.AtomicWriteFile(encryptionMarkerUnder(saveFDEDir), markerSecret, 0600, 0)
 }
 
-// DataSealedKeyUnder returns the name of the sealed key for ubuntu-data.
+// DataSealedKeyUnder returns the path of the sealed key for ubuntu-data.
 func DataSealedKeyUnder(deviceFDEDir string) string {
 	return filepath.Join(deviceFDEDir, "ubuntu-data.sealed-key")
 }
 
-// SaveKeyUnder returns the name of a plain encryption key for ubuntu-save.
+// SaveKeyUnder returns the path of a plain encryption key for ubuntu-save.
 func SaveKeyUnder(deviceFDEDir string) string {
 	return filepath.Join(deviceFDEDir, "ubuntu-save.key")
 }
 
-// RecoveryKeyUnder returns the name of the recovery key.
+// RecoveryKeyUnder returns the path of the recovery key.
 func RecoveryKeyUnder(deviceFDEDir string) string {
 	return filepath.Join(deviceFDEDir, "recovery.key")
+}
+
+// FallbackDataSealedKeyUnder returns the path of a fallback ubuntu data key.
+func FallbackDataSealedKeyUnder(seedDeviceFDEDir string) string {
+	return filepath.Join(seedDeviceFDEDir, "ubuntu-data.recovery.sealed-key")
+}
+
+// FallbackSaveSealedKeyUnder returns the path of a fallback ubuntu save key.
+func FallbackSaveSealedKeyUnder(seedDeviceFDEDir string) string {
+	return filepath.Join(seedDeviceFDEDir, "ubuntu-save.recovery.sealed-key")
+}
+
+// FactoryResetFallbackSaveSealedKeyUnder returns the path of a fallback ubuntu
+// save key object generated during factory reset.
+func FactoryResetFallbackSaveSealedKeyUnder(seedDeviceFDEDir string) string {
+	return filepath.Join(seedDeviceFDEDir, "ubuntu-save.recovery.sealed-key.factory-reset")
 }
 
 // TpmLockoutAuthUnder return the path of the tpm lockout authority key.
 func TpmLockoutAuthUnder(saveDeviceFDEDir string) string {
 	return filepath.Join(saveDeviceFDEDir, "tpm-lockout-auth")
-}
-
-// FallbackDataSealedKeyUnder returns the name of a fallback ubuntu data key.
-func FallbackDataSealedKeyUnder(seedDeviceFDEDir string) string {
-	return filepath.Join(seedDeviceFDEDir, "ubuntu-data.recovery.sealed-key")
-}
-
-// FallbackSaveSealedKeyUnder returns the name of a fallback ubuntu save key.
-func FallbackSaveSealedKeyUnder(seedDeviceFDEDir string) string {
-	return filepath.Join(seedDeviceFDEDir, "ubuntu-save.recovery.sealed-key")
-}
-
-// FactoryResetFallbackSaveSealedKeyUnder returns the name of a fallback ubuntu
-// save key object generated during factory reset.
-func FactoryResetFallbackSaveSealedKeyUnder(seedDeviceFDEDir string) string {
-	return filepath.Join(seedDeviceFDEDir, "ubuntu-save.recovery.sealed-key.factory-reset")
 }

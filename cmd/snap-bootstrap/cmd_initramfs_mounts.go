@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -860,7 +861,7 @@ func (m *recoverModeStateMachine) mountBoot() (stateFunc, error) {
 // - failed to find data at all -> try to unlock save
 // - unlocked data with run key -> mount data
 func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
-	runModeKey := filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key")
+	runModeKey := device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir)
 	unlockOpts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 		// don't allow using the recovery key to unlock, we only try using the
 		// recovery key after we first try the fallback object
@@ -911,7 +912,7 @@ func (m *recoverModeStateMachine) unlockDataFallbackKey() (stateFunc, error) {
 	// TODO: we should somehow customize the prompt to mention what key we need
 	// the user to enter, and what we are unlocking (as currently the prompt
 	// says "recovery key" and the partition UUID for what is being unlocked)
-	dataFallbackKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key")
+	dataFallbackKey := device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
 	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.disk, "ubuntu-data", dataFallbackKey, unlockOpts)
 	if err := m.setUnlockStateWithFallbackKey("ubuntu-data", unlockRes, unlockErr); err != nil {
 		return nil, err
@@ -960,7 +961,7 @@ func (m *recoverModeStateMachine) mountData() (stateFunc, error) {
 func (m *recoverModeStateMachine) unlockEncryptedSaveRunKey() (stateFunc, error) {
 	// to get to this state, we needed to have mounted ubuntu-data on host, so
 	// if encrypted, we can try to read the run key from host ubuntu-data
-	saveKey := filepath.Join(dirs.SnapFDEDirUnder(boot.InitramfsHostWritableDir), "ubuntu-save.key")
+	saveKey := device.SaveKeyUnder(dirs.SnapFDEDirUnder(boot.InitramfsHostWritableDir))
 	key, err := ioutil.ReadFile(saveKey)
 	if err != nil {
 		// log the error and skip to trying the fallback key
@@ -1041,7 +1042,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveFallbackKey() (stateFunc, e
 		AllowRecoveryKey: true,
 		WhichModel:       m.whichModel,
 	}
-	saveFallbackKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
+	saveFallbackKey := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
 	// TODO: this prompts again for a recover key, but really this is the
 	// reinstall key we will prompt for
 	// TODO: we should somehow customize the prompt to mention what key we need
@@ -1282,15 +1283,7 @@ func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 // checkDataAndSavePairing make sure that ubuntu-data and ubuntu-save
 // come from the same install by comparing secret markers in them
 func checkDataAndSavePairing(rootdir string) (bool, error) {
-	// read the secret marker file from ubuntu-data
-	markerFile1 := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "marker")
-	marker1, err := ioutil.ReadFile(markerFile1)
-	if err != nil {
-		return false, err
-	}
-	// read the secret marker file from ubuntu-save
-	markerFile2 := filepath.Join(dirs.SnapFDEDirUnderSave(boot.InitramfsUbuntuSaveDir), "marker")
-	marker2, err := ioutil.ReadFile(markerFile2)
+	marker1, marker2, err := device.ReadEncryptionMarkers(dirs.SnapFDEDirUnder(rootdir), dirs.SnapFDEDirUnderSave(boot.InitramfsUbuntuSaveDir))
 	if err != nil {
 		return false, err
 	}
@@ -1457,7 +1450,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, err error) {
 	var saveDevice string
 	if encrypted {
-		saveKey := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "ubuntu-save.key")
+		saveKey := device.SaveKeyUnder(dirs.SnapFDEDirUnder(rootdir))
 		// if ubuntu-save exists and is encrypted, the key has been created during install
 		if !osutil.FileExists(saveKey) {
 			// ubuntu-data is encrypted, but we appear to be missing
@@ -1546,7 +1539,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// and we continue booting only for expected models
 
 	// 3.2. mount Data
-	runModeKey := filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key")
+	runModeKey := device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir)
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 		AllowRecoveryKey: true,
 		WhichModel:       mst.UnverifiedBootModel,

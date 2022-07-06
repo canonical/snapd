@@ -1061,6 +1061,11 @@ func (app *AppInfo) CompleterPath() string {
 	return filepath.Join(dirs.CompletersDir, JoinSnapApp(app.Snap.InstanceName(), app.Name))
 }
 
+// CompleterPath returns the legacy path to the completer snippet for the app binary.
+func (app *AppInfo) LegacyCompleterPath() string {
+	return filepath.Join(dirs.LegacyCompletersDir, JoinSnapApp(app.Snap.InstanceName(), app.Name))
+}
+
 func (app *AppInfo) launcherCommand(command string) string {
 	if command != "" {
 		command = " " + command
