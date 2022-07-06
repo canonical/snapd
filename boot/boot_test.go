@@ -4227,7 +4227,7 @@ func (s *bootenv20RebootBootloaderSuite) TestCoreParticipant20WithRebootBootload
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename(), s.kern2.Filename()})
 }
 
-func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapSame(c *C) {
+func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSame(c *C) {
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -4270,7 +4270,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapSame(c *C) {
 	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
 }
 
-func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextSameKernelSnapSame(c *C) {
+func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20UndoKernelSnapInstallSame(c *C) {
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
