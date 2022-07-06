@@ -390,6 +390,9 @@ func prepareCore20Chroot(prepareImageDir, aaFeaturesDir string) (preseed *presee
 		if err := os.RemoveAll(writableTmpDir); err != nil {
 			fmt.Fprintf(Stdout, "%v", err)
 		}
+		if err := os.RemoveAll(snapdMountPath); err != nil {
+			fmt.Fprintf(Stdout, "%v", err)
+		}
 	}
 
 	opts := &preseedOpts{
