@@ -1160,7 +1160,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"quota-group": i18n.G("Put the snap into a quota group after install"),
+			"quota-group": i18n.G("Add the snap to a quota group on install"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
