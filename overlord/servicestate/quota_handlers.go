@@ -179,8 +179,7 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func addRefreshProfileTasks(st *state.State, queueTask func(task *state.Task), servicesAffected map[*snap.Info][]*snap.AppInfo) *state.TaskSet {
-	ts := state.NewTaskSet()
+func addRefreshProfileTasks(st *state.State, queueTask func(task *state.Task), servicesAffected map[*snap.Info][]*snap.AppInfo) {
 	for info := range servicesAffected {
 		setupProfilesTask := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Update snap %q (%s) security profiles"), info.SnapName(), info.Revision))
 		setupProfilesTask.Set("snap-setup", &snapstate.SnapSetup{
@@ -191,7 +190,6 @@ func addRefreshProfileTasks(st *state.State, queueTask func(task *state.Task), s
 		})
 		queueTask(setupProfilesTask)
 	}
-	return ts
 }
 
 func addRestartServicesTasks(st *state.State, queueTask func(task *state.Task), grpName string, servicesAffected map[*snap.Info][]*snap.AppInfo) {
@@ -258,8 +256,20 @@ func (m *ServiceManager) doAddSnapToQuota(t *state.Task, _ *tomb.Tomb) error {
 	opts := &ensureSnapServicesForGroupOptions{
 		allGrps: allGrps,
 	}
-	if _, err := ensureSnapServicesForGroup(st, t, grp, opts); err != nil {
+
+	servicesAffected, err := ensureSnapServicesForGroup(st, t, grp, opts)
+	if err != nil {
 		return err
+	}
+
+	// ensure that if any services are affected, they get their profiles
+	// refreshed immediately as a part of the install change.
+	if len(servicesAffected) > 0 && grp.JournalLimit != nil {
+		ts := state.NewTaskSet()
+		addRefreshProfileTasks(st, func(task *state.Task) {
+			ts.AddTask(task)
+		}, servicesAffected)
+		snapstate.InjectTasks(t, ts)
 	}
 	return nil
 }

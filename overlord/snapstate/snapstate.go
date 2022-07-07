@@ -485,17 +485,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = copyData
 	}
 
-	// Add a quota control task before we refresh profiles as this might
-	// impact how security is done for the snap
-	if snapsup.QuotaGroupName != "" {
-		quotaControlTask := st.NewTask("quota-on-install", fmt.Sprintf(i18n.G("Adding snap %q%s to quota group %q"),
-			snapsup.InstanceName(), revisionStr, snapsup.QuotaGroupName))
-		quotaControlTask.Set("quota-on-install-snapnames", []string{snapsup.InstanceName()})
-		quotaControlTask.Set("quota-on-install-quotaname", snapsup.QuotaGroupName)
-		addTask(quotaControlTask)
-		prev = quotaControlTask
-	}
-
 	// security
 	setupSecurity := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q%s security profiles"), snapsup.InstanceName(), revisionStr))
 	addTask(setupSecurity)
@@ -540,6 +529,20 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		installHook = SetupInstallHook(st, snapsup.InstanceName())
 		addTask(installHook)
 		prev = installHook
+	}
+
+	if snapsup.QuotaGroupName != "" {
+		// This could result in doing 'setup-profiles' twice, but
+		// unfortunately we can't execute this code earlier as the snap
+		// needs to appear as installed first.
+		// XXX: Could we maybe move 'setup-profiles' to after this somehow? Or
+		// maybe just accept this could incur 'setup-profiles' twice?
+		quotaControlTask := st.NewTask("quota-on-install", fmt.Sprintf(i18n.G("Adding snap %q%s to quota group %q"),
+			snapsup.InstanceName(), revisionStr, snapsup.QuotaGroupName))
+		quotaControlTask.Set("quota-on-install-snapnames", []string{snapsup.InstanceName()})
+		quotaControlTask.Set("quota-on-install-quotaname", snapsup.QuotaGroupName)
+		addTask(quotaControlTask)
+		prev = quotaControlTask
 	}
 
 	// run new services
