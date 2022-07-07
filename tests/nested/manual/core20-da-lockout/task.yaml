@@ -31,6 +31,6 @@ execute: |
     tests.nested wait-for reboot "${boot_id}"
     tests.nested wait-for snap-command
 
-    # and is still zero after a unclean shutdown
-    tests.nested exec sudo ./getdalockout | MATCH "lockout counter value: 0"
-
+    # and is still zero after a unclean shutdown, it will happen in
+    # secboot.MarkSuccessful so there is a race
+    retry -n 10 --wait 2 sh -c 'tests.nested exec sudo ./getdalockout | MATCH "lockout counter value: 0"'
