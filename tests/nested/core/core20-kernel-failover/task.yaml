@@ -46,7 +46,6 @@ prepare: |
   mv pc-kernel_*.snap panicking-initramfs-kernel.snap
 
 execute: |
-  set -x
   echo "Copy the broken initramfs kernel snap to the UC20 VM"
   tests.nested copy panicking-initramfs-kernel.snap
 
@@ -69,9 +68,7 @@ execute: |
   echo "Install it and get the ID for the change"
   REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous panicking-initramfs-kernel.snap --no-wait)
   if [ "$PROBLEM_TYPE" = "nolink" ]; then
-      while ! tests.nested exec sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi
-      do sleep 1
-      done
+      tests.nested exec "retry --wait 1 -n 50 sh -c 'sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi'"
   fi
 
   # wait for a reboot. Note that failure is immediate for kernel.efi
