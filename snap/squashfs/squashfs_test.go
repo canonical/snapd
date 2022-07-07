@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -311,6 +312,13 @@ func (s *SquashfsTestSuite) TestReadFile(c *C) {
 	content, err := sn.ReadFile("meta/snap.yaml")
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "name: foo")
+}
+
+func (s *SquashfsTestSuite) TestReadFileMissingFile(c *C) {
+	sn := makeSnap(c, "name: foo", "")
+
+	_, err := sn.ReadFile("meta/other.yaml")
+	c.Check(err, NotNil)
 }
 
 func (s *SquashfsTestSuite) TestReadFileFail(c *C) {
@@ -961,4 +969,135 @@ func (s *SquashfsTestSuite) TestBuildWithCompressionUnhappy(c *C) {
 		Compression: "silly",
 	})
 	c.Assert(err, ErrorMatches, "(?m)^mksquashfs call failed: ")
+}
+
+func (s *SquashfsTestSuite) TestSaferReadFileNotRelative(c *C) {
+	sn := makeSnap(c, "name: foo", "")
+
+	_, err := sn.SaferReadFile("/meta/other.yaml")
+	c.Check(err, ErrorMatches, "internal error: SaferReadFile expects a relative path")
+}
+
+func (s *SquashfsTestSuite) TestSaferReadFileTooOldSystemd(c *C) {
+	defer squashfs.MockSystemdVersion(235)()
+	sn := makeSnap(c, "name: foo", "")
+
+	_, err := sn.SaferReadFile("meta/other.yaml")
+	c.Check(err, Equals, snap.ErrUnsupportedContainerFeature)
+}
+
+func (s *SquashfsTestSuite) oldSysdSkip(c *C) {
+	sdVer, err := systemd.Version()
+	if err != nil || sdVer < 236 {
+		c.Skip("systemd too old (<236) or missing")
+	}
+}
+
+func (s *SquashfsTestSuite) TestSaferReadFile(c *C) {
+	s.oldSysdSkip(c)
+	sn := makeSnap(c, "name: foo", "")
+
+	content, err := sn.SaferReadFile("meta/snap.yaml")
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "name: foo")
+}
+
+func (s *SquashfsTestSuite) TestSaferReadFileMissingFile(c *C) {
+	s.oldSysdSkip(c)
+	sn := makeSnap(c, "name: foo", "")
+
+	_, err := sn.SaferReadFile("meta/other.yaml")
+	c.Check(err, NotNil)
+}
+
+func (s *SquashfsTestSuite) TestSaferReadFileFail(c *C) {
+	s.oldSysdSkip(c)
+	mockUnsquashfs := testutil.MockCommand(c, "unsquashfs", `echo boom; exit 1`)
+	defer mockUnsquashfs.Restore()
+
+	sn := makeSnap(c, "name: foo", "")
+	_, err := sn.SaferReadFile("meta/snap.yaml")
+	c.Assert(err, ErrorMatches, "cannot run unsquashfs: boom")
+}
+
+var expectedSandboxParams = []string{
+	"--property=KeyringMode=private",
+	"--property=PrivateTmp=true",
+	"--property=CapabilityBoundingSet=CAP_DAC_OVERRIDE",
+	"--property=AmbientCapabilities=CAP_DAC_OVERRIDE",
+	"--property=NoNewPrivileges=true",
+	"--property=SecureBits=",
+	"--property=ProtectSystem=strict",
+	"--property=ProtectHome=true",
+	"--property=ProtectKernelTunables=true",
+	"--property=ProtectControlGroups=true",
+	"--property=ProtectKernelModules=true",
+	"--property=PrivateDevices=true",
+	"--property=MemoryDenyWriteExecute=true",
+	"--property=RestrictSUIDSGID=true",
+	"--property=SystemCallFilter=@default @basic-io @signal @file-system @chown @process mprotect",
+	"--property=SystemCallErrorNumber=EPERM",
+	"--property=MemoryMax=8M",
+	"--service-type=exec",
+	"--property=ProtectHostname=true",
+	"--property=ProtectKernelLogs=true",
+	"--property=ProtectClock=true",
+}
+
+func (s *SquashfsTestSuite) TestSaferReadFileInvocation(c *C) {
+	defer squashfs.MockSysGeteuid(0)()
+	defer squashfs.MockSystemdVersion(245)()
+
+	mockSystemdRun := testutil.MockCommand(c, "systemd-run", `#!/bin/sh
+d=$(echo "$*"|python3 -c 'import re,sys; print(re.search("=BindPaths=([^:]*):",sys.stdin.read()).group(1))')
+# make the caller ioutil.ReadFile not error and expose the temp directory
+mkdir -p "$d"/unpack/meta
+echo -n "$d" > "$d"/unpack/meta/snap.yaml
+`)
+	defer mockSystemdRun.Restore()
+
+	sn := makeSnap(c, "name: foo", "")
+	b, err := sn.SaferReadFile("meta/snap.yaml")
+	c.Assert(err, IsNil)
+	tmpDir := string(b)
+
+	c.Assert(mockSystemdRun.Calls(), HasLen, 1)
+	invo := mockSystemdRun.Calls()[0]
+	c.Check(invo, DeepEquals, append(append([]string{
+		"systemd-run",
+		"--quiet",
+		"--pipe",
+		"--wait",
+		"--collect",
+		"--system",
+	}, expectedSandboxParams...), []string{
+		fmt.Sprintf("--property=BindReadOnlyPaths=%s:/tmp/snap", sn.Path()),
+		fmt.Sprintf("--property=BindPaths=%s:/tmp/read-file", tmpDir),
+		"unsquashfs", "-n",
+		"-d", "/tmp/read-file/unpack",
+		"/tmp/snap", "meta/snap.yaml",
+	}...))
+}
+
+func (s *SquashfsTestSuite) TestSaferReadFileSandboxLevels(c *C) {
+	defer squashfs.MockSysGeteuid(0)()
+
+	expected := append([]string{"--system"}, expectedSandboxParams...)
+	n := len(expected)
+
+	sandboxParams := func(sdVer int) []string {
+		params, sandboxing := squashfs.SandboxParams(sdVer)
+		c.Assert(sandboxing, Equals, true)
+		return params
+	}
+
+	c.Check(sandboxParams(236), DeepEquals, expected[:n-4])
+	c.Check(sandboxParams(239), DeepEquals, expected[:n-4])
+	c.Check(sandboxParams(240), DeepEquals, expected[:n-3])
+	c.Check(sandboxParams(241), DeepEquals, expected[:n-3])
+	c.Check(sandboxParams(242), DeepEquals, expected[:n-2])
+	c.Check(sandboxParams(243), DeepEquals, expected[:n-2])
+	c.Check(sandboxParams(244), DeepEquals, expected[:n-1])
+	c.Check(sandboxParams(245), DeepEquals, expected)
+	c.Check(sandboxParams(246), DeepEquals, expected)
 }

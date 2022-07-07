@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,10 +37,12 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/internal"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 const (
@@ -271,6 +273,136 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 		return nil, err
 	}
 	return content, nil
+}
+
+var sdVer int
+
+func init() {
+	// this also avoids calling systemctl all the time which perturbs
+	// some unrelated tests
+	v, err := systemd.Version()
+	if err != nil {
+		v = 0
+	}
+	sdVer = v
+}
+
+var (
+	sysGeteuid   = sys.Geteuid
+	underTesting = osutil.IsTestBinary()
+)
+
+func sandboxParams(sdVer int) (params []string, sandboxing bool) {
+	if sysGeteuid() != 0 {
+		params := []string{
+			"--user",
+		}
+		if underTesting {
+			// needed for command mocking to work
+			params = append(params, []string{
+				"-E",
+				fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
+			}...)
+		}
+		return params, false
+	}
+	// effetive user is 0, use systemd-run to sandbox unsquashfs
+	params = []string{
+		"--system",
+		"--property=KeyringMode=private",
+		"--property=PrivateTmp=true",
+		// xxx CAP_DAC_OVERRIDE is mainly possibly needed for
+		// prepare-image run under sudo
+		"--property=CapabilityBoundingSet=CAP_DAC_OVERRIDE",
+		"--property=AmbientCapabilities=CAP_DAC_OVERRIDE",
+		"--property=NoNewPrivileges=true",
+		"--property=SecureBits=",
+		"--property=ProtectSystem=strict",
+		"--property=ProtectHome=true",
+		"--property=ProtectKernelTunables=true",
+		"--property=ProtectControlGroups=true",
+		"--property=ProtectKernelModules=true",
+		"--property=PrivateDevices=true",
+		"--property=MemoryDenyWriteExecute=true",
+		"--property=RestrictSUIDSGID=true",
+		"--property=SystemCallFilter=@default @basic-io @signal @file-system @chown @process mprotect",
+		"--property=SystemCallErrorNumber=EPERM",
+		"--property=MemoryMax=8M",
+	}
+
+	// see https://github.com/systemd/systemd/blob/main/NEWS
+
+	if sdVer >= 240 {
+		params = append(params, "--service-type=exec")
+	}
+	if sdVer >= 242 {
+		params = append(params, "--property=ProtectHostname=true")
+	}
+	if sdVer >= 244 {
+		params = append(params, "--property=ProtectKernelLogs=true")
+	}
+	if sdVer >= 245 {
+		params = append(params, "--property=ProtectClock=true")
+	}
+
+	return params, true
+}
+
+// SaferReadFile returns the content of a single file inside a squashfs snap, but it does invoking unsquashfs under a sandbox to handle not yet verified snap files, there is a limit below 8M on the content size.
+func (s *Snap) SaferReadFile(filePath string) (content []byte, err error) {
+	filePath = filepath.Clean(filePath)
+	if filepath.IsAbs(filePath) {
+		return nil, fmt.Errorf("internal error: SaferReadFile expects a relative path")
+	}
+
+	// systemd-run --collect etc require 236
+	// see https://github.com/systemd/systemd/blob/main/NEWS
+	if sdVer < 236 {
+		return nil, snap.ErrUnsupportedContainerFeature
+	}
+	runParams, sandboxing := sandboxParams(sdVer)
+
+	tmpdir, err := ioutil.TempDir("", "read-file")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(tmpdir)
+	resDir := filepath.Join(tmpdir, "unpack")
+
+	snapPath := "/tmp/snap"
+	unpackDir := "/tmp/read-file/unpack"
+	if !sandboxing {
+		snapPath = s.path
+		unpackDir = resDir
+	} else {
+		// bind mount snap for access, this allows to use
+		// PrivateTmp even the snap itself is under /tmp
+		runParams = append(runParams, []string{
+			fmt.Sprintf("--property=BindReadOnlyPaths=%s:/tmp/snap", s.path),
+			fmt.Sprintf("--property=BindPaths=%s:/tmp/read-file", tmpdir),
+		}...)
+	}
+
+	unsquash := []string{
+		"unsquashfs", "-n",
+		"-d", unpackDir,
+		snapPath, filePath,
+	}
+	sysdRun := []string{
+		"systemd-run",
+		"--quiet",
+		"--pipe",
+		"--wait",
+		"--collect",
+	}
+	invocation := append(sysdRun, runParams...)
+	invocation = append(invocation, unsquash...)
+	cmd := exec.Command(invocation[0], invocation[1:]...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("cannot run unsquashfs: %v", osutil.OutputErr(output, err))
+	}
+
+	return ioutil.ReadFile(filepath.Join(resDir, filePath))
 }
 
 // skipper is used to track directories that should be skipped

@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 var (
@@ -88,3 +90,25 @@ func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
 		isRootWritableOverlay = old
 	}
 }
+
+func MockSystemdVersion(v int) (restore func()) {
+	oldVer := sdVer
+	sdVer = v
+	return func() {
+		sdVer = oldVer
+	}
+}
+
+func MockSysGeteuid(uid sys.UserID) (restore func()) {
+	oldSysGeteuid := sysGeteuid
+	sysGeteuid = func() sys.UserID {
+		return uid
+	}
+	return func() {
+		sysGeteuid = oldSysGeteuid
+	}
+}
+
+var (
+	SandboxParams = sandboxParams
+)

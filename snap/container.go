@@ -58,6 +58,10 @@ type Container interface {
 	Unpack(src, dst string) error
 }
 
+// ErrUnsupportedContainerFeature signals a feature that is not supported
+// by a snap container implementation on this system.
+var ErrUnsupportedContainerFeature = errors.New("unsupported snap container feature")
+
 // InstallOptions is for customizing the behavior of Install() from a higher
 // level function, i.e. from overlord customizing how a snap file is installed
 // on a system with tmpfs mounted as writable or with full disk encryption and

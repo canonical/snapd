@@ -1485,12 +1485,25 @@ func (a AppInfoBySnapApp) Less(i, j int) bool {
 	return iName < jName
 }
 
+type saferFileReader interface {
+	SaferReadFile(rel string) ([]byte, error)
+}
+
 // ReadProvenanceFromSnapFile reads the provenance field form the given Container metadata.
-// It returns the empty string is the field is not set explicitly.
+// It returns the empty string is the field is not set explicitly or
+// the information cannot be read safely.
 func ReadProvenanceFromSnapFile(snapf Container) (string, error) {
-	// XXX use something safer
-	meta, err := snapf.ReadFile("meta/snap.yaml")
+	rd := snapf.ReadFile
+	if sfr, ok := snapf.(saferFileReader); ok {
+		rd = sfr.SaferReadFile
+	}
+	meta, err := rd("meta/snap.yaml")
 	if err != nil {
+		if err == ErrUnsupportedContainerFeature {
+			// XXX this implies some tests will have to be skipped
+			// on older systems
+			return "", nil
+		}
 		return "", err
 	}
 	var m struct {
