@@ -7,5 +7,4 @@ command=$(grep '^Exec=' $desktopfile | sed 's/^Exec=//g')
 echo "$command"
 ls /snap/
 ls /snap/bin
-exec $command
-
+exec "$command"
