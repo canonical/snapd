@@ -38,8 +38,7 @@ execute: |
     snap connect test-launcher:desktop-launch
 
     echo "launch desktop file via the privileged launcher"
-    tests.session -u test exec test-launcher \
-        test-app
+    tests.session -u test exec test-launcher
 
     echo "The app snap records that it has been launched"
     launch_data=~test/snap/test-app/current/launch-data.txt
