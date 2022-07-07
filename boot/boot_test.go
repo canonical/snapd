@@ -764,7 +764,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: false})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -807,7 +807,7 @@ func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextSameKernelSnap(
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: false})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -847,7 +847,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: false})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -960,7 +960,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: false})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -1073,7 +1073,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: false})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -1185,7 +1185,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: false})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -1303,7 +1303,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: false})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -1346,7 +1346,7 @@ func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextNewKernelSnap(c
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: false})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -1534,7 +1534,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
 	c.Assert(bootBase.IsTrivial(), Equals, false)
 
 	// make the base used on next boot
-	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{IsUndoingInstall: false})
+	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
 
 	// we don't need to reboot because it's the same base snap
@@ -1573,7 +1573,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
 	c.Assert(bootBase.IsTrivial(), Equals, false)
 
 	// make the base used on next boot
-	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{IsUndoingInstall: false})
+	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -1667,7 +1667,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnapNoReseal(c *C) {
 	c.Assert(bootBase.IsTrivial(), Equals, false)
 
 	// make the base used on next boot
-	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{IsUndoingInstall: false})
+	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -4207,7 +4207,7 @@ func (s *bootenv20RebootBootloaderSuite) TestCoreParticipant20WithRebootBootload
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: false})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired.RebootRequired, Equals, true)
 	// Test that we retrieve a RebootBootloader interface
@@ -4245,7 +4245,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSame(c *C) {
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: true})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -4288,7 +4288,7 @@ func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20UndoKernelSnapInstallS
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: true})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -4328,7 +4328,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallNew(c *C) {
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot, reverting the installation
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: true})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -4368,7 +4368,7 @@ func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20UndoKernelSnapInstallN
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: true})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -4474,7 +4474,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallNewWithReseal
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: true})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -4581,7 +4581,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallNew
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: true})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -4693,7 +4693,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSameNoReseal(
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: true})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -4811,7 +4811,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallSam
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{IsUndoingInstall: true})
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -4861,7 +4861,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallSame(c *C) {
 	c.Assert(bootBase.IsTrivial(), Equals, false)
 
 	// make the base used on next boot
-	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{IsUndoingInstall: true})
+	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
 	c.Assert(err, IsNil)
 
 	// we don't need to reboot because it's the same base snap
@@ -4900,7 +4900,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallNew(c *C) {
 	c.Assert(bootBase.IsTrivial(), Equals, false)
 
 	// make the base used on next boot, reverting the current one installed
-	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{IsUndoingInstall: true})
+	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
@@ -4994,7 +4994,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallNewNoReseal(c *
 	c.Assert(bootBase.IsTrivial(), Equals, false)
 
 	// make the base used on next boot
-	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{IsUndoingInstall: true})
+	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 

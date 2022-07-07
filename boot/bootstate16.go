@@ -187,7 +187,7 @@ func (s16 *bootState16) setNext(s snap.PlaceInfo, bootCtx NextBootContext) (rbi 
 		snapMode = DefaultStatus
 		nextBoot = ""
 		rbi.RebootRequired = false
-	} else if bootCtx.IsUndoingInstall {
+	} else if bootCtx.BootWithoutTry {
 		toCommit[goodBootVar] = nextBoot
 		snapMode = DefaultStatus
 		nextBoot = ""

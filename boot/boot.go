@@ -53,8 +53,9 @@ type RebootInfo struct {
 // NextBootContext carries additional significative information used when
 // setting the next boot.
 type NextBootContext struct {
-	// IsUndoingInstall specifies if the next boot is part of an installation undo
-	IsUndoingInstall bool
+	// BootWithoutTry is sets if we don't want to use the "try" logic. This
+	// is useful if the next boot is part of an installation undo.
+	BootWithoutTry bool
 }
 
 // A BootParticipant handles the boot process details for a snap involved in it.
