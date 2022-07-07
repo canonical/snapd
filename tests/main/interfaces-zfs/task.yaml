@@ -1,0 +1,51 @@
+summary: Ensure that the zfs interface works.
+
+# Only Ubuntu ships the ZFS userpace components
+systems: [ubuntu-2*]
+
+details: |
+    The zfs interface allows manipulating ZFS volumes and pools.
+
+prepare: |
+    # Install kernel module package
+    apt-get update
+    apt-get install -y zfsutils-linux
+
+    # Setup ZFS pool
+    dd if=/dev/zero of=/tmp/zfs.pool bs=1M count=128
+    zpool create -o ashift=12 -m none test /tmp/zfs.pool
+
+    # Setup ZFS volume
+    zfs create test/testvol
+
+    # Install ZFS test snap
+    snap install --edge test-snapd-zfs
+
+restore: |
+    # Remove all ZFS volumes and pools
+    zfs umount -a
+    zpool export -a
+    rm -f /tmp/zfs.pool
+
+    # Remove kernel module package on host
+    apt-get remove -y zfsutils-linux
+
+    snap remove --purge test-snapd-zfs
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i zfs | MATCH "\\- +test-zfs:zfs"
+
+    echo "When the interface is connected"
+    snap connect test-zfs:zfs
+
+    echo "Then the snap is able to read the available ZFS volumes and pools"
+    test-zfs.zpool list | MATCH '^test'
+    test-zfs.zfs list | MATCH '^test/testvol'
+
+    echo "When the interface is disconnected"
+    snap disconnect test-zfs:zfs
+
+    echo "Then the ZFS tools should output permission denied errors"
+    test-zfs.zpool list 2>&1 >/dev/null | MATCH '^Permission denied'
+    test-zfs.zfs list 2>&1 >/dev/null | MATCH '^Permission denied'
