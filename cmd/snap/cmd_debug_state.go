@@ -59,7 +59,7 @@ type cmdDebugState struct {
 
 	Positional struct {
 		StateFilePath string `positional-args:"yes" positional-arg-name:"<state-file>"`
-	} `positional-args:"yes"`
+	} `positional-args:"yes" required:"yes"`
 }
 
 var cmdDebugStateShortHelp = i18n.G("Inspect a snapd state file.")
@@ -72,9 +72,6 @@ func (c byChangeSpawnTime) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
 func (c byChangeSpawnTime) Less(i, j int) bool { return c[i].SpawnTime().Before(c[j].SpawnTime()) }
 
 func loadState(path string) (*state.State, error) {
-	if path == "" {
-		path = "state.json"
-	}
 	r, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read the state file: %s", err)
