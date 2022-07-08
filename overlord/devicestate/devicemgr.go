@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
@@ -2133,7 +2134,7 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 	// backward compatibility
 	reinstallKeyFile := filepath.Join(fdeDir, "reinstall.key")
 	if osutil.FileExists(reinstallKeyFile) {
-		rkey, err := keys.RecoveryKeyFromFile(filepath.Join(fdeDir, "recovery.key"))
+		rkey, err := keys.RecoveryKeyFromFile(device.RecoveryKeyUnder(fdeDir))
 		if err != nil {
 			return nil, err
 		}
@@ -2146,8 +2147,7 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 		sysKeys.ReinstallKey = reinstallKey.String()
 		return sysKeys, nil
 	}
-	// XXX have a helper somewhere for this? gadget or secboot?
-	if !osutil.FileExists(filepath.Join(fdeDir, "marker")) {
+	if !device.HasEncryptedMarkerUnder(fdeDir) {
 		return nil, fmt.Errorf("system does not use disk encryption")
 	}
 	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
@@ -2165,14 +2165,11 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 			// available in the keyring nor exists on disk
 		},
 		{
-			Mountpoint: boot.InitramfsUbuntuSaveDir,
-			AuthorizingKeyFile: filepath.Join(
-				dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data")),
-				"ubuntu-save.key",
-			),
+			Mountpoint:         boot.InitramfsUbuntuSaveDir,
+			AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data"))),
 		},
 	}
-	rkey, err := secbootEnsureRecoveryKey(filepath.Join(fdeDir, "recovery.key"), recoveryKeyDevices)
+	rkey, err := secbootEnsureRecoveryKey(device.RecoveryKeyUnder(fdeDir), recoveryKeyDevices)
 	if err != nil {
 		return nil, err
 	}
@@ -2186,8 +2183,7 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	if mode != "run" {
 		return fmt.Errorf("cannot remove recovery keys from system mode %q", mode)
 	}
-	// XXX have a helper somewhere for this? gadget or secboot?
-	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
+	if !device.HasEncryptedMarkerUnder(dirs.SnapFDEDir) {
 		return fmt.Errorf("system does not use disk encryption")
 	}
 	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
@@ -2195,21 +2191,19 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 		return fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
 	}
 	recoveryKeyDevices := make(map[secboot.RecoveryKeyDevice]string, 2)
-	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
+	rkey := device.RecoveryKeyUnder(dirs.SnapFDEDir)
 	recoveryKeyDevices[secboot.RecoveryKeyDevice{
 		Mountpoint: dataMountPoints[0],
 		// authorization from keyring
 	}] = rkey
+	// reinstall.key is deprecated, there is no path helper for it
 	reinstallKeyFile := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
 	if !osutil.FileExists(reinstallKeyFile) {
 		reinstallKeyFile = rkey
 	}
 	recoveryKeyDevices[secboot.RecoveryKeyDevice{
-		Mountpoint: boot.InitramfsUbuntuSaveDir,
-		AuthorizingKeyFile: filepath.Join(
-			dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data")),
-			"ubuntu-save.key",
-		),
+		Mountpoint:         boot.InitramfsUbuntuSaveDir,
+		AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data"))),
 	}] = reinstallKeyFile
 
 	return secbootRemoveRecoveryKeys(recoveryKeyDevices)

@@ -56,7 +56,7 @@ func journalQuotaLayout(quotaGroup *quota.Group) []snap.Layout {
 	// bind mount the journal namespace folder on top of the journal folder
 	// /run/systemd/journal.<ns> -> /run/systemd/journal
 	layouts := []snap.Layout{{
-		Bind: path.Join(dirs.SnapSystemdRunDir, fmt.Sprintf("journal.snap-%s", quotaGroup.Name)),
+		Bind: path.Join(dirs.SnapSystemdRunDir, fmt.Sprintf("journal.%s", quotaGroup.JournalNamespaceName())),
 		Path: path.Join(dirs.SnapSystemdRunDir, "journal"),
 		Mode: 0755,
 	}}

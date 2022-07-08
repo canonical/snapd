@@ -432,6 +432,8 @@ StandardOutput=journal+console
 StandardError=journal+console
 EOF
 
+    cp "${SPREAD_PATH}"/data/completion/bash/complete.sh "${UNPACK_DIR}"/usr/lib/snapd/complete.sh
+
     snap pack --filename="$TARGET" "$UNPACK_DIR"
 
     rm -rf "$UNPACK_DIR"
@@ -443,6 +445,10 @@ repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
 
     local UNPACK_DIR="/tmp/snapd-unpack"
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
+
+    # data/preseed.json is not included in the deb, use the latest
+    # version from source tree to replace the one in the re-packed snapd snap.
+    cp "$PROJECT_PATH/data/preseed.json" "$UNPACK_DIR"/usr/lib/snapd
 
     # clean snap apparmor.d to ensure we put the right snap-confine apparmor
     # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
@@ -519,6 +525,8 @@ systemctl reload ssh
 touch /root/spread-setup-done
 EOF
     chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+
+    cp "${SPREAD_PATH}"/data/completion/bash/complete.sh "${UNPACK_DIR}"/usr/lib/snapd/complete.sh
 
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
