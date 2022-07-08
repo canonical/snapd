@@ -360,25 +360,29 @@ func (c *cmdDebugState) showConnectionDetails(st *state.State, connArg string) e
 		}
 		plug, slot := connRef.PlugRef, connRef.SlotRef
 
-		if slotMatch.Name != "" && slotMatch.Snap != "" && plugMatch.Snap != "" && plugMatch.Name != "" {
-			// command invoked with 'snap:plug,snap:slot'
+		switch {
+		// command invoked with 'snap:plug,snap:slot'
+		case slotMatch.Name != "" && slotMatch.Snap != "" && plugMatch.Snap != "" && plugMatch.Name != "":
+			// should match the connection exactly
 			if !refMatch(plugMatch, plug) || !refMatch(slotMatch, slot) {
-				// should match the connection exactly
 				continue
 			}
-		} else if plugMatch.Snap != "" && plugMatch.Name != "" && slotMatch.Snap == "" && slotMatch.Name == "" {
-			// command invoked with 'snap:plug-or-slot'
+
+		// command invoked with 'snap:plug-or-slot'
+		case plugMatch.Snap != "" && plugMatch.Name != "" && slotMatch.Snap == "" && slotMatch.Name == "":
+			// should match either the connection's slot or plug
 			if !refMatch(plugMatch, plug) && !refMatch(plugMatch, slot) {
-				// should match either the connection's slot or plug
 				continue
 			}
-		} else if plugMatch.Snap != "" && plugMatch.Name == "" && slotMatch.Snap == "" && slotMatch.Name == "" {
-			// command invoked with 'snap' only
+
+		// command invoked with 'snap' only
+		case plugMatch.Snap != "" && plugMatch.Name == "" && slotMatch.Snap == "" && slotMatch.Name == "":
+			// should match one of the snap names
 			if plugMatch.Snap != slot.Snap && plugMatch.Snap != plug.Snap {
-				// should match one of the snap names
 				continue
 			}
-		} else {
+
+		default:
 			return fmt.Errorf("invalid command with connection args: %s", connArg)
 		}
 
