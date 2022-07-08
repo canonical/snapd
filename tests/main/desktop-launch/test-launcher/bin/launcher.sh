@@ -9,4 +9,4 @@ ls /snap/
 ls /snap/bin
 ls -l /snap/bin/test-app
 ls -l /usr/bin/snap
-exec "$command"
+exec $command
