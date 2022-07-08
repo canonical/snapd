@@ -31,7 +31,7 @@ func MockOsGetuid(f func() int) (restore func()) {
 	return r
 }
 
-func MockPreseedCore20(f func(dir, key, aaDir string) error) (restore func()) {
+func MockPreseedCore20(f func(dir, key, aaDir, sfso string) error) (restore func()) {
 	r := testutil.Backup(&preseedCore20)
 	preseedCore20 = f
 	return r

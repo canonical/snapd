@@ -188,7 +188,7 @@ func (s *SnapPrepareImageSuite) TestPrepareImagePreseed(c *C) {
 	r := snap.MockImagePrepare(prep)
 	defer r()
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "--preseed", "--preseed-sign-key", "key", "--apparmor-features-dir", "aafeatures-dir", "model", "prepare-dir"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "--preseed", "--preseed-sign-key", "key", "--apparmor-features-dir", "aafeatures-dir", "--preseed-sysfs-overlay", "sys-overlay", "model", "prepare-dir"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 
@@ -197,6 +197,7 @@ func (s *SnapPrepareImageSuite) TestPrepareImagePreseed(c *C) {
 		PrepareDir:                "prepare-dir",
 		Preseed:                   true,
 		PreseedSignKey:            "key",
+		SysfsOverlay:              "sys-overlay",
 		AppArmorKernelFeaturesDir: "aafeatures-dir",
 	})
 }

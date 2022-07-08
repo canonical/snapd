@@ -45,17 +45,18 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
 	var called bool
-	restorePreseed := main.MockPreseedCore20(func(dir, key, aaDir string) error {
+	restorePreseed := main.MockPreseedCore20(func(dir, key, aaDir, sfso string) error {
 		c.Check(dir, Equals, tmpDir)
 		c.Check(key, Equals, "key")
 		c.Check(aaDir, Equals, "/custom/aa/features")
+		c.Check(sfso, Equals, "/sysfs-overlay")
 		called = true
 		return nil
 	})
 	defer restorePreseed()
 
 	parser := testParser(c)
-	c.Assert(main.Run(parser, []string{"--preseed-sign-key", "key", "--apparmor-features-dir", "/custom/aa/features", tmpDir}), IsNil)
+	c.Assert(main.Run(parser, []string{"--preseed-sign-key", "key", "--apparmor-features-dir", "/custom/aa/features", "--preseed-sysfs-overlay", "/sysfs-overlay", tmpDir}), IsNil)
 	c.Check(called, Equals, true)
 }
 
@@ -73,10 +74,11 @@ func (s *startPreseedSuite) TestRunPreseedUC20HappyNoArgs(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
 	var called bool
-	restorePreseed := main.MockPreseedCore20(func(dir, key, aaDir string) error {
+	restorePreseed := main.MockPreseedCore20(func(dir, key, aaDir, sfso string) error {
 		c.Check(dir, Equals, tmpDir)
 		c.Check(key, Equals, "")
 		c.Check(aaDir, Equals, "")
+		c.Check(sfso, Equals, "")
 		called = true
 		return nil
 	})
