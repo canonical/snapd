@@ -57,6 +57,8 @@ type preseedOpts struct {
 	PreseedSignKey   string
 	// optional path to AppArmor kernel features directory
 	AppArmorKernelFeaturesDir string
+	// optional sysfs overlay
+	SysfsOverlay string
 }
 
 type targetSnapdInfo struct {

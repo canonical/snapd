@@ -34,6 +34,11 @@ type Options struct {
 	// (only for UC20)
 	AppArmorKernelFeaturesDir string
 
+	// sysfs overlay to be used for preseeding.
+	// Directories from /sys/class/* and /sys/devices/platform will be
+	// bind-mounted to the chroot when preseeding.
+	SysfsOverlay string
+
 	Channel string
 
 	// TODO: use OptionsSnap directly here?

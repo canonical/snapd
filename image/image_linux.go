@@ -160,7 +160,7 @@ func Prepare(opts *Options) error {
 		if model.Base() != "core20" {
 			return fmt.Errorf("cannot preseed the image for a model other than core20")
 		}
-		return preseedCore20(opts.PrepareDir, opts.PreseedSignKey, opts.AppArmorKernelFeaturesDir)
+		return preseedCore20(opts.PrepareDir, opts.PreseedSignKey, opts.AppArmorKernelFeaturesDir, opts.SysfsOverlay)
 	}
 
 	return nil

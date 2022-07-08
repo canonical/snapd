@@ -50,6 +50,7 @@ type options struct {
 	Reset               bool   `long:"reset"`
 	PreseedSignKey      string `long:"preseed-sign-key"`
 	AppArmorFeaturesDir string `long:"apparmor-features-dir"`
+	SysfsOverlay        string `long:"preseed-sysfs-overlay"`
 }
 
 var (
@@ -120,7 +121,7 @@ func run(parser *flags.Parser, args []string) (err error) {
 	}
 
 	if probeCore20ImageDir(chrootDir) {
-		return preseedCore20(chrootDir, opts.PreseedSignKey, opts.AppArmorFeaturesDir)
+		return preseedCore20(chrootDir, opts.PreseedSignKey, opts.AppArmorFeaturesDir, opts.SysfsOverlay)
 	}
 	return preseedClassic(chrootDir)
 }
