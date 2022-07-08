@@ -697,7 +697,7 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
          * creating the directory if necessary. */
         if (mkdirat(devices_fd, security_tag_relpath, 0755) == 0) {
             /* the new directory must be owned by root:root. */
-            if (fchownat(devices_fd, security_tag_relpath, 0, 0, 0) < 0) {
+            if (fchownat(devices_fd, security_tag_relpath, 0, 0, AT_SYMLINK_NOFOLLOW) < 0) {
                 die("cannot set root ownership on %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
             }
         } else if (errno != EEXIST) {
