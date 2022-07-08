@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/ifacestate/schemas"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -301,26 +302,13 @@ func (c *cmdDebugState) showIsSeeded(st *state.State) error {
 	return nil
 }
 
-// connState is the connection state stored by InterfaceManager
-type connState struct {
-	Auto             bool                   `json:"auto,omitempty" yaml:"auto"`
-	ByGadget         bool                   `json:"by-gadget,omitempty" yaml:"by-gadget"`
-	Interface        string                 `json:"interface,omitempty" yaml:"interface"`
-	Undesired        bool                   `json:"undesired,omitempty" yaml:"undesired"`
-	StaticPlugAttrs  map[string]interface{} `json:"plug-static,omitempty" yaml:"plug-static,omitempty"`
-	DynamicPlugAttrs map[string]interface{} `json:"plug-dynamic,omitempty" yaml:"plug-dynamic,omitempty"`
-	StaticSlotAttrs  map[string]interface{} `json:"slot-static,omitempty" yaml:"slot-static,omitempty"`
-	DynamicSlotAttrs map[string]interface{} `json:"slot-dynamic,omitempty" yaml:"slot-dynamic,omitempty"`
-	// TODO: hotplug
-}
-
 type connectionInfo struct {
 	PlugSnap string
 	PlugName string
 	SlotSnap string
 	SlotName string
 
-	connState
+	schemas.Connection
 }
 
 type byPlug []*connectionInfo
@@ -351,7 +339,7 @@ func (c *cmdDebugState) showConnectionDetails(st *state.State, connArg string) e
 		}
 	}
 
-	var conns map[string]*connState
+	var conns map[string]*schemas.Connection
 	if err := st.Get("conns", &conns); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -414,7 +402,7 @@ func (c *cmdDebugState) showConnections(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
 
-	var conns map[string]*connState
+	var conns map[string]*schemas.Connection
 	if err := st.Get("conns", &conns); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -429,11 +417,11 @@ func (c *cmdDebugState) showConnections(st *state.State) error {
 		slot := strings.Split(p[1], ":")
 
 		c := &connectionInfo{
-			PlugSnap:  plug[0],
-			PlugName:  plug[1],
-			SlotSnap:  slot[0],
-			SlotName:  slot[1],
-			connState: *conn,
+			PlugSnap:   plug[0],
+			PlugName:   plug[1],
+			SlotSnap:   slot[0],
+			SlotName:   slot[1],
+			Connection: *conn,
 		}
 		all = append(all, c)
 	}
