@@ -185,7 +185,7 @@ func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernelNoTry(sn s
 		}
 	}
 
-	if bks.currentKernelStatus != "" {
+	if bks.currentKernelStatus != DefaultStatus {
 		m := map[string]string{
 			"kernel_status": DefaultStatus,
 		}
