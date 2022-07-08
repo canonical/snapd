@@ -22,6 +22,7 @@ package servicestate
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 
 	tomb "gopkg.in/tomb.v2"
@@ -524,6 +525,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	}
 
 	grpsToStart := []*quota.Group{}
+	journalsToRestart := []string{}
 	appsToRestartBySnap = map[*snap.Info][]*snap.AppInfo{}
 	markAppForRestart := func(info *snap.Info, app *snap.AppInfo) {
 		// make sure it is not already in the list
@@ -592,6 +594,15 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 					}
 				}
 			}
+
+			// If the journal has changed (i.e old and new not being empty) then we
+			// need to restart the journal for that namespace. For other cases
+			// this is not necessary, as either the journal daemon will be started or
+			// stopped as a part of removal.
+			if old != "" && new != "" {
+				serviceName := fmt.Sprintf("systemd-journald@%s", grp.JournalNamespaceName())
+				journalsToRestart = append(journalsToRestart, serviceName)
+			}
 		}
 	}
 	if err := wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, collectModifiedUnits, meterLocked); err != nil {
@@ -631,6 +642,15 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 		// single daemon-reload
 		err := wrappers.RemoveQuotaGroup(grp, meterLocked)
 		if err != nil {
+			return nil, err
+		}
+	}
+
+	// lastly, lets restart journald services which were affected
+	// by the changes to the quota group
+	log.Printf("restarting journald services: %v", journalsToRestart)
+	if len(journalsToRestart) > 0 {
+		if err := systemSysd.Restart(journalsToRestart); err != nil {
 			return nil, err
 		}
 	}
