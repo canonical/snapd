@@ -49,6 +49,8 @@ const desktopLaunchConnectedPlugAppArmor = `
 /usr/bin/snap ixr,
 /snap/snapd/*/usr/bin/snap ixr,
 
+/usr/bin/env ixr,
+
 #include <abstractions/dbus-session-strict>
 
 dbus (send)
