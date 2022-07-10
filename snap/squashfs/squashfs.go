@@ -288,27 +288,15 @@ func init() {
 }
 
 var (
-	sysGeteuid   = sys.Geteuid
-	underTesting = osutil.IsTestBinary()
+	sysGeteuid = sys.Geteuid
 )
 
-func sandboxParams(sdVer int) (params []string, sandboxing bool) {
+func sandboxParams(sdVer int) (params []string) {
 	if sysGeteuid() != 0 {
-		params := []string{
-			"--user",
-		}
-		if underTesting {
-			// needed for command mocking to work
-			params = append(params, []string{
-				"-E",
-				fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
-			}...)
-		}
-		return params, false
+		return nil
 	}
 	// effetive user is 0, use systemd-run to sandbox unsquashfs
 	params = []string{
-		"--system",
 		"--property=KeyringMode=private",
 		"--property=PrivateTmp=true",
 		// xxx CAP_DAC_OVERRIDE is mainly possibly needed for
@@ -345,7 +333,7 @@ func sandboxParams(sdVer int) (params []string, sandboxing bool) {
 		params = append(params, "--property=ProtectClock=true")
 	}
 
-	return params, true
+	return params
 }
 
 // SaferReadFile returns the content of a single file inside a squashfs snap, but it does invoking unsquashfs under a sandbox to handle not yet verified snap files, there is a limit below 8M on the content size.
@@ -360,7 +348,8 @@ func (s *Snap) SaferReadFile(filePath string) (content []byte, err error) {
 	if sdVer < 236 {
 		return nil, snap.ErrUnsupportedContainerFeature
 	}
-	runParams, sandboxing := sandboxParams(sdVer)
+	runParams := sandboxParams(sdVer)
+	sandboxing := len(runParams) != 0
 
 	tmpdir, err := ioutil.TempDir("", "read-file")
 	if err != nil {
@@ -371,9 +360,18 @@ func (s *Snap) SaferReadFile(filePath string) (content []byte, err error) {
 
 	snapPath := "/tmp/snap"
 	unpackDir := "/tmp/read-file/unpack"
+	sysdRun := []string{
+		"systemd-run",
+		"--system",
+		"--quiet",
+		"--pipe",
+		"--wait",
+		"--collect",
+	}
 	if !sandboxing {
 		snapPath = s.path
 		unpackDir = resDir
+		sysdRun = nil
 	} else {
 		// bind mount snap for access, this allows to use
 		// PrivateTmp even the snap itself is under /tmp
@@ -387,13 +385,6 @@ func (s *Snap) SaferReadFile(filePath string) (content []byte, err error) {
 		"unsquashfs", "-n",
 		"-d", unpackDir,
 		snapPath, filePath,
-	}
-	sysdRun := []string{
-		"systemd-run",
-		"--quiet",
-		"--pipe",
-		"--wait",
-		"--collect",
 	}
 	invocation := append(sysdRun, runParams...)
 	invocation = append(invocation, unsquash...)

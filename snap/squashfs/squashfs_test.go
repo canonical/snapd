@@ -1065,11 +1065,11 @@ echo -n "$d" > "$d"/unpack/meta/snap.yaml
 	invo := mockSystemdRun.Calls()[0]
 	c.Check(invo, DeepEquals, append(append([]string{
 		"systemd-run",
+		"--system",
 		"--quiet",
 		"--pipe",
 		"--wait",
 		"--collect",
-		"--system",
 	}, expectedSandboxParams...), []string{
 		fmt.Sprintf("--property=BindReadOnlyPaths=%s:/tmp/snap", sn.Path()),
 		fmt.Sprintf("--property=BindPaths=%s:/tmp/read-file", tmpDir),
@@ -1082,22 +1082,16 @@ echo -n "$d" > "$d"/unpack/meta/snap.yaml
 func (s *SquashfsTestSuite) TestSaferReadFileSandboxLevels(c *C) {
 	defer squashfs.MockSysGeteuid(0)()
 
-	expected := append([]string{"--system"}, expectedSandboxParams...)
+	expected := expectedSandboxParams
 	n := len(expected)
 
-	sandboxParams := func(sdVer int) []string {
-		params, sandboxing := squashfs.SandboxParams(sdVer)
-		c.Assert(sandboxing, Equals, true)
-		return params
-	}
-
-	c.Check(sandboxParams(236), DeepEquals, expected[:n-4])
-	c.Check(sandboxParams(239), DeepEquals, expected[:n-4])
-	c.Check(sandboxParams(240), DeepEquals, expected[:n-3])
-	c.Check(sandboxParams(241), DeepEquals, expected[:n-3])
-	c.Check(sandboxParams(242), DeepEquals, expected[:n-2])
-	c.Check(sandboxParams(243), DeepEquals, expected[:n-2])
-	c.Check(sandboxParams(244), DeepEquals, expected[:n-1])
-	c.Check(sandboxParams(245), DeepEquals, expected)
-	c.Check(sandboxParams(246), DeepEquals, expected)
+	c.Check(squashfs.SandboxParams(236), DeepEquals, expected[:n-4])
+	c.Check(squashfs.SandboxParams(239), DeepEquals, expected[:n-4])
+	c.Check(squashfs.SandboxParams(240), DeepEquals, expected[:n-3])
+	c.Check(squashfs.SandboxParams(241), DeepEquals, expected[:n-3])
+	c.Check(squashfs.SandboxParams(242), DeepEquals, expected[:n-2])
+	c.Check(squashfs.SandboxParams(243), DeepEquals, expected[:n-2])
+	c.Check(squashfs.SandboxParams(244), DeepEquals, expected[:n-1])
+	c.Check(squashfs.SandboxParams(245), DeepEquals, expected)
+	c.Check(squashfs.SandboxParams(246), DeepEquals, expected)
 }
