@@ -265,8 +265,8 @@ func (s *changeSuite) TestNeededChangesChangedParentSameChild(c *C) {
 	changes := update.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: osutil.MountEntry{Dir: "/common/unrelated"}, Action: update.Keep},
-		{Entry: osutil.MountEntry{Dir: "/common/stuff/extra"}, Action: update.Unmount},
-		{Entry: osutil.MountEntry{Dir: "/common/stuff", Name: "/dev/sda1"}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Dir: "/common/stuff/extra"}, Action: update.UnmountNoRemove},
+		{Entry: osutil.MountEntry{Dir: "/common/stuff", Name: "/dev/sda1"}, Action: update.UnmountNoRemove},
 		{Entry: osutil.MountEntry{Dir: "/common/stuff", Name: "/dev/sda2"}, Action: update.Mount},
 		{Entry: osutil.MountEntry{Dir: "/common/stuff/extra"}, Action: update.Mount},
 	})
@@ -287,7 +287,7 @@ func (s *changeSuite) TestNeededChangesSameParentChangedChild(c *C) {
 	changes := update.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: osutil.MountEntry{Dir: "/common/unrelated"}, Action: update.Keep},
-		{Entry: osutil.MountEntry{Dir: "/common/stuff/extra", Name: "/dev/sda1"}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Dir: "/common/stuff/extra", Name: "/dev/sda1"}, Action: update.UnmountNoRemove},
 		{Entry: osutil.MountEntry{Dir: "/common/stuff"}, Action: update.Keep},
 		{Entry: osutil.MountEntry{Dir: "/common/stuff/extra", Name: "/dev/sda2"}, Action: update.Mount},
 	})
@@ -419,8 +419,8 @@ func (s *changeSuite) TestNeededChangesSmartEntryComparisonOld(c *C) {
 	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: osutil.MountEntry{Dir: "/a/b-1/3"}, Action: update.Unmount},
 		{Entry: osutil.MountEntry{Dir: "/a/b-1"}, Action: update.Keep},
-		{Entry: osutil.MountEntry{Dir: "/a/b/c"}, Action: update.Unmount},
-		{Entry: osutil.MountEntry{Dir: "/a/b", Name: "/dev/sda1"}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Dir: "/a/b/c"}, Action: update.UnmountNoRemove},
+		{Entry: osutil.MountEntry{Dir: "/a/b", Name: "/dev/sda1"}, Action: update.UnmountNoRemove},
 
 		{Entry: osutil.MountEntry{Dir: "/a/b", Name: "/dev/sda2"}, Action: update.Mount},
 		{Entry: osutil.MountEntry{Dir: "/a/b/c"}, Action: update.Mount},
@@ -538,7 +538,7 @@ func (s *changeSuite) TestRuntimeUsingSymlinks(c *C) {
 	c.Assert(changes, DeepEquals, []*update.Change{
 		// We are keeping /opt, but re-creating /opt from scratch.
 		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: optDir, Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=" + optFooRuntimeDir, "mode=0755", "uid=0", "gid=0"}}, Action: update.Keep},
-		{Entry: osutil.MountEntry{Name: "none", Dir: optFooRuntimeDir, Type: "none", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=" + snapAppX1FooRuntimeDir, "x-snapd.origin=layout"}}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "none", Dir: optFooRuntimeDir, Type: "none", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=" + snapAppX1FooRuntimeDir, "x-snapd.origin=layout"}}, Action: update.UnmountNoRemove},
 		// We are dropping the content interface bind mount because app changed revision
 		{Entry: osutil.MountEntry{Name: snapFooRuntimeX1OptFooRuntime, Dir: snapAppX1FooRuntimeDir, Type: "none", Options: []string{"bind", "ro", "x-snapd.detach"}}, Action: update.Unmount},
 		// We also adding the updated path of the content interface (for revision x2)
@@ -562,7 +562,7 @@ func (s *changeSuite) TestRuntimeUsingSymlinks(c *C) {
 		// We are dropping the content interface bind mount because app changed revision
 		{Entry: osutil.MountEntry{Name: snapFooRuntimeX1OptFooRuntime, Dir: snapAppX2FooRuntimeDir, Type: "none", Options: []string{"bind", "ro", "x-snapd.detach"}}, Action: update.Unmount},
 		// We are also dropping the bind mount from /opt/runtime since we want a symlink instead
-		{Entry: osutil.MountEntry{Name: snapAppX2FooRuntimeDir, Dir: optFooRuntimeDir, Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout", "x-snapd.detach"}}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: snapAppX2FooRuntimeDir, Dir: optFooRuntimeDir, Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout", "x-snapd.detach"}}, Action: update.UnmountNoRemove},
 		// Keep the tmpfs on /opt
 		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: optDir, Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=" + optFooRuntimeDir, "mode=0755", "uid=0", "gid=0", "x-snapd.detach"}}, Action: update.Keep},
 		// We are bind mounting the runtime from another snap into $SNAP/foo-runtime

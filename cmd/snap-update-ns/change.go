@@ -43,6 +43,9 @@ const (
 	Mount Action = "mount"
 	// Unmount represents an action that results in unmounting something from somewhere.
 	Unmount Action = "unmount"
+	// UnmountNoRemove is like Unmount, but preserves the mount point because
+	// we know it's going to be reused.
+	UnmountNoRemove Action = "unmountNoRemove"
 	// Remount when needed
 )
 
@@ -336,7 +339,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			}
 		}
 		return err
-	case Unmount:
+	case Unmount, UnmountNoRemove:
 		kind := c.Entry.XSnapdKind()
 		switch kind {
 		case "symlink":
@@ -400,6 +403,11 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			}
 			if err == nil {
 				as.AddChange(c)
+			}
+
+			if c.Action == UnmountNoRemove {
+				// We don't want to remove the mount point, we are done.
+				return nil
 			}
 
 			// Open a path of the file we are considering the removal of.
@@ -602,7 +610,12 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 			if shouldDetach && !entry.XSnapdDetach() {
 				entry.Options = append(entry.Options, osutil.XSnapdDetach())
 			}
-			changes = append(changes, &Change{Action: Unmount, Entry: entry})
+			action := Unmount
+			if desiredIDs[entry.XSnapdEntryID()] {
+				logger.Debugf("Not removing mount point for %q", entry.XSnapdEntryID())
+				action = UnmountNoRemove
+			}
+			changes = append(changes, &Change{Action: action, Entry: entry})
 		}
 	}
 
