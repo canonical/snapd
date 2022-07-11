@@ -246,6 +246,9 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 	for namespace, services := range namespaces {
 		reader, err := sysd.LogReader(services, namespace, n, follow)
 		if err != nil {
+			for _, r := range readers {
+				r.Close()
+			}
 			return InternalError("cannot get logs: %v", err)
 		}
 		readers = append(readers, reader)

@@ -289,29 +289,24 @@ type journalLineReaderSeqResponse struct {
 
 var errCannotWriteToClient = errors.New("cannot write data, client may have hung up unexpectedly")
 
-func (rr *journalLineReaderSeqResponse) safeSendError(c chan error, value error) (closed bool) {
-	defer func() {
-		if recover() != nil {
-			closed = true
-		}
-	}()
-	c <- value
-	return false
-}
-
-func (rr *journalLineReaderSeqResponse) safeSendLog(c chan systemd.Log, value systemd.Log) (closed bool) {
-	defer func() {
-		if recover() != nil {
-			closed = true
-		}
-	}()
-	c <- value
-	return false
-}
-
-func (rr *journalLineReaderSeqResponse) logReader(r io.ReadCloser, c chan systemd.Log, e chan error) {
+// logReader is a helper function which should be spawned as a go-routine.
+// The objective for the logReader is to have one of these per log-source
+// as reading from a log-source is a blocking operation. They will read from
+// the io.ReadCloser until an error occurs or the stop channel is closed.
+func (rr *journalLineReaderSeqResponse) logReader(r io.ReadCloser, c chan systemd.Log, e chan error, stopCh chan struct{}) {
 	defer r.Close()
 	decoder := json.NewDecoder(r)
+
+	safeSendLog := func(log systemd.Log) bool {
+		select {
+		case <-stopCh:
+			e <- io.EOF
+			return true
+		case c <- log:
+		}
+		return false
+	}
+
 	for {
 		var log systemd.Log
 
@@ -320,16 +315,127 @@ func (rr *journalLineReaderSeqResponse) logReader(r io.ReadCloser, c chan system
 		// condition for the read loop, and then do the error handling in
 		// the main go routine.
 		if err := decoder.Decode(&log); err != nil {
-			// Ignore the return value here as we are breaking out
-			// anyway and not sending more messages.
-			rr.safeSendError(e, err)
+			e <- err
 			break
 		}
 
-		if closed := rr.safeSendLog(c, log); closed {
+		if closed := safeSendLog(log); closed {
 			break
 		}
 	}
+}
+
+// readAllLogs is a helper function to read all available logs.
+// It will read logs until all log sources are exhausted (all readers report io.EOF or
+// report an error).
+// This function is designed for the non-following case, where we can
+// expect all log readers to report io.EOF immediately after writing their backlogs.
+func (rr *journalLineReaderSeqResponse) readAllLogs(logCh chan systemd.Log, errCh chan error) []systemd.Log {
+	var logReadersDone int
+	var logs []systemd.Log
+	var terminate bool
+	for !terminate {
+		select {
+		case log := <-logCh:
+			logs = append(logs, log)
+		case err := <-errCh:
+			if err != io.EOF {
+				logger.Noticef("cannot decode systemd log: %v", err)
+			}
+			logReadersDone++
+		}
+
+		// Make sure we don't terminate early even if all readers done
+		if logReadersDone == len(rr.readers) && len(logCh) == 0 {
+			terminate = true
+		}
+	}
+	return logs
+}
+
+// readFollowBacklog is a best-effort function to read the backlogs of the available
+// log sources. It will continuously batch read from the log channels for as long as
+// we read logs that predates the start of the follow action. Only when reading a batch
+// of logs (or none at all) in which all are newer than the start timestamp, we assume the
+// end of the backlog, and return the combined read logs.
+func (rr *journalLineReaderSeqResponse) readFollowBacklog(logCh chan systemd.Log, errCh chan error) []systemd.Log {
+	var backLog []systemd.Log
+	currentTime := time.Now()
+
+	filterLogs := func(logs []systemd.Log) bool {
+		var readAgain bool
+		// If the logs contain a log with a timestamp before the
+		// current timestamp, then we are still reading backlog
+		// logs, and we should read again to ensure there are no
+		// more backlogs
+		for _, l := range logs {
+			t, _ := l.Time()
+			if t.Before(currentTime) {
+				readAgain = true
+			}
+		}
+		backLog = append(backLog, logs...)
+		return readAgain
+	}
+
+	for {
+		var logs []systemd.Log
+
+		// The batch interval will be set at 50ms (arbitrary) from which a new
+		// backlog entry can arrive. If we go 50ms without a new backlog entry,
+		// then we assume we have reached the end of the backlog.
+		timeout := time.After(time.Millisecond * 50)
+		var terminate bool
+		for !terminate {
+			select {
+			case log := <-logCh:
+				logs = append(logs, log)
+			case <-timeout:
+				terminate = true
+			}
+		}
+
+		if !filterLogs(logs) {
+			break
+		}
+	}
+	return backLog
+}
+
+// readFollowMode contains the logic for reading the log-channel in follow-mode.
+// After reading the backlog, we go into a simpler read loop which consists of just
+// reading at a fixed interval. The idea is to allow for all log sources to get their
+// logs into the log channel, and then be able to read them all in a single go and correctly
+// sort them by their timestamp.
+func (rr *journalLineReaderSeqResponse) readFollowMode(writeLogs func(logs []systemd.Log) error, logCh chan systemd.Log, errCh chan error) (int, error) {
+	var logReadersDone int
+	for {
+		var logs []systemd.Log
+		timeout := time.After(time.Millisecond * 25)
+		var terminate bool
+		for !terminate {
+			select {
+			case log := <-logCh:
+				logs = append(logs, log)
+			case err := <-errCh:
+				if err != io.EOF {
+					logger.Noticef("cannot decode systemd log: %v", err)
+				}
+				logReadersDone++
+			case <-timeout:
+				terminate = true
+			}
+		}
+
+		if err := writeLogs(logs); err != nil {
+			return logReadersDone, err
+		}
+
+		if logReadersDone == len(rr.readers) {
+			break
+		}
+	}
+	return logReadersDone, nil
 }
 
 func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -342,13 +448,17 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 	// Buffer 128 (arbitrary, seems appropriate) messages, and
 	// the number of readers in errors as we know exactly how
 	// many errors to expect on the channel.
-	c := make(chan systemd.Log, 128)
-	e := make(chan error, len(rr.readers))
+	logCh := make(chan systemd.Log, 128)
+	errCh := make(chan error, len(rr.readers))
+	stopCh := make(chan struct{})
 	for _, r := range rr.readers {
-		go rr.logReader(r, c, e)
+		go rr.logReader(r, logCh, errCh, stopCh)
 	}
 
 	writeError := func(err error) {
+		if err == errCannotWriteToClient {
+			return
+		}
 		// RS -- see ascii(7), and RFC7464
 		fmt.Fprintf(writer, `\x1E{"error": %q}\n`, err)
 		logger.Noticef("cannot stream response; problem reading: %v", err)
@@ -388,54 +498,46 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 		return nil
 	}
 
-	var logReadersDone int
-	for {
-		var logs []systemd.Log
-
-		// Now we spend a small amount of time batch reading all available logs
-		// on the log/error channel, the reason we do this is to make sure we read
-		// everything available for the initial/final batch of logs (when following) or
-		// we read everything available when not following. It's done like this to
-		// ensure that output is consistent and sorted correctly by timestamp when
-		// multiple log-sources are in play. The timeout should be small enough so
-		// the user won't notice the speed of logs appearing on the stream.
-		timeout := time.After(time.Millisecond * 25)
-		for {
-			var terminate bool
-			select {
-			case log := <-c:
-				logs = append(logs, log)
-			case err := <-e:
-				if err != io.EOF {
-					logger.Noticef("cannot decode systemd log: %v", err)
-				}
-				logReadersDone++
-			case <-timeout:
-				terminate = true
-			}
-
-			if terminate {
-				break
-			}
-		}
-
+	// When we are not following, we can just read the entire logs in one go
+	// and print that to the user.
+	if !rr.follow {
+		logs := rr.readAllLogs(logCh, errCh)
 		if err := writeLogs(logs); err != nil {
-			if err != errCannotWriteToClient {
-				writeError(err)
-			}
-			break
+			writeError(err)
 		}
 
-		if logReadersDone == len(rr.readers) {
-			break
+		// Just close the stop channel here, we aren't using it.
+		close(stopCh)
+	} else {
+		// In follow-mode the case is different. It gets a bit more complex
+		// with the possibility of multiple log sources, that can arrive in
+		// any given order. To handle this we do the following, try to read
+		// the combined backlog from all the sources, and keep track of logs
+		// read that are from a later time than the current time.
+		backlog := rr.readFollowBacklog(logCh, errCh)
+		if err := writeLogs(backlog); err != nil {
+			writeError(err)
+		}
+
+		// After reading what we believe to be the complete backlog, we then
+		// enter a follow-mode read loop. This will run until the client disconnects
+		// (i.e we get the errCannotWriteToClient error).
+		logReadersDone, err := rr.readFollowMode(writeLogs, logCh, errCh)
+		if err != nil {
+			writeError(err)
+		}
+
+		// At last, we close the stop channel to signal to the readers that we are done.
+		close(stopCh)
+		for logReadersDone != len(rr.readers) {
+			<-errCh
+			logReadersDone++
 		}
 	}
 
-	// Close the channels to clean up if we have terminated early
-	// due to errors. This can cause the go routines to panic, but
-	// the safeSend should catch this and then terminate cleanly
-	close(c)
-	close(e)
+	// Cleanup the other channels after all readers exit
+	close(logCh)
+	close(errCh)
 
 	if err := writer.Flush(); err != nil {
 		logger.Noticef("cannot stream response; problem writing: %v", err)
