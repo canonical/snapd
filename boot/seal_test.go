@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
@@ -195,7 +196,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		provisionCalls := 0
 		restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 			provisionCalls++
-			c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
+			c.Check(lockoutAuthFile, Equals, device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir))
 			if tc.factoryReset {
 				c.Check(mode, Equals, secboot.TPMPartialReprovision)
 			} else {

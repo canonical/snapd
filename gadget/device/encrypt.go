@@ -92,3 +92,8 @@ func FallbackSaveSealedKeyUnder(seedDeviceFDEDir string) string {
 func FactoryResetFallbackSaveSealedKeyUnder(seedDeviceFDEDir string) string {
 	return filepath.Join(seedDeviceFDEDir, "ubuntu-save.recovery.sealed-key.factory-reset")
 }
+
+// TpmLockoutAuthUnder return the path of the tpm lockout authority key.
+func TpmLockoutAuthUnder(saveDeviceFDEDir string) string {
+	return filepath.Join(saveDeviceFDEDir, "tpm-lockout-auth")
+}

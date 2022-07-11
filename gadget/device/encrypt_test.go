@@ -101,4 +101,7 @@ func (s *deviceSuite) TestLocations(c *C) {
 		"/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key")
 	c.Check(device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir), Equals,
 		"/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset")
+
+	c.Check(device.TpmLockoutAuthUnder(dirs.SnapFDEDirUnderSave(dirs.SnapSaveDir)), Equals,
+		"/var/lib/snapd/save/device/fde/tpm-lockout-auth")
 }
