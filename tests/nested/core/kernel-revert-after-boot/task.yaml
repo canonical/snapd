@@ -1,0 +1,66 @@
+summary: Check that a kernel can be reverted after it has booted
+
+details: |
+  This test checks that a kernel snap that has not finished installation but
+  that already booted can be reverted properly if something else fails, like a
+  post-refresh hook.
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
+
+execute: |
+  echo "Build kernel with failing post-refresh hook"
+  VERSION="$(tests.nested show version)"
+  CHANNEL=$VERSION
+  if [ "$VERSION" -eq 16 ]; then
+      CHANNEL=latest
+  fi
+  rm -rf pc-kernel
+  snap download --basename=pc-kernel --channel="$CHANNEL/edge" pc-kernel
+  unsquashfs -d pc-kernel pc-kernel.snap
+  HOOKS_D=pc-kernel/meta/hooks/
+  POST_REFRESH_P=$HOOKS_D/post-refresh
+  mkdir -p "$HOOKS_D"
+  cat > "$POST_REFRESH_P" << EOF
+  \#!/bin/bash -ex
+  exit 1
+  EOF
+  chmod +x "$POST_REFRESH_P"
+  snap pack pc-kernel/ --filename=pc-kernel_badhook.snap
+
+  echo "Wait for the system to be seeded first"
+  tests.nested exec "sudo snap wait system seed.loaded"
+
+  boot_id="$(tests.nested boot-id)"
+
+  echo "Install kernel with failing post-refresh hook"
+  tests.nested copy pc-kernel_badhook.snap
+  chg_id=$(tests.nested exec 'sudo snap install --dangerous --no-wait ./pc-kernel_badhook.snap')
+
+  echo "Wait for reboot"
+  tests.nested wait-for reboot "$boot_id"
+
+  boot_id="$(tests.nested boot-id)"
+  echo "Wait for second reboot after post-refresh hook failure"
+  tests.nested wait-for reboot "$boot_id"
+
+  boot_id="$(tests.nested boot-id)"
+  # wait for change to finish with error
+  not tests.nested exec sudo snap watch "$chg_id"
+  # make sure that no additional reboots have happened while the change finished
+  test "$boot_id" = "$(tests.nested boot-id)"
+
+  echo "Check that change finished with failure and that the old snap is being used"
+  tests.nested exec "snap info pc-kernel | MATCH 'installed:.*\(x1\)'"
+  tests.nested exec "snap changes | MATCH \"^$chg_id.*Error\""
+  if [ "$VERSION" -ge 20 ]; then
+      # shellcheck disable=SC2016
+      tests.nested exec 'test $(readlink /run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi) = pc-kernel_x1.snap/kernel.efi'
+      tests.nested exec 'cat /run/mnt/ubuntu-boot/EFI/ubuntu/grubenv | MATCH "^kernel_status=$"'
+      echo "Check that modeenv has only the old kernel"
+      tests.nested exec 'cat /var/lib/snapd/modeenv | MATCH "^current_kernels=pc-kernel_x1.snap$"'
+  else
+      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_kernel=pc-kernel_x1.snap$"'
+      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_mode=$"'
+      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_try_kernel=$"'
+      tests.nested exec 'cat /proc/cmdline | MATCH snap_kernel=pc-kernel_x1.snap'
+  fi
