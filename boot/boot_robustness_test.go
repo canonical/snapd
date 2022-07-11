@@ -304,7 +304,7 @@ func (s *bootenv20Suite) TestHappySetNextBoot20KernelUpgradeUnexpectedReboots(c 
 
 		setNextFunc := func(snap.Device) error {
 			// we don't care about the reboot required logic here
-			_, err := bootKern.SetNextBoot()
+			_, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 			return err
 		}
 

@@ -439,6 +439,27 @@ EOF
     rm -rf "$UNPACK_DIR"
 }
 
+repack_kernel_snap() {
+    local TARGET=$1
+    local VERSION
+    local UNPACK_DIR
+    local CHANNEL
+
+    VERSION=$(nested_get_version)
+    if [ "$VERSION" = 16 ]; then
+        CHANNEL=latest
+    else
+        CHANNEL=$VERSION
+    fi
+
+    echo "Repacking kernel snap"
+    UNPACK_DIR=/tmp/kernel-unpack
+    snap download --basename=pc-kernel --channel="$CHANNEL/edge" pc-kernel
+    unsquashfs -no-progress -d "$UNPACK_DIR" pc-kernel.snap
+    snap pack --filename="$TARGET" "$UNPACK_DIR"
+
+    rm -rf "$UNPACK_DIR"
+}
 
 repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     local TARGET="$1"
