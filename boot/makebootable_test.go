@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -584,7 +583,7 @@ version: 5.0
 	provisionCalls := 0
 	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 		provisionCalls++
-		c.Check(lockoutAuthFile, Equals, device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir))
+		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
 		if factoryReset {
 			c.Check(mode, Equals, secboot.TPMPartialReprovision)
 		} else {
@@ -1014,7 +1013,7 @@ version: 5.0
 	provisionCalls := 0
 	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 		provisionCalls++
-		c.Check(lockoutAuthFile, Equals, device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir))
+		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
 		c.Check(mode, Equals, secboot.TPMProvisionFull)
 		return nil
 	})
@@ -1191,7 +1190,7 @@ version: 5.0
 	provisionCalls := 0
 	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 		provisionCalls++
-		c.Check(lockoutAuthFile, Equals, device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir))
+		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
 		c.Check(mode, Equals, secboot.TPMProvisionFull)
 		return nil
 	})
