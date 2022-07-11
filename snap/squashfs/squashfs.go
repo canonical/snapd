@@ -315,7 +315,7 @@ func sandboxParams(sdVer int) (params []string) {
 		"--property=RestrictSUIDSGID=true",
 		"--property=SystemCallFilter=@default @basic-io @signal @file-system @chown @process mprotect",
 		"--property=SystemCallErrorNumber=EPERM",
-		"--property=MemoryMax=8M",
+		"--property=MemoryMax=16M",
 	}
 
 	// see https://github.com/systemd/systemd/blob/main/NEWS
@@ -336,7 +336,7 @@ func sandboxParams(sdVer int) (params []string) {
 	return params
 }
 
-// SaferReadFile returns the content of a single file inside a squashfs snap, but it does invoking unsquashfs under a sandbox to handle not yet verified snap files, there is a limit below 8M on the content size.
+// SaferReadFile returns the content of a single file inside a squashfs snap, but it does invoking unsquashfs under a sandbox to handle not yet verified snap files, there is a limit below 16M on the content size.
 func (s *Snap) SaferReadFile(filePath string) (content []byte, err error) {
 	filePath = filepath.Clean(filePath)
 	if filepath.IsAbs(filePath) {
@@ -375,8 +375,12 @@ func (s *Snap) SaferReadFile(filePath string) (content []byte, err error) {
 	} else {
 		// bind mount snap for access, this allows to use
 		// PrivateTmp even the snap itself is under /tmp
+		snapPath, err := filepath.Abs(s.path)
+		if err != nil {
+			return nil, err
+		}
 		runParams = append(runParams, []string{
-			fmt.Sprintf("--property=BindReadOnlyPaths=%s:/tmp/snap", s.path),
+			fmt.Sprintf("--property=BindReadOnlyPaths=%s:/tmp/snap", snapPath),
 			fmt.Sprintf("--property=BindPaths=%s:/tmp/read-file", tmpdir),
 		}...)
 	}

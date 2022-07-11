@@ -1037,7 +1037,7 @@ var expectedSandboxParams = []string{
 	"--property=RestrictSUIDSGID=true",
 	"--property=SystemCallFilter=@default @basic-io @signal @file-system @chown @process mprotect",
 	"--property=SystemCallErrorNumber=EPERM",
-	"--property=MemoryMax=8M",
+	"--property=MemoryMax=16M",
 	"--service-type=exec",
 	"--property=ProtectHostname=true",
 	"--property=ProtectKernelLogs=true",
