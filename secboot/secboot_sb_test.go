@@ -2051,7 +2051,7 @@ func (s *secbootSuite) testMarkSuccessfulEncrypted(c *C, sealingMethod device.Se
 	err = device.StampSealedKeys(dirs.GlobalRootDir, sealingMethod)
 	c.Assert(err, IsNil)
 
-	// write fake lockout counter
+	// write fake lockout auth
 	lockoutAuthValue := []byte("tpm-lockout-auth-key")
 	err = ioutil.WriteFile(filepath.Join(saveFDEDir, "tpm-lockout-auth"), lockoutAuthValue, 0600)
 	c.Assert(err, IsNil)
