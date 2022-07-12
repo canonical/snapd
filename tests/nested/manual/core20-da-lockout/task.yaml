@@ -23,7 +23,7 @@ execute: |
 
     # lockout value is zero initially
     tests.nested exec sudo ./getdalockout | MATCH "lockout counter value: 0"
-    
+
     boot_id=$(tests.nested boot-id)
     tests.nested exec "sudo sync"
     # force an (external) reboot
