@@ -130,14 +130,14 @@ func (s *deviceSuite) TestStampSealedKeysRunthrough(c *C) {
 	}
 }
 
-func (s *deviceSuite) TestStampSealedKeysMissing(c *C) {
+func (s *deviceSuite) TestSealedKeysMethodWithMissingStamp(c *C) {
 	root := c.MkDir()
 
 	_, err := device.SealedKeysMethod(root)
 	c.Check(err, Equals, device.ErrNoSealedKeys)
 }
 
-func (s *deviceSuite) TestStampSealedKeysWrongContentDoesNotError(c *C) {
+func (s *deviceSuite) TestSealedKeysMethodWithWrongContentHappy(c *C) {
 	root := c.MkDir()
 
 	mockSealedKeyPath := filepath.Join(root, "/var/lib/snapd/device/fde/sealed-keys")
