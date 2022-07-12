@@ -470,7 +470,11 @@ var templateCommon = `
   /run/lock/ r,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
-
+  
+  # Allow each snaps to access each their own folder on the
+  # ubuntu-save partition, with write permissions.
+  /var/lib/snapd/save/snap/@{SNAP_INSTANCE_NAME}/ rw,
+  /var/lib/snapd/save/snap/@{SNAP_INSTANCE_NAME}/** mrwklix,
 
   ###DEVMODE_SNAP_CONFINE###
 `

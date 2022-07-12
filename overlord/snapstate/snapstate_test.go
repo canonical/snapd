@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 
@@ -283,6 +284,7 @@ SNAPD_APPARMOR_REEXEC=0
 	s.AddCleanup(snapstate.MockSecurityProfilesDiscardLate(func(snapName string, rev snap.Revision, typ snap.Type) error {
 		return nil
 	}))
+	s.AddCleanup(osutil.MockMountInfo(""))
 }
 
 func (s *snapmgrBaseTest) TearDownTest(c *C) {
@@ -5486,6 +5488,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			old:  "<no-old>",
 		},
 		{
+			op:   "setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "core"),
+		},
+		{
 			op:    "setup-profiles:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -5539,6 +5545,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		},
 		{
 			op:   "remove-snap-common-data",
+			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
+		},
+		{
+			op:   "remove-snap-save-data",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
 		},
 		{
@@ -5641,6 +5651,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:   "remove-snap-common-data",
+			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
+		},
+		{
+			op:   "remove-snap-save-data",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
 		},
 		{
@@ -7734,6 +7748,10 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 			op:   "copy-data",
 			path: filepath.Join(dirs.SnapMountDir, "snapd/11"),
 			old:  filepath.Join(dirs.SnapMountDir, "snapd/1"),
+		},
+		{
+			op:   "setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "snapd"),
 		},
 		{
 			op:    "setup-profiles:Doing",
