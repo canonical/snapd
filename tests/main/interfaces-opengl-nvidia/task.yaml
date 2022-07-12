@@ -1,6 +1,6 @@
 summary: Ensure that basic opengl works with faked nvidia
 
-systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-20.04-*]
+systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
 
 environment:
     NV_VERSION/stable: "123.456"
