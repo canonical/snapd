@@ -4,9 +4,8 @@ details: |
   Functional test for snap journal quota group commands ensuring that they are 
   effective in practice.
 
-# these systems do not support quota groups due to either their old systemd versions,
-# or their journalctl being too old. On centos8, debian10, ubuntu18 and below journalctl
-# does not support --namespace option.
+# these systems do not support journal quota groups due to their old systemd versions.
+# requires systemd v245+
 systems:
   - -ubuntu-14.04-*
   - -centos-7-*
