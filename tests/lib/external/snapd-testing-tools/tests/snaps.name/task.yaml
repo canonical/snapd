@@ -1,5 +1,7 @@
 summary: smoke test for the snaps.name tool
 
+backends: [google]
+
 execute: |
     snaps.name --help | MATCH 'usage: snaps.name gadget, kernel, core'
     snaps.name -h | MATCH 'usage: snaps.name gadget, kernel, core'
