@@ -41,26 +41,26 @@ var (
 
 	HiddenSnapDataHomeGlob string
 
-	SnapBlobDir               string
-	SnapDataDir               string
-	SnapDataHomeGlob          string
-	SnapDownloadCacheDir      string
-	SnapAppArmorDir           string
-	SnapConfineAppArmorDir    string
-	SnapSeccompBase           string
-	SnapSeccompDir            string
-	SnapMountPolicyDir        string
-	SnapUdevRulesDir          string
-	SnapKModModulesDir        string
-	SnapKModModprobeDir       string
-	LocaleDir                 string
-	SnapdSocket               string
-	SnapSocket                string
-	SnapRunDir                string
-	SnapRunNsDir              string
-	SnapRunLockDir            string
-	SnapBootstrapRunDir       string
-	SnapVoidDir               string
+	SnapBlobDir            string
+	SnapDataDir            string
+	SnapDataHomeGlob       string
+	SnapDownloadCacheDir   string
+	SnapAppArmorDir        string
+	SnapConfineAppArmorDir string
+	SnapSeccompBase        string
+	SnapSeccompDir         string
+	SnapMountPolicyDir     string
+	SnapUdevRulesDir       string
+	SnapKModModulesDir     string
+	SnapKModModprobeDir    string
+	LocaleDir              string
+	SnapdSocket            string
+	SnapSocket             string
+	SnapRunDir             string
+	SnapRunNsDir           string
+	SnapRunLockDir         string
+	SnapBootstrapRunDir    string
+	SnapVoidDir            string
 
 	SnapdMaintenanceFile string
 
