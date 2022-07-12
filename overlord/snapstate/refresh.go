@@ -93,8 +93,8 @@ var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app 
 //
 // The check is designed to run early in the refresh pipeline. Before
 // downloading or stopping services for the update, we can check that only
-// services are running, that is, that no non-service apps or hooks are
-// currently running.
+// services or snaps that explicitly allow refreshes are running, that is,
+// that no non-service apps or hooks are currently running.
 //
 // Since services are stopped during the update this provides a good early
 // precondition check. The check is also deliberately racy as existing snap
@@ -106,7 +106,7 @@ var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app 
 // block refresh to continue executing.
 func SoftNothingRunningRefreshCheck(info *snap.Info) error {
 	return genericRefreshCheck(info, func(app *snap.AppInfo) bool {
-		return app.IsService() || app.RefreshAllowed
+		return app.IsService() || app.RefreshMode == "ignore-running"
 	})
 }
 
@@ -118,14 +118,14 @@ func SoftNothingRunningRefreshCheck(info *snap.Info) error {
 // externally (e.g. by using a new inhibition mechanism for snap run).
 //
 // The check fails if any process belonging to the snap, apart from services
-// that are enduring refresh, is still alive. If a snap is busy it cannot be
-// refreshed and the refresh process is aborted.
+// and snaps that explicitly allow refreshes, is still alive. If a snap is busy
+// it cannot be refreshed and the refresh process is aborted.
 //
 // Apart from ignoring services, the check allows apps that want not to
 // block refresh to continue executing.
 func HardNothingRunningRefreshCheck(info *snap.Info) error {
 	return genericRefreshCheck(info, func(app *snap.AppInfo) bool {
-		return app.IsService() || app.RefreshAllowed
+		return app.IsService() || app.RefreshMode == "ignore-running"
 	})
 }
 

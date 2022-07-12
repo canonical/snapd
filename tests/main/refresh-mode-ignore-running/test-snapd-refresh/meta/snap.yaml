@@ -1,9 +1,10 @@
 name: test-snapd-refresh
 version: 1
 architectures: [all]
+assumes: [app-refresh-mode]
 apps:
   sh:
     command: bin/sh
   refresh-allowed-sh:
     command: bin/sh
-    refresh-allowed: true
+    refresh-mode: ignore-running
