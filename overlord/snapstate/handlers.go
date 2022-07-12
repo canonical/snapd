@@ -1256,10 +1256,6 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		return copyDataErr
 	}
 
-	if err := m.backend.SetupSnapSaveData(newInfo, pb); err != nil {
-		return err
-	}
-
 	var oldBase string
 	if oldInfo != nil {
 		oldBase = oldInfo.Base
@@ -1415,9 +1411,6 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
 	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, dirOpts); err != nil {
-		return err
-	}
-	if err := m.backend.UndoSetupSnapSaveData(newInfo, oldInfo, pb); err != nil {
 		return err
 	}
 
@@ -2763,12 +2756,6 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	if len(snapst.Sequence) == 1 {
 		// Only remove data common between versions if this is the last version
 		if err = m.backend.RemoveSnapCommonData(info, dirOpts); err != nil {
-			return err
-		}
-
-		// Same for the common snap save data directory, we only remove it if this
-		// is the last version.
-		if err = m.backend.RemoveSnapSaveData(info); err != nil {
 			return err
 		}
 

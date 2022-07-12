@@ -100,6 +100,8 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		"copy-snap-data",
 		"setup-profiles",
 		"link-snap",
+	)
+	expected = append(expected,
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases")
@@ -1023,10 +1025,6 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			old:  "<no-old>",
 		},
 		{
-			op:   "setup-snap-save-data",
-			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
-		},
-		{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -1201,10 +1199,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 			op:   "copy-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/11"),
 			old:  "<no-old>",
-		},
-		{
-			op:   "setup-snap-save-data",
-			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap_instance"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -1393,10 +1387,6 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			old:  "<no-old>",
 		},
 		{
-			op:   "setup-snap-save-data",
-			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
-		},
-		{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -1449,11 +1439,6 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 		{
 			op:   "undo-copy-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
-			old:  "<no-old>",
-		},
-		{
-			op:   "undo-setup-snap-save-data",
-			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 			old:  "<no-old>",
 		},
 		{
@@ -1549,10 +1534,6 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 			op:   "copy-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/666"),
 			old:  "<no-old>",
-		},
-		{
-			op:   "setup-snap-save-data",
-			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -1716,10 +1697,6 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 			op:   "copy-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/42"),
 			old:  "<no-old>",
-		},
-		{
-			op:   "setup-snap-save-data",
-			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -1898,10 +1875,6 @@ version: 1.0`)
 			old:  "<no-old>",
 		},
 		{
-			op:   "setup-snap-save-data",
-			path: filepath.Join(dirs.SnapDataSaveDir, "mock"),
-		},
-		{
 			op:    "setup-profiles:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
@@ -2022,10 +1995,6 @@ epoch: 1*
 			op:   "copy-data",
 			path: filepath.Join(dirs.SnapMountDir, "mock/x3"),
 			old:  filepath.Join(dirs.SnapMountDir, "mock/x2"),
-		},
-		{
-			op:   "setup-snap-save-data",
-			path: filepath.Join(dirs.SnapDataSaveDir, "mock"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2153,10 +2122,6 @@ epoch: 1*
 			old:  filepath.Join(dirs.SnapMountDir, "mock/100001"),
 		},
 		{
-			op:   "setup-snap-save-data",
-			path: filepath.Join(dirs.SnapDataSaveDir, "mock"),
-		},
-		{
 			op:    "setup-profiles:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
@@ -2229,7 +2194,7 @@ version: 1.0`)
 	s.settle(c)
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -2238,10 +2203,10 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[1].path, Matches, `.*/orig-name_1.0_all.snap`)
 	c.Check(s.fakeBackend.ops[1].revno, Equals, snap.R(42))
 
-	c.Check(s.fakeBackend.ops[5].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[5].sinfo, DeepEquals, *si)
-	c.Check(s.fakeBackend.ops[6].op, Equals, "link-snap")
-	c.Check(s.fakeBackend.ops[6].path, Equals, filepath.Join(dirs.SnapMountDir, "some-snap/42"))
+	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
+	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, *si)
+	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
+	c.Check(s.fakeBackend.ops[5].path, Equals, filepath.Join(dirs.SnapMountDir, "some-snap/42"))
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2394,10 +2359,6 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			old:  "<no-old>",
 		},
 		{
-			op:   "setup-snap-save-data",
-			path: filepath.Join(dirs.SnapDataSaveDir, "core"),
-		},
-		{
 			op:    "setup-profiles:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -2456,10 +2417,6 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			op:   "copy-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/42"),
 			old:  "<no-old>",
-		},
-		{
-			op:   "setup-snap-save-data",
-			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2859,9 +2816,6 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		path: filepath.Join(dirs.SnapMountDir, "snap-content-slot/11"),
 		old:  "<no-old>",
 	}, {
-		op:   "setup-snap-save-data",
-		path: filepath.Join(dirs.SnapDataSaveDir, "snap-content-slot"),
-	}, {
 		op:    "setup-profiles:Doing",
 		name:  "snap-content-slot",
 		revno: snap.R(11),
@@ -2909,9 +2863,6 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		op:   "copy-data",
 		path: filepath.Join(dirs.SnapMountDir, "snap-content-plug/42"),
 		old:  "<no-old>",
-	}, {
-		op:   "setup-snap-save-data",
-		path: filepath.Join(dirs.SnapDataSaveDir, "snap-content-plug"),
 	}, {
 		op:    "setup-profiles:Doing",
 		name:  "snap-content-plug",
