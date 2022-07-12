@@ -2632,22 +2632,22 @@ type: kernel`
 	c.Check(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core18_2.snap",
 		"snap_try_core":   "",
-		"snap_try_kernel": "pc-kernel_123.snap",
-		"snap_kernel":     "pc-kernel_x1.snap",
-		"snap_mode":       boot.TryStatus,
+		"snap_try_kernel": "",
+		"snap_kernel":     "pc-kernel_123.snap",
+		"snap_mode":       boot.DefaultStatus,
 	})
 	restarting, _ = restart.Pending(st)
 	c.Check(restarting, Equals, true)
 
 	// pretend we restarted back to the old kernel
-	s.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeKernel})
+	s.mockSuccessfulReboot(c, bloader, nil)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	// and we undo the bootvars and trigger a reboot
+	// bootvars should not have changed
 	c.Check(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core18_2.snap",
 		"snap_try_core":   "",
@@ -2973,9 +2973,9 @@ type: kernel`
 	restarting, _ = restart.Pending(st)
 	c.Check(restarting, Equals, true)
 
-	// we need to reboot with a "new" try kernel, so kernel_status was set again
+	// we revert to the previous working kernel, so kernel_status is unset now
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
-		"kernel_status": boot.TryStatus,
+		"kernel_status": "",
 	})
 
 	// we should not have extracted any more kernel assets than before, since
@@ -2992,16 +2992,14 @@ type: kernel`
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Current, DeepEquals, snap.R(1))
 
-	// since we need to do a reboot to go back to the old kernel, we should now
-	// have kernel on the bootloader as the new one, and the try kernel on the
-	// booloader as the old one
+	// we will reboot to go back to the old kernel, we should now
+	// have the old kernel on the bootloader and no try kernel
 	finalCurrentKernel, err := bloader.Kernel()
 	c.Assert(err, IsNil)
-	c.Assert(finalCurrentKernel.Filename(), Equals, kernelSnapInfo.Filename())
+	c.Assert(finalCurrentKernel.Filename(), Equals, firstKernel.Filename())
 
-	finalTryKernel, err := bloader.TryKernel()
-	c.Assert(err, IsNil)
-	c.Assert(finalTryKernel.Filename(), Equals, firstKernel.Filename())
+	_, err = bloader.TryKernel()
+	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
 
 	// TODO:UC20: this test should probably simulate another reboot and confirm
 	// that at the end of everything we have GetCurrentBoot() return the old
@@ -3086,7 +3084,7 @@ apps:
 	c.Assert(err, ErrorMatches, ".*no such file.*")
 
 	// now do the revert
-	ts, err := snapstate.Revert(st, "foo", snapstate.Flags{})
+	ts, err := snapstate.Revert(st, "foo", snapstate.Flags{}, "")
 	c.Assert(err, IsNil)
 	chg := st.NewChange("revert-snap", "...")
 	chg.AddAll(ts)
@@ -3646,6 +3644,148 @@ apps:
 	dest, err = os.Readlink(app3Alias)
 	c.Assert(err, IsNil)
 	c.Check(dest, Equals, "bar.app3")
+}
+
+func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateWithAndWithoutAppsForAutoAliases(c *C) {
+	// there is a single snap declaration that covers all tracks/channels,
+	// because of this it can list auto aliases for apps that do not exist
+	// in a particular channel the the snap is installed from and track
+	s.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name": "foo",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app1", "target": "app1"},
+			map[string]interface{}{"name": "app2", "target": "app2"},
+		},
+	})
+
+	fooYamlJustApp1 := `name: foo
+version: @VERSION@
+apps:
+ app1:
+  command: bin/app1
+`
+
+	fooPath, _ := s.makeStoreTestSnap(c, strings.Replace(fooYamlJustApp1, "@VERSION@", "1.0", -1), "10")
+	s.serveSnap(fooPath, "10")
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Install(context.TODO(), st, "foo", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	info, err := snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(10))
+	c.Check(info.Version, Equals, "1.0")
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app1": {Auto: "app1"},
+	})
+
+	app1Alias := filepath.Join(dirs.SnapBinariesDir, "app1")
+	app2Alias := filepath.Join(dirs.SnapBinariesDir, "app2")
+	c.Check(app1Alias, testutil.SymlinkTargetEquals, "foo.app1")
+	c.Check(app2Alias, testutil.FileAbsent)
+
+	fooYamlBothApps := `name: foo
+version: @VERSION@
+apps:
+ app1:
+  command: bin/app1
+ app2:
+  command: bin/app2
+`
+
+	// new foo version/revision with both apps
+	fooPath, _ = s.makeStoreTestSnap(c, strings.Replace(fooYamlBothApps, "@VERSION@", "1.5", -1), "15")
+	s.serveSnap(fooPath, "15")
+
+	// refresh all
+	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(updated, DeepEquals, []string{"foo"})
+	c.Assert(tss, HasLen, 2)
+	verifyLastTasksetIsRerefresh(c, tss)
+	chg = st.NewChange("upgrade-snaps", "...")
+	chg.AddAll(tss[0])
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	info, err = snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(15))
+	c.Check(info.Version, Equals, "1.5")
+
+	var snapst2 snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst2)
+	c.Assert(err, IsNil)
+	c.Check(snapst2.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst2.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app1": {Auto: "app1"},
+		"app2": {Auto: "app2"},
+	})
+
+	c.Check(app1Alias, testutil.SymlinkTargetEquals, "foo.app1")
+	c.Check(app2Alias, testutil.SymlinkTargetEquals, "foo.app2")
+
+	// new revision has just one app again
+	fooPath, _ = s.makeStoreTestSnap(c, strings.Replace(fooYamlJustApp1, "@VERSION@", "2.0", -1), "20")
+	s.serveSnap(fooPath, "20")
+
+	// refresh all
+	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(updated, DeepEquals, []string{"foo"})
+	c.Assert(tss, HasLen, 2)
+	verifyLastTasksetIsRerefresh(c, tss)
+	chg = st.NewChange("upgrade-snaps", "...")
+	chg.AddAll(tss[0])
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	info, err = snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(20))
+	c.Check(info.Version, Equals, "2.0")
+
+	var snapst3 snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst3)
+	c.Assert(err, IsNil)
+	c.Check(snapst3.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst3.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app1": {Auto: "app1"},
+	})
+
+	c.Check(app1Alias, testutil.SymlinkTargetEquals, "foo.app1")
+	c.Check(app2Alias, testutil.FileAbsent)
 }
 
 func (s *mgrsSuite) TestHappyStopWhileDownloadingHeader(c *C) {
@@ -5240,11 +5380,11 @@ version: 20.04`
 
 	// and the undo gave us our old kernel back
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
-		"snap_core":       "core20_2.snap",
-		"snap_try_core":   "core18_1.snap",
+		"snap_core":       "core18_1.snap",
+		"snap_try_core":   "",
 		"snap_kernel":     "pc-kernel_1.snap",
 		"snap_try_kernel": "",
-		"snap_mode":       boot.TryStatus,
+		"snap_mode":       boot.DefaultStatus,
 	})
 }
 
@@ -5878,9 +6018,9 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 	c.Assert(ms.bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core_1.snap",
 		"snap_try_core":   "",
-		"snap_try_kernel": "pc-kernel_1.snap",
-		"snap_kernel":     "brand-kernel_2.snap",
-		"snap_mode":       boot.TryStatus,
+		"snap_try_kernel": "",
+		"snap_kernel":     "pc-kernel_1.snap",
+		"snap_mode":       boot.DefaultStatus,
 	})
 }
 

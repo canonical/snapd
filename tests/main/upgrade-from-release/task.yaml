@@ -35,7 +35,7 @@ execute: |
         # 16.04 is ESM so get the latest version from the official archive
         # (we can't get the very first version because it's so old it
         # cannot run our test snaps)
-        apt install -y snapd
+        apt install -y snapd=2.48.3
     fi
     declare -A EXPECTED_SNAPD_VERSIONS=(
         ["22.04"]='2.55.3\+22.04'

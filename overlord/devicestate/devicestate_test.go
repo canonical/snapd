@@ -22,6 +22,7 @@ package devicestate_test
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1898,4 +1899,168 @@ func (s *deviceMgrSuite) TestVoidDirPermissionsGetFixed(c *C) {
 	msgs := strings.TrimSpace(logbuf.String())
 	c.Check(msgs, Matches, "(?sm).*fixing permissions of .*/var/lib/snapd/void to 0111")
 	c.Check(strings.Split(msgs, "\n"), HasLen, 1)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) {
+	defer release.MockOnClassic(false)
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+	devicestate.SetBootOkRan(s.mgr, false)
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	// encrypted system
+	mockSnapFDEFile(c, "marker", nil)
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"),
+		[]byte("save-key"), 0644)
+	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0755), IsNil)
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+		[]byte("old"), 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+		[]byte("save"), 0644)
+	c.Assert(err, IsNil)
+	// matches the .factory key
+	factoryResetMarkercontent := []byte(`{"fallback-save-key-sha3-384":"d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b"}
+`)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+
+	completeCalls := 0
+	restore := devicestate.MockMarkFactoryResetComplete(func(encrypted bool) error {
+		completeCalls++
+		c.Check(encrypted, Equals, true)
+		return nil
+	})
+	defer restore()
+	transitionCalls := 0
+	restore = devicestate.MockSecbootTransitionEncryptionKeyChange(func(mountpoint string, key keys.EncryptionKey) error {
+		transitionCalls++
+		c.Check(mountpoint, Equals, boot.InitramfsUbuntuSaveDir)
+		c.Check(key, DeepEquals, keys.EncryptionKey([]byte("save-key")))
+		return nil
+	})
+	defer restore()
+
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	c.Check(completeCalls, Equals, 1)
+	c.Check(transitionCalls, Equals, 1)
+	// factory reset marker is gone, the key was verified successfully
+	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.SnapFDEDir, "marker"), testutil.FilePresent)
+
+	completeCalls = 0
+	transitionCalls = 0
+	// try again, no marker, nothing should happen
+	devicestate.SetPostFactoryResetRan(s.mgr, false)
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	// nothing was called
+	c.Check(completeCalls, Equals, 0)
+	c.Check(transitionCalls, Equals, 0)
+
+	// have the marker, but migrate the key as if boot code would do it and
+	// try again, in this setup the marker hash matches the migrated key
+	c.Check(os.Rename(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")),
+		IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+
+	devicestate.SetPostFactoryResetRan(s.mgr, false)
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(completeCalls, Equals, 1)
+	c.Check(transitionCalls, Equals, 1)
+	// the marker was again removed
+	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c *C) {
+	defer release.MockOnClassic(false)
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+	devicestate.SetBootOkRan(s.mgr, false)
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	// encrypted system
+	mockSnapFDEFile(c, "marker", nil)
+	c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0755), IsNil)
+	err := ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+		[]byte("old"), 0644)
+	c.Check(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+		[]byte("save"), 0644)
+	c.Check(err, IsNil)
+	// does not match the save key
+	factoryResetMarkercontent := []byte(`{"fallback-save-key-sha3-384":"uh-oh"}
+`)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+
+	completeCalls := 0
+	restore := devicestate.MockMarkFactoryResetComplete(func(encrypted bool) error {
+		completeCalls++
+		c.Check(encrypted, Equals, true)
+		return nil
+	})
+	defer restore()
+
+	err = s.mgr.Ensure()
+	c.Assert(err, ErrorMatches, "devicemgr: cannot verify factory reset marker: fallback sealed key digest mismatch, got d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b expected uh-oh")
+
+	c.Check(completeCalls, Equals, 0)
+	// factory reset marker is gone, the key was verified successfully
+	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapFDEDir, "marker"), testutil.FilePresent)
+
+	// try again, no marker, hit the same error
+	devicestate.SetPostFactoryResetRan(s.mgr, false)
+	err = s.mgr.Ensure()
+	c.Assert(err, ErrorMatches, "devicemgr: cannot verify factory reset marker: fallback sealed key digest mismatch, got d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b expected uh-oh")
+	c.Check(completeCalls, Equals, 0)
+
+	// and again, but not resetting the 'ran' check, so nothing is checked or called
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(completeCalls, Equals, 0)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C) {
+	defer release.MockOnClassic(false)
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+	devicestate.SetBootOkRan(s.mgr, false)
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	// mock the factory reset marker of a system that isn't encrypted
+	c.Assert(os.MkdirAll(dirs.SnapDeviceDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), []byte("{}"), 0644), IsNil)
+
+	completeCalls := 0
+	restore := devicestate.MockMarkFactoryResetComplete(func(encrypted bool) error {
+		completeCalls++
+		c.Check(encrypted, Equals, false)
+		return nil
+	})
+	defer restore()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	c.Check(completeCalls, Equals, 1)
+	// factory reset marker is gone
+	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
+
+	// try again, no marker, nothing should happen
+	devicestate.SetPostFactoryResetRan(s.mgr, false)
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	// nothing was called
+	c.Check(completeCalls, Equals, 1)
 }

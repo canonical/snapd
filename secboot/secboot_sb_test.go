@@ -605,22 +605,89 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 	}
 }
 
+func (s *secbootSuite) TestProvisionTPM(c *C) {
+	mockErr := errors.New("some error")
+
+	for idx, tc := range []struct {
+		tpmErr            error
+		tpmEnabled        bool
+		mode              secboot.TPMProvisionMode
+		writeLockoutAuth  bool
+		provisioningErr   error
+		provisioningCalls int
+		expectedErr       string
+	}{
+		{
+			tpmErr: mockErr, mode: secboot.TPMProvisionFull,
+			expectedErr: "cannot connect to TPM: some error",
+		}, {
+			tpmEnabled: false, mode: secboot.TPMProvisionFull, expectedErr: "TPM device is not enabled",
+		}, {
+			tpmEnabled: true, mode: secboot.TPMProvisionFull, provisioningErr: mockErr,
+			provisioningCalls: 1, expectedErr: "cannot provision TPM: some error",
+		}, {
+			tpmEnabled: true, mode: secboot.TPMPartialReprovision, provisioningCalls: 0,
+			expectedErr: "cannot read existing lockout auth: open .*/lockout-auth: no such file or directory",
+		},
+		// happy cases
+		{
+			tpmEnabled: true, mode: secboot.TPMProvisionFull, provisioningCalls: 1,
+		}, {
+			tpmEnabled: true, mode: secboot.TPMPartialReprovision, writeLockoutAuth: true,
+			provisioningCalls: 1,
+		},
+	} {
+		c.Logf("tc: %v", idx)
+		d := c.MkDir()
+		tpm, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		// mock TPM enabled check
+		restore = secboot.MockIsTPMEnabled(func(t *sb_tpm2.Connection) bool {
+			return tc.tpmEnabled
+		})
+		defer restore()
+
+		lockoutAuthData := []byte{'l', 'o', 'c', 'k', 'o', 'u', 't', 1, 1, 1, 1, 1, 1, 1, 1, 1}
+		if tc.writeLockoutAuth {
+			c.Assert(ioutil.WriteFile(filepath.Join(d, "lockout-auth"), lockoutAuthData, 0644), IsNil)
+		}
+
+		// mock provisioning
+		provisioningCalls := 0
+		restore = secboot.MockSbTPMEnsureProvisioned(func(t *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, newLockoutAuth []byte) error {
+			provisioningCalls++
+			c.Assert(t, Equals, tpm)
+			c.Assert(mode, Equals, sb_tpm2.ProvisionModeFull)
+			return tc.provisioningErr
+		})
+		defer restore()
+
+		err := secboot.ProvisionTPM(tc.mode, filepath.Join(d, "lockout-auth"))
+		if tc.expectedErr != "" {
+			c.Assert(err, ErrorMatches, tc.expectedErr)
+		} else {
+			c.Assert(err, IsNil)
+		}
+		c.Check(provisioningCalls, Equals, tc.provisioningCalls)
+	}
+
+}
+
 func (s *secbootSuite) TestSealKey(c *C) {
 	mockErr := errors.New("some error")
 
-	for _, tc := range []struct {
+	for idx, tc := range []struct {
 		tpmErr               error
 		tpmEnabled           bool
 		missingFile          bool
 		badSnapFile          bool
-		skipProvision        bool
 		addEFISbPolicyErr    error
 		addEFIBootManagerErr error
 		addSystemdEFIStubErr error
 		addSnapModelErr      error
 		provisioningErr      error
 		sealErr              error
-		provisioningCalls    int
 		sealCalls            int
 		expectedErr          string
 	}{
@@ -632,11 +699,10 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmEnabled: true, addEFIBootManagerErr: mockErr, expectedErr: "cannot add EFI boot manager profile: some error"},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
-		{tpmEnabled: true, provisioningErr: mockErr, provisioningCalls: 1, expectedErr: "cannot provision TPM: some error"},
-		{tpmEnabled: true, sealErr: mockErr, provisioningCalls: 1, sealCalls: 1, expectedErr: "some error"},
-		{tpmEnabled: true, skipProvision: true, provisioningCalls: 0, sealCalls: 1, expectedErr: ""},
-		{tpmEnabled: true, provisioningCalls: 1, sealCalls: 1, expectedErr: ""},
+		{tpmEnabled: true, sealErr: mockErr, sealCalls: 1, expectedErr: "some error"},
+		{tpmEnabled: true, sealCalls: 1, expectedErr: ""},
 	} {
+		c.Logf("tc: %v", idx)
 		tmpDir := c.MkDir()
 		var mockBF []bootloader.BootFile
 		for _, name := range []string{"a", "b", "c", "d"} {
@@ -694,8 +760,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			},
 			TPMPolicyAuthKey:       myAuthKey,
 			TPMPolicyAuthKeyFile:   filepath.Join(tmpDir, "policy-auth-key-file"),
-			TPMLockoutAuthFile:     filepath.Join(tmpDir, "lockout-auth-file"),
-			TPMProvision:           !tc.skipProvision,
 			PCRPolicyCounterHandle: 42,
 		}
 
@@ -861,17 +925,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		})
 		defer restore()
 
-		// mock provisioning
-		provisioningCalls := 0
-		restore = secboot.MockProvisionTPM(func(t *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, newLockoutAuth []byte) error {
-			provisioningCalls++
-			c.Assert(t, Equals, tpm)
-			c.Assert(mode, Equals, sb_tpm2.ProvisionModeFull)
-			c.Assert(myParams.TPMLockoutAuthFile, testutil.FilePresent)
-			return tc.provisioningErr
-		})
-		defer restore()
-
 		// mock sealing
 		sealCalls := 0
 		restore = secboot.MockSbSealKeyToTPMMultiple(func(t *sb_tpm2.Connection, kr []*sb_tpm2.SealKeyRequest, params *sb_tpm2.KeyCreationParams) (sb_tpm2.PolicyAuthKey, error) {
@@ -900,9 +953,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
-		c.Assert(provisioningCalls, Equals, tc.provisioningCalls)
 		c.Assert(sealCalls, Equals, tc.sealCalls)
-
 	}
 }
 
@@ -1105,7 +1156,6 @@ func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 	}
 	myParams := secboot.SealKeysParams{
 		TPMPolicyAuthKeyFile: "policy-auth-key-file",
-		TPMLockoutAuthFile:   "lockout-auth-file",
 	}
 
 	err := secboot.SealKeys(myKeys, &myParams)
@@ -1889,4 +1939,74 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
 
 	c.Check(err, ErrorMatches, `cannot unlock encrypted partition: invalid key data:.*`)
+}
+
+func (s *secbootSuite) TestPCRHandleOfSealedKey(c *C) {
+	d := c.MkDir()
+	h, err := secboot.PCRHandleOfSealedKey(filepath.Join(d, "not-found"))
+	c.Assert(err, ErrorMatches, "cannot open key file: .*/not-found: no such file or directory")
+	c.Assert(h, Equals, uint32(0))
+
+	skf := filepath.Join(d, "sealed-key")
+	// partially valid sealed key with correct header magic
+	c.Assert(ioutil.WriteFile(skf, []byte{0x55, 0x53, 0x4b, 0x24, 1, 1, 1, 'k', 'e', 'y', 1, 1, 1}, 0644), IsNil)
+	h, err = secboot.PCRHandleOfSealedKey(skf)
+	c.Assert(err, ErrorMatches, "(?s)cannot open key file: invalid key data: cannot unmarshal AFIS header: .*")
+	c.Check(h, Equals, uint32(0))
+
+	// TODO simulate the happy case, which needs a real (or at least
+	// partially mocked) sealed key object, which could be obtained using
+	// go-tpm2/testutil, but that has a dependency on an older version of
+	// snapd API and cannot be imported or procure a valid sealed key binary
+	// which unfortunately there are no examples of the secboot/tpm2 test
+	// code
+}
+
+func (s *secbootSuite) TestReleasePCRResourceHandles(c *C) {
+	_, restore := mockSbTPMConnection(c, fmt.Errorf("mock err"))
+	defer restore()
+
+	err := secboot.ReleasePCRResourceHandles(0x1234, 0x2345)
+	c.Assert(err, ErrorMatches, "cannot connect to TPM device: mock err")
+
+	conn, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	var handles []tpm2.Handle
+	restore = secboot.MockTPMReleaseResources(func(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
+		c.Check(tpm, Equals, conn)
+		handles = append(handles, handle)
+		switch handle {
+		case tpm2.Handle(0xeeeeee):
+			return fmt.Errorf("mock release error 1")
+		case tpm2.Handle(0xeeeeef):
+			return fmt.Errorf("mock release error 2")
+		}
+		return nil
+	})
+	defer restore()
+
+	// many handles
+	err = secboot.ReleasePCRResourceHandles(0x1234, 0x2345)
+	c.Assert(err, IsNil)
+	c.Check(handles, DeepEquals, []tpm2.Handle{
+		tpm2.Handle(0x1234), tpm2.Handle(0x2345),
+	})
+
+	// single handle
+	handles = nil
+	err = secboot.ReleasePCRResourceHandles(0x1234)
+	c.Assert(err, IsNil)
+	c.Check(handles, DeepEquals, []tpm2.Handle{tpm2.Handle(0x1234)})
+
+	// an error case
+	handles = nil
+	err = secboot.ReleasePCRResourceHandles(0x1234, 0xeeeeee, 0x2345, 0xeeeeef)
+	c.Assert(err, ErrorMatches, `
+cannot release TPM resources for 2 handles:
+handle 0xeeeeee: mock release error 1
+handle 0xeeeeef: mock release error 2`[1:])
+	c.Check(handles, DeepEquals, []tpm2.Handle{
+		tpm2.Handle(0x1234), tpm2.Handle(0xeeeeee), tpm2.Handle(0x2345), tpm2.Handle(0xeeeeef),
+	})
 }

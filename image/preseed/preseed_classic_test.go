@@ -301,6 +301,8 @@ func (s *preseedSuite) TestReset(c *C) {
 			// bash-completion symlinks
 			{filepath.Join(dirs.CompletersDir, "foo.bar"), "/a/snapd/complete.sh"},
 			{filepath.Join(dirs.CompletersDir, "foo"), "foo.bar"},
+			{filepath.Join(dirs.LegacyCompletersDir, "foo.bar"), "/a/snapd/complete.sh"},
+			{filepath.Join(dirs.LegacyCompletersDir, "foo"), "foo.bar"},
 		}
 
 		for _, art := range artifacts {

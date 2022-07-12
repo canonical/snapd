@@ -143,12 +143,9 @@ backends:
             - debian-sid-64:
                   workers: 6
 
-            - fedora-33-64:
-                  workers: 6
-                  manual: true
-            - fedora-34-64:
-                  workers: 6
             - fedora-35-64:
+                  workers: 6
+            - fedora-36-64:
                   workers: 6
 
             - arch-linux-64:
@@ -164,12 +161,16 @@ backends:
             - centos-8-64:
                   workers: 6
                   storage: preserve-size
-                  image: centos-stream-8
-            # unstable systems below
-            - opensuse-15.2-64:
+                  image: centos-8-64
+            - centos-9-64:
                   workers: 6
-                  manual: true
+                  storage: preserve-size
+                  image: centos-9-64
+
+            # unstable systems below
             - opensuse-15.3-64:
+                  workers: 6
+            - opensuse-15.4-64:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
@@ -228,6 +229,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
 
@@ -300,9 +304,6 @@ backends:
             - amazon-linux-2-64:
                   username: ec2-user
                   password: ec2-user
-            - opensuse-15.2-64:
-                  username: opensuse
-                  password: opensuse
             - opensuse-tumbleweed-64:
                   username: opensuse
                   password: opensuse
@@ -993,6 +994,10 @@ suites:
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested prepare
+            if os.query is-xenial && ! command -v ubuntu-image >/dev/null; then
+                # This is needed because the snap in removed during on restore-each
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            fi
         restore-each: |
             tests.nested vm remove
             tests.nested restore

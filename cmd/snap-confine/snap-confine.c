@@ -393,9 +393,11 @@ int main(int argc, char **argv)
 		// id is non-root.  This protects against, for example, unprivileged
 		// users trying to leverage the snap-confine in the core snap to
 		// escalate privileges.
+		errno = 0; // errno is insignificant here
 		die("snap-confine has elevated permissions and is not confined"
 		    " but should be. Refusing to continue to avoid"
-		    " permission escalation attacks");
+		    " permission escalation attacks\n"
+		    "Please make sure that the snapd.apparmor service is enabled and started.");
 	}
 
 	log_startup_stage("snap-confine mount namespace start");

@@ -206,6 +206,7 @@ if [ "$STATIC" = 1 ]; then
         echo "Checking shell scripts..."
         if [ -n "$CHANGED_FILES" ]; then
             echo "Checking just the changed bash files"
+            echo "Changed files: $CHANGED_FILES"
             # shellcheck disable=SC2086
             INITIAL_FILES="$( file -N $CHANGED_FILES | awk -F": " '$2~/shell.script/{print $1}' )"
         else
