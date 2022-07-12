@@ -272,7 +272,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Mode
 	}
 
 	// we are preparing a new system, hence the TPM needs to be provisioned
-	lockoutAuthFile := filepath.Join(InstallHostFDESaveDir, "tpm-lockout-auth")
+	lockoutAuthFile := device.TpmLockoutAuthUnder(InstallHostFDESaveDir)
 	tpmProvisionMode := secboot.TPMProvisionFull
 	if flags.FactoryReset {
 		tpmProvisionMode = secboot.TPMPartialReprovision

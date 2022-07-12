@@ -105,3 +105,49 @@ func (s *deviceSuite) TestLocations(c *C) {
 	c.Check(device.TpmLockoutAuthUnder(dirs.SnapFDEDirUnderSave(dirs.SnapSaveDir)), Equals,
 		"/var/lib/snapd/save/device/fde/tpm-lockout-auth")
 }
+
+func (s *deviceSuite) TestStampSealedKeysRunthrough(c *C) {
+	root := c.MkDir()
+
+	for _, tc := range []struct {
+		mth      device.SealingMethod
+		expected string
+	}{
+		{device.SealingMethodLegacyTPM, ""},
+		{device.SealingMethodTPM, "tpm"},
+		{device.SealingMethodFDESetupHook, "fde-setup-hook"},
+	} {
+		err := device.StampSealedKeys(root, tc.mth)
+		c.Assert(err, IsNil)
+
+		mth, err := device.SealedKeysMethod(root)
+		c.Assert(err, IsNil)
+		c.Check(tc.mth, Equals, mth)
+
+		content, err := ioutil.ReadFile(filepath.Join(root, "/var/lib/snapd/device/fde/sealed-keys"))
+		c.Assert(err, IsNil)
+		c.Check(string(content), Equals, tc.expected)
+	}
+}
+
+func (s *deviceSuite) TestSealedKeysMethodWithMissingStamp(c *C) {
+	root := c.MkDir()
+
+	_, err := device.SealedKeysMethod(root)
+	c.Check(err, Equals, device.ErrNoSealedKeys)
+}
+
+func (s *deviceSuite) TestSealedKeysMethodWithWrongContentHappy(c *C) {
+	root := c.MkDir()
+
+	mockSealedKeyPath := filepath.Join(root, "/var/lib/snapd/device/fde/sealed-keys")
+	err := os.MkdirAll(filepath.Dir(mockSealedKeyPath), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockSealedKeyPath, []byte("invalid-sealing-method"), 0600)
+	c.Assert(err, IsNil)
+
+	// invalid/unknown sealing methods do not error
+	mth, err := device.SealedKeysMethod(root)
+	c.Check(err, IsNil)
+	c.Check(string(mth), Equals, "invalid-sealing-method")
+}

@@ -1184,6 +1184,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:   false,
+		IsUndo:         true,
 		ServiceOptions: opts,
 	}
 	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
@@ -2024,7 +2025,7 @@ func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) error {
 		return err
 	}
 	bp := boot.Participant(info, info.Type(), groundDeviceCtx)
-	rebootInfo, err := bp.SetNextBoot()
+	rebootInfo, err := bp.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
 	if err != nil {
 		return err
 	}
@@ -2195,6 +2196,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	firstInstall := oldCurrent.Unset()
 	linkCtx := backend.LinkContext{
 		FirstInstall: firstInstall,
+		IsUndo:       true,
 	}
 	var backendErr error
 	if newInfo.Type() == snap.TypeSnapd && !firstInstall {
@@ -2704,6 +2706,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:   false,
+		IsUndo:         true,
 		ServiceOptions: opts,
 	}
 	reboot, err := m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings)

@@ -21,12 +21,16 @@ package servicestate_test
 
 import (
 	"errors"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"time"
 
 	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 	tomb "gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -1414,6 +1418,14 @@ func (s *quotaHandlersSuite) TestUpdateJournalQuota(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForSliceStart("foo"),
+		[]expectedSystemctl{
+			{expArgs: []string{"stop", "systemd-journald@snap-foo"}},
+			{
+				expArgs: []string{"show", "--property=ActiveState", "systemd-journald@snap-foo"},
+				output:  "ActiveState=inactive",
+			},
+			{expArgs: []string{"start", "systemd-journald@snap-foo"}},
+		},
 		systemctlCallsForServiceRestart("test-snap"),
 	))
 	defer r()
@@ -1445,6 +1457,17 @@ func (s *quotaHandlersSuite) TestUpdateJournalQuota(c *C) {
 	err := servicestatetest.MockQuotaInState(st, "foo", "", []string{"test-snap"}, quota.NewResourcesBuilder().WithJournalSize(16*quantity.SizeMiB).Build())
 	c.Assert(err, check.IsNil)
 
+	// Create the journald config file in /etc/systemd/journald@snap-foo.conf
+	// this needs to be done to trigger the restart of the journald service for
+	// that specific group. This is not done in the test as we only setup the
+	// group as a mock, so manually do this here.
+	fooConfPath := filepath.Join(dirs.SnapSystemdDir, "journald@snap-foo.conf")
+	c.Assert(os.MkdirAll(filepath.Dir(fooConfPath), 0755), IsNil)
+	err = ioutil.WriteFile(fooConfPath, []byte(`[Journal]
+SystemMaxUse=16M
+`), 0644)
+	c.Assert(err, IsNil)
+
 	qc := servicestate.QuotaControlAction{
 		Action:         "update",
 		QuotaName:      "foo",
@@ -1465,7 +1488,7 @@ func (s *quotaHandlersSuite) TestUpdateJournalQuota(c *C) {
 	c.Check(setupProfilesCalled, Equals, 0)
 	checkQuotaState(c, st, map[string]quotaGroupState{
 		"foo": {
-			ResourceLimits: quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB*16).WithJournalRate(150, time.Millisecond*10).Build(),
+			ResourceLimits: quota.NewResourcesBuilder().WithJournalSize(16*quantity.SizeMiB).WithJournalRate(150, time.Millisecond*10).Build(),
 			Snaps:          []string{"test-snap"},
 		},
 	})

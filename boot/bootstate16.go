@@ -159,9 +159,7 @@ func (s16 *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate,
 	return u16, nil
 }
 
-func (s16 *bootState16) setNext(s snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error) {
-	nextBoot := s.Filename()
-
+func (s16 *bootState16) setNext(s snap.PlaceInfo, bootCtx NextBootContext) (rbi RebootInfo, u bootStateUpdate, err error) {
 	nextBootVar := fmt.Sprintf("snap_try_%s", s16.varSuffix)
 	goodBootVar := fmt.Sprintf("snap_%s", s16.varSuffix)
 
@@ -173,8 +171,9 @@ func (s16 *bootState16) setNext(s snap.PlaceInfo) (rbi RebootInfo, u bootStateUp
 	env := u16.env
 	toCommit := u16.toCommit
 
-	snapMode := TryStatus
 	rbi.RebootRequired = true
+	snapMode := TryStatus
+	nextBoot := s.Filename()
 	if env[goodBootVar] == nextBoot {
 		// If we were in anything but default ("") mode before
 		// and switched to the good core/kernel again, make
@@ -188,6 +187,10 @@ func (s16 *bootState16) setNext(s snap.PlaceInfo) (rbi RebootInfo, u bootStateUp
 		snapMode = DefaultStatus
 		nextBoot = ""
 		rbi.RebootRequired = false
+	} else if bootCtx.BootWithoutTry {
+		toCommit[goodBootVar] = nextBoot
+		snapMode = DefaultStatus
+		nextBoot = ""
 	}
 
 	toCommit["snap_mode"] = snapMode

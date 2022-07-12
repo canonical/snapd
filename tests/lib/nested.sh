@@ -644,10 +644,23 @@ nested_create_core_vm() {
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/core-from-snapd-deb.snap"
 
+                    # allow repacking the kernel
+                    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
+                        KERNEL_SNAP=new-kernel.snap
+                        repack_kernel_snap "$KERNEL_SNAP"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $KERNEL_SNAP"
+                    fi
                 elif nested_is_core_18_system; then
                     echo "Repacking snapd snap"
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
+
+                    # allow repacking the kernel
+                    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
+                        KERNEL_SNAP=new-kernel.snap
+                        repack_kernel_snap "$KERNEL_SNAP"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $KERNEL_SNAP"
+                    fi
 
                     # allow tests to provide their own core18 snap
                     local CORE18_SNAP

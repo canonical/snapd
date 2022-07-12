@@ -36,10 +36,10 @@ var _ BootParticipant = (*coreBootParticipant)(nil)
 
 func (*coreBootParticipant) IsTrivial() bool { return false }
 
-func (bp *coreBootParticipant) SetNextBoot() (rebootInfo RebootInfo, err error) {
+func (bp *coreBootParticipant) SetNextBoot(bootCtx NextBootContext) (rebootInfo RebootInfo, err error) {
 	const errPrefix = "cannot set next boot: %s"
 
-	rebootInfo, u, err := bp.bs.setNext(bp.s)
+	rebootInfo, u, err := bp.bs.setNext(bp.s, bootCtx)
 	if err != nil {
 		return RebootInfo{RebootRequired: false}, fmt.Errorf(errPrefix, err)
 	}
