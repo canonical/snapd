@@ -34,7 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/overlord/ifacestate/schemas"
+	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -308,7 +308,7 @@ type connectionInfo struct {
 	SlotSnap string
 	SlotName string
 
-	schemas.Connection
+	schema.ConnState
 }
 
 type byPlug []*connectionInfo
@@ -339,7 +339,7 @@ func (c *cmdDebugState) showConnectionDetails(st *state.State, connArg string) e
 		}
 	}
 
-	var conns map[string]*schemas.Connection
+	var conns map[string]*schema.ConnState
 	if err := st.Get("conns", &conns); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -406,7 +406,7 @@ func (c *cmdDebugState) showConnections(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
 
-	var conns map[string]*schemas.Connection
+	var conns map[string]*schema.ConnState
 	if err := st.Get("conns", &conns); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -421,11 +421,11 @@ func (c *cmdDebugState) showConnections(st *state.State) error {
 		slot := strings.Split(p[1], ":")
 
 		c := &connectionInfo{
-			PlugSnap:   plug[0],
-			PlugName:   plug[1],
-			SlotSnap:   slot[0],
-			SlotName:   slot[1],
-			Connection: *conn,
+			PlugSnap:  plug[0],
+			PlugName:  plug[1],
+			SlotSnap:  slot[0],
+			SlotName:  slot[1],
+			ConnState: *conn,
 		}
 		all = append(all, c)
 	}

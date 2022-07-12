@@ -38,7 +38,7 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/ifacestate/schemas"
+	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -545,7 +545,7 @@ func newGadgetConnect(s *state.State, task *state.Task, repo *interfaces.Reposit
 // addGadgetConnections adds to newconns any applicable connections
 // from the gadget connections stanza.
 // conflictError is called to handle checkAutoconnectConflicts errors.
-func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.ConnRef, conns map[string]*schemas.Connection, conflictError func(*state.Retry, error) error) error {
+func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.ConnRef, conns map[string]*schema.ConnState, conflictError func(*state.Retry, error) error) error {
 	var seeded bool
 	err := gc.st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -632,7 +632,7 @@ func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.Co
 	return nil
 }
 
-func addNewConnection(st *state.State, task *state.Task, newconns map[string]*interfaces.ConnRef, conns map[string]*schemas.Connection, plug *snap.PlugInfo, slot *snap.SlotInfo, conflictError func(*state.Retry, error) error) error {
+func addNewConnection(st *state.State, task *state.Task, newconns map[string]*interfaces.ConnRef, conns map[string]*schema.ConnState, plug *snap.PlugInfo, slot *snap.SlotInfo, conflictError func(*state.Retry, error) error) error {
 	connRef := interfaces.NewConnRef(plug, slot)
 	key := connRef.ID()
 	if _, ok := conns[key]; ok {
@@ -794,7 +794,7 @@ func filterUbuntuCoreSlots(candidates []*snap.SlotInfo, arities []interfaces.Sid
 // conns. cannotAutoConnectLog is called to build a log message in
 // case no applicable pair was found. conflictError is called
 // to handle checkAutoconnectConflicts errors.
-func (c *autoConnectChecker) addAutoConnections(newconns map[string]*interfaces.ConnRef, plugs []*snap.PlugInfo, filter func([]*snap.SlotInfo) []*snap.SlotInfo, conns map[string]*schemas.Connection, cannotAutoConnectLog func(plug *snap.PlugInfo, candRefs []string) string, conflictError func(*state.Retry, error) error) error {
+func (c *autoConnectChecker) addAutoConnections(newconns map[string]*interfaces.ConnRef, plugs []*snap.PlugInfo, filter func([]*snap.SlotInfo) []*snap.SlotInfo, conns map[string]*schema.ConnState, cannotAutoConnectLog func(plug *snap.PlugInfo, candRefs []string) string, conflictError func(*state.Retry, error) error) error {
 	for _, plug := range plugs {
 		candSlots, arities := c.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, c.check)
 
@@ -929,7 +929,7 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 // getConns returns information about connections from the state.
 //
 // Connections are transparently re-mapped according to remapIncomingConnRef
-func getConns(st *state.State) (conns map[string]*schemas.Connection, err error) {
+func getConns(st *state.State) (conns map[string]*schema.ConnState, err error) {
 	var raw *json.RawMessage
 	err = st.Get("conns", &raw)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -942,9 +942,9 @@ func getConns(st *state.State) (conns map[string]*schemas.Connection, err error)
 		}
 	}
 	if conns == nil {
-		conns = make(map[string]*schemas.Connection)
+		conns = make(map[string]*schema.ConnState)
 	}
-	remapped := make(map[string]*schemas.Connection, len(conns))
+	remapped := make(map[string]*schema.ConnState, len(conns))
 	for id, cstate := range conns {
 		cref, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -964,8 +964,8 @@ func getConns(st *state.State) (conns map[string]*schemas.Connection, err error)
 // setConns sets information about connections in the state.
 //
 // Connections are transparently re-mapped according to remapOutgoingConnRef
-func setConns(st *state.State, conns map[string]*schemas.Connection) {
-	remapped := make(map[string]*schemas.Connection, len(conns))
+func setConns(st *state.State, conns map[string]*schema.ConnState) {
+	remapped := make(map[string]*schema.ConnState, len(conns))
 	for id, cstate := range conns {
 		cref, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -1299,7 +1299,7 @@ func findHotplugSlot(stateSlots map[string]*HotplugSlotInfo, ifaceName string, h
 	return nil
 }
 
-func findConnsForHotplugKey(conns map[string]*schemas.Connection, ifaceName string, hotplugKey snap.HotplugKey) []string {
+func findConnsForHotplugKey(conns map[string]*schema.ConnState, ifaceName string, hotplugKey snap.HotplugKey) []string {
 	var connsForDevice []string
 	for id, connSt := range conns {
 		if connSt.Interface != ifaceName || connSt.HotplugKey != hotplugKey {

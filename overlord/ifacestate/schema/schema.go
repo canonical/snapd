@@ -17,13 +17,13 @@
  *
  */
 
-// Package schemas holds structs for reading and writing interface-related data.
-package schemas
+// Package schema holds structs for reading and writing interface-related data.
+package schema
 
 import "github.com/snapcore/snapd/snap"
 
-// Connection holds properties of an interface connection.
-type Connection struct {
+// ConnState holds properties of an interface connection.
+type ConnState struct {
 	Auto      bool   `json:"auto,omitempty" yaml:"auto"`
 	ByGadget  bool   `json:"by-gadget,omitempty" yaml:"by-gadget"`
 	Interface string `json:"interface,omitempty" yaml:"interface"`
