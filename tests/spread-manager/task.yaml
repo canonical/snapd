@@ -1,0 +1,92 @@
+summary: smoke test for the spread-manager tool
+
+backends: [google]
+
+systems: [ ubuntu-20.04-64 ]
+
+prepare: |
+    wget -qO- wget https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar xvz
+
+restore: |
+    rm -f spread
+
+execute: |
+    spread-manager -h | MATCH "spread-manager set-manual \[--project-path <PROJECT-PATH>\] <TEST-PATH...>"
+    spread-manager --help | MATCH "spread-manager set-manual \[--project-path <PROJECT-PATH>\] <TEST-PATH...>"
+
+    # Check task without manual tag
+    TASK=task1
+    test "$(./spread -list | wc -l)" == 3
+
+    spread-manager set-manual --project-path "$PWD" "checks/$TASK"
+    test -f "checks/$TASK/task.yaml.back"
+    MATCH "^manual: true" < "checks/$TASK/task.yaml"
+
+    test "$(./spread -list | wc -l)" == 2
+
+    spread-manager reset-manual --project-path "$PWD" "checks/$TASK"
+    test -f "checks/$TASK/task.yaml.back" && exit 1
+    NOMATCH "^manual: true" < "checks/$TASK/task.yaml"
+
+    test "$(./spread -list | wc -l)" == 3
+
+    # Check task without manual: false tag
+    TASK=task2
+    test "$(grep -c "manual:" checks/$TASK/task.yaml)" == 1
+    spread-manager set-manual --project-path "$PWD" "checks/$TASK"
+    test "$(grep -c "manual:" checks/$TASK/task.yaml)" == 1
+
+    test "$(./spread -list | wc -l)" == 2
+
+    spread-manager reset-manual --project-path "$PWD" "checks/$TASK"
+    test -f "checks/$TASK/task.yaml.back" && exit 1
+    MATCH "^manual: false" < "checks/$TASK/task.yaml"
+
+    test "$(./spread -list | wc -l)" == 3
+
+    # Check task without manual: true tag
+    TASK=task3
+    test "$(grep -c "manual:" checks/$TASK/task.yaml)" == 1
+    spread-manager unset-manual --project-path "$PWD" "checks/$TASK"
+    test "$(grep -c "manual:" checks/$TASK/task.yaml)" == 1
+
+    test "$(./spread -list | wc -l)" == 4
+    spread-manager reset-manual --project-path "$PWD" "checks/$TASK"
+    test "$(./spread -list | wc -l)" == 3
+
+    # Check task without #manual tag
+    TASK=task4
+    spread-manager set-manual --project-path "$PWD" "checks/$TASK"
+    test "$(./spread -list | wc -l)" == 2
+    spread-manager reset-manual --project-path "$PWD" "checks/$TASK"
+    test "$(./spread -list | wc -l)" == 3
+
+    # Check set and unset a list of tasks
+    spread-manager set-manual --project-path "$PWD" "checks/task1" "checks/task2" "checks/task3"
+    test "$(./spread -list | wc -l)" == 1
+    spread-manager reset-manual --project-path "$PWD" "checks/task1" "checks/task2" "checks/task3"
+    test "$(./spread -list | wc -l)" == 3
+    spread-manager unset-manual --project-path "$PWD" "checks/task1" "checks/task2" "checks/task3"
+    test "$(./spread -list | wc -l)" == 4
+    spread-manager reset-manual --project-path "$PWD" "checks/task1" "checks/task2" "checks/task3"
+    test "$(./spread -list | wc -l)" == 3
+    spread-manager set-manual --project-path "$PWD" "checks/task1,checks/task2,checks/task3"
+    test "$(./spread -list | wc -l)" == 1
+    spread-manager reset-manual --project-path "$PWD" "checks/task1,checks/task2,checks/task3"
+    test "$(./spread -list | wc -l)" == 3
+    spread-manager unset-manual --project-path "$PWD" "checks/task1 checks/task2 checks/task3"
+    test "$(./spread -list | wc -l)" == 4
+    spread-manager reset-manual --project-path "$PWD" "checks/task1 checks/task2 checks/task3"
+    test "$(./spread -list | wc -l)" == 3
+
+    # Check errors
+    spread-manager set-manual --project-path "" 2>&1 | MATCH "spread-manager: project path cannot be empty"
+    spread-manager set-manual --project-path "$PWD/noproject" "checks/task1"  2>&1 | MATCH "spread-manager: project path \"$PWD/noproject\" has to be a directory"
+    spread-manager set-manual --project-path "checks/task1" "checks/task1"  2>&1 | MATCH "spread-manager: project spread file \"checks/task1/spread.yaml\" does not exist"
+
+    spread-manager set-manual --project-path "$PWD" 2>&1 | MATCH "spread-manager: test path cannot be empty"
+    spread-manager set-manual --project-path "$PWD" "checks/task1/task.yaml" 2>&1 | MATCH "spread-manager: test path \"checks/task1/task.yaml\" has to be a directory"
+    spread-manager set-manual --project-path "$PWD" "checks/task5" 2>&1 | MATCH "spread-manager: test task \"checks/task5/task.yaml\" does not exist"
+
+    spread-manager reset-manual --project-path "$PWD" "checks/task1" 2>&1 | MATCH "spread-manager: test task backup does not exist \"$PWD/checks/task1/task.yaml.back\""
+    spread-manager set-manuals --project-path "$PWD" "checks/task1" 2>&1 | MATCH "spread-manager: no such command: set-manuals"
