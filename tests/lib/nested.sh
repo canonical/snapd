@@ -108,7 +108,7 @@ nested_retry_start_with_boot_errors() {
         retry=$(( retry - 1 ))
         if ! nested_check_boot_errors "$cursor"; then
             cursor="$("$TESTSTOOLS"/journal-state get-last-cursor)"
-            nested_restart
+            nested_force_restart_vm
             sleep 3
         else
             return 0
@@ -1291,7 +1291,7 @@ nested_start() {
     nested_prepare_tools
 }
 
-nested_restart() {
+nested_force_restart_vm() {
     nested_force_stop_vm
     nested_force_start_vm
     wait_for_service "$NESTED_VM" active
