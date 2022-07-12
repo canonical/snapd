@@ -32,6 +32,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 
 	"github.com/canonical/go-tpm2"
 	"github.com/canonical/go-tpm2/linux"
@@ -2050,24 +2051,28 @@ func (s *secbootSuite) testMarkSuccessfulEncrypted(c *C, sealingMethod device.Se
 	err = device.StampSealedKeys(dirs.GlobalRootDir, sealingMethod)
 	c.Assert(err, IsNil)
 
-	err = device.WriteEncryptionMarkers(dirs.SnapFDEDir, saveFDEDir, []byte("foo"))
+	// write fake lockout counter
+	lockoutAuthValue := []byte("tpm-lockout-auth-key")
+	err = ioutil.WriteFile(filepath.Join(saveFDEDir, "tpm-lockout-auth"), lockoutAuthValue, 0600)
 	c.Assert(err, IsNil)
-	encrypted := device.HasEncryptedMarkerUnder(dirs.SnapFDEDir)
-	c.Assert(encrypted, Equals, true)
 
 	daLockResetCalls := 0
 	restore = secboot.MockSbTPMDictionaryAttackLockReset(func(tpm *sb_tpm2.Connection, lockContext tpm2.ResourceContext, lockContextAuthSession tpm2.SessionContext, sessions ...tpm2.SessionContext) error {
 		daLockResetCalls++
-		// XXX: is there a way to do
-		// "lockContext.GetAuthValue() to check that we get
-		// the expected []byte("foo") here?
+		// Below this code pokes at the private data from
+		//   github.com/canonical/go-tpm2/resources.go
+		//   type resourceContext struct {
+		//     ...
+		//     authValue []byte
+		//   }
+		// there is no exported API to get the auth value. If go-tpm2
+		// starts chaning it's probably not worth updating this
+		// part of the test and it can just get removed.
+		fv := reflect.ValueOf(lockContext).Elem().FieldByName("authValue")
+		c.Check(fv.Bytes(), DeepEquals, lockoutAuthValue)
 		return nil
 	})
 	defer restore()
-
-	// write fake lockout counter
-	err = ioutil.WriteFile(filepath.Join(saveFDEDir, "tpm-lockout-auth"), []byte("tpm-lockout-auth-key"), 0600)
-	c.Assert(err, IsNil)
 
 	err = secboot.MarkSuccessful()
 	c.Check(err, IsNil)
