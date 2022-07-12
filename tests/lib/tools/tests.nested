@@ -219,38 +219,6 @@ vm() {
     esac
 }
 
-exec() {
-    local user pwd
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            --user)
-                user="$2"
-                shift 2
-                ;;
-            --pwd)
-                pwd="$2"
-                shift 2
-                ;;
-            *)
-                break
-                ;;
-        esac
-    done
-    if [ -n "$user" ]; then
-        if [ -z "$pwd" ]; then
-                echo "tests.nested: password needed to execute command" >&2
-                exit 1
-        fi
-        nested_exec_as "$user" "$pwd" "$@"
-    else
-        nested_exec "$@"
-    fi    
-}
-
-copy() {
-    nested_copy "$@"
-}
-
 get() {
     if [ $# -eq 0 ]; then
         show_help

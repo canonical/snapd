@@ -52,4 +52,4 @@ restore: |
   teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
 
 execute: |
-  tests.nested exec "snap connections" | MATCH 'serial-port  *connections:serial-1  *pc:serial-1'
+  remote.exec "snap connections" | MATCH 'serial-port  *connections:serial-1  *pc:serial-1'
