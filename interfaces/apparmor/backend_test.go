@@ -2587,6 +2587,7 @@ func (s *backendSuite) TestCoreSnippetOnCoreSystem(c *C) {
 
 	for _, t := range tests {
 		restore := release.MockOnClassic(t.onClassic)
+		defer restore()
 
 		opts := interfaces.ConfinementOptions{
 			Classic:  t.classicConfinement,
@@ -2603,6 +2604,5 @@ func (s *backendSuite) TestCoreSnippetOnCoreSystem(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
 		s.RemoveSnap(c, snapInfo)
-		restore()
 	}
 }
