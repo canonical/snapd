@@ -138,13 +138,6 @@ TasksAccounting=true
 	return buf.String()
 }
 
-func formatLogNamespaceSlice(grp *quota.Group) string {
-	if grp.JournalLimit == nil {
-		return ""
-	}
-	return fmt.Sprintf("LogNamespace=snap-%s\n", grp.Name)
-}
-
 // generateGroupSliceFile generates a systemd slice unit definition for the
 // specified quota group.
 func generateGroupSliceFile(grp *quota.Group) []byte {
@@ -153,7 +146,6 @@ func generateGroupSliceFile(grp *quota.Group) []byte {
 	cpuOptions := formatCpuGroupSlice(grp)
 	memoryOptions := formatMemoryGroupSlice(grp)
 	taskOptions := formatTaskGroupSlice(grp)
-	logOptions := formatLogNamespaceSlice(grp)
 	template := `[Unit]
 Description=Slice for snap quota group %[1]s
 Before=slices.target
@@ -163,7 +155,7 @@ X-Snappy=yes
 `
 
 	fmt.Fprintf(&buf, template, grp.Name)
-	fmt.Fprint(&buf, cpuOptions, memoryOptions, taskOptions, logOptions)
+	fmt.Fprint(&buf, cpuOptions, memoryOptions, taskOptions)
 	return buf.Bytes()
 }
 
@@ -1207,6 +1199,9 @@ OOMScoreAdjust={{.OOMAdjustScore}}
 {{- if .SliceUnit}}
 Slice={{.SliceUnit}}
 {{- end}}
+{{- if .LogNamespace}}
+LogNamespace={{.LogNamespace}}
+{{- end}}
 {{- if not (or .App.Sockets .App.Timer .App.ActivatesOn) }}
 
 [Install]
@@ -1279,6 +1274,7 @@ WantedBy={{.ServicesTarget}}
 		After                    []string
 		InterfaceServiceSnippets string
 		SliceUnit                string
+		LogNamespace             string
 
 		Home    string
 		EnvVars string
@@ -1323,6 +1319,9 @@ WantedBy={{.ServicesTarget}}
 	// check the quota group slice
 	if opts.QuotaGroup != nil {
 		wrapperData.SliceUnit = opts.QuotaGroup.SliceFileName()
+		if opts.QuotaGroup.JournalLimit != nil {
+			wrapperData.LogNamespace = opts.QuotaGroup.JournalNamespaceName()
+		}
 	}
 
 	// Add extra "After" targets

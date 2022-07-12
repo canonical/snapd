@@ -51,9 +51,15 @@ func MockRemoveRecoveryKeyFromLUKSUsingKey(f func(key keys.EncryptionKey, dev st
 	return restore
 }
 
-func MockChangeLUKSEncryptionKey(f func(newKey keys.EncryptionKey, dev string) error) (restore func()) {
-	restore = testutil.Backup(&keymgrChangeLUKSDeviceEncryptionKey)
-	keymgrChangeLUKSDeviceEncryptionKey = f
+func MockStageLUKSEncryptionKeyChange(f func(newKey keys.EncryptionKey, dev string) error) (restore func()) {
+	restore = testutil.Backup(&keymgrStageLUKSDeviceEncryptionKeyChange)
+	keymgrStageLUKSDeviceEncryptionKeyChange = f
+	return restore
+}
+
+func MockTransitionLUKSEncryptionKeyChange(f func(newKey keys.EncryptionKey, dev string) error) (restore func()) {
+	restore = testutil.Backup(&keymgrTransitionLUKSDeviceEncryptionKeyChange)
+	keymgrTransitionLUKSDeviceEncryptionKeyChange = f
 	return restore
 }
 

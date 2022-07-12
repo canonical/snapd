@@ -945,6 +945,10 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/sys" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/run", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/run" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/run/foo", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/run/foo" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/run/systemd", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/run/systemd" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/boot", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/boot" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lost+found", Type: "tmpfs"}, nil),

@@ -143,12 +143,9 @@ backends:
             - debian-sid-64:
                   workers: 6
 
-            - fedora-33-64:
-                  workers: 6
-                  manual: true
-            - fedora-34-64:
-                  workers: 6
             - fedora-35-64:
+                  workers: 6
+            - fedora-36-64:
                   workers: 6
 
             - arch-linux-64:
@@ -172,6 +169,8 @@ backends:
 
             # unstable systems below
             - opensuse-15.3-64:
+                  workers: 6
+            - opensuse-15.4-64:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
@@ -230,6 +229,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
 

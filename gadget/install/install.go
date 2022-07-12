@@ -102,6 +102,7 @@ func installOnePartition(part *gadget.OnDiskStructure, encryptionType secboot.En
 	// a device that carries the filesystem, which is either the raw
 	// /dev/<partition>, or the mapped LUKS device if the structure is encrypted
 	fsDevice = part.Node
+	fsSectorSize := sectorSize
 
 	if mustEncrypt && roleNeedsEncryption(part.Role) {
 		timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", partDisp),
@@ -143,6 +144,11 @@ func installOnePartition(part *gadget.OnDiskStructure, encryptionType secboot.En
 		// operate on the right device
 		fsDevice = dataPart.Node()
 		logger.Noticef("encrypted filesystem device %v", fsDevice)
+		fsSectorSizeInt, err := disks.SectorSize(fsDevice)
+		if err != nil {
+			return "", nil, err
+		}
+		fsSectorSize = quantity.Size(fsSectorSizeInt)
 	}
 
 	timings.Run(perfTimings, fmt.Sprintf("make-filesystem[%s]", partDisp),
@@ -153,7 +159,7 @@ func installOnePartition(part *gadget.OnDiskStructure, encryptionType secboot.En
 				Device:     fsDevice,
 				Label:      part.Label,
 				Size:       part.Size,
-				SectorSize: sectorSize,
+				SectorSize: fsSectorSize,
 			})
 		})
 	if err != nil {

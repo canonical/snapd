@@ -3926,6 +3926,31 @@ func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataH
 	c.Assert(traits, DeepEquals, gadgettest.UC16ImplicitSystemDataDeviceTraits)
 }
 
+func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataRaspiHappy(c *C) {
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/mmcblk0": gadgettest.ExpectedRaspiUC18MockDiskMapping,
+	})
+	defer restore()
+
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.RaspiUC18SimplifiedYaml, nil)
+	c.Assert(err, IsNil)
+
+	// the volume cannot be found with no opts set
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", nil)
+	c.Assert(err, ErrorMatches, `volume pi is not compatible with disk /dev/mmcblk0: cannot find disk partition /dev/mmcblk0p2 \(starting at 269484032\) in gadget: start offsets do not match \(disk: 269484032 \(257 MiB\) and gadget: 1048576 \(1 MiB\)\)`)
+
+	// with opts for pc then it can be found
+	opts := &gadget.DiskVolumeValidationOptions{
+		AllowImplicitSystemData: true,
+	}
+
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", opts)
+	c.Assert(err, IsNil)
+
+	c.Assert(traits, DeepEquals, gadgettest.ExpectedRaspiUC18DiskVolumeDeviceTraits)
+}
+
 func (s *updateTestSuite) TestSearchForVolumeWithTraitsImplicitSystemData(c *C) {
 	allowImplicitDataOpts := &gadget.DiskVolumeValidationOptions{
 		AllowImplicitSystemData: true,

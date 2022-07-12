@@ -2263,13 +2263,16 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockErr(c *C)
 }
 
 type resetTestCase struct {
-	noSave bool
-	tpm    bool
+	noSave            bool
+	tpm               bool
+	encrypt           bool
+	trustedBootloader bool
 }
 
 func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts.Model, tc resetTestCase) error {
 	restore := release.MockOnClassic(false)
 	defer restore()
+	bootloaderRootdir := c.MkDir()
 
 	// inject trusted keys
 	defer sysdb.InjectTrusted([]asserts.Assertion{s.storeSigning.TrustedKey})()
@@ -2288,9 +2291,26 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		brGadgetRoot = gadgetRoot
 		brDevice = device
 		brOpts = options
+		installSealingObserver = obs
 		installFactoryResetCalled++
-		// TODO encryption
-		return &install.InstalledSystemSideData{}, nil
+		var keyForRole map[string]keys.EncryptionKey
+		if tc.encrypt {
+			keyForRole = map[string]keys.EncryptionKey{
+				gadget.SystemData: dataEncryptionKey,
+				gadget.SystemSave: saveKey,
+			}
+		}
+		devForRole := map[string]string{
+			gadget.SystemData: "/dev/foo-data",
+		}
+		if tc.encrypt {
+			devForRole[gadget.SystemSave] = "/dev/foo-save"
+		}
+		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), 0755), IsNil)
+		return &install.InstalledSystemSideData{
+			KeyForRole:    keyForRole,
+			DeviceForRole: devForRole,
+		}, nil
 	})
 	defer restore()
 
@@ -2303,19 +2323,86 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	})
 	defer restore()
 
+	if tc.trustedBootloader {
+		tab := bootloadertest.Mock("trusted", bootloaderRootdir).WithTrustedAssets()
+		tab.TrustedAssetsList = []string{"trusted-asset"}
+		bootloader.Force(tab)
+		s.AddCleanup(func() { bootloader.Force(nil) })
+
+		err := os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
 	s.state.Lock()
 	s.makeMockInstalledPcGadget(c, "", "")
 	s.state.Unlock()
 
+	var saveKey keys.EncryptionKey
+	restore = devicestate.MockSecbootTransitionEncryptionKeyChange(func(node string, key keys.EncryptionKey) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+	restore = devicestate.MockSecbootStageEncryptionKeyChange(func(node string, key keys.EncryptionKey) error {
+		if tc.encrypt {
+			c.Check(node, Equals, "/dev/foo-save")
+			saveKey = key
+			return nil
+		}
+		c.Fail()
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	var recoveryKeyRemoved bool
+	defer devicestate.MockSecbootRemoveRecoveryKeys(func(r2k map[secboot.RecoveryKeyDevice]string) error {
+		if tc.encrypt {
+			recoveryKeyRemoved = true
+			c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
+				{Mountpoint: boot.InitramfsUbuntuSaveDir}: filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"),
+			})
+			return nil
+		}
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
 	bootMakeBootableCalled := 0
-	restore = devicestate.MockBootMakeSystemRunnable(func(makeRunnableModel *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
+	restore = devicestate.MockBootMakeSystemRunnableAfterDataReset(func(makeRunnableModel *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
 		c.Check(makeRunnableModel, DeepEquals, model)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
 		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
 		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
-		c.Check(seal, IsNil)
+		if tc.encrypt {
+			c.Check(seal, NotNil)
+		} else {
+			c.Check(seal, IsNil)
+		}
 		bootMakeBootableCalled++
+
+		if tc.encrypt {
+			// those 2 keys are removed
+			c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+				testutil.FileAbsent)
+			c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+				testutil.FileAbsent)
+			// but the original ubuntu-save key remains
+			c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+				testutil.FilePresent)
+		}
+
+		// this would be done by boot
+		if tc.encrypt {
+			err := ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+				[]byte("save"), 0644)
+			c.Check(err, IsNil)
+			err = ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+				[]byte("new-data"), 0644)
+			c.Check(err, IsNil)
+		}
 		return nil
 	})
 	defer restore()
@@ -2358,15 +2445,47 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 
 	c.Assert(factoryReset.Status(), Equals, state.DoneStatus)
 
-	c.Assert(installFactoryResetCalled, Equals, 1)
+	// in the right way
 	c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
 	c.Assert(brDevice, Equals, "")
-	c.Assert(brOpts, DeepEquals, install.Options{
-		Mount: true,
-	})
-	c.Assert(installSealingObserver, IsNil)
+	if tc.encrypt {
+		c.Assert(brOpts, DeepEquals, install.Options{
+			Mount:          true,
+			EncryptionType: secboot.EncryptionTypeLUKS,
+		})
+	} else {
+		c.Assert(brOpts, DeepEquals, install.Options{
+			Mount: true,
+		})
+	}
+	if tc.encrypt {
+		// inteface is not nil
+		c.Assert(installSealingObserver, NotNil)
+		// we expect a very specific type
+		trustedInstallObserver, ok := installSealingObserver.(*boot.TrustedAssetsInstallObserver)
+		c.Assert(ok, Equals, true, Commentf("unexpected type: %T", installSealingObserver))
+		c.Assert(trustedInstallObserver, NotNil)
+	} else {
+		c.Assert(installSealingObserver, IsNil)
+	}
+
+	c.Assert(installFactoryResetCalled, Equals, 1)
 	c.Assert(bootMakeBootableCalled, Equals, 1)
 	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+	if tc.encrypt {
+		c.Assert(saveKey, NotNil)
+		c.Check(recoveryKeyRemoved, Equals, true)
+		c.Check(filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
+		c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"), testutil.FileEquals, "new-data")
+		// sha3-384 of the mocked ubuntu-save sealed key
+		c.Check(filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "factory-reset"),
+			testutil.FileEquals,
+			`{"fallback-save-key-sha3-384":"d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b"}
+`)
+	} else {
+		c.Check(filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "factory-reset"),
+			testutil.FileEquals, "{}\n")
+	}
 
 	return nil
 }
@@ -2428,7 +2547,7 @@ echo "mock output of: $(basename "$0") $*"
 	defer restore()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
-		tpm: false,
+		tpm: false, encrypt: false,
 	})
 	c.Logf("logs:\n%v", logbuf.String())
 	c.Assert(err, IsNil)
@@ -2478,6 +2597,133 @@ echo "mock output of: $(basename "$0") $*"
 	})
 }
 
+func (s *deviceMgrInstallModeSuite) TestFactoryResetEncryptionHappyFull(c *C) {
+	s.state.Lock()
+	model := s.makeMockInstallModel(c, "dangerous")
+	s.state.Unlock()
+
+	// for debug timinigs
+	mockedSnapCmd := testutil.MockCommand(c, "snap", `
+echo "mock output of: $(basename "$0") $*"
+`)
+	defer mockedSnapCmd.Restore()
+
+	// pretend snap-bootstrap mounted ubuntu-save
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	c.Assert(err, IsNil)
+	snaptest.PopulateDir(boot.InitramfsSeedEncryptionKeyDir, [][]string{
+		{"ubuntu-data.recovery.sealed-key", "old-data"},
+		{"ubuntu-save.recovery.sealed-key", "old-save"},
+	})
+
+	// and it has some content
+	serial := makeDeviceSerialAssertionInDir(c, boot.InstallHostDeviceSaveDir, s.storeSigning, s.brands,
+		model, devKey, "serial-1234")
+
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = s.doRunFactoryResetChange(c, model, resetTestCase{
+		tpm: true, encrypt: true, trustedBootloader: true,
+	})
+	c.Logf("logs:\n%v", logbuf.String())
+	c.Assert(err, IsNil)
+
+	// verify that the serial assertion has been restored
+	assertsInResetSystem := filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions")
+	bs, err := asserts.OpenFSBackstore(assertsInResetSystem)
+	c.Assert(err, IsNil)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore:       bs,
+		Trusted:         s.storeSigning.Trusted,
+		OtherPredefined: s.storeSigning.Generic,
+	})
+	c.Assert(err, IsNil)
+	ass, err := db.FindMany(asserts.SerialType, map[string]string{
+		"brand-id":            serial.BrandID(),
+		"model":               serial.Model(),
+		"device-key-sha3-384": serial.DeviceKey().ID(),
+	})
+	c.Assert(err, IsNil)
+	c.Assert(ass, HasLen, 1)
+	c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+		testutil.FileEquals, "new-data")
+	c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+		testutil.FileEquals, "old-save")
+	// new key was written
+	c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+		testutil.FileEquals, "save")
+}
+
+func (s *deviceMgrInstallModeSuite) TestFactoryResetEncryptionHappyAfterReboot(c *C) {
+	s.state.Lock()
+	model := s.makeMockInstallModel(c, "dangerous")
+	s.state.Unlock()
+
+	// for debug timinigs
+	mockedSnapCmd := testutil.MockCommand(c, "snap", `
+echo "mock output of: $(basename "$0") $*"
+`)
+	defer mockedSnapCmd.Restore()
+
+	// pretend snap-bootstrap mounted ubuntu-save
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	c.Assert(err, IsNil)
+	snaptest.PopulateDir(boot.InitramfsSeedEncryptionKeyDir, [][]string{
+		{"ubuntu-data.recovery.sealed-key", "old-data"},
+		{"ubuntu-save.recovery.sealed-key", "old-save"},
+		{"ubuntu-save.recovery.sealed-key.factory-reset", "old-factory-reset"},
+	})
+
+	// and it has some content
+	serial := makeDeviceSerialAssertionInDir(c, boot.InstallHostDeviceSaveDir, s.storeSigning, s.brands,
+		model, devKey, "serial-1234")
+
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = s.doRunFactoryResetChange(c, model, resetTestCase{
+		tpm: true, encrypt: true, trustedBootloader: true,
+	})
+	c.Logf("logs:\n%v", logbuf.String())
+	c.Assert(err, IsNil)
+
+	// verify that the serial assertion has been restored
+	assertsInResetSystem := filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions")
+	bs, err := asserts.OpenFSBackstore(assertsInResetSystem)
+	c.Assert(err, IsNil)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore:       bs,
+		Trusted:         s.storeSigning.Trusted,
+		OtherPredefined: s.storeSigning.Generic,
+	})
+	c.Assert(err, IsNil)
+	ass, err := db.FindMany(asserts.SerialType, map[string]string{
+		"brand-id":            serial.BrandID(),
+		"model":               serial.Model(),
+		"device-key-sha3-384": serial.DeviceKey().ID(),
+	})
+	c.Assert(err, IsNil)
+	c.Assert(ass, HasLen, 1)
+	c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+		testutil.FileEquals, "new-data")
+	c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+		testutil.FileEquals, "old-save")
+	// key was replaced
+	c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+		testutil.FileEquals, "save")
+}
+
 func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialsWithoutKey(c *C) {
 	s.state.Lock()
 	model := s.makeMockInstallModel(c, "dangerous")
@@ -2502,7 +2748,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialsWithoutKey(c *C) {
 	defer restore()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
-		tpm: false,
+		tpm: false, encrypt: false,
 	})
 	c.Logf("logs:\n%v", logbuf.String())
 	c.Assert(err, IsNil)
@@ -2527,7 +2773,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetNoSerials(c *C) {
 	defer restore()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
-		tpm: false,
+		tpm: false, encrypt: false,
 	})
 	c.Logf("logs:\n%v", logbuf.String())
 	c.Assert(err, IsNil)
@@ -2550,7 +2796,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetNoSave(c *C) {
 	defer restore()
 
 	err := s.doRunFactoryResetChange(c, model, resetTestCase{
-		tpm:    false,
+		tpm: false, encrypt: false,
 		noSave: true,
 	})
 	c.Logf("logs:\n%v", logbuf.String())
@@ -2583,7 +2829,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetPreviouslyEncrypted(c *C) {
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
 		// no TPM
-		tpm: false,
+		tpm: false, encrypt: false,
 	})
 	c.Logf("logs:\n%v", logbuf.String())
 	c.Assert(err, ErrorMatches, `(?s).*cannot perform factory reset using different encryption, the original system was encrypted\)`)
@@ -2604,7 +2850,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetPreviouslyUnencrypted(c *C) 
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
 		// no TPM
-		tpm: true,
+		tpm: true, encrypt: false,
 	})
 	c.Logf("logs:\n%v", logbuf.String())
 	c.Assert(err, ErrorMatches, `(?s).*cannot perform factory reset using different encryption, the original system was unencrypted\)`)
@@ -2636,7 +2882,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialManyOneValid(c *C) {
 	defer restore()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
-		tpm: false,
+		tpm: false, encrypt: false,
 	})
 	c.Logf("logs:\n%v", logbuf.String())
 	c.Assert(err, IsNil)
@@ -2676,8 +2922,18 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error {
+		return fmt.Errorf("TPM not available")
+	})
+	defer restore()
+
 	restore = devicestate.MockInstallFactoryReset(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, obs gadget.ContentObserver, pertTimings timings.Measurer) (*install.InstalledSystemSideData, error) {
-		return nil, nil
+		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), 0755), IsNil)
+		return &install.InstalledSystemSideData{
+			DeviceForRole: map[string]string{
+				"ubuntu-save": "/dev/foo",
+			},
+		}, nil
 	})
 	defer restore()
 
