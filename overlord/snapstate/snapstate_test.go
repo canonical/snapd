@@ -5549,7 +5549,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		},
 		{
 			op:   "remove-snap-save-data",
-			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
+			path: filepath.Join(dirs.SnapDataSaveDir, "ubuntu-core"),
 		},
 		{
 			op:   "remove-snap-data-dir",
@@ -5655,7 +5655,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:   "remove-snap-save-data",
-			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
+			path: filepath.Join(dirs.SnapDataSaveDir, "ubuntu-core"),
 		},
 		{
 			op:   "remove-snap-data-dir",

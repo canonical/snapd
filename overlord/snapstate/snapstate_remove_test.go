@@ -285,7 +285,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		},
 		{
 			op:   "remove-snap-save-data",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
 			op:   "remove-snap-data-dir",
@@ -433,7 +433,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 		},
 		{
 			op:   "remove-snap-save-data",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap_instance"),
 		},
 		{
 			op:             "remove-snap-data-dir",
@@ -587,7 +587,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 		},
 		{
 			op:   "remove-snap-save-data",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap_instance"),
 		},
 		{
 			op:             "remove-snap-data-dir",
@@ -718,7 +718,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		},
 		{
 			op:   "remove-snap-save-data",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
 			op:   "remove-snap-data-dir",
@@ -977,7 +977,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		},
 		{
 			op:   "remove-snap-save-data",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
 			op:   "remove-snap-data-dir",
@@ -1654,7 +1654,7 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c
 		},
 		{
 			op:   "remove-snap-save-data",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
 			op:   "remove-snap-data-dir",

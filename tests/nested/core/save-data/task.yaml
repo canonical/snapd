@@ -1,7 +1,9 @@
-summary: Run a smoke test on UC with encryption enabled
+summary: Run test to ensure snaps can store data on ubuntu-save partition
 
 details: |
-    This test checks basic snapd commands on UC with secure boot and encryption enabled
+    This test verifies that a folder is created for newly installed snaps on the
+    ubuntu-save partition. It then verifies that we can write data to that folder
+    and that the folder is removed again once the snap is removed.
 
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 

@@ -588,12 +588,6 @@ const (
 	mountSnapSaveFmt         = `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
 )
 
-func mockUbuntuCore() (restore func()) {
-	onClassic := release.OnClassic
-	release.OnClassic = false
-	return func() { release.OnClassic = onClassic }
-}
-
 func (s *copydataSuite) TestSetupCommonSaveDataClassic(c *C) {
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
@@ -605,7 +599,7 @@ func (s *copydataSuite) TestSetupCommonSaveDataClassic(c *C) {
 }
 
 func (s *copydataSuite) TestSetupCommonSaveDataCoreNoMount(c *C) {
-	restore := mockUbuntuCore()
+	restore := release.MockOnClassic(false)
 	defer restore()
 	restore = osutil.MockMountInfo("")
 	defer restore()
@@ -619,7 +613,7 @@ func (s *copydataSuite) TestSetupCommonSaveDataCoreNoMount(c *C) {
 }
 
 func (s *copydataSuite) TestSetupCommonSaveDataFirstInstall(c *C) {
-	restore := mockUbuntuCore()
+	restore := release.MockOnClassic(false)
 	defer restore()
 	restore = osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir) + "\n" +
 		fmt.Sprintf(mountSnapSaveFmt, dirs.GlobalRootDir))
@@ -641,7 +635,7 @@ func (s *copydataSuite) TestSetupCommonSaveDataFirstInstall(c *C) {
 }
 
 func (s *copydataSuite) TestSetupCommonSaveDataSameRevision(c *C) {
-	restore := mockUbuntuCore()
+	restore := release.MockOnClassic(false)
 	defer restore()
 	restore = osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir) + "\n" +
 		fmt.Sprintf(mountSnapSaveFmt, dirs.GlobalRootDir))
@@ -676,7 +670,7 @@ func (s *copydataSuite) TestUndoSetupCommonSaveDataClassic(c *C) {
 }
 
 func (s *copydataSuite) TestUndoSetupCommonSaveDataSameRevision(c *C) {
-	restore := mockUbuntuCore()
+	restore := release.MockOnClassic(false)
 	defer restore()
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 

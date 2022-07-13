@@ -1198,7 +1198,7 @@ func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.Sna
 func (f *fakeSnappyBackend) RemoveSnapSaveData(info *snap.Info) error {
 	f.appendOp(&fakeOp{
 		op:   "remove-snap-save-data",
-		path: info.MountDir(),
+		path: snap.CommonDataSaveDir(info.InstanceName()),
 	})
 	return f.maybeErrForLastOp()
 }

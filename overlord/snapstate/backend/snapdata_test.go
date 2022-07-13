@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -91,7 +92,7 @@ func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapCommonSave(c *C) {
-	restore := mockUbuntuCore()
+	restore := release.MockOnClassic(false)
 	defer restore()
 
 	varSaveData := snap.CommonDataSaveDir("hello")
