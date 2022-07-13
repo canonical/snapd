@@ -314,10 +314,10 @@ func sandboxParams(sdVer int) (params []string) {
 		"--property=ProtectKernelModules=true",
 		"--property=PrivateDevices=true",
 		"--property=MemoryDenyWriteExecute=true",
-		"--property=RestrictSUIDSGID=true",
 		"--property=SystemCallFilter=@default @basic-io @signal @file-system @chown @process mprotect",
 		"--property=SystemCallErrorNumber=EPERM",
-		"--property=MemoryMax=16M",
+		"--property=RestrictNamespaces=true",
+		"--property=MemoryMax=10M",
 	}
 
 	// see https://github.com/systemd/systemd/blob/main/NEWS
@@ -326,7 +326,10 @@ func sandboxParams(sdVer int) (params []string) {
 		params = append(params, "--service-type=exec")
 	}
 	if sdVer >= 242 {
-		params = append(params, "--property=ProtectHostname=true")
+		params = append(params, []string{
+			"--property=ProtectHostname=true",
+			"--property=RestrictSUIDSGID=true",
+		}...)
 	}
 	if sdVer >= 244 {
 		params = append(params, "--property=ProtectKernelLogs=true")
