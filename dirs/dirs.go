@@ -41,27 +41,26 @@ var (
 
 	HiddenSnapDataHomeGlob string
 
-	SnapBlobDir               string
-	SnapDataDir               string
-	SnapDataHomeGlob          string
-	SnapDownloadCacheDir      string
-	SnapAppArmorDir           string
-	SnapAppArmorAdditionalDir string
-	SnapConfineAppArmorDir    string
-	SnapSeccompBase           string
-	SnapSeccompDir            string
-	SnapMountPolicyDir        string
-	SnapUdevRulesDir          string
-	SnapKModModulesDir        string
-	SnapKModModprobeDir       string
-	LocaleDir                 string
-	SnapdSocket               string
-	SnapSocket                string
-	SnapRunDir                string
-	SnapRunNsDir              string
-	SnapRunLockDir            string
-	SnapBootstrapRunDir       string
-	SnapVoidDir               string
+	SnapBlobDir            string
+	SnapDataDir            string
+	SnapDataHomeGlob       string
+	SnapDownloadCacheDir   string
+	SnapAppArmorDir        string
+	SnapConfineAppArmorDir string
+	SnapSeccompBase        string
+	SnapSeccompDir         string
+	SnapMountPolicyDir     string
+	SnapUdevRulesDir       string
+	SnapKModModulesDir     string
+	SnapKModModprobeDir    string
+	LocaleDir              string
+	SnapdSocket            string
+	SnapSocket             string
+	SnapRunDir             string
+	SnapRunNsDir           string
+	SnapRunLockDir         string
+	SnapBootstrapRunDir    string
+	SnapVoidDir            string
 
 	SnapdMaintenanceFile string
 
@@ -361,7 +360,6 @@ func SetRootDir(rootdir string) {
 	HiddenSnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", HiddenSnapDataHomeDir)
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	SnapConfineAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine")
-	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
 	SnapDownloadCacheDir = filepath.Join(rootdir, snappyDir, "cache")
 	SnapSeccompBase = filepath.Join(rootdir, snappyDir, "seccomp")
 	SnapSeccompDir = filepath.Join(SnapSeccompBase, "bpf")

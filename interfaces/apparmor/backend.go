@@ -890,6 +890,11 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 					snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
 					tagSnippets += snippet
 				}
+
+				// Add core specific snippets when not on classic
+				if !release.OnClassic {
+					tagSnippets += coreSnippet
+				}
 			}
 
 			if !ignoreSnippets {

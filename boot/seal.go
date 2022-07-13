@@ -24,9 +24,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -66,14 +64,6 @@ var (
 	RunFDESetupHook fde.RunSetupHookFunc = func(req *fde.SetupRequest) ([]byte, error) {
 		return nil, fmt.Errorf("internal error: RunFDESetupHook not set yet")
 	}
-)
-
-type sealingMethod string
-
-const (
-	sealingMethodLegacyTPM    = sealingMethod("")
-	sealingMethodTPM          = sealingMethod("tpm")
-	sealingMethodFDESetupHook = sealingMethod("fde-setup-hook")
 )
 
 // MockSecbootResealKeys is only useful in testing. Note that this is a very low
@@ -194,7 +184,7 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey keys.EncryptionKey, modeenv 
 		return err
 	}
 
-	if err := stampSealedKeys(InstallHostWritableDir, "fde-setup-hook"); err != nil {
+	if err := device.StampSealedKeys(InstallHostWritableDir, "fde-setup-hook"); err != nil {
 		return err
 	}
 
@@ -282,7 +272,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Mode
 	}
 
 	// we are preparing a new system, hence the TPM needs to be provisioned
-	lockoutAuthFile := filepath.Join(InstallHostFDESaveDir, "tpm-lockout-auth")
+	lockoutAuthFile := device.TpmLockoutAuthUnder(InstallHostFDESaveDir)
 	tpmProvisionMode := secboot.TPMProvisionFull
 	if flags.FactoryReset {
 		tpmProvisionMode = secboot.TPMPartialReprovision
@@ -314,7 +304,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Mode
 		return err
 	}
 
-	if err := stampSealedKeys(InstallHostWritableDir, sealingMethodTPM); err != nil {
+	if err := device.StampSealedKeys(InstallHostWritableDir, device.SealingMethodTPM); err != nil {
 		return err
 	}
 
@@ -391,32 +381,6 @@ func sealFallbackObjectKeys(key, saveKey keys.EncryptionKey, pbc predictableBoot
 	return nil
 }
 
-func stampSealedKeys(rootdir string, content sealingMethod) error {
-	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
-	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
-		return fmt.Errorf("cannot create device fde state directory: %v", err)
-	}
-
-	if err := osutil.AtomicWriteFile(stamp, []byte(content), 0644, 0); err != nil {
-		return fmt.Errorf("cannot create fde sealed keys stamp file: %v", err)
-	}
-	return nil
-}
-
-var errNoSealedKeys = errors.New("no sealed keys")
-
-// sealedKeysMethod return whether any keys were sealed at all
-func sealedKeysMethod(rootdir string) (sm sealingMethod, err error) {
-	// TODO:UC20: consider more than the marker for cases where we reseal
-	// outside of run mode
-	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
-	content, err := ioutil.ReadFile(stamp)
-	if os.IsNotExist(err) {
-		return sm, errNoSealedKeys
-	}
-	return sealingMethod(content), err
-}
-
 var resealKeyToModeenv = resealKeyToModeenvImpl
 
 // resealKeyToModeenv reseals the existing encryption key to the
@@ -427,8 +391,8 @@ var resealKeyToModeenv = resealKeyToModeenvImpl
 // transient/in-memory information with the risk that successive
 // reseals during in-progress operations produce diverging outcomes.
 func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool) error {
-	method, err := sealedKeysMethod(rootdir)
-	if err == errNoSealedKeys {
+	method, err := device.SealedKeysMethod(rootdir)
+	if err == device.ErrNoSealedKeys {
 		// nothing to do
 		return nil
 	}
@@ -436,9 +400,9 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool)
 		return err
 	}
 	switch method {
-	case sealingMethodFDESetupHook:
+	case device.SealingMethodFDESetupHook:
 		return resealKeyToModeenvUsingFDESetupHook(rootdir, modeenv, expectReseal)
-	case sealingMethodTPM, sealingMethodLegacyTPM:
+	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
 		return resealKeyToModeenvSecboot(rootdir, modeenv, expectReseal)
 	default:
 		return fmt.Errorf("unknown key sealing method: %q", method)
