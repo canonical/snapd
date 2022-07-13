@@ -38,7 +38,7 @@ execute: |
   # Now ask for logs and lets see if we can see messages from 'LogDaemon'
   # and at the same time lets get the highest message number to compare with later.
   # The format of the log messages are 'LogDaemon: message number: X'
-  journalctl | MATCH "LogDaemon"
+  "$TESTSTOOLS"/journal-state get-log | MATCH "LogDaemon"
 
   echo "Create a group with the logger snap in it"
   snap set-quota group-one --journal-size=16MB --journal-rate-limit=100/10ms test-snapd-stressd
@@ -54,7 +54,7 @@ execute: |
   sleep 5
 
   # Now ask for the namespace logs and lets see if we can see messages from 'LogDaemon'
-  journalctl --namespace snap-group-one | MATCH "LogDaemon"
+  "$TESTSTOOLS"/journal-state get-log --namespace snap-group-one | MATCH "LogDaemon"
 
   # Change the size and ensure that the journal is restarted
   echo "Updating size of journal to ensure size changes"
@@ -62,7 +62,7 @@ execute: |
 
   # Ensure that the new size is printed in the journa logs. We requested 64MB but
   # this will most likely print out as 61.0M, so lets be a bit flexible
-  journalctl --namespace snap-group-one | MATCH "max 6[0-9\.]*M,"
+  "$TESTSTOOLS"/journal-state get-log --namespace snap-group-one | MATCH "max 6[0-9].[0-9]M,"
 
   # Ensure that the unit file is correct
   echo "Ensuring the unit file is correct"
