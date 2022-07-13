@@ -50,7 +50,7 @@ execute: |
   INITIAL_NO=$(snap logs test-snapd-stressd.logger | MATCH "LogDaemon" | tail -n 1 | awk '{print $9}')
   for i in $(seq 1 5); do
     sleep 5
-      CURRENT_NO=$(journalctl | MATCH "LogDaemon" | tail -n 1 | awk '{print $9}')
+      CURRENT_NO=$(snap logs test-snapd-stressd.logger | MATCH "LogDaemon" | tail -n 1 | awk '{print $9}')
       if [ "$CURRENT_NO" -gt "$INITIAL_NO" ]; then
           echo "LogDaemon messages detected after $i tries"
           break
@@ -60,4 +60,3 @@ execute: |
       echo "Failed to see new log messages after 25 seconds"
       exit 1
   fi
-  
