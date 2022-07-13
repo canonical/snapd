@@ -98,6 +98,10 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// TODO: consider an approach where when available we use
+	// provenance from the snap-yaml from the store requests
+	// instead of snap.ReadProvenanceFromSnapFile
+	// and simply cross-check later
 	snapf, err := snapfile.Open(snapsup.SnapPath)
 	if err != nil {
 		return err
