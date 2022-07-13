@@ -273,7 +273,7 @@ var osutilStreamCommand = osutil.StreamCommand
 var jctl = func(svcs []string, n int, follow, namespaces bool) (io.ReadCloser, error) {
 	// args will need two entries per service, plus a fixed number (give or take
 	// one) for the initial options.
-	args := make([]string, 0, 2*len(svcs)+7)        // the fixed number is 6
+	args := make([]string, 0, 2*len(svcs)+7)        // We have at most 7 extra arguments
 	args = append(args, "-o", "json", "--no-pager") //   3...
 	if n < 0 {
 		args = append(args, "--no-tail") // < 2
