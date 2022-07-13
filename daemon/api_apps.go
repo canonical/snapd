@@ -217,8 +217,13 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 	// Include journal namespaces if supported. The --namespace option was
 	// introduced in systemd version 245. If systemd is older than that then
 	// we cannot use journal quotas in any case and don't include them.
-	version, err := systemd.Version()
-	includeNamespaces := err == nil && version >= 245
+	includeNamespaces := false
+	if err := systemd.EnsureAtLeast(245); err == nil {
+		includeNamespaces = true
+	} else if !systemd.IsSystemdTooOld(err) {
+		return InternalError("cannot get systemd version: %v", err)
+	}
+
 	sysd := systemd.New(systemd.SystemMode, progress.Null)
 	reader, err := sysd.LogReader(serviceNames, n, follow, includeNamespaces)
 	if err != nil {
