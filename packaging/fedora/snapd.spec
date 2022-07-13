@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.56.2
+Version:        2.56.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -981,6 +981,26 @@ fi
 
 
 %changelog
+* Wed Jul 13 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.56.3
+ - devicestate: add more path to `fixupWritableDefaultDirs()`
+ - many: introduce IsUndo flag in LinkContext
+ - i/apparmor: allow calling which.debianutils
+ - interfaces: update AppArmor template to allow reading snap's
+   memory statistics
+ - interfaces: add memory stats to system_observe
+ - i/b/{mount,system}-observe: extend access for htop
+ - features: disable refresh-app-awarness by default again
+ - image: fix handling of var/lib/extrausers when preseeding
+   uc20
+ - interfaces/modem-manager: Don't generate DBus policy for plugs
+ - interfaces/modem-manager: Only generate DBus plug policy on
+   Core
+ - interfaces/serial_port_test: fix static-checks errors
+ - interfaces/serial-port: add USB gadget serial devices (ttyGSX) to
+   allowed list
+ - interface/serial_port_test: adjust variable IDs
+
 * Wed Jun 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.56.2
  - o/snapstate: exclude services from refresh app awareness hard
