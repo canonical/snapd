@@ -1022,8 +1022,6 @@ var expectedSandboxParams = []string{
 	"--property=SecureBits=",
 	"--property=ProtectSystem=strict",
 	"--property=ProtectHome=true",
-	"--property=ProtectKernelTunables=true",
-	"--property=ProtectControlGroups=true",
 	"--property=ProtectKernelModules=true",
 	"--property=PrivateDevices=true",
 	"--property=MemoryDenyWriteExecute=true",
@@ -1031,6 +1029,8 @@ var expectedSandboxParams = []string{
 	"--property=SystemCallErrorNumber=EPERM",
 	"--property=RestrictNamespaces=true",
 	"--property=MemoryMax=10M",
+	"--property=InaccessiblePaths=/run /sys",
+	"--property=ProtectKernelTunables=true",
 	"--service-type=exec",
 	"--property=ProtectHostname=true",
 	"--property=RestrictSUIDSGID=true",
@@ -1040,6 +1040,7 @@ var expectedSandboxParams = []string{
 
 func (s *SquashfsTestSuite) TestSaferReadFileInvocation(c *C) {
 	defer squashfs.MockSysGeteuid(0)()
+	defer squashfs.MockIsContainer(false)()
 	defer squashfs.MockSystemdVersion(245)()
 
 	mockSystemdRun := testutil.MockCommand(c, "systemd-run", `#!/bin/sh
@@ -1075,6 +1076,7 @@ echo -n "$d" > "$d"/unpack/meta/snap.yaml
 
 func (s *SquashfsTestSuite) TestSaferReadFileSandboxLevels(c *C) {
 	defer squashfs.MockSysGeteuid(0)()
+	defer squashfs.MockIsContainer(false)()
 
 	expected := expectedSandboxParams
 	n := len(expected)
@@ -1088,4 +1090,18 @@ func (s *SquashfsTestSuite) TestSaferReadFileSandboxLevels(c *C) {
 	c.Check(squashfs.SandboxParams(244), DeepEquals, expected[:n-1])
 	c.Check(squashfs.SandboxParams(245), DeepEquals, expected)
 	c.Check(squashfs.SandboxParams(246), DeepEquals, expected)
+}
+
+func (s *SquashfsTestSuite) TestSaferReadFileSandboxUnderContainer(c *C) {
+	// test the workaround for the issues under LXD
+	defer squashfs.MockSysGeteuid(0)()
+	defer squashfs.MockIsContainer(true)()
+
+	expected := expectedSandboxParams
+	n := len(expected)
+
+	c.Check(squashfs.SandboxParams(236), DeepEquals, append(expected[:n-6], []string{
+		"--property=ReadOnlyPaths=/proc",
+		"--property=InaccessiblePaths=/proc/kcore /proc/kallsyms",
+	}...))
 }

@@ -109,6 +109,14 @@ func MockSysGeteuid(uid sys.UserID) (restore func()) {
 	}
 }
 
+func MockIsContainer(isCont bool) (restore func()) {
+	oldIsContainer := isContainer
+	isContainer = isCont
+	return func() {
+		isContainer = oldIsContainer
+	}
+}
+
 var (
 	SandboxParams = sandboxParams
 )

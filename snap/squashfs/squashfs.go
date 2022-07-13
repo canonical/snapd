@@ -276,7 +276,8 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 }
 
 var (
-	systemdVer int
+	systemdVer  int
+	isContainer bool
 )
 
 func init() {
@@ -287,6 +288,8 @@ func init() {
 		v = 0
 	}
 	systemdVer = v
+
+	isContainer = exec.Command("systemd-detect-virt", "--quiet", "--container").Run() == nil
 }
 
 var (
@@ -309,8 +312,6 @@ func sandboxParams(sdVer int) (params []string) {
 		"--property=SecureBits=",
 		"--property=ProtectSystem=strict",
 		"--property=ProtectHome=true",
-		"--property=ProtectKernelTunables=true",
-		"--property=ProtectControlGroups=true",
 		"--property=ProtectKernelModules=true",
 		"--property=PrivateDevices=true",
 		"--property=MemoryDenyWriteExecute=true",
@@ -318,6 +319,29 @@ func sandboxParams(sdVer int) (params []string) {
 		"--property=SystemCallErrorNumber=EPERM",
 		"--property=RestrictNamespaces=true",
 		"--property=MemoryMax=10M",
+		// this should be more restrictive than ProtectControlGroups
+		// and ProtectKernelTunables for /sys
+		"--property=InaccessiblePaths=/run /sys",
+	}
+
+	if !isContainer {
+		params = append(params, []string{
+			"--property=ProtectKernelTunables=true",
+		}...)
+	} else {
+		// XXX under LXD and unified hierarchy? using
+		// ProtectKernelTunables=true and/or
+		// ProtectControlGroups=true makes other bindings set
+		// up by the options, PrivateTmp for example, fail
+		// silently at least sometimes.
+		// Do a manual/more aggressive equivalent instead that
+		// seems to work, compare with
+		// protect_kernel_tunables_proc_table in
+		// https://github.com/systemd/systemd/blob/main/src/core/namespace.c
+		params = append(params, []string{
+			"--property=ReadOnlyPaths=/proc",
+			"--property=InaccessiblePaths=/proc/kcore /proc/kallsyms",
+		}...)
 	}
 
 	// see https://github.com/systemd/systemd/blob/main/NEWS
