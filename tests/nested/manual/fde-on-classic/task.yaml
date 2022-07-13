@@ -4,7 +4,9 @@ details: |
     This test creates a classic image that looks like what the installer
     would create and we boot into it.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+# XXX: maybe move to 22.04, double check with stake-holders. if move
+#      also update mk-image
+systems: [ubuntu-20.04-64]
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
