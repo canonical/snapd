@@ -1,0 +1,29 @@
+summary: Check that a FDE based classic image can be booted
+
+details: |
+    This test creates a classic image that looks like what the installer
+    would create and we boot into it.
+
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+execute: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+  
+    # create an image that looks like a classic image
+    # XXX: this should probably build the base image here, then leave
+    #      the ./mnt/ubuntu-{boot,save,data} mounted so that custom things
+    #      like kernel etc can be installed and then after that this should
+    #      create the image and boot into it
+    # Note that "mk-image" is left as a script so that it can also be
+    # run outside of spread easily for quick interactive testing
+    ./mk-image ./boot.img
+
+    # run it
+    nested_start_core_vm ./boot.img
+
+    # and validate it boots and seeds
+    tests.nested exec "sudo snap wait system seed.loaded"
+    tests.nested wait-for device-initialized
+
+    tests.nested exec "cat /etc/os-release" | MATCH 'VERSION_ID="22.04"'
