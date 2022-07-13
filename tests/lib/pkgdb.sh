@@ -627,8 +627,10 @@ pkg_dependencies_ubuntu_classic(){
                 dbus-user-session
                 fwupd
                 golang
+                libvirt-daemon-system
                 linux-tools-$(uname -r)
                 lz4
+                qemu-kvm
                 qemu-utils
                 "
             ;;
