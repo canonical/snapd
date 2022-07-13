@@ -2549,3 +2549,60 @@ func (s *backendSuite) TestSetupManyInPreseedMode(c *C) {
 		s.RemoveSnap(c, snapInfo2)
 	}
 }
+
+func (s *backendSuite) TestCoreSnippetOnCoreSystem(c *C) {
+	dirs.SetRootDir(s.RootDir)
+
+	// NOTE: replace the real template with a shorter variant
+	restoreTemplate := apparmor.MockTemplate("\n" +
+		"###SNIPPETS###\n" +
+		"\n")
+	defer restoreTemplate()
+
+	expectedContents := `
+# Allow each snaps to access each their own folder on the
+# ubuntu-save partition, with write permissions.
+/var/lib/snapd/save/snap/@{SNAP_INSTANCE_NAME}/ rw,
+/var/lib/snapd/save/snap/@{SNAP_INSTANCE_NAME}/** mrwklix,
+`
+
+	tests := []struct {
+		onClassic            bool
+		classicConfinement   bool
+		jailMode             bool
+		shouldContainSnippet bool
+	}{
+		// XXX: Is it possible for someone to make this nicer?
+		{onClassic: false, classicConfinement: false, jailMode: false, shouldContainSnippet: true},
+		{onClassic: false, classicConfinement: false, jailMode: true, shouldContainSnippet: true},
+
+		// Rest of the cases the core-specific snippet shouldn't turn up.
+		{onClassic: false, classicConfinement: true, jailMode: false, shouldContainSnippet: false},
+		{onClassic: false, classicConfinement: true, jailMode: true, shouldContainSnippet: false},
+		{onClassic: true, classicConfinement: false, jailMode: false, shouldContainSnippet: false},
+		{onClassic: true, classicConfinement: true, jailMode: false, shouldContainSnippet: false},
+		{onClassic: true, classicConfinement: false, jailMode: true, shouldContainSnippet: false},
+		{onClassic: true, classicConfinement: true, jailMode: true, shouldContainSnippet: false},
+	}
+
+	for _, t := range tests {
+		restore := release.MockOnClassic(t.onClassic)
+		defer restore()
+
+		opts := interfaces.ConfinementOptions{
+			Classic:  t.classicConfinement,
+			JailMode: t.jailMode,
+		}
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		if t.shouldContainSnippet {
+			c.Check(profile, testutil.FileContains, expectedContents, Commentf("Classic %t, JailMode %t", t.onClassic, t.jailMode))
+		} else {
+			c.Check(profile, Not(testutil.FileContains), expectedContents, Commentf("Classic %t, JailMode %t", t.onClassic, t.jailMode))
+		}
+		stat, err := os.Stat(profile)
+		c.Assert(err, IsNil)
+		c.Check(stat.Mode(), Equals, os.FileMode(0644))
+		s.RemoveSnap(c, snapInfo)
+	}
+}
