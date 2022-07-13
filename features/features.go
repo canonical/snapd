@@ -67,6 +67,9 @@ const (
 	// QuotaGroups enable creating resource quota groups for snaps via the rest API and cli.
 	QuotaGroups
 
+	// JournalQuota enables journal quotas for quota groups.
+	JournalQuota
+
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -105,7 +108,8 @@ var featureNames = map[SnapdFeature]string{
 
 	GateAutoRefreshHook: "gate-auto-refresh-hook",
 
-	QuotaGroups: "quota-groups",
+	QuotaGroups:  "quota-groups",
+	JournalQuota: "journal-quota",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
