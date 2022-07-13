@@ -1029,8 +1029,9 @@ var expectedSandboxParams = []string{
 	"--property=SystemCallErrorNumber=EPERM",
 	"--property=RestrictNamespaces=true",
 	"--property=MemoryMax=10M",
-	"--property=InaccessiblePaths=/run /sys",
+	"--property=InaccessiblePaths=/sys",
 	"--property=ProtectKernelTunables=true",
+	"--property=TemporaryFileSystem=/run:ro",
 	"--service-type=exec",
 	"--property=ProtectHostname=true",
 	"--property=RestrictSUIDSGID=true",
@@ -1081,7 +1082,9 @@ func (s *SquashfsTestSuite) TestSaferReadFileSandboxLevels(c *C) {
 	expected := expectedSandboxParams
 	n := len(expected)
 
-	c.Check(squashfs.SandboxParams(236), DeepEquals, expected[:n-5])
+	c.Check(squashfs.SandboxParams(236), DeepEquals, expected[:n-6])
+	c.Check(squashfs.SandboxParams(237), DeepEquals, expected[:n-6])
+	c.Check(squashfs.SandboxParams(238), DeepEquals, expected[:n-5])
 	c.Check(squashfs.SandboxParams(239), DeepEquals, expected[:n-5])
 	c.Check(squashfs.SandboxParams(240), DeepEquals, expected[:n-4])
 	c.Check(squashfs.SandboxParams(241), DeepEquals, expected[:n-4])
@@ -1100,7 +1103,7 @@ func (s *SquashfsTestSuite) TestSaferReadFileSandboxUnderContainer(c *C) {
 	expected := expectedSandboxParams
 	n := len(expected)
 
-	c.Check(squashfs.SandboxParams(236), DeepEquals, append(expected[:n-6], []string{
+	c.Check(squashfs.SandboxParams(236), DeepEquals, append(expected[:n-7], []string{
 		"--property=ReadOnlyPaths=/proc",
 		"--property=InaccessiblePaths=/proc/kcore /proc/kallsyms",
 	}...))

@@ -322,7 +322,7 @@ func sandboxParams(sdVer int) (params []string) {
 		"--property=MemoryMax=10M",
 		// this should be more restrictive than ProtectControlGroups
 		// and ProtectKernelTunables for /sys
-		"--property=InaccessiblePaths=/run /sys",
+		"--property=InaccessiblePaths=/sys",
 	}
 
 	if !isContainer {
@@ -346,6 +346,12 @@ func sandboxParams(sdVer int) (params []string) {
 	}
 
 	// see https://github.com/systemd/systemd/blob/main/NEWS
+
+	if sdVer >= 238 {
+		// extra paranoia, ProtectSystem=strict should already make
+		// /run RO
+		params = append(params, "--property=TemporaryFileSystem=/run:ro")
+	}
 
 	if sdVer >= 240 {
 		params = append(params, "--service-type=exec")
