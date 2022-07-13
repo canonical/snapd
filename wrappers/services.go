@@ -1320,7 +1320,7 @@ WantedBy={{.ServicesTarget}}
 	if opts.QuotaGroup != nil {
 		wrapperData.SliceUnit = opts.QuotaGroup.SliceFileName()
 		if opts.QuotaGroup.JournalLimit != nil {
-			wrapperData.LogNamespace = "snap-" + opts.QuotaGroup.Name
+			wrapperData.LogNamespace = opts.QuotaGroup.JournalNamespaceName()
 		}
 	}
 

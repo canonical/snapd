@@ -310,6 +310,18 @@ func (ts *quotaTestSuite) TestGroupUnmixableSnapsSubgroups(c *C) {
 	c.Assert(err, ErrorMatches, "cannot mix sub groups with snaps in the same group")
 }
 
+func (ts *quotaTestSuite) TestJournalNamespaceName(c *C) {
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalNamespaceName(), Equals, "snap-foo")
+}
+
+func (ts *quotaTestSuite) TestJournalFileName(c *C) {
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalFileName(), Equals, "journald@snap-foo.conf")
+}
+
 func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
 	tt := []struct {
 		grps    map[string]*quota.Group

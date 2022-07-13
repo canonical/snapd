@@ -95,6 +95,12 @@ type bootloaderKernelState20 interface {
 	// markSuccessfulKernel marks the specified kernel as having booted
 	// successfully, whether that kernel is the current kernel or the try-kernel
 	markSuccessfulKernel(sn snap.PlaceInfo) error
+	// setNextKernelNoTry changes boot configuration so the specified kernel will
+	// be the one used in next boot, without the "try" logic. This shall be
+	// used only when we have already booted to a new kernel but for some
+	// reason we need to revert to the previous kernel (for instance, in a
+	// transactional update when the failing snap is not the kernel).
+	setNextKernelNoTry(sn snap.PlaceInfo) error
 }
 
 //
@@ -320,16 +326,19 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 	return u20, nil
 }
 
-func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error) {
-	u20, nextStatus, err := genericSetNext(ks20, next)
+func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo, bootCtx NextBootContext) (rbi RebootInfo, u bootStateUpdate, err error) {
+	u20, rebootRequired, err := genericSetNext(ks20, next)
 	if err != nil {
 		return RebootInfo{RebootRequired: false}, nil, err
 	}
 
-	// if we are setting a snap as a try snap, then we need to reboot
-	rbi.RebootRequired = false
-	if nextStatus == TryStatus {
-		rbi.RebootRequired = true
+	nextStatus := DefaultStatus
+	rbi.RebootRequired = rebootRequired
+	if rbi.RebootRequired {
+		// if we need to reboot and we are not undoing, we set the try status
+		if !bootCtx.BootWithoutTry {
+			nextStatus = TryStatus
+		}
 		// kernels are usually loaded directly by the bootloader, for
 		// which we may need to pass additional data to make 'try'
 		// operation more robust - that might be provided by the
@@ -342,10 +351,22 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rbi RebootInfo, u b
 	currentKernel := ks20.bks.kernel()
 	if next.Filename() != currentKernel.Filename() {
 		// on commit, add this kernel to the modeenv
-		u20.writeModeenv.CurrentKernels = append(
-			u20.writeModeenv.CurrentKernels,
-			next.Filename(),
-		)
+		if bootCtx.BootWithoutTry {
+			// when undoing, the current kernel is being removed
+			u20.writeModeenv.CurrentKernels = []string{next.Filename()}
+		} else {
+			u20.writeModeenv.CurrentKernels = append(
+				u20.writeModeenv.CurrentKernels,
+				next.Filename(),
+			)
+		}
+	}
+
+	bootTask := func() error { return ks20.bks.setNextKernel(next, nextStatus) }
+	if bootCtx.BootWithoutTry {
+		// force revert to "next" kernel (actually it is the old one)
+		// and ignore the try status, that will be empty in this case.
+		bootTask = func() error { return ks20.bks.setNextKernelNoTry(next) }
 	}
 
 	// On commit, if we are about to try an update, and need to set the next
@@ -354,7 +375,7 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rbi RebootInfo, u b
 	// kernel and updating the modeenv, the initramfs would fail the boot
 	// because the modeenv doesn't "trust" or expect the new kernel that booted.
 	// As such, set the next kernel as a post modeenv task.
-	u20.postModeenv(func() error { return ks20.bks.setNextKernel(next, nextStatus) })
+	u20.postModeenv(bootTask)
 
 	return rbi, u20, nil
 }
@@ -415,7 +436,7 @@ func (bs20 *bootState20Gadget) revisions() (curSnap, trySnap snap.PlaceInfo, try
 	return nil, nil, "", fmt.Errorf("internal error, revisions not implemented for gadget")
 }
 
-func (bs20 *bootState20Gadget) setNext(next snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error) {
+func (bs20 *bootState20Gadget) setNext(next snap.PlaceInfo, bootCtx NextBootContext) (rbi RebootInfo, u bootStateUpdate, err error) {
 	u20, err := newBootStateUpdate20(nil)
 	if err != nil {
 		return RebootInfo{RebootRequired: false}, nil, err
@@ -491,21 +512,28 @@ func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUp
 	return u20, nil
 }
 
-func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error) {
-	u20, nextStatus, err := genericSetNext(bs20, next)
+func (bs20 *bootState20Base) setNext(next snap.PlaceInfo, bootCtx NextBootContext) (rbi RebootInfo, u bootStateUpdate, err error) {
+	// bases are handled by snap-bootstrap, hence we are not interested in
+	// the bootloader's opinion (no need for rbi.RebootBootloader, so it is
+	// not filled anywhere in this method).
+	u20, rebootRequired, err := genericSetNext(bs20, next)
 	if err != nil {
 		return RebootInfo{RebootRequired: false}, nil, err
 	}
 
-	// if we are setting a snap as a try snap, then we need to reboot
-	rbi.RebootRequired = false
-	if nextStatus == TryStatus {
-		// only update the try base if we are actually in try status
-		u20.writeModeenv.TryBase = next.Filename()
-		// a 'try' base is handled by snap-bootstrap, hence we are not
-		// interested in the bootloader's opinion (no need for
-		// rbi.RebootBootloader, so it is not filled).
-		rbi.RebootRequired = true
+	nextStatus := DefaultStatus
+	rbi.RebootRequired = rebootRequired
+	if rbi.RebootRequired {
+		if bootCtx.BootWithoutTry {
+			// we must make sure we boot with the base we revert to
+			u20.writeModeenv.Base = next.Filename()
+			u20.writeModeenv.TryBase = ""
+		} else {
+			// if we need to reboot and we are not undoing, we set the try status
+			// and set appropriately the base we want to try
+			nextStatus = TryStatus
+			u20.writeModeenv.TryBase = next.Filename()
+		}
 	}
 
 	// always update the base status
@@ -580,16 +608,16 @@ type bootState20 interface {
 // genericSetNext implements the generic logic for setting up a snap to be tried
 // for boot and works for both kernel and base snaps (though not
 // simultaneously).
-func genericSetNext(b bootState20, next snap.PlaceInfo) (u20 *bootStateUpdate20, setStatus string, err error) {
+func genericSetNext(b bootState20, next snap.PlaceInfo) (u20 *bootStateUpdate20, rebootRequired bool, err error) {
 	u20, err = newBootStateUpdate20(nil)
 	if err != nil {
-		return nil, "", err
+		return nil, false, err
 	}
 
 	// get the current snap
 	current, _, _, err := b.revisionsFromModeenv(u20.modeenv)
 	if err != nil {
-		return nil, "", err
+		return nil, false, err
 	}
 
 	// check if the next snap is really the same as the current snap, in which
@@ -597,12 +625,11 @@ func genericSetNext(b bootState20, next snap.PlaceInfo) (u20 *bootStateUpdate20,
 	if current.SnapName() == next.SnapName() && next.SnapRevision() == current.SnapRevision() {
 		// if we are setting the next snap as the current snap, don't need to
 		// change any snaps, just reset the status to default
-		return u20, DefaultStatus, nil
+		return u20, false, nil
 	}
 
-	// by default we will set the status as "try" to prepare for an update,
-	// which also by default will require a reboot
-	return u20, TryStatus, nil
+	// next != current so we need to reboot
+	return u20, true, nil
 }
 
 func toBootStateUpdate20(update bootStateUpdate) (u20 *bootStateUpdate20, err error) {

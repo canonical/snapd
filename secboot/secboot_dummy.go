@@ -56,3 +56,7 @@ func PCRHandleOfSealedKey(p string) (uint32, error) {
 func ReleasePCRResourceHandles(handles ...uint32) error {
 	return errBuildWithoutSecboot
 }
+
+func resetLockoutCounter(lockoutAuthFile string) error {
+	return errBuildWithoutSecboot
+}

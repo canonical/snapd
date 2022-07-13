@@ -4,6 +4,7 @@
         "etc/systemd",
         "etc/dbus-1",
         "snap",
+        "var/lib/extrausers",
         "var/lib/snapd/state.json",
         "var/lib/snapd/apparmor",
         "var/lib/snapd/system-key",
