@@ -60,7 +60,8 @@ var (
 
 	// TODO: remove this once we mount the root FS of a snap as tmpfs and
 	// become able to create any mount points. But for the time being, let's
-	// allow only those locations that can be supported without creating mimics
+	// allow only those locations that can be supported without creating a
+	// mimic of "/".
 	validPrefixes = []string{
 		"/home/",
 	}

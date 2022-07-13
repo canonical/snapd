@@ -381,6 +381,10 @@ func tryAppArmorParserFeature(parser, rule string) bool {
 	return true
 }
 
+// UpdateHomedirsTunable sets the AppArmor HOMEDIRS tunable to the list of the
+// specified directories. This directly affects the value of the AppArmor
+// @{HOME} variable. See the "/etc/apparmor.d/tunables/home" file for more
+// information.
 func UpdateHomedirsTunable(homedirs []string) error {
 	homeTunableDir := filepath.Join(ConfDir, "tunables/home.d")
 	tunableFilePath := filepath.Join(homeTunableDir, "snapd")
