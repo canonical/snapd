@@ -1,8 +1,7 @@
-summary: Functional test for journal quota-related snap commands.
+summary: Test to verify that 'snap logs' can get logs from journal namespaces.
 
 details: |
-  Functional test for snap journal quota group commands ensuring that they are 
-  effective in practice.
+  Functional test for the 'snap logs' command with snaps inside journal quota groups.
 # these systems do not support journal quota groups due to their old systemd versions.
 # requires systemd v245+
 systems:
