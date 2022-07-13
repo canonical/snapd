@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -313,7 +314,7 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Contain
 		return nil
 	}
 	core, err := coreInfo(st)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
 	if err != nil {
@@ -354,7 +355,6 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 		// not a relevant check
 		return nil
 	}
-
 	ok, err := HasSnapOfType(st, typ)
 	if err != nil {
 		return fmt.Errorf("cannot detect original %s snap: %v", kind, err)
@@ -366,7 +366,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 	}
 
 	currentSnap, err := infoForDeviceSnap(st, deviceCtx, whichName)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		// check if we are in the remodel case
 		if deviceCtx != nil && deviceCtx.ForRemodeling() {
 			if whichName(deviceCtx.Model()) == snapInfo.InstanceName() {
@@ -379,7 +379,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
 	}
 
-	if currentSnap.SnapID != "" && snapInfo.SnapID == "" {
+	if currentSnap.SnapID != "" && snapInfo.SnapID == "" && deviceCtx.Model().Grade() != asserts.ModelDangerous {
 		return fmt.Errorf("cannot replace signed %s snap with an unasserted one", kind)
 	}
 

@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/gadget/quantity"
 )
@@ -53,11 +54,18 @@ type QuotaCPUSetValues struct {
 	CPUs []int `json:"cpus,omitempty"`
 }
 
+type QuotaJournalValues struct {
+	Size       quantity.Size `json:"size,omitempty"`
+	RateCount  int           `json:"rate-count,omitempty"`
+	RatePeriod time.Duration `json:"rate-period,omitempty"`
+}
+
 type QuotaValues struct {
-	Memory  quantity.Size      `json:"memory,omitempty"`
-	CPU     *QuotaCPUValues    `json:"cpu,omitempty"`
-	CPUSet  *QuotaCPUSetValues `json:"cpu-set,omitempty"`
-	Threads int                `json:"threads,omitempty"`
+	Memory  quantity.Size       `json:"memory,omitempty"`
+	CPU     *QuotaCPUValues     `json:"cpu,omitempty"`
+	CPUSet  *QuotaCPUSetValues  `json:"cpu-set,omitempty"`
+	Threads int                 `json:"threads,omitempty"`
+	Journal *QuotaJournalValues `json:"journal,omitempty"`
 }
 
 // EnsureQuota creates a quota group or updates an existing group.

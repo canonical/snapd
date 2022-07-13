@@ -41,27 +41,26 @@ var (
 
 	HiddenSnapDataHomeGlob string
 
-	SnapBlobDir               string
-	SnapDataDir               string
-	SnapDataHomeGlob          string
-	SnapDownloadCacheDir      string
-	SnapAppArmorDir           string
-	SnapAppArmorAdditionalDir string
-	SnapConfineAppArmorDir    string
-	SnapSeccompBase           string
-	SnapSeccompDir            string
-	SnapMountPolicyDir        string
-	SnapUdevRulesDir          string
-	SnapKModModulesDir        string
-	SnapKModModprobeDir       string
-	LocaleDir                 string
-	SnapdSocket               string
-	SnapSocket                string
-	SnapRunDir                string
-	SnapRunNsDir              string
-	SnapRunLockDir            string
-	SnapBootstrapRunDir       string
-	SnapVoidDir               string
+	SnapBlobDir            string
+	SnapDataDir            string
+	SnapDataHomeGlob       string
+	SnapDownloadCacheDir   string
+	SnapAppArmorDir        string
+	SnapConfineAppArmorDir string
+	SnapSeccompBase        string
+	SnapSeccompDir         string
+	SnapMountPolicyDir     string
+	SnapUdevRulesDir       string
+	SnapKModModulesDir     string
+	SnapKModModprobeDir    string
+	LocaleDir              string
+	SnapdSocket            string
+	SnapSocket             string
+	SnapRunDir             string
+	SnapRunNsDir           string
+	SnapRunLockDir         string
+	SnapBootstrapRunDir    string
+	SnapVoidDir            string
 
 	SnapdMaintenanceFile string
 
@@ -102,6 +101,8 @@ var (
 	SnapDesktopFilesDir    string
 	SnapDesktopIconsDir    string
 	SnapPolkitPolicyDir    string
+	SnapSystemdDir         string
+	SnapSystemdRunDir      string
 
 	SnapDBusSessionPolicyDir   string
 	SnapDBusSystemPolicyDir    string
@@ -123,6 +124,8 @@ var (
 	XdgRuntimeDirGlob string
 
 	CompletionHelperInCore string
+	BashCompletionScript   string
+	LegacyCompletersDir    string
 	CompletersDir          string
 
 	SystemFontsDir            string
@@ -357,7 +360,6 @@ func SetRootDir(rootdir string) {
 	HiddenSnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", HiddenSnapDataHomeDir)
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	SnapConfineAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine")
-	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
 	SnapDownloadCacheDir = filepath.Join(rootdir, snappyDir, "cache")
 	SnapSeccompBase = filepath.Join(rootdir, snappyDir, "seccomp")
 	SnapSeccompDir = filepath.Join(SnapSeccompBase, "bpf")
@@ -420,6 +422,8 @@ func SetRootDir(rootdir string) {
 	SnapRuntimeServicesDir = filepath.Join(rootdir, "/run/systemd/system")
 	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
 	SnapSystemdConfDir = SnapSystemdConfDirUnder(rootdir)
+	SnapSystemdDir = filepath.Join(rootdir, "/etc/systemd")
+	SnapSystemdRunDir = filepath.Join(rootdir, "/run/systemd")
 
 	SnapDBusSystemPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 	SnapDBusSessionPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/session.d")
@@ -471,7 +475,9 @@ func SetRootDir(rootdir string) {
 	XdgRuntimeDirGlob = filepath.Join(XdgRuntimeDirBase, "*/")
 
 	CompletionHelperInCore = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
-	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
+	BashCompletionScript = filepath.Join(rootdir, "/usr/share/bash-completion/bash_completion")
+	LegacyCompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
+	CompletersDir = filepath.Join(rootdir, snappyDir, "desktop/bash-completion/completions/")
 
 	// These paths agree across all supported distros
 	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")

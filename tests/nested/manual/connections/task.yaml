@@ -1,0 +1,55 @@
+summary: Check that connections from gadget are automatically connected
+
+systems: [ubuntu-20.04-64]
+
+environment:
+  NESTED_SIGN_SNAPS_FAKESTORE: true
+  NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+  NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-auto-import.assert
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/nested-20-amd64-connections.model
+  NESTED_ENABLE_TPM: false
+  NESTED_ENABLE_SECURE_BOOT: false
+
+prepare: |
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+
+  setup_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+  teardown_staging_store
+
+  cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+
+  snap_id=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+  snap_path=$("$TESTSTOOLS"/snaps-state pack-local connections)
+  make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "${snap_path}" "${snap_id}"
+  mv "${snap_path}" "$(tests.nested get extra-snaps-path)"
+
+  snap download --basename=pc --channel="20/edge" pc
+  unsquashfs -d pc-gadget pc.snap
+
+  cat <<EOF >>pc-gadget/meta/gadget.yaml
+  connections:
+    - plug: ${snap_id}:serial-1
+      slot: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH:serial-1
+  EOF
+  cat <<EOF >>pc-gadget/meta/snap.yaml
+  slots:
+    serial-1:
+      interface: serial-port
+      path: /dev/ttyS1
+  EOF
+  snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
+
+  tests.nested build-image core
+  tests.nested create-vm core
+
+restore: |
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+  teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+
+execute: |
+  tests.nested exec "snap connections" | MATCH 'serial-port  *connections:serial-1  *pc:serial-1'

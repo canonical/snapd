@@ -12,7 +12,8 @@ details: |
     capability) and creates an arp entry (write capability).
 
 # ubuntu-14.04: systemd-run not supported
-systems: [-fedora-*, -opensuse-*, -ubuntu-14.04*]
+# ubuntu-18.04-32: network-control-consumer snap not available on i386
+systems: [-fedora-*, -opensuse-*, -ubuntu-14.04*, -ubuntu-18.04-32]
 
 environment:
     PORT: 8081

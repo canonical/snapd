@@ -131,7 +131,7 @@ var (
 	BaseDeclarationType     = &AssertionType{"base-declaration", []string{"series"}, nil, assembleBaseDeclaration, 0}
 	SnapDeclarationType     = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, nil, assembleSnapDeclaration, 0}
 	SnapBuildType           = &AssertionType{"snap-build", []string{"snap-sha3-384"}, nil, assembleSnapBuild, 0}
-	SnapRevisionType        = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, nil, assembleSnapRevision, 0}
+	SnapRevisionType        = &AssertionType{"snap-revision", []string{"snap-sha3-384", "provenance"}, map[string]string{"provenance": "global-upload"}, assembleSnapRevision, 0}
 	SnapDeveloperType       = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, nil, assembleSnapDeveloper, 0}
 	SystemUserType          = &AssertionType{"system-user", []string{"brand-id", "email"}, nil, assembleSystemUser, 0}
 	ValidationType          = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, nil, assembleValidation, 0}

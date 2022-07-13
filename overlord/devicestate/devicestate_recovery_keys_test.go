@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 )
 
@@ -88,9 +89,15 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
 
 	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
 	c.Assert(err, IsNil)
-	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, mountPoints []string) (keys.RecoveryKey, error) {
+	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, rkeyDevs []secboot.RecoveryKeyDevice) (keys.RecoveryKey, error) {
 		c.Check(keyFile, Equals, filepath.Join(dirs.SnapFDEDir, "recovery.key"))
-		c.Check(mountPoints, DeepEquals, []string{boot.InitramfsDataDir, boot.InitramfsUbuntuSaveDir})
+		c.Check(rkeyDevs, DeepEquals, []secboot.RecoveryKeyDevice{
+			{Mountpoint: boot.InitramfsDataDir},
+			{
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, "system-data/var/lib/snapd/device/fde/ubuntu-save.key"),
+			},
+		})
 
 		var rkey keys.RecoveryKey
 		copy(rkey[:], []byte(rkeystr))
@@ -111,9 +118,17 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
 
 	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
 	c.Assert(err, IsNil)
-	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, mountPoints []string) (keys.RecoveryKey, error) {
+	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, rkeyDevs []secboot.RecoveryKeyDevice) (keys.RecoveryKey, error) {
 		c.Check(keyFile, Equals, filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"))
-		c.Check(mountPoints, DeepEquals, []string{filepath.Dir(boot.InstallHostWritableDir), boot.InitramfsUbuntuSaveDir})
+		c.Check(rkeyDevs, DeepEquals, []secboot.RecoveryKeyDevice{
+			{
+				Mountpoint: filepath.Dir(boot.InstallHostWritableDir),
+			},
+			{
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				AuthorizingKeyFile: filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key"),
+			},
+		})
 
 		var rkey keys.RecoveryKey
 		copy(rkey[:], []byte(rkeystr))
@@ -147,11 +162,14 @@ func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
 
 	called := false
 	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
-	defer devicestate.MockSecbootRemoveRecoveryKeys(func(m2k map[string]string) error {
+	defer devicestate.MockSecbootRemoveRecoveryKeys(func(r2k map[secboot.RecoveryKeyDevice]string) error {
 		called = true
-		c.Check(m2k, DeepEquals, map[string]string{
-			boot.InitramfsDataDir:       rkey,
-			boot.InitramfsUbuntuSaveDir: rkey,
+		c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
+			{Mountpoint: boot.InitramfsDataDir}: rkey,
+			{
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, "system-data/var/lib/snapd/device/fde/ubuntu-save.key"),
+			}: rkey,
 		})
 		return nil
 	})()
@@ -165,11 +183,14 @@ func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
 func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeysBackwardCompat(c *C) {
 	called := false
 	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
-	defer devicestate.MockSecbootRemoveRecoveryKeys(func(m2k map[string]string) error {
+	defer devicestate.MockSecbootRemoveRecoveryKeys(func(r2k map[secboot.RecoveryKeyDevice]string) error {
 		called = true
-		c.Check(m2k, DeepEquals, map[string]string{
-			boot.InitramfsDataDir:       rkey,
-			boot.InitramfsUbuntuSaveDir: filepath.Join(dirs.SnapFDEDir, "reinstall.key"),
+		c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
+			{Mountpoint: boot.InitramfsDataDir}: rkey,
+			{
+				Mountpoint:         boot.InitramfsUbuntuSaveDir,
+				AuthorizingKeyFile: filepath.Join(boot.InitramfsDataDir, "system-data/var/lib/snapd/device/fde/ubuntu-save.key"),
+			}: filepath.Join(dirs.SnapFDEDir, "reinstall.key"),
 		})
 		return nil
 	})()

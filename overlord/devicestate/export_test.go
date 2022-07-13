@@ -207,6 +207,10 @@ func SetTriedSystemsRan(m *DeviceManager, b bool) {
 	m.ensureTriedRecoverySystemRan = b
 }
 
+func SetPostFactoryResetRan(m *DeviceManager, b bool) {
+	m.ensurePostFactoryResetRan = b
+}
+
 func StartTime() time.Time {
 	return startTime
 }
@@ -297,11 +301,15 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 }
 
 func MockBootMakeSystemRunnable(f func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error) (restore func()) {
-	old := bootMakeRunnable
+	restore = testutil.Backup(&bootMakeRunnable)
 	bootMakeRunnable = f
-	return func() {
-		bootMakeRunnable = old
-	}
+	return restore
+}
+
+func MockBootMakeSystemRunnableAfterDataReset(f func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error) (restore func()) {
+	restore = testutil.Backup(&bootMakeRunnableAfterDataReset)
+	bootMakeRunnableAfterDataReset = f
+	return restore
 }
 
 func MockBootEnsureNextBootToRunMode(f func(systemLabel string) error) (restore func()) {
@@ -347,6 +355,18 @@ func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device st
 func MockInstallFactoryReset(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
 	restore = testutil.Backup(&installFactoryReset)
 	installFactoryReset = f
+	return restore
+}
+
+func MockSecbootStageEncryptionKeyChange(f func(node string, key keys.EncryptionKey) error) (restore func()) {
+	restore = testutil.Backup(&secbootStageEncryptionKeyChange)
+	secbootStageEncryptionKeyChange = f
+	return restore
+}
+
+func MockSecbootTransitionEncryptionKeyChange(f func(mountpoint string, key keys.EncryptionKey) error) (restore func()) {
+	restore = testutil.Backup(&secbootTransitionEncryptionKeyChange)
+	secbootTransitionEncryptionKeyChange = f
 	return restore
 }
 
@@ -402,14 +422,26 @@ func MockSystemForPreseeding(f func() (string, error)) (restore func()) {
 	}
 }
 
-func MockSecbootEnsureRecoveryKey(f func(recoveryKeyFile string, mountPoints []string) (keys.RecoveryKey, error)) (restore func()) {
+func MockSecbootEnsureRecoveryKey(f func(recoveryKeyFile string, rkeyDevs []secboot.RecoveryKeyDevice) (keys.RecoveryKey, error)) (restore func()) {
 	restore = testutil.Backup(&secbootEnsureRecoveryKey)
 	secbootEnsureRecoveryKey = f
 	return restore
 }
 
-func MockSecbootRemoveRecoveryKeys(f func(mountPointToRecoverKeyFile map[string]string) error) (restore func()) {
+func MockSecbootRemoveRecoveryKeys(f func(rkeyDevToKey map[secboot.RecoveryKeyDevice]string) error) (restore func()) {
 	restore = testutil.Backup(&secbootRemoveRecoveryKeys)
 	secbootRemoveRecoveryKeys = f
 	return restore
+}
+
+func MockMarkFactoryResetComplete(f func(encrypted bool) error) (restore func()) {
+	restore = testutil.Backup(&bootMarkFactoryResetComplete)
+	bootMarkFactoryResetComplete = f
+	return restore
+}
+
+func MockSecbootMarkSuccessful(f func() error) (restore func()) {
+	r := testutil.Backup(&secbootMarkSuccessful)
+	secbootMarkSuccessful = f
+	return r
 }

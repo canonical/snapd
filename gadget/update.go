@@ -22,16 +22,15 @@ package gadget
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -883,8 +882,7 @@ func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, laidOutVols map[st
 
 		// check if there is a marker file written, that will indicate if
 		// encryption was turned on
-		encryptionMarkerFile := filepath.Join(dirs.SnapFDEDir, "marker")
-		if osutil.FileExists(encryptionMarkerFile) {
+		if device.HasEncryptedMarkerUnder(dirs.SnapFDEDir) {
 			// then we have the crypto marker file for encryption
 			// cross-validation between ubuntu-data and ubuntu-save stored from
 			// install mode, so mark ubuntu-save and data as expected to be

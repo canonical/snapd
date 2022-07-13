@@ -335,3 +335,21 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 func (s *preseedSuite) TestRunPreseedUC20HappyCustomApparmorFeaturesDir(c *C) {
 	s.testRunPreseedUC20Happy(c, "/custom-aa-features")
 }
+
+func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
+	tmpdir := c.MkDir()
+
+	// Mock an exec-format error - the first thing that runUC20PreseedMode
+	// does is start snapd in a chroot. So we can override the "chroot"
+	// call with a simulated exec format error to simulate the error a
+	// user would get when running preseeding on a architecture that is
+	// not the image target architecture.
+	mockChrootCmd := testutil.MockCommand(c, "chroot", "")
+	defer mockChrootCmd.Restore()
+	err := ioutil.WriteFile(mockChrootCmd.Exe(), []byte("invalid-exe"), 0755)
+	c.Check(err, IsNil)
+
+	opts := &preseed.PreseedOpts{PreseedChrootDir: tmpdir}
+	err = preseed.RunUC20PreseedMode(opts)
+	c.Check(err, ErrorMatches, `error running snapd, please try installing the "qemu-user-static" package: fork/exec .* exec format error`)
+}

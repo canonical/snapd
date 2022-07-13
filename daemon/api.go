@@ -140,6 +140,7 @@ var (
 	snapstateUpdateMany        = snapstate.UpdateMany
 	snapstateInstallMany       = snapstate.InstallMany
 	snapstateRemoveMany        = snapstate.RemoveMany
+	snapstateEnforceSnaps      = snapstate.EnforceSnaps
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
 	snapstateSwitch            = snapstate.Switch

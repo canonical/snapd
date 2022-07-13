@@ -22,6 +22,7 @@ package main_test
 import (
 	"io/ioutil"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -271,6 +272,14 @@ func (s *SnapSuite) TestDebugTasksWithCycles(c *C) {
 }
 
 func (s *SnapSuite) TestDebugCheckForCycles(c *C) {
+	// we use local time when printing times in a human-friendly format, which can
+	// break the comparison below
+	oldLoc := time.Local
+	time.Local = time.UTC
+	defer func() {
+		time.Local = oldLoc
+	}()
+
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(ioutil.WriteFile(stateFile, stateCyclesJSON, 0644), IsNil)

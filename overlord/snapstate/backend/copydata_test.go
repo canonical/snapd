@@ -973,7 +973,7 @@ func (s *copydataSuite) TestInitSnapUserHome(c *C) {
 	dirPath := filepath.Join(revDir, "dir")
 	c.Assert(os.Mkdir(dirPath, 0775), IsNil)
 
-	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev)
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev, opts)
 	c.Assert(err, IsNil)
 	exposedHome := filepath.Join(homeDir, dirs.ExposedSnapHomeDir, snapName)
 	c.Check(undoInfo.Created, DeepEquals, []string{exposedHome})
@@ -1025,7 +1025,7 @@ func (s *copydataSuite) TestInitExposedHomeIgnoreXDGDirs(c *C) {
 	localPath := filepath.Join(revDir, ".local", "share")
 	c.Assert(os.MkdirAll(localPath, 0700), IsNil)
 
-	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev)
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev, opts)
 	c.Assert(err, IsNil)
 	exposedHome := snap.UserExposedHomeDir(homeDir, snapName)
 	c.Check(undoInfo.Created, DeepEquals, []string{exposedHome})
@@ -1074,7 +1074,7 @@ func (s *copydataSuite) TestInitSnapFailOnFirstErr(c *C) {
 	rev, err := snap.ParseRevision("2")
 	c.Assert(err, IsNil)
 
-	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev)
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev, nil)
 	c.Assert(err, ErrorMatches, ".*: boom")
 	c.Check(undoInfo, IsNil)
 
@@ -1123,7 +1123,7 @@ func (s *copydataSuite) TestInitSnapUndoOnErr(c *C) {
 	rev, err := snap.ParseRevision("2")
 	c.Assert(err, IsNil)
 
-	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev)
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev, nil)
 	c.Assert(err, ErrorMatches, ".*: boom")
 	c.Check(undoInfo, IsNil)
 
@@ -1152,7 +1152,7 @@ func (s *copydataSuite) TestInitSnapNothingToCopy(c *C) {
 	rev, err := snap.ParseRevision("2")
 	c.Assert(err, IsNil)
 
-	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev)
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev, nil)
 	c.Assert(err, IsNil)
 	c.Check(undoInfo.Created, DeepEquals, []string{snap.UserExposedHomeDir(usr.HomeDir, snapName)})
 
@@ -1187,7 +1187,7 @@ func (s *copydataSuite) TestInitAlreadyExistsFile(c *C) {
 	rev, err := snap.ParseRevision("2")
 	c.Assert(err, IsNil)
 
-	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev)
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot initialize new user HOME %q: already exists but is not a directory", newHome))
 	c.Check(undoInfo, IsNil)
 
@@ -1217,7 +1217,7 @@ func (s *copydataSuite) TestInitAlreadyExistsDir(c *C) {
 	rev, err := snap.ParseRevision("2")
 	c.Assert(err, IsNil)
 
-	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev)
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev, nil)
 	c.Assert(err, IsNil)
 	c.Check(undoInfo.Created, HasLen, 0)
 

@@ -432,6 +432,8 @@ StandardOutput=journal+console
 StandardError=journal+console
 EOF
 
+    cp "${SPREAD_PATH}"/data/completion/bash/complete.sh "${UNPACK_DIR}"/usr/lib/snapd/complete.sh
+
     snap pack --filename="$TARGET" "$UNPACK_DIR"
 
     rm -rf "$UNPACK_DIR"
@@ -545,8 +547,47 @@ touch /root/spread-setup-done
 EOF
     chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
 
+    cp "${SPREAD_PATH}"/data/completion/bash/complete.sh "${UNPACK_DIR}"/usr/lib/snapd/complete.sh
+
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
+}
+
+# Builds kernel snap with bad kernel.efi, in different ways
+# $1: snap we will modify
+# $2: target folder for the new snap
+# $3: argument, type of corruption we want for kernel.efi
+uc20_build_corrupt_kernel_snap() {
+    local ORIG_SNAP="$1"
+    local TARGET_DIR="$2"
+    local optArg=${3:-}
+
+    # kernel snap is huge, unpacking to current dir
+    local REPACKED_DIR=repacked-kernel
+    local KERNEL_EFI_PATH=$REPACKED_DIR/kernel.efi
+    unsquashfs -d "$REPACKED_DIR" "$ORIG_SNAP"
+
+    case "$optArg" in
+        --empty)
+            printf "" > "$KERNEL_EFI_PATH"
+            ;;
+        --zeros)
+            dd if=/dev/zero of="$KERNEL_EFI_PATH" count=1
+            ;;
+        --bad-*)
+            section=${optArg#--bad-}
+            # Get the file offset for the section, put zeros at the beginning of it
+            sectOffset=$(objdump -w -h "$KERNEL_EFI_PATH" | grep "$section" |
+                             awk '{print $6}')
+            dd if=/dev/zero of="$KERNEL_EFI_PATH" \
+               bs=1 seek=$((0x$sectOffset)) count=512 conv=notrunc
+            ;;
+    esac
+
+    # Make snap smaller, we don't need the fw with qemu
+    rm -rf "$REPACKED_DIR"/firmware/*
+    snap pack "$REPACKED_DIR" "$TARGET_DIR"
+    rm -rf "$REPACKED_DIR"
 }
 
 uc20_build_initramfs_kernel_snap() {

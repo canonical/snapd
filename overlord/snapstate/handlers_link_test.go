@@ -355,7 +355,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 				c.Check(snapst.Active, Equals, true)
 			case 2:
 				// Then link-snap is undone and the snap gets unlinked.
-				c.Check(err, Equals, state.ErrNoState)
+				c.Check(err, testutil.ErrorIs, state.ErrNoState)
 			}
 			return nil
 		},
@@ -394,7 +394,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	s.state.Lock()
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	// and check that the sequence file got updated
@@ -713,7 +713,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	// state as expected
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	// tried to cleanup
 	expected := fakeOps{
@@ -1010,7 +1010,7 @@ func (s *linkSnapSuite) TestDoLinkSnapdSnapCleanupOnErrorFirstInstall(c *C) {
 	// state as expected
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	// tried to cleanup
 	expected := fakeOps{
@@ -1077,7 +1077,7 @@ func (s *linkSnapSuite) TestDoLinkSnapdSnapCleanupOnErrorNthInstall(c *C) {
 	// state as expected
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	// tried to cleanup
 	expected := fakeOps{
@@ -1357,7 +1357,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapCoreClassic(c *C) {
 	s.state.Lock()
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "core", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartDaemon, restart.RestartDaemon})
@@ -1727,7 +1727,7 @@ func (s *linkSnapSuite) TestUndoLinkSnapdFirstInstall(c *C) {
 
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "snapd", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	expected := fakeOps{

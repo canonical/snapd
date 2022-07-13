@@ -102,10 +102,10 @@ _complete_from_snap() {
 }
 
 # this file can be sourced directly as e.g. /usr/lib/snapd/complete.sh, or via
-# a symlink from /usr/share/bash-completion/completions/. In the first case we
+# a symlink from /var/lib/snapd/desktop/bash-completion/completions/. In the first case we
 # want to load the default loader; in the second, the specific one.
 #
-if [[ "${BASH_SOURCE[0]}" =~ ^/usr/share/bash-completion/completions/ ]]; then
+if [[ "${BASH_SOURCE[0]}" =~ ^(/var/lib/snapd/desktop|/usr/share)/bash-completion/completions/ ]]; then
     complete -F _complete_from_snap "$1"
 else
 

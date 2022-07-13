@@ -675,7 +675,7 @@ func (ovs *overlordSuite) TestOverlordStartUpSetsStartOfOperation(c *C) {
 
 	// validity check, not set
 	var opTime time.Time
-	c.Assert(st.Get("start-of-operation-time", &opTime), Equals, state.ErrNoState)
+	c.Assert(st.Get("start-of-operation-time", &opTime), testutil.ErrorIs, state.ErrNoState)
 	st.Unlock()
 
 	c.Assert(o.StartUp(), IsNil)
@@ -843,7 +843,7 @@ func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 	defer st.Unlock()
 
 	var opTime time.Time
-	c.Assert(st.Get("start-of-operation-time", &opTime), Equals, state.ErrNoState)
+	c.Assert(st.Get("start-of-operation-time", &opTime), testutil.ErrorIs, state.ErrNoState)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 }
 

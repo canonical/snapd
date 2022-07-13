@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -90,6 +91,10 @@ The threads limit for a quota group can be increased but not decreased. To
 decrease the threads limit for a quota group, the entire group must be removed
 with the remove-quota command and recreated with a lower limit.
 
+The journal limits can be increased and decreased after being set on a group.
+Setting a journal limit will cause the snaps in the group to be put into the same
+journal namespace. This will affect the behaviour of the log command.
+
 New quotas can be set on existing quota groups, but existing quotas cannot be removed
 from a quota group, without removing and recreating the entire group.
 
@@ -101,7 +106,17 @@ An existing sub group cannot be moved from one parent to another.
 
 func init() {
 	// TODO: unhide the commands when non-experimental
-	cmd := addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp, func() flags.Commander { return &cmdSetQuota{} }, nil, nil)
+	cmd := addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp,
+		func() flags.Commander { return &cmdSetQuota{} },
+		waitDescs.also(map[string]string{
+			"memory":             i18n.G("Memory quota"),
+			"cpu":                i18n.G("CPU quota"),
+			"cpu-set":            i18n.G("CPU set quota"),
+			"threads":            i18n.G("Threads quota"),
+			"journal-size":       i18n.G("Journal size quota"),
+			"journal-rate-limit": i18n.G("Journal rate limit as <message count>/<message period>"),
+			"parent":             i18n.G("Parent quota group"),
+		}), nil)
 	cmd.hidden = true
 
 	cmd = addCommand("quota", shortQuotaHelp, longQuotaHelp, func() flags.Commander { return &cmdQuota{} }, nil, nil)
@@ -117,12 +132,14 @@ func init() {
 type cmdSetQuota struct {
 	waitMixin
 
-	MemoryMax  string `long:"memory" optional:"true"`
-	CPUMax     string `long:"cpu" optional:"true"`
-	CPUSet     string `long:"cpu-set" optional:"true"`
-	ThreadsMax string `long:"threads" optional:"true"`
-	Parent     string `long:"parent" optional:"true"`
-	Positional struct {
+	MemoryMax        string `long:"memory" optional:"true"`
+	CPUMax           string `long:"cpu" optional:"true"`
+	CPUSet           string `long:"cpu-set" optional:"true"`
+	ThreadsMax       string `long:"threads" optional:"true"`
+	JournalSizeMax   string `long:"journal-size" optional:"true"`
+	JournalRateLimit string `long:"journal-rate-limit" optional:"true"`
+	Parent           string `long:"parent" optional:"true"`
+	Positional       struct {
 		GroupName string              `positional-arg-name:"<group-name>" required:"true"`
 		Snaps     []installedSnapName `positional-arg-name:"<snap>" optional:"true"`
 	} `positional-args:"yes"`
@@ -157,23 +174,39 @@ func parseCpuQuota(cpuMax string) (count int, percentage int, err error) {
 	return count, percentage, nil
 }
 
-func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadsMax string) (*client.QuotaValues, error) {
-	var mem int64
-	var cpuCount int
-	var cpuPercentage int
-	var cpus []int
-	var threads int
+func parseJournalRateQuota(journalRateLimit string) (count int, period time.Duration, err error) {
+	// the rate limit is a string of the form N/P, where N is the number of
+	// messages and P is the period as a time string (e.g 5s)
+	parts := strings.Split(journalRateLimit, "/")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("rate limit must be of the form <number of messages>/<period duration>")
+	}
 
-	if maxMemory != "" {
-		value, err := strutil.ParseByteSize(maxMemory)
+	count, err = strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, fmt.Errorf("cannot parse message count: %v", err)
+	}
+
+	period, err = time.ParseDuration(parts[1])
+	if err != nil {
+		return 0, 0, fmt.Errorf("cannot parse period: %v", err)
+	}
+	return count, period, nil
+}
+
+func (x *cmdSetQuota) parseQuotas() (*client.QuotaValues, error) {
+	var quotaValues client.QuotaValues
+
+	if x.MemoryMax != "" {
+		value, err := strutil.ParseByteSize(x.MemoryMax)
 		if err != nil {
 			return nil, err
 		}
-		mem = value
+		quotaValues.Memory = quantity.Size(value)
 	}
 
-	if cpuMax != "" {
-		countValue, percentageValue, err := parseCpuQuota(cpuMax)
+	if x.CPUMax != "" {
+		countValue, percentageValue, err := parseCpuQuota(x.CPUMax)
 		if err != nil {
 			return nil, err
 		}
@@ -181,12 +214,15 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadsMax stri
 			return nil, fmt.Errorf("cannot use value %v: cpu quota percentage must be between 1 and 100", percentageValue)
 		}
 
-		cpuCount = countValue
-		cpuPercentage = percentageValue
+		quotaValues.CPU = &client.QuotaCPUValues{
+			Count:      countValue,
+			Percentage: percentageValue,
+		}
 	}
 
-	if cpuSet != "" {
-		cpuTokens := strutil.CommaSeparatedList(cpuSet)
+	if x.CPUSet != "" {
+		var cpus []int
+		cpuTokens := strutil.CommaSeparatedList(x.CPUSet)
 		for _, cpuToken := range cpuTokens {
 			cpu, err := strconv.ParseUint(cpuToken, 10, 32)
 			if err != nil {
@@ -194,31 +230,50 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadsMax stri
 			}
 			cpus = append(cpus, int(cpu))
 		}
-	}
 
-	if threadsMax != "" {
-		value, err := strconv.ParseUint(threadsMax, 10, 32)
-		if err != nil {
-			return nil, fmt.Errorf("cannot use threads value %q", threadsMax)
-		}
-		threads = int(value)
-	}
-
-	return &client.QuotaValues{
-		Memory: quantity.Size(mem),
-		CPU: &client.QuotaCPUValues{
-			Count:      cpuCount,
-			Percentage: cpuPercentage,
-		},
-		CPUSet: &client.QuotaCPUSetValues{
+		quotaValues.CPUSet = &client.QuotaCPUSetValues{
 			CPUs: cpus,
-		},
-		Threads: threads,
-	}, nil
+		}
+	}
+
+	if x.ThreadsMax != "" {
+		value, err := strconv.ParseUint(x.ThreadsMax, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("cannot use threads value %q", x.ThreadsMax)
+		}
+		quotaValues.Threads = int(value)
+	}
+
+	if x.JournalSizeMax != "" || x.JournalRateLimit != "" {
+		quotaValues.Journal = &client.QuotaJournalValues{}
+		if x.JournalSizeMax != "" {
+			value, err := strutil.ParseByteSize(x.JournalSizeMax)
+			if err != nil {
+				return nil, fmt.Errorf("cannot parse journal size %q: %v", x.JournalSizeMax, err)
+			}
+			quotaValues.Journal.Size = quantity.Size(value)
+		}
+
+		if x.JournalRateLimit != "" {
+			count, period, err := parseJournalRateQuota(x.JournalRateLimit)
+			if err != nil {
+				return nil, fmt.Errorf("cannot parse journal rate limit %q: %v", x.JournalRateLimit, err)
+			}
+			quotaValues.Journal.RateCount = count
+			quotaValues.Journal.RatePeriod = period
+		}
+	}
+
+	return &quotaValues, nil
+}
+
+func (x *cmdSetQuota) hasQuotaSet() bool {
+	return x.MemoryMax != "" || x.CPUMax != "" || x.CPUSet != "" ||
+		x.ThreadsMax != "" || x.JournalSizeMax != "" || x.JournalRateLimit != ""
 }
 
 func (x *cmdSetQuota) Execute(args []string) (err error) {
-	quotaProvided := x.MemoryMax != "" || x.CPUMax != "" || x.CPUSet != "" || x.ThreadsMax != ""
+	quotaProvided := x.hasQuotaSet()
 
 	names := installedSnapNames(x.Positional.Snaps)
 
@@ -259,7 +314,7 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// we have a limits to set for this group, so specify that along
 		// with whatever snaps may have been provided and whatever parent may
 		// have been specified
-		quotaValues, err := parseQuotas(x.MemoryMax, x.CPUMax, x.CPUSet, x.ThreadsMax)
+		quotaValues, err := x.parseQuotas()
 		if err != nil {
 			return err
 		}
@@ -350,6 +405,15 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 	}
 	if group.Constraints.Threads != 0 {
 		fmt.Fprintf(w, "  threads:\t%d\n", group.Constraints.Threads)
+	}
+	if group.Constraints.Journal != nil {
+		if group.Constraints.Journal.Size != 0 {
+			val := strings.TrimSpace(fmtSize(int64(group.Constraints.Journal.Size)))
+			fmt.Fprintf(w, "  journal-size:\t%s\n", val)
+		}
+		if group.Constraints.Journal.RateCount != 0 && group.Constraints.Journal.RatePeriod != 0 {
+			fmt.Fprintf(w, "  journal-rate:\t%d/%s\n", group.Constraints.Journal.RateCount, group.Constraints.Journal.RatePeriod)
+		}
 	}
 
 	memoryUsage := "0B"
@@ -453,6 +517,16 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 		// format threads constraint as threads=N
 		if q.Constraints.Threads != 0 {
 			grpConstraints = append(grpConstraints, "threads="+strconv.Itoa(q.Constraints.Threads))
+		}
+
+		// format journal constraint as journal-size=xMB,journal-rate=x/y
+		if q.Constraints.Journal != nil {
+			if q.Constraints.Journal.Size != 0 {
+				grpConstraints = append(grpConstraints, "journal-size="+strings.TrimSpace(fmtSize(int64(q.Constraints.Journal.Size))))
+			}
+			if q.Constraints.Journal.RateCount != 0 && q.Constraints.Journal.RatePeriod != 0 {
+				grpConstraints = append(grpConstraints, fmt.Sprintf("journal-rate=%d/%s", q.Constraints.Journal.RateCount, q.Constraints.Journal.RatePeriod))
+			}
 		}
 
 		// format current resource values as memory=N,threads=N

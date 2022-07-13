@@ -3646,6 +3646,148 @@ apps:
 	c.Check(dest, Equals, "bar.app3")
 }
 
+func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateWithAndWithoutAppsForAutoAliases(c *C) {
+	// there is a single snap declaration that covers all tracks/channels,
+	// because of this it can list auto aliases for apps that do not exist
+	// in a particular channel the the snap is installed from and track
+	s.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name": "foo",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app1", "target": "app1"},
+			map[string]interface{}{"name": "app2", "target": "app2"},
+		},
+	})
+
+	fooYamlJustApp1 := `name: foo
+version: @VERSION@
+apps:
+ app1:
+  command: bin/app1
+`
+
+	fooPath, _ := s.makeStoreTestSnap(c, strings.Replace(fooYamlJustApp1, "@VERSION@", "1.0", -1), "10")
+	s.serveSnap(fooPath, "10")
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Install(context.TODO(), st, "foo", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	info, err := snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(10))
+	c.Check(info.Version, Equals, "1.0")
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app1": {Auto: "app1"},
+	})
+
+	app1Alias := filepath.Join(dirs.SnapBinariesDir, "app1")
+	app2Alias := filepath.Join(dirs.SnapBinariesDir, "app2")
+	c.Check(app1Alias, testutil.SymlinkTargetEquals, "foo.app1")
+	c.Check(app2Alias, testutil.FileAbsent)
+
+	fooYamlBothApps := `name: foo
+version: @VERSION@
+apps:
+ app1:
+  command: bin/app1
+ app2:
+  command: bin/app2
+`
+
+	// new foo version/revision with both apps
+	fooPath, _ = s.makeStoreTestSnap(c, strings.Replace(fooYamlBothApps, "@VERSION@", "1.5", -1), "15")
+	s.serveSnap(fooPath, "15")
+
+	// refresh all
+	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(updated, DeepEquals, []string{"foo"})
+	c.Assert(tss, HasLen, 2)
+	verifyLastTasksetIsRerefresh(c, tss)
+	chg = st.NewChange("upgrade-snaps", "...")
+	chg.AddAll(tss[0])
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	info, err = snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(15))
+	c.Check(info.Version, Equals, "1.5")
+
+	var snapst2 snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst2)
+	c.Assert(err, IsNil)
+	c.Check(snapst2.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst2.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app1": {Auto: "app1"},
+		"app2": {Auto: "app2"},
+	})
+
+	c.Check(app1Alias, testutil.SymlinkTargetEquals, "foo.app1")
+	c.Check(app2Alias, testutil.SymlinkTargetEquals, "foo.app2")
+
+	// new revision has just one app again
+	fooPath, _ = s.makeStoreTestSnap(c, strings.Replace(fooYamlJustApp1, "@VERSION@", "2.0", -1), "20")
+	s.serveSnap(fooPath, "20")
+
+	// refresh all
+	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(updated, DeepEquals, []string{"foo"})
+	c.Assert(tss, HasLen, 2)
+	verifyLastTasksetIsRerefresh(c, tss)
+	chg = st.NewChange("upgrade-snaps", "...")
+	chg.AddAll(tss[0])
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	info, err = snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(20))
+	c.Check(info.Version, Equals, "2.0")
+
+	var snapst3 snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst3)
+	c.Assert(err, IsNil)
+	c.Check(snapst3.AutoAliasesDisabled, Equals, false)
+	c.Check(snapst3.Aliases, DeepEquals, map[string]*snapstate.AliasTarget{
+		"app1": {Auto: "app1"},
+	})
+
+	c.Check(app1Alias, testutil.SymlinkTargetEquals, "foo.app1")
+	c.Check(app2Alias, testutil.FileAbsent)
+}
+
 func (s *mgrsSuite) TestHappyStopWhileDownloadingHeader(c *C) {
 	s.prereqSnapAssertions(c)
 
@@ -4548,7 +4690,7 @@ hooks:
 
 	var snst snapstate.SnapState
 	err = snapstate.Get(st, "other-snap", &snst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	_, err = repo.Connected("other-snap", "media-hub")
 	c.Assert(err, ErrorMatches, `snap "other-snap" has no plug or slot named "media-hub"`)
 }
@@ -4908,7 +5050,7 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAddedUndo(c *C) {
 	var snapst snapstate.SnapState
 	for _, snapName := range []string{"foo", "bar", "baz"} {
 		err = snapstate.Get(st, snapName, &snapst)
-		c.Assert(err, Equals, state.ErrNoState)
+		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	}
 
 	// old-required-snap-1 is still marked required
@@ -7076,7 +7218,7 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 	// the new required-snap "foo" is not installed yet
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, "foo", &snapst)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 	// simulate successful reboot to recovery and back
 	restart.MockPending(st, restart.RestartUnset)
@@ -9076,6 +9218,9 @@ WantedBy=multi-user.target
 			// service also dies?
 			c.Check(cmd, DeepEquals, []string{"stop", "snap.test-snap.svc1.service"})
 			return nil, fmt.Errorf("the snap service is still having a bad day")
+		case 15:
+			c.Check(cmd, DeepEquals, []string{"show", "--property=ActiveState", "snap.test-snap.svc1.service"})
+			return nil, nil
 		default:
 			c.Errorf("unexpected call to systemctl: %+v", cmd)
 			return nil, fmt.Errorf("broken test")
@@ -9083,7 +9228,7 @@ WantedBy=multi-user.target
 	})
 	s.AddCleanup(r)
 	// make sure that we get the expected number of systemctl calls
-	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 14) })
+	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 15) })
 
 	// also add the snapd snap to state which we will refresh
 	si1 := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}

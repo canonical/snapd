@@ -22,12 +22,20 @@
 package secboot
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
 
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot/keymgr"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var (
@@ -66,16 +74,165 @@ func AddRecoveryKey(key keys.EncryptionKey, rkey keys.RecoveryKey, node string) 
 	return keymgr.AddRecoveryKeyToLUKSDeviceUsingKey(rkey, key, node)
 }
 
+func runSnapFDEKeymgr(args []string, stdin io.Reader) error {
+	toolPath, err := snapdtool.InternalToolPath("snap-fde-keymgr")
+	if err != nil {
+		return fmt.Errorf("cannot find keymgr tool: %v", err)
+	}
+
+	sysd := systemd.New(systemd.SystemMode, nil)
+
+	command := []string{
+		toolPath,
+	}
+	command = append(command, args...)
+	_, err = sysd.Run(command, &systemd.RunOptions{
+		KeyringMode: systemd.KeyringModeInherit,
+		Stdin:       stdin,
+	})
+	return err
+}
+
 // EnsureRecoveryKey makes sure the encrypted block devices have a recovery key.
-// It takes the path where to store the key and mount points for the
-// encrypted devices to operate on.
-func EnsureRecoveryKey(recoveryKeyFile string, mountPoints []string) (keys.RecoveryKey, error) {
-	return keys.RecoveryKey{}, fmt.Errorf("not implemented yet")
+// It takes the path where to store the key and encrypted devices to operate on.
+func EnsureRecoveryKey(keyFile string, rkeyDevs []RecoveryKeyDevice) (keys.RecoveryKey, error) {
+	// support multiple devices with the same key
+	command := []string{
+		"add-recovery-key",
+		"--key-file", keyFile,
+	}
+	for _, rkeyDev := range rkeyDevs {
+		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
+		if err != nil {
+			return keys.RecoveryKey{}, fmt.Errorf("cannot find matching device for: %v", err)
+		}
+		logger.Debugf("ensuring recovery key on device: %v", dev)
+		authzMethod := "keyring"
+		if rkeyDev.AuthorizingKeyFile != "" {
+			authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
+		}
+		command = append(command, []string{
+			"--devices", dev,
+			"--authorizations", authzMethod,
+		}...)
+	}
+
+	if err := runSnapFDEKeymgr(command, nil); err != nil {
+		return keys.RecoveryKey{}, fmt.Errorf("cannot run keymgr tool: %v", err)
+	}
+
+	rk, err := keys.RecoveryKeyFromFile(keyFile)
+	if err != nil {
+		return keys.RecoveryKey{}, fmt.Errorf("cannot read recovery key: %v", err)
+	}
+	return *rk, nil
+}
+
+func devByPartUUIDFromMount(mp string) (string, error) {
+	partUUID, err := disks.PartitionUUIDFromMountPoint(mp, &disks.Options{
+		IsDecryptedDevice: true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("cannot partition for mount %v: %v", mp, err)
+	}
+	dev := filepath.Join("/dev/disk/by-partuuid", partUUID)
+	return dev, nil
 }
 
 // RemoveRecoveryKeys removes any recovery key from all encrypted block devices.
-// It takes a map from the mount points for the encrypted devices to where
-// their recovery key is stored, mount points might share the latter.
-func RemoveRecoveryKeys(mountPointToRecoveryKeyFile map[string]string) error {
-	return fmt.Errorf("not implemented yet")
+// It takes a map from the recovery key device to where their recovery key is
+// stored, mount points might share the latter.
+func RemoveRecoveryKeys(rkeyDevToKey map[RecoveryKeyDevice]string) error {
+	// support multiple devices and key files
+	command := []string{
+		"remove-recovery-key",
+	}
+	for rkeyDev, keyFile := range rkeyDevToKey {
+		dev, err := devByPartUUIDFromMount(rkeyDev.Mountpoint)
+		if err != nil {
+			return fmt.Errorf("cannot find matching device for: %v", err)
+		}
+		logger.Debugf("removing recovery key from device: %v", dev)
+		authzMethod := "keyring"
+		if rkeyDev.AuthorizingKeyFile != "" {
+			authzMethod = "file:" + rkeyDev.AuthorizingKeyFile
+		}
+		command = append(command, []string{
+			"--devices", dev,
+			"--authorizations", authzMethod,
+			"--key-files", keyFile,
+		}...)
+	}
+
+	if err := runSnapFDEKeymgr(command, nil); err != nil {
+		return fmt.Errorf("cannot run keymgr tool: %v", err)
+	}
+	return nil
+}
+
+// StageEncryptionKeyChange stages a new encryption key for a given encrypted
+// device. The new key is added into a temporary slot. To complete the
+// encryption key change process, a call to TransitionEncryptionKeyChange is
+// needed.
+func StageEncryptionKeyChange(node string, key keys.EncryptionKey) error {
+	partitionUUID, err := disks.PartitionUUID(node)
+	if err != nil {
+		return fmt.Errorf("cannot get UUID of partition %v: %v", node, err)
+	}
+
+	dev := filepath.Join("/dev/disk/by-partuuid", partitionUUID)
+	logger.Debugf("stage encryption key change on device: %v", dev)
+
+	var buf bytes.Buffer
+	err = json.NewEncoder(&buf).Encode(struct {
+		Key []byte `json:"key"`
+	}{
+		Key: key,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot encode key for the FDE key manager tool: %v", err)
+	}
+
+	command := []string{
+		"change-encryption-key",
+		"--device", dev,
+		"--stage",
+	}
+
+	if err := runSnapFDEKeymgr(command, &buf); err != nil {
+		return fmt.Errorf("cannot run FDE key manager tool: %v", err)
+	}
+	return nil
+}
+
+// TransitionEncryptionKeyChange transitions the encryption key on an encrypted
+// device corresponding to the given mount point. The change is authorized using
+// the new key, thus a prior call to StageEncryptionKeyChange must be done.
+func TransitionEncryptionKeyChange(mountpoint string, key keys.EncryptionKey) error {
+	dev, err := devByPartUUIDFromMount(mountpoint)
+	if err != nil {
+		return fmt.Errorf("cannot find matching device: %v", err)
+	}
+	logger.Debugf("transition encryption key change on device: %v", dev)
+
+	var buf bytes.Buffer
+	err = json.NewEncoder(&buf).Encode(struct {
+		Key []byte `json:"key"`
+	}{
+		Key: key,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot encode key for the FDE key manager tool: %v", err)
+	}
+
+	command := []string{
+		"change-encryption-key",
+		"--device", dev,
+		"--transition",
+	}
+
+	if err := runSnapFDEKeymgr(command, &buf); err != nil {
+		return fmt.Errorf("cannot run FDE key manager tool: %v", err)
+	}
+	return nil
 }

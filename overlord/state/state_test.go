@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestState(t *testing.T) { TestingT(t) }
@@ -111,7 +112,7 @@ func (ss *stateSuite) TestGetNoState(c *C) {
 
 	var mSt1B mgrState1
 	err := st.Get("mgr9", &mSt1B)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (ss *stateSuite) TestSetToNilDeletes(c *C) {
@@ -129,7 +130,7 @@ func (ss *stateSuite) TestSetToNilDeletes(c *C) {
 
 	var v1 map[string]int
 	err = st.Get("a", &v1)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(v1, HasLen, 0)
 }
 
@@ -143,7 +144,7 @@ func (ss *stateSuite) TestNullMeansNoState(c *C) {
 
 	var v1 map[string]int
 	err = st.Get("a", &v1)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(v1, HasLen, 0)
 }
 
@@ -1001,4 +1002,18 @@ func (ss *stateSuite) TestTimingsSupport(c *C) {
 	err = st.GetMaybeTimings(&tims)
 	c.Assert(err, IsNil)
 	c.Check(tims, DeepEquals, []int{1, 2, 3})
+}
+
+func (ss *stateSuite) TestNoStateErrorIs(c *C) {
+	err := &state.NoStateError{Key: "foo"}
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{Key: "bar"})
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+}
+
+func (ss *stateSuite) TestNoStateErrorString(c *C) {
+	err := &state.NoStateError{}
+	c.Assert(err.Error(), Equals, `no state entry for key`)
+	err.Key = "foo"
+	c.Assert(err.Error(), Equals, `no state entry for key "foo"`)
 }

@@ -31,6 +31,7 @@ var (
 	SystemSnapFromSeed       = systemSnapFromSeed
 	ChooseTargetSnapdVersion = chooseTargetSnapdVersion
 	CreatePreseedArtifact    = createPreseedArtifact
+	RunUC20PreseedMode       = runUC20PreseedMode
 )
 
 type PreseedOpts = preseedOpts

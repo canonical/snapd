@@ -691,7 +691,7 @@ func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
 		st.Lock()
 		err = assertstate.GetValidationSet(st, s.dev1acct.AccountID(), "foo", &tr)
 		st.Unlock()
-		c.Assert(err, check.Equals, state.ErrNoState)
+		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 		// and forget again fails
 		req, err = http.NewRequest("POST", fmt.Sprintf("/v2/validation-sets/%s/foo", s.dev1acct.AccountID()), strings.NewReader(body))

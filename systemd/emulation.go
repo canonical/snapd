@@ -76,7 +76,7 @@ func (s *emulation) StartNoBlock(services []string) error {
 	return nil
 }
 
-func (s *emulation) Stop(services []string, timeout time.Duration) error {
+func (s *emulation) Stop(services []string) error {
 	return nil
 }
 
@@ -84,7 +84,7 @@ func (s *emulation) Kill(service, signal, who string) error {
 	return &notImplementedError{"Kill"}
 }
 
-func (s *emulation) Restart(services []string, timeout time.Duration) error {
+func (s *emulation) Restart(services []string) error {
 	return nil
 }
 
