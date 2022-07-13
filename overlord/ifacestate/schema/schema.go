@@ -17,7 +17,7 @@
  *
  */
 
-// Package schema holds structs for reading and writing interface-related data.
+// Package schema holds structs for reading and writing interface-related state data.
 package schema
 
 import "github.com/snapcore/snapd/snap"
