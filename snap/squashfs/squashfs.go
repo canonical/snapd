@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/internal"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -297,7 +298,7 @@ var (
 )
 
 func sandboxParams(sdVer int) (params []string) {
-	if sysGeteuid() != 0 {
+	if sysGeteuid() != 0 || snapdenv.Preseeding() {
 		return nil
 	}
 	// effective user is 0, use systemd-run to sandbox unsquashfs
