@@ -1,6 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build !nomanagers
-// +build !nomanagers
 
 /*
  * Copyright (C) 2022 Canonical Ltd
@@ -30,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 // For mocking in tests
@@ -73,7 +72,12 @@ func init() {
 }
 
 func updateHomedirsConfig(config string) error {
-	configPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system-params")
+	snapStateDir := dirs.SnapdStateDir(dirs.GlobalRootDir)
+	if err := os.MkdirAll(snapStateDir, 0755); err != nil {
+		return err
+	}
+
+	configPath := filepath.Join(snapStateDir, "system-params")
 	f, err := osOpenFile(configPath, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return err
@@ -98,7 +102,7 @@ func updateHomedirsConfig(config string) error {
 	return apparmorReloadAllSnapProfiles()
 }
 
-func handleHomedirsConfiguration(tr config.Conf, opts *fsOnlyContext) error {
+func handleHomedirsConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	config, err := coreCfg(tr, "homedirs")
 	if err != nil {
 		return err
@@ -111,7 +115,7 @@ func handleHomedirsConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	return nil
 }
 
-func validateHomedirsConfiguration(tr config.Conf) error {
+func validateHomedirsConfiguration(tr config.ConfGetter) error {
 	config, err := coreCfg(tr, "homedirs")
 	if err != nil {
 		return err

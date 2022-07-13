@@ -40,9 +40,6 @@ func init() {
 	// capture cloud information
 	addWithStateHandler(nil, setCloudInfoWhenSeeding, nil)
 
-	// home directory configuration
-	addWithStateHandler(validateHomedirsConfiguration, handleHomedirsConfiguration, nil)
-
 	// proxy.{http,https,ftp}
 	addWithStateHandler(validateProxyStore, handleProxyConfiguration, coreOnly)
 

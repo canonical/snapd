@@ -69,16 +69,8 @@ var _ = Suite(&homedirsSuite{})
 func (s *homedirsSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	stateDir := dirs.SnapdStateDir(dirs.GlobalRootDir)
-	err := os.MkdirAll(stateDir, 0755)
-	c.Assert(err, IsNil)
-	s.AddCleanup(func() {
-		err := os.RemoveAll(stateDir)
-		c.Assert(err, IsNil)
-	})
-
 	etcDir := filepath.Join(dirs.GlobalRootDir, "/etc/")
-	err = os.MkdirAll(etcDir, 0755)
+	err := os.MkdirAll(etcDir, 0755)
 	c.Assert(err, IsNil)
 	s.AddCleanup(func() {
 		err := os.RemoveAll(etcDir)
