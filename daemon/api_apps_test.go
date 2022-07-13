@@ -55,6 +55,7 @@ type appsSuite struct {
 	jctlSvcses         [][]string
 	jctlNs             []int
 	jctlFollows        []bool
+	jctlNamespaces     []bool
 	jctlRCs            []io.ReadCloser
 	jctlErrs           []error
 
@@ -64,10 +65,11 @@ type appsSuite struct {
 	infoA, infoB, infoC, infoD, infoE *snap.Info
 }
 
-func (s *appsSuite) journalctl(svcs []string, n int, follow bool) (rc io.ReadCloser, err error) {
+func (s *appsSuite) journalctl(svcs []string, n int, follow, namespaces bool) (rc io.ReadCloser, err error) {
 	s.jctlSvcses = append(s.jctlSvcses, svcs)
 	s.jctlNs = append(s.jctlNs, n)
 	s.jctlFollows = append(s.jctlFollows, follow)
+	s.jctlNamespaces = append(s.jctlNamespaces, namespaces)
 
 	if len(s.jctlErrs) > 0 {
 		err, s.jctlErrs = s.jctlErrs[0], s.jctlErrs[1:]
