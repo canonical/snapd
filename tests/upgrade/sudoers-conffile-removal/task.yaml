@@ -7,7 +7,7 @@ details: |
     The exact version of snapd is a bit arbitrary (anything before
     2.46 is fine).
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-2*]
 
 execute: |
     echo "download snapd 2.45.1"

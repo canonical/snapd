@@ -7,7 +7,7 @@ backends: [-autopkgtest]
 # Only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
 # ubuntu-18.04-32: i386 is not supported by lxd
-systems: [ubuntu-16*, ubuntu-18.04-64, ubuntu-20*, ubuntu-core-*]
+systems: [ubuntu-16*, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*]
 
 # Start before anything else as it can take a really long time.
 priority: 1000
