@@ -143,6 +143,12 @@ check_broken_snaps() {
 }
 
 check_cgroup_scopes() {
+	# xenial has leftover scope files possibly due to an old systemd bug
+	# https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1934147
+	if [ "$SPREAD_SYSTEM" == "ubuntu-core-16-64" ] || [ "$SPREAD_SYSTEM" == "ubuntu-16.04-64" ]; then
+		return 0
+	fi
+
 	n="$1" # invariant name
 	find /sys/fs/cgroup -name 'snap.*.scope' > "$TESTSTMP/tests.invariant.$n"
 	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
