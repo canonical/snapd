@@ -69,7 +69,6 @@ execute: |
             ;;
         ubuntu-21.10-*)
             os.query is-classic
-            os.query is-impish
             not os.query is-focal
             not os.query is-core
             os.query is-ubuntu
@@ -134,12 +133,12 @@ execute: |
     # Validate the other sub systems
     case "$SPREAD_SYSTEM" in
         opensuse-tumbleweed-*)
-            os.query is-opensuse-tumbleweed
+            os.query is-opensuse tumbleweed
             ;;
         debian-sid-*)
-            os.query is-debian-sid
+            os.query is-debian sid
             ;;
         centos-7-*)
-            os.query is-centos-7
+            os.query is-centos 7
             ;;
     esac

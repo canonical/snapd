@@ -2,7 +2,8 @@ summary: Check that upgrade works
 
 # arch: there is no snapd in arch repos
 # amazon: enable once it's possible to install snapd from EPEL
-systems: [-debian-sid-*, -arch-*, -amazon-*]
+# centos-9: enable once it's possible to install snapd from CentOS Stream 9
+systems: [-debian-sid-*, -arch-*, -amazon-*, -centos-9-*]
 
 environment:
     # downlading the core snap triggers OOM occasionally
