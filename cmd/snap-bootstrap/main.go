@@ -66,6 +66,9 @@ func parseArgs(args []string) error {
 	p := parser()
 
 	_, err := p.ParseArgs(args)
+	if err != nil {
+		logger.Noticef("execution error: %v", err)
+	}
 	return err
 }
 
