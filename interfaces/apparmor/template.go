@@ -470,8 +470,7 @@ var templateCommon = `
   /run/lock/ r,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
-
-
+  
   ###DEVMODE_SNAP_CONFINE###
 `
 
@@ -813,6 +812,16 @@ var privDropAndChownRules = `
   # processes that ultimately run as non-root will send signals to those
   # processes as the matching non-root user.
   #capability kill,
+`
+
+// coreSnippet contains apparmor rules specific only for
+// snaps on native core systems.
+//
+var coreSnippet = `
+# Allow each snaps to access each their own folder on the
+# ubuntu-save partition, with write permissions.
+/var/lib/snapd/save/snap/@{SNAP_INSTANCE_NAME}/ rw,
+/var/lib/snapd/save/snap/@{SNAP_INSTANCE_NAME}/** mrwklix,
 `
 
 // classicTemplate contains apparmor template used for snaps with classic
