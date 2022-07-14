@@ -318,6 +318,7 @@ func sandboxParams(sdVer int) (params []string) {
 		"--property=SystemCallFilter=@default @basic-io @signal @file-system @chown @process mprotect",
 		"--property=SystemCallErrorNumber=EPERM",
 		"--property=RestrictNamespaces=true",
+		// We can install a ~1GB snap with this set at 16M on amd64
 		"--property=MemoryMax=24M",
 		// this should be more restrictive than ProtectControlGroups
 		// and ProtectKernelTunables for /sys
