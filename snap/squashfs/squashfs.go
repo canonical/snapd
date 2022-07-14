@@ -314,15 +314,24 @@ func sandboxParams(sdVer int) (params []string) {
 		"--property=ProtectSystem=strict",
 		"--property=ProtectHome=true",
 		"--property=ProtectKernelModules=true",
-		"--property=PrivateDevices=true",
 		"--property=MemoryDenyWriteExecute=true",
 		"--property=SystemCallFilter=@default @basic-io @signal @file-system @chown @process mprotect",
 		"--property=SystemCallErrorNumber=EPERM",
 		"--property=RestrictNamespaces=true",
-		"--property=MemoryMax=10M",
+		"--property=MemoryMax=24M",
 		// this should be more restrictive than ProtectControlGroups
 		// and ProtectKernelTunables for /sys
 		"--property=InaccessiblePaths=/sys",
+	}
+
+	if sdVer >= 245 || !isContainer {
+		// XXX PrivateDevices is known to interract correctly
+		// with the other options in a LXD container only if
+		// systemd is at least 245 (some earlier versions might work
+		// but unchecked, bionic 237 doesn't)
+		// This is not as bad as it could seem as lxc at least
+		// by default mounts a minimal /dev
+		params = append(params, "--property=PrivateDevices=true")
 	}
 
 	if !isContainer {
