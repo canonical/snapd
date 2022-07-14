@@ -41,7 +41,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
-	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -986,15 +986,8 @@ func (s *SquashfsTestSuite) TestSaferReadFileTooOldSystemd(c *C) {
 	c.Check(err, Equals, snap.ErrUnsupportedContainerFeature)
 }
 
-func (s *SquashfsTestSuite) oldSysdSkip(c *C) {
-	sdVer, err := systemd.Version()
-	if err != nil || sdVer < 236 {
-		c.Skip("systemd too old (<236) or missing")
-	}
-}
-
 func (s *SquashfsTestSuite) TestSaferReadFile(c *C) {
-	s.oldSysdSkip(c)
+	systemdtest.AtLeast(c, squashfs.SaferReadFileForProvenanceSystemdVersion)
 	sn := makeSnap(c, "name: foo", "")
 
 	content, err := sn.SaferReadFile("meta/snap.yaml")
@@ -1003,7 +996,7 @@ func (s *SquashfsTestSuite) TestSaferReadFile(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestSaferReadFileMissingFile(c *C) {
-	s.oldSysdSkip(c)
+	systemdtest.AtLeast(c, squashfs.SaferReadFileForProvenanceSystemdVersion)
 	sn := makeSnap(c, "name: foo", "")
 
 	_, err := sn.SaferReadFile("meta/other.yaml")
@@ -1011,7 +1004,7 @@ func (s *SquashfsTestSuite) TestSaferReadFileMissingFile(c *C) {
 }
 
 func (s *SquashfsTestSuite) TestSaferReadFileFail(c *C) {
-	s.oldSysdSkip(c)
+	systemdtest.AtLeast(c, squashfs.SaferReadFileForProvenanceSystemdVersion)
 	mockUnsquashfs := testutil.MockCommand(c, "unsquashfs", `echo boom; exit 1`)
 	defer mockUnsquashfs.Restore()
 

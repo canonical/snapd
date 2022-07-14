@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,7 +22,10 @@ package systemdtest
 import (
 	"fmt"
 
+	"gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 type ServiceState struct {
@@ -91,4 +94,12 @@ FragmentPath=%s
 `, mountInfo.Description, mountInfo.Where, mountInfo.FragmentPath))...)
 	}
 	return output, true
+}
+
+// AtLeast skips current test if systemd is not at least the given version.
+func AtLeast(c *check.C, ver int) {
+	sdVer, err := systemd.Version()
+	if err != nil || ver < sdVer {
+		c.Skip(fmt.Sprintf("systemd too old (<%d) or missing", ver))
+	}
 }
