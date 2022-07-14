@@ -97,9 +97,9 @@ FragmentPath=%s
 }
 
 // AtLeast skips current test if systemd is not at least the given version.
-func AtLeast(c *check.C, ver int) {
+func AtLeast(c *check.C, minVer int) {
 	sdVer, err := systemd.Version()
-	if err != nil || ver < sdVer {
-		c.Skip(fmt.Sprintf("systemd too old (<%d) or missing", ver))
+	if err != nil || sdVer < minVer {
+		c.Skip(fmt.Sprintf("systemd too old (<%d) or missing", minVer))
 	}
 }
