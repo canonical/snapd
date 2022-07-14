@@ -77,8 +77,8 @@
 %define gobuild_static(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
 
-# These macros are missing BUILDTAGS in RHEL 8, see RHBZ#1825138
-%if 0%{?rhel} == 8
+# These macros are missing BUILDTAGS in RHEL 8/9, see RHBZ#1825138
+%if 0%{?rhel} >= 8
 %define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
 %endif
 
@@ -570,8 +570,8 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %if 0%{?rhel} == 7
     M4PARAM='-D distro_rhel7'
 %endif
-%if 0%{?rhel} == 7 || 0%{?rhel} == 8
-    # RHEL7 and RHEL8 are missing the BPF interfaces from their reference policy
+%if 0%{?rhel} == 7 || 0%{?rhel} == 8 || 0%{?rhel} == 9
+    # RHEL7, RHEL8 and RHEL9 are missing the BPF interfaces from their reference policy
     M4PARAM="$M4PARAM -D no_bpf"
 %endif
     # Build SELinux module

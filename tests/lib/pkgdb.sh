@@ -694,7 +694,6 @@ pkg_dependencies_fedora_centos_common(){
         dbus-x11
         evolution-data-server
         expect
-        fish
         fontconfig
         fwupd
         git
@@ -710,7 +709,6 @@ pkg_dependencies_fedora_centos_common(){
         python3-yaml
         python3-dbus
         python3-gobject
-        redhat-lsb-core
         rpm-build
         udisks2
         upower
@@ -719,6 +717,12 @@ pkg_dependencies_fedora_centos_common(){
         strace
         zsh
         "
+    if ! os.query is-centos 9; then
+        echo "
+            fish
+            redhat-lsb-core
+        "
+    fi
 }
 
 pkg_dependencies_fedora(){
