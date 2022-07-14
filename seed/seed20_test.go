@@ -37,6 +37,8 @@ import (
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -737,6 +739,8 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 }
 
 func (s *seed20Suite) TestLoadMetaCore20DelegatedSnap(c *C) {
+	systemdtest.AtLeast(c, squashfs.SaferReadFileForProvenanceSystemdVersion)
+
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
 	s.makeSnap(c, "pc-kernel=20", "")
@@ -842,6 +846,8 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnap(c *C) {
 }
 
 func (s *seed20Suite) TestLoadMetaCore20DelegatedSnapProvenanceMismatch(c *C) {
+	systemdtest.AtLeast(c, squashfs.SaferReadFileForProvenanceSystemdVersion)
+
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
 	s.makeSnap(c, "pc-kernel=20", "")
@@ -891,6 +897,8 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnapProvenanceMismatch(c *C) {
 }
 
 func (s *seed20Suite) TestLoadMetaCore20DelegatedSnapDeviceMismatch(c *C) {
+	systemdtest.AtLeast(c, squashfs.SaferReadFileForProvenanceSystemdVersion)
+
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
 	s.makeSnap(c, "pc-kernel=20", "")

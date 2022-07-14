@@ -49,8 +49,10 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/tooling"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -3310,6 +3312,8 @@ func (s *imageSuite) TestPrepareWithClassicPreseedError(c *C) {
 }
 
 func (s *imageSuite) TestSetupSeedCore20DelegatedSnap(c *C) {
+	systemdtest.AtLeast(c, squashfs.SaferReadFileForProvenanceSystemdVersion)
+
 	bootloader.Force(nil)
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()

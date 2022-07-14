@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -457,6 +458,8 @@ func makeTestSnap(c *C, snapYaml string) string {
 }
 
 func (s *infoSuite) TestReadProvenanceFromSnapFile(c *C) {
+	systemdtest.AtLeast(c, squashfs.SaferReadFileForProvenanceSystemdVersion)
+
 	yaml := `name: foo
 version: 1
 provenance: prov-1

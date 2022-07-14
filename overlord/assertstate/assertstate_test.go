@@ -48,8 +48,10 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -890,6 +892,8 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 }
 
 func (s *assertMgrSuite) TestValidateDelegatedSnap(c *C) {
+	systemdtest.AtLeast(c, squashfs.SaferReadFileForProvenanceSystemdVersion)
+
 	snapPath := s.makeTestSnap(c, 10, `provenance: delegated-prov`)
 	digest, sz, err := asserts.SnapFileSHA3_384(snapPath)
 	c.Assert(err, IsNil)
@@ -983,6 +987,8 @@ func (s *assertMgrSuite) TestValidateDelegatedSnapProvenanceMismatch(c *C) {
 }
 
 func (s *assertMgrSuite) testValidateDelegatedSnapMismatch(c *C, provenanceFrag, revProvenance string, revisionAuthority map[string]interface{}) error {
+	systemdtest.AtLeast(c, squashfs.SaferReadFileForProvenanceSystemdVersion)
+
 	snapPath := s.makeTestSnap(c, 10, provenanceFrag)
 	digest, sz, err := asserts.SnapFileSHA3_384(snapPath)
 	c.Assert(err, IsNil)
