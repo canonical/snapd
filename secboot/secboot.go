@@ -29,6 +29,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/secboot/keys"
 )
 
@@ -192,4 +194,30 @@ type UnlockResult struct {
 // corresponding to a given name.
 func EncryptedPartitionName(name string) string {
 	return name + "-enc"
+}
+
+// MarkSuccessful marks the secure boot parts of the boot as
+// successful.
+//
+//This means that the dictionary attack (DA) lockout counter is reset.
+func MarkSuccessful() error {
+	sealingMethod, err := device.SealedKeysMethod(dirs.GlobalRootDir)
+	if err != nil && err != device.ErrNoSealedKeys {
+		return err
+	}
+	if sealingMethod == device.SealingMethodTPM {
+		lockoutAuthFile := device.TpmLockoutAuthUnder(dirs.SnapFDEDirUnderSave(dirs.SnapSaveDir))
+		// each unclean shtutdown will increase the DA lockout
+		// counter. So on a successful boot we need to clear
+		// this counter to avoid eventually hitting the
+		// snapcore/secboot:tpm2/provisioning.go limit of
+		// maxTries=32. Note that on a clean shtudown linux
+		// will call TPM2_Shutdown which ensure no DA lockout
+		// is increased.
+		if err := resetLockoutCounter(lockoutAuthFile); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

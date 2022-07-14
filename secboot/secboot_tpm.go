@@ -68,6 +68,8 @@ var (
 	sbTPMEnsureProvisioned = (*sb_tpm2.Connection).EnsureProvisioned
 	tpmReleaseResources    = tpmReleaseResourcesImpl
 
+	sbTPMDictionaryAttackLockReset = (*sb_tpm2.Connection).DictionaryAttackLockReset
+
 	// check whether the interfaces match
 	_ (sb.SnapModel) = ModelForSealing(nil)
 )
@@ -631,5 +633,25 @@ func ReleasePCRResourceHandles(handles ...uint32) error {
 	if errCnt := len(errs); errCnt != 0 {
 		return fmt.Errorf("cannot release TPM resources for %v handles:\n%v", errCnt, strings.Join(errs, "\n"))
 	}
+	return nil
+}
+
+func resetLockoutCounter(lockoutAuthFile string) error {
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		return fmt.Errorf("cannot connect to TPM: %v", err)
+	}
+	defer tpm.Close()
+
+	lockoutAuth, err := ioutil.ReadFile(lockoutAuthFile)
+	if err != nil {
+		return fmt.Errorf("cannot read existing lockout auth: %v", err)
+	}
+	tpm.LockoutHandleContext().SetAuthValue(lockoutAuth)
+
+	if err := sbTPMDictionaryAttackLockReset(tpm, tpm.LockoutHandleContext(), tpm.HmacSession()); err != nil {
+		return err
+	}
+
 	return nil
 }

@@ -54,7 +54,7 @@ func (s *grubAssetsTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(assets.MockSnippetsForEdition("grub-recovery.cfg:static-cmdline", snippets))
 }
 
-func (s *grubAssetsTestSuite) testGrubConfigContains(c *C, name string, keys ...string) {
+func (s *grubAssetsTestSuite) testGrubConfigContains(c *C, name string, edition int, keys ...string) {
 	a := assets.Internal(name)
 	c.Assert(a, NotNil)
 	as := string(a)
@@ -63,18 +63,19 @@ func (s *grubAssetsTestSuite) testGrubConfigContains(c *C, name string, keys ...
 	}
 	idx := bytes.IndexRune(a, '\n')
 	c.Assert(idx, Not(Equals), -1)
-	c.Assert(string(a[:idx]), Equals, "# Snapd-Boot-Config-Edition: 1")
+	prefix := fmt.Sprintf("# Snapd-Boot-Config-Edition: %d", edition)
+	c.Assert(string(a[:idx]), Equals, prefix)
 }
 
 func (s *grubAssetsTestSuite) TestGrubConf(c *C) {
-	s.testGrubConfigContains(c, "grub.cfg",
+	s.testGrubConfigContains(c, "grub.cfg", 2,
 		"snapd_recovery_mode",
 		"set snapd_static_cmdline_args='console=ttyS0 console=tty1 panic=-1'",
 	)
 }
 
 func (s *grubAssetsTestSuite) TestGrubRecoveryConf(c *C) {
-	s.testGrubConfigContains(c, "grub-recovery.cfg",
+	s.testGrubConfigContains(c, "grub-recovery.cfg", 1,
 		"snapd_recovery_mode",
 		"snapd_recovery_system",
 		"set snapd_static_cmdline_args='console=ttyS0 console=tty1 panic=-1'",
@@ -126,7 +127,7 @@ func (s *grubAssetsTestSuite) TestGrubCmdlineSnippetCrossCheck(c *C) {
 		pattern string
 	}{
 		{
-			asset: "grub.cfg", snippet: "grub.cfg:static-cmdline", edition: 1,
+			asset: "grub.cfg", snippet: "grub.cfg:static-cmdline", edition: 2,
 			content: []byte("console=ttyS0 console=tty1 panic=-1"),
 			pattern: "set snapd_static_cmdline_args='%s'\n",
 		},

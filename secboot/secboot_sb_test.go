@@ -32,6 +32,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 
 	"github.com/canonical/go-tpm2"
 	"github.com/canonical/go-tpm2/linux"
@@ -45,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -2009,4 +2011,71 @@ handle 0xeeeeef: mock release error 2`[1:])
 	c.Check(handles, DeepEquals, []tpm2.Handle{
 		tpm2.Handle(0x1234), tpm2.Handle(0xeeeeee), tpm2.Handle(0x2345), tpm2.Handle(0xeeeeef),
 	})
+}
+
+func (s *secbootSuite) TestMarkSuccessfulNotEncrypted(c *C) {
+	restore := secboot.MockSbConnectToDefaultTPM(func() (*sb_tpm2.Connection, error) {
+		c.Fatalf("should not get called")
+		return nil, errors.New("boom")
+	})
+	defer restore()
+
+	// device is not encrypted
+	encrypted := device.HasEncryptedMarkerUnder(dirs.SnapFDEDir)
+	c.Assert(encrypted, Equals, false)
+
+	// mark successful returns no error but does not talk to the TPM
+	err := secboot.MarkSuccessful()
+	c.Check(err, IsNil)
+}
+
+func (s *secbootSuite) TestMarkSuccessfulEncryptedTPM(c *C) {
+	s.testMarkSuccessfulEncrypted(c, device.SealingMethodTPM, 1)
+}
+
+func (s *secbootSuite) TestMarkSuccessfulEncryptedFDE(c *C) {
+	s.testMarkSuccessfulEncrypted(c, device.SealingMethodFDESetupHook, 0)
+}
+
+func (s *secbootSuite) testMarkSuccessfulEncrypted(c *C, sealingMethod device.SealingMethod, expectedDaLockResetCalls int) {
+	_, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	// device is encrypted
+	err := os.MkdirAll(dirs.SnapFDEDir, 0700)
+	c.Assert(err, IsNil)
+	saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDir)
+	err = os.MkdirAll(saveFDEDir, 0700)
+	c.Assert(err, IsNil)
+
+	err = device.StampSealedKeys(dirs.GlobalRootDir, sealingMethod)
+	c.Assert(err, IsNil)
+
+	// write fake lockout auth
+	lockoutAuthValue := []byte("tpm-lockout-auth-key")
+	err = ioutil.WriteFile(filepath.Join(saveFDEDir, "tpm-lockout-auth"), lockoutAuthValue, 0600)
+	c.Assert(err, IsNil)
+
+	daLockResetCalls := 0
+	restore = secboot.MockSbTPMDictionaryAttackLockReset(func(tpm *sb_tpm2.Connection, lockContext tpm2.ResourceContext, lockContextAuthSession tpm2.SessionContext, sessions ...tpm2.SessionContext) error {
+		daLockResetCalls++
+		// Below this code pokes at the private data from
+		//   github.com/canonical/go-tpm2/resources.go
+		//   type resourceContext struct {
+		//     ...
+		//     authValue []byte
+		//   }
+		// there is no exported API to get the auth value. If go-tpm2
+		// starts chaning it's probably not worth updating this
+		// part of the test and it can just get removed.
+		fv := reflect.ValueOf(lockContext).Elem().FieldByName("authValue")
+		c.Check(fv.Bytes(), DeepEquals, lockoutAuthValue)
+		return nil
+	})
+	defer restore()
+
+	err = secboot.MarkSuccessful()
+	c.Check(err, IsNil)
+
+	c.Check(daLockResetCalls, Equals, expectedDaLockResetCalls)
 }
