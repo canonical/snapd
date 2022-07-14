@@ -92,10 +92,10 @@ func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
 }
 
 func MockSystemdVersion(v int) (restore func()) {
-	oldVer := sdVer
-	sdVer = v
+	oldVer := systemdVer
+	systemdVer = v
 	return func() {
-		sdVer = oldVer
+		systemdVer = oldVer
 	}
 }
 

@@ -275,7 +275,9 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	return content, nil
 }
 
-var sdVer int
+var (
+	systemdVer int
+)
 
 func init() {
 	// this also avoids calling systemctl all the time which perturbs
@@ -284,7 +286,7 @@ func init() {
 	if err != nil {
 		v = 0
 	}
-	sdVer = v
+	systemdVer = v
 }
 
 var (
@@ -295,7 +297,7 @@ func sandboxParams(sdVer int) (params []string) {
 	if sysGeteuid() != 0 {
 		return nil
 	}
-	// effetive user is 0, use systemd-run to sandbox unsquashfs
+	// effective user is 0, use systemd-run to sandbox unsquashfs
 	params = []string{
 		"--property=KeyringMode=private",
 		"--property=PrivateTmp=true",
@@ -336,19 +338,27 @@ func sandboxParams(sdVer int) (params []string) {
 	return params
 }
 
-// SaferReadFile returns the content of a single file inside a squashfs snap, but it does invoking unsquashfs under a sandbox to handle not yet verified snap files, there is a limit below 16M on the content size.
+// SaferReadFileForProvenanceSystemdVersion is the minimum version of
+// systemd at which SaferReadFile and its sandboxing can be supported.
+const SaferReadFileForProvenanceSystemdVersion = 236
+
+// SaferReadFile returns the content of a single file inside a
+// squashfs snap, but it does invoking unsquashfs under a sandbox to
+// handle not yet verified snap files.
+// It will return snap.ErrUnsupportedContainerFeature if systemd
+// is not at least version SaferReadFileForProvenanceSystemdVersion (236).
 func (s *Snap) SaferReadFile(filePath string) (content []byte, err error) {
 	filePath = filepath.Clean(filePath)
 	if filepath.IsAbs(filePath) {
 		return nil, fmt.Errorf("internal error: SaferReadFile expects a relative path")
 	}
 
-	// systemd-run --collect etc require 236
+	// systemd-run --collect etc require 236+
 	// see https://github.com/systemd/systemd/blob/main/NEWS
-	if sdVer < 236 {
+	if systemdVer < SaferReadFileForProvenanceSystemdVersion {
 		return nil, snap.ErrUnsupportedContainerFeature
 	}
-	runParams := sandboxParams(sdVer)
+	runParams := sandboxParams(systemdVer)
 	sandboxing := len(runParams) != 0
 
 	tmpdir, err := ioutil.TempDir("", "read-file")
