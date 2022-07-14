@@ -258,8 +258,17 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	// setup the seed
 	s.setupSeed(c, time.Time{}, nil)
 
-	// make test snap PlaceInfo's for various boot functionality
+	// Make sure we have a model
 	var err error
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
+	c.Assert(err, IsNil)
+	mf, err := os.Create(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
+	c.Assert(err, IsNil)
+	defer mf.Close()
+	err = asserts.NewEncoder(mf).Encode(s.model)
+	c.Assert(err, IsNil)
+
+	// make test snap PlaceInfo's for various boot functionality
 	s.kernel, err = snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
 
@@ -2486,6 +2495,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedNoModel(c 
 func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, label string, expectedMeasureModelCalls int) {
 	s.mockProcCmdlineContent(c, fmt.Sprintf("snapd_recovery_mode=%s", mode))
 
+	// Make sure there is no model for this test
+	err := os.Remove(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
+	c.Assert(err, IsNil)
+
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
 	defer main.MockSecbootLockSealedKeys(func() error {
@@ -2496,10 +2509,9 @@ func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, l
 	// install and recover mounts are just ubuntu-seed before we fail
 	var restore func()
 	if mode == "run" {
-		// run mode will mount ubuntu-boot and ubuntu-seed
+		// run mode will mount ubuntu-boot only
 		restore = s.mockSystemdMountSequence(c, []systemdMount{
 			ubuntuLabelMount("ubuntu-boot", mode),
-			ubuntuPartUUIDMount("ubuntu-seed-partuuid", mode),
 		}, nil)
 		restore2 := disks.MockMountPointDisksToPartitionMapping(
 			map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -2543,7 +2555,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, l
 	})
 	defer restore()
 
-	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	where := "/run/mnt/ubuntu-boot/device/model"
 	if mode != "run" {
 		where = fmt.Sprintf("/run/mnt/ubuntu-seed/systems/%s/model", label)
@@ -2826,6 +2838,16 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		)
 		cleanups = append(cleanups, restore)
 
+		// Make sure we have a model
+		var err error
+		err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
+		c.Assert(err, IsNil)
+		mf, err := os.Create(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
+		c.Assert(err, IsNil)
+		defer mf.Close()
+		err = asserts.NewEncoder(mf).Encode(s.model)
+		c.Assert(err, IsNil)
+
 		// setup expected systemd-mount calls - every test case has ubuntu-boot,
 		// ubuntu-seed and ubuntu-data mounts because all those mounts happen
 		// before any boot logic
@@ -2854,7 +2876,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		}
 
 		// set the kernel_status boot var
-		err := bloader.SetBootVars(map[string]string{"kernel_status": t.kernelStatus})
+		err = bloader.SetBootVars(map[string]string{"kernel_status": t.kernelStatus})
 		c.Assert(err, IsNil, comment)
 
 		// write the initial modeenv

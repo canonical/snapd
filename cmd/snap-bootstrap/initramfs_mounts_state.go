@@ -45,6 +45,7 @@ var (
 type initramfsMountsState struct {
 	mode           string
 	recoverySystem string
+	isClassic      bool
 }
 
 var errRunModeNoImpliedRecoverySystem = errors.New("internal error: no implied recovery system in run mode")
