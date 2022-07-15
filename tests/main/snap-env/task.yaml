@@ -52,7 +52,15 @@ execute: |
     # parallel-installs: empty if none is set
     MATCH "^SNAP_INSTANCE_KEY=$INSTANCE_KEY$"                             < snap-vars.txt
     MATCH "^SNAP_REAL_HOME=/root$"                                        < snap-vars.txt
-    test "$(wc -l < snap-vars.txt)" -eq 15
+    # if on ubuntu-core, then we should see an additional variable (SNAP_SAVE_DATA)
+    if os.query is-core; then
+        MATCH '^SNAP_SAVE_DATA=/var/lib/snapd/save/snap/test-snapd-tools$' < snap-vars.txt
+        # 16 variables are expected on ubuntu-core
+        test "$(wc -l < snap-vars.txt)" -eq 16
+    else
+        # 15 variables are expected on non ubuntu-core
+        test "$(wc -l < snap-vars.txt)" -eq 15
+    fi
 
     echo "Enure that XDG environment variables are what we expect"
     # parallel-installs: xdg directory is instance specific
