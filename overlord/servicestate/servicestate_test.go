@@ -454,7 +454,7 @@ func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
 	}
 }
 
-func (s *snapServiceOptionsSuite) SnapAppsLogReader(c *C) {
+func (s *snapServiceOptionsSuite) TestSnapAppsLogReader(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -488,7 +488,7 @@ func (s *snapServiceOptionsSuite) SnapAppsLogReader(c *C) {
 	var jctlCalls int
 	restore = systemd.MockJournalctl(func(svcs []string, n int, follow, namespaces bool) (rc io.ReadCloser, err error) {
 		jctlCalls++
-		c.Check(svcs, DeepEquals, []string{"svc1", "svc2"})
+		c.Check(svcs, DeepEquals, []string{"snap.foo.svc1.service", "snap.foo.svc2.service"})
 		c.Check(n, Equals, 100)
 		c.Check(follow, Equals, false)
 		c.Check(namespaces, Equals, false)
@@ -501,7 +501,7 @@ func (s *snapServiceOptionsSuite) SnapAppsLogReader(c *C) {
 	c.Check(jctlCalls, Equals, 1)
 }
 
-func (s *snapServiceOptionsSuite) SnapAppsLogReaderNamespaces(c *C) {
+func (s *snapServiceOptionsSuite) TestSnapAppsLogReaderNamespaces(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -535,7 +535,7 @@ func (s *snapServiceOptionsSuite) SnapAppsLogReaderNamespaces(c *C) {
 	defer restore()
 	restore = systemd.MockJournalctl(func(svcs []string, n int, follow, namespaces bool) (rc io.ReadCloser, err error) {
 		jctlCalls++
-		c.Check(svcs, DeepEquals, []string{"svc1", "svc2"})
+		c.Check(svcs, DeepEquals, []string{"snap.foo.svc1.service", "snap.foo.svc2.service"})
 		c.Check(n, Equals, 100)
 		c.Check(follow, Equals, false)
 		c.Check(namespaces, Equals, true)
