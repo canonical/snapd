@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
 
@@ -13,12 +13,12 @@ get_assets() {
     mkdir -p "$CACHE"
     # get the snaps
     for snap in pc-kernel pc; do
-        snap download --channel=20 --basename="${snap}" --target-directory="$CACHE" "${snap}"
+        snap download --channel=22 --basename="${snap}" --target-directory="$CACHE" "${snap}"
         unsquashfs -n -d "$CACHE"/snap-"$snap" "$CACHE"/"$snap".snap
     done
     
     # get the ubuntu classic base
-    (cd "$CACHE" && wget -c http://cdimage.ubuntu.com/ubuntu-base/releases/20.04/release/ubuntu-base-20.04.1-base-amd64.tar.gz)
+    (cd "$CACHE" && wget -c http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04-base-amd64.tar.gz)
 }
 
 cleanup() {
@@ -54,10 +54,52 @@ boot.img5 : start=     4030464, size=     8423391, type=0FC63DAF-8483-4772-8E79-
 EOF
 }
 
+install_data_partition() {
+    local DESTDIR=$1
+    local CACHE=$2
+    local KERNEL_SNAP=pc-kernel_x1.snap
+    local GADGET_SNAP=pc_x1.snap
+
+    # Copy base filesystem
+    sudo tar -C "$DESTDIR" -xf "$CACHE"/ubuntu-base-22.04-base-amd64.tar.gz
+
+    # Run hooks
+    # Create basic devices to be able to install packages
+    [ -e "$DESTDIR"/dev/null ] || sudo mknod -m 666 "$DESTDIR"/dev/null c 1 3
+    [ -e "$DESTDIR"/dev/zero ] || sudo mknod -m 666 "$DESTDIR"/dev/zero c 1 5
+    [ -e "$DESTDIR"/dev/random ] || sudo mknod -m 666 "$DESTDIR"/dev/random c 1 8
+    [ -e "$DESTDIR"/dev/urandom ] || sudo mknod -m 666 "$DESTDIR"/dev/urandom c 1 9
+    # ensure resolving works inside the chroot
+    echo "nameserver 8.8.8.8" | sudo tee -a "$DESTDIR"/etc/resolv.conf
+    # install additional packages
+    sudo chroot "$DESTDIR" sh -c "DEBIAN_FRONTEND=noninteractive apt install -y snapd ssh sudo"
+
+    # ensure we can login
+    sudo chroot "$DESTDIR" useradd user1
+    echo -e "ubuntu\nubuntu" | sudo chroot "$DESTDIR" passwd user1
+    echo "user1 ALL=(ALL) NOPASSWD:ALL" | sudo tee -a "$DESTDIR"/etc/sudoers
+
+    # Populate snapd data
+    cat > modeenv <<EOF
+mode=run
+base=core22_x1.snap
+gadget=$GADGET_SNAP
+current_kernels=$KERNEL_SNAP
+model=canonical/ubuntu-core-22-pc-amd64
+grade=dangerous
+model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 quiet splash"]
+EOF
+    sudo cp modeenv "$DESTDIR"/var/lib/snapd/
+    sudo cp "$CACHE"/pc-kernel.snap "$DESTDIR"/var/lib/snapd/snaps/"$KERNEL_SNAP"
+    sudo cp "$CACHE"/pc.snap "$DESTDIR"/var/lib/snapd/snaps/"$GADGET_SNAP"
+}
+
 populate_image() {
     IMG="$(readlink -f "$1")"
     CACHE="$(readlink -f "$2")"
     MNT="$(readlink -f "$3")"
+    local KERNEL_SNAP=pc-kernel_x1.snap
 
     mkdir -p "$MNT"
     sudo kpartx -av "$IMG"
@@ -80,16 +122,8 @@ populate_image() {
     sudo mount /dev/mapper/"$loop_save" "$MNT"/ubuntu-save
     sudo mount /dev/mapper/"$loop_data" "$MNT"/ubuntu-data
     
-    # install base into the image
-    (cd "$MNT"/ubuntu-data && sudo tar xf "$CACHE"/ubuntu-base-20.04.1-base-amd64.tar.gz)
-    # and some extra packages
-    echo "nameserver 8.8.8.8" | sudo tee -a "$MNT"/ubuntu-data/etc/resolv.conf
-    sudo chroot "$MNT"/ubuntu-data apt update 
-    sudo chroot "$MNT"/ubuntu-data sh -c "DEBIAN_FRONTEND=noninteractive apt install -y snapd ssh sudo"
-    # ensure we can login
-    sudo chroot "$MNT"/ubuntu-data useradd user1
-    echo -e "ubuntu\nubuntu" | sudo chroot "$MNT"/ubuntu-data passwd user1
-    echo "user1 ALL=(ALL) NOPASSWD:ALL" | sudo tee -a "$MNT"/ubuntu-data/etc/sudoers
+    # install things into the image
+    install_data_partition "$MNT"/ubuntu-data/ "$CACHE"
 
     # XXX: copy custom content (custom snapd into the image)
     
@@ -154,7 +188,7 @@ elif [ -n "$kernel_status" ]; then
 fi
 
 if [ -e $prefix/$kernel ]; then
-menuentry "Run Ubuntu Core 20" {
+menuentry "Run Ubuntu Core 22" {
     # use $prefix because the symlink manipulation at runtime for kernel snap
     # upgrades, etc. should only need the /boot/grub/ directory, not the
     # /EFI/ubuntu/ directory
@@ -166,17 +200,17 @@ else
 fi
 EOF
     sudo cp -a "$CACHE"/grub.cfg "$MNT"/ubuntu-boot/EFI/ubuntu/
-    # XXX: make this nicer
-    cat > "$CACHE"/grubenv <<EOF
-# GRUB Environment Block
-#######################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
-EOF
+    # This must be exactly 1024 bytes
+    GRUBENV="# GRUB Environment Block
+#######################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################"
+    printf "%s" "$GRUBENV" > "$CACHE"/grubenv
     sudo cp -a "$CACHE"/grubenv "$MNT"/ubuntu-boot/EFI/ubuntu/grubenv
-    
+
     # kernel
-    # XXX: setup pc-kernel_$rev/kernel.efi and a symlink instead
-    sudo cp -a "$CACHE"/snap-pc-kernel/kernel.efi "$MNT"/ubuntu-boot/EFI/ubuntu/
-    
+    sudo mkdir -p "$MNT"/ubuntu-boot/EFI/ubuntu/"$KERNEL_SNAP"
+    sudo cp -a "$CACHE"/snap-pc-kernel/kernel.efi "$MNT"/ubuntu-boot/EFI/ubuntu/"$KERNEL_SNAP"
+    sudo ln -sf "$KERNEL_SNAP"/kernel.efi "$MNT"/ubuntu-boot/EFI/ubuntu/kernel.efi
+
     # cleanup
     sync
     sudo umount "$MNT"/ubuntu-*
@@ -201,6 +235,7 @@ main() {
     BOOT_IMG="${1:-./boot.img}"
     CACHE_DIR="${2:-./cache}"
     MNT_DIR="${2:-./mnt}"
+    # shellcheck disable=SC2064
     trap "cleanup \"$CACHE_DIR\" \"$MNT_DIR\"" EXIT INT 
 
     get_assets "$CACHE_DIR"
