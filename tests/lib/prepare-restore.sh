@@ -606,6 +606,9 @@ prepare_suite_each() {
     touch "$RUNTIME_STATE_PATH/runs"
     touch "$RUNTIME_STATE_PATH/journalctl_cursor"
 
+    # Clean the dmesg log
+    dmesg --read-clear
+
     # Start fs monitor
     "$TESTSTOOLS"/fs-state start-monitor
 
