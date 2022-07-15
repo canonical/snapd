@@ -915,5 +915,5 @@ optional_policy(`
 #
 # policy for systemd-run pipes
 #
-allow init_t snappy_t:fifo_file write;
+allow init_t snappy_t:fifo_file { write ioctl };
 allow system_dbusd_t snappy_t:fifo_file write;
