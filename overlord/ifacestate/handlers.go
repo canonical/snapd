@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -384,7 +385,7 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	if err != nil {
 		return err
 	}
-	removed := make(map[string]*connState)
+	removed := make(map[string]*schema.ConnState)
 	for id := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -405,7 +406,7 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 	st.Lock()
 	defer st.Unlock()
 
-	var removed map[string]*connState
+	var removed map[string]*schema.ConnState
 	err := task.Get("removed", &removed)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
@@ -584,7 +585,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 		task.Set("old-conn", old)
 	}
 
-	conns[connRef.ID()] = &connState{
+	conns[connRef.ID()] = &schema.ConnState{
 		Interface:        conn.Interface(),
 		StaticPlugAttrs:  conn.Plug.StaticAttrs(),
 		DynamicPlugAttrs: conn.Plug.DynamicAttrs(),
@@ -720,7 +721,7 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(st)
 
-	var oldconn connState
+	var oldconn schema.ConnState
 	err := task.Get("old-conn", &oldconn)
 	if errors.Is(err, state.ErrNoState) {
 		return nil
@@ -817,7 +818,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var old connState
+	var old schema.ConnState
 	err = task.Get("old-conn", &old)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
