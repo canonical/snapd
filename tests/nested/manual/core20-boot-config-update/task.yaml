@@ -105,7 +105,7 @@ execute: |
   fi
   
   echo "check boot assets have been updated"
-  tests.nested exec "sudo cat /boot/grub/grub.cfg" | MATCH "Snapd-Boot-Config-Edition: 2"
+  tests.nested exec "sudo cat /boot/grub/grub.cfg" | MATCH "Snapd-Boot-Config-Edition: 3"
   tests.nested exec "sudo cat /boot/grub/grub.cfg" | MATCH "set snapd_static_cmdline_args='.*bootassetstesting'"
 
   tests.nested exec "cat /proc/cmdline" > system.cmdline

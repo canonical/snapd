@@ -5607,6 +5607,24 @@ func (s *interfaceManagerSuite) TestStartupTimings(c *C) {
 	c.Check(tags, DeepEquals, map[string]interface{}{"startup": "ifacemgr"})
 }
 
+func (s *interfaceManagerSuite) TestStartupWarningForDisabledAppArmor(c *C) {
+	invocationCount := 0
+	restore := ifacestate.MockSnapdAppArmorServiceIsDisabled(func() bool {
+		invocationCount++
+		return true
+	})
+	defer restore()
+	_ = s.manager(c)
+
+	c.Check(invocationCount, Equals, 1)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	warns := s.state.AllWarnings()
+	c.Assert(warns, HasLen, 1)
+	c.Check(warns[0].String(), Matches, `the snapd\.apparmor service is disabled.*\nRun .* to correct this\.`)
+}
+
 func (s *interfaceManagerSuite) TestAutoconnectSelf(c *C) {
 	s.MockModel(c, nil)
 

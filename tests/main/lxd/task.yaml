@@ -7,7 +7,7 @@ backends: [-autopkgtest]
 # Only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
 # ubuntu-18.04-32: i386 is not supported by lxd
-systems: [ubuntu-16*, ubuntu-18.04-64, ubuntu-20*, ubuntu-core-*]
+systems: [ubuntu-16*, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*]
 
 # Start before anything else as it can take a really long time.
 priority: 1000
@@ -50,7 +50,8 @@ restore: |
 
     "$TESTSTOOLS"/lxd-state undo-mount-changes
 
-    # unset refresh-app-awareness, this means it's enabled by default.
+    # unset refresh-app-awareness to ensure the defaults are used and not
+    # interfere with lxd
     snap unset system experimental.refresh-app-awareness
     # Stop the dbus.service of the user session of the root user. This test
     # runs in several configurations, not all of which have this capability.

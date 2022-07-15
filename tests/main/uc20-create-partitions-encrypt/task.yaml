@@ -1,7 +1,7 @@
 summary: Integration tests for the snap-bootstrap binary
 
 # use the same system and tooling as uc20
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
     SNAPD_DEBUG: "1"
@@ -71,6 +71,11 @@ restore: |
         losetup -d "$LOOP"
         losetup -l | NOMATCH "$LOOP"
     fi
+
+    # purge the key we added
+    systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
+        /usr/bin/keyctl purge -s user "ubuntu-fde:${LOOP}p4:unlock" || true
+
     apt autoremove -y cryptsetup
 
     rm -Rf /run/mnt
@@ -79,6 +84,11 @@ debug: |
     cat /proc/partitions
 
 execute: |
+    channel=20
+    if os.query is-jammy; then
+        channel=22
+    fi
+
     # this test simulates a reinstall, to clear the TPM this requires
     # a reboot so the losetup has to be redone
     if [ "$SPREAD_REBOOT" = 1 ]; then
@@ -126,8 +136,13 @@ execute: |
     sfdisk -d "$LOOP" | MATCH "^${LOOP}p1 .*size=\s*2048, type=21686148-6449-6E6F-744E-656564454649,.*BIOS Boot"
     sfdisk -d "$LOOP" | MATCH "^${LOOP}p2 .*size=\s*2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B,.*ubuntu-seed"
     sfdisk -d "$LOOP" | MATCH "^${LOOP}p3 .*size=\s*1536000, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4,.*ubuntu-boot"
-    sfdisk -d "$LOOP" | MATCH "^${LOOP}p4 .*size=\s*32768, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4,.*ubuntu-save"
-    sfdisk -d "$LOOP" | MATCH "^${LOOP}p5 .*size=\s*15500753, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4,.*ubuntu-data"
+    if [ "$channel" = "20" ]; then
+        sfdisk -d "$LOOP" | MATCH "^${LOOP}p4 .*size=\s*32768, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4,.*ubuntu-save"
+        sfdisk -d "$LOOP" | MATCH "^${LOOP}p5 .*size=\s*15500753, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4,.*ubuntu-data"
+    else
+        sfdisk -d "$LOOP" | MATCH "^${LOOP}p4 .*size=\s*65536, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4,.*ubuntu-save"
+        sfdisk -d "$LOOP" | MATCH "^${LOOP}p5 .*size=\s*15467985, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4,.*ubuntu-data"
+    fi
 
     not cryptsetup isLuks "${LOOP}p1"
     not cryptsetup isLuks "${LOOP}p2"
@@ -218,6 +233,44 @@ execute: |
     not cryptsetup open --key-file recovery-key "${LOOP}p5" test-data
     not cryptsetup open --key-file recovery-key "${LOOP}p4" test-save
 
+    echo "Verify encryption key change"
+    # first get the relevant ubuntu-save key to the user keyring
+    systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
+        /usr/bin/keyctl padd user "ubuntu-fde:${LOOP}p4:unlock" @u < save-key
+
+    # the new key is all ones
+    printf "11111111111111111111111111111111" > new-save-key
+    echo '{"key":"MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="}' | \
+        systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
+            /usr/lib/snapd/snap-fde-keymgr change-encryption-key \
+                --device "${LOOP}p4" --stage
+    # now it's possible to open save with both the old and new keys
+    cryptsetup open --key-file save-key "${LOOP}p4" test-save
+    cryptsetup close /dev/mapper/test-save
+    cryptsetup open --key-file new-save-key "${LOOP}p4" test-save
+    cryptsetup close /dev/mapper/test-save
+
+    # now transition the key
+    echo '{"key":"MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="}' | \
+        systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
+            /usr/lib/snapd/snap-fde-keymgr change-encryption-key \
+                --device "${LOOP}p4" --transition
+
+    # the old key no longer works
+    not cryptsetup open --key-file save-key "${LOOP}p4" test-save
+    # but the new key does
+    cryptsetup open --key-file new-save-key "${LOOP}p4" test-save
+    cryptsetup close /dev/mapper/test-save
+
+    # try to transition once more, such that we execute a reboot like scenario
+    echo '{"key":"MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="}' | \
+        systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
+            /usr/lib/snapd/snap-fde-keymgr change-encryption-key \
+                --device "${LOOP}p4" --transition
+    # and opening should still work
+    cryptsetup open --key-file new-save-key "${LOOP}p4" test-save
+    cryptsetup close /dev/mapper/test-save
+
     LOOP_BASENAME="$(basename "$LOOP")"
 
     # disk things
@@ -272,8 +325,13 @@ execute: |
     jq -r '.pc.structure[3]."filesystem-label"' < "$DISK_MAPPING_JSON" | MATCH ubuntu-save-enc
     jq -r '.pc.structure[3]."partition-label"'  < "$DISK_MAPPING_JSON" | MATCH ubuntu-save
     jq -r '.pc.structure[3].id'                 < "$DISK_MAPPING_JSON" | MATCH ""
-    jq -r '.pc.structure[3].offset'             < "$DISK_MAPPING_JSON" | MATCH 2046820352
-    jq -r '.pc.structure[3].size'               < "$DISK_MAPPING_JSON" | MATCH 16777216
+    if [ "$channel" = "20" ]; then
+        jq -r '.pc.structure[3].offset'         < "$DISK_MAPPING_JSON" | MATCH 2046820352
+        jq -r '.pc.structure[3].size'           < "$DISK_MAPPING_JSON" | MATCH 16777216
+    else
+        jq -r '.pc.structure[3].offset'         < "$DISK_MAPPING_JSON" | MATCH 2046820352
+        jq -r '.pc.structure[3].size'           < "$DISK_MAPPING_JSON" | MATCH 33554432
+    fi
 
     # fifth structure - ubuntu-data-enc
     jq -r '.pc.structure[4]."device-path"'      < "$DISK_MAPPING_JSON" | MATCH "/sys/devices/virtual/block/$LOOP_BASENAME/${LOOP_BASENAME}p5"
@@ -281,5 +339,10 @@ execute: |
     jq -r '.pc.structure[4]."filesystem-label"' < "$DISK_MAPPING_JSON" | MATCH ubuntu-data-enc
     jq -r '.pc.structure[4]."partition-label"'  < "$DISK_MAPPING_JSON" | MATCH ubuntu-data
     jq -r '.pc.structure[4].id'                 < "$DISK_MAPPING_JSON" | MATCH ""
-    jq -r '.pc.structure[4].offset'             < "$DISK_MAPPING_JSON" | MATCH 2063597568
-    jq -r '.pc.structure[4].size'               < "$DISK_MAPPING_JSON" | MATCH 7936385536
+    if [ "$channel" = "20" ]; then
+        jq -r '.pc.structure[4].offset'         < "$DISK_MAPPING_JSON" | MATCH 2063597568
+        jq -r '.pc.structure[4].size'           < "$DISK_MAPPING_JSON" | MATCH 7936385536
+    else
+        jq -r '.pc.structure[4].offset'         < "$DISK_MAPPING_JSON" | MATCH 2080374784
+        jq -r '.pc.structure[4].size'           < "$DISK_MAPPING_JSON" | MATCH 7919608320
+    fi

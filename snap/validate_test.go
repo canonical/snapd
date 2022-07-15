@@ -539,26 +539,32 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 	// check services
 	for _, t := range []struct {
 		refreshMode string
-		ok          bool
+		daemon      string
+		errMsg      string
 	}{
 		// good
-		{"", true},
-		{"endure", true},
-		{"restart", true},
+		{"", "simple", ""},
+		{"endure", "simple", ""},
+		{"restart", "simple", ""},
+		{"ignore-running", "", ""},
 		// bad
-		{"invalid-thing", false},
+		{"invalid-thing", "simple", `"refresh-mode" field contains invalid value "invalid-thing"`},
+		{"endure", "", `"refresh-mode" for app "foo" can only have value "ignore-running"`},
+		{"restart", "", `"refresh-mode" for app "foo" can only have value "ignore-running"`},
+		{"ignore-running", "simple", `"refresh-mode" cannot be set to "ignore-running" for services`},
 	} {
-		err := ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, RefreshMode: t.refreshMode})
-		if t.ok {
+		var daemonScope DaemonScope
+		if t.daemon != "" {
+			daemonScope = SystemDaemon
+		}
+
+		err := ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon, DaemonScope: daemonScope, RefreshMode: t.refreshMode})
+		if t.errMsg == "" {
 			c.Check(err, IsNil)
 		} else {
-			c.Check(err, ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refreshMode))
+			c.Check(err, ErrorMatches, t.errMsg)
 		}
 	}
-
-	// non-services cannot have a refresh-mode
-	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", RefreshMode: "endure"})
-	c.Check(err, ErrorMatches, `"refresh-mode" cannot be used for "foo", only for services`)
 }
 
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {
@@ -945,6 +951,10 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/sys" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/run", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/run" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/run/foo", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/run/foo" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/run/systemd", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/run/systemd" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/boot", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/boot" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lost+found", Type: "tmpfs"}, nil),

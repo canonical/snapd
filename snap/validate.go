@@ -788,7 +788,7 @@ func ValidateApp(app *AppInfo) error {
 	}
 	// validate refresh-mode
 	switch app.RefreshMode {
-	case "", "endure", "restart":
+	case "", "endure", "restart", "ignore-running":
 		// valid
 	default:
 		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.RefreshMode)
@@ -803,8 +803,12 @@ func ValidateApp(app *AppInfo) error {
 	if app.StopMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"stop-mode" cannot be used for %q, only for services`, app.Name)
 	}
-	if app.RefreshMode != "" && app.Daemon == "" {
-		return fmt.Errorf(`"refresh-mode" cannot be used for %q, only for services`, app.Name)
+	if app.RefreshMode != "" {
+		if app.Daemon != "" && app.RefreshMode == "ignore-running" {
+			return errors.New(`"refresh-mode" cannot be set to "ignore-running" for services`)
+		} else if app.Daemon == "" && app.RefreshMode != "ignore-running" {
+			return fmt.Errorf(`"refresh-mode" for app %q can only have value "ignore-running"`, app.Name)
+		}
 	}
 	if app.InstallMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"install-mode" cannot be used for %q, only for services`, app.Name)

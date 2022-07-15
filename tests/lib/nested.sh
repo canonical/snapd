@@ -24,6 +24,8 @@ NESTED_FAKESTORE_SNAP_DECL_PC_GADGET="${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:-}"
 NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:-}"
 NESTED_UBUNTU_IMAGE_PRESEED_KEY="${NESTED_UBUNTU_IMAGE_PRESEED_KEY:-}"
 
+NESTED_PHYSICAL_4K_SECTOR_SIZE="${NESTED_PHYSICAL_4K_SECTOR_SIZE:-}"
+
 nested_wait_for_ssh() {
     # TODO:UC20: the retry count should be lowered to something more reasonable.
     local retry=800
@@ -106,7 +108,7 @@ nested_retry_start_with_boot_errors() {
         retry=$(( retry - 1 ))
         if ! nested_check_boot_errors "$cursor"; then
             cursor="$("$TESTSTOOLS"/journal-state get-last-cursor)"
-            nested_restart
+            nested_force_restart_vm
             sleep 3
         else
             return 0
@@ -297,9 +299,6 @@ nested_get_google_image_url_for_vm() {
         ubuntu-20.04-64)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
             ;;
-        ubuntu-21.10-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/impish-server-cloudimg-amd64.img"
-            ;;
         ubuntu-22.04-64*)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/jammy-server-cloudimg-amd64.img"
             ;;
@@ -321,9 +320,6 @@ nested_get_ubuntu_image_url_for_vm() {
             ;;
         ubuntu-20.04-64*)
             echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-21.10-64*)
-            echo "https://cloud-images.ubuntu.com/impish/current/impish-server-cloudimg-amd64.img"
             ;;
         ubuntu-22.04-64*)
             echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
@@ -642,10 +638,23 @@ nested_create_core_vm() {
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/core-from-snapd-deb.snap"
 
+                    # allow repacking the kernel
+                    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
+                        KERNEL_SNAP=new-kernel.snap
+                        repack_kernel_snap "$KERNEL_SNAP"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $KERNEL_SNAP"
+                    fi
                 elif nested_is_core_18_system; then
                     echo "Repacking snapd snap"
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
+
+                    # allow repacking the kernel
+                    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
+                        KERNEL_SNAP=new-kernel.snap
+                        repack_kernel_snap "$KERNEL_SNAP"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $KERNEL_SNAP"
+                    fi
 
                     # allow tests to provide their own core18 snap
                     local CORE18_SNAP
@@ -1134,6 +1143,9 @@ nested_start_core_vm_unit() {
     else
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw"
     fi
+    if [ "$NESTED_PHYSICAL_4K_SECTOR_SIZE" = "true" ]; then
+       PARAM_IMAGE="$PARAM_IMAGE,physical_block_size=4096,logical_block_size=512"
+    fi
 
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
@@ -1273,7 +1285,7 @@ nested_start() {
     nested_prepare_tools
 }
 
-nested_restart() {
+nested_force_restart_vm() {
     nested_force_stop_vm
     nested_force_start_vm
     wait_for_service "$NESTED_VM" active

@@ -147,10 +147,10 @@ func ValidationSets(st *state.State) (map[string]*ValidationSetTracking, error) 
 }
 
 // EnforcedValidationSets returns ValidationSets object with all currently tracked
-// validation sets that are in enforcing mode. If extraVs is not nil then it is
-// added to the returned set and replaces a validation set with same account/name
-// in case one was tracked already.
-func EnforcedValidationSets(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+// validation sets that are in enforcing mode. If extraVss is not nil then they are
+// added to the returned set and replaces validation sets with same account/name
+// in case they were tracked already.
+func EnforcedValidationSets(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 	valsets, err := ValidationSets(st)
 	if err != nil {
 		return nil, err
@@ -159,8 +159,10 @@ func EnforcedValidationSets(st *state.State, extraVs *asserts.ValidationSet) (*s
 	db := DB(st)
 	sets := snapasserts.NewValidationSets()
 
-	if extraVs != nil {
+	skip := make(map[string]bool, len(extraVss))
+	for _, extraVs := range extraVss {
 		sets.Add(extraVs)
+		skip[fmt.Sprintf("%s:%s", extraVs.AccountID(), extraVs.Name())] = true
 	}
 
 	for _, vs := range valsets {
@@ -170,7 +172,7 @@ func EnforcedValidationSets(st *state.State, extraVs *asserts.ValidationSet) (*s
 
 		// if extraVs matches an already enforced validation set, then skip that one, extraVs has been added
 		// before the loop.
-		if extraVs != nil && extraVs.AccountID() == vs.AccountID && extraVs.Name() == vs.Name {
+		if skip[fmt.Sprintf("%s:%s", vs.AccountID, vs.Name)] {
 			continue
 		}
 

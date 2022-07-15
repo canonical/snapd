@@ -188,7 +188,7 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 			if aRef.Type == asserts.ModelType {
 				afn = "model"
 			} else {
-				afn = fmt.Sprintf("%s.%s", strings.Join(aRef.PrimaryKey, ","), aRef.Type.Name)
+				afn = fmt.Sprintf("%s.%s", strings.Join(asserts.ReducePrimaryKey(aRef.Type, aRef.PrimaryKey), ","), aRef.Type.Name)
 			}
 			a, err := aRef.Resolve(db.Find)
 			if err != nil {

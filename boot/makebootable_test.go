@@ -457,7 +457,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
-func (s *makeBootable20Suite) TestMakeSystemRunnable20(c *C) {
+func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, factoryReset bool) {
 	bootloader.Force(nil)
 
 	model := boottest.MakeMockUC20Model()
@@ -521,6 +521,13 @@ version: 5.0
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
 	err = os.Symlink(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
 type: kernel
 version: 5.0
@@ -537,6 +544,8 @@ version: 5.0
 		RecoverySystemDir: "20191216",
 		BasePath:          baseInSeed,
 		Base:              baseInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
 		Recovery:          false,
@@ -584,10 +593,42 @@ version: 5.0
 	restore = boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 		provisionCalls++
 		c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
-		c.Check(mode, Equals, secboot.TPMProvisionFull)
+		if factoryReset {
+			c.Check(mode, Equals, secboot.TPMPartialReprovision)
+		} else {
+			c.Check(mode, Equals, secboot.TPMProvisionFull)
+		}
 		return nil
 	})
 	defer restore()
+
+	pcrHandleOfKeyCalls := 0
+	restore = boot.MockSecbootPCRHandleOfSealedKey(func(p string) (uint32, error) {
+		pcrHandleOfKeyCalls++
+		c.Check(provisionCalls, Equals, 0)
+		if !factoryReset {
+			c.Errorf("unexpected call in non-factory-reset scenario")
+			return 0, fmt.Errorf("unexpected call")
+		}
+		c.Check(p, Equals,
+			filepath.Join(s.rootdir, "/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
+		// trigger use of alt handles as current key is using the main handle
+		return secboot.FallbackObjectPCRPolicyCounterHandle, nil
+	})
+	defer restore()
+
+	releasePCRHandleCalls := 0
+	restore = boot.MockSecbootReleasePCRResourceHandles(func(handles ...uint32) error {
+		c.Check(factoryReset, Equals, true)
+		releasePCRHandleCalls++
+		c.Check(handles, DeepEquals, []uint32{
+			secboot.AltRunObjectPCRPolicyCounterHandle,
+			secboot.AltFallbackObjectPCRPolicyCounterHandle,
+		})
+		return nil
+	})
+	defer restore()
+
 	// set mock key sealing
 	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
@@ -597,10 +638,32 @@ version: 5.0
 		case 1:
 			c.Check(keys, HasLen, 1)
 			c.Check(keys[0].Key, DeepEquals, myKey)
+			c.Check(keys[0].KeyFile, Equals,
+				filepath.Join(s.rootdir, "/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
+			if factoryReset {
+				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltRunObjectPCRPolicyCounterHandle)
+			} else {
+				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.RunObjectPCRPolicyCounterHandle)
+			}
 		case 2:
 			c.Check(keys, HasLen, 2)
 			c.Check(keys[0].Key, DeepEquals, myKey)
 			c.Check(keys[1].Key, DeepEquals, myKey2)
+			c.Check(keys[0].KeyFile, Equals,
+				filepath.Join(s.rootdir,
+					"/run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"))
+			if factoryReset {
+				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.AltFallbackObjectPCRPolicyCounterHandle)
+				c.Check(keys[1].KeyFile, Equals,
+					filepath.Join(s.rootdir,
+						"/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset"))
+
+			} else {
+				c.Check(params.PCRPolicyCounterHandle, Equals, secboot.FallbackObjectPCRPolicyCounterHandle)
+				c.Check(keys[1].KeyFile, Equals,
+					filepath.Join(s.rootdir,
+						"/run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
+			}
 		default:
 			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 		}
@@ -647,7 +710,11 @@ version: 5.0
 	})
 	defer restore()
 
-	err = boot.MakeRunnableSystem(model, bootWith, obs)
+	if !factoryReset {
+		err = boot.MakeRunnableSystem(model, bootWith, obs)
+	} else {
+		err = boot.MakeRunnableSystemAfterDataReset(model, bootWith, obs)
+	}
 	c.Assert(err, IsNil)
 
 	// also do the logical thing and make the next boot go to run mode
@@ -657,10 +724,12 @@ version: 5.0
 	// ensure grub.cfg in boot was installed from internal assets
 	c.Check(mockBootGrubCfg, testutil.FileEquals, string(grubCfgAsset))
 
-	// ensure base/kernel got copied to /var/lib/snapd/snaps
+	// ensure base/gadget/kernel got copied to /var/lib/snapd/snaps
 	core20Snap := filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "core20_3.snap")
+	gadgetSnap := filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "pc_4.snap")
 	pcKernelSnap := filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "pc-kernel_5.snap")
 	c.Check(core20Snap, testutil.FilePresent)
+	c.Check(gadgetSnap, testutil.FilePresent)
 	c.Check(pcKernelSnap, testutil.FilePresent)
 	c.Check(osutil.IsSymlink(core20Snap), Equals, false)
 	c.Check(osutil.IsSymlink(pcKernelSnap), Equals, false)
@@ -695,6 +764,7 @@ recovery_system=20191216
 current_recovery_systems=20191216
 good_recovery_systems=20191216
 base=core20_3.snap
+gadget=pc_4.snap
 current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous
@@ -734,12 +804,30 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 	c.Check(provisionCalls, Equals, 1)
 	// make sure SealKey was called for the run object and the fallback object
 	c.Check(sealKeysCalls, Equals, 2)
+	// PCR handle checks
+	if factoryReset {
+		c.Check(pcrHandleOfKeyCalls, Equals, 1)
+		c.Check(releasePCRHandleCalls, Equals, 1)
+	} else {
+		c.Check(pcrHandleOfKeyCalls, Equals, 0)
+		c.Check(releasePCRHandleCalls, Equals, 0)
+	}
 
 	// make sure the marker file for sealed key was created
 	c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), testutil.FilePresent)
 
 	// make sure we wrote the boot chains data file
 	c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"), testutil.FilePresent)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20Install(c *C) {
+	const factoryReset = false
+	s.testMakeSystemRunnable20(c, factoryReset)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryReset(c *C) {
+	const factoryReset = true
+	s.testMakeSystemRunnable20(c, factoryReset)
 }
 
 func (s *makeBootable20Suite) TestMakeRunnableSystem20ModeInstallBootConfigErr(c *C) {
@@ -786,6 +874,13 @@ version: 5.0
 	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
 	err = os.Symlink(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
 		RecoverySystemDir: "20191216",
@@ -793,6 +888,8 @@ version: 5.0
 		Base:              baseInfo,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		Recovery:          false,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
@@ -886,6 +983,13 @@ version: 5.0
 	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
 	err = os.Symlink(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
 		RecoverySystemDir: "20191216",
@@ -893,6 +997,8 @@ version: 5.0
 		Base:              baseInfo,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		Recovery:          false,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
@@ -1061,6 +1167,13 @@ version: 5.0
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
 	err = os.Symlink(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
 type: kernel
 version: 5.0
@@ -1077,6 +1190,8 @@ version: 5.0
 		RecoverySystemDir: "20191216",
 		BasePath:          baseInSeed,
 		Base:              baseInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
 		Recovery:          false,
@@ -1188,6 +1303,7 @@ recovery_system=20191216
 current_recovery_systems=20191216
 good_recovery_systems=20191216
 base=core20_3.snap
+gadget=pc_4.snap
 current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous
@@ -1303,6 +1419,13 @@ version: 5.0
 	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
 	err = os.Symlink(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
 		RecoverySystemDir: "20191216",
@@ -1310,6 +1433,8 @@ version: 5.0
 		Base:              baseInfo,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		Recovery:          false,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
@@ -1483,6 +1608,13 @@ version: 5.0
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
 	err = os.Rename(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 	kernelSnapFiles := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
@@ -1501,6 +1633,8 @@ version: 5.0
 		RecoverySystemDir: "20191216",
 		BasePath:          baseInSeed,
 		Base:              baseInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
 		Recovery:          false,
@@ -1546,6 +1680,7 @@ recovery_system=20191216
 current_recovery_systems=20191216
 good_recovery_systems=20191216
 base=core20_3.snap
+gadget=pc_4.snap
 current_kernels=arm-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous

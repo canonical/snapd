@@ -70,7 +70,7 @@ func securityTagFromCgroupPath(path string) naming.SecurityTag {
 // PidsOfSnap returns the association of security tags to PIDs.
 //
 // NOTE: This function returns a reliable result only if the refresh-app-awareness
-// feature was enabled since all processes related to the given snap were started.
+// feature was enabled before all processes related to the given snap were started.
 // If the feature wasn't always enabled then only service process are correctly
 // accounted for.
 //

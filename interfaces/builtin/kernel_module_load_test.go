@@ -60,6 +60,12 @@ plugs:
     options: param_1=ok param_2=false
   - name: expandvar
     options: opt=$FOO path=$SNAP_COMMON/bar
+  - name: dyn-module1
+    load: dynamic
+    options: opt1=v1 opt2=v2
+  - name: dyn-module2
+    load: dynamic
+    options: "*"
 apps:
  app:
   plugs: [kmod]
@@ -124,6 +130,10 @@ apps:
 			`kernel-module-load "name" must be a string`,
 		},
 		{
+			"modules:\n  - name: w3/rd*",
+			`kernel-module-load "name" attribute is not a valid module name`,
+		},
+		{
 			"modules:\n  - name: pcspkr",
 			`kernel-module-load: must specify at least "load" or "options"`,
 		},
@@ -152,6 +162,11 @@ apps:
 			`kernel-module-load "options" attribute contains invalid characters: "no-dashes"`,
 		},
 		{
+			// "*" is only allowed for `load: dynamic`
+			"modules:\n  - name: pcspkr\n    options: \"*\"",
+			`kernel-module-load "options" attribute contains invalid characters: "\*"`,
+		},
+		{
 			"modules:\n  - name: pcspkr\n    load: denied\n    options: p1=true",
 			`kernel-module-load "options" attribute incompatible with "load: denied"`,
 		},
@@ -172,9 +187,11 @@ func (s *KernelModuleLoadInterfaceSuite) TestKModSpec(c *C) {
 		"mymodule1": true,
 	})
 	c.Check(spec.ModuleOptions(), DeepEquals, map[string]string{
-		"mymodule1": "p1=3 p2=true p3",
-		"mymodule2": "param_1=ok param_2=false",
-		"expandvar": "opt=$FOO path=/var/snap/consumer/common/bar",
+		"mymodule1":   "p1=3 p2=true p3",
+		"mymodule2":   "param_1=ok param_2=false",
+		"expandvar":   "opt=$FOO path=/var/snap/consumer/common/bar",
+		"dyn-module1": "opt1=v1 opt2=v2",
+		// No entry for dyn-module2, which has options set to "*"
 	})
 	c.Check(spec.DisallowedModules(), DeepEquals, []string{"forbidden"})
 }

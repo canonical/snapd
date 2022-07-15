@@ -30,6 +30,7 @@ type Device interface {
 
 	Kernel() string
 	Base() string
+	Gadget() string
 
 	HasModeenv() bool
 

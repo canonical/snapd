@@ -290,6 +290,24 @@ func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
 	return a.(*asserts.Account), nil
 }
 
+// PublisherStoreAccount returns the store account information from the publisher assertion.
+func PublisherStoreAccount(st *state.State, snapID string) (snap.StoreAccount, error) {
+	if snapID == "" {
+		return snap.StoreAccount{}, nil
+	}
+
+	pubAcct, err := Publisher(st, snapID)
+	if err != nil {
+		return snap.StoreAccount{}, fmt.Errorf("cannot find publisher details: %v", err)
+	}
+	return snap.StoreAccount{
+		ID:          pubAcct.AccountID(),
+		Username:    pubAcct.Username(),
+		DisplayName: pubAcct.DisplayName(),
+		Validation:  pubAcct.Validation(),
+	}, nil
+}
+
 // Store returns the store assertion with the given name/id if it is
 // present in the system assertion database.
 func Store(s *state.State, store string) (*asserts.Store, error) {
@@ -315,7 +333,13 @@ func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 	}
 	explicitAliases := decl.Aliases()
 	if len(explicitAliases) != 0 {
-		return explicitAliases, nil
+		aliasesForApps := make(map[string]string, len(explicitAliases))
+		for alias, app := range explicitAliases {
+			if _, ok := info.Apps[app]; ok {
+				aliasesForApps[alias] = app
+			}
+		}
+		return aliasesForApps, nil
 	}
 	// XXX: old header fallback, just to keep edge working while we fix the
 	// store, to remove before next release!
@@ -746,6 +770,14 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		return nil, 0, err
 	}
 	return vs, latest, err
+}
+
+// TryEnforceValidationSets tries to fetch the given validation sets and enforce them (together with currently tracked validation sets) against installed snaps,
+// but doesn't update tracking information. It may return snapasserts.ValidationSetsValidationError which can be used to install/remove snaps as required
+// to satisfy validation sets constraints.
+func TryEnforceValidationSets(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+	// TODO
+	return fmt.Errorf("not implemented")
 }
 
 // EnforceValidationSet tries to fetch the given validation set and enforce it.

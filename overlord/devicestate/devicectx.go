@@ -90,6 +90,10 @@ func (dc groundDeviceContext) Base() string {
 	return dc.model.Base()
 }
 
+func (dc groundDeviceContext) Gadget() string {
+	return dc.model.Gadget()
+}
+
 func (dc groundDeviceContext) RunMode() bool {
 	return dc.systemMode == "run"
 }

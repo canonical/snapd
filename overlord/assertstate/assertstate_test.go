@@ -2164,6 +2164,10 @@ func (s *assertMgrSuite) TestAutoAliasesExplicit(c *C) {
 				"name":   "alias2",
 				"target": "cmd2",
 			},
+			map[string]interface{}{
+				"name":   "alias-missing",
+				"target": "cmd-missing",
+			},
 		},
 		"revision": "1",
 	})
@@ -2173,6 +2177,11 @@ func (s *assertMgrSuite) TestAutoAliasesExplicit(c *C) {
 		SideInfo: snap.SideInfo{
 			RealName: "foo",
 			SnapID:   "foo-id",
+		},
+		Apps: map[string]*snap.AppInfo{
+			"cmd1": {},
+			"cmd2": {},
+			// no cmd-missing
 		},
 	})
 	c.Assert(err, IsNil)
@@ -2202,6 +2211,30 @@ func (s *assertMgrSuite) TestPublisher(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(acct.AccountID(), Equals, s.dev1Acct.AccountID())
 	c.Check(acct.Username(), Equals, "developer1")
+}
+
+func (s *assertMgrSuite) TestPublisherStoreAccount(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a declaration in the system db
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+
+	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
+	c.Check(asserts.IsNotFound(err), Equals, true)
+
+	acct, err := assertstate.PublisherStoreAccount(s.state, "foo-id")
+	c.Assert(err, IsNil)
+	c.Check(acct.ID, Equals, s.dev1Acct.AccountID())
+	c.Check(acct.Username, Equals, "developer1")
+	c.Check(acct.DisplayName, Equals, "Developer1")
+	c.Check(acct.Validation, Equals, s.dev1Acct.Validation())
 }
 
 func (s *assertMgrSuite) TestStore(c *C) {
@@ -2816,7 +2849,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeMissingS
 	assertstate.UpdateValidationSet(s.state, &tr)
 
 	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0, nil), IsNil)
-	c.Assert(logbuf.String(), Matches, `.*cannot refresh to validation set assertions that do not satisfy installed snaps: validation sets assertions are not met:\n- missing required snaps:\n  - foo \(required by sets .*/foo\)\n`)
+	c.Assert(logbuf.String(), Matches, `.*cannot refresh to validation set assertions that do not satisfy installed snaps: validation sets assertions are not met:\n- missing required snaps:\n  - foo \(required at any revision by sets .*/foo\)\n`)
 
 	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
@@ -3100,8 +3133,10 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyMis
 	c.Assert(err, NotNil)
 	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
 	c.Assert(ok, Equals, true)
-	c.Check(verr.MissingSnaps, DeepEquals, map[string][]string{
-		"foo": {fmt.Sprintf("%s/bar", s.dev1Acct.AccountID())},
+	c.Check(verr.MissingSnaps, DeepEquals, map[string]map[snap.Revision][]string{
+		"foo": {
+			snap.R(1): []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID())},
+		},
 	})
 
 	// and it hasn't been committed

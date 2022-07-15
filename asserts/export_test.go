@@ -69,6 +69,10 @@ func BootstrapAccountForTest(authorityID string) *Account {
 }
 
 func MakeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, since time.Time, validYears int) *AccountKey {
+	return MakeAccountKeyForTestWithUntil(authorityID, openPGPPubKey, since, since.AddDate(validYears, 0, 0), validYears)
+}
+
+func MakeAccountKeyForTestWithUntil(authorityID string, openPGPPubKey PublicKey, since, until time.Time, validYears int) *AccountKey {
 	return &AccountKey{
 		assertionBase: assertionBase{
 			headers: map[string]interface{}{
@@ -80,7 +84,7 @@ func MakeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, since ti
 		},
 		sinceUntil: sinceUntil{
 			since: since.UTC(),
-			until: since.UTC().AddDate(validYears, 0, 0),
+			until: until.UTC(),
 		},
 		pubKey: openPGPPubKey,
 	}
