@@ -627,11 +627,19 @@ func (s *copydataSuite) TestSetupCommonSaveDataFirstInstall(c *C) {
 	_, err = os.Stat(v1.CommonDataSaveDir())
 	c.Assert(err, IsNil)
 
+	// create a test file to make sure this also gets removed
+	c.Assert(ioutil.WriteFile(filepath.Join(v1.CommonDataSaveDir(), "canary.txt"), nil, 0644), IsNil)
+
 	// removes correctly when no previous info is present
 	err = s.be.UndoSetupSnapSaveData(v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(v1.CommonDataSaveDir())
 	c.Check(os.IsNotExist(err), Equals, true)
+
+	// verify that the root (snap) folder has not been touched
+	exists, isDir, err := osutil.DirExists(dirs.SnapDataSaveDir)
+	c.Check(err, IsNil)
+	c.Check(exists && isDir, Equals, true)
 }
 
 func (s *copydataSuite) TestSetupCommonSaveDataSameRevision(c *C) {

@@ -34,6 +34,9 @@ execute: |
     echo "Ensuring we can write a file to /var/lib/snapd/save/snap/test-snapd-sh"
     tests.nested exec "sudo snap run test-snapd-sh.sh -c \"echo 'hello world' > /var/lib/snapd/save/snap/test-snapd-sh/hello.txt\""
 
+    echo "Verify contents of the file directly to make sure file was written"
+    tests.nested exec "grep -q 'hello world' '/run/mnt/ubuntu-save/snap/test-snapd-sh/hello.txt'"
+
     echo "Ensuring we cannot write a file to /var/lib/snapd/save/snap"
     if tests.nested exec "sudo snap run test-snapd-sh.sh -c \"echo 'hello world' > /var/lib/snapd/save/snap/hello.txt\""; then
         tests.nested fail "Writing to /var/lib/snapd/save/snap/hello.txt should have failed"

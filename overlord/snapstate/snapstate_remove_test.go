@@ -1438,7 +1438,7 @@ func (f *snapdBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.SnapDirO
 
 func (f *snapdBackend) RemoveSnapSaveData(info *snap.Info) error {
 	dir := snap.CommonDataSaveDir(info.InstanceName())
-	if err := os.Remove(dir); err != nil {
+	if err := os.RemoveAll(dir); err != nil {
 		return fmt.Errorf("unexpected error: %v", err)
 	}
 	return f.fakeSnappyBackend.RemoveSnapSaveData(info)
