@@ -121,12 +121,14 @@ prepare: |
             tests.cleanup defer umount "$CORE_SNAP"
         fi
     fi
+
 debug: |
     # get the snapd sandbox features
     snap debug sandbox-features
     # get the full journal to see any out-of-memory errors
     # shellcheck disable=SC2119
     "$TESTSTOOLS"/journal-state get-log
+
 execute: |
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
@@ -219,9 +221,19 @@ execute: |
         echo "hello-world.evil should fail due to snap confinement"
         exit 1
     fi
+
     # Replicate the tests from tests/main/interfaces-many-core-provided so
     # we can exercise that apparmor policy is still effective/correct when using
     # the snapd snap
+
+    # We remove the shared-memory plug and interface in trusty because it fails with the
+    # following error since adding private /dev/shm support to shared-memory interface:
+    # shared-memory plug with "private: true" cannot be connected if "/dev/shm" is a symlink)
+    if os.query is-trusty; then
+        cp -r "$TESTSLIB/snaps/$CONSUMER_SNAP" .
+        sed -e '/shared-memory:/,+2d' -i $CONSUMER_SNAP/meta/snap.yaml
+    fi
+
     echo "Given a snap is installed"
     "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
     tests.cleanup defer snap remove --purge "$CONSUMER_SNAP"
