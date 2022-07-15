@@ -52,8 +52,8 @@ execute: |
     # parallel-installs: empty if none is set
     MATCH "^SNAP_INSTANCE_KEY=$INSTANCE_KEY$"                             < snap-vars.txt
     MATCH "^SNAP_REAL_HOME=/root$"                                        < snap-vars.txt
-    # if on ubuntu-core, then we should see an additional variable (SNAP_SAVE_DATA)
-    if os.query is-core; then
+    # if on UC20+, then we should see an additional variable (SNAP_SAVE_DATA)
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-2* ]]; then
         MATCH "^SNAP_SAVE_DATA=/var/lib/snapd/save/snap/$NAME$"           < snap-vars.txt
         # 16 variables are expected on ubuntu-core
         test "$(wc -l < snap-vars.txt)" -eq 16
