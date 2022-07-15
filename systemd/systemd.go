@@ -374,6 +374,10 @@ type Systemd interface {
 	// IsActive checks whether the given service is Active
 	IsActive(service string) (bool, error)
 	// LogReader returns a reader for the given services' log.
+	// If follow is set to true, the reader returned will follow the log
+	// as it grows.
+	// If namespaces is set to true, the log reader will include journal namespace
+	// logs, and is required to get logs for services which are in journal namespaces.
 	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
 	// AddMountUnitFile adds/enables/starts a mount unit.
 	AddMountUnitFile(name, revision, what, where, fstype string) (string, error)
