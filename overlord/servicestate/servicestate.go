@@ -400,6 +400,9 @@ func SnapServiceOptions(st *state.State, instanceName string, quotaGroups map[st
 	return opts, nil
 }
 
+// SnapAppsLogReader returns an io.ReadCloser which produce logs for the provided
+// snap AppInfo's. It is a convenience wrapper around the systemd.LogReader
+// implementation.
 func SnapAppsLogReader(appInfos []*snap.AppInfo, n int, follow bool) (io.ReadCloser, error) {
 	serviceNames := make([]string, len(appInfos))
 	for i, appInfo := range appInfos {
