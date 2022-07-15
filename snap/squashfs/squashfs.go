@@ -309,7 +309,6 @@ func sandboxParams(sdVer int) (params []string) {
 		// prepare-image run under sudo
 		"--property=CapabilityBoundingSet=CAP_DAC_OVERRIDE",
 		"--property=AmbientCapabilities=CAP_DAC_OVERRIDE",
-		"--property=NoNewPrivileges=true",
 		"--property=SecureBits=",
 		"--property=ProtectSystem=strict",
 		"--property=ProtectHome=true",
@@ -338,6 +337,7 @@ func sandboxParams(sdVer int) (params []string) {
 	if !isContainer {
 		params = append(params, []string{
 			"--property=ProtectKernelTunables=true",
+			"--property=NoNewPrivileges=true",
 		}...)
 	} else {
 		// XXX under LXD and unified hierarchy? using

@@ -1018,7 +1018,6 @@ var expectedSandboxParams = []string{
 	"--property=PrivateTmp=true",
 	"--property=CapabilityBoundingSet=CAP_DAC_OVERRIDE",
 	"--property=AmbientCapabilities=CAP_DAC_OVERRIDE",
-	"--property=NoNewPrivileges=true",
 	"--property=SecureBits=",
 	"--property=ProtectSystem=strict",
 	"--property=ProtectHome=true",
@@ -1031,6 +1030,7 @@ var expectedSandboxParams = []string{
 	"--property=InaccessiblePaths=/sys",
 	"--property=PrivateDevices=true",
 	"--property=ProtectKernelTunables=true",
+	"--property=NoNewPrivileges=true",
 	"--property=TemporaryFileSystem=/run:ro",
 	"--service-type=exec",
 	"--property=ProtectHostname=true",
@@ -1103,11 +1103,11 @@ func (s *SquashfsTestSuite) TestSaferReadFileSandboxUnderContainer(c *C) {
 	expected := expectedSandboxParams
 	n := len(expected)
 
-	c.Check(squashfs.SandboxParams(236), DeepEquals, append(expected[:n-8], []string{
+	c.Check(squashfs.SandboxParams(236), DeepEquals, append(expected[:n-9], []string{
 		"--property=ReadOnlyPaths=/proc",
 		"--property=InaccessiblePaths=/proc/kcore /proc/kallsyms",
 	}...))
-	c.Check(squashfs.SandboxParams(245), DeepEquals, append(expected[:n-8], []string{
+	c.Check(squashfs.SandboxParams(245), DeepEquals, append(expected[:n-9], []string{
 		"--property=PrivateDevices=true",
 		"--property=ReadOnlyPaths=/proc",
 		"--property=InaccessiblePaths=/proc/kcore /proc/kallsyms",
