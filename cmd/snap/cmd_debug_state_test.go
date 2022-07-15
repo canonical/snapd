@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"time"
@@ -101,6 +102,76 @@ var stateJSON = []byte(`
 	}
 }
 `)
+
+var stateConnsJSON = []byte(`
+{
+	"data": {
+		"conns": {
+			"gnome-calculator:desktop-legacy core:desktop-legacy": {
+				"auto": true,
+				"interface": "desktop-legacy"
+			},
+			"gnome-calculator:gtk-3-themes gtk-common-themes:gtk-3-themes": {
+				"auto": true,
+				"interface": "content",
+				"plug-static": {
+					"content": "gtk-3-themes",
+					"default-provider": "gtk-common-themes",
+					"target": "$SNAP/data-dir/themes"
+				},
+				"slot-static": {
+					"content": "gtk-3-themes",
+					"source": {
+					"read": [
+						"$SNAP/share/themes/Adwaita",
+						"$SNAP/share/themes/Materia-light-compact"
+					]
+					}
+				}
+			},
+			"gnome-calculator:icon-themes gtk-common-themes:icon-themes": {
+				"auto": true,
+				"interface": "content",
+				"plug-static": {
+					"content": "icon-themes",
+					"default-provider": "gtk-common-themes",
+					"target": "$SNAP/data-dir/icons"
+				},
+				"slot-static": {
+					"content": "icon-themes",
+					"source": {
+					"read": [
+						"$SNAP/share/icons/Adwaita",
+						"$SNAP/share/icons/elementary-xfce-darkest"
+					]
+					}
+				}
+			},
+			"gnome-calculator:network core:network": {
+				"auto": true,
+				"interface": "network"
+			},
+			"gnome-calculator:x11 core:x11": {
+				"auto": true,
+				"interface": "x11"
+			},
+			"vlc:x11 core:x11": {
+				"auto": true,
+				"interface": "x11"
+			},
+			"vlc:network core:network": {
+				"auto": true,
+				"undesired": true,
+				"interface": "network"
+			},
+			"some-snap:network core:network": {
+				"auto": true,
+				"by-gadget": true,
+				"interface": "network"
+			}
+		}
+	}
+}`)
 
 var stateCyclesJSON = []byte(`
 {
@@ -324,4 +395,158 @@ func (s *SnapSuite) TestDebugIsSeededNo(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches, "false\n")
 	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestDebugConnections(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(ioutil.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--connections", stateFile})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Matches,
+		"Interface       Plug                             Slot                            Notes\n"+
+			"desktop-legacy  gnome-calculator:desktop-legacy  core:desktop-legacy             auto\n"+
+			"content         gnome-calculator:gtk-3-themes    gtk-common-themes:gtk-3-themes  auto\n"+
+			"content         gnome-calculator:icon-themes     gtk-common-themes:icon-themes   auto\n"+
+			"network         gnome-calculator:network         core:network                    auto\n"+
+			"x11             gnome-calculator:x11             core:x11                        auto\n"+
+			"network         some-snap:network                core:network                    auto,by-gadget\n"+
+			"network         vlc:network                      core:network                    auto,undesired\n"+
+			"x11             vlc:x11                          core:x11                        auto\n")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestDebugConnectionDetails(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(ioutil.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
+
+	for i, connArg := range []string{"gnome-calculator:gtk-3-themes", ",gtk-common-themes:gtk-3-themes"} {
+		s.ResetStdStreams()
+		rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", fmt.Sprintf("--connection=%s", connArg), stateFile})
+		c.Assert(err, IsNil)
+		c.Assert(rest, DeepEquals, []string{})
+		c.Check(s.Stdout(), Matches,
+			"id: gnome-calculator:gtk-3-themes gtk-common-themes:gtk-3-themes\n"+
+				"auto: true\n"+
+				"by-gadget: false\n"+
+				"interface: content\n"+
+				"undesired: false\n"+
+				"plug-static:\n"+
+				"  content: gtk-3-themes\n"+
+				"  default-provider: gtk-common-themes\n"+
+				"  target: \\$SNAP/data-dir/themes\n"+
+				"slot-static:\n"+
+				"  content: gtk-3-themes\n"+
+				"  source:\n"+
+				"    read:\n"+
+				"    - \\$SNAP/share/themes/Adwaita\n"+
+				"    - \\$SNAP/share/themes/Materia-light-compact\n"+
+				"\n", Commentf("#%d: %s", i, connArg))
+		c.Check(s.Stderr(), Equals, "")
+	}
+}
+
+func (s *SnapSuite) TestDebugConnectionPlugAndSlot(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(ioutil.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
+
+	connArg := "gnome-calculator:network,core:network"
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", fmt.Sprintf("--connection=%s", connArg), stateFile})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Matches,
+		"id: gnome-calculator:network core:network\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: network\n"+
+			"undesired: false\n"+
+			"\n", Commentf("#0: %s", connArg))
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestDebugConnectionInvalidCombination(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(ioutil.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
+
+	connArg := "gnome-calculator,core:network"
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", fmt.Sprintf("--connection=%s", connArg), stateFile})
+	c.Assert(err, ErrorMatches, fmt.Sprintf("invalid command with connection args: %s", connArg))
+	c.Check(s.Stdout(), Equals, "")
+}
+
+func (s *SnapSuite) TestDebugConnectionDetailsMany(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(ioutil.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--connection=core", stateFile})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Matches,
+		"id: gnome-calculator:desktop-legacy core:desktop-legacy\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: desktop-legacy\n"+
+			"undesired: false\n"+
+			"\n"+
+			"id: gnome-calculator:network core:network\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: network\n"+
+			"undesired: false\n"+
+			"\n"+
+			"id: gnome-calculator:x11 core:x11\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: x11\n"+
+			"undesired: false\n"+
+			"\n"+
+			"id: some-snap:network core:network\n"+
+			"auto: true\n"+
+			"by-gadget: true\n"+
+			"interface: network\n"+
+			"undesired: false\n"+
+			"\n"+
+			"id: vlc:network core:network\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: network\n"+
+			"undesired: true\n"+
+			"\n"+
+			"id: vlc:x11 core:x11\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: x11\n"+
+			"undesired: false\n"+
+			"\n")
+
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestDebugConnectionDetailsManySlotSide(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(ioutil.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--connection=core:x11", stateFile})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Matches,
+		"id: gnome-calculator:x11 core:x11\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: x11\n"+
+			"undesired: false\n"+
+			"\n"+
+			"id: vlc:x11 core:x11\n"+
+			"auto: true\n"+
+			"by-gadget: false\n"+
+			"interface: x11\n"+
+			"undesired: false\n"+
+			"\n")
 }

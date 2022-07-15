@@ -77,8 +77,8 @@
 %define gobuild_static(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
 
-# These macros are missing BUILDTAGS in RHEL 8, see RHBZ#1825138
-%if 0%{?rhel} == 8
+# These macros are missing BUILDTAGS in RHEL 8/9, see RHBZ#1825138
+%if 0%{?rhel} >= 8
 %define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
 %endif
 
@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.56.2
+Version:        2.56.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -570,8 +570,8 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %if 0%{?rhel} == 7
     M4PARAM='-D distro_rhel7'
 %endif
-%if 0%{?rhel} == 7 || 0%{?rhel} == 8
-    # RHEL7 and RHEL8 are missing the BPF interfaces from their reference policy
+%if 0%{?rhel} == 7 || 0%{?rhel} == 8 || 0%{?rhel} == 9
+    # RHEL7, RHEL8 and RHEL9 are missing the BPF interfaces from their reference policy
     M4PARAM="$M4PARAM -D no_bpf"
 %endif
     # Build SELinux module
@@ -981,6 +981,26 @@ fi
 
 
 %changelog
+* Wed Jul 13 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.56.3
+ - devicestate: add more path to `fixupWritableDefaultDirs()`
+ - many: introduce IsUndo flag in LinkContext
+ - i/apparmor: allow calling which.debianutils
+ - interfaces: update AppArmor template to allow reading snap's
+   memory statistics
+ - interfaces: add memory stats to system_observe
+ - i/b/{mount,system}-observe: extend access for htop
+ - features: disable refresh-app-awarness by default again
+ - image: fix handling of var/lib/extrausers when preseeding
+   uc20
+ - interfaces/modem-manager: Don't generate DBus policy for plugs
+ - interfaces/modem-manager: Only generate DBus plug policy on
+   Core
+ - interfaces/serial_port_test: fix static-checks errors
+ - interfaces/serial-port: add USB gadget serial devices (ttyGSX) to
+   allowed list
+ - interface/serial_port_test: adjust variable IDs
+
 * Wed Jun 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.56.2
  - o/snapstate: exclude services from refresh app awareness hard

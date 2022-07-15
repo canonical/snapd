@@ -38,7 +38,7 @@ type mockDevice struct {
 // <boot-snap-name>[@<mode>], no <boot-snap-name> means classic, empty
 // <mode> defaults to "run" for UC16/18. If mode is set HasModeenv
 // returns true for UC20 and an empty boot snap name panics.
-// It returns <boot-snap-name> for both Base and Kernel, for more
+// It returns <boot-snap-name> for Base, Kernel and gadget, for more
 // control mock a DeviceContext.
 func MockDevice(s string) snap.Device {
 	bootsnap, mode, uc20 := snapAndMode(s)
@@ -85,6 +85,12 @@ func (d *mockDevice) HasModeenv() bool { return d.uc20 }
 func (d *mockDevice) Base() string {
 	if d.model != nil {
 		return d.model.Base()
+	}
+	return d.bootSnap
+}
+func (d *mockDevice) Gadget() string {
+	if d.model != nil {
+		return d.model.Gadget()
 	}
 	return d.bootSnap
 }

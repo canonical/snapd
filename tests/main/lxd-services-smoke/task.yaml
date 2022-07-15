@@ -11,7 +11,7 @@ details: |
   any of the above.
 
 # ubuntu-18.04-32: i386 is not supported by lxd
-systems: [ubuntu-18.04-64, ubuntu-20.04*]
+systems: [ubuntu-18.04-64, ubuntu-2*]
 
 environment:
   # apparmor_parser triggers OOM

@@ -14,6 +14,7 @@ systems:
   - -debian-10-*
   - -centos-7-*
   - -centos-8-*
+  - -centos-9-*
 
 prepare: |
     tests.session -u test prepare

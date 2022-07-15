@@ -151,15 +151,12 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
 		return false
 	}
 
-	if t != snap.TypeOS && t != snap.TypeKernel && t != snap.TypeBase {
-		// note we don't currently have anything useful to do with gadgets
-		return false
-	}
-
 	switch t {
 	case snap.TypeKernel:
 		if s.InstanceName() != dev.Kernel() {
-			// a remodel might leave you in this state
+			// a remodel might leave behind installed a kernel that
+			// is not the device kernel anymore, ignore such a
+			// kernel by checking the name
 			return false
 		}
 	case snap.TypeBase, snap.TypeOS:
@@ -170,6 +167,16 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
 		if s.InstanceName() != base {
 			return false
 		}
+	case snap.TypeGadget:
+		// First condition: gadget is not a boot participant for UC16/18
+		// Second condition: a remodel might leave behind installed a
+		// gadget that is not the device gadget anymore, ignore such a
+		// gadget by checking the name
+		if !dev.HasModeenv() || s.InstanceName() != dev.Gadget() {
+			return false
+		}
+	default:
+		return false
 	}
 
 	return true
@@ -215,18 +222,21 @@ func bootStateFor(typ snap.Type, dev snap.Device) (s bootState, err error) {
 	if !dev.RunMode() {
 		return nil, fmt.Errorf("internal error: no boot state handling for ephemeral modes")
 	}
+	if typ == snap.TypeOS {
+		typ = snap.TypeBase
+	}
 	newBootState := newBootState16
+	participantTypes := []snap.Type{snap.TypeBase, snap.TypeKernel}
 	if dev.HasModeenv() {
 		newBootState = newBootState20
+		participantTypes = append(participantTypes, snap.TypeGadget)
 	}
-	switch typ {
-	case snap.TypeOS, snap.TypeBase:
-		return newBootState(snap.TypeBase, dev), nil
-	case snap.TypeKernel:
-		return newBootState(snap.TypeKernel, dev), nil
-	default:
-		return nil, fmt.Errorf("internal error: no boot state handling for snap type %q", typ)
+	for _, partTyp := range participantTypes {
+		if typ == partTyp {
+			return newBootState(typ, dev), nil
+		}
 	}
+	return nil, fmt.Errorf("internal error: no boot state handling for snap type %q", typ)
 }
 
 // InUseFunc is a function to check if the snap is in use or not.

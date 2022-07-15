@@ -206,7 +206,7 @@ execute: |
     # - arch: mount.nfs: requested NFS version or transport protocol is not supported
     # - debian-sid: mount.nfs: an incorrect mount option was specified
     # - ubuntu-2*: mount.nfs: an incorrect mount option was specified
-    if not os.query is-arch-linux && not os.query is-debian-sid && not os.query is-debian-11 && [[ "$SPREAD_SYSTEM" != ubuntu-2* ]]; then
+    if not os.query is-arch-linux && not os.query is-debian sid && not os.query is-debian 11 && [[ "$SPREAD_SYSTEM" != ubuntu-2* ]]; then
         # Mount NFS-exported /home over real /home using NFSv3 and UDP transport
         mount -t nfs localhost:/home /home -o nfsvers=3,proto=udp
 
