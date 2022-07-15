@@ -68,6 +68,38 @@ dbus (send)
      member="SetLink{DefaultRoute,DNSOverTLS,DNS,DNSEx,DNSSEC,DNSSECNegativeTrustAnchors,MulticastDNS,Domains,LLMNR}"
      peer=(label=unconfined),
 
+# required by resolvectl command
+dbus (send)
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface=org.freedesktop.DBus.Properties
+     member=Get{,All}
+     peer=(label=unconfined),
+
+# required by resolvectl command
+dbus (receive)
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface=org.freedesktop.DBus.Properties
+     member=PropertiesChanged
+     peer=(label=unconfined),
+
+# required by resolvectl command
+dbus (send)
+     bus=system
+     path="/org/freedesktop/resolve1/link/*"
+     interface="org.freedesktop.DBus.Properties"
+     member=Get{,All}
+     peer=(label=unconfined),
+
+# required by resolvectl command
+dbus (receive)
+     bus=system
+     path="/org/freedesktop/resolve1/link/*"
+     interface="org.freedesktop.DBus.Properties"
+     member=PropertiesChanged
+     peer=(label=unconfined),
+
 #include <abstractions/ssl_certs>
 
 capability net_admin,
@@ -131,6 +163,7 @@ network sna,
 /{,usr/}{,s}bin/pppdump ixr,
 /{,usr/}{,s}bin/pppoe-discovery ixr,
 #/{,usr/}{,s}bin/pppstats ixr,            # needs sys_module
+/{,usr/}{,s}bin/resolvectl ixr,
 /{,usr/}{,s}bin/route ixr,
 /{,usr/}{,s}bin/routef ixr,
 /{,usr/}{,s}bin/routel ixr,

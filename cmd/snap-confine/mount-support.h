@@ -22,6 +22,16 @@
 #include "snap-confine-invocation.h"
 #include <sys/types.h>
 
+/* Base location where extra libraries might be made available to the snap.
+ * This is currently used for graphics drivers, but could pontentially be used
+ * for other goals as well.
+ *
+ * NOTE: do not bind-mount anything directly onto this directory! This is only
+ * a *base* directory: for exposing drivers and libraries, create a
+ * sub-directory in SC_EXTRA_LIB_DIR and use that one as the bind mount target.
+ */
+#define SC_EXTRA_LIB_DIR "/var/lib/snapd/lib"
+
 /**
  * Assuming a new mountspace, populate it accordingly.
  *

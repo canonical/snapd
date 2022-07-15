@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"crypto"
 	"fmt"
+	"regexp"
 	"time"
 
 	// expected for digests
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // SnapDeclaration holds a snap-declaration assertion, declaring a
@@ -38,12 +40,13 @@ import (
 // publisher and its other properties.
 type SnapDeclaration struct {
 	assertionBase
-	refreshControl []string
-	plugRules      map[string]*PlugRule
-	slotRules      map[string]*SlotRule
-	autoAliases    []string
-	aliases        map[string]string
-	timestamp      time.Time
+	refreshControl      []string
+	plugRules           map[string]*PlugRule
+	slotRules           map[string]*SlotRule
+	autoAliases         []string
+	aliases             map[string]string
+	revisionAuthorities []*RevisionAuthority
+	timestamp           time.Time
 }
 
 // Series returns the series for which the snap is being declared.
@@ -95,6 +98,21 @@ func (snapdcl *SnapDeclaration) AutoAliases() []string {
 // Aliases returns the optional explicit aliases granted to this snap.
 func (snapdcl *SnapDeclaration) Aliases() map[string]string {
 	return snapdcl.aliases
+}
+
+// RevisionAuthority return any revision authority entries matching the given
+// provenance.
+func (snapdcl *SnapDeclaration) RevisionAuthority(provenance string) []*RevisionAuthority {
+	res := make([]*RevisionAuthority, 0, 1)
+	for _, ra := range snapdcl.revisionAuthorities {
+		if strutil.ListContains(ra.Provenance, provenance) {
+			res = append(res, ra)
+		}
+	}
+	if len(res) == 0 {
+		return nil
+	}
+	return res
 }
 
 // Implement further consistency checks.
@@ -314,15 +332,110 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	var ras []*RevisionAuthority
+
+	ra, ok := assert.headers["revision-authority"]
+	if ok {
+		ramaps, ok := ra.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("revision-authority stanza must be a list of maps")
+		}
+		if len(ramaps) == 0 {
+			// there is no syntax producing this scenario but be robust
+			return nil, fmt.Errorf("revision-authority stanza cannot be empty")
+		}
+		ras = make([]*RevisionAuthority, 0, len(ramaps))
+		for _, ramap := range ramaps {
+			m, ok := ramap.(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("revision-authority stanza must be a list of maps")
+			}
+			accountID, err := checkStringMatchesWhat(m, "account-id", "in revision authority", validAccountID)
+			if err != nil {
+				return nil, err
+			}
+			prov, err := checkStringListInMap(m, "provenance", "provenance in revision authority", validProvenance)
+			if err != nil {
+				return nil, err
+			}
+			if len(prov) == 0 {
+				return nil, fmt.Errorf("provenance in revision authority cannot be empty")
+			}
+			minRevision := 1
+			maxRevision := 0
+			if _, ok := m["min-revision"]; ok {
+				var err error
+				minRevision, err = checkSnapRevisionWhat(m, "min-revision", "in revision authority")
+				if err != nil {
+					return nil, err
+				}
+			}
+			if _, ok := m["max-revision"]; ok {
+				var err error
+				maxRevision, err = checkSnapRevisionWhat(m, "max-revision", "in revision authority")
+				if err != nil {
+					return nil, err
+				}
+			}
+			if maxRevision != 0 && maxRevision < minRevision {
+				return nil, fmt.Errorf("optional max-revision cannot be less than min-revision in revision-authority")
+			}
+			devscope, err := compileDeviceScopeConstraint(m, "revision-authority")
+			if err != nil {
+				return nil, err
+			}
+			ras = append(ras, &RevisionAuthority{
+				AccountID:   accountID,
+				Provenance:  prov,
+				MinRevision: minRevision,
+				MaxRevision: maxRevision,
+				DeviceScope: devscope,
+			})
+		}
+
+	}
+
 	return &SnapDeclaration{
-		assertionBase:  assert,
-		refreshControl: refControl,
-		plugRules:      plugRules,
-		slotRules:      slotRules,
-		autoAliases:    autoAliases,
-		aliases:        aliases,
-		timestamp:      timestamp,
+		assertionBase:       assert,
+		refreshControl:      refControl,
+		plugRules:           plugRules,
+		slotRules:           slotRules,
+		autoAliases:         autoAliases,
+		aliases:             aliases,
+		revisionAuthorities: ras,
+		timestamp:           timestamp,
 	}, nil
+}
+
+// RevisionAuthority holds information about an account that can sign revisions
+// for a given snap.
+type RevisionAuthority struct {
+	AccountID  string
+	Provenance []string
+
+	MinRevision int
+	MaxRevision int
+
+	DeviceScope *DeviceScopeConstraint
+}
+
+// Check tests whether rev matches the revision authority constraints.
+func (ra *RevisionAuthority) Check(rev *SnapRevision) error {
+	// XXX support the device constraints
+	if !strutil.ListContains(ra.Provenance, rev.Provenance()) {
+		return fmt.Errorf("provenance mismatch")
+	}
+	if rev.AuthorityID() != ra.AccountID {
+		return fmt.Errorf("authority-id mismatch")
+	}
+	revno := rev.SnapRevision()
+	if revno < ra.MinRevision {
+		return fmt.Errorf("snap revision %d is less than min-revision %d", revno, ra.MinRevision)
+	}
+	if ra.MaxRevision != 0 && revno > ra.MaxRevision {
+		return fmt.Errorf("snap revision %d is greater than max-revision %d", revno, ra.MaxRevision)
+	}
+	return nil
 }
 
 // SnapFileSHA3_384 computes the SHA3-384 digest of the given snap file.
@@ -421,6 +534,12 @@ func (snaprev *SnapRevision) SnapSHA3_384() string {
 	return snaprev.HeaderString("snap-sha3-384")
 }
 
+// Provenance returns the optional provenance of the snap (defaults to
+// global-upload).
+func (snaprev *SnapRevision) Provenance() string {
+	return snaprev.HeaderString("provenance")
+}
+
 // SnapID returns the snap id of the snap.
 func (snaprev *SnapRevision) SnapID() string {
 	return snaprev.HeaderString("snap-id")
@@ -449,8 +568,9 @@ func (snaprev *SnapRevision) Timestamp() time.Time {
 
 // Implement further consistency checks.
 func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) error {
-	// TODO: expand this to consider other stores signing on their own
-	if !db.IsTrustedAccount(snaprev.AuthorityID()) {
+	otherProvenance := snaprev.Provenance() != "global-upload"
+	if !otherProvenance && !db.IsTrustedAccount(snaprev.AuthorityID()) {
+		// delegating global-upload revisions is not allowed
 		return fmt.Errorf("snap-revision assertion for snap id %q is not signed by a store: %s", snaprev.SnapID(), snaprev.AuthorityID())
 	}
 	_, err := db.Find(AccountType, map[string]string{
@@ -462,7 +582,7 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 	if err != nil {
 		return err
 	}
-	_, err = db.Find(SnapDeclarationType, map[string]string{
+	a, err := db.Find(SnapDeclarationType, map[string]string{
 		// XXX: mediate getting current series through some context object? this gets the job done for now
 		"series":  release.Series,
 		"snap-id": snaprev.SnapID(),
@@ -472,6 +592,20 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 	}
 	if err != nil {
 		return err
+	}
+	if otherProvenance {
+		decl := a.(*SnapDeclaration)
+		ras := decl.RevisionAuthority(snaprev.Provenance())
+		matchingRevAuthority := false
+		for _, ra := range ras {
+			if err := ra.Check(snaprev); err == nil {
+				matchingRevAuthority = true
+				break
+			}
+		}
+		if !matchingRevAuthority {
+			return fmt.Errorf("snap-revision assertion with provenance %q for snap id %q is not signed by an authorized authority: %s", snaprev.Provenance(), snaprev.SnapID(), snaprev.AuthorityID())
+		}
 	}
 	return nil
 }
@@ -499,8 +633,15 @@ func checkSnapRevisionWhat(headers map[string]interface{}, name, what string) (s
 	return snapRevision, nil
 }
 
+var validProvenance = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
+
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkStringMatches(assert.headers, "provenance", validProvenance)
 	if err != nil {
 		return nil, err
 	}

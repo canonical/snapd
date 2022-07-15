@@ -411,6 +411,12 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "outdated-consumer"
 	case "outdated-producer-id":
 		name = "outdated-producer"
+	// for validation-sets testing
+	case "aaqKhntON3vR7kwEbVPsILm7bUViPDzx":
+		name = "some-snap"
+	// for validation-sets testing
+	case "bgtKhntON3vR7kwEbVPsILm7bUViPDzx":
+		name = "some-other-snap"
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
@@ -752,6 +758,8 @@ type fakeSnappyBackend struct {
 
 	// TODO cleanup triggers above
 	maybeInjectErr func(*fakeOp) error
+
+	infos map[string]*snap.Info
 }
 
 func (f *fakeSnappyBackend) maybeErrForLastOp() error {
@@ -929,8 +937,31 @@ apps:
 		info.Base = "core24"
 	}
 
+	if storedInfo, ok := f.infos[name]; ok {
+		storedInfo.SideInfo = *si
+		info = storedInfo
+	}
+
 	info.InstanceKey = instanceKey
 	return info, nil
+}
+
+func (f *fakeSnappyBackend) addSnapApp(name, app string) {
+	if f.infos == nil {
+		f.infos = make(map[string]*snap.Info)
+	}
+
+	snapYaml := fmt.Sprintf(`name: %s
+apps:
+  %s:
+`, name, app)
+
+	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	if err != nil {
+		panic(err)
+	}
+
+	f.infos[name] = info
 }
 
 func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info) {
@@ -1277,7 +1308,7 @@ func (f *fakeSnappyBackend) UndoHideSnapData(snapName string) error {
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision) (*backend.UndoInfo, error) {
+func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision, opts *dirs.SnapDirOptions) (*backend.UndoInfo, error) {
 	f.appendOp(&fakeOp{op: "init-exposed-snap-home", name: snapName, revno: rev})
 
 	if err := f.maybeErrForLastOp(); err != nil {

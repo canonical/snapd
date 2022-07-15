@@ -26,6 +26,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -173,4 +174,13 @@ func debugEnabledOnKernelCmdline() bool {
 	}
 	m, _ := osutil.KernelCommandLineKeyValues("snapd.debug")
 	return m["snapd.debug"] == "1"
+}
+
+var timeNow = time.Now
+
+// StartupStageTimestamp produce snap startup timings message.
+func StartupStageTimestamp(stage string) {
+	now := timeNow()
+	Debugf(`-- snap startup {"stage":"%s", "time":"%v.%06d"}`,
+		stage, now.Unix(), (now.UnixNano()/1e3)%1e6)
 }

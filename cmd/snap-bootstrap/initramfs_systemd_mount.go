@@ -73,6 +73,8 @@ type systemdMountOptions struct {
 	Bind bool
 	// Read-only mount
 	ReadOnly bool
+	// Private mount
+	Private bool
 }
 
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
@@ -138,6 +140,9 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	}
 	if opts.ReadOnly {
 		options = append(options, "ro")
+	}
+	if opts.Private {
+		options = append(options, "private")
 	}
 	if len(options) > 0 {
 		args = append(args, "--options="+strings.Join(options, ","))

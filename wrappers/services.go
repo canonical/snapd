@@ -159,6 +159,40 @@ X-Snappy=yes
 	return buf.Bytes()
 }
 
+func formatJournalSizeConf(grp *quota.Group) string {
+	if grp.JournalLimit.Size == 0 {
+		return ""
+	}
+	return fmt.Sprintf(`SystemMaxUse=%[1]d
+RuntimeMaxUse=%[1]d
+`, grp.JournalLimit.Size)
+}
+
+func formatJournalRateConf(grp *quota.Group) string {
+	if grp.JournalLimit.RateCount == 0 || grp.JournalLimit.RatePeriod == 0 {
+		return ""
+	}
+	return fmt.Sprintf(`RateLimitIntervalSec=%dus
+RateLimitBurst=%d
+`, grp.JournalLimit.RatePeriod.Microseconds(), grp.JournalLimit.RateCount)
+}
+
+func generateJournaldConfFile(grp *quota.Group) []byte {
+	if grp.JournalLimit == nil {
+		return nil
+	}
+
+	sizeOptions := formatJournalSizeConf(grp)
+	rateOptions := formatJournalRateConf(grp)
+	template := `# Journald configuration for snap quota group %[1]s
+[Journal]
+`
+	buf := bytes.Buffer{}
+	fmt.Fprintf(&buf, template, grp.Name)
+	fmt.Fprint(&buf, sizeOptions, rateOptions)
+	return buf.Bytes()
+}
+
 func stopUserServices(cli *client.Client, inter Interacter, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
@@ -183,43 +217,32 @@ func startUserServices(cli *client.Client, inter Interacter, services ...string)
 }
 
 func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter Interacter) error {
-	serviceName := app.ServiceName()
-	tout := serviceStopTimeout(app)
+	var serviceList []string
 
-	var extraServices []string
+	// Add application sockets
 	for _, socket := range app.Sockets {
-		extraServices = append(extraServices, filepath.Base(socket.File()))
+		serviceList = append(serviceList, filepath.Base(socket.File()))
 	}
+	// Add application timers
 	if app.Timer != nil {
-		extraServices = append(extraServices, filepath.Base(app.Timer.File()))
+		serviceList = append(serviceList, filepath.Base(app.Timer.File()))
 	}
+	// Add application service
+	serviceList = append(serviceList, app.ServiceName())
 
 	switch app.DaemonScope {
 	case snap.SystemDaemon:
-		var stopErrors error
-		if len(extraServices) > 0 {
-			stopErrors = sysd.Stop(extraServices, tout)
-		}
-
-		if err := sysd.Stop([]string{serviceName}, tout); err != nil {
-			if !systemd.IsTimeout(err) {
-				return err
-			}
-			inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
-			// ignore errors for kill; nothing we'd do differently at this point
-			sysd.Kill(serviceName, "TERM", "")
-			time.Sleep(killWait)
-			sysd.Kill(serviceName, "KILL", "")
-		}
-
-		if stopErrors != nil {
-			return stopErrors
+		if err := sysd.Stop(serviceList); err != nil {
+			return err
 		}
 
 	case snap.UserDaemon:
-		extraServices = append(extraServices, serviceName)
 		cli := client.New()
-		return stopUserServices(cli, inter, extraServices...)
+		if err := stopUserServices(cli, inter, serviceList...); err != nil {
+			return err
+		}
+	default:
+		panic("unknown app.DaemonScope")
 	}
 
 	return nil
@@ -706,6 +729,48 @@ func (es *ensureSnapServicesContext) ensureSnapSlices(quotaGroups *quota.QuotaGr
 	return nil
 }
 
+func (es *ensureSnapServicesContext) ensureSnapJournaldUnits(quotaGroups *quota.QuotaGroupSet) error {
+	handleJournalModification := func(grp *quota.Group, path string, content []byte) error {
+		old, modifiedFile, err := tryFileUpdate(path, content)
+		if err != nil {
+			return err
+		}
+
+		if !modifiedFile {
+			return nil
+		}
+
+		// suppress any event and restart if we actually did not do anything
+		// as it seems modifiedFile is set even when the file does not exist
+		// and when the new content is nil.
+		if (old == nil || len(old.Content) == 0) && len(content) == 0 {
+			return nil
+		}
+
+		if es.observeChange != nil {
+			var oldContent []byte
+			if old != nil {
+				oldContent = old.Content
+			}
+			es.observeChange(nil, grp, "journald", grp.Name, string(oldContent), string(content))
+		}
+
+		es.modifiedUnits[path] = old
+		return nil
+	}
+
+	for _, grp := range quotaGroups.AllQuotaGroups() {
+		contents := generateJournaldConfFile(grp)
+		fileName := grp.JournalFileName()
+
+		path := filepath.Join(dirs.SnapSystemdDir, fileName)
+		if err := handleJournalModification(grp, path, contents); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // EnsureSnapServices will ensure that the specified snap services' file states
 // are up to date with the specified options and infos. It will add new services
 // if those units don't already exist, but it does not delete existing service
@@ -749,8 +814,11 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 		return err
 	}
 
-	err = context.ensureSnapSlices(quotaGroups)
-	if err != nil {
+	if err := context.ensureSnapSlices(quotaGroups); err != nil {
+		return err
+	}
+
+	if err := context.ensureSnapJournaldUnits(quotaGroups); err != nil {
 		return err
 	}
 
@@ -846,17 +914,6 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 		})
 		if err != nil {
 			return err
-		}
-
-		// ensure the service is really stopped on remove regardless
-		// of stop-mode
-		if reason == snap.StopReasonRemove && !app.StopMode.KillAll() && app.DaemonScope == snap.SystemDaemon {
-			// FIXME: make this smarter and avoid the killWait
-			//        delay if not needed (i.e. if all processes
-			//        have died)
-			sysd.Kill(app.ServiceName(), "TERM", "all")
-			time.Sleep(killWait)
-			sysd.Kill(app.ServiceName(), "KILL", "")
 		}
 	}
 	if len(disableServices) > 0 {
@@ -1142,6 +1199,9 @@ OOMScoreAdjust={{.OOMAdjustScore}}
 {{- if .SliceUnit}}
 Slice={{.SliceUnit}}
 {{- end}}
+{{- if .LogNamespace}}
+LogNamespace={{.LogNamespace}}
+{{- end}}
 {{- if not (or .App.Sockets .App.Timer .App.ActivatesOn) }}
 
 [Install]
@@ -1214,6 +1274,7 @@ WantedBy={{.ServicesTarget}}
 		After                    []string
 		InterfaceServiceSnippets string
 		SliceUnit                string
+		LogNamespace             string
 
 		Home    string
 		EnvVars string
@@ -1258,6 +1319,9 @@ WantedBy={{.ServicesTarget}}
 	// check the quota group slice
 	if opts.QuotaGroup != nil {
 		wrapperData.SliceUnit = opts.QuotaGroup.SliceFileName()
+		if opts.QuotaGroup.JournalLimit != nil {
+			wrapperData.LogNamespace = opts.QuotaGroup.JournalNamespaceName()
+		}
 	}
 
 	// Add extra "After" targets
@@ -1702,7 +1766,7 @@ func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 				err = sysd.ReloadOrRestart(unit.Name)
 			} else {
 				// note: stop followed by start, not just 'restart'
-				err = sysd.Restart([]string{unit.Name}, 5*time.Second)
+				err = sysd.Restart([]string{unit.Name})
 			}
 		})
 		if err != nil {

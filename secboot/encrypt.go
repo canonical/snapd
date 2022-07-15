@@ -27,3 +27,12 @@ const (
 	EncryptionTypeLUKS            EncryptionType = "cryptsetup"
 	EncryptionTypeDeviceSetupHook EncryptionType = "device-setup-hook"
 )
+
+type RecoveryKeyDevice struct {
+	// Mountpoint of the device
+	Mountpoint string
+	// AuthorizingKeyFile is the path to the key to authorize the
+	// operation, if empty, then it is assumed that the authorization key is
+	// present in the user session keyring
+	AuthorizingKeyFile string
+}
