@@ -120,7 +120,7 @@ func (s *emulation) IsActive(service string) (bool, error) {
 	return false, &notImplementedError{"IsActive"}
 }
 
-func (s *emulation) LogReader(services []string, n int, follow bool) (io.ReadCloser, error) {
+func (s *emulation) LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error) {
 	return nil, fmt.Errorf("LogReader")
 }
 

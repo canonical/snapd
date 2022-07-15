@@ -22,7 +22,6 @@ package servicestate
 import (
 	"errors"
 	"fmt"
-	"log"
 	"sort"
 
 	tomb "gopkg.in/tomb.v2"
@@ -648,7 +647,6 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 
 	// lastly, lets restart journald services which were affected
 	// by the changes to the quota group
-	log.Printf("restarting journald services: %v", journalsToRestart)
 	if len(journalsToRestart) > 0 {
 		if err := systemSysd.Restart(journalsToRestart); err != nil {
 			return nil, err
