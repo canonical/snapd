@@ -129,9 +129,6 @@ backends:
                   image: ubuntu-20.04-64
                   workers: 1
                   secure-boot: true
-            - ubuntu-21.10-64:
-                  storage: 12G
-                  workers: 8
             - ubuntu-22.04-64:
                   storage: 12G
                   workers: 8
@@ -209,10 +206,6 @@ backends:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
                   workers: 7
-            - ubuntu-21.10-64:
-                  image: ubuntu-2110-64-virt-enabled
-                  storage: 20G
-                  workers: 3
             - ubuntu-22.04-64:
                   image: ubuntu-2204-64-virt-enabled
                   storage: 20G
@@ -281,9 +274,6 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-32:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-21.10-64:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-64:
