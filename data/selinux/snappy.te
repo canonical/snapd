@@ -907,3 +907,10 @@ optional_policy(`
   ')
   allow system_dbusd_t  snappy_var_lib_t:dir watch;
 ')
+
+########################################
+#
+# policy for systemd-run pipes
+#
+allow init_t snappy_t:fifo_file write;
+allow system_dbusd_t snappy_t:fifo_file write;
