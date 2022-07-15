@@ -72,6 +72,7 @@ type initramfsMountsSuite struct {
 	kernelr2 snap.PlaceInfo
 	core20   snap.PlaceInfo
 	core20r2 snap.PlaceInfo
+	gadget   snap.PlaceInfo
 	snapd    snap.PlaceInfo
 }
 
@@ -269,6 +270,9 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.core20r2, err = snap.ParsePlaceInfoFromSnapFileName("core20_2.snap")
+	c.Assert(err, IsNil)
+
+	s.gadget, err = snap.ParsePlaceInfoFromSnapFileName("pc_1.snap")
 	c.Assert(err, IsNil)
 
 	s.snapd, err = snap.ParsePlaceInfoFromSnapFileName("snapd_1.snap")
@@ -513,6 +517,9 @@ func (s *initramfsMountsSuite) makeSeedSnapSystemdMount(typ snap.Type) systemdMo
 	case snap.TypeBase:
 		name = "core20"
 		dir = "base"
+	case snap.TypeGadget:
+		name = "pc"
+		dir = "gadget"
 	case snap.TypeKernel:
 		name = "pc-kernel"
 		dir = "kernel"
@@ -532,6 +539,8 @@ func (s *initramfsMountsSuite) makeRunSnapSystemdMount(typ snap.Type, sn snap.Pl
 		dir = "snapd"
 	case snap.TypeBase:
 		dir = "base"
+	case snap.TypeGadget:
+		dir = "gadget"
 	case snap.TypeKernel:
 		dir = "kernel"
 	}
@@ -582,6 +591,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -598,6 +608,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -638,6 +649,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) 
 			s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 			s.makeSeedSnapSystemdMount(snap.TypeKernel),
 			s.makeSeedSnapSystemdMount(snap.TypeBase),
+			s.makeSeedSnapSystemdMount(snap.TypeGadget),
 			{
 				"tmpfs",
 				boot.InitramfsDataDir,
@@ -705,6 +717,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
 			ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 			ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
 			s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+			s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 			s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 		}, nil)
 		defer restore()
@@ -718,12 +731,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
 		restore = bloader.SetEnabledKernel(s.kernel)
 		defer restore()
 
-		makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+		makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
 
 		// write modeenv with boot flags
 		modeEnv := boot.Modeenv{
 			Mode:           "run",
 			Base:           s.core20.Filename(),
+			Gadget:         s.gadget.Filename(),
 			CurrentKernels: []string{s.kernel.Filename()},
 			BootFlags:      t.bootFlags,
 		}
@@ -775,6 +789,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHap
 			s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 			s.makeSeedSnapSystemdMount(snap.TypeKernel),
 			s.makeSeedSnapSystemdMount(snap.TypeBase),
+			s.makeSeedSnapSystemdMount(snap.TypeGadget),
 			{
 				"tmpfs",
 				boot.InitramfsDataDir,
@@ -819,6 +834,7 @@ defaults:
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -844,6 +860,7 @@ defaults:
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -877,6 +894,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -893,6 +911,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -901,6 +920,55 @@ grade=signed
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHappy(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-boot", "run"),
+		ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
+		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+	}, nil)
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMount(c *C) {
+	// M
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
@@ -931,9 +999,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHapp
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
 
-	// write modeenv
+	// write modeenv, with no gadget field so the gadget is not mounted
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
 		Base:           s.core20.Filename(),
@@ -993,6 +1061,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 				ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 				ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 				s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+				s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 				s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 			}
 
@@ -1012,12 +1081,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 			restore = bloader.SetEnabledKernel(s.kernel)
 			cleanups = append(cleanups, restore)
 
-			makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+			makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
 
 			// write modeenv
 			modeEnv := boot.Modeenv{
 				Mode:           "run",
 				Base:           s.core20.Filename(),
+				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
 			}
 
@@ -1066,6 +1136,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeNoSaveUnencrypted(c *C)
 		ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 	}, nil)
 	defer restore()
@@ -1079,12 +1150,13 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeNoSaveUnencrypted(c *C)
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
 		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
 	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
@@ -1169,6 +1241,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
 	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
+	gadgetMnt := filepath.Join(boot.InitramfsRunMntDir, "gadget")
 	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
 	snapdMnt := filepath.Join(boot.InitramfsRunMntDir, "snapd")
 
@@ -1188,23 +1261,21 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 		// aren't mounted by the time systemd-mount returns
 		case 1, 2:
 			c.Assert(where, Equals, boot.InitramfsUbuntuSeedDir)
-			return n%2 == 0, nil
 		case 3, 4:
 			c.Assert(where, Equals, snapdMnt)
-			return n%2 == 0, nil
 		case 5, 6:
 			c.Assert(where, Equals, kernelMnt)
-			return n%2 == 0, nil
 		case 7, 8:
 			c.Assert(where, Equals, baseMnt)
-			return n%2 == 0, nil
 		case 9, 10:
+			c.Assert(where, Equals, gadgetMnt)
+		case 11, 12:
 			c.Assert(where, Equals, boot.InitramfsDataDir)
-			return n%2 == 0, nil
 		default:
 			c.Errorf("unexpected IsMounted check on %s", where)
 			return false, fmt.Errorf("unexpected IsMounted check on %s", where)
 		}
+		return n%2 == 0, nil
 	})
 	defer restore()
 
@@ -1242,6 +1313,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 			systemd.EscapeUnitNamePath(snapdMnt),
 			systemd.EscapeUnitNamePath(kernelMnt),
 			systemd.EscapeUnitNamePath(baseMnt),
+			systemd.EscapeUnitNamePath(gadgetMnt),
 			systemd.EscapeUnitNamePath(boot.InitramfsDataDir),
 		} {
 			fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
@@ -1253,7 +1325,7 @@ Wants=%[1]s
 	}
 
 	// 2 IsMounted calls per mount point, so 10 total IsMounted calls
-	c.Assert(n, Equals, 10)
+	c.Assert(n, Equals, 12)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -1294,6 +1366,15 @@ Wants=%[1]s
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.gadget.Filename()),
+			gadgetMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=ro,private",
+			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
 			"tmpfs",
 			boot.InitramfsDataDir,
 			"--no-pager",
@@ -1310,6 +1391,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
 	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
+	gadgetMnt := filepath.Join(boot.InitramfsRunMntDir, "gadget")
 	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
 	snapdMnt := filepath.Join(boot.InitramfsRunMntDir, "snapd")
 
@@ -1338,29 +1420,25 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 		// aren't mounted by the time systemd-mount returns
 		case 1, 2:
 			c.Assert(where, Equals, boot.InitramfsUbuntuSeedDir)
-			return n%2 == 0, nil
 		case 3, 4:
 			c.Assert(where, Equals, snapdMnt)
-			return n%2 == 0, nil
 		case 5, 6:
 			c.Assert(where, Equals, kernelMnt)
-			return n%2 == 0, nil
 		case 7, 8:
 			c.Assert(where, Equals, baseMnt)
-			return n%2 == 0, nil
 		case 9, 10:
-			c.Assert(where, Equals, boot.InitramfsDataDir)
-			return n%2 == 0, nil
+			c.Assert(where, Equals, gadgetMnt)
 		case 11, 12:
-			c.Assert(where, Equals, boot.InitramfsUbuntuBootDir)
-			return n%2 == 0, nil
+			c.Assert(where, Equals, boot.InitramfsDataDir)
 		case 13, 14:
+			c.Assert(where, Equals, boot.InitramfsUbuntuBootDir)
+		case 15, 16:
 			c.Assert(where, Equals, boot.InitramfsHostUbuntuDataDir)
-			return n%2 == 0, nil
 		default:
 			c.Errorf("unexpected IsMounted check on %s", where)
 			return false, fmt.Errorf("unexpected IsMounted check on %s", where)
 		}
+		return n%2 == 0, nil
 	})
 	defer restore()
 
@@ -1415,6 +1493,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 			systemd.EscapeUnitNamePath(snapdMnt),
 			systemd.EscapeUnitNamePath(kernelMnt),
 			systemd.EscapeUnitNamePath(baseMnt),
+			systemd.EscapeUnitNamePath(gadgetMnt),
 			systemd.EscapeUnitNamePath(boot.InitramfsDataDir),
 			systemd.EscapeUnitNamePath(boot.InitramfsHostUbuntuDataDir),
 		} {
@@ -1427,7 +1506,7 @@ Wants=%[1]s
 	}
 
 	// 2 IsMounted calls per mount point, so 14 total IsMounted calls
-	c.Assert(n, Equals, 14)
+	c.Assert(n, Equals, 16)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -1461,6 +1540,15 @@ Wants=%[1]s
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
 			baseMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=ro,private",
+			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.gadget.Filename()),
+			gadgetMnt,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
@@ -1521,6 +1609,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSy
 	defer restore()
 
 	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
+	gadgetMnt := filepath.Join(boot.InitramfsRunMntDir, "gadget")
 	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
 	snapdMnt := filepath.Join(boot.InitramfsRunMntDir, "snapd")
 
@@ -1579,6 +1668,7 @@ Wants=%[1]s
 		snapdMnt,
 		kernelMnt,
 		baseMnt,
+		gadgetMnt,
 		boot.InitramfsDataDir,
 		boot.InitramfsUbuntuBootDir,
 		boot.InitramfsHostUbuntuDataDir,
@@ -1616,6 +1706,15 @@ Wants=%[1]s
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
 			baseMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=ro,private",
+			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.gadget.Filename()),
+			gadgetMnt,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
@@ -1680,6 +1779,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 	defer restore()
 
 	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
+	gadgetMnt := filepath.Join(boot.InitramfsRunMntDir, "gadget")
 	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
 
 	// don't do anything from systemd-mount, we verify the arguments passed at
@@ -1698,23 +1798,21 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 		// aren't mounted by the time systemd-mount returns
 		case 1, 2:
 			c.Assert(where, Equals, boot.InitramfsUbuntuBootDir)
-			return n%2 == 0, nil
 		case 3, 4:
 			c.Assert(where, Equals, boot.InitramfsUbuntuSeedDir)
-			return n%2 == 0, nil
 		case 5, 6:
 			c.Assert(where, Equals, boot.InitramfsDataDir)
-			return n%2 == 0, nil
 		case 7, 8:
 			c.Assert(where, Equals, baseMnt)
-			return n%2 == 0, nil
 		case 9, 10:
+			c.Assert(where, Equals, gadgetMnt)
+		case 11, 12:
 			c.Assert(where, Equals, kernelMnt)
-			return n%2 == 0, nil
 		default:
 			c.Errorf("unexpected IsMounted check on %s", where)
 			return false, fmt.Errorf("unexpected IsMounted check on %s", where)
 		}
+		return n%2 == 0, nil
 	})
 	defer restore()
 
@@ -1727,12 +1825,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
 		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
 	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
@@ -1752,6 +1851,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
 			systemd.EscapeUnitNamePath(boot.InitramfsDataDir),
 			systemd.EscapeUnitNamePath(baseMnt),
+			systemd.EscapeUnitNamePath(gadgetMnt),
 			systemd.EscapeUnitNamePath(kernelMnt),
 		} {
 			fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
@@ -1763,7 +1863,7 @@ Wants=%[1]s
 	}
 
 	// 2 IsMounted calls per mount point, so 10 total IsMounted calls
-	c.Assert(n, Equals, 10)
+	c.Assert(n, Equals, 12)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -1804,6 +1904,15 @@ Wants=%[1]s
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
+			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.gadget.Filename()),
+			gadgetMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=ro,private",
+			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.kernel.Filename()),
 			kernelMnt,
 			"--no-pager",
@@ -1828,6 +1937,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystem
 	defer restore()
 
 	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
+	gadgetMnt := filepath.Join(boot.InitramfsRunMntDir, "gadget")
 	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
 
 	// don't do anything from systemd-mount, we verify the arguments passed at
@@ -1851,12 +1961,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystem
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
 		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
 	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
@@ -1886,6 +1997,7 @@ Wants=%[1]s
 		boot.InitramfsDataDir,
 		boot.InitramfsUbuntuSaveDir,
 		baseMnt,
+		gadgetMnt,
 		kernelMnt,
 	})
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
@@ -1936,6 +2048,15 @@ Wants=%[1]s
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
+			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.gadget.Filename()),
+			gadgetMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=ro,private",
+			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.kernel.Filename()),
 			kernelMnt,
 			"--no-pager",
@@ -1965,6 +2086,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 		ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 		// RecoverySystem set makes us mount the snapd snap here
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
@@ -1980,13 +2102,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191118",
 		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
 	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
@@ -2023,6 +2146,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 		ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 	}, nil)
 	defer restore()
@@ -2036,12 +2160,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
 		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
 	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
@@ -2086,6 +2211,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 			nil,
 		},
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 	}, nil)
 	defer restore()
@@ -2157,12 +2283,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	restore = bloader.SetEnabledKernel(s.kernel)
 	defer restore()
 
-	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
 		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
 	err = modeEnv.WriteTo(boot.InitramfsWritableDir)
@@ -2453,16 +2580,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
 				Base:           s.core20.Filename(),
+				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
 			},
 			additionalMountsFunc: func() []systemdMount {
 				return []systemdMount{
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 				}
 			},
 			enableKernel: s.kernel,
-			snapFiles:    []snap.PlaceInfo{s.core20, s.kernel},
+			snapFiles:    []snap.PlaceInfo{s.core20, s.gadget, s.kernel},
 			comment:      "happy default no upgrades",
 		},
 
@@ -2471,18 +2600,20 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
 				Base:           s.core20.Filename(),
+				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename(), s.kernelr2.Filename()},
 			},
 			additionalMountsFunc: func() []systemdMount {
 				return []systemdMount{
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernelr2),
 				}
 			},
 			kernelStatus:    boot.TryingStatus,
 			enableKernel:    s.kernel,
 			enableTryKernel: s.kernelr2,
-			snapFiles:       []snap.PlaceInfo{s.core20, s.kernel, s.kernelr2},
+			snapFiles:       []snap.PlaceInfo{s.core20, s.gadget, s.kernel, s.kernelr2},
 			comment:         "happy kernel snap upgrade",
 		},
 		{
@@ -2491,21 +2622,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryStatus,
+				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
 			},
 			additionalMountsFunc: func() []systemdMount {
 				return []systemdMount{
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20r2),
+					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 				}
 			},
 			enableKernel: s.kernel,
-			snapFiles:    []snap.PlaceInfo{s.kernel, s.core20, s.core20r2},
+			snapFiles:    []snap.PlaceInfo{s.kernel, s.gadget, s.core20, s.core20r2},
 			expModeenv: &boot.Modeenv{
 				Mode:           "run",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryingStatus,
+				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
 			},
 			comment: "happy base snap upgrade",
@@ -2516,23 +2650,26 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryStatus,
+				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename(), s.kernelr2.Filename()},
 			},
 			additionalMountsFunc: func() []systemdMount {
 				return []systemdMount{
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20r2),
+					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernelr2),
 				}
 			},
 			enableKernel:    s.kernel,
 			enableTryKernel: s.kernelr2,
-			snapFiles:       []snap.PlaceInfo{s.kernel, s.kernelr2, s.core20, s.core20r2},
+			snapFiles:       []snap.PlaceInfo{s.kernel, s.kernelr2, s.core20, s.core20r2, s.gadget},
 			kernelStatus:    boot.TryingStatus,
 			expModeenv: &boot.Modeenv{
 				Mode:           "run",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryingStatus,
+				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename(), s.kernelr2.Filename()},
 			},
 			comment: "happy simultaneous base snap and kernel snap upgrade",
@@ -2544,17 +2681,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 				Mode:           "run",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
+				Gadget:         s.gadget.Filename(),
 				BaseStatus:     boot.TryStatus,
 				CurrentKernels: []string{s.kernel.Filename()},
 			},
 			additionalMountsFunc: func() []systemdMount {
 				return []systemdMount{
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 				}
 			},
 			enableKernel: s.kernel,
-			snapFiles:    []snap.PlaceInfo{s.kernel, s.core20},
+			snapFiles:    []snap.PlaceInfo{s.kernel, s.core20, s.gadget},
 			comment:      "happy fallback try base not existing",
 		},
 		{
@@ -2563,16 +2702,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 				Base:           s.core20.Filename(),
 				BaseStatus:     boot.TryStatus,
 				TryBase:        "",
+				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
 			},
 			additionalMountsFunc: func() []systemdMount {
 				return []systemdMount{
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 				}
 			},
 			enableKernel: s.kernel,
-			snapFiles:    []snap.PlaceInfo{s.kernel, s.core20},
+			snapFiles:    []snap.PlaceInfo{s.kernel, s.core20, s.gadget},
 			comment:      "happy fallback base_status try, empty try_base",
 		},
 		{
@@ -2581,21 +2722,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.TryingStatus,
+				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
 			},
 			additionalMountsFunc: func() []systemdMount {
 				return []systemdMount{
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 				}
 			},
 			enableKernel: s.kernel,
-			snapFiles:    []snap.PlaceInfo{s.kernel, s.core20, s.core20r2},
+			snapFiles:    []snap.PlaceInfo{s.kernel, s.core20, s.core20r2, s.gadget},
 			expModeenv: &boot.Modeenv{
 				Mode:           "run",
 				Base:           s.core20.Filename(),
 				TryBase:        s.core20r2.Filename(),
 				BaseStatus:     boot.DefaultStatus,
+				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
 			},
 			comment: "happy fallback failed boot with try snap",
@@ -2604,11 +2748,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
 				Base:           s.core20.Filename(),
+				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
 			},
 			enableKernel:    s.kernel,
 			enableTryKernel: s.kernelr2,
-			snapFiles:       []snap.PlaceInfo{s.core20, s.kernel, s.kernelr2},
+			snapFiles:       []snap.PlaceInfo{s.core20, s.gadget, s.kernel, s.kernelr2},
 			kernelStatus:    boot.TryingStatus,
 			expRebootPanic:  "reboot due to untrusted try kernel snap",
 			comment:         "happy fallback untrusted try kernel snap",
@@ -2622,11 +2767,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
 				Base:           s.core20.Filename(),
+				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
 			},
 			kernelStatus:   boot.TryingStatus,
 			enableKernel:   s.kernel,
-			snapFiles:      []snap.PlaceInfo{s.core20, s.kernel},
+			snapFiles:      []snap.PlaceInfo{s.core20, s.kernel, s.gadget},
 			expRebootPanic: "reboot due to no try kernel snap",
 			comment:        "happy fallback kernel_status trying no try kernel",
 		},
@@ -2643,10 +2789,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
 				Base:           s.core20.Filename(),
+				Gadget:         s.gadget.Filename(),
 				CurrentKernels: []string{s.kernel.Filename()},
 			},
 			enableKernel: s.kernelr2,
-			snapFiles:    []snap.PlaceInfo{s.core20, s.kernelr2},
+			snapFiles:    []snap.PlaceInfo{s.core20, s.kernelr2, s.gadget},
 			expError:     fmt.Sprintf("fallback kernel snap %q is not trusted in the modeenv", s.kernelr2.Filename()),
 			comment:      "unhappy untrusted main kernel snap",
 		},
@@ -2767,6 +2914,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeUpdateBootloaderVars(
 		ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, *finalKernel),
 	}, nil)
 	defer restore()
@@ -2783,12 +2931,13 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeUpdateBootloaderVars(
 	restore = bloader.SetEnabledTryKernel(s.kernelr2)
 	defer restore()
 
-	makeSnapFilesOnEarlyBootUbuntuData(c, s.core20, s.kernel, s.kernelr2)
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.core20, s.gadget, s.kernel, s.kernelr2)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
 		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename(), s.kernelr2.Filename()},
 	}
 	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
@@ -2886,6 +3035,7 @@ func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -2945,6 +3095,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -3033,6 +3184,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHap
 			s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 			s.makeSeedSnapSystemdMount(snap.TypeKernel),
 			s.makeSeedSnapSystemdMount(snap.TypeBase),
+			s.makeSeedSnapSystemdMount(snap.TypeGadget),
 			{
 				"tmpfs",
 				boot.InitramfsDataDir,
@@ -3116,6 +3268,7 @@ defaults:
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -3200,6 +3353,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -3319,6 +3473,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -3477,6 +3632,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -3654,6 +3810,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -3823,6 +3980,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -3985,6 +4143,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -4153,6 +4312,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -4192,6 +4352,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -4341,6 +4502,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataU
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -4380,6 +4542,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataU
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -4530,6 +4693,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -4675,6 +4839,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -4791,6 +4956,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnen
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -4936,6 +5102,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -4975,6 +5142,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -5140,6 +5308,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -5173,6 +5342,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -5307,6 +5477,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -5352,6 +5523,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -5517,6 +5689,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -5563,6 +5736,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -5656,6 +5830,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 		c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -5704,6 +5879,7 @@ func (s *initramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, tr
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -5805,6 +5981,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryInconsistent(c *C) 
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -5915,6 +6092,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDifferentSystem(c *
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -5961,6 +6139,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expe
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -6347,6 +6526,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -6385,6 +6565,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 	c.Check(modeEnv, testutil.FileEquals, `mode=factory-reset
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -6454,6 +6635,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -6481,6 +6663,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 	c.Check(modeEnv, testutil.FileEquals, `mode=factory-reset
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -6538,6 +6721,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -6559,6 +6743,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 	c.Check(modeEnv, testutil.FileEquals, `mode=factory-reset
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -6637,6 +6822,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyUnlockE
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -6669,6 +6855,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyUnlockE
 	c.Check(modeEnv, testutil.FileEquals, `mode=factory-reset
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
@@ -6740,6 +6927,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyMountEn
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
 			boot.InitramfsDataDir,
@@ -6778,6 +6966,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyMountEn
 	c.Check(modeEnv, testutil.FileEquals, `mode=factory-reset
 recovery_system=20191118
 base=core20_1.snap
+gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
