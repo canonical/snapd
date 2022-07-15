@@ -1970,6 +1970,8 @@ func (s *changeSuite) TestPerformFileBindUnmountOnTmpfsEmpty(c *C) {
 
 // Change.Perform wants to unmount a file bind mount made on empty tmpfs placeholder but it is busy!.
 func (s *changeSuite) TestPerformFileBindUnmountOnTmpfsEmptyButBusy(c *C) {
+	restore := osutil.MockMountInfo("")
+	defer restore()
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Size: 0})
 	s.sys.InsertFault(`remove "/target"`, syscall.EBUSY)

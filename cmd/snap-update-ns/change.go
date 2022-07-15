@@ -468,7 +468,13 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			if err == syscall.EBUSY {
 				// It's still unclear how this can happen. For the time being
 				// let the operation succeed and log the event.
-				logger.Debugf("cannot remove mount point, got EBUSY: %q", path)
+				logger.Noticef("cannot remove mount point, got EBUSY: %q", path)
+				if isMount, err := osutil.IsMounted(path); isMount {
+					mounts, _ := osutil.LoadMountInfo()
+					logger.Noticef("%q is still mounted:\n%s", path, mounts)
+				} else if err != nil {
+					logger.Noticef("cannot read mountinfo: %v", err)
+				}
 				return nil
 			}
 			// If we were removing a directory but it was not empty then just
