@@ -246,6 +246,9 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.AddCleanup(devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
 		return true, nil
 	}))
+	s.AddCleanup(devicestate.MockSecbootMarkSuccessful(func() error {
+		return nil
+	}))
 }
 
 func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
@@ -506,6 +509,13 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.setPCModelInState(c)
 
+	secbootMarkSuccessfulCalled := 0
+	r := devicestate.MockSecbootMarkSuccessful(func() error {
+		secbootMarkSuccessfulCalled++
+		return nil
+	})
+	defer r()
+
 	s.bootloader.SetBootVars(map[string]string{
 		"snap_mode":     boot.TryingStatus,
 		"snap_try_core": "core_1.snap",
@@ -525,6 +535,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	err := devicestate.EnsureBootOk(s.mgr)
 	s.state.Lock()
 	c.Assert(err, IsNil)
+	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
 
 	m, err := s.bootloader.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)

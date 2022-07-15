@@ -746,9 +746,30 @@ func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, deleg
 		return nil, nil
 	}
 	if !signingKey.isValidAssumingCurTimeWithin(checkTimeEarliest, checkTimeLatest) {
-		return nil, fmt.Errorf("assertion is signed with expired public key %q from %q", assert.SignKeyID(), assert.SignatoryID())
+		mismatchReason := timeMismatchMsg(checkTimeEarliest, checkTimeLatest, signingKey.since, signingKey.until)
+		return nil, fmt.Errorf("assertion is signed with expired public key %q from %q: %s", assert.SignKeyID(), assert.SignatoryID(), mismatchReason)
 	}
 	return delegationConstraints, nil
+}
+
+func timeMismatchMsg(earliest, latest, keySince, keyUntil time.Time) string {
+	var msg string
+
+	validFrom := earliest.Format(time.RFC3339)
+	if !latest.IsZero() && !latest.Equal(earliest) {
+		validTo := latest.Format(time.RFC3339)
+		msg = fmt.Sprintf("current time range is [%s, %s]", validFrom, validTo)
+	} else {
+		msg = fmt.Sprintf("current time is %s", validFrom)
+	}
+
+	keyFrom := keySince.Format(time.RFC3339)
+	if !keyUntil.IsZero() {
+		keyTo := keyUntil.Format(time.RFC3339)
+		return msg + fmt.Sprintf(" but key is valid during [%s, %s)", keyFrom, keyTo)
+	}
+
+	return msg + fmt.Sprintf(" but key is valid from %s", keyFrom)
 }
 
 // CheckSignature checks that the signature is valid.
