@@ -166,6 +166,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 			Website: update.Website,
 			Media:   update.Media,
 		},
+		ExpectedProvenance: update.SnapProvenance,
 	}
 	snapsup.IgnoreRunning = globalFlags.IgnoreRunning
 	return &snapsup, snapst, nil
@@ -1142,7 +1143,8 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 			Media:   info.Media,
 			Website: info.Website,
 		},
-		CohortKey: opts.CohortKey,
+		CohortKey:          opts.CohortKey,
+		ExpectedProvenance: info.SnapProvenance,
 	}
 
 	if sar.RedirectChannel != "" {
@@ -1311,6 +1313,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 			Type:               info.Type(),
 			PlugsOnly:          len(info.Slots) == 0,
 			InstanceKey:        info.InstanceKey,
+			ExpectedProvenance: info.SnapProvenance,
 		}
 
 		ts, err := doInstall(st, &snapst, snapsup, 0, "", inUseFor(deviceCtx))

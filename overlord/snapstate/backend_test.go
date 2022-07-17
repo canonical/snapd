@@ -323,6 +323,10 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		slot.Apps["dbus-daemon"] = info.Apps["dbus-daemon"]
 	}
 
+	if spec.Name == "provenance-snap" {
+		info.SnapProvenance = "prov"
+	}
+
 	return info, nil
 }
 
@@ -417,6 +421,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	// for validation-sets testing
 	case "bgtKhntON3vR7kwEbVPsILm7bUViPDzx":
 		name = "some-other-snap"
+	case "provenance-snap-id":
+		name = "provenance-snap"
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
@@ -475,6 +481,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 				Attrs:     map[string]interface{}{"content": "some-content"},
 			},
 		}
+	} else if name == "provenance-snap" {
+		info.SnapProvenance = "prov"
 	}
 
 	switch cand.channel {
