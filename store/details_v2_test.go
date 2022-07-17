@@ -120,7 +120,7 @@ const (
   },
   "revision": 21,
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
-  "snap-yaml": "name: test-snapd-content-plug\nversion: 1.0\nassumes: [snapd2.49]\napps:\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\n",
+  "snap-yaml": "name: test-snapd-content-plug\nversion: 1.0\nassumes: [snapd2.49]\napps:\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\nprovenance: prov\n",
   "store-url": "https://snapcraft.io/thingy",
   "summary": "useful thingy",
   "title": "This Is The Most Fantastical Snap of Thingy",
@@ -254,9 +254,10 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_01.png"},
 			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", Width: 600, Height: 200},
 		},
-		CommonIDs: []string{"org.thingy"},
-		Website:   "http://example.com/thingy",
-		StoreURL:  "https://snapcraft.io/thingy",
+		CommonIDs:      []string{"org.thingy"},
+		Website:        "http://example.com/thingy",
+		StoreURL:       "https://snapcraft.io/thingy",
+		SnapProvenance: "prov",
 	})
 
 	// validate the plugs/slots
@@ -308,7 +309,6 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"SideInfo.EditedLinks",         // TODO: take this value from the store
 		"DownloadInfo.AnonDownloadURL", // TODO: going away at some point
 		"SystemUsernames",
-		"SnapProvenance", // TODO: take this value
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {
