@@ -208,7 +208,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		return AppNotFound("no matching services")
 	}
 
-	reader, err := servicestate.SnapAppsLogReader(appInfos, n, follow)
+	reader, err := servicestate.LogReader(appInfos, n, follow)
 	if err != nil {
 		return InternalError("cannot get logs: %v", err)
 	}
