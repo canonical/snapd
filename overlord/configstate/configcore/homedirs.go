@@ -21,11 +21,13 @@ package configcore
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sysconfig"
@@ -33,8 +35,8 @@ import (
 
 // For mocking in tests
 var (
-	osOpenFile = os.OpenFile
-	osStat     = os.Stat
+	ioutilWriteFile = ioutil.WriteFile
+	osutilDirExists = osutil.DirExists
 
 	apparmorUpdateHomedirsTunable = apparmor.UpdateHomedirsTunable
 	apparmorReloadAllSnapProfiles = apparmor.ReloadAllSnapProfiles
@@ -79,13 +81,8 @@ func updateHomedirsConfig(config string) error {
 	}
 
 	configPath := filepath.Join(snapStateDir, "system-params")
-	f, err := osOpenFile(configPath, os.O_WRONLY|os.O_CREATE, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if _, err := fmt.Fprintf(f, "homedirs=%s\n", config); err != nil {
+	contents := fmt.Sprintf("homedirs=%s\n", config)
+	if err := ioutilWriteFile(configPath, []byte(contents), 0644); err != nil {
 		return err
 	}
 
@@ -162,14 +159,17 @@ func validateHomedirsConfiguration(tr config.ConfGetter) error {
 			return fmt.Errorf("path %q unsupported: must start with one of: %s", dir, formattedList)
 		}
 
-		info, err := osStat(dir)
+		exists, isDir, err := osutilDirExists(dir)
 		if err != nil {
-			// TODO: actually decide if this should be returned as an error;
-			// there's no harm in letting this pass even if the directory does
-			// not exist, as long as snap-confine handles it properly.
 			return fmt.Errorf("cannot get directory info for %q: %v", dir, err)
 		}
-		if !info.IsDir() {
+		if !exists {
+			// There's no harm in letting this pass even if the directory does
+			// not exist, as long as snap-confine handles it properly. But for
+			// the time being let's err on the safe side.
+			return fmt.Errorf("path %q does not exist", dir)
+		}
+		if !isDir {
 			return fmt.Errorf("path %q is not a directory", dir)
 		}
 	}

@@ -24,41 +24,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 )
-
-type mockedFileInfo struct {
-	isDir bool
-}
-
-func (f *mockedFileInfo) Name() string {
-	return ""
-}
-
-func (f *mockedFileInfo) Size() int64 {
-	return 0
-}
-
-func (f *mockedFileInfo) Mode() os.FileMode {
-	return 0
-}
-
-func (f *mockedFileInfo) ModTime() time.Time {
-	return time.Unix(0, 0)
-}
-
-func (f *mockedFileInfo) IsDir() bool {
-	return f.isDir
-}
-
-func (f *mockedFileInfo) Sys() interface{} {
-	return nil
-}
 
 type homedirsSuite struct {
 	configcoreSuite
@@ -77,13 +48,16 @@ func (s *homedirsSuite) SetUpTest(c *C) {
 		c.Assert(err, IsNil)
 	})
 
-	restore := configcore.MockStat(func(path string) (os.FileInfo, error) {
-		if strings.HasPrefix(path, "/home/existingDir") {
-			return &mockedFileInfo{isDir: true}, nil
-		} else if strings.HasPrefix(path, "/home/existingFile") {
-			return &mockedFileInfo{isDir: false}, nil
-		} else {
-			return nil, errors.New("stat failed")
+	restore := configcore.MockDirExists(func(path string) (exists bool, isDir bool, err error) {
+		switch {
+		case strings.HasPrefix(path, "/home/existingDir"):
+			return true, true, nil
+		case strings.HasPrefix(path, "/home/existingFile"):
+			return true, false, nil
+		case strings.HasPrefix(path, "/home/missing"):
+			return false, false, nil
+		default:
+			return false, false, errors.New("stat failed")
 		}
 	})
 	s.AddCleanup(restore)
@@ -101,7 +75,8 @@ func (s *homedirsSuite) TestValidationUnhappy(c *C) {
 		{"/somewhere/else", `path "/somewhere/else/" unsupported: must start with one of: /home/`},
 		{"/home/foo[12]", `home path invalid: "/home/foo\[12\]" contains a reserved apparmor char.*`},
 		{"/lib/homes", `path "/lib/homes/" uses reserved root directory "/lib/"`},
-		{"/home/missing", `cannot get directory info for "/home/missing/".*`},
+		{"/home/error", `cannot get directory info for "/home/error/".*`},
+		{"/home/missing", `path "/home/missing/" does not exist`},
 		{"/home/existingFile", `path "/home/existingFile/" is not a directory`},
 	} {
 		err := configcore.Run(coreDev, &mockConf{
@@ -114,30 +89,9 @@ func (s *homedirsSuite) TestValidationUnhappy(c *C) {
 	}
 }
 
-func (s *homedirsSuite) TestConfigureOpenFailure(c *C) {
-	var systemInfoPath string
-	restore := configcore.MockOpenFile(func(path string, flags int, mode os.FileMode) (*os.File, error) {
-		systemInfoPath = path
-		return nil, errors.New("open failure")
-	})
-	defer restore()
-	err := configcore.Run(coreDev, &mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			"homedirs": "/home/existingDir",
-		},
-	})
-	expectedPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system-params")
-	c.Check(systemInfoPath, Equals, expectedPath)
-	c.Assert(err, ErrorMatches, "open failure")
-}
-
 func (s *homedirsSuite) TestConfigureWriteFailure(c *C) {
-	restore := configcore.MockOpenFile(func(path string, flags int, mode os.FileMode) (*os.File, error) {
-		file, err := os.OpenFile(path, flags, mode)
-		// But now close the file so that the write will fail
-		file.Close()
-		return file, err
+	restore := configcore.MockWriteFile(func(path string, contents []byte, mode os.FileMode) error {
+		return errors.New("some write error")
 	})
 	defer restore()
 	err := configcore.Run(coreDev, &mockConf{
@@ -146,7 +100,7 @@ func (s *homedirsSuite) TestConfigureWriteFailure(c *C) {
 			"homedirs": "/home/existingDir",
 		},
 	})
-	c.Assert(err, ErrorMatches, "write .*system-params: file already closed")
+	c.Assert(err, ErrorMatches, "some write error")
 }
 
 func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
@@ -162,8 +116,8 @@ func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
 			"homedirs": "/home/existingDir/one,/home/existingDir/two",
 		},
 	})
+	c.Check(err, ErrorMatches, "tunable error")
 	c.Check(homedirs, DeepEquals, []string{"/home/existingDir/one", "/home/existingDir/two"})
-	c.Assert(err, ErrorMatches, "tunable error")
 }
 
 func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
@@ -194,8 +148,8 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 			"homedirs": "/home/existingDir",
 		},
 	})
+	c.Check(err, IsNil)
 	c.Check(reloadProfilesCallCount, Equals, 1)
-	c.Assert(err, IsNil)
 }
 
 func (s *homedirsSuite) TestConfigureHomedirsEmptyHappy(c *C) {
@@ -211,6 +165,6 @@ func (s *homedirsSuite) TestConfigureHomedirsEmptyHappy(c *C) {
 			"homedirs": "",
 		},
 	})
+	c.Check(err, IsNil)
 	c.Check(passedHomeDirs, HasLen, 0)
-	c.Assert(err, IsNil)
 }

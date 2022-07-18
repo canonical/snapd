@@ -58,15 +58,15 @@ func MockChownPath(f func(string, sys.UserID, sys.GroupID) error) func() {
 	}
 }
 
-func MockOpenFile(f func(string, int, os.FileMode) (*os.File, error)) func() {
-	r := testutil.Backup(&osOpenFile)
-	osOpenFile = f
+func MockWriteFile(f func(string, []byte, os.FileMode) error) func() {
+	r := testutil.Backup(&ioutilWriteFile)
+	ioutilWriteFile = f
 	return r
 }
 
-func MockStat(f func(string) (os.FileInfo, error)) func() {
-	r := testutil.Backup(&osStat)
-	osStat = f
+func MockDirExists(f func(string) (bool, bool, error)) func() {
+	r := testutil.Backup(&osutilDirExists)
+	osutilDirExists = f
 	return r
 }
 
