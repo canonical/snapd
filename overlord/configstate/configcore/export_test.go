@@ -20,9 +20,9 @@
 package configcore
 
 import (
-	"os"
 	"time"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -58,9 +58,9 @@ func MockChownPath(f func(string, sys.UserID, sys.GroupID) error) func() {
 	}
 }
 
-func MockWriteFile(f func(string, []byte, os.FileMode) error) func() {
-	r := testutil.Backup(&ioutilWriteFile)
-	ioutilWriteFile = f
+func MockEnsureFileState(f func(string, osutil.FileState) error) func() {
+	r := testutil.Backup(&osutilEnsureFileState)
+	osutilEnsureFileState = f
 	return r
 }
 

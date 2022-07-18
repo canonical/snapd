@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 )
 
@@ -92,7 +93,7 @@ func (s *homedirsSuite) TestValidationUnhappy(c *C) {
 }
 
 func (s *homedirsSuite) TestConfigureWriteFailure(c *C) {
-	restore := configcore.MockWriteFile(func(path string, contents []byte, mode os.FileMode) error {
+	restore := configcore.MockEnsureFileState(func(path string, state osutil.FileState) error {
 		return errors.New("some write error")
 	})
 	defer restore()
@@ -103,6 +104,31 @@ func (s *homedirsSuite) TestConfigureWriteFailure(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, "some write error")
+}
+
+func (s *homedirsSuite) TestConfigureUnchanged(c *C) {
+	restore := configcore.MockEnsureFileState(func(path string, state osutil.FileState) error {
+		return osutil.ErrSameState
+	})
+	defer restore()
+
+	// The AppArmor configuration must not be updated; install a mock handler
+	// to later verify that it was not called.
+	tunableUpdated := false
+	restore = configcore.MockApparmorUpdateHomedirsTunable(func(paths []string) error {
+		tunableUpdated = true
+		return nil
+	})
+	defer restore()
+
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"homedirs": "/home/existingDir",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(tunableUpdated, Equals, false)
 }
 
 func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
@@ -137,8 +163,21 @@ func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
 }
 
 func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
+	var systemParamsPath string
+	var systemParamsContent string
+	var systemParamsMode os.FileMode
+	restore := configcore.MockEnsureFileState(func(path string, state osutil.FileState) error {
+		systemParamsPath = path
+		memoryState, ok := state.(*osutil.MemoryFileState)
+		c.Assert(ok, Equals, true)
+		systemParamsContent = string(memoryState.Content)
+		systemParamsMode = memoryState.Mode
+		return nil
+	})
+	defer restore()
+
 	reloadProfilesCallCount := 0
-	restore := configcore.MockApparmorReloadAllSnapProfiles(func() error {
+	restore = configcore.MockApparmorReloadAllSnapProfiles(func() error {
 		reloadProfilesCallCount++
 		return nil
 	})
@@ -151,6 +190,9 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 		},
 	})
 	c.Check(err, IsNil)
+	c.Check(systemParamsPath, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/system-params"))
+	c.Check(systemParamsContent, Equals, "homedirs=/home/existingDir\n")
+	c.Check(systemParamsMode, Equals, os.FileMode(0644))
 	c.Check(reloadProfilesCallCount, Equals, 1)
 }
 

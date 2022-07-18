@@ -20,8 +20,8 @@
 package configcore
 
 import (
+	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,8 +35,8 @@ import (
 
 // For mocking in tests
 var (
-	ioutilWriteFile = ioutil.WriteFile
-	osutilDirExists = osutil.DirExists
+	osutilEnsureFileState = osutil.EnsureFileState
+	osutilDirExists       = osutil.DirExists
 
 	apparmorUpdateHomedirsTunable = apparmor.UpdateHomedirsTunable
 	apparmorReloadAllSnapProfiles = apparmor.ReloadAllSnapProfiles
@@ -82,7 +82,14 @@ func updateHomedirsConfig(config string) error {
 
 	configPath := filepath.Join(snapStateDir, "system-params")
 	contents := fmt.Sprintf("homedirs=%s\n", config)
-	if err := ioutilWriteFile(configPath, []byte(contents), 0644); err != nil {
+	desiredState := &osutil.MemoryFileState{
+		Content: []byte(contents),
+		Mode:    0644,
+	}
+	if err := osutilEnsureFileState(configPath, desiredState); errors.Is(err, osutil.ErrSameState) {
+		// The state is unchanged, nothing to do
+		return nil
+	} else if err != nil {
 		return err
 	}
 
