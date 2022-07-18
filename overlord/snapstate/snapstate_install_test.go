@@ -5329,3 +5329,31 @@ func (s *snapmgrTestSuite) testUndoMigrateOnInstallWithCore22(c *C, expectSeqFil
 		c.Assert(err, ErrorMatches, ".*no such file or directory")
 	}
 }
+
+func (s *snapmgrTestSuite) TestInstallConsidersProvenance(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := snapstate.Install(context.Background(), s.state, "provenance-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	var snapsup snapstate.SnapSetup
+	err = ts.Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+
+	c.Check(snapsup.ExpectedProvenance, Equals, "prov")
+}
+
+func (s *snapmgrTestSuite) TestInstallManyConsidersProvenance(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, tss, err := snapstate.InstallMany(s.state, []string{"provenance-snap"}, s.user.ID, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	var snapsup snapstate.SnapSetup
+	err = tss[0].Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+
+	c.Check(snapsup.ExpectedProvenance, Equals, "prov")
+}

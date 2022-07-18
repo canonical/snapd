@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -672,6 +672,28 @@ apps:
 }
 
 // Validate
+
+func (s *ValidateSuite) TestDetectInvalidProvenance(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+provenance: "--"
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid provenance: .*`)
+}
+
+func (s *ValidateSuite) TestDetectExplicitDefaultProvenance(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+provenance: global-upload
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `provenance cannot be set to default \(global-upload\) explicitly`)
+}
 
 func (s *ValidateSuite) TestDetectIllegalYamlBinaries(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: foo

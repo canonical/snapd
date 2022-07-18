@@ -98,6 +98,8 @@ type SnapSetup struct {
 
 	SnapPath string `json:"snap-path,omitempty"`
 
+	ExpectedProvenance string `json:"provenance,omitempty"`
+
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
 	auxStoreInfo

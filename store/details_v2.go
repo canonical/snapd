@@ -295,7 +295,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info.Website = d.Website
 	info.StoreURL = d.StoreURL
 
-	// fill in the plug/slot data
+	// fill in the plug/slot data etc
 	if rawYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML)); err == nil {
 		if info.Plugs == nil {
 			info.Plugs = make(map[string]*snap.PlugInfo)
@@ -314,6 +314,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 		for _, s := range rawYamlInfo.Assumes {
 			info.Assumes = append(info.Assumes, s)
 		}
+		info.SnapProvenance = rawYamlInfo.SnapProvenance
 	}
 
 	// convert prices

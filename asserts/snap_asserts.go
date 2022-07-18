@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"crypto"
 	"fmt"
-	"regexp"
 	"time"
 
 	// expected for digests
@@ -354,7 +353,7 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 			if err != nil {
 				return nil, err
 			}
-			prov, err := checkStringListInMap(m, "provenance", "provenance in revision authority", validProvenance)
+			prov, err := checkStringListInMap(m, "provenance", "provenance in revision authority", naming.ValidProvenance)
 			if err != nil {
 				return nil, err
 			}
@@ -535,7 +534,7 @@ func (snaprev *SnapRevision) SnapSHA3_384() string {
 }
 
 // Provenance returns the optional provenance of the snap (defaults to
-// global-upload).
+// global-upload (naming.DefaultProvenance)).
 func (snaprev *SnapRevision) Provenance() string {
 	return snaprev.HeaderString("provenance")
 }
@@ -568,7 +567,7 @@ func (snaprev *SnapRevision) Timestamp() time.Time {
 
 // Implement further consistency checks.
 func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) error {
-	otherProvenance := snaprev.Provenance() != "global-upload"
+	otherProvenance := snaprev.Provenance() != naming.DefaultProvenance
 	if !otherProvenance && !db.IsTrustedAccount(snaprev.AuthorityID()) {
 		// delegating global-upload revisions is not allowed
 		return fmt.Errorf("snap-revision assertion for snap id %q is not signed by a store: %s", snaprev.SnapID(), snaprev.AuthorityID())
@@ -633,15 +632,13 @@ func checkSnapRevisionWhat(headers map[string]interface{}, name, what string) (s
 	return snapRevision, nil
 }
 
-var validProvenance = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
-
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = checkStringMatches(assert.headers, "provenance", validProvenance)
+	_, err = checkStringMatches(assert.headers, "provenance", naming.ValidProvenance)
 	if err != nil {
 		return nil, err
 	}
