@@ -502,9 +502,8 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 		// format cpu constraint as cpu=NxM%,cpu-set=x,y,z
 		if q.Constraints.CPU != nil {
 			if q.Constraints.CPU.Count != 0 {
-				grpConstraints = append(grpConstraints, fmt.Sprintf("cpu=%dx", q.Constraints.CPU.Count))
-			}
-			if q.Constraints.CPU.Percentage != 0 {
+				grpConstraints = append(grpConstraints, fmt.Sprintf("cpu=%dx%d%%", q.Constraints.CPU.Count, q.Constraints.CPU.Percentage))
+			} else {
 				grpConstraints = append(grpConstraints, fmt.Sprintf("cpu=%d%%", q.Constraints.CPU.Percentage))
 			}
 		}
