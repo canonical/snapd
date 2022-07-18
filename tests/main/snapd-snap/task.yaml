@@ -44,17 +44,20 @@ environment:
 prepare: |
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
+
     # only run the destructive mode variant on xenial
     if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
         echo "Skipping destructive mode build on non-xenial"
         exit 0
     fi
+
     if is_cgroupv2 && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
         # snapd snap uses core build base (16.04) which cannot be booted
         # properly on a host using unified hierarchy
         echo "Skipping LXD build with unified cgroup hierarchy"
         exit 0
     fi
+
     if os.query is-fedora || os.query is-arch-linux || os.query is-centos; then
         # in order to install classic snaps, we need to setup the /snap 
         # symlink on these distros
@@ -62,9 +65,11 @@ prepare: |
         ln -sf "$SNAP_MOUNT_DIR" /snap
         tests.cleanup defer rm -f /snap
     fi
+
     echo "Install snapcraft from 4.x/candidate"
     snap install snapcraft --channel=4.x/candidate --classic
     tests.cleanup defer snap remove --purge snapcraft
+
     if [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
         echo "Remove any installed debs (some images carry them) to ensure we test the snap"
         # apt -v to test if apt is usable
@@ -76,15 +81,19 @@ prepare: |
                 apt-get autoremove -y lxd-client
             fi
         fi
+
         # load the fuse kernel module before installing lxd
         modprobe fuse
+
         echo "Install lxd"
         snap install lxd --channel="$LXD_SNAP_CHANNEL"
         tests.cleanup defer snap remove --purge lxd
+
         echo "Setup the lxd snap"
         snap set lxd waitready.timeout=240
         lxd waitready
         lxd init --auto
+
         echo "Setting up proxy for lxc"
         if [ -n "${http_proxy:-}" ]; then
             lxd.lxc config set core.proxy_http "$http_proxy"
@@ -92,6 +101,7 @@ prepare: |
         if [ -n "${https_proxy:-}" ]; then
             lxd.lxc config set core.proxy_https "$http_proxy"
         fi
+
         echo "Switch the core snap back due to spread system prepare shenanigans"
         # When we run spread, we will repack the core snap that is installed on
         # the system to match the binaries that we built on this system so that
@@ -107,6 +117,7 @@ prepare: |
         # As such, we need to switch the modified core snap on the system back 
         # with the original core snap on the system that is unmodified and will
         # match the expected assertions that snapcraft calculates
+
         # the easy way is to trick snapd is to just mount back the original file
         # on top of the repacked one, then snapd will just serve the correct
         # file over HTTP to snapcraft when it asks for it
@@ -117,6 +128,7 @@ prepare: |
             CORE_SNAP_REV=$(snap list core | grep -v Name | awk '{print $3}')
             CORE_SNAP="/var/lib/snapd/snaps/core_${CORE_SNAP_REV}.snap"
             ORIG_CORE_SNAP=${CORE_SNAP}.orig
+
             mount --bind "$ORIG_CORE_SNAP" "$CORE_SNAP"
             tests.cleanup defer umount "$CORE_SNAP"
         fi
@@ -132,17 +144,20 @@ debug: |
 execute: |
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
+
     # only run the destructive mode variant on xenial
     if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
         echo "Skipping destructive mode build on non-xenial"
         exit 0
     fi
+
     if is_cgroupv2 && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
         # snapd snap uses core build base (16.04) which cannot be booted
         # properly on a host using unified hierarchy
         echo "Skipping LXD build with unified cgroup hierarchy"
         exit 0
     fi
+
     if [ "$SPREAD_REBOOT" != "0" ]; then
       if os.query is-trusty; then
         # seems we have to kick trusty along
@@ -156,6 +171,7 @@ execute: |
       echo "Rebooted successfully"
       exit 0
     fi
+
     # shellcheck disable=SC2164
     pushd "$PROJECT_PATH"
     echo "Ensure we use the correct version when host is 14.04"
@@ -170,6 +186,7 @@ execute: |
     echo "Build the snap"
     snap run snapcraft snap --output=snapd_spread-test.snap
     popd
+
     mv "$PROJECT_PATH/snapd_spread-test.snap" "$PWD/snapd_spread-test.snap"
 
     # meh it doesn't work well to use quotes and "&&" in the arguments to sh -c
