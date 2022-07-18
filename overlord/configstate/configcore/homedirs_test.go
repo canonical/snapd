@@ -78,6 +78,8 @@ func (s *homedirsSuite) TestValidationUnhappy(c *C) {
 		{"/home/error", `cannot get directory info for "/home/error/".*`},
 		{"/home/missing", `path "/home/missing/" does not exist`},
 		{"/home/existingFile", `path "/home/existingFile/" is not a directory`},
+		// combine a valid path with an invalid one
+		{"/home/existingDir,/boot/invalid", `path "/boot/invalid/" uses reserved root directory "/boot/"`},
 	} {
 		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
