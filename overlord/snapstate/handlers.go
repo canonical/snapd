@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -3673,6 +3673,58 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 	t.SetStatus(state.DoneStatus)
 
 	st.EnsureBefore(0)
+	return nil
+}
+
+func (m *SnapManager) doGateRefreshes(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var holdSnaps []string
+	if err := t.Get("hold-snaps", &holdSnaps); err != nil {
+		return err
+	}
+
+	var holdTime string
+	if err := t.Get("hold-time", &holdTime); err != nil {
+		return err
+	}
+
+	// HoldRefresh interprets empty duration as maximum hold
+	var holdDuration time.Duration
+	if holdTime != "forever" {
+		holdTime, err := time.Parse(time.RFC3339, holdTime)
+		if err != nil {
+			return err
+		}
+
+		holdDuration = holdTime.Sub(timeNow())
+	}
+
+	effectiveDur, err := HoldRefresh(st, "system", holdDuration, holdSnaps...)
+	if err != nil {
+		return err
+	}
+	t.Change().Set("effective-hold-time", timeNow().Add(effectiveDur))
+
+	return nil
+}
+
+func (m *SnapManager) doUnholdRefreshes(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var unholdSnaps []string
+	if err := t.Get("unhold-snaps", &unholdSnaps); err != nil {
+		return err
+	}
+
+	if err := UnholdRefreshes(st, "system", unholdSnaps); err != nil {
+		return err
+	}
+
 	return nil
 }
 

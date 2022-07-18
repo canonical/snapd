@@ -559,7 +559,6 @@ func Next(schedule []*Schedule, last time.Time, maxDuration time.Duration) time.
 	}
 
 	return when
-
 }
 
 var weekdayMap = map[string]time.Weekday{

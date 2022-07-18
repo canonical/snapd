@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -57,6 +57,7 @@ type SnapOptions struct {
 	Purge            bool            `json:"purge,omitempty"`
 	Amend            bool            `json:"amend,omitempty"`
 	Transaction      TransactionType `json:"transaction,omitempty"`
+	Time             string          `json:"time,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -119,6 +120,7 @@ type multiActionData struct {
 	Users         []string        `json:"users,omitempty"`
 	Transaction   TransactionType `json:"transaction,omitempty"`
 	IgnoreRunning bool            `json:"ignore-running,omitempty"`
+	Time          string          `json:"time,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -148,6 +150,22 @@ func (client *Client) Refresh(name string, options *SnapOptions) (changeID strin
 
 func (client *Client) RefreshMany(names []string, options *SnapOptions) (changeID string, err error) {
 	return client.doMultiSnapAction("refresh", names, options)
+}
+
+func (client *Client) HoldRefreshes(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("hold", name, options)
+}
+
+func (client *Client) HoldRefreshesMany(name []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("hold", name, options)
+}
+
+func (client *Client) UnholdRefreshes(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("unhold", name, options)
+}
+
+func (client *Client) UnholdRefreshesMany(name []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("unhold", name, options)
 }
 
 func (client *Client) Enable(name string, options *SnapOptions) (changeID string, err error) {
@@ -205,7 +223,6 @@ func (client *Client) doSnapAction(actionName string, snapName string, options *
 	headers := map[string]string{
 		"Content-Type": "application/json",
 	}
-
 	return client.doAsync("POST", path, nil, headers, bytes.NewBuffer(data))
 }
 
@@ -225,6 +242,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		action.Users = options.Users
 		action.Transaction = options.Transaction
 		action.IgnoreRunning = options.IgnoreRunning
+		action.Time = options.Time
 	}
 
 	data, err := json.Marshal(&action)

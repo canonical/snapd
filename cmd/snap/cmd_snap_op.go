@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -382,6 +382,10 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
 			}
+		case "hold-refreshes":
+			fmt.Fprintf(Stdout, i18n.G("Held refreshes of %s until %s\n"), strutil.Quoted(names), opts.Time)
+		case "unhold-refreshes":
+			fmt.Fprintf(Stdout, i18n.G("Removed hold on refreshes for %s\n"), strutil.Quoted(names))
 		case "refresh":
 			if snap.Publisher != nil {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice refreshed")
@@ -680,6 +684,8 @@ type cmdRefresh struct {
 	IgnoreValidation bool                   `long:"ignore-validation"`
 	IgnoreRunning    bool                   `long:"ignore-running" hidden:"yes"`
 	Transaction      client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
+	Hold             string                 `long:"hold" optional:"yes" optional-value:"forever"`
+	Unhold           bool                   `long:"unhold"`
 	Positional       struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -839,6 +845,15 @@ func (x *cmdRefresh) Execute([]string) error {
 		return nil
 	}
 
+	// TODO: disallow combining with others
+	if x.Hold != "" && x.Unhold {
+		return errors.New(i18n.G("--hold and --unhold cannot be used simultaneously"))
+	} else if x.Hold != "" {
+		return x.holdRefreshes()
+	} else if x.Unhold {
+		return x.unholdRefreshes()
+	}
+
 	names := installedSnapNames(x.Positional.Snaps)
 	if len(names) == 1 {
 		opts := &client.SnapOptions{
@@ -870,6 +885,59 @@ func (x *cmdRefresh) Execute([]string) error {
 	}
 
 	return x.refreshMany(names, opts)
+}
+
+func (x *cmdRefresh) holdRefreshes() (err error) {
+	var opts client.SnapOptions
+
+	if x.Hold == "forever" {
+		opts.Time = "forever"
+	} else {
+		dur, err := time.ParseDuration(x.Hold)
+		if err != nil {
+			return fmt.Errorf("the value of --hold must be a number of hours (e.g., 72h): %v", err)
+		}
+
+		opts.Time = time.Now().Add(dur).Format(time.RFC3339)
+	}
+
+	names := installedSnapNames(x.Positional.Snaps)
+	var changeID string
+	if len(names) == 1 {
+		changeID, err = x.client.HoldRefreshes(names[0], &opts)
+	} else {
+		changeID, err = x.client.HoldRefreshesMany(names, &opts)
+	}
+
+	_, err = x.wait(changeID)
+	if err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	return showDone(x.client, names, "hold-refreshes", &opts, x.getEscapes())
+}
+
+func (x *cmdRefresh) unholdRefreshes() (err error) {
+	names := installedSnapNames(x.Positional.Snaps)
+	var changeID string
+	if len(names) == 1 {
+		changeID, err = x.client.UnholdRefreshes(names[0], nil)
+	} else {
+		changeID, err = x.client.UnholdRefreshesMany(names, nil)
+	}
+
+	_, err = x.wait(changeID)
+	if err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	return showDone(x.client, names, "unhold-refreshes", nil, x.getEscapes())
 }
 
 type cmdTry struct {
@@ -1178,6 +1246,10 @@ func init() {
 			"leave-cohort": i18n.G("Refresh the snap out of its cohort"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"hold": i18n.G("Hold refreshes until a specified time (or indefinitely, if none is specified"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"unhold": i18n.G("Remove hold on refreshes"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, waitDescs, nil)

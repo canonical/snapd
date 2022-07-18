@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2018 Canonical Ltd
+ * Copyright (C) 2017-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -394,6 +394,37 @@ func (s *autoRefreshTestSuite) TestDefaultScheduleIsRandomized(c *C) {
 				Commentf("clock span %v is not randomized", span))
 		}
 	}
+}
+
+func (s *autoRefreshTestSuite) TestRefreshHoldForever(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lastRefresh := time.Now().Add(-12 * time.Hour)
+	s.state.Set("last-refresh", lastRefresh)
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", "forever")
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	s.state.Unlock()
+	err := af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+
+	// no refresh
+	c.Check(s.store.ops, HasLen, 0)
+
+	var storedRefresh time.Time
+	c.Assert(s.state.Get("last-refresh", &storedRefresh), IsNil)
+	cmt := Commentf("expected %s but got %s instead", lastRefresh.Format(time.RFC3339), storedRefresh.Format(time.RFC3339))
+	c.Check(storedRefresh.Equal(lastRefresh), Equals, true, cmt)
+
+	var holdVal string
+	err = tr.Get("core", "refresh.hold", &holdVal)
+	c.Assert(err, IsNil)
+	c.Check(holdVal, Equals, "forever")
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshHold(c *C) {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var gateAutoRefreshHookName = "gate-auto-refresh"
@@ -124,10 +125,14 @@ func (h *HoldError) Error() string {
 }
 
 func maxAllowedPostponement(gatingSnap, affectedSnap string, maxPostponement time.Duration) time.Duration {
-	if affectedSnap == gatingSnap {
+	switch gatingSnap {
+	case affectedSnap:
 		return maxPostponement
+	case "system":
+		return maxDuration
+	default:
+		return maxOtherHoldDuration
 	}
-	return maxOtherHoldDuration
 }
 
 // holdDurationLeft computes the maximum duration that's left for holding a refresh
@@ -141,6 +146,45 @@ func holdDurationLeft(now time.Time, lastRefresh, firstHeld time.Time, maxDurati
 		return d1
 	}
 	return d2
+}
+
+// TODO: docs
+func CreateGateRefreshesTask(st *state.State, holdTime string, holdSnaps []string) (*state.TaskSet, error) {
+	snaps, err := All(st)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, holdSnap := range holdSnaps {
+		if _, ok := snaps[holdSnap]; !ok {
+			return nil, snap.NotInstalledError{Snap: holdSnap}
+		}
+	}
+
+	t := st.NewTask("gate-refreshes", fmt.Sprintf("Hold refreshes for %s", strutil.Quoted(holdSnaps)))
+	t.Set("hold-snaps", holdSnaps)
+	t.Set("hold-time", holdTime)
+
+	return state.NewTaskSet(t), nil
+}
+
+// TODO: docs
+func CreateUnholdRefreshesTask(st *state.State, unholdSnaps []string) (*state.TaskSet, error) {
+	snaps, err := All(st)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, unholdSnap := range unholdSnaps {
+		if _, ok := snaps[unholdSnap]; !ok {
+			return nil, snap.NotInstalledError{Snap: unholdSnap}
+		}
+	}
+
+	t := st.NewTask("unhold-refreshes", fmt.Sprintf("Remove hold on refreshes for %s", strutil.Quoted(unholdSnaps)))
+	t.Set("unhold-snaps", unholdSnaps)
+
+	return state.NewTaskSet(t), nil
 }
 
 // HoldRefresh marks affectingSnaps as held for refresh for up to holdTime.
@@ -175,6 +219,9 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 		}
 
 		mp := maxPostponement - maxPostponementBuffer
+		if gatingSnap == "system" {
+			mp = maxDuration
+		}
 		maxDur := maxAllowedPostponement(gatingSnap, heldSnap, mp)
 
 		// calculate max hold duration that's left considering previous hold
@@ -205,6 +252,9 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 
 		newHold := now.Add(dur)
 		cutOff := lastRefreshTime.Add(maxPostponement - maxPostponementBuffer)
+		if gatingSnap == "system" {
+			cutOff = now.Add(maxDuration)
+		}
 
 		// consider last refresh time and adjust hold duration if needed so it's
 		// not exceeded.
@@ -269,6 +319,36 @@ func ProceedWithRefresh(st *state.State, gatingSnap string) error {
 	if changed {
 		st.Set("snaps-hold", gating)
 	}
+	return nil
+}
+
+// UnholdRefreshes removes the gating information on the heldSnaps by the gatingSnap.
+func UnholdRefreshes(st *state.State, gatingSnap string, heldSnaps []string) error {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+
+	var changed bool
+	for heldSnap, holdingSnaps := range gating {
+		if !strutil.ListContains(heldSnaps, heldSnap) {
+			continue
+		}
+
+		if _, ok := holdingSnaps[gatingSnap]; ok {
+			delete(holdingSnaps, gatingSnap)
+			changed = true
+		}
+
+		if len(gating[heldSnap]) == 0 {
+			delete(gating, heldSnap)
+		}
+	}
+
+	if changed {
+		st.Set("snaps-hold", gating)
+	}
+
 	return nil
 }
 

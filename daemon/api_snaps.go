@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,6 +27,7 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -203,6 +205,7 @@ type snapInstruction struct {
 	Snaps                  []string               `json:"snaps"`
 	Users                  []string               `json:"users"`
 	ValidationSets         []string               `json:"validation-sets"`
+	Time                   string                 `json:"time"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -268,6 +271,14 @@ func (inst *snapInstruction) validate() error {
 		}
 	default:
 		return fmt.Errorf("invalid value for transaction type: %s", inst.Transaction)
+	}
+
+	if inst.Action == "hold" && inst.Time == "" {
+		return errors.New("hold action requires a non-empty time value")
+	}
+
+	if inst.Action != "hold" && inst.Time != "" {
+		return errors.New(`time can only be specified for the "hold" action`)
 	}
 
 	return inst.snapRevisionOptions.validate()
@@ -452,6 +463,26 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	return msg, []*state.TaskSet{ts}, nil
 }
 
+// snapHold holds refreshes for one snap.
+func snapHold(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	res, err := snapHoldMany(inst, st)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return res.Summary, res.Tasksets, nil
+}
+
+// snapUnhold removes the hold on refreshes for one snap.
+func snapUnhold(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	res, err := snapUnholdMany(inst, st)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return res.Summary, res.Tasksets, nil
+}
+
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
@@ -462,6 +493,8 @@ var snapInstructionDispTable = map[string]snapActionFunc{
 	"enable":  snapEnable,
 	"disable": snapDisable,
 	"switch":  snapSwitch,
+	"hold":    snapHold,
+	"unhold":  snapUnhold,
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {
@@ -574,6 +607,10 @@ func (inst *snapInstruction) dispatchForMany() (op snapManyActionFunc) {
 	case "snapshot":
 		// see api_snapshots.go
 		op = snapshotMany
+	case "hold":
+		op = snapHoldMany
+	case "unhold":
+		op = snapUnholdMany
 	}
 	return op
 }
@@ -810,4 +847,74 @@ func shouldSearchStore(r *http.Request) bool {
 	}
 
 	return false
+}
+
+func snapHoldMany(inst *snapInstruction, st *state.State) (res *snapInstructionResult, err error) {
+	if err := validateHoldTime(inst.Time); err != nil {
+		return nil, err
+	}
+
+	patchValues := map[string]interface{}{"refresh.hold": inst.Time}
+	var msg string
+	var ts *state.TaskSet
+
+	if len(inst.Snaps) == 0 {
+		ts, err = configstate.ConfigureInstalled(st, "core", patchValues, 0)
+		if err != nil {
+			return nil, err
+		}
+
+		msg = i18n.G("Held refreshes for all snaps.")
+	} else {
+		ts, err = snapstate.CreateGateRefreshesTask(st, inst.Time, inst.Snaps)
+		if err != nil {
+			return nil, err
+		}
+
+		msg = fmt.Sprintf(i18n.G("Held refreshes for %s."), strutil.Quoted(inst.Snaps))
+	}
+
+	return &snapInstructionResult{
+		Summary:  msg,
+		Affected: nil,
+		Tasksets: []*state.TaskSet{ts},
+	}, nil
+}
+
+func validateHoldTime(holdTime string) error {
+	if holdTime != "forever" {
+		_, err := time.Parse(time.RFC3339, holdTime)
+		if err != nil {
+			return fmt.Errorf(`expected hold time to be "forever" or an RFC3339 timestamp: %v`, err)
+		}
+	}
+
+	return nil
+}
+
+func snapUnholdMany(inst *snapInstruction, st *state.State) (res *snapInstructionResult, err error) {
+	var msg string
+	var ts *state.TaskSet
+	patchValues := map[string]interface{}{"refresh.hold": nil}
+
+	if len(inst.Snaps) == 0 {
+		ts, err = configstate.ConfigureInstalled(st, "core", patchValues, 0)
+		if err != nil {
+			return nil, err
+		}
+
+		msg = i18n.G("Remove hold on refreshes of all snaps.")
+	} else {
+		if ts, err = snapstate.CreateUnholdRefreshesTask(st, inst.Snaps); err != nil {
+			return nil, err
+		}
+
+		msg = fmt.Sprintf(i18n.G("Remove hold on refreshes of %s."), strutil.Quoted(inst.Snaps))
+	}
+
+	return &snapInstructionResult{
+		Summary:  msg,
+		Affected: nil,
+		Tasksets: []*state.TaskSet{ts},
+	}, nil
 }

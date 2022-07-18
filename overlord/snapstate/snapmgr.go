@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -531,6 +531,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// misc
 	runner.AddHandler("switch-snap", m.doSwitchSnap, nil)
 	runner.AddHandler("migrate-snap-home", m.doMigrateSnapHome, m.undoMigrateSnapHome)
+	runner.AddHandler("gate-refreshes", m.doGateRefreshes, nil)
+	runner.AddHandler("unhold-refreshes", m.doUnholdRefreshes, nil)
 
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
