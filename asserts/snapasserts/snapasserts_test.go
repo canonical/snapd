@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -93,7 +93,6 @@ func (s *snapassertsSuite) SetUpTest(c *C) {
 	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 }
 
-// XXX will need more realistic snaps
 func fakeSnap(rev int) []byte {
 	fake := fmt.Sprintf("hsqs________________%d", rev)
 	return []byte(fake)
@@ -244,8 +243,11 @@ func (s *snapassertsSuite) TestCrossCheckRevokedSnapDecl(c *C) {
 }
 
 func (s *snapassertsSuite) TestDeriveSideInfoHappy(c *C) {
-	digest := makeDigest(42)
-	size := uint64(len(fakeSnap(42)))
+	fooSnap := snaptest.MakeTestSnapWithFiles(c, `name: foo
+version: 1`, nil)
+	digest, size, err := asserts.SnapFileSHA3_384(fooSnap)
+	c.Assert(err, IsNil)
+
 	headers := map[string]interface{}{
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
@@ -259,12 +261,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoHappy(c *C) {
 	err = s.localDB.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	tempdir := c.MkDir()
-	snapPath := filepath.Join(tempdir, "anon.snap")
-	err = ioutil.WriteFile(snapPath, fakeSnap(42), 0644)
-	c.Assert(err, IsNil)
-
-	si, err := snapasserts.DeriveSideInfo(snapPath, nil, s.localDB)
+	si, err := snapasserts.DeriveSideInfo(fooSnap, nil, s.localDB)
 	c.Assert(err, IsNil)
 	c.Check(si, DeepEquals, &snap.SideInfo{
 		RealName: "foo",
@@ -606,4 +603,84 @@ version: 1
 		c.Check(snapasserts.CheckProvenance(mism.path, mism.prov), ErrorMatches, fmt.Sprintf("snap %q has been signed under provenance %q different from the metadata one: %q", mism.path, mism.prov, mism.metadataProv))
 	}
 
+}
+
+func (s *snapassertsSuite) TestDeriveSideInfoFromDigestAndSizeDelegatedSnap(c *C) {
+	withProv := snaptest.MakeTestSnapWithFiles(c, `name: with-prov
+version: 1
+provenance: prov`, nil)
+	digest, size, err := asserts.SnapFileSHA3_384(withProv)
+	c.Assert(err, IsNil)
+
+	a, err := s.dev1Signing.Sign(asserts.ModelType, map[string]interface{}{
+		"brand-id":     s.dev1Acct.AccountID(),
+		"series":       "16",
+		"model":        "dev-model",
+		"store":        "substore",
+		"architecture": "amd64",
+		"base":         "core18",
+		"kernel":       "krnl",
+		"gadget":       "gadget",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+
+	substore, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":           "substore",
+		"operator-id":     "can0nical",
+		"friendly-stores": []interface{}{"store1"},
+		"timestamp":       time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(substore)
+	c.Assert(err, IsNil)
+
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"revision":     "1",
+		"revision-authority": []interface{}{
+			map[string]interface{}{
+				"account-id": s.dev1Acct.AccountID(),
+				"provenance": []interface{}{
+					"prov",
+				},
+				"on-store": []interface{}{
+					"store1",
+				},
+			},
+		},
+		"timestamp": time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"authority-id":  s.dev1Acct.AccountID(),
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": digest,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"provenance":    "prov",
+		"snap-revision": "41",
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapRev, err := s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = s.localDB.Add(snapRev)
+	c.Check(err, IsNil)
+
+	si, err := snapasserts.DeriveSideInfoFromDigestAndSize(withProv, digest, size, model, s.localDB)
+	c.Check(err, IsNil)
+	c.Check(si, DeepEquals, &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "snap-id-1",
+		Revision: snap.R(41),
+		Channel:  "",
+	})
 }
