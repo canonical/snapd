@@ -47,8 +47,8 @@ var diskFromMountPoint = func(mountpoint string, opts *Options) (Disk, error) {
 	return diskFromMountPointImpl(mountpoint, opts)
 }
 
-var abstractCalculateLastUsableLBA = func(device string) (uint64, error) {
-	return CalculateLastUsableLBA(device)
+var abstractCalculateLastUsableLBA = func(device string, sectorSize uint64) (uint64, error) {
+	return CalculateLastUsableLBA(device, sectorSize)
 }
 
 func parseDeviceMajorMinor(s string) (int, int, error) {
@@ -422,7 +422,11 @@ func (d *disk) UsableSectorsEnd() (uint64, error) {
 	}
 
 	// calculated is last LBA
-	calculated, err := abstractCalculateLastUsableLBA(d.devname)
+	sectorSize, err := d.SectorSize()
+	if err != nil {
+		return 0, err
+	}
+	calculated, err := abstractCalculateLastUsableLBA(d.devname, sectorSize)
 	// end (or size) LBA is the last LBA + 1
 	return calculated + 1, err
 }

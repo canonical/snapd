@@ -1555,14 +1555,6 @@ echo '{
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	endSectors, err := d.UsableSectorsEnd()
-	c.Assert(err, IsNil)
-	c.Assert(endSectors, Equals, uint64(43))
-	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
-		{"sfdisk", "--version"},
-	})
-	sfdiskCmd.ForgetCalls()
-
 	blockDevCmd := testutil.MockCommand(c, "blockdev", `
 if [ "$1" = "--getsz" ]; then
 	echo 10000
@@ -1574,6 +1566,15 @@ else
 fi
 `)
 	defer blockDevCmd.Restore()
+
+	endSectors, err := d.UsableSectorsEnd()
+	c.Assert(err, IsNil)
+	c.Assert(endSectors, Equals, uint64(43))
+	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--version"},
+	})
+	blockDevCmd.ForgetCalls()
+	sfdiskCmd.ForgetCalls()
 
 	sz, err := d.SizeInBytes()
 	c.Assert(err, IsNil)
