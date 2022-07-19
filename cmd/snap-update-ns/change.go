@@ -471,7 +471,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				logger.Noticef("cannot remove mount point, got EBUSY: %q", path)
 				if isMount, err := osutil.IsMounted(path); isMount {
 					mounts, _ := osutil.LoadMountInfo()
-					logger.Noticef("%q is still mounted:\n%s", path, mounts)
+					logger.Noticef("%q is still a mount point:\n%s", path, mounts)
 				} else if err != nil {
 					logger.Noticef("cannot read mountinfo: %v", err)
 				}
