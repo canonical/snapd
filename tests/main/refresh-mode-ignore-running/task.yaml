@@ -19,7 +19,8 @@ execute: |
 
   # refresh app awareness prevents the snap from being refreshed while it's running
   test-snapd-refresh.sh -c "while [ ! -e stamp ]; do sleep 1; done" &
-  snap install --dangerous ./test-snapd-refresh_1_all.snap 2>&1 | tr -s "\n" " " | MATCH ".*snap \"test-snapd-refresh\" has running apps \(sh\), pids:.*"
+  not snap install --dangerous ./test-snapd-refresh_1_all.snap 2> error.txt
+  tr -s "\n" " " < error.txt | MATCH ".*snap \"test-snapd-refresh\" has running apps \(sh\), pids:.*"
   touch stamp
   wait
 
