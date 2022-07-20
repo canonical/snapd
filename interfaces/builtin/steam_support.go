@@ -132,6 +132,8 @@ mount options=(rw, rbind) /oldroot/home/**/usr/ -> /newroot/usr/,
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/** -> /newroot/etc/**,
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.cache -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.cache,
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.conf -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.conf,
+mount options=(rw, rbind) /oldroot/mnt/{,**} -> /newroot/mnt/{,**},
+mount options=(rw, rbind) /oldroot/media/{,**} -> /newroot/media/{,**},
 
 mount options=(rw, rbind) /oldroot/etc/machine-id -> /newroot/etc/machine-id,
 mount options=(rw, rbind) /oldroot/etc/group -> /newroot/etc/group,
