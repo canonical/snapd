@@ -28,8 +28,7 @@ execute: |
     tests.nested exec "ls -l /var/lib/snapd/save/snap/test-snapd-sh"
 
     # instance environment variables are correctly set up
-    tests.nested exec "snap run test-snapd-sh.sh -c 'env' test > snap_foo-env.txt"
-    tests.nested exec "grep 'SNAP_SAVE_DATA=/var/lib/snapd/save/snap/test-snapd-sh' < snap_foo-env.txt"
+    tests.nested exec "snap run test-snapd-sh.sh -c 'env' test" | MATCH 'SNAP_SAVE_DATA=/var/lib/snapd/save/snap/test-snapd-sh'
 
     echo "Ensuring we can write a file to /var/lib/snapd/save/snap/test-snapd-sh"
     tests.nested exec "sudo snap run test-snapd-sh.sh -c \"echo 'hello world' > /var/lib/snapd/save/snap/test-snapd-sh/hello.txt\""
