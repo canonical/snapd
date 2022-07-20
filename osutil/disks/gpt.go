@@ -128,17 +128,12 @@ func ReadGPTHeader(device string, sectorSize uint64) (GPTHeader, error) {
 	return header, nil
 }
 
-func CalculateLastUsableLBA(device string, sectorSize uint64) (uint64, error) {
+func CalculateLastUsableLBA(device string, diskSize uint64, sectorSize uint64) (uint64, error) {
 	header, err := ReadGPTHeader(device, sectorSize)
 	if err != nil {
 		return 0, err
 	}
-	sectors, err := blockDeviceSizeInSectors(device)
-	if err != nil {
-		return 0, err
-	}
-	// blockDeviceSizeInSectors always uses 512 bytes sectors
-	sectors = (sectors * 512) / sectorSize
+	sectors := diskSize / sectorSize
 
 	tableSize := uint64(header.NEntries) * uint64(header.EntrySize)
 	if tableSize < 16*1024 {

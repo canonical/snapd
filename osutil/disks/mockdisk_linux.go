@@ -22,7 +22,7 @@ package disks
 func MockCalculateLastUsableLBA(value uint64, err error) (restore func()) {
 	old := abstractCalculateLastUsableLBA
 
-	abstractCalculateLastUsableLBA = func(device string, sectorSize uint64) (uint64, error) {
+	abstractCalculateLastUsableLBA = func(device string, diskSize uint64, sectorSize uint64) (uint64, error) {
 		return value, err
 	}
 
