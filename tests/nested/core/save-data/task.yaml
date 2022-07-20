@@ -12,7 +12,7 @@ execute: |
     tests.nested exec "sudo snap wait system seed.loaded"
 
     echo "Ensuring the presence of ubuntu-save"
-    tests.nested exec "lsblk -f -m -l | awk '{ print \$3 }' | grep ubuntu-save"
+    tests.nested exec "lsblk -oLABEL" | MATCH '^ubuntu-save$'
 
     echo "Ensuring the path /var/lib/snapd/save exists"
     tests.nested exec "ls -l /var/lib/snapd/save"
