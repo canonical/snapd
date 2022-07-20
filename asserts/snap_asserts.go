@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -419,8 +419,9 @@ type RevisionAuthority struct {
 }
 
 // Check tests whether rev matches the revision authority constraints.
-func (ra *RevisionAuthority) Check(rev *SnapRevision) error {
-	// XXX support the device constraints
+// Optional model and store must be provided to cross-check device-specific
+// constraints.
+func (ra *RevisionAuthority) Check(rev *SnapRevision, model *Model, store *Store) error {
 	if !strutil.ListContains(ra.Provenance, rev.Provenance()) {
 		return fmt.Errorf("provenance mismatch")
 	}
@@ -433,6 +434,12 @@ func (ra *RevisionAuthority) Check(rev *SnapRevision) error {
 	}
 	if ra.MaxRevision != 0 && revno > ra.MaxRevision {
 		return fmt.Errorf("snap revision %d is greater than max-revision %d", revno, ra.MaxRevision)
+	}
+	if ra.DeviceScope != nil && model != nil {
+		opts := DeviceScopeConstraintCheckOptions{UseFriendlyStores: true}
+		if err := ra.DeviceScope.Check(model, store, &opts); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -597,7 +604,10 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 		ras := decl.RevisionAuthority(snaprev.Provenance())
 		matchingRevAuthority := false
 		for _, ra := range ras {
-			if err := ra.Check(snaprev); err == nil {
+			// model==store==nil, we do not perform device-specific
+			// checks at this level, those are performed at
+			// higher-level guarding installing actual snaps
+			if err := ra.Check(snaprev, nil, nil); err == nil {
 				matchingRevAuthority = true
 				break
 			}
