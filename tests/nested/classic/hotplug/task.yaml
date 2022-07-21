@@ -48,7 +48,7 @@ execute: |
     echo "Plugging the device"
     hotplug_add_dev1
 
-    # sanity checks to make sure qemu setup is correct
+    # precondition checks to make sure qemu setup is correct
     tests.nested exec "retry --wait 1 -n 5 sh -c 'udevadm info -e | MATCH ID_MODEL=QEMU_USB_SERIAL'"
 
     tests.nested exec "ls /dev/tty*" | MATCH "ttyUSB0"
@@ -61,7 +61,7 @@ execute: |
     echo "Unplugging the device with no connections on the slot"
     hotplug_del_dev1
 
-    # sanity check to make sure qemu event was triggered correctly
+    # precondition check to make sure qemu event was triggered correctly
     tests.nested exec "retry --wait 1 -n 5 sh -c 'udevadm info -e | NOMATCH ID_MODEL=QEMU_USB_SERIAL'"
     if tests.nested exec "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
         echo "USB serial should not be registered anymore, exiting..."
@@ -172,6 +172,8 @@ execute: |
     echo "Connecting hotplug slot of the first device again"
     tests.nested exec "sudo snap connect serial-port-hotplug:serial-port :qemuusbserial"
     check_slot_connected qemuusbserial
+
+    tests.nested exec "cat /var/snap/serial-port-hotplug/common/connect-plug-done" | MATCH "/dev/ttyUSB0"
 
     echo "Hotplug slot stays after removing the snap"
     tests.nested exec "sudo snap remove serial-port-hotplug"

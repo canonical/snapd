@@ -4,7 +4,7 @@ summary: Check that package remove and purge works inside LXD containers
 # couple of systems only. The postrm purge is more thoroughly checked in
 # tests/main/postrm-purge.
 # ubuntu-18.04-32: i386 is not supported by lxd
-systems: [ubuntu-18.04-64, ubuntu-20.04-*]
+systems: [ubuntu-18.04-64, ubuntu-2*]
 
 # start early
 priority: 1000
@@ -31,7 +31,7 @@ prepare: |
     # distro we build on. So we need to launch the right ubuntu version.
     VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
     lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
-    # sanity check
+    # precondition check
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
         snap info lxd

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -109,7 +110,7 @@ version: 1.0
 summary: test-snap
 apps:
  normal-app:
-  command: bin/dummy
+  command: bin/test
  test-service:
   command: bin/service
   daemon: simple
@@ -202,7 +203,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	s.st.Set("refresh-privacy-key", "privacy-key")
 	s.AddCleanup(snapstatetest.UseFallbackDeviceModel())
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
 	s.AddCleanup(restore)
@@ -364,7 +365,7 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("install change", "install change")
-	installed, tts, err := snapstate.InstallMany(s.st, []string{"one", "two"}, 0)
+	installed, tts, err := snapstate.InstallMany(s.st, []string{"one", "two"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
 	c.Assert(tts, HasLen, 2)
@@ -599,9 +600,11 @@ func (s *servicectlSuite) TestTwoServices(c *C) {
 		case "show":
 			c.Check(args[2], Matches, `snap\.test-snap\.\w+-service\.service`)
 			return []byte(fmt.Sprintf(`Id=%s
+Names=%[1]s
 Type=simple
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `, args[2])), nil
 		case "--user":
 			c.Check(args[1], Equals, "--global")
@@ -630,9 +633,11 @@ func (s *servicectlSuite) TestServices(c *C) {
 		c.Assert(args[0], Equals, "show")
 		c.Check(args[2], Equals, "snap.test-snap.test-service.service")
 		return []byte(`Id=snap.test-snap.test-service.service
+Names=snap.test-snap.test-service.service
 Type=simple
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `), nil
 	})
 	defer restore()

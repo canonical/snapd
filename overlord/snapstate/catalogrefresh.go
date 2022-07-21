@@ -69,7 +69,7 @@ func (r *catalogRefresh) Ensure() error {
 	// beside there is high change device has no internet
 	var seeded bool
 	err := r.state.Get("seeded", &seeded)
-	if err == state.ErrNoState || !seeded {
+	if errors.Is(err, state.ErrNoState) || !seeded {
 		logger.Debugf("CatalogRefresh:Ensure: skipping refresh, system is not seeded yet")
 		// not seeded yet
 		return nil

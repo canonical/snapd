@@ -61,6 +61,7 @@ owner /var/tmp/etilqs_* rw,
 # the snap packaging adjusted to use LD_PRELOAD technique from LP: #1577514
 owner /{dev,run}/shm/{,.}org.chromium.* mrw,
 owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
+owner /{dev,run}/shm/{,.}com.microsoft.Edge.* mrw,
 owner /{dev,run}/shm/.io.nwjs.* mrw,
 
 # Chrome's Singleton API sometimes causes an ouid/fsuid mismatch denial, so
@@ -69,6 +70,11 @@ owner /{dev,run}/shm/.io.nwjs.* mrw,
 # parallel-installs: $XDG_RUNTIME_DIR is not remapped, need to use SNAP_INSTANCE_NAME
 /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}org.chromium.*/SS r,
 /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}com.google.Chrome.*/SS r,
+/run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}com.microsoft.Edge.*/SS r,
+
+# Allow access to Jupyter notebooks. 
+# This is temporary and will be reverted once LP: #1959417 is fixed upstream.
+owner @{HOME}/.local/share/jupyter/** rw,
 
 # Allow reading platform files
 /run/udev/data/+platform:* r,
@@ -277,7 +283,7 @@ dbus (send)
     bus=system
     path=/org/freedesktop/RealtimeKit1
     interface=org.freedesktop.RealtimeKit1
-    member=MakeThread{HighPriority,Realtime}
+    member=MakeThread{HighPriority,Realtime,RealtimeWithPID}
     peer=(name=org.freedesktop.RealtimeKit1, label=unconfined),
 `
 

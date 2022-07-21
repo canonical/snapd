@@ -73,8 +73,8 @@ type LaidOutStructure struct {
 	// AbsoluteOffsetWrite is the resolved absolute position of offset-write
 	// for this structure element within the enclosing volume
 	AbsoluteOffsetWrite *quantity.Offset
-	// Index of the structure definition in gadget YAML
-	Index int
+	// Index of the structure definition in gadget YAML, note this starts at 0.
+	YamlIndex int
 	// LaidOutContent is a list of raw content inside the structure
 	LaidOutContent []LaidOutContent
 	// ResolvedContent is a list of filesystem content that has all
@@ -90,7 +90,7 @@ func IsRoleMBR(ls LaidOutStructure) bool {
 }
 
 func (p LaidOutStructure) String() string {
-	return fmtIndexAndName(p.Index, p.Name)
+	return fmtIndexAndName(p.YamlIndex, p.Name)
 }
 
 type byStartOffset []LaidOutStructure
@@ -158,7 +158,7 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 		ps := LaidOutStructure{
 			VolumeStructure: &volume.Structure[idx],
 			StartOffset:     start,
-			Index:           idx,
+			YamlIndex:       idx,
 		}
 
 		if ps.Name != "" {

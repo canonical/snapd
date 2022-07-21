@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/gadget/quantity"
 )
@@ -44,26 +45,43 @@ type QuotaGroupResult struct {
 	Current     *QuotaValues `json:"current,omitempty"`
 }
 
+type QuotaCPUValues struct {
+	Count      int `json:"count,omitempty"`
+	Percentage int `json:"percentage,omitempty"`
+}
+
+type QuotaCPUSetValues struct {
+	CPUs []int `json:"cpus,omitempty"`
+}
+
+type QuotaJournalValues struct {
+	Size       quantity.Size `json:"size,omitempty"`
+	RateCount  int           `json:"rate-count,omitempty"`
+	RatePeriod time.Duration `json:"rate-period,omitempty"`
+}
+
 type QuotaValues struct {
-	Memory quantity.Size `json:"memory,omitempty"`
+	Memory  quantity.Size       `json:"memory,omitempty"`
+	CPU     *QuotaCPUValues     `json:"cpu,omitempty"`
+	CPUSet  *QuotaCPUSetValues  `json:"cpu-set,omitempty"`
+	Threads int                 `json:"threads,omitempty"`
+	Journal *QuotaJournalValues `json:"journal,omitempty"`
 }
 
 // EnsureQuota creates a quota group or updates an existing group.
 // The list of snaps can be empty.
-func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, maxMemory quantity.Size) (changeID string, err error) {
+func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, constraints *QuotaValues) (changeID string, err error) {
 	if groupName == "" {
 		return "", fmt.Errorf("cannot create or update quota group without a name")
 	}
 	// TODO: use naming.ValidateQuotaGroup()
 
 	data := &postQuotaData{
-		Action:    "ensure",
-		GroupName: groupName,
-		Parent:    parent,
-		Snaps:     snaps,
-		Constraints: &QuotaValues{
-			Memory: maxMemory,
-		},
+		Action:      "ensure",
+		GroupName:   groupName,
+		Parent:      parent,
+		Snaps:       snaps,
+		Constraints: constraints,
 	}
 
 	var body bytes.Buffer

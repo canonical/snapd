@@ -79,6 +79,7 @@ if [ "$1" = "purge" ]; then
             fi
             # modules
             rm -f "/etc/modules-load.d/snap.${snap}.conf"
+            rm -f "/etc/modprobe.d/snap.${snap}.conf"
             # timer and socket units
             find /etc/systemd/system -name "snap.${snap}.*.timer" -o -name "snap.${snap}.*.socket" | while read -r f; do
                 systemctl_stop "$(basename "$f")"
@@ -96,6 +97,8 @@ if [ "$1" = "purge" ]; then
         rm -f "/etc/systemd/system/$unit"
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
     done
+    # Units may have been removed do a reload
+    systemctl -q daemon-reload || true
 
     # snapd session-agent
     rm -f /etc/systemd/user/snapd.session-agent.socket

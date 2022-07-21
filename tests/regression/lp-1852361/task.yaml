@@ -4,14 +4,11 @@ environment:
     SNAP_CONFINE_DEBUG: yes
 
 prepare: |
-    snap set core experimental.robust-mount-namespace-updates=true
     snap pack test-snapd-layout
     snap install --dangerous test-snapd-layout_1_all.snap
 
 restore: |
     snap remove --purge test-snapd-layout
-    snap unset core experimental.robust-mount-namespace-updates
-
 
 execute: |
     invariant() {

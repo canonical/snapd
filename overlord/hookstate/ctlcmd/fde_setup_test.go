@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -64,7 +64,7 @@ func (s *fdeSetupSuite) SetUpTest(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	mockInstalledSnap(c, s.st, mockFdeSetupKernelYaml)
+	mockInstalledSnap(c, s.st, mockFdeSetupKernelYaml, "")
 	s.mockTask = s.st.NewTask("test-task", "my test task")
 	hooksup := &hookstate.HookSetup{
 		Snap:     "pc-kernel",
@@ -127,7 +127,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpFeatures(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
-	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
+	mockKey := keys.EncryptionKey{1, 2, 3, 4}
 	fdeSetup := &fde.SetupRequest{
 		Op:      "initial-setup",
 		Key:     mockKey[:],
@@ -168,7 +168,7 @@ func (s *fdeSetupSuite) TestFdeSetupResult(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpDeviceSetup(c *C) {
-	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
+	mockKey := keys.EncryptionKey{1, 2, 3, 4}
 	fdeSetup := &fde.SetupRequest{
 		Op:     "device-setup",
 		Key:    mockKey[:],

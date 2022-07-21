@@ -181,7 +181,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsInactive(c *C) {
 		"svc": {Snap: si, Name: "svc", Daemon: "simple", DaemonScope: snap.SystemDaemon},
 		"app": {Snap: si, Name: "app", CommonID: "common.id"},
 	}
-	// sanity
+	// validity
 	c.Check(si.IsActive(), Equals, false)
 	// desktop file
 	df := si.Apps["app"].DesktopFile()

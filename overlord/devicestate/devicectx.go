@@ -20,6 +20,8 @@
 package devicestate
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -39,7 +41,7 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 	if err == nil {
 		return remodCtx, nil
 	}
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	modelAs, err := findModel(st)
@@ -88,6 +90,10 @@ func (dc groundDeviceContext) Base() string {
 	return dc.model.Base()
 }
 
+func (dc groundDeviceContext) Gadget() string {
+	return dc.model.Gadget()
+}
+
 func (dc groundDeviceContext) RunMode() bool {
 	return dc.systemMode == "run"
 }
@@ -98,7 +104,7 @@ func (dc groundDeviceContext) HasModeenv() bool {
 	return dc.model.Grade() != asserts.ModelGradeUnset
 }
 
-// sanity
+// expected interface is implemented
 var _ snapstate.DeviceContext = &groundDeviceContext{}
 
 type modelDeviceContext struct {
@@ -116,7 +122,7 @@ func (dc *modelDeviceContext) Store() snapstate.StoreService {
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ snapstate.DeviceContext = &modelDeviceContext{}
 
 // SystemModeInfoFromState returns details about the system mode the device is in.

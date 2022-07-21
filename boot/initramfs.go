@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
@@ -44,6 +45,12 @@ func InitramfsRunModeSelectSnapsToMount(
 		case snap.TypeBase:
 			bs := &bootState20Base{}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
+		case snap.TypeGadget:
+			// Do not mount if modeenv does not have gadget entry
+			if modeenv.Gadget == "" {
+				continue
+			}
+			selectSnapFn = selectGadgetSnap
 		case snap.TypeKernel:
 			blOpts := &bootloader.Options{
 				Role:        bootloader.RoleRunMode,
@@ -124,4 +131,62 @@ func MockInitramfsReboot(f func() error) (restore func()) {
 // initramfs.
 func InitramfsReboot() error {
 	return initramfsReboot()
+}
+
+// This function implements logic that is usually part of the
+// bootloader, but that it is not possible to implement in, for
+// instance, piboot. See handling of kernel_status in
+// bootloader/assets/data/grub.cfg.
+func updateNotScriptableBootloaderStatus(bl bootloader.NotScriptableBootloader) error {
+	blVars, err := bl.GetBootVars("kernel_status")
+	if err != nil {
+		return err
+	}
+	curKernStatus := blVars["kernel_status"]
+	if curKernStatus == "" {
+		return nil
+	}
+
+	kVals, err := osutil.KernelCommandLineKeyValues("kernel_status")
+	if err != nil {
+		return err
+	}
+	// "" would be the value for the error case, which at this point is any
+	// case different to kernel_status=trying in kernel command line and
+	// kernel_status=try in configuration file. Note that kernel_status in
+	// the file should be only "try" or empty, and for the latter we should
+	// have returned a few lines up.
+	newStatus := ""
+	if kVals["kernel_status"] == "trying" && curKernStatus == "try" {
+		newStatus = "trying"
+	}
+
+	logger.Debugf("setting %s kernel_status from %s to %s",
+		bl.Name(), curKernStatus, newStatus)
+	return bl.SetBootVarsFromInitramfs(map[string]string{"kernel_status": newStatus})
+}
+
+// InitramfsRunModeUpdateBootloaderVars updates bootloader variables
+// from the initramfs. This is necessary only for piboot at the
+// moment.
+func InitramfsRunModeUpdateBootloaderVars() error {
+	// For very limited bootloaders we need to change the kernel
+	// status from the initramfs as we cannot do that from the
+	// bootloader
+	blOpts := &bootloader.Options{
+		Role:        bootloader.RoleRunMode,
+		NoSlashBoot: true,
+	}
+
+	bl, err := bootloader.Find(InitramfsUbuntuBootDir, blOpts)
+	if err == nil {
+		if nsb, ok := bl.(bootloader.NotScriptableBootloader); ok {
+			if err := updateNotScriptableBootloaderStatus(nsb); err != nil {
+				logger.Noticef("cannot update %s kernel status: %v", bl.Name(), err)
+				return err
+			}
+		}
+	}
+
+	return nil
 }

@@ -23,7 +23,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"sync"
+	"sync/atomic"
 
 	"github.com/godbus/dbus"
 )
@@ -34,10 +34,10 @@ const testDBusClientName = ":test"
 // DBusHandlerFunc is the type of handler function for interacting with test DBus.
 //
 // The handler is called for each message that arrives to the bus from the test
-// client. The handler can respond by returning zero or more messages.
-// Typically one message is returned (method response or error). Additional
-// messages can be returned to represent signals emitted during message
-// handling.
+// client. The handler can respond by returning zero or more messages. Typically
+// one message is returned (method response or error). Additional messages can
+// be returned to represent signals emitted during message handling. The counter
+// n aids in testing a sequence of messages that is expected.
 //
 // The handler is not called for internal messages related to DBus itself.
 type DBusHandlerFunc func(msg *dbus.Message, n int) ([]*dbus.Message, error)
@@ -64,42 +64,41 @@ type DBusHandlerFunc func(msg *dbus.Message, n int) ([]*dbus.Message, error)
 type testDBusStream struct {
 	handler DBusHandlerFunc
 
-	m        sync.Mutex
-	readable sync.Cond
+	outputBuf bytes.Buffer
 
-	outputBuf, inputBuf bytes.Buffer
-	closed              bool
-	authDone            bool
-	n                   int
+	output       chan []byte
+	closeRequest chan struct{}
+
+	closed   atomic.Value
+	authDone bool
+	n        int
 }
 
-func (s *testDBusStream) decodeRequest() {
-	// s.m is locked
+func (s *testDBusStream) decodeRequest(req []byte) {
+	buf := bytes.NewBuffer(req)
 	if !s.authDone {
 		// Before authentication is done process the text protocol anticipating
 		// the TEST authentication used by NewDBusTestConn call below.
-		msg := s.inputBuf.String()
-		s.inputBuf.Reset()
+		msg := buf.String()
 		switch msg {
 		case "\x00":
 			// initial NUL byte, ignore
 		case "AUTH\r\n":
-			s.outputBuf.WriteString("REJECTED TEST\r\n")
+			s.output <- []byte("REJECTED TEST\r\n")
 		case "AUTH TEST TEST\r\n":
-			s.outputBuf.WriteString("OK test://\r\n")
+			s.output <- []byte("OK test://\r\n")
 		case "CANCEL\r\n":
-			s.outputBuf.WriteString("REJECTED\r\n")
+			s.output <- []byte("REJECTED\r\n")
 		case "BEGIN\r\n":
 			s.authDone = true
 		default:
 			panic(fmt.Errorf("unrecognized authentication message %q", msg))
 		}
-		s.readable.Signal()
 		return
 	}
 
 	// After authentication the buffer must contain marshaled DBus messages.
-	msgIn, err := dbus.DecodeMessage(&s.inputBuf)
+	msgIn, err := dbus.DecodeMessage(buf)
 	if err != nil {
 		panic(fmt.Errorf("cannot decode incoming message: %v", err))
 	}
@@ -149,54 +148,65 @@ func (s *testDBusStream) decodeRequest() {
 
 func (s *testDBusStream) sendMsg(msg *dbus.Message) {
 	// TODO: handle big endian if we ever get big endian machines again.
-	if err := msg.EncodeTo(&s.outputBuf, binary.LittleEndian); err != nil {
+	var buf bytes.Buffer
+	if err := msg.EncodeTo(&buf, binary.LittleEndian); err != nil {
 		panic(fmt.Errorf("cannot encode outgoing message: %v", err))
 	}
-	// s.m is locked
-	s.readable.Signal()
+	s.output <- buf.Bytes()
 }
 
 func (s *testDBusStream) Read(p []byte) (n int, err error) {
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	// When the buffer is empty block until more data arrives. DBus
-	// continuously blocks on reading and premature empty read is treated as an
-	// EOF, terminating the message flow.
-	if s.outputBuf.Len() == 0 {
-		s.readable.Wait()
+	for {
+		// When the buffer is empty block until more data arrives. DBus
+		// continuously blocks on reading and premature empty read is treated as an
+		// EOF, terminating the message flow.
+		if s.closed.Load().(bool) {
+			return 0, fmt.Errorf("stream is closed")
+		}
+		if s.outputBuf.Len() > 0 {
+			return s.outputBuf.Read(p)
+		}
+		select {
+		case data := <-s.output:
+			// just accumulate the data in the output buffer
+			s.outputBuf.Write(data)
+		case <-s.closeRequest:
+			s.closed.Store(true)
+		}
 	}
-
-	if s.closed {
-		return 0, fmt.Errorf("stream is closed")
-	}
-	return s.outputBuf.Read(p)
 }
 
 func (s *testDBusStream) Write(p []byte) (n int, err error) {
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	if s.closed {
-		return 0, fmt.Errorf("stream is closed")
+	for {
+		select {
+		case <-s.closeRequest:
+			s.closed.Store(true)
+		default:
+			if s.closed.Load().(bool) {
+				return 0, fmt.Errorf("stream is closed")
+			}
+			s.decodeRequest(p)
+			return len(p), nil
+		}
 	}
-
-	n, err = s.inputBuf.Write(p)
-	s.decodeRequest()
-	return n, err
 }
 
 func (s *testDBusStream) Close() error {
-	s.m.Lock()
-	defer s.m.Unlock()
-	s.closed = true
-	s.readable.Signal()
+	s.closeRequest <- struct{}{}
 	return nil
 }
 
+func (s *testDBusStream) InjectMessage(msg *dbus.Message) {
+	s.sendMsg(msg)
+}
+
 func newTestDBusStream(handler DBusHandlerFunc) *testDBusStream {
-	s := &testDBusStream{handler: handler}
-	s.readable.L = &s.m
+	s := &testDBusStream{
+		handler:      handler,
+		output:       make(chan []byte, 1),
+		closeRequest: make(chan struct{}, 1),
+	}
+	s.closed.Store(false)
 	return s
 }
 
@@ -211,23 +221,33 @@ func (a *testAuth) HandleData(data []byte) (resp []byte, status dbus.AuthStatus)
 	return []byte(""), dbus.AuthOk
 }
 
-// Connection returns a DBus connection for writing unit tests.
-//
-// The handler function is called for each message sent to the bus. It can
-// return any number of messages to send in response. The counter aids in
-// testing a sequence of messages that is expected.
-func Connection(handler DBusHandlerFunc) (*dbus.Conn, error) {
-	conn, err := dbus.NewConn(newTestDBusStream(handler))
+type InjectMessageFunc func(msg *dbus.Message)
+
+// InjectableConnection returns a DBus connection for writing unit tests and a
+// function that can be used to inject messages that will be received by the
+// test client.
+func InjectableConnection(handler DBusHandlerFunc) (*dbus.Conn, InjectMessageFunc, error) {
+	testDBusStream := newTestDBusStream(handler)
+	conn, err := dbus.NewConn(testDBusStream)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err = conn.Auth([]dbus.Auth{&testAuth{}}); err != nil {
 		_ = conn.Close()
-		return nil, err
+		return nil, nil, err
 	}
 	if err = conn.Hello(); err != nil {
 		_ = conn.Close()
-		return nil, err
+		return nil, nil, err
 	}
-	return conn, nil
+	return conn, testDBusStream.InjectMessage, nil
+}
+
+// Connection returns a DBus connection for writing unit tests.
+//
+// The handler function is called for each message sent to the bus. It can
+// return any number of messages to send in response.
+func Connection(handler DBusHandlerFunc) (*dbus.Conn, error) {
+	conn, _, err := InjectableConnection(handler)
+	return conn, err
 }

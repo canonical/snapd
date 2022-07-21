@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -53,8 +53,14 @@ func findSnapDeclaration(snapID, name string, db Finder) (*asserts.SnapDeclarati
 	return snapDecl, nil
 }
 
-// CrossCheck tries to cross check the instance name, hash digest and size of a snap plus its metadata in a SideInfo with the relevant snap assertions in a database that should have been populated with them.
-func CrossCheck(instanceName, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo, db Finder) error {
+// CrossCheck tries to cross check the instance name, hash digest and
+// size of a snap plus its metadata in a SideInfo with the relevant
+// snap assertions in a database that should have been populated with
+// them.
+// The optional model assertion must be passed to have full cross
+// checks in the case of delegated authority snap-revisions before
+// installing a snap.
+func CrossCheck(instanceName, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo, model *asserts.Model, db Finder) error {
 	// get relevant assertions and do cross checks
 	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": snapSHA3_384,
@@ -86,13 +92,28 @@ func CrossCheck(instanceName, snapSHA3_384 string, snapSize uint64, si *snap.Sid
 	return nil
 }
 
-// DeriveSideInfo tries to construct a SideInfo for the given snap using its digest to find the relevant snap assertions with the information in the given database. It will fail with an asserts.NotFoundError if it cannot find them.
-func DeriveSideInfo(snapPath string, db Finder) (*snap.SideInfo, error) {
+// DeriveSideInfo tries to construct a SideInfo for the given snap
+// using its digest to find the relevant snap assertions with the
+// information in the given database. It will fail with an
+// asserts.NotFoundError if it cannot find them.
+// model is used to cross check that the found snap-revision is applicable
+// on the device.
+func DeriveSideInfo(snapPath string, model *asserts.Model, db Finder) (*snap.SideInfo, error) {
 	snapSHA3_384, snapSize, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {
 		return nil, err
 	}
 
+	return DeriveSideInfoFromDigestAndSize(snapPath, snapSHA3_384, snapSize, model, db)
+}
+
+// DeriveSideInfoFromDigestAndSize tries to construct a SideInfo
+// using digest and size as provided for the snap to find the relevant
+// snap assertions with the information in the given database. It will
+// fail with an asserts.NotFoundError if it cannot find them.
+// model is used to cross check that the found snap-revision is applicable
+// on the device.
+func DeriveSideInfoFromDigestAndSize(snapPath string, snapSHA3_384 string, snapSize uint64, model *asserts.Model, db Finder) (*snap.SideInfo, error) {
 	// get relevant assertions and reconstruct metadata
 	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": snapSHA3_384,

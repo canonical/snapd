@@ -20,14 +20,11 @@
 package image
 
 import (
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/tooling"
+	"github.com/snapcore/snapd/testutil"
 )
-
-func MockToolingStore(sto Store) *ToolingStore {
-	return &ToolingStore{sto: sto}
-}
 
 var (
 	DecodeModelAssertion = decodeModelAssertion
@@ -36,22 +33,7 @@ var (
 	InstallCloudConfig   = installCloudConfig
 )
 
-func (tsto *ToolingStore) User() *auth.UserState {
-	return tsto.user
-}
-
-func ToolingStoreContext() store.DeviceAndAuthContext {
-	return toolingStoreContext{}
-}
-
-func (opts *DownloadSnapOptions) Validate() error {
-	return opts.validate()
-}
-
 var (
-	ErrRevisionAndCohort = errRevisionAndCohort
-	ErrPathInBase        = errPathInBase
-
 	WriteResolvedContent = writeResolvedContent
 )
 
@@ -61,4 +43,24 @@ func MockWriteResolvedContent(f func(prepareImageDir string, info *gadget.Info, 
 	return func() {
 		writeResolvedContent = oldWriteResolvedContent
 	}
+}
+
+func MockNewToolingStoreFromModel(f func(model *asserts.Model, fallbackArchitecture string) (*tooling.ToolingStore, error)) (restore func()) {
+	old := newToolingStoreFromModel
+	newToolingStoreFromModel = f
+	return func() {
+		newToolingStoreFromModel = old
+	}
+}
+
+func MockPreseedCore20(f func(dir string, key, aaDir string) error) (restore func()) {
+	r := testutil.Backup(&preseedCore20)
+	preseedCore20 = f
+	return r
+}
+
+func MockSetupSeed(f func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) error) (restore func()) {
+	r := testutil.Backup(&setupSeed)
+	setupSeed = f
+	return r
 }

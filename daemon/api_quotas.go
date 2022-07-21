@@ -24,7 +24,6 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -63,8 +62,50 @@ var (
 	servicestateRemoveQuota = servicestate.RemoveQuota
 )
 
-var getQuotaMemUsage = func(grp *quota.Group) (quantity.Size, error) {
-	return grp.CurrentMemoryUsage()
+var getQuotaUsage = func(grp *quota.Group) (*client.QuotaValues, error) {
+	var currentUsage client.QuotaValues
+
+	if grp.MemoryLimit != 0 {
+		mem, err := grp.CurrentMemoryUsage()
+		if err != nil {
+			return nil, err
+		}
+		currentUsage.Memory = mem
+	}
+
+	if grp.TaskLimit != 0 {
+		threads, err := grp.CurrentTaskUsage()
+		if err != nil {
+			return nil, err
+		}
+		currentUsage.Threads = threads
+	}
+
+	return &currentUsage, nil
+}
+
+func createQuotaValues(grp *quota.Group) *client.QuotaValues {
+	var constraints client.QuotaValues
+	constraints.Memory = grp.MemoryLimit
+	constraints.Threads = grp.TaskLimit
+
+	if grp.CPULimit != nil {
+		constraints.CPU = &client.QuotaCPUValues{
+			Count:      grp.CPULimit.Count,
+			Percentage: grp.CPULimit.Percentage,
+		}
+		constraints.CPUSet = &client.QuotaCPUSetValues{
+			CPUs: grp.CPULimit.AllowedCPUs,
+		}
+	}
+	if grp.JournalLimit != nil {
+		constraints.Journal = &client.QuotaJournalValues{
+			Size:       grp.JournalLimit.Size,
+			RateCount:  grp.JournalLimit.RateCount,
+			RatePeriod: grp.JournalLimit.RatePeriod,
+		}
+	}
+	return &constraints
 }
 
 // getQuotaGroups returns all quota groups sorted by name.
@@ -90,22 +131,18 @@ func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
 	for i, name := range names {
 		group := quotas[name]
 
-		memoryUsage, err := getQuotaMemUsage(group)
+		currentUsage, err := getQuotaUsage(group)
 		if err != nil {
 			return InternalError(err.Error())
 		}
 
 		results[i] = client.QuotaGroupResult{
-			GroupName: group.Name,
-			Parent:    group.ParentGroup,
-			Subgroups: group.SubGroups,
-			Snaps:     group.Snaps,
-			Constraints: &client.QuotaValues{
-				Memory: group.MemoryLimit,
-			},
-			Current: &client.QuotaValues{
-				Memory: memoryUsage,
-			},
+			GroupName:   group.Name,
+			Parent:      group.ParentGroup,
+			Subgroups:   group.SubGroups,
+			Snaps:       group.Snaps,
+			Constraints: createQuotaValues(group),
+			Current:     currentUsage,
 		}
 	}
 	return SyncResponse(results)
@@ -131,24 +168,51 @@ func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response 
 		return InternalError(err.Error())
 	}
 
-	memoryUsage, err := getQuotaMemUsage(group)
+	currentUsage, err := getQuotaUsage(group)
 	if err != nil {
 		return InternalError(err.Error())
 	}
 
 	res := client.QuotaGroupResult{
-		GroupName: group.Name,
-		Parent:    group.ParentGroup,
-		Snaps:     group.Snaps,
-		Subgroups: group.SubGroups,
-		Constraints: &client.QuotaValues{
-			Memory: group.MemoryLimit,
-		},
-		Current: &client.QuotaValues{
-			Memory: memoryUsage,
-		},
+		GroupName:   group.Name,
+		Parent:      group.ParentGroup,
+		Snaps:       group.Snaps,
+		Subgroups:   group.SubGroups,
+		Constraints: createQuotaValues(group),
+		Current:     currentUsage,
 	}
 	return SyncResponse(res)
+}
+
+func quotaValuesToResources(values client.QuotaValues) quota.Resources {
+	resourcesBuilder := quota.NewResourcesBuilder()
+	if values.Memory != 0 {
+		resourcesBuilder.WithMemoryLimit(values.Memory)
+	}
+	if values.CPU != nil {
+		if values.CPU.Count != 0 {
+			resourcesBuilder.WithCPUCount(values.CPU.Count)
+		}
+		if values.CPU.Percentage != 0 {
+			resourcesBuilder.WithCPUPercentage(values.CPU.Percentage)
+		}
+	}
+	if values.CPUSet != nil && len(values.CPUSet.CPUs) != 0 {
+		resourcesBuilder.WithAllowedCPUs(values.CPUSet.CPUs)
+	}
+	if values.Threads != 0 {
+		resourcesBuilder.WithThreadLimit(values.Threads)
+	}
+	if values.Journal != nil {
+		resourcesBuilder.WithJournalNamespace()
+		if values.Journal.Size != 0 {
+			resourcesBuilder.WithJournalSize(values.Journal.Size)
+		}
+		if values.Journal.RateCount != 0 && values.Journal.RatePeriod != 0 {
+			resourcesBuilder.WithJournalRate(values.Journal.RateCount, values.Journal.RatePeriod)
+		}
+	}
+	return resourcesBuilder.Build()
 }
 
 // postQuotaGroup creates quota resource group or updates an existing group.
@@ -173,6 +237,9 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	switch data.Action {
 	case "ensure":
+		// pack constraints into a resource limits struct
+		resourceLimits := quotaValuesToResources(data.Constraints)
+
 		// check if the quota group exists first, if it does then we need to
 		// update it instead of create it
 		_, err := servicestate.GetQuota(st, data.GroupName)
@@ -181,7 +248,7 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 		}
 		if err == servicestate.ErrQuotaNotFound {
 			// then we need to create the quota
-			ts, err = servicestateCreateQuota(st, data.GroupName, data.Parent, data.Snaps, data.Constraints.Memory)
+			ts, err = servicestateCreateQuota(st, data.GroupName, data.Parent, data.Snaps, resourceLimits)
 			if err != nil {
 				return errToResponse(err, nil, BadRequest, "cannot create quota group: %v")
 			}
@@ -189,8 +256,8 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 		} else if err == nil {
 			// the quota group already exists, update it
 			updateOpts := servicestate.QuotaGroupUpdate{
-				AddSnaps:       data.Snaps,
-				NewMemoryLimit: data.Constraints.Memory,
+				AddSnaps:          data.Snaps,
+				NewResourceLimits: resourceLimits,
 			}
 			ts, err = servicestateUpdateQuota(st, data.GroupName, updateOpts)
 			if err != nil {

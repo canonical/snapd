@@ -20,6 +20,7 @@
 package servicestate
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -85,7 +86,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	// only run after we are seeded
 	var seeded bool
 	err = m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
@@ -97,7 +98,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 
 	// ensure all snap services are updated
 	allStates, err := snapstate.All(m.state)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -108,7 +109,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	}
 
 	allGrps, err := AllQuotas(m.state)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -180,7 +181,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 		// we need to immediately reboot in the hopes that this restores
 		// services to a functioning state
 
-		restart.Request(m.state, restart.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow, nil)
 		return fmt.Errorf("error trying to restart killed services, immediately rebooting: %v", err)
 	}
 

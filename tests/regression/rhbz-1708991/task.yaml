@@ -26,6 +26,11 @@ execute: |
     # https://bugzilla.redhat.com/show_bug.cgi?id=1660141
     # https://github.com/systemd/systemd/issues/9997
 
+    # No systemd-resolved and systemd-hostnamed services in centos 9
+    if os.query is-centos 9; then
+        exit
+    fi
+
     # resolved and hostnamed have private mount ns
     systemctl restart systemd-resolved
     systemctl restart systemd-hostnamed

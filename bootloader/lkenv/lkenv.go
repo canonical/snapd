@@ -553,7 +553,7 @@ func (matr bootimgMatrixGeneric) initializeBootPartitions(bootPartLabels []strin
 
 // dropBootPartValue will remove the specified bootPartValue from the boot image
 // matrix - it _only_ deletes the value, not the boot image partition label
-// itself, , as the boot image partition labels are static for the lifetime of a
+// itself, as the boot image partition labels are static for the lifetime of a
 // device and should never be changed (as those values correspond to physical
 // names of the formatted partitions and we don't yet support repartitioning of
 // any kind).

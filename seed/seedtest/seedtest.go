@@ -287,7 +287,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	c.Assert(err, IsNil)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, rf, db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, rf, db)
 		if !asserts.IsNotFound(err) {
 			c.Assert(err, IsNil)
 		}
@@ -363,7 +363,7 @@ func ValidateSeed(c *C, root, label string, usesSnapd bool, trusted []asserts.As
 	err = sd.LoadAssertions(db, commitTo)
 	c.Assert(err, IsNil)
 
-	err = sd.LoadMeta(tm)
+	err = sd.LoadMeta(seed.AllModes, nil, tm)
 	c.Assert(err, IsNil)
 
 	// core18/core20 use the snapd snap, old core does not

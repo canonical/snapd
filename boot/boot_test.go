@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -116,12 +116,14 @@ func (s *bootenvSuite) SetUpTest(c *C) {
 type baseBootenv20Suite struct {
 	baseBootenvSuite
 
-	kern1  snap.PlaceInfo
-	kern2  snap.PlaceInfo
-	ukern1 snap.PlaceInfo
-	ukern2 snap.PlaceInfo
-	base1  snap.PlaceInfo
-	base2  snap.PlaceInfo
+	kern1   snap.PlaceInfo
+	kern2   snap.PlaceInfo
+	ukern1  snap.PlaceInfo
+	ukern2  snap.PlaceInfo
+	base1   snap.PlaceInfo
+	base2   snap.PlaceInfo
+	gadget1 snap.PlaceInfo
+	gadget2 snap.PlaceInfo
 
 	normalDefaultState      *bootenv20Setup
 	normalTryingKernelState *bootenv20Setup
@@ -146,6 +148,11 @@ func (s *baseBootenv20Suite) SetUpTest(c *C) {
 	s.base2, err = snap.ParsePlaceInfoFromSnapFileName("core20_2.snap")
 	c.Assert(err, IsNil)
 
+	s.gadget1, err = snap.ParsePlaceInfoFromSnapFileName("pc_1.snap")
+	c.Assert(err, IsNil)
+	s.gadget2, err = snap.ParsePlaceInfoFromSnapFileName("pc_2.snap")
+	c.Assert(err, IsNil)
+
 	// default boot state for robustness tests, etc.
 	s.normalDefaultState = &bootenv20Setup{
 		modeenv: &boot.Modeenv{
@@ -155,6 +162,8 @@ func (s *baseBootenv20Suite) SetUpTest(c *C) {
 			TryBase: "",
 			// base status is default
 			BaseStatus: boot.DefaultStatus,
+			// gadget is gadget1
+			Gadget: s.gadget1.Filename(),
 			// current kernels is just kern1
 			CurrentKernels: []string{s.kern1.Filename()},
 			// operating mode is run
@@ -181,6 +190,8 @@ func (s *baseBootenv20Suite) SetUpTest(c *C) {
 			TryBase: "",
 			// base status is default
 			BaseStatus: boot.DefaultStatus,
+			// gadget is gadget2
+			Gadget: s.gadget2.Filename(),
 			// current kernels is kern1 + kern2
 			CurrentKernels: []string{s.kern1.Filename(), s.kern2.Filename()},
 		},
@@ -207,8 +218,15 @@ type bootenv20EnvRefKernelSuite struct {
 	bootloader *bootloadertest.MockBootloader
 }
 
+type bootenv20RebootBootloaderSuite struct {
+	baseBootenv20Suite
+
+	bootloader *bootloadertest.MockRebootBootloader
+}
+
 var _ = Suite(&bootenv20Suite{})
 var _ = Suite(&bootenv20EnvRefKernelSuite{})
+var _ = Suite(&bootenv20RebootBootloaderSuite{})
 
 func (s *bootenv20Suite) SetUpTest(c *C) {
 	s.baseBootenv20Suite.SetUpTest(c)
@@ -221,6 +239,13 @@ func (s *bootenv20EnvRefKernelSuite) SetUpTest(c *C) {
 	s.baseBootenv20Suite.SetUpTest(c)
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	s.forceBootloader(s.bootloader)
+}
+
+func (s *bootenv20RebootBootloaderSuite) SetUpTest(c *C) {
+	s.baseBootenv20Suite.SetUpTest(c)
+
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir()).WithRebootBootloader()
 	s.forceBootloader(s.bootloader)
 }
 
@@ -278,32 +303,17 @@ func setupUC20Bootenv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup) (res
 		vbl.SetBootVarsCalls = 0
 
 	case *bootloadertest.MockBootloader:
-		// then we need to use the bootenv to set the current kernels
-		origEnv, err := vbl.GetBootVars("snap_kernel", "snap_try_kernel")
-		c.Assert(err, IsNil)
-		m := make(map[string]string, 2)
-		if opts.kern != nil {
-			m["snap_kernel"] = opts.kern.Filename()
-		} else {
-			m["snap_kernel"] = ""
-		}
-
-		if opts.tryKern != nil {
-			m["snap_try_kernel"] = opts.tryKern.Filename()
-		} else {
-			m["snap_try_kernel"] = ""
-		}
-
-		err = vbl.SetBootVars(m)
-		c.Assert(err, IsNil)
-
+		// for non-extracted, we need to use the bootenv to set the current kernels
+		r := setupUC20MockBootloaderEnv(c, bl, opts)
+		cleanups = append(cleanups, r)
 		// don't count any calls to SetBootVars made thus far
 		vbl.SetBootVarsCalls = 0
-
-		cleanups = append(cleanups, func() {
-			err := bl.SetBootVars(origEnv)
-			c.Assert(err, IsNil)
-		})
+	case *bootloadertest.MockRebootBootloader:
+		// for non-extracted, we need to use the bootenv to set the current kernels
+		r := setupUC20MockBootloaderEnv(c, bl, opts)
+		cleanups = append(cleanups, r)
+		// don't count any calls to SetBootVars made thus far
+		vbl.SetBootVarsCalls = 0
 	default:
 		c.Fatalf("unsupported bootloader %T", bl)
 	}
@@ -312,6 +322,31 @@ func setupUC20Bootenv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup) (res
 		for _, r := range cleanups {
 			r()
 		}
+	}
+}
+
+func setupUC20MockBootloaderEnv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup) (restore func()) {
+	origEnv, err := bl.GetBootVars("snap_kernel", "snap_try_kernel")
+	c.Assert(err, IsNil)
+	m := make(map[string]string, 2)
+	if opts.kern != nil {
+		m["snap_kernel"] = opts.kern.Filename()
+	} else {
+		m["snap_kernel"] = ""
+	}
+
+	if opts.tryKern != nil {
+		m["snap_try_kernel"] = opts.tryKern.Filename()
+	} else {
+		m["snap_try_kernel"] = ""
+	}
+
+	err = bl.SetBootVars(m)
+	c.Assert(err, IsNil)
+
+	return func() {
+		err := bl.SetBootVars(origEnv)
+		c.Assert(err, IsNil)
 	}
 }
 
@@ -477,7 +512,7 @@ func (s *bootenvSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	_, err = boot.GetCurrentBoot(snap.TypeApp, coreDev)
 	c.Check(err, ErrorMatches, `internal error: no boot state handling for snap type "app"`)
 
-	// sanity check
+	// validity check
 	s.bootloader.BootVars["snap_kernel"] = "kernel_41.snap"
 	current, err := boot.GetCurrentBoot(snap.TypeKernel, coreDev)
 	c.Check(err, IsNil)
@@ -524,6 +559,7 @@ func (s *bootenvSuite) TestParticipant(c *C) {
 func (s *bootenvSuite) TestParticipantBaseWithModel(c *C) {
 	core := &snap.Info{SideInfo: snap.SideInfo{RealName: "core"}, SnapType: snap.TypeOS}
 	core18 := &snap.Info{SideInfo: snap.SideInfo{RealName: "core18"}, SnapType: snap.TypeBase}
+	core20 := &snap.Info{SideInfo: snap.SideInfo{RealName: "core20"}, SnapType: snap.TypeBase}
 
 	type tableT struct {
 		with  *snap.Info
@@ -568,6 +604,55 @@ func (s *bootenvSuite) TestParticipantBaseWithModel(c *C) {
 		{
 			with:  core,
 			model: "core@install",
+			nop:   true,
+		},
+		{
+			with:  core20,
+			model: "core@run",
+			nop:   true,
+		},
+	}
+
+	for i, t := range table {
+		dev := boottest.MockDevice(t.model)
+		bp := boot.Participant(t.with, t.with.Type(), dev)
+		c.Check(bp.IsTrivial(), Equals, t.nop, Commentf("%d", i))
+		if !t.nop {
+			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.Type(), dev))
+		}
+	}
+}
+
+func (s *bootenvSuite) TestParticipantGadgetWithModel(c *C) {
+	gadget := &snap.Info{SideInfo: snap.SideInfo{RealName: "pc"}, SnapType: snap.TypeGadget}
+
+	type tableT struct {
+		with  *snap.Info
+		model string
+		nop   bool
+	}
+
+	table := []tableT{
+		{
+			with:  gadget,
+			model: "",
+			nop:   true,
+		}, {
+			with:  gadget,
+			model: "pc",
+			nop:   true,
+		}, {
+			with:  gadget,
+			model: "pc@run",
+			nop:   false,
+		}, {
+			with:  gadget,
+			model: "other-gadget",
+			nop:   true,
+		},
+		{
+			with:  gadget,
+			model: "pc@install",
 			nop:   true,
 		},
 	}
@@ -740,9 +825,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, false)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// make sure that the bootloader was asked for the current kernel
 	_, nKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("Kernel")
@@ -783,9 +868,9 @@ func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextSameKernelSnap(
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, false)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// ensure that bootenv is unchanged
 	m, err := s.bootloader.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
@@ -823,9 +908,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, true)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
 	// make sure that the bootloader was asked for the current kernel
 	_, nKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("Kernel")
@@ -936,9 +1021,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, true)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
 	// make sure the env was updated
 	bvars, err := tab.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
@@ -1049,9 +1134,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, true)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
 	bvars, err := tab.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
 	c.Assert(err, IsNil)
@@ -1161,9 +1246,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, false)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// make sure the env is as expected
 	bvars, err := tab.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
@@ -1279,9 +1364,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	c.Assert(err, IsNil)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, false)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// make sure the env is as expected
 	bvars, err := tab.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
@@ -1322,9 +1407,9 @@ func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextNewKernelSnap(c
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
 	// make the kernel used on next boot
-	rebootRequired, err := bootKern.SetNextBoot()
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, true)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
 	// make sure the env was updated
 	m := s.bootloader.BootVars
@@ -1510,11 +1595,11 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
 	c.Assert(bootBase.IsTrivial(), Equals, false)
 
 	// make the base used on next boot
-	rebootRequired, err := bootBase.SetNextBoot()
+	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
 
 	// we don't need to reboot because it's the same base snap
-	c.Assert(rebootRequired, Equals, false)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// make sure the modeenv wasn't changed
 	m2, err := boot.ReadModeenv("")
@@ -1549,9 +1634,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
 	c.Assert(bootBase.IsTrivial(), Equals, false)
 
 	// make the base used on next boot
-	rebootRequired, err := bootBase.SetNextBoot()
+	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, true)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
 	// make sure the modeenv was updated
 	m2, err := boot.ReadModeenv("")
@@ -1643,9 +1728,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnapNoReseal(c *C) {
 	c.Assert(bootBase.IsTrivial(), Equals, false)
 
 	// make the base used on next boot
-	rebootRequired, err := bootBase.SetNextBoot()
+	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, true)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
 	// make sure the modeenv was updated
 	m2, err := boot.ReadModeenv("")
@@ -2230,10 +2315,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shimBf,
 					secboot.NewLoadChain(assetBf,
-						secboot.NewLoadChain(recoveryKernelBf))),
+						secboot.NewLoadChain(runKernelBf))),
 				secboot.NewLoadChain(shimBf,
 					secboot.NewLoadChain(assetBf,
-						secboot.NewLoadChain(runKernelBf))),
+						secboot.NewLoadChain(recoveryKernelBf))),
 			})
 		case 2:
 			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
@@ -2395,7 +2480,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 		}},
 		Kernel:         "pc-kernel-recovery",
 		KernelRevision: "1",
-		KernelCmdlines: []string{"snapd_recovery_mode=recover snapd_recovery_system=system"},
+		KernelCmdlines: []string{
+			"snapd_recovery_mode=factory-reset snapd_recovery_system=system",
+			"snapd_recovery_mode=recover snapd_recovery_system=system",
+		},
 	}}
 
 	recoveryBootChains := []boot.BootChain{bootChains[1]}
@@ -2555,7 +2643,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 		}},
 		Kernel:         "pc-kernel-recovery",
 		KernelRevision: "1",
-		KernelCmdlines: []string{"snapd_recovery_mode=recover snapd_recovery_system=system"},
+		KernelCmdlines: []string{
+			"snapd_recovery_mode=factory-reset snapd_recovery_system=system",
+			"snapd_recovery_mode=recover snapd_recovery_system=system",
+		},
 	}}
 
 	recoveryBootChains := []boot.BootChain{bootChains[1]}
@@ -3059,7 +3150,7 @@ type recoveryBootenv20Suite struct {
 
 	bootloader *bootloadertest.MockBootloader
 
-	dev boot.Device
+	dev snap.Device
 }
 
 var _ = Suite(&recoveryBootenv20Suite{})
@@ -3486,7 +3577,7 @@ type bootKernelCommandLineSuite struct {
 
 	bootloader            *bootloadertest.MockTrustedAssetsBootloader
 	gadgetSnap            string
-	uc20dev               boot.Device
+	uc20dev               snap.Device
 	recoveryKernelBf      bootloader.BootFile
 	runKernelBf           bootloader.BootFile
 	modeenvWithEncryption *boot.Modeenv
@@ -3573,7 +3664,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateNonUC20(c *C) {
 	})
 
 	reboot, err := boot.UpdateCommandLineForGadgetComponent(nonUC20dev, sf)
-	c.Assert(err, ErrorMatches, "internal error: command line component cannot be updated on non UC20 devices")
+	c.Assert(err, ErrorMatches, `internal error: command line component cannot be updated on pre-UC20 devices`)
 	c.Assert(reboot, Equals, false)
 }
 
@@ -4158,4 +4249,893 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 		"snapd_extra_cmdline_args": "extra args",
 		"snapd_full_cmdline_args":  "",
 	})
+}
+
+func (s *bootenv20RebootBootloaderSuite) TestCoreParticipant20WithRebootBootloader(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		s.normalDefaultState,
+	)
+	defer r()
+
+	// get the boot kernel participant from our new kernel snap
+	bootKern := boot.Participant(s.kern2, snap.TypeKernel, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootKern.IsTrivial(), Equals, false)
+
+	// make the kernel used on next boot
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: false})
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired.RebootRequired, Equals, true)
+	// Test that we retrieve a RebootBootloader interface
+	c.Assert(rebootRequired.RebootBootloader, NotNil)
+
+	// make sure the env was updated
+	m := s.bootloader.BootVars
+	c.Assert(m, DeepEquals, map[string]string{
+		"kernel_status":   boot.TryStatus,
+		"snap_kernel":     s.kern1.Filename(),
+		"snap_try_kernel": s.kern2.Filename(),
+	})
+
+	// and that the modeenv now has this kernel listed
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename(), s.kern2.Filename()})
+}
+
+func (s *bootenv20Suite) TestCoreParticipant20SetNextSameGadgetSnap(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		s.normalDefaultState,
+	)
+	defer r()
+	r = boot.MockResealKeyToModeenv(func(_ string, _ *boot.Modeenv, expectReseal bool) error {
+		c.Assert(expectReseal, Equals, false)
+		return nil
+	})
+	defer r()
+
+	// get the gadget participant
+	bootGadget := boot.Participant(s.gadget1, snap.TypeGadget, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootGadget.IsTrivial(), Equals, false)
+
+	// make the gadget used on next boot
+	rebootRequired, err := bootGadget.SetNextBoot(boot.NextBootContext{})
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
+
+	// the modeenv is still the same
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.Gadget, Equals, s.gadget1.Filename())
+
+	// we didn't call SetBootVars on the bootloader (unneeded for gadget)
+	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
+}
+
+func (s *bootenv20Suite) TestCoreParticipant20SetNextNewGadgetSnap(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		s.normalDefaultState,
+	)
+	defer r()
+	r = boot.MockResealKeyToModeenv(func(_ string, _ *boot.Modeenv, expectReseal bool) error {
+		c.Assert(expectReseal, Equals, false)
+		return nil
+	})
+	defer r()
+
+	// get the gadget participant
+	bootGadget := boot.Participant(s.gadget2, snap.TypeGadget, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootGadget.IsTrivial(), Equals, false)
+
+	// make the gadget used on next boot
+	rebootRequired, err := bootGadget.SetNextBoot(boot.NextBootContext{})
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
+
+	// and that the modeenv now contains gadget2
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.Gadget, Equals, s.gadget2.Filename())
+
+	// we didn't call SetBootVars on the bootloader (unneeded for gadget)
+	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
+}
+
+func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSame(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		s.normalDefaultState,
+	)
+	defer r()
+
+	// get the boot kernel participant from our kernel snap
+	bootKern := boot.Participant(s.kern1, snap.TypeKernel, coreDev)
+
+	// make sure it's not a trivial boot participant
+	c.Assert(bootKern.IsTrivial(), Equals, false)
+
+	// make the kernel used on next boot
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
+
+	// make sure that the bootloader was asked for the current kernel
+	_, nKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("Kernel")
+	c.Assert(nKernelCalls, Equals, 1)
+
+	// ensure that kernel_status is still empty
+	c.Assert(s.bootloader.BootVars["kernel_status"], Equals, boot.DefaultStatus)
+
+	// there was no attempt to try a kernel
+	_, enableKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
+	c.Assert(enableKernelCalls, Equals, 0)
+
+	// the modeenv is still the same as well
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename()})
+
+	// finally we didn't call SetBootVars on the bootloader because nothing
+	// changed
+	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
+}
+
+func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20UndoKernelSnapInstallSame(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		s.normalDefaultState,
+	)
+	defer r()
+
+	// get the boot kernel participant from our kernel snap
+	bootKern := boot.Participant(s.kern1, snap.TypeKernel, coreDev)
+
+	// make sure it's not a trivial boot participant
+	c.Assert(bootKern.IsTrivial(), Equals, false)
+
+	// make the kernel used on next boot
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
+
+	// ensure that bootenv is unchanged
+	m, err := s.bootloader.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
+	c.Assert(err, IsNil)
+	c.Assert(m, DeepEquals, map[string]string{
+		"kernel_status":   boot.DefaultStatus,
+		"snap_kernel":     s.kern1.Filename(),
+		"snap_try_kernel": "",
+	})
+
+	// the modeenv is still the same as well
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename()})
+
+	// finally we didn't call SetBootVars on the bootloader because nothing
+	// changed
+	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
+}
+
+func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallNew(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		s.normalDefaultState,
+	)
+	defer r()
+
+	// get the boot kernel participant from our new kernel snap
+	bootKern := boot.Participant(s.kern2, snap.TypeKernel, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootKern.IsTrivial(), Equals, false)
+
+	// make the kernel used on next boot, reverting the installation
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
+
+	// make sure that the bootloader was asked for the current kernel
+	_, nKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("Kernel")
+	c.Assert(nKernelCalls, Equals, 1)
+
+	// ensure that kernel_status is the default
+	c.Assert(s.bootloader.BootVars["kernel_status"], Equals, boot.DefaultStatus)
+
+	// and we were asked to enable kernel2 as kernel, not as try kernel
+	_, numTry := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
+	c.Assert(numTry, Equals, 0)
+	actual, _ := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
+	c.Assert(actual, DeepEquals, []snap.PlaceInfo{s.kern2})
+
+	// and that the modeenv now has only this kernel listed
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern2.Filename()})
+}
+
+func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20UndoKernelSnapInstallNew(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		s.normalDefaultState,
+	)
+	defer r()
+
+	// get the boot kernel participant from our new kernel snap
+	bootKern := boot.Participant(s.kern2, snap.TypeKernel, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootKern.IsTrivial(), Equals, false)
+
+	// make the kernel used on next boot
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
+
+	// make sure the env was updated
+	m := s.bootloader.BootVars
+	c.Assert(m, DeepEquals, map[string]string{
+		"kernel_status":   boot.DefaultStatus,
+		"snap_kernel":     s.kern2.Filename(),
+		"snap_try_kernel": "",
+	})
+
+	// and that the modeenv now has this kernel listed
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern2.Filename()})
+}
+
+func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallNewWithReseal(c *C) {
+	// checked by resealKeyToModeenv
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
+	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+
+	// mock the files in cache
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+		"asset-" + dataHash,
+	})
+
+	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir,
+		"trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRunMode)
+	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern2.Filename()),
+		"kernel.efi", bootloader.RoleRunMode)
+
+	tab.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
+		// TODO:UC20: fix mocked trusted assets bootloader to actually
+		// geenerate kernel boot files
+		runKernelBf,
+	}
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	model := coreDev.Model()
+
+	m := &boot.Modeenv{
+		Mode:           "run",
+		Base:           s.base1.Filename(),
+		CurrentKernels: []string{s.kern1.Filename()},
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {dataHash},
+		},
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+	}
+
+	r := setupUC20Bootenv(
+		c,
+		tab.MockBootloader,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	resealCalls := 0
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealCalls++
+
+		c.Assert(params.ModelParams, HasLen, 1)
+		mp := params.ModelParams[0]
+		c.Check(mp.Model.Model(), Equals, model.Model())
+		for _, ch := range mp.EFILoadChains {
+			printChain(c, ch, "-")
+		}
+		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+			secboot.NewLoadChain(assetBf,
+				secboot.NewLoadChain(runKernelBf)),
+		})
+		// actual paths are seen only here
+		c.Check(tab.BootChainKernelPath, DeepEquals, []string{
+			s.kern2.MountFile(),
+		})
+		return nil
+	})
+	defer restore()
+
+	// get the boot kernel participant from our new kernel snap
+	bootKern := boot.Participant(s.kern2, snap.TypeKernel, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootKern.IsTrivial(), Equals, false)
+
+	// make the kernel used on next boot
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
+
+	// make sure the env was updated
+	bvars, err := tab.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
+	c.Assert(err, IsNil)
+	c.Assert(bvars, DeepEquals, map[string]string{
+		"kernel_status":   boot.DefaultStatus,
+		"snap_kernel":     s.kern2.Filename(),
+		"snap_try_kernel": "",
+	})
+
+	// and that the modeenv now has this kernel listed
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern2.Filename()})
+
+	c.Check(resealCalls, Equals, 1)
+}
+
+func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallNewWithReseal(c *C) {
+	// checked by resealKeyToModeenv
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
+	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+
+	// mock the files in cache
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+		"asset-" + dataHash,
+	})
+
+	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRunMode)
+	runKernelBf := bootloader.NewBootFile(filepath.Join(s.ukern2.Filename()), "kernel.efi", bootloader.RoleRunMode)
+
+	tab.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
+		// TODO:UC20: fix mocked trusted assets bootloader to actually
+		// geenerate kernel boot files
+		runKernelBf,
+	}
+
+	uc20Model := boottest.MakeMockUC20Model()
+	coreDev := boottest.MockUC20Device("", uc20Model)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	m := &boot.Modeenv{
+		Mode:           "run",
+		Base:           s.base1.Filename(),
+		CurrentKernels: []string{s.ukern1.Filename()},
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {dataHash},
+		},
+		Model:          uc20Model.Model(),
+		BrandID:        uc20Model.BrandID(),
+		Grade:          string(uc20Model.Grade()),
+		ModelSignKeyID: uc20Model.SignKeyID(),
+	}
+
+	r := setupUC20Bootenv(
+		c,
+		tab.MockBootloader,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.ukern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	resealCalls := 0
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealCalls++
+
+		c.Assert(params.ModelParams, HasLen, 1)
+		mp := params.ModelParams[0]
+		c.Check(mp.Model.Model(), Equals, uc20Model.Model())
+		for _, ch := range mp.EFILoadChains {
+			printChain(c, ch, "-")
+		}
+		c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
+			secboot.NewLoadChain(assetBf,
+				secboot.NewLoadChain(runKernelBf)),
+		})
+		// actual paths are seen only here
+		c.Check(tab.BootChainKernelPath, DeepEquals, []string{
+			s.ukern2.MountFile(),
+		})
+		return nil
+	})
+	defer restore()
+
+	// get the boot kernel participant from our new kernel snap
+	bootKern := boot.Participant(s.ukern2, snap.TypeKernel, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootKern.IsTrivial(), Equals, false)
+
+	// make the kernel used on next boot
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
+
+	bvars, err := tab.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
+	c.Assert(err, IsNil)
+	c.Assert(bvars, DeepEquals, map[string]string{
+		"kernel_status":   boot.DefaultStatus,
+		"snap_kernel":     s.ukern2.Filename(),
+		"snap_try_kernel": "",
+	})
+
+	// and that the modeenv now has this kernel listed
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.ukern2.Filename()})
+
+	c.Check(resealCalls, Equals, 1)
+}
+
+func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSameNoReseal(c *C) {
+	// checked by resealKeyToModeenv
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
+	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+
+	// mock the files in cache
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+		"asset-" + dataHash,
+	})
+
+	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
+
+	tab.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
+		runKernelBf,
+	}
+
+	uc20Model := boottest.MakeMockUC20Model()
+	coreDev := boottest.MockUC20Device("", uc20Model)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	m := &boot.Modeenv{
+		Mode:           "run",
+		Base:           s.base1.Filename(),
+		CurrentKernels: []string{s.kern1.Filename()},
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {dataHash},
+		},
+		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
+
+		Model:          uc20Model.Model(),
+		BrandID:        uc20Model.BrandID(),
+		Grade:          string(uc20Model.Grade()),
+		ModelSignKeyID: uc20Model.SignKeyID(),
+	}
+
+	r := setupUC20Bootenv(
+		c,
+		tab.MockBootloader,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	resealCalls := 0
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealCalls++
+		return fmt.Errorf("unexpected call to mocked secbootResealKeys")
+	})
+	defer restore()
+
+	// get the boot kernel participant from our kernel snap
+	bootKern := boot.Participant(s.kern1, snap.TypeKernel, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootKern.IsTrivial(), Equals, false)
+
+	// write boot-chains for current state that will stay unchanged
+	bootChains := []boot.BootChain{{
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{
+			{
+				Role: bootloader.RoleRunMode,
+				Name: "asset",
+				Hashes: []string{
+					"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+				},
+			},
+		},
+		Kernel:         "pc-kernel",
+		KernelRevision: "1",
+		KernelCmdlines: []string{"snapd_recovery_mode=run"},
+	}}
+	err := boot.WriteBootChains(bootChains, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
+	c.Assert(err, IsNil)
+
+	// make the kernel used on next boot
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
+
+	// make sure the env is as expected
+	bvars, err := tab.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
+	c.Assert(err, IsNil)
+	c.Assert(bvars, DeepEquals, map[string]string{
+		"kernel_status":   boot.DefaultStatus,
+		"snap_kernel":     s.kern1.Filename(),
+		"snap_try_kernel": "",
+	})
+
+	// and that the modeenv now has the one kernel listed
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename()})
+
+	// boot chains were built
+	c.Check(tab.BootChainKernelPath, DeepEquals, []string{
+		s.kern1.MountFile(),
+	})
+	// no actual reseal
+	c.Check(resealCalls, Equals, 0)
+}
+
+func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallSameNoReseal(c *C) {
+	// checked by resealKeyToModeenv
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
+	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
+
+	// mock the files in cache
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+		"asset-" + dataHash,
+	})
+
+	runKernelBf := bootloader.NewBootFile(filepath.Join(s.ukern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
+
+	tab.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
+		runKernelBf,
+	}
+
+	uc20Model := boottest.MakeMockUC20Model()
+	coreDev := boottest.MockUC20Device("", uc20Model)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	m := &boot.Modeenv{
+		Mode:           "run",
+		Base:           s.base1.Filename(),
+		CurrentKernels: []string{s.ukern1.Filename()},
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {dataHash},
+		},
+		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
+
+		Model:          uc20Model.Model(),
+		BrandID:        uc20Model.BrandID(),
+		Grade:          string(uc20Model.Grade()),
+		ModelSignKeyID: uc20Model.SignKeyID(),
+	}
+
+	r := setupUC20Bootenv(
+		c,
+		tab.MockBootloader,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.ukern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	resealCalls := 0
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealCalls++
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	// get the boot kernel participant from our kernel snap
+	bootKern := boot.Participant(s.ukern1, snap.TypeKernel, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootKern.IsTrivial(), Equals, false)
+
+	// write boot-chains for current state that will stay unchanged
+	bootChains := []boot.BootChain{{
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{
+			{
+				Role: bootloader.RoleRunMode,
+				Name: "asset",
+				Hashes: []string{
+					"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+				},
+			},
+		},
+		Kernel:         "pc-kernel",
+		KernelRevision: "",
+		KernelCmdlines: []string{"snapd_recovery_mode=run"},
+	}}
+	err := boot.WriteBootChains(bootChains, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
+	c.Assert(err, IsNil)
+
+	// make the kernel used on next boot
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
+
+	// make sure the env is as expected
+	bvars, err := tab.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
+	c.Assert(err, IsNil)
+	c.Assert(bvars, DeepEquals, map[string]string{
+		"kernel_status":   boot.DefaultStatus,
+		"snap_kernel":     s.ukern1.Filename(),
+		"snap_try_kernel": "",
+	})
+
+	// and that the modeenv now has the one kernel listed
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.ukern1.Filename()})
+
+	// boot chains were built
+	c.Check(tab.BootChainKernelPath, DeepEquals, []string{
+		s.ukern1.MountFile(),
+	})
+	// no actual reseal
+	c.Check(resealCalls, Equals, 0)
+}
+
+func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallSame(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		Base: s.base1.Filename(),
+	}
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		&bootenv20Setup{
+			modeenv: m,
+			// no kernel setup necessary
+		},
+	)
+	defer r()
+
+	// get the boot base participant from our base snap
+	bootBase := boot.Participant(s.base1, snap.TypeBase, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootBase.IsTrivial(), Equals, false)
+
+	// make the base used on next boot
+	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
+	c.Assert(err, IsNil)
+
+	// we don't need to reboot because it's the same base snap
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
+
+	// make sure the modeenv wasn't changed
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.Base, Equals, m.Base)
+	c.Assert(m2.BaseStatus, Equals, m.BaseStatus)
+	c.Assert(m2.TryBase, Equals, m.TryBase)
+}
+
+func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallNew(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	// default state
+	m := &boot.Modeenv{
+		Mode: "run",
+		Base: s.base1.Filename(),
+	}
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		&bootenv20Setup{
+			modeenv: m,
+			// no kernel setup necessary
+		},
+	)
+	defer r()
+
+	// get the boot base participant from our new base snap
+	bootBase := boot.Participant(s.base2, snap.TypeBase, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootBase.IsTrivial(), Equals, false)
+
+	// make the base used on next boot, reverting the current one installed
+	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
+
+	// make sure the modeenv was updated
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.Base, Equals, s.base2.Filename())
+	c.Assert(m2.BaseStatus, Equals, "")
+	c.Assert(m2.TryBase, Equals, "")
+}
+
+func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallNewNoReseal(c *C) {
+	// checked by resealKeyToModeenv
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
+	// set up all the bits required for an encrypted system
+	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), data, 0644), IsNil)
+	// mock the files in cache
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+		"asset-" + dataHash,
+	})
+	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
+	// write boot-chains for current state that will stay unchanged even
+	// though base is changed
+	bootChains := []boot.BootChain{{
+		BrandID:        "my-brand",
+		Model:          "my-model-uc20",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		AssetChain: []boot.BootAsset{{
+			Role: bootloader.RoleRunMode, Name: "asset", Hashes: []string{
+				"0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8",
+			},
+		}},
+		Kernel:         "pc-kernel",
+		KernelRevision: "1",
+		KernelCmdlines: []string{"snapd_recovery_mode=run"},
+	}}
+
+	err := boot.WriteBootChains(boot.ToPredictableBootChains(bootChains), filepath.Join(dirs.SnapFDEDir, "boot-chains"), 0)
+	c.Assert(err, IsNil)
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	model := coreDev.Model()
+
+	resealCalls := 0
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealCalls++
+		return nil
+	})
+	defer restore()
+
+	tab.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
+		runKernelBf,
+	}
+
+	// default state
+	m := &boot.Modeenv{
+		Mode:           "run",
+		Base:           s.base1.Filename(),
+		CurrentKernels: []string{s.kern1.Filename()},
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {dataHash},
+		},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+	}
+	r := setupUC20Bootenv(
+		c,
+		tab.MockBootloader,
+		&bootenv20Setup{
+			modeenv: m,
+			// no kernel setup necessary
+		},
+	)
+	defer r()
+
+	// get the boot base participant from our new base snap
+	bootBase := boot.Participant(s.base2, snap.TypeBase, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootBase.IsTrivial(), Equals, false)
+
+	// make the base used on next boot
+	rebootRequired, err := bootBase.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
+
+	// make sure the modeenv was updated
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.Base, Equals, s.base2.Filename())
+	c.Assert(m2.BaseStatus, Equals, boot.DefaultStatus)
+	c.Assert(m2.TryBase, Equals, "")
+
+	// no reseal
+	c.Check(resealCalls, Equals, 0)
 }

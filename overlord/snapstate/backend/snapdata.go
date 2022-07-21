@@ -29,12 +29,13 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
 // RemoveSnapData removes the data for the given version of the given snap.
-func (b Backend) RemoveSnapData(snap *snap.Info) error {
-	dirs, err := snapDataDirs(snap)
+func (b Backend) RemoveSnapData(snap *snap.Info, opts *dirs.SnapDirOptions) error {
+	dirs, err := snapDataDirs(snap, opts)
 	if err != nil {
 		return err
 	}
@@ -43,13 +44,28 @@ func (b Backend) RemoveSnapData(snap *snap.Info) error {
 }
 
 // RemoveSnapCommonData removes the data common between versions of the given snap.
-func (b Backend) RemoveSnapCommonData(snap *snap.Info) error {
-	dirs, err := snapCommonDataDirs(snap)
+func (b Backend) RemoveSnapCommonData(snap *snap.Info, opts *dirs.SnapDirOptions) error {
+	dirs, err := snapCommonDataDirs(snap, opts)
 	if err != nil {
 		return err
 	}
 
 	return removeDirs(dirs)
+}
+
+// RemoveSnapSaveData removes the common save data in the case of a complete removal of a snap.
+func (b Backend) RemoveSnapSaveData(snapInfo *snap.Info) error {
+	if release.OnClassic {
+		return nil
+	}
+
+	saveDir := snap.CommonDataSaveDir(snapInfo.InstanceName())
+	if exists, isDir, err := osutil.DirExists(saveDir); err == nil && !(exists && isDir) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return os.RemoveAll(saveDir)
 }
 
 // RemoveSnapDataDir removes base snap data directory
@@ -72,8 +88,8 @@ func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool) erro
 	return nil
 }
 
-func (b Backend) untrashData(snap *snap.Info) error {
-	dirs, err := snapDataDirs(snap)
+func (b Backend) untrashData(snap *snap.Info, opts *dirs.SnapDirOptions) error {
+	dirs, err := snapDataDirs(snap, opts)
 	if err != nil {
 		return err
 	}
@@ -98,14 +114,14 @@ func removeDirs(dirs []string) error {
 }
 
 // snapDataDirs returns the list of data directories for the given snap version
-func snapDataDirs(snap *snap.Info) ([]string, error) {
+func snapDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
 	// collect the directories, homes first
-	found, err := filepath.Glob(snap.DataHomeDir())
+	found, err := filepath.Glob(snap.DataHomeDir(opts))
 	if err != nil {
 		return nil, err
 	}
 	// then the /root user (including GlobalRootDir for tests)
-	found = append(found, snap.UserDataDir(filepath.Join(dirs.GlobalRootDir, "/root/")))
+	found = append(found, snap.UserDataDir(filepath.Join(dirs.GlobalRootDir, "/root/"), opts))
 	// then system data
 	found = append(found, snap.DataDir())
 
@@ -113,12 +129,16 @@ func snapDataDirs(snap *snap.Info) ([]string, error) {
 }
 
 // snapCommonDataDirs returns the list of data directories common between versions of the given snap
-func snapCommonDataDirs(snap *snap.Info) ([]string, error) {
+func snapCommonDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
 	// collect the directories, homes first
-	found, err := filepath.Glob(snap.CommonDataHomeDir())
+	found, err := filepath.Glob(snap.CommonDataHomeDir(opts))
 	if err != nil {
 		return nil, err
 	}
+
+	// then the root user's common data dir
+	rootCommon := snap.UserCommonDataDir(filepath.Join(dirs.GlobalRootDir, "/root/"), opts)
+	found = append(found, rootCommon)
 
 	// then XDG_RUNTIME_DIRs for the users
 	foundXdg, err := filepath.Glob(snap.XdgRuntimeDirs())
@@ -135,8 +155,8 @@ func snapCommonDataDirs(snap *snap.Info) ([]string, error) {
 
 // Copy all data for oldSnap to newSnap
 // (but never overwrite)
-func copySnapData(oldSnap, newSnap *snap.Info) (err error) {
-	oldDataDirs, err := snapDataDirs(oldSnap)
+func copySnapData(oldSnap, newSnap *snap.Info, opts *dirs.SnapDirOptions) (err error) {
+	oldDataDirs, err := snapDataDirs(oldSnap, opts)
 	if err != nil {
 		return err
 	}

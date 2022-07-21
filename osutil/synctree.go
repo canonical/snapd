@@ -74,7 +74,7 @@ func matchAnyComponent(globs []string, path string) (ok bool, index int) {
 // files were removed that are now empty will itself be removed, plus
 // its parent directories up to but not including the base directory.
 //
-// While there is a sanity check to prevent creation of directories
+// While there is a quick check to prevent creation of directories
 // that match the file glob pattern, it is the caller's responsibility
 // to not create directories that may match globs passed to other
 // invocations.
@@ -88,11 +88,11 @@ func matchAnyComponent(globs []string, path string) (ok bool, index int) {
 // A list of changed and removed files is returned, as relative paths
 // to the base directory.
 func EnsureTreeState(baseDir string, globs []string, content map[string]map[string]FileState) (changed, removed []string, err error) {
-	// Sanity check globs before doing anything
+	// Validity check globs before doing anything
 	if _, index, err := matchAny(globs, "foo"); err != nil {
 		return nil, nil, fmt.Errorf("internal error: EnsureTreeState got invalid pattern %q: %s", globs[index], err)
 	}
-	// Sanity check directory paths and file names in content dict
+	// Validity check directory paths and file names in content dict
 	for relPath, dirContent := range content {
 		if filepath.IsAbs(relPath) {
 			return nil, nil, fmt.Errorf("internal error: EnsureTreeState got absolute directory %q", relPath)

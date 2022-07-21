@@ -35,8 +35,8 @@ contributing, please take a look at our [Code of Conduct](CODE_OF_CONDUCT.md)
 first.
 
 - to report an issue, please file [a bug
-  report](https://bugs.launchpad.net/snappy/+filebug) on our [Launchpad issue
-tracker](https://bugs.launchpad.net/snappy/)
+  report](https://bugs.launchpad.net/snapd/+filebug) on our [Launchpad issue
+tracker](https://bugs.launchpad.net/snapd/)
 - for suggestions and constructive feedback, create a post on the [Snapcraft
   forum](https://forum.snapcraft.io/c/snapd)
 - to build snapd manually, or to get started with snapd development, see

@@ -23,9 +23,7 @@ import (
 	"time"
 )
 
-var timeNow = func() time.Time {
-	return time.Now()
-}
+var timeNow = time.Now
 
 // Timings represents a tree of Span time measurements for a single execution of measured activity.
 // A Timings tree object should be created at the beginning of the activity,

@@ -19,6 +19,7 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 
 	"gopkg.in/tomb.v2"
@@ -41,7 +42,7 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
@@ -82,7 +83,7 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		// boot assets were updated, request a restart now so that the
 		// situation does not end up more complicated if more updates of
 		// boot assets were to be applied
-		snapstate.RestartSystem(t)
+		snapstate.RestartSystem(t, nil)
 	}
 
 	// minimize wasteful redos

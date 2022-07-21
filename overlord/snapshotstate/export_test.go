@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -122,7 +123,7 @@ func MockBackendList(f func(ctx context.Context, setID uint64, snapNames []strin
 	}
 }
 
-func MockBackendRestore(f func(*backend.Reader, context.Context, snap.Revision, []string, backend.Logf) (*backend.RestoreState, error)) (restore func()) {
+func MockBackendRestore(f func(*backend.Reader, context.Context, snap.Revision, []string, backend.Logf, *dirs.SnapDirOptions) (*backend.RestoreState, error)) (restore func()) {
 	old := backendRestore
 	backendRestore = f
 	return func() {
@@ -170,7 +171,7 @@ func MockBackenCleanupAbandondedImports(f func() (int, error)) (restore func()) 
 	}
 }
 
-func MockBackendEstimateSnapshotSize(f func(*snap.Info, []string) (uint64, error)) (restore func()) {
+func MockBackendEstimateSnapshotSize(f func(*snap.Info, []string, *dirs.SnapDirOptions) (uint64, error)) (restore func()) {
 	old := backendEstimateSnapshotSize
 	backendEstimateSnapshotSize = f
 	return func() {
@@ -205,4 +206,12 @@ func MockConfigSetSnapConfig(f func(*state.State, string, *json.RawMessage) erro
 // For testing only
 func SetLastForgetExpiredSnapshotTime(mgr *SnapshotManager, t time.Time) {
 	mgr.lastForgetExpiredSnapshotTime = t
+}
+
+func MockGetSnapDirOptions(f func(*state.State, string) (*dirs.SnapDirOptions, error)) (restore func()) {
+	old := getSnapDirOpts
+	getSnapDirOpts = f
+	return func() {
+		getSnapDirOpts = old
+	}
 }

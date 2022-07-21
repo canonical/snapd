@@ -66,6 +66,10 @@ func (dc *TrivialDeviceContext) Base() string {
 	return dc.DeviceModel.Base()
 }
 
+func (dc *TrivialDeviceContext) Gadget() string {
+	return dc.DeviceModel.Gadget()
+}
+
 func (dc *TrivialDeviceContext) HasModeenv() bool {
 	return dc.Model().Grade() != asserts.ModelGradeUnset
 }
@@ -121,7 +125,7 @@ func MockDeviceContext(deviceCtx snapstate.DeviceContext) (restore func()) {
 	// remodeling
 	r2 := ReplaceRemodelingHook(func(s *state.State) *state.Change {
 		if deviceCtx != nil && deviceCtx.ForRemodeling() {
-			return s.NewChange("dummy", "dummy remodeling change")
+			return s.NewChange("sample", "test remodeling change")
 		}
 
 		return nil

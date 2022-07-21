@@ -23,17 +23,33 @@ import (
 	"context"
 	"time"
 
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
-type ManagerBackend managerBackend
+type (
+	ManagerBackend managerBackend
 
-type MinimalInstallInfo = minimalInstallInfo
-type InstallSnapInfo = installSnapInfo
-type ByType = byType
+	MinimalInstallInfo  = minimalInstallInfo
+	InstallSnapInfo     = installSnapInfo
+	ByType              = byType
+	DirMigrationOptions = dirMigrationOptions
+	Migration           = migration
+)
+
+const (
+	None         = none
+	Full         = full
+	Hidden       = hidden
+	Home         = home
+	RevertHidden = revertHidden
+	DisableHome  = disableHome
+	RevertFull   = revertFull
+)
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
@@ -105,6 +121,10 @@ var (
 	SafetyMarginDiskSpace = safetyMarginDiskSpace
 
 	AffectedByRefresh = affectedByRefresh
+
+	GetDirMigrationOpts = getDirMigrationOpts
+	WriteSeqFile        = writeSeqFile
+	TriggeredMigration  = triggeredMigration
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -212,6 +232,8 @@ func MockAsyncPendingRefreshNotification(fn func(context.Context, *userclient.Cl
 var (
 	RefreshedSnaps  = refreshedSnaps
 	ReRefreshFilter = reRefreshFilter
+
+	MaybeRestoreValidationSetsAndRevertSnaps = maybeRestoreValidationSetsAndRevertSnaps
 )
 
 type UpdateFilter = updateFilter
@@ -275,7 +297,7 @@ func MockInstallSize(f func(st *state.State, snaps []minimalInstallInfo, userID 
 	}
 }
 
-func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info) error) func() {
+func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info, opts *backend.GenerateSnapdWrappersOptions) error) func() {
 	old := generateSnapdWrappers
 	generateSnapdWrappers = f
 	return func() {
@@ -334,6 +356,9 @@ var (
 	PruneSnapsHold             = pruneSnapsHold
 	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
 	AutoRefreshPhase1          = autoRefreshPhase1
+	RefreshRetain              = refreshRetain
+
+	ExcludeFromRefreshAppAwareness = excludeFromRefreshAppAwareness
 )
 
 func MockTimeNow(f func() time.Time) (restore func()) {
@@ -364,5 +389,43 @@ func MockSnapsToRefresh(f func(gatingTask *state.Task) ([]*refreshCandidate, err
 	snapsToRefresh = f
 	return func() {
 		snapsToRefresh = old
+	}
+}
+
+func MockExcludeFromRefreshAppAwareness(f func(t snap.Type) bool) (restore func()) {
+	r := testutil.Backup(&excludeFromRefreshAppAwareness)
+	excludeFromRefreshAppAwareness = f
+	return r
+}
+
+func MockAddCurrentTrackingToValidationSetsStack(f func(st *state.State) error) (restore func()) {
+	old := AddCurrentTrackingToValidationSetsStack
+	AddCurrentTrackingToValidationSetsStack = f
+	return func() {
+		AddCurrentTrackingToValidationSetsStack = old
+	}
+}
+
+func MockRestoreValidationSetsTracking(f func(*state.State) error) (restore func()) {
+	old := RestoreValidationSetsTracking
+	RestoreValidationSetsTracking = f
+	return func() {
+		RestoreValidationSetsTracking = old
+	}
+}
+
+func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refreshedSnaps []string, fromChange string) ([]*state.TaskSet, error)) (restore func()) {
+	old := maybeRestoreValidationSetsAndRevertSnaps
+	maybeRestoreValidationSetsAndRevertSnaps = f
+	return func() {
+		maybeRestoreValidationSetsAndRevertSnaps = old
+	}
+}
+
+func MockGetHiddenDirOptions(f func(*state.State, *SnapState, *SnapSetup) (*dirMigrationOptions, error)) (restore func()) {
+	old := getDirMigrationOpts
+	getDirMigrationOpts = f
+	return func() {
+		getDirMigrationOpts = old
 	}
 }

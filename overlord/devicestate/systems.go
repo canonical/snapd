@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -42,7 +43,7 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 	defer st.Unlock()
 
 	var seeded bool
-	if err := st.Get("seeded", &seeded); err != nil && err != state.ErrNoState {
+	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if seeded {
@@ -210,7 +211,7 @@ type snapWriteObserveFunc func(systemDir, where string) error
 // systems on ubuntu-seed.
 func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, db asserts.RODatabase, getInfo getSnapInfoFunc, observeWrite snapWriteObserveFunc) (dir string, err error) {
 	if model.Grade() == asserts.ModelGradeUnset {
-		return "", fmt.Errorf("cannot create a system for non UC20 model")
+		return "", fmt.Errorf("cannot create a system for pre-UC20 model")
 	}
 
 	logger.Noticef("creating recovery system with label %q for %q", label, model.Model())
@@ -317,7 +318,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		// we have in snap.Info, but getting it this way can be
 		// expensive as we need to compute the hash, try to find a
 		// better way
-		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, f, db)
+		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, f, db)
 		if err != nil {
 			if !asserts.IsNotFound(err) {
 				return recoverySystemDir, err

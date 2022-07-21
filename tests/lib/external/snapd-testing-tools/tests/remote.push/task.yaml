@@ -1,0 +1,26 @@
+summary: smoke test for the remote.push tool
+
+# Amazon linux is skipped because no sshpass available
+systems: [-amazon-linux-*]
+
+prepare: |
+    tests.pkgs install sshpass
+
+restore: |
+    tests.pkgs remove sshpass
+    rm -rf testfile remote.setup.cfg /home/tools-user-1/*
+
+execute: |
+    remote.push --help | MATCH 'usage: remote.push <LOCAL_PATH> <REMOTE_PATH>'
+    remote.push -h | MATCH 'usage: remote.push <LOCAL_PATH> <REMOTE_PATH>'
+
+    # check basic push 
+    remote.setup config --host localhost --port 22 --user tools-user-1 --pass tools-user-1
+    touch testfile
+    remote.push testfile "/home/tools-user-1"
+    test -f /home/tools-user-1/testfile
+
+    # Check errors
+    remote.push testfile 2>&1 | MATCH "remote.push: local and remote paths are required"
+    rm -f remote.setup.cfg
+    remote.push testfile "/home/tools-user-1" 2>&1 | MATCH "remote.push: config file \"remote.setup.cfg\" not found, please run remote.setup command first"

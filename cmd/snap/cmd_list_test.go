@@ -202,6 +202,8 @@ func (s *SnapSuite) TestListWithNotes(c *check.C) {
 ,{"name": "dm1", "status": "active", "version": "5", "revision":1, "devmode": true, "confinement": "devmode"}
 ,{"name": "dm2", "status": "active", "version": "5", "revision":1, "devmode": true, "confinement": "strict"}
 ,{"name": "cf1", "status": "active", "version": "6", "revision":2, "confinement": "devmode", "jailmode": true}
+,{"name": "br1", "status": "active", "version": "", "revision":2, "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "confinement": "strict", "broken": "snap is broken"}
+,{"name": "dbr1", "status": "", "version": "", "revision":2, "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "confinement": "strict", "broken": "snap is broken"}
 ]}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
@@ -217,6 +219,8 @@ func (s *SnapSuite) TestListWithNotes(c *check.C) {
 	c.Check(s.Stdout(), check.Matches, `(?ms).*^dm1 +.* +devmode$`)
 	c.Check(s.Stdout(), check.Matches, `(?ms).*^dm2 +.* +devmode$`)
 	c.Check(s.Stdout(), check.Matches, `(?ms).*^cf1 +.* +jailmode$`)
+	c.Check(s.Stdout(), check.Matches, `(?ms).*^br1 +- +2 +- +bar +broken$`)
+	c.Check(s.Stdout(), check.Matches, `(?ms).*^dbr1 +- +2 +- +bar +disabled,broken$`)
 	c.Check(s.Stderr(), check.Equals, "")
 }
 

@@ -1,0 +1,11 @@
+summary: smoke test for the snaps.name tool
+
+execute: |
+    snaps.name --help | MATCH 'usage: snaps.name gadget, kernel, core'
+    snaps.name -h | MATCH 'usage: snaps.name gadget, kernel, core'
+
+    test -z "$(snaps.name gadget)"
+    test -z "$(snaps.name kernel)"
+    test "$(snaps.name core)" = "core"
+
+    snaps.name my-snap 2>&1 | MATCH "snaps.name: unknown snap my-snap"

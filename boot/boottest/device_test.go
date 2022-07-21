@@ -38,6 +38,7 @@ func (s *boottestSuite) TestMockDeviceClassic(c *C) {
 	c.Check(dev.Classic(), Equals, true)
 	c.Check(dev.Kernel(), Equals, "")
 	c.Check(dev.Base(), Equals, "")
+	c.Check(dev.Gadget(), Equals, "")
 	c.Check(dev.RunMode(), Equals, true)
 	c.Check(dev.HasModeenv(), Equals, false)
 
@@ -51,6 +52,7 @@ func (s *boottestSuite) TestMockDeviceBaseOrKernel(c *C) {
 	c.Check(dev.Classic(), Equals, false)
 	c.Check(dev.Kernel(), Equals, "boot-snap")
 	c.Check(dev.Base(), Equals, "boot-snap")
+	c.Check(dev.Gadget(), Equals, "boot-snap")
 	c.Check(dev.RunMode(), Equals, true)
 	c.Check(dev.HasModeenv(), Equals, false)
 	c.Check(func() { dev.Model() }, Panics, "Device.Model called but MockUC20Device not used")
@@ -59,6 +61,7 @@ func (s *boottestSuite) TestMockDeviceBaseOrKernel(c *C) {
 	c.Check(dev.Classic(), Equals, false)
 	c.Check(dev.Kernel(), Equals, "boot-snap")
 	c.Check(dev.Base(), Equals, "boot-snap")
+	c.Check(dev.Gadget(), Equals, "boot-snap")
 	c.Check(dev.RunMode(), Equals, true)
 	c.Check(dev.HasModeenv(), Equals, true)
 	c.Check(func() { dev.Model() }, PanicMatches, "Device.Model called.*")
@@ -67,6 +70,7 @@ func (s *boottestSuite) TestMockDeviceBaseOrKernel(c *C) {
 	c.Check(dev.Classic(), Equals, false)
 	c.Check(dev.Kernel(), Equals, "boot-snap")
 	c.Check(dev.Base(), Equals, "boot-snap")
+	c.Check(dev.Gadget(), Equals, "boot-snap")
 	c.Check(dev.RunMode(), Equals, false)
 	c.Check(dev.HasModeenv(), Equals, true)
 	c.Check(func() { dev.Model() }, PanicMatches, "Device.Model called.*")
@@ -79,6 +83,7 @@ func (s *boottestSuite) TestMockUC20Device(c *C) {
 	c.Check(dev.RunMode(), Equals, true)
 	c.Check(dev.Kernel(), Equals, "pc-kernel")
 	c.Check(dev.Base(), Equals, "core20")
+	c.Check(dev.Gadget(), Equals, "pc")
 
 	c.Check(dev.Model().Model(), Equals, "my-model-uc20")
 

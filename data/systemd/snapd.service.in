@@ -1,5 +1,7 @@
 [Unit]
 Description=Snap Daemon
+After=snapd.socket time-set.target
+Wants=time-set.target
 Requires=snapd.socket
 OnFailure=snapd.failure.service
 # This is handled by snapd

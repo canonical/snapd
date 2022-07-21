@@ -28,7 +28,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/mount"
@@ -45,6 +44,11 @@ const (
 	// Unmount represents an action that results in unmounting something from somewhere.
 	Unmount Action = "unmount"
 	// Remount when needed
+)
+
+var (
+	// function calls for mocking
+	osutilIsDirectory = osutil.IsDirectory
 )
 
 var (
@@ -339,28 +343,11 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			err = osRemove(c.Entry.Dir)
 			logger.Debugf("remove %q (error: %v)", c.Entry.Dir, err)
 		case "", "file":
-			// Detach the mount point instead of unmounting it if requested.
-			flags := umountNoFollow
-			if c.Entry.XSnapdDetach() {
-				flags |= syscall.MNT_DETACH
-				// If we are detaching something then before performing the actual detach
-				// switch the entire hierarchy to private event propagation (that is,
-				// none). This works around a bit of peculiar kernel behavior when the
-				// kernel reports EBUSY during a detach operation, because the changes
-				// propagate in a way that conflicts with itself. This is also documented
-				// in umount(2).
-				err = sysMount("none", c.Entry.Dir, "", syscall.MS_REC|syscall.MS_PRIVATE, "")
-				logger.Debugf("mount --make-rprivate %q (error: %v)", c.Entry.Dir, err)
-			}
-
-			// Perform the raw unmount operation.
-			if err == nil {
-				err = sysUnmount(c.Entry.Dir, flags)
-				umountOpts, unknownFlags := mount.UnmountFlagsToOpts(flags)
-				if unknownFlags != 0 {
-					umountOpts = append(umountOpts, fmt.Sprintf("%#x", unknownFlags))
-				}
-				logger.Debugf("umount %q %s (error: %v)", c.Entry.Dir, strings.Join(umountOpts, "|"), err)
+			// Unmount and remount operations can fail with EINVAL if the given
+			// mount does not exist; since here we only care about the
+			// resulting configuration, let's not treat such situations as
+			// errors.
+			clearMissingMountError := func(err error) error {
 				if err == syscall.EINVAL {
 					// We attempted to unmount but got an EINVAL, one of the
 					// possibilities and the only one unless we provided wrong
@@ -381,6 +368,32 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 					logger.Debugf("ignoring EINVAL from unmount, %q is not mounted", c.Entry.Dir)
 					err = nil
 				}
+				return err
+			}
+			// Detach the mount point instead of unmounting it if requested.
+			flags := umountNoFollow
+			if c.Entry.XSnapdDetach() {
+				flags |= syscall.MNT_DETACH
+				// If we are detaching something then before performing the actual detach
+				// switch the entire hierarchy to private event propagation (that is,
+				// none). This works around a bit of peculiar kernel behavior when the
+				// kernel reports EBUSY during a detach operation, because the changes
+				// propagate in a way that conflicts with itself. This is also documented
+				// in umount(2).
+				err = sysMount("none", c.Entry.Dir, "", syscall.MS_REC|syscall.MS_PRIVATE, "")
+				logger.Debugf("mount --make-rprivate %q (error: %v)", c.Entry.Dir, err)
+				err = clearMissingMountError(err)
+			}
+
+			// Perform the raw unmount operation.
+			if err == nil {
+				err = sysUnmount(c.Entry.Dir, flags)
+				umountOpts, unknownFlags := mount.UnmountFlagsToOpts(flags)
+				if unknownFlags != 0 {
+					umountOpts = append(umountOpts, fmt.Sprintf("%#x", unknownFlags))
+				}
+				logger.Debugf("umount %q %s (error: %v)", c.Entry.Dir, strings.Join(umountOpts, "|"), err)
+				err = clearMissingMountError(err)
 				if err != nil {
 					return err
 				}
@@ -459,23 +472,6 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			if kind == "" && (err == syscall.ENOTEMPTY || err == syscall.EEXIST) {
 				return nil
 			}
-			if features.RobustMountNamespaceUpdates.IsEnabled() {
-				// FIXME: This should not be necessary. It is necessary because
-				// mimic construction code is not considering all layouts in tandem
-				// and doesn't know enough about base file system to construct
-				// mimics in the order that would prevent them from nesting.
-				//
-				// By ignoring EBUSY here and by continuing to tear down the mimic
-				// tmpfs entirely (without any reuse) we guarantee that at the end
-				// of the day the nested mimic case is entirely removed.
-				//
-				// In an ideal world we would model this better and could do
-				// without this edge case.
-				if (kind == "" || kind == "file") && err == syscall.EBUSY {
-					logger.Debugf("cannot remove busy mount point %q", path)
-					return nil
-				}
-			}
 		}
 		return err
 	case Keep:
@@ -485,9 +481,8 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 	return fmt.Errorf("cannot process mount change: unknown action: %q", c.Action)
 }
 
-// neededChangesOld is the real implementation of NeededChanges
-// This function is used when RobustMountNamespaceUpdate is not enabled.
-func neededChangesOld(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
+// neededChanges is the real implementation of NeededChanges
+func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
 	// Copy both profiles as we will want to mutate them.
 	current := make([]osutil.MountEntry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)
@@ -504,9 +499,19 @@ func neededChangesOld(currentProfile, desiredProfile *osutil.MountProfile) []*Ch
 		desired[i].Dir = filepath.Clean(desired[i].Dir)
 	}
 
-	// Sort both lists by directory name with implicit trailing slash.
-	sort.Sort(byOriginAndMagicDir(current))
-	sort.Sort(byOriginAndMagicDir(desired))
+	dumpMountEntries := func(entries []osutil.MountEntry, pfx string) {
+		logger.Debugf(pfx)
+		for _, en := range entries {
+			logger.Debugf("- %v", en)
+		}
+	}
+	dumpMountEntries(desired, "desired mount entries")
+	// Sort only the desired lists by directory name with implicit trailing
+	// slash and the mount kind.
+	// Note that the current profile is a log of what was applied and should
+	// not be sorted at all.
+	sort.Sort(byOriginAndMountPoint(desired))
+	dumpMountEntries(desired, "desired mount entries (sorted)")
 
 	// Construct a desired directory map.
 	desiredMap := make(map[string]*osutil.MountEntry)
@@ -528,6 +533,8 @@ func neededChangesOld(currentProfile, desiredProfile *osutil.MountProfile) []*Ch
 
 	// Compute reusable entries: those which are equal in current and desired and which
 	// are not prefixed by another entry that changed.
+	// sort them first
+	sort.Sort(byOvernameAndMountPoint(current))
 	for i := range current {
 		dir := current[i].Dir
 		if skipDir != "" && strings.HasPrefix(dir, skipDir) {
@@ -535,6 +542,13 @@ func neededChangesOld(currentProfile, desiredProfile *osutil.MountProfile) []*Ch
 			continue
 		}
 		skipDir = "" // reset skip prefix as it no longer applies
+
+		if current[i].XSnapdOrigin() == "rootfs" {
+			// This is the rootfs setup by snap-confine, we should not touch it
+			logger.Debugf("reusing rootfs")
+			reuse[dir] = true
+			continue
+		}
 
 		// Reuse synthetic entries if their needed-by entry is desired.
 		// Synthetic entries cannot exist on their own and always couple to a
@@ -575,11 +589,12 @@ func neededChangesOld(currentProfile, desiredProfile *osutil.MountProfile) []*Ch
 	var changes []*Change
 
 	// Unmount entries not reused in reverse to handle children before their parent.
-	for i := len(current) - 1; i >= 0; i-- {
-		if reuse[current[i].Dir] {
-			changes = append(changes, &Change{Action: Keep, Entry: current[i]})
+	unmountOrder := currentProfile.Entries
+	for i := len(unmountOrder) - 1; i >= 0; i-- {
+		if reuse[unmountOrder[i].Dir] {
+			changes = append(changes, &Change{Action: Keep, Entry: unmountOrder[i]})
 		} else {
-			var entry osutil.MountEntry = current[i]
+			var entry osutil.MountEntry = unmountOrder[i]
 			entry.Options = append([]string(nil), entry.Options...)
 			// If the mount entry can potentially host nested mount points then detach
 			// rather than unmount, since detach will always succeed.
@@ -591,106 +606,144 @@ func neededChangesOld(currentProfile, desiredProfile *osutil.MountProfile) []*Ch
 		}
 	}
 
-	// Mount desired entries not reused.
-	for i := range desired {
-		if !reuse[desired[i].Dir] {
-			changes = append(changes, &Change{Action: Mount, Entry: desired[i]})
+	var desiredNotReused []osutil.MountEntry
+	for _, entry := range desired {
+		if !reuse[entry.Dir] {
+			desiredNotReused = append(desiredNotReused, entry)
 		}
+	}
+
+	// Mount desired entries not reused, ordering by the mimic directories they
+	// need created
+	// We proceeds in three steps:
+	// 1. Perform the mounts for the "overname" entries
+	// 2. Perform the mounts for the entries which need a mimic
+	// 3. Perform all the remaining desired mounts
+
+	var newDesiredEntries []osutil.MountEntry
+	var newIndependentDesiredEntries []osutil.MountEntry
+	// Indexed by mount point path.
+	addedDesiredEntries := make(map[string]bool)
+	// This function is idempotent, it won't add the same entry twice
+	addDesiredEntry := func(entry osutil.MountEntry) {
+		if !addedDesiredEntries[entry.Dir] {
+			logger.Debugf("adding entry: %s", entry)
+			newDesiredEntries = append(newDesiredEntries, entry)
+			addedDesiredEntries[entry.Dir] = true
+		}
+	}
+	addIndependentDesiredEntry := func(entry osutil.MountEntry) {
+		if !addedDesiredEntries[entry.Dir] {
+			logger.Debugf("adding independent entry: %s", entry)
+			newIndependentDesiredEntries = append(newIndependentDesiredEntries, entry)
+			addedDesiredEntries[entry.Dir] = true
+		}
+	}
+
+	logger.Debugf("processing mount entries")
+	// Create a map of the target directories (mimics) needed for the visited
+	// entries
+	affectedTargetCreationDirs := map[string][]osutil.MountEntry{}
+	for _, entry := range desiredNotReused {
+		if entry.XSnapdOrigin() == "overname" {
+			addIndependentDesiredEntry(entry)
+		}
+
+		// collect all entries, so that we know what mimics are needed
+		parentTargetDir := filepath.Dir(entry.Dir)
+		affectedTargetCreationDirs[parentTargetDir] = append(affectedTargetCreationDirs[parentTargetDir], entry)
+	}
+
+	if len(affectedTargetCreationDirs) != 0 {
+		entriesForMimicDir := map[string][]osutil.MountEntry{}
+		for parentTargetDir, entriesNeedingDir := range affectedTargetCreationDirs {
+			// First check if any of the mount entries for the changes will potentially
+			// result in creating a mimic. Note that to actually know if a given mount
+			// entry will require a mimic when the mount target doesn't exist, we would
+			// have to try and create a file/directory/symlink at the desired target,
+			// however that would be a destructive change which is not appropriate here
+			// (that is done in ChangePerform() instead), but for our purposes of sorting
+			// mount entries it is sufficient to use this assumption.
+			// We check if a mount entry would result in a potential mimic by just
+			// checking if the file/dir/symlink that is the target of the mount exists
+			// already in the form we need to to bind mount on top of it. If it
+			// doesn't then we need to create a mimic and so we then go looking for
+			// where to create the mimic.
+			for _, entry := range entriesNeedingDir {
+				exists := true
+				switch entry.XSnapdKind() {
+				case "":
+					exists = osutilIsDirectory(entry.Dir)
+				case "file":
+					exists = osutil.FileExists(entry.Dir)
+				case "symlink":
+					exists = osutil.IsSymlink(entry.Dir)
+				}
+
+				// if it doesn't exist we may need a mimic
+				if !exists {
+					neededMimicDir := findFirstRootDirectoryThatExists(parentTargetDir)
+					entriesForMimicDir[neededMimicDir] = append(entriesForMimicDir[neededMimicDir], entry)
+					logger.Debugf("entry that requires %q: %v", neededMimicDir, entry)
+				} else {
+					// entry is independent
+					addIndependentDesiredEntry(entry)
+				}
+			}
+		}
+
+		// sort the mimic creation dirs to get the correct ordering of mimics to
+		// create dirs in: the sorting algorithm places parent directories
+		// before children.
+		allMimicCreationDirs := []string{}
+		for mimicDir := range entriesForMimicDir {
+			allMimicCreationDirs = append(allMimicCreationDirs, mimicDir)
+		}
+
+		sort.Strings(allMimicCreationDirs)
+
+		logger.Debugf("all mimics:")
+		for _, mimicDir := range allMimicCreationDirs {
+			logger.Debugf("- %v", mimicDir)
+		}
+
+		for _, mimicDir := range allMimicCreationDirs {
+			// make sure to sort the entries for each mimic dir in a consistent
+			// order
+			entries := entriesForMimicDir[mimicDir]
+			sort.Sort(byOriginAndMountPoint(entries))
+			for _, entry := range entries {
+				addDesiredEntry(entry)
+			}
+		}
+	}
+
+	sort.Sort(byOriginAndMountPoint(newIndependentDesiredEntries))
+	allEntries := append(newIndependentDesiredEntries, newDesiredEntries...)
+	dumpMountEntries(allEntries, "mount entries ordered as they will be applied")
+	for _, entry := range allEntries {
+		changes = append(changes, &Change{Action: Mount, Entry: entry})
 	}
 
 	return changes
 }
 
-// neededChangesNew is the real implementation of NeededChanges
-// This function is used when RobustMountNamespaceUpdate is enabled.
-func neededChangesNew(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
-	// Copy both profiles as we will want to mutate them.
-	current := make([]osutil.MountEntry, len(currentProfile.Entries))
-	copy(current, currentProfile.Entries)
-	desired := make([]osutil.MountEntry, len(desiredProfile.Entries))
-	copy(desired, desiredProfile.Entries)
-
-	// Clean the directory part of both profiles. This is done so that we can
-	// easily test if a given directory is a subdirectory with
-	// strings.HasPrefix coupled with an extra slash character.
-	for i := range current {
-		current[i].Dir = filepath.Clean(current[i].Dir)
-	}
-	for i := range desired {
-		desired[i].Dir = filepath.Clean(desired[i].Dir)
+func findFirstRootDirectoryThatExists(desiredParentDir string) string {
+	// trivial case - the dir already exists
+	if osutilIsDirectory(desiredParentDir) {
+		return desiredParentDir
 	}
 
-	// Sort both lists by directory name with implicit trailing slash.
-	sort.Sort(byOriginAndMagicDir(current))
-	sort.Sort(byOriginAndMagicDir(desired))
-
-	// We are now ready to compute the necessary mount changes.
-	var changes []*Change
-
-	// Unmount entries in reverse order, so that the most nested element is
-	// always processed first.
-	for i := len(current) - 1; i >= 0; i-- {
-		var entry osutil.MountEntry = current[i]
-		entry.Options = append([]string(nil), entry.Options...)
-		switch {
-		case entry.XSnapdSynthetic() && entry.Type == "tmpfs":
-			// Synthetic changes are rooted under a tmpfs, detach that tmpfs to
-			// remove them all.
-			if !entry.XSnapdDetach() {
-				entry.Options = append(entry.Options, osutil.XSnapdDetach())
-			}
-		case entry.XSnapdSynthetic():
-			// Consume all other syn ethic entries without emitting either a
-			// mount, unmount or keep change.  This relies on the fact that all
-			// synthetic mounts are created by a mimic underneath a tmpfs that
-			// is detached, as coded above.
-			continue
-		case entry.OptBool("rbind") || entry.Type == "tmpfs":
-			// Recursive bind mounts and non-mimic tmpfs mounts need to be
-			// detached because they can contain other mount points that can
-			// otherwise propagate in a self-conflicting way.
-			if !entry.XSnapdDetach() {
-				entry.Options = append(entry.Options, osutil.XSnapdDetach())
-			}
-		case entry.OptBool("bind") && entry.XSnapdKind() == "file":
-			// Bind mounted files are detached. If a bind mounted file open or
-			// mapped into a process as a library, then attempting to unmount
-			// it will result in EBUSY.
-			//
-			// This can happen when a snap has a service, for example one using
-			// a library mounted via a bind mount and an absent content
-			// connection. Subsequent connection of the content connection will
-			// trigger re-population of the mount namespace, which will start
-			// by tearing down the existing file bind-mount. To prevent this,
-			// detach the mount instead.
-			if !entry.XSnapdDetach() {
-				entry.Options = append(entry.Options, osutil.XSnapdDetach())
-			}
-		}
-		// Unmount all changes that were not eliminated.
-		changes = append(changes, &Change{Action: Unmount, Entry: entry})
-	}
-
-	// Mount desired entries.
-	for i := range desired {
-		changes = append(changes, &Change{Action: Mount, Entry: desired[i]})
-	}
-
-	return changes
+	// otherwise we need to recurse up to find the first dir that exists where
+	// we would place the mimic - note that this cannot recurse infinitely,
+	// since at some point we will reach "/" which always exists
+	return findFirstRootDirectoryThatExists(filepath.Dir(desiredParentDir))
 }
 
 // NeededChanges computes the changes required to change current to desired mount entries.
 //
-// The algorithm differs depending on the value of the robust mount namespace
-// updates feature flag. If the flag is enabled then the current profile is
-// entirely undone and the desired profile is constructed from scratch.
-//
-// If the flag is disabled then a diff-like operation on the mount profile is
-// computed. Some of the mount entries from the current profile may be reused.
-// The diff approach doesn't function correctly in cases of nested mimics.
+// A diff-like operation on the mount profile is computed. Some of the mount
+// entries from the current profile may be reused.
 var NeededChanges = func(current, desired *osutil.MountProfile) []*Change {
-	if features.RobustMountNamespaceUpdates.IsEnabled() {
-		return neededChangesNew(current, desired)
-	}
-	return neededChangesOld(current, desired)
+	return neededChanges(current, desired)
 }

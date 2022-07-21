@@ -58,18 +58,30 @@ ptrace (read),
 @{PROC}/diskstats r,
 @{PROC}/kallsyms r,
 @{PROC}/partitions r,
+@{PROC}/pressure/cpu r,
+@{PROC}/pressure/io r,
+@{PROC}/pressure/memory r,
 @{PROC}/sys/kernel/panic r,
 @{PROC}/sys/kernel/panic_on_oops r,
+@{PROC}/sys/kernel/sched_autogroup_enabled r,
+@{PROC}/sys/vm/max_map_count r,
 @{PROC}/sys/vm/panic_on_oom r,
 
 # These are not process-specific (/proc/*/... and /proc/*/task/*/...)
 @{PROC}/*/{,task/,task/*/} r,
+@{PROC}/*/{,task/*/}autogroup r,
 @{PROC}/*/{,task/*/}auxv r,
 @{PROC}/*/{,task/*/}cgroup r,
 @{PROC}/*/{,task/*/}cmdline r,
 @{PROC}/*/{,task/*/}comm r,
 @{PROC}/*/{,task/*/}exe r,
 @{PROC}/*/{,task/*/}fdinfo/* r,
+@{PROC}/*/{,task/*/}io r,
+@{PROC}/*/{,task/*/}oom_score r,
+# allow reading of smaps_rollup, which is a summary of the memory use of a process,
+# but not smaps which contains a detailed mappings breakdown like
+# /proc/self/maps, which we do not allow access to for other processes
+@{PROC}/*/{,task/*/}smaps_rollup r,
 @{PROC}/*/{,task/*/}stat r,
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,
@@ -85,6 +97,7 @@ ptrace (read),
 /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us r,
 /sys/fs/cgroup/cpu,cpuacct/cpu.shares r,
 /sys/fs/cgroup/cpu,cpuacct/cpu.stat r,
+/sys/fs/cgroup/memory/memory.stat r,
 
 #include <abstractions/dbus-strict>
 

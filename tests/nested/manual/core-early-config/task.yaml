@@ -19,10 +19,6 @@ prepare: |
     rm -rf squashfs-root
     mv "$GADGET_SNAP" "$(tests.nested get extra-snaps-path)"
 
-    snap download --channel=18/edge pc-kernel
-    KERNEL_SNAP=$(ls pc-kernel_*.snap)
-    mv "$KERNEL_SNAP" "$(tests.nested get extra-snaps-path)"
-
     tests.nested build-image core 
 
     # Modify seed to use devmode for pc gadget snap. This is needed for the
@@ -57,4 +53,4 @@ execute: |
     tests.nested exec "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"
 
     # hostname is set
-    tests.nested exec "cat /etc/hostname" | MATCH "foo"
+    tests.nested exec "cat /etc/hostname" | MATCH "F00"

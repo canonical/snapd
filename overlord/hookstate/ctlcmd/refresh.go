@@ -20,6 +20,7 @@
 package ctlcmd
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -143,10 +144,11 @@ func (c *refreshCommand) Execute(args []string) error {
 }
 
 type updateDetails struct {
-	Pending  string `yaml:"pending,omitempty"`
-	Channel  string `yaml:"channel,omitempty"`
-	Version  string `yaml:"version,omitempty"`
-	Revision int    `yaml:"revision,omitempty"`
+	Pending   string `yaml:"pending,omitempty"`
+	Channel   string `yaml:"channel,omitempty"`
+	CohortKey string `yaml:"cohort,omitempty"`
+	Version   string `yaml:"version,omitempty"`
+	Revision  int    `yaml:"revision,omitempty"`
 	// TODO: epoch
 	Base    bool `yaml:"base"`
 	Restart bool `yaml:"restart"`
@@ -188,7 +190,7 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	}
 
 	var candidates map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &candidates); err != nil && err != state.ErrNoState {
+	if err := st.Get("refresh-candidates", &candidates); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -206,6 +208,14 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 		Base:    base,
 		Restart: restart,
 		Pending: pending,
+	}
+
+	hasRefreshControl, err := hasSnapRefreshControlInterface(st, context.InstanceName())
+	if err != nil {
+		return nil, err
+	}
+	if hasRefreshControl {
+		up.CohortKey = snapst.CohortKey
 	}
 
 	// try to find revision/version/channel info from refresh-candidates; it
@@ -288,11 +298,11 @@ func (c *refreshCommand) proceed() error {
 	// running outside of hook
 	if ctx.IsEphemeral() {
 		st := ctx.State()
-		allow, err := allowRefreshProceedOutsideHook(st, ctx.InstanceName())
+		hasRefreshControl, err := hasSnapRefreshControlInterface(st, ctx.InstanceName())
 		if err != nil {
 			return err
 		}
-		if !allow {
+		if !hasRefreshControl {
 			return fmt.Errorf("cannot proceed: requires snap-refresh-control interface")
 		}
 		// we need to check if GateAutoRefreshHook feature is enabled when
@@ -318,7 +328,7 @@ func (c *refreshCommand) proceed() error {
 	return nil
 }
 
-func allowRefreshProceedOutsideHook(st *state.State, snapName string) (bool, error) {
+func hasSnapRefreshControlInterface(st *state.State, snapName string) (bool, error) {
 	conns, err := ifacestate.ConnectionStates(st)
 	if err != nil {
 		return false, fmt.Errorf("internal error: cannot get connections: %s", err)

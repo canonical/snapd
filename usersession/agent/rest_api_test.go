@@ -22,6 +22,7 @@ package agent_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http/httptest"
@@ -64,9 +65,7 @@ func (s *restSuite) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.AddCleanup(restore)
-	restore = systemd.MockStopDelays(time.Millisecond, 25*time.Second)
-	s.AddCleanup(restore)
-	restore = agent.MockStopTimeouts(20*time.Millisecond, time.Millisecond)
+	restore = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	s.AddCleanup(restore)
 
 	var err error
@@ -279,6 +278,7 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 		{"--user", "start", "snap.foo.service"},
 		{"--user", "start", "snap.bar.service"},
 		{"--user", "stop", "snap.foo.service"},
+		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
 	})
 }
 
@@ -322,7 +322,7 @@ func (s *restSuite) TestServicesStopNonSnap(c *C) {
 	c.Check(s.sysdLog, HasLen, 0)
 }
 
-func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
+func (s *restSuite) TestServicesStopReportsError(c *C) {
 	var sysdLog [][]string
 	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// Ignore "show" spam
@@ -330,7 +330,7 @@ func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 			sysdLog = append(sysdLog, cmd)
 		}
 		if cmd[len(cmd)-1] == "snap.bar.service" {
-			return []byte("ActiveState=active\n"), nil
+			return []byte("ActiveState=active\n"), errors.New("mock systemctl error")
 		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
@@ -351,7 +351,7 @@ func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 		"kind":    "service-control",
 		"value": map[string]interface{}{
 			"stop-errors": map[string]interface{}{
-				"snap.bar.service": "snap.bar.service failed to stop: timeout",
+				"snap.bar.service": "mock systemctl error",
 			},
 		},
 	})
@@ -595,4 +595,31 @@ func (s *restSuite) TestPostPendingRefreshNotificationNotificationServerFailure(
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
 	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"message": "cannot send notification message: org.freedesktop.DBus.Error.Failed"})
+}
+
+func (s *restSuite) testPostFinishRefreshNotificationBody(c *C, refreshInfo *client.FinishedSnapRefreshInfo) {
+	reqBody, err := json.Marshal(refreshInfo)
+	c.Assert(err, IsNil)
+	req := httptest.NewRequest("POST", "/v1/notifications/finish-refresh", bytes.NewBuffer(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	agent.FinishRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 200)
+	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeSync)
+	c.Check(rsp.Result, IsNil)
+}
+
+func (s *restSuite) TestPostCloseRefreshNotification(c *C) {
+	// add a notification first
+	refreshInfo := &client.PendingSnapRefreshInfo{InstanceName: "some-snap"}
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+
+	closeInfo := &client.FinishedSnapRefreshInfo{InstanceName: "some-snap"}
+	s.testPostFinishRefreshNotificationBody(c, closeInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 0)
 }

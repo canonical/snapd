@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -111,6 +112,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.AddCleanup(func() {
 		snapstate.SnapServiceOptions = oldSnapServiceOptions
 	})
+	bs.AddCleanup(osutil.MockMountInfo(""))
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {
@@ -276,8 +278,8 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsLate(c *C) {
 		Current:  snap.R(2),
 	})
 
-	// put core into the state but add no files on disk
-	// will break in the tasks
+	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1", osSI1)
+	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 2", osSI2)
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,

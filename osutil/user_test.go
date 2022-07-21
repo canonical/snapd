@@ -326,7 +326,7 @@ func (s *delUserSuite) TestDelUserRemovesSudoersIfPresent(c *check.C) {
 	// but u1's sudoers file is no more
 	c.Check(f1, testutil.FileAbsent)
 
-	// sanity check
+	// validity check
 	c.Check(s.mockUserDel.Calls(), check.DeepEquals, [][]string{
 		s.expectedCmd("u1"),
 		s.expectedCmd("u2"),
@@ -342,7 +342,7 @@ func (s *delUserSuite) TestDelUserSudoersRemovalFailure(c *check.C) {
 	// delusers fails
 	c.Assert(osutil.DelUser("u1", s.opts), check.ErrorMatches, `cannot remove sudoers file for user "u1": .*`)
 
-	// sanity check
+	// validity check
 	c.Check(s.mockUserDel.Calls(), check.DeepEquals, [][]string{
 		s.expectedCmd("u1"),
 	})
