@@ -7,12 +7,15 @@ details: |
 
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
+debug: |
+    tests.nested exec "lsblk"
+
 execute: |
     echo "Wait for the system to be seeded first"
     tests.nested exec "sudo snap wait system seed.loaded"
 
     echo "Ensuring the presence of ubuntu-save"
-    tests.nested exec "lsblk -oLABEL" | MATCH '^ubuntu-save$'
+    tests.nested exec "blkid -L ubuntu-save"
 
     echo "Ensuring the path /var/lib/snapd/save exists"
     tests.nested exec "ls -l /var/lib/snapd/save"
