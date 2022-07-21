@@ -88,6 +88,24 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 	// pidsByTag maps security tag to a list of pids.
 	pidsByTag := make(map[string][]int)
 
+	ver, err := Version()
+	if err != nil {
+		return nil, err
+	}
+
+	var cgroupPathToScan string
+	if ver == V2 {
+		// In v2 mode scan all of /sys/fs/cgroup as there is no specialization
+		// anymore (each directory represents a hierarchy with equal
+		// capabilities and old split into controllers is gone).
+		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint)
+	} else {
+		// In v1 mode scan just /sys/fs/cgroup/systemd as that is sufficient
+		// for finding snap-specific cgroup names. Systemd uses this for
+		// tracking and scopes and services are represented there.
+		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint, "systemd")
+	}
+
 	// Walk the cgroup tree and look for "cgroup.procs" files. Having found one
 	// we try to derive the snap security tag from it. If successful and the
 	// tag matches the snap we are interested in, we harvest the snapshot of
@@ -100,6 +118,14 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 			// that error quickly.
 			return err
 		}
+
+		// ignore snaps inside containers
+		for _, slice := range []string{"lxc.payload", "machine.slice", "docker"} {
+			if strings.HasPrefix(path, filepath.Join(cgroupPathToScan, slice)) {
+				return filepath.SkipDir
+			}
+		}
+
 		if fileInfo.IsDir() {
 			// We don't care about directories.
 			return nil
@@ -133,22 +159,6 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 		return filepath.SkipDir
 	}
 
-	var cgroupPathToScan string
-	ver, err := Version()
-	if err != nil {
-		return nil, err
-	}
-	if ver == V2 {
-		// In v2 mode scan all of /sys/fs/cgroup as there is no specialization
-		// anymore (each directory represents a hierarchy with equal
-		// capabilities and old split into controllers is gone).
-		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint)
-	} else {
-		// In v1 mode scan just /sys/fs/cgroup/systemd as that is sufficient
-		// for finding snap-specific cgroup names. Systemd uses this for
-		// tracking and scopes and services are represented there.
-		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint, "systemd")
-	}
 	// NOTE: Walk is internally performed in lexical order so the output is
 	// deterministic and we don't need to sort the returned aggregated PIDs.
 	if err := filepath.Walk(cgroupPathToScan, walkFunc); err != nil {
