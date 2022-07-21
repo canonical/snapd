@@ -33,7 +33,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// FetchAndCheckSnapAssertions fetches and cross checks the snap assertions matching the given snap file using the provided asserts.Fetcher and assertion database. The optional model assertion must be passed for full cross checks.
+// FetchAndCheckSnapAssertions fetches and cross checks the snap assertions
+// matching the given snap file using the provided asserts.Fetcher and
+// assertion database.
+// The optional model assertion must be passed for full cross checks.
 func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, model *asserts.Model, f asserts.Fetcher, db asserts.RODatabase) (*asserts.SnapDeclaration, error) {
 	sha3_384, size, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {

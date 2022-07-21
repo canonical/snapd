@@ -62,7 +62,7 @@ func findSnapDeclaration(snapID, name string, db Finder) (*asserts.SnapDeclarati
 // The optional model assertion must be passed to have full cross
 // checks in the case of delegated authority snap-revisions before
 // installing a snap.
-// It returns also the provenance if different from the default.
+// It also returns the provenance if is is different from the default.
 // Ultimately if not default the provenance must also be checked
 // with the provenance in the snap metadata by the caller as well,
 // if the provenance provided to the function was not read safely from
@@ -111,7 +111,7 @@ func CrossCheck(instanceName, snapSHA3_384, provenance string, snapSize uint64, 
 // if it has a non default provenance with the revision-authority
 // constraints of the given snap-declaration including any device
 // scope constraints using model (and implied store).
-// It returns also the provenance if different from the default.
+// It also returns the provenance if it is different from the default.
 // Ultimately if not default the provenance must also be checked
 // with the provenance in the snap metadata by the caller.
 func CrossCheckProvenance(instanceName string, snapRev *asserts.SnapRevision, snapDecl *asserts.SnapDeclaration, model *asserts.Model, db Finder) (signedProvenance string, err error) {
