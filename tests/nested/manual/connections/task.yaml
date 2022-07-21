@@ -51,5 +51,10 @@ restore: |
   . "$TESTSLIB"/store.sh
   teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
 
+debug: |
+  tests.nested exec "snap connections" || true
+  tests.nested exec "snap connections --all" || true
+  tests.nested exec "snap changes" || true
+
 execute: |
   tests.nested exec "snap connections" | MATCH 'serial-port  *connections:serial-1  *pc:serial-1'
