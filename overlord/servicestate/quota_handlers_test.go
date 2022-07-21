@@ -1709,7 +1709,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateAddSnapAlreadyInOtherGroup(c *C) {
 	})
 }
 
-func (s *quotaHandlersSuite) TestDoAddSnapToQuota(c *C) {
+func (s *quotaHandlersSuite) TestDoQuotaAddSnap(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
@@ -1743,26 +1743,26 @@ func (s *quotaHandlersSuite) TestDoAddSnapToQuota(c *C) {
 	})
 
 	// The snap exists and the quota group exists, so we're able to test the
-	// DoAddSnapToQuota
+	// DoQuotaAddSnap
 	task := s.state.NewTask("add-snap-to-quota", "test")
 
 	st.Unlock()
-	err = s.mgr.DoAddSnapToQuota(task, nil)
+	err = s.mgr.DoQuotaAddSnap(task, nil)
 	st.Lock()
-	c.Assert(err.Error(), Equals, "internal error: cannot get quota-control-actions: no state entry for key \"quota-on-install-snapnames\"")
+	c.Assert(err.Error(), Equals, "internal error: cannot get snap-name: no state entry for key \"snap-name\"")
 
 	// now set the snapnames parameter and try again
-	task.Set("quota-on-install-snapnames", []string{"test-snap"})
+	task.Set("snap-name", "test-snap")
 
 	st.Unlock()
-	err = s.mgr.DoAddSnapToQuota(task, nil)
+	err = s.mgr.DoQuotaAddSnap(task, nil)
 	st.Lock()
-	c.Assert(err.Error(), Equals, "internal error: cannot get quota-control-actions: no state entry for key \"quota-on-install-quotaname\"")
+	c.Assert(err.Error(), Equals, "internal error: cannot get quota-name: no state entry for key \"quota-name\"")
 
 	// and finally set the quota name as well, so it should succeed
-	task.Set("quota-on-install-quotaname", "foo")
+	task.Set("quota-name", "foo")
 	st.Unlock()
-	err = s.mgr.DoAddSnapToQuota(task, nil)
+	err = s.mgr.DoQuotaAddSnap(task, nil)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1809,14 +1809,14 @@ func (s *quotaHandlersSuite) TestDoAddSnapToJournalQuota(c *C) {
 	})
 
 	// The snap exists and the quota group exists, so we're able to test the
-	// DoAddSnapToQuota
+	// DoQuotaAddSnap
 	chg := s.state.NewChange("add-snap-to-quota", "test")
 	task := s.state.NewTask("add-snap-to-quota", "test")
-	task.Set("quota-on-install-snapnames", []string{"test-snap"})
-	task.Set("quota-on-install-quotaname", "foo")
+	task.Set("snap-name", "test-snap")
+	task.Set("quota-name", "foo")
 	chg.AddTask(task)
 	st.Unlock()
-	err = s.mgr.DoAddSnapToQuota(task, nil)
+	err = s.mgr.DoQuotaAddSnap(task, nil)
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(len(chg.Tasks()), Equals, 2)
@@ -1831,7 +1831,88 @@ func (s *quotaHandlersSuite) TestDoAddSnapToJournalQuota(c *C) {
 	})
 }
 
-func (s *quotaHandlersSuite) TestUndoAddSnapToQuota(c *C) {
+func (s *quotaHandlersSuite) TestDoQuotaAddSnapConflictSnap(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// create conflicting change
+	t := st.NewTask("link-snap", "...")
+	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "test-snap"}}
+	t.Set("snap-setup", snapsup)
+	chg := st.NewChange("other-change", "...")
+	chg.AddTask(t)
+
+	chg = st.NewChange("add-snap-to-quota", "test")
+	task := st.NewTask("add-snap-to-quota", "test")
+	task.Set("snap-name", "test-snap")
+	task.Set("quota-name", "foo")
+	chg.AddTask(task)
+
+	st.Unlock()
+	err := s.mgr.DoQuotaAddSnap(task, nil)
+	st.Lock()
+	c.Check(err, ErrorMatches, `snap "test-snap" has "other-change" change in progress`)
+}
+
+func (s *quotaHandlersSuite) TestDoQuotaAddSnapConflictQuotaGroup(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForSliceStart("foo"),
+		systemctlCallsForServiceRestart("test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// create a quota group
+	qc := servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+		AddSnaps:       []string{"test-snap"},
+	}
+
+	err := s.callDoQuotaControl(&qc)
+	c.Assert(err, IsNil)
+
+	// create conflicting change where we update the same group to a new memory limit
+	t := st.NewTask("quota-control", "...")
+	t.Set("quota-control-actions", []servicestate.QuotaControlAction{
+		{
+			Action:         "update",
+			QuotaName:      "foo",
+			ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(2 * quantity.SizeGiB).Build(),
+		},
+	})
+	chg := st.NewChange("other-change", "...")
+	chg.AddTask(t)
+
+	// create our own change
+	chg = st.NewChange("add-snap-to-quota", "test")
+	task := st.NewTask("add-snap-to-quota", "test")
+	task.Set("snap-name", "test-snap")
+	task.Set("quota-name", "foo")
+	chg.AddTask(task)
+
+	st.Unlock()
+	err = s.mgr.DoQuotaAddSnap(task, nil)
+	st.Lock()
+	c.Check(err, ErrorMatches, `quota group "foo" has "other-change" change in progress`)
+}
+
+func (s *quotaHandlersSuite) TestUndoQuotaAddSnap(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
@@ -1871,20 +1952,20 @@ func (s *quotaHandlersSuite) TestUndoAddSnapToQuota(c *C) {
 	})
 
 	// The snap exists and the quota group exists, so we're able to test the
-	// DoAddSnapToQuota
+	// DoQuotaAddSnap
 	task := s.state.NewTask("undo-add-snap-to-quota", "test")
 
 	// Test that it correctly reports an error if parameters are missing
 	st.Unlock()
-	err = s.mgr.UndoAddSnapToQuota(task, nil)
+	err = s.mgr.UndoQuotaAddSnap(task, nil)
 	st.Lock()
-	c.Assert(err.Error(), Equals, "internal error: cannot get quota-control-actions: no state entry for key \"quota-on-install-snapnames\"")
+	c.Assert(err.Error(), Equals, "internal error: cannot get snap-name: no state entry for key \"snap-name\"")
 
 	// Set correct parameters so it can run while we have the lock
-	task.Set("quota-on-install-snapnames", []string{"test-snap"})
+	task.Set("snap-name", "test-snap")
 
 	st.Unlock()
-	err = s.mgr.UndoAddSnapToQuota(task, nil)
+	err = s.mgr.UndoQuotaAddSnap(task, nil)
 	st.Lock()
 	c.Assert(err, IsNil)
 

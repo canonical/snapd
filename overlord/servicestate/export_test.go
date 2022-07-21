@@ -44,12 +44,12 @@ func (m *ServiceManager) DoServiceControl(t *state.Task, to *tomb.Tomb) error {
 	return m.doServiceControl(t, to)
 }
 
-func (m *ServiceManager) DoAddSnapToQuota(t *state.Task, to *tomb.Tomb) error {
-	return m.doAddSnapToQuota(t, to)
+func (m *ServiceManager) DoQuotaAddSnap(t *state.Task, to *tomb.Tomb) error {
+	return m.doQuotaAddSnap(t, to)
 }
 
-func (m *ServiceManager) UndoAddSnapToQuota(t *state.Task, to *tomb.Tomb) error {
-	return m.undoAddSnapToQuota(t, to)
+func (m *ServiceManager) UndoQuotaAddSnap(t *state.Task, to *tomb.Tomb) error {
+	return m.undoQuotaAddSnap(t, to)
 }
 
 func MockOsutilBootID(mockID string) (restore func()) {

@@ -537,10 +537,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		// needs to appear as installed first.
 		// XXX: Could we maybe move 'setup-profiles' to after this somehow? Or
 		// maybe just accept this could incur 'setup-profiles' twice?
-		quotaControlTask := st.NewTask("quota-on-install", fmt.Sprintf(i18n.G("Adding snap %q%s to quota group %q"),
+		quotaControlTask := st.NewTask("quota-add-snap", fmt.Sprintf(i18n.G("Adding snap %q%s to quota group %q"),
 			snapsup.InstanceName(), revisionStr, snapsup.QuotaGroupName))
-		quotaControlTask.Set("quota-on-install-snapnames", []string{snapsup.InstanceName()})
-		quotaControlTask.Set("quota-on-install-quotaname", snapsup.QuotaGroupName)
+		quotaControlTask.Set("snap-name", snapsup.InstanceName())
+		quotaControlTask.Set("quota-name", snapsup.QuotaGroupName)
 		addTask(quotaControlTask)
 		prev = quotaControlTask
 	}
