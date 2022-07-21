@@ -24,7 +24,8 @@ NESTED_MON_PORT=8888
 : "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:=}"
 : "${NESTED_UBUNTU_IMAGE_PRESEED_KEY:=}"
 
-NESTED_PHYSICAL_4K_SECTOR_SIZE="${NESTED_PHYSICAL_4K_SECTOR_SIZE:-}"
+: "${NESTED_DISK_PHYSICAL_BLOCK_SIZE:=512}"
+: "${NESTED_DISK_LOGICAL_BLOCK_SIZE:=512}"
 
 nested_wait_for_ssh() {
     # TODO:UC20: the retry count should be lowered to something more reasonable.
@@ -492,7 +493,7 @@ nested_get_image_name() {
     if [ "$(nested_get_extra_snaps | wc -l)" != "0" ]; then
         SOURCE="custom"
     fi
-    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}.img"
+    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}-${NESTED_DISK_LOGICAL_BLOCK_SIZE}.img"
 }
 
 nested_is_generic_image() {
@@ -819,6 +820,7 @@ EOF
                 $UBUNTU_IMAGE_CHANNEL_ARG \
                 "${UBUNTU_IMAGE_PRESEED_ARGS[@]:-}" \
                 --output-dir "$NESTED_IMAGES_DIR" \
+                --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" \
                 $EXTRA_FUNDAMENTAL \
                 $EXTRA_SNAPS
 
@@ -943,13 +945,12 @@ nested_add_file_to_vm() {
     local FILE=$2
     local devloop dev ubuntuSeedDev tmp
     # mount the image and find the loop device /dev/loop that is created for it
-    kpartx -avs "$IMAGE"
-    devloop=$(losetup --list --noheadings | grep "$IMAGE" | awk '{print $1}')
+    devloop="$(retry -n 3 --wait 1 losetup -f --show -P --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" "${IMAGE}")"
     dev=$(basename "$devloop")
-    
+
     # we add cloud-init data to the 2nd partition, which is ubuntu-seed
-    ubuntuSeedDev="/dev/mapper/${dev}p2"
-    
+    ubuntuSeedDev="/dev/${dev}p2"
+
     # wait for the loop device to show up
     retry -n 3 --wait 1 test -e "$ubuntuSeedDev"
     tmp=$(mktemp -d)
@@ -958,7 +959,7 @@ nested_add_file_to_vm() {
     cp -f "$FILE" "$tmp/data/etc/cloud/cloud.cfg.d/"
     sync
     umount "$tmp"
-    kpartx -d "$IMAGE"
+    losetup -d "${devloop}"
 }
 
 nested_configure_cloud_init_on_core20_vm() {
@@ -1029,6 +1030,9 @@ nested_start_core_vm_unit() {
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
     fi
+
+    PARAM_PHYS_BLOCK_SIZE="physical_block_size=${NESTED_DISK_PHYSICAL_BLOCK_SIZE}"
+    PARAM_LOGI_BLOCK_SIZE="logical_block_size=${NESTED_DISK_LOGICAL_BLOCK_SIZE}"
 
     local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CD PARAM_RANDOM PARAM_CPU PARAM_TRACE PARAM_LOG PARAM_SERIAL PARAM_RTC
     PARAM_DISPLAY="-nographic"
@@ -1141,11 +1145,9 @@ nested_start_core_vm_unit() {
         fi
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
     else
-        PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw"
+        PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device ide-hd,drive=disk1"
     fi
-    if [ "$NESTED_PHYSICAL_4K_SECTOR_SIZE" = "true" ]; then
-       PARAM_IMAGE="$PARAM_IMAGE,physical_block_size=4096,logical_block_size=512"
-    fi
+    PARAM_IMAGE="$PARAM_IMAGE,${PARAM_PHYS_BLOCK_SIZE},${PARAM_LOGI_BLOCK_SIZE}"
 
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
