@@ -55,6 +55,8 @@ debug: |
   tests.nested exec "snap connections" || true
   tests.nested exec "snap connections --all" || true
   tests.nested exec "snap changes" || true
+  tests.nested exec "sudo python3 -m json.tool /var/lib/snapd/state.json" || true
+  tests.nested exec "sudo snap debug state --connections /var/lib/snapd/state.json" || true
 
 execute: |
   tests.nested exec "snap connections" | MATCH 'serial-port  *connections:serial-1  *pc:serial-1'
