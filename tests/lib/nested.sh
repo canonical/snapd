@@ -476,7 +476,7 @@ nested_get_image_name() {
     local SOURCE="${NESTED_CORE_CHANNEL}"
     local NAME="${NESTED_IMAGE_ID:-generic}"
     local VERSION="16"
-
+    local MODEL="${NESTED_CUSTOM_MODEL:-}"
 
     if nested_is_core_22_system; then
         VERSION="22"
@@ -490,9 +490,13 @@ nested_get_image_name() {
         SOURCE="custom"
     fi
     if [ "$(nested_get_extra_snaps | wc -l)" != "0" ]; then
-        SOURCE="custom"
+        SOURCE="custom-$(nested_get_extra_snaps | md5sum | cut -c1-8)"
     fi
-    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}.img"
+    if [ -n "$MODEL" ]; then
+        MODEL="$(basename "$MODEL")"
+    fi
+
+    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}-${MODEL}.img"
 }
 
 nested_is_generic_image() {
