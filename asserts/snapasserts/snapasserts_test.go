@@ -133,9 +133,9 @@ func (s *snapassertsSuite) TestCrossCheckHappy(c *C) {
 	}
 
 	// everything cross checks, with the regular snap name
-	prov, err := snapasserts.CrossCheck("foo", digest, "", size, si, nil, s.localDB)
-	c.Check(err, IsNil)
-	c.Check(prov, Equals, "")
+	checkedRev, err := snapasserts.CrossCheck("foo", digest, "", size, si, nil, s.localDB)
+	c.Assert(err, IsNil)
+	c.Check(checkedRev, DeepEquals, snapRev)
 
 	// and a snap instance name
 	_, err = snapasserts.CrossCheck("foo_instance", digest, "", size, si, nil, s.localDB)
@@ -391,9 +391,9 @@ func (s *snapassertsSuite) TestCrossCheckDelegatedSnapHappy(c *C) {
 	}
 
 	// everything cross checks, with the regular snap name
-	prov, err := snapasserts.CrossCheck("foo", digest, "prov1", size, si, nil, s.localDB)
-	c.Check(err, IsNil)
-	c.Check(prov, Equals, "prov1")
+	checkedRev, err := snapasserts.CrossCheck("foo", digest, "prov1", size, si, nil, s.localDB)
+	c.Assert(err, IsNil)
+	c.Check(checkedRev, DeepEquals, snapRev)
 	// and a snap instance name
 	_, err = snapasserts.CrossCheck("foo_instance", digest, "prov1", size, si, nil, s.localDB)
 	c.Check(err, IsNil)
@@ -471,9 +471,9 @@ func (s *snapassertsSuite) TestCrossCheckWithDeviceDelegatedSnapHappy(c *C) {
 	}
 
 	// everything cross checks, with the regular snap name
-	prov, err := snapasserts.CrossCheck("foo", digest, "prov1", size, si, model, s.localDB)
-	c.Check(err, IsNil)
-	c.Check(prov, Equals, "prov1")
+	checkedRev, err := snapasserts.CrossCheck("foo", digest, "prov1", size, si, model, s.localDB)
+	c.Assert(err, IsNil)
+	c.Check(checkedRev, Equals, snapRev)
 	// and a snap instance name
 	_, err = snapasserts.CrossCheck("foo_instance", digest, "prov1", size, si, model, s.localDB)
 	c.Check(err, IsNil)
@@ -579,7 +579,41 @@ func (s *snapassertsSuite) TestCrossCheckSpuriousProvenanceUnhappy(c *C) {
 	c.Check(err, ErrorMatches, `.*cannot find pre-populated snap-revision assertion for "foo": .*provenance: prov`)
 }
 
-func (s *snapassertsSuite) TestCheckProvenance(c *C) {
+func (s *snapassertsSuite) TestCheckProvenanceWithVerifiedRevision(c *C) {
+	digest := makeDigest(12)
+	size := uint64(len(fakeSnap(12)))
+	snapRevGlobalUpload := assertstest.FakeAssertion(map[string]interface{}{
+		"type":          "snap-revision",
+		"authority-id":  "can0nical",
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": digest,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-revision": "12",
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}).(*asserts.SnapRevision)
+	snapRevProv := assertstest.FakeAssertion(map[string]interface{}{
+		"type":          "snap-revision",
+		"authority-id":  s.dev1Acct.AccountID(),
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": digest,
+		"provenance":    "prov",
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-revision": "12",
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}).(*asserts.SnapRevision)
+	snapRevProv2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":          "snap-revision",
+		"authority-id":  s.dev1Acct.AccountID(),
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": digest,
+		"provenance":    "prov2",
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-revision": "12",
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}).(*asserts.SnapRevision)
 	withProv := snaptest.MakeTestSnapWithFiles(c, `name: with-prov
 version: 1
 provenance: prov`, nil)
@@ -588,19 +622,21 @@ version: 1
 `, nil)
 
 	// matching
-	c.Check(snapasserts.CheckProvenance(withProv, "prov"), IsNil)
-	c.Check(snapasserts.CheckProvenance(defaultProv, ""), IsNil)
-	c.Check(snapasserts.CheckProvenance(defaultProv, "global-upload"), IsNil)
+	c.Check(snapasserts.CheckProvenanceWithVerifiedRevision(withProv, snapRevProv), IsNil)
+	c.Check(snapasserts.CheckProvenanceWithVerifiedRevision(defaultProv, snapRevGlobalUpload), IsNil)
+
 	// mismatches
 	mismatches := []struct {
-		path, prov, metadataProv string
+		path         string
+		snapRev      *asserts.SnapRevision
+		metadataProv string
 	}{
-		{withProv, "prov2", "prov"},
-		{withProv, "global-upload", "prov"},
-		{defaultProv, "prov", "global-upload"},
+		{withProv, snapRevProv2, "prov"},
+		{withProv, snapRevGlobalUpload, "prov"},
+		{defaultProv, snapRevProv, "global-upload"},
 	}
 	for _, mism := range mismatches {
-		c.Check(snapasserts.CheckProvenance(mism.path, mism.prov), ErrorMatches, fmt.Sprintf("snap %q has been signed under provenance %q different from the metadata one: %q", mism.path, mism.prov, mism.metadataProv))
+		c.Check(snapasserts.CheckProvenanceWithVerifiedRevision(mism.path, mism.snapRev), ErrorMatches, fmt.Sprintf("snap %q has been signed under provenance %q different from the metadata one: %q", mism.path, mism.snapRev.Provenance(), mism.metadataProv))
 	}
 
 }
