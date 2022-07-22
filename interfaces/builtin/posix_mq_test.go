@@ -451,9 +451,11 @@ func (s *PosixMQInterfaceSuite) TestReadWriteMQAppArmor(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
+	c.Check(slotSnippet, testutil.Contains, `# POSIX Message Queue slot: test-rw`)
 	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) "/test-rw",`)
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
+	c.Check(plugSnippet, testutil.Contains, `# POSIX Message Queue plug: test-rw`)
 	c.Check(plugSnippet, testutil.Contains, `mqueue (read write open) "/test-rw",`)
 }
 
@@ -484,9 +486,11 @@ func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQAppArmor(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
+	c.Check(slotSnippet, testutil.Contains, `# POSIX Message Queue slot: test-default`)
 	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) "/test-default",`)
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
+	c.Check(plugSnippet, testutil.Contains, `# POSIX Message Queue plug: test-default`)
 	c.Check(plugSnippet, testutil.Contains, `mqueue (read write open) "/test-default",`)
 }
 

@@ -283,11 +283,11 @@ func (iface *posixMQInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return nil
 }
 
-func (iface *posixMQInterface) generateSnippet(name string, permissions, paths []string) string {
+func (iface *posixMQInterface) generateSnippet(name, plugOrSlot string, permissions, paths []string) string {
 	var snippet strings.Builder
 	aaPerms := strings.Join(permissions, " ")
 
-	snippet.WriteString(fmt.Sprintf("  # POSIX Message Queue: %s\n", name))
+	snippet.WriteString(fmt.Sprintf("  # POSIX Message Queue %s: %s\n", plugOrSlot, name))
 	for _, path := range paths {
 		snippet.WriteString(fmt.Sprintf("  mqueue (%s) \"%s\",\n", aaPerms, path))
 	}
@@ -306,7 +306,7 @@ func (iface *posixMQInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 	}
 
 	// Slots always have all permissions enabled for the given message queue path
-	snippet := iface.generateSnippet(slot.Name, posixMQPlugPermissions, paths)
+	snippet := iface.generateSnippet(slot.Name, "slot", posixMQPlugPermissions, paths)
 	spec.AddSnippet(snippet)
 
 	return nil
@@ -328,7 +328,7 @@ func (iface *posixMQInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 		perms = append(perms, "open")
 	}
 
-	snippet := iface.generateSnippet(plug.Name(), perms, paths)
+	snippet := iface.generateSnippet(plug.Name(), "plug", perms, paths)
 	spec.AddSnippet(snippet)
 
 	return nil
