@@ -8,6 +8,7 @@ environment:
   NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
   NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-auto-import.assert
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/nested-20-amd64-connections.model
+  NESTED_IMAGE_ID: gadget-connections
   NESTED_ENABLE_TPM: false
   NESTED_ENABLE_SECURE_BOOT: false
 
