@@ -52,11 +52,16 @@ restore: |
   teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
 
 debug: |
-  tests.nested exec "snap connections" || true
   tests.nested exec "snap connections --all" || true
   tests.nested exec "snap changes" || true
+  tests.nested exec "snap change 2" || true
+  tests.nested exec "snap model" || true
+  tests.nested exec "snap list" || true
   tests.nested exec "sudo python3 -m json.tool /var/lib/snapd/state.json" || true
-  tests.nested exec "sudo snap debug state --connections /var/lib/snapd/state.json" || true
 
 execute: |
+  # precondition check that the "connections" snap is installed
+  # XXX: the "connections" snap should really be called "test-snapd-connections"
+  tests.nested exec "snap list connections"
+  # check that there is an auto-connection
   tests.nested exec "snap connections" | MATCH 'serial-port  *connections:serial-1  *pc:serial-1'
