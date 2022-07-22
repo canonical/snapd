@@ -184,6 +184,7 @@ pivot_root oldroot=/newroot/ /newroot/,
 umount /,
 
 # Permissions needed within sandbox root
+deny /usr/bin/{chfn,chsh,gpasswd,mount,newgrp,passwd,su,sudo,umount} x,
 /usr/bin/** ixr,
 /usr/sbin/** ixr,
 /usr/lib/pressure-vessel/** ixr,
