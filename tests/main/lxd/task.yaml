@@ -200,6 +200,20 @@ execute: |
     snap install lxd-demo-server
     snap connect lxd-demo-server:lxd lxd:lxd
 
+    echo "Check that snaps in containers don't prevent refreshes in the host"
+    snap pack "$TESTSLIB/snaps/test-snapd-sh"
+    snap install --dangerous test-snapd-sh_1.0_all.snap
+
+    lxc file push test-snapd-sh_1.0_all.snap my-ubuntu/home/sh.snap
+    lxc exec my-ubuntu -- snap install --dangerous /home/sh.snap
+
+    # keep the snap running in the container until we refresh in the host
+    lxc exec my-ubuntu -- touch /home/test-run
+    lxc exec my-ubuntu -- sh -c 'test-snapd-sh.sh -c "while [ -e /home/test-run ]; do sleep 1; done"' &
+    snap install --dangerous test-snapd-sh_1.0_all.snap
+    # remove the signal file so that the snap exits
+    lxc exec my-ubuntu -- rm /home/test-run
+
     echo "Check that we error in 'unconfined' lxd containers"
     lxd.lxc config show my-ubuntu > conf.yaml
     cat <<EOF >> conf.yaml

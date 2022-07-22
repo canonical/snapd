@@ -736,6 +736,209 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 	c.Check(installSnaps, HasLen, 0)
 }
 
+func (s *seed20Suite) TestLoadMetaCore20DelegatedSnap(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
+	ra := map[string]interface{}{
+		"account-id": "my-brand",
+		"provenance": []interface{}{"delegated-prov"},
+		"on-store":   []interface{}{"my-brand-store"},
+	}
+	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "developerid", "my-brand", "delegated-prov", ra, s.StoreSigning.Database)
+
+	s.AssertedSnapInfo("required20").EditedContact = "mailto:author@example.com"
+
+	sysLabel := "20220705"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-brand-store",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			}},
+	}, nil)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:          s.expectedPath("snapd"),
+			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType: snap.TypeSnapd,
+			Essential:     true,
+			Required:      true,
+			Channel:       "latest/stable",
+		}, {
+			Path:          s.expectedPath("pc-kernel"),
+			SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			EssentialType: snap.TypeKernel,
+			Essential:     true,
+			Required:      true,
+			Channel:       "20",
+		}, {
+			Path:          s.expectedPath("core20"),
+			SideInfo:      &s.AssertedSnapInfo("core20").SideInfo,
+			EssentialType: snap.TypeBase,
+			Essential:     true,
+			Required:      true,
+			Channel:       "latest/stable",
+		}, {
+			Path:          s.expectedPath("pc"),
+			SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+			EssentialType: snap.TypeGadget,
+			Essential:     true,
+			Required:      true,
+			Channel:       "20",
+		},
+	})
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 1)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     s.expectedPath("required20"),
+			SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+		},
+	})
+
+	// required20 has default modes: ["run"]
+	installSnaps, err := seed20.ModeSnaps("install")
+	c.Assert(err, IsNil)
+	c.Check(installSnaps, HasLen, 0)
+}
+
+func (s *seed20Suite) TestLoadMetaCore20DelegatedSnapProvenanceMismatch(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
+	ra := map[string]interface{}{
+		"account-id": "my-brand",
+		"provenance": []interface{}{"delegated-prov"},
+		"on-store":   []interface{}{"my-brand-store"},
+	}
+	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"]+"\nprovenance: delegated-prov-other\n", nil, snap.R(1), "developerid", "my-brand", "delegated-prov", ra, s.StoreSigning.Database)
+
+	sysLabel := "20220705"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-brand-store",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			}},
+	}, nil)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Check(err, ErrorMatches, `snap ".*required20_1\.snap" has been signed under provenance "delegated-prov" different from the metadata one: "delegated-prov-other"`)
+}
+
+func (s *seed20Suite) TestLoadMetaCore20DelegatedSnapDeviceMismatch(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
+	ra := map[string]interface{}{
+		"account-id": "my-brand",
+		"provenance": []interface{}{"delegated-prov"},
+		"on-model":   []interface{}{"my-brand/my-other-model"},
+	}
+	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "developerid", "my-brand", "delegated-prov", ra, s.StoreSigning.Database)
+
+	sysLabel := "20220705"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-brand-store",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			}},
+	}, nil)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
+	c.Check(err, ErrorMatches, `snap "required20" revision assertion with provenance "delegated-prov" is not signed by an authority authorized on this device: my-brand`)
+}
+
 func hideSnaps(c *C, all []*seed.Snap, keepTypes []snap.Type) (unhide func()) {
 	var hidden [][]string
 Hiding:
@@ -1535,7 +1738,7 @@ func (s *seed20Suite) TestLoadMetaCore20SnapHandlerChangePath(c *C) {
 	c.Assert(err, IsNil)
 
 	h := newTestSnapHandler(s.SeedDir)
-	h.pathPrefix = "saved"
+	h.pathPrefix = "/tmp/.."
 
 	err = seed20.LoadMeta(seed.AllModes, h, s.perfTimings)
 	c.Assert(err, IsNil)
@@ -1547,21 +1750,21 @@ func (s *seed20Suite) TestLoadMetaCore20SnapHandlerChangePath(c *C) {
 
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{
 		{
-			Path:          "saved" + s.expectedPath("snapd"),
+			Path:          "/tmp/.." + s.expectedPath("snapd"),
 			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
 			EssentialType: snap.TypeSnapd,
 			Essential:     true,
 			Required:      true,
 			Channel:       "latest/stable",
 		}, {
-			Path:          "saved" + s.expectedPath("pc-kernel"),
+			Path:          "/tmp/.." + s.expectedPath("pc-kernel"),
 			SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
 			EssentialType: snap.TypeKernel,
 			Essential:     true,
 			Required:      true,
 			Channel:       "20",
 		}, {
-			Path:          "saved" + s.expectedPath("core20"),
+			Path:          "/tmp/.." + s.expectedPath("core20"),
 			SideInfo:      &s.AssertedSnapInfo("core20").SideInfo,
 			EssentialType: snap.TypeBase,
 			Essential:     true,
@@ -1583,7 +1786,7 @@ func (s *seed20Suite) TestLoadMetaCore20SnapHandlerChangePath(c *C) {
 
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
-			Path:     filepath.Join("saved", s.SeedDir, "systems", sysLabel, "snaps", "required20_1.0.snap"),
+			Path:     "/tmp/.." + filepath.Join(s.SeedDir, "systems", sysLabel, "snaps", "required20_1.0.snap"),
 			SideInfo: &snap.SideInfo{RealName: "required20"},
 			Required: true,
 		},

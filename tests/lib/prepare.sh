@@ -458,7 +458,7 @@ repack_kernel_snap() {
     unsquashfs -no-progress -d "$UNPACK_DIR" pc-kernel.snap
     snap pack --filename="$TARGET" "$UNPACK_DIR"
 
-    rm -rf "$UNPACK_DIR"
+    rm -rf pc-kernel.snap "$UNPACK_DIR"
 }
 
 repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
