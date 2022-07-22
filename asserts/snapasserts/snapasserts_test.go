@@ -684,3 +684,71 @@ provenance: prov`, nil)
 		Channel:  "",
 	})
 }
+
+func (s *snapassertsSuite) TestDeriveSideInfoFromDigestAndSizeDelegatedSnapAmbiguous(c *C) {
+	// this is not a fully realistic test as this unlikely
+	// scenario would happen possibly across different delegated
+	// accounts, the goal is simply to trigger the error
+	// even if not in a realistic way
+	withProv := snaptest.MakeTestSnapWithFiles(c, `name: with-prov
+version: 1
+provenance: prov`, nil)
+	digest, size, err := asserts.SnapFileSHA3_384(withProv)
+	c.Assert(err, IsNil)
+
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"revision":     "1",
+		"revision-authority": []interface{}{
+			map[string]interface{}{
+				"account-id": s.dev1Acct.AccountID(),
+				"provenance": []interface{}{
+					"prov",
+					"prov2",
+				},
+			},
+		},
+		"timestamp": time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"authority-id":  s.dev1Acct.AccountID(),
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": digest,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"provenance":    "prov",
+		"snap-revision": "41",
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapRev, err := s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = s.localDB.Add(snapRev)
+	c.Check(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id":  s.dev1Acct.AccountID(),
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": digest,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"provenance":    "prov2",
+		"snap-revision": "82",
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapRev2, err := s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = s.localDB.Add(snapRev2)
+	c.Check(err, IsNil)
+
+	_, err = snapasserts.DeriveSideInfoFromDigestAndSize(withProv, digest, size, nil, s.localDB)
+	c.Check(err, ErrorMatches, `safely handling snaps with different provenance but same hash not yet supported`)
+}
