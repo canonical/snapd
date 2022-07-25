@@ -1,5 +1,7 @@
 summary: tests for the tests.cleanup tool
 
+backends: [google]
+
 systems: [ubuntu-18.04-64]
 
 execute: |
