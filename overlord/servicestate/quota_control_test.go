@@ -319,6 +319,57 @@ func (s *quotaControlSuite) TestCreateQuotaSystemdTooOld(c *C) {
 	c.Assert(err, ErrorMatches, `cannot use quotas with incompatible systemd: systemd version 229 is too old \(expected at least 230\)`)
 }
 
+func (s *quotaControlSuite) TestCreateQuotaPerQuotaSystemdTooOld(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tests := []struct {
+		resources      quota.Resources
+		systemdVersion int
+		expectedErr    string
+	}{
+		// We have no checks for these as we require a minimum systemd version of 230, and
+		// the above unit test already verifies the minimum value of 230. These are only listed
+		// here for completeness.
+		//{"foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(), 211},
+		//{"new", quota.NewResourcesBuilder().WithCPUPercentage(25).Build(), 213},
+		//{"new", quota.NewResourcesBuilder().WithThreadLimit(64).Build(), 228},
+
+		{quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build(), 243, `cannot use the cpu-set quota with incompatible systemd: systemd version 242 is too old \(expected at least 243\)`},
+		{quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).Build(), 245, `cannot use journal quota with incompatible systemd: systemd version 244 is too old \(expected at least 245\)`},
+	}
+
+	for _, t := range tests {
+		r := systemd.MockSystemdVersion(t.systemdVersion-1, nil)
+		defer r()
+
+		_, err := servicestate.CreateQuota(s.state, "foo", "", nil, t.resources)
+		c.Assert(err, ErrorMatches, t.expectedErr)
+	}
+}
+
+func (s *quotaControlSuite) TestCreateQuotaJournalNotEnabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	quotaConstraits := quota.NewResourcesBuilder().WithJournalNamespace().Build()
+	_, err := servicestate.CreateQuota(s.state, "foo", "", nil, quotaConstraits)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.journal-quota' to true`)
+}
+
+func (s *quotaControlSuite) TestCreateQuotaJournalEnabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.journal-quota", true)
+	tr.Commit()
+
+	quotaConstraits := quota.NewResourcesBuilder().WithJournalNamespace().Build()
+	_, err := servicestate.CreateQuota(s.state, "foo", "", nil, quotaConstraits)
+	c.Assert(err, IsNil)
+}
+
 func (s *quotaControlSuite) TestCreateQuotaPrecond(c *C) {
 	st := s.state
 	st.Lock()
