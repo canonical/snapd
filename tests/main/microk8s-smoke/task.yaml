@@ -66,3 +66,6 @@ execute: |
 
     echo "Test if nginx can be connected"
     retry -n 15 sh -c "curl --max-time 3 'http://localhost:31313/' | MATCH 'Welcome to nginx'"
+
+    echo "Running a microk8s causes no DENIED messages"
+    dmesg | not grep DENIED
