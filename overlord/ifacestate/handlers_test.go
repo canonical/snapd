@@ -25,7 +25,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -143,10 +142,6 @@ func (s *handlersSuite) TestBuildConfinementOptions(c *C) {
 func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
-
-	tr := config.NewTransaction(s.st)
-	tr.Set("core", "experimental.quota-groups", true)
-	tr.Commit()
 
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
 

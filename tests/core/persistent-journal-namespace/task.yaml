@@ -8,8 +8,6 @@ systems:
 
 prepare: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-journal-quota
-  snap set system experimental.quota-groups=true
-  tests.cleanup defer snap unset system experimental.quota-groups
 
 restore: |
   # Stop test service and cleanup

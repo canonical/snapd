@@ -70,17 +70,6 @@ func quotaGroupsAvailable(st *state.State) error {
 	if systemdVersionError != nil {
 		return fmt.Errorf("cannot use quotas with incompatible systemd: %v", systemdVersionError)
 	}
-
-	// TODO: remove this check
-	tr := config.NewTransaction(st)
-	enableQuotaGroups, err := features.Flag(tr, features.QuotaGroups)
-	if err != nil && !config.IsNoOption(err) {
-		return err
-	}
-	if !enableQuotaGroups {
-		return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.quota-groups' to true")
-	}
-
 	return nil
 }
 

@@ -59,9 +59,6 @@ func (s *quotaControlSuite) SetUpTest(c *C) {
 	// we enable quota-groups by default
 	s.state.Lock()
 	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.quota-groups", true)
-	tr.Commit()
 
 	// mock that we have a new enough version of systemd by default
 	r := systemd.MockSystemdVersion(248, nil)
@@ -290,20 +287,6 @@ func checkQuotaControlTasks(c *C, tasks []*state.Task, expAction *servicestate.Q
 	c.Assert(qcs[0], DeepEquals, expAction)
 }
 
-func (s *quotaControlSuite) TestCreateQuotaNotEnabled(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.quota-groups", false)
-	tr.Commit()
-
-	// try to create an empty quota group
-	_, err := servicestate.CreateQuota(s.state, "foo", servicestate.CreateQuotaOptions{
-		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
-	})
-	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
-}
-
 func (s *quotaControlSuite) TestCreateQuotaSystemdTooOld(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -363,6 +346,22 @@ func (s *quotaControlSuite) TestCreateQuotaJournalNotEnabled(c *C) {
 		ResourceLimits: quotaConstraits,
 	})
 	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
+}
+
+func (s *quotaControlSuite) TestUpdateQuotaJournalNotEnabled(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB * 2).Build()
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, quotaConstraits)
+	c.Assert(err, IsNil)
+
+	opts := servicestate.QuotaGroupUpdate{
+		NewResourceLimits: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+	}
+	_, err = servicestate.UpdateQuota(st, "foo", opts)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.journal-quota' to true`)
 }
 
 func (s *quotaControlSuite) TestCreateQuotaJournalEnabled(c *C) {
@@ -797,18 +796,6 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 	// is not in any quota group
 	err = servicestate.EnsureSnapAbsentFromQuota(s.state, "test-snap33333")
 	c.Assert(err, IsNil)
-}
-
-func (s *quotaControlSuite) TestUpdateQuotaGroupNotEnabled(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.quota-groups", false)
-	tr.Commit()
-
-	opts := servicestate.UpdateQuotaOptions{}
-	_, err := servicestate.UpdateQuota(s.state, "foo", opts)
-	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
 }
 
 func (s *quotaControlSuite) TestUpdateQuotaPrecond(c *C) {
