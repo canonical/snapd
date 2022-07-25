@@ -537,7 +537,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		// needs to appear as installed first.
 		// XXX: Could we maybe move 'setup-profiles' to after this somehow? Or
 		// maybe just accept this could incur 'setup-profiles' twice?
-		quotaControlTask := st.NewTask("quota-add-snap", fmt.Sprintf(i18n.G("Adding snap %q%s to quota group %q"),
+		quotaControlTask := st.NewTask("quota-add-snap", fmt.Sprintf(i18n.G("Add snap %q%s to quota group %q"),
 			snapsup.InstanceName(), revisionStr, snapsup.QuotaGroupName))
 		quotaControlTask.Set("snap-name", snapsup.InstanceName())
 		quotaControlTask.Set("quota-name", snapsup.QuotaGroupName)
@@ -1058,7 +1058,6 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		Type:               info.Type(),
 		PlugsOnly:          len(info.Slots) == 0,
 		InstanceKey:        info.InstanceKey,
-		QuotaGroupName:     flags.QuotaGroupName,
 	}
 
 	ts, err := doInstall(st, &snapst, snapsup, instFlags, "", inUseFor(deviceCtx))
@@ -1153,7 +1152,6 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		Type:               info.Type(),
 		PlugsOnly:          len(info.Slots) == 0,
 		InstanceKey:        info.InstanceKey,
-		QuotaGroupName:     flags.QuotaGroupName,
 		auxStoreInfo: auxStoreInfo{
 			Media:   info.Media,
 			Website: info.Website,

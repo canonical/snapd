@@ -4462,6 +4462,9 @@ func (s *snapmgrTestSuite) TestInstallQuotaGroup(c *C) {
 	var quotaWasCalled bool
 	s.o.TaskRunner().AddHandler("quota-add-snap", func(t *state.Task, _ *tomb.Tomb) error {
 		quotaWasCalled = true
+		ss, err := snapstate.TaskSnapSetup(t)
+		c.Assert(err, IsNil)
+		c.Assert(ss.QuotaGroupName, Equals, "foo")
 		return nil
 	}, nil)
 
@@ -4490,6 +4493,9 @@ func (s *snapmgrTestSuite) TestInstallUndoQuotaGroup(c *C) {
 	var quotaUndoWasCalled bool
 	s.o.TaskRunner().AddHandler("quota-add-snap", func(t *state.Task, _ *tomb.Tomb) error {
 		quotaWasCalled = true
+		ss, err := snapstate.TaskSnapSetup(t)
+		c.Assert(err, IsNil)
+		c.Assert(ss.QuotaGroupName, Equals, "foo")
 		return nil
 	}, func(t *state.Task, _ *tomb.Tomb) error {
 		quotaUndoWasCalled = true
