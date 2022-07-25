@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/metautil"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -179,12 +180,14 @@ func (iface *posixMQInterface) getPaths(attrs interfaces.Attrer, name string) ([
 	switch {
 	case errors.Is(err, snap.AttributeNotFoundError{}):
 		return nil, fmt.Errorf(`posix-mq slot requires the "path" attribute`)
-	case err != nil:
+	case errors.Is(err, metautil.AttributeNotCompatibleError{}):
 		// If the attribute exists but reading it as a string didn't work, try reading it as an array
 		if err = attrs.Attr("path", &pathList); err != nil {
 			// If that didn't work, the attribute is an invalid type
 			return nil, err
 		}
+	case err != nil:
+		return nil, err
 	default:
 		// If the path is a single string, turn it into an array
 		pathList = append(pathList, pathStr)

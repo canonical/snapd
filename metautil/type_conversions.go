@@ -69,6 +69,17 @@ func convertValue(value reflect.Value, outputType reflect.Type) (reflect.Value, 
 	return nullValue, fmt.Errorf(`cannot convert value "%v" into a %v`, value, outputType)
 }
 
+type AttributeNotCompatibleError struct{ Err error }
+
+func (e AttributeNotCompatibleError) Error() string {
+	return e.Err.Error()
+}
+
+func (e AttributeNotCompatibleError) Is(target error) bool {
+	_, ok := target.(AttributeNotCompatibleError)
+	return ok
+}
+
 // SetValueFromAttribute attempts to convert the attribute value read from the
 // given snap/interface into the desired type.
 //
@@ -84,7 +95,7 @@ func SetValueFromAttribute(snapName string, ifaceName string, attrName string, a
 
 	converted, err := convertValue(reflect.ValueOf(attrVal), rt.Elem())
 	if err != nil {
-		return fmt.Errorf("snap %q has interface %q with invalid value type %T for %q attribute: %T", snapName, ifaceName, attrVal, attrName, val)
+		return AttributeNotCompatibleError{fmt.Errorf("snap %q has interface %q with invalid value type %T for %q attribute: %T", snapName, ifaceName, attrVal, attrName, val)}
 	}
 	rv := reflect.ValueOf(val)
 	rv.Elem().Set(converted)
