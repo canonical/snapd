@@ -593,6 +593,11 @@ uc20_build_corrupt_kernel_snap() {
 uc20_build_initramfs_kernel_snap() {
     # carries ubuntu-core-initframfs
     add-apt-repository ppa:snappy-dev/image -y
+    # On focal, lvm2 does not reinstall properly after being removed.
+    # So we need to clean up in case the VM has been re-used.
+    if os.query is-focal; then
+        systemctl unmask lvm2-lvmpolld.socket
+    fi
     # TODO: install the linux-firmware as the current version of
     # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
     # to build the initrd
