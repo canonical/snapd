@@ -532,6 +532,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	if snapsup.QuotaGroupName != "" {
+		if err := CheckQuotaChangeConflictMany(st, []string{snapsup.QuotaGroupName}); err != nil {
+			return nil, err
+		}
+
 		// This could result in doing 'setup-profiles' twice, but
 		// unfortunately we can't execute this code earlier as the snap
 		// needs to appear as installed first.

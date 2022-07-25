@@ -17,7 +17,7 @@
  *
  */
 
-package servicestate
+package snapstate
 
 import (
 	"fmt"

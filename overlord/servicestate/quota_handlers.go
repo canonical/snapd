@@ -237,13 +237,6 @@ func (m *ServiceManager) doQuotaAddSnap(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: cannot get quota-name: %v", err)
 	}
 
-	if err := CheckQuotaChangeConflictMany(st, []string{quotaName}); err != nil {
-		return err
-	}
-	if err := snapstate.CheckChangeConflictMany(st, []string{snapName}, ""); err != nil {
-		return err
-	}
-
 	allGrps, err := AllQuotas(st)
 	if err != nil {
 		return err
