@@ -115,7 +115,7 @@ execute: |
         # the system is in a stable state once we have already determined that
         # the change is complete
         # XXX systemctl exits with non-0 when in degraded state
-        (systemctl is-system-running || true) | MATCH '(running|degraded)'
+        (systemctl --wait is-system-running || true) | MATCH '(running|degraded)'
 
         # fake refreshes generate revision numbers that are n+1
         expecting_kernel="$(($(cat pc-kernel.rev) + 1))"
