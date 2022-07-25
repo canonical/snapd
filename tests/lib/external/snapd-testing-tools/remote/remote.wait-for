@@ -1,0 +1,197 @@
+#!/bin/bash -e
+
+show_help() {
+    echo "usage: remote.wait-for ssh [--wait WAIT] [-n|--attempts ATTEMPTS]"
+    echo "       remote.wait-for no-ssh  [--wait WAIT] [-n|--attempts ATTEMPTS]"
+    echo "       remote.wait-for snap-command [--wait WAIT] [-n|--attempts ATTEMPTS]"
+    echo "       remote.wait-for reboot [--wait WAIT] [-n|--attempts ATTEMPTS]"
+    echo "       remote.wait-for device-initialized [--wait WAIT] [-n|--attempts ATTEMPTS]"
+    echo "       remote.wait-for auto-refresh [--wait WAIT] [-n|--attempts ATTEMPTS]"
+    echo ""
+    echo "Available options:"
+    echo "  -h --help   show this help message."
+    echo ""
+}
+
+wait_for_ssh() {
+    local attempts=$1
+    local wait=$2
+
+    until remote.exec "true"; do
+        attempts=$(( attempts - 1 ))
+        if [ $attempts -le 0 ]; then
+            echo "remote.wait-for: timed out waiting for ssh connection to succeed"
+            return 1
+        fi
+        sleep "$wait"
+    done
+}
+
+wait_for_no_ssh() {
+    local attempts=$1
+    local wait=$2
+
+    while remote.exec "true"; do
+        attempts=$(( attempts - 1 ))
+        if [ $attempts -le 0 ]; then
+            echo "remote.wait-for: timed out waiting for ssh connection to fail"
+            return 1
+        fi
+        sleep "$wait"
+    done
+}
+
+
+wait_for_snap_command() {
+    local attempts=$1
+    local wait=$2
+
+    while ! remote.exec "command -v snap >/dev/null"; do
+        attempts=$(( attempts - 1 ))
+        if [ $attempts -le 0 ]; then
+            echo "remote.wait-for: timed out waiting for snap command to succeed"
+            return 1
+        fi
+        sleep "$wait"
+    done
+}
+
+get_boot_id() {
+    remote.exec "cat /proc/sys/kernel/random/boot_id"
+}
+
+wait_for_reboot() {
+    local attempts=$1
+    local wait=$2
+    local initial_boot_id=$3
+    local last_boot_id
+
+    if [ -z "$initial_boot_id" ]; then
+        echo "remote.wait-for: initial boot id not set"
+        return 1
+    fi
+
+    while [ $attempts -ge 0 ]; do
+        attempts=$(( attempts - 1 ))
+        # The get_boot_id could fail because the connection is broken due to the reboot
+        last_boot_id="$(get_boot_id)" || true
+        if [[ "$last_boot_id" =~ .*-.*-.*-.*-.* ]] && [ "$last_boot_id" != "$initial_boot_id" ]; then
+            break
+        fi
+        sleep "$wait"
+    done
+
+    [ "$last_boot_id" != "$initial_boot_id" ]
+}
+
+wait_for_device_initialized() {
+    local attempts=$1
+    local wait=$2
+
+    while ! remote.exec "snap changes" | grep -Eq "Done.*Initialize device"; do
+        attempts=$(( attempts - 1 ))
+        if [ $attempts -le 0 ]; then
+            echo "remote.wait-for: timed out waiting for device to be fully initialized. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
+}
+
+wait_auto_refresh(){
+    if remote.exec "snap changes" | grep -q -E "Doing.*Auto-refresh snap.*"; then
+        remote.retry -n 120 --wait 5  "snap changes | grep \"Doing.*Auto-refresh.*\""
+        wait_for_ssh -n 120 --wait 5
+        
+        if remote.exec "snap changes" | grep "Error.*Auto-refresh.*"; then
+            echo "remote.wait-for: auto-refresh failed"
+            return 1
+        fi
+
+        remote.retry -n 120 --wait 4  "snap changes | grep \"Done.*Auto-refresh.*\""
+    fi
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit
+    fi
+
+    local action wait attempts others
+    case "$1" in
+        -h|--help)
+            show_help
+            exit
+            ;;
+        ssh)
+            action=wait_for_ssh
+            attempts=800
+            wait=1
+            shift
+            ;;
+        no-ssh)
+            action=wait_for_no_ssh
+            attempts=200
+            wait=1
+            shift
+            ;;
+        snap-command)
+            action=wait_for_snap_command
+            attempts=200
+            wait=1
+            shift
+            ;;
+        reboot)
+            action=wait_for_reboot
+            attempts=150
+            wait=5
+            shift
+            ;;
+        device-initialized)
+            action=wait_for_device_initialized
+            attempts=60
+            wait=1
+            shift
+            ;;
+        auto-refresh)
+            action=wait_auto_refresh
+            shift
+            ;;
+        *)
+            echo "remote.wait-for: unsupported parameter $1" >&2
+            exit 1
+            ;;
+    esac
+
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "remote.wait-for: no such command: $action"
+        show_help
+        exit 1
+    fi
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --wait)
+                wait=$2
+                shift 2
+                ;;
+            --attempts|-n)
+                attempts=$2
+                shift 2
+                ;;
+            *)
+                if [ -z "$others" ]; then
+                    others=$1
+                else
+                    others="$others $1"
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    "$action" "$attempts" "$wait" "$others"
+}
+
+main "$@"

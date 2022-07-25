@@ -11,23 +11,53 @@ show_help() {
 }
 
 is_core() {
-    [[ "$SPREAD_SYSTEM" == ubuntu-core-* ]]
+    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
+    # not contain the ubuntu-core info while the system is being prepared
+    if [ -n "$SPREAD_SYSTEM" ]; then
+        [[ "$SPREAD_SYSTEM" == ubuntu-core-* ]]
+    else
+        grep -qFx 'ID=ubuntu-core' /etc/os-release
+    fi
 }
 
 is_core16() {
-    [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]
+    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
+    # not contain the ubuntu-core info while the system is being prepared
+    if [ -n "$SPREAD_SYSTEM" ]; then
+        [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]
+    else
+        grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="16"' /etc/os-release
+    fi
 }
 
 is_core18() {
-    [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]
+    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
+    # not contain the ubuntu-core info while the system is being prepared
+    if [ -n "$SPREAD_SYSTEM" ]; then
+        [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]
+    else
+        grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="18"' /etc/os-release
+    fi
 }
 
 is_core20() {
-    [[ "$SPREAD_SYSTEM" == ubuntu-core-20-* ]]
+    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
+    # not contain the ubuntu-core info while the system is being prepared
+    if [ -n "$SPREAD_SYSTEM" ]; then
+        [[ "$SPREAD_SYSTEM" == ubuntu-core-20-* ]]
+    else
+        grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="20"' /etc/os-release
+    fi
 }
 
 is_core22() {
-    [[ "$SPREAD_SYSTEM" == ubuntu-core-22-* ]]
+    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
+    # not contain the ubuntu-core info while the system is being prepared
+    if [ -n "$SPREAD_SYSTEM" ]; then
+        [[ "$SPREAD_SYSTEM" == ubuntu-core-22-* ]]
+    else
+        grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="22"' /etc/os-release
+    fi
 }
 
 is_classic() {
@@ -72,6 +102,9 @@ is_debian() {
     else
         grep -qFx 'ID=debian' /etc/os-release && grep -qFx "VERSION_ID=\"$VERSION\"" /etc/os-release
     fi
+    else
+        grep -qFx 'ID=debian' /etc/os-release && grep -qFx "VERSION_ID=\"$VERSION\"" /etc/os-release
+    fi
 }
 
 is_fedora() {
@@ -80,6 +113,10 @@ is_fedora() {
         grep -qFx 'ID=fedora' /etc/os-release
     elif [ "$VERSION" == "rawhide" ]; then
         [[ "$SPREAD_SYSTEM" == fedora-rawhide-* ]]
+    else
+        grep -qFx 'ID=fedora' /etc/os-release && grep -qFx "VERSION_ID=$VERSION" /etc/os-release
+    fi
+        fi
     else
         grep -qFx 'ID=fedora' /etc/os-release && grep -qFx "VERSION_ID=$VERSION" /etc/os-release
     fi
