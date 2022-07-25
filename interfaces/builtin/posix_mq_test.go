@@ -73,6 +73,12 @@ slots:
     interface: posix-mq
     path: []
 
+  test-one-empty-path-array:
+    interface: posix-mq
+    path:
+      - /test-array-1
+      - ""
+
   test-empty-path:
     interface: posix-mq
     path: ""
@@ -293,6 +299,9 @@ type PosixMQInterfaceSuite struct {
 	testEmptyPathArraySlotInfo *snap.SlotInfo
 	testEmptyPathArraySlot     *interfaces.ConnectedSlot
 
+	testOneEmptyPathArraySlotInfo *snap.SlotInfo
+	testOneEmptyPathArraySlot     *interfaces.ConnectedSlot
+
 	testEmptyPathSlotInfo *snap.SlotInfo
 	testEmptyPathSlot     *interfaces.ConnectedSlot
 
@@ -361,6 +370,9 @@ func (s *PosixMQInterfaceSuite) SetUpTest(c *C) {
 
 	s.testEmptyPathArraySlotInfo = slotSnap.Slots["test-empty-path-array"]
 	s.testEmptyPathArraySlot = interfaces.NewConnectedSlot(s.testEmptyPathArraySlotInfo, nil, nil)
+
+	s.testOneEmptyPathArraySlotInfo = slotSnap.Slots["test-one-empty-path-array"]
+	s.testOneEmptyPathArraySlot = interfaces.NewConnectedSlot(s.testOneEmptyPathArraySlotInfo, nil, nil)
 
 	s.testEmptyPathSlotInfo = slotSnap.Slots["test-empty-path"]
 	s.testEmptyPathSlot = interfaces.NewConnectedSlot(s.testEmptyPathSlotInfo, nil, nil)
@@ -729,6 +741,8 @@ func (s *PosixMQInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testEmptyPathArraySlotInfo), ErrorMatches,
 		`posix-mq slot requires at least one value in the "path" attribute`)
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testEmptyPathSlotInfo), ErrorMatches,
+		`posix-mq slot "path" attribute values cannot be empty`)
+	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testOneEmptyPathArraySlotInfo), ErrorMatches,
 		`posix-mq slot "path" attribute values cannot be empty`)
 }
 
