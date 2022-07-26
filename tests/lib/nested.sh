@@ -943,16 +943,26 @@ EOF
 nested_add_file_to_vm() {
     local IMAGE=$1
     local FILE=$2
-    local devloop dev ubuntuSeedDev tmp
-    # mount the image and find the loop device /dev/loop that is created for it
+    local devloop ubuntuSeedDev tmp
+    # Bind the image the a free loop device
     devloop="$(retry -n 3 --wait 1 losetup -f --show -P --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" "${IMAGE}")"
-    dev=$(basename "$devloop")
 
     # we add cloud-init data to the 2nd partition, which is ubuntu-seed
-    ubuntuSeedDev="/dev/${dev}p2"
+    ubuntuSeedDev="${devloop}p2"
 
-    # wait for the loop device to show up
-    retry -n 3 --wait 1 test -e "$ubuntuSeedDev"
+    # Wait for the partition to show up
+    retry -n 2 --wait test -b "${ubuntuSeedDev}" || true
+
+    # losetup does not set the right block size on LOOP_CONFIGURE
+    # but with LOOP_SET_BLOCK_SIZE later. So the block size might have
+    # been wrong during the part scan. In this case we need to rescan
+    # manually.
+    if ! [ -b "${ubuntuSeedDev}" ]; then
+        partx -u "${devloop}"
+        # Wait for the partition to show up
+        retry -n 2 --wait 1 test -b "${ubuntuSeedDev}"
+    fi
+
     tmp=$(mktemp -d)
     mount "$ubuntuSeedDev" "$tmp"
     mkdir -p "$tmp/data/etc/cloud/cloud.cfg.d/"
