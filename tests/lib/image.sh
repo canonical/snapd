@@ -12,9 +12,6 @@ build_ubuntu_image() {
             # build a version which uses the current snapd tree as a dependency
             # shellcheck disable=SC2030,SC2031
             export GO111MODULE=off
-            # use go get so that ubuntu-image is built with current snapd
-            # sources
-            go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
             go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
         )
     else
