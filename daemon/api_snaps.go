@@ -125,9 +125,9 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	inst.ctx = r.Context()
 
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
 	if user != nil {
 		inst.userID = user.ID
@@ -145,17 +145,21 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unknown action %s", inst.Action)
 	}
 
-	msg, tsets, err := impl(&inst, state)
+	msg, tsets, err := impl(&inst, st)
 	if err != nil {
 		return inst.errToResponse(err)
 	}
 
-	chg := newChange(state, inst.Action+"-snap", msg, tsets, inst.Snaps)
+	chg := newChange(st, inst.Action+"-snap", msg, tsets, inst.Snaps)
+	if len(tsets) != 0 {
+		ensureStateSoon(st)
+	} else {
+		chg.SetStatus(state.DoneStatus)
+	}
+
 	if inst.SystemRestartImmediate {
 		chg.Set("system-restart-immediate", true)
 	}
-
-	ensureStateSoon(state)
 
 	return AsyncResponse(nil, chg.ID())
 }
@@ -572,13 +576,11 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 		return inst.errToResponse(err)
 	}
 
-	var chg *state.Change
-	if len(res.Tasksets) == 0 {
-		chg = st.NewChange(inst.Action+"-snap", res.Summary)
-		chg.SetStatus(state.DoneStatus)
-	} else {
-		chg = newChange(st, inst.Action+"-snap", res.Summary, res.Tasksets, res.Affected)
+	chg := newChange(st, inst.Action+"-snap", res.Summary, res.Tasksets, res.Affected)
+	if len(res.Tasksets) != 0 {
 		ensureStateSoon(st)
+	} else {
+		chg.SetStatus(state.DoneStatus)
 	}
 
 	if inst.SystemRestartImmediate {
@@ -854,30 +856,29 @@ func snapHoldMany(inst *snapInstruction, st *state.State) (res *snapInstructionR
 		return nil, err
 	}
 
-	patchValues := map[string]interface{}{"refresh.hold": inst.Time}
 	var msg string
-	var ts *state.TaskSet
-
+	var tss []*state.TaskSet
 	if len(inst.Snaps) == 0 {
-		ts, err = configstate.ConfigureInstalled(st, "core", patchValues, 0)
+		patchValues := map[string]interface{}{"refresh.hold": inst.Time}
+		ts, err := configstate.ConfigureInstalled(st, "core", patchValues, 0)
 		if err != nil {
 			return nil, err
 		}
 
-		msg = i18n.G("Held refreshes for all snaps.")
+		tss = []*state.TaskSet{ts}
+		msg = i18n.G("Hold refreshes for all snaps.")
 	} else {
-		ts, err = snapstate.CreateGateRefreshesTask(st, inst.Time, inst.Snaps)
-		if err != nil {
+		if err := snapstate.HoldRefreshes(st, inst.Time, inst.Snaps); err != nil {
 			return nil, err
 		}
 
-		msg = fmt.Sprintf(i18n.G("Held refreshes for %s."), strutil.Quoted(inst.Snaps))
+		msg = fmt.Sprintf(i18n.G("Hold refreshes for %s."), strutil.Quoted(inst.Snaps))
 	}
 
 	return &snapInstructionResult{
 		Summary:  msg,
-		Affected: nil,
-		Tasksets: []*state.TaskSet{ts},
+		Affected: inst.Snaps,
+		Tasksets: tss,
 	}, nil
 }
 
@@ -894,18 +895,19 @@ func validateHoldTime(holdTime string) error {
 
 func snapUnholdMany(inst *snapInstruction, st *state.State) (res *snapInstructionResult, err error) {
 	var msg string
-	var ts *state.TaskSet
-	patchValues := map[string]interface{}{"refresh.hold": nil}
+	var tss []*state.TaskSet
 
 	if len(inst.Snaps) == 0 {
-		ts, err = configstate.ConfigureInstalled(st, "core", patchValues, 0)
+		patchValues := map[string]interface{}{"refresh.hold": nil}
+		ts, err := configstate.ConfigureInstalled(st, "core", patchValues, 0)
 		if err != nil {
 			return nil, err
 		}
 
+		tss = []*state.TaskSet{ts}
 		msg = i18n.G("Remove hold on refreshes of all snaps.")
 	} else {
-		if ts, err = snapstate.CreateUnholdRefreshesTask(st, inst.Snaps); err != nil {
+		if err := snapstate.ProceedWithRefresh(st, "system", inst.Snaps); err != nil {
 			return nil, err
 		}
 
@@ -914,7 +916,7 @@ func snapUnholdMany(inst *snapInstruction, st *state.State) (res *snapInstructio
 
 	return &snapInstructionResult{
 		Summary:  msg,
-		Affected: nil,
-		Tasksets: []*state.TaskSet{ts},
+		Affected: inst.Snaps,
+		Tasksets: tss,
 	}, nil
 }
