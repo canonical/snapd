@@ -18,62 +18,53 @@ systems:
   - -ubuntu-core-18-*
 
 prepare: |
-  snap install test-snapd-stressd --edge
-  tests.cleanup defer snap remove --purge test-snapd-stressd
+  snap pack test-snapd-journal-quota
+  snap install --dangerous test-snapd-journal-quota_1.0_all.snap
+  tests.cleanup defer snap remove --purge test-snapd-journal-quota
   snap set system experimental.quota-groups=true
   tests.cleanup defer snap unset system experimental.quota-groups
 
-restore: |
-  echo "Stopping the service"
-  snap stop test-snapd-stressd.logger
-
 execute: |
   echo "Starting service and verifying that log messages are sent to default journal namespace"
-  snap start test-snapd-stressd.logger
-
-  # The logger service prints 5 messages every 5 seconds, so lets wait 5 seconds to ensure
-  # that messages appear inside journalctl
-  sleep 5
+  snap start test-snapd-journal-quota.logger
 
   # Now ask for logs and lets see if we can see messages from 'LogDaemon'
-  # and at the same time lets get the highest message number to compare with later.
   # The format of the log messages are 'LogDaemon: message number: X'
-  "$TESTSTOOLS"/journal-state get-log | MATCH "LogDaemon"
+  retry -n 5 sh -c "$TESTSTOOLS/journal-state get-log | MATCH LogDaemon"
 
   echo "Create a group with the logger snap in it"
-  snap set-quota group-one --journal-size=16MB --journal-rate-limit=100/10ms test-snapd-stressd
+  snap set-quota group-one --journal-size=16MB test-snapd-journal-quota
 
   echo "The systemd slice should be active now"
   sliceName="snap.$(systemd-escape --path group-one).slice"
   systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=active"
 
   echo "The service should also still be active"
-  snap services test-snapd-stressd.logger | MATCH "test-snapd-stressd.logger\s+disabled\s+active"
-
-  # wait additional 5 seconds to ensure that the service has been outputting logs
-  sleep 5
+  snap services test-snapd-journal-quota.logger | MATCH "test-snapd-journal-quota.logger\s+enabled\s+active"
 
   # Now ask for the namespace logs and lets see if we can see messages from 'LogDaemon'
-  "$TESTSTOOLS"/journal-state get-log --namespace snap-group-one | MATCH "LogDaemon"
+  retry -n 5 sh -c "$TESTSTOOLS/journal-state get-log --namespace snap-group-one | MATCH LogDaemon"
 
   # Change the size and ensure that the journal is restarted
   echo "Updating size of journal to ensure size changes"
   snap set-quota group-one --journal-size=64MB
 
-  # Ensure that the new size is printed in the journa logs. We requested 64MB but
+  # Ensure that the new size is printed in the journal logs. We requested 64MB but
   # this will most likely print out as 61.0M, so lets be a bit flexible
   "$TESTSTOOLS"/journal-state get-log --namespace snap-group-one | MATCH "max 6[0-9].[0-9]M,"
 
   # Ensure that the unit file is correct
   echo "Ensuring the unit file is correct"
-  systemctl show --property=LogNamespace snap.test-snapd-stressd.logger.service | MATCH "LogNamespace=snap-group-one"
+  systemctl show --property=LogNamespace snap.test-snapd-journal-quota.logger.service | MATCH "LogNamespace=snap-group-one"
+  LOGGER_PID=$(systemctl show --property=MainPID --value snap.test-snapd-journal-quota.logger.service)
 
   echo "Removing the quota will stop the slice and the service will be restarted"
   snap remove-quota group-one
-  snap services test-snapd-stressd.logger | MATCH "test-snapd-stressd.logger\s+disabled\s+active"
+  systemctl show --property=MainPID --value snap.test-snapd-journal-quota.logger.service | NOMATCH "$LOGGER_PID"
+  snap services test-snapd-journal-quota.logger | MATCH "test-snapd-journal-quota.logger\s+enabled\s+active"
 
   echo "And the service is not in a slice anymore"
-  systemctl show --property=ControlGroup snap.test-snapd-stressd.logger.service | NOMATCH "/$sliceName/snap.test-snapd-stressd.logger.service"
+  systemctl show --property=ControlGroup snap.test-snapd-journal-quota.logger.service | NOMATCH "/$sliceName/snap.test-snapd-journal-quota.logger.service"
 
   echo "And the slice is not active anymore"
   systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
@@ -81,16 +72,16 @@ execute: |
   # Make sure that the service is running still and now outputting logs
   # into the original journal.
   echo "And the service is running and is outputting logs into the original journal"
-  INITIAL_NO=$("$TESTSTOOLS"/journal-state get-log | grep "LogDaemon" | tail -n 1 | awk '{print $9}')
-  for i in $(seq 1 5); do
-      sleep 5
-      CURRENT_NO=$("$TESTSTOOLS"/journal-state get-log | grep "LogDaemon" | tail -n 1 | awk '{print $9}')
+  INITIAL_NO=$("$TESTSTOOLS"/journal-state get-log | grep "LogDaemon" | tail -n 1 | awk '{print $NF}')
+  for i in $(seq 5); do
+      sleep 1
+      CURRENT_NO=$("$TESTSTOOLS"/journal-state get-log | grep "LogDaemon" | tail -n 1 | awk '{print $NF}')
       if [ "$CURRENT_NO" -gt "$INITIAL_NO" ]; then
           echo "LogDaemon messages detected after $i tries"
           break
       fi
   done
   if [ "$CURRENT_NO" -lt "$INITIAL_NO" ]; then
-      echo "Failed to see new log messages after 25 seconds"
+      echo "Failed to see new log messages after 5 seconds"
       exit 1
   fi
