@@ -382,10 +382,6 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
 			}
-		case "hold-refreshes":
-			fmt.Fprintf(Stdout, i18n.G("Held refreshes of %s until %s\n"), strutil.Quoted(names), opts.Time)
-		case "unhold-refreshes":
-			fmt.Fprintf(Stdout, i18n.G("Removed hold on refreshes for %s\n"), strutil.Quoted(names))
 		case "refresh":
 			if snap.Publisher != nil {
 				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from Alice refreshed")
@@ -902,11 +898,21 @@ func (x *cmdRefresh) holdRefreshes() (err error) {
 	}
 
 	names := installedSnapNames(x.Positional.Snaps)
-	var changeID string
+	var changeID, snapStr string
 	if len(names) == 1 {
 		changeID, err = x.client.HoldRefreshes(names[0], &opts)
+		snapStr = names[0]
 	} else {
 		changeID, err = x.client.HoldRefreshesMany(names, &opts)
+		if len(names) == 0 {
+			snapStr = "all snaps"
+		} else {
+			snapStr = strutil.Quoted(names)
+		}
+	}
+
+	if err != nil {
+		return err
 	}
 
 	_, err = x.wait(changeID)
@@ -917,16 +923,27 @@ func (x *cmdRefresh) holdRefreshes() (err error) {
 		return err
 	}
 
-	return showDone(x.client, names, "hold-refreshes", &opts, x.getEscapes())
+	fmt.Fprintf(Stdout, i18n.G("Held refreshes of %s until %s\n"), snapStr, opts.Time)
+	return nil
 }
 
 func (x *cmdRefresh) unholdRefreshes() (err error) {
 	names := installedSnapNames(x.Positional.Snaps)
-	var changeID string
+	var changeID, snapStr string
 	if len(names) == 1 {
 		changeID, err = x.client.UnholdRefreshes(names[0], nil)
+		snapStr = names[0]
 	} else {
 		changeID, err = x.client.UnholdRefreshesMany(names, nil)
+		if len(names) == 0 {
+			snapStr = "all snaps"
+		} else {
+			snapStr = strutil.Quoted(names)
+		}
+	}
+
+	if err != nil {
+		return err
 	}
 
 	_, err = x.wait(changeID)
@@ -937,7 +954,8 @@ func (x *cmdRefresh) unholdRefreshes() (err error) {
 		return err
 	}
 
-	return showDone(x.client, names, "unhold-refreshes", nil, x.getEscapes())
+	fmt.Fprintf(Stdout, i18n.G("Removed hold on refreshes for %s\n"), snapStr)
+	return nil
 }
 
 type cmdTry struct {
