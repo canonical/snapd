@@ -15,6 +15,11 @@ prepare: |
     tests.nested build-image core
     tests.nested create-vm core
 
+debug: |
+    uname -a || true
+    losetup -O +LOG-SEC || true
+    lsblk -o +LOG-SEC,PHY-SEC || true
+
 execute: |
     echo "Wait for the system to be seeded first"
     tests.nested exec "sudo snap wait system seed.loaded"
