@@ -98,10 +98,11 @@ is_debian() {
     if [ -z "$VERSION" ]; then
         grep -qFx 'ID=debian' /etc/os-release
     elif [ "$VERSION" == "sid" ]; then
-        [[ "$SPREAD_SYSTEM" == debian-sid-* ]]
-    else
-        grep -qFx 'ID=debian' /etc/os-release && grep -qFx "VERSION_ID=\"$VERSION\"" /etc/os-release
-    fi
+        if [ -n "$SPREAD_SYSTEM" ]; then
+            [[ "$SPREAD_SYSTEM" == debian-sid-* ]]
+        else
+            grep -qFx 'ID=debian' /etc/os-release && grep -qE '^PRETTY_NAME=.*/sid"$' /etc/os-release
+        fi
     else
         grep -qFx 'ID=debian' /etc/os-release && grep -qFx "VERSION_ID=\"$VERSION\"" /etc/os-release
     fi
@@ -112,10 +113,10 @@ is_fedora() {
     if [ -z "$VERSION" ]; then
         grep -qFx 'ID=fedora' /etc/os-release
     elif [ "$VERSION" == "rawhide" ]; then
-        [[ "$SPREAD_SYSTEM" == fedora-rawhide-* ]]
-    else
-        grep -qFx 'ID=fedora' /etc/os-release && grep -qFx "VERSION_ID=$VERSION" /etc/os-release
-    fi
+        if [ -n "$SPREAD_SYSTEM" ]; then
+            [[ "$SPREAD_SYSTEM" == fedora-rawhide-* ]]
+        else
+            grep -qFx 'ID=fedora' /etc/os-release && grep -qFx "REDHAT_BUGZILLA_PRODUCT_VERSION=rawhide" /etc/os-release
         fi
     else
         grep -qFx 'ID=fedora' /etc/os-release && grep -qFx "VERSION_ID=$VERSION" /etc/os-release
