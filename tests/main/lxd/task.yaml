@@ -50,8 +50,7 @@ restore: |
 
     "$TESTSTOOLS"/lxd-state undo-mount-changes
 
-    # unset refresh-app-awareness to ensure the defaults are used and not
-    # interfere with lxd
+    # unset refresh-app-awareness, this means it's enabled by default.
     snap unset system experimental.refresh-app-awareness
     # Stop the dbus.service of the user session of the root user. This test
     # runs in several configurations, not all of which have this capability.

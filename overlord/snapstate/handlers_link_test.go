@@ -59,10 +59,10 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 	s.baseHandlerSuite.SetUpTest(c)
 
 	s.state.Lock()
-	defer s.state.Unlock()
 	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		s.restartRequested = append(s.restartRequested, t)
 	}))
+	s.state.Unlock()
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 
@@ -72,12 +72,6 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 		snapstate.SnapServiceOptions = oldSnapServiceOptions
 		s.restartRequested = nil
 	})
-
-	// enable refresh-app-awareness (it's disabled by default) but we
-	// want to enable soon(ish) so testing with it is preferred
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
@@ -535,6 +529,11 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	expected := fakeOps{
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "foo",
+			inhibitHint: "refresh",
+		},
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "foo/11"),
