@@ -1,9 +1,5 @@
 #!/bin/sh
 
-# Services associated with a specific log namespace may log via syslog, 
-# the native logging protocol of the journal and via stdout/stderr; the logging 
-# from all three transports is associated with the namespace.
-
 i=0
 while true; do
     echo "LogDaemon: message number: $i"
