@@ -37,8 +37,8 @@ build_ubuntu_image() {
 
 
 get_ubuntu_image() {
-    wget https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys.tar.gz
-    tar -xvzf ubuntu-image-withtestkeys-tmp.tar.gz
+    wget -c https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys.tar.gz
+    tar xvzf ubuntu-image-withtestkeys.tar.gz
     test -x ./ubuntu-image
     cp -av ./ubuntu-image "$GOHOME/bin"
 }
