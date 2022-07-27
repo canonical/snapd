@@ -165,36 +165,6 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "ubuntu:${VERSION_ID:-}" my-inner-ubuntu
     lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
 
-    # finally check that we can't run snapd inside a nested lxd container as
-    # current apparmor does not support this, so if this works it is probably a
-    # confinement bug
-    #
-    # 2021-11-02: disabled because of https://github.com/lxc/lxd/issues/9447
-    #
-    #lxd.lxc exec my-nesting-ubuntu -- lxd.lxc file push --quiet prep-snapd-in-lxd.sh my-inner-ubuntu/root/
-    #snapdDeb=$(lxd.lxc exec my-nesting-ubuntu -- sh -c 'ls snapd_*.deb')
-    #lxd.lxc exec my-nesting-ubuntu -- lxd.lxc file push --quiet "$snapdDeb" my-inner-ubuntu/root/
-    #echo "Setting up proxy for the *inside nested* container"
-    #if [ -n "${http_proxy:-}" ]; then
-    #    lxd.lxc exec my-nesting-ubuntu -- \
-    #        lxd.lxc exec my-inner-ubuntu -- \
-    #            sh -c "echo http_proxy=$http_proxy >> /etc/environment"
-    #fi
-    #if [ -n "${https_proxy:-}" ]; then
-    #    lxd.lxc exec my-nesting-ubuntu -- \
-    #        lxd.lxc exec my-inner-ubuntu -- \
-    #            sh -c "echo https_proxy=$https_proxy >> /etc/environment"
-    #fi
-    #lxd.lxc exec my-nesting-ubuntu -- \
-    #    lxd.lxc exec my-inner-ubuntu -- \
-    #        /root/prep-snapd-in-lxd.sh
-
-    #not lxd.lxc exec my-nesting-ubuntu -- \
-    #    lxd.lxc exec my-inner-ubuntu -- \
-    #        snap install test-snapd-sh 2>stderr.log
-    # replace newlines with spaces to get one long line
-    #tr '\n' ' ' < stderr.log | MATCH "error:\s+system\s+does\s+not\s+fully\s+support\s+snapd:\s+apparmor\s+detected\s+but\s+insufficient\s+permissions\s+to\s+use\s+it"
-
     echo "Install lxd-demo server to exercise the lxd interface"
     snap install lxd-demo-server
     snap connect lxd-demo-server:lxd lxd:lxd
