@@ -4,6 +4,7 @@ systems:
   - -amazon-linux-2-* # fails to start service daemon-containerd
   - -centos-7-*       # doesn't have libseccomp >= 2.4
   - -centos-8-*       # fails to start service daemon-containerd
+  - -centos-9-*       # fails to start service daemon-containerd
   - -fedora-35-*      # fails to start service daemon-containerd
   - -fedora-36-*      # fails to start service daemon-containerd
   - -debian-10-*      # doesn't have libseccomp >= 2.4
@@ -65,3 +66,6 @@ execute: |
 
     echo "Test if nginx can be connected"
     retry -n 15 sh -c "curl --max-time 3 'http://localhost:31313/' | MATCH 'Welcome to nginx'"
+
+    echo "Running a microk8s causes no DENIED messages"
+    dmesg | not grep DENIED

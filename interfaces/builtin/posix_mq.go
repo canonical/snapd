@@ -170,27 +170,47 @@ func (iface *posixMQInterface) getPermissions(attrs interfaces.Attrer, name stri
 	return perms, nil
 }
 
-func (iface *posixMQInterface) getPath(attrs interfaces.Attrer, name string) (string, error) {
-	var path string
+func (iface *posixMQInterface) getPaths(attrs interfaces.Attrer, name string) ([]string, error) {
+	var pathList []string
+	var pathStr string
 
-	if err := attrs.Attr("path", &path); err != nil {
-		if errors.Is(err, snap.AttributeNotFoundError{}) {
-			return "", fmt.Errorf(`posix-mq slot requires the "path" attribute`)
+	// The path attribute can either be a string or an array of strings
+	err := attrs.Attr("path", &pathStr)
+	switch {
+	case errors.Is(err, snap.AttributeNotFoundError{}):
+		return nil, fmt.Errorf(`posix-mq slot requires the "path" attribute`)
+	case err != nil:
+		// If the attribute exists but reading it as a string didn't work, try reading it as an array
+		if err = attrs.Attr("path", &pathList); err != nil {
+			// If that didn't work, the attribute is an invalid type
+			return nil, err
 		}
-		return "", err
+	default:
+		// If the path is a single string, turn it into an array
+		pathList = append(pathList, pathStr)
 	}
 
-	// Path must begin with a /
-	if path[0] != '/' {
-		path = "/" + path
+	if len(pathList) == 0 {
+		return nil, fmt.Errorf(`posix-mq slot requires at least one value in the "path" attribute`)
 	}
 
-	if err := iface.validatePath(name, path); err != nil {
-		return "", err
+	for i, path := range pathList {
+		if len(path) == 0 {
+			return nil, fmt.Errorf(`posix-mq slot "path" attribute values cannot be empty`)
+		}
+
+		// Path must begin with a /
+		if path[0] != '/' {
+			path = "/" + path
+			pathList[i] = path
+		}
+
+		if err := iface.validatePath(name, path); err != nil {
+			return nil, err
+		}
 	}
 
-	return path, nil
-
+	return pathList, nil
 }
 
 func (iface *posixMQInterface) validatePath(name, path string) error {
@@ -256,11 +276,23 @@ func (iface *posixMQInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	}
 
 	// Only ensure that the given path is valid, don't use it here
-	if _, err := iface.getPath(slot, slot.Name); err != nil {
+	if _, err := iface.getPaths(slot, slot.Name); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (iface *posixMQInterface) generateSnippet(name, plugOrSlot string, permissions, paths []string) string {
+	var snippet strings.Builder
+	aaPerms := strings.Join(permissions, " ")
+
+	snippet.WriteString(fmt.Sprintf("  # POSIX Message Queue %s: %s\n", plugOrSlot, name))
+	for _, path := range paths {
+		snippet.WriteString(fmt.Sprintf("  mqueue (%s) \"%s\",\n", aaPerms, path))
+	}
+
+	return snippet.String()
 }
 
 func (iface *posixMQInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
@@ -268,23 +300,20 @@ func (iface *posixMQInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 		return nil
 	}
 
-	path, err := iface.getPath(slot, slot.Name)
+	paths, err := iface.getPaths(slot, slot.Name)
 	if err != nil {
 		return err
 	}
 
-	// Slots always have all permissions enabled for the
-	// given message queue path
-	aaPerms := strings.Join(posixMQPlugPermissions, " ")
-	spec.AddSnippet(fmt.Sprintf(`  # POSIX Message Queue management
-  mqueue (%s) "%s",
-`, aaPerms, path))
+	// Slots always have all permissions enabled for the given message queue path
+	snippet := iface.generateSnippet(slot.Name, "slot", posixMQPlugPermissions, paths)
+	spec.AddSnippet(snippet)
 
 	return nil
 }
 
 func (iface *posixMQInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	path, err := iface.getPath(slot, slot.Name())
+	paths, err := iface.getPaths(slot, slot.Name())
 	if err != nil {
 		return err
 	}
@@ -299,10 +328,8 @@ func (iface *posixMQInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 		perms = append(perms, "open")
 	}
 
-	aaPerms := strings.Join(perms, " ")
-	spec.AddSnippet(fmt.Sprintf(`  # POSIX Message Queue plug communication
-  mqueue (%s) "%s",
-`, aaPerms, path))
+	snippet := iface.generateSnippet(plug.Name(), "plug", perms, paths)
+	spec.AddSnippet(snippet)
 
 	return nil
 }

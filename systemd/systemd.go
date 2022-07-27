@@ -270,10 +270,10 @@ func EnsureAtLeast(requiredVersion int) error {
 var osutilStreamCommand = osutil.StreamCommand
 
 // jctl calls journalctl to get the JSON logs of the given services.
-var jctl = func(svcs []string, n int, follow bool) (io.ReadCloser, error) {
+var jctl = func(svcs []string, n int, follow, namespaces bool) (io.ReadCloser, error) {
 	// args will need two entries per service, plus a fixed number (give or take
 	// one) for the initial options.
-	args := make([]string, 0, 2*len(svcs)+6)        // the fixed number is 6
+	args := make([]string, 0, 2*len(svcs)+7)        // We have at most 7 extra arguments
 	args = append(args, "-o", "json", "--no-pager") //   3...
 	if n < 0 {
 		args = append(args, "--no-tail") // < 2
@@ -283,6 +283,9 @@ var jctl = func(svcs []string, n int, follow bool) (io.ReadCloser, error) {
 	if follow {
 		args = append(args, "-f") // ... + 1 == 6
 	}
+	if namespaces {
+		args = append(args, "--namespace=*") // ... + 1 == 7
+	}
 
 	for i := range svcs {
 		args = append(args, "-u", svcs[i]) // this is why 2×
@@ -291,7 +294,7 @@ var jctl = func(svcs []string, n int, follow bool) (io.ReadCloser, error) {
 	return osutilStreamCommand("journalctl", args...)
 }
 
-func MockJournalctl(f func(svcs []string, n int, follow bool) (io.ReadCloser, error)) func() {
+func MockJournalctl(f func(svcs []string, n int, follow, namespaces bool) (io.ReadCloser, error)) func() {
 	oldJctl := jctl
 	jctl = f
 	return func() {
@@ -371,7 +374,11 @@ type Systemd interface {
 	// IsActive checks whether the given service is Active
 	IsActive(service string) (bool, error)
 	// LogReader returns a reader for the given services' log.
-	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
+	// If follow is set to true, the reader returned will follow the log
+	// as it grows.
+	// If namespaces is set to true, the log reader will include journal namespace
+	// logs, and is required to get logs for services which are in journal namespaces.
+	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
 	// AddMountUnitFile adds/enables/starts a mount unit.
 	AddMountUnitFile(name, revision, what, where, fstype string) (string, error)
 	// AddMountUnitFileWithOptions adds/enables/starts a mount unit with options.
@@ -628,8 +635,8 @@ func (s *systemd) StartNoBlock(serviceNames []string) error {
 	return err
 }
 
-func (*systemd) LogReader(serviceNames []string, n int, follow bool) (io.ReadCloser, error) {
-	return jctl(serviceNames, n, follow)
+func (*systemd) LogReader(serviceNames []string, n int, follow, namespaces bool) (io.ReadCloser, error) {
+	return jctl(serviceNames, n, follow, namespaces)
 }
 
 var statusregex = regexp.MustCompile(`(?m)^(?:(.+?)=(.*)|(.*))?$`)

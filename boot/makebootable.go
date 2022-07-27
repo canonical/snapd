@@ -38,6 +38,8 @@ type BootableSet struct {
 	BasePath   string
 	Kernel     *snap.Info
 	KernelPath string
+	Gadget     *snap.Info
+	GadgetPath string
 
 	RecoverySystemLabel string
 	// RecoverySystemDir is a path to a directory with recovery system
@@ -303,12 +305,12 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	//   install the boot.sel onto ubuntu-boot directly, but the file should be
 	//   managed by snapd instead
 
-	// copy kernel/base into the ubuntu-data partition
+	// copy kernel/base/gadget into the ubuntu-data partition
 	snapBlobDir := dirs.SnapBlobDirUnder(InstallHostWritableDir)
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
-	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath} {
+	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath, bootWith.GadgetPath} {
 		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
 		// if the source filename is a symlink, don't copy the symlink, copy the
 		// target file instead of copying the symlink, as the initramfs won't
@@ -354,6 +356,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		CurrentKernelCommandLines: nil,
 		// keep this comment to make gofmt 1.9 happy
 		Base:           filepath.Base(bootWith.BasePath),
+		Gadget:         filepath.Base(bootWith.GadgetPath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 		BrandID:        model.BrandID(),
 		Model:          model.Model(),

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -75,6 +75,10 @@ type PlaceInfo interface {
 	// CommonDataDir returns the data directory common across revisions of the
 	// snap.
 	CommonDataDir() string
+
+	// CommonDataSaveDir returns the save data directory common across revisions
+	// of the snap.
+	CommonDataSaveDir() string
 
 	// UserCommonDataDir returns the per user data directory common across
 	// revisions of the snap.
@@ -189,6 +193,12 @@ func DataDir(name string, revision Revision) string {
 	return filepath.Join(BaseDataDir(name), revision.String())
 }
 
+// CommonDataSaveDir returns a core-specific save directory meant to provide access
+// to a per-snap storage that is preserved across factory reset.
+func CommonDataSaveDir(name string) string {
+	return filepath.Join(dirs.SnapDataSaveDir, name)
+}
+
 // CommonDataDir returns the common data directory for given snap name. The name
 // can be either a snap name or snap instance name.
 func CommonDataDir(name string) string {
@@ -285,6 +295,8 @@ type Info struct {
 	OriginalTitle       string
 	OriginalSummary     string
 	OriginalDescription string
+
+	SnapProvenance string
 
 	Environment strutil.OrderedMap
 
@@ -404,6 +416,19 @@ type ChannelSnapInfo struct {
 	Epoch       Epoch           `json:"epoch"`
 	Size        int64           `json:"size"`
 	ReleasedAt  time.Time       `json:"released-at"`
+}
+
+// Provenance returns the provenance of the snap, this is a label set
+// e.g to distinguish snaps that are not expected to be processed by the global
+// store. Constraints on this value are used to allow for delegated
+// snap-revision signing.
+// This returns naming.DefaultProvenance if no value is set explicitly
+// in the snap metadata.
+func (s *Info) Provenance() string {
+	if s.SnapProvenance == "" {
+		return naming.DefaultProvenance
+	}
+	return s.SnapProvenance
 }
 
 // InstanceName returns the blessed name of the snap decorated with instance
@@ -542,6 +567,11 @@ func (s *Info) UserExposedHomeDir(home string) string {
 // CommonDataDir returns the data directory common across revisions of the snap.
 func (s *Info) CommonDataDir() string {
 	return CommonDataDir(s.InstanceName())
+}
+
+// CommonDataSaveDir returns the save data directory common across revisions of the snap.
+func (s *Info) CommonDataSaveDir() string {
+	return CommonDataSaveDir(s.InstanceName())
 }
 
 // DataHomeGlob returns the globbing expression for the snap directories in use

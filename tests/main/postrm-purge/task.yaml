@@ -33,7 +33,7 @@ prepare: |
     snap install --edge test-snapd-dbus-provider
     snap list | MATCH test-snapd-dbus-provider
 
-    if ! os.query is-trusty && ! os.query is-amazon-linux && ! os.query is-centos-7 && ! os.query is-xenial; then
+    if ! os.query is-trusty && ! os.query is-amazon-linux && ! os.query is-centos 7 && ! os.query is-xenial; then
         # create a quota with a service in it
         snap set-quota group1 test-snapd-service --memory=100MB
     fi
@@ -51,7 +51,7 @@ prepare: |
         test "$(find /etc/systemd/user -name 'snap.*.socket' | wc -l)" -gt 0
     fi
 
-    if ! os.query is-trusty && ! os.query is-amazon-linux && ! os.query is-centos-7 && ! os.query is-xenial; then
+    if ! os.query is-trusty && ! os.query is-amazon-linux && ! os.query is-centos 7 && ! os.query is-xenial; then
         test "$(find /etc/systemd -name 'snap.*.slice' | wc -l)" -gt 0
     fi
 

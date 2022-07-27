@@ -74,7 +74,7 @@ prepare: |
         if command -v apt && apt -v; then
             # meh trusty's apt doesn't support -y, so use apt-get
             apt-get autoremove -y lxd
-            if ! os.query is-debian-sid; then
+            if ! os.query is-debian sid; then
                 # no lxd-client on debian sid
                 apt-get autoremove -y lxd-client
             fi
