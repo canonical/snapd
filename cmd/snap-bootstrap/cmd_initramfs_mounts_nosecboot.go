@@ -34,6 +34,9 @@ var (
 )
 
 func init() {
+	secbootProvisionTPMCVM = func(_ string) error {
+		return errNotImplemented
+	}
 	secbootMeasureSnapSystemEpochWhenPossible = func() error {
 		return errNotImplemented
 	}
