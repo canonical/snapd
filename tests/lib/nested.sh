@@ -746,7 +746,7 @@ defaults:
 EOF
                         # add snapd debug and log to serial console for extra
                         # visibility what happens when a machine fails to boot
-                        echo 'snapd.debug=1 systemd.journald.forward_to_console=1 ' > pc-gadget/cmdline.extra
+                        echo 'console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1 ' > pc-gadget/cmdline.extra
                         # pack it
                         snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
