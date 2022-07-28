@@ -490,7 +490,7 @@ nested_get_image_name() {
     if [ "$NAME" = unset ]; then
         NAME="$SPREAD_TASK"
         if [ -n "$SPREAD_VARIANT" ]; then
-            NAME="$NAME_$SPREAD_VARIANT"
+            NAME="${NAME}_${SPREAD_VARIANT}"
         fi
     fi
 
