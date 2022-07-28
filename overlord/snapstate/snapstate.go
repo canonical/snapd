@@ -1568,6 +1568,11 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 	}
 	var kernelTs, gadgetTs, bootBaseTs *state.TaskSet
 
+	gating, err := heldSnaps(st)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
 	var transactionLane int
@@ -1575,6 +1580,11 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		transactionLane = st.NewLane()
 	}
 	for _, update := range updates {
+		// in a general refresh, don't refresh gated snaps
+		if refreshAll && gating[update.InstanceName()] {
+			continue
+		}
+
 		snapsup, snapst, err := update.(readyUpdateInfo).SnapSetupForUpdate(st, params, userID, globalFlags)
 		if err != nil {
 			if refreshAll {
