@@ -1815,30 +1815,62 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 	return candidate, nil
 }
 
-// mountNonDataPartitionMatchingKernelDisk will select the partition to mount at
-// dir, using the boot package function FindPartitionUUIDForBootedKernelDisk to
-// determine what partition the booted kernel came from. If which disk the
-// kernel came from cannot be determined, then it will fallback to mounting via
-// the specified disk label.
+// mountNonDataPartitionMatchingKernelDisk will select the partition
+// to mount at dir using the boot package function
+// FindPartitionUUIDForBootedKernelDisk to determine what partition
+// the booted kernel came from.
+//
+// If "snap-bootstrap scan-disk" was run as part of udev it will
+// restrict the search of the partition from the boot disk it found.
+//
+// If "snap-bootstrap scan-disk" is not in use (legacy case),
+// it will look for any partition that matches the boot.
+//
+// If which disk the kernel came from cannot be determined, then it
+// will fallback to mounting via the specified disk label. If
+// "snap-bootstrap scan-disk" was used, it will restrict the search to
+// the boot disk.
 func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string, opts *systemdMountOptions) error {
-	partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 	var partSrc string
-	if err == nil {
-		// TODO: the by-partuuid is only available on gpt disks, on mbr we need
-		//       to use by-uuid or by-id
-		partSrc = filepath.Join("/dev/disk/by-partuuid", partuuid)
-	} else {
-		partSrc, err = getNonUEFISystemDisk(fallbacklabel)
+
+	if osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/dev/disk/snapd/disk")) {
+		disk, err := disks.DiskFromDeviceName("/dev/disk/snapd/disk")
 		if err != nil {
 			return err
 		}
-	}
+		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
+		if err == nil {
+			partition, err := disk.FindMatchingPartitionWithPartUUID(partuuid)
+			if err != nil {
+				return err
+			}
+			partSrc = partition.KernelDeviceNode
+		} else {
+			partition, err := disk.FindMatchingPartitionWithFsLabel(fallbacklabel)
+			if err != nil {
+				return err
+			}
+			partSrc = partition.KernelDeviceNode
+		}
+	} else {
+		partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
+		if err == nil {
+			// TODO: the by-partuuid is only available on gpt disks, on mbr we need
+			//       to use by-uuid or by-id
+			partSrc = filepath.Join("/dev/disk/by-partuuid", partuuid)
+		} else {
+			partSrc, err = getNonUEFISystemDisk(fallbacklabel)
+			if err != nil {
+				return err
+			}
+		}
 
-	// The partition uuid is read from the EFI variables. At this point
-	// the kernel may not have initialized the storage HW yet so poll
-	// here.
-	if err := waitForDevice(partSrc); err != nil {
-		return err
+		// The partition uuid is read from the EFI variables. At this point
+		// the kernel may not have initialized the storage HW yet so poll
+		// here.
+		if err := waitForDevice(partSrc); err != nil {
+			return err
+		}
 	}
 	return doSystemdMount(partSrc, dir, opts)
 }
