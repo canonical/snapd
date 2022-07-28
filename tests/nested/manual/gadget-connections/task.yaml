@@ -8,10 +8,24 @@ environment:
   NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
   NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-auto-import.assert
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/nested-20-amd64-connections.model
+  NESTED_IMAGE_ID: gadget-connections
   NESTED_ENABLE_TPM: false
   NESTED_ENABLE_SECURE_BOOT: false
 
-prepare: |
+restore: |
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+  teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+
+debug: |
+  tests.nested exec "snap connections --all" || true
+  tests.nested exec "snap changes" || true
+  tests.nested exec "snap change 1" || true
+  tests.nested exec "snap model" || true
+  tests.nested exec "snap list" || true
+  tests.nested exec "sudo python3 -m json.tool /var/lib/snapd/state.json" || true
+
+execute: |
   #shellcheck source=tests/lib/store.sh
   . "$TESTSLIB"/store.sh
 
@@ -23,7 +37,7 @@ prepare: |
 
   snap_id=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
-  snap_path=$("$TESTSTOOLS"/snaps-state pack-local connections)
+  snap_path=$("$TESTSTOOLS"/snaps-state pack-local test-snapd-connections)
   make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "${snap_path}" "${snap_id}"
   mv "${snap_path}" "$(tests.nested get extra-snaps-path)"
 
@@ -45,16 +59,9 @@ prepare: |
 
   tests.nested build-image core
   tests.nested create-vm core
+  # precondition check
+  tests.nested exec "snap model" | MATCH nested-20-amd64-test-snapd-connections
+  tests.nested exec "snap list test-snapd-connections"
 
-restore: |
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-  teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
-
-debug: |
-  tests.nested exec "snap connections" || true
-  tests.nested exec "snap connections --all" || true
-  tests.nested exec "snap changes" || true
-
-execute: |
-  tests.nested exec "snap connections" | MATCH 'serial-port  *connections:serial-1  *pc:serial-1'
+  # check that there is an auto-connection
+  tests.nested exec "snap connections" | MATCH 'serial-port  *test-snapd-connections:serial-1  *pc:serial-1'
