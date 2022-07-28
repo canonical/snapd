@@ -69,10 +69,18 @@ func convertValue(value reflect.Value, outputType reflect.Type) (reflect.Value, 
 	return nullValue, fmt.Errorf(`cannot convert value "%v" into a %v`, value, outputType)
 }
 
-type AttributeNotCompatibleError struct{ Err error }
+// AttributeNotCompatibleError represents a type mismatch error between an interface
+// attribute and an expected type.
+type AttributeNotCompatibleError struct {
+	SnapName      string
+	InterfaceName string
+	AttributeName string
+	AttributeType reflect.Type
+	ExpectedType  reflect.Type
+}
 
 func (e AttributeNotCompatibleError) Error() string {
-	return e.Err.Error()
+	return fmt.Sprintf("snap %q has interface %q with invalid value type %s for %q attribute: %s", e.SnapName, e.InterfaceName, e.AttributeType, e.AttributeName, e.ExpectedType)
 }
 
 func (e AttributeNotCompatibleError) Is(target error) bool {
@@ -95,7 +103,13 @@ func SetValueFromAttribute(snapName string, ifaceName string, attrName string, a
 
 	converted, err := convertValue(reflect.ValueOf(attrVal), rt.Elem())
 	if err != nil {
-		return AttributeNotCompatibleError{fmt.Errorf("snap %q has interface %q with invalid value type %T for %q attribute: %T", snapName, ifaceName, attrVal, attrName, val)}
+		return AttributeNotCompatibleError{
+			SnapName:      snapName,
+			InterfaceName: ifaceName,
+			AttributeName: attrName,
+			AttributeType: reflect.TypeOf(attrVal),
+			ExpectedType:  reflect.TypeOf(val),
+		}
 	}
 	rv := reflect.ValueOf(val)
 	rv.Elem().Set(converted)
