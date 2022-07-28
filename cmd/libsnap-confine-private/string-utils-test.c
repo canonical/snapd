@@ -164,10 +164,11 @@ static void test_sc_string_append__overflow(void)
 {
 	if (g_test_subprocess()) {
 		char buf[4] = { 0 };
-
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
 		// Try to append a string that's one character too long.
 		sc_string_append(buf, sizeof buf, "1234");
-
+#pragma GCC diagnostic pop
 		g_test_message("expected sc_string_append not to return");
 		g_test_fail();
 		return;
@@ -304,8 +305,10 @@ static void test_sc_string_append_char__overflow(void)
 {
 	if (g_test_subprocess()) {
 		char buf[1] = { 0 };
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
 		sc_string_append_char(buf, sizeof buf, 'a');
-
+#pragma GCC diagnostic pop
 		g_test_message("expected sc_string_append_char not to return");
 		g_test_fail();
 		return;
@@ -392,8 +395,10 @@ static void test_sc_string_append_char_pair__overflow(void)
 {
 	if (g_test_subprocess()) {
 		char buf[2] = { 0 };
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
 		sc_string_append_char_pair(buf, sizeof buf, 'a', 'b');
-
+#pragma GCC diagnostic pop
 		g_test_message
 		    ("expected sc_string_append_char_pair not to return");
 		g_test_fail();
