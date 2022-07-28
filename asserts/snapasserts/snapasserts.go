@@ -36,6 +36,9 @@ type Finder interface {
 	// type.  It returns a asserts.NotFoundError if the assertion
 	// cannot be found.
 	Find(assertionType *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error)
+	// FindMany finds assertions based on arbitrary headers.
+	// It returns a NotFoundError if no assertion can be found.
+	FindMany(assertionType *asserts.AssertionType, headers map[string]string) ([]asserts.Assertion, error)
 }
 
 func findSnapDeclaration(snapID, name string, db Finder) (*asserts.SnapDeclaration, error) {
@@ -192,11 +195,23 @@ func DeriveSideInfo(snapPath string, model *asserts.Model, db Finder) (*snap.Sid
 // on the device.
 func DeriveSideInfoFromDigestAndSize(snapPath string, snapSHA3_384 string, snapSize uint64, model *asserts.Model, db Finder) (*snap.SideInfo, error) {
 	// get relevant assertions and reconstruct metadata
-	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
+	headers := map[string]string{
 		"snap-sha3-384": snapSHA3_384,
-	})
-	if err != nil {
+	}
+	a, err := db.Find(asserts.SnapRevisionType, headers)
+	if err != nil && !asserts.IsNotFound(err) {
 		return nil, err
+	}
+	if a == nil {
+		// non-default provenance?
+		cands, err := db.FindMany(asserts.SnapRevisionType, headers)
+		if err != nil {
+			return nil, err
+		}
+		if len(cands) != 1 {
+			return nil, fmt.Errorf("safely handling snaps with different provenance but same hash not yet supported")
+		}
+		a = cands[0]
 	}
 
 	snapRev := a.(*asserts.SnapRevision)
@@ -209,6 +224,15 @@ func DeriveSideInfoFromDigestAndSize(snapPath string, snapSHA3_384 string, snapS
 
 	snapDecl, err := findSnapDeclaration(snapID, snapPath, db)
 	if err != nil {
+		return nil, err
+	}
+
+	signedProv, err := CrossCheckProvenance(snapDecl.SnapName(), snapRev, snapDecl, model, db)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckProvenance(snapPath, signedProv); err != nil {
 		return nil, err
 	}
 

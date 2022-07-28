@@ -62,6 +62,27 @@ slots:
       - read
       - write
 
+  test-path-array:
+    interface: posix-mq
+    path:
+      - /test-array-1
+      - /test-array-2
+      - /test-array-3
+
+  test-empty-path-array:
+    interface: posix-mq
+    path: []
+
+  test-one-empty-path-array:
+    interface: posix-mq
+    path:
+      - /test-array-1
+      - ""
+
+  test-empty-path:
+    interface: posix-mq
+    path: ""
+
   test-invalid-path-1:
     interface: posix-mq
     path: ../../test-invalid
@@ -73,7 +94,7 @@ slots:
   test-invalid-path-3:
     interface: posix-mq
     path:
-      - this-is-not-a-string
+      this-is-not-a-valid-path: true
 
   test-invalid-path-4:
     interface: posix-mq
@@ -177,6 +198,19 @@ apps:
     plugs: [test-all-perms]
 `
 
+const pathArrayPlugSnapInfoYaml = `name: consumer
+version: 1.0
+
+plugs:
+  test-path-array:
+    interface: posix-mq
+
+apps:
+  app:
+    command: foo
+    plugs: [test-path-array]
+`
+
 const invalidPerms1PlugSnapInfoYaml = `name: consumer
 version: 1.0
 
@@ -257,6 +291,20 @@ type PosixMQInterfaceSuite struct {
 	testAllPermsPlugInfo *snap.PlugInfo
 	testAllPermsPlug     *interfaces.ConnectedPlug
 
+	testPathArraySlotInfo *snap.SlotInfo
+	testPathArraySlot     *interfaces.ConnectedSlot
+	testPathArrayPlugInfo *snap.PlugInfo
+	testPathArrayPlug     *interfaces.ConnectedPlug
+
+	testEmptyPathArraySlotInfo *snap.SlotInfo
+	testEmptyPathArraySlot     *interfaces.ConnectedSlot
+
+	testOneEmptyPathArraySlotInfo *snap.SlotInfo
+	testOneEmptyPathArraySlot     *interfaces.ConnectedSlot
+
+	testEmptyPathSlotInfo *snap.SlotInfo
+	testEmptyPathSlot     *interfaces.ConnectedSlot
+
 	testInvalidPath1SlotInfo *snap.SlotInfo
 	testInvalidPath1Slot     *interfaces.ConnectedSlot
 
@@ -316,6 +364,18 @@ func (s *PosixMQInterfaceSuite) SetUpTest(c *C) {
 
 	s.testAllPermsSlotInfo = slotSnap.Slots["test-all-perms"]
 	s.testAllPermsSlot = interfaces.NewConnectedSlot(s.testAllPermsSlotInfo, nil, nil)
+
+	s.testPathArraySlotInfo = slotSnap.Slots["test-path-array"]
+	s.testPathArraySlot = interfaces.NewConnectedSlot(s.testPathArraySlotInfo, nil, nil)
+
+	s.testEmptyPathArraySlotInfo = slotSnap.Slots["test-empty-path-array"]
+	s.testEmptyPathArraySlot = interfaces.NewConnectedSlot(s.testEmptyPathArraySlotInfo, nil, nil)
+
+	s.testOneEmptyPathArraySlotInfo = slotSnap.Slots["test-one-empty-path-array"]
+	s.testOneEmptyPathArraySlot = interfaces.NewConnectedSlot(s.testOneEmptyPathArraySlotInfo, nil, nil)
+
+	s.testEmptyPathSlotInfo = slotSnap.Slots["test-empty-path"]
+	s.testEmptyPathSlot = interfaces.NewConnectedSlot(s.testEmptyPathSlotInfo, nil, nil)
 
 	s.testInvalidPath1SlotInfo = slotSnap.Slots["test-invalid-path-1"]
 	s.testInvalidPath1Slot = interfaces.NewConnectedSlot(s.testInvalidPath1SlotInfo, nil, nil)
@@ -378,6 +438,10 @@ func (s *PosixMQInterfaceSuite) SetUpTest(c *C) {
 	plugSnap7 := snaptest.MockInfo(c, invalidPerms3PlugSnapInfoYaml, nil)
 	s.testInvalidPerms3PlugInfo = plugSnap7.Plugs["test-invalid-perms-3"]
 	s.testInvalidPerms3Plug = interfaces.NewConnectedPlug(s.testInvalidPerms3PlugInfo, nil, nil)
+
+	plugSnap8 := snaptest.MockInfo(c, pathArrayPlugSnapInfoYaml, nil)
+	s.testPathArrayPlugInfo = plugSnap8.Plugs["test-path-array"]
+	s.testPathArrayPlug = interfaces.NewConnectedPlug(s.testPathArrayPlugInfo, nil, nil)
 }
 
 func (s *PosixMQInterfaceSuite) checkSlotSeccompSnippet(c *C, spec *seccomp.Specification) {
@@ -399,9 +463,11 @@ func (s *PosixMQInterfaceSuite) TestReadWriteMQAppArmor(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
+	c.Check(slotSnippet, testutil.Contains, `# POSIX Message Queue slot: test-rw`)
 	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) "/test-rw",`)
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
+	c.Check(plugSnippet, testutil.Contains, `# POSIX Message Queue plug: test-rw`)
 	c.Check(plugSnippet, testutil.Contains, `mqueue (read write open) "/test-rw",`)
 }
 
@@ -432,9 +498,11 @@ func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQAppArmor(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
+	c.Check(slotSnippet, testutil.Contains, `# POSIX Message Queue slot: test-default`)
 	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) "/test-default",`)
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
+	c.Check(plugSnippet, testutil.Contains, `# POSIX Message Queue plug: test-default`)
 	c.Check(plugSnippet, testutil.Contains, `mqueue (read write open) "/test-default",`)
 }
 
@@ -491,6 +559,46 @@ func (s *PosixMQInterfaceSuite) TestReadOnlyMQSeccomp(c *C) {
 	c.Check(plugSnippet, Not(testutil.Contains), "mq_unlink")
 }
 
+func (s *PosixMQInterfaceSuite) TestPathArrayMQAppArmor(c *C) {
+	spec := &apparmor.Specification{}
+	err := spec.AddPermanentSlot(s.iface, s.testPathArraySlotInfo)
+	c.Assert(err, IsNil)
+	err = spec.AddConnectedPlug(s.iface, s.testPathArrayPlug, s.testPathArraySlot)
+	c.Assert(err, IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
+
+	slotSnippet := spec.SnippetForTag("snap.producer.app")
+	c.Check(slotSnippet, testutil.Contains, `  mqueue (open read write create delete) "/test-array-1",
+  mqueue (open read write create delete) "/test-array-2",
+  mqueue (open read write create delete) "/test-array-3",
+`)
+
+	plugSnippet := spec.SnippetForTag("snap.consumer.app")
+	c.Check(plugSnippet, testutil.Contains, `  mqueue (read write open) "/test-array-1",
+  mqueue (read write open) "/test-array-2",
+  mqueue (read write open) "/test-array-3",
+`)
+}
+
+func (s *PosixMQInterfaceSuite) TestPathArrayMQSeccomp(c *C) {
+	spec := &seccomp.Specification{}
+	err := spec.AddPermanentSlot(s.iface, s.testPathArraySlotInfo)
+	c.Assert(err, IsNil)
+	err = spec.AddConnectedPlug(s.iface, s.testPathArrayPlug, s.testPathArraySlot)
+	c.Assert(err, IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
+
+	s.checkSlotSeccompSnippet(c, spec)
+
+	plugSnippet := spec.SnippetForTag("snap.consumer.app")
+	c.Check(plugSnippet, testutil.Contains, "mq_open")
+	c.Check(plugSnippet, testutil.Contains, "mq_notify")
+	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive")
+	c.Check(plugSnippet, testutil.Contains, "mq_timedsend")
+	c.Check(plugSnippet, testutil.Contains, "mq_getsetattr")
+	c.Check(plugSnippet, Not(testutil.Contains), "mq_unlink")
+}
+
 func (s *PosixMQInterfaceSuite) TestAllPermsMQAppArmor(c *C) {
 	spec := &apparmor.Specification{}
 	err := spec.AddPermanentSlot(s.iface, s.testAllPermsSlotInfo)
@@ -541,7 +649,7 @@ func (s *PosixMQInterfaceSuite) TestPathValidationAppArmorRegex(c *C) {
 func (s *PosixMQInterfaceSuite) TestPathStringValidation(c *C) {
 	spec := &apparmor.Specification{}
 	err := spec.AddPermanentSlot(s.iface, s.testInvalidPath3SlotInfo)
-	c.Check(err, ErrorMatches, `snap "producer" has interface "posix-mq" with invalid value type \[\]interface {} for "path" attribute: \*string`)
+	c.Check(err, ErrorMatches, `snap "producer" has interface "posix-mq" with invalid value type map\[string\]interface {} for "path" attribute: \*\[\]string`)
 }
 
 func (s *PosixMQInterfaceSuite) TestInvalidPerms1(c *C) {
@@ -608,6 +716,8 @@ func (s *PosixMQInterfaceSuite) TestSanitizeSlot(c *C) {
 	s.checkSlotPosixMQAttr(c, s.testReadOnlySlotInfo)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testAllPermsSlotInfo), IsNil)
 	s.checkSlotPosixMQAttr(c, s.testAllPermsSlotInfo)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testPathArraySlotInfo), IsNil)
+	s.checkSlotPosixMQAttr(c, s.testPathArraySlotInfo)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testLabelSlotInfo), IsNil)
 	c.Check(s.testLabelSlotInfo.Attrs["posix-mq"], Equals, "this-is-a-test-label")
 
@@ -617,7 +727,7 @@ func (s *PosixMQInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath2SlotInfo), ErrorMatches,
 		`posix-mq "path" attribute is invalid: /test-invalid-2"\["`)
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath3SlotInfo), ErrorMatches,
-		`snap "producer" has interface "posix-mq" with invalid value type \[\]interface {} for "path" attribute: \*string`)
+		`snap "producer" has interface "posix-mq" with invalid value type map\[string\]interface {} for "path" attribute: \*\[\]string`)
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath4SlotInfo), ErrorMatches,
 		`posix-mq slot requires the "path" attribute`)
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath5SlotInfo), ErrorMatches,
@@ -628,6 +738,12 @@ func (s *PosixMQInterfaceSuite) TestSanitizeSlot(c *C) {
 		`snap "producer" has interface "posix-mq" with invalid value type string for "permissions" attribute: \*\[\]string`)
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidLabelSlotInfo), ErrorMatches,
 		`posix-mq "posix-mq" attribute must be a string, not \[broken\]`)
+	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testEmptyPathArraySlotInfo), ErrorMatches,
+		`posix-mq slot requires at least one value in the "path" attribute`)
+	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testEmptyPathSlotInfo), ErrorMatches,
+		`posix-mq slot "path" attribute values cannot be empty`)
+	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testOneEmptyPathArraySlotInfo), ErrorMatches,
+		`posix-mq slot "path" attribute values cannot be empty`)
 }
 
 func (s *PosixMQInterfaceSuite) TestSanitizePlug(c *C) {
@@ -643,6 +759,8 @@ func (s *PosixMQInterfaceSuite) TestSanitizePlug(c *C) {
 	s.checkPlugPosixMQAttr(c, s.testReadOnlyPlugInfo)
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testAllPermsPlugInfo), IsNil)
 	s.checkPlugPosixMQAttr(c, s.testAllPermsPlugInfo)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testPathArrayPlugInfo), IsNil)
+	s.checkPlugPosixMQAttr(c, s.testPathArrayPlugInfo)
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testInvalidPerms1PlugInfo), IsNil)
 	s.checkPlugPosixMQAttr(c, s.testInvalidPerms1PlugInfo)
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testLabelPlugInfo), IsNil)

@@ -978,7 +978,7 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-               build_ubuntu_image
+               get_ubuntu_image
             fi
 
             # Install the snapd built
@@ -1024,7 +1024,7 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                build_ubuntu_image
+                get_ubuntu_image
             fi
 
             # Install the snapd built
@@ -1071,7 +1071,7 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                build_ubuntu_image
+                get_ubuntu_image
             fi
 
             # Install the snapd built
