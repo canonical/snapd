@@ -50,7 +50,7 @@ prepare: |
     EOF
     dpkg --add-architecture "$X_DEBARCH"
     apt --quiet -o Dpkg::Progress-Fancy=false update
-    apt --yes --quiet -o Dpkg::Progress-Fancy=false install "$X_GCC" libseccomp2:"$X_DEBARCH" libseccomp-dev:"$X_DEBARCH"
+    apt --yes --quiet -o Dpkg::Progress-Fancy=false install "$X_GCC" libseccomp2:"$X_DEBARCH" libseccomp-dev:"$X_DEBARCH" libblkid-dev:"$X_DEBARCH"
 
 restore: |
     rm -rf /tmp/cross-build
