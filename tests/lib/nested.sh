@@ -487,13 +487,22 @@ nested_get_image_name() {
         VERSION="18"
     fi
 
+    # Use task name to build the image in case the NESTED_IMAGE_ID is unset
+    # This scenario is valid on manual tests when it is required to set the NESTED_IMAGE_ID
+    if [ "$NAME" = "unset" ]; then
+        NAME="$SPREAD_TASK"
+        if [ -n "$SPREAD_VARIANT" ]; then
+            NAME="$NAME_$SPREAD_VARIANT"
+        fi
+    fi
+
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
         SOURCE="custom"
     fi
     if [ "$(nested_get_extra_snaps | wc -l)" != "0" ]; then
         SOURCE="custom"
     fi
-    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}-${NESTED_DISK_LOGICAL_BLOCK_SIZE}.img"
+    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}.img"
 }
 
 nested_is_generic_image() {
