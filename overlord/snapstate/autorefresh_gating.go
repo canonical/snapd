@@ -399,7 +399,8 @@ func resetGatingForRefreshed(st *state.State, refreshedSnaps ...string) error {
 
 	var changed bool
 	for _, snapName := range refreshedSnaps {
-		if _, ok := gating[snapName]; ok {
+		// holds placed by the user remain after a refresh
+		if _, ok := gating[snapName]; ok && snapName != "system" {
 			delete(gating, snapName)
 			changed = true
 		}
