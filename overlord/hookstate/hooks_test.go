@@ -67,8 +67,7 @@ func (s *gateAutoRefreshHookSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// disable refresh-app-awareness (it's disable by default right now
-	// but it will be enabled by default at some point);
+	// disable refresh-app-awareness (it's enabled by default);
 	// specific tests below enable it back.
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.refresh-app-awareness", false)
