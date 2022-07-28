@@ -78,9 +78,9 @@ func verifyHeader(rawHeader []byte, header GPTHeader) error {
 	return nil
 }
 
-func LoadGPTHeader(devfd *os.File) (GPTHeader, error) {
+func LoadGPTHeader(devfd *os.File, sectorSize uint64) (GPTHeader, error) {
 	var header GPTHeader
-	rawHeader := make([]byte, 512)
+	rawHeader := make([]byte, sectorSize)
 	read, err := devfd.Read(rawHeader)
 	if err != nil {
 		return GPTHeader{}, err
@@ -100,26 +100,26 @@ func LoadGPTHeader(devfd *os.File) (GPTHeader, error) {
 	return header, nil
 }
 
-func ReadGPTHeader(device string) (GPTHeader, error) {
+func ReadGPTHeader(device string, sectorSize uint64) (GPTHeader, error) {
 	devfd, err := os.Open(device)
 	if err != nil {
 		return GPTHeader{}, err
 	}
 	defer devfd.Close()
 
-	if _, err := devfd.Seek(512, os.SEEK_SET); err != nil {
+	if _, err := devfd.Seek(int64(sectorSize), os.SEEK_SET); err != nil {
 		return GPTHeader{}, err
 	}
 
-	header, main_err := LoadGPTHeader(devfd)
+	header, main_err := LoadGPTHeader(devfd, sectorSize)
 	if main_err != nil {
 		// Read the backup header
-		_, err := devfd.Seek(-512, os.SEEK_END)
+		_, err := devfd.Seek(-int64(sectorSize), os.SEEK_END)
 		if err != nil {
 			return GPTHeader{}, main_err
 		}
 
-		header, err = LoadGPTHeader(devfd)
+		header, err = LoadGPTHeader(devfd, sectorSize)
 		if err != nil {
 			return GPTHeader{}, main_err
 		}
@@ -128,18 +128,19 @@ func ReadGPTHeader(device string) (GPTHeader, error) {
 	return header, nil
 }
 
-func CalculateLastUsableLBA(device string) (uint64, error) {
-	header, err := ReadGPTHeader(device)
+func CalculateLastUsableLBA(device string, diskSize uint64, sectorSize uint64) (uint64, error) {
+	header, err := ReadGPTHeader(device, sectorSize)
 	if err != nil {
 		return 0, err
 	}
-	sectors, err := blockDeviceSizeInSectors(device)
-	if err != nil {
-		return 0, err
-	}
+	sectors := diskSize / sectorSize
+
 	tableSize := uint64(header.NEntries) * uint64(header.EntrySize)
+	if tableSize < 16*1024 {
+		tableSize = 16 * 1024
+	}
 	// Rounded up division for number of sectors
-	tableSizeInSectors := (tableSize + 511) / 512
+	tableSizeInSectors := (tableSize + sectorSize - 1) / sectorSize
 
 	//	|                 |
 	//	| Last Usable LBA |  sectors - tableSizeInSectors - 2
