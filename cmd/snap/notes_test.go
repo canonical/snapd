@@ -82,6 +82,12 @@ func (notesSuite) TestNotesBroken(c *check.C) {
 	}).String(), check.Equals, "broken")
 }
 
+func (notesSuite) TestNotesHeld(c *check.C) {
+	c.Check((&snap.Notes{
+		Held: true,
+	}).String(), check.Equals, "held")
+}
+
 func (notesSuite) TestNotesIgnoreValidation(c *check.C) {
 	c.Check((&snap.Notes{
 		IgnoreValidation: true,

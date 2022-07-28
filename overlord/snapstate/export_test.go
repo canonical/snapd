@@ -350,7 +350,6 @@ type HoldState = holdState
 var (
 	HoldDurationLeft           = holdDurationLeft
 	LastRefreshed              = lastRefreshed
-	HeldSnaps                  = heldSnaps
 	PruneRefreshCandidates     = pruneRefreshCandidates
 	ResetGatingForRefreshed    = resetGatingForRefreshed
 	PruneGating                = pruneGating

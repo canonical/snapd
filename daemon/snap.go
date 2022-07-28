@@ -41,6 +41,7 @@ type aboutSnap struct {
 	info   *snap.Info
 	snapst *snapstate.SnapState
 	health *client.SnapHealth
+	held   bool
 }
 
 // localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
@@ -95,6 +96,11 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		return nil, err
 	}
 
+	gating, err := snapstate.HeldSnaps(st)
+	if err != nil {
+		return nil, err
+	}
+
 	var firstErr error
 	for name, snapst := range snapStates {
 		if len(wanted) > 0 && !wanted[name] {
@@ -122,13 +128,13 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 				if err != nil && firstErr == nil {
 					firstErr = err
 				}
-				aboutThis = append(aboutThis, aboutSnap{info, snapst, health})
+				aboutThis = append(aboutThis, aboutSnap{info, snapst, health, gating[name]})
 			}
 		} else {
 			info, err = snapst.CurrentInfo()
 			if err == nil {
 				info.Publisher, err = assertstate.PublisherStoreAccount(st, info.SnapID)
-				aboutThis = append(aboutThis, aboutSnap{info, snapst, health})
+				aboutThis = append(aboutThis, aboutSnap{info, snapst, health, gating[name]})
 			}
 		}
 
@@ -190,6 +196,7 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 		result.MountedFrom, _ = os.Readlink(result.MountedFrom)
 	}
 	result.Health = about.health
+	result.Held = about.held
 
 	return result
 }

@@ -448,8 +448,8 @@ func pruneSnapsHold(st *state.State, snapName string) error {
 	return nil
 }
 
-// heldSnaps returns all snaps that are gated and shouldn't be refreshed.
-func heldSnaps(st *state.State) (map[string]bool, error) {
+// HeldSnaps returns all snaps that are gated and shouldn't be refreshed.
+func HeldSnaps(st *state.State) (map[string]bool, error) {
 	gating, err := refreshGating(st)
 	if err != nil {
 		return nil, err
@@ -716,7 +716,7 @@ var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
 		return nil, err
 	}
 
-	held, err := heldSnaps(gatingTask.State())
+	held, err := HeldSnaps(gatingTask.State())
 	if err != nil {
 		return nil, err
 	}

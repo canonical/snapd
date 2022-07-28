@@ -80,6 +80,7 @@ type Snap struct {
 	Tracks []string `json:"tracks,omitempty"`
 
 	Health *SnapHealth `json:"health,omitempty"`
+	Held   bool        `json:"held,omitempty"`
 }
 
 type SnapHealth struct {

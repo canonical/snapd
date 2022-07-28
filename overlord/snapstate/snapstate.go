@@ -1568,7 +1568,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 	}
 	var kernelTs, gadgetTs, bootBaseTs *state.TaskSet
 
-	gating, err := heldSnaps(st)
+	gating, err := HeldSnaps(st)
 	if err != nil {
 		return nil, nil, err
 	}
