@@ -1,0 +1,25 @@
+From: Shengjing Zhu <zhsj@debian.org>
+Date: Sun, 17 Jul 2022 20:07:48 +0800
+Subject: Fix test with godbus 5.0.5
+
+Due to https://github.com/godbus/dbus/pull/265, godbus only sends
+auth name.
+
+Forwarded: no
+---
+ dbusutil/dbustest/dbustest.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/dbusutil/dbustest/dbustest.go b/dbusutil/dbustest/dbustest.go
+index cd690e7..355e176 100644
+--- a/dbusutil/dbustest/dbustest.go
++++ b/dbusutil/dbustest/dbustest.go
+@@ -85,7 +85,7 @@ func (s *testDBusStream) decodeRequest(req []byte) {
+ 			// initial NUL byte, ignore
+ 		case "AUTH\r\n":
+ 			s.output <- []byte("REJECTED TEST\r\n")
+-		case "AUTH TEST TEST\r\n":
++		case "AUTH TEST\r\n":
+ 			s.output <- []byte("OK test://\r\n")
+ 		case "CANCEL\r\n":
+ 			s.output <- []byte("REJECTED\r\n")
