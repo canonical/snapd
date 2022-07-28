@@ -501,7 +501,7 @@ nested_get_image_name() {
     if [ "$(nested_get_extra_snaps | wc -l)" != "0" ]; then
         SOURCE="custom"
     fi
-
+    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}.img"
 }
 
 nested_is_generic_image() {
