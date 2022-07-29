@@ -951,7 +951,7 @@ nested_add_file_to_vm() {
     ubuntuSeedDev="${devloop}p2"
 
     # Wait for the partition to show up
-    retry -n 2 --wait test -b "${ubuntuSeedDev}" || true
+    retry -n 2 --wait 1 test -b "${ubuntuSeedDev}" || true
 
     # losetup does not set the right block size on LOOP_CONFIGURE
     # but with LOOP_SET_BLOCK_SIZE later. So the block size might have
