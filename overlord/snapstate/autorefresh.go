@@ -144,8 +144,7 @@ func (m *autoRefresh) LastRefresh() (time.Time, error) {
 }
 
 // EffectiveRefreshHold returns the time until to which refreshes are
-// held if refresh.hold configuration is set and accounting for the
-// max postponement since the last refresh.
+// held if refresh.hold configuration is set.
 func (m *autoRefresh) EffectiveRefreshHold() (time.Time, error) {
 	var holdValue string
 

@@ -174,48 +174,6 @@ func HoldRefreshes(st *state.State, holdTime string, holdSnaps []string) error {
 	return err
 }
 
-// UnholdRefreshes removes the system gating on the held snaps. Returns the held
-// snaps whose gating info was changed.
-func UnholdRefreshes(st *state.State, unholdSnaps []string) ([]string, error) {
-	snaps, err := All(st)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, unholdSnap := range unholdSnaps {
-		if _, ok := snaps[unholdSnap]; !ok {
-			return nil, snap.NotInstalledError{Snap: unholdSnap}
-		}
-	}
-
-	gating, err := refreshGating(st)
-	if err != nil {
-		return nil, err
-	}
-
-	var changedSnaps []string
-	for heldSnap, holdingSnaps := range gating {
-		if !strutil.ListContains(unholdSnaps, heldSnap) {
-			continue
-		}
-
-		if _, ok := holdingSnaps["system"]; ok {
-			delete(holdingSnaps, "system")
-			changedSnaps = append(changedSnaps, heldSnap)
-		}
-
-		if len(gating[heldSnap]) == 0 {
-			delete(gating, heldSnap)
-		}
-	}
-
-	if len(changedSnaps) > 0 {
-		st.Set("snaps-hold", gating)
-	}
-
-	return changedSnaps, nil
-}
-
 // HoldRefresh marks affectingSnaps as held for refresh for up to holdTime.
 // HoldTime of zero denotes maximum allowed hold time.
 // Holding fails if not all snaps can be held, in that case HoldError is returned

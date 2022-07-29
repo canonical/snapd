@@ -701,11 +701,7 @@ func (s *autoRefreshTestSuite) TestEffectiveRefreshHold(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// assume no seed-time
-	s.state.Set("seed-time", nil)
-
 	af := snapstate.NewAutoRefresh(s.state)
-
 	t0, err := af.EffectiveRefreshHold()
 	c.Assert(err, IsNil)
 	c.Check(t0.IsZero(), Equals, true)
@@ -715,24 +711,24 @@ func (s *autoRefreshTestSuite) TestEffectiveRefreshHold(c *C) {
 	tr.Set("core", "refresh.hold", holdTime)
 	tr.Commit()
 
-	seedTime := holdTime.Add(-100 * 24 * time.Hour)
-	s.state.Set("seed-time", seedTime)
-
 	t1, err := af.EffectiveRefreshHold()
 	c.Assert(err, IsNil)
-	c.Check(t1.Equal(seedTime.Add(95*24*time.Hour)), Equals, true)
-
-	lastRefresh := holdTime.Add(-99 * 24 * time.Hour)
-	s.state.Set("last-refresh", lastRefresh)
-
-	t1, err = af.EffectiveRefreshHold()
-	c.Assert(err, IsNil)
-	c.Check(t1.Equal(lastRefresh.Add(95*24*time.Hour)), Equals, true)
-
-	s.state.Set("last-refresh", holdTime.Add(-6*time.Hour))
-	t1, err = af.EffectiveRefreshHold()
-	c.Assert(err, IsNil)
 	c.Check(t1.Equal(holdTime), Equals, true)
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", "forever")
+	tr.Commit()
+
+	fixedTime, err := time.Parse(time.RFC3339, "0001-02-03T00:00:00Z")
+	c.Assert(err, IsNil)
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return fixedTime
+	})
+	defer restore()
+
+	t2, err := af.EffectiveRefreshHold()
+	c.Assert(err, IsNil)
+	c.Check(t2.Equal(fixedTime.Add(snapstate.MaxDuration)), Equals, true)
 }
 
 func (s *autoRefreshTestSuite) TestEnsureLastRefreshAnchor(c *C) {
