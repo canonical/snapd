@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -131,19 +132,23 @@ func storeFrom(d *Daemon) snapstate.StoreService {
 }
 
 var (
-	snapstateInstall           = snapstate.Install
-	snapstateInstallPath       = snapstate.InstallPath
-	snapstateInstallPathMany   = snapstate.InstallPathMany
-	snapstateRefreshCandidates = snapstate.RefreshCandidates
-	snapstateTryPath           = snapstate.TryPath
-	snapstateUpdate            = snapstate.Update
-	snapstateUpdateMany        = snapstate.UpdateMany
-	snapstateInstallMany       = snapstate.InstallMany
-	snapstateRemoveMany        = snapstate.RemoveMany
-	snapstateEnforceSnaps      = snapstate.EnforceSnaps
-	snapstateRevert            = snapstate.Revert
-	snapstateRevertToRevision  = snapstate.RevertToRevision
-	snapstateSwitch            = snapstate.Switch
+	snapstateInstall            = snapstate.Install
+	snapstateInstallPath        = snapstate.InstallPath
+	snapstateInstallPathMany    = snapstate.InstallPathMany
+	snapstateRefreshCandidates  = snapstate.RefreshCandidates
+	snapstateTryPath            = snapstate.TryPath
+	snapstateUpdate             = snapstate.Update
+	snapstateUpdateMany         = snapstate.UpdateMany
+	snapstateInstallMany        = snapstate.InstallMany
+	snapstateRemoveMany         = snapstate.RemoveMany
+	snapstateEnforceSnaps       = snapstate.EnforceSnaps
+	snapstateRevert             = snapstate.Revert
+	snapstateRevertToRevision   = snapstate.RevertToRevision
+	snapstateSwitch             = snapstate.Switch
+	snapstateProceedWithRefresh = snapstate.ProceedWithRefresh
+	snapstateHoldRefreshes      = snapstate.HoldRefreshes
+
+	configstateConfigureInstalled = configstate.ConfigureInstalled
 
 	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking

@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -277,8 +276,15 @@ func (inst *snapInstruction) validate() error {
 		return fmt.Errorf("invalid value for transaction type: %s", inst.Transaction)
 	}
 
-	if inst.Action == "hold" && inst.Time == "" {
-		return errors.New("hold action requires a non-empty time value")
+	if inst.Action == "hold" {
+		if inst.Time == "" {
+			return errors.New("hold action requires a non-empty time value")
+		} else if inst.Time != "forever" {
+			_, err := time.Parse(time.RFC3339, inst.Time)
+			if err != nil {
+				return fmt.Errorf(`hold action requires time to be "forever" or in RFC3339 format: %v`, err)
+			}
+		}
 	}
 
 	if inst.Action != "hold" && inst.Time != "" {
@@ -852,15 +858,11 @@ func shouldSearchStore(r *http.Request) bool {
 }
 
 func snapHoldMany(inst *snapInstruction, st *state.State) (res *snapInstructionResult, err error) {
-	if err := validateHoldTime(inst.Time); err != nil {
-		return nil, err
-	}
-
 	var msg string
 	var tss []*state.TaskSet
 	if len(inst.Snaps) == 0 {
 		patchValues := map[string]interface{}{"refresh.hold": inst.Time}
-		ts, err := configstate.ConfigureInstalled(st, "core", patchValues, 0)
+		ts, err := configstateConfigureInstalled(st, "core", patchValues, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -868,7 +870,7 @@ func snapHoldMany(inst *snapInstruction, st *state.State) (res *snapInstructionR
 		tss = []*state.TaskSet{ts}
 		msg = i18n.G("Hold refreshes for all snaps.")
 	} else {
-		if err := snapstate.HoldRefreshes(st, inst.Time, inst.Snaps); err != nil {
+		if err := snapstateHoldRefreshes(st, inst.Time, inst.Snaps); err != nil {
 			return nil, err
 		}
 
@@ -882,24 +884,13 @@ func snapHoldMany(inst *snapInstruction, st *state.State) (res *snapInstructionR
 	}, nil
 }
 
-func validateHoldTime(holdTime string) error {
-	if holdTime != "forever" {
-		_, err := time.Parse(time.RFC3339, holdTime)
-		if err != nil {
-			return fmt.Errorf(`expected hold time to be "forever" or an RFC3339 timestamp: %v`, err)
-		}
-	}
-
-	return nil
-}
-
 func snapUnholdMany(inst *snapInstruction, st *state.State) (res *snapInstructionResult, err error) {
 	var msg string
 	var tss []*state.TaskSet
 
 	if len(inst.Snaps) == 0 {
 		patchValues := map[string]interface{}{"refresh.hold": nil}
-		ts, err := configstate.ConfigureInstalled(st, "core", patchValues, 0)
+		ts, err := configstateConfigureInstalled(st, "core", patchValues, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -907,7 +898,7 @@ func snapUnholdMany(inst *snapInstruction, st *state.State) (res *snapInstructio
 		tss = []*state.TaskSet{ts}
 		msg = i18n.G("Remove hold on refreshes of all snaps.")
 	} else {
-		if err := snapstate.ProceedWithRefresh(st, "system", inst.Snaps); err != nil {
+		if err := snapstateProceedWithRefresh(st, "system", inst.Snaps); err != nil {
 			return nil, err
 		}
 
