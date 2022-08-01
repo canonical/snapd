@@ -4,12 +4,12 @@ set -e
 
 get_assets() {
     CACHE="$1"
-    
+
     if [ -d "$CACHE" ]; then
         echo "Using exiting cache dir $CACHE"
         return
     fi
-    
+
     mkdir -p "$CACHE"
     # get the snaps
     for snap in pc-kernel pc; do
@@ -73,7 +73,6 @@ install_data_partition() {
     # Copy base filesystem
     sudo tar -C "$DESTDIR" -xf "$CACHE"/ubuntu-base-22.04-base-amd64.tar.gz
 
-    # Run hooks
     # Create basic devices to be able to install packages
     [ -e "$DESTDIR"/dev/null ] || sudo mknod -m 666 "$DESTDIR"/dev/null c 1 3
     [ -e "$DESTDIR"/dev/zero ] || sudo mknod -m 666 "$DESTDIR"/dev/zero c 1 5
@@ -82,10 +81,9 @@ install_data_partition() {
     # ensure resolving works inside the chroot
     echo "nameserver 8.8.8.8" | sudo tee -a "$DESTDIR"/etc/resolv.conf
     # install additional packages
-    sudo chroot "$DESTDIR" sh -c "DEBIAN_FRONTEND=noninteractive apt update"
-    #sudo chroot "$DESTDIR" sh -c "DEBIAN_FRONTEND=noninteractive apt dist-upgrade -y"
-    local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny"
-    sudo chroot "$DESTDIR" sh -c \
+    sudo chroot "$DESTDIR" /usr/bin/sh -c "DEBIAN_FRONTEND=noninteractive apt update"
+    local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod"
+    sudo chroot "$DESTDIR" /usr/bin/sh -c \
          "DEBIAN_FRONTEND=noninteractive apt install --no-install-recommends -y $pkgs"
     # netplan config
     cat > "$CACHE"/00-ethernet.yaml <<'EOF'
@@ -99,14 +97,23 @@ network:
 EOF
     sudo cp "$CACHE"/00-ethernet.yaml "$DESTDIR"/etc/netplan
 
+    # mount bits needed to be able to update boot assets
+    sudo mkdir -p "$DESTDIR"/boot/grub "$DESTDIR"/boot/efi
+    sudo tee "$DESTDIR"/etc/fstab <<'EOF'
+/run/mnt/ubuntu-boot/EFI/ubuntu /boot/grub none bind 0 0
+EOF
+
     # ensure we can login
-    sudo chroot "$DESTDIR" adduser --disabled-password --gecos "" ubuntu
-    echo -e "ubuntu\nubuntu" | sudo chroot "$DESTDIR" passwd ubuntu
+    sudo chroot "$DESTDIR" /usr/sbin/adduser --disabled-password --gecos "" ubuntu
+    echo -e "ubuntu\nubuntu" | sudo chroot "$DESTDIR" /usr/bin/passwd ubuntu
     echo "ubuntu ALL=(ALL) NOPASSWD:ALL" | sudo tee -a "$DESTDIR"/etc/sudoers
 
     # XXX set password for root user
-    sudo chroot "$DESTDIR" sh -c 'echo root:root | chpasswd'
-    sudo sh -c "echo \"PermitRootLogin yes\nPasswordAuthentication yes\" >> $DESTDIR/etc/ssh/sshd_config"
+    sudo chroot "$DESTDIR" /usr/bin/sh -c 'echo root:root | chpasswd'
+    sudo tee -a "$DESTDIR/etc/ssh/sshd_config" <<'EOF'
+PermitRootLogin yes
+PasswordAuthentication yes
+EOF
 
     # Populate snapd data
     cat > modeenv <<EOF
@@ -174,31 +181,28 @@ populate_image() {
 
     mkdir -p "$MNT"
     sudo kpartx -av "$IMG"
-    
-    loop=$(sudo kpartx -l "$IMG" |tr -d " " | cut -f1 -d:|sed 's/..$//'|head -1)
+
+    loop=$(sudo losetup -P --show -f "${IMG}")
     loop_esp="${loop}"p2
     loop_boot="${loop}"p3
     loop_save="${loop}"p4
     loop_data="${loop}"p5
     # XXX: on a real UC device this the ESP is "ubuntu-seed"
-    sudo mkfs.vfat /dev/mapper/"$loop_esp"
+    sudo mkfs.fat /dev/mapper/"$loop_esp"
     sudo mkfs.ext4 -L ubuntu-boot -q /dev/mapper/"$loop_boot"
     sudo mkfs.ext4 -L ubuntu-save -q /dev/mapper/"$loop_save"
     sudo mkfs.ext4 -L ubuntu-data -q /dev/mapper/"$loop_data"
-    for name in esp ubuntu-boot ubuntu-save ubuntu-data; do 
+    for name in esp ubuntu-boot ubuntu-save ubuntu-data; do
         mkdir -p "$MNT"/"$name"
     done
     sudo mount /dev/mapper/"$loop_esp" "$MNT"/esp
     sudo mount /dev/mapper/"$loop_boot" "$MNT"/ubuntu-boot
     sudo mount /dev/mapper/"$loop_save" "$MNT"/ubuntu-save
     sudo mount /dev/mapper/"$loop_data" "$MNT"/ubuntu-data
-    
+
     # install things into the image
     install_data_partition "$MNT"/ubuntu-data/ "$CACHE"
 
-    # XXX: copy custom content (custom snapd into the image)
-    
-    
     # ESP partition just chainloads into ubuntu-boot
     # XXX: do we want this given that we don't have recovery systems?
     sudo mkdir -p "$MNT"/esp/EFI/boot
@@ -215,7 +219,7 @@ menuentry "Continue to run mode" --hotkey=n --id=run {
 EOF
     sudo mkdir -p "$MNT"/esp/EFI/ubuntu
     sudo cp "$CACHE"/esp-grub.cfg "$MNT"/esp/EFI/ubuntu/grub.cfg
-    
+
     # ubuntu-boot
     sudo mkdir -p "$MNT"/ubuntu-boot/EFI/boot
     sudo cp -a "$CACHE"/snap-pc/grubx64.efi "$MNT"/ubuntu-boot/EFI/boot
@@ -223,7 +227,7 @@ EOF
 
     sudo mkdir -p "$MNT"/ubuntu-boot/EFI/ubuntu
     cat > "$CACHE"/grub.cfg <<'EOF'
-set default=0   
+set default=0
 set timeout=3
 
 # load only kernel_status and kernel command line variables set by snapd from
@@ -314,7 +318,7 @@ main() {
     CACHE_DIR="${2:-./cache}"
     MNT_DIR="${2:-./mnt}"
     # shellcheck disable=SC2064
-    trap "cleanup \"$CACHE_DIR\" \"$MNT_DIR\"" EXIT INT 
+    trap "cleanup \"$BOOT_IMG\" \"$MNT_DIR\"" EXIT INT
 
     get_assets "$CACHE_DIR"
     create_image "$BOOT_IMG"
