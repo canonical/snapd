@@ -28,14 +28,9 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 )
 
 func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		return fmt.Errorf("cannot run update boot config task on a classic system")
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
