@@ -466,13 +466,21 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = unlink
 	}
 
-	if !release.OnClassic && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
+	// Use device context just to find out if we have modeenv.
+	// REVIEW But, see comment at beginning of function?
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	hasModeEnv := deviceCtx.HasModeenv()
+
+	if hasModeEnv && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
 		// XXX: gadget update currently for core systems only
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q%s"), snapsup.Type, snapsup.InstanceName(), revisionStr))
 		addTask(gadgetUpdate)
 		prev = gadgetUpdate
 	}
-	if !release.OnClassic && snapsup.Type == snap.TypeGadget {
+	if hasModeEnv && snapsup.Type == snap.TypeGadget {
 		// kernel command line from gadget is for core systems only
 		gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from gadget %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(gadgetCmdline)
