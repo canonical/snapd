@@ -228,17 +228,42 @@ func MockSnapstateMigrate(mock func(*state.State, []string) ([]*state.TaskSet, e
 	}
 }
 
+func MockSnapstateProceedWithRefresh(f func(st *state.State, gatingSnap string, snaps []string) error) (restore func()) {
+	old := snapstateProceedWithRefresh
+	snapstateProceedWithRefresh = f
+	return func() {
+		snapstateProceedWithRefresh = old
+	}
+}
+
+func MockSnapstateHoldRefreshes(f func(st *state.State, time string, snaps []string) error) (restore func()) {
+	old := snapstateHoldRefreshes
+	snapstateHoldRefreshes = f
+	return func() {
+		snapstateHoldRefreshes = old
+	}
+}
+
+func MockConfigstateConfigureInstalled(f func(st *state.State, name string, patchValues map[string]interface{}, flags int) (*state.TaskSet, error)) (restore func()) {
+	old := configstateConfigureInstalled
+	configstateConfigureInstalled = f
+	return func() {
+		configstateConfigureInstalled = old
+	}
+}
+
 func MockReboot(f func(boot.RebootAction, time.Duration, *boot.RebootInfo) error) func() {
 	reboot = f
 	return func() { reboot = boot.Reboot }
 }
 
 type (
-	RespJSON        = respJSON
-	FileResponse    = fileResponse
-	APIError        = apiError
-	ErrorResult     = errorResult
-	SnapInstruction = snapInstruction
+	RespJSON              = respJSON
+	FileResponse          = fileResponse
+	APIError              = apiError
+	ErrorResult           = errorResult
+	SnapInstruction       = snapInstruction
+	SnapInstructionResult = snapInstructionResult
 )
 
 func (inst *snapInstruction) Dispatch() snapActionFunc {
