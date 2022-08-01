@@ -840,6 +840,8 @@ func (m *DeviceManager) ensureSeeded() error {
 			return err
 		}
 		if modeEnv != nil {
+			logger.Debugf("modeEnv read, mode %q label %q",
+				modeEnv.Mode, modeEnv.RecoverySystem)
 			opts = &populateStateFromSeedOptions{
 				Mode:  modeEnv.Mode,
 				Label: modeEnv.RecoverySystem,

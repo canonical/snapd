@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -82,10 +81,6 @@ var (
 )
 
 func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		return fmt.Errorf("cannot run update gadget assets task on a classic system")
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -249,10 +244,6 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 }
 
 func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		return fmt.Errorf("internal error: cannot run update gadget kernel command line task on a classic system")
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -290,10 +281,6 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 }
 
 func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		return fmt.Errorf("internal error: cannot run update gadget kernel command line task on a classic system")
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
