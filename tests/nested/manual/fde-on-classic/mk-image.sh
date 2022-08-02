@@ -180,9 +180,9 @@ populate_image() {
     KERNEL_SNAP=$(find "$CACHE" -maxdepth 1 -name 'pc-kernel_*.snap' -printf "%f\n")
 
     mkdir -p "$MNT"
-    sudo kpartx -av "$IMG"
+    loop=$(sudo kpartx -asv "$IMG" | head -n1 | cut -d' ' -f3)
+    loop=${loop%p*}
 
-    loop=$(sudo losetup -P --show -f "${IMG}")
     loop_esp="${loop}"p2
     loop_boot="${loop}"p3
     loop_save="${loop}"p4
@@ -284,9 +284,10 @@ EOF
     if [ ! -f "$assert_p" ]; then
         printf "%s not found, please sign an assertion using classic-model.json as model\n" \
                "$assert_p"
+        exit 1
     fi
     sudo mkdir -p "$MNT"/ubuntu-boot/device/
-    sudo cp -a "$assert_p" "$MNT"/ubuntu-boot/device/
+    sudo cp -a "$assert_p" "$MNT"/ubuntu-boot/device/model
 
     # kernel
     sudo mkdir -p "$MNT"/ubuntu-boot/EFI/ubuntu/"$KERNEL_SNAP"
