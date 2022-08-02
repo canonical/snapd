@@ -750,11 +750,12 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	//
 	// If no mode and in ephemeral run modes (like install, recover)
 	// there can never be a rollback so we can skip the check there.
+	// For bases we do not reboot in classic.
 	//
 	// TODO: Detect "snapd" snap daemon-restarts here that
 	//       fallback into the old version (once we have
 	//       better snapd rollback support in core18).
-	if deviceCtx.RunMode() && deviceCtx.HasModeenv() {
+	if deviceCtx.RunMode() && (deviceCtx.HasModeenv() && snapsup.Type != snap.TypeBase) {
 		// get the name of the name relevant for booting
 		// based on the given type
 		model := deviceCtx.Model()

@@ -142,6 +142,10 @@ func Kernel(s snap.PlaceInfo, t snap.Type, dev snap.Device) BootKernel {
 }
 
 func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
+	// We don't want to reboot for classic, even if there is modeenv
+	if (t == snap.TypeBase || t == snap.TypeOS) && dev.Classic() {
+		return false
+	}
 	if !dev.HasModeenv() {
 		return false
 	}
