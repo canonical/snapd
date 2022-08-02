@@ -142,7 +142,7 @@ func Kernel(s snap.PlaceInfo, t snap.Type, dev snap.Device) BootKernel {
 }
 
 func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
-	if dev.Classic() {
+	if !dev.HasModeenv() {
 		return false
 	}
 	// In ephemeral modes we never need to care about updating the boot
