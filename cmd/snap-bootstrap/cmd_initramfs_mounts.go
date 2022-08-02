@@ -1562,13 +1562,15 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// TODO: do we actually need fsck if we are mounting a mapper device?
 	// probably not?
-	// fsck and mount with nosuid to prevent snaps from being able to bypass
-	// the sandbox by creating suid root files there and trying to escape the
-	// sandbox
 	dataMountOpts := &systemdMountOptions{
 		NeedsFsck: true,
-		NoSuid:    true,
-		Private:   true,
+	}
+	if !mst.isClassic {
+		// fsck and mount with nosuid to prevent snaps from being able to bypass
+		// the sandbox by creating suid root files there and trying to escape the
+		// sandbox
+		dataMountOpts.NoSuid = true
+		dataMountOpts.Private = true
 	}
 	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, dataMountOpts); err != nil {
 		return err
