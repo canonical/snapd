@@ -89,6 +89,8 @@ type DeviceManager struct {
 	// save as rw vs ro, or mount/umount it fully on demand
 	saveAvailable bool
 
+	hasModeEnv bool
+
 	state   *state.State
 	hookMgr *hookstate.HookManager
 
@@ -144,7 +146,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 			return nil, err
 		}
 		if modeEnv != nil {
+			logger.Debugf("modeenv for model %s found", modeEnv.Model)
 			m.sysMode = modeEnv.Mode
+			m.hasModeEnv = true
 		}
 	} else {
 		// cache system label for preseeding of core20; note, this will fail on
@@ -875,7 +879,7 @@ func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if release.OnClassic {
+	if !m.hasModeEnv {
 		return nil
 	}
 

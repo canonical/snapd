@@ -748,13 +748,13 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	// - bootable base snap (new core18 world, system-reboot)
 	// - kernel
 	//
-	// On classic and in ephemeral run modes (like install, recover)
+	// If no mode and in ephemeral run modes (like install, recover)
 	// there can never be a rollback so we can skip the check there.
 	//
 	// TODO: Detect "snapd" snap daemon-restarts here that
 	//       fallback into the old version (once we have
 	//       better snapd rollback support in core18).
-	if deviceCtx.RunMode() && !release.OnClassic {
+	if deviceCtx.RunMode() && deviceCtx.HasModeenv() {
 		// get the name of the name relevant for booting
 		// based on the given type
 		model := deviceCtx.Model()
