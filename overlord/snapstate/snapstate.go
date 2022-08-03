@@ -472,15 +472,17 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if err != nil {
 		return nil, err
 	}
-	hasModeEnv := deviceCtx.HasModeenv()
+	// Snaps ship boot assets if modeenv or UC1?
+	snapBootAssets := deviceCtx.HasModeenv() ||
+		(!deviceCtx.HasModeenv() && !release.OnClassic)
 
-	if hasModeEnv && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
+	if snapBootAssets && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
 		// XXX: gadget update currently for core systems only
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q%s"), snapsup.Type, snapsup.InstanceName(), revisionStr))
 		addTask(gadgetUpdate)
 		prev = gadgetUpdate
 	}
-	if hasModeEnv && snapsup.Type == snap.TypeGadget {
+	if snapBootAssets && snapsup.Type == snap.TypeGadget {
 		// kernel command line from gadget is for core systems only
 		gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from gadget %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(gadgetCmdline)
@@ -518,7 +520,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
-	if hasModeEnv && snapsup.Type == snap.TypeSnapd {
+	if snapBootAssets && snapsup.Type == snap.TypeSnapd {
 		// only run for core devices and the snapd snap, run late enough
 		// so that the task is executed by the new snapd
 		bootConfigUpdate := st.NewTask("update-managed-boot-config", fmt.Sprintf(i18n.G("Update managed boot config assets from %q%s"), snapsup.InstanceName(), revisionStr))
@@ -755,7 +757,12 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	// TODO: Detect "snapd" snap daemon-restarts here that
 	//       fallback into the old version (once we have
 	//       better snapd rollback support in core18).
-	if deviceCtx.RunMode() && (deviceCtx.HasModeenv() && snapsup.Type != snap.TypeBase) {
+	// Snaps ship boot assets if modeenv or UC1?
+	snapBootAssets := deviceCtx.HasModeenv() ||
+		(!deviceCtx.HasModeenv() && !release.OnClassic)
+	classicUC := deviceCtx.HasModeenv() && release.OnClassic
+
+	if deviceCtx.RunMode() && snapBootAssets && !(classicUC && snapsup.Type == snap.TypeBase) {
 		// get the name of the name relevant for booting
 		// based on the given type
 		model := deviceCtx.Model()
