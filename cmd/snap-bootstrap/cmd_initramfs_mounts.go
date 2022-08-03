@@ -1502,13 +1502,12 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// The model is now verified, use it to check if this is a classic install
+	// The model is now measured, use it to check if this is a classic install
 	model, err := mst.UnverifiedBootModel()
 	if err != nil {
 		return err
 	}
 	mst.isClassic = model.Classic()
-	// XXX only for distribution == ubuntu?
 	if mst.isClassic {
 		logger.Noticef("starting classic system")
 		boot.InitramfsWritableDir = boot.InitramfsDataDir
