@@ -650,7 +650,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Assert(chg.IsReady(), Equals, true)
-	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(cannot run update gadget assets task on a classic system\).*`)
+	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n- update gadget \\(no state entry for key \"snap-setup-task\"\\)")
 	c.Check(t.Status(), Equals, state.ErrorStatus)
 }
 

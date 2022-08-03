@@ -879,7 +879,8 @@ func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if !m.hasModeEnv {
+	legacyCore := !release.OnClassic && !m.hasModeEnv
+	if !m.hasModeEnv && !legacyCore {
 		return nil
 	}
 

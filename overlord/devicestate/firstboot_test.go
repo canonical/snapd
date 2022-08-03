@@ -1091,7 +1091,8 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedClassicModelMismatch(c *C
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.ImportAssertionsFromSeed(st, "")
+	hasModeenv := true
+	_, err = devicestate.ImportAssertionsFromSeed(st, "", hasModeenv)
 	c.Assert(err, ErrorMatches, "cannot seed a classic system with an all-snaps model")
 }
 
@@ -1109,7 +1110,8 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c *
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.ImportAssertionsFromSeed(st, "")
+	hasModeenv := true
+	_, err = devicestate.ImportAssertionsFromSeed(st, "", hasModeenv)
 	c.Assert(err, ErrorMatches, "cannot seed an all-snaps system with a classic model")
 }
 
@@ -1230,7 +1232,8 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedHappy(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	deviceSeed, err := devicestate.ImportAssertionsFromSeed(st, "")
+	hasModeenv := true
+	deviceSeed, err := devicestate.ImportAssertionsFromSeed(st, "", hasModeenv)
 	c.Assert(err, IsNil)
 	c.Assert(deviceSeed, NotNil)
 
@@ -1273,7 +1276,8 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedMissingSig(c *C) {
 
 	// try import and verify that its rejects because other assertions are
 	// missing
-	_, err := devicestate.ImportAssertionsFromSeed(st, "")
+	hasModeenv := true
+	_, err := devicestate.ImportAssertionsFromSeed(st, "", hasModeenv)
 	c.Assert(err, ErrorMatches, "cannot resolve prerequisite assertion: account-key .*")
 }
 
@@ -1292,7 +1296,8 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 
 	// try import and verify that its rejects because other assertions are
 	// missing
-	_, err := devicestate.ImportAssertionsFromSeed(st, "")
+	hasModeenv := true
+	_, err := devicestate.ImportAssertionsFromSeed(st, "", hasModeenv)
 	c.Assert(err, ErrorMatches, "cannot have multiple model assertions in seed")
 }
 
@@ -1311,7 +1316,8 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 
 	// try import and verify that its rejects because other assertions are
 	// missing
-	_, err := devicestate.ImportAssertionsFromSeed(st, "")
+	hasModeenv := true
+	_, err := devicestate.ImportAssertionsFromSeed(st, "", hasModeenv)
 	c.Assert(err, ErrorMatches, "seed must have a model assertion")
 }
 

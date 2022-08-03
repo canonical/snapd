@@ -793,18 +793,23 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 
 	// not on classic
 	release.OnClassic = true
-	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, nil)
+	// model assertion in device context
+	model := fakeMyModel(map[string]interface{}{
+		"classic": "true",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install a kernel snap on classic`)
 	release.OnClassic = false
 
 	s.setupBrands()
 	// model assertion in device context
-	model := fakeMyModel(map[string]interface{}{
+	model = fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
 		"gadget":       "gadget",
 		"kernel":       "krnl",
 	})
-	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 
 	err = devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install kernel "lnrk", model assertion requests "krnl"`)
