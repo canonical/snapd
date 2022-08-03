@@ -146,7 +146,7 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
 	if (t == snap.TypeBase || t == snap.TypeOS) && dev.Classic() {
 		return false
 	}
-	if !dev.HasModeenv() {
+	if !dev.HasModeenv() && dev.Classic() {
 		return false
 	}
 	// In ephemeral modes we never need to care about updating the boot
