@@ -1,0 +1,51 @@
+summary: Check snap hold and unhold
+#
+# ubuntu-14.04 doesn't support 'systemd-run' used by store.sh to start the fakestore
+systems: [-ubuntu-14.04*]
+
+environment:
+  BLOB_DIR: $(pwd)/fake-store-blobdir
+
+execute: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+    echo "This test needs test keys to be trusted"
+    exit
+  fi
+
+  setup() {
+    snap install test-snapd-tools
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    setup_fake_store "$BLOB_DIR"
+    init_fake_refreshes "$BLOB_DIR" test-snapd-tools
+  }
+
+  teardown() {
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    teardown_fake_store "$BLOB_DIR"
+    rm -rf "$BLOB_DIR"
+    snap remove --purge test-snapd-tools
+  }
+
+  echo "Held snaps don't refresh in general refreshes"
+  setup
+  snap refresh --hold=forever test-snapd-tools
+  snap refresh 2>&1 | MATCH "All snaps up to date."
+  snap refresh --unhold test-snapd-tools
+  snap refresh | MATCH "test-snapd-tools .* refreshed"
+  teardown
+
+  echo "Held snaps are refreshed in specific refreshes"
+  setup
+  snap refresh --hold test-snapd-tools
+  snap refresh test-snapd-tools 2>&1 | MATCH "test-snapd-tools .* refreshed"
+  snap refresh --unhold test-snapd-tools
+  teardown
+
+  echo "Manual refreshes ignore holds on all snaps"
+  setup
+  snap refresh --hold
+  snap refresh 2>&1 | MATCH "test-snapd-tools .* refreshed"
+  snap refresh --unhold
+  teardown
