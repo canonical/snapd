@@ -341,7 +341,7 @@ func importAssertionsFromSeed(st *state.State, sysLabel string, hasModeEnv bool)
 	deviceSeed, err := loadDeviceSeed(st, sysLabel)
 	legacyCore := !hasModeEnv && !release.OnClassic
 	if err == seed.ErrNoAssertions && !hasModeEnv && !legacyCore {
-		// if there is no modenv seeding is optional
+		// if classic boot seeding is optional
 		// set the fallback model
 		err := setClassicFallbackModel(st, device)
 		if err != nil {

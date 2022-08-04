@@ -24,6 +24,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 )
 
 type TrivialDeviceContext struct {
@@ -72,6 +73,22 @@ func (dc *TrivialDeviceContext) Gadget() string {
 
 func (dc *TrivialDeviceContext) HasModeenv() bool {
 	return dc.Model().Grade() != asserts.ModelGradeUnset
+}
+
+func (d *TrivialDeviceContext) IsCoreLegacy() bool {
+	return !d.HasModeenv() && !release.OnClassic
+}
+
+func (d *TrivialDeviceContext) IsCoreBoot() bool {
+	return d.HasModeenv() || (!d.HasModeenv() && !release.OnClassic)
+}
+
+func (d *TrivialDeviceContext) IsClassicBoot() bool {
+	return release.OnClassic && !d.HasModeenv()
+}
+
+func (d *TrivialDeviceContext) IsClassicModeenv() bool {
+	return release.OnClassic && d.HasModeenv()
 }
 
 func (dc *TrivialDeviceContext) RunMode() bool {

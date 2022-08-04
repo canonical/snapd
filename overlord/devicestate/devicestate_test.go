@@ -799,7 +799,7 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	})
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, deviceCtx)
-	c.Check(err, ErrorMatches, `cannot install a kernel snap on classic`)
+	c.Check(err, ErrorMatches, `cannot install a kernel snap if classic boot`)
 	release.OnClassic = false
 
 	s.setupBrands()

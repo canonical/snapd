@@ -466,15 +466,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = unlink
 	}
 
-	// Use device context just to find out if we have modeenv.
+	// Use device context just to find out if core boot device.
 	// REVIEW But, see comment at beginning of function?
 	deviceCtx, err := DeviceCtx(st, nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	// Snaps ship boot assets if modeenv or UC1?
-	snapBootAssets := deviceCtx.HasModeenv() ||
-		(!deviceCtx.HasModeenv() && !release.OnClassic)
+	// Snaps ship boot assets if core-like boot
+	snapBootAssets := deviceCtx.IsCoreBoot()
 
 	if snapBootAssets && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
 		// XXX: gadget update currently for core systems only
@@ -757,12 +756,10 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	// TODO: Detect "snapd" snap daemon-restarts here that
 	//       fallback into the old version (once we have
 	//       better snapd rollback support in core18).
-	// Snaps ship boot assets if modeenv or UC1?
-	snapBootAssets := deviceCtx.HasModeenv() ||
-		(!deviceCtx.HasModeenv() && !release.OnClassic)
-	classicUC := deviceCtx.HasModeenv() && release.OnClassic
-
-	if deviceCtx.RunMode() && snapBootAssets && !(classicUC && snapsup.Type == snap.TypeBase) {
+	//
+	// Applies only to core-like boot, except if classic with modes for
+	// base updates.
+	if deviceCtx.RunMode() && deviceCtx.IsCoreBoot() && !(deviceCtx.IsClassicModeenv() && snapsup.Type == snap.TypeBase) {
 		// get the name of the name relevant for booting
 		// based on the given type
 		model := deviceCtx.Model()

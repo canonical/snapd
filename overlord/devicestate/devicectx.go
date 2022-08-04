@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 )
 
 // DeviceCtx picks a device context from state, optional task or an
@@ -102,6 +103,27 @@ func (dc groundDeviceContext) RunMode() bool {
 // TODO:UC20: will classic devices with uc20 models have a modeenv? I think so?
 func (dc groundDeviceContext) HasModeenv() bool {
 	return dc.model.Grade() != asserts.ModelGradeUnset
+}
+
+// IsCoreLegacy is true for UC16/18
+func (d *groundDeviceContext) IsCoreLegacy() bool {
+	return !d.HasModeenv() && !release.OnClassic
+}
+
+// IsCoreBoot is true when there are modes, or when there are not but
+// we are not in classic (UC16/18 case)
+func (d *groundDeviceContext) IsCoreBoot() bool {
+	return d.HasModeenv() || d.IsCoreLegacy()
+}
+
+// IsClassicBoot is true for classic systems with classic initramfs
+func (d *groundDeviceContext) IsClassicBoot() bool {
+	return release.OnClassic && !d.HasModeenv()
+}
+
+// IsClassicModeenv is true for classic systems with core initramfs
+func (d *groundDeviceContext) IsClassicModeenv() bool {
+	return release.OnClassic && d.HasModeenv()
 }
 
 // expected interface is implemented

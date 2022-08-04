@@ -33,6 +33,10 @@ type Device interface {
 	Gadget() string
 
 	HasModeenv() bool
+	IsCoreLegacy() bool     // true if UC16/18
+	IsCoreBoot() bool       // true if UC or classic with modes
+	IsClassicBoot() bool    // true if classic with classic initramfs
+	IsClassicModeenv() bool // true if classic with core initramfs
 
 	Model() *asserts.Model
 }

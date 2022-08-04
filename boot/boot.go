@@ -142,11 +142,11 @@ func Kernel(s snap.PlaceInfo, t snap.Type, dev snap.Device) BootKernel {
 }
 
 func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
-	// We don't want to reboot for classic, even if there is modeenv
-	if (t == snap.TypeBase || t == snap.TypeOS) && dev.Classic() {
+	if dev.IsClassicBoot() {
 		return false
 	}
-	if !dev.HasModeenv() && dev.Classic() {
+	// For bases, we don't want to reboot for classic, even if there is modeenv
+	if (t == snap.TypeBase || t == snap.TypeOS) && dev.IsClassicModeenv() {
 		return false
 	}
 	// In ephemeral modes we never need to care about updating the boot
