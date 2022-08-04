@@ -162,7 +162,7 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "16d0",
 		ProductIDPattern: "0e90",
 	},
-        {
+	{
 		Name:             "Flipper Zero U2F",
 		VendorIDPattern:  "0483",
 		ProductIDPattern: "5741",
