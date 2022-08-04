@@ -1362,6 +1362,8 @@ var squashfsFsType = squashfs.FsType
 
 // XXX: After=zfs-mount.service is a workaround for LP: #1922293 (a problem
 // with order of mounting most likely related to zfs-linux and/or systemd).
+// XXX: Remove multi-user.target once we are sure it's unnecessary (see the
+// comments in LP: #1983528).
 const mountUnitTemplate = `[Unit]
 Description=Mount unit for {{.SnapName}}
 {{- with .Revision}}, revision {{.}}{{end}}
@@ -1377,7 +1379,7 @@ Options={{join .Options ","}}
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 {{- with .Origin}}
 X-SnapdOrigin={{.}}
 {{- end}}
