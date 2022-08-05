@@ -282,11 +282,19 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 	if sysfsOverlay != "" {
 		// bind mount permited directories under sys/class from
 		for _, dir := range []string{
-			"sys/class/backlight", "sys/class/gpio", "sys/class/leds",
-			"sys/class/bluetooth", "sys/class/ptp", "sys/class/pwm",
-			"sys/class/rtc", "sys/class/video4linux", "sys/devices/platform"} {
+			"sys/class/backlight", "sys/class/bluetooth", "sys/class/gpio",
+			"sys/class/leds", "sys/class/ptp", "sys/class/pwm",
+			"sys/class/rtc", "sys/class/video4linux", "sys/devices/platform",
+			"sys/devices/pci0000:00"} {
 			info, err := os.Stat(underOverlay(dir))
 			if err == nil && info.IsDir() {
+				// ensure dir exists
+				if _, err := os.Stat(underPreseed(dir)); errors.Is(err, os.ErrNotExist) {
+					err := os.MkdirAll(underPreseed(dir), os.ModePerm)
+					if err != nil {
+						return nil, fmt.Errorf("Failed to cresated overlay dir (%s): %v", underPreseed(dir), err)
+					}
+				}
 				mounts = append(mounts, []string{"--bind", underOverlay(dir), underPreseed(dir)})
 			}
 		}
