@@ -1175,7 +1175,7 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 `[1:], mockSnapPath))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
@@ -1209,7 +1209,7 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide,bind
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 `[1:], snapDir))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
@@ -1255,7 +1255,7 @@ Options=remount,ro
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 X-SnapdOrigin=bar
 `[1:], mockSnapPath))
 
@@ -1298,7 +1298,7 @@ Options=nodev,context=system_u:object_r:snappy_snap_t:s0,ro,x-gdu.hide,x-gvfs-hi
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 `[1:], mockSnapPath))
 }
 
@@ -1342,7 +1342,7 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide,allow_other
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 `[1:], mockSnapPath))
 }
 
@@ -1382,7 +1382,7 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 `[1:], mockSnapPath))
 }
 
@@ -1646,7 +1646,7 @@ Options=%s
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 `
 
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
@@ -1866,7 +1866,7 @@ Type=doesntmatter
 Options=do,not,matter,either
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 X-SnapdOrigin=%s
 `, snapName, where, origin)
 		return ioutil.WriteFile(path, []byte(contents), 0644)
