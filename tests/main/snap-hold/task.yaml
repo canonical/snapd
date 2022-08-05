@@ -6,6 +6,16 @@ systems: [-ubuntu-14.04*]
 environment:
   BLOB_DIR: $(pwd)/fake-store-blobdir
 
+restore: |
+  snap refresh --unhold || true
+  snap refresh --unhold test-snapd-tools || true
+  snap remove --purge test-snapd-tools || true
+
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+  teardown_fake_store "$BLOB_DIR" || true
+  rm -rf "$BLOB_DIR"
+
 execute: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
     echo "This test needs test keys to be trusted"
