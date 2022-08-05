@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -249,6 +251,20 @@ func (m *InterfaceManager) renameCorePlugConnection() error {
 	return nil
 }
 
+var snapIsMounted = func(snapName string) (bool, error) {
+	snapCurrentPath := filepath.Join(dirs.CoreSnapMountDir, snapName, "current")
+	snapPath, err := os.Readlink(snapCurrentPath)
+	if err != nil {
+		return false, err
+	}
+
+	isMountPoint, err := osutil.IsMounted(snapPath)
+	if err != nil {
+		return false, err
+	}
+	return isMountPoint, nil
+}
+
 // removeStaleConnections removes stale connections left by some older versions of snapd.
 // Connection is considered stale if the snap on either end of the connection doesn't exist anymore.
 // XXX: this code should eventually go away.
@@ -263,6 +279,16 @@ var removeStaleConnections = func(st *state.State) error {
 		if err != nil {
 			return err
 		}
+
+		if mounted, err := snapIsMounted(connRef.PlugRef.Snap); err == nil && !mounted {
+			logger.Debugf("ignoring non-mounted snap %s", connRef.PlugRef.Snap)
+			continue
+		}
+		if mounted, err := snapIsMounted(connRef.SlotRef.Snap); err == nil && !mounted {
+			logger.Debugf("ignoring non-mounted snap %s", connRef.SlotRef.Snap)
+			continue
+		}
+
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, connRef.PlugRef.Snap, &snapst); err != nil {
 			if !errors.Is(err, state.ErrNoState) {

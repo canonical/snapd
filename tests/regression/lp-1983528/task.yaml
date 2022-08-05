@@ -1,0 +1,37 @@
+summary: Valid but unmounted snaps should stay connected
+
+details: |
+    If snapd starts up when the snap mount units have not been run yet, the
+    existing snap connections should not be considered stale and removed.
+
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_generic_consumer home
+
+execute: |
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+
+    echo "Connect the interface"
+    snap connect generic-consumer:home
+
+    snap connections generic-consumer | MATCH home
+
+    echo "Stop snapd, unmount the test snap"
+    systemctl stop snapd.service
+    umount "$SNAP_MOUNT_DIR/generic-consumer/current"  # this follows symlinks
+
+    echo "Start snapd, verify that the connection does not get deleted"
+    systemctl start snapd.service
+    # This wait ensures that snapd has went through removeStaleConnections(),
+    # since the reloadConnections() function is called after it.
+    retry -n 20 --wait 0.5 journalctl -u snapd | MATCH "Snap \"generic-consumer\" is broken, ignored by reloadConnections"
+    journalctl -u snapd | NOMATCH "removed stale connections: .*generic-consumer.*"
+
+    echo "Restore the snap"
+    mount /var/lib/snapd/snaps/generic-consumer_x1.snap "$SNAP_MOUNT_DIR/generic-consumer/current"
+
+    echo "We need to restart snapd so that the connections gets reloaded"
+    systemctl restart snapd.service
+
+    retry -n 20 --wait 0.5 sh -c "snap connections generic-consumer | MATCH home"
