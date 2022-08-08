@@ -81,8 +81,8 @@ func RemoveUser(st *state.State, username string) (*auth.UserState, bool, error)
 	return u, false, nil
 }
 
-func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bool, email string) (createdUsers []UserResponse, internal_err bool, err error) {
-	internal_err = true
+func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bool, email string) (createdUsers []UserResponse, internalErr bool, err error) {
+	internalErr = true
 	var model *asserts.Model
 	var serial *asserts.Serial
 	if createKnown {
@@ -91,13 +91,13 @@ func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bo
 		model, err = mgr.Model()
 		st.Unlock()
 		if err != nil {
-			return nil, internal_err, fmt.Errorf("cannot create user: cannot get model assertion: %v", err)
+			return nil, internalErr, fmt.Errorf("cannot create user: cannot get model assertion: %v", err)
 		}
 		st.Lock()
 		serial, err = mgr.Serial()
 		st.Unlock()
 		if err != nil && err != state.ErrNoState {
-			return nil, internal_err, fmt.Errorf("cannot create user: cannot get serial: %v", err)
+			return nil, internalErr, fmt.Errorf("cannot create user: cannot get serial: %v", err)
 		}
 	}
 
@@ -120,7 +120,7 @@ func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bo
 		return u.createAllKnownSystemUsers()
 	}
 	if email == "" {
-		return nil, internal_err, fmt.Errorf("cannot create user: 'email' field is empty")
+		return nil, internalErr, fmt.Errorf("cannot create user: 'email' field is empty")
 	}
 
 	var username string
@@ -134,14 +134,14 @@ func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bo
 		username, opts, err = getUserDetailsFromStore(storeService, email)
 	}
 	if err != nil {
-		internal_err = false
-		return nil, internal_err, fmt.Errorf("%s", err)
+		internalErr = false
+		return nil, internalErr, fmt.Errorf("%s", err)
 	}
 
 	opts.Sudoer = sudoer
 	opts.ExtraUsers = !release.OnClassic
 	createdUsers, err = u.addUser(username, email, opts, createdUsers)
-	return createdUsers, internal_err, err
+	return createdUsers, internalErr, err
 }
 
 func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
@@ -177,9 +177,9 @@ type userManager struct {
 	isSudoer bool
 }
 
-func (u *userManager) createAllKnownSystemUsers() (createdUsers []UserResponse, internal_err bool, err error) {
+func (u *userManager) createAllKnownSystemUsers() (createdUsers []UserResponse, internalErr bool, err error) {
 
-	internal_err = true
+	internalErr = true
 	headers := map[string]string{
 		"brand-id": u.modelAs.BrandID(),
 	}
@@ -192,7 +192,7 @@ func (u *userManager) createAllKnownSystemUsers() (createdUsers []UserResponse, 
 		u.state.Unlock()
 	}
 	if err != nil && !asserts.IsNotFound(err) {
-		return nil, internal_err, fmt.Errorf("cannot find system-user assertion: %s", err)
+		return nil, internalErr, fmt.Errorf("cannot find system-user assertion: %s", err)
 	}
 
 	for _, as := range assertions {
@@ -214,11 +214,11 @@ func (u *userManager) createAllKnownSystemUsers() (createdUsers []UserResponse, 
 
 		createdUsers, err = u.addUser(username, email, opts, createdUsers)
 		if err != nil {
-			return nil, internal_err, fmt.Errorf("%s", err)
+			return nil, internalErr, fmt.Errorf("%s", err)
 		}
 	}
 
-	return createdUsers, internal_err, nil
+	return createdUsers, internalErr, nil
 }
 
 func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.Model, serialAs *asserts.Serial, email string) (string, *osutil.AddUserOptions, error) {
