@@ -2933,10 +2933,8 @@ func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade
 
 	// try to load auto import assertions
 	err := seed20.LoadAutoImportAssertion(commitTo)
-
 	c.Assert(err, IsNil)
 	assertions, err := s.findAutoImportAssertion(seed20)
-	c.Assert(err, NotNil)
 	c.Check(err, check.ErrorMatches, "No system user assertion found")
 	c.Assert(assertions, IsNil)
 }
@@ -2951,7 +2949,6 @@ func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAsserti
 
 	// try to load auto import assertions
 	err := seed20.LoadAutoImportAssertion(s.commitTo)
-	c.Assert(err, IsNil)
 	c.Assert(err, IsNil)
 	assertions, err := s.findAutoImportAssertion(seed20)
 	c.Assert(err, IsNil)
@@ -3015,7 +3012,7 @@ var goodUser = map[string]interface{}{
 
 func (s *seed20Suite) writeValidAutoImportAssertion(c *C, sysLabel string, perm os.FileMode) {
 	systemUsers := []map[string]interface{}{goodUser}
-	// write system user asseerion to system seed root
+	// write system user assertion to the system seed root
 	autoImportAssert := filepath.Join(s.SeedDir, "systems", sysLabel, "auto-import.assert")
 	f, err := os.OpenFile(autoImportAssert, os.O_CREATE|os.O_WRONLY, perm)
 	c.Assert(err, IsNil)
@@ -3050,9 +3047,5 @@ func (s *seed20Suite) findAutoImportAssertion(seed20 seed.Seed) ([]asserts.Asser
 	if asserts.IsNotFound(err) {
 		return nil, fmt.Errorf("No system user assertion found")
 	}
-	if err != nil {
-		return nil, err
-	}
-
-	return assertions, nil
+	return assertions, err
 }
