@@ -50,7 +50,7 @@ type options struct {
 	Reset               bool   `long:"reset"`
 	PreseedSignKey      string `long:"preseed-sign-key"`
 	AppArmorFeaturesDir string `long:"apparmor-features-dir"`
-	SysfsOverlay        string `long:"preseed-sysfs-overlay"`
+	SysfsOverlay        string `long:"sysfs-overlay"`
 }
 
 var (

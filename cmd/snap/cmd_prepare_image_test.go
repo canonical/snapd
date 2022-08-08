@@ -188,7 +188,7 @@ func (s *SnapPrepareImageSuite) TestPrepareImagePreseed(c *C) {
 	r := snap.MockImagePrepare(prep)
 	defer r()
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "--preseed", "--preseed-sign-key", "key", "--apparmor-features-dir", "aafeatures-dir", "--preseed-sysfs-overlay", "sys-overlay", "model", "prepare-dir"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "--preseed", "--preseed-sign-key", "key", "--apparmor-features-dir", "aafeatures-dir", "--sysfs-overlay", "sys-overlay", "model", "prepare-dir"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 

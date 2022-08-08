@@ -56,7 +56,7 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	defer restorePreseed()
 
 	parser := testParser(c)
-	c.Assert(main.Run(parser, []string{"--preseed-sign-key", "key", "--apparmor-features-dir", "/custom/aa/features", "--preseed-sysfs-overlay", "/sysfs-overlay", tmpDir}), IsNil)
+	c.Assert(main.Run(parser, []string{"--preseed-sign-key", "key", "--apparmor-features-dir", "/custom/aa/features", "--sysfs-overlay", "/sysfs-overlay", tmpDir}), IsNil)
 	c.Check(called, Equals, true)
 }
 

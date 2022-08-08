@@ -38,7 +38,7 @@ type cmdPrepareImage struct {
 	// optional path to AppArmor kernel features directory
 	AppArmorKernelFeaturesDir string `long:"apparmor-features-dir"`
 	// optional sysfs overlay
-	SysfsOverlay string `long:"preseed-sysfs-overlay"`
+	SysfsOverlay string `long:"sysfs-overlay"`
 	Architecture string `long:"arch"`
 
 	Positional struct {
@@ -75,7 +75,7 @@ For preparing classic images it supports a --classic mode`),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"preseed-sign-key": i18n.G("Name of the key to use to sign preseed assertion, otherwise use the default key"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"preseed-sysfs-overlay": i18n.G("Optional sysfs overlay to be used when running preseeding steps"),
+			"sysfs-overlay": i18n.G("Optional sysfs overlay to be used when running preseeding steps"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"apparmor-features-dir": i18n.G("Optional path to apparmor kernel features directory (UC20+ only)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -151,7 +151,7 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	}
 
 	if x.SysfsOverlay != "" && !x.Preseed {
-		return fmt.Errorf("--preseed-sysfs-overlay cannot be used without --preseed")
+		return fmt.Errorf("--sysfs-overlay cannot be used without --preseed")
 	}
 
 	opts.Preseed = x.Preseed
