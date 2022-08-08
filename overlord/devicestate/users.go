@@ -324,7 +324,6 @@ func (u *userManager) setupLocalUser(username, email string) error {
 }
 
 func (u *userManager) addUser(username string, email string, opts *osutil.AddUserOptions, createdUsers []UserResponse) ([]UserResponse, error) {
-
 	if err := osutilAddUser(username, opts); err != nil {
 		return nil, fmt.Errorf("cannot add user %q: %s", username, err)
 	}
