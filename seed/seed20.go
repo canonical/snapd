@@ -778,9 +778,10 @@ func (s *seed20) LoadAutoImportAssertion(commitTo func(*asserts.Batch) error) er
 		}
 		defer af.Close()
 		batch := asserts.NewBatch(nil)
-		_, err = batch.AddStream(af)
-		if err != nil {
+		if _, err := batch.AddStream(af); err != nil {
 			logger.Noticef("failed to created auto-import assertion stream: %v\n", err)
+			// if we failed to import auto-import assertion at this stage, treat error as warning
+			// notify the error, but continue with boot
 			return nil
 		}
 		if err := commitTo(batch); err != nil {
