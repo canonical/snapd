@@ -118,7 +118,7 @@ type SnapBootSelect_v2_recovery struct {
 	 * bootloader to track device lock changes. When lock state changes, device goes
 	 * automatically to install mode. This entry is completely transparent
 	 * to the snapd and is only modified by bootloader.
-	 * Only last char in the aray is used (device_lock_state[0])
+	 * Only first char in the aray is used (device_lock_state[0])
 	 * Permitted values:
 	 *  0: DEVICE_STATE_UNKNOW:   initial value at first boot.
 	 *          This is changed by the bootloader to reflect actual device state.
