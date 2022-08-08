@@ -140,7 +140,8 @@ func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bo
 
 	opts.Sudoer = sudoer
 	opts.ExtraUsers = !release.OnClassic
-	createdUsers, err = u.addUser(username, email, opts, createdUsers)
+	createdUser, err := u.addUser(username, email, opts)
+	createdUsers = append(createdUsers, createdUser)
 	return createdUsers, internalErr, err
 }
 
@@ -212,10 +213,11 @@ func (u *userManager) createAllKnownSystemUsers() (createdUsers []UserResponse, 
 		opts.Sudoer = u.isSudoer
 		opts.ExtraUsers = !release.OnClassic
 
-		createdUsers, err = u.addUser(username, email, opts, createdUsers)
+		createdUser, err := u.addUser(username, email, opts)
 		if err != nil {
 			return nil, internalErr, fmt.Errorf("%s", err)
 		}
+		createdUsers = append(createdUsers, createdUser)
 	}
 
 	return createdUsers, internalErr, nil
@@ -323,16 +325,16 @@ func (u *userManager) setupLocalUser(username, email string) error {
 	return nil
 }
 
-func (u *userManager) addUser(username string, email string, opts *osutil.AddUserOptions, createdUsers []UserResponse) ([]UserResponse, error) {
+func (u *userManager) addUser(username string, email string, opts *osutil.AddUserOptions) (UserResponse, error) {
 	if err := osutilAddUser(username, opts); err != nil {
-		return nil, fmt.Errorf("cannot add user %q: %s", username, err)
+		return UserResponse{}, fmt.Errorf("cannot add user %q: %s", username, err)
 	}
 	if err := u.setupLocalUser(username, email); err != nil {
-		return nil, fmt.Errorf("%s", err)
+		return UserResponse{}, fmt.Errorf("%s", err)
 	}
-	createdUsers = append(createdUsers, UserResponse{
+
+	return UserResponse{
 		Username: username,
 		SSHKeys:  opts.SSHKeys,
-	})
-	return createdUsers, nil
+	}, nil
 }
