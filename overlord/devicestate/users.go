@@ -20,6 +20,7 @@ package devicestate
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/user"
 	"path/filepath"
@@ -96,7 +97,7 @@ func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bo
 		st.Lock()
 		serial, err = mgr.Serial()
 		st.Unlock()
-		if err != nil && err != state.ErrNoState {
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return nil, internalErr, fmt.Errorf("cannot create user: cannot get serial: %v", err)
 		}
 	}
