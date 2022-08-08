@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -123,7 +124,6 @@ type Change struct {
 	clean   bool
 	data    customData
 	taskIDs []string
-	lanes   int
 	ready   chan struct{}
 
 	spawnTime time.Time
@@ -157,7 +157,6 @@ type marshalledChange struct {
 	Clean   bool                        `json:"clean,omitempty"`
 	Data    map[string]*json.RawMessage `json:"data,omitempty"`
 	TaskIDs []string                    `json:"task-ids,omitempty"`
-	Lanes   int                         `json:"lanes,omitempty"`
 
 	SpawnTime time.Time  `json:"spawn-time"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
@@ -178,7 +177,6 @@ func (c *Change) MarshalJSON() ([]byte, error) {
 		Clean:   c.clean,
 		Data:    c.data,
 		TaskIDs: c.taskIDs,
-		Lanes:   c.lanes,
 
 		SpawnTime: c.spawnTime,
 		ReadyTime: readyTime,
@@ -206,7 +204,6 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 	}
 	c.data = custData
 	c.taskIDs = unmarshalled.TaskIDs
-	c.lanes = unmarshalled.Lanes
 	c.ready = make(chan struct{})
 	c.spawnTime = unmarshalled.SpawnTime
 	if unmarshalled.ReadyTime != nil {
@@ -520,6 +517,32 @@ func (c *Change) AbortLanes(lanes []int) {
 	c.abortLanes(lanes, make(map[int]bool), make(map[string]bool))
 }
 
+// AbortUnreadyLanes aborts the tasks from lanes that aren't fully ready, where
+// a ready lane is one in which all tasks are ready.
+func (c *Change) AbortUnreadyLanes() {
+	c.state.writing()
+	c.abortUnreadyLanes()
+}
+
+func (c *Change) abortUnreadyLanes() {
+	lanesWithLiveTasks := map[int]bool{}
+
+	for _, tid := range c.taskIDs {
+		t := c.state.tasks[tid]
+		if !t.Status().Ready() {
+			for _, tlane := range t.Lanes() {
+				lanesWithLiveTasks[tlane] = true
+			}
+		}
+	}
+
+	abortLanes := []int{}
+	for lane := range lanesWithLiveTasks {
+		abortLanes = append(abortLanes, lane)
+	}
+	c.abortLanes(abortLanes, make(map[int]bool), make(map[string]bool))
+}
+
 func (c *Change) abortLanes(lanes []int, abortedLanes map[int]bool, seenTasks map[string]bool) {
 	var hasLive = make(map[int]bool)
 	var hasDead = make(map[int]bool)
@@ -607,4 +630,88 @@ func (c *Change) abortTasks(tasks []*Task, abortedLanes map[int]bool, seenTasks 
 	if len(lanes) > 0 {
 		c.abortLanes(lanes, abortedLanes, seenTasks)
 	}
+}
+
+type TaskDependencyCycleError struct {
+	IDs []string
+	msg string
+}
+
+func (e *TaskDependencyCycleError) Error() string { return e.msg }
+
+func (e *TaskDependencyCycleError) Is(err error) bool {
+	_, ok := err.(*TaskDependencyCycleError)
+	return ok
+}
+
+// CheckTaskDependencies checks the tasks in the change for cyclic dependencies
+// and returns an error in such case.
+func (c *Change) CheckTaskDependencies() error {
+	tasks := c.Tasks()
+	// count how many tasks any given non-independent task waits for
+	predecessors := make(map[string]int, len(tasks))
+
+	taskByID := map[string]*Task{}
+	for _, t := range tasks {
+		taskByID[t.id] = t
+		if l := len(t.waitTasks); l > 0 {
+			// only add an entry if the task is not independent
+			predecessors[t.id] = l
+		}
+	}
+
+	// Kahn topological sort: make our way starting with tasks that are
+	// independent (their predecessors count is 0), then visit their direct
+	// successors (halt tasks), and for each reduce their predecessors
+	// count; once the count drops to 0, all direct dependencies of a given
+	// task have been accounted for and the task becomes independent.
+
+	// queue of tasks to check
+	queue := make([]string, 0, len(tasks))
+	// identify all independent tasks
+	for _, t := range tasks {
+		if predecessors[t.id] == 0 {
+			queue = append(queue, t.id)
+		}
+	}
+
+	for len(queue) > 0 {
+		// take the first independent task
+		id := queue[0]
+		queue = queue[1:]
+		// reduce the incoming edge of its successors
+		for _, successor := range taskByID[id].haltTasks {
+			predecessors[successor]--
+			if predecessors[successor] == 0 {
+				// a task that was a successor has become
+				// independent
+				delete(predecessors, successor)
+				queue = append(queue, successor)
+			}
+		}
+	}
+
+	if len(predecessors) != 0 {
+		// tasks that are left cannot have their dependencies satisfied
+		var unsatisfiedTasks []string
+		for id := range predecessors {
+			unsatisfiedTasks = append(unsatisfiedTasks, id)
+		}
+		sort.Strings(unsatisfiedTasks)
+		msg := strings.Builder{}
+		msg.WriteString("dependency cycle involving tasks [")
+		for i, id := range unsatisfiedTasks {
+			t := taskByID[id]
+			msg.WriteString(fmt.Sprintf("%v:%v", t.id, t.kind))
+			if i < len(unsatisfiedTasks)-1 {
+				msg.WriteRune(' ')
+			}
+		}
+		msg.WriteRune(']')
+		return &TaskDependencyCycleError{
+			IDs: unsatisfiedTasks,
+			msg: msg.String(),
+		}
+	}
+	return nil
 }

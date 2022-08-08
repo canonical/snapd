@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,7 +22,6 @@ package devicestate_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -75,7 +74,8 @@ var (
 )
 
 func (s *createSystemSuite) SetUpTest(c *C) {
-	s.deviceMgrBaseSuite.SetUpTest(c)
+	classic := false
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
 	s.ss = &seedtest.SeedSnaps{
 		StoreSigning: s.storeSigning,
@@ -558,7 +558,9 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 	infos["other-required"] = s.makeSnap(c, "other-required", snap.R(5))
 
 	// but change the file contents of 'pc' snap so that deriving side info fails
-	c.Assert(ioutil.WriteFile(infos["pc"].MountFile(), []byte("canary"), 0644), IsNil)
+	randomSnap := snaptest.MakeTestSnapWithFiles(c, `name: random
+version: 1`, nil)
+	c.Assert(osutil.CopyFile(randomSnap, infos["pc"].MountFile(), osutil.CopyFlagOverwrite), IsNil)
 	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
 		infoGetter, snapWriteObserver)
 	c.Assert(err, ErrorMatches, `internal error: no assertions for asserted snap with ID: pcididididididididididididididid`)
@@ -673,7 +675,7 @@ func (s *createSystemSuite) TestCreateSystemNonUC20(c *C) {
 	}
 	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
 		infoGetter, snapWriteObserver)
-	c.Assert(err, ErrorMatches, `cannot create a system for non UC20 model`)
+	c.Assert(err, ErrorMatches, `cannot create a system for pre-UC20 model`)
 	c.Check(dir, Equals, "")
 }
 

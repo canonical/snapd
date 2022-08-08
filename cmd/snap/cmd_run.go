@@ -1,7 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +20,8 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -72,6 +73,7 @@ type cmdRun struct {
 	HookName string `long:"hook" hidden:"yes"`
 	Revision string `short:"r" default:"unset" hidden:"yes"`
 	Shell    bool   `long:"shell" `
+	DebugLog bool   `long:"debug-log"`
 
 	// This options is both a selector (use or don't use strace) and it
 	// can also carry extra options for strace. This is why there is
@@ -118,6 +120,8 @@ and environment.
 			"timer": i18n.G("Run as a timer service with given schedule"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"trace-exec": i18n.G("Display exec calls timing data"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"debug-log":  i18n.G("Enable debug logging during early snap startup phases"),
 			"parser-ran": "",
 		}, nil)
 }
@@ -232,6 +236,8 @@ func (x *cmdRun) Execute(args []string) error {
 		// TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
 		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(args, " "))
 	}
+
+	logger.StartupStageTimestamp("start")
 
 	if err := maybeWaitForSecurityProfileRegeneration(x.client); err != nil {
 		return err
@@ -391,7 +397,7 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 		return fmt.Errorf(i18n.G("cannot get the current user: %v"), err)
 	}
 
-	snapDir := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
+	snapDir := snap.SnapDir(usr.HomeDir, opts)
 	if err := os.MkdirAll(snapDir, 0700); err != nil {
 		return fmt.Errorf(i18n.G("cannot create snap home dir: %w"), err)
 	}
@@ -399,6 +405,7 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 	instanceUserData := info.UserDataDir(usr.HomeDir, opts)
 	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir, opts)
 	createDirs := []string{instanceUserData, instanceCommonUserData}
+
 	if info.InstanceKey != "" {
 		// parallel instance snaps get additional mapping in their mount
 		// namespace, namely /home/joe/snap/foo_bar ->
@@ -476,6 +483,10 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 }
 
 func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
+	if x.DebugLog {
+		os.Setenv("SNAPD_DEBUG", "1")
+		logger.Debugf("enabled debug logging of early snap startup")
+	}
 	snapName, appName := snap.SplitSnapApp(snapApp)
 	info, err := getSnapInfo(snapName, snap.R(0))
 	if err != nil {
@@ -776,7 +787,7 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		return err
 	}
 
-	// Sanity check to make sure the document portal is exposed
+	// Quick check to make sure the document portal is exposed
 	// where we think it is.
 	if actualMountPoint != expectedMountPoint {
 		return fmt.Errorf(i18n.G("Expected portal at %#v, got %#v"), expectedMountPoint, actualMountPoint)
@@ -1023,7 +1034,14 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return fmt.Errorf(i18n.G("missing snap-confine: try updating your core/snapd package"))
 	}
 
-	opts := getSnapDirOptions()
+	logger.Debugf("executing snap-confine from %s", snapConfine)
+
+	snapName, _ := snap.SplitSnapApp(snapApp)
+	opts, err := getSnapDirOptions(snapName)
+	if err != nil {
+		return fmt.Errorf("cannot get snap dir options: %w", err)
+	}
+
 	if err := createUserDataDirs(info, opts); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
@@ -1175,27 +1193,39 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		// tracking cgroup, named after the systemd unit name, and those are
 		// sufficient to identify both the snap name and the app name.
 		needsTracking = false
+		// however it is still possible that the app (which is a
+		// service) was invoked by the user, so it may be running inside
+		// a user's scope cgroup, in which case separate tracking group
+		// needs to be established
+		if err := cgroupConfirmSystemdServiceTracking(securityTag); err != nil {
+			if err == cgroup.ErrCannotTrackProcess {
+				// we are not being tracked in a service cgroup
+				// after all, go ahead and create a transient
+				// scope
+				needsTracking = true
+				logger.Debugf("service app not tracked by systemd")
+			} else {
+				return err
+			}
+		}
 	}
 	// Allow using the session bus for all apps but not for hooks.
 	allowSessionBus := hook == ""
 	// Track, or confirm existing tracking from systemd.
-	var trackingErr error
 	if needsTracking {
 		opts := &cgroup.TrackingOptions{AllowSessionBus: allowSessionBus}
-		trackingErr = cgroupCreateTransientScopeForTracking(securityTag, opts)
-	} else {
-		trackingErr = cgroupConfirmSystemdServiceTracking(securityTag)
-	}
-	if trackingErr != nil {
-		if trackingErr != cgroup.ErrCannotTrackProcess {
-			return trackingErr
+		if err = cgroupCreateTransientScopeForTracking(securityTag, opts); err != nil {
+			if err != cgroup.ErrCannotTrackProcess {
+				return err
+			}
+			// If we cannot track the process then log a debug message.
+			// TODO: if we could, create a warning. Currently this is not possible
+			// because only snapd can create warnings, internally.
+			logger.Debugf("snapd cannot track the started application")
+			logger.Debugf("snap refreshes will not be postponed by this process")
 		}
-		// If we cannot track the process then log a debug message.
-		// TODO: if we could, create a warning. Currently this is not possible
-		// because only snapd can create warnings, internally.
-		logger.Debugf("snapd cannot track the started application")
-		logger.Debugf("snap refreshes will not be postponed by this process")
 	}
+	logger.StartupStageTimestamp("snap to snap-confine")
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, envForExec)
 	} else if x.Gdb {
@@ -1219,10 +1249,28 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 }
 
-func getSnapDirOptions() *dirs.SnapDirOptions {
-	return &dirs.SnapDirOptions{
-		HiddenSnapDataDir: features.HiddenSnapDataHomeDir.IsEnabled(),
+func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
+	var opts dirs.SnapDirOptions
+
+	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return &opts, nil
+	} else if err != nil {
+		return nil, err
 	}
+
+	var seq struct {
+		MigratedToHiddenDir   bool `json:"migrated-hidden"`
+		MigratedToExposedHome bool `json:"migrated-exposed-home"`
+	}
+	if err := json.Unmarshal(data, &seq); err != nil {
+		return nil, err
+	}
+
+	opts.HiddenSnapDataDir = seq.MigratedToHiddenDir
+	opts.MigratedToExposedHome = seq.MigratedToExposedHome
+
+	return &opts, nil
 }
 
 var cgroupCreateTransientScopeForTracking = cgroup.CreateTransientScopeForTracking

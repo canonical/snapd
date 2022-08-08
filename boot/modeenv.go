@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 type bootAssetsMap map[string][]string
@@ -61,7 +62,9 @@ type Modeenv struct {
 	Base                string   `key:"base"`
 	TryBase             string   `key:"try_base"`
 	BaseStatus          string   `key:"base_status"`
-	CurrentKernels      []string `key:"current_kernels"`
+	// Gadget is the currently active gadget snap
+	Gadget         string   `key:"gadget"`
+	CurrentKernels []string `key:"current_kernels"`
 	// Model, BrandID, Grade, SignKeyID describe the properties of current
 	// device model.
 	Model          string `key:"model"`
@@ -152,8 +155,12 @@ func modeenvFile(rootdir string) string {
 }
 
 // ReadModeenv attempts to read the modeenv file at
-// <rootdir>/var/iib/snapd/modeenv.
+// <rootdir>/var/lib/snapd/modeenv.
 func ReadModeenv(rootdir string) (*Modeenv, error) {
+	if snapdenv.Preseeding() {
+		return nil, fmt.Errorf("internal error: modeenv cannot be read during preseeding")
+	}
+
 	modeenvPath := modeenvFile(rootdir)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
@@ -178,6 +185,7 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	}
 	unmarshalModeenvValueFromCfg(cfg, "base", &m.Base)
 	unmarshalModeenvValueFromCfg(cfg, "base_status", &m.BaseStatus)
+	unmarshalModeenvValueFromCfg(cfg, "gadget", &m.Gadget)
 	unmarshalModeenvValueFromCfg(cfg, "try_base", &m.TryBase)
 
 	// current_kernels is a comma-delimited list in a string
@@ -266,6 +274,10 @@ func (m *Modeenv) Write() error {
 
 // WriteTo outputs the modeenv to the file at <rootdir>/var/lib/snapd/modeenv.
 func (m *Modeenv) WriteTo(rootdir string) error {
+	if snapdenv.Preseeding() {
+		return fmt.Errorf("internal error: modeenv cannot be written during preseeding")
+	}
+
 	modeenvPath := modeenvFile(rootdir)
 
 	if err := os.MkdirAll(filepath.Dir(modeenvPath), 0755); err != nil {
@@ -283,6 +295,7 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	marshalModeenvEntryTo(buf, "base", m.Base)
 	marshalModeenvEntryTo(buf, "try_base", m.TryBase)
 	marshalModeenvEntryTo(buf, "base_status", m.BaseStatus)
+	marshalModeenvEntryTo(buf, "gadget", m.Gadget)
 	marshalModeenvEntryTo(buf, "current_kernels", strings.Join(m.CurrentKernels, ","))
 	if m.Model != "" || m.Grade != "" {
 		if m.Model == "" {
@@ -337,7 +350,7 @@ type modelForSealing struct {
 	modelSignKeyID string
 }
 
-// dummy to verify interface match
+// verify interface match
 var _ secboot.ModelForSealing = (*modelForSealing)(nil)
 
 func (m *modelForSealing) BrandID() string           { return m.brandID }
@@ -446,7 +459,7 @@ func marshalModeenvEntryTo(out io.Writer, key string, what interface{}) error {
 }
 
 // unmarshalModeenvValueFromCfg unmarshals the value of the entry with
-// th given key to dest. If there's no such entry dest might be left
+// the given key to dest. If there's no such entry dest might be left
 // empty.
 func unmarshalModeenvValueFromCfg(cfg *goconfigparser.ConfigParser, key string, dest interface{}) error {
 	if dest == nil {

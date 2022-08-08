@@ -157,6 +157,7 @@ selinux_get_enforce_mode(snappy_t)
 optional_policy(`
 	dbus_read_config(snappy_t)
 	allow snappy_t dbusd_etc_t:file { write create rename unlink };
+	allow snappy_t dbusd_etc_t:dir { add_name remove_name };
 	allow snappy_t dbusd_etc_t:lnk_file { read };
 ')
 
@@ -350,6 +351,11 @@ ifndef(`distro_rhel7',`
   timedatex_dbus_chat(snappy_t)
 ')
 
+# kernel-module-load interface may inspect or write files under /etc/modprobe.d
+optional_policy(`
+  modutils_manage_module_config(snappy_t)
+')
+
 # only pops up in cloud images where cloud-init.target is incorrectly labeled
 allow snappy_t init_var_run_t:lnk_file read;
 
@@ -431,6 +437,10 @@ ifndef(`distro_rhel7',`
 # processes both in "snap run" and in "post-snap-confine" phases.
 allow snappy_t snappy_cli_t:process { getpgid sigkill };
 allow snappy_t unconfined_service_t:process { getpgid sigkill };
+
+# Snapd invokes systemd-detect-virt, which may make poke /proc/xen/, but does
+# not transition to a separate type and has no interface policy
+kernel_read_xen_state(snappy_t)
 
 ########################################
 #
@@ -524,10 +534,19 @@ allow snappy_mount_t fonts_t:dir mounton;
 # WONTFIX, so carry the workaround for as long as we support EPEL7)
 allow snappy_mount_t lib_t:dir mounton;
 
+# when supporting interfaces such as appstream-metadata, snap-update-ns will
+# mount things labeled usr_t from the host
+allow snappy_mount_t usr_t:dir mounton;
+
 # mount and unmount on top of snaps
 allow snappy_mount_t snappy_snap_t:dir mounton;
 allow snappy_mount_t snappy_snap_t:file mounton;
 allow snappy_mount_t snappy_snap_t:filesystem { unmount remount };
+
+# layouts may also require mounting on top of /var/lib/snapd which contains the
+# snaps
+allow snappy_mount_t snappy_var_lib_t:dir mounton;
+allow snappy_mount_t snappy_var_lib_t:file mounton;
 
 # freezer
 fs_manage_cgroup_dirs(snappy_mount_t)
@@ -561,6 +580,7 @@ fs_remount_xattr_fs(snappy_mount_t)
 ifndef(`distro_rhel7',`
 	optional_policy(`
 		fwupd_search_cache(snappy_mount_t)
+		allow snappy_mount_t fwupd_cache_t:dir mounton;
 	')
 ')
 
@@ -596,6 +616,12 @@ allow snappy_confine_t self:capability { setgid setuid sys_admin sys_chroot dac_
 # device cgroup program, however those bits can only be built on a sufficiently
 # recent system
 ifndef(`no_bpf',`
+  # memlock rlimit may need to be temporarily incresed when loading a BPF program
+  allow snappy_confine_t self:capability { sys_resource };
+  allow snappy_confine_t self:process { setrlimit };
+  # doing BPF things
+  allow snappy_confine_t self:capability2 { bpf perfmon };
+  # specifically these operations
   allow snappy_confine_t self:bpf { map_create map_read map_write prog_load prog_run };
   # snap-confine creates /sys/fs/bpf/snap directory and pings BPF maps inside
   fs_manage_bpf_dirs(snappy_confine_t)
@@ -616,6 +642,7 @@ dev_getattr_fs(snappy_confine_t)
 dev_getattr_sysfs_fs(snappy_confine_t)
 dev_list_sysfs(snappy_confine_t)
 dev_read_sysfs(snappy_confine_t)
+dev_getattr_all(snappy_confine_t)
 fs_getattr_cgroup(snappy_confine_t)
 fs_getattr_hugetlbfs(snappy_confine_t)
 fs_getattr_tmpfs(snappy_confine_t)
@@ -788,6 +815,11 @@ can_exec(snappy_cli_t, snappy_exec_t)
 fs_getattr_tmpfs(snappy_cli_t)
 fs_getattr_cgroup(snappy_cli_t)
 
+# execute systemctl is-system-running when system-key mismatch is detected
+systemd_exec_systemctl(snappy_cli_t)
+
+# allow snap to read SSL certs
+miscfiles_read_all_certs(snappy_t)
 
 ########################################
 #

@@ -20,7 +20,9 @@
 package ifacestate
 
 import (
+	"errors"
 	"fmt"
+	"path"
 	"reflect"
 	"sort"
 	"strings"
@@ -28,24 +30,69 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/schema"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/timings"
 )
 
-// confinementOptions returns interfaces.ConfinementOptions from snapstate.Flags.
-func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
-	return interfaces.ConfinementOptions{
-		DevMode:  flags.DevMode,
-		JailMode: flags.JailMode,
-		Classic:  flags.Classic,
+var snapstateFinishRestart = snapstate.FinishRestart
+
+// journalQuotaLayout returns the necessary journal quota mount layouts
+// to mimick what systemd does for services with log namespaces.
+func journalQuotaLayout(quotaGroup *quota.Group) []snap.Layout {
+	if quotaGroup.JournalLimit == nil {
+		return nil
 	}
+
+	// bind mount the journal namespace folder on top of the journal folder
+	// /run/systemd/journal.<ns> -> /run/systemd/journal
+	layouts := []snap.Layout{{
+		Bind: path.Join(dirs.SnapSystemdRunDir, fmt.Sprintf("journal.%s", quotaGroup.JournalNamespaceName())),
+		Path: path.Join(dirs.SnapSystemdRunDir, "journal"),
+		Mode: 0755,
+	}}
+	return layouts
+}
+
+// getExtraLayouts helper function to dynamically calculate the extra mount layouts for
+// a snap instance. These are the layouts which can change during the lifetime of a snap
+// like for instance mimicking systemd journal namespace mount layouts.
+func getExtraLayouts(st *state.State, snapInstanceName string) ([]snap.Layout, error) {
+	snapOpts, err := servicestate.SnapServiceOptions(st, snapInstanceName, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var extraLayouts []snap.Layout
+	if snapOpts.QuotaGroup != nil {
+		extraLayouts = append(extraLayouts, journalQuotaLayout(snapOpts.QuotaGroup)...)
+	}
+
+	return extraLayouts, nil
+}
+
+func buildConfinementOptions(st *state.State, snapInstanceName string, flags snapstate.Flags) (interfaces.ConfinementOptions, error) {
+	extraLayouts, err := getExtraLayouts(st, snapInstanceName)
+	if err != nil {
+		return interfaces.ConfinementOptions{}, fmt.Errorf("cannot get extra mount layouts of snap %q: %s", snapInstanceName, err)
+	}
+
+	return interfaces.ConfinementOptions{
+		DevMode:      flags.DevMode,
+		JailMode:     flags.JailMode,
+		Classic:      flags.Classic,
+		ExtraLayouts: extraLayouts,
+	}, nil
 }
 
 func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string, tm timings.Measurer) error {
@@ -69,7 +116,10 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		if err := addImplicitSlots(st, affectedSnapInfo); err != nil {
 			return err
 		}
-		opts := confinementOptions(snapst.Flags)
+		opts, err := buildConfinementOptions(st, affectedSnapInfo.InstanceName(), snapst.Flags)
+		if err != nil {
+			return err
+		}
 		if err := m.setupSnapSecurity(task, affectedSnapInfo, opts, tm); err != nil {
 			return err
 		}
@@ -104,7 +154,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	// This code is just here to deal with old state that may still
 	// have the 2nd setup-profiles with this flag set.
 	var corePhase2 bool
-	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+	if err := task.Get("core-phase-2", &corePhase2); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if corePhase2 {
@@ -112,7 +162,10 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return nil
 	}
 
-	opts := confinementOptions(snapsup.Flags)
+	opts, err := buildConfinementOptions(task.State(), snapInfo.InstanceName(), snapsup.Flags)
+	if err != nil {
+		return err
+	}
 	return m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings)
 }
 
@@ -202,8 +255,13 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		if err := addImplicitSlots(st, snapInfo); err != nil {
 			return err
 		}
+		opts, err := buildConfinementOptions(st, snapInfo.InstanceName(), snapst.Flags)
+		if err != nil {
+			return err
+		}
+
 		affectedSnaps = append(affectedSnaps, snapInfo)
-		confinementOpts = append(confinementOpts, confinementOptions(snapst.Flags))
+		confinementOpts = append(confinementOpts, opts)
 	}
 
 	return m.setupSecurityByBackend(task, affectedSnaps, confinementOpts, tm)
@@ -263,7 +321,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	defer perfTimings.Save(st)
 
 	var corePhase2 bool
-	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+	if err := task.Get("core-phase-2", &corePhase2); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if corePhase2 {
@@ -281,7 +339,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	// about the snap, if there is one.
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, snapName, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	sideInfo := snapst.CurrentSideInfo()
@@ -294,7 +352,10 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if err != nil {
 			return err
 		}
-		opts := confinementOptions(snapst.Flags)
+		opts, err := buildConfinementOptions(task.State(), snapInfo.InstanceName(), snapst.Flags)
+		if err != nil {
+			return err
+		}
 		return m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings)
 	}
 }
@@ -313,7 +374,7 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, instanceName, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -324,7 +385,7 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	if err != nil {
 		return err
 	}
-	removed := make(map[string]*connState)
+	removed := make(map[string]*schema.ConnState)
 	for id := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -345,9 +406,9 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 	st.Lock()
 	defer st.Unlock()
 
-	var removed map[string]*connState
+	var removed map[string]*schema.ConnState
 	err := task.Get("removed", &removed)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -365,10 +426,10 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 }
 
 func getDynamicHookAttributes(task *state.Task) (plugAttrs, slotAttrs map[string]interface{}, err error) {
-	if err = task.Get("plug-dynamic", &plugAttrs); err != nil && err != state.ErrNoState {
+	if err = task.Get("plug-dynamic", &plugAttrs); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, err
 	}
-	if err = task.Get("slot-dynamic", &slotAttrs); err != nil && err != state.ErrNoState {
+	if err = task.Get("slot-dynamic", &slotAttrs); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, err
 	}
 	if plugAttrs == nil {
@@ -400,15 +461,15 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 	}
 
 	var autoConnect bool
-	if err := task.Get("auto", &autoConnect); err != nil && err != state.ErrNoState {
+	if err := task.Get("auto", &autoConnect); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	var byGadget bool
-	if err := task.Get("by-gadget", &byGadget); err != nil && err != state.ErrNoState {
+	if err := task.Get("by-gadget", &byGadget); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	var delayedSetupProfiles bool
-	if err := task.Get("delayed-setup-profiles", &delayedSetupProfiles); err != nil && err != state.ErrNoState {
+	if err := task.Get("delayed-setup-profiles", &delayedSetupProfiles); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -426,7 +487,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 
 	var plugSnapst snapstate.SnapState
 	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
-		if autoConnect && err == state.ErrNoState {
+		if autoConnect && errors.Is(err, state.ErrNoState) {
 			// conflict logic should prevent this
 			return fmt.Errorf("internal error: snap %q is no longer available for auto-connecting", plugRef.Snap)
 		}
@@ -435,7 +496,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 
 	var slotSnapst snapstate.SnapState
 	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
-		if autoConnect && err == state.ErrNoState {
+		if autoConnect && errors.Is(err, state.ErrNoState) {
 			// conflict logic should prevent this
 			return fmt.Errorf("internal error: snap %q is no longer available for auto-connecting", slotRef.Snap)
 		}
@@ -496,12 +557,18 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 	}()
 
 	if !delayedSetupProfiles {
-		slotOpts := confinementOptions(slotSnapst.Flags)
+		slotOpts, err := buildConfinementOptions(st, slotSnapst.InstanceName(), slotSnapst.Flags)
+		if err != nil {
+			return err
+		}
 		if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
 			return err
 		}
 
-		plugOpts := confinementOptions(plugSnapst.Flags)
+		plugOpts, err := buildConfinementOptions(st, plugSnapst.InstanceName(), plugSnapst.Flags)
+		if err != nil {
+			return err
+		}
 		if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, perfTimings); err != nil {
 			return err
 		}
@@ -518,7 +585,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 		task.Set("old-conn", old)
 	}
 
-	conns[connRef.ID()] = &connState{
+	conns[connRef.ID()] = &schema.ConnState{
 		Interface:        conn.Interface(),
 		StaticPlugAttrs:  conn.Plug.StaticAttrs(),
 		DynamicPlugAttrs: conn.Plug.DynamicAttrs(),
@@ -558,7 +625,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 
 	// forget flag can be passed with snap disconnect --forget
 	var forget bool
-	if err := task.Get("forget", &forget); err != nil && err != state.ErrNoState {
+	if err := task.Get("forget", &forget); err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot read 'forget' flag: %s", err)
 	}
 
@@ -566,7 +633,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	for _, instanceName := range []string{plugRef.Snap, slotRef.Snap} {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, instanceName, &snapst); err != nil {
-			if err == state.ErrNoState {
+			if errors.Is(err, state.ErrNoState) {
 				task.Logf("skipping disconnect operation for connection %s %s, snap %q doesn't exist", plugRef, slotRef, instanceName)
 				return nil
 			}
@@ -602,7 +669,10 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		opts := confinementOptions(snapst.Flags)
+		opts, err := buildConfinementOptions(st, snapInfo.InstanceName(), snapst.Flags)
+		if err != nil {
+			return err
+		}
 		if err := m.setupSnapSecurity(task, snapInfo, opts, perfTimings); err != nil {
 			return err
 		}
@@ -611,14 +681,14 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	// "auto-disconnect" flag indicates it's a disconnect triggered automatically as part of snap removal;
 	// such disconnects should not set undesired flag and instead just remove the connection.
 	var autoDisconnect bool
-	if err := task.Get("auto-disconnect", &autoDisconnect); err != nil && err != state.ErrNoState {
+	if err := task.Get("auto-disconnect", &autoDisconnect); err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: failed to read 'auto-disconnect' flag: %s", err)
 	}
 
 	// "by-hotplug" flag indicates it's a disconnect triggered by hotplug remove event;
 	// we want to keep information of the connection and just mark it as hotplug-gone.
 	var byHotplug bool
-	if err := task.Get("by-hotplug", &byHotplug); err != nil && err != state.ErrNoState {
+	if err := task.Get("by-hotplug", &byHotplug); err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot read 'by-hotplug' flag: %s", err)
 	}
 
@@ -651,9 +721,9 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(st)
 
-	var oldconn connState
+	var oldconn schema.ConnState
 	err := task.Get("old-conn", &oldconn)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
 	if err != nil {
@@ -661,7 +731,7 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	}
 
 	var forget bool
-	if err := task.Get("forget", &forget); err != nil && err != state.ErrNoState {
+	if err := task.Get("forget", &forget); err != nil && !errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot read 'forget' flag: %s", err)
 	}
 
@@ -708,11 +778,18 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	slotOpts := confinementOptions(slotSnapst.Flags)
+	slotOpts, err := buildConfinementOptions(st, slotSnapst.InstanceName(), slotSnapst.Flags)
+	if err != nil {
+		return err
+	}
 	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
 		return err
 	}
-	plugOpts := confinementOptions(plugSnapst.Flags)
+
+	plugOpts, err := buildConfinementOptions(st, plugSnapst.InstanceName(), plugSnapst.Flags)
+	if err != nil {
+		return err
+	}
 	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, perfTimings); err != nil {
 		return err
 	}
@@ -741,9 +818,9 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var old connState
+	var old schema.ConnState
 	err = task.Get("old-conn", &old)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if err == nil {
@@ -758,7 +835,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var delayedSetupProfiles bool
-	if err := task.Get("delayed-setup-profiles", &delayedSetupProfiles); err != nil && err != state.ErrNoState {
+	if err := task.Get("delayed-setup-profiles", &delayedSetupProfiles); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if delayedSetupProfiles {
@@ -777,7 +854,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	var plugSnapst snapstate.SnapState
 	err = snapstate.Get(st, plugRef.Snap, &plugSnapst)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: snap %q is no longer available", plugRef.Snap)
 	}
 	if err != nil {
@@ -785,17 +862,25 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 	var slotSnapst snapstate.SnapState
 	err = snapstate.Get(st, slotRef.Snap, &slotSnapst)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: snap %q is no longer available", slotRef.Snap)
 	}
 	if err != nil {
 		return err
 	}
-	slotOpts := confinementOptions(slotSnapst.Flags)
+
+	slotOpts, err := buildConfinementOptions(st, slotSnapst.InstanceName(), slotSnapst.Flags)
+	if err != nil {
+		return err
+	}
 	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
 		return err
 	}
-	plugOpts := confinementOptions(plugSnapst.Flags)
+
+	plugOpts, err := buildConfinementOptions(st, plugSnapst.InstanceName(), plugSnapst.Flags)
+	if err != nil {
+		return err
+	}
 	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, perfTimings); err != nil {
 		return err
 	}
@@ -815,7 +900,7 @@ func obsoleteCorePhase2SetupProfiles(kind string, task *state.Task) (bool, error
 	}
 
 	var corePhase2 bool
-	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+	if err := task.Get("core-phase-2", &corePhase2); err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
 	return corePhase2, nil
@@ -1120,7 +1205,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	// if this is the case we can only proceed once the restart
 	// has happened or we may not have all the interfaces of the
 	// new core/base snap.
-	if err := snapstate.FinishRestart(task, snapsup); err != nil {
+	if err := snapstateFinishRestart(task, snapsup); err != nil {
 		return err
 	}
 

@@ -1,7 +1,7 @@
 summary: Check snapfuse works
 
 # we just need a single system to verify this
-systems: [ubuntu-18.04-64]
+systems: [ubuntu-22.04-64]
 
 restore: |
     lxc delete --force my-ubuntu
@@ -42,10 +42,13 @@ execute: |
         snap info lxd
         exit 1
     fi
+    # wait for the container to be fully up
+    (lxd.lxc exec my-ubuntu -- systemctl --wait is-system-running || true) | MATCH "(running|degraded)"
 
     echo "Install snapd"
     lxd.lxc exec my-ubuntu -- mkdir -p "$GOHOME"
     lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "my-ubuntu/$GOHOME/"
+    lxd.lxc exec my-ubuntu -- apt update
     lxd.lxc exec my-ubuntu -- apt install -y "$GOHOME"/snapd_*.deb
 
     echo "And validate that we can use snaps"

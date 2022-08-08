@@ -34,9 +34,14 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
+
+var SystemForPreseeding = systemForPreseeding
 
 func MockKeyLength(n int) (restore func()) {
 	if n < 1024 {
@@ -118,12 +123,24 @@ func SetSystemMode(m *DeviceManager, mode string) {
 	m.sysMode = mode
 }
 
+func GetSystemMode(m *DeviceManager) string {
+	return m.sysMode
+}
+
 func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 	return m.setTimeOnce(name, t)
 }
 
 func PreloadGadget(m *DeviceManager) (sysconfig.Device, *gadget.Info, error) {
 	return m.preloadGadget()
+}
+
+func MockLoadDeviceSeed(f func(st *state.State, sysLabel string) (seed.Seed, error)) func() {
+	old := loadDeviceSeed
+	loadDeviceSeed = f
+	return func() {
+		loadDeviceSeed = old
+	}
 }
 
 func MockRepeatRequestSerial(label string) (restore func()) {
@@ -190,6 +207,10 @@ func SetTriedSystemsRan(m *DeviceManager, b bool) {
 	m.ensureTriedRecoverySystemRan = b
 }
 
+func SetPostFactoryResetRan(m *DeviceManager, b bool) {
+	m.ensurePostFactoryResetRan = b
+}
+
 func StartTime() time.Time {
 	return startTime
 }
@@ -247,7 +268,21 @@ var (
 	LogNewSystemSnapFile                   = logNewSystemSnapFile
 	PurgeNewSystemSnapFiles                = purgeNewSystemSnapFiles
 	CreateRecoverySystemTasks              = createRecoverySystemTasks
+
+	MaybeApplyPreseededData = maybeApplyPreseededData
 )
+
+func MockMaybeApplyPreseededData(f func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (bool, error)) (restore func()) {
+	r := testutil.Backup(&maybeApplyPreseededData)
+	maybeApplyPreseededData = f
+	return r
+}
+
+func MockSeedOpen(f func(seedDir, label string) (seed.Seed, error)) (restore func()) {
+	r := testutil.Backup(&seedOpen)
+	seedOpen = f
+	return r
+}
 
 func MockGadgetUpdate(mock func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
 	old := gadgetUpdate
@@ -266,11 +301,15 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 }
 
 func MockBootMakeSystemRunnable(f func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error) (restore func()) {
-	old := bootMakeRunnable
+	restore = testutil.Backup(&bootMakeRunnable)
 	bootMakeRunnable = f
-	return func() {
-		bootMakeRunnable = old
-	}
+	return restore
+}
+
+func MockBootMakeSystemRunnableAfterDataReset(f func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error) (restore func()) {
+	restore = testutil.Backup(&bootMakeRunnableAfterDataReset)
+	bootMakeRunnableAfterDataReset = f
+	return restore
 }
 
 func MockBootEnsureNextBootToRunMode(f func(systemLabel string) error) (restore func()) {
@@ -311,6 +350,24 @@ func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device st
 	return func() {
 		installRun = old
 	}
+}
+
+func MockInstallFactoryReset(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
+	restore = testutil.Backup(&installFactoryReset)
+	installFactoryReset = f
+	return restore
+}
+
+func MockSecbootStageEncryptionKeyChange(f func(node string, key keys.EncryptionKey) error) (restore func()) {
+	restore = testutil.Backup(&secbootStageEncryptionKeyChange)
+	secbootStageEncryptionKeyChange = f
+	return restore
+}
+
+func MockSecbootTransitionEncryptionKeyChange(f func(mountpoint string, key keys.EncryptionKey) error) (restore func()) {
+	restore = testutil.Backup(&secbootTransitionEncryptionKeyChange)
+	secbootTransitionEncryptionKeyChange = f
+	return restore
 }
 
 func MockCloudInitStatus(f func() (sysconfig.CloudInitState, error)) (restore func()) {
@@ -355,4 +412,36 @@ func MockTimeutilIsNTPSynchronized(f func() (bool, error)) (restore func()) {
 
 func DeviceManagerNTPSyncedOrWaitedLongerThan(mgr *DeviceManager, maxWait time.Duration) bool {
 	return mgr.ntpSyncedOrWaitedLongerThan(maxWait)
+}
+
+func MockSystemForPreseeding(f func() (string, error)) (restore func()) {
+	old := systemForPreseeding
+	systemForPreseeding = f
+	return func() {
+		systemForPreseeding = old
+	}
+}
+
+func MockSecbootEnsureRecoveryKey(f func(recoveryKeyFile string, rkeyDevs []secboot.RecoveryKeyDevice) (keys.RecoveryKey, error)) (restore func()) {
+	restore = testutil.Backup(&secbootEnsureRecoveryKey)
+	secbootEnsureRecoveryKey = f
+	return restore
+}
+
+func MockSecbootRemoveRecoveryKeys(f func(rkeyDevToKey map[secboot.RecoveryKeyDevice]string) error) (restore func()) {
+	restore = testutil.Backup(&secbootRemoveRecoveryKeys)
+	secbootRemoveRecoveryKeys = f
+	return restore
+}
+
+func MockMarkFactoryResetComplete(f func(encrypted bool) error) (restore func()) {
+	restore = testutil.Backup(&bootMarkFactoryResetComplete)
+	bootMarkFactoryResetComplete = f
+	return restore
+}
+
+func MockSecbootMarkSuccessful(f func() error) (restore func()) {
+	r := testutil.Backup(&secbootMarkSuccessful)
+	secbootMarkSuccessful = f
+	return r
 }

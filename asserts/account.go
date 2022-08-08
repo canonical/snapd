@@ -58,9 +58,7 @@ func (acc *Account) DisplayName() string {
 }
 
 // Validation returns the level of confidence of the authority in the
-// account's identity, expected to be "unproven" or "verified", and
-// for forward compatibility any value != "unproven" can be considered
-// at least "verified".
+// account's identity, expected to be "unproven", "starred" or "verified".
 func (acc *Account) Validation() string {
 	return acc.validation
 }
@@ -78,7 +76,7 @@ func (acc *Account) checkConsistency(db RODatabase, acck *AccountKey) error {
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*Account)(nil)
 
 func assembleAccount(assert assertionBase) (Assertion, error) {

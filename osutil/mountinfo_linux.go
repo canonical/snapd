@@ -24,29 +24,12 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 )
-
-// MountInfoEntry contains data from /proc/$PID/mountinfo
-//
-// For details please refer to mountinfo documentation at
-// https://www.kernel.org/doc/Documentation/filesystems/proc.txt
-type MountInfoEntry struct {
-	MountID        int
-	ParentID       int
-	DevMajor       int
-	DevMinor       int
-	Root           string
-	MountDir       string
-	MountOptions   map[string]string
-	OptionalFields []string
-	FsType         string
-	MountSource    string
-	SuperOptions   map[string]string
-}
 
 func flattenMap(m map[string]string) string {
 	keys := make([]string, 0, len(m))
@@ -91,22 +74,37 @@ func (mi *MountInfoEntry) String() string {
 		flattenMap(mi.SuperOptions))
 }
 
-var mountInfoMustMockInTests = true
+var openMountInfoFile = func() (io.ReadCloser, error) {
+	if IsTestBinary() {
+		panic("/proc/self/mountinfo must be mocked in tests")
+	}
+	return os.Open("/proc/self/mountinfo")
+}
+
+func mockMountInfo(mock func() (io.ReadCloser, error)) (restore func()) {
+	old := openMountInfoFile
+	openMountInfoFile = mock
+	return func() {
+		openMountInfoFile = old
+	}
+}
+
+// this should not be used except to test the actual implementation logic of
+// LoadMountInfo, if you are trying to mock /proc/self/mountinfo in a test,
+// use MockMountInfo(), which is exported and the right way to do that.
+func MockProcSelfMountInfoLocation(filename string) (restore func()) {
+	return mockMountInfo(func() (io.ReadCloser, error) { return os.Open(filename) })
+}
+
+func MockMountInfo(content string) (restore func()) {
+	return mockMountInfo(func() (io.ReadCloser, error) { return ioutil.NopCloser(bytes.NewBufferString(content)), nil })
+}
 
 // LoadMountInfo loads list of mounted entries from /proc/self/mountinfo. This
 // can be mocked by using osutil.MockMountInfo to hard-code a specific mountinfo
 // file content to be loaded by this function
 func LoadMountInfo() ([]*MountInfoEntry, error) {
-	if mockedMountInfo != nil {
-		return ReadMountInfo(bytes.NewBufferString(*mockedMountInfo))
-	}
-	if IsTestBinary() && mountInfoMustMockInTests {
-		// if we are in testing and we didn't mock a mountinfo panic, since the
-		// mountinfo is used in many places and really should be mocked for tests
-		panic("/proc/self/mountinfo must be mocked in tests")
-	}
-
-	f, err := os.Open(procSelfMountInfo)
+	f, err := openMountInfoFile()
 	if err != nil {
 		return nil, err
 	}

@@ -12,7 +12,10 @@ details: |
     capability) and creates an arp entry (write capability).
 
 # ubuntu-14.04: systemd-run not supported
-systems: [-fedora-*, -opensuse-*, -ubuntu-14.04*]
+# ubuntu-18.04-32: network-control-consumer snap not available on i386
+# ubuntu-core-16-32: cannot install snap base "core20"
+# ubuntu-core-18-32: cannot install snap base "core20"
+systems: [-fedora-*, -opensuse-*, -ubuntu-14.04*, -ubuntu-18.04-32, -ubuntu-core-16-32, -ubuntu-core-18-32]
 
 environment:
     PORT: 8081
@@ -53,6 +56,16 @@ execute: |
 
     echo "Then the snap command can query network status information"
     network-control-consumer.cmd ss -lnt | MATCH "LISTEN.*:$PORT"
+
+    echo "And DNS information"
+    case "$SPREAD_SYSTEM" in
+    centos-*|debian-*|arch-linux-*|amazon-linux-*)
+        # echo no systemd-resolved in those images
+        ;;
+    *)
+        network-control-consumer.cmd resolvectl | MATCH "DNS Server"
+        ;;
+    esac
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "When the plug is disconnected"

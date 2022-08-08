@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,6 +32,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/spdx"
 	"github.com/snapcore/snapd/strutil"
@@ -297,11 +298,26 @@ func validateTitle(title string) error {
 	return nil
 }
 
+func validateProvenance(prov string) error {
+	if prov == "" {
+		// empty means default
+		return nil
+	}
+	if prov == naming.DefaultProvenance {
+		return fmt.Errorf("provenance cannot be set to default (global-upload) explicitly")
+	}
+	return naming.ValidateProvenance(prov)
+}
+
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
 	name := info.InstanceName()
 	if name == "" {
 		return errors.New("snap name cannot be empty")
+	}
+
+	if err := validateProvenance(info.SnapProvenance); err != nil {
+		return err
 	}
 
 	if err := ValidateName(info.SnapName()); err != nil {
@@ -428,6 +444,9 @@ func ValidateLayoutAll(info *Info) error {
 	// Validate that each source path is not a new top-level directory
 	for _, layout := range info.Layout {
 		cleanPathSrc := info.ExpandSnapVariables(filepath.Clean(layout.Path))
+		if err := apparmor.ValidateNoAppArmorRegexp(layout.Path); err != nil {
+			return fmt.Errorf("invalid layout path: %v", err)
+		}
 		elems := strings.SplitN(cleanPathSrc, string(os.PathSeparator), 3)
 		switch len(elems) {
 		// len(1) is either relative path or empty string, will be validated
@@ -784,7 +803,7 @@ func ValidateApp(app *AppInfo) error {
 	}
 	// validate refresh-mode
 	switch app.RefreshMode {
-	case "", "endure", "restart":
+	case "", "endure", "restart", "ignore-running":
 		// valid
 	default:
 		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.RefreshMode)
@@ -799,8 +818,12 @@ func ValidateApp(app *AppInfo) error {
 	if app.StopMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"stop-mode" cannot be used for %q, only for services`, app.Name)
 	}
-	if app.RefreshMode != "" && app.Daemon == "" {
-		return fmt.Errorf(`"refresh-mode" cannot be used for %q, only for services`, app.Name)
+	if app.RefreshMode != "" {
+		if app.Daemon != "" && app.RefreshMode == "ignore-running" {
+			return errors.New(`"refresh-mode" cannot be set to "ignore-running" for services`)
+		} else if app.Daemon == "" && app.RefreshMode != "ignore-running" {
+			return fmt.Errorf(`"refresh-mode" for app %q can only have value "ignore-running"`, app.Name)
+		}
 	}
 	if app.InstallMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"install-mode" cannot be used for %q, only for services`, app.Name)
@@ -1011,6 +1034,10 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 			!strings.HasPrefix(mountSource, si.ExpandSnapVariables("$SNAP_COMMON")) {
 			return fmt.Errorf("layout %q uses invalid bind mount source %q: must start with $SNAP, $SNAP_DATA or $SNAP_COMMON", layout.Path, mountSource)
 		}
+		// Ensure that the path does not express an AppArmor pattern
+		if err := apparmor.ValidateNoAppArmorRegexp(mountSource); err != nil {
+			return fmt.Errorf("layout %q uses invalid mount source: %s", layout.Path, err)
+		}
 	}
 
 	switch layout.Type {
@@ -1037,6 +1064,10 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 			!strings.HasPrefix(oldname, si.ExpandSnapVariables("$SNAP_DATA")) &&
 			!strings.HasPrefix(oldname, si.ExpandSnapVariables("$SNAP_COMMON")) {
 			return fmt.Errorf("layout %q uses invalid symlink old name %q: must start with $SNAP, $SNAP_DATA or $SNAP_COMMON", layout.Path, oldname)
+		}
+		// Ensure that the path does not express an AppArmor pattern
+		if err := apparmor.ValidateNoAppArmorRegexp(oldname); err != nil {
+			return fmt.Errorf("layout %q uses invalid symlink: %s", layout.Path, err)
 		}
 	}
 

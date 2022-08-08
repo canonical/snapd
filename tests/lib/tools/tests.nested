@@ -5,7 +5,8 @@ show_help() {
     echo "       restore"
     echo "       build-image IMAGE-TYPE"
     echo "       create-vm IMAGE-TYPE [--param-cdrom PARAM] [--param-mem PARAM]"
-    echo "       is-nested [core|classic|uc16|uc18|uc20]"
+    echo "       is-nested [core|classic|uc16|uc18|uc20|uc22]"
+    echo "       show [ATTRIBUTE]"
     echo "       vm <ACTION>"
     echo "       exec [--user <USER>] [--pwd <PWD>] <CMD>"
     echo "       copy <FILEPATH>"
@@ -45,6 +46,9 @@ show_help() {
     echo "  core: work with a core image"
     echo "  classic: work with a classic image"
     echo ""
+    echo "ATTRIBUTE:"
+    echo "  version: the version of the system i.e. 16, 18, 20, 22"
+    echo ""
     echo "ACTION:"
     echo "  start: starts a stopped vm"
     echo "  stop: shutdowns a running vm"
@@ -70,6 +74,7 @@ show_help() {
     echo "  no-ssh: is not possible to ssh to the vm"
     echo "  snap-command: snap command is available in the vm"
     echo "  reboot: reboot is done in the vm"
+    echo "  device-initialized: the device is initialized and has a serial"
     echo ""
 }
 
@@ -165,8 +170,28 @@ is_nested() {
             uc20)
                 nested_is_core_20_system
                 ;;
+            uc22)
+                nested_is_core_22_system
+                ;;
             *)
                 echo "tests.nested: parameter not supported: $1" >&2
+                exit 1
+                ;;
+        esac
+    fi
+}
+
+show() {
+    if [ $# -eq 0 ]; then
+        echo "tests.nested: attribute to show is required" >&2
+        exit 1
+    else
+        case "$1" in
+            version)
+                nested_get_version
+                ;;
+            *)
+                echo "tests.nested: attribute not supported: $1" >&2
                 exit 1
                 ;;
         esac
@@ -186,6 +211,9 @@ vm() {
             ;;
         status)
             nested_status_vm
+            ;;
+        unclean-reboot)
+            nested_force_restart_vm
             ;;
         *)
             echo "tests.nested: action not supported: $1" >&2
@@ -319,6 +347,10 @@ wait_for() {
             ;;
         reboot)
             action=nested_wait_for_reboot
+            shift
+            ;;
+        device-initialized)
+            action=nested_wait_for_device_initialized_change
             shift
             ;;
         *)

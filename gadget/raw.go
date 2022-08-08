@@ -132,7 +132,7 @@ func newRawStructureUpdater(contentDir string, ps *LaidOutStructure, backupDir s
 }
 
 func rawContentBackupPath(backupDir string, ps *LaidOutStructure, pc *LaidOutContent) string {
-	return filepath.Join(backupDir, fmt.Sprintf("struct-%v-%v", ps.Index, pc.Index))
+	return filepath.Join(backupDir, fmt.Sprintf("struct-%v-%v", ps.YamlIndex, pc.Index))
 }
 
 func (r *rawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *LaidOutContent) error {

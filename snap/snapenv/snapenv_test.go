@@ -97,6 +97,26 @@ func (ts *HTestSuite) TestBasic(c *C) {
 	})
 }
 
+func (ts *HTestSuite) TestSaveDataEnvironmentNotPresent(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	ts.AddCleanup(func() { dirs.SetRootDir("") })
+
+	// The snap environment should now not include SNAP_SAVE_DATA, as the path
+	// does not exist.
+	env := basicEnv(mockSnapInfo)
+	c.Assert(env["SNAP_SAVE_DATA"], Equals, "")
+}
+
+func (ts *HTestSuite) TestSaveDataEnvironmentPresent(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	ts.AddCleanup(func() { dirs.SetRootDir("") })
+	c.Assert(os.MkdirAll(snap.CommonDataSaveDir(mockSnapInfo.InstanceName()), 0755), IsNil)
+
+	// The snap environment should now include SNAP_SAVE_DATA with the above path.
+	env := basicEnv(mockSnapInfo)
+	c.Assert(env["SNAP_SAVE_DATA"], Equals, snap.CommonDataSaveDir(mockSnapInfo.InstanceName()))
+}
+
 func (ts *HTestSuite) TestUser(c *C) {
 	env := userEnv(mockSnapInfo, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
@@ -300,12 +320,36 @@ func (s *HTestSuite) TestHiddenDirEnv(c *C) {
 	})
 	defer restore()
 
-	env := osutil.Environment{}
-	ExtendEnvForRun(env, mockSnapInfo, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
+	for _, t := range []struct {
+		dir  string
+		opts *dirs.SnapDirOptions
+	}{
+		{dir: dirs.UserHomeSnapDir, opts: nil},
+		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}},
+		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}}} {
+		env := osutil.Environment{}
+		ExtendEnvForRun(env, mockSnapInfo, t.opts)
 
-	c.Check(env["SNAP_USER_COMMON"], Equals, filepath.Join(testDir, dirs.HiddenSnapDataHomeDir, mockSnapInfo.SuggestedName, "common"))
-	c.Check(env["SNAP_USER_DATA"], DeepEquals, filepath.Join(testDir, dirs.HiddenSnapDataHomeDir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
-	c.Check(env["HOME"], DeepEquals, filepath.Join(testDir, dirs.HiddenSnapDataHomeDir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
+		c.Check(env["SNAP_USER_COMMON"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, "common"))
+		c.Check(env["SNAP_USER_DATA"], DeepEquals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
+
+		if t.opts != nil && t.opts.MigratedToExposedHome {
+			exposedSnapDir := filepath.Join(testDir, dirs.ExposedSnapHomeDir, mockSnapInfo.SuggestedName)
+			c.Check(env["HOME"], DeepEquals, exposedSnapDir)
+			c.Check(env["SNAP_USER_HOME"], DeepEquals, exposedSnapDir)
+
+			c.Check(env["XDG_DATA_HOME"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String(), "xdg-data"))
+			c.Check(env["XDG_CONFIG_HOME"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String(), "xdg-config"))
+			c.Check(env["XDG_CACHE_HOME"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String(), "xdg-cache"))
+		} else {
+			c.Check(env["HOME"], DeepEquals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
+			c.Check(env["SNAP_USER_HOME"], Equals, "")
+
+			c.Check(env["XDG_DATA_HOME"], Equals, "")
+			c.Check(env["XDG_CONFIG_HOME"], Equals, "")
+			c.Check(env["XDG_CACHE_HOME"], Equals, "")
+		}
+	}
 }
 
 func MockUserCurrent(f func() (*user.User, error)) func() {

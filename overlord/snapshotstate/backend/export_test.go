@@ -21,6 +21,7 @@ package backend
 
 import (
 	"os"
+	"os/exec"
 	"os/user"
 	"time"
 
@@ -28,16 +29,18 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
-	AddDirToZip     = addDirToZip
 	TarAsUser       = tarAsUser
 	PickUserWrapper = pickUserWrapper
 
 	IsSnapshotFilename = isSnapshotFilename
 
 	NewMultiError = newMultiError
+
+	AddSnapDirToZip = addSnapDirToZip
 )
 
 func MockIsTesting(newIsTesting bool) func() {
@@ -45,14 +48,6 @@ func MockIsTesting(newIsTesting bool) func() {
 	isTesting = newIsTesting
 	return func() {
 		isTesting = oldIsTesting
-	}
-}
-
-func MockUserLookupId(newLookupId func(string) (*user.User, error)) func() {
-	oldLookupId := userLookupId
-	userLookupId = newLookupId
-	return func() {
-		userLookupId = oldLookupId
 	}
 }
 
@@ -86,6 +81,12 @@ func MockSysGeteuid(newGeteuid func() sys.UserID) (restore func()) {
 	return func() {
 		sysGeteuid = oldGeteuid
 	}
+}
+
+func MockTarAsUser(f func(string, ...string) *exec.Cmd) (restore func()) {
+	r := testutil.Backup(&tarAsUser)
+	tarAsUser = f
+	return r
 }
 
 func MockExecLookPath(newLookPath func(string) (string, error)) (restore func()) {

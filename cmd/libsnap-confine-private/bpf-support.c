@@ -21,7 +21,9 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/mount.h>
 #include <sys/syscall.h>
+#include <sys/vfs.h>
 #include <unistd.h>
 
 #include "utils.h"
@@ -160,4 +162,35 @@ int bpf_map_delete_elem(int map_fd, const void *key) {
     attr.key = __ptr_as_u64(key);
 
     return sys_bpf(BPF_MAP_DELETE_ELEM, &attr, sizeof(attr));
+}
+
+#ifndef BPF_FS_MAGIC
+#define BPF_FS_MAGIC 0xcafe4a11
+#endif
+
+bool bpf_path_is_bpffs(const char *path) {
+    struct statfs fs;
+    int res = statfs(path, &fs);
+    if (res < 0) {
+        if (errno == ENOENT) {
+            /* no path at all */
+            return false;
+        }
+        die("cannot check filesystem type of %s", path);
+    }
+    /* see statfs(2) notes on  __fsword_t */
+    if ((unsigned int)fs.f_type == BPF_FS_MAGIC) {
+        return true;
+    }
+    return false;
+}
+
+void bpf_mount_bpffs(const char *path) {
+    /* systemd and bpftool disagree as to the propagation mode of bpffs mounts,
+     * so go with the default which is a shared propagation and matches the
+     * state of a freshly booted system */
+    int res = mount("bpf", path, "bpf", 0, "mode=0700");
+    if (res < 0) {
+        die("cannot mount bpf filesystem under %s", path);
+    }
 }

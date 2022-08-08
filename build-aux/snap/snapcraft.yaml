@@ -12,6 +12,9 @@ adopt-info: snapd-deb
 # build-base is needed here for snapcraft to build this snap as with "modern"
 # snapcraft
 build-base: core
+package-repositories:
+  - type: apt
+    ppa: snappy-dev/image
 grade: stable
 license: GPL-3.0
 
@@ -30,8 +33,15 @@ parts:
     plugin: nil
     source: .
     build-snaps: [go/1.13/stable]
+    # these packages are needed to call mkversion.sh in override-pull, all other
+    # dependencies are installed using apt-get build-dep
+    build-packages:
+      - git
+      - dpkg-dev
     override-pull: |
       snapcraftctl pull
+      # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
+      snapcraftctl set-version "$(./mkversion.sh --output-only)"
       # Ensure that ./debian/ packaging which we are about to use
       # matches the current `build-base` release. I.e. ubuntu-16.04
       # for build-base:core, etc.
@@ -41,9 +51,18 @@ parts:
       export DEBCONF_NONINTERACTIVE_SEEN=true
       sudo -E apt-get build-dep -y ./
       ./get-deps.sh --skip-unused-check
-      # set version after installing dependencies so we have all the tools here
-      snapcraftctl set-version "$(./mkversion.sh --output-only)"
     override-build: |
+      # TODO: when something like "craftctl get-version" is ready, then we can
+      # use that, but until then, we have to re-run mkversion.sh to check if the
+      # version number was set as "dirty" from the override-pull step
+      if sh -x ./mkversion.sh --output-only | grep "dirty"; then
+        mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
+        ( 
+          echo "dirty git tree during build detected:"
+          git status
+          git diff
+        ) > $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/dirty-git-tree-info.txt
+      fi
       # unset the LD_FLAGS and LD_LIBRARY_PATH vars that snapcraft sets for us
       # as those will point to the $SNAPCRAFT_STAGE which on re-builds will 
       # contain things like libc and friends that confuse the debian package
@@ -61,6 +80,8 @@ parts:
       # bother compressing it too much)
       dpkg-buildpackage -b -Zgzip -zfast
       dpkg-deb -x $(pwd)/../snapd_*.deb $SNAPCRAFT_PART_INSTALL
+      # not included in the deb as it's only used with UC20 preseeding.
+      cp -a data/preseed.json $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/
 
   # xdelta is used to enable delta downloads (even if the host does not have it)
   xdelta3:
@@ -85,6 +106,13 @@ parts:
     plugin: nil
     stage-packages:
       - liblzma5
+    stage:
+      - lib/*
+  # Needed by squashfs-tools and fc-cache
+  zlib:
+    plugin: nil
+    stage-packages:
+      - zlib1g
     stage:
       - lib/*
   # libc6 is part of core but we need it in the snapd snap for

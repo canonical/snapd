@@ -10,12 +10,17 @@ environment:
     GOPROXY: https://proxy.golang.org,direct
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
-    # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
-    # a different go in gccgo tests)
-    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin
+    PATH: $GOHOME/bin:/snap/bin:$PATH:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     TESTSTMP: /var/tmp/snapd-tools
+    # turn debug off so that we don't get errant debug messages while running
+    # tests, and in some cases like on UC20 we have the kernel command line
+    # parameter, snapd.debug=1 turned on to enable early boot debugging before
+    # we have a shell, but then once we get a shell and run spread tests, we
+    # want debug messages to be off for commands we run as part of tests, unless
+    # tests explicitly turn the messages on
+    SNAPD_DEBUG: 0
     SNAPPY_TESTING: 1
     # we run the entire suite with re-exec on (the default) and modify
     # the core snap so that it contains our new code.  So we run new
@@ -34,13 +39,12 @@ environment:
     SUDO_USER: ""
     SUDO_UID: ""
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
-    MANAGED_DEVICE: "false"
     # a global setting for LXD channel to use in the tests
-    LXD_SNAP_CHANNEL: "latest/edge"
-    # TODO: as of 2021-11-18 ubuntu-image in candidate and up has a bug which is
-    # fixed in https://github.com/canonical/ubuntu-image/pull/26, revert to
-    # latest/candidate when the fix lands in master and the snap is released
-    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/stable"
+    LXD_SNAP_CHANNEL: "latest/candidate"
+    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/candidate"
+    # controls whether ubuntu-image is built using the current snapd tree as a
+    # dependency or the one listed in its go.mod
+    UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
@@ -57,11 +61,15 @@ environment:
     NO_PROXY: "127.0.0.1"
     NEW_CORE_CHANNEL: '$(HOST: echo "$SPREAD_NEW_CORE_CHANNEL")'
     SRU_VALIDATION: '$(HOST: echo "${SPREAD_SRU_VALIDATION:-0}")'
-    # use the ppa_validation_name to install snapd from that ppa
+    # use the ppa_validation_name to install snapd from a public ppa
     PPA_VALIDATION_NAME: '$(HOST: echo "${SPREAD_PPA_VALIDATION_NAME:-}")'
+    # use the ppa_source_line and ppa_gpg_key to install snapd from a private ppa
+    PPA_SOURCE_LINE: '$(HOST: echo "${SPREAD_PPA_SOURCE_LINE:-}")'
+    PPA_GPG_KEY: '$(HOST: echo "${SPREAD_PPA_GPG_KEY:-}")'
+    # List the snaps which are cached
     PRE_CACHE_SNAPS: test-snapd-tools test-snapd-sh jq
     # always skip removing the rsync snap
-    SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18 test-snapd-rsync-core20'
+    SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18 test-snapd-rsync-core20 test-snapd-rsync-core22'
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
     EXPERIMENTAL_FEATURES: '$(HOST: echo "${SPREAD_EXPERIMENTAL_FEATURES:-}")'
@@ -80,6 +88,10 @@ environment:
     NESTED_CUSTOM_IMAGE_URL: '$(HOST: echo "${NESTED_CUSTOM_IMAGE_URL:-}")'
     # Configure nested images to be reused on the following tests
     NESTED_CONFIGURE_IMAGES: '$(HOST: echo "${NESTED_CONFIGURE_IMAGES:-false}")'
+    # Indicates if the snap has to be repacked in case NESTED_BUILD_SNAPD_FROM_CURRENT is true
+    NESTED_REPACK_KERNEL_SNAP: '$(HOST: echo "${NESTED_REPACK_KERNEL_SNAP:-true}")'
+    NESTED_REPACK_GADGET_SNAP: '$(HOST: echo "${NESTED_REPACK_GADGET_SNAP:-true}")'
+    NESTED_REPACK_BASE_SNAP: '$(HOST: echo "${NESTED_REPACK_BASE_SNAP:-true}")'
 
 backends:
     google:
@@ -103,19 +115,21 @@ backends:
                   image: ubuntu-16.04-64
                   workers: 6
             - ubuntu-core-18-64:
-                  image: ubuntu-16.04-64
+                  image: ubuntu-18.04-64
                   workers: 6
             - ubuntu-core-20-64:
                   image: ubuntu-20.04-64
+                  workers: 6
+                  storage: 20G
+            - ubuntu-core-22-64:
+                  image: ubuntu-22.04-64
                   workers: 6
                   storage: 20G
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
                   workers: 1
                   secure-boot: true
-            - ubuntu-21.04-64:
-                  workers: 8
-            - ubuntu-21.10-64:
+            - ubuntu-22.04-64:
                   storage: 12G
                   workers: 8
 
@@ -126,9 +140,9 @@ backends:
             - debian-sid-64:
                   workers: 6
 
-            - fedora-33-64:
+            - fedora-35-64:
                   workers: 6
-            - fedora-34-64:
+            - fedora-36-64:
                   workers: 6
 
             - arch-linux-64:
@@ -141,18 +155,23 @@ backends:
                   workers: 6
                   storage: preserve-size
                   image: centos-7-64
-            # unstable systems below
-            - opensuse-15.2-64:
-                  workers: 6
-            - opensuse-15.3-64:
-                  workers: 6
-            - opensuse-tumbleweed-64:
-                  workers: 6
-                  manual: true
             - centos-8-64:
                   workers: 6
                   storage: preserve-size
                   image: centos-8-64
+            - centos-9-64:
+                  workers: 6
+                  storage: preserve-size
+                  image: centos-9-64
+
+            # unstable systems below
+            - opensuse-15.3-64:
+                  workers: 6
+            - opensuse-15.4-64:
+                  workers: 6
+            - opensuse-tumbleweed-64:
+                  workers: 6
+                  manual: true
 
     google-sru:
         type: google
@@ -164,7 +183,7 @@ backends:
                   workers: 6
             - ubuntu-20.04-64:
                   workers: 6
-            - ubuntu-21.04-64:
+            - ubuntu-21.10-64:
                   workers: 6
 
     google-nested:
@@ -187,10 +206,10 @@ backends:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
                   workers: 7
-            - ubuntu-21.04-64:
-                  image: ubuntu-2104-64-virt-enabled
+            - ubuntu-22.04-64:
+                  image: ubuntu-2204-64-virt-enabled
                   storage: 20G
-                  workers: 3
+                  workers: 6
 
     qemu-nested:
         memory: 4G
@@ -203,6 +222,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
 
@@ -225,7 +247,7 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-core-18-64:
-                  image: ubuntu-16.04-64
+                  image: ubuntu-18.04-64
                   username: ubuntu
                   password: ubuntu
             - ubuntu-core-20-64:
@@ -233,7 +255,14 @@ backends:
                   username: ubuntu
                   password: ubuntu
                   bios: uefi
-                  # TODO: remove one everyone switch to official spread
+                  # TODO: remove once everyone switch to official spread
+                  flags: [virtio]
+            - ubuntu-core-22-64:
+                  image: ubuntu-22.04-64
+                  username: ubuntu
+                  password: ubuntu
+                  bios: uefi
+                  # TODO: remove once everyone switch to official spread
                   flags: [virtio]
             - ubuntu-18.04-64:
                   username: ubuntu
@@ -247,16 +276,13 @@ backends:
             - ubuntu-20.04-32:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-21.04-64:
+            - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-21.10-64:
-                  username: ubuntu
-                  password: ubuntu
-            - debian-sid-64:
+            - debian-10-64:
                   username: debian
                   password: debian
-            - debian-9-64:
+            - debian-11-64:
                   username: debian
                   password: debian
             - debian-sid-64:
@@ -268,9 +294,6 @@ backends:
             - amazon-linux-2-64:
                   username: ec2-user
                   password: ec2-user
-            - opensuse-15.2-64:
-                  username: opensuse
-                  password: opensuse
             - opensuse-tumbleweed-64:
                   username: opensuse
                   password: opensuse
@@ -369,7 +392,6 @@ backends:
         type: adhoc
         environment:
             SPREAD_EXTERNAL_ADDRESS: '$(HOST: echo "${SPREAD_EXTERNAL_ADDRESS:-localhost:8022}")'
-            MANAGED_DEVICE: "true"
             TRUST_TEST_KEYS: "false"
         allocate: |
             ADDRESS $SPREAD_EXTERNAL_ADDRESS
@@ -401,13 +423,19 @@ backends:
             - ubuntu-core-20-64:
                   username: external
                   password: ubuntu
-            - ubuntu-core-20-32:
-                  username: external
-                  password: ubuntu
             - ubuntu-core-20-arm-64:
                   username: external
                   password: ubuntu
             - ubuntu-core-20-arm-32:
+                  username: external
+                  password: ubuntu
+            - ubuntu-core-22-64:
+                  username: external
+                  password: ubuntu
+            - ubuntu-core-22-arm-64:
+                  username: external
+                  password: ubuntu
+            - ubuntu-core-22-arm-32:
                   username: external
                   password: ubuntu
 
@@ -424,7 +452,6 @@ exclude:
     - "*.a"
     - ./vendor
     - "*.snap"
-    - "*.img"
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" != 1 ]; then
@@ -522,7 +549,8 @@ debug-each: |
 
     # Keep it as the last step in debug-each
     echo '# tasks executed on system'
-    cat "$RUNTIME_STATE_PATH/runs" || true
+    # since the runs file does not have a newline at EOF, add one 
+    echo "" | cat "$RUNTIME_STATE_PATH/runs" - || true
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
@@ -579,6 +607,13 @@ prepare: |
         restorecon -v /etc/gai.conf
     fi
 
+    if [[ "$SPREAD_SYSTEM" == centos-8-* ]]; then
+        # the default image of CentOS 8 Stream is set up in enforcing mode,
+        # which may break some tests. Note that there are tests targeting
+        # SELinux which explicitly enable enforcing mode.
+        setenforce 0
+    fi
+
     # Note that os.query or any other tool cannot be used here before the current.delta file is unpacked
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
         # The Fedora archive mirror seems to be unreliable.
@@ -628,10 +663,18 @@ prepare: |
         apt-get update && apt-get install -y eatmydata
     fi
 
-    if [[ "$SPREAD_SYSTEM" == centos-* ]]; then
-        # make sure EPEL is enabled
-        yum install -y epel-release
-    fi
+    case "$SPREAD_SYSTEM" in
+        centos-7-*)
+            # make sure EPEL is enabled
+            yum install -y epel-release
+            ;;
+        centos-8-*)
+            # enable powertools repository
+            dnf config-manager --set-enabled powertools
+            # CentOS Stream requires EPEL Next too, see https://docs.fedoraproject.org/en-US/epel/
+            dnf install -y epel-release epel-next-release
+            ;;
+    esac
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
@@ -703,6 +746,16 @@ prepare: |
     # The idea is to have a single directory with all the testing tools
     cp -f "$TESTSLIB"/external/snapd-testing-tools/tools/* "$TESTSTOOLS"
 
+    # ensure there are no broken snaps or the invariant test will fail later
+    if command -v snap; then
+        BROKEN="$(snap list --all | awk '/,?broken,?/ {print $1,$3}')"
+        if [ -n "$BROKEN" ]; then
+            echo "Test system has broken snaps:"
+            snap list --all
+            exit 1
+        fi
+    fi
+    
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
     "$TESTSLIB"/prepare-restore.sh --prepare-project
@@ -715,6 +768,7 @@ restore-each: |
 suites:
     tests/lib/tools/suite/:
         summary: Tests for tests/lib/tools tools
+        backends: [google, qemu]
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
         restore-each: |
@@ -785,7 +839,7 @@ suites:
             _/hosts: _
             _/hosts_n_dirs: _
             # twisted fails in travis (but not regular spread).
-            # _/twisted: _
+            #_/twisted: _
             _/func: _
             _/funkyfunc: _
             _/funcarg: _
@@ -806,7 +860,7 @@ suites:
         summary: Tests for snapd upgrade
         # Test cases are not yet ported to openSUSE that is why we keep
         # it disabled. A later PR will enable most tests and
-        # drop this blacklist.
+        # drop the list of excluded systems.
         systems: [-ubuntu-core-*, -opensuse-*, -ubuntu-secboot-*]
         prepare-each: |
             # FIXME: this should really use prepare-restore.sh --prepare-suite-each
@@ -839,7 +893,7 @@ suites:
         summary: Suite to run unit tests (non-go and different go runtimes)
         # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
+        # drop the list of excluded systems.
         systems:
             [
                 -ubuntu-core-*,
@@ -885,7 +939,7 @@ suites:
         manual: true
         # Test cases are not yet ported to Fedora/openSUSE/Arch/AMZN2 that is why
         # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
+        # drop the list of excluded systems.
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -898,11 +952,7 @@ suites:
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
         backends: [google-nested, qemu-nested]
-        systems:
-            - ubuntu-16.04-64
-            - ubuntu-18.04-64
-            - ubuntu-20.04-64
-            - ubuntu-20.10-64
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -917,20 +967,31 @@ suites:
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
+            #shellcheck source=tests/lib/image.sh
+            . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            if os.query is-xenial; then
+                # the new ubuntu-image expects mkfs to support -d option, which was not
+                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            else
+               get_ubuntu_image
+            fi
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
         prepare-each: |
-            tests.backup prepare
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested prepare
+            if os.query is-xenial && ! command -v ubuntu-image >/dev/null; then
+                # This is needed because the snap in removed during on restore-each
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            fi
         restore-each: |
             tests.nested vm remove
             tests.nested restore
-            tests.cleanup restore
-            tests.backup restore
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -939,7 +1000,7 @@ suites:
     tests/nested/classic/:
         summary: Tests for nested images
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20*]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -952,9 +1013,17 @@ suites:
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
+            #shellcheck source=tests/lib/image.sh
+            . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            if os.query is-xenial; then
+                # the new ubuntu-image expects mkfs to support -d option, which was not
+                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            else
+                get_ubuntu_image
+            fi
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
@@ -962,12 +1031,12 @@ suites:
             tests.nested prepare
             tests.nested build-image classic
         prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.backup prepare
             tests.nested create-vm classic
         restore-each: |
             tests.nested vm remove
-            tests.cleanup restore
-            tests.backup restore
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             tests.nested restore
 
@@ -978,7 +1047,7 @@ suites:
     tests/nested/core/:
         summary: Tests for nested images
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
@@ -991,9 +1060,17 @@ suites:
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
+            #shellcheck source=tests/lib/image.sh
+            . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            if os.query is-xenial; then
+                # the new ubuntu-image expects mkfs to support -d option, which was not
+                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            else
+                get_ubuntu_image
+            fi
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
@@ -1001,12 +1078,12 @@ suites:
             tests.nested prepare
             tests.nested build-image core
         prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.backup prepare
             tests.nested create-vm core
         restore-each: |
             tests.nested vm remove
-            tests.cleanup restore
-            tests.backup restore
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             tests.nested restore
 

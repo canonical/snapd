@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -50,6 +51,21 @@ func (b Backend) RemoveSnapCommonData(snap *snap.Info, opts *dirs.SnapDirOptions
 	}
 
 	return removeDirs(dirs)
+}
+
+// RemoveSnapSaveData removes the common save data in the case of a complete removal of a snap.
+func (b Backend) RemoveSnapSaveData(snapInfo *snap.Info) error {
+	if release.OnClassic {
+		return nil
+	}
+
+	saveDir := snap.CommonDataSaveDir(snapInfo.InstanceName())
+	if exists, isDir, err := osutil.DirExists(saveDir); err == nil && !(exists && isDir) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return os.RemoveAll(saveDir)
 }
 
 // RemoveSnapDataDir removes base snap data directory
@@ -119,6 +135,10 @@ func snapCommonDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, e
 	if err != nil {
 		return nil, err
 	}
+
+	// then the root user's common data dir
+	rootCommon := snap.UserCommonDataDir(filepath.Join(dirs.GlobalRootDir, "/root/"), opts)
+	found = append(found, rootCommon)
 
 	// then XDG_RUNTIME_DIRs for the users
 	foundXdg, err := filepath.Glob(snap.XdgRuntimeDirs())

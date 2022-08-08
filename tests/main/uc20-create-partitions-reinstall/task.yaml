@@ -1,7 +1,10 @@
 summary: Integration tests for the bootstrap.Run autodetect
 
 # use the same system and tooling as uc20
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-2*]
+
+environment:
+    SNAPD_DEBUG: "1"
 
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
@@ -43,9 +46,9 @@ restore: |
     if [ -f loop.txt ]; then
         LOOP="$(cat loop.txt)"
         losetup -d "$LOOP"
+        sync
         losetup -l | NOMATCH "$LOOP"
     fi
-    rm -f "$GOHOME"/bin/uc20-create-partitions
 
 debug: |
     cat /proc/partitions
@@ -64,7 +67,6 @@ execute: |
     udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
 
     echo "Run the snap-bootstrap tool in auto-detect mode"
-    go get ../../lib/uc20-create-partitions
     # TODO:UC20: make kernel-dir non-empty once we have a gadget that has a
     #            "$kernel:" style ref in the meta/gadget.yaml
     kerneldir=""

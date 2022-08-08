@@ -1,4 +1,4 @@
-#!/bin/sh -eu
+#!/bin/bash -eu
 
 export LANG=C.UTF-8
 export LANGUAGE=en
@@ -11,6 +11,7 @@ fi
 COVERMODE=${COVERMODE:-atomic}
 COVERAGE_SUFFIX=${GO_BUILD_TAGS:-notags}
 COVERAGE_OUT=${COVERAGE_OUT:-.coverage/coverage-$COVERAGE_SUFFIX.cov}
+CHANGED_FILES=${CHANGED_FILES:-""}
 
 if [ -z "${GITHUB_WORKFLOW:-}" ]; then
     # when *not* running inside github, ensure we use go-1.13 by default
@@ -69,6 +70,19 @@ addtrap() {
     CURRENTTRAP="$CURRENTTRAP ; $1"
     # shellcheck disable=SC2064
     trap "store_exit_code; $CURRENTTRAP ; exit_with_exit_code" EXIT
+}
+
+goinstall() {
+    pkg="$1"
+    # go1.18+ will no longer build/install packages. Here "go install"
+    # must be used but it will only fetch remote packages if the @latest
+    # (or similar syntax is used). Instead of checking the version we
+    # check if the "go install" help mentions this new feature.
+    if go help install | grep -q @latest; then
+        go install "${pkg}"@latest
+    else
+        go get -u "${pkg}"
+    fi
 }
 
 endmsg() {
@@ -131,6 +145,9 @@ if [ "$STATIC" = 1 ]; then
         ./check-pr-title.py "$GITHUB_PULL_REQUEST"
     fi
 
+    # check commit author/committer name for unicode
+    ./check-commit-email.py
+
     if [ -z "${SKIP_GOFMT:-}" ]; then
         echo Checking formatting
         fmt=""
@@ -187,12 +204,24 @@ if [ "$STATIC" = 1 ]; then
     if command -v shellcheck >/dev/null; then
         exclude_tools_path=tests/lib/external/snapd-testing-tools
         echo "Checking shell scripts..."
-        ( git ls-files -z 2>/dev/null ||
-                find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0 ) |
-            xargs -0 file -N |
-            awk -F": " '$2~/shell.script/{print $1}' |
-            grep -v "$exclude_tools_path" |
-            xargs shellcheck -x
+        if [ -n "$CHANGED_FILES" ]; then
+            echo "Checking just the changed bash files"
+            echo "Changed files: $CHANGED_FILES"
+            # shellcheck disable=SC2086
+            INITIAL_FILES="$( file -N $CHANGED_FILES | awk -F": " '$2~/shell.script/{print $1}' )"
+        else
+            echo "Checking all the bash files"
+            INITIAL_FILES="$( ( git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0) | xargs -0 file -N | awk -F": " '$2~/shell.script/{print $1}' )"
+        fi
+        FILTERED_FILES="$( echo "$INITIAL_FILES"  | grep -v "$exclude_tools_path" )"
+        if [ -n "$FILTERED_FILES" ]; then
+            echo "Running shellcheck for files: $FILTERED_FILES"
+            # shellcheck disable=SC2086
+            shellcheck -x $FILTERED_FILES
+        else
+            echo "Skipping shellcheck, no files to check"
+        fi
+
         regexp='GOPATH(?!%%:\*)(?!:)[^= ]*/'
         if  grep -qPr                   --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
             echo "Using GOPATH as if it were a single entry and not a list:"
@@ -201,33 +230,51 @@ if [ "$STATIC" = 1 ]; then
             exit 1
         fi
         unset regexp
+
         # also run spread-shellcheck
-        ./spread-shellcheck spread.yaml tests --exclude "$exclude_tools_path"
-    fi
-
-    echo "Checking spelling errors"
-    if ! command -v misspell >/dev/null; then
-        go get -u github.com/client9/misspell/cmd/misspell
-    fi
-    # FIXME: auter is only misspelled in the changelog so we should fix there
-    # PROCES is used in the seccomp tests (PRIO_PROCES{,S,SS})
-    # exportfs is used in the nfs-support test
-    MISSPELL_IGNORE="auther,PROCES,PROCESSS,proces,processs,exportfs"
-    git ls-files -z -- . ':!:./po' ':!:./vendor' ':!:./c-vendor' ':!:./cmd/libsnap-confine-private/bpf/vendor' |
-        xargs -0 misspell -error -i "$MISSPELL_IGNORE"
-
-    if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.12; then
-        echo "Checking for ineffective assignments"
-        if ! command -v ineffassign >/dev/null; then
-            go get -u github.com/gordonklaus/ineffassign
+        FILTERED_FILES="spread.yaml"
+        if [ -n "$CHANGED_FILES" ]; then
+            # shellcheck disable=SC2086
+            for changed_file in $CHANGED_FILES; do
+                if [[ $changed_file == */task.yaml ]]; then
+                    FILTERED_FILES="$FILTERED_FILES $changed_file"
+                fi
+            done
+        else
+            FILTERED_FILES="$FILTERED_FILES tests"
         fi
-        # ineffassign knows about ignoring vendor/ \o/
-        ineffassign ./...
+        # XXX: exclude core20-preseed test as its environment block confuses shellcheck, and it's not possible to disable shellcheck there.
+        # shellcheck disable=SC2086
+        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $FILTERED_FILES --exclude "$exclude_tools_path" --exclude "tests/nested/manual/core20-preseed"
+    fi
+
+    if [ -z "${SKIP_MISSPELL-}" ]; then
+        echo "Checking spelling errors"
+        if ! command -v misspell >/dev/null; then
+            goinstall github.com/client9/misspell/cmd/misspell
+        fi
+        # FIXME: auter is only misspelled in the changelog so we should fix there
+        # PROCES is used in the seccomp tests (PRIO_PROCES{,S,SS})
+        # exportfs is used in the nfs-support test
+        MISSPELL_IGNORE="auther,PROCES,PROCESSS,proces,processs,exportfs"
+        git ls-files -z -- . ':!:./po' ':!:./vendor' ':!:./c-vendor' ':!:./cmd/libsnap-confine-private/bpf/vendor' |
+            xargs -0 misspell -error -i "$MISSPELL_IGNORE"
+    fi
+
+    if [ -z "${SKIP_INEFFASSIGN-}" ]; then
+        if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.12; then
+            echo "Checking for ineffective assignments"
+            if ! command -v ineffassign >/dev/null; then
+                goinstall github.com/gordonklaus/ineffassign
+            fi
+            # ineffassign knows about ignoring vendor/ \o/
+            ineffassign ./...
+        fi
     fi
 
     echo "Checking for naked returns"
     if ! command -v nakedret >/dev/null; then
-        go get -u github.com/alexkohler/nakedret
+        goinstall github.com/alexkohler/nakedret
     fi
     got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
     if [ -n "$got" ]; then
@@ -264,7 +311,14 @@ if [ "$STATIC" = 1 ]; then
 
     if [ -z "${SKIP_TESTS_FORMAT_CHECK-}" ] || [ "$SKIP_TESTS_FORMAT_CHECK" = 0 ]; then
         echo "Checking tests formatting"
-        ./tests/utils/check-test-format ./tests
+        ./tests/lib/external/snapd-testing-tools/utils/check-test-format ./tests
+    fi
+
+    echo "Checking for usages of !=, == or Equals with ErrNoState"
+    if got=$(grep -n -R -E "(\!=|==|Equals,) (state\.)?ErrNoState" --include=*.go) ; then
+      echo "Don't use equality checks with ErrNoState, use errors.Is() instead"
+      echo "$got"
+      exit 1
     fi
 fi
 

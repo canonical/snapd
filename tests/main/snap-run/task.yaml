@@ -1,8 +1,11 @@
 summary: Check that `snap run` runs
 
-# strace does not support _newselect on s390x
-# (https://github.com/strace/strace/issues/57)
-systems: [-*-s390x]
+systems:
+  # strace does not support _newselect on s390x
+  # (https://github.com/strace/strace/issues/57)
+  - -*-s390x
+  # TODO: segfault on core22
+  - -ubuntu-core-22-*
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local basic-run
@@ -33,7 +36,7 @@ execute: |
         snap install strace-static --edge
     fi
     # the strace on opensuse is too old
-    if os.query is-opensuse && ! os.query is-opensuse-tumbleweed; then
+    if os.query is-opensuse && ! os.query is-opensuse tumbleweed; then
         snap install strace-static --edge
     fi
     # install the snap if no system strace is found
@@ -48,7 +51,7 @@ execute: |
     fi
     MATCH "Can't stat 'invalid': No such file or directory" < stderr
 
-    if os.query is-arch-linux || os.query is-opensuse-tumbleweed; then
+    if os.query is-arch-linux || os.query is-opensuse tumbleweed; then
         # Arch linux and Opensuse tumbleweed run the mainline kernel, strace
         # (with event filter or not) *may* randomly get stuck on the kernel
         # side, see:
@@ -79,3 +82,16 @@ execute: |
     MATCH "  [0-9.]+s .*/snap-exec" < stderr
     MATCH "  [0-9.]+s .*/snap-confine" < stderr
     MATCH "Total time: [0-9.]+s" < stderr
+
+    snapd.tool exec snap-discard-ns test-snapd-sh
+    snap run --debug-log test-snapd-sh.sh -c 'echo hello' 2> stderr
+    MATCH -- '-- snap startup .*"stage".*"time"' < stderr
+    if ! os.query is-trusty ; then
+        "$PROJECT_PATH"/debug-tools/startup-timings stderr > startup.out
+        MATCH 'snap to snap-confine' < startup.out
+        MATCH 'snap-confine enter' < startup.out
+        MATCH 'snap-confine mount namespace start' < startup.out
+        MATCH 'snap-confine mount namespace finish' < startup.out
+        MATCH 'snap-exec to app' < startup.out
+        MATCH 'approx. total: [0-9.]+s' < startup.out
+    fi

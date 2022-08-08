@@ -18,6 +18,8 @@ prepare: |
         # create a flag to indicate the ryslog service is fake
         touch rsyslog.fake
     fi
+    # hostname is modified during the tests
+    hostnamectl status --static > hostname
 
 restore: |
     if [ -f rsyslog.fake ]; then
@@ -29,6 +31,8 @@ restore: |
         systemctl start rsyslog.service
     fi
     rm -f /etc/systemd/login.conf.d/00-snap-core.conf
+    # restore hostname
+    hostnamectl set-hostname "$(cat hostname)"
 
 execute: |
     echo "Check that service disable works"
@@ -48,6 +52,13 @@ execute: |
         exit 1
     fi
 
+    echo "Check that ctrl-alt-del-action=none works"
+    snap set core system.ctrl-alt-del-action=none
+    systemctl show --property=LoadState ctrl-alt-del.target | MATCH "LoadState=masked"
+    echo "Check that ctrl-alt-del-action=reboot works"
+    snap set core system.ctrl-alt-del-action=reboot
+    systemctl show --property=UnitFileState ctrl-alt-del.target | MATCH "UnitFileState=disabled"
+    systemctl show --property=LoadState ctrl-alt-del.target | MATCH "LoadState=loaded"
 
     echo "Check that pi config handline works"
     if [ -e /boot/uboot/config.txt ]; then
@@ -144,3 +155,5 @@ execute: |
     tests.cleanup defer hostnamectl set-hostname "$(hostname)"
     snap set system system.hostname=foo
     hostname | MATCH foo
+    snap set system system.hostname=F00
+    hostnamectl status | MATCH F00

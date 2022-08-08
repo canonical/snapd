@@ -71,6 +71,37 @@ static void test_parse_bool(void)
 	g_assert_cmpint(errno, ==, EFAULT);
 }
 
+static void test_sc_is_expected_path(void)
+{
+	struct {
+		const char *path;
+		bool expected;
+	} test_cases[] = {
+		{"/tmp/snap-confine", false},
+		{"/tmp/foo", false},
+		{"/home/ ", false},
+		{"/usr/lib/snapd/snap-confine1", false},
+		{"/usr/lib/snapd/snap—confine", false},
+		{"/snap/core/usr/lib/snapd/snap-confine", false},
+		{"/snap/core/x1x/usr/lib/snapd/snap-confine", false},
+		{"/snap/core/z1/usr/lib/snapd/snap-confine", false},
+		{"/snap/cꓳre/1/usr/lib/snapd/snap-confine", false},
+		{"/snap/snapd1/1/usr/lib/snapd/snap-confine", false},
+		{"/snap/core/current/usr/lib/snapd/snap-confine", false},
+		{"/usr/lib/snapd/snap-confine", true},
+		{"/usr/libexec/snapd/snap-confine", true},
+		{"/snap/core/1/usr/lib/snapd/snap-confine", true},
+		{"/snap/core/x1/usr/lib/snapd/snap-confine", true},
+		{"/snap/snapd/1/usr/lib/snapd/snap-confine", true},
+		{"/snap/snapd/1/usr/libexec/snapd/snap-confine", false},
+	};
+	size_t i;
+	for (i = 0; i < sizeof(test_cases) / sizeof(test_cases[0]); i++) {
+		bool result = sc_is_expected_path(test_cases[i].path);
+		g_assert_cmpint(result, ==, test_cases[i].expected);
+	}
+}
+
 static void test_die(void)
 {
 	if (g_test_subprocess()) {
@@ -194,6 +225,7 @@ static void test_sc_nonfatal_mkpath__absolute(void)
 static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/utils/parse_bool", test_parse_bool);
+	g_test_add_func("/utils/sc_is_expected_path", test_sc_is_expected_path);
 	g_test_add_func("/utils/die", test_die);
 	g_test_add_func("/utils/die_with_errno", test_die_with_errno);
 	g_test_add_func("/utils/sc_nonfatal_mkpath/relative",

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package snap_test
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -360,7 +361,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	st, err := os.Lstat(cur)
 	c.Assert(err, IsNil)
 	instTime := st.ModTime()
-	// sanity
+	// validity
 	c.Check(instTime.IsZero(), Equals, false)
 
 	c.Check(info.InstallDate().Equal(instTime), Equals, true)
@@ -584,6 +585,23 @@ confinement: foo`
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, ErrorMatches, ".*invalid confinement type.*")
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileChatchesInvalidSnapshot(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app`
+	contents := [][]string{
+		{"meta/snapshots.yaml", "Oops! This is not really valid yaml :-("},
+	}
+	sideInfo := &snap.SideInfo{}
+	snapInfo := snaptest.MockSnapWithFiles(c, yaml, sideInfo, contents)
+
+	snapf, err := snapfile.Open(snapInfo.MountDir())
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, "cannot read snapshot manifest: yaml: unmarshal errors:\n.*")
 }
 
 func (s *infoSuite) TestAppEnvSimple(c *C) {
@@ -1087,6 +1105,7 @@ func (s *infoSuite) testDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.UserDataDir("/home/bob", nil), Equals, "/home/bob/snap/name/1")
 	c.Check(info.UserCommonDataDir("/home/bob", nil), Equals, "/home/bob/snap/name/common")
 	c.Check(info.CommonDataDir(), Equals, "/var/snap/name/common")
+	c.Check(info.CommonDataSaveDir(), Equals, "/var/lib/snapd/save/snap/name")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name")
 	// XXX: Those are actually a globs, not directories
 	c.Check(info.DataHomeDir(nil), Equals, "/home/*/snap/name/1")
@@ -1115,6 +1134,7 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.UserDataDir("/home/bob", nil), Equals, "/home/bob/snap/name_instance/1")
 	c.Check(info.UserCommonDataDir("/home/bob", nil), Equals, "/home/bob/snap/name_instance/common")
 	c.Check(info.CommonDataDir(), Equals, "/var/snap/name_instance/common")
+	c.Check(info.CommonDataSaveDir(), Equals, "/var/lib/snapd/save/snap/name_instance")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name_instance")
 	// XXX: Those are actually a globs, not directories
 	c.Check(info.DataHomeDir(nil), Equals, "/home/*/snap/name_instance/1")
@@ -1412,7 +1432,7 @@ func (s *infoSuite) TestPlugInfoAttr(c *C) {
 	c.Assert(plug.Attr("number", &intVal), IsNil)
 	c.Check(intVal, Equals, 123)
 
-	c.Check(plug.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type for "key" attribute`)
+	c.Check(plug.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type string for "key" attribute: \*int`)
 	c.Check(plug.Attr("unknown", &val), ErrorMatches, `snap "snap" does not have attribute "unknown" for interface "interface"`)
 	c.Check(plug.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
 }
@@ -1429,7 +1449,7 @@ func (s *infoSuite) TestSlotInfoAttr(c *C) {
 	c.Assert(slot.Attr("number", &intVal), IsNil)
 	c.Check(intVal, Equals, 123)
 
-	c.Check(slot.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type for "key" attribute`)
+	c.Check(slot.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type string for "key" attribute: \*int`)
 	c.Check(slot.Attr("unknown", &val), ErrorMatches, `snap "snap" does not have attribute "unknown" for interface "interface"`)
 	c.Check(slot.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
 }
@@ -1546,6 +1566,8 @@ func (s *infoSuite) TestStopModeTypeKillMode(c *C) {
 		{"sigusr1-all", true},
 		{"sigusr2", false},
 		{"sigusr2-all", true},
+		{"sigint", false},
+		{"sigint-all", true},
 	} {
 		c.Check(snap.StopModeType(t.stopMode).KillAll(), Equals, t.killall, Commentf("wrong KillAll for %v", t.stopMode))
 	}
@@ -1652,6 +1674,7 @@ func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	c.Check(snap.HooksDir("name", snap.R(1)), Equals, fmt.Sprintf("%s/name/1/meta/hooks", dirs.SnapMountDir))
 	c.Check(snap.DataDir("name", snap.R(1)), Equals, "/var/snap/name/1")
 	c.Check(snap.CommonDataDir("name"), Equals, "/var/snap/name/common")
+	c.Check(snap.CommonDataSaveDir("name"), Equals, "/var/lib/snapd/save/snap/name")
 	c.Check(snap.UserDataDir("/home/bob", "name", snap.R(1), nil), Equals, "/home/bob/snap/name/1")
 	c.Check(snap.UserCommonDataDir("/home/bob", "name", nil), Equals, "/home/bob/snap/name/common")
 	c.Check(snap.UserXdgRuntimeDir(12345, "name"), Equals, "/run/user/12345/snap.name")
@@ -1662,6 +1685,7 @@ func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	c.Check(snap.HooksDir("name_instance", snap.R(1)), Equals, fmt.Sprintf("%s/name_instance/1/meta/hooks", dirs.SnapMountDir))
 	c.Check(snap.DataDir("name_instance", snap.R(1)), Equals, "/var/snap/name_instance/1")
 	c.Check(snap.CommonDataDir("name_instance"), Equals, "/var/snap/name_instance/common")
+	c.Check(snap.CommonDataSaveDir("name_instance"), Equals, "/var/lib/snapd/save/snap/name_instance")
 	c.Check(snap.UserDataDir("/home/bob", "name_instance", snap.R(1), nil), Equals, "/home/bob/snap/name_instance/1")
 	c.Check(snap.UserCommonDataDir("/home/bob", "name_instance", nil), Equals, "/home/bob/snap/name_instance/common")
 	c.Check(snap.UserXdgRuntimeDir(12345, "name_instance"), Equals, "/run/user/12345/snap.name_instance")
@@ -1862,4 +1886,24 @@ func (s *infoSuite) TestHelpersWithHiddenSnapFolder(c *C) {
 	c.Check(snap.UserDataDir("/home/bob", "name_instance", snap.R(1), opts), Equals, "/home/bob/.snap/data/name_instance/1")
 	c.Check(snap.UserCommonDataDir("/home/bob", "name_instance", opts), Equals, "/home/bob/.snap/data/name_instance/common")
 	c.Check(snap.UserSnapDir("/home/bob", "name_instance", opts), Equals, "/home/bob/.snap/data/name_instance")
+}
+
+func (s *infoSuite) TestGetAttributeUnhappy(c *C) {
+	attrs := map[string]interface{}{}
+	var stringVal string
+	err := snap.GetAttribute("snap0", "iface0", attrs, "non-existent", &stringVal)
+	c.Check(stringVal, Equals, "")
+	c.Check(err, ErrorMatches, `snap "snap0" does not have attribute "non-existent" for interface "iface0"`)
+	c.Check(errors.Is(err, snap.AttributeNotFoundError{}), Equals, true)
+}
+
+func (s *infoSuite) TestGetAttributeHappy(c *C) {
+	attrs := map[string]interface{}{
+		"attr0": "a string",
+		"attr1": 12,
+	}
+	var intVal int
+	err := snap.GetAttribute("snap0", "iface0", attrs, "attr1", &intVal)
+	c.Check(err, IsNil)
+	c.Check(intVal, Equals, 12)
 }

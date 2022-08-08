@@ -40,12 +40,12 @@ github.com/rogpeppe/clock v0.0.0-20190514195947-2896927a307a h1:3QH7VyOaaiUHNrA9
 github.com/rogpeppe/clock v0.0.0-20190514195947-2896927a307a/go.mod h1:4r5QyqhjIWCcK8DO4KMclc5Iknq5qVBAlbYYzAbUScQ=
 github.com/seccomp/libseccomp-golang v0.9.2-0.20210917151616-9da99da69b1b h1:x1CNwq9AHu5YhO+igGGZ4ov+eKU0U3kaiZCymcVUdSk=
 github.com/seccomp/libseccomp-golang v0.9.2-0.20210917151616-9da99da69b1b/go.mod h1:JA8cRccbGaA1s33RQf7Y1+q9gHmZX1yB/z9WDN1C6fg=
+github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18 h1:A15Ffi2aT/BtygokOpAI0Diwrw8PTHuDwaAN5C48s74=
+github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18/go.mod h1:JA8cRccbGaA1s33RQf7Y1+q9gHmZX1yB/z9WDN1C6fg=
 github.com/snapcore/bolt v1.3.2-0.20210908134111-63c8bfcf7af8 h1:WmyDfH38e3MaMWrMCO5YpW96BANq5Ti2iwbliM/xTW0=
 github.com/snapcore/bolt v1.3.2-0.20210908134111-63c8bfcf7af8/go.mod h1:Z6z3sf12AMDjT/4tbT/PmzzdACAxkWGhkuKWiVpTWLM=
 github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785 h1:PaunR+BhraKSLxt2awQ42zofkP+NKh/VjQ0PjIMk/y4=
 github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785/go.mod h1:D3SsWAXK7wCCBZu+Vk5hc1EuKj/L3XN1puEMXTU4LrQ=
-github.com/snapcore/secboot v0.0.0-20210909111405-e3a397e2da90 h1:XCbqRVVmFztGHPWN+wdPcRahQY7moJBRd/g/zMXLJmA=
-github.com/snapcore/secboot v0.0.0-20210909111405-e3a397e2da90/go.mod h1:72paVOkm4sJugXt+v9ItmnjXgO921D8xqsbH2OekouY=
 github.com/snapcore/secboot v0.0.0-20211018143212-802bb19ca263 h1:cq2rG4JcNBCwHvo7iNdJL4nb8Ns7L/aOUd1EFs2toFs=
 github.com/snapcore/secboot v0.0.0-20211018143212-802bb19ca263/go.mod h1:72paVOkm4sJugXt+v9ItmnjXgO921D8xqsbH2OekouY=
 github.com/snapcore/snapd v0.0.0-20201005140838-501d14ac146e/go.mod h1:3xrn7QDDKymcE5VO2rgWEQ5ZAUGb9htfwlXnoel6Io8=

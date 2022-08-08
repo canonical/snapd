@@ -72,6 +72,10 @@ owner /{dev,run}/shm/.io.nwjs.* mrw,
 /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}com.google.Chrome.*/SS r,
 /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}com.microsoft.Edge.*/SS r,
 
+# Allow access to Jupyter notebooks. 
+# This is temporary and will be reverted once LP: #1959417 is fixed upstream.
+owner @{HOME}/.local/share/jupyter/** rw,
+
 # Allow reading platform files
 /run/udev/data/+platform:* r,
 
@@ -279,7 +283,7 @@ dbus (send)
     bus=system
     path=/org/freedesktop/RealtimeKit1
     interface=org.freedesktop.RealtimeKit1
-    member=MakeThread{HighPriority,Realtime}
+    member=MakeThread{HighPriority,Realtime,RealtimeWithPID}
     peer=(name=org.freedesktop.RealtimeKit1, label=unconfined),
 `
 

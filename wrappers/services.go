@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -49,7 +50,7 @@ import (
 	"github.com/snapcore/snapd/usersession/client"
 )
 
-type interacter interface {
+type Interacter interface {
 	Notify(status string)
 }
 
@@ -75,34 +76,124 @@ func generateSnapServiceFile(app *snap.AppInfo, opts *AddSnapServicesOptions) ([
 	return genServiceFile(app, opts)
 }
 
+func min(a, b int) int {
+	if b < a {
+		return b
+	}
+	return a
+}
+
+func formatCpuGroupSlice(grp *quota.Group) string {
+	header := `# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+`
+	buf := bytes.NewBufferString(header)
+
+	count, percentage := grp.GetLocalCPUQuota()
+	if percentage != 0 {
+		// convert the number of cores and the allowed percentage
+		// to the systemd specific format.
+		cpuQuotaSnap := count * percentage
+		cpuQuotaMax := runtime.NumCPU() * 100
+
+		// The CPUQuota setting is only available since systemd 213
+		fmt.Fprintf(buf, "CPUQuota=%d%%\n", min(cpuQuotaSnap, cpuQuotaMax))
+	}
+
+	if grp.CPULimit != nil && len(grp.CPULimit.AllowedCPUs) != 0 {
+		allowedCpusValue := strutil.IntsToCommaSeparated(grp.CPULimit.AllowedCPUs)
+		fmt.Fprintf(buf, "AllowedCPUs=%s\n", allowedCpusValue)
+	}
+
+	buf.WriteString("\n")
+	return buf.String()
+}
+
+func formatMemoryGroupSlice(grp *quota.Group) string {
+	header := `# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+`
+	buf := bytes.NewBufferString(header)
+	if grp.MemoryLimit != 0 {
+		valuesTemplate := `MemoryMax=%[1]d
+# for compatibility with older versions of systemd
+MemoryLimit=%[1]d
+
+`
+		fmt.Fprintf(buf, valuesTemplate, grp.MemoryLimit)
+	}
+	return buf.String()
+}
+
+func formatTaskGroupSlice(grp *quota.Group) string {
+	header := `# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
+`
+	buf := bytes.NewBufferString(header)
+
+	if grp.TaskLimit != 0 {
+		fmt.Fprintf(buf, "TasksMax=%d\n", grp.TaskLimit)
+	}
+	return buf.String()
+}
+
 // generateGroupSliceFile generates a systemd slice unit definition for the
 // specified quota group.
 func generateGroupSliceFile(grp *quota.Group) []byte {
 	buf := bytes.Buffer{}
 
+	cpuOptions := formatCpuGroupSlice(grp)
+	memoryOptions := formatMemoryGroupSlice(grp)
+	taskOptions := formatTaskGroupSlice(grp)
 	template := `[Unit]
 Description=Slice for snap quota group %[1]s
 Before=slices.target
 X-Snappy=yes
 
 [Slice]
-# Always enable memory accounting otherwise the MemoryMax setting does nothing.
-MemoryAccounting=true
-MemoryMax=%[2]d
-# for compatibility with older versions of systemd
-MemoryLimit=%[2]d
-
-# Always enable task accounting in order to be able to count the processes/
-# threads, etc for a slice
-TasksAccounting=true
 `
 
-	fmt.Fprintf(&buf, template, grp.Name, grp.MemoryLimit)
-
+	fmt.Fprintf(&buf, template, grp.Name)
+	fmt.Fprint(&buf, cpuOptions, memoryOptions, taskOptions)
 	return buf.Bytes()
 }
 
-func stopUserServices(cli *client.Client, inter interacter, services ...string) error {
+func formatJournalSizeConf(grp *quota.Group) string {
+	if grp.JournalLimit.Size == 0 {
+		return ""
+	}
+	return fmt.Sprintf(`SystemMaxUse=%[1]d
+RuntimeMaxUse=%[1]d
+`, grp.JournalLimit.Size)
+}
+
+func formatJournalRateConf(grp *quota.Group) string {
+	if grp.JournalLimit.RateCount == 0 || grp.JournalLimit.RatePeriod == 0 {
+		return ""
+	}
+	return fmt.Sprintf(`RateLimitIntervalSec=%dus
+RateLimitBurst=%d
+`, grp.JournalLimit.RatePeriod.Microseconds(), grp.JournalLimit.RateCount)
+}
+
+func generateJournaldConfFile(grp *quota.Group) []byte {
+	if grp.JournalLimit == nil {
+		return nil
+	}
+
+	sizeOptions := formatJournalSizeConf(grp)
+	rateOptions := formatJournalRateConf(grp)
+	template := `# Journald configuration for snap quota group %[1]s
+[Journal]
+`
+	buf := bytes.Buffer{}
+	fmt.Fprintf(&buf, template, grp.Name)
+	fmt.Fprint(&buf, sizeOptions, rateOptions)
+	return buf.Bytes()
+}
+
+func stopUserServices(cli *client.Client, inter Interacter, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
 	failures, err := cli.ServicesStop(ctx, services)
@@ -112,7 +203,7 @@ func stopUserServices(cli *client.Client, inter interacter, services ...string) 
 	return err
 }
 
-func startUserServices(cli *client.Client, inter interacter, services ...string) error {
+func startUserServices(cli *client.Client, inter Interacter, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
 	startFailures, stopFailures, err := cli.ServicesStart(ctx, services)
@@ -125,107 +216,36 @@ func startUserServices(cli *client.Client, inter interacter, services ...string)
 	return err
 }
 
-func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) error {
-	serviceName := app.ServiceName()
-	tout := serviceStopTimeout(app)
+func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter Interacter) error {
+	var serviceList []string
 
-	var extraServices []string
+	// Add application sockets
 	for _, socket := range app.Sockets {
-		extraServices = append(extraServices, filepath.Base(socket.File()))
+		serviceList = append(serviceList, filepath.Base(socket.File()))
 	}
+	// Add application timers
 	if app.Timer != nil {
-		extraServices = append(extraServices, filepath.Base(app.Timer.File()))
+		serviceList = append(serviceList, filepath.Base(app.Timer.File()))
 	}
+	// Add application service
+	serviceList = append(serviceList, app.ServiceName())
 
 	switch app.DaemonScope {
 	case snap.SystemDaemon:
-		stopErrors := []error{}
-		for _, service := range extraServices {
-			if err := sysd.Stop(service, tout); err != nil {
-				stopErrors = append(stopErrors, err)
-			}
-		}
-
-		if err := sysd.Stop(serviceName, tout); err != nil {
-			if !systemd.IsTimeout(err) {
-				return err
-			}
-			inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
-			// ignore errors for kill; nothing we'd do differently at this point
-			sysd.Kill(serviceName, "TERM", "")
-			time.Sleep(killWait)
-			sysd.Kill(serviceName, "KILL", "")
-		}
-
-		if len(stopErrors) > 0 {
-			return stopErrors[0]
+		if err := sysd.Stop(serviceList); err != nil {
+			return err
 		}
 
 	case snap.UserDaemon:
-		extraServices = append(extraServices, serviceName)
 		cli := client.New()
-		return stopUserServices(cli, inter, extraServices...)
+		if err := stopUserServices(cli, inter, serviceList...); err != nil {
+			return err
+		}
+	default:
+		panic("unknown app.DaemonScope")
 	}
 
 	return nil
-}
-
-// enableServices enables services specified by apps. On success the returned
-// disable function can be used to undo all the actions. On error all the
-// services get disabled automatically (disable is nil).
-func enableServices(apps []*snap.AppInfo, inter interacter) (disable func(), err error) {
-	var enabled []string
-	var userEnabled []string
-
-	systemSysd := systemd.New(systemd.SystemMode, inter)
-	userSysd := systemd.New(systemd.GlobalUserMode, inter)
-
-	disableEnabledServices := func() {
-		for _, srvName := range enabled {
-			if e := systemSysd.Disable(srvName); e != nil {
-				inter.Notify(fmt.Sprintf("While trying to disable previously enabled service %q: %v", srvName, e))
-			}
-		}
-		for _, s := range userEnabled {
-			if e := userSysd.Disable(s); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
-			}
-		}
-	}
-
-	defer func() {
-		if err != nil {
-			disableEnabledServices()
-		}
-	}()
-
-	for _, app := range apps {
-		var sysd systemd.Systemd
-		switch app.DaemonScope {
-		case snap.SystemDaemon:
-			sysd = systemSysd
-		case snap.UserDaemon:
-			sysd = userSysd
-		}
-
-		svcName := app.ServiceName()
-
-		switch app.DaemonScope {
-		case snap.SystemDaemon:
-			if err = sysd.Enable(svcName); err != nil {
-				return nil, err
-
-			}
-			enabled = append(enabled, svcName)
-		case snap.UserDaemon:
-			if err = userSysd.Enable(svcName); err != nil {
-				return nil, err
-			}
-			userEnabled = append(userEnabled, svcName)
-		}
-	}
-
-	return disableEnabledServices, nil
 }
 
 // StartServicesFlags carries extra flags for StartServices.
@@ -236,7 +256,7 @@ type StartServicesFlags struct {
 // StartServices starts service units for the applications from the snap which
 // are services. Service units will be started in the order provided by the
 // caller.
-func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServicesFlags, inter interacter, tm timings.Measurer) (err error) {
+func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServicesFlags, inter Interacter, tm timings.Measurer) (err error) {
 	if flags == nil {
 		flags = &StartServicesFlags{}
 	}
@@ -245,156 +265,146 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 	userSysd := systemd.New(systemd.GlobalUserMode, inter)
 	cli := client.New()
 
-	var disableEnabledServices func()
+	var toEnableSystem []string
+	var toEnableUser []string
+	systemServices := make([]string, 0, len(apps))
+	userServices := make([]string, 0, len(apps))
+	servicesStarted := false
 
 	defer func() {
 		if err == nil {
 			return
 		}
-		if disableEnabledServices != nil {
-			disableEnabledServices()
+		// apps could have been sorted according to their startup
+		// ordering, stop them in reverse order
+		if servicesStarted {
+			for i := len(apps) - 1; i >= 0; i-- {
+				app := apps[i]
+				if e := stopService(systemSysd, app, inter); e != nil {
+					inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
+				}
+			}
+		}
+		if len(toEnableSystem) > 0 {
+			if e := systemSysd.DisableNoReload(toEnableSystem); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to disable previously enabled services %q: %v", toEnableSystem, e))
+			}
+			if e := systemSysd.DaemonReload(); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to do daemon-reload: %v", e))
+			}
+		}
+		if len(toEnableUser) > 0 {
+			if e := userSysd.DisableNoReload(toEnableUser); e != nil {
+				inter.Notify(fmt.Sprintf("while trying to disable previously enabled user services %q: %v", toEnableUser, e))
+			}
 		}
 	}()
+	// process all services of the snap in the order specified by the
+	// caller; before batched calls were introduced, the sockets and timers
+	// were started first, followed by other non-activated services
 
-	var toEnable []*snap.AppInfo
-	systemServices := make([]string, 0, len(apps))
-	userServices := make([]string, 0, len(apps))
-
-	// gather all non-sockets, non-timers, and non-dbus activated
-	// services to enable first
+	startService := func(svc string, scope snap.DaemonScope) {
+		switch scope {
+		case snap.SystemDaemon:
+			systemServices = append(systemServices, svc)
+		case snap.UserDaemon:
+			userServices = append(userServices, svc)
+		}
+	}
+	enableService := func(svc string, scope snap.DaemonScope) {
+		switch scope {
+		case snap.SystemDaemon:
+			toEnableSystem = append(toEnableSystem, svc)
+		case snap.UserDaemon:
+			toEnableUser = append(toEnableUser, svc)
+		}
+	}
+	// first, gather all socket and timer units
 	for _, app := range apps {
-		// they're *supposed* to be all services, but checking doesn't hurt
 		if !app.IsService() {
 			continue
 		}
-		// sockets and timers are enabled and started separately (and unconditionally) further down.
-		// dbus activatable services are started on first use.
-		if len(app.Sockets) == 0 && app.Timer == nil && len(app.ActivatesOn) == 0 {
-			if strutil.ListContains(disabledSvcs, app.Name) {
-				continue
-			}
-			svcName := app.ServiceName()
-			switch app.DaemonScope {
-			case snap.SystemDaemon:
-				systemServices = append(systemServices, svcName)
-			case snap.UserDaemon:
-				userServices = append(userServices, svcName)
-			}
-			if flags.Enable {
-				toEnable = append(toEnable, app)
-			}
+		for _, socket := range app.Sockets {
+			// socket unit
+			socketService := filepath.Base(socket.File())
+			startService(socketService, app.DaemonScope)
+			// TODO: look at enable flag
+			enableService(socketService, app.DaemonScope)
+		}
+
+		if app.Timer != nil {
+			// timer unit
+			timerService := filepath.Base(app.Timer.File())
+
+			startService(timerService, app.DaemonScope)
+			// TODO: look at enable flag
+			enableService(timerService, app.DaemonScope)
+		}
+	}
+	// now collect all services
+	for _, app := range apps {
+		if !app.IsService() {
+			continue
+		}
+		if len(app.Sockets) > 0 || app.Timer != nil || len(app.ActivatesOn) > 0 {
+			continue
+		}
+		if strutil.ListContains(disabledSvcs, app.Name) {
+			continue
+		}
+		svcName := app.ServiceName()
+		startService(svcName, app.DaemonScope)
+		if flags.Enable {
+			enableService(svcName, app.DaemonScope)
 		}
 	}
 
-	timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", toEnable), func(nested timings.Measurer) {
-		disableEnabledServices, err = enableServices(toEnable, inter)
+	timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", toEnableSystem), func(nested timings.Measurer) {
+		if len(toEnableSystem) > 0 {
+			if err = systemSysd.EnableNoReload(toEnableSystem); err != nil {
+				return
+			}
+			if err = systemSysd.DaemonReload(); err != nil {
+				return
+			}
+		}
+		if len(toEnableUser) > 0 {
+			err = userSysd.EnableNoReload(toEnableUser)
+		}
 	})
 	if err != nil {
 		return err
 	}
 
-	// handle sockets and timers
-	for _, app := range apps {
-		// they're *supposed* to be all services, but checking doesn't hurt
-		if !app.IsService() {
-			continue
-		}
-
-		var sysd systemd.Systemd
-		switch app.DaemonScope {
-		case snap.SystemDaemon:
-			sysd = systemSysd
-		case snap.UserDaemon:
-			sysd = userSysd
-		}
-
-		defer func(app *snap.AppInfo) {
-			if err == nil {
+	timings.Run(tm, "start-services", "start services", func(nestedTm timings.Measurer) {
+		for _, srv := range systemServices {
+			// let the cleanup know some services may have been started
+			servicesStarted = true
+			// starting all services at once does not create a
+			// single transaction, but instead spawns multiple jobs,
+			// make sure the services started in the original order
+			// by bringing them up one by one, see:
+			// https://github.com/systemd/systemd/issues/8102
+			// https://lists.freedesktop.org/archives/systemd-devel/2018-January/040152.html
+			timings.Run(nestedTm, "start-service", fmt.Sprintf("start service %q", srv), func(_ timings.Measurer) {
+				err = systemSysd.Start([]string{srv})
+			})
+			if err != nil {
 				return
 			}
-
-			if e := stopService(sysd, app, inter); e != nil {
-				inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
-			}
-			for _, socket := range app.Sockets {
-				socketService := filepath.Base(socket.File())
-				if e := sysd.Disable(socketService); e != nil {
-					inter.Notify(fmt.Sprintf("While trying to disable previously enabled socket service %q: %v", socketService, e))
-				}
-			}
-			if app.Timer != nil {
-				timerService := filepath.Base(app.Timer.File())
-				if e := sysd.Disable(timerService); e != nil {
-					inter.Notify(fmt.Sprintf("While trying to disable previously enabled timer service %q: %v", timerService, e))
-				}
-			}
-		}(app)
-
-		for _, socket := range app.Sockets {
-			socketService := filepath.Base(socket.File())
-			// enable the socket
-			if err = sysd.Enable(socketService); err != nil {
-				return err
-			}
-
-			switch app.DaemonScope {
-			case snap.SystemDaemon:
-				timings.Run(tm, "start-system-socket-service", fmt.Sprintf("start system socket service %q", socketService), func(nested timings.Measurer) {
-					err = sysd.Start(socketService)
-				})
-			case snap.UserDaemon:
-				timings.Run(tm, "start-user-socket-service", fmt.Sprintf("start user socket service %q", socketService), func(nested timings.Measurer) {
-					err = startUserServices(cli, inter, socketService)
-				})
-			}
-			if err != nil {
-				return err
-			}
 		}
-
-		if app.Timer != nil {
-			timerService := filepath.Base(app.Timer.File())
-			// enable the timer
-			if err = sysd.Enable(timerService); err != nil {
-				return err
-			}
-
-			switch app.DaemonScope {
-			case snap.SystemDaemon:
-				timings.Run(tm, "start-system-timer-service", fmt.Sprintf("start system timer service %q", timerService), func(nested timings.Measurer) {
-					err = sysd.Start(timerService)
-				})
-			case snap.UserDaemon:
-				timings.Run(tm, "start-user-timer-service", fmt.Sprintf("start user timer service %q", timerService), func(nested timings.Measurer) {
-					err = startUserServices(cli, inter, timerService)
-				})
-			}
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	for _, srv := range systemServices {
-		// starting all services at once does not create a single
-		// transaction, but instead spawns multiple jobs, make sure the
-		// services started in the original order by bring them up one
-		// by one, see:
-		// https://github.com/systemd/systemd/issues/8102
-		// https://lists.freedesktop.org/archives/systemd-devel/2018-January/040152.html
-		timings.Run(tm, "start-service", fmt.Sprintf("start service %q", srv), func(nested timings.Measurer) {
-			err = systemSysd.Start(srv)
-		})
-		if err != nil {
-			// cleanup was set up by iterating over apps
-			return err
-		}
+	})
+	if servicesStarted && err != nil {
+		// cleanup is handled in a defer
+		return err
 	}
 
 	if len(userServices) != 0 {
 		timings.Run(tm, "start-user-services", "start user services", func(nested timings.Measurer) {
 			err = startUserServices(cli, inter, userServices...)
 		})
+		// let the cleanup know some services may have been started
+		servicesStarted = true
 		if err != nil {
 			return err
 		}
@@ -484,6 +494,283 @@ type EnsureSnapServicesOptions struct {
 	RequireMountedSnapdSnap bool
 }
 
+// ensureSnapServicesContext is the context for EnsureSnapServices.
+// EnsureSnapServices supports transactional update/write of systemd service
+// files and slice files. A part of this is to support rollback of files and
+// also keep track of whether a restart of systemd daemon is required.
+type ensureSnapServicesContext struct {
+	// snaps, observeChange, opts and inter are the arguments
+	// taken by EnsureSnapServices. They are here to allow sub-functions
+	// to easier access these, and keep parameter lists shorter.
+	snaps         map[*snap.Info]*SnapServiceOptions
+	observeChange ObserveChangeCallback
+	opts          *EnsureSnapServicesOptions
+	inter         Interacter
+
+	// note: is not used when preseeding is set in opts.Preseeding
+	sysd                     systemd.Systemd
+	systemDaemonReloadNeeded bool
+	userDaemonReloadNeeded   bool
+	// modifiedUnits is the set of units that were modified and the previous
+	// state of the unit before modification that we can roll back to if there
+	// are any issues.
+	// note that the rollback is best effort, if we are rebooted in the middle,
+	// there is no guarantee about the state of files, some may have been
+	// updated and some may have been rolled back, higher level tasks/changes
+	// should have do/undo handlers to properly handle the case where this
+	// function is interrupted midway
+	modifiedUnits map[string]*osutil.MemoryFileState
+}
+
+// restore is a helper function which should be called in case any errors happen
+// during the write/update of systemd files
+func (es *ensureSnapServicesContext) restore() {
+	for file, state := range es.modifiedUnits {
+		if state == nil {
+			// we don't have anything to rollback to, so just remove the
+			// file
+			if err := os.Remove(file); err != nil {
+				es.inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", file, err))
+			}
+		} else {
+			// rollback the file to the previous state
+			if err := osutil.EnsureFileState(file, state); err != nil {
+				es.inter.Notify(fmt.Sprintf("while trying to rollback %s due to previous failure: %v", file, err))
+			}
+		}
+	}
+
+	if !es.opts.Preseeding {
+		if es.systemDaemonReloadNeeded {
+			if err := es.sysd.DaemonReload(); err != nil {
+				es.inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", err))
+			}
+		}
+		if es.userDaemonReloadNeeded {
+			if err := userDaemonReload(); err != nil {
+				es.inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", err))
+			}
+		}
+	}
+}
+
+// reloadModified uses the modifiedSystemServices/userDaemonReloadNeeded to determine whether a reload
+// is required from systemd to take the new systemd files into effect. This is a NOP
+// if opts.Preseeding is set
+func (es *ensureSnapServicesContext) reloadModified() error {
+	if es.opts.Preseeding {
+		return nil
+	}
+
+	if es.systemDaemonReloadNeeded {
+		if err := es.sysd.DaemonReload(); err != nil {
+			return err
+		}
+	}
+	if es.userDaemonReloadNeeded {
+		if err := userDaemonReload(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ensureSnapSystemdUnits takes care of writing .service files for all services
+// registered in snap.Info apps.
+func (es *ensureSnapServicesContext) ensureSnapSystemdUnits(snapInfo *snap.Info, opts *AddSnapServicesOptions) error {
+	handleFileModification := func(app *snap.AppInfo, unitType string, name, path string, content []byte) error {
+		old, modifiedFile, err := tryFileUpdate(path, content)
+		if err != nil {
+			return err
+		}
+
+		if modifiedFile {
+			if es.observeChange != nil {
+				var oldContent []byte
+				if old != nil {
+					oldContent = old.Content
+				}
+				es.observeChange(app, nil, unitType, name, string(oldContent), string(content))
+			}
+			es.modifiedUnits[path] = old
+
+			// also mark that we need to reload either the system or
+			// user instance of systemd
+			switch app.DaemonScope {
+			case snap.SystemDaemon:
+				es.systemDaemonReloadNeeded = true
+			case snap.UserDaemon:
+				es.userDaemonReloadNeeded = true
+			}
+		}
+
+		return nil
+	}
+
+	// note that the Preseeding option is not used here at all
+	for _, app := range snapInfo.Apps {
+		if !app.IsService() {
+			continue
+		}
+
+		// create services first; this doesn't trigger systemd
+
+		// Generate new service file state
+		path := app.ServiceFile()
+		content, err := generateSnapServiceFile(app, opts)
+		if err != nil {
+			return err
+		}
+
+		if err := handleFileModification(app, "service", app.Name, path, content); err != nil {
+			return err
+		}
+
+		// Generate systemd .socket files if needed
+		socketFiles, err := generateSnapSocketFiles(app)
+		if err != nil {
+			return err
+		}
+		for name, content := range socketFiles {
+			path := app.Sockets[name].File()
+			if err := handleFileModification(app, "socket", name, path, content); err != nil {
+				return err
+			}
+		}
+
+		if app.Timer != nil {
+			content, err := generateSnapTimerFile(app)
+			if err != nil {
+				return err
+			}
+			path := app.Timer.File()
+			if err := handleFileModification(app, "timer", "", path, content); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// ensureSnapsSystemdServices takes care of writing .service files for all apps in the provided snaps
+// list, and also returns a quota group set that represents all quota groups for the set of snaps
+// provided if they are a part of any.
+func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaGroupSet, error) {
+	neededQuotaGrps := &quota.QuotaGroupSet{}
+
+	for s, snapSvcOpts := range es.snaps {
+		if s.Type() == snap.TypeSnapd {
+			return nil, fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
+		}
+
+		// always use RequireMountedSnapdSnap options from the global options
+		genServiceOpts := &AddSnapServicesOptions{
+			RequireMountedSnapdSnap: es.opts.RequireMountedSnapdSnap,
+		}
+		if snapSvcOpts != nil {
+			// and if there are per-snap options specified, use that for
+			// VitalityRank
+			genServiceOpts.VitalityRank = snapSvcOpts.VitalityRank
+			genServiceOpts.QuotaGroup = snapSvcOpts.QuotaGroup
+
+			if snapSvcOpts.QuotaGroup != nil {
+				if err := neededQuotaGrps.AddAllNecessaryGroups(snapSvcOpts.QuotaGroup); err != nil {
+					// this error can basically only be a circular reference
+					// in the quota group tree
+					return nil, err
+				}
+			}
+		}
+
+		if err := es.ensureSnapSystemdUnits(s, genServiceOpts); err != nil {
+			return nil, err
+		}
+	}
+	return neededQuotaGrps, nil
+}
+
+func (es *ensureSnapServicesContext) ensureSnapSlices(quotaGroups *quota.QuotaGroupSet) error {
+	handleSliceModification := func(grp *quota.Group, path string, content []byte) error {
+		old, modifiedFile, err := tryFileUpdate(path, content)
+		if err != nil {
+			return err
+		}
+
+		if modifiedFile {
+			if es.observeChange != nil {
+				var oldContent []byte
+				if old != nil {
+					oldContent = old.Content
+				}
+				es.observeChange(nil, grp, "slice", grp.Name, string(oldContent), string(content))
+			}
+
+			es.modifiedUnits[path] = old
+
+			// also mark that we need to reload the system instance of systemd
+			// TODO: also handle reloading the user instance of systemd when
+			// needed
+			es.systemDaemonReloadNeeded = true
+		}
+
+		return nil
+	}
+
+	// now make sure that all of the slice units exist
+	for _, grp := range quotaGroups.AllQuotaGroups() {
+		content := generateGroupSliceFile(grp)
+
+		sliceFileName := grp.SliceFileName()
+		path := filepath.Join(dirs.SnapServicesDir, sliceFileName)
+		if err := handleSliceModification(grp, path, content); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (es *ensureSnapServicesContext) ensureSnapJournaldUnits(quotaGroups *quota.QuotaGroupSet) error {
+	handleJournalModification := func(grp *quota.Group, path string, content []byte) error {
+		old, modifiedFile, err := tryFileUpdate(path, content)
+		if err != nil {
+			return err
+		}
+
+		if !modifiedFile {
+			return nil
+		}
+
+		// suppress any event and restart if we actually did not do anything
+		// as it seems modifiedFile is set even when the file does not exist
+		// and when the new content is nil.
+		if (old == nil || len(old.Content) == 0) && len(content) == 0 {
+			return nil
+		}
+
+		if es.observeChange != nil {
+			var oldContent []byte
+			if old != nil {
+				oldContent = old.Content
+			}
+			es.observeChange(nil, grp, "journald", grp.Name, string(oldContent), string(content))
+		}
+
+		es.modifiedUnits[path] = old
+		return nil
+	}
+
+	for _, grp := range quotaGroups.AllQuotaGroups() {
+		contents := generateJournaldConfFile(grp)
+		fileName := grp.JournalFileName()
+
+		path := filepath.Join(dirs.SnapSystemdDir, fileName)
+		if err := handleJournalModification(grp, path, contents); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // EnsureSnapServices will ensure that the specified snap services' file states
 // are up to date with the specified options and infos. It will add new services
 // if those units don't already exist, but it does not delete existing service
@@ -501,210 +788,41 @@ type EnsureSnapServicesOptions struct {
 // produce immediate side-effects, as the changes are in effect only
 // if the function did not return an error.
 // This function is idempotent.
-func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter interacter) (err error) {
-	// note, sysd is not used when preseeding
-	sysd := systemd.New(systemd.SystemMode, inter)
-
+func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter Interacter) (err error) {
 	if opts == nil {
 		opts = &EnsureSnapServicesOptions{}
 	}
 
-	// we only consider the global EnsureSnapServicesOptions to decide if we
-	// are preseeding or not to reduce confusion about which set of options
-	// determines whether we are preseeding or not during the ensure operation
-	preseeding := opts.Preseeding
-
-	// modifiedUnitsPreviousState is the set of units that were modified and the previous
-	// state of the unit before modification that we can roll back to if there
-	// are any issues.
-	// note that the rollback is best effort, if we are rebooted in the middle,
-	// there is no guarantee about the state of files, some may have been
-	// updated and some may have been rolled back, higher level tasks/changes
-	// should have do/undo handlers to properly handle the case where this
-	// function is interrupted midway
-	modifiedUnitsPreviousState := make(map[string]*osutil.MemoryFileState)
-	var modifiedSystem, modifiedUser bool
+	context := &ensureSnapServicesContext{
+		snaps:         snaps,
+		observeChange: observeChange,
+		opts:          opts,
+		inter:         inter,
+		sysd:          systemd.New(systemd.SystemMode, inter),
+		modifiedUnits: make(map[string]*osutil.MemoryFileState),
+	}
 
 	defer func() {
 		if err == nil {
 			return
 		}
-		for file, state := range modifiedUnitsPreviousState {
-			if state == nil {
-				// we don't have anything to rollback to, so just remove the
-				// file
-				if e := os.Remove(file); e != nil {
-					inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", file, e))
-				}
-			} else {
-				// rollback the file to the previous state
-				if e := osutil.EnsureFileState(file, state); e != nil {
-					inter.Notify(fmt.Sprintf("while trying to rollback %s due to previous failure: %v", file, e))
-				}
-			}
-		}
-		if modifiedSystem && !preseeding {
-			if e := sysd.DaemonReload(); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
-			}
-		}
-		if modifiedUser && !preseeding {
-			if e := userDaemonReload(); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", e))
-			}
-		}
+		context.restore()
 	}()
 
-	handleFileModification := func(app *snap.AppInfo, unitType string, name, path string, content []byte) error {
-		old, modifiedFile, err := tryFileUpdate(path, content)
-		if err != nil {
-			return err
-		}
-
-		if modifiedFile {
-			if observeChange != nil {
-				var oldContent []byte
-				if old != nil {
-					oldContent = old.Content
-				}
-				observeChange(app, nil, unitType, name, string(oldContent), string(content))
-			}
-			modifiedUnitsPreviousState[path] = old
-
-			// also mark that we need to reload either the system or
-			// user instance of systemd
-			switch app.DaemonScope {
-			case snap.SystemDaemon:
-				modifiedSystem = true
-			case snap.UserDaemon:
-				modifiedUser = true
-			}
-		}
-
-		return nil
+	quotaGroups, err := context.ensureSnapsSystemdServices()
+	if err != nil {
+		return err
 	}
 
-	neededQuotaGrps := &quota.QuotaGroupSet{}
-
-	for s, snapSvcOpts := range snaps {
-		if s.Type() == snap.TypeSnapd {
-			return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
-		}
-
-		// always use RequireMountedSnapdSnap options from the global options
-		genServiceOpts := &AddSnapServicesOptions{
-			RequireMountedSnapdSnap: opts.RequireMountedSnapdSnap,
-		}
-		if snapSvcOpts != nil {
-			// and if there are per-snap options specified, use that for
-			// VitalityRank
-			genServiceOpts.VitalityRank = snapSvcOpts.VitalityRank
-			genServiceOpts.QuotaGroup = snapSvcOpts.QuotaGroup
-
-			if snapSvcOpts.QuotaGroup != nil {
-				if err := neededQuotaGrps.AddAllNecessaryGroups(snapSvcOpts.QuotaGroup); err != nil {
-					// this error can basically only be a circular reference
-					// in the quota group tree
-					return err
-				}
-			}
-		}
-		// note that the Preseeding option is not used here at all
-
-		for _, app := range s.Apps {
-			if !app.IsService() {
-				continue
-			}
-
-			// create services first; this doesn't trigger systemd
-
-			// Generate new service file state
-			path := app.ServiceFile()
-			content, err := generateSnapServiceFile(app, genServiceOpts)
-			if err != nil {
-				return err
-			}
-
-			if err := handleFileModification(app, "service", app.Name, path, content); err != nil {
-				return err
-			}
-
-			// Generate systemd .socket files if needed
-			socketFiles, err := generateSnapSocketFiles(app)
-			if err != nil {
-				return err
-			}
-			for name, content := range socketFiles {
-				path := app.Sockets[name].File()
-				if err := handleFileModification(app, "socket", name, path, content); err != nil {
-					return err
-				}
-			}
-
-			if app.Timer != nil {
-				content, err := generateSnapTimerFile(app)
-				if err != nil {
-					return err
-				}
-				path := app.Timer.File()
-				if err := handleFileModification(app, "timer", "", path, content); err != nil {
-					return err
-				}
-			}
-		}
+	if err := context.ensureSnapSlices(quotaGroups); err != nil {
+		return err
 	}
 
-	handleSliceModification := func(grp *quota.Group, path string, content []byte) error {
-		old, modifiedFile, err := tryFileUpdate(path, content)
-		if err != nil {
-			return err
-		}
-
-		if modifiedFile {
-			if observeChange != nil {
-				var oldContent []byte
-				if old != nil {
-					oldContent = old.Content
-				}
-				observeChange(nil, grp, "slice", grp.Name, string(oldContent), string(content))
-			}
-
-			modifiedUnitsPreviousState[path] = old
-
-			// also mark that we need to reload the system instance of systemd
-			// TODO: also handle reloading the user instance of systemd when
-			// needed
-			modifiedSystem = true
-		}
-
-		return nil
+	if err := context.ensureSnapJournaldUnits(quotaGroups); err != nil {
+		return err
 	}
 
-	// now make sure that all of the slice units exist
-	for _, grp := range neededQuotaGrps.AllQuotaGroups() {
-		content := generateGroupSliceFile(grp)
-
-		sliceFileName := grp.SliceFileName()
-		path := filepath.Join(dirs.SnapServicesDir, sliceFileName)
-		if err := handleSliceModification(grp, path, content); err != nil {
-			return err
-		}
-	}
-
-	if !preseeding {
-		if modifiedSystem {
-			if err = sysd.DaemonReload(); err != nil {
-				return err
-			}
-		}
-		if modifiedUser {
-			if err = userDaemonReload(); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
+	return context.reloadModified()
 }
 
 // AddSnapServicesOptions is a struct for controlling the generated service
@@ -730,7 +848,7 @@ type AddSnapServicesOptions struct {
 
 // AddSnapServices adds service units for the applications from the snap which
 // are services. The services do not get enabled or started.
-func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacter) error {
+func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter Interacter) error {
 	m := map[*snap.Info]*SnapServiceOptions{
 		s: {},
 	}
@@ -757,7 +875,7 @@ type StopServicesFlags struct {
 
 // StopServices stops and optionally disables service units for the applications
 // from the snap which are services.
-func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
+func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.ServiceStopReason, inter Interacter, tm timings.Measurer) error {
 	sysd := systemd.New(systemd.SystemMode, inter)
 	if flags == nil {
 		flags = &StopServicesFlags{}
@@ -768,6 +886,8 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 	} else {
 		logger.Debugf("StopServices called for %q", apps)
 	}
+
+	disableServices := []string{}
 	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
 		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
@@ -789,22 +909,19 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 		timings.Run(tm, "stop-service", fmt.Sprintf("stop service %q", app.ServiceName()), func(nested timings.Measurer) {
 			err = stopService(sysd, app, inter)
 			if err == nil && flags.Disable {
-				err = sysd.Disable(app.ServiceName())
+				disableServices = append(disableServices, app.ServiceName())
 			}
 		})
 		if err != nil {
 			return err
 		}
-
-		// ensure the service is really stopped on remove regardless
-		// of stop-mode
-		if reason == snap.StopReasonRemove && !app.StopMode.KillAll() && app.DaemonScope == snap.SystemDaemon {
-			// FIXME: make this smarter and avoid the killWait
-			//        delay if not needed (i.e. if all processes
-			//        have died)
-			sysd.Kill(app.ServiceName(), "TERM", "all")
-			time.Sleep(killWait)
-			sysd.Kill(app.ServiceName(), "KILL", "")
+	}
+	if len(disableServices) > 0 {
+		if err := sysd.DisableNoReload(disableServices); err != nil {
+			return err
+		}
+		if err := sysd.DaemonReload(); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -812,7 +929,7 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 
 // ServicesEnableState returns a map of service names from the given snap,
 // together with their enable/disable status.
-func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error) {
+func ServicesEnableState(s *snap.Info, inter Interacter) (map[string]bool, error) {
 	sysd := systemd.New(systemd.SystemMode, inter)
 
 	// loop over all services in the snap, querying systemd for the current
@@ -841,7 +958,7 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 // with sub-groups, one must remove all the sub-groups first.
 // This function is idempotent, if the slice file doesn't exist no error is
 // returned.
-func RemoveQuotaGroup(grp *quota.Group, inter interacter) error {
+func RemoveQuotaGroup(grp *quota.Group, inter Interacter) error {
 	// TODO: it only works on leaf sub-groups currently
 	if len(grp.SubGroups) != 0 {
 		return fmt.Errorf("internal error: cannot remove quota group with sub-groups")
@@ -867,26 +984,27 @@ func RemoveQuotaGroup(grp *quota.Group, inter interacter) error {
 // RemoveSnapServices disables and removes service units for the applications
 // from the snap which are services. The optional flag indicates whether
 // services are removed as part of undoing of first install of a given snap.
-func RemoveSnapServices(s *snap.Info, inter interacter) error {
+func RemoveSnapServices(s *snap.Info, inter Interacter) error {
 	if s.Type() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: removing explicit services for snapd snap is unexpected")
 	}
 	systemSysd := systemd.New(systemd.SystemMode, inter)
 	userSysd := systemd.New(systemd.GlobalUserMode, inter)
 	var removedSystem, removedUser bool
+	systemUnits := []string{}
+	userUnits := []string{}
+	systemUnitFiles := []string{}
 
+	// collect list of system units to disable and remove
 	for _, app := range s.Apps {
 		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
 
-		var sysd systemd.Systemd
 		switch app.DaemonScope {
 		case snap.SystemDaemon:
-			sysd = systemSysd
 			removedSystem = true
 		case snap.UserDaemon:
-			sysd = userSysd
 			removedUser = true
 		}
 		serviceName := filepath.Base(app.ServiceFile())
@@ -894,36 +1012,55 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		for _, socket := range app.Sockets {
 			path := socket.File()
 			socketServiceName := filepath.Base(path)
-			if err := sysd.Disable(socketServiceName); err != nil {
-				return err
+			logger.Noticef("RemoveSnapServices - socket %s", socketServiceName)
+			switch app.DaemonScope {
+			case snap.SystemDaemon:
+				systemUnits = append(systemUnits, socketServiceName)
+			case snap.UserDaemon:
+				userUnits = append(userUnits, socketServiceName)
 			}
-
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				logger.Noticef("Failed to remove socket file %q for %q: %v", path, serviceName, err)
-			}
+			systemUnitFiles = append(systemUnitFiles, path)
 		}
 
 		if app.Timer != nil {
 			path := app.Timer.File()
 
 			timerName := filepath.Base(path)
-			if err := sysd.Disable(timerName); err != nil {
-				return err
+			logger.Noticef("RemoveSnapServices - timer %s", timerName)
+			switch app.DaemonScope {
+			case snap.SystemDaemon:
+				systemUnits = append(systemUnits, timerName)
+			case snap.UserDaemon:
+				userUnits = append(userUnits, timerName)
 			}
-
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				logger.Noticef("Failed to remove timer file %q for %q: %v", path, serviceName, err)
-			}
+			systemUnitFiles = append(systemUnitFiles, path)
 		}
 
-		if err := sysd.Disable(serviceName); err != nil {
-			return err
+		logger.Noticef("RemoveSnapServices - disabling %s", serviceName)
+		switch app.DaemonScope {
+		case snap.SystemDaemon:
+			systemUnits = append(systemUnits, serviceName)
+		case snap.UserDaemon:
+			userUnits = append(userUnits, serviceName)
 		}
+		systemUnitFiles = append(systemUnitFiles, app.ServiceFile())
+	}
 
-		if err := os.Remove(app.ServiceFile()); err != nil && !os.IsNotExist(err) {
-			logger.Noticef("Failed to remove service file for %q: %v", serviceName, err)
+	// disable all collected systemd units
+	if err := systemSysd.DisableNoReload(systemUnits); err != nil {
+		return err
+	}
+
+	// disable all collected user units
+	if err := userSysd.DisableNoReload(userUnits); err != nil {
+		return err
+	}
+
+	// remove unit filenames
+	for _, systemUnitFile := range systemUnitFiles {
+		if err := os.Remove(systemUnitFile); err != nil && !os.IsNotExist(err) {
+			logger.Noticef("Failed to remove socket file %q: %v", systemUnitFile, err)
 		}
-
 	}
 
 	// only reload if we actually had services
@@ -1062,6 +1199,9 @@ OOMScoreAdjust={{.OOMAdjustScore}}
 {{- if .SliceUnit}}
 Slice={{.SliceUnit}}
 {{- end}}
+{{- if .LogNamespace}}
+LogNamespace={{.LogNamespace}}
+{{- end}}
 {{- if not (or .App.Sockets .App.Timer .App.ActivatesOn) }}
 
 [Install]
@@ -1134,6 +1274,7 @@ WantedBy={{.ServicesTarget}}
 		After                    []string
 		InterfaceServiceSnippets string
 		SliceUnit                string
+		LogNamespace             string
 
 		Home    string
 		EnvVars string
@@ -1178,6 +1319,9 @@ WantedBy={{.ServicesTarget}}
 	// check the quota group slice
 	if opts.QuotaGroup != nil {
 		wrapperData.SliceUnit = opts.QuotaGroup.SliceFileName()
+		if opts.QuotaGroup.JournalLimit != nil {
+			wrapperData.LogNamespace = opts.QuotaGroup.JournalNamespaceName()
+		}
 	}
 
 	// Add extra "After" targets
@@ -1590,7 +1734,7 @@ type RestartServicesFlags struct {
 // TODO: change explicitServices format to be less unusual, more consistent
 // (introduce AppRef?)
 func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
-	flags *RestartServicesFlags, inter interacter, tm timings.Measurer) error {
+	flags *RestartServicesFlags, inter Interacter, tm timings.Measurer) error {
 	sysd := systemd.New(systemd.SystemMode, inter)
 
 	unitNames := make([]string, 0, len(svcs))
@@ -1602,7 +1746,7 @@ func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 		unitNames = append(unitNames, srv.ServiceName())
 	}
 
-	unitStatuses, err := sysd.Status(unitNames...)
+	unitStatuses, err := sysd.Status(unitNames)
 	if err != nil {
 		return err
 	}
@@ -1612,17 +1756,17 @@ func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 		// even if it is disabled; otherwise, we only restart units which are
 		// currently running. Reference:
 		// https://forum.snapcraft.io/t/command-line-interface-to-manipulate-services/262/47
-		if !unit.Active && !strutil.ListContains(explicitServices, unit.UnitName) {
+		if !unit.Active && !strutil.ListContains(explicitServices, unit.Name) {
 			continue
 		}
 
 		var err error
-		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %s", unit.UnitName), func(nested timings.Measurer) {
+		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %s", unit.Name), func(nested timings.Measurer) {
 			if flags != nil && flags.Reload {
-				err = sysd.ReloadOrRestart(unit.UnitName)
+				err = sysd.ReloadOrRestart(unit.Name)
 			} else {
 				// note: stop followed by start, not just 'restart'
-				err = sysd.Restart(unit.UnitName, 5*time.Second)
+				err = sysd.Restart([]string{unit.Name})
 			}
 		})
 		if err != nil {

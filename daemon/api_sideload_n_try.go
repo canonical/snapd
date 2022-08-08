@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -75,24 +77,53 @@ func (f *Form) RemoveAllExcept(paths []string) {
 	}
 }
 
-// SnapFileNameAndTempPath returns the original file path/name and the path to
-// where the temp file is written.
-func (f *Form) SnapFileNameAndTempPath() (srcFilename, path string, apiErr *apiError) {
-	if len(f.FileRefs["snap"]) == 0 {
-		return "", "", BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
-	}
-
-	snapFile := f.FileRefs["snap"][0]
-	srcFilename, path = snapFile.Filename, snapFile.TmpPath
-
-	if len(f.Values["snap-path"]) > 0 {
-		srcFilename = f.Values["snap-path"][0]
-	}
-
-	return srcFilename, path, nil
+type uploadedSnap struct {
+	// filename is the original name/path of the snap file.
+	filename string
+	// tmpPath is the location where the temp snap file is stored.
+	tmpPath string
+	// instanceName is optional and can only be set if only one snap was uploaded.
+	instanceName string
 }
 
-func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response {
+// GetSnapFiles returns the original name and temp path for each snap file in
+// the form. Optionally, it might include a requested instance name, but only
+// if the was only one file in the form.
+func (f *Form) GetSnapFiles() ([]*uploadedSnap, *apiError) {
+	if len(f.FileRefs["snap"]) == 0 {
+		return nil, BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
+	}
+
+	refs := f.FileRefs["snap"]
+	if len(refs) == 1 && len(f.Values["snap-path"]) > 0 {
+		uploaded := &uploadedSnap{
+			filename: f.Values["snap-path"][0],
+			tmpPath:  refs[0].TmpPath,
+		}
+
+		if len(f.Values["name"]) > 0 {
+			uploaded.instanceName = f.Values["name"][0]
+		}
+		return []*uploadedSnap{uploaded}, nil
+	}
+
+	snapFiles := make([]*uploadedSnap, len(refs))
+	for i, ref := range refs {
+		snapFiles[i] = &uploadedSnap{
+			filename: ref.Filename,
+			tmpPath:  ref.TmpPath,
+		}
+	}
+
+	return snapFiles, nil
+}
+
+type sideloadFlags struct {
+	snapstate.Flags
+	dangerousOK bool
+}
+
+func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for change")
@@ -111,7 +142,6 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response
 		form.RemoveAllExcept(pathsToNotRemove)
 	}()
 
-	dangerousOK := isTrue(form, "dangerous")
 	flags, err := modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"), isTrue(form, "classic"))
 	if err != nil {
 		return BadRequest(err.Error())
@@ -123,97 +153,174 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response
 		}
 		return trySnap(c.d.overlord.State(), form.Values["snap-path"][0], flags)
 	}
-	flags.RemoveSnapPath = true
 
+	flags.RemoveSnapPath = true
 	flags.Unaliased = isTrue(form, "unaliased")
 	flags.IgnoreRunning = isTrue(form, "ignore-running")
-	systemRestartImmediate := isTrue(form, "system-restart-immediate")
-
-	origPath, tempPath, errRsp := form.SnapFileNameAndTempPath()
-	if errRsp != nil {
-		return errRsp
+	trasactionVals := form.Values["transaction"]
+	flags.Transaction = client.TransactionPerSnap
+	if len(trasactionVals) > 0 {
+		switch trasactionVals[0] {
+		case string(client.TransactionPerSnap), string(client.TransactionAllSnaps):
+			flags.Transaction = client.TransactionType(trasactionVals[0])
+		default:
+			return BadRequest(`transaction must be either %q or %q`,
+				client.TransactionPerSnap, client.TransactionAllSnaps)
+		}
 	}
 
-	var instanceName string
-	if len(form.Values["name"]) > 0 {
-		// caller has specified desired instance name
-		instanceName = form.Values["name"][0]
-		if err := snap.ValidateInstanceName(instanceName); err != nil {
-			return BadRequest(err.Error())
-		}
+	sideloadFlags := sideloadFlags{
+		Flags:       flags,
+		dangerousOK: isTrue(form, "dangerous"),
+	}
+
+	snapFiles, errRsp := form.GetSnapFiles()
+	if errRsp != nil {
+		return errRsp
 	}
 
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	var snapName string
-	var sideInfo *snap.SideInfo
+	var chg *state.Change
+	if len(snapFiles) > 1 {
+		chg, errRsp = sideloadManySnaps(st, snapFiles, sideloadFlags, user)
+	} else {
+		chg, errRsp = sideloadSnap(st, snapFiles[0], sideloadFlags)
+	}
+	if errRsp != nil {
+		return errRsp
+	}
 
-	if !dangerousOK {
-		si, err := snapasserts.DeriveSideInfo(tempPath, assertstate.DB(st))
-		switch {
-		case err == nil:
-			snapName = si.RealName
-			sideInfo = si
-		case asserts.IsNotFound(err):
-			// with devmode we try to find assertions but it's ok
-			// if they are not there (implies --dangerous)
-			if !isTrue(form, "devmode") {
-				msg := "cannot find signatures with metadata for snap"
-				if origPath != "" {
-					msg = fmt.Sprintf("%s %q", msg, origPath)
-				}
-				return BadRequest(msg)
-			}
-			// TODO: set a warning if devmode
-		default:
-			return BadRequest(err.Error())
+	chg.Set("system-restart-immediate", isTrue(form, "system-restart-immediate"))
+
+	ensureStateSoon(st)
+
+	// the handoff is only done when the unlock succeeds (instead of panicking)
+	// but this is good enough
+	pathsToNotRemove = make([]string, len(snapFiles))
+	for i, snapFile := range snapFiles {
+		pathsToNotRemove[i] = snapFile.tmpPath
+	}
+
+	return AsyncResponse(nil, chg.ID())
+}
+
+func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, InternalError(err.Error())
+	}
+
+	sideInfos := make([]*snap.SideInfo, len(snapFiles))
+	names := make([]string, len(snapFiles))
+	tempPaths := make([]string, len(snapFiles))
+	origPaths := make([]string, len(snapFiles))
+
+	for i, snapFile := range snapFiles {
+		si, apiError := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
+		if apiError != nil {
+			return nil, apiError
+		}
+
+		sideInfos[i] = si
+		names[i] = si.RealName
+		tempPaths[i] = snapFile.tmpPath
+		origPaths[i] = snapFile.filename
+	}
+
+	var userID int
+	if user != nil {
+		userID = user.ID
+	}
+
+	tss, err := snapstateInstallPathMany(context.TODO(), st, sideInfos, tempPaths, userID, &flags.Flags)
+	if err != nil {
+		return nil, errToResponse(err, tempPaths, InternalError, "cannot install snap files: %v")
+	}
+
+	msg := fmt.Sprintf(i18n.G("Install snaps %s from files %s"), strutil.Quoted(names), strutil.Quoted(origPaths))
+	chg := newChange(st, "install-snap", msg, tss, names)
+	chg.Set("api-data", map[string][]string{"snap-names": names})
+
+	return chg, nil
+}
+
+func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) (*state.Change, *apiError) {
+	var instanceName string
+	if snapFile.instanceName != "" {
+		// caller has specified desired instance name
+		instanceName = snapFile.instanceName
+		if err := snap.ValidateInstanceName(instanceName); err != nil {
+			return nil, BadRequest(err.Error())
 		}
 	}
 
-	if snapName == "" {
-		// potentially dangerous but dangerous or devmode params were set
-		info, err := unsafeReadSnapInfo(tempPath)
-		if err != nil {
-			return BadRequest("cannot read snap file: %v", err)
-		}
-		snapName = info.SnapName()
-		sideInfo = &snap.SideInfo{RealName: snapName}
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, InternalError(err.Error())
+	}
+
+	sideInfo, apiErr := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
+	if apiErr != nil {
+		return nil, apiErr
 	}
 
 	if instanceName != "" {
 		requestedSnapName := snap.InstanceSnap(instanceName)
-		if requestedSnapName != snapName {
-			return BadRequest(fmt.Sprintf("instance name %q does not match snap name %q", instanceName, snapName))
+		if requestedSnapName != sideInfo.RealName {
+			return nil, BadRequest(fmt.Sprintf("instance name %q does not match snap name %q", instanceName, sideInfo.RealName))
 		}
 	} else {
-		instanceName = snapName
+		instanceName = sideInfo.RealName
 	}
 
-	msg := fmt.Sprintf(i18n.G("Install %q snap from file"), instanceName)
-	if origPath != "" {
-		msg = fmt.Sprintf(i18n.G("Install %q snap from file %q"), instanceName, origPath)
-	}
-
-	tset, _, err := snapstateInstallPath(st, sideInfo, tempPath, instanceName, "", flags)
+	tset, _, err := snapstateInstallPath(st, sideInfo, snapFile.tmpPath, instanceName, "", flags.Flags)
 	if err != nil {
-		return errToResponse(err, []string{snapName}, InternalError, "cannot install snap file: %v")
+		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install snap file: %v")
 	}
 
+	msg := fmt.Sprintf(i18n.G("Install %q snap from file %q"), instanceName, snapFile.filename)
 	chg := newChange(st, "install-snap", msg, []*state.TaskSet{tset}, []string{instanceName})
-	if systemRestartImmediate {
-		chg.Set("system-restart-immediate", true)
-	}
 	chg.Set("api-data", map[string]string{"snap-name": instanceName})
 
-	ensureStateSoon(st)
+	return chg, nil
+}
 
-	// only when the unlock succeeds (as opposed to panicing) is the handoff done
-	// but this is good enough
-	pathsToNotRemove = append(pathsToNotRemove, tempPath)
+func readSideInfo(st *state.State, tempPath string, origPath string, flags sideloadFlags, model *asserts.Model) (*snap.SideInfo, *apiError) {
+	var sideInfo *snap.SideInfo
 
-	return AsyncResponse(nil, chg.ID())
+	if !flags.dangerousOK {
+		si, err := snapasserts.DeriveSideInfo(tempPath, model, assertstate.DB(st))
+		switch {
+		case err == nil:
+			sideInfo = si
+		case asserts.IsNotFound(err):
+			// with devmode we try to find assertions but it's ok
+			// if they are not there (implies --dangerous)
+			if !flags.DevMode {
+				msg := "cannot find signatures with metadata for snap"
+				if origPath != "" {
+					msg = fmt.Sprintf("%s %q", msg, origPath)
+				}
+				return nil, BadRequest(msg)
+			}
+			// TODO: set a warning if devmode
+		default:
+			return nil, BadRequest(err.Error())
+		}
+	}
+
+	if sideInfo == nil {
+		// potentially dangerous but dangerous or devmode params were set
+		info, err := unsafeReadSnapInfo(tempPath)
+		if err != nil {
+			return nil, BadRequest("cannot read snap file: %v", err)
+		}
+		sideInfo = &snap.SideInfo{RealName: info.SnapName()}
+	}
+	return sideInfo, nil
 }
 
 // maxReadBuflen is the maximum buffer size for reading the non-file parts in the snap upload form

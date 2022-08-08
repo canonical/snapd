@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2019 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -79,6 +79,10 @@ func (ss *SeedSnaps) SetSnapAssertionNow(t time.Time) {
 }
 
 func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, developerID, ss.StoreSigning.SigningDB, "", nil, dbs...)
+}
+
+func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, revSigning *assertstest.SigningDB, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	snapName := info.SnapName()
@@ -86,26 +90,35 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	snapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, files)
 
 	snapID := ss.AssertedSnapID(snapName)
-	declA, err := ss.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      snapID,
 		"publisher-id": developerID,
 		"snap-name":    snapName,
 		"timestamp":    ss.snapAssertionNow().UTC().Format(time.RFC3339),
-	}, nil, "")
+	}
+	if revisionAuthority != nil {
+		headers["revision-authority"] = []interface{}{revisionAuthority}
+	}
+	declA, err := ss.StoreSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
 	sha3_384, size, err := asserts.SnapFileSHA3_384(snapFile)
 	c.Assert(err, IsNil)
 
-	revA, err := ss.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	revHeaders := map[string]interface{}{
+		"authority-id":  revSigning.AuthorityID,
 		"snap-sha3-384": sha3_384,
 		"snap-size":     fmt.Sprintf("%d", size),
 		"snap-id":       snapID,
 		"developer-id":  developerID,
 		"snap-revision": revision.String(),
 		"timestamp":     ss.snapAssertionNow().UTC().Format(time.RFC3339),
-	}, nil, "")
+	}
+	if revProvenance != "" {
+		revHeaders["provenance"] = revProvenance
+	}
+	revA, err := revSigning.Sign(asserts.SnapRevisionType, revHeaders, nil, "")
 	c.Assert(err, IsNil)
 
 	if !revision.Unset() {
@@ -134,6 +147,10 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	ss.snapRevs[snapName] = snapRev
 
 	return snapDecl, snapRev
+}
+
+func (ss *SeedSnaps) MakeAssertedDelegatedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID, delegateID, revProvenance string, revisionAuthority map[string]interface{}, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, developerID, ss.Brands.Signing(delegateID), revProvenance, revisionAuthority, dbs...)
 }
 
 func (ss *SeedSnaps) AssertedSnap(snapName string) (snapFile string) {
@@ -287,7 +304,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	c.Assert(err, IsNil)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, rf, db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, rf, db)
 		if !asserts.IsNotFound(err) {
 			c.Assert(err, IsNil)
 		}
@@ -363,7 +380,7 @@ func ValidateSeed(c *C, root, label string, usesSnapd bool, trusted []asserts.As
 	err = sd.LoadAssertions(db, commitTo)
 	c.Assert(err, IsNil)
 
-	err = sd.LoadMeta(tm)
+	err = sd.LoadMeta(seed.AllModes, nil, tm)
 	c.Assert(err, IsNil)
 
 	// core18/core20 use the snapd snap, old core does not

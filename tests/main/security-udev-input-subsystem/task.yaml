@@ -14,6 +14,10 @@ prepare: |
     echo "Given the test-snapd-udev-input-subsystem is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-udev-input-subsystem
 
+debug: |
+    # shellcheck disable=SC2046
+    udevadm info $(find /dev/input/ -type c) | grep -e N: -e MAJOR= -e MINOR= -e TAGS= || true
+
 execute: |
     if [ -z "$(find /dev/input/by-path -name '*-event-kbd')" ]; then
         if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
@@ -79,4 +83,4 @@ execute: |
     # device cgroup is in effect (because of rtc) and the device isn't in the
     # cgroup. DAC is evaluated before AppArmor so since the device wasn't added
     # to the cgroup, we see a DAC denial.
-    MATCH "Operation not permitted" < call.error
+    MATCH "(Operation not permitted|Permission denied)" < call.error

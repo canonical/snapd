@@ -5,7 +5,7 @@ details: |
     are correct for snapfuse.
 
 # only 20.04+, we want lxd images that come with snaps preinstalled.
-systems: [ubuntu-20*, ubuntu-21.04*, ubuntu-21.10*]
+systems: [ubuntu-2*]
 
 restore: |
     lxd.lxc stop ubuntu --force || true
@@ -40,18 +40,21 @@ execute: |
     if [ -n "${https_proxy:-}" ]; then
         lxd.lxc exec ubuntu -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
     fi
+    # wait for the container to be fully up
+    (lxd.lxc exec ubuntu -- systemctl --wait is-system-running || true) | MATCH "(running|degraded)"
 
     lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "ubuntu/root/"
 
     DEB=$(basename "$GOHOME"/snapd_*.deb)
+    lxd.lxc exec ubuntu -- apt update
     lxd.lxc exec ubuntu -- apt install -y /root/"$DEB"
     lxd.lxc restart ubuntu
 
-    echo "Sanity check that mount overrides were generated inside the container"
+    echo "Precondition check that mount overrides were generated inside the container"
     lxd.lxc exec ubuntu -- find /var/run/systemd/generator/ -name container.conf | MATCH "/var/run/systemd/generator/snap-${core_snap}.*mount.d/container.conf"
     lxd.lxc exec ubuntu -- test -f /var/run/systemd/generator/snap.mount
 
-    echo "Sanity check that $core_snap snap is mounted correctly"
+    echo "Precondition check that $core_snap snap is mounted correctly"
     # Make sure $core_snap is mounted and readable for a regular user
     retry -n 5 --wait 1 sh -c "lxd.lxc exec ubuntu -- sudo --user ubuntu --login ls /snap/${core_snap}/current"
     retry -n 5 --wait 1 sh -c "lxd.lxc exec ubuntu -- sudo --user ubuntu --login mount | grep $core_snap | grep allow_other"

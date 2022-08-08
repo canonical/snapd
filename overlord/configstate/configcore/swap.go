@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/mvo5/goconfigparser"
 
@@ -146,8 +145,7 @@ func handlesystemSwapConfiguration(_ sysconfig.Device, tr config.ConfGetter, opt
 		// restart the swap service
 		sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, &backlightSysdLogger{})
 
-		// TODO: what's an appropriate amount of time to wait here?
-		if err := sysd.Restart("swapfile.service", 60*time.Second); err != nil {
+		if err := sysd.Restart([]string{"swapfile.service"}); err != nil {
 			return err
 		}
 	}

@@ -16,17 +16,16 @@ backends: [-autopkgtest]
 # https://github.com/snapcore/snapd/pull/7230 is landed
 # ubuntu-20.04+: test-snapd-eds is incompatible with eds version shipped with the distro
 # arch-linux: test-snapd-eds is incompatible with eds version shipped with the distro
-# fedora-33,34: test-snapd-eds is incompatible with eds version shipped with the distro
 systems:
     - -amazon-*  # no need to run this on amazon
     - -arch-linux-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -centos-*
     - -debian-11-*
     - -debian-sid-*
-    - -fedora-33-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -fedora-34-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -opensuse-15.2-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -fedora-35-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -fedora-36-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -opensuse-15.3-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -opensuse-15.4-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -ubuntu-14.04-*  # no tests.session support, eds is too old
     - -ubuntu-2*  # test-snapd-eds is incompatible with eds shipped with the distro

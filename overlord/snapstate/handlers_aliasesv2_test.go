@@ -61,7 +61,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliases(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -109,7 +109,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesFirstInstall(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -165,7 +165,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliases(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
@@ -237,7 +237,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesConflict(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -311,7 +311,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesConflict(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	tgrab3 := s.state.NewTask("grab-alias3", "grab alias3 for other-snap")
@@ -375,7 +375,7 @@ func (s *snapmgrTestSuite) TestDoSetAutoAliasesFirstInstallUnaliased(c *C) {
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 		Flags:    snapstate.Flags{Unaliased: true},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -426,7 +426,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetAutoAliasesFirstInstallUnaliased(c *C) {
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 		Flags:    snapstate.Flags{Unaliased: true},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
@@ -474,7 +474,7 @@ func (s *snapmgrTestSuite) TestDoSetupAliases(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -524,7 +524,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliases(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
@@ -584,7 +584,7 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesAuto(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -634,7 +634,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesAuto(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
@@ -689,7 +689,7 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesNothing(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -735,7 +735,7 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesNothing(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
@@ -796,7 +796,7 @@ func (s *snapmgrTestSuite) TestDoPruneAutoAliasesAuto(c *C) {
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
 	t.Set("aliases", []string{"alias2", "alias3"})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -853,7 +853,7 @@ func (s *snapmgrTestSuite) TestDoPruneAutoAliasesAutoPending(c *C) {
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
 	t.Set("aliases", []string{"alias2", "alias3"})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -902,7 +902,7 @@ func (s *snapmgrTestSuite) TestDoPruneAutoAliasesManualAndDisabled(c *C) {
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
 	t.Set("aliases", []string{"alias2", "alias3", "alias4"})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -965,7 +965,7 @@ func (s *snapmgrTestSuite) TestDoRefreshAliases(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -1038,7 +1038,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliases(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
@@ -1123,7 +1123,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesFromEmpty(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
@@ -1203,7 +1203,7 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesPending(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -1262,7 +1262,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesPending(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
@@ -1336,7 +1336,7 @@ func (s *snapmgrTestSuite) TestDoRefreshAliasesConflict(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -1403,7 +1403,7 @@ func (s *snapmgrTestSuite) TestDoUndoRefreshAliasesConflict(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	tgrab3 := s.state.NewTask("grab-alias3", "grab alias3 for other-snap")
@@ -1495,7 +1495,7 @@ func (s *snapmgrTestSuite) TestDoUndoDisableAliases(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
@@ -1601,7 +1601,7 @@ func (s *snapmgrTestSuite) TestDoPreferAliases(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -1725,7 +1725,7 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliases(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
@@ -1874,7 +1874,7 @@ func (s *snapmgrTestSuite) TestDoUndoPreferAliasesConflict(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	tconflict5 := s.state.NewTask("conflict-alias5", "create conflict on alias5")

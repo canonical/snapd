@@ -1,8 +1,9 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !darwin
 // +build !darwin
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -231,6 +232,8 @@ func (s *userdSuite) TestAutostartSessionAppsRestrictsPermissions(c *C) {
 
 func (s *userdSuite) TestAutostartSessionAppsLogsWhenItCannotRestrictPermissions(c *C) {
 	userDir := path.Join(c.MkDir(), "home")
+	c.Assert(os.MkdirAll(filepath.Join(userDir, "snap"), 0770), IsNil)
+
 	mockUserCurrent := func() (*user.User, error) {
 		return &user.User{HomeDir: userDir}, nil
 	}
@@ -277,4 +280,58 @@ func (s *userdSuite) TestAutostartSessionAppsRestrictsPermissionsNoCreateSnapDir
 
 	// make sure that the directory was not created
 	c.Assert(filepath.Join(userDir, "snap"), testutil.FileAbsent)
+}
+
+func (s *userdSuite) TestAutostartWithBothSnapDirs(c *C) {
+	userDir := path.Join(c.MkDir(), "home")
+	mockUserCurrent := func() (*user.User, error) {
+		return &user.User{HomeDir: userDir}, nil
+	}
+	r := snap.MockUserCurrent(mockUserCurrent)
+	defer r()
+
+	var autostartArgs []string
+	mockAutostart := func(arg string) error {
+		autostartArgs = append(autostartArgs, arg)
+		return nil
+	}
+	autostartRestore := snap.MockAutostartSessionApps(mockAutostart)
+	defer autostartRestore()
+
+	exposedDir := filepath.Join(userDir, "snap")
+	c.Assert(os.MkdirAll(exposedDir, 0770), IsNil)
+	hiddenDir := filepath.Join(userDir, ".snap", "data")
+	c.Assert(os.MkdirAll(hiddenDir, 0770), IsNil)
+
+	args, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"})
+	c.Assert(err, IsNil)
+	c.Assert(args, DeepEquals, []string{})
+
+	c.Assert(autostartArgs, testutil.DeepUnsortedMatches, []string{hiddenDir, exposedDir})
+}
+
+func (s *userdSuite) TestAutostartErrorsInBoth(c *C) {
+	userDir := path.Join(c.MkDir(), "home")
+	mockUserCurrent := func() (*user.User, error) {
+		return &user.User{HomeDir: userDir}, nil
+	}
+	r := snap.MockUserCurrent(mockUserCurrent)
+	defer r()
+
+	mockAutostart := func(arg string) error {
+		return fmt.Errorf("%s", arg)
+	}
+	autostartRestore := snap.MockAutostartSessionApps(mockAutostart)
+	defer autostartRestore()
+
+	exposedDir := filepath.Join(userDir, "snap")
+	c.Assert(os.MkdirAll(exposedDir, 0770), IsNil)
+	hiddenDir := filepath.Join(userDir, ".snap", "data")
+	c.Assert(os.MkdirAll(hiddenDir, 0770), IsNil)
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"})
+	c.Assert(err, ErrorMatches, `autostart failed:
+.*/snap
+.*/\.snap/data
+`)
 }

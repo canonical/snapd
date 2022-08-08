@@ -1,0 +1,92 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2022 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package metautil
+
+import (
+	"fmt"
+	"reflect"
+)
+
+func convertValue(value reflect.Value, outputType reflect.Type) (reflect.Value, error) {
+	inputType := value.Type()
+	if inputType == outputType {
+		return value, nil
+	}
+
+	var nullValue reflect.Value
+	switch value.Kind() {
+	case reflect.Slice, reflect.Array:
+		if outputType.Kind() != reflect.Array && outputType.Kind() != reflect.Slice {
+			break
+		}
+		outputValue := reflect.MakeSlice(outputType, 0, value.Len())
+		for i := 0; i < value.Len(); i++ {
+			convertedElem, err := convertValue(value.Index(i), outputType.Elem())
+			if err != nil {
+				return nullValue, err
+			}
+			outputValue = reflect.Append(outputValue, convertedElem)
+		}
+		return outputValue, nil
+	case reflect.Interface:
+		return convertValue(value.Elem(), outputType)
+	case reflect.Map:
+		if outputType.Kind() != reflect.Map {
+			break
+		}
+		outputValue := reflect.MakeMapWithSize(outputType, value.Len())
+		iter := value.MapRange()
+		for iter.Next() {
+			convertedKey, err := convertValue(iter.Key(), outputType.Key())
+			if err != nil {
+				return nullValue, err
+			}
+			convertedValue, err := convertValue(iter.Value(), outputType.Elem())
+			if err != nil {
+				return nullValue, err
+			}
+			outputValue.SetMapIndex(convertedKey, convertedValue)
+		}
+		return outputValue, nil
+	}
+	return nullValue, fmt.Errorf(`cannot convert value "%v" into a %v`, value, outputType)
+}
+
+// SetValueFromAttribute attempts to convert the attribute value read from the
+// given snap/interface into the desired type.
+//
+// The snapName, ifaceName and attrName are only used to produce contextual
+// error messages, but are not otherwise significant. This function only
+// operates converting the attrVal parameter into a value which can fit into
+// the val parameter, which therefore must be a pointer.
+func SetValueFromAttribute(snapName string, ifaceName string, attrName string, attrVal interface{}, val interface{}) error {
+	rt := reflect.TypeOf(val)
+	if rt.Kind() != reflect.Ptr || val == nil {
+		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", attrName, ifaceName)
+	}
+
+	converted, err := convertValue(reflect.ValueOf(attrVal), rt.Elem())
+	if err != nil {
+		return fmt.Errorf("snap %q has interface %q with invalid value type %T for %q attribute: %T", snapName, ifaceName, attrVal, attrName, val)
+	}
+	rv := reflect.ValueOf(val)
+	rv.Elem().Set(converted)
+	return nil
+}

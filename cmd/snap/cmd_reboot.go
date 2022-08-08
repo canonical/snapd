@@ -33,9 +33,10 @@ type cmdReboot struct {
 		Label string
 	} `positional-args:"true"`
 
-	RunMode     bool `long:"run"`
-	InstallMode bool `long:"install"`
-	RecoverMode bool `long:"recover"`
+	RunMode          bool `long:"run"`
+	InstallMode      bool `long:"install"`
+	RecoverMode      bool `long:"recover"`
+	FactoryResetMode bool `long:"factory-reset"`
 }
 
 var shortRebootHelp = i18n.G("Reboot into selected system and mode")
@@ -49,7 +50,7 @@ trigger a regular reboot.
 When called without a system label but with a mode it will use the
 current system to enter the given mode.
 
-Note that "recover" and "run" modes are only available for the
+Note that "recover", "factory-reset" and "run" modes are only available for the
 current system.
 `)
 
@@ -63,6 +64,8 @@ func init() {
 		"install": i18n.G("Boot into install mode"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"recover": i18n.G("Boot into recover mode"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"factory-reset": i18n.G("Boot into factory-reset mode"),
 	}, []argDesc{
 		{
 			// TRANSLATORS: This needs to begin with < and end with >
@@ -83,6 +86,7 @@ func (x *cmdReboot) modeFromCommandline() (string, error) {
 		{x.RunMode, "run"},
 		{x.RecoverMode, "recover"},
 		{x.InstallMode, "install"},
+		{x.FactoryResetMode, "factory-reset"},
 	} {
 		if !arg.enabled {
 			continue

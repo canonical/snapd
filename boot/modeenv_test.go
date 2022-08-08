@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,6 +63,7 @@ func (s *modeenvSuite) TestKnownKnown(c *C) {
 		"boot_flags":               true,
 		// keep this comment to make old go fmt happy
 		"base":                  true,
+		"gadget":                true,
 		"try_base":              true,
 		"base_status":           true,
 		"current_kernels":       true,
@@ -91,7 +93,7 @@ func (s *modeenvSuite) makeMockModeenvFile(c *C, content string) {
 	c.Assert(err, IsNil)
 }
 
-func (s *modeenvSuite) TestWasReadSanity(c *C) {
+func (s *modeenvSuite) TestWasReadValidity(c *C) {
 	modeenv := &boot.Modeenv{}
 	c.Check(modeenv.WasRead(), Equals, false)
 }
@@ -112,12 +114,14 @@ func (s *modeenvSuite) TestReadMode(c *C) {
 	c.Check(modeenv.Mode, Equals, "run")
 	c.Check(modeenv.RecoverySystem, Equals, "")
 	c.Check(modeenv.Base, Equals, "")
+	c.Check(modeenv.Gadget, Equals, "")
 }
 
 func (s *modeenvSuite) TestDeepEqualDiskVsMemoryInvariant(c *C) {
 	s.makeMockModeenvFile(c, `mode=recovery
 recovery_system=20191126
 base=core20_123.snap
+gadget=pc_1.snap
 try_base=core20_124.snap
 base_status=try
 `)
@@ -128,6 +132,7 @@ base_status=try
 		Mode:           "recovery",
 		RecoverySystem: "20191126",
 		Base:           "core20_123.snap",
+		Gadget:         "pc_1.snap",
 		TryBase:        "core20_124.snap",
 		BaseStatus:     "try",
 	}
@@ -869,4 +874,16 @@ try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm
 	c.Check(tryModelForSealing.Series(), Equals, "16")
 	c.Check(boot.ModelUniqueID(tryModelForSealing), Equals,
 		"developer1/testkeys-snapd-secured-core-20-amd64,secured,EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu")
+}
+
+func (s *modeenvSuite) TestModeenvAccessFailsDuringPreseeding(c *C) {
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
+
+	_, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, ErrorMatches, `internal error: modeenv cannot be read during preseeding`)
+
+	var modeenv boot.Modeenv
+	err = modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, ErrorMatches, `internal error: modeenv cannot be written during preseeding`)
 }

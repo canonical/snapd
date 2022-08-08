@@ -1,7 +1,17 @@
 summary: Check that a broken kernel snap automatically rolls itself back
 
 # TODO:UC20: write equivalent test for base snap failover
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+environment:
+  PROBLEM_TYPE/crash: crash
+  PROBLEM_TYPE/empty: empty
+  PROBLEM_TYPE/zeros: zeros
+  PROBLEM_TYPE/nolink: nolink
+  # bad-text produces a bad systemd efi stub (.text section in the binary)
+  PROBLEM_TYPE/bad_text: bad-text
+  PROBLEM_TYPE/bad_linux: bad-linux
+  PROBLEM_TYPE/bad_initrd: bad-initrd
 
 prepare: |
   echo "Build a broken kernel snap where the initramfs panic's"
@@ -14,8 +24,25 @@ prepare: |
   # TODO:UC20: this doesn't work for some reason when we copy it from the 
   #            running system, we should look into that, but for now just 
   #            re-download the snap
-  snap download pc-kernel --channel=20/edge --basename=pc-kernel
-  uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
+  version=20
+  if tests.nested is-nested uc22; then
+    version=22
+  fi
+  snap download pc-kernel --channel="$version/edge" --basename=pc-kernel
+  case "$PROBLEM_TYPE" in
+      crash)
+          uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
+          ;;
+      nolink)
+          # Failure will be forced by removing the try-kernel.efi link later,
+          # do not modify the downloaded kernel (just change name so it is picked
+          # up by the move command later)
+          mv pc-kernel.snap pc-kernel_.snap
+          ;;
+      *)
+          uc20_build_corrupt_kernel_snap pc-kernel.snap "$PWD" --"$PROBLEM_TYPE"
+          ;;
+  esac
   mv pc-kernel_*.snap panicking-initramfs-kernel.snap
 
 execute: |
@@ -40,9 +67,17 @@ execute: |
 
   echo "Install it and get the ID for the change"
   REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous panicking-initramfs-kernel.snap --no-wait)
+  if [ "$PROBLEM_TYPE" = "nolink" ]; then
+      tests.nested exec "retry --wait 1 -n 50 sh -c 'sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi'"
+  fi
 
-  # wait for a reboot
-  tests.nested wait-for reboot "${boot_id}"
+  # wait for a reboot. Note that failure is immediate for kernel.efi
+  # files with invalid PE headers in the FDE case, as snapd is not
+  # able to unseal the encryption key in that case ("cannot compute
+  # load verification event").
+  if [ "$PROBLEM_TYPE" != "empty" ] && [ "$PROBLEM_TYPE" != "zeros" ]; then
+      tests.nested wait-for reboot "${boot_id}"
+  fi
 
   # Wait for the change to finish - note it will exit with non-zero since the 
   # change will fail, so don't let that kill the test here
@@ -53,7 +88,14 @@ execute: |
 
   echo "Check that the refresh failed"
   tests.nested exec sudo snap changes | grep "${REMOTE_CHG_ID}" | MATCH Error
-  tests.nested exec sudo snap tasks "${REMOTE_CHG_ID}" | MATCH "cannot finish .* installation, there was a rollback across reboot"
+  case "$PROBLEM_TYPE" in
+      empty|zeros)
+          tests.nested exec sudo snap tasks "${REMOTE_CHG_ID}" | MATCH "cannot set next boot: cannot reseal the encryption key:"
+          ;;
+      *)
+          tests.nested exec sudo snap tasks "${REMOTE_CHG_ID}" | MATCH "cannot finish .* installation, there was a rollback across reboot"
+          ;;
+  esac
 
   echo "Check We should be on the same revision of the kernel snap"
   if [ "$(tests.nested exec sudo snap list pc-kernel | grep pc-kernel | awk '{print $3}')" != "${startRevision}" ]; then

@@ -3,11 +3,22 @@ summary: Check that snap-device-helper operates correctly
 details: |
   The test verifies that snap-device-helper correctly modifies the cgroups
 
+systems:
+  #TODO: bpftool is not available on core22 and tests.device-cgroup needs it for cgroups v2
+  - -ubuntu-core-22-*
+
 environment:
     # note that /dev/full has well known major:minor which is 1:7
     DEVICES_PATH_MEM_FULL: /devices/virtual/mem/full
     # and /dev/kmsg has 1:11
     DEVICES_PATH_MEM_KMSG: /devices/virtual/mem/kmsg
+    # enable debugs from s-c
+    SNAPD_DEBUG: "1"
+
+debug: |
+    udevadm info /dev/full || true
+    udevadm info /dev/kmsg || true
+    tests.device-cgroup test-strict-cgroup-helper.sh dump || true
 
 execute: |
     #shellcheck source=tests/lib/systems.sh
@@ -87,6 +98,13 @@ execute: |
     wait
     NOMATCH 'Operation not permitted' < run.log
     test -n "$(cat run.log)"
+
+    # remove action removes the device from the cgroup
+    "$libexecdir"/snapd/snap-device-helper remove snap_test-strict-cgroup-helper_sh "$DEVICES_PATH_MEM_KMSG" 1:11
+    # /dev/kmsg is not present anymore
+    tests.device-cgroup test-strict-cgroup-helper.sh dump | NOMATCH 'c 1:11 rwm'
+    # and it's not possible to read /dev/kmsg again
+    snap run test-strict-cgroup-helper.sh -c 'head -1 /dev/kmsg' 2>&1 | MATCH "Operation not permitted"
 
     # now remove the cgroup
     if is_cgroupv2; then

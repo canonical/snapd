@@ -2,11 +2,10 @@
 
 show_help() {
     echo "usage: os.query is-core, is-classic"
-    echo "       os.query is-core16, is-core18, is-core20"
-    echo "       os.query is-trusty, is-xenial, is-bionic, is-focal, is-hirsute, is-impish"
-    echo "       os.query is-ubuntu, is-debian, is-fedora, is-amazon-linux, is-arch-linux, is-centos, is-centos-7, is-centos-8, is-opensuse"
-    echo "       os.query is-opensuse-tumbleweed, is-debian-sid, is-debian-11, is-debian-10"
-    echo "       os.query is-pc-amd64, is-pc-i386, is-arm, is-armhf, is-arm64"
+    echo "       os.query is-core16, is-core18, is-core20, is-core22"
+    echo "       os.query is-trusty, is-xenial, is-bionic, is-focal, is-jammy"
+    echo "       os.query is-ubuntu [ID], is-debian [ID], is-fedora [ID], is-amazon-linux, is-arch-linux, is-centos [ID], is-opensuse [ID]"
+    echo "       os.query is-pc-amd64, is-pc-i386, is-arm, is-armhf, is-arm64, is-s390x"
     echo ""
     echo "Get general information about the current system"
 }
@@ -25,6 +24,10 @@ is_core18() {
 
 is_core20() {
     [[ "$SPREAD_SYSTEM" == ubuntu-core-20-* ]]
+}
+
+is_core22() {
+    [[ "$SPREAD_SYSTEM" == ubuntu-core-22-* ]]
 }
 
 is_classic() {
@@ -47,36 +50,39 @@ is_focal() {
     grep -qFx 'UBUNTU_CODENAME=focal' /etc/os-release
 }
 
-is_hirsute() {
-    grep -qFx 'UBUNTU_CODENAME=hirsute' /etc/os-release
-}
-
-is_impish() {
-    grep -qFx 'UBUNTU_CODENAME=impish' /etc/os-release
+is_jammy() {
+    grep -qFx 'UBUNTU_CODENAME=jammy' /etc/os-release
 }
 
 is_ubuntu() {
-    grep -qFx 'ID=ubuntu' /etc/os-release || grep -qFx 'ID=ubuntu-core' /etc/os-release
+    VERSION=$1
+    if [ -z "$VERSION" ]; then
+        grep -qFx 'ID=ubuntu' /etc/os-release || grep -qFx 'ID=ubuntu-core' /etc/os-release
+    else
+        grep -qFx 'ID=ubuntu' /etc/os-release && grep -qFx "VERSION_ID=\"$VERSION\"" /etc/os-release
+    fi
 }
 
 is_debian() {
-    grep -qFx 'ID=debian' /etc/os-release
-}
-
-is_debian_10() {
-    grep -qFx 'ID=debian' /etc/os-release && grep -qFx 'VERSION_ID="10"' /etc/os-release
-}
-
-is_debian_11() {
-    grep -qFx 'ID=debian' /etc/os-release && grep -qFx 'VERSION_ID="11"' /etc/os-release
-}
-
-is_debian_sid() {
-    [[ "$SPREAD_SYSTEM" == debian-sid-* ]]
+    VERSION=$1
+    if [ -z "$VERSION" ]; then
+        grep -qFx 'ID=debian' /etc/os-release
+    elif [ "$VERSION" == "sid" ]; then
+        [[ "$SPREAD_SYSTEM" == debian-sid-* ]]
+    else
+        grep -qFx 'ID=debian' /etc/os-release && grep -qFx "VERSION_ID=\"$VERSION\"" /etc/os-release
+    fi
 }
 
 is_fedora() {
-    grep -qFx 'ID=fedora' /etc/os-release
+    VERSION=$1
+    if [ -z "$VERSION" ]; then
+        grep -qFx 'ID=fedora' /etc/os-release
+    elif [ "$VERSION" == "rawhide" ]; then
+        [[ "$SPREAD_SYSTEM" == fedora-rawhide-* ]]
+    else
+        grep -qFx 'ID=fedora' /etc/os-release && grep -qFx "VERSION_ID=$VERSION" /etc/os-release
+    fi
 }
 
 is_amazon_linux() {
@@ -84,15 +90,12 @@ is_amazon_linux() {
 }
 
 is_centos() {
-    grep -qFx 'ID="centos"' /etc/os-release
-}
-
-is_centos_7() {
-    grep -qFx 'ID="centos"' /etc/os-release && grep -qFx 'VERSION_ID="7"' /etc/os-release
-}
-
-is_centos_8() {
-    grep -qFx 'ID="centos"' /etc/os-release && grep -qFx 'VERSION_ID="8"' /etc/os-release
+    VERSION=$1
+    if [ -z "$VERSION" ]; then
+        grep -qFx 'ID="centos"' /etc/os-release
+    else
+        grep -qFx 'ID="centos"' /etc/os-release && grep -qFx "VERSION_ID=\"$VERSION\"" /etc/os-release
+    fi
 }
 
 is_arch_linux() {
@@ -100,11 +103,14 @@ is_arch_linux() {
 }
 
 is_opensuse() {
-    grep -qFx 'ID="opensuse-leap"' /etc/os-release || grep -qFx 'ID="opensuse-tumbleweed"' /etc/os-release
-}
-
-is_opensuse_tumbleweed() {
-    grep -qFx 'ID="opensuse-tumbleweed"' /etc/os-release
+    VERSION=$1
+    if [ -z "$VERSION" ]; then
+        grep -qFx 'ID="opensuse-leap"' /etc/os-release || grep -qFx 'ID="opensuse-tumbleweed"' /etc/os-release
+    elif [ "$VERSION" == "tumbleweed" ]; then
+        grep -qFx 'ID="opensuse-tumbleweed"' /etc/os-release
+    else
+        grep -qFx 'ID="opensuse-leap"' /etc/os-release && grep -qFx "VERSION_ID=\"$VERSION\"" /etc/os-release
+    fi
 }
 
 is_pc_amd64() {
@@ -125,6 +131,10 @@ is_armhf() {
 
 is_arm64() {
     uname -m | grep -Eq '(aarch64.*|armv8.*)'
+}
+
+is_s390x() {
+    uname -m | grep -qFx 's390x'
 }
 
 

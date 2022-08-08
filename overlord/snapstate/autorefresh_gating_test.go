@@ -86,7 +86,7 @@ func (s *autorefreshGatingSuite) SetUpTest(c *C) {
 	snapstate.ReplaceStore(s.state, s.store)
 	s.state.Set("refresh-privacy-key", "privacy-key")
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
 	s.AddCleanup(restore)
@@ -749,7 +749,7 @@ func (s *autorefreshGatingSuite) TestPruneGatingHelper(c *C) {
 	c.Assert(err, IsNil)
 	_, err = snapstate.HoldRefresh(st, "snap-d", 0, "snap-d", "snap-c")
 	c.Assert(err, IsNil)
-	// sanity
+	// validity
 	held, err := snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
 	c.Check(held, DeepEquals, map[string]bool{"snap-c": true, "snap-b": true, "snap-d": true})
@@ -855,7 +855,7 @@ func (s *autorefreshGatingSuite) TestPruneSnapsHold(c *C) {
 	_, err = snapstate.HoldRefresh(st, "snap-d", 0, "snap-c")
 	c.Assert(err, IsNil)
 
-	// sanity check
+	// validity check
 	held, err := snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
 	c.Check(held, DeepEquals, map[string]bool{
@@ -1376,7 +1376,7 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	// pretend some snaps are held
 	_, err := snapstate.HoldRefresh(st, "gating-snap", 0, "snap-a", "snap-d")
 	c.Assert(err, IsNil)
-	// sanity check
+	// validity check
 	heldSnaps, err := snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
 	c.Check(heldSnaps, DeepEquals, map[string]bool{
@@ -2651,7 +2651,7 @@ func verifyPhasedAutorefreshTasks(c *C, tasks []*state.Task, expected []string) 
 
 func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	var requiredRevision string
-	restoreEnforcedValidationSets := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restoreEnforcedValidationSets := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		someSnap := map[string]interface{}{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",

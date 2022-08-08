@@ -1,0 +1,79 @@
+#!/bin/bash
+
+show_help() {
+    echo "usage: os.paths snap-mount-dir, media-dir, libexec-dir"
+    echo ""
+    echo "get paths information for the current system"
+}
+
+snap_mount_dir() {
+    local SNAP_MOUNT_DIR=/snap
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|amazon-*|centos-*|arch-*)
+            SNAP_MOUNT_DIR=/var/lib/snapd/snap
+            ;;
+        *)
+            ;;
+    esac
+    echo "$SNAP_MOUNT_DIR"
+}
+
+media_dir() {
+    local MEDIA_DIR=/media
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|amazon-*|centos-*|arch-*|opensuse-*)
+            MEDIA_DIR=/run/media
+            ;;
+        *)
+            ;;
+    esac
+    echo "$MEDIA_DIR"
+}
+
+libexec_dir() {
+    local LIBEXEC_DIR=/usr/lib
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|amazon-*|centos-*|opensuse-tumbleweed-*)
+            LIBEXEC_DIR=/usr/libexec
+            ;;
+        *)
+            ;;
+    esac
+    echo "$LIBEXEC_DIR"
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    local subcommand="$1"
+    local action=
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                action=$(echo "$subcommand" | tr '-' '_')
+                shift
+                break
+                ;;
+        esac
+    done
+
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "os.paths: unknown path $subcommand" >&2
+        show_help
+        exit 1
+    fi
+
+    "$action" "$@"
+}
+
+main "$@"

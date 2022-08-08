@@ -1,0 +1,67 @@
+summary: Ensure upgrades from release version of snap works
+
+systems: [ubuntu-1*-64, ubuntu-2*-64]
+
+prepare: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_purge_package snapd
+
+restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_install_build_snapd
+
+execute: |
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
+
+    . /etc/os-release
+    # trusty has no UBUNTU_CODENAME in /etc/os-release and we need to cheat
+    # because snapd was not part of the original 14.04 release so we get
+    # the latest version in security before it went ESM
+    if [ "${VERSION_ID}" = "14.04" ]; then
+        UBUNTU_CODENAME=trusty-security
+    fi
+
+    # on anything but 16.04 get the snapd from the current distro
+    # release (without -updates)
+    if [ "${VERSION_ID}" != "16.04" ]; then
+        echo "deb http://archive.ubuntu.com/ubuntu ${UBUNTU_CODENAME} main" > /tmp/no-updates.list
+        apt update -o dir::etc::sourcelist=/tmp/no-updates.list -o dir::etc::sourceparts=/tmp/not-exists
+        apt install -o dir::etc::sourcelist=/tmp/no-updates.list -o dir::etc::sourceparts=/tmp/not-exists -y snapd
+        apt update -qq
+    else
+        # 16.04 is ESM so get the latest version from the official archive
+        # (we can't get the very first version because it's so old it
+        # cannot run our test snaps)
+        apt install -y snapd=2.48.3
+    fi
+    declare -A EXPECTED_SNAPD_VERSIONS=(
+        ["22.04"]='2.55.3\+22.04'
+        ["20.04"]='2.44.3\+20.04'
+        ["18.04"]='2.32.5\+18.04'
+        ["16.04"]='2.48.3'
+        ["14.04"]='2.37.4~14.04.1'
+    )
+    apt list --installed snapd | MATCH "${EXPECTED_SNAPD_VERSIONS[$VERSION_ID]}"
+
+    echo "install a test service and a test command"
+    snap install go-example-webserver
+    wait_for_service snap.go-example-webserver.webserver.service
+    snap install test-snapd-tools
+    test-snapd-tools.echo hello | MATCH hello
+
+    echo "upgrade to current snapd"
+    if [ "${VERSION_ID}" = "14.04" ]; then
+        dpkg -i "$GOHOME"/snapd*.deb
+    else
+        apt install -y "$GOHOME"/snapd_1337*.deb
+    fi
+
+    echo "snapd listens to requests"
+    snap list
+    echo "and ensure the snap service is still active"
+    wait_for_service snap.go-example-webserver.webserver.service
+    echo "and snap apps still work"
+    test-snapd-tools.echo hello | MATCH hello

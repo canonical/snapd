@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 // DeviceChange handles a change of the underlying device. Specifically it can
@@ -33,7 +34,7 @@ import (
 // encryption keys will be resealed for both models. The device model file which
 // is measured during boot will be updated. The recovery systems that belong to
 // the old model will no longer be usable.
-func DeviceChange(from Device, to Device) error {
+func DeviceChange(from snap.Device, to snap.Device) error {
 	if !to.HasModeenv() {
 		// nothing useful happens on a non-UC20 system here
 		return nil

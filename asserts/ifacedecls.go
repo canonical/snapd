@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2017 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,9 +22,7 @@ package asserts
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"regexp"
-	"strconv"
 	"strings"
 	"unicode"
 
@@ -38,286 +36,11 @@ type AttrMatchContext interface {
 }
 
 const (
-	// feature label for $SLOT()/$PLUG()/$MISSING
-	dollarAttrConstraintsFeature = "dollar-attr-constraints"
 	// feature label for on-store/on-brand/on-model
 	deviceScopeConstraintsFeature = "device-scope-constraints"
 	// feature label for plug-names/slot-names constraints
 	nameConstraintsFeature = "name-constraints"
 )
-
-type attrMatcher interface {
-	match(apath string, v interface{}, ctx AttrMatchContext) error
-
-	feature(flabel string) bool
-}
-
-func chain(path, k string) string {
-	if path == "" {
-		return k
-	}
-	return fmt.Sprintf("%s.%s", path, k)
-}
-
-type compileContext struct {
-	dotted string
-	hadMap bool
-	wasAlt bool
-}
-
-func (cc compileContext) String() string {
-	return cc.dotted
-}
-
-func (cc compileContext) keyEntry(k string) compileContext {
-	return compileContext{
-		dotted: chain(cc.dotted, k),
-		hadMap: true,
-		wasAlt: false,
-	}
-}
-
-func (cc compileContext) alt(alt int) compileContext {
-	return compileContext{
-		dotted: fmt.Sprintf("%s/alt#%d/", cc.dotted, alt+1),
-		hadMap: cc.hadMap,
-		wasAlt: true,
-	}
-}
-
-// compileAttrMatcher compiles an attrMatcher derived from constraints,
-func compileAttrMatcher(cc compileContext, constraints interface{}) (attrMatcher, error) {
-	switch x := constraints.(type) {
-	case map[string]interface{}:
-		return compileMapAttrMatcher(cc, x)
-	case []interface{}:
-		if cc.wasAlt {
-			return nil, fmt.Errorf("cannot nest alternative constraints directly at %q", cc)
-		}
-		return compileAltAttrMatcher(cc, x)
-	case string:
-		if !cc.hadMap {
-			return nil, fmt.Errorf("first level of non alternative constraints must be a set of key-value contraints")
-		}
-		if strings.HasPrefix(x, "$") {
-			if x == "$MISSING" {
-				return missingAttrMatcher{}, nil
-			}
-			return compileEvalAttrMatcher(cc, x)
-		}
-		return compileRegexpAttrMatcher(cc, x)
-	default:
-		return nil, fmt.Errorf("constraint %q must be a key-value map, regexp or a list of alternative constraints: %v", cc, x)
-	}
-}
-
-type mapAttrMatcher map[string]attrMatcher
-
-func compileMapAttrMatcher(cc compileContext, m map[string]interface{}) (attrMatcher, error) {
-	matcher := make(mapAttrMatcher)
-	for k, constraint := range m {
-		matcher1, err := compileAttrMatcher(cc.keyEntry(k), constraint)
-		if err != nil {
-			return nil, err
-		}
-		matcher[k] = matcher1
-	}
-	return matcher, nil
-}
-
-func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}, ctx AttrMatchContext) error {
-	apath = chain(apath, k)
-	// every entry matcher expects the attribute to be set except for $MISSING
-	if _, ok := matcher1.(missingAttrMatcher); !ok && v == nil {
-		return fmt.Errorf("attribute %q has constraints but is unset", apath)
-	}
-	if err := matcher1.match(apath, v, ctx); err != nil {
-		return err
-	}
-	return nil
-}
-
-func matchList(apath string, matcher attrMatcher, l []interface{}, ctx AttrMatchContext) error {
-	for i, elem := range l {
-		if err := matcher.match(chain(apath, strconv.Itoa(i)), elem, ctx); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (matcher mapAttrMatcher) feature(flabel string) bool {
-	for _, matcher1 := range matcher {
-		if matcher1.feature(flabel) {
-			return true
-		}
-	}
-	return false
-}
-
-func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
-	switch x := v.(type) {
-	case Attrer:
-		// we get Atter from root-level Check (apath is "")
-		for k, matcher1 := range matcher {
-			v, _ := x.Lookup(k)
-			if err := matchEntry("", k, matcher1, v, ctx); err != nil {
-				return err
-			}
-		}
-	case map[string]interface{}: // maps in attributes look like this
-		for k, matcher1 := range matcher {
-			if err := matchEntry(apath, k, matcher1, x[k], ctx); err != nil {
-				return err
-			}
-		}
-	case []interface{}:
-		return matchList(apath, matcher, x, ctx)
-	default:
-		return fmt.Errorf("attribute %q must be a map", apath)
-	}
-	return nil
-}
-
-type missingAttrMatcher struct{}
-
-func (matcher missingAttrMatcher) feature(flabel string) bool {
-	return flabel == dollarAttrConstraintsFeature
-}
-
-func (matcher missingAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
-	if v != nil {
-		return fmt.Errorf("attribute %q is constrained to be missing but is set", apath)
-	}
-	return nil
-}
-
-type evalAttrMatcher struct {
-	// first iteration supports just $(SLOT|PLUG)(arg)
-	op  string
-	arg string
-}
-
-var (
-	validEvalAttrMatcher = regexp.MustCompile(`^\$(SLOT|PLUG)\((.+)\)$`)
-)
-
-func compileEvalAttrMatcher(cc compileContext, s string) (attrMatcher, error) {
-	ops := validEvalAttrMatcher.FindStringSubmatch(s)
-	if len(ops) == 0 {
-		return nil, fmt.Errorf("cannot compile %q constraint %q: not a valid $SLOT()/$PLUG() constraint", cc, s)
-	}
-	return evalAttrMatcher{
-		op:  ops[1],
-		arg: ops[2],
-	}, nil
-}
-
-func (matcher evalAttrMatcher) feature(flabel string) bool {
-	return flabel == dollarAttrConstraintsFeature
-}
-
-func (matcher evalAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
-	if ctx == nil {
-		return fmt.Errorf("attribute %q cannot be matched without context", apath)
-	}
-	var comp func(string) (interface{}, error)
-	switch matcher.op {
-	case "SLOT":
-		comp = ctx.SlotAttr
-	case "PLUG":
-		comp = ctx.PlugAttr
-	}
-	v1, err := comp(matcher.arg)
-	if err != nil {
-		return fmt.Errorf("attribute %q constraint $%s(%s) cannot be evaluated: %v", apath, matcher.op, matcher.arg, err)
-	}
-	if !reflect.DeepEqual(v, v1) {
-		return fmt.Errorf("attribute %q does not match $%s(%s): %v != %v", apath, matcher.op, matcher.arg, v, v1)
-	}
-	return nil
-}
-
-type regexpAttrMatcher struct {
-	*regexp.Regexp
-}
-
-func compileRegexpAttrMatcher(cc compileContext, s string) (attrMatcher, error) {
-	rx, err := regexp.Compile("^(" + s + ")$")
-	if err != nil {
-		return nil, fmt.Errorf("cannot compile %q constraint %q: %v", cc, s, err)
-	}
-	return regexpAttrMatcher{rx}, nil
-}
-
-func (matcher regexpAttrMatcher) feature(flabel string) bool {
-	return false
-}
-
-func (matcher regexpAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
-	var s string
-	switch x := v.(type) {
-	case string:
-		s = x
-	case bool:
-		s = strconv.FormatBool(x)
-	case int64:
-		s = strconv.FormatInt(x, 10)
-	case []interface{}:
-		return matchList(apath, matcher, x, ctx)
-	default:
-		return fmt.Errorf("attribute %q must be a scalar or list", apath)
-	}
-	if !matcher.Regexp.MatchString(s) {
-		return fmt.Errorf("attribute %q value %q does not match %v", apath, s, matcher.Regexp)
-	}
-	return nil
-
-}
-
-type altAttrMatcher struct {
-	alts []attrMatcher
-}
-
-func compileAltAttrMatcher(cc compileContext, l []interface{}) (attrMatcher, error) {
-	alts := make([]attrMatcher, len(l))
-	for i, constraint := range l {
-		matcher1, err := compileAttrMatcher(cc.alt(i), constraint)
-		if err != nil {
-			return nil, err
-		}
-		alts[i] = matcher1
-	}
-	return altAttrMatcher{alts}, nil
-
-}
-
-func (matcher altAttrMatcher) feature(flabel string) bool {
-	for _, alt := range matcher.alts {
-		if alt.feature(flabel) {
-			return true
-		}
-	}
-	return false
-}
-
-func (matcher altAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
-	var firstErr error
-	for _, alt := range matcher.alts {
-		err := alt.match(apath, v, ctx)
-		if err == nil {
-			return nil
-		}
-		if firstErr == nil {
-			firstErr = err
-		}
-	}
-	apathDescr := ""
-	if apath != "" {
-		apathDescr = fmt.Sprintf(" for attribute %q", apath)
-	}
-	return fmt.Errorf("no alternative%s matches: %v", apathDescr, firstErr)
-}
 
 // AttributeConstraints implements a set of constraints on the attributes of a slot or plug.
 type AttributeConstraints struct {
@@ -331,7 +54,12 @@ func (ac *AttributeConstraints) feature(flabel string) bool {
 // compileAttributeConstraints checks and compiles a mapping or list
 // from the assertion format into AttributeConstraints.
 func compileAttributeConstraints(constraints interface{}) (*AttributeConstraints, error) {
-	matcher, err := compileAttrMatcher(compileContext{}, constraints)
+	cc := compileContext{
+		opts: &compileAttrMatcherOptions{
+			allowedOperations: []string{"SLOT", "PLUG"},
+		},
+	}
+	matcher, err := compileAttrMatcher(cc, constraints)
 	if err != nil {
 		return nil, err
 	}
@@ -346,7 +74,7 @@ func (matcher fixedAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher fixedAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher fixedAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
 	return matcher.result
 }
 
@@ -361,8 +89,11 @@ type Attrer interface {
 }
 
 // Check checks whether attrs don't match the constraints.
-func (c *AttributeConstraints) Check(attrer Attrer, ctx AttrMatchContext) error {
-	return c.matcher.match("", attrer, ctx)
+func (c *AttributeConstraints) Check(attrer Attrer, helper AttrMatchContext) error {
+	return c.matcher.match("", attrer, &attrMatchingContext{
+		attrWord: "attribute",
+		helper:   helper,
+	})
 }
 
 // SideArityConstraint specifies a constraint for the overall arity of
@@ -449,66 +180,6 @@ var (
 type OnClassicConstraint struct {
 	Classic   bool
 	SystemIDs []string
-}
-
-// DeviceScopeConstraint specifies a constraints based on which brand
-// store, brand or model the device belongs to.
-type DeviceScopeConstraint struct {
-	Store []string
-	Brand []string
-	// Model is a list of precise "<brand>/<model>" constraints
-	Model []string
-}
-
-var (
-	validStoreID         = regexp.MustCompile("^[-A-Z0-9a-z_]+$")
-	validBrandSlashModel = regexp.MustCompile("^(" +
-		strings.Trim(validAccountID.String(), "^$") +
-		")/(" +
-		strings.Trim(validModel.String(), "^$") +
-		")$")
-	deviceScopeConstraints = map[string]*regexp.Regexp{
-		"on-store": validStoreID,
-		"on-brand": validAccountID,
-		// on-model constraints are of the form list of
-		// <brand>/<model> strings where <brand> are account
-		// IDs as they appear in the respective model assertion
-		"on-model": validBrandSlashModel,
-	}
-)
-
-func detectDeviceScopeConstraint(cMap map[string]interface{}) bool {
-	// for consistency and simplicity we support all of on-store,
-	// on-brand, and on-model to appear together. The interpretation
-	// layer will AND them as usual
-	for field := range deviceScopeConstraints {
-		if cMap[field] != nil {
-			return true
-		}
-	}
-	return false
-}
-
-func compileDeviceScopeConstraint(cMap map[string]interface{}, context string) (constr *DeviceScopeConstraint, err error) {
-	// initial map size of 2: we expect usual cases to have just one of the
-	// constraints or rarely 2
-	deviceConstr := make(map[string][]string, 2)
-	for field, validRegexp := range deviceScopeConstraints {
-		vals, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validRegexp)
-		if err != nil {
-			return nil, err
-		}
-		deviceConstr[field] = vals
-	}
-
-	if len(deviceConstr) == 0 {
-		return nil, fmt.Errorf("internal error: misdetected device scope constraints in %s", context)
-	}
-	return &DeviceScopeConstraint{
-		Store: deviceConstr["on-store"],
-		Brand: deviceConstr["on-brand"],
-		Model: deviceConstr["on-model"],
-	}, nil
 }
 
 type nameMatcher interface {
@@ -726,14 +397,14 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 		}
 		target.setOnClassicConstraint(c)
 	}
-	if !detectDeviceScopeConstraint(cMap) {
+	dsc, err := compileDeviceScopeConstraint(cMap, context.String())
+	if err != nil {
+		return err
+	}
+	if dsc == nil {
 		defaultUsed++
 	} else {
-		c, err := compileDeviceScopeConstraint(cMap, context.String())
-		if err != nil {
-			return err
-		}
-		target.setDeviceScopeConstraint(c)
+		target.setDeviceScopeConstraint(dsc)
 	}
 	// checks whether defaults have been used for everything, which is not
 	// well-formed
@@ -950,6 +621,7 @@ func (r *PlugRule) setConstraints(field string, cstrs []constraintsHolder) {
 // PlugInstallationConstraints specifies a set of constraints on an interface plug relevant to the installation of snap.
 type PlugInstallationConstraints struct {
 	PlugSnapTypes []string
+	PlugSnapIDs   []string
 
 	PlugNames *NameConstraints
 
@@ -992,6 +664,8 @@ func (c *PlugInstallationConstraints) setIDConstraints(field string, cstrs []str
 	switch field {
 	case "plug-snap-type":
 		c.PlugSnapTypes = cstrs
+	case "plug-snap-id":
+		c.PlugSnapIDs = cstrs
 	default:
 		panic("unknown PlugInstallationConstraints field " + field)
 	}
@@ -1007,7 +681,9 @@ func (c *PlugInstallationConstraints) setDeviceScopeConstraint(deviceScope *Devi
 
 func compilePlugInstallationConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	plugInstCstrs := &PlugInstallationConstraints{}
-	err := baseCompileConstraints(context, cDef, plugInstCstrs, []string{"plug-names"}, []string{"plug-attributes"}, []string{"plug-snap-type"})
+	// plug-snap-id is supported here mainly for symmetry with the slot case
+	// see discussion there
+	err := baseCompileConstraints(context, cDef, plugInstCstrs, []string{"plug-names"}, []string{"plug-attributes"}, []string{"plug-snap-type", "plug-snap-id"})
 	if err != nil {
 		return nil, err
 	}
@@ -1254,6 +930,7 @@ func (r *SlotRule) setConstraints(field string, cstrs []constraintsHolder) {
 // interface slot relevant to the installation of snap.
 type SlotInstallationConstraints struct {
 	SlotSnapTypes []string
+	SlotSnapIDs   []string
 
 	SlotNames *NameConstraints
 
@@ -1296,6 +973,8 @@ func (c *SlotInstallationConstraints) setIDConstraints(field string, cstrs []str
 	switch field {
 	case "slot-snap-type":
 		c.SlotSnapTypes = cstrs
+	case "slot-snap-id":
+		c.SlotSnapIDs = cstrs
 	default:
 		panic("unknown SlotInstallationConstraints field " + field)
 	}
@@ -1311,7 +990,17 @@ func (c *SlotInstallationConstraints) setDeviceScopeConstraint(deviceScope *Devi
 
 func compileSlotInstallationConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	slotInstCstrs := &SlotInstallationConstraints{}
-	err := baseCompileConstraints(context, cDef, slotInstCstrs, []string{"slot-names"}, []string{"slot-attributes"}, []string{"slot-snap-type"})
+	// slot-snap-id here is mostly useful to restrict a relaxed
+	// base-declaration slot-snap-type constraint because the latter is used
+	// also for --dangerous installations. So in rare complex situations
+	// slot-snap-type might constraint to core and app
+	// but the intention is really that only system snaps should have the
+	// slot without a snap-declaration rule, slot-snap-id then can
+	// be used to limit to the known system snap snap-ids.
+	// This means we want app-slots to be super-privileged but we have
+	// slots for the interface on the system snaps as well.
+	// An example of this is shared-memory.
+	err := baseCompileConstraints(context, cDef, slotInstCstrs, []string{"slot-names"}, []string{"slot-attributes"}, []string{"slot-snap-type", "slot-snap-id"})
 	if err != nil {
 		return nil, err
 	}

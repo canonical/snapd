@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,12 +26,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap/naming"
@@ -76,6 +76,10 @@ type PlaceInfo interface {
 	// snap.
 	CommonDataDir() string
 
+	// CommonDataSaveDir returns the save data directory common across revisions
+	// of the snap.
+	CommonDataSaveDir() string
+
 	// UserCommonDataDir returns the per user data directory common across
 	// revisions of the snap.
 	UserCommonDataDir(home string, opts *dirs.SnapDirOptions) string
@@ -94,6 +98,9 @@ type PlaceInfo interface {
 	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR
 	// directories for all users of the snap.
 	XdgRuntimeDirs() string
+
+	// UserExposedHomeDir returns the snap's new home directory under ~/Snap.
+	UserExposedHomeDir(home string) string
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a
@@ -186,6 +193,12 @@ func DataDir(name string, revision Revision) string {
 	return filepath.Join(BaseDataDir(name), revision.String())
 }
 
+// CommonDataSaveDir returns a core-specific save directory meant to provide access
+// to a per-snap storage that is preserved across factory reset.
+func CommonDataSaveDir(name string) string {
+	return filepath.Join(dirs.SnapDataSaveDir, name)
+}
+
 // CommonDataDir returns the common data directory for given snap name. The name
 // can be either a snap name or snap instance name.
 func CommonDataDir(name string) string {
@@ -226,6 +239,11 @@ func UserCommonDataDir(home string, name string, opts *dirs.SnapDirOptions) stri
 // snap name. The name can be either a snap name or snap instance name.
 func UserSnapDir(home string, name string, opts *dirs.SnapDirOptions) string {
 	return filepath.Join(home, snapDataDir(opts), name)
+}
+
+// UserExposedHomeDir returns the snap's directory in the exposed home dir.
+func UserExposedHomeDir(home string, snapName string) string {
+	return filepath.Join(home, dirs.ExposedSnapHomeDir, snapName)
 }
 
 // UserXdgRuntimeDir returns the user-specific XDG_RUNTIME_DIR directory for
@@ -278,6 +296,8 @@ type Info struct {
 	OriginalSummary     string
 	OriginalDescription string
 
+	SnapProvenance string
+
 	Environment strutil.OrderedMap
 
 	LicenseAgreement string
@@ -303,7 +323,7 @@ type Info struct {
 	Broken string
 
 	// The information in these fields is ephemeral, available only from the
-	// store.
+	// store or when read from a snap file.
 	DownloadInfo
 
 	Prices  map[string]float64
@@ -396,6 +416,19 @@ type ChannelSnapInfo struct {
 	Epoch       Epoch           `json:"epoch"`
 	Size        int64           `json:"size"`
 	ReleasedAt  time.Time       `json:"released-at"`
+}
+
+// Provenance returns the provenance of the snap, this is a label set
+// e.g to distinguish snaps that are not expected to be processed by the global
+// store. Constraints on this value are used to allow for delegated
+// snap-revision signing.
+// This returns naming.DefaultProvenance if no value is set explicitly
+// in the snap metadata.
+func (s *Info) Provenance() string {
+	if s.SnapProvenance == "" {
+		return naming.DefaultProvenance
+	}
+	return s.SnapProvenance
 }
 
 // InstanceName returns the blessed name of the snap decorated with instance
@@ -526,11 +559,22 @@ func (s *Info) UserCommonDataDir(home string, opts *dirs.SnapDirOptions) string 
 	return UserCommonDataDir(home, s.InstanceName(), opts)
 }
 
+// UserExposedHomeDir returns the new upper-case snap directory in the user home.
+func (s *Info) UserExposedHomeDir(home string) string {
+	return filepath.Join(home, dirs.ExposedSnapHomeDir, s.InstanceName())
+}
+
 // CommonDataDir returns the data directory common across revisions of the snap.
 func (s *Info) CommonDataDir() string {
 	return CommonDataDir(s.InstanceName())
 }
 
+// CommonDataSaveDir returns the save data directory common across revisions of the snap.
+func (s *Info) CommonDataSaveDir() string {
+	return CommonDataSaveDir(s.InstanceName())
+}
+
+// DataHomeGlob returns the globbing expression for the snap directories in use
 func DataHomeGlob(opts *dirs.SnapDirOptions) string {
 	if opts == nil {
 		opts = &dirs.SnapDirOptions{}
@@ -704,8 +748,19 @@ type DeltaInfo struct {
 	Sha3_384        string `json:"sha3-384,omitempty"`
 }
 
-// sanity check that Info is a PlaceInfo
+// check that Info is a PlaceInfo
 var _ PlaceInfo = (*Info)(nil)
+
+type AttributeNotFoundError struct{ Err error }
+
+func (e AttributeNotFoundError) Error() string {
+	return e.Err.Error()
+}
+
+func (e AttributeNotFoundError) Is(target error) bool {
+	_, ok := target.(AttributeNotFoundError)
+	return ok
+}
 
 // PlugInfo provides information about a plug.
 type PlugInfo struct {
@@ -743,21 +798,10 @@ func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
 func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
 	v, ok := lookupAttr(attrs, key)
 	if !ok {
-		return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
+		return AttributeNotFoundError{fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)}
 	}
 
-	rt := reflect.TypeOf(val)
-	if rt.Kind() != reflect.Ptr || val == nil {
-		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
-	}
-
-	if reflect.TypeOf(v) != rt.Elem() {
-		return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
-	}
-	rv := reflect.ValueOf(val)
-	rv.Elem().Set(reflect.ValueOf(v))
-
-	return nil
+	return metautil.SetValueFromAttribute(snapName, ifaceName, key, v, val)
 }
 
 func (plug *PlugInfo) Attr(key string, val interface{}) error {
@@ -900,7 +944,7 @@ func (st StopModeType) KillSignal() string {
 // Validate ensures that the StopModeType has an valid value.
 func (st StopModeType) Validate() error {
 	switch st {
-	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
+	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all", "sigint", "sigint-all":
 		// valid
 		return nil
 	}
@@ -1045,6 +1089,11 @@ func (app *AppInfo) WrapperPath() string {
 // CompleterPath returns the path to the completer snippet for the app binary.
 func (app *AppInfo) CompleterPath() string {
 	return filepath.Join(dirs.CompletersDir, JoinSnapApp(app.Snap.InstanceName(), app.Name))
+}
+
+// CompleterPath returns the legacy path to the completer snippet for the app binary.
+func (app *AppInfo) LegacyCompleterPath() string {
+	return filepath.Join(dirs.LegacyCompletersDir, JoinSnapApp(app.Snap.InstanceName(), app.Name))
 }
 
 func (app *AppInfo) launcherCommand(command string) string {
@@ -1290,6 +1339,13 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	bindImplicitHooks(info, strk)
 
 	err = Validate(info)
+	if err != nil {
+		return nil, err
+	}
+
+	// As part of the validation, also read the snapshot manifest file: we
+	// don't care about its contents now, but we need to make sure it's valid.
+	_, err = ReadSnapshotYamlFromSnapFile(snapf)
 	if err != nil {
 		return nil, err
 	}

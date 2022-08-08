@@ -31,7 +31,7 @@ execute: |
     snap debug state --task="$TASK_ID" /var/lib/snapd/state.json | MATCH "kind: mark-seeded"
     snap debug state --task="$TASK_ID" /var/lib/snapd/state.json | MATCH "summary: Mark system seeded"
 
-    # sanity check, dot shouldn't fail
+    # precondition check, dot shouldn't fail
     if [[ "$SPREAD_SYSTEM" == ubuntu-1* ]]; then
         snap debug state --change=1 --dot /var/lib/snapd/state.json | dot -Tpng > out.png
     fi

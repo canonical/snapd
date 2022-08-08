@@ -3,20 +3,26 @@
 ## Test keys and developer accounts
 
 Signed model assertions for use in the spread tests can be generated using
-`gendeveloper1model` tool. The assertion is signed by `developer1` key, which is
+`gendeveloper1` tool. The assertion is signed by `developer1` key, which is
 built-into the snapd binary used during the tests.
 
 To build the tool:
 
 ```
-$ go install ./tests/lib/gendeveloper1model
+$ go install ./tests/lib/gendeveloper1
 ```
 
 Generating the assertions is done like this:
 
 ```
 $ cd tests/lib/assertions
-$ gendeveloper1model < developer1-pc-18.model.json > developer1-pc-18.model
+$ gendeveloper1 sign-model < developer1-pc-18.model.json > developer1-pc-18.model
+```
+
+The GPG of developer1 can be obtained with:
+
+```
+$ gendeveloper1 show-key
 ```
 
 ## Valid keys and developer accounts
