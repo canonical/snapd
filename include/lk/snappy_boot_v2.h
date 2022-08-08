@@ -24,7 +24,7 @@
 #define SNAP_BOOTSELECT_SIGNATURE_RECOVERY ('S' | ('R' << 8) | ('s' << 16) | ('e' << 24))
 
 // device lock states
-#define DEVICE_STATE_UNKNOW   0  // initial device state at first boot
+#define DEVICE_STATE_UNKNOWN  0  // initial device state at first boot
 #define DEVICE_STATE_UNLOCKED 1  // device unlocked
 #define DEVICE_STATE_LOCKED   2  // device locked
 
@@ -220,7 +220,7 @@ typedef struct SNAP_RECOVERY_BOOT_SELECTION {
      * to the snapd and is only modified by bootloader.
      * Only first char in the aray is used (device_lock_state[0])
      * Permitted values:
-     *  0: DEVICE_STATE_UNKNOW:   initial value at first boot.
+     *  0: DEVICE_STATE_UNKNOWN:   initial value at first boot.
      *          This is changed by the bootloader to reflect actual device state.
      *  1: DEVICE_STATE_UNLOCKED: unlocked device
      *  2: DEVICE_STATE_LOCKED:   locked device

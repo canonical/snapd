@@ -120,7 +120,7 @@ type SnapBootSelect_v2_recovery struct {
 	 * to the snapd and is only modified by bootloader.
 	 * Only first char in the aray is used (device_lock_state[0])
 	 * Permitted values:
-	 *  0: DEVICE_STATE_UNKNOW:   initial value at first boot.
+	 *  0: DEVICE_STATE_UNKNOWN:   initial value at first boot.
 	 *          This is changed by the bootloader to reflect actual device state.
 	 *  1: DEVICE_STATE_UNLOCKED: unlocked device
 	 *  2: DEVICE_STATE_LOCKED:   locked device
