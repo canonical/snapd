@@ -280,7 +280,7 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 	}
 
 	if sysfsOverlay != "" {
-		// bind mount only permited directories under sys/class and sys/devices
+		// bind mount only permitted directories under sys/class and sys/devices
 		for _, dir := range []string{
 			"sys/class/backlight", "sys/class/bluetooth", "sys/class/gpio",
 			"sys/class/leds", "sys/class/ptp", "sys/class/pwm",
