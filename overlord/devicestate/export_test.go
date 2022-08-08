@@ -43,7 +43,10 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-var SystemForPreseeding = systemForPreseeding
+var (
+	SystemForPreseeding         = systemForPreseeding
+	GetUserDetailsFromAssertion = getUserDetailsFromAssertion
+)
 
 func MockKeyLength(n int) (restore func()) {
 	if n < 1024 {
@@ -433,7 +436,3 @@ func MockUserLookup(lookup func(username string) (*user.User, error)) (restore f
 	userLookup = lookup
 	return restore
 }
-
-var (
-	GetUserDetailsFromAssertion = getUserDetailsFromAssertion
-)
