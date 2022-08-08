@@ -1,7 +1,7 @@
 summary: Check that we can install snaps when fuse is missing in lxd
 
 # we just need a single system to verify this
-systems: [ubuntu-18.04-64]
+systems: [ubuntu-22.04-64]
 
 restore: |
     lxc delete --force my-ubuntu

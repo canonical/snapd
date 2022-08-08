@@ -208,13 +208,18 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 }
 
 func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, InternalError(err.Error())
+	}
+
 	sideInfos := make([]*snap.SideInfo, len(snapFiles))
 	names := make([]string, len(snapFiles))
 	tempPaths := make([]string, len(snapFiles))
 	origPaths := make([]string, len(snapFiles))
 
 	for i, snapFile := range snapFiles {
-		si, apiError := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags)
+		si, apiError := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
 		if apiError != nil {
 			return nil, apiError
 		}
@@ -252,7 +257,12 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 		}
 	}
 
-	sideInfo, apiErr := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags)
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, InternalError(err.Error())
+	}
+
+	sideInfo, apiErr := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
 	if apiErr != nil {
 		return nil, apiErr
 	}
@@ -278,11 +288,11 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 	return chg, nil
 }
 
-func readSideInfo(st *state.State, tempPath string, origPath string, flags sideloadFlags) (*snap.SideInfo, *apiError) {
+func readSideInfo(st *state.State, tempPath string, origPath string, flags sideloadFlags, model *asserts.Model) (*snap.SideInfo, *apiError) {
 	var sideInfo *snap.SideInfo
 
 	if !flags.dangerousOK {
-		si, err := snapasserts.DeriveSideInfo(tempPath, assertstate.DB(st))
+		si, err := snapasserts.DeriveSideInfo(tempPath, model, assertstate.DB(st))
 		switch {
 		case err == nil:
 			sideInfo = si

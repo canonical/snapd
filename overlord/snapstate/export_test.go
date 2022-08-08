@@ -414,7 +414,7 @@ func MockRestoreValidationSetsTracking(f func(*state.State) error) (restore func
 	}
 }
 
-func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refreshedSnaps []string) ([]*state.TaskSet, error)) (restore func()) {
+func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refreshedSnaps []string, fromChange string) ([]*state.TaskSet, error)) (restore func()) {
 	old := maybeRestoreValidationSetsAndRevertSnaps
 	maybeRestoreValidationSetsAndRevertSnaps = f
 	return func() {

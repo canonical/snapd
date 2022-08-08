@@ -78,7 +78,7 @@ func UpdateBootRevisions(st *state.State) error {
 		if actual.SnapRevision() != info.SideInfo.Revision {
 			// FIXME: check that there is no task
 			//        for this already in progress
-			ts, err := RevertToRevision(st, actual.SnapName(), actual.SnapRevision(), Flags{})
+			ts, err := RevertToRevision(st, actual.SnapName(), actual.SnapRevision(), Flags{}, "")
 			if err != nil {
 				return err
 			}

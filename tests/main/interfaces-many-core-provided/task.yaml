@@ -67,7 +67,7 @@ execute: |
         # Debian 10 has bad performance disconnecting interfaces
         # and the test fails (kill-timeout) trying either to remove
         # interfaces or removing the snap
-        if os.query is-debian-10 && [ "$((RANDOM % 3))" != 0 ]; then
+        if os.query is-debian 10 && [ "$((RANDOM % 3))" != 0 ]; then
             echo "skipping plug: $plugcmd"
             continue
         fi

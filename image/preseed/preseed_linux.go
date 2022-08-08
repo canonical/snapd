@@ -22,6 +22,7 @@ package preseed
 import (
 	"crypto"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -291,7 +292,8 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 	for _, dir := range []string{
 		"etc/udev/rules.d", "etc/systemd/system", "etc/dbus-1/session.d",
 		"var/lib/snapd/seed", "var/cache/snapd", "var/cache/apparmor",
-		"var/snap", "snap"} {
+		"var/snap", "snap", "var/lib/extrausers",
+	} {
 		if err = os.MkdirAll(filepath.Join(writable, dir), 0755); err != nil {
 			return nil, err
 		}
@@ -309,6 +311,7 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 		{"--bind", underWritable("system-data/etc/systemd"), underPreseed("etc/systemd")},
 		{"--bind", underWritable("system-data/etc/dbus-1"), underPreseed("etc/dbus-1")},
 		{"--bind", underWritable("system-data/etc/udev/rules.d"), underPreseed("etc/udev/rules.d")},
+		{"--bind", underWritable("system-data/var/lib/extrausers"), underPreseed("var/lib/extrausers")},
 		{"--bind", filepath.Join(snapdMountPath, "/usr/lib/snapd"), underPreseed("/usr/lib/snapd")},
 		{"--bind", filepath.Join(prepareImageDir, "system-seed"), underPreseed("var/lib/snapd/seed")},
 	}
@@ -539,6 +542,11 @@ func runUC20PreseedMode(opts *preseedOpts) error {
 	fmt.Fprintf(Stdout, "starting to preseed UC20+ system: %s\n", opts.PreseedChrootDir)
 
 	if err := cmd.Run(); err != nil {
+		var errno syscall.Errno
+		if errors.As(err, &errno) && errno == syscall.ENOEXEC {
+			return fmt.Errorf(`error running snapd, please try installing the "qemu-user-static" package: %v`, err)
+		}
+
 		return fmt.Errorf("error running snapd in preseed mode: %v\n", err)
 	}
 

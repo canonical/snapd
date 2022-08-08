@@ -1105,7 +1105,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 	c.Assert(localSnaps, HasLen, 5)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
 		if !asserts.IsNotFound(err) {
 			c.Assert(err, IsNil)
 		}
@@ -1760,7 +1760,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
 		if !asserts.IsNotFound(err) {
 			c.Assert(err, IsNil)
 		}
@@ -2476,7 +2476,7 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 			c.Assert(localSnaps, HasLen, 1)
 
 			for _, sn := range localSnaps {
-				si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+				si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
 				if !asserts.IsNotFound(err) {
 					c.Assert(err, IsNil)
 				}
@@ -2588,7 +2588,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
 		c.Assert(asserts.IsNotFound(err), Equals, true)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
@@ -2969,7 +2969,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		_, _, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
 		c.Assert(asserts.IsNotFound(err), Equals, true)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
@@ -3141,7 +3141,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 	c.Assert(localSnaps, HasLen, 2)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
 		c.Assert(err, IsNil)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
@@ -3265,7 +3265,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C)
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, tf, s.db)
 		c.Assert(err, IsNil)
 		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)

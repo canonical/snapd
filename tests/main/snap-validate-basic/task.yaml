@@ -45,7 +45,7 @@ execute: |
   snap validate "$ACCOUNT_ID"/bar=1 2>&1 | MATCH "^invalid"
 
   echo "Checking that monitor mode is supported with a pinned sequence and local validation-set"
-  snap validate --monitor "$ACCOUNT_ID"/bar=1
+  snap validate --monitor "$ACCOUNT_ID"/bar=1 | MATCH "^invalid"
   snap validate | MATCH "$ACCOUNT_ID/bar=1 +monitor +1 +invalid"
 
   echo "Checking that validation-set is valid or invalid depending on presence of the snap"
@@ -72,7 +72,7 @@ execute: |
   snap validate 2>&1 | MATCH "No validations are available"
 
   echo "Checking that monitor mode is supported with a local validation-set (non-pinned)"
-  snap validate --monitor "$ACCOUNT_ID"/bar
+  snap validate --monitor "$ACCOUNT_ID"/bar | MATCH "^invalid"
   snap validate | MATCH "$ACCOUNT_ID/bar +monitor +1 +invalid"
   snap validate "$ACCOUNT_ID"/bar=1 | MATCH "^invalid"
   snap validate "$ACCOUNT_ID"/bar | MATCH "^invalid"
@@ -80,3 +80,7 @@ execute: |
   snap validate | MATCH "$ACCOUNT_ID/bar +monitor +1 +valid"
   snap validate "$ACCOUNT_ID"/bar=1 | MATCH "^valid"
   snap validate "$ACCOUNT_ID"/bar | MATCH "^valid"
+
+  echo "Check that --monitor mode report valid status when enabled"
+  snap validate --monitor "$ACCOUNT_ID"/bar | MATCH "^valid"
+  snap validate | MATCH "$ACCOUNT_ID/bar +monitor +1 +valid"

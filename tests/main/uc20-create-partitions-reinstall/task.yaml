@@ -1,9 +1,7 @@
 summary: Integration tests for the bootstrap.Run autodetect
 
 # use the same system and tooling as uc20
-systems:
-  - ubuntu-20.04-64
-  - ubuntu-22.04-64
+systems: [ubuntu-2*]
 
 environment:
     SNAPD_DEBUG: "1"

@@ -20,6 +20,7 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -42,7 +43,7 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 	defer st.Unlock()
 
 	var seeded bool
-	if err := st.Get("seeded", &seeded); err != nil && err != state.ErrNoState {
+	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if seeded {
@@ -317,7 +318,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		// we have in snap.Info, but getting it this way can be
 		// expensive as we need to compute the hash, try to find a
 		// better way
-		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, f, db)
+		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, f, db)
 		if err != nil {
 			if !asserts.IsNotFound(err) {
 				return recoverySystemDir, err

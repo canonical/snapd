@@ -6,7 +6,7 @@
 # shellcheck source=tests/lib/store.sh
 . "$TESTSLIB"/store.sh
 
-NESTED_WORK_DIR="${NESTED_WORK_DIR:-/tmp/work-dir}"
+: "${NESTED_WORK_DIR:=/tmp/work-dir}"
 NESTED_IMAGES_DIR="$NESTED_WORK_DIR/images"
 NESTED_RUNTIME_DIR="$NESTED_WORK_DIR/runtime"
 NESTED_ASSETS_DIR="$NESTED_WORK_DIR/assets"
@@ -16,12 +16,16 @@ NESTED_VM=nested-vm
 NESTED_SSH_PORT=8022
 NESTED_MON_PORT=8888
 
-NESTED_CUSTOM_MODEL="${NESTED_CUSTOM_MODEL:-}"
-NESTED_CUSTOM_AUTO_IMPORT_ASSERTION="${NESTED_CUSTOM_AUTO_IMPORT_ASSERTION:-}"
-NESTED_FAKESTORE_BLOB_DIR="${NESTED_FAKESTORE_BLOB_DIR:-$NESTED_WORK_DIR/fakestore/blobs}"
-NESTED_SIGN_SNAPS_FAKESTORE="${NESTED_SIGN_SNAPS_FAKESTORE:-false}"
-NESTED_FAKESTORE_SNAP_DECL_PC_GADGET="${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:-}"
-NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:-}"
+: "${NESTED_CUSTOM_MODEL:=}"
+: "${NESTED_CUSTOM_AUTO_IMPORT_ASSERTION:=}"
+: "${NESTED_FAKESTORE_BLOB_DIR:=${NESTED_WORK_DIR}/fakestore/blobs}"
+: "${NESTED_SIGN_SNAPS_FAKESTORE:=false}"
+: "${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:=}"
+: "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:=}"
+: "${NESTED_UBUNTU_IMAGE_PRESEED_KEY:=}"
+
+: "${NESTED_DISK_PHYSICAL_BLOCK_SIZE:=512}"
+: "${NESTED_DISK_LOGICAL_BLOCK_SIZE:=512}"
 
 nested_wait_for_ssh() {
     # TODO:UC20: the retry count should be lowered to something more reasonable.
@@ -105,7 +109,7 @@ nested_retry_start_with_boot_errors() {
         retry=$(( retry - 1 ))
         if ! nested_check_boot_errors "$cursor"; then
             cursor="$("$TESTSTOOLS"/journal-state get-last-cursor)"
-            nested_restart
+            nested_force_restart_vm
             sleep 3
         else
             return 0
@@ -296,9 +300,6 @@ nested_get_google_image_url_for_vm() {
         ubuntu-20.04-64)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
             ;;
-        ubuntu-21.10-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/impish-server-cloudimg-amd64.img"
-            ;;
         ubuntu-22.04-64*)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/jammy-server-cloudimg-amd64.img"
             ;;
@@ -320,9 +321,6 @@ nested_get_ubuntu_image_url_for_vm() {
             ;;
         ubuntu-20.04-64*)
             echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-21.10-64*)
-            echo "https://cloud-images.ubuntu.com/impish/current/impish-server-cloudimg-amd64.img"
             ;;
         ubuntu-22.04-64*)
             echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
@@ -495,7 +493,7 @@ nested_get_image_name() {
     if [ "$(nested_get_extra_snaps | wc -l)" != "0" ]; then
         SOURCE="custom"
     fi
-    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}.img"
+    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}-${NESTED_DISK_LOGICAL_BLOCK_SIZE}.img"
 }
 
 nested_is_generic_image() {
@@ -641,10 +639,23 @@ nested_create_core_vm() {
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/core-from-snapd-deb.snap"
 
+                    # allow repacking the kernel
+                    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
+                        KERNEL_SNAP=new-kernel.snap
+                        repack_kernel_snap "$KERNEL_SNAP"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $KERNEL_SNAP"
+                    fi
                 elif nested_is_core_18_system; then
                     echo "Repacking snapd snap"
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
+
+                    # allow repacking the kernel
+                    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
+                        KERNEL_SNAP=new-kernel.snap
+                        repack_kernel_snap "$KERNEL_SNAP"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $KERNEL_SNAP"
+                    fi
 
                     # allow tests to provide their own core18 snap
                     local CORE18_SNAP
@@ -797,13 +808,22 @@ EOF
             else 
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
+
+            declare -a UBUNTU_IMAGE_PRESEED_ARGS
+            if [ -n "$NESTED_UBUNTU_IMAGE_PRESEED_KEY" ]; then
+                # shellcheck disable=SC2191
+                UBUNTU_IMAGE_PRESEED_ARGS+=(--preseed  --preseed-sign-key=\""$NESTED_UBUNTU_IMAGE_PRESEED_KEY"\")
+            fi
             # ubuntu-image creates sparse image files
             # shellcheck disable=SC2086
             "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
                 $UBUNTU_IMAGE_CHANNEL_ARG \
+                "${UBUNTU_IMAGE_PRESEED_ARGS[@]:-}" \
                 --output-dir "$NESTED_IMAGES_DIR" \
+                --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" \
                 $EXTRA_FUNDAMENTAL \
                 $EXTRA_SNAPS
+
             # ubuntu-image dropped the --output parameter, so we have to rename
             # the image ourselves, the images are named after volumes listed in
             # gadget.yaml
@@ -923,24 +943,33 @@ EOF
 nested_add_file_to_vm() {
     local IMAGE=$1
     local FILE=$2
-    local devloop dev ubuntuSeedDev tmp
-    # mount the image and find the loop device /dev/loop that is created for it
-    kpartx -avs "$IMAGE"
-    devloop=$(losetup --list --noheadings | grep "$IMAGE" | awk '{print $1}')
-    dev=$(basename "$devloop")
-    
+    local devloop ubuntuSeedDev tmp
+    # Bind the image the a free loop device
+    devloop="$(retry -n 3 --wait 1 losetup -f --show -P --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" "${IMAGE}")"
+
     # we add cloud-init data to the 2nd partition, which is ubuntu-seed
-    ubuntuSeedDev="/dev/mapper/${dev}p2"
-    
-    # wait for the loop device to show up
-    retry -n 3 --wait 1 test -e "$ubuntuSeedDev"
+    ubuntuSeedDev="${devloop}p2"
+
+    # Wait for the partition to show up
+    retry -n 2 --wait test -b "${ubuntuSeedDev}" || true
+
+    # losetup does not set the right block size on LOOP_CONFIGURE
+    # but with LOOP_SET_BLOCK_SIZE later. So the block size might have
+    # been wrong during the part scan. In this case we need to rescan
+    # manually.
+    if ! [ -b "${ubuntuSeedDev}" ]; then
+        partx -u "${devloop}"
+        # Wait for the partition to show up
+        retry -n 2 --wait 1 test -b "${ubuntuSeedDev}"
+    fi
+
     tmp=$(mktemp -d)
     mount "$ubuntuSeedDev" "$tmp"
     mkdir -p "$tmp/data/etc/cloud/cloud.cfg.d/"
     cp -f "$FILE" "$tmp/data/etc/cloud/cloud.cfg.d/"
     sync
     umount "$tmp"
-    kpartx -d "$IMAGE"
+    losetup -d "${devloop}"
 }
 
 nested_configure_cloud_init_on_core20_vm() {
@@ -1011,6 +1040,9 @@ nested_start_core_vm_unit() {
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
     fi
+
+    PARAM_PHYS_BLOCK_SIZE="physical_block_size=${NESTED_DISK_PHYSICAL_BLOCK_SIZE}"
+    PARAM_LOGI_BLOCK_SIZE="logical_block_size=${NESTED_DISK_LOGICAL_BLOCK_SIZE}"
 
     local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CD PARAM_RANDOM PARAM_CPU PARAM_TRACE PARAM_LOG PARAM_SERIAL PARAM_RTC
     PARAM_DISPLAY="-nographic"
@@ -1123,8 +1155,9 @@ nested_start_core_vm_unit() {
         fi
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
     else
-        PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw"
+        PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device ide-hd,drive=disk1"
     fi
+    PARAM_IMAGE="$PARAM_IMAGE,${PARAM_PHYS_BLOCK_SIZE},${PARAM_LOGI_BLOCK_SIZE}"
 
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
@@ -1264,7 +1297,7 @@ nested_start() {
     nested_prepare_tools
 }
 
-nested_restart() {
+nested_force_restart_vm() {
     nested_force_stop_vm
     nested_force_start_vm
     wait_for_service "$NESTED_VM" active

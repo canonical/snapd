@@ -10,9 +10,14 @@ prepare: |
     for name in $(snap list | awk '!/Name/ {print $1}'); do
         snapd.tool exec snap-discard-ns "$name"
     done
-    if findmnt --noheadings /run/snapd/ns >/dev/null; then
+    # In case it has been mounted multiple times
+    retries=10
+    while findmnt --noheadings /run/snapd/ns >/dev/null; do
         umount /run/snapd/ns
-    fi
+        if [ "$((--retries))" -le 0 ]; then
+            break
+        fi
+    done
     not findmnt --noheadings /run/snapd/ns
 debug: |
     cat /proc/self/mountinfo

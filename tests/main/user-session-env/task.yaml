@@ -10,6 +10,7 @@ systems:
    - -ubuntu-core-*  # cannot install zsh or fish
    - -ubuntu-14.04-* # cannot use systemd
    - -amazon-linux-2-* # no fish package for AMZN2
+   - -centos-9-* # no fish package
 
 
 environment:
@@ -79,6 +80,15 @@ execute: |
                 NOMATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-child-env"
                 MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-child-env"
                 ;;
+            test-fish:opensuse-15.4*)
+                # fish on openSUSE 15.4 somehow magically glues the ENV_* from su and
+                # PATH, but fortunately it also displays ENV_ROOTPATH
+                NOMATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-profile-env"
+                MATCH "ENV_ROOTPATH\s+.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-profile-env"
+                MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-child-env"
+                NOMATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-child-env"
+                MATCH "ENV_ROOTPATH\s+.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-child-env"
+                ;;
             *)
                 MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-profile-env"
                 MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-profile-env"
@@ -87,7 +97,7 @@ execute: |
                 MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-child-env"
                 # make sure that XDG_DATA_DIRS contains the default locations as well
                 MATCH 'XDG_DATA_DIRS=.*[:]?/usr/share[:]?.*' < "${user}-profile-env"
-                if ! os.query is-opensuse-tumbleweed; then
+                if ! os.query is-opensuse tumbleweed; then
                     # it was observed that on Tumbleweed XDG_DATA_DIRS seems to
                     # have a default value which does not include
                     # /usr/local/share, so apply the check only on remaining
