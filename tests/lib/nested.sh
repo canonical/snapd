@@ -352,7 +352,9 @@ nested_secboot_sign_file() {
     local FILE="$1"
     local KEY="$2"
     local CERT="$3"
-    sbattach --remove "$FILE"
+    while sbverify --list "$FILE" | grep "^signature [0-9]*$"; do
+        sbattach --remove "$FILE"
+    done
     sbsign --key "$KEY" --cert "$CERT" --output "$FILE" "$FILE"
 }
 
