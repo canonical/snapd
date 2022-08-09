@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/strutil/quantity"
 )
 
-var stdout io.Writer = os.Stdout
+var Stdout io.Writer = os.Stdout
 
 // ANSIMeter is a progress.Meter that uses ANSI escape codes to make
 // better use of the available horizontal space.
@@ -71,7 +71,7 @@ func (p *ANSIMeter) Start(label string, total float64) {
 	p.label = []rune(label)
 	p.total = total
 	p.t0 = time.Now().UTC()
-	fmt.Fprint(stdout, cursorInvisible)
+	fmt.Fprint(Stdout, cursorInvisible)
 }
 
 func norm(col int, msg []rune) []rune {
@@ -157,7 +157,7 @@ func (p *ANSIMeter) Set(current float64) {
 	msg = append(msg, rspeed...)
 	msg = append(msg, rtimeleft...)
 	i := int(current * float64(col) / p.total)
-	fmt.Fprint(stdout, "\r", enterReverseMode, string(msg[:i]), exitAttributeMode, string(msg[i:]))
+	fmt.Fprint(Stdout, "\r", enterReverseMode, string(msg[:i]), exitAttributeMode, string(msg[i:]))
 }
 
 var spinner = []string{"/", "-", "\\", "|"}
@@ -166,23 +166,23 @@ func (p *ANSIMeter) Spin(msgstr string) {
 	msg := []rune(msgstr)
 	col := termWidth()
 	if col-2 >= len(msg) {
-		fmt.Fprint(stdout, "\r", string(norm(col-2, msg)), " ", spinner[p.spin])
+		fmt.Fprint(Stdout, "\r", string(norm(col-2, msg)), " ", spinner[p.spin])
 		p.spin++
 		if p.spin >= len(spinner) {
 			p.spin = 0
 		}
 	} else {
-		fmt.Fprint(stdout, "\r", string(norm(col, msg)))
+		fmt.Fprint(Stdout, "\r", string(norm(col, msg)))
 	}
 }
 
 func (*ANSIMeter) Finished() {
-	fmt.Fprint(stdout, "\r", exitAttributeMode, cursorVisible, clrEOL)
+	fmt.Fprint(Stdout, "\r", exitAttributeMode, cursorVisible, clrEOL)
 }
 
 func (*ANSIMeter) Notify(msgstr string) {
 	col := termWidth()
-	fmt.Fprint(stdout, "\r", exitAttributeMode, clrEOL)
+	fmt.Fprint(Stdout, "\r", exitAttributeMode, clrEOL)
 
 	msg := []rune(msgstr)
 	var i int
@@ -194,15 +194,15 @@ func (*ANSIMeter) Notify(msgstr string) {
 		}
 		if i < 1 {
 			// didn't find anything; print the whole thing and try again
-			fmt.Fprintln(stdout, string(msg[:col]))
+			fmt.Fprintln(Stdout, string(msg[:col]))
 			msg = msg[col:]
 		} else {
 			// found a space; print up to but not including it, and skip it
-			fmt.Fprintln(stdout, string(msg[:i]))
+			fmt.Fprintln(Stdout, string(msg[:i]))
 			msg = msg[i+1:]
 		}
 	}
-	fmt.Fprintln(stdout, string(msg))
+	fmt.Fprintln(Stdout, string(msg))
 }
 
 func (p *ANSIMeter) Write(bs []byte) (n int, err error) {

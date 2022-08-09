@@ -70,7 +70,7 @@ func (NullMeter) Spin(msg string)             {}
 type QuietMeter struct{ NullMeter }
 
 func (QuietMeter) Notify(msg string) {
-	fmt.Fprintln(stdout, msg)
+	fmt.Fprintln(Stdout, msg)
 }
 
 // testMeter, if set, is returned by MakeProgressBar; set it from tests.
