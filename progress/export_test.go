@@ -89,10 +89,10 @@ func MockTermWidth(f func() int) func() {
 }
 
 func MockStdout(w io.Writer) func() {
-	origStdout := stdout
-	stdout = w
+	origStdout := Stdout
+	Stdout = w
 	return func() {
-		stdout = origStdout
+		Stdout = origStdout
 	}
 }
 
