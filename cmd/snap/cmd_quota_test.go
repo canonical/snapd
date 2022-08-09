@@ -203,10 +203,12 @@ func makeChangesHandler(c *check.C) func(w http.ResponseWriter, r *http.Request)
 
 func (s *quotaSuite) TestParseQuotas(c *check.C) {
 	for _, testData := range []struct {
-		maxMemory  string
-		cpuMax     string
-		cpuSet     string
-		threadsMax string
+		maxMemory        string
+		cpuMax           string
+		cpuSet           string
+		threadsMax       string
+		journalSizeMax   string
+		journalRateLimit string
 
 		// Use the JSON representation of the quota, as it's easier to handle in the test data
 		quotas string
@@ -217,6 +219,11 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 		{cpuMax: "40%", quotas: `{"cpu":{"percentage":40}}`},
 		{cpuSet: "1,3", quotas: `{"cpu-set":{"cpus":[1,3]}}`},
 		{threadsMax: "2", quotas: `{"threads":2}`},
+		{journalSizeMax: "16MB", quotas: `{"journal":{"size":16000000}}`},
+		{journalRateLimit: "10/15s", quotas: `{"journal":{"rate-count":10,"rate-period":15000000000}}`},
+		{journalRateLimit: "1500/15ms", quotas: `{"journal":{"rate-count":1500,"rate-period":15000000}}`},
+		{journalRateLimit: "1/15us", quotas: `{"journal":{"rate-count":1,"rate-period":15000}}`},
+
 		// Error cases
 		{cpuMax: "ASD", err: `cannot parse cpu quota string "ASD"`},
 		{cpuMax: "0x100%", err: `cannot parse cpu quota string "0x100%"`},
@@ -229,8 +236,12 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 		{cpuSet: "0,-2", err: `cannot parse CPU set value "-2"`},
 		{threadsMax: "xxx", err: `cannot use threads value "xxx"`},
 		{threadsMax: "-3", err: `cannot use threads value "-3"`},
+		{journalRateLimit: "0", err: `cannot parse journal rate limit "0": rate limit must be of the form <number of messages>/<period duration>`},
+		{journalRateLimit: "x/5m", err: `cannot parse journal rate limit "x/5m": cannot parse message count: strconv.Atoi: parsing "x": invalid syntax`},
+		{journalRateLimit: "1/wow", err: `cannot parse journal rate limit "1/wow": cannot parse period: time: invalid duration ["]?wow["]?`},
 	} {
-		quotas, err := main.ParseQuotaValues(testData.maxMemory, testData.cpuMax, testData.cpuSet, testData.threadsMax)
+		quotas, err := main.ParseQuotaValues(testData.maxMemory, testData.cpuMax,
+			testData.cpuSet, testData.threadsMax, testData.journalSizeMax, testData.journalRateLimit)
 		testLabel := check.Commentf("%v", testData)
 		if testData.err == "" {
 			c.Check(err, check.IsNil, testLabel)
@@ -424,6 +435,34 @@ current:
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(outputTemplate, 500))
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 2)
+}
+
+func (s *quotaSuite) TestJournalQuotaGroupSimple(c *check.C) {
+	const jsonTemplate = `{
+		"type": "sync",
+		"status-code": 200,
+		"result": {
+			"group-name": "foo",
+			"constraints": {"journal":{"size":1048576,"rate-count":50,"rate-period":60000000000}}
+		}
+	}`
+
+	s.RedirectClientToTestServer(s.makeFakeGetQuotaGroupHandler(c, jsonTemplate))
+
+	outputTemplate := `
+name:  foo
+constraints:
+  journal-size:  1.05MB
+  journal-rate:  50/1m0s
+current:
+`[1:]
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, outputTemplate)
+	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
 }
 
 func (s *quotaSuite) TestSetQuotaGroupCreateNew(c *check.C) {
@@ -621,10 +660,11 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 			{"group-name":"fff","parent":"aaa","constraints":{"memory":1000},"current":{"memory":0}},
 			{"group-name":"xxx","constraints":{"memory":9900},"current":{"memory":10000}},
 			{"group-name":"cp0","constraints":{"memory":9900, "cpu":{"percentage":90}},"current":{"memory":10000}},
-			{"group-name":"cp1","subgroups":["cps0"],"constraints":{"cpu":{"count":2, "percentage":90}}},
+			{"group-name":"cp1","subgroups":["cps0","js0"],"constraints":{"cpu":{"count":2, "percentage":90}}},
 			{"group-name":"cps0","parent":"cp1","constraints":{"cpu":{"percentage":40}}},
 			{"group-name":"cp2","subgroups":["cps1"],"constraints":{"cpu":{"count":2,"percentage":100},"cpu-set":{"cpus":[0,1]}}},
-			{"group-name":"cps1","parent":"cp2","constraints":{"memory":9900,"cpu":{"percentage":50},"cpu-set":{"cpus":[1]}},"current":{"memory":10000}}
+			{"group-name":"cps1","parent":"cp2","constraints":{"memory":9900,"cpu":{"percentage":50},"cpu-set":{"cpus":[1]}},"current":{"memory":10000}},
+			{"group-name":"js0","parent":"cp1","constraints":{"journal":{"size":1048576,"rate-count":50,"rate-period":60000000000}}}
 			]}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
@@ -632,22 +672,23 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, `
-Quota    Parent  Constraints                     Current
-cp0              memory=9.9kB,cpu=90%            memory=10.0kB
-cp1              cpu=2x,cpu=90%                  
-cps0     cp1     cpu=40%                         
-cp2              cpu=2x,cpu=100%,cpu-set=0,1     
-cps1     cp2     memory=9.9kB,cpu=50%,cpu-set=1  memory=10.0kB
-ggg              memory=1000B,threads=100        memory=3000B
-hhh              threads=100                     
-xxx              memory=9.9kB                    memory=10.0kB
-yyyyyyy          memory=1000B                    
-zzz              memory=5000B                    
-aaa      zzz     memory=1000B                    
-ccc      aaa     memory=400B                     
-ddd      aaa     memory=400B                     
-fff      aaa     memory=1000B                    
-bbb      zzz     memory=1000B                    memory=400B
+Quota    Parent  Constraints                               Current
+cp0              memory=9.9kB,cpu=90%                      memory=10.0kB
+cp1              cpu=2x90%                                 
+cps0     cp1     cpu=40%                                   
+js0      cp1     journal-size=1.05MB,journal-rate=50/1m0s  
+cp2              cpu=2x100%,cpu-set=0,1                    
+cps1     cp2     memory=9.9kB,cpu=50%,cpu-set=1            memory=10.0kB
+ggg              memory=1000B,threads=100                  memory=3000B
+hhh              threads=100                               
+xxx              memory=9.9kB                              memory=10.0kB
+yyyyyyy          memory=1000B                              
+zzz              memory=5000B                              
+aaa      zzz     memory=1000B                              
+ccc      aaa     memory=400B                               
+ddd      aaa     memory=400B                               
+fff      aaa     memory=1000B                              
+bbb      zzz     memory=1000B                              memory=400B
 `[1:])
 	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 1)
 }

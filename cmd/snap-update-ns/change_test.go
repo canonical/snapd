@@ -114,6 +114,33 @@ func (s *changeSuite) TestNeededChangesTrivialUnmount(c *C) {
 	})
 }
 
+// When the rootfs was setup by snap-confine, don't touch it
+func (s *changeSuite) TestNeededChangesKeepRootfs(c *C) {
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Dir: "/", Options: []string{"x-snapd.origin=rootfs"}},
+	}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
+	changes := update.NeededChanges(current, desired)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Entry: current.Entries[0], Action: update.Keep},
+		{Entry: desired.Entries[0], Action: update.Mount},
+	})
+}
+
+// When the rootfs was *not* setup by snap-confine, it's umounted
+func (s *changeSuite) TestNeededChangesUmountRootfs(c *C) {
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
+		// Like the test above, but without "x-snapd.origin=rootfs"
+		{Dir: "/"},
+	}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
+	changes := update.NeededChanges(current, desired)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Entry: current.Entries[0], Action: update.Unmount},
+		{Entry: desired.Entries[0], Action: update.Mount},
+	})
+}
+
 // When umounting we unmount children before parents.
 func (s *changeSuite) TestNeededChangesUnmountOrder(c *C) {
 	current := &osutil.MountProfile{Entries: []osutil.MountEntry{

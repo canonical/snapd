@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,29 +17,32 @@
  *
  */
 
-package main
+package kmod
 
 import (
 	"fmt"
-	"os"
+	"os/exec"
 
-	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil"
 )
 
-func die(err error) {
-	fmt.Fprintln(os.Stderr, err)
-	os.Exit(1)
+var modprobeCommand = func(args ...string) error {
+	allArgs := append([]string{"--syslog"}, args...)
+	err := exec.Command("modprobe", allArgs...).Run()
+	if err != nil {
+		exitCode, err := osutil.ExitCode(err)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("modprobe failed with exit status %d (see syslog for details)", exitCode)
+	}
+	return nil
 }
 
-func main() {
-	if len(os.Args) < 2 {
-		die(fmt.Errorf("usage: %s mount-point", os.Args[0]))
-	}
+func LoadModule(module string, options []string) error {
+	return modprobeCommand(append([]string{module}, options...)...)
+}
 
-	size, err := disks.Size(os.Args[1])
-	if err != nil {
-		die(err)
-	}
-
-	fmt.Printf("%v\n", size)
+func UnloadModule(module string) error {
+	return modprobeCommand("-r", module)
 }

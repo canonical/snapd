@@ -47,9 +47,7 @@ execute: |
     echo "Expected snap install to fail"
     exit 1
   fi
-  MATCH 'error: cannot install "hello-world": cannot install snap "hello-world" due to' < log.txt
-  MATCH "enforcing rules of validation set" < log.txt
-  MATCH "16/$ACCOUNT_ID/testenforce1/1" < log.txt
+  "$TESTSTOOLS"/to-one-line "$(cat log.txt)" | MATCH "error: cannot install \"hello-world\": cannot install snap \"hello-world\" due to enforcing rules of validation set 16/$ACCOUNT_ID/testenforce1/1"
   
   echo "But it can be installed with --ignore-validation flag"
   snap install --ignore-validation hello-world

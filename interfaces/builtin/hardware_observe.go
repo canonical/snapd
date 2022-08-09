@@ -54,9 +54,6 @@ capability sys_admin,
 # files in /proc/bus/pci (eg, 'lspci -A linux-proc')
 @{PROC}/bus/pci/{,**} r,
 
-# DMI tables
-/sys/firmware/dmi/tables/DMI r,
-/sys/firmware/dmi/tables/smbios_entry_point r,
 
 # power information
 /sys/power/{,**} r,
@@ -78,11 +75,6 @@ network netlink raw,
 /{,usr/}bin/lscpu ixr,
 /{,usr/}bin/lsmem ixr,
 
-# lsmem
-/sys/devices/system/memory/block_size_bytes r,
-/sys/devices/system/memory/memory[0-9]*/removable r,
-/sys/devices/system/memory/memory[0-9]*/state r,
-/sys/devices/system/memory/memory[0-9]*/valid_zones r,
 
 # lsusb
 # Note: lsusb and its database have to be shipped in the snap if not on classic
@@ -143,14 +135,6 @@ network netlink raw,
 # determine if it is running in a chroot. Like above, this is best granted via
 # system-observe.
 #ptrace (read) peer=unconfined,
-
-# some devices use this information to set serial, etc. for Ubuntu Core devices
-/sys/devices/virtual/dmi/id/product_name r,
-/sys/devices/virtual/dmi/id/sys_vendor r,
-
-# allow read access to thermal sysfs
-/sys/devices/virtual/thermal/cooling_device[0-9]*/** r,
-/sys/devices/virtual/thermal/thermal_zone[0-9]*/** r,
 `
 
 const hardwareObserveConnectedPlugSecComp = `

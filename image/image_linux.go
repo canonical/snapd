@@ -379,7 +379,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 
 	var curSnaps []*tooling.CurrentSnap
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, f, db)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, f, db)
 		if err != nil && !asserts.IsNotFound(err) {
 			return err
 		}
@@ -454,7 +454,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 
 			// fetch snap assertions
 			prev := len(f.Refs())
-			if _, err = FetchAndCheckSnapAssertions(dlsn.Path, dlsn.Info, f, db); err != nil {
+			if _, err = FetchAndCheckSnapAssertions(dlsn.Path, dlsn.Info, model, f, db); err != nil {
 				return err
 			}
 			aRefs := f.Refs()[prev:]
@@ -537,15 +537,14 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		bootWith.RecoverySystemLabel = label
 	}
 
-	// find the gadget file
-	// find the snap.Info/path for kernel/os/base so
+	// find the snap.Info/path for kernel/os/base/gadget so
 	// that boot.MakeBootable can DTRT
-	gadgetFname := ""
 	kernelFname := ""
 	for _, sn := range bootSnaps {
 		switch sn.Info.Type() {
 		case snap.TypeGadget:
-			gadgetFname = sn.Path
+			bootWith.Gadget = sn.Info
+			bootWith.GadgetPath = sn.Path
 		case snap.TypeOS, snap.TypeBase:
 			bootWith.Base = sn.Info
 			bootWith.BasePath = sn.Path
@@ -557,7 +556,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	}
 
 	// unpacking the gadget for core models
-	if err := unpackSnap(gadgetFname, gadgetUnpackDir); err != nil {
+	if err := unpackSnap(bootWith.GadgetPath, gadgetUnpackDir); err != nil {
 		return err
 	}
 	if err := unpackSnap(kernelFname, kernelUnpackDir); err != nil {

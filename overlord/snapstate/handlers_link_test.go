@@ -2012,9 +2012,9 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 
 	// that will schedule a boot into the previous kernel
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
-		"snap_mode":       boot.TryStatus,
-		"snap_kernel":     "new-kernel_1.snap",
-		"snap_try_kernel": "kernel_1.snap",
+		"snap_mode":       boot.DefaultStatus,
+		"snap_kernel":     "kernel_1.snap",
+		"snap_try_kernel": "",
 	})
 	c.Check(s.restartRequested, HasLen, 1)
 	c.Check(s.restartRequested[0], Equals, restart.RestartSystem)

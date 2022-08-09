@@ -8,28 +8,39 @@ execute: |
         ubuntu-14.04-64)
             os.query is-trusty
             os.query is-classic
+            os.query is-ubuntu 14.04
+            ! os.query is-ubuntu 18.04
             ! os.query is-core
             ! os.query is-s390x
             ;;
         ubuntu-16.04-64)
             os.query is-xenial
             os.query is-classic
+            os.query is-ubuntu 16.04
+            ! os.query is-ubuntu 14.04
             ! os.query is-core
             ;;
         ubuntu-18.04-32)
             os.query is-bionic
             os.query is-classic
+            os.query is-ubuntu 18.04
+            ! os.query is-ubuntu 14.04
             ! os.query is-core
             os.query is-pc-i386
             ;;       
         ubuntu-18.04-64)
             os.query is-bionic
             os.query is-classic
+            os.query is-ubuntu 18.04
+            ! os.query is-ubuntu 14.04
             ! os.query is-core
+            os.query is-pc-amd64
             ;;
         ubuntu-20.04-64)
             os.query is-focal
             os.query is-ubuntu
+            os.query is-ubuntu 20.04
+            ! os.query is-ubuntu 21.04
             ! os.query is-debian
             os.query is-classic
             ! os.query is-core
@@ -37,34 +48,47 @@ execute: |
             ! os.query is-arm
             ;;
         ubuntu-21.10-64)
-            os.query is-impish
             os.query is-classic
+            os.query is-ubuntu 21.10
+            ! os.query is-ubuntu 21.04
             ! os.query is-core
             ;;
         ubuntu-22.04-64)
             os.query is-jammy
             os.query is-classic
+            os.query is-ubuntu 22.04
+            ! os.query is-ubuntu 20.04
             ! os.query is-core
             ;;
         debian-10-64)
             os.query is-debian
-            os.query is-debian-10
+            os.query is-debian 10
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        debian-11-64)
+            os.query is-debian
+            os.query is-debian 11
             os.query is-classic
             ! os.query is-core
             ;;
         debian-sid-64)
             os.query is-debian
-            os.query is-debian-sid
-            os.query is-classic
-            ! os.query is-core
-            ;;
-        fedora-34-64)
-            os.query is-fedora
+            os.query is-debian sid
             os.query is-classic
             ! os.query is-core
             ;;
         fedora-35-64)
             os.query is-fedora
+            os.query is-fedora 35
+            ! os.query is-fedora rawhide
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        fedora-36-64)
+            os.query is-fedora
+            os.query is-fedora 36
+            ! os.query is-fedora rawhide
             os.query is-classic
             ! os.query is-core
             ;;
@@ -78,19 +102,38 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
-        centos-7-64)
-            os.query is-centos-7
+        centos-7-64)            
             os.query is-centos
+            os.query is-centos 7
             os.query is-classic
             ! os.query is-core
             ;;
-        centos-8-64)
-            os.query is-centos-8
+        centos-8-64)            
+            os.query is-centos
+            os.query is-centos 8
+            ! os.query is-core
+            ;;
+        centos-9-64)            
+            os.query is-centos 9
             os.query is-centos
             ! os.query is-core
             ;;
         opensuse-15.3-64)
             os.query is-opensuse
+            os.query is-opensuse 15.3
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        opensuse-15.4-64)
+            os.query is-opensuse
+            os.query is-opensuse 15.4
+            ! os.query is-opensuse tumbleweed
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        opensuse-tumbleweed-64)
+            os.query is-opensuse
+            os.query is-opensuse tumbleweed
             os.query is-classic
             ! os.query is-core
             ;;
