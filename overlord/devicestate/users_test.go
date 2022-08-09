@@ -118,11 +118,11 @@ func (s *usersSuite) TestCreateUserNoSSHKeys(c *check.C) {
 	}
 
 	// create user
-	createdUsers, internal, err := devicestate.CreateUser(s.state, s.mgr, true, false, "popper@lse.ac.uk")
+	createdUsers, ue := devicestate.CreateUser(s.state, s.mgr, true, false, "popper@lse.ac.uk")
 
-	c.Assert(err, check.NotNil)
-	c.Check(err, check.ErrorMatches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
-	c.Check(internal, check.Equals, false)
+	c.Assert(ue, check.NotNil)
+	c.Check(ue.Error(), check.ErrorMatches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
+	c.Check(ue.IsInternal(), check.Equals, false)
 	// createdUsers should be empty
 	c.Check(len(createdUsers), check.Equals, 0)
 	expected := []devicestate.UserResponse(nil)
@@ -150,9 +150,9 @@ func (s *usersSuite) TestCreateUser(c *check.C) {
 
 	// user was setup in state
 	// create user
-	createdUsers, _, err := devicestate.CreateUser(s.state, s.mgr, false, false, "popper@lse.ac.uk")
+	createdUsers, ue := devicestate.CreateUser(s.state, s.mgr, false, false, "popper@lse.ac.uk")
 
-	c.Assert(err, check.IsNil)
+	c.Assert(ue, check.IsNil)
 	expected := []devicestate.UserResponse{
 		{
 			Username: "karl",
@@ -191,10 +191,10 @@ func (s *usersSuite) TestUserActionRemoveDelUserErr(c *check.C) {
 		return fmt.Errorf("wat")
 	})()
 
-	userState, internal, err := devicestate.RemoveUser(s.state, "some-user")
-	c.Check(err, check.NotNil)
-	c.Check(internal, check.Equals, true)
-	c.Check(err, check.ErrorMatches, "wat")
+	userState, ue := devicestate.RemoveUser(s.state, "some-user")
+	c.Check(ue, check.NotNil)
+	c.Check(ue.IsInternal(), check.Equals, true)
+	c.Check(ue.Error(), check.ErrorMatches, "wat")
 	c.Assert(userState, check.IsNil)
 	c.Check(called, check.Equals, 1)
 }
@@ -210,11 +210,11 @@ func (s *usersSuite) TestUserActionRemoveStateErr(c *check.C) {
 		return nil
 	})()
 
-	userState, internal, err := devicestate.RemoveUser(s.state, "some-user")
+	userState, ue := devicestate.RemoveUser(s.state, "some-user")
 
-	c.Check(err, check.NotNil)
-	c.Check(internal, check.Equals, true)
-	c.Check(err, check.ErrorMatches, `internal error: could not unmarshal state entry "auth": .*`)
+	c.Check(ue, check.NotNil)
+	c.Check(ue.IsInternal(), check.Equals, true)
+	c.Check(ue.Error(), check.ErrorMatches, `internal error: could not unmarshal state entry "auth": .*`)
 	c.Assert(userState, check.IsNil)
 	c.Check(called, check.Equals, 0)
 }
@@ -227,11 +227,11 @@ func (s *usersSuite) TestUserActionRemoveNoUserInState(c *check.C) {
 		return nil
 	})
 
-	userState, internal, err := devicestate.RemoveUser(s.state, "some-user")
+	userState, ue := devicestate.RemoveUser(s.state, "some-user")
 
-	c.Check(err, check.NotNil)
-	c.Check(internal, check.Equals, false)
-	c.Check(err, check.ErrorMatches, `user "some-user" is not known`)
+	c.Check(ue, check.NotNil)
+	c.Check(ue.IsInternal(), check.Equals, false)
+	c.Check(ue.Error(), check.ErrorMatches, `user "some-user" is not known`)
 	c.Assert(userState, check.IsNil)
 	c.Check(called, check.Equals, 0)
 }
@@ -249,10 +249,9 @@ func (s *usersSuite) TestUserActionRemove(c *check.C) {
 		return nil
 	})()
 
-	userState, internal, err := devicestate.RemoveUser(s.state, "some-user")
+	userState, ue := devicestate.RemoveUser(s.state, "some-user")
 
-	c.Check(err, check.IsNil)
-	c.Check(internal, check.Equals, false)
+	c.Check(ue, check.IsNil)
 	expected := &auth.UserState{ID: user.ID, Username: user.Username, Email: user.Email}
 	c.Check(userState, check.FitsTypeOf, expected)
 	c.Check(userState, check.DeepEquals, expected)
@@ -267,10 +266,10 @@ func (s *usersSuite) TestUserActionRemove(c *check.C) {
 
 func (s *usersSuite) TestUserActionRemoveNoUsername(c *check.C) {
 
-	userState, internal, err := devicestate.RemoveUser(s.state, "")
-	c.Check(err, check.NotNil)
-	c.Check(err, check.ErrorMatches, "need a username to remove")
-	c.Check(internal, check.Equals, false)
+	userState, ue := devicestate.RemoveUser(s.state, "")
+	c.Check(ue, check.NotNil)
+	c.Check(ue.Error(), check.ErrorMatches, "need a username to remove")
+	c.Check(ue.IsInternal(), check.Equals, false)
 	c.Check(userState, check.IsNil)
 }
 
@@ -488,14 +487,14 @@ func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange boo
 	})()
 
 	// create user
-	createdUsers, _, err := devicestate.CreateUser(s.state, s.mgr, false, true, "foo@bar.com")
+	createdUsers, ue := devicestate.CreateUser(s.state, s.mgr, false, true, "foo@bar.com")
 
 	expected := []devicestate.UserResponse{
 		{
 			Username: "guy",
 		},
 	}
-	c.Assert(err, check.IsNil)
+	c.Assert(ue, check.IsNil)
 	c.Check(len(createdUsers), check.Equals, 1)
 	c.Check(createdUsers, check.FitsTypeOf, expected)
 	c.Check(createdUsers, check.DeepEquals, expected)
@@ -551,7 +550,7 @@ func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, e
 	})()
 
 	// create user
-	createdUsers, _, err := devicestate.CreateUser(s.state, s.mgr, expectSudoer, createKnown, "")
+	createdUsers, ue := devicestate.CreateUser(s.state, s.mgr, expectSudoer, createKnown, "")
 	expected := []devicestate.UserResponse{
 		{
 			Username: "guy",
@@ -572,7 +571,7 @@ func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, e
 		return createdUsers[i].Username < createdUsers[j].Username
 	})
 
-	c.Assert(err, check.IsNil)
+	c.Assert(ue, check.IsNil)
 	c.Check(len(createdUsers), check.Equals, 3)
 	c.Check(createdUsers, check.FitsTypeOf, expected)
 	c.Check(createdUsers, check.DeepEquals, expected)
@@ -596,11 +595,11 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownNoModelError(c *check.C)
 	c.Assert(err, check.IsNil)
 
 	// create user
-	createdUsers, internal, err := devicestate.CreateUser(s.state, s.mgr, true, true, "")
+	createdUsers, ue := devicestate.CreateUser(s.state, s.mgr, true, true, "")
 
-	c.Assert(err, check.NotNil)
-	c.Check(err, check.ErrorMatches, `cannot create user: cannot get model assertion: no state entry for key`)
-	c.Check(internal, check.Equals, true)
+	c.Assert(ue, check.NotNil)
+	c.Check(ue.Error(), check.ErrorMatches, `cannot create user: cannot get model assertion: no state entry for key`)
+	c.Check(ue.IsInternal(), check.Equals, true)
 	c.Assert(createdUsers, check.IsNil)
 
 }
@@ -628,11 +627,11 @@ func (s *usersSuite) TestCreateUserFromAssertionNoModel(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// create user
-	createdUsers, internal, err := devicestate.CreateUser(s.state, s.mgr, true, true, "serial@bar.com")
+	createdUsers, ue := devicestate.CreateUser(s.state, s.mgr, true, true, "serial@bar.com")
 
-	c.Check(err, check.NotNil)
-	c.Check(err, check.ErrorMatches, `cannot add system-user "serial@bar.com": bound to serial assertion but device not yet registered`)
-	c.Check(internal, check.Equals, false)
+	c.Check(ue, check.NotNil)
+	c.Check(ue.Error(), check.ErrorMatches, `cannot add system-user "serial@bar.com": bound to serial assertion but device not yet registered`)
+	c.Check(ue.IsInternal(), check.Equals, false)
 	c.Assert(createdUsers, check.IsNil)
 }
 
@@ -663,8 +662,8 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	})()
 
 	// create user
-	createdUsers, _, err := devicestate.CreateUser(s.state, s.mgr, false, true, "")
-	c.Assert(err, check.IsNil)
+	createdUsers, ue := devicestate.CreateUser(s.state, s.mgr, false, true, "")
+	c.Assert(ue, check.IsNil)
 	expected := []devicestate.UserResponse{
 		{
 			Username: "guy",

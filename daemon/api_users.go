@@ -223,12 +223,12 @@ func postUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func removeUser(c *Command, username string, opts postUserDeleteData) Response {
-	u, internal, err := deviceStateRemoveUser(c.d.overlord.State(), username)
-	if err != nil {
-		if internal {
-			return InternalError(err.Error())
+	u, ue := deviceStateRemoveUser(c.d.overlord.State(), username)
+	if ue != nil {
+		if ue.IsInternal() {
+			return InternalError(ue.Error().Error())
 		} else {
-			return BadRequest(err.Error())
+			return BadRequest(ue.Error().Error())
 		}
 	}
 
@@ -303,12 +303,12 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		createData.Sudoer = true
 	}
 
-	createdUsers, internal, err := deviceStateCreateUser(st, c.d.overlord.DeviceManager(), createData.Sudoer, createData.Known, createData.Email)
-	if err != nil {
-		if internal {
-			return InternalError(err.Error())
+	createdUsers, ue := deviceStateCreateUser(st, c.d.overlord.DeviceManager(), createData.Sudoer, createData.Known, createData.Email)
+	if ue != nil {
+		if ue.IsInternal() {
+			return InternalError(ue.Error().Error())
 		} else {
-			return BadRequest(err.Error())
+			return BadRequest(ue.Error().Error())
 		}
 	}
 
