@@ -603,13 +603,13 @@ prepare_snapd() {
         echo "Repacking snapd snap"
         local snap_name output_name snap_id
         if nested_is_core_16_system; then
-            snap_name=core
-            output_name=core-from-snapd-deb.snap
-            snap_id=99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+            snap_name="core"
+            output_name="core-from-snapd-deb.snap"
+            snap_id="99T7MUlRhtI3U0QFgl5mXXESAiSwt776"
         else
-            snap_name=snapd
-            output_name=snapd-from-deb.snap
-            snap_id=PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+            snap_name="snapd"
+            output_name="snapd-from-deb.snap"
+            snap_id="PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
         fi
 
         "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap "$snap" "$NESTED_ASSETS_DIR"
@@ -628,7 +628,7 @@ prepare_kernel() {
         echo "Repacking kernel snap"
         local kernel_snap output_name snap_id
         output_name="pc-kernel.snap"
-        snap_id=pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+        snap_id="pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
 
         if nested_is_core_16_system || nested_is_core_18_system; then
             kernel_snap=pc-kernel-new.snap
