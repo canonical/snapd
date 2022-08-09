@@ -599,30 +599,32 @@ nested_ensure_ubuntu_save() {
 }
 
 prepare_snapd() {
-    echo "Repacking snapd snap"
-    local snap_name output_name snap_id
-    if nested_is_core_16_system; then
-        snap_name=core
-        output_name=core-from-snapd-deb.snap
-        snap_id=99T7MUlRhtI3U0QFgl5mXXESAiSwt776
-    else
-        snap_name=snapd
-        output_name=snapd-from-deb.snap
-        snap_id=PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
-    fi
+    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
+        echo "Repacking snapd snap"
+        local snap_name output_name snap_id
+        if nested_is_core_16_system; then
+            snap_name=core
+            output_name=core-from-snapd-deb.snap
+            snap_id=99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+        else
+            snap_name=snapd
+            output_name=snapd-from-deb.snap
+            snap_id=PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+        fi
 
-    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap "$snap" "$NESTED_ASSETS_DIR"
-    mv "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
+        "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap "$snap" "$NESTED_ASSETS_DIR"
+        mv "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
 
-    # sign the snapd snap with fakestore if requested
-    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
+        # sign the snapd snap with fakestore if requested
+        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
+        fi
     fi
 }
 
 prepare_kernel() {
     # allow repacking the kernel
-    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]
+    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
         echo "Repacking kernel snap"
         local kernel_snap output_name snap_id
         output_name="pc-kernel.snap"
