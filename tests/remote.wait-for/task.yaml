@@ -75,3 +75,5 @@ execute: |
     test "$initial_boot_id" != "$second_boot_id"
     test "$second_boot_id" != "$third_boot_id"
     
+    # Check waiting for refresh in case no refresh in progress
+    remote.wait-for refresh

@@ -45,10 +45,12 @@ execute: |
 
     if [ "$TARGET" = xenial ]; then
         remote.refresh snap kernel --channel latest/beta
-        remote.wait-for auto-refresh
+        remote.wait-for refresh
         remote.refresh snap core --channel stable
+        remote.wait-for refresh
     elif [ "$TARGET" = bionic ]; then
         remote.refresh snap kernel --channel 18/beta
-        remote.wait-for auto-refresh
+        remote.wait-for refresh
         remote.refresh snap snapd --channel stable
+        remote.wait-for refresh
     fi

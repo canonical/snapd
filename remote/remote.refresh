@@ -15,25 +15,42 @@ check_refresh_after_reboot() {
     local refresh_channel=$1
     local snap=$2
 
-    remote.wait-for no-ssh -n 60 --wait 2
-    remote.wait-for ssh -n 120 --wait 2
+    echo "remote.refresh: checking snap \"$snap\" refresh after reboot"
+    remote.wait-for reboot
     remote.wait-for snap-command
     remote.retry -n 10 --wait 2  "snap info $snap | grep -q -E \"tracking: +(latest/${refresh_channel}|${refresh_channel})\""
+    echo "remote.refresh: snap \"$snap\" refreshed correctly"
 }
 
 check_refresh() {
     local refresh_channel=$1
     local snap=$2
 
+    echo "remote.refresh: checking snap \"$snap\" refresh with no reboot"
     remote.wait-for ssh -n 60 --wait 2
     remote.wait-for snap-command
     remote.retry -n 10 --wait 2  "snap info $snap | grep -q -E \"tracking: +(latest/${refresh_channel}|${refresh_channel})\""
+    echo "remote.refresh: snap \"$snap\" refreshed correctly"
+}
+
+check_waiting_for_reboot() {
+    remote.exec "sudo journalctl -n 30" | grep -q "Waiting for system reboot"
+}
+
+check_ready_to_refresh() {
+    remote.wait-for ssh
+    if check_waiting_for_reboot; then
+        echo "remote.refresh: waiting for system reboot"
+        remote.wait-for reboot
+    fi
+    remote.wait-for refresh
 }
 
 do_refresh() {
     local snap_name=$1
     local refresh_channel=$2
 
+    echo "remote.refresh: triggering refresh for snap \"$snap_name\" on channel \"$refresh_channel\""
     output=$(remote.exec "sudo snap refresh --channel ${refresh_channel} $snap_name 2>&1" || echo "snapd is about to reboot the system")
     if echo "$output" | grep -E "(no updates available|cannot refresh \"$snap_name\"|is not installed)"; then
         echo "remote.refresh: snap \"$snap_name\" has no updates available"
@@ -55,6 +72,7 @@ process_refresh() {
         refresh_channel="$(remote.exec "snap info $snap_name" | grep -E '^tracking:' |  awk '{ print $2 }')"
     fi
 
+    echo "remote.refresh: Refreshing $snap_name snap from $refresh_channel channel"
     do_refresh "$snap_name" "$refresh_channel"
 }
 
@@ -62,7 +80,7 @@ refresh_kernel() {
     local refresh_channel=$1
     local snap_name
 
-    check_ubuntu_core
+    echo "remote.refresh: starting kernel refresh process"
     snap_name="$(remote.exec "snap list" | grep -E '(kernel$|kernel,)' | awk '{ print $1 }')"
     if [ -z "$snap_name" ]; then
         echo "remote.refresh: no kernel snap to update"
@@ -76,7 +94,7 @@ refresh_gadget() {
     local refresh_channel=$1
     local snap_name
 
-    check_ubuntu_core
+    echo "remote.refresh: starting gadget refresh process"
     snap_name="$(remote.exec "snap list" | grep -E '(gadget$|gadget,)' | awk '{ print $1 }')"
     if [ -z "$snap_name" ]; then
         echo "remote.refresh: no gadget snap to update"
@@ -90,6 +108,7 @@ refresh_snapd() {
     local refresh_channel=$1
     local snap_name
 
+    echo "remote.refresh: starting snapd refresh process"
     snap_name="$(remote.exec "snap list" | grep -E '^snapd.*(snapd$|snapd,)' | awk '{ print $1 }')"
     if [ -z "$snap_name" ]; then
         echo "remote.refresh: no snapd snap to update"
@@ -103,6 +122,7 @@ refresh_core() {
     local refresh_channel=$1
     local snap_name
 
+    echo "remote.refresh: starting core refresh process"
     snap_name="$(remote.exec "snap list" | grep -E '^core.*(core$|core,)' | awk '{ print $1 }')"
     if [ -z "$snap_name" ]; then
         echo "remote.refresh: no core snap to update"
@@ -116,6 +136,7 @@ refresh_core_base() {
     local refresh_channel=$1
     local base_line snap_name core_channel
 
+    echo "remote.refresh: starting core base refresh process"
     if ! base_line="$(remote.exec "snap list | grep -E '^core.* (base$|base,)'")"; then
         echo "remote.refresh: no core base snap to update"
         return 0
@@ -158,16 +179,71 @@ get_boot_id() {
     remote.exec "cat /proc/sys/kernel/random/boot_id"
 }
 
+prevent_autorefresh() {
+    remote.wait-for ssh
+    state_path="$(remote.exec 'find /writable -name state.json 2>/dev/null' || true)"
+    if [ -z "$state_path" ]; then
+        echo "remote.refresh: state file not found in writable"
+        state_path="$(remote.exec 'find / -name state.json 2>/dev/null' || true)"
+    fi
+    if [ -z "$state_path" ]; then
+        echo "remote.refresh: state.json file not found"
+        exit 1
+    fi
+
+    remote.exec "sudo cp $state_path /tmp/state.json"
+    remote.exec "sudo chmod 644 /tmp/state.json"
+    remote.pull /tmp/state.json state.json
+    echo "remote.refresh: state file retrieved"
+
+    jq ".data[\"last-refresh\"] = \"$(date +%Y-%m-%dT%H:%M:%S%:z)\"" state.json > state.json.new
+    echo "remote.refresh: state file just updated"
+
+    remote.push state.json.new /tmp/state.json.new
+    remote.exec "sudo cp /tmp/state.json.new $state_path"
+    remote.exec "sudo chmod 600 $state_path"
+    echo "remote.refresh: updated state file restored"
+    rm -f state.json state.json.new
+}
+
+disable_refreshes() {
+    if ! command -v jq &>/dev/null; then
+        snap install --devmode jq
+    fi
+
+    echo "remote.refresh: modifying state to make it look like the last refresh just happened"
+    remote.exec "sudo systemctl stop snapd.socket snapd.service"
+    prevent_autorefresh
+    remote.exec "sudo systemctl start snapd.socket snapd.service"
+
+    echo "remote.refresh: minimizing risk of hitting refresh schedule"
+    remote.exec "sudo snap set core refresh.schedule=00:00-23:59"
+    remote.exec "sudo snap refresh --time --abs-time" | grep -Eq "last: 2[0-9]{3}"
+
+}
+
 full_refresh() {
-    remote.wait-for auto-refresh
+    echo "remote.refresh: starting full refresh"
+
+    check_ready_to_refresh
+    disable_refreshes
+
+    check_ready_to_refresh
     refresh_core
-    remote.wait-for auto-refresh
+
+    check_ready_to_refresh
     refresh_core_base
-    remote.wait-for auto-refresh
+
+    check_ready_to_refresh
     refresh_snapd
-    remote.wait-for auto-refresh
+
+    check_ready_to_refresh
     refresh_kernel
+
+    check_ready_to_refresh
     refresh_all
+
+    check_ready_to_refresh
 }
 
 snap_refresh() {
@@ -211,13 +287,6 @@ snap_refresh() {
             refresh_snap "$snapname" "$channel"
             ;;
     esac
-}
-
-check_ubuntu_core() {
-    if ! remote.exec "cat /etc/os-release | grep ID=ubuntu-core"; then
-        echo "remote.refresh: this function can be used just with ubuntu core systems"
-        return 1
-    fi
 }
 
 main() {
