@@ -598,6 +598,65 @@ nested_ensure_ubuntu_save() {
     fi
 }
 
+prepare_snapd() {
+    echo "Repacking snapd snap"
+    local snap_name output_name snap_id
+    if nested_is_core_16_system; then
+        snap_name=core
+        output_name=core-from-snapd-deb.snap
+        snap_id=99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+    else
+        snap_name=snapd
+        output_name=snapd-from-deb.snap
+        snap_id=PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    fi
+
+    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap "$snap" "$NESTED_ASSETS_DIR"
+    mv "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
+
+    # sign the snapd snap with fakestore if requested
+    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
+    fi
+}
+
+prepare_kernel() {
+    # allow repacking the kernel
+    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]
+        echo "Repacking kernel snap"
+        local kernel_snap output_name snap_id
+        output_name="pc-kernel.snap"
+        snap_id=pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+
+        if nested_is_core_16_system || nested_is_core_18_system; then
+            kernel_snap=pc-kernel-new.snap
+            repack_kernel_snap "$kernel_snap"
+        elif nested_is_core_20_system || nested_is_core_22_system; then
+            snap download --basename=pc-kernel --channel="$VERSION/edge" pc-kernel
+
+            # set the unix bump time if the NESTED_* var is set,
+            # otherwise leave it empty
+            local epochBumpTime
+            epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
+            if [ -n "$epochBumpTime" ]; then
+                epochBumpTime="--epoch-bump-time=$epochBumpTime"
+            fi
+
+            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
+            rm -f "$PWD/pc-kernel.snap"
+
+            # Prepare the pc kernel snap
+            kernel_snap=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
+            chmod 0600 "$kernel_snap"
+        fi
+        mv "$kernel_snap" "$(nested_get_extra_snaps_path)/$output_name"
+        # sign the pc-kernel snap with fakestore if requested
+        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
+        fi
+    fi
+}
+
 nested_create_core_vm() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
@@ -606,7 +665,6 @@ nested_create_core_vm() {
 
     local IMAGE_NAME
     IMAGE_NAME="$(nested_get_image_name core)"
-
     mkdir -p "$NESTED_IMAGES_DIR"
 
     if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" ]; then
@@ -627,35 +685,16 @@ nested_create_core_vm() {
                 # ubuntu-image on 16.04 needs to be installed from a snap
                 UBUNTU_IMAGE=/snap/bin/ubuntu-image
             fi
-            local EXTRA_FUNDAMENTAL=""
-            local EXTRA_SNAPS=""
-            for mysnap in $(nested_get_extra_snaps); do
-                EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
-            done
 
+            local EXTRA_FUNDAMENTAL=""
             if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
                 if nested_is_core_16_system; then
-                    echo "Repacking core snap"
-                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core "$NESTED_ASSETS_DIR"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/core-from-snapd-deb.snap"
+                    prepare_snapd
+                    prepare_kernel
 
-                    # allow repacking the kernel
-                    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
-                        KERNEL_SNAP=new-kernel.snap
-                        repack_kernel_snap "$KERNEL_SNAP"
-                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $KERNEL_SNAP"
-                    fi
                 elif nested_is_core_18_system; then
-                    echo "Repacking snapd snap"
-                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$NESTED_ASSETS_DIR"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
-
-                    # allow repacking the kernel
-                    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
-                        KERNEL_SNAP=new-kernel.snap
-                        repack_kernel_snap "$KERNEL_SNAP"
-                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $KERNEL_SNAP"
-                    fi
+                    prepare_snapd
+                    prepare_kernel
 
                     # allow tests to provide their own core18 snap
                     local CORE18_SNAP
@@ -677,32 +716,8 @@ nested_create_core_vm() {
 
                 elif nested_is_core_20_system || nested_is_core_22_system; then
                     VERSION="$(nested_get_version)"
-                    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
-                        echo "Repacking kernel snap"
-                        snap download --basename=pc-kernel --channel="$VERSION/edge" pc-kernel
-
-                        # set the unix bump time if the NESTED_* var is set, 
-                        # otherwise leave it empty
-                        local epochBumpTime
-                        epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
-                        if [ -n "$epochBumpTime" ]; then
-                            epochBumpTime="--epoch-bump-time=$epochBumpTime"
-                        fi
-
-                        uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                        rm -f "$PWD/pc-kernel.snap"
-
-                        # Prepare the pc kernel snap
-                        KERNEL_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
-
-                        chmod 0600 "$KERNEL_SNAP"
-                        EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
-
-                        # sign the pc-kernel snap with fakestore if requested
-                        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$KERNEL_SNAP" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
-                        fi
-                    fi
+                    prepare_snapd
+                    prepare_kernel
 
                     # Prepare the pc gadget snap (unless provided by extra-snaps)
                     local GADGET_SNAP
@@ -760,16 +775,6 @@ EOF
                         make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$GADGET_SNAP" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
                     fi
 
-                    echo "Repacking snapd snap"
-                    snap download --channel="latest/edge" snapd
-                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
-
-                    # sign the snapd snap with fakestore if requested
-                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/snapd-from-deb.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
-                    fi
-
                     if [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
                         snap download --channel="$CORE_CHANNEL" --basename="core$VERSION" "core$VERSION"
                         repack_core_snap_with_tweaks "core$VERSION.snap" "new-core$VERSION.snap"
@@ -795,6 +800,11 @@ EOF
             local NESTED_MODEL
             NESTED_MODEL="$(nested_get_model)"
             
+            local EXTRA_SNAPS=""
+            for mysnap in $(nested_get_extra_snaps); do
+                EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
+            done
+
             # only set SNAPPY_FORCE_SAS_URL because we don't need it defined 
             # anywhere else but here, where snap prepare-image as called by 
             # ubuntu-image will look for assertions for the snaps we provide
@@ -821,7 +831,6 @@ EOF
                 "${UBUNTU_IMAGE_PRESEED_ARGS[@]:-}" \
                 --output-dir "$NESTED_IMAGES_DIR" \
                 --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" \
-                $EXTRA_FUNDAMENTAL \
                 $EXTRA_SNAPS
 
             # ubuntu-image dropped the --output parameter, so we have to rename
