@@ -443,12 +443,8 @@ func readRefreshScheduleConf(st *state.State) (confStr string, legacy bool, err 
 }
 
 // refreshScheduleWithDefaultsFallback returns the current refresh schedule
-// and refresh string. When an invalid refresh schedule is set by the user
-// the refresh schedule is automatically reset to the default.
-//
-// TODO: we can remove the refreshSchedule reset because we have validation
-//       of the schedule now.
-func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleConf string, legacy bool, err error) {
+// and refresh string.
+func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (sched []*timeutil.Schedule, scheduleConf string, legacy bool, err error) {
 	scheduleConf, legacy, err = readRefreshScheduleConf(m.state)
 	if err != nil {
 		return nil, "", false, err
@@ -476,22 +472,24 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 	}
 	m.managedDeniedLogged = false
 
-	// if we read the newer 'refresh.timer' option
-	if !legacy {
-		sched, err := timeutil.ParseSchedule(scheduleConf)
-		if err != nil {
-			logger.Noticef("cannot use refresh.timer configuration: %s", err)
-			return defaultRefreshSchedule, defaultRefreshScheduleStr, false, nil
-		}
-		return sched, scheduleConf, legacy, nil
-	}
-
-	// if we read the older 'refresh.shedule' option
-	sched, err := timeutil.ParseLegacySchedule(scheduleConf)
-	if err != nil {
-		logger.Noticef("cannot use refresh.schedule configuration: %s", err)
+	if scheduleConf == "" {
 		return defaultRefreshSchedule, defaultRefreshScheduleStr, false, nil
 	}
+
+	// if we read the newer 'refresh.timer' option
+	var errPrefix string
+	if !legacy {
+		sched, err = timeutil.ParseSchedule(scheduleConf)
+		errPrefix = "cannot use refresh.timer configuration"
+	} else {
+		sched, err = timeutil.ParseLegacySchedule(scheduleConf)
+		errPrefix = "cannot use refresh.schedule configuration"
+	}
+
+	if err != nil {
+		return nil, "", false, fmt.Errorf("%s: %w", errPrefix, err)
+	}
+
 	return sched, scheduleConf, legacy, nil
 }
 
