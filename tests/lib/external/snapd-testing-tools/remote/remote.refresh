@@ -134,20 +134,21 @@ refresh_core() {
 
 refresh_core_base() {
     local refresh_channel=$1
-    local base_line snap_name core_channel
+    local snap_name
 
     echo "remote.refresh: starting core base refresh process"
-    if ! base_line="$(remote.exec "snap list | grep -E '^core.* (base$|base,)'")"; then
+    snap_name="$(remote.exec "snap list" | grep -E '^core.* (base$|base,)' | awk '{ print $1 }')"
+    if [ -z "$snap_name" ]; then
         echo "remote.refresh: no core base snap to update"
         return 0
     fi
 
-    if [ "$(echo "$base_line" | wc -l)" -gt 1 ]; then
+    if [ "$(echo "$snap_name" | wc -l)" -gt 1 ]; then
         echo "remote.refresh: there is more than 1 core base snap to update, skipping"
         return 0
     fi
 
-    process_refresh "$base_line" "$refresh_channel"
+    process_refresh "$snap_name" "$refresh_channel"
 }
 
 refresh_snap() {
