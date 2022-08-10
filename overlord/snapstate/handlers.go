@@ -1743,6 +1743,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	}()
 
 	rebootInfo, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
+	logger.Debugf("doLinkSnap: rebootInfo.RebootRequired is %t", rebootInfo.RebootRequired)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
 	defer func() {
@@ -1931,8 +1932,21 @@ func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootInfo bo
 	st := t.State()
 
 	if rebootInfo.RebootRequired {
-		t.Logf("Requested system restart.")
-		RestartSystem(t, &rebootInfo)
+		// Store current boot id to be able to check later if we have
+		// rebooted or not
+		bootId, err := osutil.BootID()
+		if err != nil {
+			t.Logf("Error while retrieving boot id: %v", err)
+			return
+		}
+		t.Set("boot-id", bootId)
+		if release.OnClassic {
+			t.Logf("Not restarting as this is a classic device.")
+			// TODO notify GUI
+		} else {
+			t.Logf("Requested system restart.")
+			RestartSystem(t, &rebootInfo)
+		}
 		return
 	}
 

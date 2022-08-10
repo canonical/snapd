@@ -706,6 +706,38 @@ var generateSnapdWrappers = backend.GenerateSnapdWrappers
 // For snapd snap updates this will also rerun wrappers generation to fully
 // catch up with any change.
 func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
+	// For classic we have not forced a reboot, so we need to look at the
+	// boot id to check if the reboot has already happened or not. If not,
+	// we return with a Retry status.
+	// TODO maybe return with different error that does not do retries that
+	// will always fail, and that also prevents stalling on 'snap install'.
+	if release.OnClassic {
+		tasks := task.Change().Tasks()
+		var lnkTsk *state.Task
+		for _, t := range tasks {
+			switch t.Kind() {
+			case "link-snap", "unlink-snap", "unlink-current-snap":
+				lnkTsk = t
+			}
+		}
+		if lnkTsk != nil {
+			var linkBootId string
+			// boot-id will be present only if a reboot was required,
+			// otherwise we continue down the function.
+			if err := lnkTsk.Get("boot-id", &linkBootId); err == nil {
+				currentBootID, err := osutil.BootID()
+				if err != nil {
+					return err
+				}
+				if currentBootID == linkBootId {
+					task.Logf("Waiting for manual restart...")
+					return &state.Retry{}
+				}
+				logger.Debugf("restart already happened for change %s",
+					task.Change().ID())
+			}
+		}
+	}
 	if snapdenv.Preseeding() {
 		// nothing to do when preseeding
 		return nil

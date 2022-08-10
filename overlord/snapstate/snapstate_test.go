@@ -4220,6 +4220,8 @@ func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 	defer st.Unlock()
 
 	task := st.NewTask("auto-connect", "...")
+	chg := st.NewChange("test-finish-restart", "...")
+	chg.AddTask(task)
 
 	// not restarting
 	restart.MockPending(st, restart.RestartUnset)
@@ -4247,6 +4249,8 @@ func (s *snapmgrTestSuite) TestFinishRestartNoopWhenPreseeding(c *C) {
 	defer st.Unlock()
 
 	task := st.NewTask("auto-connect", "...")
+	chg := st.NewChange("test-finish-restart", "...")
+	chg.AddTask(task)
 
 	// not restarting
 	si := &snap.SideInfo{RealName: "some-app"}
@@ -4315,6 +4319,8 @@ type: snapd
 		release.MockOnClassic(tc.onClassic)
 
 		task := st.NewTask("auto-connect", "...")
+		chg := st.NewChange("test-finish-restart", "...")
+		chg.AddTask(task)
 		si := &snap.SideInfo{Revision: snap.R("x2"), RealName: tc.snapName}
 		snapInfo := snaptest.MockSnapCurrent(c, string(tc.snapYaml), si)
 		snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snapInfo.SnapType}
