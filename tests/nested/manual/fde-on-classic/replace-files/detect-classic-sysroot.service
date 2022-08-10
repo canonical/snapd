@@ -1,0 +1,10 @@
+[Unit]
+DefaultDependencies=no
+Before=initrd-root-device.target
+After=snap-initramfs-mounts.service
+
+ConditionPathIsMountPoint=!/run/mnt/base
+
+[Service]
+Type=oneshot
+ExecStart=/bin/ln -s data /run/mnt/sysroot

@@ -1,0 +1,17 @@
+[Unit]
+DefaultDependencies=no
+Before=initrd-root-fs.target
+
+After=detect-uc-sysroot.service
+Wants=detect-uc-sysroot.service
+After=detect-classic-sysroot.service
+Wants=detect-classic-sysroot.service
+After=run-mnt-base.mount
+After=snap-initramfs-mounts.service
+
+AssertPathIsSymbolicLink=/run/mnt/sysroot
+
+[Mount]
+What=/run/mnt/sysroot
+Type=none
+Options=bind

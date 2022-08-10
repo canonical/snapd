@@ -6,7 +6,7 @@ get_assets() {
     CACHE="$1"
 
     if [ -d "$CACHE" ]; then
-        echo "Using exiting cache dir $CACHE"
+        echo "Using existing cache dir $CACHE"
         return
     fi
 
@@ -82,7 +82,7 @@ install_data_partition() {
     echo "nameserver 8.8.8.8" | sudo tee -a "$DESTDIR"/etc/resolv.conf
     # install additional packages
     sudo chroot "$DESTDIR" /usr/bin/sh -c "DEBIAN_FRONTEND=noninteractive apt update"
-    local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod"
+    local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init"
     sudo chroot "$DESTDIR" /usr/bin/sh -c \
          "DEBIAN_FRONTEND=noninteractive apt install --no-install-recommends -y $pkgs"
     # netplan config
@@ -104,11 +104,11 @@ EOF
 EOF
 
     # ensure we can login
-    sudo chroot "$DESTDIR" /usr/sbin/adduser --disabled-password --gecos "" ubuntu
-    echo -e "ubuntu\nubuntu" | sudo chroot "$DESTDIR" /usr/bin/passwd ubuntu
-    echo "ubuntu ALL=(ALL) NOPASSWD:ALL" | sudo tee -a "$DESTDIR"/etc/sudoers
+    sudo chroot "$DESTDIR" /usr/sbin/adduser --disabled-password --gecos "" user1
+    printf "ubuntu\nubuntu\n" | sudo chroot "$DESTDIR" /usr/bin/passwd user1
+    echo "user1 ALL=(ALL) NOPASSWD:ALL" | sudo tee -a "$DESTDIR"/etc/sudoers
 
-    # XXX set password for root user
+    # set password for root user
     sudo chroot "$DESTDIR" /usr/bin/sh -c 'echo root:root | chpasswd'
     sudo tee -a "$DESTDIR/etc/ssh/sshd_config" <<'EOF'
 PermitRootLogin yes
@@ -131,7 +131,7 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 EOF
     sudo cp modeenv "$DESTDIR"/var/lib/snapd/
     # needed from the beginning in ubuntu-data as these are mounted by snap-bootstrap
-    # (UC also has base here, but we do not mount it from initramfs in clasic)
+    # (UC also has base here, but we do not mount it from initramfs in classic)
     sudo mkdir -p "$DESTDIR"/var/lib/snapd/snaps/
     sudo cp "$CACHE/$KERNEL_SNAP" "$CACHE/$GADGET_SNAP" \
          "$DESTDIR"/var/lib/snapd/snaps/
@@ -317,7 +317,7 @@ show_how_to_run_qemu() {
 main() {
     BOOT_IMG="${1:-./boot.img}"
     CACHE_DIR="${2:-./cache}"
-    MNT_DIR="${2:-./mnt}"
+    MNT_DIR="${3:-./mnt}"
     # shellcheck disable=SC2064
     trap "cleanup \"$BOOT_IMG\" \"$MNT_DIR\"" EXIT INT
 
@@ -330,4 +330,3 @@ main() {
 }
 
 main "$1" "$2" "$3"
-
