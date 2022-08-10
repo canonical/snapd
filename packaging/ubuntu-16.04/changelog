@@ -1,3 +1,16 @@
+snapd (2.57.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1983035
+    - cmd/snap-update-ns: handle mountpoint removal failures with EBUSY
+    - cmd/snap-update-ns: print current mount entries
+    - cmd/snap-update-ns: check the unused mounts with a cleaned path
+    - snap-confine: disable -Werror=array-bounds in __overflow tests to
+      fix build error on Ubuntu 22.10
+    - systemd: add `WantedBy=default.target` to snap mount units
+      (LP: #1983528)
+
+ -- Samuele Pedroni (Canonical Services Ltd.) <samuele.pedroni@canonical.com>  Wed, 10 Aug 2022 09:30:50 +0300
+
 snapd (2.57) xenial; urgency=medium
 
   * New upstream release, LP: #1983035

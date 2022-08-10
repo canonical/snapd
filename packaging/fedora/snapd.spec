@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.57
+Version:        2.57.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -981,6 +981,16 @@ fi
 
 
 %changelog
+* Wed Aug 10 2022 Alberto Mardegan <alberto.mardegan@canonical.com>
+- New upstream release 2.57.1
+ - cmd/snap-update-ns: handle mountpoint removal failures with EBUSY
+ - cmd/snap-update-ns: print current mount entries
+ - cmd/snap-update-ns: check the unused mounts with a cleaned path
+ - snap-confine: disable -Werror=array-bounds in __overflow tests to
+   fix build error on Ubuntu 22.10
+ - systemd: add `WantedBy=default.target` to snap mount units
+   (LP: #1983528)
+
 * Thu Jul 28 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.57
  - tests: Fix calls to systemctl is-system-running
