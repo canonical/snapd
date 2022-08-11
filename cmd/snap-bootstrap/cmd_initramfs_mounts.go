@@ -1507,8 +1507,8 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	if err != nil {
 		return err
 	}
-	mst.isClassic = model.Classic()
-	if mst.isClassic {
+	isClassic := model.Classic()
+	if isClassic {
 		logger.Noticef("starting classic system")
 		boot.InitramfsWritableDir = boot.InitramfsDataDir
 	}
@@ -1518,7 +1518,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		NeedsFsck: true,
 		Private:   true,
 	}
-	if !mst.isClassic {
+	if !isClassic {
 		// use the disk we mounted ubuntu-boot from as a reference to find
 		// ubuntu-seed and mount it
 		partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-seed")
@@ -1564,7 +1564,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	dataMountOpts := &systemdMountOptions{
 		NeedsFsck: true,
 	}
-	if !mst.isClassic {
+	if !isClassic {
 		// fsck and mount with nosuid to prevent snaps from being able to bypass
 		// the sandbox by creating suid root files there and trying to escape the
 		// sandbox
@@ -1636,7 +1636,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// order in the list must not change as it determines the mount order
 	typs := []snap.Type{snap.TypeGadget, snap.TypeKernel}
-	if !mst.isClassic {
+	if !isClassic {
 		typs = append([]snap.Type{snap.TypeBase}, typs...)
 	}
 
@@ -1665,7 +1665,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	}
 
 	// 4.4 mount snapd snap only on first boot
-	if modeEnv.RecoverySystem != "" && !mst.isClassic {
+	if modeEnv.RecoverySystem != "" && !isClassic {
 		// load the recovery system and generate mount for snapd
 		_, essSnaps, err := mst.ReadEssential(modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
 		if err != nil {
