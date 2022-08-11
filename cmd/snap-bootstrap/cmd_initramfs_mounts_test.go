@@ -2401,6 +2401,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--options=private",
+			"--property=Before=initrd-fs.target",
 		},
 		{
 			"systemd-mount",
@@ -2416,7 +2418,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 			"--umount",
 			"--no-pager",
 			"--no-ask-password",
-			"--fsck=yes",
+			"--fsck=no",
 		},
 	})
 

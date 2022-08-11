@@ -1484,23 +1484,8 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 }
 
 func generateMountsModeRunCVM(mst *initramfsMountsState) error {
-	// Mount ESP
-	// Must be where the kernel came from, without fallbacks
-	espuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
-	if err != nil {
-		return err
-	}
-	espSrc := filepath.Join("/dev/disk/by-partuuid", espuuid)
-	espOpts := &systemdMountOptions{
-		// vfat needs fsck to mount ESP that was unsafely
-		// unmounted
-		NeedsFsck: true,
-		// do not persist mount into running system, otherwise
-		// regular fstab cannot mount ESP at /boot/efi as
-		// expected
-		Ephemeral: true,
-	}
-	if err := doSystemdMount(espSrc, boot.InitramfsUbuntuSeedDir, espOpts); err != nil {
+	// Mount ESP as UbuntuSeedDir which has UEFI label
+	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "UEFI"); err != nil {
 		return err
 	}
 
@@ -1550,8 +1535,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 	}
 
 	// Unmount ESP because otherwise unmounting is racy and results in booted systems without ESP
-	espOpts.Umount = true
-	if err := doSystemdMount(espSrc, boot.InitramfsUbuntuSeedDir, espOpts); err != nil {
+	if err := doSystemdMount("", boot.InitramfsUbuntuSeedDir, &systemdMountOptions{Umount: true, Ephemeral: true}); err != nil {
 		return err
 	}
 
