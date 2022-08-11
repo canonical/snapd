@@ -296,6 +296,9 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	// by default mock that we don't have UEFI vars, etc. to get the booted
 	// kernel partition partition uuid
 	s.AddCleanup(main.MockPartitionUUIDForBootedKernelDisk(""))
+	s.AddCleanup(main.MockSecbootProvisionTPMCVM(func(_ string) error {
+		return nil
+	}))
 	s.AddCleanup(main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
 		return nil
 	}))

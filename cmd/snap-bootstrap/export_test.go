@@ -117,6 +117,14 @@ func MockSecbootUnlockEncryptedVolumeUsingKey(f func(disk disks.Disk, name strin
 	}
 }
 
+func MockSecbootProvisionTPMCVM(f func(_ string) error) (restore func()) {
+	old := secbootProvisionTPMCVM
+	secbootProvisionTPMCVM = f
+	return func() {
+		secbootProvisionTPMCVM = old
+	}
+}
+
 func MockSecbootMeasureSnapSystemEpochWhenPossible(f func() error) (restore func()) {
 	old := secbootMeasureSnapSystemEpochWhenPossible
 	secbootMeasureSnapSystemEpochWhenPossible = f
