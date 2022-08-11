@@ -11,13 +11,14 @@ replace_initramfs_bits() {
         cp replace-files/* "$SYSTEMD_D"/
     fi
 
-    # TODO do not depend on version
-    uc_initramfs_deb=ubuntu-core-initramfs_56_amd64.deb
-    if [ ! -f "$uc_initramfs_deb" ]; then
-        wget -q https://launchpad.net/~snappy-dev/+archive/ubuntu/image/+files/"$uc_initramfs_deb"
-        dpkg --fsys-tarfile "$uc_initramfs_deb" |
-            tar xf - ./usr/lib/ubuntu-core-initramfs/efi/linuxx64.efi.stub
-    fi
+    # Retrieve efi stub from ppa so we can rebuild kernel.efi
+    sudo DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends ubuntu-dev-tools
+    codename=$(lsb_release -cs)
+    arch=$(dpkg-architecture -q DEB_BUILD_ARCH)
+    pull-lp-debs -a "$arch" -D ppa \
+                 --ppa ppa:snappy-dev/image ubuntu-core-initramfs "$codename"
+    dpkg --fsys-tarfile ubuntu-core-initramfs_*.deb |
+        tar --wildcards -xf - './usr/lib/ubuntu-core-initramfs/efi/linux*.efi.stub'
 
     cp "$SNAPD_BINPATH"/snap-bootstrap initrd/main/usr/lib/snapd/
     cd initrd/main
@@ -27,7 +28,7 @@ replace_initramfs_bits() {
     objcopy -O binary -j .linux "$KERNEL_EFI_ORIG" linux
     objcopy --add-section .linux=linux --change-section-vma .linux=0x2000000 \
             --add-section .initrd=initrd.img.new --change-section-vma .initrd=0x3000000 \
-            usr/lib/ubuntu-core-initramfs/efi/linuxx64.efi.stub \
+            usr/lib/ubuntu-core-initramfs/efi/linux*.efi.stub \
             kernel.efi
 }
 
@@ -61,10 +62,12 @@ main() {
     subpath=$(readlink "$MNT"/ubuntu-boot/EFI/ubuntu/kernel.efi)
     cp -a kernel.efi "$MNT"/ubuntu-boot/EFI/ubuntu/"$subpath"
 
-    # replace snapd in data partition
+    # replace snapd in data partition with the one compiled in the test
     data_mnt="$loop"p5
     sudo mount /dev/mapper/"$data_mnt" "$MNT"/data
-    sudo cp "$SNAPD_BINPATH"/snapd "$MNT"/data/usr/lib/snapd/
+    sudo cp ../../../../snapd_*.deb "$MNT"/data/snapd.deb
+    sudo chroot "$MNT"/data apt install -y --no-install-recommends ./snapd.deb
+    sudo rm "$MNT"/data/snapd.deb
     # enable debug traces
     sudo mkdir -p "$MNT"/data/etc/systemd/system/snapd.service.d/
     sudo tee "$MNT"/data/etc/systemd/system/snapd.service.d/override.conf <<'EOF'
