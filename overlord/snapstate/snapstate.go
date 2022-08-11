@@ -790,8 +790,10 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	//       better snapd rollback support in core18).
 	//
 	// Applies only to core-like boot, except if classic with modes for
-	// base updates.
-	if deviceCtx.RunMode() && deviceCtx.IsCoreBoot() && !(deviceCtx.IsClassicModeenv() && snapsup.Type == snap.TypeBase) {
+	// base/core updates.
+	if deviceCtx.RunMode() && deviceCtx.IsCoreBoot() &&
+		!(deviceCtx.IsClassicModeenv() &&
+			(snapsup.Type == snap.TypeBase || snapsup.Type == snap.TypeOS)) {
 		// get the name of the name relevant for booting
 		// based on the given type
 		model := deviceCtx.Model()

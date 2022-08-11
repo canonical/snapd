@@ -89,7 +89,8 @@ type DeviceManager struct {
 	// save as rw vs ro, or mount/umount it fully on demand
 	saveAvailable bool
 
-	hasModeEnv bool
+	// isClassicBoot is true if classic system with classic initramfs
+	isClassicBoot bool
 
 	state   *state.State
 	hookMgr *hookstate.HookManager
@@ -148,7 +149,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		if modeEnv != nil {
 			logger.Debugf("modeenv for model %s found", modeEnv.Model)
 			m.sysMode = modeEnv.Mode
-			m.hasModeEnv = true
+		} else if release.OnClassic {
+			m.isClassicBoot = true
 		}
 	} else {
 		// cache system label for preseeding of core20; note, this will fail on
@@ -879,8 +881,7 @@ func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	legacyCore := !release.OnClassic && !m.hasModeEnv
-	if !m.hasModeEnv && !legacyCore {
+	if m.isClassicBoot {
 		return nil
 	}
 

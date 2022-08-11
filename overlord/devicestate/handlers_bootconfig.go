@@ -35,18 +35,22 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 	st.Lock()
 	defer st.Unlock()
 
+	devCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+	if devCtx.IsClassicBoot() {
+		return nil
+	}
+
 	var seeded bool
-	err := st.Get("seeded", &seeded)
+	err = st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
 		// do nothing during first boot & seeding
 		return nil
-	}
-	devCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return err
 	}
 
 	if devCtx.Model().Grade() == asserts.ModelGradeUnset {
