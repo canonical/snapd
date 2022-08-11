@@ -6,6 +6,9 @@ systems: [-ubuntu-14.04*]
 environment:
   BLOB_DIR: $(pwd)/fake-store-blobdir
 
+prepare: |
+  snap install --devmode jq
+
 restore: |
   snap refresh --unhold || true
   snap refresh --unhold test-snapd-tools || true
