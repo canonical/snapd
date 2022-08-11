@@ -612,7 +612,7 @@ prepare_snapd() {
             snap_id="PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
         fi
 
-        "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap "$snap" "$NESTED_ASSETS_DIR"
+        "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap "$snap_name" "$NESTED_ASSETS_DIR"
         mv "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
 
         # sign the snapd snap with fakestore if requested
