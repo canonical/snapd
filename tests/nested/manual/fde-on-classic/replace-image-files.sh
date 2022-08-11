@@ -65,7 +65,7 @@ main() {
     # replace snapd in data partition with the one compiled in the test
     data_mnt="$loop"p5
     sudo mount /dev/mapper/"$data_mnt" "$MNT"/data
-    sudo cp ../../../../snapd_*.deb "$MNT"/data/snapd.deb
+    sudo cp ../../../../../snapd_*.deb "$MNT"/data/snapd.deb
     sudo chroot "$MNT"/data apt install -y --no-install-recommends ./snapd.deb
     sudo rm "$MNT"/data/snapd.deb
     # enable debug traces
