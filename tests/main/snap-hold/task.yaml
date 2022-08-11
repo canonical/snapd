@@ -43,39 +43,22 @@ execute: |
   snap refresh --hold=forever
   systemctl stop snapd.{service,socket}
   "$TESTSTOOLS"/snapd-state force-autorefresh
-
-  # keep the last-refresh before the auto-refresh attempt
-  OLD_LAST_REFRESH=$(jq ".data[\"last-refresh\"]" /var/lib/snapd/state.json)
-
   systemctl start snapd.{service,socket}
 
-  for _ in $(seq 1 5); do
-    CHANGES=$(snap changes | tail -2)
-    if echo "$CHANGES" | grep "Done.*Auto-refresh"; then
-      echo "expected 'snap refresh --hold' to prevent auto-refresh"
-      exit 1
-    fi
-
-    # if the new 'last-refresh' is different then the auto-refresh code ran but
-    # didn't refresh because it was held
-    NEW_LAST_REFRESH=$(jq ".data[\"last-refresh\"]" /var/lib/snapd/state.json)
-    if [ "$OLD_LAST_REFRESH" != "$NEW_LAST_REFRESH" ]; then
-      RAN_AUTOREFRESH="true"
-      break
-    fi
-
-    # wait before trying again
+  while [ "$(systemctl show -pActiveState snapd.service)" != "ActiveState=active" ]; do
     sleep 1
   done
 
-  if [ "${RAN_AUTOREFRESH:-false}" != "true" ]; then
-    echo "expected auto-refresh code to run without refresh due to hold but didn't run at all"
+  # wait for auto-refresh code to run (this is inherently racy)
+  sleep 1
+
+  if snap changes | tail -2 | grep "Done.*Auto-refresh"; then
+    echo "expected 'snap refresh --hold' to prevent auto-refresh"
     exit 1
   fi
 
   # check that the auto-refresh succeeds without the hold
   snap refresh --unhold
-  # get unhold's change id and force an auto-refresh
   CHANGE_ID=$(snap changes | tail -2 | grep "Done.*Remove hold on refreshes of all snaps" | awk '{print $1}')
 
   systemctl stop snapd.{service,socket}
