@@ -26,9 +26,9 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"strings"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/canonical/go-tpm2"
 	"github.com/canonical/go-tpm2/mu"
@@ -354,7 +354,6 @@ func ProvisionTPMCVM(initramfsUbuntuSeedDir string) error {
 
 	return nil
 }
-
 
 // SealKeys seals the encryption keys according to the specified parameters. The
 // TPM must have already been provisioned. If sealed key already exists at the

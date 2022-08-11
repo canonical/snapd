@@ -2331,7 +2331,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
-			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultCVMDisk,
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}:                       defaultCVMDisk,
 			{Mountpoint: boot.InitramfsSysrootDir, IsDecryptedDevice: true}: defaultCVMDisk,
 		},
 	)
@@ -2419,7 +2419,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 
 	c.Check(cloudimgActivated, Equals, true)
 }
-
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoSave(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")

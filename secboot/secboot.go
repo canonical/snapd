@@ -107,7 +107,7 @@ const (
 	// provisioning and will get overwritten in the process.
 	TPMPartialReprovision
 	// TPMProvisionFullWithoutLockout indicates full provisioning
-	// without using lockout authroization data, as currently used
+	// without using lockout authorization data, as currently used
 	// by Azure CVM
 	TPMProvisionFullWithoutLockout
 )
