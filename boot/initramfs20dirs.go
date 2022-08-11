@@ -84,10 +84,6 @@ var (
 	// keys during the initramfs on ubuntu-boot.
 	InitramfsBootEncryptionKeyDir string
 
-	// InitramfsSysrootDir is the location where pivot-root will
-	// be performed to, aka the host system being booted.
-	InitramfsSysrootDir string
-
 	// snapBootFlagsFile is the location of the file that is used
 	// internally for saving the current boot flags active for this boot.
 	snapBootFlagsFile string
@@ -108,7 +104,6 @@ func setInitramfsDirVars(rootdir string) {
 	InitramfsWritableDir = filepath.Join(InitramfsDataDir, "system-data")
 	InitramfsSeedEncryptionKeyDir = filepath.Join(InitramfsUbuntuSeedDir, "device/fde")
 	InitramfsBootEncryptionKeyDir = filepath.Join(InitramfsUbuntuBootDir, "device/fde")
-	InitramfsSysrootDir = filepath.Join(rootdir, "sysroot")
 
 	snapBootFlagsFile = filepath.Join(dirs.SnapRunDir, "boot-flags")
 }

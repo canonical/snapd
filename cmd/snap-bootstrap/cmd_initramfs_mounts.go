@@ -1527,7 +1527,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 		NeedsFsck: true,
 		Ephemeral: true,
 	}
-	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsSysrootDir, fsckSystemdOpts); err != nil {
+	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
 		return err
 	}
 
@@ -1539,7 +1539,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 		diskOpts.IsDecryptedDevice = true
 	}
 
-	matches, err := disk.MountPointIsFromDisk(boot.InitramfsSysrootDir, diskOpts)
+	matches, err := disk.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)
 	if err != nil {
 		return err
 	}

@@ -2334,8 +2334,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
-			{Mountpoint: boot.InitramfsUbuntuSeedDir}:                       defaultCVMDisk,
-			{Mountpoint: boot.InitramfsSysrootDir, IsDecryptedDevice: true}: defaultCVMDisk,
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}:                    defaultCVMDisk,
+			{Mountpoint: boot.InitramfsDataDir, IsDecryptedDevice: true}: defaultCVMDisk,
 		},
 	)
 	defer restore()
@@ -2357,7 +2357,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 		case 1, 2:
 			c.Assert(where, Equals, boot.InitramfsUbuntuSeedDir)
 		case 3, 4:
-			c.Assert(where, Equals, boot.InitramfsSysrootDir)
+			c.Assert(where, Equals, boot.InitramfsDataDir)
 		case 5, 6:
 			c.Assert(where, Equals, boot.InitramfsUbuntuSeedDir)
 		default:
@@ -2405,7 +2405,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 		{
 			"systemd-mount",
 			"/dev/mapper/cloudimg-rootfs-random",
-			boot.InitramfsSysrootDir,
+			boot.InitramfsDataDir,
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
