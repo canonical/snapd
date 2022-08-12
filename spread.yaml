@@ -961,6 +961,8 @@ suites:
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
+            # Generic imane name which has to be overwritten in the test
+            NESTED_IMAGE_ID: "unset"
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
