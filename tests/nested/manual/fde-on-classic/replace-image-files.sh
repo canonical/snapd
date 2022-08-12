@@ -26,10 +26,11 @@ replace_initramfs_bits() {
     cd -
 
     objcopy -O binary -j .linux "$KERNEL_EFI_ORIG" linux
+    # Replace kernel.efi in unsquashed snap
     objcopy --add-section .linux=linux --change-section-vma .linux=0x2000000 \
             --add-section .initrd=initrd.img.new --change-section-vma .initrd=0x3000000 \
             usr/lib/ubuntu-core-initramfs/efi/linux*.efi.stub \
-            kernel.efi
+            "$KERNEL_EFI_ORIG"
 }
 
 cleanup() {
@@ -60,7 +61,7 @@ main() {
 
     # copy kernel.efi with modified initramfs
     subpath=$(readlink "$MNT"/ubuntu-boot/EFI/ubuntu/kernel.efi)
-    cp -a kernel.efi "$MNT"/ubuntu-boot/EFI/ubuntu/"$subpath"
+    cp -a "$CACHE_DIR"/snap-pc-kernel/kernel.efi "$MNT"/ubuntu-boot/EFI/ubuntu/"$subpath"
 
     # replace snapd in data partition with the one compiled in the test
     data_mnt="$loop"p5
