@@ -273,7 +273,8 @@ func buildSnap(snapDir, targetDir string) (*info, error) {
 }
 
 func copySnapAsserts(info *info, f asserts.Fetcher) error {
-	return snapasserts.FetchSnapAssertions(f, info.digest)
+	// assume provenance is unset
+	return snapasserts.FetchSnapAssertions(f, info.digest, "")
 }
 
 func makeNewSnapRevision(orig, new *info, targetDir string, db *asserts.Database) error {

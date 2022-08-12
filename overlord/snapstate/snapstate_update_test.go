@@ -249,6 +249,7 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenari
 		"run-inhibit-snap-for-unlink",
 		"unlink-snap",
 		"copy-data",
+		"setup-snap-save-data",
 		"setup-profiles:Doing",
 		"candidate",
 		"link-snap",
@@ -366,6 +367,10 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 			op:   "copy-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 			old:  filepath.Join(dirs.SnapMountDir, "some-snap/11"),
+		},
+		{
+			op:   "setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -759,6 +764,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		"run-inhibit-snap-for-unlink",
 		"unlink-snap",
 		"copy-data",
+		"setup-snap-save-data",
 		"setup-profiles:Doing",
 		"candidate",
 		"link-snap",
@@ -967,6 +973,10 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			op:   "copy-data",
 			path: filepath.Join(dirs.SnapMountDir, "services-snap/11"),
 			old:  filepath.Join(dirs.SnapMountDir, "services-snap/7"),
+		},
+		{
+			op:   "setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "services-snap"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -1318,6 +1328,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 			op:   "copy-data",
 			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/11"),
 			old:  filepath.Join(dirs.SnapMountDir, "services-snap_instance/7"),
+		},
+		{
+			op:   "setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "services-snap_instance"),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2194,6 +2208,10 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			old:  filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
+			op:   "setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
+		},
+		{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -2224,6 +2242,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			op:   "undo-copy-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 			old:  filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op:   "undo-setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
+			old:  filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
 			op:   "link-snap",
@@ -2502,6 +2525,10 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			old:  filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
+			op:   "setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
+		},
+		{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -2550,6 +2577,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			op:   "undo-copy-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 			old:  filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op:   "undo-setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
+			old:  filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
 			op:   "link-snap",
@@ -8724,4 +8756,26 @@ func (s *snapmgrTestSuite) TestUpdateBaseAndSnapdOrder(c *C) {
 		restart.RestartDaemon,
 		restart.RestartSystem,
 	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateConsidersProvenance(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "provenance-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        []*snap.SideInfo{{RealName: "provenance-snap", SnapID: "provenance-snap-id", Revision: snap.R(7)}},
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	ts, err := snapstate.Update(s.state, "provenance-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	var snapsup snapstate.SnapSetup
+	err = ts.Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+
+	c.Check(snapsup.ExpectedProvenance, Equals, "prov")
 }

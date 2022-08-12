@@ -458,7 +458,7 @@ repack_kernel_snap() {
     unsquashfs -no-progress -d "$UNPACK_DIR" pc-kernel.snap
     snap pack --filename="$TARGET" "$UNPACK_DIR"
 
-    rm -rf "$UNPACK_DIR"
+    rm -rf pc-kernel.snap "$UNPACK_DIR"
 }
 
 repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
@@ -593,6 +593,11 @@ uc20_build_corrupt_kernel_snap() {
 uc20_build_initramfs_kernel_snap() {
     # carries ubuntu-core-initframfs
     add-apt-repository ppa:snappy-dev/image -y
+    # On focal, lvm2 does not reinstall properly after being removed.
+    # So we need to clean up in case the VM has been re-used.
+    if os.query is-focal; then
+        systemctl unmask lvm2-lvmpolld.socket
+    fi
     # TODO: install the linux-firmware as the current version of
     # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
     # to build the initrd
@@ -696,8 +701,8 @@ EOF
             ubuntu-core-initramfs create-initrd \
                                   --kernelver "$kver" \
                                   --skeleton "$skeletondir" \
-                                  --kerneldir "lib/modules/$kver" \
-                                  --firmwaredir "$unpackeddir/firmware" \
+                                  --kerneldir "${unpackeddir}/modules/$kver" \
+                                  --firmwaredir "${unpackeddir}/firmware" \
                                   --feature 'main' \
                                   --output ../../repacked-initrd
         )
@@ -930,7 +935,7 @@ setup_reflash_magic() {
     else
         # shellcheck source=tests/lib/image.sh
         . "$TESTSLIB/image.sh"
-        build_ubuntu_image
+        get_ubuntu_image
     fi
 
     # needs to be under /home because ubuntu-device-flash

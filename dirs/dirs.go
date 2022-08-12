@@ -114,6 +114,7 @@ var (
 	SnapFDEDir        string
 	SnapSaveDir       string
 	SnapDeviceSaveDir string
+	SnapDataSaveDir   string
 
 	CloudMetaDataFile     string
 	CloudInstanceDataFile string
@@ -408,6 +409,7 @@ func SetRootDir(rootdir string) {
 	SnapFDEDir = SnapFDEDirUnder(rootdir)
 	SnapSaveDir = SnapSaveDirUnder(rootdir)
 	SnapDeviceSaveDir = filepath.Join(SnapSaveDir, "device")
+	SnapDataSaveDir = filepath.Join(SnapSaveDir, "snap")
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")

@@ -63,6 +63,7 @@ func (s *modeenvSuite) TestKnownKnown(c *C) {
 		"boot_flags":               true,
 		// keep this comment to make old go fmt happy
 		"base":                  true,
+		"gadget":                true,
 		"try_base":              true,
 		"base_status":           true,
 		"current_kernels":       true,
@@ -113,12 +114,14 @@ func (s *modeenvSuite) TestReadMode(c *C) {
 	c.Check(modeenv.Mode, Equals, "run")
 	c.Check(modeenv.RecoverySystem, Equals, "")
 	c.Check(modeenv.Base, Equals, "")
+	c.Check(modeenv.Gadget, Equals, "")
 }
 
 func (s *modeenvSuite) TestDeepEqualDiskVsMemoryInvariant(c *C) {
 	s.makeMockModeenvFile(c, `mode=recovery
 recovery_system=20191126
 base=core20_123.snap
+gadget=pc_1.snap
 try_base=core20_124.snap
 base_status=try
 `)
@@ -129,6 +132,7 @@ base_status=try
 		Mode:           "recovery",
 		RecoverySystem: "20191126",
 		Base:           "core20_123.snap",
+		Gadget:         "pc_1.snap",
 		TryBase:        "core20_124.snap",
 		BaseStatus:     "try",
 	}
