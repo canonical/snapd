@@ -58,17 +58,30 @@ EOF
 }
 
 install_data_partition() {
+    set -x
     local DESTDIR=$1
     local CACHE=$2
-    local KERNEL_SNAP GADGET_SNAP BASE_SNAP SNAPD_SNAP
     # just some random date for the seed label
     local SEED_LABEL=20220617
 
-    set -x
-    KERNEL_SNAP=$(find "$CACHE" -maxdepth 1 -name 'pc-kernel_*.snap' -printf "%f\n")
-    GADGET_SNAP=$(find "$CACHE" -maxdepth 1 -name 'pc_*.snap' -printf "%f\n")
-    BASE_SNAP=$(find "$CACHE" -maxdepth 1 -name 'core22_*.snap' -printf "%f\n")
-    SNAPD_SNAP=$(find "$CACHE" -maxdepth 1 -name 'snapd_*.snap' -printf "%f\n")
+    snap_idx=(kernel gadget base snapd)
+    declare -A SNAP_NAME SNAP_F SNAP_P IS_UNASSERTED
+    SNAP_NAME[kernel]=pc-kernel
+    SNAP_NAME[gadget]=pc
+    SNAP_NAME[base]=core22
+    SNAP_NAME[snapd]=snapd
+    for i in "${snap_idx[@]}"; do
+        snap_n=${SNAP_NAME[$i]}
+        if [ "${IN_SNAP_F[$snap_n]}" != "" ]; then
+            IS_UNASSERTED[$i]=true
+            SNAP_F[$i]=${IN_SNAP_F[$snap_n]}
+            SNAP_P[$i]=${IN_SNAP_P[$snap_n]}
+        else
+            IS_UNASSERTED[$i]=false
+            SNAP_F[$i]=$(find "$CACHE" -maxdepth 1 -name "${SNAP_NAME[$i]}_*.snap" -printf "%f\n")
+            SNAP_P[$i]="$CACHE/${SNAP_F[$i]}"
+        fi
+    done
 
     # Copy base filesystem
     sudo tar -C "$DESTDIR" -xf "$CACHE"/ubuntu-base-22.04-base-amd64.tar.gz
@@ -121,9 +134,9 @@ mode=run
 recovery_system=$SEED_LABEL
 current_recovery_systems=$SEED_LABEL
 good_recovery_systems=$SEED_LABEL
-base=$BASE_SNAP
-gadget=$GADGET_SNAP
-current_kernels=$KERNEL_SNAP
+base=${SNAP_F[base]}
+gadget=${SNAP_F[gadget]}
+current_kernels=${SNAP_F[kernel]}
 model=canonical/ubuntu-core-22-pc-amd64
 grade=dangerous
 model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
@@ -133,17 +146,20 @@ EOF
     # needed from the beginning in ubuntu-data as these are mounted by snap-bootstrap
     # (UC also has base here, but we do not mount it from initramfs in classic)
     sudo mkdir -p "$DESTDIR"/var/lib/snapd/snaps/
-    sudo cp "$CACHE/$KERNEL_SNAP" "$CACHE/$GADGET_SNAP" \
+    sudo cp "${SNAP_P[kernel]}" "${SNAP_P[gadget]}" \
          "$DESTDIR"/var/lib/snapd/snaps/
     # populate seed
     local seed_snaps_d="$DESTDIR"/var/lib/snapd/seed/snaps
     local recsys_d="$DESTDIR"/var/lib/snapd/seed/systems/"$SEED_LABEL"
     sudo mkdir -p "$recsys_d"/snaps "$recsys_d"/assertions "$seed_snaps_d"
-    if [ -n "$UNASSERTED" ]; then
-        sudo cp "$CACHE"/{pc,pc-kernel,snapd,core22}_*.snap "$recsys_d"/snaps
-    else
-        sudo cp "$CACHE"/{pc,pc-kernel,snapd,core22}_*.snap "$seed_snaps_d"
-    fi
+
+    for i in "${snap_idx[@]}"; do
+        if [ "${IS_UNASSERTED[$i]}" = true ]; then
+            sudo cp "${SNAP_P[$i]}" "$recsys_d"/snaps
+        else
+            sudo cp "${SNAP_P[$i]}" "$seed_snaps_d"
+        fi
+    done
     sudo cp classic-model.assert "$recsys_d"/model
     {
         for assert in "$CACHE"/*.assert; do
@@ -154,21 +170,13 @@ EOF
     sudo cp "$CACHE"/snap-asserts "$recsys_d"/assertions/snaps
     sudo cp model-etc "$recsys_d"/assertions/
 
-    # not needed if we have asserted snaps
-    if [ -n "$UNASSERTED" ]; then
-        cat > "$CACHE"/options.yaml <<EOF
-snaps:
-- name: snapd
-  id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
-  unasserted: $SNAPD_SNAP
-- name: pc-kernel
-  unasserted: $KERNEL_SNAP
-- name: pc
-  unasserted: $GADGET_SNAP
-- name: core22
-  unasserted: $BASE_SNAP
-EOF
-        sudo cp "$CACHE"/options.yaml "$recsys_d"
+    # write options file if we have some unasserted snap in the seed
+    if [ "${#IN_SNAP_F[@]}" -gt 0 ]; then
+        OPTIONS_DATA="snaps:\n"
+        for snap_n in "${!IN_SNAP_F[@]}"; do
+            OPTIONS_DATA="${OPTIONS_DATA}- name: $snap_n\n  unasserted: ${IN_SNAP_F[$snap_n]}\n"
+        done
+        sudo sh -c "printf %b \"$OPTIONS_DATA\" > \"$recsys_d\"/options.yaml"
     fi
 }
 
@@ -315,9 +323,6 @@ show_how_to_run_qemu() {
 }
 
 main() {
-    BOOT_IMG="${1:-./boot.img}"
-    CACHE_DIR="${2:-./cache}"
-    MNT_DIR="${3:-./mnt}"
     # shellcheck disable=SC2064
     trap "cleanup \"$BOOT_IMG\" \"$MNT_DIR\"" EXIT INT
 
@@ -329,4 +334,18 @@ main() {
     # XXX: show how to mount/chroot into the dir to test seeding
 }
 
-main "$1" "$2" "$3"
+# 4th and later are optional local snaps
+set -x
+BOOT_IMG="${1:-./boot.img}"
+CACHE_DIR="${2:-./cache}"
+MNT_DIR="${3:-./mnt}"
+shift 3 || true
+declare -A IN_SNAP_P IN_SNAP_F
+for sn_p in "$@"; do
+    sn_f=${sn_p##*/}
+    sn_name=${sn_f%%_*}
+    IN_SNAP_P[$sn_name]=$sn_p
+    IN_SNAP_F[$sn_name]=$sn_f
+done
+
+main "$BOOT_IMG" "$CACHE_DIR" "$MNT_DIR"
