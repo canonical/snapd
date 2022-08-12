@@ -83,10 +83,6 @@ func (d *TrivialDeviceContext) IsClassicBoot() bool {
 	return release.OnClassic && !d.HasModeenv()
 }
 
-func (d *TrivialDeviceContext) IsClassicModeenv() bool {
-	return release.OnClassic && d.HasModeenv()
-}
-
 func (dc *TrivialDeviceContext) RunMode() bool {
 	return dc.SystemMode() == "run"
 }

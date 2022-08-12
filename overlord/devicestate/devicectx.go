@@ -117,11 +117,6 @@ func (d *groundDeviceContext) IsClassicBoot() bool {
 	return release.OnClassic && !d.HasModeenv()
 }
 
-// IsClassicModeenv is true for classic systems with core initramfs
-func (d *groundDeviceContext) IsClassicModeenv() bool {
-	return release.OnClassic && d.HasModeenv()
-}
-
 // expected interface is implemented
 var _ snapstate.DeviceContext = &groundDeviceContext{}
 
