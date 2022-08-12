@@ -1,12 +1,7 @@
 summary: Check snap hold and unhold
-#
-# ubuntu-14.04 doesn't support 'systemd-run' used by store.sh to start the fakestore
-systems: [-ubuntu-14.04*]
-
-environment:
-  BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
+  snap install test-snapd-tools
   snap install --devmode jq
 
 restore: |
@@ -14,81 +9,72 @@ restore: |
   snap refresh --unhold test-snapd-tools || true
   snap remove --purge test-snapd-tools || true
 
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-  teardown_fake_store "$BLOB_DIR" || true
-  rm -rf "$BLOB_DIR"
-
 execute: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
     echo "This test needs test keys to be trusted"
     exit
   fi
 
-  setup() {
-    snap install test-snapd-tools
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    setup_fake_store "$BLOB_DIR"
-    init_fake_refreshes "$BLOB_DIR" test-snapd-tools
-  }
-
-  teardown() {
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"
-    rm -rf "$BLOB_DIR"
-    snap remove --purge test-snapd-tools
+  reset() {
+    snap refresh --channel=latest/stable test-snapd-tools
+    snap refresh --unhold test-snapd-tools
+    snap refresh --unhold
   }
 
   echo "No snaps auto-refresh in an all-snaps hold"
-  setup
   snap refresh --hold=forever
+
   systemctl stop snapd.{service,socket}
+  "$TESTSTOOLS"/snapd-state change-snap-channel test-snapd-tools edge
   "$TESTSTOOLS"/snapd-state force-autorefresh
-  systemctl start snapd.{service,socket}
+  systemctl start snapd.{socket,service}
 
-  while [ "$(systemctl show -pActiveState snapd.service)" != "ActiveState=active" ]; do
-    sleep 1
-  done
-
-  # wait for auto-refresh code to run (this is inherently racy)
-  sleep 1
-
-  if snap changes | tail -2 | grep "Done.*Auto-refresh"; then
+  if retry -n 5 --quiet sh -c 'snap changes | tail -2 | grep "Done.*Auto-refresh"'; then
     echo "expected 'snap refresh --hold' to prevent auto-refresh"
     exit 1
   fi
 
-  # check that the auto-refresh succeeds without the hold
-  snap refresh --unhold
+  echo "Snap doesn't auto-refresh with a specific hold"
+  reset
+  snap refresh --hold test-snapd-tools
+
+  systemctl stop snapd.{service,socket}
+  "$TESTSTOOLS"/snapd-state change-snap-channel test-snapd-tools edge
+  "$TESTSTOOLS"/snapd-state force-autorefresh
+  systemctl start snapd.{socket,service}
+
+  if retry -n 5 --quiet sh -c 'snap changes | tail -2 | grep "Done.*Auto-refresh"'; then
+    echo "expected 'snap refresh --hold' to prevent auto-refresh"
+    exit 1
+  fi
+
+  echo "Snaps auto-refresh without holds"
+  reset
   CHANGE_ID=$(snap changes | tail -2 | grep "Done.*Remove hold on refreshes of all snaps" | awk '{print $1}')
 
   systemctl stop snapd.{service,socket}
+  "$TESTSTOOLS"/snapd-state change-snap-channel test-snapd-tools edge
   "$TESTSTOOLS"/snapd-state force-autorefresh
-  systemctl start snapd.{service,socket}
+  systemctl start snapd.{socket,service}
 
   "$TESTSTOOLS"/snapd-state wait-for-autorefresh "$CHANGE_ID"
-  teardown
 
   echo "Held snaps don't refresh in general refreshes"
-  setup
+  reset
   snap refresh --hold=forever test-snapd-tools
   snap refresh 2>&1 | MATCH "All snaps up to date."
-  snap refresh --unhold test-snapd-tools
-  snap refresh | MATCH "test-snapd-tools .* refreshed"
-  teardown
 
   echo "Held snaps are refreshed in specific refreshes"
-  setup
+  reset
   snap refresh --hold test-snapd-tools
-  snap refresh test-snapd-tools 2>&1 | MATCH "test-snapd-tools .* refreshed"
-  snap refresh --unhold test-snapd-tools
-  teardown
+  snap refresh --channel=latest/edge test-snapd-tools 2>&1 | MATCH "test-snapd-tools .* refreshed"
 
-  echo "Manual refreshes ignore holds on all snaps"
-  setup
+  echo "Generic refreshes ignore holds on all snaps"
+  reset
   snap refresh --hold
+
+  systemctl stop snapd.{service,socket}
+  "$TESTSTOOLS"/snapd-state change-snap-channel test-snapd-tools edge
+  systemctl start snapd.{socket,service}
+
   snap refresh 2>&1 | MATCH "test-snapd-tools .* refreshed"
-  snap refresh --unhold
-  teardown
