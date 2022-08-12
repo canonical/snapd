@@ -420,8 +420,18 @@ func HeldSnaps(st *state.State) (map[string]bool, error) {
 
 	held := make(map[string]bool)
 Loop:
-	for heldSnap, holdingSnaps := range gating {
-		for _, hold := range holdingSnaps {
+	for heldSnap, holds := range gating {
+		lastRefresh, err := lastRefreshed(st, heldSnap)
+		if err != nil {
+			return nil, err
+		}
+
+		for holdingSnap, hold := range holds {
+			// enforce the maxPostponement limit on a hold, unless it's held by the user
+			if holdingSnap != "system" && lastRefresh.Add(maxPostponement).Before(now) {
+				continue
+			}
+
 			if hold.HoldUntil.Before(now) {
 				continue
 			}

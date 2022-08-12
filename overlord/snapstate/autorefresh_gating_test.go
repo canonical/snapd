@@ -2742,14 +2742,12 @@ func (s *autorefreshGatingSuite) TestHoldRefreshSystem(c *C) {
 	c.Check(untilTime.Equal(snapAUntilTime), Equals, true)
 }
 
-func (s *autorefreshGatingSuite) TestHeldSnaps(c *C) {
+func (s *autorefreshGatingSuite) TestSnapsHeldForeverBySystem(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
 
-	timeNow, err := time.Parse(time.RFC3339, "2021-05-10T10:00:00Z")
-	c.Assert(err, IsNil)
-
+	timeNow := time.Now()
 	restore := snapstate.MockTimeNow(func() time.Time {
 		return timeNow
 	})
@@ -2758,14 +2756,44 @@ func (s *autorefreshGatingSuite) TestHeldSnaps(c *C) {
 	mockInstalledSnap(c, st, snapAyaml, false)
 
 	// the user holds the snap for as long as possible
-	_, err = snapstate.HoldRefresh(st, "system", snapstate.MaxDuration, "snap-a")
+	_, err := snapstate.HoldRefresh(st, "system", snapstate.MaxDuration, "snap-a")
 	c.Assert(err, IsNil)
 
-	timeNow = timeNow.Add(365 * 24 * time.Hour)
+	timeNow = timeNow.Add(100 * 365 * 24 * time.Hour)
 
 	gatedSnaps, err := snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
 	c.Check(gatedSnaps, DeepEquals, map[string]bool{"snap-a": true})
+}
+
+func (s *autorefreshGatingSuite) TestSnapsNotHeldForeverBySnaps(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+
+	var snapst snapstate.SnapState
+	snapstate.Get(st, "snap-a", &snapst)
+
+	longAgo, err := time.Parse(time.RFC3339, "2021-05-10T10:00:00Z")
+	snapst.LastRefreshTime = &longAgo
+	snapstate.Set(st, "snap-a", &snapst)
+
+	// insert a long hold manually because HoldRefresh also has a cutoff
+	gating := map[string]map[string]*snapstate.HoldState{
+		"snap-a": {
+			"snap-b": &snapstate.HoldState{
+				FirstHeld: time.Now(),
+				HoldUntil: time.Now().Add(snapstate.MaxDuration),
+			},
+		},
+	}
+	st.Set("snaps-hold", gating)
+
+	gatedSnaps, err := snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(gatedSnaps, HasLen, 0)
 }
 
 func verifyPhasedAutorefreshTasks(c *C, tasks []*state.Task, expected []string) {
