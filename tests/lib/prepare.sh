@@ -701,8 +701,8 @@ EOF
             ubuntu-core-initramfs create-initrd \
                                   --kernelver "$kver" \
                                   --skeleton "$skeletondir" \
-                                  --kerneldir "lib/modules/$kver" \
-                                  --firmwaredir "$unpackeddir/firmware" \
+                                  --kerneldir "${unpackeddir}/modules/$kver" \
+                                  --firmwaredir "${unpackeddir}/firmware" \
                                   --feature 'main' \
                                   --output ../../repacked-initrd
         )
