@@ -454,7 +454,7 @@ func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
 	}
 }
 
-func (s *snapServiceOptionsSuite) TestSnapAppsLogReader(c *C) {
+func (s *snapServiceOptionsSuite) TestLogReader(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -496,12 +496,43 @@ func (s *snapServiceOptionsSuite) TestSnapAppsLogReader(c *C) {
 	})
 	defer restore()
 
-	_, err := servicestate.SnapAppsLogReader(appInfos, 100, false)
+	_, err := servicestate.LogReader(appInfos, 100, false)
 	c.Assert(err, IsNil)
 	c.Check(jctlCalls, Equals, 1)
 }
 
-func (s *snapServiceOptionsSuite) TestSnapAppsLogReaderNamespaces(c *C) {
+func (s *snapServiceOptionsSuite) TestLogReaderFailsWithNonServices(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	si := snap.SideInfo{RealName: "foo", Revision: snap.R(1)}
+	snp := &snap.Info{SideInfo: si}
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	appInfos := []*snap.AppInfo{
+		{
+			Snap:        snp,
+			Name:        "svc1",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+		// Introduce a non-service to make sure we fail on this
+		{
+			Snap: snp,
+			Name: "app1",
+		},
+	}
+
+	_, err := servicestate.LogReader(appInfos, 100, false)
+	c.Assert(err.Error(), Equals, `cannot read logs for app "app1": not a service`)
+}
+
+func (s *snapServiceOptionsSuite) TestLogReaderNamespaces(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -543,7 +574,7 @@ func (s *snapServiceOptionsSuite) TestSnapAppsLogReaderNamespaces(c *C) {
 	})
 	defer restore()
 
-	_, err := servicestate.SnapAppsLogReader(appInfos, 100, false)
+	_, err := servicestate.LogReader(appInfos, 100, false)
 	c.Assert(err, IsNil)
 	c.Check(jctlCalls, Equals, 1)
 }

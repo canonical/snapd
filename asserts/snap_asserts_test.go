@@ -1232,7 +1232,122 @@ func (srs *snapRevSuite) TestRevisionAuthorityCheck(c *C) {
 	}
 
 	for _, t := range tests {
-		err := t.revAuth.Check(snapRev)
+		err := t.revAuth.Check(snapRev, nil, nil)
+		if t.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
+}
+
+func (srs *snapRevSuite) TestRevisionAuthorityCheckDeviceScope(c *C) {
+	a, err := asserts.Decode([]byte(`type: model
+authority-id: my-brand
+series: 16
+brand-id: my-brand
+model: my-model
+store: substore
+architecture: armhf
+kernel: krnl
+gadget: gadget
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	myModel := a.(*asserts.Model)
+
+	a, err = asserts.Decode([]byte(`type: store
+store: substore
+authority-id: canonical
+operator-id: canonical
+friendly-stores:
+  - a-store
+  - store1
+  - store2
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	substore := a.(*asserts.Store)
+
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	delegatedDB := setup3rdPartySigning(c, "my-brand", storeDB, db)
+	headers := srs.makeHeaders(map[string]interface{}{
+		"authority-id":  "my-brand",
+		"developer-id":  "my-brand",
+		"snap-revision": "200",
+		"provenance":    "prov1",
+	})
+	a, err = delegatedDB.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+	snapRev := a.(*asserts.SnapRevision)
+
+	tests := []struct {
+		revAuth  asserts.RevisionAuthority
+		substore *asserts.Store
+		err      string
+	}{
+		{asserts.RevisionAuthority{
+			AccountID:   "my-brand",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 1,
+		}, nil, ""},
+		{asserts.RevisionAuthority{
+			AccountID:   "my-brand",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 1,
+			DeviceScope: &asserts.DeviceScopeConstraint{
+				Store: []string{"other-store"},
+			},
+		}, nil, "on-store mismatch"},
+		{asserts.RevisionAuthority{
+			AccountID:   "my-brand",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 1,
+			DeviceScope: &asserts.DeviceScopeConstraint{
+				Store: []string{"substore"},
+			},
+		}, nil, ""},
+		{asserts.RevisionAuthority{
+			AccountID:   "my-brand",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 1,
+			DeviceScope: &asserts.DeviceScopeConstraint{
+				Store: []string{"substore"},
+			},
+		}, substore, ""},
+		{asserts.RevisionAuthority{
+			AccountID:   "my-brand",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 1,
+			DeviceScope: &asserts.DeviceScopeConstraint{
+				Store: []string{"a-store"},
+			},
+		}, substore, ""},
+		{asserts.RevisionAuthority{
+			AccountID:   "my-brand",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 1,
+			DeviceScope: &asserts.DeviceScopeConstraint{
+				Store: []string{"store1"},
+			},
+		}, nil, "on-store mismatch"},
+		{asserts.RevisionAuthority{
+			AccountID:   "my-brand",
+			Provenance:  []string{"prov1", "prov2"},
+			MinRevision: 1,
+			DeviceScope: &asserts.DeviceScopeConstraint{
+				Store: []string{"store1", "other-store"},
+			},
+		}, substore, ""},
+	}
+
+	for _, t := range tests {
+		err := t.revAuth.Check(snapRev, myModel, t.substore)
 		if t.err == "" {
 			c.Check(err, IsNil)
 		} else {
