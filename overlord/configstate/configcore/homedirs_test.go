@@ -21,6 +21,7 @@ package configcore_test
 
 import (
 	"errors"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,6 +50,16 @@ func (s *homedirsSuite) SetUpTest(c *C) {
 		c.Assert(err, IsNil)
 	})
 
+	// Tests might create this file. Since its presence is checked by the
+	// implementation code, we remove it after each test, to make sure that
+	// tests don't influence each other.
+	configPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system-params")
+	s.AddCleanup(func() {
+		if err := os.Remove(configPath); err != nil {
+			c.Assert(os.IsNotExist(err), Equals, true)
+		}
+	})
+
 	restore := configcore.MockDirExists(func(path string) (exists bool, isDir bool, err error) {
 		switch {
 		case strings.HasPrefix(path, "/home/existingDir"):
@@ -62,7 +73,6 @@ func (s *homedirsSuite) SetUpTest(c *C) {
 		}
 	})
 	s.AddCleanup(restore)
-
 }
 
 func (s *homedirsSuite) TestValidationUnhappy(c *C) {
@@ -107,21 +117,25 @@ func (s *homedirsSuite) TestConfigureWriteFailure(c *C) {
 }
 
 func (s *homedirsSuite) TestConfigureUnchanged(c *C) {
-	restore := configcore.MockEnsureFileState(func(path string, state osutil.FileState) error {
-		return osutil.ErrSameState
-	})
-	defer restore()
+	// Prepare the "system-params" config file with the same contents we expect
+	// it to have after applying the configuration.
+	snapStateDir := dirs.SnapdStateDir(dirs.GlobalRootDir)
+	err := os.MkdirAll(snapStateDir, 0755)
+	c.Assert(err, IsNil)
+	configPath := filepath.Join(snapStateDir, "system-params")
+	err = ioutil.WriteFile(configPath, []byte("homedirs=/home/existingDir\n"), 0644)
+	c.Assert(err, IsNil)
 
 	// The AppArmor configuration must not be updated; install a mock handler
 	// to later verify that it was not called.
 	tunableUpdated := false
-	restore = configcore.MockApparmorUpdateHomedirsTunable(func(paths []string) error {
+	restore := configcore.MockApparmorUpdateHomedirsTunable(func(paths []string) error {
 		tunableUpdated = true
 		return nil
 	})
 	defer restore()
 
-	err := configcore.Run(coreDev, &mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"homedirs": "/home/existingDir",
@@ -163,21 +177,8 @@ func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
 }
 
 func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
-	var systemParamsPath string
-	var systemParamsContent string
-	var systemParamsMode os.FileMode
-	restore := configcore.MockEnsureFileState(func(path string, state osutil.FileState) error {
-		systemParamsPath = path
-		memoryState, ok := state.(*osutil.MemoryFileState)
-		c.Assert(ok, Equals, true)
-		systemParamsContent = string(memoryState.Content)
-		systemParamsMode = memoryState.Mode
-		return nil
-	})
-	defer restore()
-
 	reloadProfilesCallCount := 0
-	restore = configcore.MockApparmorReloadAllSnapProfiles(func() error {
+	restore := configcore.MockApparmorReloadAllSnapProfiles(func() error {
 		reloadProfilesCallCount++
 		return nil
 	})
@@ -190,10 +191,12 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 		},
 	})
 	c.Check(err, IsNil)
-	c.Check(systemParamsPath, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/system-params"))
-	c.Check(systemParamsContent, Equals, "homedirs=/home/existingDir\n")
-	c.Check(systemParamsMode, Equals, os.FileMode(0644))
 	c.Check(reloadProfilesCallCount, Equals, 1)
+
+	// Check that the config file has been written
+	configPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system-params")
+	contents, err := ioutil.ReadFile(configPath)
+	c.Check(string(contents), Equals, "homedirs=/home/existingDir\n")
 }
 
 func (s *homedirsSuite) TestConfigureHomedirsEmptyHappy(c *C) {
