@@ -82,7 +82,6 @@ func (d *mockDevice) Kernel() string         { return d.bootSnap }
 func (d *mockDevice) Classic() bool          { return d.bootSnap == "" }
 func (d *mockDevice) RunMode() bool          { return d.mode == "run" }
 func (d *mockDevice) HasModeenv() bool       { return d.uc20 }
-func (d *mockDevice) IsCoreLegacy() bool     { return !d.uc20 }
 func (d *mockDevice) IsCoreBoot() bool       { return !d.IsClassicBoot() }
 func (d *mockDevice) IsClassicBoot() bool    { return d.bootSnap == "" }
 func (d *mockDevice) IsClassicModeenv() bool { return false }

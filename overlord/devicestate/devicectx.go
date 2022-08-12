@@ -105,15 +105,11 @@ func (dc groundDeviceContext) HasModeenv() bool {
 	return dc.model.Grade() != asserts.ModelGradeUnset
 }
 
-// IsCoreLegacy is true for UC16/18
-func (d *groundDeviceContext) IsCoreLegacy() bool {
-	return !d.HasModeenv() && !release.OnClassic
-}
-
 // IsCoreBoot is true when there are modes, or when there are not but
 // we are not in classic (UC16/18 case)
 func (d *groundDeviceContext) IsCoreBoot() bool {
-	return d.HasModeenv() || d.IsCoreLegacy()
+	isCoreLegacy := !d.HasModeenv() && !d.Model().Classic()
+	return d.HasModeenv() || isCoreLegacy
 }
 
 // IsClassicBoot is true for classic systems with classic initramfs

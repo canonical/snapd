@@ -75,10 +75,6 @@ func (dc *TrivialDeviceContext) HasModeenv() bool {
 	return dc.Model().Grade() != asserts.ModelGradeUnset
 }
 
-func (d *TrivialDeviceContext) IsCoreLegacy() bool {
-	return !d.HasModeenv() && !release.OnClassic
-}
-
 func (d *TrivialDeviceContext) IsCoreBoot() bool {
 	return d.HasModeenv() || (!d.HasModeenv() && !release.OnClassic)
 }
