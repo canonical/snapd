@@ -2777,6 +2777,8 @@ func (s *autorefreshGatingSuite) TestSnapsNotHeldForeverBySnaps(c *C) {
 	snapstate.Get(st, "snap-a", &snapst)
 
 	longAgo, err := time.Parse(time.RFC3339, "2021-05-10T10:00:00Z")
+	c.Assert(err, IsNil)
+
 	snapst.LastRefreshTime = &longAgo
 	snapstate.Set(st, "snap-a", &snapst)
 
