@@ -613,7 +613,7 @@ prepare_snapd() {
         fi
 
         "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap "$snap_name" "$NESTED_ASSETS_DIR"
-        mv "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
+        cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
 
         # sign the snapd snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
@@ -651,7 +651,7 @@ prepare_kernel() {
             kernel_snap=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
             chmod 0600 "$kernel_snap"
         fi
-        mv "$kernel_snap" "$(nested_get_extra_snaps_path)/$output_name"
+        cp "$kernel_snap" "$(nested_get_extra_snaps_path)/$output_name"
         # sign the pc-kernel snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
             make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
