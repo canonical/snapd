@@ -1468,6 +1468,10 @@ const snapMountsPreTargetContentExtraZfs = `[Unit]
 After=zfs-mount.service
 `
 
+const snapMountsPreTargetContentExtraOstree = `[Unit]
+After=ostree-remount.service
+`
+
 func ensureTarget(name string, content string) error {
 	if !osutil.FileExists(name) {
 		outf, err := osutil.NewAtomicFile(name, 0644, 0, osutil.NoChown, osutil.NoChown)
@@ -1496,6 +1500,10 @@ func ensureTargets() error {
 	}
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "snap-mounts-pre.target.d"), 0755)
 	err = ensureTarget(filepath.Join(dirs.SnapServicesDir, "snap-mounts-pre.target.d/zfs-mount.conf"), snapMountsPreTargetContentExtraZfs)
+	if err != nil {
+		return err
+	}
+	err = ensureTarget(filepath.Join(dirs.SnapServicesDir, "snap-mounts-pre.target.d/ostree-remount.conf"), snapMountsPreTargetContentExtraOstree)
 	if err != nil {
 		return err
 	}
