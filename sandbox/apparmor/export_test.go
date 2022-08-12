@@ -45,12 +45,6 @@ func MockMkdirAll(f func(string, os.FileMode) error) func() {
 	return r
 }
 
-func MockFileExists(f func(string) bool) func() {
-	r := testutil.Backup(&osutilFileExists)
-	osutilFileExists = f
-	return r
-}
-
 func MockAtomicWrite(f func(string, io.Reader, os.FileMode, osutil.AtomicWriteFlags) error) func() {
 	r := testutil.Backup(&osutilAtomicWrite)
 	osutilAtomicWrite = f

@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -311,14 +310,9 @@ func (s *appArmorSuite) TestMaybeSetNumberOfJobs(c *C) {
 }
 
 func (s *appArmorSuite) TestSnapConfineDistroProfilePath(c *C) {
-	var existingFiles []string
-	restore := apparmor.MockFileExists(func(filePath string) bool {
-		return strutil.ListContains(existingFiles, filePath)
-	})
-	defer restore()
-
-	restore = testutil.Backup(&apparmor.ConfDir)
-	apparmor.ConfDir = "/a/b/c"
+	baseDir := c.MkDir()
+	restore := testutil.Backup(&apparmor.ConfDir)
+	apparmor.ConfDir = filepath.Join(baseDir, "/a/b/c")
 	defer restore()
 
 	for _, testData := range []struct {
@@ -334,8 +328,23 @@ func (s *appArmorSuite) TestSnapConfineDistroProfilePath(c *C) {
 			"/a/b/c/usr.lib.snapd.snap-confine.real",
 		},
 	} {
-		existingFiles = testData.existingFiles
+		// Remove leftovers from the previous iteration
+		err := os.RemoveAll(baseDir)
+		c.Assert(err, IsNil)
+
+		existingFiles := testData.existingFiles
+		for _, path := range existingFiles {
+			fullPath := filepath.Join(baseDir, path)
+			err := os.MkdirAll(filepath.Dir(fullPath), 0755)
+			c.Assert(err, IsNil)
+			err = ioutil.WriteFile(fullPath, []byte("I'm an ELF binary"), 0755)
+			c.Assert(err, IsNil)
+		}
+		var expectedPath string
+		if testData.expectedPath != "" {
+			expectedPath = filepath.Join(baseDir, testData.expectedPath)
+		}
 		path := apparmor.SnapConfineDistroProfilePath()
-		c.Check(path, Equals, testData.expectedPath, Commentf("Existing: %q", existingFiles))
+		c.Check(path, Equals, expectedPath, Commentf("Existing: %q", existingFiles))
 	}
 }

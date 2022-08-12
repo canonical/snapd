@@ -39,7 +39,6 @@ import (
 var (
 	osMkdirAll        = os.MkdirAll
 	osutilAtomicWrite = osutil.AtomicWrite
-	osutilFileExists  = osutil.FileExists
 )
 
 // ValidateNoAppArmorRegexp will check that the given string does not
@@ -393,7 +392,7 @@ func UpdateHomedirsTunable(homedirs []string) error {
 	// not just an optimisation, but a necessity in Ubuntu Core: the
 	// /etc/apparmor.d/ tree is read-only, and attempting to create the file
 	// would generate an error.
-	if len(homedirs) == 0 && !osutilFileExists(tunableFilePath) {
+	if len(homedirs) == 0 && !osutil.FileExists(tunableFilePath) {
 		return nil
 	}
 
