@@ -1165,7 +1165,10 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
-After=zfs-mount.service
+After=snap-mounts-pre.target
+Before=snap-mounts.target
+Wants=snap-mounts-pre.target
+Wants=snap-mounts.target
 
 [Mount]
 What=%s
@@ -1199,7 +1202,10 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 [Unit]
 Description=Mount unit for foodir, revision x1
 Before=snapd.service
-After=zfs-mount.service
+After=snap-mounts-pre.target
+Before=snap-mounts.target
+Wants=snap-mounts-pre.target
+Wants=snap-mounts.target
 
 [Mount]
 What=%s
@@ -1245,7 +1251,10 @@ func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
 [Unit]
 Description=Mount unit for foo via bar
 Before=snapd.service
-After=zfs-mount.service
+After=snap-mounts-pre.target
+Before=snap-mounts.target
+Wants=snap-mounts-pre.target
+Wants=snap-mounts.target
 
 [Mount]
 What=%s
@@ -1288,7 +1297,10 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
-After=zfs-mount.service
+After=snap-mounts-pre.target
+Before=snap-mounts.target
+Wants=snap-mounts-pre.target
+Wants=snap-mounts.target
 
 [Mount]
 What=%s
@@ -1332,7 +1344,10 @@ exit 0
 [Unit]
 Description=Mount unit for foo, revision x1
 Before=snapd.service
-After=zfs-mount.service
+After=snap-mounts-pre.target
+Before=snap-mounts.target
+Wants=snap-mounts-pre.target
+Wants=snap-mounts.target
 
 [Mount]
 What=%s
@@ -1372,7 +1387,10 @@ exit 0
 [Unit]
 Description=Mount unit for foo, revision x1
 Before=snapd.service
-After=zfs-mount.service
+After=snap-mounts-pre.target
+Before=snap-mounts.target
+Wants=snap-mounts-pre.target
+Wants=snap-mounts.target
 
 [Mount]
 What=%s
@@ -1636,7 +1654,10 @@ const unitTemplate = `
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
-After=zfs-mount.service
+After=snap-mounts-pre.target
+Before=snap-mounts.target
+Wants=snap-mounts-pre.target
+Wants=snap-mounts.target
 
 [Mount]
 What=%s

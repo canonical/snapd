@@ -1369,7 +1369,10 @@ Description=Mount unit for {{.SnapName}}
 {{- with .Revision}}, revision {{.}}{{end}}
 {{- with .Origin}} via {{.}}{{end}}
 Before=snapd.service
-After=zfs-mount.service
+After=snap-mounts-pre.target
+Before=snap-mounts.target
+Wants=snap-mounts-pre.target
+Wants=snap-mounts.target
 
 [Mount]
 What={{.What}}
@@ -1453,9 +1456,59 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 	})
 }
 
+const snapMountsTargetContent = `[Unit]
+Description=Snap mounts
+`
+
+const snapMountsPreTargetContent = `[Unit]
+Description=Snap mounts (Pre)
+`
+
+const snapMountsPreTargetContentExtraZfs = `[Unit]
+After=zfs-mount.service
+`
+
+func ensureTarget(name string, content string) error {
+	if !osutil.FileExists(name) {
+		outf, err := osutil.NewAtomicFile(name, 0644, 0, osutil.NoChown, osutil.NoChown)
+		if err != nil {
+			return fmt.Errorf("cannot open mount unit file: %v", err)
+		}
+		defer outf.Cancel()
+
+		_, err = outf.WriteString(content)
+		if err != nil {
+			return fmt.Errorf("cannot generate mount unit: %v", err)
+		}
+		return outf.Commit()
+	}
+	return nil
+}
+
+func ensureTargets() error {
+	err := ensureTarget(filepath.Join(dirs.SnapServicesDir, "snap-mounts.target"), snapMountsTargetContent)
+	if err != nil {
+		return err
+	}
+	err = ensureTarget(filepath.Join(dirs.SnapServicesDir, "snap-mounts-pre.target"), snapMountsPreTargetContent)
+	if err != nil {
+		return err
+	}
+	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "snap-mounts-pre.target.d"), 0755)
+	err = ensureTarget(filepath.Join(dirs.SnapServicesDir, "snap-mounts-pre.target.d/zfs-mount.conf"), snapMountsPreTargetContentExtraZfs)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *systemd) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
+
+	if err := ensureTargets(); err != nil {
+		return "", err
+	}
 
 	mountUnitName, err := writeMountUnitFile(unitOptions)
 	if err != nil {
