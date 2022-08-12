@@ -196,6 +196,7 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 	// Check that the config file has been written
 	configPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system-params")
 	contents, err := ioutil.ReadFile(configPath)
+	c.Assert(err, IsNil)
 	c.Check(string(contents), Equals, "homedirs=/home/existingDir\n")
 }
 
