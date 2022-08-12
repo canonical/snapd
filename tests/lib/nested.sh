@@ -490,7 +490,7 @@ nested_get_image_name() {
     # Use task name to build the image in case the NESTED_IMAGE_ID is unset
     # This scenario is valid on manual tests when it is required to set the NESTED_IMAGE_ID
     if [ "$NAME" = "unset" ]; then
-        NAME="$SPREAD_TASK"
+        NAME="$(basename "$SPREAD_TASK")"
         if [ -n "$SPREAD_VARIANT" ]; then
             NAME="${NAME}_${SPREAD_VARIANT}"
         fi
