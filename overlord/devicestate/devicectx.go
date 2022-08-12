@@ -25,7 +25,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 )
 
 // DeviceCtx picks a device context from state, optional task or an
@@ -108,13 +107,13 @@ func (dc groundDeviceContext) HasModeenv() bool {
 // IsCoreBoot is true when there are modes, or when there are not but
 // we are not in classic (UC16/18 case)
 func (d *groundDeviceContext) IsCoreBoot() bool {
-	isCoreLegacy := !d.HasModeenv() && !d.Model().Classic()
+	isCoreLegacy := !d.HasModeenv() && !d.Classic()
 	return d.HasModeenv() || isCoreLegacy
 }
 
 // IsClassicBoot is true for classic systems with classic initramfs
 func (d *groundDeviceContext) IsClassicBoot() bool {
-	return release.OnClassic && !d.HasModeenv()
+	return d.Classic() && !d.HasModeenv()
 }
 
 // expected interface is implemented
