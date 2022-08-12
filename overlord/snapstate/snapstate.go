@@ -716,8 +716,13 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		var lnkTsk *state.Task
 		for _, t := range tasks {
 			switch t.Kind() {
-			case "link-snap", "unlink-snap", "unlink-current-snap":
-				lnkTsk = t
+			case "link-snap", "unlink-snap", "unlink-current-snap",
+				"update-gadget-assets", "update-gadget-cmdline",
+				"update-managed-boot-config":
+				if t.Has("boot-id") {
+					lnkTsk = t
+					break
+				}
 			}
 		}
 		if lnkTsk != nil {
