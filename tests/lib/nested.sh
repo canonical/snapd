@@ -627,15 +627,16 @@ prepare_kernel() {
     # allow repacking the kernel
     if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
         echo "Repacking kernel snap"
-        local kernel_snap output_name snap_id
+        local kernel_snap output_name snap_id version
         output_name="pc-kernel.snap"
         snap_id="pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+        version="$(nested_get_version)"
 
         if nested_is_core_16_system || nested_is_core_18_system; then
             kernel_snap=pc-kernel-new.snap
             repack_kernel_snap "$kernel_snap"
         elif nested_is_core_20_system || nested_is_core_22_system; then
-            snap download --basename=pc-kernel --channel="$VERSION/edge" pc-kernel
+            snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
 
             # set the unix bump time if the NESTED_* var is set,
             # otherwise leave it empty
