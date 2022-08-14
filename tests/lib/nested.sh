@@ -672,6 +672,9 @@ prepare_gadget() {
             existing_snap=$(find "$(nested_get_extra_snaps_path)" -name 'pc_*.snap')
             if [ -n "$existing_snap" ]; then
                 echo "Using generated pc gadget snap $existing_snap"
+                if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                    make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
+                fi
                 return
             fi
 
@@ -721,7 +724,7 @@ EOF
             # need extra bits in their snap declaration, so inject
             # that here, it could end up being empty in which case
             # it is ignored
-            make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$(nested_get_extra_snaps_path)/pc.snap" "$gadget_snap" "$snap_id"
+            make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/pc.snap" "$snap_id"
         fi
     fi
 }
@@ -742,6 +745,9 @@ prepare_base() {
         existing_snap=$(find "$(nested_get_extra_snaps_path)" -name "${snap_name}*.snap")
         if [ -n "$existing_snap" ]; then
             echo "Using generated base snap $existing_snap"
+            if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
+            fi
             return
         fi
         
@@ -823,7 +829,8 @@ nested_create_core_vm() {
             fi
             # ubuntu-image creates sparse image files
             # shellcheck disable=SC2086
-            "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
+            "$UBUNTU_IMAGE" snap --image-size 10G --validation=enforce \
+               "$NESTED_MODEL" \
                 $UBUNTU_IMAGE_CHANNEL_ARG \
                 "${UBUNTU_IMAGE_PRESEED_ARGS[@]:-}" \
                 --output-dir "$NESTED_IMAGES_DIR" \
