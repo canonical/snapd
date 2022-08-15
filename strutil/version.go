@@ -98,26 +98,13 @@ func matchEpoch(a string) bool {
 	return i < len(a) && a[i] == ':'
 }
 
-func atMostOneDash(a string) bool {
-	seen := false
-	for i := 0; i < len(a); i++ {
-		if a[i] == '-' {
-			if seen {
-				return false
-			}
-			seen = true
-		}
-	}
-	return true
-}
-
 // VersionIsValid returns true if the given string is a valid
 // version number according to the debian policy
 func VersionIsValid(a string) bool {
 	if matchEpoch(a) {
 		return false
 	}
-	return atMostOneDash(a)
+	return true
 }
 
 func nextFrag(s string) (frag, rest string, numeric bool) {
@@ -174,12 +161,12 @@ func VersionCompare(va, vb string) (res int, err error) {
 	}
 
 	var sa, sb string
-	if ia := strings.IndexByte(va, '-'); ia < 0 {
+	if ia := strings.LastIndexByte(va, '-'); ia < 0 {
 		sa = "0"
 	} else {
 		va, sa = va[:ia], va[ia+1:]
 	}
-	if ib := strings.IndexByte(vb, '-'); ib < 0 {
+	if ib := strings.LastIndexByte(vb, '-'); ib < 0 {
 		sb = "0"
 	} else {
 		vb, sb = vb[:ib], vb[ib+1:]
