@@ -92,7 +92,7 @@ ptrace (read),
 /var/lib/snapd/hostfs/usr/lib/os-release rk,
 
 # Allow discovering the Kernel build config
-/proc/config.gz r,
+@{PROC}/config.gz r,
 /boot/config* r,
 /lib/modules/*/build/.config r,
 
