@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -8778,4 +8778,51 @@ func (s *snapmgrTestSuite) TestUpdateConsidersProvenance(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapsup.ExpectedProvenance, Equals, "prov")
+}
+
+func (s *snapmgrTestSuite) TestGeneralRefreshSkipsGatedSnaps(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, name := range []string{"some-snap", "some-other-snap"} {
+		snapID := fmt.Sprintf("%s-id", name)
+		si := &snap.SideInfo{
+			RealName: name,
+			SnapID:   snapID,
+			Revision: snap.R(7),
+		}
+
+		snaptest.MockSnap(c, `name: some-snap`, si)
+		snapstate.Set(s.state, name, &snapstate.SnapState{
+			Active:   true,
+			Sequence: []*snap.SideInfo{si},
+			Current:  si.Revision,
+		})
+	}
+
+	err := snapstate.HoldRefreshes(s.state, "forever", []string{"some-snap"})
+	c.Assert(err, IsNil)
+
+	// advance time by a year (the last refreshed is determined by the snap file's
+	// timestamp so we can't just mock time.Now() before to pin it)
+	plusYearTime := time.Now().Add(365 * 24 * time.Hour)
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return plusYearTime
+	})
+	defer restore()
+
+	chg := s.state.NewChange("update", "update all snaps")
+	updates, tss, err := snapstate.UpdateMany(context.Background(), s.state, nil, s.user.ID, nil)
+	c.Check(err, IsNil)
+	c.Check(updates, DeepEquals, []string{"some-other-snap"})
+
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	s.settle(c)
+
+	c.Check(chg.Err(), IsNil)
+	c.Check(chg.IsReady(), Equals, true)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
 }

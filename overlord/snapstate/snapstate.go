@@ -1492,12 +1492,19 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 			CohortKey: snapst.CohortKey,
 		}
 		return opts, snapst.Flags, snapst
-
 	}
 
 	toUpdate := make([]minimalInstallInfo, len(updates))
 	for i, up := range updates {
 		toUpdate[i] = installSnapInfo{up}
+	}
+
+	// don't refresh held snaps in a general refresh
+	if len(names) == 0 {
+		toUpdate, err = filterHeldSnaps(st, names, toUpdate)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if err = checkDiskSpace(st, "refresh", toUpdate, userID); err != nil {
@@ -1510,6 +1517,23 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	}
 	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
 	return updated, tasksets, nil
+}
+
+// filterHeldSnaps filters held snaps from being updated in a general refresh.
+func filterHeldSnaps(st *state.State, names []string, updates []minimalInstallInfo) ([]minimalInstallInfo, error) {
+	heldSnaps, err := HeldSnaps(st)
+	if err != nil {
+		return nil, err
+	}
+
+	filteredUpdates := make([]minimalInstallInfo, 0, len(updates))
+	for _, update := range updates {
+		if !heldSnaps[update.InstanceName()] {
+			filteredUpdates = append(filteredUpdates, update)
+		}
+	}
+
+	return filteredUpdates, nil
 }
 
 func doUpdate(ctx context.Context, st *state.State, names []string, updates []minimalInstallInfo, params updateParamsFunc, userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, []*state.TaskSet, error) {
