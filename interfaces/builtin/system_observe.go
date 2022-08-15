@@ -111,7 +111,6 @@ ptrace (read),
 # Allow discovering the Kernel build config
 @{PROC}/config.gz r,
 /boot/config* r,
-/lib/modules/*/build/.config r,
 
 # Allow discovering system-wide CFS Bandwidth Control information
 # https://www.kernel.org/doc/html/latest/scheduler/sched-bwc.html
