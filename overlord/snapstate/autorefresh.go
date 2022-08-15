@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2020 Canonical Ltd
+ * Copyright (C) 2017-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -60,10 +60,15 @@ var (
 	CanAutoRefresh        func(st *state.State) (bool, error)
 	CanManageRefreshes    func(st *state.State) bool
 	IsOnMeteredConnection func() (bool, error)
-)
 
-// refreshRetryDelay specified the minimum time to retry failed refreshes
-var refreshRetryDelay = 20 * time.Minute
+	// refreshRetryDelay specified the minimum time to retry failed refreshes
+	refreshRetryDelay = 20 * time.Minute
+
+	// used to represent "forever". It's actually 290 years from the current time
+	// because that's the maximum representable duration and a larger time would
+	// underflow when doing infinity.Sub(time.Now())
+	maxDuration = time.Duration(1<<63 - 1)
+)
 
 // refreshCandidate carries information about a single snap to update as part
 // of auto-refresh.
@@ -139,37 +144,25 @@ func (m *autoRefresh) LastRefresh() (time.Time, error) {
 }
 
 // EffectiveRefreshHold returns the time until to which refreshes are
-// held if refresh.hold configuration is set and accounting for the
-// max postponement since the last refresh.
+// held if refresh.hold configuration is set.
 func (m *autoRefresh) EffectiveRefreshHold() (time.Time, error) {
-	var holdTime time.Time
+	var holdValue string
 
 	tr := config.NewTransaction(m.state)
-	err := tr.Get("core", "refresh.hold", &holdTime)
+	err := tr.Get("core", "refresh.hold", &holdValue)
 	if err != nil && !config.IsNoOption(err) {
 		return time.Time{}, err
 	}
 
-	// cannot hold beyond last-refresh + max-postponement
-	lastRefresh, err := m.LastRefresh()
-	if err != nil {
-		return time.Time{}, err
-	}
-	if lastRefresh.IsZero() {
-		seedTime, err := getTime(m.state, "seed-time")
-		if err != nil {
-			return time.Time{}, err
-		}
-		if seedTime.IsZero() {
-			// no reference to know whether holding is reasonable
-			return time.Time{}, nil
-		}
-		lastRefresh = seedTime
+	if string(holdValue) == "forever" {
+		return timeNow().Add(maxDuration), nil
 	}
 
-	limitTime := lastRefresh.Add(maxPostponement)
-	if holdTime.After(limitTime) {
-		return limitTime, nil
+	var holdTime time.Time
+	if holdValue != "" {
+		if holdTime, err = time.Parse(time.RFC3339, holdValue); err != nil {
+			return time.Time{}, err
+		}
 	}
 
 	return holdTime, nil
