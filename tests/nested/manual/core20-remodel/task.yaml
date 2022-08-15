@@ -4,7 +4,7 @@ systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-{VERSION}.model
-  NESTED_IMAGE_ID: uc20-remodel-testing
+  NESTED_IMAGE_ID: uc20-remodel
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true

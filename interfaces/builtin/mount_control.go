@@ -106,22 +106,9 @@ var optionsWithoutFsType = []string{
 	// - "remount"
 }
 
-// List of allowed filesystem types. This can be extended, keeping in mind that
-// the filesystems in the following list were considered either dangerous or
-// not relevant for this interface:
-//   bpf
-//   cgroup
-//   cgroup2
-//   debugfs
-//   devpts
-//   ecryptfs
-//   hugetlbfs
-//   overlayfs
-//   proc
-//   securityfs
-//   sysfs
-//   tracefs
-var allowedFSTypes = []string{
+// List of filesystem types to allow if the plug declaration does not
+// explicitly specify a filesystem type.
+var defaultFSTypes = []string{
 	"aufs",
 	"autofs",
 	"btrfs",
@@ -143,6 +130,23 @@ var allowedFSTypes = []string{
 	"vfat",
 	"zfs",
 	"xfs",
+}
+
+// The filesystems in the following list were considered either dangerous or
+// not relevant for this interface:
+var disallowedFSTypes = []string{
+	"bpf",
+	"cgroup",
+	"cgroup2",
+	"debugfs",
+	"devpts",
+	"ecryptfs",
+	"hugetlbfs",
+	"overlayfs",
+	"proc",
+	"securityfs",
+	"sysfs",
+	"tracefs",
 }
 
 // mountControlInterface allows creating transient and persistent mounts
@@ -300,7 +304,7 @@ func validateMountTypes(types []string) error {
 		if !typeRegexp.MatchString(t) {
 			return fmt.Errorf(`mount-control filesystem type invalid: %q`, t)
 		}
-		if !strutil.ListContains(allowedFSTypes, t) {
+		if strutil.ListContains(disallowedFSTypes, t) {
 			return fmt.Errorf(`mount-control forbidden filesystem type: %q`, t)
 		}
 		if t == "tmpfs" {
@@ -453,7 +457,7 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 			if len(mountInfo.types) > 0 {
 				types = mountInfo.types
 			} else {
-				types = allowedFSTypes
+				types = defaultFSTypes
 			}
 			typeRule = "fstype=(" + strings.Join(types, ",") + ")"
 		}
