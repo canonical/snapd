@@ -468,12 +468,17 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// Use device context just to find out if core boot device.
 	// REVIEW But, see comment at beginning of function?
+	// state.ErrNoState is returned if we cannot find the model,
+	// which can happen on classic when upgrading from ubuntu-core
+	// to core snap (model is set later).
+	var snapBootAssets bool
 	deviceCtx, err := DeviceCtx(st, nil, nil)
-	if err != nil {
+	if err == nil {
+		// Snaps ship boot assets if core-like boot
+		snapBootAssets = deviceCtx.IsCoreBoot()
+	} else if !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
-	// Snaps ship boot assets if core-like boot
-	snapBootAssets := deviceCtx.IsCoreBoot()
 
 	if snapBootAssets && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
 		// XXX: gadget update currently for core systems only
