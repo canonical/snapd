@@ -1170,8 +1170,9 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		// we log on success
 		log := tsk.Log()
 		if logMatch != "" {
-			c.Assert(log, HasLen, 1)
+			c.Assert(log, HasLen, 2)
 			c.Check(log[0], Matches, fmt.Sprintf(".* %v", logMatch))
+			c.Check(log[1], Matches, ".* Requested system restart.")
 		} else {
 			c.Check(log, HasLen, 0)
 		}
@@ -1505,9 +1506,11 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	c.Check(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.*total undo.*")
 	c.Check(tsk.Status(), Equals, state.UndoneStatus)
 	log := tsk.Log()
-	c.Assert(log, HasLen, 2)
+	c.Assert(log, HasLen, 4)
 	c.Check(log[0], Matches, ".* Updated kernel command line")
-	c.Check(log[1], Matches, ".* Reverted kernel command line change")
+	c.Check(log[1], Matches, ".* Requested system restart.")
+	c.Check(log[2], Matches, ".* Reverted kernel command line change")
+	c.Check(log[3], Matches, ".* Requested system restart.")
 	// update was applied and then undone
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow, restart.RestartSystemNow})
 	c.Check(restartCount, Equals, 2)

@@ -31,10 +31,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -81,24 +79,6 @@ func pendingGadgetInfo(snapsup *snapstate.SnapSetup, pendingDeviceCtx snapstate.
 var (
 	gadgetUpdate = gadget.Update
 )
-
-func maybeRestart(t *state.Task) error {
-	// Store current boot id to be able to check later if we have
-	// rebooted or not
-	bootId, err := osutil.BootID()
-	if err != nil {
-		return err
-	}
-	t.Set("boot-id", bootId)
-	if release.OnClassic {
-		t.Logf("Not restarting as this is a classic device.")
-		// TODO notify GUI
-	} else {
-		snapstate.RestartSystem(t, nil)
-	}
-
-	return nil
-}
 
 func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -228,7 +208,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 	// TODO: consider having the option to do this early via recovery in
 	// core20, have fallback code as well there
-	return maybeRestart(t)
+	return snapstate.MaybeReboot(t)
 }
 
 func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, isUndo bool) (updated bool, err error) {
@@ -305,7 +285,7 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 	// kernel command line
 
 	// kernel command line was updated, request a reboot to make it effective
-	return maybeRestart(t)
+	return snapstate.MaybeReboot(t)
 }
 
 func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) error {
@@ -345,5 +325,5 @@ func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb)
 	t.SetStatus(state.UndoneStatus)
 
 	// kernel command line was updated, request a reboot to make it effective
-	return maybeRestart(t)
+	return snapstate.MaybeReboot(t)
 }
