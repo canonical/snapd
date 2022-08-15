@@ -64,9 +64,7 @@ var (
 	// refreshRetryDelay specified the minimum time to retry failed refreshes
 	refreshRetryDelay = 20 * time.Minute
 
-	// used to represent "forever". It's actually 290 years from the current time
-	// because that's the maximum representable duration and a larger time would
-	// underflow when doing infinity.Sub(time.Now())
+	// maxDuration is used to represent "forever" internally (it's 290 years).
 	maxDuration = time.Duration(1<<63 - 1)
 )
 
