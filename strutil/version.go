@@ -98,9 +98,9 @@ func matchEpoch(a string) bool {
 	return i < len(a) && a[i] == ':'
 }
 
-// VersionIsValid returns true if the given string is a valid
+// versionIsValid returns true if the given string is a valid
 // version number according to the debian policy
-func VersionIsValid(a string) bool {
+func versionIsValid(a string) bool {
 	if matchEpoch(a) {
 		return false
 	}
@@ -153,10 +153,10 @@ func compareSubversion(va, vb string) int {
 //   +1 if a is bigger than b
 func VersionCompare(va, vb string) (res int, err error) {
 	// FIXME: return err here instead
-	if !VersionIsValid(va) {
+	if !versionIsValid(va) {
 		return 0, fmt.Errorf("invalid version %q", va)
 	}
-	if !VersionIsValid(vb) {
+	if !versionIsValid(vb) {
 		return 0, fmt.Errorf("invalid version %q", vb)
 	}
 
