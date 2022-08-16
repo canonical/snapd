@@ -3753,6 +3753,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesLegacyWeekdaySchedules(c *C) 
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	s.state.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, time.UTC))
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.timer", "")
@@ -3764,9 +3767,10 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesLegacyWeekdaySchedules(c *C) 
 	s.se.Ensure()
 	s.state.Lock()
 
+	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: cannot parse "mon@12:00": not a valid time`)
 	schedule, legacy, err := s.snapmgr.RefreshSchedule()
-	c.Assert(err, ErrorMatches, `cannot use refresh.schedule configuration: cannot parse "mon@12:00": not a valid time`)
-	c.Check(schedule, Equals, "")
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00~24:00/4")
 	c.Check(legacy, Equals, false)
 
 	tr = config.NewTransaction(s.state)
@@ -3825,6 +3829,37 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToLegacySchedule(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-23:59")
 	c.Check(legacy, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToDefaultOnError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.timer", "garbage-in")
+	tr.Set("core", "refresh.schedule", "00:00-23:59")
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.se.Ensure()
+	s.state.Lock()
+
+	// automatic fallback to default schedule if refresh.timer is set but
+	// cannot be parsed
+	schedule, legacy, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00~24:00/4")
+	c.Check(legacy, Equals, false)
+
+	tr = config.NewTransaction(s.state)
+	refreshTimer := "canary"
+	refreshSchedule := "canary"
+	c.Assert(tr.Get("core", "refresh.timer", &refreshTimer), IsNil)
+	c.Assert(tr.Get("core", "refresh.schedule", &refreshSchedule), IsNil)
+	c.Check(refreshTimer, Equals, "garbage-in")
+	c.Check(refreshSchedule, Equals, "00:00-23:59")
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshFallbackOnEmptyToDefaultSchedule(c *C) {
@@ -6487,16 +6522,15 @@ func (s *snapmgrTestSuite) TestSnapManagerLegacyRefreshSchedule(c *C) {
 	for _, t := range []struct {
 		in     string
 		out    string
-		errMsg string
 		legacy bool
 	}{
-		{"", snapstate.DefaultRefreshSchedule, "", false},
-		{"invalid schedule", "", `cannot use refresh.schedule configuration: cannot parse "invalid schedule": not a valid interval`, false},
-		{"8:00-12:00", "8:00-12:00", "", true},
+		{"", snapstate.DefaultRefreshSchedule, false},
+		{"invalid schedule", snapstate.DefaultRefreshSchedule, false},
+		{"8:00-12:00", "8:00-12:00", true},
 		// using the legacy configuration option with a new-style
 		// refresh.timer string is rejected (i.e. the legacy parser is
 		// used for the parsing)
-		{"0:00~24:00/24", "", `cannot use refresh.schedule configuration: cannot parse "0:00~24:00": not a valid interval`, false},
+		{"0:00~24:00/24", snapstate.DefaultRefreshSchedule, false},
 	} {
 		if t.in != "" {
 			tr := config.NewTransaction(s.state)
@@ -6505,11 +6539,7 @@ func (s *snapmgrTestSuite) TestSnapManagerLegacyRefreshSchedule(c *C) {
 			tr.Commit()
 		}
 		scheduleStr, legacy, err := s.snapmgr.RefreshSchedule()
-		if t.errMsg != "" {
-			c.Check(err, ErrorMatches, t.errMsg)
-		} else {
-			c.Check(err, IsNil)
-		}
+		c.Check(err, IsNil)
 		c.Check(scheduleStr, Equals, t.out)
 		c.Check(legacy, Equals, t.legacy)
 	}
@@ -6520,15 +6550,14 @@ func (s *snapmgrTestSuite) TestSnapManagerRefreshSchedule(c *C) {
 	defer s.state.Unlock()
 
 	for _, t := range []struct {
-		in     string
-		out    string
-		errMsg string
+		in  string
+		out string
 	}{
-		{"", snapstate.DefaultRefreshSchedule, ""},
-		{"invalid schedule", "", `cannot use refresh.timer configuration: cannot parse "invalid schedule": "invalid schedule" is not a valid weekday`},
-		{"8:00-12:00", "8:00-12:00", ""},
+		{"", snapstate.DefaultRefreshSchedule},
+		{"invalid schedule", snapstate.DefaultRefreshSchedule},
+		{"8:00-12:00", "8:00-12:00"},
 		// this is only valid under the new schedule parser
-		{"9:00~15:00/2,,mon,20:00", "9:00~15:00/2,,mon,20:00", ""},
+		{"9:00~15:00/2,,mon,20:00", "9:00~15:00/2,,mon,20:00"},
 	} {
 		if t.in != "" {
 			tr := config.NewTransaction(s.state)
@@ -6536,11 +6565,7 @@ func (s *snapmgrTestSuite) TestSnapManagerRefreshSchedule(c *C) {
 			tr.Commit()
 		}
 		scheduleStr, legacy, err := s.snapmgr.RefreshSchedule()
-		if t.errMsg != "" {
-			c.Check(err, ErrorMatches, t.errMsg)
-		} else {
-			c.Check(err, IsNil)
-		}
+		c.Check(err, IsNil)
 		c.Check(scheduleStr, Equals, t.out)
 		c.Check(legacy, Equals, false)
 	}

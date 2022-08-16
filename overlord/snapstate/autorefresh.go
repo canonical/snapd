@@ -487,7 +487,9 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (sched []*timeutil.S
 	}
 
 	if err != nil {
-		return nil, "", false, fmt.Errorf("%s: %w", errPrefix, err)
+		// log instead of fail in order not to prevent auto-refreshes
+		logger.Noticef("%s: %v", errPrefix, err)
+		return defaultRefreshSchedule, defaultRefreshScheduleStr, false, nil
 	}
 
 	return sched, scheduleConf, legacy, nil
