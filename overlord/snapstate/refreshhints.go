@@ -70,7 +70,7 @@ func (r *refreshHints) needsUpdate() (bool, error) {
 }
 
 func (r *refreshHints) refresh() error {
-	scheduleConf, _, _ := readRefreshScheduleConf(r.state)
+	scheduleConf, _, _ := getRefreshScheduleConf(r.state)
 	refreshManaged := scheduleConf == "managed" && CanManageRefreshes(r.state)
 
 	var err error

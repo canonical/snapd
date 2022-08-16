@@ -423,7 +423,7 @@ func (m *autoRefresh) ensureLastRefreshAnchor() {
 	}
 }
 
-func readRefreshScheduleConf(st *state.State) (confStr string, legacy bool, err error) {
+func getRefreshScheduleConf(st *state.State) (confStr string, legacy bool, err error) {
 	tr := config.NewTransaction(st)
 
 	err = tr.Get("core", "refresh.timer", &confStr)
@@ -445,7 +445,7 @@ func readRefreshScheduleConf(st *state.State) (confStr string, legacy bool, err 
 // refreshScheduleWithDefaultsFallback returns the current refresh schedule
 // and refresh string.
 func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (sched []*timeutil.Schedule, scheduleConf string, legacy bool, err error) {
-	scheduleConf, legacy, err = readRefreshScheduleConf(m.state)
+	scheduleConf, legacy, err = getRefreshScheduleConf(m.state)
 	if err != nil {
 		return nil, "", false, err
 	}
