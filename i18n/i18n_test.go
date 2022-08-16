@@ -103,13 +103,13 @@ func (s *i18nTestSuite) TearDownTest(c *C) {
 
 func (s *i18nTestSuite) TestTranslatedSingular(c *C) {
 	// no G() to avoid adding the test string to snappy-pot
-	var Gtest = G
+	var Gtest = localG
 	c.Assert(Gtest("singular"), Equals, "translated singular")
 }
 
 func (s *i18nTestSuite) TestTranslatesPlural(c *C) {
 	// no NG() to avoid adding the test string to snappy-pot
-	var NGtest = NG
+	var NGtest = localNG
 	c.Assert(NGtest("plural_1", "plural_2", 1), Equals, "translated plural_1")
 }
 
@@ -117,7 +117,7 @@ func (s *i18nTestSuite) TestTranslatedMissingLangNoCrash(c *C) {
 	setLocale("invalid")
 
 	// no G() to avoid adding the test string to snappy-pot
-	var Gtest = G
+	var Gtest = localG
 	c.Assert(Gtest("singular"), Equals, "singular")
 }
 
@@ -126,7 +126,7 @@ func (s *i18nTestSuite) TestInvalidTextDomainDir(c *C) {
 	setLocale("invalid")
 
 	// no G() to avoid adding the test string to snappy-pot
-	var Gtest = G
+	var Gtest = localG
 	c.Assert(Gtest("singular"), Equals, "singular")
 }
 
@@ -142,7 +142,7 @@ func (s *i18nTestSuite) TestLangpackResolverFromLangpack(c *C) {
 	setLocale("")
 
 	// no G() to avoid adding the test string to snappy-pot
-	var Gtest = G
+	var Gtest = localG
 	c.Assert(Gtest("singular"), Equals, "translated singular", Commentf("test with %q failed", d))
 }
 
@@ -157,6 +157,6 @@ func (s *i18nTestSuite) TestLangpackResolverFromCore(c *C) {
 	setLocale("")
 
 	// no G() to avoid adding the test string to snappy-pot
-	var Gtest = G
+	var Gtest = localG
 	c.Assert(Gtest("singular"), Equals, "translated singular", Commentf("test with %q failed", d))
 }

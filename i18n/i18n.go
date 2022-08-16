@@ -17,6 +17,14 @@
  *
  */
 
+// Package i18n provides the OS variant specific bindings for the i18n marker
+// api as defined in github.com/canonical/x-go/i18n. The package does not
+// expose any public api, but should be initialised using a blank import.
+//
+// Packages (both application and library) should only import the x-go
+// i18n package to support translation services.
+//
+// Please refer to github.com/canonical/x-go/i18n/i18n.go for more information.
 package i18n
 
 //go:generate update-pot
@@ -29,6 +37,7 @@ import (
 
 	"github.com/snapcore/go-gettext"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -44,6 +53,11 @@ var (
 func init() {
 	bindTextDomain(TEXTDOMAIN, "/usr/share/locale")
 	setLocale("")
+
+	// Enable translations by updating i18n.G and i18n.NG to
+	// point to OS specific implementations
+	i18n.G = localG
+	i18n.NG = localNG
 }
 
 func langpackResolver(baseRoot string, locale string, domain string) string {
@@ -106,13 +120,9 @@ func localeFromEnv() string {
 	return loc
 }
 
-// CurrentLocale returns the current locale without encoding or variants.
-func CurrentLocale() string {
-	return simplifyLocale(localeFromEnv())
-}
-
-// G is the shorthand for Gettext
-func G(msgid string) string {
+// localG is the implementation wrapper for this OS, utilizing
+// go-gettext Gettext.
+func localG(msgid string) string {
 	return locale.Gettext(msgid)
 }
 
@@ -129,7 +139,8 @@ func ngn(d int) uint32 {
 	return uint32(d)
 }
 
-// NG is the shorthand for NGettext
-func NG(msgid string, msgidPlural string, n int) string {
+// localNG is the implementation wrapper for this OS, utilizing
+// go-gettext NGettext.
+func localNG(msgid string, msgidPlural string, n int) string {
 	return locale.NGettext(msgid, msgidPlural, ngn(n))
 }
