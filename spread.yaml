@@ -129,9 +129,6 @@ backends:
                   image: ubuntu-20.04-64
                   workers: 1
                   secure-boot: true
-            - ubuntu-21.10-64:
-                  storage: 12G
-                  workers: 8
             - ubuntu-22.04-64:
                   storage: 12G
                   workers: 8
@@ -170,6 +167,8 @@ backends:
             # unstable systems below
             - opensuse-15.3-64:
                   workers: 6
+            - opensuse-15.4-64:
+                  workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
                   manual: true
@@ -207,10 +206,6 @@ backends:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
                   workers: 7
-            - ubuntu-21.10-64:
-                  image: ubuntu-2110-64-virt-enabled
-                  storage: 20G
-                  workers: 3
             - ubuntu-22.04-64:
                   image: ubuntu-2204-64-virt-enabled
                   storage: 20G
@@ -279,9 +274,6 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-32:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-21.10-64:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-64:
@@ -969,6 +961,8 @@ suites:
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
+            # Generic imane name which has to be overwritten in the test
+            NESTED_IMAGE_ID: "unset"
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
@@ -984,7 +978,7 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-               build_ubuntu_image
+               get_ubuntu_image
             fi
 
             # Install the snapd built
@@ -1030,7 +1024,7 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                build_ubuntu_image
+                get_ubuntu_image
             fi
 
             # Install the snapd built
@@ -1077,7 +1071,7 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                build_ubuntu_image
+                get_ubuntu_image
             fi
 
             # Install the snapd built

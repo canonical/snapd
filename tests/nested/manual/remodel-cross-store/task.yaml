@@ -2,7 +2,7 @@ summary: verify a simple UC20 remodel
 
 details: |
     Execute a cross-store remodel scenario under the test-snapd brand. The
-    original model uses the same test-snapd-whitebox device view store, while the
+    original model uses the same test-snapd-from device view store, while the
     target model uses test-snapd-remodel store. The new model requires additional
     snaps that are present in the test-snapd-remodel store.
 
@@ -11,7 +11,7 @@ systems: [ubuntu-18.04-64, ubuntu-20.04-64]
 
 environment:
     NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/test-snapd-remodel-auto-import.assert
-    NESTED_IMAGE_ID: uc20-remodel-testing-cross-store
+    NESTED_IMAGE_ID: remodel-cross-store
     NESTED_ENABLE_TPM: false
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_USE_CLOUD_INIT: false
@@ -20,7 +20,7 @@ environment:
     NESTED_REPACK_BASE_SNAP: false
     SNAPD_TEST_BRAND: test-snapd
     # store we are remodeling from
-    SNAPD_STORE_WHITEBOX: CQvkdMjgbapk821Po2cF
+    SNAPD_STORE_FROM: CQvkdMjgbapk821Po2cF
     # store we are remodeling to
     SNAPD_STORE_REMODEL: Ceith6aiSahditeoyizi
     # device serial, this should match the sub-store mapping rules in the serial
@@ -55,7 +55,7 @@ execute: |
     tests.nested wait-for device-initialized
 
     tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
-    tests.nested exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_WHITEBOX\$"
+    tests.nested exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_FROM\$"
     tests.nested exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc$'
     tests.nested exec "snap model --assertion --serial" | MATCH "serial: ${SERIAL}\$"
 

@@ -1,0 +1,36 @@
+summary: Check that an unclean shutdown on UC20 devices works
+
+details: |
+    This test checks that an unclean shutdown of a UC20 device does
+    not cause an eventual DA lockout (LP: 1979185)
+
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+environment:
+  NESTED_ENABLE_TPM/encrypted: "true"
+  NESTED_ENABLE_SECURE_BOOT/encrypted: "true"
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+    go build ./getdalockout.go
+    tests.nested copy ./getdalockout
+
+execute: |
+    tests.nested exec "sudo snap wait system seed.loaded"
+    tests.nested wait-for device-initialized
+
+    # lockout value is zero initially
+    tests.nested exec sudo ./getdalockout | MATCH "lockout counter value: 0"
+
+    boot_id=$(tests.nested boot-id)
+    tests.nested exec "sudo sync"
+    # force an (external) reboot
+    tests.nested vm unclean-reboot
+    tests.nested wait-for reboot "${boot_id}"
+    tests.nested wait-for snap-command
+
+    # and is still zero after a unclean shutdown, it will happen in
+    # secboot.MarkSuccessful so there is a race
+    retry -n 10 --wait 2 sh -c 'tests.nested exec sudo ./getdalockout | MATCH "lockout counter value: 0"'

@@ -436,6 +436,11 @@ func (mod *Model) Classic() bool {
 	return mod.classic
 }
 
+// Distribution returns the linux distro specified in the model.
+func (mod *Model) Distribution() string {
+	return mod.HeaderString("distribution")
+}
+
 // Architecture returns the architecture the model is based on.
 func (mod *Model) Architecture() string {
 	return mod.HeaderString("architecture")
@@ -633,9 +638,13 @@ func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID st
 
 var (
 	modelMandatory           = []string{"architecture", "gadget", "kernel"}
-	extendedCoreMandatory    = []string{"architecture", "base"}
+	extendedMandatory        = []string{"architecture", "base"}
 	extendedSnapsConflicting = []string{"gadget", "kernel", "required-snaps"}
 	classicModelOptional     = []string{"architecture", "gadget"}
+
+	// The distribution header must be a valid ID according to
+	// https://www.freedesktop.org/software/systemd/man/os-release.html#ID=
+	validDistribution = regexp.MustCompile(`^[a-z0-9._-]*$`)
 )
 
 func assembleModel(assert assertionBase) (Assertion, error) {
@@ -657,10 +666,6 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	// Core 20 extended snaps header
 	extendedSnaps, extended := assert.headers["snaps"]
 	if extended {
-		if classic {
-			return nil, fmt.Errorf("cannot use extended snaps header for a classic model (yet)")
-		}
-
 		for _, conflicting := range extendedSnapsConflicting {
 			if _, ok := assert.headers[conflicting]; ok {
 				return nil, fmt.Errorf("cannot specify separate %q header once using the extended snaps header", conflicting)
@@ -675,19 +680,30 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		}
 	}
 
-	if classic {
+	if classic && !extended {
 		if _, ok := assert.headers["kernel"]; ok {
-			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
+			return nil, fmt.Errorf("cannot specify a kernel with a non-extended classic model")
 		}
 		if _, ok := assert.headers["base"]; ok {
-			return nil, fmt.Errorf("cannot specify a base with a classic model")
+			return nil, fmt.Errorf("cannot specify a base with a non-extended classic model")
 		}
+	}
+
+	// distribution mandatory for classic with extended snaps, not
+	// allowed otherwise.
+	if classic && extended {
+		_, err := checkStringMatches(assert.headers, "distribution", validDistribution)
+		if err != nil {
+			return nil, fmt.Errorf("%v, see distribution ID in os-release spec", err)
+		}
+	} else if _, ok := assert.headers["distribution"]; ok {
+		return nil, fmt.Errorf("cannot specify distribution for model unless it is classic and has an extended snaps header")
 	}
 
 	checker := checkNotEmptyString
 	toCheck := modelMandatory
 	if extended {
-		toCheck = extendedCoreMandatory
+		toCheck = extendedMandatory
 	} else if classic {
 		checker = checkOptionalString
 		toCheck = classicModelOptional

@@ -51,7 +51,7 @@ prepare: |
         ;;
       gadget-full)
         # keep the console so that we have useful debug logs
-        echo 'snapd.debug=1 console=ttyS0 full hello from test' > pc-gadget/cmdline.full
+        echo 'snapd.debug=1 console=ttyS0,115200n8 full hello from test' > pc-gadget/cmdline.full
         ;;
       *)
         echo "unexpected variant $VARIANT, fix the test"
@@ -105,7 +105,7 @@ execute: |
   fi
   
   echo "check boot assets have been updated"
-  tests.nested exec "sudo cat /boot/grub/grub.cfg" | MATCH "Snapd-Boot-Config-Edition: 2"
+  tests.nested exec "sudo cat /boot/grub/grub.cfg" | MATCH "Snapd-Boot-Config-Edition: 4"
   tests.nested exec "sudo cat /boot/grub/grub.cfg" | MATCH "set snapd_static_cmdline_args='.*bootassetstesting'"
 
   tests.nested exec "cat /proc/cmdline" > system.cmdline
@@ -123,7 +123,7 @@ execute: |
     gadget-full)
       echo "check that static command line element is not used, gadget provides the full set"
       NOMATCH bootassetstesting < system.cmdline
-      MATCH "snapd_recovery_mode=run snapd.debug=1 console=ttyS0 full hello from test" < system.cmdline
+      MATCH "snapd_recovery_mode=run snapd.debug=1 console=ttyS0,115200n8 full hello from test" < system.cmdline
       ;;
   esac
 

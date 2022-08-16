@@ -759,12 +759,13 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if len(typ.PrimaryKey) != len(comps)-1 {
+	pk := comps[1:]
+	if !typ.AcceptablePrimaryKey(pk) {
 		http.Error(w, fmt.Sprintf("wrong primary key length: %v", comps), 400)
 		return
 	}
 
-	a, err := s.retrieveAssertion(bs, typ, comps[1:])
+	a, err := s.retrieveAssertion(bs, typ, pk)
 	if asserts.IsNotFound(err) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)

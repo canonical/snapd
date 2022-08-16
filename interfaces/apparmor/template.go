@@ -190,10 +190,12 @@ var templateCommon = `
   /usr/lib/os-release k,
 
   # systemd native journal API (see sd_journal_print(4)). This should be in
-  # AppArmor's base abstraction, but until it is, include here.
-  /run/systemd/journal/socket w,
-  /run/systemd/journal/stdout rw, # 'r' shouldn't be needed, but journald
-                                  # doesn't leak anything so allow
+  # AppArmor's base abstraction, but until it is, include here. We include
+  # the base journal path as well as the journal namespace pattern path. Each
+  # journal namespace for quota groups will be prefixed with 'snap-'.
+  /run/systemd/journal{,.snap-*}/socket w,
+  /run/systemd/journal{,.snap-*}/stdout rw, # 'r' shouldn't be needed, but journald
+                                            # doesn't leak anything so allow
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
@@ -468,8 +470,7 @@ var templateCommon = `
   /run/lock/ r,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
-
-
+  
   ###DEVMODE_SNAP_CONFINE###
 `
 
@@ -625,7 +626,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/uptime ixr,
   /{,usr/}bin/vdir ixr,
   /{,usr/}bin/wc ixr,
-  /{,usr/}bin/which ixr,
+  /{,usr/}bin/which{,.debianutils} ixr,
   /{,usr/}bin/xargs ixr,
   /{,usr/}bin/xz ixr,
   /{,usr/}bin/yes ixr,
@@ -811,6 +812,16 @@ var privDropAndChownRules = `
   # processes that ultimately run as non-root will send signals to those
   # processes as the matching non-root user.
   #capability kill,
+`
+
+// coreSnippet contains apparmor rules specific only for
+// snaps on native core systems.
+//
+var coreSnippet = `
+# Allow each snaps to access each their own folder on the
+# ubuntu-save partition, with write permissions.
+/var/lib/snapd/save/snap/@{SNAP_INSTANCE_NAME}/ rw,
+/var/lib/snapd/save/snap/@{SNAP_INSTANCE_NAME}/** mrwklix,
 `
 
 // classicTemplate contains apparmor template used for snaps with classic

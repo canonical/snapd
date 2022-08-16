@@ -44,6 +44,10 @@ type LinkContext struct {
 	// installed
 	FirstInstall bool
 
+	// IsUndo is set when we are installing the previous snap while
+	// performing a revert of the latest one that was installed
+	IsUndo bool
+
 	// ServiceOptions is used to configure services.
 	ServiceOptions *wrappers.SnapServiceOptions
 
@@ -139,7 +143,9 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 
 	var rebootInfo boot.RebootInfo
 	if !b.preseed {
-		rebootInfo, err = boot.Participant(info, info.Type(), dev).SetNextBoot()
+		bootCtx := boot.NextBootContext{BootWithoutTry: linkCtx.IsUndo}
+		rebootInfo, err = boot.Participant(
+			info, info.Type(), dev).SetNextBoot(bootCtx)
 		if err != nil {
 			return boot.RebootInfo{}, err
 		}

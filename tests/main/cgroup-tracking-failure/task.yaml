@@ -12,8 +12,7 @@ systems:
     - ubuntu-14.04-*
     - ubuntu-16.04-*  # tracking works correctly, caveats apply
     - ubuntu-18.04-*
-    - ubuntu-20.04-*  # tracking works correctly, for completeness
-    - ubuntu-21*
+    - ubuntu-2*       # tracking works correctly, for completeness
     - ubuntu-core-16-*
     - ubuntu-core-18-*
     - ubuntu-core-20-*  # tracking works correctly, for completeness
@@ -115,8 +114,8 @@ execute: |
             MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
-        ubuntu-21.10-*)
-            # Ubuntu 21.10 uses unified cgroup hierarchy, where we wait
+        ubuntu-22.04-*)
+            # Ubuntu 22.04 uses unified cgroup hierarchy, where we wait
             # for the systemd to complete the job that creates a transient scope
             MATCH 'DEBUG: using session bus' <debug.txt
             MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
@@ -229,7 +228,7 @@ execute: |
             MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-12345.slice/user@12345.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
-        ubuntu-21.10-*|ubuntu-core-22-*)
+        ubuntu-22.04-*|ubuntu-core-22-*)
             # Same as Ubuntu 20.04, but the system uses a unified cgroup hierarchy
             MATCH 'DEBUG: using session bus' <debug.txt
             MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt

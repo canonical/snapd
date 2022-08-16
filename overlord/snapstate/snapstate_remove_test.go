@@ -284,6 +284,10 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
+			op:   "remove-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
+		},
+		{
 			op:   "remove-snap-data-dir",
 			name: "some-snap",
 			path: filepath.Join(dirs.SnapDataDir, "some-snap"),
@@ -426,6 +430,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 		{
 			op:   "remove-snap-common-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+		},
+		{
+			op:   "remove-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap_instance"),
 		},
 		{
 			op:             "remove-snap-data-dir",
@@ -578,6 +586,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 		},
 		{
+			op:   "remove-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap_instance"),
+		},
+		{
 			op:             "remove-snap-data-dir",
 			name:           "some-snap_instance",
 			path:           filepath.Join(dirs.SnapDataDir, "some-snap"),
@@ -703,6 +715,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		{
 			op:   "remove-snap-common-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op:   "remove-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
 			op:   "remove-snap-data-dir",
@@ -944,7 +960,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 
-	c.Check(len(s.fakeBackend.ops), Equals, 9)
+	c.Check(len(s.fakeBackend.ops), Equals, 10)
 	expected := fakeOps{
 		{
 			op:    "auto-disconnect:Doing",
@@ -958,6 +974,10 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		{
 			op:   "remove-snap-common-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+		},
+		{
+			op:   "remove-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
 			op:   "remove-snap-data-dir",
@@ -1416,6 +1436,14 @@ func (f *snapdBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.SnapDirO
 	return f.fakeSnappyBackend.RemoveSnapCommonData(info, nil)
 }
 
+func (f *snapdBackend) RemoveSnapSaveData(info *snap.Info) error {
+	dir := snap.CommonDataSaveDir(info.InstanceName())
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("unexpected error: %v", err)
+	}
+	return f.fakeSnappyBackend.RemoveSnapSaveData(info)
+}
+
 func isUndone(c *C, tasks []*state.Task, kind string, numExpected int) {
 	var count int
 	for _, t := range tasks {
@@ -1472,6 +1500,7 @@ func makeTestSnaps(c *C, st *state.State) {
 	c.Assert(os.MkdirAll(snap.DataDir("some-snap", si1.Revision), 0755), IsNil)
 	c.Assert(os.MkdirAll(snap.DataDir("some-snap", si2.Revision), 0755), IsNil)
 	c.Assert(os.MkdirAll(snap.CommonDataDir("some-snap"), 0755), IsNil)
+	c.Assert(os.MkdirAll(snap.CommonDataSaveDir("some-snap"), 0755), IsNil)
 }
 
 func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
@@ -1622,6 +1651,10 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c
 		{
 			op:   "remove-snap-common-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+		},
+		{
+			op:   "remove-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "some-snap"),
 		},
 		{
 			op:   "remove-snap-data-dir",

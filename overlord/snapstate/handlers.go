@@ -1184,6 +1184,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:   false,
+		IsUndo:         true,
 		ServiceOptions: opts,
 	}
 	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
@@ -1253,6 +1254,10 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 			t.Errorf("cannot undo partial snap %q data copy, failed removing shared directory: %v", snapsup.InstanceName(), err)
 		}
 		return copyDataErr
+	}
+
+	if err := m.backend.SetupSnapSaveData(newInfo, pb); err != nil {
+		return err
 	}
 
 	var oldBase string
@@ -1410,6 +1415,9 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
 	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, dirOpts); err != nil {
+		return err
+	}
+	if err := m.backend.UndoSetupSnapSaveData(newInfo, oldInfo, pb); err != nil {
 		return err
 	}
 
@@ -2024,7 +2032,7 @@ func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) error {
 		return err
 	}
 	bp := boot.Participant(info, info.Type(), groundDeviceCtx)
-	rebootInfo, err := bp.SetNextBoot()
+	rebootInfo, err := bp.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
 	if err != nil {
 		return err
 	}
@@ -2195,6 +2203,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	firstInstall := oldCurrent.Unset()
 	linkCtx := backend.LinkContext{
 		FirstInstall: firstInstall,
+		IsUndo:       true,
 	}
 	var backendErr error
 	if newInfo.Type() == snap.TypeSnapd && !firstInstall {
@@ -2704,6 +2713,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:   false,
+		IsUndo:         true,
 		ServiceOptions: opts,
 	}
 	reboot, err := m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings)
@@ -2753,6 +2763,12 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	if len(snapst.Sequence) == 1 {
 		// Only remove data common between versions if this is the last version
 		if err = m.backend.RemoveSnapCommonData(info, dirOpts); err != nil {
+			return err
+		}
+
+		// Same for the common snap save data directory, we only remove it if this
+		// is the last version.
+		if err = m.backend.RemoveSnapSaveData(info); err != nil {
 			return err
 		}
 

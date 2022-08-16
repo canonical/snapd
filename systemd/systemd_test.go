@@ -73,12 +73,13 @@ type SystemdTestSuite struct {
 	stopErrors []error
 	stopIter   int
 
-	j        int
-	jns      []string
-	jsvcs    [][]string
-	jouts    [][]byte
-	jerrs    []error
-	jfollows []bool
+	j           int
+	jns         []string
+	jsvcs       [][]string
+	jouts       [][]byte
+	jerrs       []error
+	jfollows    []bool
+	jnamespaces []bool
 
 	rep *testreporter
 
@@ -117,6 +118,7 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	s.jouts = nil
 	s.jerrs = nil
 	s.jfollows = nil
+	s.jnamespaces = nil
 
 	s.rep = new(testreporter)
 
@@ -160,13 +162,14 @@ func (s *SystemdTestSuite) myRun(args ...string) (out []byte, delay time.Duratio
 	return out, delayReq, err
 }
 
-func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow bool) (io.ReadCloser, error) {
+func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow, namespaces bool) (io.ReadCloser, error) {
 	var err error
 	var out []byte
 
 	s.jns = append(s.jns, strconv.Itoa(n))
 	s.jsvcs = append(s.jsvcs, svcs)
 	s.jfollows = append(s.jfollows, follow)
+	s.jnamespaces = append(s.jnamespaces, namespaces)
 
 	if s.j < len(s.jouts) {
 		out = s.jouts[s.j]
@@ -921,12 +924,13 @@ func (s *SystemdTestSuite) TestKill(c *C) {
 func (s *SystemdTestSuite) TestLogErrJctl(c *C) {
 	s.jerrs = []error{errors.New("mock journalctl error")}
 
-	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false)
+	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false, false)
 	c.Check(err, NotNil)
 	c.Check(reader, IsNil)
 	c.Check(s.jns, DeepEquals, []string{"24"})
 	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
 	c.Check(s.jfollows, DeepEquals, []bool{false})
+	c.Check(s.jnamespaces, DeepEquals, []bool{false})
 	c.Check(s.j, Equals, 1)
 }
 
@@ -936,7 +940,7 @@ func (s *SystemdTestSuite) TestLogs(c *C) {
 `
 	s.jouts = [][]byte{[]byte(expected)}
 
-	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false)
+	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false, false)
 	c.Check(err, IsNil)
 	logs, err := ioutil.ReadAll(reader)
 	c.Assert(err, IsNil)
@@ -944,6 +948,7 @@ func (s *SystemdTestSuite) TestLogs(c *C) {
 	c.Check(s.jns, DeepEquals, []string{"24"})
 	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
 	c.Check(s.jfollows, DeepEquals, []bool{false})
+	c.Check(s.jnamespaces, DeepEquals, []bool{false})
 	c.Check(s.j, Equals, 1)
 }
 
@@ -1170,7 +1175,7 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 `[1:], mockSnapPath))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
@@ -1204,7 +1209,7 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide,bind
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 `[1:], snapDir))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
@@ -1250,7 +1255,7 @@ Options=remount,ro
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 X-SnapdOrigin=bar
 `[1:], mockSnapPath))
 
@@ -1293,7 +1298,7 @@ Options=nodev,context=system_u:object_r:snappy_snap_t:s0,ro,x-gdu.hide,x-gvfs-hi
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 `[1:], mockSnapPath))
 }
 
@@ -1337,7 +1342,7 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide,allow_other
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 `[1:], mockSnapPath))
 }
 
@@ -1377,7 +1382,7 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 `[1:], mockSnapPath))
 }
 
@@ -1385,20 +1390,23 @@ func (s *SystemdTestSuite) TestJctl(c *C) {
 	var args []string
 	var err error
 	MockOsutilStreamCommand(func(name string, myargs ...string) (io.ReadCloser, error) {
-		c.Check(cap(myargs) <= len(myargs)+2, Equals, true, Commentf("cap:%d, len:%d", cap(myargs), len(myargs)))
+		c.Check(cap(myargs) <= len(myargs)+3, Equals, true, Commentf("cap:%d, len:%d", cap(myargs), len(myargs)))
 		args = myargs
 		return nil, nil
 	})
 
-	_, err = Jctl([]string{"foo", "bar"}, 10, false)
+	_, err = Jctl([]string{"foo", "bar"}, 10, false, false)
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "-n", "10", "-u", "foo", "-u", "bar"})
-	_, err = Jctl([]string{"foo", "bar", "baz"}, 99, true)
+	_, err = Jctl([]string{"foo", "bar", "baz"}, 99, true, false)
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "-n", "99", "-f", "-u", "foo", "-u", "bar", "-u", "baz"})
-	_, err = Jctl([]string{"foo", "bar"}, -1, false)
+	_, err = Jctl([]string{"foo", "bar"}, -1, false, false)
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "--no-tail", "-u", "foo", "-u", "bar"})
+	_, err = Jctl([]string{"foo", "bar"}, -1, false, true)
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, []string{"-o", "json", "--no-pager", "--no-tail", "--namespace=*", "-u", "foo", "-u", "bar"})
 }
 
 func (s *SystemdTestSuite) TestIsActiveUnderRoot(c *C) {
@@ -1638,7 +1646,7 @@ Options=%s
 LazyUnmount=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 `
 
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
@@ -1858,7 +1866,7 @@ Type=doesntmatter
 Options=do,not,matter,either
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target multi-user.target
 X-SnapdOrigin=%s
 `, snapName, where, origin)
 		return ioutil.WriteFile(path, []byte(contents), 0644)
