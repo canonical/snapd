@@ -63,8 +63,8 @@ execute: |
 
   # Ensure that the unit file is correct
   echo "Ensuring the unit file is correct"
-  systemctl show --property=LogNamespace snap.test-snapd-journal-quota.logger.service | MATCH "LogNamespace=snap-group-one"
   LOGGER_PID=$(systemctl show --property=MainPID --value snap.test-snapd-journal-quota.logger.service)
+  systemctl show --property=LogNamespace snap.test-snapd-journal-quota.logger.service | MATCH "LogNamespace=snap-group-one"
 
   echo "Removing the quota will stop the slice and the service will be restarted"
   snap remove-quota group-one
@@ -80,16 +80,18 @@ execute: |
   # Make sure that the service is running still and now outputting logs
   # into the original journal.
   echo "And the service is running and is outputting logs into the original journal"
+  NEW_MESSAGE_DETECTED=0
   INITIAL_NO=$("$TESTSTOOLS"/journal-state get-log | grep "LogDaemon" | tail -n 1 | awk '{print $NF}')
   for i in $(seq 5); do
       sleep 1
       CURRENT_NO=$("$TESTSTOOLS"/journal-state get-log | grep "LogDaemon" | tail -n 1 | awk '{print $NF}')
       if [ "$CURRENT_NO" -gt "$INITIAL_NO" ]; then
           echo "LogDaemon messages detected after $i tries"
+          NEW_MESSAGE_DETECTED=1
           break
       fi
   done
-  if [ "$CURRENT_NO" -lt "$INITIAL_NO" ]; then
+  if [ "$NEW_MESSAGE_DETECTED" = "0" ]; then
       echo "Failed to see new log messages after 5 seconds"
       exit 1
   fi
