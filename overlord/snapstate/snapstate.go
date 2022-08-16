@@ -1501,7 +1501,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 
 	// don't refresh held snaps in a general refresh
 	if len(names) == 0 {
-		toUpdate, err = filterHeldSnaps(st, names, toUpdate)
+		toUpdate, err = filterHeldSnaps(st, toUpdate)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1520,7 +1520,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 }
 
 // filterHeldSnaps filters held snaps from being updated in a general refresh.
-func filterHeldSnaps(st *state.State, names []string, updates []minimalInstallInfo) ([]minimalInstallInfo, error) {
+func filterHeldSnaps(st *state.State, updates []minimalInstallInfo) ([]minimalInstallInfo, error) {
 	heldSnaps, err := HeldSnaps(st)
 	if err != nil {
 		return nil, err

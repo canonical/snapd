@@ -152,7 +152,7 @@ func (m *autoRefresh) EffectiveRefreshHold() (time.Time, error) {
 		return time.Time{}, err
 	}
 
-	if string(holdValue) == "forever" {
+	if holdValue == "forever" {
 		return timeNow().Add(maxDuration), nil
 	}
 
