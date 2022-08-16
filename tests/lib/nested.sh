@@ -731,7 +731,10 @@ EOF
 
 prepare_base() {
     if [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
-        if nested_is_core_18_system; then
+        if nested_is_core_16_system; then
+            echo "No base snap to prepare in core 16"
+            return
+        elif nested_is_core_18_system; then
             snap_name="core18"
             snap_id="CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
         elif nested_is_core_20_system; then
