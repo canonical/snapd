@@ -32,7 +32,7 @@ fi
 
 # ensure we have our xgettext-go
 # shellcheck disable=SC2086
-go install $GOINVOKEFLAGS github.com/snapcore/snapd/i18n/xgettext-go
+go install $GOINVOKEFLAGS github.com/canonical/x-go/i18n/xgettext-go
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
