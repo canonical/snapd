@@ -737,7 +737,7 @@ prepare_base() {
         elif nested_is_core_20_system; then
             snap_name="core20"
             snap_id="DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
-        elif nested_is_core_20_system; then
+        elif nested_is_core_22_system; then
             snap_name="core22"
             snap_id="amcUKQILKXHHTlmSa7NMdnXSx02dNeeT"
         fi
