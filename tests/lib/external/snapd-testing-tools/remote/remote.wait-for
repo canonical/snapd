@@ -113,6 +113,7 @@ wait_for_reboot() {
         attempts=$(( attempts - 1 ))
         # The get_boot_id could fail because the connection is broken due to the reboot
         last_boot_id="$(get_boot_id)" || true
+        # The boot_id is a GUID, i.e. 450d12a1-9811-464e-8c9e-cec1c60e8684
         if [[ "$last_boot_id" =~ .*-.*-.*-.*-.* ]] && [ "$last_boot_id" != "$initial_boot_id" ]; then
             break
         fi

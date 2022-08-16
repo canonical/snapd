@@ -3,6 +3,7 @@
 show_help() {
     echo "usage: remote.refresh snap [--channel CHANNEL] <SNAPNAME>"
     echo "usage: remote.refresh full [--channel CHANNEL]"
+    echo "usage: remote.refresh disable-refreshes"
     echo ""
     echo "SNAPNAME: allowed options are: kernel, core, base, gadget, snapd or the snap name"
     echo ""
@@ -76,79 +77,68 @@ process_refresh() {
     do_refresh "$snap_name" "$refresh_channel"
 }
 
-refresh_kernel() {
-    local refresh_channel=$1
-    local snap_name
+refresh_fundamental() {
+    snap_name=$1
+    regex=$2
+    refresh_channel=$3
 
-    echo "remote.refresh: starting kernel refresh process"
-    snap_name="$(remote.exec "snap list" | grep -E '(kernel$|kernel,)' | awk '{ print $1 }')"
+    echo "remote.refresh: starting $snap_name refresh process"
+    snap_name="$(remote.exec "snap list" | grep -E "$regex" | awk '{ print $1 }')"
     if [ -z "$snap_name" ]; then
-        echo "remote.refresh: no kernel snap to update"
+        echo "remote.refresh: no $snap_name snap to update"
         return
     fi
 
+    if [ "$(echo "$snap_name" | wc -l)" -gt 1 ]; then
+        echo "remote.refresh: there is more than 1 $snap_name snap to update, skipping"
+        return 0
+    fi
     process_refresh "$snap_name" "$refresh_channel"
+}
+
+refresh_kernel() {
+    local refresh_channel=$1
+    local snap_name regex
+
+    snap_name='kernel'
+    regex='(kernel$|kernel,)'
+    refresh_fundamental "$snap_name" "$regex" "$refresh_channel"
 }
 
 refresh_gadget() {
     local refresh_channel=$1
-    local snap_name
+    local snap_name regex
 
-    echo "remote.refresh: starting gadget refresh process"
-    snap_name="$(remote.exec "snap list" | grep -E '(gadget$|gadget,)' | awk '{ print $1 }')"
-    if [ -z "$snap_name" ]; then
-        echo "remote.refresh: no gadget snap to update"
-        return
-    fi
-    
-    process_refresh "$snap_name" "$refresh_channel"
+    snap_name='gadget'
+    regex='(gadget$|gadget,)'
+    refresh_fundamental "$snap_name" "$regex" "$refresh_channel"
 }
 
 refresh_snapd() {
     local refresh_channel=$1
-    local snap_name
+    local snap_name regex
 
-    echo "remote.refresh: starting snapd refresh process"
-    snap_name="$(remote.exec "snap list" | grep -E '^snapd.*(snapd$|snapd,)' | awk '{ print $1 }')"
-    if [ -z "$snap_name" ]; then
-        echo "remote.refresh: no snapd snap to update"
-        return 0
-    fi
-
-    process_refresh "$snap_name" "$refresh_channel"
+    snap_name='snapd'
+    regex='^snapd.*(snapd$|snapd,)'
+    refresh_fundamental "$snap_name" "$regex" "$refresh_channel"
 }
 
 refresh_core() {
     local refresh_channel=$1
-    local snap_name
+    local snap_name regex
 
-    echo "remote.refresh: starting core refresh process"
-    snap_name="$(remote.exec "snap list" | grep -E '^core.*(core$|core,)' | awk '{ print $1 }')"
-    if [ -z "$snap_name" ]; then
-        echo "remote.refresh: no core snap to update"
-        return 0
-    fi
-
-    process_refresh "$snap_name" "$refresh_channel"
+    snap_name='core'
+    regex='^core.*(core$|core,)'
+    refresh_fundamental "$snap_name" "$regex" "$refresh_channel"
 }
 
 refresh_core_base() {
     local refresh_channel=$1
-    local snap_name
+    local snap_name regex
 
-    echo "remote.refresh: starting core base refresh process"
-    snap_name="$(remote.exec "snap list" | grep -E '^core.* (base$|base,)' | awk '{ print $1 }')"
-    if [ -z "$snap_name" ]; then
-        echo "remote.refresh: no core base snap to update"
-        return 0
-    fi
-
-    if [ "$(echo "$snap_name" | wc -l)" -gt 1 ]; then
-        echo "remote.refresh: there is more than 1 core base snap to update, skipping"
-        return 0
-    fi
-
-    process_refresh "$snap_name" "$refresh_channel"
+    snap_name='core base'
+    regex='^core.* (base$|base,)'
+    refresh_fundamental "$snap_name" "$regex" "$refresh_channel"
 }
 
 refresh_snap() {
@@ -308,6 +298,10 @@ main() {
             ;;
         snap)
             action=snap_refresh
+            shift
+            ;;
+        disable-refreshes)
+            action=disable_refreshes
             shift
             ;;
         *)
