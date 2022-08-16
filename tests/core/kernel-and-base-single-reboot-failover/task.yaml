@@ -102,7 +102,8 @@ execute: |
 
         # make sure the system is in stable state, no pending reboots
         # XXX systemctl exits with non-0 when in degraded state
-        (systemctl --wait is-system-running || true) | MATCH '(running|degraded)'
+        # Note: on bionic, is-system-running does not support --wait
+        retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
 
         # we're expecting the old revisions to be back
         expecting_kernel="$(cat pc-kernel.rev)"
