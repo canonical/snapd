@@ -33,6 +33,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+
+	_ "github.com/snapcore/snapd/i18n"
 )
 
 const (

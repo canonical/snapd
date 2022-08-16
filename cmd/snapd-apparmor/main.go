@@ -46,6 +46,8 @@ import (
 	"github.com/snapcore/snapd/logger"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snapdtool"
+
+	_ "github.com/snapcore/snapd/i18n"
 )
 
 func isWSL() bool {

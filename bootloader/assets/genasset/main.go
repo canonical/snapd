@@ -30,6 +30,8 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/osutil"
+
+	_ "github.com/snapcore/snapd/i18n"
 )
 
 var assetTemplateText = `// -*- Mode: Go; indent-tabs-mode: t -*-

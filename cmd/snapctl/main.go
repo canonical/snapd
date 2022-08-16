@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/usersession/xdgopenproxy"
+
+	_ "github.com/snapcore/snapd/i18n"
 )
 
 var clientConfig = client.Config{

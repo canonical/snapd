@@ -28,6 +28,8 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/logger"
+
+	_ "github.com/snapcore/snapd/i18n"
 )
 
 var (

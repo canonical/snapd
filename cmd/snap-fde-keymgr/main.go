@@ -32,6 +32,8 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot/keymgr"
 	"github.com/snapcore/snapd/secboot/keys"
+
+	_ "github.com/snapcore/snapd/i18n"
 )
 
 var osStdin io.Reader = os.Stdin

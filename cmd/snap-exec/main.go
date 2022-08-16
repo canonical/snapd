@@ -33,6 +33,8 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
+
+	_ "github.com/snapcore/snapd/i18n"
 )
 
 // for the tests

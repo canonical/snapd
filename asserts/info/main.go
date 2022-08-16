@@ -25,6 +25,8 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
+
+	_ "github.com/snapcore/snapd/i18n"
 )
 
 func main() {

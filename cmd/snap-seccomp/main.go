@@ -193,6 +193,8 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/osutil"
+
+	_ "github.com/snapcore/snapd/i18n"
 )
 
 // libseccomp maximum per ARG_COUNT_MAX in src/arch.h

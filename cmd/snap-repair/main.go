@@ -31,6 +31,8 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
+
+	_ "github.com/snapcore/snapd/i18n"
 )
 
 var (
