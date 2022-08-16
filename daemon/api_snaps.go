@@ -28,9 +28,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/canonical/x-go/i18n"
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -41,7 +42,6 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (

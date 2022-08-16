@@ -31,8 +31,8 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/advisor"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 )
 

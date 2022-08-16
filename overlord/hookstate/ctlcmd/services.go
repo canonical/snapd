@@ -24,8 +24,8 @@ import (
 	"sort"
 	"text/tabwriter"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/client/clientutil"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"

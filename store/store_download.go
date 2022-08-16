@@ -39,9 +39,9 @@ import (
 	"github.com/juju/ratelimit"
 	"gopkg.in/retry.v1"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"

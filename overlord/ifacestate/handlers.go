@@ -30,8 +30,8 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"

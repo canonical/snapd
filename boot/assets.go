@@ -30,6 +30,7 @@ import (
 
 	_ "golang.org/x/crypto/sha3"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -38,7 +39,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot/keys"
-	"github.com/snapcore/snapd/strutil"
 )
 
 type trustedAssetsCache struct {

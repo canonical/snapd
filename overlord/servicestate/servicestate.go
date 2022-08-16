@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -37,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/wrappers"
 )

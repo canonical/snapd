@@ -1,0 +1,18 @@
+--- cmd/snap/main.go
++++ cmd/snap/main.go
+@@ -30,13 +30,14 @@ import (
+ 	"unicode"
+ 	"unicode/utf8"
+ 
++	"github.com/Xuanwo/go-locale"
+ 	"github.com/jessevdk/go-flags"
+ 	"golang.org/x/crypto/ssh/terminal"
+ 	"golang.org/x/xerrors"
+ 
++	"github.com/canonical/x-go/i18n"
+ 	"github.com/snapcore/snapd/client"
+ 	"github.com/snapcore/snapd/dirs"
+-	"github.com/snapcore/snapd/i18n"
+ 	"github.com/snapcore/snapd/logger"
+ 	"github.com/snapcore/snapd/osutil"
+ 	"github.com/snapcore/snapd/release"

@@ -29,7 +29,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/canonical/x-go/i18n"
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -37,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (

@@ -28,8 +28,8 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/metautil"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
 

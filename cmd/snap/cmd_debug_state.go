@@ -32,11 +32,11 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/canonical/x-go/i18n"
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/strutil"
 )
 
 type cmdDebugState struct {

@@ -29,7 +29,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/canonical/x-go/i18n"
 )
 
 var shortHelpHelp = i18n.G("Show help about a command")

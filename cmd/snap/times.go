@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/strutil/quantity"
+	"github.com/canonical/x-go/i18n"
+	"github.com/canonical/x-go/strutil/quantity"
 	"github.com/snapcore/snapd/timeutil"
 )
 

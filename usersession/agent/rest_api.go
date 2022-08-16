@@ -31,9 +31,9 @@ import (
 
 	"github.com/mvo5/goconfigparser"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/usersession/client"
 )

@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/snap/naming"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // Presence represents a presence constraint.

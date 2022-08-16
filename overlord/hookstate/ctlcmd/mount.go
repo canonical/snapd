@@ -23,7 +23,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/canonical/x-go/i18n"
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/logger"
@@ -31,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 )
 

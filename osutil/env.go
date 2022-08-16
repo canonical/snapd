@@ -26,7 +26,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/snapcore/snapd/strutil"
+	"github.com/canonical/x-go/strutil"
 )
 
 // GetenvBool returns whether the given key may be considered "set" in the

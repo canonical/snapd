@@ -30,12 +30,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap/naming"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
 

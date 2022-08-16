@@ -23,12 +23,12 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 func newBootState20(typ snap.Type, dev snap.Device) bootState {

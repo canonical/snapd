@@ -34,6 +34,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget/edition"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -43,7 +44,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
-	"github.com/snapcore/snapd/strutil"
 )
 
 const (

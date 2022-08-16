@@ -37,12 +37,12 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (

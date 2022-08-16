@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"

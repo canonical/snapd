@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/arch"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var channelRisks = []string{"stable", "candidate", "beta", "edge"}

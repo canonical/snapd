@@ -26,9 +26,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // Specification assists in collecting apparmor entries associated with an interface.

@@ -39,11 +39,12 @@ import (
 	"github.com/godbus/dbus"
 	"github.com/jessevdk/go-flags"
 
+	"github.com/canonical/x-go/i18n"
+	"github.com/canonical/x-go/strutil/shlex"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/desktop/portal"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -52,7 +53,6 @@ import (
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
-	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/x11"
 )

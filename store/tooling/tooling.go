@@ -34,6 +34,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/mvo5/goconfigparser"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
@@ -44,7 +45,6 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // ToolingStore wraps access to the store for tools.

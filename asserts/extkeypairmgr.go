@@ -31,7 +31,7 @@ import (
 
 	"golang.org/x/crypto/openpgp/packet"
 
-	"github.com/snapcore/snapd/strutil"
+	"github.com/canonical/x-go/strutil"
 )
 
 type ExternalKeyInfo struct {

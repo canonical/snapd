@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // Serial holds a serial assertion, which is a statement binding a

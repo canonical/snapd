@@ -22,9 +22,9 @@ package builtin
 import (
 	"fmt"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/interfaces"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
-	"github.com/snapcore/snapd/strutil"
 )
 
 /*

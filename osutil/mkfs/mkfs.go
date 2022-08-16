@@ -26,9 +26,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/canonical/x-go/strutil/shlex"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil/shlex"
 )
 
 // MakeFunc defines a function signature that is used by all of the mkfs.<filesystem>

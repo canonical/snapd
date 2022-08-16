@@ -27,11 +27,11 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var api = []*Command{

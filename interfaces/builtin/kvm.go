@@ -25,10 +25,10 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/strutil"
 )
 
 const kvmSummary = `allows access to the kvm device`

@@ -29,8 +29,8 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/strutil"
 )
 
 const (

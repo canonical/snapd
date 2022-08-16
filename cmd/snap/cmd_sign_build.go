@@ -28,9 +28,9 @@ import (
 	// expected for digests
 	_ "golang.org/x/crypto/sha3"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/signtool"
-	"github.com/snapcore/snapd/i18n"
 )
 
 type cmdSignBuild struct {

@@ -25,7 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/snapcore/snapd/strutil"
+	"github.com/canonical/x-go/strutil"
 )
 
 // FIXME: support for escaping (embedded \n in grubenv) missing

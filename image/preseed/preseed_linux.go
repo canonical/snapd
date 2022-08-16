@@ -32,11 +32,11 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/snapdtool"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 

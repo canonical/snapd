@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"runtime"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )

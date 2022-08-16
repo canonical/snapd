@@ -23,7 +23,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/yaml.v2"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/canonical/x-go/i18n"
 )
 
 var shortCreateCohortHelp = i18n.G("Create cohort keys for a set of snaps")

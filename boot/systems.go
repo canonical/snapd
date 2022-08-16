@@ -23,10 +23,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 func dropFromRecoverySystemsList(systemsList []string, systemLabel string) (newList []string, found bool) {

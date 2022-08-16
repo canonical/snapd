@@ -31,12 +31,12 @@ import (
 
 	"github.com/godbus/dbus"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/canonical/x-go/i18n"
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/usersession/userd/ui"
 )
 

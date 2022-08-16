@@ -25,9 +25,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // ValidationConstraints carries extra constraints on top of those

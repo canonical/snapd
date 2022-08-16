@@ -24,7 +24,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/canonical/x-go/i18n"
 )
 
 var shortWhoAmIHelp = i18n.G("Show the email the user is logged in with")

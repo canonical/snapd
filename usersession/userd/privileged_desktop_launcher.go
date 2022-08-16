@@ -30,9 +30,9 @@ import (
 
 	"github.com/godbus/dbus"
 
+	"github.com/canonical/x-go/strutil/shlex"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/systemd"
 )
 

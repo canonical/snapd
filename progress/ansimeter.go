@@ -28,7 +28,7 @@ import (
 
 	"golang.org/x/crypto/ssh/terminal"
 
-	"github.com/snapcore/snapd/strutil/quantity"
+	"github.com/canonical/x-go/strutil/quantity"
 )
 
 var stdout io.Writer = os.Stdout

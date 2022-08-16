@@ -30,8 +30,8 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdtool"

@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
@@ -32,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (

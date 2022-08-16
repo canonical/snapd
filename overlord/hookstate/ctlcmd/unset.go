@@ -22,7 +22,7 @@ package ctlcmd
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/overlord/configstate"
 )
 

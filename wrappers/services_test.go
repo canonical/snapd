@@ -37,13 +37,13 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 
 	// imported to ensure actual interfaces are defined (in production this is guaranteed by ifacestate)
+	"github.com/canonical/x-go/strutil"
 	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"

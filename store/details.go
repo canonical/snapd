@@ -20,9 +20,9 @@
 package store
 
 import (
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // snapDetails encapsulates the data sent to us from the store as JSON.

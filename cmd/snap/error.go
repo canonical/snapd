@@ -31,12 +31,12 @@ import (
 
 	"golang.org/x/crypto/ssh/terminal"
 
+	"github.com/canonical/x-go/i18n"
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/channel"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var errorPrefix = i18n.G("error: %v\n")

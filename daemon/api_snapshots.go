@@ -28,12 +28,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/canonical/x-go/i18n"
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var snapshotCmd = &Command{

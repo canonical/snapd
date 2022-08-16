@@ -32,10 +32,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/store/tooling"

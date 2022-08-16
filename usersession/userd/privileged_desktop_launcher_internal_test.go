@@ -28,9 +28,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/userd"
 )

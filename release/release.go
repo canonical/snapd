@@ -27,7 +27,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/snapcore/snapd/strutil"
+	"github.com/canonical/x-go/strutil"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.

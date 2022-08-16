@@ -28,9 +28,9 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/strutil/quantity"
+	"github.com/canonical/x-go/i18n"
+	"github.com/canonical/x-go/strutil"
+	"github.com/canonical/x-go/strutil/quantity"
 )
 
 func fmtSize(size int64) string {

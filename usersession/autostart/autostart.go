@@ -31,11 +31,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/canonical/x-go/strutil"
+	"github.com/canonical/x-go/strutil/shlex"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/systemd"
 )
 

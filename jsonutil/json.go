@@ -26,7 +26,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/snapcore/snapd/strutil"
+	"github.com/canonical/x-go/strutil"
 )
 
 // DecodeWithNumber decodes input data using json.Decoder, ensuring numbers are preserved

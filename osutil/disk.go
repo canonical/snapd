@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"syscall"
 
-	"github.com/snapcore/snapd/strutil"
+	"github.com/canonical/x-go/strutil"
 )
 
 var syscallStatfs = syscall.Statfs

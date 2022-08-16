@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
@@ -36,7 +37,6 @@ import (
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdtool"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // featureSet contains the flag values that can be listed in assumes entries

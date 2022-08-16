@@ -26,7 +26,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/xerrors"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/canonical/x-go/i18n"
 
 	// for SanitizePlugsSlots
 	"github.com/snapcore/snapd/interfaces/builtin"

@@ -33,6 +33,7 @@ import (
 	"sort"
 	"syscall"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/jsonutil"
@@ -40,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // ExtractFnameSetID can be passed to Open() to have set ID inferred from

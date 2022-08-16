@@ -27,8 +27,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/devicestate"

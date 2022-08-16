@@ -25,8 +25,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/usersession/client"
 )

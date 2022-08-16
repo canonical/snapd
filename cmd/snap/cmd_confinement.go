@@ -24,7 +24,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/canonical/x-go/i18n"
 )
 
 var shortConfinementHelp = i18n.G("Print the confinement mode the system operates in")

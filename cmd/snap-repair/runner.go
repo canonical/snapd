@@ -41,6 +41,7 @@ import (
 	"github.com/mvo5/goconfigparser"
 	"gopkg.in/retry.v1"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -52,7 +53,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (

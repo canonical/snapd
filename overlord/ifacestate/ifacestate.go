@@ -26,8 +26,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/overlord/assertstate"

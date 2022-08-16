@@ -27,9 +27,9 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/strutil"
 )
 
 type MissingContextError struct {

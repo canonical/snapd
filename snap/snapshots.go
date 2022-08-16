@@ -29,7 +29,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/snapcore/snapd/strutil"
+	"github.com/canonical/x-go/strutil"
 )
 
 var osOpen = os.Open

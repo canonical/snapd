@@ -22,10 +22,10 @@ package daemon
 import (
 	"fmt"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var snapstateMigrateHome = snapstate.MigrateHome

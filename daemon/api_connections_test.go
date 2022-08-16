@@ -27,11 +27,11 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // Tests for GET /v2/connections

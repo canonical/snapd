@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/store/tooling"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/image/preseed"
 	"github.com/snapcore/snapd/osutil"
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -45,7 +46,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 )
 

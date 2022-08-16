@@ -28,10 +28,10 @@ import (
 	// expected for digests
 	_ "golang.org/x/crypto/sha3"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/naming"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // SnapDeclaration holds a snap-declaration assertion, declaring a

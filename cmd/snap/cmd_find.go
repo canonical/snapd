@@ -29,11 +29,11 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/canonical/x-go/i18n"
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var shortFindHelp = i18n.G("Find packages to install")

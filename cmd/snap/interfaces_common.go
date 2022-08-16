@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/canonical/x-go/i18n"
 )
 
 // SnapAndName holds a snap name and a plug or slot name.

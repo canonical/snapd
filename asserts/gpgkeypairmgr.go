@@ -30,8 +30,8 @@ import (
 
 	"golang.org/x/crypto/openpgp/packet"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil"
 )
 
 func ensureGPGHomeDirectory() (string, error) {

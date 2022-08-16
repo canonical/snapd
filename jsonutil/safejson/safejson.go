@@ -26,7 +26,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	"github.com/snapcore/snapd/strutil"
+	"github.com/canonical/x-go/strutil"
 )
 
 // String accepts any valid JSON string. Its Clean method will remove

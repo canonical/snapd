@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/snapcore/snapd/strutil"
+	"github.com/canonical/x-go/strutil"
 )
 
 // Size describes the size in bytes.

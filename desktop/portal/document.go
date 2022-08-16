@@ -25,9 +25,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
 )
 
 const (

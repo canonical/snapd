@@ -31,11 +31,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/spdx"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/timeutil"
 )

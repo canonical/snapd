@@ -30,9 +30,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // ValidateNoAppArmorRegexp will check that the given string does not

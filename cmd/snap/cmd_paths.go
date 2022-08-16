@@ -24,8 +24,8 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
 )
 
 var pathsHelp = i18n.G("Print system paths")

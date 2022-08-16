@@ -22,9 +22,9 @@ package ctlcmd
 import (
 	"gopkg.in/yaml.v2"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/canonical/x-go/i18n"
+	"github.com/canonical/x-go/strutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/strutil"
 )
 
 type systemModeCommand struct {

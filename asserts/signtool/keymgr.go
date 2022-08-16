@@ -26,8 +26,8 @@ import (
 
 	"golang.org/x/crypto/ssh/terminal"
 
+	"github.com/canonical/x-go/i18n"
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/i18n"
 )
 
 // KeypairManager is an interface for common methods of ExternalKeypairManager

@@ -22,7 +22,7 @@ package main
 import (
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/i18n"
+	"github.com/canonical/x-go/i18n"
 )
 
 type cmdWatch struct{ changeIDMixin }
