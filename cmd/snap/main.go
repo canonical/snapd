@@ -30,6 +30,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/Xuanwo/go-locale"
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/xerrors"
@@ -154,6 +155,20 @@ type parserSetter interface {
 	setParser(*flags.Parser)
 }
 
+// currentLocale returns the BCP 47 locale base.
+// E.g. en_ZA (BCP 47) => en (BCP 47 Base)
+func currentLocale() string {
+	tag, err := locale.Detect()
+	if err != nil {
+		// Unable to obtain locale from OS so
+		// pick a sensible fallback
+		return "en_US"
+	} else {
+		// Convert BCP 47 to POSIX ISO/IEC 15897 format
+		return strings.Replace(tag.String(), "-", "_", 1)
+	}
+}
+
 func lintDesc(cmdName, optName, desc, origDesc string) {
 	if len(optName) == 0 {
 		logger.Panicf("option on %q has no name", cmdName)
@@ -166,7 +181,7 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 		r, _ := utf8.DecodeRuneInString(desc)
 		// note IsLower != !IsUpper for runes with no upper/lower.
 		if unicode.IsLower(r) && !strings.HasPrefix(desc, "login.ubuntu.com") && !strings.HasPrefix(desc, cmdName) {
-			panicOnDebug("description of %s's %q is lowercase in locale %q: %q", cmdName, optName, i18n.CurrentLocale(), desc)
+			panicOnDebug("description of %s's %q is lowercase in locale %q: %q", cmdName, optName, currentLocale(), desc)
 		}
 	}
 }

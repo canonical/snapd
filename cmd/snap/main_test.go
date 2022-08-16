@@ -351,10 +351,16 @@ func (s *SnapSuite) TestLintDesc(c *C) {
 
 	// LintDesc complains about lowercase description and mentions the locale
 	// that the system is currently in.
-	prevValue := os.Getenv("LC_MESSAGES")
+	prevLanguage := os.Getenv("LANGUAGE")
+	prevLcMessages := os.Getenv("LC_MESSAGES")
+	// Note that LANGUAGE takes precedence over LC_* variables, so we need to
+	// make sure its empty for consistent CI test results.
+	// (https://lists.debian.org/debian-i18n/2005/11/msg00019.html)
+	os.Setenv("LANGUAGE", "")
 	os.Setenv("LC_MESSAGES", "en_US")
 	defer func() {
-		os.Setenv("LC_MESSAGES", prevValue)
+		os.Setenv("LANGUAGE", prevLanguage)
+		os.Setenv("LC_MESSAGES", prevLcMessages)
 	}()
 
 	fn := func() {
