@@ -38,6 +38,10 @@ execute: |
     # check the vm already started
     remote.wait-for ssh
 
+    # Disable the refreshes for the vm and wait-for
+    remote.refresh disable-refreshes
+    remote.wait-for refresh
+
     # Check if the device has been initialized
     remote.wait-for device-initialized
 

@@ -29,7 +29,7 @@ create_and_start_unit() {
         return 1  
     fi
 
-    printf '[Unit]\nDescription=Support for test %s\n[Service]\nType=simple\nExecStart=%s\n[Install]\nWantedBy=multi-user.target\n' "unknown" "$start_line" > "/etc/systemd/system/$name.service"
+    printf '[Unit]\nDescription=Support for test %s\n[Service]\nType=simple\nExecStart=%s\n[Install]\nWantedBy=multi-user.target\n' "$name" "$start_line" > "/etc/systemd/system/$name.service"
     if [ -n "$override" ]; then
         mkdir -p "/etc/systemd/system/$name.service.d"
         # shellcheck disable=SC2059
