@@ -3,10 +3,12 @@ module github.com/snapcore/snapd
 go 1.13
 
 require (
+	github.com/Xuanwo/go-locale v1.1.0
 	github.com/canonical/go-efilib v0.0.0-20210909101908-41435fa545d4 // indirect
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v0.0.0-20210827151749-f80ff5afff61
 	github.com/canonical/tcglog-parser v0.0.0-20210824131805-69fa1e9f0ad2 // indirect
+	github.com/canonical/x-go v0.0.0-20220816120757-e344d95effda
 	github.com/coreos/go-systemd v0.0.0-20180511133405-39ca1b05acc7
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2
 	github.com/gorilla/mux v1.7.4-0.20190701202633-d83b6ffe499a
