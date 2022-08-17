@@ -184,6 +184,13 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 	})
 	defer restore()
 
+	var tunableHomedirs []string
+	restore = configcore.MockApparmorUpdateHomedirsTunable(func(paths []string) error {
+		tunableHomedirs = paths
+		return nil
+	})
+	defer restore()
+
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
@@ -191,13 +198,17 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 		},
 	})
 	c.Check(err, IsNil)
-	c.Check(reloadProfilesCallCount, Equals, 1)
 
 	// Check that the config file has been written
 	configPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system-params")
 	contents, err := ioutil.ReadFile(configPath)
 	c.Assert(err, IsNil)
 	c.Check(string(contents), Equals, "homedirs=/home/existingDir\n")
+
+	// Check that the AppArmor tunables have been written...
+	c.Check(tunableHomedirs, DeepEquals, []string{"/home/existingDir"})
+	// ...and that profiles have been reloaded
+	c.Check(reloadProfilesCallCount, Equals, 1)
 }
 
 func (s *homedirsSuite) TestConfigureHomedirsEmptyHappy(c *C) {
