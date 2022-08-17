@@ -21,6 +21,7 @@ package progress
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -67,10 +68,17 @@ func (NullMeter) Notify(string)               {}
 func (NullMeter) Spin(msg string)             {}
 
 // QuietMeter is a Meter that _just_ shows Notify()s.
-type QuietMeter struct{ NullMeter }
+type QuietMeter struct {
+	NullMeter
+	w io.Writer
+}
 
-func (QuietMeter) Notify(msg string) {
-	fmt.Fprintln(stdout, msg)
+func (m QuietMeter) Notify(msg string) {
+	w := m.w
+	if w == nil {
+		w = stdout
+	}
+	fmt.Fprintln(w, msg)
 }
 
 // testMeter, if set, is returned by MakeProgressBar; set it from tests.
@@ -85,6 +93,10 @@ func MockMeter(meter Meter) func() {
 
 var inTesting bool = (osutil.IsTestBinary()) || os.Getenv("SPREAD_SYSTEM") != ""
 
+var isTerminal = func() bool {
+	return !inTesting && terminal.IsTerminal(int(os.Stdin.Fd()))
+}
+
 // MakeProgressBar creates an appropriate progress.Meter for the environ in
 // which it is called:
 //
@@ -94,13 +106,13 @@ var inTesting bool = (osutil.IsTestBinary()) || os.Getenv("SPREAD_SYSTEM") != ""
 // * otherwise, an ANSIMeter is returned.
 //
 // TODO: instead of making the pivot at creation time, do it at every call.
-func MakeProgressBar() Meter {
+func MakeProgressBar(w io.Writer) Meter {
 	if testMeter != nil {
 		return testMeter
 	}
-	if !inTesting && terminal.IsTerminal(int(os.Stdin.Fd())) {
+	if (w == nil || w == os.Stdout) && isTerminal() {
 		return &ANSIMeter{}
 	}
 
-	return QuietMeter{}
+	return QuietMeter{w: w}
 }
