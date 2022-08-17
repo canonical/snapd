@@ -85,7 +85,7 @@ debug: |
 
 execute: |
     channel=20
-    if os.query is-jammy || os.query is-ubuntu 22.10 then
+    if os.query is-jammy || os.query is-ubuntu 22.10; then
         channel=22
     fi
 
