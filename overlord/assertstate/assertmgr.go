@@ -135,7 +135,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	db := DB(st)
-	signedProv, err := snapasserts.CrossCheck(snapsup.InstanceName(), sha3_384, expectedProv, snapSize, snapsup.SideInfo, modelAs, db)
+	verifiedRev, err := snapasserts.CrossCheck(snapsup.InstanceName(), sha3_384, expectedProv, snapSize, snapsup.SideInfo, modelAs, db)
 	if err != nil {
 		// TODO: trigger a global validity check
 		// that will generate the changes to deal with this
@@ -146,7 +146,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	// we have an authorized snap-revision with matching hash for
 	// the blob, double check that the snap metadata provenance
 	// matches
-	if err := snapasserts.CheckProvenance(snapsup.SnapPath, signedProv); err != nil {
+	if err := snapasserts.CheckProvenanceWithVerifiedRevision(snapsup.SnapPath, verifiedRev); err != nil {
 		return err
 	}
 

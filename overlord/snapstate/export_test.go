@@ -106,7 +106,7 @@ var (
 	CanRemove              = canRemove
 	CanDisable             = canDisable
 	CachedStore            = cachedStore
-	DefaultRefreshSchedule = defaultRefreshSchedule
+	DefaultRefreshSchedule = defaultRefreshScheduleStr
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags

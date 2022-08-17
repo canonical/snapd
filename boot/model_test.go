@@ -573,7 +573,7 @@ func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 		}
 
 		if resealKeysCalls == 2 {
-			panic(fmt.Sprintf("mock reboot after first complete reseal"))
+			panic("mock reboot after first complete reseal")
 		}
 
 		return nil
@@ -696,7 +696,7 @@ func (s *modelSuite) TestDeviceChangeRebootAfterNewModelFileWrite(c *C) {
 		}
 
 		if resealKeysCalls == 3 {
-			panic(fmt.Sprintf("mock reboot before second complete reseal"))
+			panic("mock reboot before second complete reseal")
 		}
 
 		return nil
@@ -826,7 +826,7 @@ func (s *modelSuite) TestDeviceChangeRebootPostSameModel(c *C) {
 		}
 
 		if resealKeysCalls == 4 {
-			panic(fmt.Sprintf("mock reboot before second complete reseal"))
+			panic("mock reboot before second complete reseal")
 		}
 		return nil
 	})
@@ -1174,7 +1174,7 @@ func (s *modelSuite) TestDeviceChangeRebootRestoreModelKeyChangeMockedWriteModel
 		}
 
 		if resealKeysCalls == 4 {
-			panic(fmt.Sprintf("mock reboot before second complete reseal"))
+			panic("mock reboot before second complete reseal")
 		}
 		return nil
 	})
