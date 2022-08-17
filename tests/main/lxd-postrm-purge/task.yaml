@@ -27,6 +27,11 @@ prepare: |
     lxd waitready
     lxd init --auto
 
+    # There isn't an image for kinetic yet, let's just check that lxd snap can be installed
+    if os.query is-ubuntu 22.10; then
+        exit
+    fi
+
     # the snapd package we build as part of the tests will only run on the
     # distro we build on. So we need to launch the right ubuntu version.
     VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
@@ -73,6 +78,11 @@ debug: |
     "$TESTSTOOLS"/journal-state get-log -u snap.lxd.daemon.service
 
 execute: |
+    # There isn't an image for kinetic yet
+    if os.query is-ubuntu 22.10; then
+        exit
+    fi
+
     echo "Install the hello-world snap inside the lxd container"
     lxd.lxc exec my-ubuntu -- snap install hello-world
     lxd.lxc exec my-ubuntu -- hello-world

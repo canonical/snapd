@@ -86,6 +86,11 @@ execute: |
         lxd.lxc config set core.proxy_https "$http_proxy"
     fi
 
+    # There isn't an image for kinetic yet, let's just check that lxd snap can be installed
+    if os.query is-ubuntu 22.10; then
+        exit
+    fi
+
     # The snapd package we build as part of the tests will only run on the
     # distro we build on. So we need to launch the right ubuntu version.
     # prep two containers, the my-ubuntu normal container and the
