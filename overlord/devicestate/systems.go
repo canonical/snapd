@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -35,7 +36,9 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 func checkSystemRequestConflict(st *state.State, systemLabel string) error {
@@ -425,4 +428,53 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 	logger.Noticef("created recovery system %q", label)
 
 	return recoverySystemDir, nil
+}
+
+// ModelAndGadgetInfoFromSeed return the model assertion and gadget details
+// for the given system label.
+func ModelAndGadgetInfoFromSeed(wantedSystemLabel string) (*asserts.Model, *gadget.Info, error) {
+	s, err := seed.Open(dirs.SnapSeedDir, wantedSystemLabel)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := s.LoadAssertions(nil, nil); err != nil {
+		return nil, nil, fmt.Errorf("cannot load assertions for label %q: %v", wantedSystemLabel, err)
+	}
+	model := s.Model()
+
+	// 2. get the gadget volumes for the given seed-label
+	perf := &timings.Timings{}
+	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, perf); err != nil {
+		return nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
+	}
+	var gadgetSnapPath string
+	err = s.Iter(func(sn *seed.Snap) error {
+		gadgetSnapPath = sn.Path
+		return nil
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot read gadget snap: %v", err)
+	}
+	if gadgetSnapPath == "" {
+		return nil, nil, fmt.Errorf("internal error: cannot get gadget snap path")
+	}
+	snapf, err := snapfile.Open(gadgetSnapPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	gadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot read gadget.yaml: %v", err)
+	}
+	gadgetInfo, err := gadget.InfoFromGadgetYaml(gadgetYaml, model)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
+	}
+	// XXX: no opts for now
+	opts := &gadget.ValidationConstraints{}
+	if err := gadget.Validate(gadgetInfo, model, opts); err != nil {
+		return nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
+	}
+
+	return model, gadgetInfo, nil
 }

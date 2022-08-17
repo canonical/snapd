@@ -25,6 +25,8 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/snap"
@@ -32,7 +34,7 @@ import (
 
 var systemsCmd = &Command{
 	Path:       "/v2/systems",
-	GET:        getSystems,
+	GET:        getAllSystems,
 	ReadAccess: authenticatedAccess{},
 	// this is awkward, we want the postSystemsAction function to be used
 	// when the label is empty too, but the router will not handle the request
@@ -44,7 +46,10 @@ var systemsCmd = &Command{
 }
 
 var systemsActionCmd = &Command{
-	Path:        "/v2/systems/{label}",
+	Path:       "/v2/systems/{label}",
+	GET:        getSystemsAction,
+	ReadAccess: rootAccess{},
+
 	POST:        postSystemsAction,
 	WriteAccess: rootAccess{},
 }
@@ -53,7 +58,7 @@ type systemsResponse struct {
 	Systems []client.System `json:"systems,omitempty"`
 }
 
-func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
+func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 	var rsp systemsResponse
 
 	seedSystems, err := c.d.overlord.DeviceManager().Systems()
@@ -97,6 +102,29 @@ func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 		})
 	}
 	return SyncResponse(&rsp)
+}
+
+type oneSystemsResponse struct {
+	Model   clientutil.ModelAssertJSON `json:"model,omitempty"`
+	Volumes map[string]*gadget.Volume  `json:"volumes,omitempty"`
+}
+
+func getSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
+	var rsp oneSystemsResponse
+
+	wantedSystemLabel := muxVars(r)["label"]
+
+	model, gadgetInfo, err := devicestate.ModelAndGadgetInfoFromSeed(wantedSystemLabel)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	rsp.Model = clientutil.ModelAssertJSON{
+		Headers: model.Headers(),
+		Body:    string(model.Body()),
+	}
+	rsp.Volumes = gadgetInfo.Volumes
+
+	return SyncResponse(rsp)
 }
 
 type systemActionRequest struct {

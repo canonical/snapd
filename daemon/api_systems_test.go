@@ -33,13 +33,17 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -54,6 +58,8 @@ var _ = check.Suite(&systemsSuite{})
 
 type systemsSuite struct {
 	apiBaseSuite
+
+	seedModel2019 *asserts.Model
 }
 
 func (s *systemsSuite) SetUpTest(c *check.C) {
@@ -61,6 +67,51 @@ func (s *systemsSuite) SetUpTest(c *check.C) {
 
 	s.expectRootAccess()
 }
+
+var pcGadgetUC20Yaml = `
+volumes:
+  pc:
+    bootloader: grub
+    schema: gpt
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        content:
+          - image: pc-core.img
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 750M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-boot
+      - name: ubuntu-save
+        size: 16M
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-save
+      - name: ubuntu-data
+        filesystem: ext4
+        size: 1G
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+`
 
 func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
 	// now create a minimal uc20 seed dir with snaps/assertions
@@ -77,10 +128,17 @@ func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
 	assertstest.AddMany(s.StoreSigning.Database, s.Brands.AccountsAndKeys("my-brand")...)
 	// add essential snaps
 	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
+	gadgetFiles := [][]string{
+		{"meta/gadget.yaml", string(pcGadgetUC20Yaml)},
+		{"pc-boot.img", "pc-boot.img content"},
+		{"pc-core.img", "pc-core.img content"},
+		{"grubx64.efi", "grubx64.efi content"},
+		{"shim.efi.signed", "shim.efi.signed content"},
+	}
+	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", gadgetFiles, snap.R(1), "my-brand", s.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
-	seed20.MakeSeed(c, "20191119", "my-brand", "my-model", map[string]interface{}{
+	s.seedModel2019 = seed20.MakeSeed(c, "20191119", "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my fancy model",
 		"architecture": "amd64",
 		"base":         "core20",
@@ -713,4 +771,129 @@ func (s *systemsSuite) TestSystemRebootUnhappy(c *check.C) {
 		result := rspBody["result"].(map[string]interface{})
 		c.Check(result["message"], check.Equals, tc.expectedErr)
 	}
+}
+
+// XXX: duplicated from gadget_test.go
+func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
+	goff := offs
+	return &goff
+}
+
+func (s *systemsSuite) TestSystemsGetSpecificLabelNotFound(c *check.C) {
+	s.daemon(c)
+	s.expectRootAccess()
+
+	restore := s.mockSystemSeeds(c)
+	defer restore()
+
+	req, err := http.NewRequest("GET", "/v2/systems/does-not-exist", nil)
+	c.Assert(err, check.IsNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 500)
+	c.Check(rspe.Message, check.Equals, `cannot load assertions for label "does-not-exist": no seed assertions`)
+}
+
+func (s *systemsSuite) TestSystemsGetSpecificLabel(c *check.C) {
+	s.daemon(c)
+	s.expectRootAccess()
+
+	restore := s.mockSystemSeeds(c)
+	defer restore()
+
+	req, err := http.NewRequest("GET", "/v2/systems/20191119", nil)
+	c.Assert(err, check.IsNil)
+	rsp := s.syncReq(c, req, nil)
+
+	c.Assert(rsp.Status, check.Equals, 200)
+	sys := rsp.Result.(daemon.OneSystemsResponse)
+
+	c.Assert(sys, check.DeepEquals, daemon.OneSystemsResponse{
+		Model: clientutil.ModelAssertJSON{
+			Headers: s.seedModel2019.Headers(),
+			Body:    string(s.seedModel2019.Body()),
+		},
+		Volumes: map[string]*gadget.Volume{
+			"pc": {
+				Name:       "pc",
+				Schema:     "gpt",
+				Bootloader: "grub",
+				Structure: []gadget.VolumeStructure{
+					{
+						Name:       "mbr",
+						VolumeName: "pc",
+						Type:       "mbr",
+						Role:       "mbr",
+						Size:       440,
+						Content: []gadget.VolumeContent{
+							{
+								Image: "pc-boot.img",
+							},
+						},
+					},
+					{
+						Name:       "BIOS Boot",
+						VolumeName: "pc",
+						Type:       "DA,21686148-6449-6E6F-744E-656564454649",
+						Size:       1 * quantity.SizeMiB,
+						Offset:     asOffsetPtr(1 * quantity.OffsetMiB),
+						OffsetWrite: &gadget.RelativeOffset{
+							RelativeTo: "mbr",
+							Offset:     92,
+						},
+						Content: []gadget.VolumeContent{
+							{
+								Image: "pc-core.img",
+							},
+						},
+					},
+					{
+						Name:       "ubuntu-seed",
+						Label:      "ubuntu-seed",
+						Role:       "system-seed",
+						VolumeName: "pc",
+						Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+						Size:       1200 * quantity.SizeMiB,
+						Filesystem: "vfat",
+						Content: []gadget.VolumeContent{
+							{
+								UnresolvedSource: "grubx64.efi",
+								Target:           "EFI/boot/grubx64.efi",
+							},
+							{
+								UnresolvedSource: "shim.efi.signed",
+								Target:           "EFI/boot/bootx64.efi",
+							},
+						},
+					},
+					{
+						Name:       "ubuntu-boot",
+						Label:      "ubuntu-boot",
+						Role:       "system-boot",
+						VolumeName: "pc",
+						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						Size:       750 * quantity.SizeMiB,
+						Filesystem: "ext4",
+					},
+					{
+						Name:       "ubuntu-save",
+						Label:      "ubuntu-save",
+						Role:       "system-save",
+						VolumeName: "pc",
+						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						Size:       16 * quantity.SizeMiB,
+						Filesystem: "ext4",
+					},
+					{
+						Name:       "ubuntu-data",
+						Label:      "ubuntu-data",
+						Role:       "system-data",
+						VolumeName: "pc",
+						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						Size:       1 * quantity.SizeGiB,
+						Filesystem: "ext4",
+					},
+				},
+			},
+		},
+	})
 }
