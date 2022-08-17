@@ -630,6 +630,7 @@ func (as *assertsSuite) TestEncoderDecoderHappy(c *C) {
 
 	a, err = decoder.Decode()
 	c.Assert(err, Equals, io.EOF)
+	c.Check(a, IsNil)
 }
 
 func (as *assertsSuite) TestDecodeEmptyStream(c *C) {

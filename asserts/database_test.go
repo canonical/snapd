@@ -1547,6 +1547,7 @@ func (safs *signAddFindSuite) TestFindMaxFormat(c *C) {
 		"primary-key": "foo",
 	}, 3)
 	c.Check(err, ErrorMatches, `cannot find "test-only" assertions for format 3 higher than supported format 1`)
+	c.Check(a, IsNil)
 }
 
 func (safs *signAddFindSuite) TestFindOptionalPrimaryKeys(c *C) {
