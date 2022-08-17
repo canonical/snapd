@@ -35,6 +35,18 @@ backends:
             - opensuse-15.4-64:
             - opensuse-tumbleweed-64:
 
+    google-nested:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-east1-b
+        plan: n2-standard-2
+        halt-timeout: 2h
+        cpu-family: "Intel Cascade Lake"
+        systems:
+            - ubuntu-20.04-64:
+                  image: ubuntu-2004-64-virt-enabled
+                  storage: 20G
+                  workers: 1
 
 path: /root/snapd-testing-tools
 

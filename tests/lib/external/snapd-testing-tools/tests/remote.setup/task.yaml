@@ -1,5 +1,7 @@
 summary: smoke test for the remote.setup tool
 
+backends: [google]
+
 restore: |
     rm -f remote.setup.cfg my-key my-key-2
 
