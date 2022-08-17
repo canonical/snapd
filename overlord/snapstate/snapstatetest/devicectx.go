@@ -24,7 +24,6 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 )
 
 type TrivialDeviceContext struct {
@@ -76,11 +75,11 @@ func (dc *TrivialDeviceContext) HasModeenv() bool {
 }
 
 func (d *TrivialDeviceContext) IsCoreBoot() bool {
-	return d.HasModeenv() || (!d.HasModeenv() && !release.OnClassic)
+	return d.HasModeenv() || !d.Classic()
 }
 
 func (d *TrivialDeviceContext) IsClassicBoot() bool {
-	return release.OnClassic && !d.HasModeenv()
+	return !d.IsCoreBoot()
 }
 
 func (dc *TrivialDeviceContext) RunMode() bool {

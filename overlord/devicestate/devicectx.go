@@ -107,13 +107,12 @@ func (dc groundDeviceContext) HasModeenv() bool {
 // IsCoreBoot is true when there are modes, or when there are not but
 // we are not in classic (UC16/18 case)
 func (d *groundDeviceContext) IsCoreBoot() bool {
-	isCoreLegacy := !d.HasModeenv() && !d.Classic()
-	return d.HasModeenv() || isCoreLegacy
+	return d.HasModeenv() || !d.Classic()
 }
 
 // IsClassicBoot is true for classic systems with classic initramfs
 func (d *groundDeviceContext) IsClassicBoot() bool {
-	return d.Classic() && !d.HasModeenv()
+	return !d.IsCoreBoot()
 }
 
 // expected interface is implemented
