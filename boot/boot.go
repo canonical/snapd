@@ -141,7 +141,9 @@ func Kernel(s snap.PlaceInfo, t snap.Type, dev snap.Device) BootKernel {
 	return trivial{}
 }
 
-func IsBootSnap(dev snap.Device, t snap.Type) bool {
+// SnapTypeAffectsBootForDev finds out if a snap type participates in the
+// boot for a given device
+func SnapTypeAffectsBootForDev(dev snap.Device, t snap.Type) bool {
 	if dev.IsClassicBoot() {
 		return false
 	}
@@ -165,7 +167,7 @@ func IsBootSnap(dev snap.Device, t snap.Type) bool {
 }
 
 func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
-	if !IsBootSnap(dev, t) {
+	if !SnapTypeAffectsBootForDev(dev, t) {
 		return false
 	}
 
