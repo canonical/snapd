@@ -88,7 +88,7 @@ import_backend() {
         #shellcheck disable=SC1090,SC1091
         . "$TOOLS_DIR/tests.pkgs.pacman.sh"
     else
-        echo "tests.pkgs: cannot import packaging backend $1" >&2
+        echo "tests.pkgs: cannot import packaging backend" >&2
         return 1
     fi
 }
