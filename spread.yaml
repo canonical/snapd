@@ -96,7 +96,7 @@ environment:
 backends:
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/us-central1-a
         halt-timeout: 2h
         systems:
             - ubuntu-14.04-64:
@@ -111,6 +111,10 @@ backends:
             - ubuntu-20.04-64:
                   storage: 12G
                   workers: 8
+            - ubuntu-20.04-arm-64:
+                  workers: 6
+                  image: ubuntu-os-cloud/ubuntu-2004-lts-arm64
+                  plan: t2a-standard-1
             - ubuntu-core-16-64:
                   image: ubuntu-16.04-64
                   workers: 6
@@ -132,6 +136,10 @@ backends:
             - ubuntu-22.04-64:
                   storage: 12G
                   workers: 8
+            - ubuntu-22.04-arm-64:
+                  workers: 6
+                  image: ubuntu-os-cloud/ubuntu-2204-lts-arm64
+                  plan: t2a-standard-1
 
             - debian-10-64:
                   workers: 6
