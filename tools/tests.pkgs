@@ -64,40 +64,33 @@ import_backend() {
         TOOLS_DIR="$TESTSTOOLS"
     fi
     
-    case "$1" in
-        ubuntu-core-*)
-            echo "tests.pkgs: Ubuntu Core is not supported" >&2
-            exit 1
-            ;;
-        ubuntu-*|debian-*)
-            # Disabled because when the project is imported as a submodule the
-            # source is not found failing with SC1090 and SC1091
-            #shellcheck disable=SC1090,SC1091
-            . "$TOOLS_DIR/tests.pkgs.apt.sh"
-            ;;
-        fedora-*|centos-*|redhat-*|amazon-*)
-            # Disabled because when the project is imported as a submodule the
-            # source is not found failing with SC1090 and SC1091
-            #shellcheck disable=SC1090,SC1091
-            . "$TOOLS_DIR/tests.pkgs.dnf-yum.sh"
-            ;;
-        opensuse-*)
-            # Disabled because when the project is imported as a submodule the
-            # source is not found failing with SC1090 and SC1091
-            #shellcheck disable=SC1090,SC1091
-            . "$TOOLS_DIR/tests.pkgs.zypper.sh"
-            ;;
-        arch-*)
-            # Disabled because when the project is imported as a submodule the
-            # source is not found failing with SC1090 and SC1091
-            #shellcheck disable=SC1090,SC1091
-            . "$TOOLS_DIR/tests.pkgs.pacman.sh"
-            ;;
-        *)
-            echo "tests.pkgs: cannot import packaging backend $1" >&2
-            exit 1
-            ;;
-    esac
+    if os.query is-core; then
+        echo "tests.pkgs: Ubuntu Core is not supported" >&2
+        return 1
+    elif os.query is-ubuntu || os.query is-debian; then
+        # Disabled because when the project is imported as a submodule the
+        # source is not found failing with SC1090 and SC1091
+        #shellcheck disable=SC1090,SC1091
+        . "$TOOLS_DIR/tests.pkgs.apt.sh"
+    elif os.query is-fedora || os.query is-centos || os.query is-amazon-linux; then
+        # Disabled because when the project is imported as a submodule the
+        # source is not found failing with SC1090 and SC1091
+        #shellcheck disable=SC1090,SC1091
+        . "$TOOLS_DIR/tests.pkgs.dnf-yum.sh"
+    elif os.query is-opensuse; then
+        # Disabled because when the project is imported as a submodule the
+        # source is not found failing with SC1090 and SC1091
+        #shellcheck disable=SC1090,SC1091
+        . "$TOOLS_DIR/tests.pkgs.zypper.sh"
+    elif os.query is-arch-linux; then
+        # Disabled because when the project is imported as a submodule the
+        # source is not found failing with SC1090 and SC1091
+        #shellcheck disable=SC1090,SC1091
+        . "$TOOLS_DIR/tests.pkgs.pacman.sh"
+    else
+        echo "tests.pkgs: cannot import packaging backend" >&2
+        return 1
+    fi
 }
 
 main() {
@@ -106,11 +99,7 @@ main() {
         exit 1
     fi
 
-    if [ -z "${SPREAD_SYSTEM:-}" ]; then
-        echo "tests.pkg: cannot manage packages without knowing SPREAD_SYSTEM" >&2
-        exit 1
-    fi
-    import_backend "$SPREAD_SYSTEM"
+    import_backend
 
     action=
     while [ $# -gt 0 ]; do
