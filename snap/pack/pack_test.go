@@ -515,7 +515,7 @@ volumes:
 func (s *packSuite) TestPackWithCompressionHappy(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 
-	for _, comp := range []string{"", "xz", "lzo"} {
+	for _, comp := range []string{"", "xz", "lzo", "zstd"} {
 		snapfile, err := pack.Pack(sourceDir, &pack.Options{
 			TargetDir:   c.MkDir(),
 			Compression: comp,
@@ -528,7 +528,7 @@ func (s *packSuite) TestPackWithCompressionHappy(c *C) {
 func (s *packSuite) TestPackWithCompressionUnhappy(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 
-	for _, comp := range []string{"gzip", "zstd", "silly"} {
+	for _, comp := range []string{"gzip", "silly"} {
 		snapfile, err := pack.Pack(sourceDir, &pack.Options{
 			TargetDir:   c.MkDir(),
 			Compression: comp,

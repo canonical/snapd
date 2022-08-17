@@ -205,7 +205,7 @@ func Pack(sourceDir string, opts *Options) (string, error) {
 		opts = &Options{}
 	}
 	switch opts.Compression {
-	case "xz", "lzo", "":
+	case "xz", "lzo", "zstd", "":
 		// fine
 	default:
 		return "", fmt.Errorf("cannot use compression %q", opts.Compression)
