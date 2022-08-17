@@ -55,17 +55,14 @@ const maxPostponementBuffer = 5 * 24 * time.Hour
 // to "13 days" left.
 const maxInhibition = 14*24*time.Hour - time.Second
 
+// maxDuration is used to represent "forever" internally (it's 290 years).
+const maxDuration = time.Duration(1<<63 - 1)
+
 // hooks setup by devicestate
 var (
 	CanAutoRefresh        func(st *state.State) (bool, error)
 	CanManageRefreshes    func(st *state.State) bool
 	IsOnMeteredConnection func() (bool, error)
-
-	// refreshRetryDelay specified the minimum time to retry failed refreshes
-	refreshRetryDelay = 20 * time.Minute
-
-	// maxDuration is used to represent "forever" internally (it's 290 years).
-	maxDuration = time.Duration(1<<63 - 1)
 
 	defaultRefreshSchedule = func() []*timeutil.Schedule {
 		refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshScheduleStr)
@@ -75,6 +72,9 @@ var (
 		return refreshSchedule
 	}()
 )
+
+// refreshRetryDelay specified the minimum time to retry failed refreshes
+var refreshRetryDelay = 20 * time.Minute
 
 // refreshCandidate carries information about a single snap to update as part
 // of auto-refresh.
