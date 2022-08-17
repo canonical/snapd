@@ -17,37 +17,8 @@
  *
  */
 
-package testutil
+package strutil
 
-import (
-	"errors"
-
-	"gopkg.in/check.v1"
+var (
+	VersionIsValid = versionIsValid
 )
-
-// ErrorIs calls errors.Is with the provided arguments.
-var ErrorIs = &errorIsChecker{
-	&check.CheckerInfo{Name: "ErrorIs", Params: []string{"error", "target"}},
-}
-
-type errorIsChecker struct {
-	*check.CheckerInfo
-}
-
-func (*errorIsChecker) Check(params []interface{}, names []string) (result bool, errMsg string) {
-	if params[0] == nil {
-		return params[1] == nil, ""
-	}
-
-	err, ok := params[0].(error)
-	if !ok {
-		return false, "first argument must be an error"
-	}
-
-	target, ok := params[1].(error)
-	if !ok {
-		return false, "second argument must be an error"
-	}
-
-	return errors.Is(err, target), ""
-}

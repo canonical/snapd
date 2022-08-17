@@ -85,7 +85,10 @@ func (s *testDBusStream) decodeRequest(req []byte) {
 			// initial NUL byte, ignore
 		case "AUTH\r\n":
 			s.output <- []byte("REJECTED TEST\r\n")
+			// XXX: this "case" can get removed once we moved to a newer version of go-dbus
 		case "AUTH TEST TEST\r\n":
+			s.output <- []byte("OK test://\r\n")
+		case "AUTH TEST\r\n":
 			s.output <- []byte("OK test://\r\n")
 		case "CANCEL\r\n":
 			s.output <- []byte("REJECTED\r\n")

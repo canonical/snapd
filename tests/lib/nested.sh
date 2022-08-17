@@ -476,17 +476,9 @@ nested_get_image_name() {
     local TYPE="$1"
     local SOURCE="${NESTED_CORE_CHANNEL}"
     local NAME="${NESTED_IMAGE_ID:-generic}"
-    local VERSION="16"
+    local VERSION
 
-
-    if nested_is_core_22_system; then
-        VERSION="22"
-    elif nested_is_core_20_system; then
-        VERSION="20"
-    elif nested_is_core_18_system; then
-        VERSION="18"
-    fi
-
+    VERSION="$(nested_get_version)"
     # Use task name to build the image in case the NESTED_IMAGE_ID is unset
     # This scenario is valid on manual tests when it is required to set the NESTED_IMAGE_ID
     if [ "$NAME" = "unset" ]; then
@@ -635,15 +627,16 @@ prepare_kernel() {
     # allow repacking the kernel
     if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
         echo "Repacking kernel snap"
-        local kernel_snap output_name snap_id
+        local kernel_snap output_name snap_id version
         output_name="pc-kernel.snap"
         snap_id="pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+        version="$(nested_get_version)"
 
         if nested_is_core_16_system || nested_is_core_18_system; then
             kernel_snap=pc-kernel-new.snap
             repack_kernel_snap "$kernel_snap"
         elif nested_is_core_20_system || nested_is_core_22_system; then
-            snap download --basename=pc-kernel --channel="$VERSION/edge" pc-kernel
+            snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
 
             # set the unix bump time if the NESTED_* var is set,
             # otherwise leave it empty
@@ -666,6 +659,111 @@ prepare_kernel() {
             make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
         fi
     fi
+}
+
+prepare_gadget() {
+    if [ "$NESTED_REPACK_GADGET_SNAP" = "true" ]; then
+        if nested_is_core_20_system || nested_is_core_22_system; then
+            # Prepare the pc gadget snap (unless provided by extra-snaps)
+            local snap_id version gadget_snap
+            version="$(nested_get_version)"
+            snap_id="UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+
+            existing_snap=$(find "$(nested_get_extra_snaps_path)" -name 'pc_*.snap')
+            if [ -n "$existing_snap" ]; then
+                echo "Using generated pc gadget snap $existing_snap"
+                if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                    make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
+                fi
+                return
+            fi
+
+            # XXX: deal with [ "$NESTED_ENABLE_SECURE_BOOT" != "true" ] && [ "$NESTED_ENABLE_TPM" != "true" ]
+            echo "Repacking pc snap"
+            # Get the snakeoil key and cert
+            local key_name snakeoil_key snakeoil_cert
+            key_name=$(nested_get_snakeoil_key)
+            snakeoil_key="$PWD/$key_name.key"
+            snakeoil_cert="$PWD/$key_name.pem"
+
+            snap download --basename=pc --channel="$version/edge" pc
+            unsquashfs -d pc-gadget pc.snap
+            nested_secboot_sign_gadget pc-gadget "$snakeoil_key" "$snakeoil_cert"
+            case "${NESTED_UBUNTU_SAVE:-}" in
+                add)
+                    # ensure that ubuntu-save is present
+                    nested_ensure_ubuntu_save pc-gadget --add
+                    touch ubuntu-save-added
+                    ;;
+                remove)
+                    # ensure that ubuntu-save is removed
+                    nested_ensure_ubuntu_save pc-gadget --remove
+                    touch ubuntu-save-removed
+                    ;;
+            esac
+
+            # also make logging persistent for easier debugging of
+            # test failures, otherwise we have no way to see what
+            # happened during a failed nested VM boot where we
+            # weren't able to login to a device
+            cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
+            snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
+
+            gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
+            cp "$gadget_snap" "$(nested_get_extra_snaps_path)/pc.snap"
+            rm -f "$PWD/pc.snap" "$snakeoil_key" "$snakeoil_cert"
+        fi
+        # sign the pc gadget snap with fakestore if requested
+        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+            # XXX: this is a bit of a hack, but some nested tests 
+            # need extra bits in their snap declaration, so inject
+            # that here, it could end up being empty in which case
+            # it is ignored
+            make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/pc.snap" "$snap_id"
+        fi
+    fi
+}
+
+prepare_base() {
+    if [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
+        if nested_is_core_16_system; then
+            echo "No base snap to prepare in core 16"
+            return
+        elif nested_is_core_18_system; then
+            snap_name="core18"
+            snap_id="CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
+        elif nested_is_core_20_system; then
+            snap_name="core20"
+            snap_id="DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
+        elif nested_is_core_22_system; then
+            snap_name="core22"
+            snap_id="amcUKQILKXHHTlmSa7NMdnXSx02dNeeT"
+        fi
+
+        existing_snap=$(find "$(nested_get_extra_snaps_path)" -name "${snap_name}*.snap")
+        if [ -n "$existing_snap" ]; then
+            echo "Using generated base snap $existing_snap"
+            if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
+            fi
+            return
+        fi
+        
+        echo "Repacking $snap_name snap"
+        snap download --channel="$CORE_CHANNEL" --basename="$snap_name" "$snap_name"
+        repack_core_snap_with_tweaks "${snap_name}.snap" "new-${snap_name}.snap"
+
+        cp "new-${snap_name}.snap" "$(nested_get_extra_snaps_path)/${snap_name}.snap"
+        # sign the base snap with fakestore if requested
+        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/${snap_name}.snap" "$snap_id"
+        fi
+    fi 
 }
 
 nested_create_core_vm() {
@@ -697,114 +795,11 @@ nested_create_core_vm() {
                 UBUNTU_IMAGE=/snap/bin/ubuntu-image
             fi
 
-            local EXTRA_FUNDAMENTAL=""
             if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
-                if nested_is_core_16_system; then
-                    prepare_snapd
-                    prepare_kernel
-
-                elif nested_is_core_18_system; then
-                    prepare_snapd
-                    prepare_kernel
-
-                    # allow tests to provide their own core18 snap
-                    local CORE18_SNAP
-                    CORE18_SNAP=""
-                    if [ -d "$(nested_get_extra_snaps_path)" ]; then
-                        CORE18_SNAP=$(find extra-snaps -name 'core18*.snap')
-                    fi
-                    if [ -z "$CORE18_SNAP" ] && [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
-                        echo "Repacking core18 snap"
-                        snap download --channel="$CORE_CHANNEL" --basename=core18 core18
-                        repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
-                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
-                        rm core18.snap
-                    fi
-
-                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core18.snap" "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
-                    fi
-
-                elif nested_is_core_20_system || nested_is_core_22_system; then
-                    VERSION="$(nested_get_version)"
-                    prepare_snapd
-                    prepare_kernel
-
-                    # Prepare the pc gadget snap (unless provided by extra-snaps)
-                    local GADGET_SNAP
-                    GADGET_SNAP=""
-                    if [ -d "$(nested_get_extra_snaps_path)" ]; then
-                        GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
-                    fi
-                    # XXX: deal with [ "$NESTED_ENABLE_SECURE_BOOT" != "true" ] && [ "$NESTED_ENABLE_TPM" != "true" ]
-                    if [ -z "$GADGET_SNAP" ] && [ "$NESTED_REPACK_GADGET_SNAP" = "true" ]; then
-                        echo "Repacking pc snap"
-                        # Get the snakeoil key and cert
-                        local KEY_NAME SNAKEOIL_KEY SNAKEOIL_CERT
-                        KEY_NAME=$(nested_get_snakeoil_key)
-                        SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-                        SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-
-                        snap download --basename=pc --channel="$VERSION/edge" pc
-                        unsquashfs -d pc-gadget pc.snap
-                        nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                        case "${NESTED_UBUNTU_SAVE:-}" in
-                            add)
-                                # ensure that ubuntu-save is present
-                                nested_ensure_ubuntu_save pc-gadget --add
-                                touch ubuntu-save-added
-                                ;;
-                            remove)
-                                # ensure that ubuntu-save is removed
-                                nested_ensure_ubuntu_save pc-gadget --remove
-                                touch ubuntu-save-removed
-                                ;;
-                        esac
-
-                        # also make logging persistent for easier debugging of
-                        # test failures, otherwise we have no way to see what
-                        # happened during a failed nested VM boot where we
-                        # weren't able to login to a device
-                        cat >> pc-gadget/meta/gadget.yaml << EOF
-defaults:
-  system:
-    journal:
-      persistent: true
-EOF
-                        snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
-
-                        GADGET_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
-                        rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
-                    fi
-                    # sign the pc gadget snap with fakestore if requested
-                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        # XXX: this is a bit of a hack, but some nested tests 
-                        # need extra bits in their snap declaration, so inject
-                        # that here, it could end up being empty in which case
-                        # it is ignored
-                        make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$GADGET_SNAP" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
-                    fi
-
-                    if [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
-                        snap download --channel="$CORE_CHANNEL" --basename="core$VERSION" "core$VERSION"
-                        repack_core_snap_with_tweaks "core$VERSION.snap" "new-core$VERSION.snap"
-                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core$VERSION.snap"
-                    fi
-
-                    # sign the snapd snap with fakestore if requested
-                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        CORE_SNAP_IP=DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
-                        if nested_is_core_22_system; then
-                            CORE_SNAP_IP=amcUKQILKXHHTlmSa7NMdnXSx02dNeeT
-                        fi
-                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core${VERSION}.snap" "$CORE_SNAP_IP"
-                    fi
-
-                else
-                    echo "unknown nested core system (host is $(lsb_release -cs) )"
-                    exit 1
-                fi
+                prepare_snapd
+                prepare_kernel
+                prepare_gadget
+                prepare_base
             fi
 
             # Invoke ubuntu image
@@ -837,12 +832,12 @@ EOF
             fi
             # ubuntu-image creates sparse image files
             # shellcheck disable=SC2086
-            "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
+            "$UBUNTU_IMAGE" snap --image-size 10G --validation=enforce \
+               "$NESTED_MODEL" \
                 $UBUNTU_IMAGE_CHANNEL_ARG \
                 "${UBUNTU_IMAGE_PRESEED_ARGS[@]:-}" \
                 --output-dir "$NESTED_IMAGES_DIR" \
                 --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" \
-                $EXTRA_FUNDAMENTAL \
                 $EXTRA_SNAPS
 
             # ubuntu-image dropped the --output parameter, so we have to rename
