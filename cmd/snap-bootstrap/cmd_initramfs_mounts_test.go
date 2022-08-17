@@ -2368,10 +2368,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 	})
 	defer restore()
 
-	// secbootProvisionTPMCVM not mocked (as if this is second boot)
+	// Mock the call to TPMCVM, to ensure that TPM provisioning is
+	// done before unlock attempt
+	provisionTPMCVMCalled := false
+	restore = main.MockSecbootProvisionTPMCVM(func(_ string) error {
+		provisionTPMCVMCalled = true
+		return nil
+	})
+	defer restore()
 
 	cloudimgActivated := false
 	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+		c.Assert(provisionTPMCVMCalled, Equals, true)
 		c.Assert(name, Equals, "cloudimg-rootfs")
 		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/cloudimg-rootfs.sealed-key"))
 		c.Assert(opts.AllowRecoveryKey, Equals, true)
@@ -2422,6 +2430,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 		},
 	})
 
+	c.Check(provisionTPMCVMCalled, Equals, true)
 	c.Check(cloudimgActivated, Equals, true)
 }
 
