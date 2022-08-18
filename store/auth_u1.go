@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,13 +23,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 
 	"gopkg.in/macaroon.v1"
 
-	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/snapdenv"
 )
 
@@ -46,28 +44,98 @@ var (
 	UbuntuoneRefreshDischargeAPI = ubuntuoneAPIBase + "/tokens/refresh"
 )
 
-// a stringList is something that can be deserialized from a JSON
-// []string or a string, like the values of the "extra" documents in
-// error responses
-type stringList []string
+// UserAuthorizer authorizes requests using user credentials managed via
+// the DeviceAndAuthContext.
+type UserAuthorizer struct{}
 
-func (sish *stringList) UnmarshalJSON(bs []byte) error {
-	var ss []string
-	e1 := json.Unmarshal(bs, &ss)
-	if e1 == nil {
-		*sish = stringList(ss)
+func (a UserAuthorizer) Authorize(r *http.Request, _ DeviceAndAuthContext, user *auth.UserState, _ *AuthorizeOptions) error {
+	// only set user authentication if user logged in to the store
+	if !user.HasStoreAuth() {
 		return nil
 	}
 
-	var s string
-	e2 := json.Unmarshal(bs, &s)
-	if e2 == nil {
-		*sish = stringList([]string{s})
-		return nil
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, `Macaroon root="%s"`, user.StoreMacaroon)
+
+	// deserialize root macaroon (we need its signature to do the discharge binding)
+	root, err := auth.MacaroonDeserialize(user.StoreMacaroon)
+	if err != nil {
+		return fmt.Errorf("cannot deserialize root macaroon: %v", err)
 	}
 
-	return e1
+	for _, d := range user.StoreDischarges {
+		// prepare discharge for request
+		discharge, err := auth.MacaroonDeserialize(d)
+		if err != nil {
+			return fmt.Errorf("cannot deserialize discharge macaroon: %v", err)
+		}
+		discharge.Bind(root.Signature())
+
+		serializedDischarge, err := auth.MacaroonSerialize(discharge)
+		if err != nil {
+			return fmt.Errorf("cannot re-serialize discharge macaroon: %v", err)
+		}
+		fmt.Fprintf(&buf, `, discharge="%s"`, serializedDischarge)
+	}
+	r.Header.Set("Authorization", buf.String())
+	return nil
 }
+
+func (a UserAuthorizer) RefreshAuth(need AuthRefreshNeed, dauthCtx DeviceAndAuthContext, user *auth.UserState, client *http.Client) error {
+	if user == nil || !need.User {
+		return nil
+	}
+	// refresh user
+	return a.RefreshUser(user, dauthCtx, client)
+}
+
+type UserAuthUpdater interface {
+	UpdateUserAuth(user *auth.UserState, discharges []string) (actual *auth.UserState, err error)
+}
+
+// RefreshUser will refresh user discharge macaroon and update state via the UserAuthUpdater.
+func (a UserAuthorizer) RefreshUser(user *auth.UserState, upd UserAuthUpdater, client *http.Client) error {
+	if upd == nil {
+		return fmt.Errorf("user credentials need to be refreshed but update in place only supported in snapd")
+	}
+	newDischarges, err := refreshDischarges(client, user)
+	if err != nil {
+		return err
+	}
+
+	curUser, err := upd.UpdateUserAuth(user, newDischarges)
+	if err != nil {
+		return err
+	}
+	// update in place
+	*user = *curUser
+
+	return nil
+}
+
+// refreshDischarges will request refreshed discharge macaroons for the user
+func refreshDischarges(httpClient *http.Client, user *auth.UserState) ([]string, error) {
+	newDischarges := make([]string, len(user.StoreDischarges))
+	for i, d := range user.StoreDischarges {
+		discharge, err := auth.MacaroonDeserialize(d)
+		if err != nil {
+			return nil, err
+		}
+		if discharge.Location() != UbuntuoneLocation {
+			newDischarges[i] = d
+			continue
+		}
+
+		refreshedDischarge, err := refreshDischargeMacaroon(httpClient, d)
+		if err != nil {
+			return nil, err
+		}
+		newDischarges[i] = refreshedDischarge
+	}
+	return newDischarges, nil
+}
+
+// lower-level helpers
 
 type ssoMsg struct {
 	Code    string                `json:"code"`
@@ -98,28 +166,6 @@ func loginCaveatID(m *macaroon.Macaroon) (string, error) {
 		return "", fmt.Errorf("missing login caveat")
 	}
 	return caveatID, nil
-}
-
-// retryPostRequestDecodeJSON calls retryPostRequest and decodes the response into either success or failure.
-func retryPostRequestDecodeJSON(httpClient *http.Client, endpoint string, headers map[string]string, data []byte, success interface{}, failure interface{}) (resp *http.Response, err error) {
-	return retryPostRequest(httpClient, endpoint, headers, data, func(resp *http.Response) error {
-		return decodeJSONBody(resp, success, failure)
-	})
-}
-
-// retryPostRequest calls doRequest and decodes the response in a retry loop.
-func retryPostRequest(httpClient *http.Client, endpoint string, headers map[string]string, data []byte, readResponseBody func(resp *http.Response) error) (*http.Response, error) {
-	return httputil.RetryRequest(endpoint, func() (*http.Response, error) {
-		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
-		if err != nil {
-			return nil, err
-		}
-		for k, v := range headers {
-			req.Header.Set(k, v)
-		}
-
-		return httpClient.Do(req)
-	}, readResponseBody, defaultRetryStrategy)
 }
 
 // requestStoreMacaroon requests a macaroon for accessing package data from the ubuntu store.
@@ -237,85 +283,4 @@ func refreshDischargeMacaroon(httpClient *http.Client, discharge string) (string
 	}
 
 	return requestDischargeMacaroon(httpClient, UbuntuoneRefreshDischargeAPI, data)
-}
-
-// requestStoreDeviceNonce requests a nonce for device authentication against the store.
-func requestStoreDeviceNonce(httpClient *http.Client, deviceNonceEndpoint string) (string, error) {
-	const errorPrefix = "cannot get nonce from store: "
-
-	var responseData struct {
-		Nonce string `json:"nonce"`
-	}
-
-	headers := map[string]string{
-		"User-Agent": snapdenv.UserAgent(),
-		"Accept":     "application/json",
-	}
-	resp, err := retryPostRequestDecodeJSON(httpClient, deviceNonceEndpoint, headers, nil, &responseData, nil)
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
-
-	// check return code, error on anything !200
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
-	}
-
-	if responseData.Nonce == "" {
-		return "", fmt.Errorf(errorPrefix + "empty nonce returned")
-	}
-	return responseData.Nonce, nil
-}
-
-type deviceSessionRequestParamsEncoder interface {
-	EncodedRequest() string
-	EncodedSerial() string
-	EncodedModel() string
-}
-
-// requestDeviceSession requests a device session macaroon from the store.
-func requestDeviceSession(httpClient *http.Client, deviceSessionEndpoint string, paramsEncoder deviceSessionRequestParamsEncoder, previousSession string) (string, error) {
-	const errorPrefix = "cannot get device session from store: "
-
-	data := map[string]string{
-		"device-session-request": paramsEncoder.EncodedRequest(),
-		"serial-assertion":       paramsEncoder.EncodedSerial(),
-		"model-assertion":        paramsEncoder.EncodedModel(),
-	}
-	var err error
-	deviceJSONData, err := json.Marshal(data)
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
-
-	var responseData struct {
-		Macaroon string `json:"macaroon"`
-	}
-
-	headers := map[string]string{
-		"User-Agent":   snapdenv.UserAgent(),
-		"Accept":       "application/json",
-		"Content-Type": "application/json",
-	}
-	if previousSession != "" {
-		headers["X-Device-Authorization"] = fmt.Sprintf(`Macaroon root="%s"`, previousSession)
-	}
-
-	_, err = retryPostRequest(httpClient, deviceSessionEndpoint, headers, deviceJSONData, func(resp *http.Response) error {
-		if resp.StatusCode == 200 || resp.StatusCode == 202 {
-			return json.NewDecoder(resp.Body).Decode(&responseData)
-		}
-		body, _ := ioutil.ReadAll(io.LimitReader(resp.Body, 1e6)) // do our best to read the body
-		return fmt.Errorf("store server returned status %d and body %q", resp.StatusCode, body)
-	})
-	if err != nil {
-		return "", fmt.Errorf(errorPrefix+"%v", err)
-	}
-	// TODO: retry at least once on 400
-
-	if responseData.Macaroon == "" {
-		return "", fmt.Errorf(errorPrefix + "empty session returned")
-	}
-
-	return responseData.Macaroon, nil
 }
