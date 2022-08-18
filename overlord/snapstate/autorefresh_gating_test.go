@@ -1708,7 +1708,7 @@ func (s *autorefreshGatingSuite) TestHoldRefreshIndefinitely(c *C) {
 	})
 	defer restore()
 
-	err = snapstate.HoldRefreshes(s.state, "forever", []string{"some-snap"})
+	err = snapstate.HoldRefreshesBySystem(s.state, "forever", []string{"some-snap"})
 	c.Assert(err, IsNil)
 
 	var gating map[string]map[string]*snapstate.HoldState
@@ -2715,7 +2715,7 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnapNoCandidatesAnymore
 	c.Check(logbuf.String(), testutil.Contains, `auto-refresh: all snaps previously held by "snap-b" are up-to-date`)
 }
 
-func (s *autorefreshGatingSuite) TestHoldRefreshSystem(c *C) {
+func (s *autorefreshGatingSuite) TestHoldRefreshesBySystem(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -2729,13 +2729,14 @@ func (s *autorefreshGatingSuite) TestHoldRefreshSystem(c *C) {
 
 	mockInstalledSnap(c, st, snapAyaml, false)
 
+	// advance time 100 years into the future
 	hold := time.Hour * 24 * 3
 	// holding self for 3 days
 	_, err = snapstate.HoldRefresh(st, "snap-a", hold, "snap-a")
 	c.Assert(err, IsNil)
 
 	// the user holds the snap for a long time
-	err = snapstate.HoldRefreshes(st, "9999-01-01T00:00:00Z", []string{"snap-a"})
+	err = snapstate.HoldRefreshesBySystem(st, "9999-01-01T00:00:00Z", []string{"snap-a"})
 	c.Assert(err, IsNil)
 
 	var gating map[string]map[string]*snapstate.HoldState
@@ -2755,7 +2756,7 @@ func (s *autorefreshGatingSuite) TestHoldRefreshSystem(c *C) {
 	c.Check(untilTime.Equal(snapAUntilTime), Equals, true)
 }
 
-func (s *autorefreshGatingSuite) TestSnapsHeldForeverBySystem(c *C) {
+func (s *autorefreshGatingSuite) TestSnapsCanBeHeldForeverBySystem(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -2772,6 +2773,7 @@ func (s *autorefreshGatingSuite) TestSnapsHeldForeverBySystem(c *C) {
 	_, err := snapstate.HoldRefresh(st, "system", snapstate.MaxDuration, "snap-a")
 	c.Assert(err, IsNil)
 
+	// advance time 100 years into the future
 	timeNow = timeNow.Add(100 * 365 * 24 * time.Hour)
 
 	gatedSnaps, err := snapstate.HeldSnaps(st)

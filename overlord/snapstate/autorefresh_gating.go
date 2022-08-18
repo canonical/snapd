@@ -144,8 +144,10 @@ func holdDurationLeft(now time.Time, lastRefresh, firstHeld time.Time, maxDurati
 	return d2
 }
 
-// HoldRefreshes holds the snaps with "system" as the gating snap.
-func HoldRefreshes(st *state.State, holdTime string, holdSnaps []string) error {
+// HoldRefreshesBySystem is used to hold snaps by the sys admin (denoted by the
+// "system" holding snap). HoldTime can be "forever" to denote an indefinite hold
+// or any RFC3339 timestamp.
+func HoldRefreshesBySystem(st *state.State, holdTime string, holdSnaps []string) error {
 	snaps, err := All(st)
 	if err != nil {
 		return err
@@ -157,7 +159,8 @@ func HoldRefreshes(st *state.State, holdTime string, holdSnaps []string) error {
 		}
 	}
 
-	holdDuration := maxDuration
+	// zero value durations denote max allowed time in HoldRefresh
+	var holdDuration time.Duration
 	if holdTime != "forever" {
 		holdTime, err := time.Parse(time.RFC3339, holdTime)
 		if err != nil {
@@ -186,10 +189,12 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 		SnapsInError: make(map[string]HoldDurationError),
 	}
 
-	var durationMin, left time.Duration
+	var durationMin time.Duration
 
 	now := timeNow()
 	for _, heldSnap := range affectingSnaps {
+		var left time.Duration
+
 		hold, ok := gating[heldSnap][gatingSnap]
 		if !ok {
 			hold = &holdState{

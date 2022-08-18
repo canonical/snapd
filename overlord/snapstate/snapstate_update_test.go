@@ -8800,7 +8800,7 @@ func (s *snapmgrTestSuite) TestGeneralRefreshSkipsGatedSnaps(c *C) {
 		})
 	}
 
-	err := snapstate.HoldRefreshes(s.state, "forever", []string{"some-snap"})
+	err := snapstate.HoldRefreshesBySystem(s.state, "forever", []string{"some-snap"})
 	c.Assert(err, IsNil)
 
 	// advance time by a year (the last refreshed is determined by the snap file's
