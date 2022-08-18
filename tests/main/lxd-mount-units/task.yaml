@@ -30,8 +30,13 @@ execute: |
         lxd.lxc config set core.proxy_https "$http_proxy"
     fi
 
-    CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
-    lxc launch --quiet "images:ubuntu/$CODENAME" ubuntu
+    # There isn't an image for kinetic yet, let's just check that lxd snap can be installed
+    if os.query is-ubuntu 22.10; then
+        exit
+    fi
+
+    VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
+    lxd.lxc launch --quiet "ubuntu:$VERSION_ID" ubuntu
 
     echo "Setting up proxy *inside* the container"
     if [ -n "${http_proxy:-}" ]; then
