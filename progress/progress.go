@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -101,11 +101,10 @@ var isTerminal = func() bool {
 // which it is called:
 //
 // * if MockMeter has been called, return that.
-// * if no terminal is attached, or we think we're running a test, a
-//   minimalistic QuietMeter is returned.
+// * if w is not nil nor os.Stdout, a QuietMeter outputting to it is returned.
+// * if no terminal is attached, or we think we're running a test,
+//   a minimalistic QuietMeter outputting to stdout is returned.
 // * otherwise, an ANSIMeter is returned.
-//
-// TODO: instead of making the pivot at creation time, do it at every call.
 func MakeProgressBar(w io.Writer) Meter {
 	if testMeter != nil {
 		return testMeter
