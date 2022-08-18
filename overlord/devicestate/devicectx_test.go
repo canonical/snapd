@@ -42,6 +42,15 @@ var _ = Suite(&deviceCtxSuite{})
 func (s *deviceCtxSuite) SetUpTest(c *C) {
 }
 
+func testGroundDeviceContextCommonChecks(c *C, devCtx snapstate.DeviceContext) {
+	c.Check(devCtx.RunMode(), Equals, true)
+	c.Check(devCtx.GroundContext(), Equals, devCtx)
+	c.Check(func() { devCtx.Store() }, PanicMatches,
+		"retrieved ground context is not intended to drive store operations")
+	c.Check(devCtx.ForRemodeling(), Equals, false)
+	c.Check(devCtx.SystemMode(), Equals, "run")
+}
+
 func (s *deviceCtxSuite) TestGroundDeviceContext(c *C) {
 	var devCtx snapstate.DeviceContext
 
@@ -58,7 +67,6 @@ func (s *deviceCtxSuite) TestGroundDeviceContext(c *C) {
 		"timestamp":    "2018-01-01T08:00:00+00:00",
 	}).(*asserts.Model)
 	devCtx = devicestate.BuildGroundDeviceContext(classModel, "run")
-	c.Check(devCtx.RunMode(), Equals, true)
 	c.Check(devCtx.Classic(), Equals, true)
 	c.Check(devCtx.Kernel(), Equals, "")
 	c.Check(devCtx.Base(), Equals, "")
@@ -67,6 +75,7 @@ func (s *deviceCtxSuite) TestGroundDeviceContext(c *C) {
 	c.Check(devCtx.IsCoreBoot(), Equals, false)
 	c.Check(devCtx.IsClassicBoot(), Equals, true)
 	c.Check(devCtx.Model(), DeepEquals, classModel)
+	testGroundDeviceContextCommonChecks(c, devCtx)
 
 	// UC16/18
 	legacyUCModel := boottest.MakeMockModel()
@@ -80,6 +89,7 @@ func (s *deviceCtxSuite) TestGroundDeviceContext(c *C) {
 	c.Check(devCtx.IsCoreBoot(), Equals, true)
 	c.Check(devCtx.IsClassicBoot(), Equals, false)
 	c.Check(devCtx.Model(), DeepEquals, legacyUCModel)
+	testGroundDeviceContextCommonChecks(c, devCtx)
 
 	// UC20+
 	ucModel := boottest.MakeMockUC20Model()
@@ -93,6 +103,7 @@ func (s *deviceCtxSuite) TestGroundDeviceContext(c *C) {
 	c.Check(devCtx.IsCoreBoot(), Equals, true)
 	c.Check(devCtx.IsClassicBoot(), Equals, false)
 	c.Check(devCtx.Model(), DeepEquals, ucModel)
+	testGroundDeviceContextCommonChecks(c, devCtx)
 
 	// Classic with modes
 	classWithModes := boottest.MakeMockClassicWithModesModel()
@@ -106,4 +117,5 @@ func (s *deviceCtxSuite) TestGroundDeviceContext(c *C) {
 	c.Check(devCtx.IsCoreBoot(), Equals, true)
 	c.Check(devCtx.IsClassicBoot(), Equals, false)
 	c.Check(devCtx.Model(), DeepEquals, classWithModes)
+	testGroundDeviceContextCommonChecks(c, devCtx)
 }
