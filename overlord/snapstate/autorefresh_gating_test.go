@@ -2756,6 +2756,20 @@ func (s *autorefreshGatingSuite) TestHoldRefreshesBySystem(c *C) {
 	c.Check(untilTime.Equal(snapAUntilTime), Equals, true)
 }
 
+func (s *autorefreshGatingSuite) TestHoldRefreshesBySystemFailsIfNotInstalled(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+
+	err := snapstate.HoldRefreshesBySystem(st, "3000-01-01T00:00:00Z", []string{"snap-a", "snap-b"})
+	c.Assert(err, ErrorMatches, `snap "snap-b" is not installed`)
+
+	var gating map[string]map[string]*snapstate.HoldState
+	c.Assert(st.Get("snaps-hold", &gating), ErrorMatches, `no state entry for key \"snaps-hold\"`)
+}
+
 func (s *autorefreshGatingSuite) TestSnapsCanBeHeldForeverBySystem(c *C) {
 	st := s.state
 	st.Lock()
