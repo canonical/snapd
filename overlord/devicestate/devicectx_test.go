@@ -42,9 +42,10 @@ var _ = Suite(&deviceCtxSuite{})
 func (s *deviceCtxSuite) SetUpTest(c *C) {
 }
 
-func (s *deviceCtxSuite) TestInUseClassic(c *C) {
+func (s *deviceCtxSuite) TestGroundDeviceContext(c *C) {
 	var devCtx snapstate.DeviceContext
 
+	// Classic with classic initramfs
 	classModel := assertstest.FakeAssertion(map[string]interface{}{
 		"type":         "model",
 		"classic":      "true",
@@ -67,6 +68,7 @@ func (s *deviceCtxSuite) TestInUseClassic(c *C) {
 	c.Check(devCtx.IsClassicBoot(), Equals, true)
 	c.Check(devCtx.Model(), DeepEquals, classModel)
 
+	// UC16/18
 	legacyUCModel := boottest.MakeMockModel()
 	devCtx = devicestate.BuildGroundDeviceContext(legacyUCModel, "run")
 	c.Check(devCtx.RunMode(), Equals, true)
@@ -79,6 +81,7 @@ func (s *deviceCtxSuite) TestInUseClassic(c *C) {
 	c.Check(devCtx.IsClassicBoot(), Equals, false)
 	c.Check(devCtx.Model(), DeepEquals, legacyUCModel)
 
+	// UC20+
 	ucModel := boottest.MakeMockUC20Model()
 	devCtx = devicestate.BuildGroundDeviceContext(ucModel, "run")
 	c.Check(devCtx.RunMode(), Equals, true)
@@ -91,6 +94,7 @@ func (s *deviceCtxSuite) TestInUseClassic(c *C) {
 	c.Check(devCtx.IsClassicBoot(), Equals, false)
 	c.Check(devCtx.Model(), DeepEquals, ucModel)
 
+	// Classic with modes
 	classWithModes := boottest.MakeMockClassicWithModesModel()
 	devCtx = devicestate.BuildGroundDeviceContext(classWithModes, "run")
 	c.Check(devCtx.RunMode(), Equals, true)
