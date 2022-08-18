@@ -122,6 +122,7 @@ func downloadDirectImpl(snapName string, revision snap.Revision, dlOpts tooling.
 	if err != nil {
 		return err
 	}
+	tsto.Stdout = Stdout
 
 	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
 	dlSnap, err := tsto.DownloadSnap(snapName, dlOpts)

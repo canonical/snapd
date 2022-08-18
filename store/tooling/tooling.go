@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -49,6 +50,10 @@ import (
 
 // ToolingStore wraps access to the store for tools.
 type ToolingStore struct {
+	// Stdout is for output, mainly progress bars
+	// left unset stdout is used
+	Stdout io.Writer
+
 	sto  StoreImpl
 	user *auth.UserState
 }
@@ -335,7 +340,7 @@ func (tsto *ToolingStore) snapDownload(targetFn string, sar *store.SnapActionRes
 		logger.Debugf("File exists but has wrong hash, ignoring (here).")
 	}
 
-	pb := progress.MakeProgressBar()
+	pb := progress.MakeProgressBar(tsto.Stdout)
 	defer pb.Finished()
 
 	// Intercept sigint
