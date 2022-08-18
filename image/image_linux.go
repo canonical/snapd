@@ -138,6 +138,7 @@ func Prepare(opts *Options) error {
 	if err != nil {
 		return err
 	}
+	tsto.Stdout = Stdout
 
 	// FIXME: limitation until we can pass series parametrized much more
 	if model.Series() != release.Series {
