@@ -110,7 +110,8 @@ func (d *groundDeviceContext) IsCoreBoot() bool {
 	return d.HasModeenv() || !d.Classic()
 }
 
-// IsClassicBoot is true for classic systems with classic initramfs
+// IsClassicBoot is true for classic systems with classic initramfs (there
+// are no system modes in this case)
 func (d *groundDeviceContext) IsClassicBoot() bool {
 	return !d.IsCoreBoot()
 }
