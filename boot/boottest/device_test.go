@@ -85,13 +85,15 @@ func (s *boottestSuite) TestMockDeviceBaseOrKernel(c *C) {
 }
 
 func (s *boottestSuite) testMockDeviceWithModes(c *C, isUC bool) {
-	mockBuilder := boottest.MockClassicWithModesDevice
+	makeMockModel := boottest.MakeMockClassicWithModesModel
+	makeMockDevice := boottest.MockClassicWithModesDevice
 	modelName := "my-model-classic-modes"
 	if isUC {
-		mockBuilder = boottest.MockUC20Device
+		makeMockModel = boottest.MakeMockUC20Model
+		makeMockDevice = boottest.MockUC20Device
 		modelName = "my-model-uc20"
 	}
-	dev := mockBuilder("", nil)
+	dev := makeMockDevice("", nil)
 	c.Check(dev.HasModeenv(), Equals, true)
 	c.Check(dev.Classic(), Equals, !isUC)
 	c.Check(dev.RunMode(), Equals, true)
@@ -103,13 +105,13 @@ func (s *boottestSuite) testMockDeviceWithModes(c *C, isUC bool) {
 
 	c.Check(dev.Model().Model(), Equals, modelName)
 
-	dev = mockBuilder("run", nil)
+	dev = makeMockDevice("run", nil)
 	c.Check(dev.RunMode(), Equals, true)
 
-	dev = mockBuilder("recover", nil)
+	dev = makeMockDevice("recover", nil)
 	c.Check(dev.RunMode(), Equals, false)
 
-	model := boottest.MakeMockUC20Model(map[string]interface{}{
+	model := makeMockModel(map[string]interface{}{
 		"model": "other-model-uc20",
 		"snaps": []interface{}{
 			map[string]interface{}{
@@ -124,7 +126,7 @@ func (s *boottestSuite) testMockDeviceWithModes(c *C, isUC bool) {
 			},
 		},
 	})
-	dev = mockBuilder("recover", model)
+	dev = makeMockDevice("recover", model)
 	c.Check(dev.RunMode(), Equals, false)
 	c.Check(dev.Kernel(), Equals, "pc-linux")
 	c.Check(dev.Model().Model(), Equals, "other-model-uc20")

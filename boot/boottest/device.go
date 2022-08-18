@@ -82,7 +82,7 @@ func mockDeviceWithModes(mode string, model *asserts.Model, isClassic bool) snap
 // MockUC20Device mocks a UC with modes device.
 // Arguments are mode (empty means "run"), and model.
 func MockUC20Device(mode string, model *asserts.Model) snap.Device {
-	if model.Classic() {
+	if model != nil && model.Classic() {
 		panic("MockUC20Device called with classic model")
 	}
 	isClassic := false
@@ -92,7 +92,7 @@ func MockUC20Device(mode string, model *asserts.Model) snap.Device {
 // MockClassicWithModesDevice mocks a classic with modes device.
 // Arguments are mode (empty means "run"), and model.
 func MockClassicWithModesDevice(mode string, model *asserts.Model) snap.Device {
-	if !model.Classic() {
+	if model != nil && !model.Classic() {
 		panic("MockClassicWithModesDevice called with Ubuntu Core model")
 	}
 	isClassic := true
