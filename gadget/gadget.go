@@ -95,7 +95,7 @@ var (
 )
 
 type Info struct {
-	Volumes map[string]*Volume `yaml:"volumes,omitempty"`
+	Volumes map[string]*Volume `yaml:"volumes,omitempty" json:"volumes,omitempty"`
 
 	// Default configuration for snaps (snap-id => key => value).
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
@@ -107,13 +107,13 @@ type Info struct {
 // block device.
 type Volume struct {
 	// Schema describes the schema used for the volume
-	Schema string `yaml:"schema"`
+	Schema string `yaml:"schema" json:"schema"`
 	// Bootloader names the bootloader used by the volume
-	Bootloader string `yaml:"bootloader"`
+	Bootloader string `yaml:"bootloader" json:"bootloader"`
 	//  ID is a 2-hex digit disk ID or GPT GUID
-	ID string `yaml:"id"`
+	ID string `yaml:"id" json:"id"`
 	// Structure describes the structures that are part of the volume
-	Structure []VolumeStructure `yaml:"structure"`
+	Structure []VolumeStructure `yaml:"structure" json:"structure"`
 	// Name is the name of the volume from the gadget.yaml
 	Name string
 }
@@ -125,17 +125,17 @@ type VolumeStructure struct {
 	// VolumeName is the name of the volume that this structure belongs to.
 	VolumeName string
 	// Name, when non empty, provides the name of the structure
-	Name string `yaml:"name"`
+	Name string `yaml:"name" json:"name"`
 	// Label provides the filesystem label
-	Label string `yaml:"filesystem-label"`
+	Label string `yaml:"filesystem-label" json:"filesystem-label"`
 	// Offset defines a starting offset of the structure
-	Offset *quantity.Offset `yaml:"offset"`
+	Offset *quantity.Offset `yaml:"offset" json:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
 	// the offset of current structure will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
-	OffsetWrite *RelativeOffset `yaml:"offset-write"`
+	OffsetWrite *RelativeOffset `yaml:"offset-write" json:"offset-write"`
 	// Size of the structure
-	Size quantity.Size `yaml:"size"`
+	Size quantity.Size `yaml:"size" json:"size"`
 	// Type of the structure, which can be 2-hex digit MBR partition,
 	// 36-char GUID partition, comma separated <mbr>,<guid> for hybrid
 	// partitioning schemes, or 'bare' when the structure is not considered
@@ -143,21 +143,21 @@ type VolumeStructure struct {
 	//
 	// For backwards compatibility type 'mbr' is also accepted, and the
 	// structure is treated as if it is of role 'mbr'.
-	Type string `yaml:"type"`
+	Type string `yaml:"type" json:"type"`
 	// Role describes the role of given structure, can be one of
 	// 'mbr', 'system-data', 'system-boot', 'system-boot-image',
 	// 'system-boot-select' or 'system-recovery-select'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
-	Role string `yaml:"role"`
+	Role string `yaml:"role" json:"role"`
 	// ID is the GPT partition ID, this should always be made upper case for
 	// comparison purposes.
-	ID string `yaml:"id"`
+	ID string `yaml:"id" json:"id"`
 	// Filesystem used for the partition, 'vfat', 'ext4' or 'none' for
 	// structures of type 'bare'
-	Filesystem string `yaml:"filesystem"`
+	Filesystem string `yaml:"filesystem" json:"filesystem"`
 	// Content of the structure
-	Content []VolumeContent `yaml:"content"`
-	Update  VolumeUpdate    `yaml:"update"`
+	Content []VolumeContent `yaml:"content" json:"content"`
+	Update  VolumeUpdate    `yaml:"update" json:"update"`
 }
 
 // HasFilesystem returns true if the structure is using a filesystem.
@@ -177,24 +177,24 @@ func (vs *VolumeStructure) IsPartition() bool {
 type VolumeContent struct {
 	// UnresovedSource is the data of the partition relative to
 	// the gadget base directory
-	UnresolvedSource string `yaml:"source"`
+	UnresolvedSource string `yaml:"source" json:"source"`
 	// Target is the location of the data inside the root filesystem
-	Target string `yaml:"target"`
+	Target string `yaml:"target" json:"target"`
 
 	// Image names the image, relative to gadget base directory, to be used
 	// for a 'bare' type structure
-	Image string `yaml:"image"`
+	Image string `yaml:"image" json:"image"`
 	// Offset the image is written at
-	Offset *quantity.Offset `yaml:"offset"`
+	Offset *quantity.Offset `yaml:"offset" json:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
 	// the offset of current image will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
-	OffsetWrite *RelativeOffset `yaml:"offset-write"`
+	OffsetWrite *RelativeOffset `yaml:"offset-write" json:"offset-write"`
 	// Size of the image, when empty size is calculated by looking at the
 	// image
-	Size quantity.Size `yaml:"size"`
+	Size quantity.Size `yaml:"size" json:"size"`
 
-	Unpack bool `yaml:"unpack"`
+	Unpack bool `yaml:"unpack" json:"unpack"`
 }
 
 func (vc VolumeContent) String() string {

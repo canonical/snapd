@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -3602,4 +3603,20 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsImplicitSystemDataHap
 	c.Assert(traitsMap, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
 		"pc": gadgettest.UC16ImplicitSystemDataDeviceTraits,
 	})
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
+	tagsEqual := func(c *C, i interface{}) {
+		st := reflect.TypeOf(i).Elem()
+		num := st.NumField()
+		for i := 0; i < num; i++ {
+			tagYaml := st.Field(i).Tag.Get("yaml")
+			tagJSON := st.Field(i).Tag.Get("json")
+			c.Check(tagYaml, Equals, tagJSON)
+		}
+	}
+
+	tagsEqual(c, &gadget.Volume{})
+	tagsEqual(c, &gadget.VolumeStructure{})
+	tagsEqual(c, &gadget.VolumeContent{})
 }
