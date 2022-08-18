@@ -50,7 +50,7 @@ import (
 
 // ToolingStore wraps access to the store for tools.
 type ToolingStore struct {
-	// Stdout is for output, mainly progess bars
+	// Stdout is for output, mainly progress bars
 	// left unset stdout is used
 	Stdout io.Writer
 
