@@ -3477,17 +3477,17 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterMonit
 	sequence := 0
 	vs, cur, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
-	// new assertion got fetched
-	c.Check(vs.Revision(), Equals, 5)
-	c.Check(vs.Sequence(), Equals, 3)
-	c.Check(cur, Equals, 3)
+	// doesn't fetch new assertion
+	c.Check(vs.Revision(), Equals, 1)
+	c.Check(vs.Sequence(), Equals, 1)
+	c.Check(cur, Equals, 1)
 
-	// and it has been committed
+	// old assertion is stil in the database
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
 		"name":       "bar",
-		"sequence":   "3",
+		"sequence":   "1",
 	})
 	c.Assert(err, IsNil)
 }
