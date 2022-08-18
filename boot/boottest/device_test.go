@@ -85,7 +85,7 @@ func (s *boottestSuite) TestMockDeviceBaseOrKernel(c *C) {
 }
 
 func (s *boottestSuite) testMockDeviceWithModes(c *C, isUC bool) {
-	mockBuilder := boottest.MockClassicBootDevice
+	mockBuilder := boottest.MockClassicWithModesDevice
 	modelName := "my-model-classic-modes"
 	if isUC {
 		mockBuilder = boottest.MockUC20Device
