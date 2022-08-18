@@ -86,19 +86,14 @@ execute: |
         lxd.lxc config set core.proxy_https "$http_proxy"
     fi
 
-    # There isn't an image for kinetic yet, let's just check that lxd snap can be installed
-    if os.query is-ubuntu 22.10; then
-        exit
-    fi
-
     # The snapd package we build as part of the tests will only run on the
     # distro we build on. So we need to launch the right ubuntu version.
     # prep two containers, the my-ubuntu normal container and the
     # my-nesting-ubuntu nesting container
 
-    VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
-    lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
-    lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-nesting-ubuntu -c security.nesting=true
+    CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
+    lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu
+    lxc launch --quiet "images:ubuntu/$CODENAME" my-nesting-ubuntu -c security.nesting=true
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
         snap info lxd
@@ -167,7 +162,7 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- lxd waitready
     lxd.lxc exec my-nesting-ubuntu -- lxd init --auto
 
-    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "ubuntu:${VERSION_ID:-}" my-inner-ubuntu
+    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "images:ubuntu/$CODENAME" my-inner-ubuntu
     lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
 
     echo "Install lxd-demo server to exercise the lxd interface"
