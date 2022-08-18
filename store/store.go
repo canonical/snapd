@@ -836,10 +836,10 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 			return nil, err
 		}
 
-		wwwAuth := resp.Header.Get("WWW-Authenticate")
 		if resp.StatusCode == 401 && authRefreshes < 4 {
 			// 4 tries: 2 tries for each in case both user
 			// and device need refreshing
+			wwwAuth := resp.Header.Get("WWW-Authenticate")
 			var refreshNeed authRefreshNeed
 			if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
 				// refresh user
