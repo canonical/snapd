@@ -308,6 +308,10 @@ There are few guidelines that contributors should follow:
   makes reviewing the controversial changes simpler_)
 - Try not to force push to PRs after they have gotten reviews.
 - Try to write tests to cover the contributed changes.
+- Write idiomatic Go (refer to [Effective Go](https://go.dev/doc/effective_go) etc).
+- Exported names should have documentation comments.
+- Error messages used in `fmt.Errorf` etc should start with lowercase and whenever
+  possible use the form "cannot ..." for consistency, for example avoid "failed to...".
 
 >If you need any help with any of these guidelines, please reach out to the team.
 
