@@ -20,12 +20,25 @@ prepare: |
         systemctl start systemd-hostnamed
     fi
 
+    "$TESTSTOOLS"/snaps-state install-local testsnap
+
 restore: |
     if not os.query is-trusty; then
         systemctl stop systemd-hostnamed
     fi
 
 execute: |
+    echo "Check that we can read /boot"
+    snap connect testsnap:system-observe
+    KERNEL_VERSION="$(uname -r)"
+    testsnap.cmd cat "/boot/config-$KERNEL_VERSION" | MATCH "CONFIG_"
+
+    echo "Check that we cannot write in /boot"
+    if testsnap.cmd sh -c "echo oops > /boot/config-$KERNEL_VERSION"; then
+        echo "/boot/ should not be writable!"
+        exit 1
+    fi
+
     echo "The interface is disconnected by default"
     snap interfaces -i system-observe | MATCH -- '^- +test-snapd-system-observe-consumer:system-observe'
 
