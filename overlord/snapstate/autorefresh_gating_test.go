@@ -1686,7 +1686,7 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1NoHooks(c *C) {
 	c.Check(tss[0].Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
 }
 
-func (s *autorefreshGatingSuite) TestHoldRefreshIndefinitely(c *C) {
+func (s *autorefreshGatingSuite) TestHoldRefreshesBySystemIndefinitely(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
