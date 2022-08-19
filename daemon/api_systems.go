@@ -109,12 +109,14 @@ type oneSystemsResponse struct {
 	Volumes map[string]*gadget.Volume  `json:"volumes,omitempty"`
 }
 
+var devicestateModelAndGadgetInfoFromSeed = devicestate.ModelAndGadgetInfoFromSeed
+
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
 	var rsp oneSystemsResponse
 
 	wantedSystemLabel := muxVars(r)["label"]
 
-	model, gadgetInfo, err := devicestate.ModelAndGadgetInfoFromSeed(wantedSystemLabel)
+	model, gadgetInfo, err := devicestateModelAndGadgetInfoFromSeed(wantedSystemLabel)
 	if err != nil {
 		return InternalError(err.Error())
 	}

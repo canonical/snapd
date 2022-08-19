@@ -779,12 +779,64 @@ func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
 	return &goff
 }
 
-func (s *systemsSuite) TestSystemsGetSpecificLabelNotFound(c *check.C) {
+func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
 	s.daemon(c)
 	s.expectRootAccess()
 
-	restore := s.mockSystemSeeds(c)
-	defer restore()
+	mockGadgetInfo := &gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"pc": {
+				Schema:     "gpt",
+				Bootloader: "grub",
+				Structure: []gadget.VolumeStructure{
+					{
+						VolumeName: "foo",
+					},
+				},
+			},
+		},
+	}
+	r := daemon.MockDevicestateModelAndGadgetInfoFromSeed(func(label string) (*asserts.Model, *gadget.Info, error) {
+		c.Check(label, check.Equals, "20191119")
+		return s.seedModel2019, mockGadgetInfo, nil
+	})
+	defer r()
+
+	req, err := http.NewRequest("GET", "/v2/systems/20191119", nil)
+	c.Assert(err, check.IsNil)
+	rsp := s.syncReq(c, req, nil)
+
+	c.Assert(rsp.Status, check.Equals, 200)
+	sys := rsp.Result.(daemon.OneSystemsResponse)
+	c.Assert(sys, check.DeepEquals, daemon.OneSystemsResponse{
+		Model: clientutil.ModelAssertJSON{
+			Headers: s.seedModel2019.Headers(),
+			Body:    string(s.seedModel2019.Body()),
+		},
+		Volumes: mockGadgetInfo.Volumes,
+	})
+}
+
+func (s *systemsSuite) TestSystemsGetSpecificLabelError(c *check.C) {
+	s.daemon(c)
+	s.expectRootAccess()
+
+	r := daemon.MockDevicestateModelAndGadgetInfoFromSeed(func(label string) (*asserts.Model, *gadget.Info, error) {
+		return nil, nil, fmt.Errorf("boom")
+	})
+	defer r()
+
+	req, err := http.NewRequest("GET", "/v2/systems/something", nil)
+	c.Assert(err, check.IsNil)
+	rspe := s.errorReq(c, req, nil)
+
+	c.Assert(rspe.Status, check.Equals, 500)
+	c.Check(rspe.Message, check.Equals, `boom`)
+}
+
+func (s *systemsSuite) TestSystemsGetSpecificLabelNotFoundIntegration(c *check.C) {
+	s.daemon(c)
+	s.expectRootAccess()
 
 	req, err := http.NewRequest("GET", "/v2/systems/does-not-exist", nil)
 	c.Assert(err, check.IsNil)
@@ -793,7 +845,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelNotFound(c *check.C) {
 	c.Check(rspe.Message, check.Equals, `cannot load assertions for label "does-not-exist": no seed assertions`)
 }
 
-func (s *systemsSuite) TestSystemsGetSpecificLabel(c *check.C) {
+func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	s.daemon(c)
 	s.expectRootAccess()
 
