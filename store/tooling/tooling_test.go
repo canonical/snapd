@@ -23,7 +23,6 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -123,9 +122,11 @@ func (s *toolingSuite) TestNewToolingStoreWithAuth(c *C) {
 
 	tsto, err := tooling.NewToolingStore()
 	c.Assert(err, IsNil)
-	user := tsto.User()
-	c.Check(user.StoreMacaroon, Equals, "MACAROON")
-	c.Check(user.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
+	creds := tsto.Creds()
+	u1creds, ok := creds.(*tooling.UbuntuOneCreds)
+	c.Assert(ok, Equals, true)
+	c.Check(u1creds.User.StoreMacaroon, Equals, "MACAROON")
+	c.Check(u1creds.User.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
 }
 
 func (s *toolingSuite) TestNewToolingStoreWithAuthFromSnapcraftLoginFile(c *C) {
@@ -143,9 +144,11 @@ unbound_discharge = DISCHARGE
 
 	tsto, err := tooling.NewToolingStore()
 	c.Assert(err, IsNil)
-	user := tsto.User()
-	c.Check(user.StoreMacaroon, Equals, "MACAROON")
-	c.Check(user.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
+	creds := tsto.Creds()
+	u1creds, ok := creds.(*tooling.UbuntuOneCreds)
+	c.Assert(ok, Equals, true)
+	c.Check(u1creds.User.StoreMacaroon, Equals, "MACAROON")
+	c.Check(u1creds.User.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
 }
 
 func (s *toolingSuite) TestNewToolingStoreWithAuthErrors(c *C) {
@@ -327,56 +330,17 @@ func (s *toolingSuite) Assertion(assertType *asserts.AssertionType, primaryKey [
 	return ref.Resolve(s.StoreSigning.Find)
 }
 
-type toolingStoreContextSuite struct {
-	sc store.DeviceAndAuthContext
-}
-
-var _ = Suite(&toolingStoreContextSuite{})
-
-func (s *toolingStoreContextSuite) SetUpTest(c *C) {
-	s.sc = tooling.ToolingStoreContext()
-}
-
-func (s *toolingStoreContextSuite) TestNopBits(c *C) {
-	info, err := s.sc.CloudInfo()
-	c.Assert(err, IsNil)
-	c.Check(info, IsNil)
-
-	device, err := s.sc.Device()
-	c.Assert(err, IsNil)
-	c.Check(device, DeepEquals, &auth.DeviceState{})
-
-	p, err := s.sc.DeviceSessionRequestParams("")
-	c.Assert(err, Equals, store.ErrNoSerial)
-	c.Check(p, IsNil)
-
-	defURL, err := url.Parse("http://store")
-	c.Assert(err, IsNil)
-	proxyStoreID, proxyStoreURL, err := s.sc.ProxyStoreParams(defURL)
-	c.Assert(err, IsNil)
-	c.Check(proxyStoreID, Equals, "")
-	c.Check(proxyStoreURL, Equals, defURL)
-
-	storeID, err := s.sc.StoreID("")
-	c.Assert(err, IsNil)
-	c.Check(storeID, Equals, "")
-
-	storeID, err = s.sc.StoreID("my-store")
-	c.Assert(err, IsNil)
-	c.Check(storeID, Equals, "my-store")
-
-	_, err = s.sc.UpdateDeviceAuth(nil, "")
-	c.Assert(err, NotNil)
-}
-
-func (s *toolingStoreContextSuite) TestUpdateUserAuth(c *C) {
-	u := &auth.UserState{
+func (s *toolingSuite) TestUpdateUserAuth(c *C) {
+	u := auth.UserState{
 		StoreMacaroon:   "macaroon",
 		StoreDischarges: []string{"discharge1"},
 	}
+	creds := &tooling.UbuntuOneCreds{
+		User: u,
+	}
 
-	u1, err := s.sc.UpdateUserAuth(u, []string{"discharge2"})
+	u1, err := creds.UpdateUserAuth(&u, []string{"discharge2"})
 	c.Assert(err, IsNil)
-	c.Check(u1, Equals, u)
+	c.Check(u1, Equals, &u)
 	c.Check(u1.StoreDischarges, DeepEquals, []string{"discharge2"})
 }

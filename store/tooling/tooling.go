@@ -48,8 +48,8 @@ type ToolingStore struct {
 	// left unset stdout is used
 	Stdout io.Writer
 
-	sto  StoreImpl
-	user *auth.UserState
+	sto   StoreImpl
+	creds store.Authorizer
 }
 
 // A StoreImpl can find metadata on snaps, download snaps and fetch assertions.
@@ -69,18 +69,15 @@ func newToolingStore(arch, storeID string) (*ToolingStore, error) {
 	cfg := store.DefaultConfig()
 	cfg.Architecture = arch
 	cfg.StoreID = storeID
-	var user *auth.UserState
-	if authFn := os.Getenv("UBUNTU_STORE_AUTH_DATA_FILENAME"); authFn != "" {
-		var err error
-		user, err = readAuthFile(authFn)
-		if err != nil {
-			return nil, err
-		}
+	creds, err := getAuthorizer()
+	if err != nil {
+		return nil, err
 	}
-	sto := store.New(cfg, toolingStoreContext{})
+	cfg.Authorizer = creds
+	sto := store.New(cfg, nil)
 	return &ToolingStore{
-		sto:  sto,
-		user: user,
+		sto:   sto,
+		creds: creds,
 	}, nil
 }
 
@@ -189,7 +186,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadSnapOptions) (d
 		Channel:      opts.Channel,
 	}}
 
-	sars, _, err := sto.SnapAction(context.TODO(), nil, actions, nil, tsto.user, nil)
+	sars, _, err := sto.SnapAction(context.TODO(), nil, actions, nil, nil, nil)
 	if err != nil {
 		// err will be 'cannot download snap "foo": <reasons>'
 		return nil, err
@@ -238,7 +235,7 @@ func (tsto *ToolingStore) snapDownload(targetFn string, sar *store.SnapActionRes
 	}()
 
 	dlOpts := &store.DownloadOptions{LeavePartialOnError: opts.LeavePartialOnError}
-	if err = tsto.sto.Download(context.TODO(), snap.SnapName(), targetFn, &snap.DownloadInfo, pb, tsto.user, dlOpts); err != nil {
+	if err = tsto.sto.Download(context.TODO(), snap.SnapName(), targetFn, &snap.DownloadInfo, pb, nil, dlOpts); err != nil {
 		return nil, err
 	}
 
@@ -317,7 +314,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 		})
 	}
 
-	sars, _, err := tsto.sto.SnapAction(context.TODO(), current, actions, nil, tsto.user, nil)
+	sars, _, err := tsto.sto.SnapAction(context.TODO(), current, actions, nil, nil, nil)
 	if err != nil {
 		// err will be 'cannot download snap "foo": <reasons>'
 		return nil, err
@@ -341,7 +338,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 // AssertionFetcher creates an asserts.Fetcher for assertions using dlOpts for authorization, the fetcher will add assertions in the given database and after that also call save for each of them.
 func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, tsto.user)
+		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, nil)
 	}
 	save2 := func(a asserts.Assertion) error {
 		// for checking
@@ -363,7 +360,7 @@ func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]str
 	if err != nil {
 		return nil, err
 	}
-	return tsto.sto.Assertion(at, pk, tsto.user)
+	return tsto.sto.Assertion(at, pk, nil)
 }
 
 // MockToolingStore creates a ToolingStore that uses the provided StoreImpl

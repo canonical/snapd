@@ -24,7 +24,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/url"
+	"net/http"
+	"os"
 
 	"github.com/mvo5/goconfigparser"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -37,7 +38,12 @@ type authData struct {
 	Discharges []string
 }
 
-func readAuthFile(authFn string) (*auth.UserState, error) {
+func getAuthorizer() (store.Authorizer, error) {
+	authFn := os.Getenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
+	if authFn == "" {
+		return nil, nil
+	}
+
 	data, err := ioutil.ReadFile(authFn)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read auth file %q: %v", authFn, err)
@@ -53,10 +59,10 @@ func readAuthFile(authFn string) (*auth.UserState, error) {
 		return nil, err
 	}
 
-	return &auth.UserState{
+	return &UbuntuOneCreds{User: auth.UserState{
 		StoreMacaroon:   creds.Macaroon,
 		StoreDischarges: creds.Discharges,
-	}, nil
+	}}, nil
 }
 
 func parseAuthData(data []byte, what string, parsers ...func(data []byte, what string) (parsed *authData, likely bool, err error)) (*authData, error) {
@@ -129,37 +135,29 @@ func parseSnapcraftLoginFile(data []byte, what string) (*authData, bool, error) 
 	}, false, nil
 }
 
-// toolingStoreContext implements trivially store.DeviceAndAuthContext
-// except implementing UpdateUserAuth properly to be used to refresh a
-// soft-expired user macaroon.
-// XXX this will not be needed anymore
-type toolingStoreContext struct{}
-
-func (tac toolingStoreContext) CloudInfo() (*auth.CloudInfo, error) {
-	return nil, nil
+// UbuntuOneCreds can authorize requests using the implicitly carried
+// SSO/U1 user credentials.
+type UbuntuOneCreds struct {
+	User auth.UserState
 }
 
-func (tac toolingStoreContext) Device() (*auth.DeviceState, error) {
-	return &auth.DeviceState{}, nil
+// expected interfaces
+var _ store.Authorizer = (*UbuntuOneCreds)(nil)
+var _ store.RefreshingAuthorizer = (*UbuntuOneCreds)(nil)
+
+func (c *UbuntuOneCreds) Authorize(r *http.Request, _ store.DeviceAndAuthContext, user *auth.UserState, _ *store.AuthorizeOptions) error {
+	return store.UserAuthorizer{}.Authorize(r, nil, &c.User, nil)
 }
 
-func (tac toolingStoreContext) DeviceSessionRequestParams(_ string) (*store.DeviceSessionRequestParams, error) {
-	return nil, store.ErrNoSerial
+func (c *UbuntuOneCreds) HasAuth(_ *auth.UserState) bool {
+	return true
 }
 
-func (tac toolingStoreContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {
-	return "", defaultURL, nil
+func (c *UbuntuOneCreds) RefreshAuth(_ store.AuthRefreshNeed, _ store.DeviceAndAuthContext, user *auth.UserState, client *http.Client) error {
+	return store.UserAuthorizer{}.RefreshUser(&c.User, c, client)
 }
 
-func (tac toolingStoreContext) StoreID(fallback string) (string, error) {
-	return fallback, nil
-}
-
-func (tac toolingStoreContext) UpdateDeviceAuth(_ *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
-	return nil, fmt.Errorf("internal error: no device state in tools")
-}
-
-func (tac toolingStoreContext) UpdateUserAuth(user *auth.UserState, discharges []string) (*auth.UserState, error) {
+func (c *UbuntuOneCreds) UpdateUserAuth(user *auth.UserState, discharges []string) (*auth.UserState, error) {
 	user.StoreDischarges = discharges
 	return user, nil
 }
