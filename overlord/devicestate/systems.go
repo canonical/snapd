@@ -447,18 +447,11 @@ func ModelAndGadgetInfoFromSeed(wantedSystemLabel string) (*asserts.Model, *gadg
 	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, perf); err != nil {
 		return nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
 	}
-	var gadgetSnapPath string
-	err = s.Iter(func(sn *seed.Snap) error {
-		gadgetSnapPath = sn.Path
-		return nil
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read gadget snap: %v", err)
-	}
-	if gadgetSnapPath == "" {
+	gadgetSnap := s.EssentialSnaps()[0]
+	if gadgetSnap.Path == "" {
 		return nil, nil, fmt.Errorf("internal error: cannot get gadget snap path")
 	}
-	snapf, err := snapfile.Open(gadgetSnapPath)
+	snapf, err := snapfile.Open(gadgetSnap.Path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
 	}
