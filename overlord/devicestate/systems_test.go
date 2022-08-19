@@ -22,6 +22,7 @@ package devicestate_test
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -30,12 +31,16 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -791,4 +796,121 @@ func (s *createSystemSuite) TestCreateSystemObserverErr(c *C) {
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_3.snap"),
 	})
 	c.Check(dir, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"))
+}
+
+var mockGadgetUC20Yaml = `
+volumes:
+  pc:
+    bootloader: grub
+    schema: gpt
+    structure:
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 750M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-boot
+      - name: ubuntu-save
+        size: 16M
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-save
+      - name: ubuntu-data
+        filesystem: ext4
+        size: 1G
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+`
+
+func (s *createSystemSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, gadgetYaml string) *asserts.Model {
+	seed20 := &seedtest.TestingSeed20{
+		SeedSnaps: seedtest.SeedSnaps{
+			StoreSigning: s.storeSigning,
+			Brands:       s.brands,
+		},
+		SeedDir: dirs.SnapSeedDir,
+	}
+	restore := seed.MockTrusted(seed20.StoreSigning.Trusted)
+	s.AddCleanup(restore)
+
+	assertstest.AddMany(s.storeSigning.Database, s.brands.AccountsAndKeys("my-brand")...)
+
+	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "my-brand", s.storeSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "my-brand", s.storeSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "my-brand", s.storeSigning.Database)
+	gadgetFiles := [][]string{
+		{"meta/gadget.yaml", string(gadgetYaml)},
+	}
+	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", gadgetFiles, snap.R(1), "my-brand", s.storeSigning.Database)
+
+	return seed20.MakeSeed(c, label, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my fancy model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              seed20.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              seed20.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, nil)
+}
+
+func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedHappy(c *C) {
+	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUC20Yaml)
+	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUC20Yaml), fakeModel)
+	c.Assert(err, IsNil)
+
+	model, gadgetInfo, err := devicestate.ModelAndGadgetInfoFromSeed("some-label")
+	c.Assert(err, IsNil)
+	c.Check(model, DeepEquals, fakeModel)
+	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
+}
+
+func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorInvalidLabel(c *C) {
+	_, _, err := devicestate.ModelAndGadgetInfoFromSeed("invalid/label")
+	c.Assert(err, ErrorMatches, `cannot open seed: invalid seed system label: "invalid/label"`)
+}
+
+func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorNoSeedDir(c *C) {
+	_, _, err := devicestate.ModelAndGadgetInfoFromSeed("no-such-seed")
+	c.Assert(err, ErrorMatches, `cannot load assertions for label "no-such-seed": no seed assertions`)
+}
+
+func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorNoGadget(c *C) {
+	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUC20Yaml)
+	// break the seed by removing the gadget
+	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"))
+	c.Assert(err, IsNil)
+
+	_, _, err = devicestate.ModelAndGadgetInfoFromSeed("some-label")
+	c.Assert(err, ErrorMatches, "cannot load gadget snap metadata: cannot stat snap:.*: no such file or directory")
+}
+
+func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorWrongGadget(c *C) {
+	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUC20Yaml)
+	// break the seed by changing things
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0644)
+	c.Assert(err, IsNil)
+
+	_, _, err = devicestate.ModelAndGadgetInfoFromSeed("some-label")
+	c.Assert(err, ErrorMatches, `cannot load gadget snap metadata: cannot validate "/.*/pc_1.snap".* wrong size`)
+}
+
+func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorInvalidGadgetYaml(c *C) {
+	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", "")
+
+	_, _, err := devicestate.ModelAndGadgetInfoFromSeed("some-label")
+	c.Assert(err, ErrorMatches, "cannot parse gadget.yaml: bootloader not declared in any volume")
 }

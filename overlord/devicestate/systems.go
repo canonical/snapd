@@ -435,7 +435,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 func ModelAndGadgetInfoFromSeed(wantedSystemLabel string) (*asserts.Model, *gadget.Info, error) {
 	s, err := seed.Open(dirs.SnapSeedDir, wantedSystemLabel)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("cannot open seed: %v", err)
 	}
 	if err := s.LoadAssertions(nil, nil); err != nil {
 		return nil, nil, fmt.Errorf("cannot load assertions for label %q: %v", wantedSystemLabel, err)
