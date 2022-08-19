@@ -47,7 +47,7 @@ var systemsCmd = &Command{
 
 var systemsActionCmd = &Command{
 	Path:       "/v2/systems/{label}",
-	GET:        getSystemsAction,
+	GET:        getSystemDetails,
 	ReadAccess: rootAccess{},
 
 	POST:        postSystemsAction,
@@ -109,7 +109,7 @@ type oneSystemsResponse struct {
 	Volumes map[string]*gadget.Volume  `json:"volumes,omitempty"`
 }
 
-func getSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
+func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
 	var rsp oneSystemsResponse
 
 	wantedSystemLabel := muxVars(r)["label"]
