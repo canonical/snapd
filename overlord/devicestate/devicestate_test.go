@@ -469,6 +469,38 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnNonRunModes(c *C)
 	c.Assert(err, IsNil)
 }
 
+func (s *deviceMgrSuite) switchDevManagerToClassicWithModes(c *C) {
+	release.OnClassic = true
+
+	// mock the modeenv file
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191127",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	// re-create manager so that modeenv file is-read
+	s.mgr, err = devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOnClassicWithModes(c *C) {
+	s.switchDevManagerToClassicWithModes(c)
+	s.setPCModelInState(c)
+
+	secbootMarkSuccessfulCalled := 0
+	r := devicestate.MockSecbootMarkSuccessful(func() error {
+		secbootMarkSuccessfulCalled++
+		return nil
+	})
+	defer r()
+
+	err := devicestate.EnsureBootOk(s.mgr)
+	c.Assert(err, IsNil)
+	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
+}
+
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 	n := 0
 	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) (ts []*state.TaskSet, err error) {
@@ -791,20 +823,25 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	defer s.state.Unlock()
 	kernelInfo := snaptest.MockInfo(c, "{type: kernel, name: lnrk, version: 0}", nil)
 
-	// not on classic
+	// not on classic without modes
 	release.OnClassic = true
-	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, nil)
-	c.Check(err, ErrorMatches, `cannot install a kernel snap on classic`)
+	// model assertion in device context
+	model := fakeMyModel(map[string]interface{}{
+		"classic": "true",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, deviceCtx)
+	c.Check(err, ErrorMatches, `cannot install a kernel snap if classic boot`)
 	release.OnClassic = false
 
 	s.setupBrands()
 	// model assertion in device context
-	model := fakeMyModel(map[string]interface{}{
+	model = fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
 		"gadget":       "gadget",
 		"kernel":       "krnl",
 	})
-	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 
 	err = devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install kernel "lnrk", model assertion requests "krnl"`)
@@ -845,6 +882,40 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	otherKrnlInfo.InstanceKey = "foo"
 	err = devicestate.CheckGadgetOrKernel(s.state, otherKrnlInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install "krnl_foo", parallel installation of kernel or gadget snaps is not supported`)
+}
+
+func (s *deviceMgrSuite) TestCheckKernelOnClassic(c *C) {
+	s.switchDevManagerToClassicWithModes(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	kernelInfo := snaptest.MockInfo(c, "{type: kernel, name: pc-kernel, version: 0}", nil)
+
+	// model assertion in device context
+	model := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"classic":      "true",
+		"grade":        "dangerous",
+		"distribution": "ubuntu",
+		"base":         "core22",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "22",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "22",
+			},
+		},
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, deviceCtx)
+	c.Check(err, IsNil)
 }
 
 func (s *deviceMgrSuite) TestCanAutoRefreshOnCore(c *C) {

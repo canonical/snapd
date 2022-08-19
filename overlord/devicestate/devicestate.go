@@ -167,8 +167,8 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 		snapType = snap.TypeGadget
 		getName = (*asserts.Model).Gadget
 	case snap.TypeKernel:
-		if release.OnClassic {
-			return fmt.Errorf("cannot install a kernel snap on classic")
+		if deviceCtx.IsClassicBoot() {
+			return fmt.Errorf("cannot install a kernel snap if classic boot")
 		}
 
 		kind = "kernel"
