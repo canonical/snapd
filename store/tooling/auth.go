@@ -33,8 +33,8 @@ import (
 )
 
 type authData struct {
-	Macaroon   string   `json:"macaroon"`
-	Discharges []string `json:"discharges"`
+	Macaroon   string
+	Discharges []string
 }
 
 func readAuthFile(authFn string) (*auth.UserState, error) {
@@ -42,19 +42,15 @@ func readAuthFile(authFn string) (*auth.UserState, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot read auth file %q: %v", authFn, err)
 	}
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 {
+		return nil, fmt.Errorf("invalid auth file %q: empty", authFn)
+	}
 
-	creds, err := parseAuthFile(authFn, data)
+	what := fmt.Sprintf("file %q", authFn)
+	creds, err := parseAuthData(data, what, parseAuthJSON, parseSnapcraftLoginFile)
 	if err != nil {
-		// try snapcraft login format instead
-		var err2 error
-		creds, err2 = parseSnapcraftLoginFile(authFn, data)
-		if err2 != nil {
-			trimmed := bytes.TrimSpace(data)
-			if len(trimmed) > 0 && trimmed[0] == '[' {
-				return nil, err2
-			}
-			return nil, err
-		}
+		return nil, err
 	}
 
 	return &auth.UserState{
@@ -63,16 +59,40 @@ func readAuthFile(authFn string) (*auth.UserState, error) {
 	}, nil
 }
 
-func parseAuthFile(authFn string, data []byte) (*authData, error) {
-	var creds authData
+func parseAuthData(data []byte, what string, parsers ...func(data []byte, what string) (parsed *authData, likely bool, err error)) (*authData, error) {
+	var firstErr error
+	for _, p := range parsers {
+		parsed, likely, err := p(data, what)
+		if err == nil {
+			return parsed, nil
+		}
+		if likely && firstErr == nil {
+			firstErr = err
+		}
+	}
+	if firstErr == nil {
+		return nil, fmt.Errorf("invalid auth %s: not a recognizable format", what)
+	}
+	return nil, firstErr
+}
+
+func parseAuthJSON(data []byte, what string) (*authData, bool, error) {
+	var creds struct {
+		Macaroon   string   `json:"macaroon"`
+		Discharges []string `json:"discharges"`
+	}
 	err := json.Unmarshal(data, &creds)
 	if err != nil {
-		return nil, fmt.Errorf("cannot decode auth file %q: %v", authFn, err)
+		likely := data[0] == '{'
+		return nil, likely, fmt.Errorf("cannot decode auth %s: %v", what, err)
 	}
 	if creds.Macaroon == "" || len(creds.Discharges) == 0 {
-		return nil, fmt.Errorf("invalid auth file %q: missing fields", authFn)
+		return nil, true, fmt.Errorf("invalid auth %s: missing fields", what)
 	}
-	return &creds, nil
+	return &authData{
+		Macaroon:   creds.Macaroon,
+		Discharges: creds.Discharges,
+	}, false, nil
 }
 
 func snapcraftLoginSection() string {
@@ -82,29 +102,31 @@ func snapcraftLoginSection() string {
 	return "login.ubuntu.com"
 }
 
-func parseSnapcraftLoginFile(authFn string, data []byte) (*authData, error) {
-	errPrefix := fmt.Sprintf("invalid snapcraft login file %q", authFn)
+func parseSnapcraftLoginFile(data []byte, what string) (*authData, bool, error) {
+	errPrefix := fmt.Sprintf("invalid snapcraft login %s", what)
 
 	cfg := goconfigparser.New()
+	// XXX this seems to almost always succeed
 	if err := cfg.ReadString(string(data)); err != nil {
-		return nil, fmt.Errorf("%s: %v", errPrefix, err)
+		likely := data[0] == '['
+		return nil, likely, fmt.Errorf("%s: %v", errPrefix, err)
 	}
 	sec := snapcraftLoginSection()
 	macaroon, err := cfg.Get(sec, "macaroon")
 	if err != nil {
-		return nil, fmt.Errorf("%s: %s", errPrefix, err)
+		return nil, true, fmt.Errorf("%s: %s", errPrefix, err)
 	}
 	unboundDischarge, err := cfg.Get(sec, "unbound_discharge")
 	if err != nil {
-		return nil, fmt.Errorf("%s: %v", errPrefix, err)
+		return nil, true, fmt.Errorf("%s: %v", errPrefix, err)
 	}
 	if macaroon == "" || unboundDischarge == "" {
-		return nil, fmt.Errorf("invalid snapcraft login file %q: empty fields", authFn)
+		return nil, true, fmt.Errorf("%s: empty fields", errPrefix)
 	}
 	return &authData{
 		Macaroon:   macaroon,
 		Discharges: []string{unboundDischarge},
-	}, nil
+	}, false, nil
 }
 
 // toolingStoreContext implements trivially store.DeviceAndAuthContext

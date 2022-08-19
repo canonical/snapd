@@ -159,8 +159,13 @@ func (s *toolingSuite) TestNewToolingStoreWithAuthErrors(c *C) {
 		data string
 		err  string
 	}{
+		{"", `invalid auth file ".*/creds": empty`},
 		{" {}", `invalid auth file ".*/creds": missing fields`},
 		{" [...", `invalid snapcraft login file ".*/creds": No section: login.ubuntu.com`},
+		{`[login.ubuntu.com]
+macaroon =
+unbound_discharge =
+`, `invalid snapcraft login file ".*/creds": empty fields`},
 	}
 
 	for _, t := range tests {
