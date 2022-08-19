@@ -253,7 +253,10 @@ func unclashMountEntries(entries []osutil.MountEntry) []osutil.MountEntry {
 		// flags in a way that fulfils the permissions required by all
 		// requesting entries
 		firstEntry := &result[entryInMap.Indexes[0]]
-		if firstEntry.Name == entries[i].Name && firstEntry.Type == entries[i].Type {
+		if firstEntry.Name == entries[i].Name && firstEntry.Type == entries[i].Type &&
+			// Only merge entries that have no origin, or snap-update-ns will
+			// get confused
+			firstEntry.XSnapdOrigin() == "" && entries[i].XSnapdOrigin() == "" {
 			firstEntry.Options = mergeOptions(firstEntry.Options, entries[i].Options)
 		} else {
 			entryInMap.Indexes = append(entryInMap.Indexes, i)

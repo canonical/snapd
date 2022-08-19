@@ -205,38 +205,14 @@ layout:
     type: tmpfs
 `
 	snapInfo := snaptest.MockInfo(c, uberclashYaml, &snap.SideInfo{Revision: snap.R(42)})
-	entry := osutil.MountEntry{Dir: "/usr/foo", Type: "ext4", Name: "/dev/sda9"}
-	s.spec.AddMountEntry(entry)
-	s.spec.AddUserMountEntry(entry)
-	s.spec.AddLayout(snapInfo)
-	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
-		{Dir: "/usr/foo", Type: "tmpfs", Name: "tmpfs", Options: []string{"x-snapd.origin=layout"}},
-		// This is the non-layout entry, it was renamed to "foo-2"
-		{Dir: "/usr/foo-2", Type: "ext4", Name: "/dev/sda9"},
-	})
-	c.Assert(s.spec.UserMountEntries(), DeepEquals, []osutil.MountEntry{
-		// This is the user entry, it was _not_ renamed and it would clash with
-		// /foo but there is no way to request things like that for now.
-		{Dir: "/usr/foo", Type: "ext4", Name: "/dev/sda9"},
-	})
-}
-
-func (s *specSuite) TestSpecificationMergedClash(c *C) {
-	// A clash where both source and FS type are the same, gets resolved by
-	// merging the entries
-	const uberclashYaml = `name: uberclash
-version: 0
-layout:
-  /usr/foo:
-    type: tmpfs
-`
-	snapInfo := snaptest.MockInfo(c, uberclashYaml, &snap.SideInfo{Revision: snap.R(42)})
 	entry := osutil.MountEntry{Dir: "/usr/foo", Type: "tmpfs", Name: "tmpfs"}
 	s.spec.AddMountEntry(entry)
 	s.spec.AddUserMountEntry(entry)
 	s.spec.AddLayout(snapInfo)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{Dir: "/usr/foo", Type: "tmpfs", Name: "tmpfs", Options: []string{"x-snapd.origin=layout"}},
+		// This is the non-layout entry, it was renamed to "foo-2"
+		{Dir: "/usr/foo-2", Type: "tmpfs", Name: "tmpfs"},
 	})
 	c.Assert(s.spec.UserMountEntries(), DeepEquals, []osutil.MountEntry{
 		// This is the user entry, it was _not_ renamed and it would clash with
@@ -245,26 +221,35 @@ layout:
 	})
 }
 
+func (s *specSuite) TestSpecificationMergedClash(c *C) {
+	// A clash where both source and FS type are the same, gets resolved by
+	// merging the entries
+	entry1 := osutil.MountEntry{Dir: "/usr/foo", Type: "tmpfs", Name: "tmpfs"}
+	s.spec.AddMountEntry(entry1)
+	entry2 := osutil.MountEntry{Dir: "/usr/foo", Type: "tmpfs", Name: "tmpfs"}
+	s.spec.AddMountEntry(entry2)
+	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		{Dir: "/usr/foo", Type: "tmpfs", Name: "tmpfs", Options: []string{}},
+	})
+}
+
 func (s *specSuite) TestSpecificationMergedClashBind(c *C) {
 	// A clash where both source and FS type are the same, gets resolved by
 	// merging the entries
-	const uberclashYaml = `name: uberclash
-version: 0
-layout:
-  /usr/foo:
-    bind: $SNAP/bar
-`
-	snapInfo := snaptest.MockInfo(c, uberclashYaml, &snap.SideInfo{Revision: snap.R(42)})
-	source := "/snap/uberclash/42/bar"
-	entry := osutil.MountEntry{
+	entry1 := osutil.MountEntry{
 		Dir:     "/usr/foo",
-		Name:    source,
-		Options: []string{"bind", "ro"},
+		Name:    "/here",
+		Options: []string{"bind", "rw"},
 	}
-	s.spec.AddMountEntry(entry)
-	s.spec.AddLayout(snapInfo)
+	s.spec.AddMountEntry(entry1)
+	entry2 := osutil.MountEntry{
+		Dir:     "/usr/foo",
+		Name:    "/here",
+		Options: []string{"rbind", "ro"},
+	}
+	s.spec.AddMountEntry(entry2)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
-		{Dir: "/usr/foo", Name: source, Options: []string{"x-snapd.origin=layout","rbind"}},
+		{Dir: "/usr/foo", Name: "/here", Options: []string{"rbind"}},
 	})
 }
 
