@@ -95,7 +95,7 @@ var (
 )
 
 type Info struct {
-	Volumes map[string]*Volume `yaml:"volumes,omitempty" json:"volumes,omitempty"`
+	Volumes map[string]*Volume `yaml:"volumes,omitempty"`
 
 	// Default configuration for snaps (snap-id => key => value).
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
