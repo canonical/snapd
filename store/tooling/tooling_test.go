@@ -148,6 +148,30 @@ unbound_discharge = DISCHARGE
 	c.Check(user.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
 }
 
+func (s *toolingSuite) TestNewToolingStoreWithAuthErrors(c *C) {
+	tmpdir := c.MkDir()
+	authFn := filepath.Join(tmpdir, "creds")
+
+	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
+	defer os.Unsetenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
+
+	tests := []struct {
+		data string
+		err  string
+	}{
+		{" {}", `invalid auth file ".*/creds": missing fields`},
+		{" [...", `invalid snapcraft login file ".*/creds": No section: login.ubuntu.com`},
+	}
+
+	for _, t := range tests {
+		err := ioutil.WriteFile(authFn, []byte(t.data), 0600)
+		c.Assert(err, IsNil)
+
+		_, err = tooling.NewToolingStore()
+		c.Check(err, ErrorMatches, t.err)
+	}
+}
+
 func (s *toolingSuite) TestDownloadpOptionsString(c *C) {
 	tests := []struct {
 		opts tooling.DownloadSnapOptions
