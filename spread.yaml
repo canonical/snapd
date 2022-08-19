@@ -3,10 +3,11 @@ project: snapd
 environment:
     GOHOME: /home/gopath
     GOPATH: $GOHOME
-    # on some distros the default GOPROXY setting is 'direct' (eg. Fedora), the
-    # go import tags of packages such as maze.io/x/crypt (which is one of
-    # secboot dependencies), cannot be obtained when poking the import URL
-    # directly, thus we need to force the golang.org hosted proxy to be used
+    # On some distros the default GOPROXY setting is 'direct' (eg. Fedora).
+    # Some of the external go packages may get removed or could be temporary
+    # offline (as happened with maze.io/x/crypt), and then the sources are
+    # only available through the proxy cache. Play it safe and enable the
+    # proxy to allow for least CI interruptions.
     GOPROXY: https://proxy.golang.org,direct
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
