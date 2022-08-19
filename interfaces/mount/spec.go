@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Specification assists in collecting mount entries associated with an interface.
@@ -158,33 +159,112 @@ func (spec *Specification) MountEntries() []osutil.MountEntry {
 	result = append(result, spec.overname...)
 	result = append(result, spec.layout...)
 	result = append(result, spec.general...)
-	unclashMountEntries(result)
-	return result
+	return unclashMountEntries(result)
 }
 
 // UserMountEntries returns a copy of the added user mount entries.
 func (spec *Specification) UserMountEntries() []osutil.MountEntry {
 	result := make([]osutil.MountEntry, len(spec.user))
 	copy(result, spec.user)
-	unclashMountEntries(result)
-	return result
+	return unclashMountEntries(result)
+}
+
+// Assuming that two mount entries have the same source, target and type, this
+// function computes the mount options that should be used when performing the
+// mount, so that the most permissive options are kept.
+// The following flags are considered (of course the operation is commutative):
+//   - "ro" + "rw" = "rw"
+//   - "bind" + "rbind" = "rbind
+func mergeOptions(options ...[]string) []string {
+	mergedOptions := make([]string, 0, len(options[0]))
+	foundWritableEntry := false
+	foundRBindEntry := false
+	firstEntryIsBindMount := false
+	for i, opts := range options {
+		isReadOnly := false
+		isRBind := false
+		for _, o := range opts {
+			switch o {
+			case "ro":
+				isReadOnly = true
+			case "rbind":
+				isRBind = true
+				fallthrough
+			case "bind":
+				if i == 0 {
+					firstEntryIsBindMount = true
+				}
+			case "rw", "async":
+				// these are default options for mount, do nothing
+			default:
+				// write all other options
+				if !strutil.ListContains(mergedOptions, o) {
+					mergedOptions = append(mergedOptions, o)
+				}
+			}
+		}
+		if !isReadOnly {
+			foundWritableEntry = true
+		}
+		if isRBind {
+			foundRBindEntry = true
+		}
+	}
+
+	if !foundWritableEntry {
+		mergedOptions = append(mergedOptions, "ro")
+	}
+
+	if firstEntryIsBindMount {
+		if foundRBindEntry {
+			mergedOptions = append(mergedOptions, "rbind")
+		} else {
+			mergedOptions = append(mergedOptions, "bind")
+		}
+	}
+
+	return mergedOptions
 }
 
 // unclashMountEntries renames mount points if they clash with other entries.
 //
 // Subsequent entries get suffixed with -2, -3, etc.
 // The initial entry is unaltered (and does not become -1).
-func unclashMountEntries(entries []osutil.MountEntry) {
-	count := make(map[string]int, len(entries))
+func unclashMountEntries(entries []osutil.MountEntry) []osutil.MountEntry {
+	result := make([]osutil.MountEntry, 0, len(entries))
+
+	type clashingEntry struct {
+		// Indexes of the entries in the `entries` array
+		Indexes []int
+		Options []string
+	}
+	entriesByMountPoint := make(map[string]*clashingEntry, len(entries))
 	for i := range entries {
-		path := entries[i].Dir
-		count[path]++
-		if c := count[path]; c > 1 {
+		mountPoint := entries[i].Dir
+		entryInMap, found := entriesByMountPoint[mountPoint]
+		if !found {
+			index := len(result)
+			result = append(result, entries[i])
+			entriesByMountPoint[mountPoint] = &clashingEntry{Indexes: []int{index}}
+			continue
+		}
+		// If the source and the FS type is the same, we do not consider
+		// this to be a clash, and instead will try to combine the mount
+		// flags in a way that fulfils the permissions required by all
+		// requesting entries
+		firstEntry := &result[entryInMap.Indexes[0]]
+		if firstEntry.Name == entries[i].Name && firstEntry.Type == entries[i].Type {
+			firstEntry.Options = mergeOptions(firstEntry.Options, entries[i].Options)
+		} else {
+			entryInMap.Indexes = append(entryInMap.Indexes, i)
+			c := len(entryInMap.Indexes)
 			newDir := fmt.Sprintf("%s-%d", entries[i].Dir, c)
 			logger.Noticef("renaming mount entry for directory %q to %q to avoid a clash", entries[i].Dir, newDir)
 			entries[i].Dir = newDir
+			result = append(result, entries[i])
 		}
 	}
+	return result
 }
 
 // Implementation of methods required by interfaces.Specification
