@@ -1,0 +1,22 @@
+summary: verify that the /systems/<label> api works
+
+systems:
+  # TODO: also test classic/core hybrid systems once they are ready
+  - ubuntu-core-2*
+
+execute: |
+  snap install --edge jq
+  # devmode as the snap does not have snapd-control
+  snap install test-snapd-curl --devmode --edge
+
+  echo "Find the what systems are available"
+  test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems > systems
+  current_label=$(jq -r '.result.systems[0]["label"]' < systems)
+
+  echo "Get details for a specific system"
+  test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems/"$current_label" > current-system
+  echo "Ensure the result contains a model assertion"
+  jq -r '.result.model.headers.type' < current-system | MATCH model
+  echo "Ensure the result contains the gadget volumes"
+  jq -r '.result.volumes' < current-system | MATCH bootloader
+  jq -r '.result.volumes' < current-system | MATCH VolumeName
