@@ -1959,7 +1959,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedStorageSafety(c *C)
 		encryptionType, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
 		c.Assert(err, IsNil)
 		encrypt := (encryptionType != secboot.EncryptionTypeNone)
-		c.Check(encrypt, Equals, tc.expectedEncryption)
+		c.Check(encrypt, Equals, tc.expectedEncryption, Commentf("%v", tc))
 	}
 }
 
@@ -3048,4 +3048,226 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetWritesTimesyncdClock(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(fi.ModTime().Round(time.Second), Equals, now.Round(time.Second))
 	c.Check(fi.Size(), Equals, int64(0))
+}
+
+func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirementsDisable(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
+	defer restore()
+
+	var kernelInfo *snap.Info = nil
+	var testCases = []struct {
+		grade, storageSafety, forceUnencrypted string
+
+		expectedRe  devicestate.EncryptionRequirements
+		expectedTyp secboot.EncryptionType
+	}{
+		{
+			"dangerous", "", "",
+			devicestate.EncryptionOptional,
+			secboot.EncryptionTypeLUKS,
+		},
+		{
+			"dangerous", "", "force-unencrypted",
+			devicestate.EncryptionDisabled,
+			secboot.EncryptionTypeNone,
+		},
+		// not possible to disable encryption on non-dangerous devices
+		{
+			"signed", "", "",
+			devicestate.EncryptionOptional,
+			secboot.EncryptionTypeLUKS,
+		},
+		{
+			"signed", "", "force-unencrypted",
+			devicestate.EncryptionOptional,
+			secboot.EncryptionTypeLUKS,
+		},
+		{
+			"secured", "", "",
+			devicestate.EncryptionRequired,
+			secboot.EncryptionTypeLUKS,
+		},
+		{
+			"secured", "", "force-unencrypted",
+			devicestate.EncryptionRequired,
+			secboot.EncryptionTypeLUKS,
+		},
+	}
+
+	for _, tc := range testCases {
+		mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+			"display-name":   "my model",
+			"architecture":   "amd64",
+			"base":           "core20",
+			"grade":          tc.grade,
+			"storage-safety": tc.storageSafety,
+			"snaps": []interface{}{
+				map[string]interface{}{
+					"name":            "pc-kernel",
+					"id":              pcKernelSnapID,
+					"type":            "kernel",
+					"default-channel": "20",
+				},
+				map[string]interface{}{
+					"name":            "pc",
+					"id":              pcSnapID,
+					"type":            "gadget",
+					"default-channel": "20",
+				}},
+		})
+		forceUnencryptedPath := filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")
+		if tc.forceUnencrypted == "" {
+			os.Remove(forceUnencryptedPath)
+		} else {
+			err := os.MkdirAll(filepath.Dir(forceUnencryptedPath), 0755)
+			c.Assert(err, IsNil)
+			err = ioutil.WriteFile(forceUnencryptedPath, nil, 0644)
+			c.Assert(err, IsNil)
+		}
+
+		re, typ, err := devicestate.DeviceManagerCheckEncryptionAndRequirements(s.mgr, mockModel, kernelInfo)
+		c.Assert(err, IsNil)
+		c.Check(re, Equals, tc.expectedRe, Commentf("%v", tc))
+		c.Check(typ, Equals, tc.expectedTyp, Commentf("%v", tc))
+	}
+}
+
+func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirements(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var kernelInfo *snap.Info = nil
+	noErr := ""
+	var testCases = []struct {
+		grade, storageSafety string
+		tpmErr               error
+
+		expectedRe  devicestate.EncryptionRequirements
+		expectedTyp secboot.EncryptionType
+		expectedErr string
+	}{
+		{
+			"dangerous", "", nil,
+
+			devicestate.EncryptionOptional,
+			secboot.EncryptionTypeLUKS,
+			noErr,
+		}, {
+			"dangerous", "", fmt.Errorf("no tpm"),
+
+			devicestate.EncryptionUnavailable,
+			secboot.EncryptionTypeNone,
+			noErr,
+		}, {
+			"dangerous", "encrypted", nil,
+
+			devicestate.EncryptionRequired,
+			secboot.EncryptionTypeLUKS,
+			noErr,
+		}, {
+			"dangerous", "encrypted", fmt.Errorf("no tpm"),
+
+			"",
+			"",
+			"cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm",
+		},
+		{
+			"dangerous", "prefer-unencrypted", nil,
+
+			devicestate.EncryptionOptional,
+			secboot.EncryptionTypeNone,
+			noErr,
+		},
+		{
+			"signed", "", nil,
+
+			devicestate.EncryptionOptional,
+			secboot.EncryptionTypeLUKS,
+			noErr,
+		}, {
+			"signed", "", fmt.Errorf("no tpm"),
+
+			devicestate.EncryptionUnavailable,
+			secboot.EncryptionTypeNone,
+			noErr,
+		}, {
+			"signed", "encrypted", nil,
+
+			devicestate.EncryptionRequired,
+			secboot.EncryptionTypeLUKS,
+			noErr,
+		}, {
+			"signed", "prefer-unencrypted", nil,
+
+			devicestate.EncryptionOptional,
+			secboot.EncryptionTypeNone,
+			noErr,
+		}, {
+			"signed", "encrypted", fmt.Errorf("no tpm"),
+
+			"",
+			"",
+			"cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm",
+		}, {
+			"secured", "encrypted", nil,
+
+			devicestate.EncryptionRequired,
+			secboot.EncryptionTypeLUKS,
+			noErr,
+		}, {
+			"secured", "encrypted", fmt.Errorf("no tpm"),
+
+			"",
+			"",
+			"cannot encrypt device storage as mandated by model grade secured: no tpm",
+		}, {
+			"secured", "", nil,
+
+			devicestate.EncryptionRequired,
+			secboot.EncryptionTypeLUKS,
+			noErr,
+		}, {
+			"secured", "", fmt.Errorf("no tpm"),
+
+			"",
+			"",
+			"cannot encrypt device storage as mandated by model grade secured: no tpm",
+		},
+	}
+	for _, tc := range testCases {
+		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return tc.tpmErr })
+		defer restore()
+
+		mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+			"display-name":   "my model",
+			"architecture":   "amd64",
+			"base":           "core20",
+			"grade":          tc.grade,
+			"storage-safety": tc.storageSafety,
+			"snaps": []interface{}{
+				map[string]interface{}{
+					"name":            "pc-kernel",
+					"id":              pcKernelSnapID,
+					"type":            "kernel",
+					"default-channel": "20",
+				},
+				map[string]interface{}{
+					"name":            "pc",
+					"id":              pcSnapID,
+					"type":            "gadget",
+					"default-channel": "20",
+				}},
+		})
+		re, typ, err := devicestate.DeviceManagerCheckEncryptionAndRequirements(s.mgr, mockModel, kernelInfo)
+		if tc.expectedErr != "" {
+			c.Check(err, ErrorMatches, tc.expectedErr)
+		} else {
+			c.Assert(err, IsNil)
+		}
+		c.Check(re, Equals, tc.expectedRe, Commentf("%v", tc))
+		c.Check(typ, Equals, tc.expectedTyp, Commentf("%v", tc))
+	}
 }

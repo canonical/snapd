@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -396,6 +397,10 @@ func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]
 
 func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (secboot.EncryptionType, error) {
 	return mgr.checkEncryption(st, deviceCtx)
+}
+
+func DeviceManagerCheckEncryptionAndRequirements(mgr *DeviceManager, model *asserts.Model, kernelInfo *snap.Info) (EncryptionRequirements, secboot.EncryptionType, error) {
+	return mgr.checkEncryptionAndRequirements(model, kernelInfo)
 }
 
 func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) (secboot.EncryptionType, error) {
