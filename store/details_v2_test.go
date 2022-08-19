@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -306,8 +306,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Tracks",   // handled at a different level (see TestInfo)
 		"Layout",
 		"SideInfo.Channel",
-		"SideInfo.EditedLinks",         // TODO: take this value from the store
-		"DownloadInfo.AnonDownloadURL", // TODO: going away at some point
+		"SideInfo.EditedLinks", // TODO: take this value from the store
 		"SystemUsernames",
 	}
 	var checker func(string, reflect.Value)
