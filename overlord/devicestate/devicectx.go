@@ -105,13 +105,15 @@ func (dc groundDeviceContext) HasModeenv() bool {
 }
 
 // IsCoreBoot is true when there are modes, or when there are not but
-// we are not in classic (UC16/18 case)
+// we are not in classic (UC16/18 case). If true this implies that a
+// kernel snap is in use.
 func (d *groundDeviceContext) IsCoreBoot() bool {
 	return d.HasModeenv() || !d.Classic()
 }
 
-// IsClassicBoot is true for classic systems with classic initramfs (there
-// are no system modes in this case)
+// IsClassicBoot is true for classic systems with classic initramfs
+// (there are no system modes in this case). If true, the kernel comes
+// from debian packages.
 func (d *groundDeviceContext) IsClassicBoot() bool {
 	return !d.IsCoreBoot()
 }

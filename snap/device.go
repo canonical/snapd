@@ -33,8 +33,8 @@ type Device interface {
 	Gadget() string
 
 	HasModeenv() bool
-	IsCoreBoot() bool    // true if UC or classic with modes
-	IsClassicBoot() bool // true if classic with classic initramfs
+	IsCoreBoot() bool    // true if UC or classic with modes (kernel is a snap)
+	IsClassicBoot() bool // true if classic with classic initramfs (kernel from debs)
 
 	Model() *asserts.Model
 }
