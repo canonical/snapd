@@ -42,6 +42,9 @@ type Authorizer interface {
 	// errors, as the higher-level code might as well treat Authorize
 	// as best-effort and only log any returned error.
 	Authorize(r *http.Request, dauthCtx DeviceAndAuthContext, user *auth.UserState, opts *AuthorizeOptions) error
+
+	// HasAuth returns whether is possible to authorize requests for user.
+	HasAuth(user *auth.UserState) bool
 }
 
 type AuthorizeOptions struct {
