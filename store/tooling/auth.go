@@ -21,6 +21,7 @@ package tooling
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -34,29 +35,53 @@ import (
 )
 
 type authData struct {
+	// Simple
+	Scheme string
+	Value  string
+
+	// U1/SSO
 	Macaroon   string
 	Discharges []string
 }
 
+type parseAuthFunc func(data []byte, what string) (parsed *authData, likely bool, err error)
+
 func getAuthorizer() (store.Authorizer, error) {
-	authFn := os.Getenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
-	if authFn == "" {
-		return nil, nil
-	}
+	var data []byte
+	var what string
+	parsers := []parseAuthFunc{parseAuthBase64JSON, parseAuthJSON, parseSnapcraftLoginFile}
+	if envStr := os.Getenv("UBUNTU_STORE_AUTH"); envStr != "" {
+		data = []byte(envStr)
+		what = "credentials from UBUNTU_STORE_AUTH"
+		parsers = []parseAuthFunc{parseAuthBase64JSON}
+	} else {
+		authFn := os.Getenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
+		if authFn == "" {
+			return nil, nil
+		}
 
-	data, err := ioutil.ReadFile(authFn)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read auth file %q: %v", authFn, err)
+		var err error
+		data, err = ioutil.ReadFile(authFn)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read auth file %q: %v", authFn, err)
+		}
+		data = bytes.TrimSpace(data)
+		what = fmt.Sprintf("file %q", authFn)
 	}
-	data = bytes.TrimSpace(data)
 	if len(data) == 0 {
-		return nil, fmt.Errorf("invalid auth file %q: empty", authFn)
+		return nil, fmt.Errorf("invalid auth %s: empty", what)
 	}
 
-	what := fmt.Sprintf("file %q", authFn)
-	creds, err := parseAuthData(data, what, parseAuthJSON, parseSnapcraftLoginFile)
+	creds, err := parseAuthData(data, what, parsers...)
 	if err != nil {
 		return nil, err
+	}
+
+	if creds.Scheme != "" {
+		return &SimpleCreds{
+			Scheme: creds.Scheme,
+			Value:  creds.Value,
+		}, nil
 	}
 
 	return &UbuntuOneCreds{User: auth.UserState{
@@ -65,7 +90,7 @@ func getAuthorizer() (store.Authorizer, error) {
 	}}, nil
 }
 
-func parseAuthData(data []byte, what string, parsers ...func(data []byte, what string) (parsed *authData, likely bool, err error)) (*authData, error) {
+func parseAuthData(data []byte, what string, parsers ...parseAuthFunc) (*authData, error) {
 	var firstErr error
 	for _, p := range parsers {
 		parsed, likely, err := p(data, what)
@@ -108,6 +133,8 @@ func snapcraftLoginSection() string {
 	return "login.ubuntu.com"
 }
 
+// parseSnapcraftLoginFile parses the content of snapcraft <v7 exported
+// login credentials files.
 func parseSnapcraftLoginFile(data []byte, what string) (*authData, bool, error) {
 	errPrefix := fmt.Sprintf("invalid snapcraft login %s", what)
 
@@ -135,6 +162,54 @@ func parseSnapcraftLoginFile(data []byte, what string) (*authData, bool, error) 
 	}, false, nil
 }
 
+// parseAuthBase64JSON parses snapcraft v7+ base64-encoded auth credential data.
+func parseAuthBase64JSON(data []byte, what string) (*authData, bool, error) {
+	jsonData := make([]byte, base64.StdEncoding.DecodedLen(len(data)))
+	dataLen, err := base64.StdEncoding.Decode(jsonData, data)
+	if err != nil {
+		return nil, false, fmt.Errorf("cannot decode base64-encoded auth %s: %v", what, err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(jsonData[:dataLen], &m); err != nil {
+		return nil, true, fmt.Errorf("cannot unmarshal base64-decoded auth %s: %v", what, err)
+	}
+	r, _ := m["r"].(string)
+	d, _ := m["d"].(string)
+	t, _ := m["t"].(string)
+	switch {
+	case t == "u1-macaroon":
+		v, _ := m["v"].(map[string]interface{})
+		r, _ = v["r"].(string)
+		d, _ = v["d"].(string)
+		if r == "" || d == "" {
+			break
+		}
+		fallthrough
+	case r != "" && d != "":
+		return &authData{
+			Macaroon:   r,
+			Discharges: []string{d},
+		}, false, nil
+	case t == "macaroon":
+		v, _ := m["v"].(string)
+		if v != "" {
+			return &authData{
+				Scheme: "Macaroon",
+				Value:  v,
+			}, false, nil
+		}
+	case t == "bearer":
+		v, _ := m["v"].(string)
+		if v != "" {
+			return &authData{
+				Scheme: "Bearer",
+				Value:  v,
+			}, false, nil
+		}
+	}
+	return nil, true, fmt.Errorf("cannot recognize unmarshalled base64-decoded auth %s: no known field combination set", what)
+}
+
 // UbuntuOneCreds can authorize requests using the implicitly carried
 // SSO/U1 user credentials.
 type UbuntuOneCreds struct {
@@ -160,4 +235,19 @@ func (c *UbuntuOneCreds) RefreshAuth(_ store.AuthRefreshNeed, _ store.DeviceAndA
 func (c *UbuntuOneCreds) UpdateUserAuth(user *auth.UserState, discharges []string) (*auth.UserState, error) {
 	user.StoreDischarges = discharges
 	return user, nil
+}
+
+// SimpleCreds can authorize requests using simply scheme/auth value.
+type SimpleCreds struct {
+	Scheme string
+	Value  string
+}
+
+func (c *SimpleCreds) Authorize(r *http.Request, _ store.DeviceAndAuthContext, user *auth.UserState, _ *store.AuthorizeOptions) error {
+	r.Header.Set("Authorization", fmt.Sprintf("%s %s", c.Scheme, c.Value))
+	return nil
+}
+
+func (c *SimpleCreds) HasAuth(_ *auth.UserState) bool {
+	return true
 }
