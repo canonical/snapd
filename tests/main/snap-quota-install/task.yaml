@@ -18,7 +18,7 @@ execute: |
   fi
 
   echo "Installing hello-world and assigning it quota group not-exists"
-  snap install hello-world --quota-group not-exists 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH "error: cannot perform the following tasks: - Adding snap \"hello-world\" \([0-9]*\) to quota group \"not-exists\" \(group \"not-exists\" does not exist\)"
+  snap install hello-world --quota-group not-exists 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH "\(group \"not-exists\" does not exist\)"
 
   echo "Creating quota group (no snaps)"
   snap set-quota group-one --memory=400MB
