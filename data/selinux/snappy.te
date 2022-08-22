@@ -819,7 +819,7 @@ fs_getattr_cgroup(snappy_cli_t)
 systemd_exec_systemctl(snappy_cli_t)
 
 # allow snap to read SSL certs
-miscfiles_read_all_certs(snappy_t)
+miscfiles_read_all_certs(snappy_cli_t)
 
 ########################################
 #
