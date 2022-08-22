@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -94,6 +94,10 @@ have developer access to the snap, either directly or through the
 store's collaboration feature, and to be logged in (see 'snap help login').
 
 Note a later refresh will typically undo a revision override.
+
+Using --hold without specifying any snaps will hold all snap refreshes. Holds
+are only applied to general refreshes (including auto-refreshes), but snaps can
+still be refreshed in specific refreshes (i.e, 'snap refresh snap-a snap-b').
 `)
 
 var longTryHelp = i18n.G(`
@@ -682,6 +686,8 @@ type cmdRefresh struct {
 	IgnoreValidation bool                   `long:"ignore-validation"`
 	IgnoreRunning    bool                   `long:"ignore-running" hidden:"yes"`
 	Transaction      client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
+	Hold             string                 `long:"hold" optional:"yes" optional-value:"forever"`
+	Unhold           bool                   `long:"unhold"`
 	Positional       struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -841,6 +847,20 @@ func (x *cmdRefresh) Execute([]string) error {
 		return nil
 	}
 
+	otherFlags := x.Amend || x.Revision != "" || x.Cohort != "" ||
+		x.LeaveCohort || x.List || x.Time || x.IgnoreValidation || x.IgnoreRunning ||
+		x.Transaction != client.TransactionPerSnap
+
+	if x.Hold != "" && (x.Unhold || otherFlags) {
+		return errors.New(i18n.G("cannot use --hold with other flags"))
+	} else if x.Unhold && (x.Hold != "" || otherFlags) {
+		return errors.New(i18n.G("cannot use --unhold with other flags"))
+	} else if x.Hold != "" {
+		return x.holdRefreshes()
+	} else if x.Unhold {
+		return x.unholdRefreshes()
+	}
+
 	names := installedSnapNames(x.Positional.Snaps)
 	if len(names) == 1 {
 		opts := &client.SnapOptions{
@@ -872,6 +892,81 @@ func (x *cmdRefresh) Execute([]string) error {
 	}
 
 	return x.refreshMany(names, opts)
+}
+
+func (x *cmdRefresh) holdRefreshes() (err error) {
+	var opts client.SnapOptions
+
+	if x.Hold == "forever" {
+		opts.Time = "forever"
+	} else {
+		dur, err := time.ParseDuration(x.Hold)
+		if err != nil {
+			return fmt.Errorf("hold value must be a number of hours or minutes (e.g., 72h): %v", err)
+		}
+
+		opts.Time = timeNow().Add(dur).Format(time.RFC3339)
+	}
+
+	names := installedSnapNames(x.Positional.Snaps)
+	var changeID, snapStr string
+	if len(names) == 1 {
+		changeID, err = x.client.HoldRefreshes(names[0], &opts)
+		snapStr = names[0]
+	} else {
+		changeID, err = x.client.HoldRefreshesMany(names, &opts)
+		if len(names) == 0 {
+			snapStr = "all snaps"
+		} else {
+			snapStr = strutil.Quoted(names)
+		}
+	}
+
+	if err != nil {
+		return err
+	}
+
+	_, err = x.wait(changeID)
+	if err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("Held refreshes of %s until %s\n"), snapStr, opts.Time)
+	return nil
+}
+
+func (x *cmdRefresh) unholdRefreshes() (err error) {
+	names := installedSnapNames(x.Positional.Snaps)
+	var changeID, snapStr string
+	if len(names) == 1 {
+		changeID, err = x.client.UnholdRefreshes(names[0], nil)
+		snapStr = names[0]
+	} else {
+		changeID, err = x.client.UnholdRefreshesMany(names, nil)
+		if len(names) == 0 {
+			snapStr = "all snaps"
+		} else {
+			snapStr = strutil.Quoted(names)
+		}
+	}
+
+	if err != nil {
+		return err
+	}
+
+	_, err = x.wait(changeID)
+	if err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("Removed hold on refreshes for %s\n"), snapStr)
+	return nil
 }
 
 type cmdTry struct {
@@ -1182,6 +1277,10 @@ func init() {
 			"leave-cohort": i18n.G("Refresh the snap out of its cohort"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"hold": i18n.G("Hold refreshes for a specified duration (or indefinitely, if none is specified"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"unhold": i18n.G("Remove hold on refreshes"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, waitDescs, nil)

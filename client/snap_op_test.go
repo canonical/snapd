@@ -49,6 +49,8 @@ var ops = []struct {
 	{(*client.Client).Enable, "enable"},
 	{(*client.Client).Disable, "disable"},
 	{(*client.Client).Switch, "switch"},
+	{(*client.Client).HoldRefreshes, "hold"},
+	{(*client.Client).UnholdRefreshes, "unhold"},
 }
 
 var multiOps = []struct {
@@ -58,6 +60,8 @@ var multiOps = []struct {
 	{(*client.Client).RefreshMany, "refresh"},
 	{(*client.Client).InstallMany, "install"},
 	{(*client.Client).RemoveMany, "remove"},
+	{(*client.Client).HoldRefreshesMany, "hold"},
+	{(*client.Client).UnholdRefreshesMany, "unhold"},
 }
 
 func (cs *clientSuite) TestClientOpSnapServerError(c *check.C) {
