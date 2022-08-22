@@ -494,23 +494,6 @@ func (s *Store) LoginUser(username, password, otp string) (string, string, error
 	return macaroon, discharge, nil
 }
 
-// authAvailable returns true if there is a user and/or device session setup
-func (s *Store) authAvailable(user *auth.UserState) (bool, error) {
-	if user.HasStoreAuth() {
-		return true, nil
-	} else {
-		var device *auth.DeviceState
-		var err error
-		if s.dauthCtx != nil {
-			device, err = s.dauthCtx.Device()
-			if err != nil {
-				return false, err
-			}
-		}
-		return device != nil && device.SessionMacaroon != "", nil
-	}
-}
-
 // authenticateUser will add the store expected Macaroon Authorization header for user
 func authenticateUser(r *http.Request, user *auth.UserState) {
 	var buf bytes.Buffer
