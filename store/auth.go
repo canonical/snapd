@@ -69,10 +69,10 @@ func (rn *AuthRefreshNeed) needed() bool {
 	return rn.Device || rn.User
 }
 
-// deviceAuthorizer authorizes requests using devicew or user
+// deviceAuthorizer authorizes requests using device or user credentials
 // managed via the DeviceAndAuthContext.
-// This is the default authorizer used by Store if a
-// DeviceAndAuthContext is supplied.
+// This is the default authorizer used by Store if a DeviceAndAuthContext
+// is supplied.
 type deviceAuthorizer struct {
 	UserAuthorizer
 
@@ -108,6 +108,7 @@ func (a *deviceAuthorizer) EnsureDeviceSession(dauthCtx DeviceAndAuthContext, cl
 	}
 
 	if device.SessionMacaroon != "" {
+		// we have already a session, nothing to do
 		return nil
 	}
 	if device.Serial == "" {
