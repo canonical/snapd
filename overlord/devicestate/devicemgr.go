@@ -2244,14 +2244,22 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	// TODO: add error checking here and return proper error once
 	// all testsy mock KernelInfo
 	kernelInfo, _ := snapstate.KernelInfo(st, deviceCtx)
-	res, err := m.checkEncryptionAndRequirements(model, kernelInfo)
+	var gadgetInfo *gadget.Info
+	if gadgetSnapInfo, err := snapstate.GadgetInfo(st, deviceCtx); err == nil {
+		gadgetInfo, err = gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	res, err := m.checkEncryptionAndRequirements(model, kernelInfo, gadgetInfo)
 	if err != nil {
 		return "", err
 	}
 	return res.Type, res.PolicyErr
 }
 
-func (m *DeviceManager) checkEncryptionAndRequirements(model *asserts.Model, kernelInfo *snap.Info) (res EncryptionRequirements, err error) {
+func (m *DeviceManager) checkEncryptionAndRequirements(model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (res EncryptionRequirements, err error) {
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
 	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
@@ -2305,7 +2313,24 @@ func (m *DeviceManager) checkEncryptionAndRequirements(model *asserts.Model, ker
 		res.Type = secboot.EncryptionTypeNone
 	}
 
-	// TODO: now validate gadget compatibility with encryption
+	// If encryption is available and we don't have policy violations already check if the gadget
+	// is compatible with encryption.
+	//
+	// TODO: update all tests so that gadgetInfo is always passed in
+	if gadgetInfo != nil && res.Available && res.PolicyErr == nil {
+		opts := &gadget.ValidationConstraints{
+			EncryptedData: true,
+		}
+		if err := gadget.Validate(gadgetInfo, model, opts); err != nil {
+			if res.Required {
+				res.PolicyErr = fmt.Errorf("cannot use encryption with the gadget: %v", err)
+			} else {
+				logger.Noticef("cannot use encryption with the gadget, disabling encryption: %v", err)
+			}
+			res.Available = false
+			res.Type = secboot.EncryptionTypeNone
+		}
+	}
 
 	return res, nil
 }

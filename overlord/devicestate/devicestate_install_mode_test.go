@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -3058,6 +3059,7 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirementsDisable(c 
 	defer restore()
 
 	var kernelInfo *snap.Info = nil
+	var gadgetInfo *gadget.Info = nil
 	var testCases = []struct {
 		grade, storageSafety, forceUnencrypted string
 
@@ -3145,7 +3147,135 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirementsDisable(c 
 			c.Assert(err, IsNil)
 		}
 
-		res, err := devicestate.DeviceManagerCheckEncryptionAndRequirements(s.mgr, mockModel, kernelInfo)
+		res, err := devicestate.DeviceManagerCheckEncryptionAndRequirements(s.mgr, mockModel, kernelInfo, gadgetInfo)
+		c.Assert(err, IsNil)
+		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
+	}
+}
+
+var gadgetWithoutUbuntuSave = &gadget.Info{
+	Volumes: map[string]*gadget.Volume{
+		"pc": &gadget.Volume{
+			Name:       "pc",
+			Schema:     "mbr",
+			Bootloader: "grub",
+			Structure: []gadget.VolumeStructure{
+				{"ubuntu-seed", "ubuntu-seed", "ubuntu-seed", nil, nil, 700 * quantity.SizeMiB, "0d", "system-seed", "", "vfat", nil, gadget.VolumeUpdate{}},
+				{"ubuntu-data", "ubuntu-data", "ubuntu-data", nil, nil, 700 * quantity.SizeMiB, "0d", "system-data", "", "ext4", nil, gadget.VolumeUpdate{}},
+			},
+		},
+	},
+}
+
+var gadgetUC20 = &gadget.Info{
+	Volumes: map[string]*gadget.Volume{
+		"pc": &gadget.Volume{
+			Name:       "pc",
+			Schema:     "mbr",
+			Bootloader: "grub",
+			Structure: []gadget.VolumeStructure{
+				{"ubuntu-seed", "ubuntu-seed", "ubuntu-seed", nil, nil, 700 * quantity.SizeMiB, "0d", "system-seed", "", "vfat", nil, gadget.VolumeUpdate{}},
+				{"ubuntu-data", "ubuntu-data", "ubuntu-data", nil, nil, 700 * quantity.SizeMiB, "0d", "system-data", "", "ext4", nil, gadget.VolumeUpdate{}},
+				{"ubuntu-save", "ubuntu-save", "ubuntu-save", nil, nil, 5 * quantity.SizeMiB, "0d", "system-save", "", "ext4", nil, gadget.VolumeUpdate{}},
+			},
+		},
+	},
+}
+
+func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirementsGadgetIncompatibleWithEncryption(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
+	defer restore()
+
+	var kernelInfo *snap.Info = nil
+	var testCases = []struct {
+		grade, storageSafety string
+		gadgetInfo           *gadget.Info
+
+		expected devicestate.EncryptionRequirements
+	}{
+		{
+			"dangerous", "", gadgetUC20,
+			devicestate.EncryptionRequirements{
+				Required: false, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeLUKS,
+				PolicyErr: nil,
+			},
+		}, {
+			"dangerous", "", gadgetWithoutUbuntuSave,
+			devicestate.EncryptionRequirements{
+				Required: false, Available: false, Disabled: false,
+				Type:      secboot.EncryptionTypeNone,
+				PolicyErr: nil,
+			},
+		}, {
+			"dangerous", "encrypted", gadgetWithoutUbuntuSave,
+			devicestate.EncryptionRequirements{
+				Required: true, Available: false, Disabled: false,
+				Type:      secboot.EncryptionTypeNone,
+				PolicyErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
+			},
+		}, {
+			"signed", "", gadgetUC20,
+			devicestate.EncryptionRequirements{
+				Required: false, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeLUKS,
+				PolicyErr: nil,
+			},
+		}, {
+			"signed", "", gadgetWithoutUbuntuSave,
+			devicestate.EncryptionRequirements{
+				Required: false, Available: false, Disabled: false,
+				Type:      secboot.EncryptionTypeNone,
+				PolicyErr: nil,
+			},
+		}, {
+			"signed", "encrypted", gadgetWithoutUbuntuSave,
+			devicestate.EncryptionRequirements{
+				Required: true, Available: false, Disabled: false,
+				Type:      secboot.EncryptionTypeNone,
+				PolicyErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
+			},
+		}, {
+			"secured", "", gadgetUC20,
+			devicestate.EncryptionRequirements{
+				Required: true, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeLUKS,
+				PolicyErr: nil,
+			},
+		}, {
+			"secured", "", gadgetWithoutUbuntuSave,
+			devicestate.EncryptionRequirements{
+				Required: true, Available: false, Disabled: false,
+				Type:      secboot.EncryptionTypeNone,
+				PolicyErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
+			},
+		},
+	}
+	for _, tc := range testCases {
+		mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+			"display-name":   "my model",
+			"architecture":   "amd64",
+			"base":           "core20",
+			"grade":          tc.grade,
+			"storage-safety": tc.storageSafety,
+			"snaps": []interface{}{
+				map[string]interface{}{
+					"name":            "pc-kernel",
+					"id":              pcKernelSnapID,
+					"type":            "kernel",
+					"default-channel": "20",
+				},
+				map[string]interface{}{
+					"name":            "pc",
+					"id":              pcSnapID,
+					"type":            "gadget",
+					"default-channel": "20",
+				}},
+		})
+		res, err := devicestate.DeviceManagerCheckEncryptionAndRequirements(s.mgr, mockModel, kernelInfo, tc.gadgetInfo)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
@@ -3157,6 +3287,7 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirements(c *C) {
 
 	// TODO: test with kernelInfo != nil and a kernel that has either a fde hook or not
 	var kernelInfo *snap.Info = nil
+	var gadgetInfo *gadget.Info = nil
 	var testCases = []struct {
 		grade, storageSafety string
 		tpmErr               error
@@ -3289,7 +3420,7 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirements(c *C) {
 					"default-channel": "20",
 				}},
 		})
-		res, err := devicestate.DeviceManagerCheckEncryptionAndRequirements(s.mgr, mockModel, kernelInfo)
+		res, err := devicestate.DeviceManagerCheckEncryptionAndRequirements(s.mgr, mockModel, kernelInfo, gadgetInfo)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
