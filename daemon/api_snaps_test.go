@@ -2573,3 +2573,200 @@ func (s *snapsSuite) TestRefreshEnforceResolveErrorChangeConflictError(c *check.
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindSnapChangeConflict)
 	c.Check(rspe.Message, check.Equals, "conflict with a thing")
 }
+
+func (s *snapsSuite) TestHoldAllRefreshes(c *check.C) {
+	d := s.daemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	for _, time := range []string{"forever", "0001-02-03T00:00:00Z"} {
+		restore := daemon.MockConfigstateConfigureInstalled(func(s *state.State, name string, patchValues map[string]interface{}, flags int) (*state.TaskSet, error) {
+			c.Assert(patchValues, check.DeepEquals, map[string]interface{}{"refresh.hold": time})
+			c.Assert(name, check.Equals, "core")
+			return state.NewTaskSet(s.NewTask("fake-task", "Fakeness")), nil
+		})
+
+		inst := &daemon.SnapInstruction{
+			Action: "hold",
+			Time:   time,
+		}
+
+		res, err := inst.DispatchForMany()(inst, st)
+		c.Assert(err, check.IsNil)
+		c.Assert(res.Tasksets, check.Not(check.IsNil))
+		c.Assert(res.Affected, check.IsNil)
+		c.Assert(res.Summary, check.Equals, `Hold refreshes for all snaps.`)
+		restore()
+	}
+}
+
+func (s *snapsSuite) TestHoldManyRefreshes(c *check.C) {
+	snaps := []string{"some-snap", "other-snap"}
+	d := s.daemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	for _, time := range []string{"forever", "0001-02-03T00:00:00Z"} {
+		restore := daemon.MockSnapstateHoldRefreshesBySystem(func(s *state.State, level snapstate.HoldLevel, mockTime string, mockSnaps []string) error {
+			c.Assert(mockTime, check.Equals, time)
+			c.Assert(mockSnaps, check.DeepEquals, snaps)
+			return nil
+		})
+
+		inst := &daemon.SnapInstruction{
+			Action: "hold",
+			Snaps:  snaps,
+			Time:   time,
+		}
+
+		res, err := inst.DispatchForMany()(inst, st)
+		c.Assert(err, check.IsNil)
+		c.Assert(res.Tasksets, check.IsNil)
+		c.Assert(res.Affected, check.DeepEquals, snaps)
+		c.Assert(res.Summary, check.Equals, fmt.Sprintf(`Hold refreshes for %s.`, strutil.Quoted(snaps)))
+		restore()
+	}
+}
+
+func (s *snapsSuite) TestHoldRefresh(c *check.C) {
+	d := s.daemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	for _, time := range []string{"forever", "0001-02-03T00:00:00Z"} {
+		restore := daemon.MockSnapstateHoldRefreshesBySystem(func(s *state.State, level snapstate.HoldLevel, mockTime string, mockSnaps []string) error {
+			c.Assert(mockTime, check.Equals, time)
+			c.Assert(mockSnaps, check.DeepEquals, []string{"some-snap"})
+			return nil
+		})
+
+		inst := &daemon.SnapInstruction{
+			Action: "hold",
+			Snaps:  []string{"some-snap"},
+			Time:   time,
+		}
+
+		summary, tasksets, err := inst.Dispatch()(inst, st)
+		c.Assert(err, check.IsNil)
+		c.Assert(tasksets, check.IsNil)
+		c.Assert(summary, check.Equals, `Hold refreshes for "some-snap".`)
+		restore()
+	}
+}
+
+func (s *snapsSuite) TestUnholdAllRefreshes(c *check.C) {
+	restore := daemon.MockConfigstateConfigureInstalled(func(s *state.State, name string, patchValues map[string]interface{}, flags int) (*state.TaskSet, error) {
+		c.Assert(patchValues, check.DeepEquals, map[string]interface{}{"refresh.hold": nil})
+		c.Assert(name, check.Equals, "core")
+		return state.NewTaskSet(s.NewTask("fake-task", "Fakeness")), nil
+	})
+	defer restore()
+
+	d := s.daemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	inst := &daemon.SnapInstruction{
+		Action: "unhold",
+	}
+
+	res, err := inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.IsNil)
+	c.Assert(res.Tasksets, check.Not(check.IsNil))
+	c.Assert(res.Affected, check.IsNil)
+	c.Assert(res.Summary, check.Equals, `Remove hold on refreshes of all snaps.`)
+}
+
+func (s *snapsSuite) TestUnholdManyRefreshes(c *check.C) {
+	snaps := []string{"some-snap", "other-snap"}
+
+	restore := daemon.MockSnapstateProceedWithRefresh(func(s *state.State, gatingSnap string, mockSnaps []string) error {
+		c.Assert(mockSnaps, check.DeepEquals, snaps)
+		c.Assert(gatingSnap, check.Equals, "system")
+		return nil
+	})
+	defer restore()
+
+	d := s.daemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	inst := &daemon.SnapInstruction{
+		Action: "unhold",
+		Snaps:  snaps,
+	}
+
+	res, err := inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.IsNil)
+	c.Assert(res.Tasksets, check.IsNil)
+	c.Assert(res.Affected, check.DeepEquals, snaps)
+	c.Assert(res.Summary, check.Equals, fmt.Sprintf(`Remove hold on refreshes of %s.`, strutil.Quoted(inst.Snaps)))
+}
+
+func (s *snapsSuite) TestUnholdRefresh(c *check.C) {
+	restore := daemon.MockSnapstateProceedWithRefresh(func(s *state.State, gatingSnap string, mockSnaps []string) error {
+		c.Assert(mockSnaps, check.DeepEquals, []string{"some-snap"})
+		c.Assert(gatingSnap, check.Equals, "system")
+		return nil
+	})
+	defer restore()
+
+	inst := &daemon.SnapInstruction{
+		Action: "unhold",
+		Snaps:  []string{"some-snap"},
+	}
+
+	d := s.daemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	summary, tasksets, err := inst.Dispatch()(inst, st)
+
+	c.Assert(err, check.IsNil)
+	c.Assert(tasksets, check.IsNil)
+	c.Assert(summary, check.Equals, `Remove hold on refreshes of "some-snap".`)
+}
+
+func (s *snapsSuite) TestHoldWithInvalidTime(c *check.C) {
+	s.daemon(c)
+	for _, snaps := range [][]string{{}, {"some-snap"}, {"some-snap", "other-snap"}} {
+		buf := bytes.NewBufferString(fmt.Sprintf(`{"action": "hold", "snaps": [%s], "time": "boom"}`, strutil.Quoted(snaps)))
+		req, err := http.NewRequest("POST", "/v2/snaps", buf)
+		req.Header.Set("Content-Type", "application/json")
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400)
+		c.Assert(rspe.Error(), check.Matches, `hold action requires time to be "forever" or in RFC3339 format: parsing time "boom".*`)
+	}
+}
+
+func (s *snapsSuite) TestHoldMissingTime(c *check.C) {
+	s.daemon(c)
+	buf := bytes.NewBufferString(`{"action": "hold"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Error(), check.Matches, `hold action requires a non-empty time value.*`)
+}
+
+func (s *snapsSuite) TestOnlyAllowTimeParamForHold(c *check.C) {
+	s.daemon(c)
+	buf := bytes.NewBufferString(`{"action": "refresh", "time": "forever"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Error(), check.Matches, `time can only be specified for the "hold" action.*`)
+}

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -144,6 +145,10 @@ var (
 	snapstateRevert                         = snapstate.Revert
 	snapstateRevertToRevision               = snapstate.RevertToRevision
 	snapstateSwitch                         = snapstate.Switch
+	snapstateProceedWithRefresh             = snapstate.ProceedWithRefresh
+	snapstateHoldRefreshesBySystem          = snapstate.HoldRefreshesBySystem
+
+	configstateConfigureInstalled = configstate.ConfigureInstalled
 
 	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
