@@ -3061,39 +3061,56 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirementsDisable(c 
 	var testCases = []struct {
 		grade, storageSafety, forceUnencrypted string
 
-		expectedRe  devicestate.EncryptionRequirements
-		expectedTyp secboot.EncryptionType
+		expected devicestate.EncryptionRequirements
 	}{
 		{
 			"dangerous", "", "",
-			devicestate.EncryptionOptional,
-			secboot.EncryptionTypeLUKS,
+			devicestate.EncryptionRequirements{
+				Required: false, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeLUKS,
+				PolicyErr: nil,
+			},
 		},
 		{
 			"dangerous", "", "force-unencrypted",
-			devicestate.EncryptionDisabled,
-			secboot.EncryptionTypeNone,
+			devicestate.EncryptionRequirements{
+				Required: false, Available: true, Disabled: true,
+				Type:      secboot.EncryptionTypeNone,
+				PolicyErr: nil,
+			},
 		},
 		// not possible to disable encryption on non-dangerous devices
 		{
 			"signed", "", "",
-			devicestate.EncryptionOptional,
-			secboot.EncryptionTypeLUKS,
+			devicestate.EncryptionRequirements{
+				Required: false, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeLUKS,
+				PolicyErr: nil,
+			},
 		},
 		{
 			"signed", "", "force-unencrypted",
-			devicestate.EncryptionOptional,
-			secboot.EncryptionTypeLUKS,
+			devicestate.EncryptionRequirements{
+				Required: false, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeLUKS,
+				PolicyErr: nil,
+			},
 		},
 		{
 			"secured", "", "",
-			devicestate.EncryptionRequired,
-			secboot.EncryptionTypeLUKS,
+			devicestate.EncryptionRequirements{
+				Required: true, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeLUKS,
+				PolicyErr: nil,
+			},
 		},
 		{
 			"secured", "", "force-unencrypted",
-			devicestate.EncryptionRequired,
-			secboot.EncryptionTypeLUKS,
+			devicestate.EncryptionRequirements{
+				Required: true, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeLUKS,
+				PolicyErr: nil,
+			},
 		},
 	}
 
@@ -3128,10 +3145,9 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirementsDisable(c 
 			c.Assert(err, IsNil)
 		}
 
-		re, typ, err := devicestate.DeviceManagerCheckEncryptionAndRequirements(s.mgr, mockModel, kernelInfo)
+		res, err := devicestate.DeviceManagerCheckEncryptionAndRequirements(s.mgr, mockModel, kernelInfo)
 		c.Assert(err, IsNil)
-		c.Check(re, Equals, tc.expectedRe, Commentf("%v", tc))
-		c.Check(typ, Equals, tc.expectedTyp, Commentf("%v", tc))
+		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
 }
 
@@ -3139,102 +3155,114 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirements(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// TODO: test with kernelInfo != nil and a kernel that has either a fde hook or not
 	var kernelInfo *snap.Info = nil
-	noErr := ""
 	var testCases = []struct {
 		grade, storageSafety string
 		tpmErr               error
 
-		expectedRe  devicestate.EncryptionRequirements
-		expectedTyp secboot.EncryptionType
-		expectedErr string
+		expected devicestate.EncryptionRequirements
 	}{
 		{
 			"dangerous", "", nil,
-
-			devicestate.EncryptionOptional,
-			secboot.EncryptionTypeLUKS,
-			noErr,
+			devicestate.EncryptionRequirements{
+				Required: false, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeLUKS,
+				PolicyErr: nil,
+			},
 		}, {
 			"dangerous", "", fmt.Errorf("no tpm"),
-
-			devicestate.EncryptionUnavailable,
-			secboot.EncryptionTypeNone,
-			noErr,
+			devicestate.EncryptionRequirements{
+				Required: false, Available: false, Disabled: false,
+				Type:      secboot.EncryptionTypeNone,
+				PolicyErr: nil,
+			},
 		}, {
 			"dangerous", "encrypted", nil,
-
-			devicestate.EncryptionRequired,
-			secboot.EncryptionTypeLUKS,
-			noErr,
+			devicestate.EncryptionRequirements{
+				Required: true, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeLUKS,
+				PolicyErr: nil,
+			},
 		}, {
 			"dangerous", "encrypted", fmt.Errorf("no tpm"),
-
-			"",
-			"",
-			"cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm",
+			devicestate.EncryptionRequirements{
+				Required: true, Available: false, Disabled: false,
+				Type:      secboot.EncryptionTypeNone,
+				PolicyErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
+			},
 		},
 		{
 			"dangerous", "prefer-unencrypted", nil,
-
-			devicestate.EncryptionOptional,
-			secboot.EncryptionTypeNone,
-			noErr,
+			devicestate.EncryptionRequirements{
+				Required: false, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeNone,
+				PolicyErr: nil,
+			},
 		},
 		{
 			"signed", "", nil,
-
-			devicestate.EncryptionOptional,
-			secboot.EncryptionTypeLUKS,
-			noErr,
+			devicestate.EncryptionRequirements{
+				Required: false, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeLUKS,
+				PolicyErr: nil,
+			},
 		}, {
 			"signed", "", fmt.Errorf("no tpm"),
-
-			devicestate.EncryptionUnavailable,
-			secboot.EncryptionTypeNone,
-			noErr,
+			devicestate.EncryptionRequirements{
+				Required: false, Available: false, Disabled: false,
+				Type:      secboot.EncryptionTypeNone,
+				PolicyErr: nil,
+			},
 		}, {
 			"signed", "encrypted", nil,
-
-			devicestate.EncryptionRequired,
-			secboot.EncryptionTypeLUKS,
-			noErr,
+			devicestate.EncryptionRequirements{
+				Required: true, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeLUKS,
+				PolicyErr: nil,
+			},
 		}, {
 			"signed", "prefer-unencrypted", nil,
-
-			devicestate.EncryptionOptional,
-			secboot.EncryptionTypeNone,
-			noErr,
+			devicestate.EncryptionRequirements{
+				Required: false, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeNone,
+				PolicyErr: nil,
+			},
 		}, {
 			"signed", "encrypted", fmt.Errorf("no tpm"),
-
-			"",
-			"",
-			"cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm",
+			devicestate.EncryptionRequirements{
+				Required: true, Available: false, Disabled: false,
+				Type:      secboot.EncryptionTypeNone,
+				PolicyErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
+			},
 		}, {
 			"secured", "encrypted", nil,
-
-			devicestate.EncryptionRequired,
-			secboot.EncryptionTypeLUKS,
-			noErr,
+			devicestate.EncryptionRequirements{
+				Required: true, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeLUKS,
+				PolicyErr: nil,
+			},
 		}, {
 			"secured", "encrypted", fmt.Errorf("no tpm"),
-
-			"",
-			"",
-			"cannot encrypt device storage as mandated by model grade secured: no tpm",
+			devicestate.EncryptionRequirements{
+				Required: true, Available: false, Disabled: false,
+				Type:      secboot.EncryptionTypeNone,
+				PolicyErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+			},
 		}, {
 			"secured", "", nil,
-
-			devicestate.EncryptionRequired,
-			secboot.EncryptionTypeLUKS,
-			noErr,
+			devicestate.EncryptionRequirements{
+				Required: true, Available: true, Disabled: false,
+				Type:      secboot.EncryptionTypeLUKS,
+				PolicyErr: nil,
+			},
 		}, {
 			"secured", "", fmt.Errorf("no tpm"),
-
-			"",
-			"",
-			"cannot encrypt device storage as mandated by model grade secured: no tpm",
+			devicestate.EncryptionRequirements{
+				Required: true, Available: false, Disabled: false,
+				Type:      secboot.EncryptionTypeNone,
+				PolicyErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+			},
 		},
 	}
 	for _, tc := range testCases {
@@ -3261,13 +3289,8 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirements(c *C) {
 					"default-channel": "20",
 				}},
 		})
-		re, typ, err := devicestate.DeviceManagerCheckEncryptionAndRequirements(s.mgr, mockModel, kernelInfo)
-		if tc.expectedErr != "" {
-			c.Check(err, ErrorMatches, tc.expectedErr)
-		} else {
-			c.Assert(err, IsNil)
-		}
-		c.Check(re, Equals, tc.expectedRe, Commentf("%v", tc))
-		c.Check(typ, Equals, tc.expectedTyp, Commentf("%v", tc))
+		res, err := devicestate.DeviceManagerCheckEncryptionAndRequirements(s.mgr, mockModel, kernelInfo)
+		c.Assert(err, IsNil)
+		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
 }

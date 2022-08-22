@@ -399,7 +399,7 @@ func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx
 	return mgr.checkEncryption(st, deviceCtx)
 }
 
-func DeviceManagerCheckEncryptionAndRequirements(mgr *DeviceManager, model *asserts.Model, kernelInfo *snap.Info) (EncryptionRequirements, secboot.EncryptionType, error) {
+func DeviceManagerCheckEncryptionAndRequirements(mgr *DeviceManager, model *asserts.Model, kernelInfo *snap.Info) (EncryptionRequirements, error) {
 	return mgr.checkEncryptionAndRequirements(model, kernelInfo)
 }
 

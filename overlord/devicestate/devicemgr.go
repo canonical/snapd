@@ -2216,41 +2216,53 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 }
 
 // EncryptionRequirements
-// XXX: move to secboot/encryption.go ?
-type EncryptionRequirements string
+// TODO: move to secboot/encryption.go (?)
+type EncryptionRequirements struct {
+	// Required is set if true encryption is required
+	Required bool
+	// Available is set true if encryption is available on this device
+	Available bool
+	// Disabled is set tre if encryption got force disabled via e.g. the seed parititon
+	Disabled bool
 
-const (
-	EncryptionRequired    EncryptionRequirements = "required"
-	EncryptionOptional    EncryptionRequirements = "optional"
-	EncryptionUnavailable EncryptionRequirements = "unavailable"
-	EncryptionDisabled    EncryptionRequirements = "disabled"
-)
+	// Type returns the EncryptionType that will be used
+	Type secboot.EncryptionType
+
+	// PolicyErr is the error if there is mismatch between the
+	// requirements from the model vs the capabilities of the device
+	PolicyErr error
+}
 
 var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
 // in the kernel.
-func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res secboot.EncryptionType, err error) {
+func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (secboot.EncryptionType, error) {
 	model := deviceCtx.Model()
 
+	// TODO: add error checking here and return proper error once
+	// all testsy mock KernelInfo
 	kernelInfo, _ := snapstate.KernelInfo(st, deviceCtx)
-	// no stronger error check here because tests do not mock KernelInfo
-	// in enough places
-	_, res, err = m.checkEncryptionAndRequirements(model, kernelInfo)
-	return res, err
+	res, err := m.checkEncryptionAndRequirements(model, kernelInfo)
+	if err != nil {
+		return "", err
+	}
+	return res.Type, res.PolicyErr
 }
 
-func (m *DeviceManager) checkEncryptionAndRequirements(model *asserts.Model, kernelInfo *snap.Info) (re EncryptionRequirements, encType secboot.EncryptionType, err error) {
+func (m *DeviceManager) checkEncryptionAndRequirements(model *asserts.Model, kernelInfo *snap.Info) (res EncryptionRequirements, err error) {
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
 	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
 	preferUnencrypted := model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted
 
+	res.Required = secured || encrypted
+
 	// check if we should disable encryption non-secured devices
 	// TODO:UC20: this is not the final mechanism to bypass encryption
 	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
-		return EncryptionDisabled, "", nil
+		res.Disabled = true
 	}
 
 	// check if encryption is available
@@ -2260,7 +2272,7 @@ func (m *DeviceManager) checkEncryptionAndRequirements(model *asserts.Model, ker
 	)
 	if kernelInfo != nil {
 		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
-			encType, checkEncryptionErr = m.checkFDEFeatures()
+			res.Type, checkEncryptionErr = m.checkFDEFeatures()
 		}
 	}
 	// Note that having a fde-setup hook will disable the build-in
@@ -2268,17 +2280,17 @@ func (m *DeviceManager) checkEncryptionAndRequirements(model *asserts.Model, ker
 	if !hasFDESetupHook {
 		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
 		if checkEncryptionErr == nil {
-			encType = secboot.EncryptionTypeLUKS
+			res.Type = secboot.EncryptionTypeLUKS
 		}
 	}
+	res.Available = (checkEncryptionErr == nil)
 
 	// check if encryption is required
 	if checkEncryptionErr != nil {
 		if secured {
-			return "", "", fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
-		}
-		if encrypted {
-			return "", "", fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
+			res.PolicyErr = fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
+		} else if encrypted {
+			res.PolicyErr = fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
 		}
 
 		if hasFDESetupHook {
@@ -2288,19 +2300,12 @@ func (m *DeviceManager) checkEncryptionAndRequirements(model *asserts.Model, ker
 		}
 	}
 
-	// not required, not available, go without
-	if encType == secboot.EncryptionTypeNone {
-		return EncryptionUnavailable, secboot.EncryptionTypeNone, nil
+	// model prefers unencrypted or encryption disabled
+	if (preferUnencrypted || res.Disabled) && !secured && !encrypted {
+		res.Type = secboot.EncryptionTypeNone
 	}
 
-	// model prefers unencrypted
-	if preferUnencrypted && !secured && !encrypted {
-		return EncryptionOptional, secboot.EncryptionTypeNone, nil
-	}
+	// TODO: now validate gadget compatibility with encryption
 
-	// return required or optional with the correct encryption type
-	if secured || encrypted {
-		return EncryptionRequired, encType, nil
-	}
-	return EncryptionOptional, encType, nil
+	return res, nil
 }
