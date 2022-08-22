@@ -1913,6 +1913,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedStorageSafety(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	s.makeMockInstalledPcGadget(c, "", "")
+
 	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
 	defer restore()
 
@@ -1966,6 +1968,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedStorageSafety(c *C)
 func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrors(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	s.makeMockInstalledPcGadget(c, "", "")
 
 	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return fmt.Errorf("tpm says no") })
 	defer restore()
@@ -2101,6 +2105,8 @@ var checkEncryptionModelHeaders = map[string]interface{}{
 func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogsTPM(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	s.makeMockInstalledPcGadget(c, "", "")
 
 	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error {
 		return fmt.Errorf("tpm says no")

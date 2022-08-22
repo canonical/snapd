@@ -535,14 +535,16 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		hasFDESetupHook    bool
 		checkEncryptionErr error
 	)
-	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
-		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
-			res, checkEncryptionErr = m.checkFDEFeatures()
-		}
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return res, fmt.Errorf("cannot check encryption support: %v", err)
 	}
+	hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo)
 	// Note that having a fde-setup hook will disable the build-in
 	// secboot encryption
-	if !hasFDESetupHook {
+	if hasFDESetupHook {
+		res, checkEncryptionErr = m.checkFDEFeatures()
+	} else {
 		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
 		if checkEncryptionErr == nil {
 			res = secboot.EncryptionTypeLUKS
