@@ -1,0 +1,43 @@
+summary: smoke test for the remote.retry tool
+
+backends: [google]
+
+# Amazon linux is skipped because no sshpass available
+systems: [-amazon-linux-*]
+
+prepare: |
+    tests.pkgs install sshpass
+    remote.setup config --host localhost --port 22 --user tools-user-1 --pass tools-user-1
+
+restore: |
+    tests.pkgs remove sshpass
+    rm -rf remote.setup.cfg /tmp/my-remote-retry-test
+
+execute: |
+    remote.retry --help | MATCH 'usage: remote.retry'
+    remote.retry -h | MATCH 'usage: remote.retry'
+
+    # check the positive scenario without parameters
+    remote.retry "true"
+
+    # check negative scenario
+    not remote.retry --wait 1 -attempts 2 "false"
+
+    # check the command is executed correctly
+    rm -f /tmp/my-remote-retry-test
+    remote.retry "touch /tmp/my-remote-retry-test"
+    test -f /tmp/my-remote-retry-test
+
+    # check the --attempts and --wait parameter
+    not remote.retry --wait 0.5 --attempts 5 "echo 1 >> /tmp/my-remote-retry-test && exit 1"
+    test "$(grep -c 1 /tmp/my-remote-retry-test)" = 5
+    rm -f /tmp/my-remote-retry-test
+
+    # check the -n parameter
+    not remote.retry --wait 0.5 -n 8 "echo 1 >> /tmp/my-remote-retry-test && exit 1"
+    test "$(grep -c 1 /tmp/my-remote-retry-test)" = 8
+    rm -f /tmp/my-remote-retry-test
+
+    # check errors
+    remote.retry --wait 0.5 -n 2 "false" 2>&1 | MATCH "remote.retry: timed out retrying command"
+    remote.retry 2>&1 | MATCH "remote.retry: command to retry not specified"

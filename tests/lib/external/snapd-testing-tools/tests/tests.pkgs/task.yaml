@@ -1,5 +1,7 @@
 summary: Smoke test for tests.pkgs tool
 
+backends: [google]
+
 execute: |
     if os.query is-core; then
         tests.pkgs -h 2>&1 | MATCH 'tests.pkgs: Ubuntu Core is not supported'

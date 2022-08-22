@@ -1,5 +1,7 @@
 summary: tests for the tests.backup tool
 
+backends: [google]
+
 execute: |
     # Without any arguments a help message is printed.
     tests.backup | MATCH "usage: tests.backup prepare"

@@ -439,6 +439,27 @@ EOF
     rm -rf "$UNPACK_DIR"
 }
 
+repack_kernel_snap() {
+    local TARGET=$1
+    local VERSION
+    local UNPACK_DIR
+    local CHANNEL
+
+    VERSION=$(nested_get_version)
+    if [ "$VERSION" = 16 ]; then
+        CHANNEL=latest
+    else
+        CHANNEL=$VERSION
+    fi
+
+    echo "Repacking kernel snap"
+    UNPACK_DIR=/tmp/kernel-unpack
+    snap download --basename=pc-kernel --channel="$CHANNEL/edge" pc-kernel
+    unsquashfs -no-progress -d "$UNPACK_DIR" pc-kernel.snap
+    snap pack --filename="$TARGET" "$UNPACK_DIR"
+
+    rm -rf pc-kernel.snap "$UNPACK_DIR"
+}
 
 repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     local TARGET="$1"
@@ -532,9 +553,51 @@ EOF
     rm -rf "$UNPACK_DIR"
 }
 
+# Builds kernel snap with bad kernel.efi, in different ways
+# $1: snap we will modify
+# $2: target folder for the new snap
+# $3: argument, type of corruption we want for kernel.efi
+uc20_build_corrupt_kernel_snap() {
+    local ORIG_SNAP="$1"
+    local TARGET_DIR="$2"
+    local optArg=${3:-}
+
+    # kernel snap is huge, unpacking to current dir
+    local REPACKED_DIR=repacked-kernel
+    local KERNEL_EFI_PATH=$REPACKED_DIR/kernel.efi
+    unsquashfs -d "$REPACKED_DIR" "$ORIG_SNAP"
+
+    case "$optArg" in
+        --empty)
+            printf "" > "$KERNEL_EFI_PATH"
+            ;;
+        --zeros)
+            dd if=/dev/zero of="$KERNEL_EFI_PATH" count=1
+            ;;
+        --bad-*)
+            section=${optArg#--bad-}
+            # Get the file offset for the section, put zeros at the beginning of it
+            sectOffset=$(objdump -w -h "$KERNEL_EFI_PATH" | grep "$section" |
+                             awk '{print $6}')
+            dd if=/dev/zero of="$KERNEL_EFI_PATH" \
+               bs=1 seek=$((0x$sectOffset)) count=512 conv=notrunc
+            ;;
+    esac
+
+    # Make snap smaller, we don't need the fw with qemu
+    rm -rf "$REPACKED_DIR"/firmware/*
+    snap pack "$REPACKED_DIR" "$TARGET_DIR"
+    rm -rf "$REPACKED_DIR"
+}
+
 uc20_build_initramfs_kernel_snap() {
     # carries ubuntu-core-initframfs
     add-apt-repository ppa:snappy-dev/image -y
+    # On focal, lvm2 does not reinstall properly after being removed.
+    # So we need to clean up in case the VM has been re-used.
+    if os.query is-focal; then
+        systemctl unmask lvm2-lvmpolld.socket
+    fi
     # TODO: install the linux-firmware as the current version of
     # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
     # to build the initrd
@@ -638,8 +701,8 @@ EOF
             ubuntu-core-initramfs create-initrd \
                                   --kernelver "$kver" \
                                   --skeleton "$skeletondir" \
-                                  --kerneldir "lib/modules/$kver" \
-                                  --firmwaredir "$unpackeddir/firmware" \
+                                  --kerneldir "${unpackeddir}/modules/$kver" \
+                                  --firmwaredir "${unpackeddir}/firmware" \
                                   --feature 'main' \
                                   --output ../../repacked-initrd
         )
@@ -872,7 +935,7 @@ setup_reflash_magic() {
     else
         # shellcheck source=tests/lib/image.sh
         . "$TESTSLIB/image.sh"
-        build_ubuntu_image
+        get_ubuntu_image
     fi
 
     # needs to be under /home because ubuntu-device-flash

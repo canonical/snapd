@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 
@@ -226,7 +227,6 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	})
 
 	s.state.Lock()
-	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 	s.user, err = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	c.Assert(err, IsNil)
@@ -267,14 +267,9 @@ SNAPD_APPARMOR_REEXEC=0
 		}
 	}
 
-	// enable refresh-app-awareness (it's disabled by default) but we
-	// want to enable soon(ish) so testing with it is preferred
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
-
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
+	s.state.Unlock()
 
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
@@ -283,6 +278,7 @@ SNAPD_APPARMOR_REEXEC=0
 	s.AddCleanup(snapstate.MockSecurityProfilesDiscardLate(func(snapName string, rev snap.Revision, typ snap.Type) error {
 		return nil
 	}))
+	s.AddCleanup(osutil.MockMountInfo(""))
 }
 
 func (s *snapmgrBaseTest) TearDownTest(c *C) {
@@ -5486,6 +5482,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			old:  "<no-old>",
 		},
 		{
+			op:   "setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "core"),
+		},
+		{
 			op:    "setup-profiles:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -5540,6 +5540,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		{
 			op:   "remove-snap-common-data",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
+		},
+		{
+			op:   "remove-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "ubuntu-core"),
 		},
 		{
 			op:   "remove-snap-data-dir",
@@ -5642,6 +5646,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		{
 			op:   "remove-snap-common-data",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
+		},
+		{
+			op:   "remove-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "ubuntu-core"),
 		},
 		{
 			op:   "remove-snap-data-dir",
@@ -7734,6 +7742,10 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 			op:   "copy-data",
 			path: filepath.Join(dirs.SnapMountDir, "snapd/11"),
 			old:  filepath.Join(dirs.SnapMountDir, "snapd/1"),
+		},
+		{
+			op:   "setup-snap-save-data",
+			path: filepath.Join(dirs.SnapDataSaveDir, "snapd"),
 		},
 		{
 			op:    "setup-profiles:Doing",

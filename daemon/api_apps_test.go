@@ -55,6 +55,7 @@ type appsSuite struct {
 	jctlSvcses         [][]string
 	jctlNs             []int
 	jctlFollows        []bool
+	jctlNamespaces     []bool
 	jctlRCs            []io.ReadCloser
 	jctlErrs           []error
 
@@ -64,10 +65,11 @@ type appsSuite struct {
 	infoA, infoB, infoC, infoD, infoE *snap.Info
 }
 
-func (s *appsSuite) journalctl(svcs []string, n int, follow bool) (rc io.ReadCloser, err error) {
+func (s *appsSuite) journalctl(svcs []string, n int, follow, namespaces bool) (rc io.ReadCloser, err error) {
 	s.jctlSvcses = append(s.jctlSvcses, svcs)
 	s.jctlNs = append(s.jctlNs, n)
 	s.jctlFollows = append(s.jctlFollows, follow)
+	s.jctlNamespaces = append(s.jctlNamespaces, namespaces)
 
 	if len(s.jctlErrs) > 0 {
 		err, s.jctlErrs = s.jctlErrs[0], s.jctlErrs[1:]
@@ -132,6 +134,7 @@ func (s *appsSuite) SetUpTest(c *check.C) {
 	s.jctlSvcses = nil
 	s.jctlNs = nil
 	s.jctlFollows = nil
+	s.jctlNamespaces = nil
 	s.jctlRCs = nil
 	s.jctlErrs = nil
 
@@ -154,6 +157,7 @@ func (s *appsSuite) SetUpTest(c *check.C) {
 
 	d.Overlord().Loop()
 	s.AddCleanup(func() { d.Overlord().Stop() })
+	s.AddCleanup(systemd.MockSystemdVersion(237, nil))
 }
 
 func (s *appsSuite) TestSplitAppName(c *check.C) {
@@ -650,9 +654,10 @@ func (s *appsSuite) TestLogs(c *check.C) {
 	c.Check(s.jctlSvcses, check.DeepEquals, [][]string{{"snap.snap-a.svc2.service"}})
 	c.Check(s.jctlNs, check.DeepEquals, []int{42})
 	c.Check(s.jctlFollows, check.DeepEquals, []bool{false})
+	c.Check(s.jctlNamespaces, check.DeepEquals, []bool{false})
 
 	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json-seq")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json-seq")
 	c.Check(rec.Body.String(), check.Equals, `
 {"timestamp":"1970-01-01T00:00:00.000042Z","message":"hello1","sid":"xyzzy","pid":"42"}
 {"timestamp":"1970-01-01T00:00:00.000044Z","message":"hello2","sid":"xyzzy","pid":"42"}
@@ -660,6 +665,54 @@ func (s *appsSuite) TestLogs(c *check.C) {
 {"timestamp":"1970-01-01T00:00:00.000048Z","message":"hello4","sid":"xyzzy","pid":"42"}
 {"timestamp":"1970-01-01T00:00:00.00005Z","message":"hello5","sid":"xyzzy","pid":"42"}
 `[1:])
+}
+
+func (s *appsSuite) TestLogsNoNamespaceOption(c *check.C) {
+	restore := systemd.MockSystemdVersion(237, nil)
+	defer restore()
+
+	s.expectLogsAccess()
+
+	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(""))}
+
+	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil)
+	c.Assert(err, check.IsNil)
+
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, req)
+
+	c.Check(s.jctlSvcses, check.DeepEquals, [][]string{{"snap.snap-a.svc2.service"}})
+	c.Check(s.jctlNs, check.DeepEquals, []int{42})
+	c.Check(s.jctlFollows, check.DeepEquals, []bool{false})
+	c.Check(s.jctlNamespaces, check.DeepEquals, []bool{false})
+
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json-seq")
+	c.Check(rec.Body.String(), check.Equals, "")
+}
+
+func (s *appsSuite) TestLogsWithNamespaceOption(c *check.C) {
+	restore := systemd.MockSystemdVersion(245, nil)
+	defer restore()
+
+	s.expectLogsAccess()
+
+	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(""))}
+
+	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil)
+	c.Assert(err, check.IsNil)
+
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, req)
+
+	c.Check(s.jctlSvcses, check.DeepEquals, [][]string{{"snap.snap-a.svc2.service"}})
+	c.Check(s.jctlNs, check.DeepEquals, []int{42})
+	c.Check(s.jctlFollows, check.DeepEquals, []bool{false})
+	c.Check(s.jctlNamespaces, check.DeepEquals, []bool{true})
+
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json-seq")
+	c.Check(rec.Body.String(), check.Equals, "")
 }
 
 func (s *appsSuite) TestLogsN(c *check.C) {

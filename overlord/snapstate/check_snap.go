@@ -51,6 +51,8 @@ var featureSet = map[string]bool{
 	// Support for "kernel-assets" in gadget.yaml. I.e. having volume
 	// content of the style $kernel:ref`
 	"kernel-assets": true,
+	// Support for "refresh-mode: ignore-running" in snap.yaml
+	"app-refresh-mode": true,
 }
 
 func checkAssumes(si *snap.Info) error {

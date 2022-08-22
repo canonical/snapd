@@ -360,6 +360,8 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bootWith := &boot.BootableSet{
 		Base:              bootBaseInfo,
 		BasePath:          bootBaseInfo.MountFile(),
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInfo.MountFile(),
 		Kernel:            kernelInfo,
 		KernelPath:        kernelInfo.MountFile(),
 		RecoverySystemDir: recoverySystemDir,
@@ -457,7 +459,7 @@ func fixupWritableDefaultDirs(systemDataDir string) error {
 	// this restriction to let the device create one specific file, and then
 	// we behind the scenes just create the directories for the device
 
-	for _, subDirToCreate := range []string{"/etc/udev/rules.d", "/etc/modprobe.d", "/etc/modules-load.d/"} {
+	for _, subDirToCreate := range []string{"/etc/udev/rules.d", "/etc/modprobe.d", "/etc/modules-load.d/", "/etc/systemd/network"} {
 		dirToCreate := sysconfig.WritableDefaultsDir(systemDataDir, subDirToCreate)
 
 		if err := os.MkdirAll(dirToCreate, 0755); err != nil {
@@ -1025,6 +1027,8 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	bootWith := &boot.BootableSet{
 		Base:              bootBaseInfo,
 		BasePath:          bootBaseInfo.MountFile(),
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInfo.MountFile(),
 		Kernel:            kernelInfo,
 		KernelPath:        kernelInfo.MountFile(),
 		RecoverySystemDir: recoverySystemDir,

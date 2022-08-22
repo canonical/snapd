@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -356,11 +357,11 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model, gadgetDir string)
 	// trusted assets need tracking only when the system is using encryption
 	// for its data partitions
 	trackTrustedAssets := false
-	_, err := sealedKeysMethod(dirs.GlobalRootDir)
+	_, err := device.SealedKeysMethod(dirs.GlobalRootDir)
 	switch {
 	case err == nil:
 		trackTrustedAssets = true
-	case err == errNoSealedKeys:
+	case err == device.ErrNoSealedKeys:
 		// nothing to do
 	case err != nil:
 		// all other errors

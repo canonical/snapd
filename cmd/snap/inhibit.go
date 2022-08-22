@@ -110,7 +110,7 @@ func graphicalSessionFlow(snapName string, hint runinhibit.Hint) error {
 
 func textFlow(snapName string, hint runinhibit.Hint) error {
 	fmt.Fprintf(Stdout, "%s\n", inhibitMessage(snapName, hint))
-	pb := progress.MakeProgressBar()
+	pb := progress.MakeProgressBar(Stdout)
 	pb.Spin(i18n.G("please wait..."))
 	_, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited)
 	pb.Finished()

@@ -91,6 +91,10 @@ ptrace (read),
 /var/lib/snapd/hostfs/etc/os-release rk,
 /var/lib/snapd/hostfs/usr/lib/os-release rk,
 
+# Allow discovering the Kernel build config
+@{PROC}/config.gz r,
+/boot/config* r,
+
 # Allow discovering system-wide CFS Bandwidth Control information
 # https://www.kernel.org/doc/html/latest/scheduler/sched-bwc.html
 /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us r,

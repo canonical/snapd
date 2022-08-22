@@ -7,7 +7,7 @@ backends: [-autopkgtest]
 # Only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
 # ubuntu-18.04-32: i386 is not supported by lxd
-systems: [ubuntu-16*, ubuntu-18.04-64, ubuntu-20*, ubuntu-core-*]
+systems: [ubuntu-16*, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*]
 
 # Start before anything else as it can take a really long time.
 priority: 1000
@@ -50,8 +50,7 @@ restore: |
 
     "$TESTSTOOLS"/lxd-state undo-mount-changes
 
-    # unset refresh-app-awareness to ensure the defaults are used and not
-    # interfere with lxd
+    # unset refresh-app-awareness, this means it's enabled by default.
     snap unset system experimental.refresh-app-awareness
     # Stop the dbus.service of the user session of the root user. This test
     # runs in several configurations, not all of which have this capability.
@@ -163,47 +162,26 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- lxd waitready
     lxd.lxc exec my-nesting-ubuntu -- lxd init --auto
 
-    # We can't launch the inner ubuntu lxd container in google cloud images
-    # See https://github.com/lxc/lxd/issues/10492
-    # See https://bugs.launchpad.net/cloud-images/+bug/1976552
-    if [ "$SPREAD_BACKEND" != "google" ]; then
-        lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "ubuntu:${VERSION_ID:-}" my-inner-ubuntu
-        lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
-    fi
-
-    # finally check that we can't run snapd inside a nested lxd container as
-    # current apparmor does not support this, so if this works it is probably a
-    # confinement bug
-    #
-    # 2021-11-02: disabled because of https://github.com/lxc/lxd/issues/9447
-    #
-    #lxd.lxc exec my-nesting-ubuntu -- lxd.lxc file push --quiet prep-snapd-in-lxd.sh my-inner-ubuntu/root/
-    #snapdDeb=$(lxd.lxc exec my-nesting-ubuntu -- sh -c 'ls snapd_*.deb')
-    #lxd.lxc exec my-nesting-ubuntu -- lxd.lxc file push --quiet "$snapdDeb" my-inner-ubuntu/root/
-    #echo "Setting up proxy for the *inside nested* container"
-    #if [ -n "${http_proxy:-}" ]; then
-    #    lxd.lxc exec my-nesting-ubuntu -- \
-    #        lxd.lxc exec my-inner-ubuntu -- \
-    #            sh -c "echo http_proxy=$http_proxy >> /etc/environment"
-    #fi
-    #if [ -n "${https_proxy:-}" ]; then
-    #    lxd.lxc exec my-nesting-ubuntu -- \
-    #        lxd.lxc exec my-inner-ubuntu -- \
-    #            sh -c "echo https_proxy=$https_proxy >> /etc/environment"
-    #fi
-    #lxd.lxc exec my-nesting-ubuntu -- \
-    #    lxd.lxc exec my-inner-ubuntu -- \
-    #        /root/prep-snapd-in-lxd.sh
-
-    #not lxd.lxc exec my-nesting-ubuntu -- \
-    #    lxd.lxc exec my-inner-ubuntu -- \
-    #        snap install test-snapd-sh 2>stderr.log
-    # replace newlines with spaces to get one long line
-    #tr '\n' ' ' < stderr.log | MATCH "error:\s+system\s+does\s+not\s+fully\s+support\s+snapd:\s+apparmor\s+detected\s+but\s+insufficient\s+permissions\s+to\s+use\s+it"
+    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "ubuntu:${VERSION_ID:-}" my-inner-ubuntu
+    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
 
     echo "Install lxd-demo server to exercise the lxd interface"
     snap install lxd-demo-server
     snap connect lxd-demo-server:lxd lxd:lxd
+
+    echo "Check that snaps in containers don't prevent refreshes in the host"
+    snap pack "$TESTSLIB/snaps/test-snapd-sh"
+    snap install --dangerous test-snapd-sh_1.0_all.snap
+
+    lxc file push test-snapd-sh_1.0_all.snap my-ubuntu/home/sh.snap
+    lxc exec my-ubuntu -- snap install --dangerous /home/sh.snap
+
+    # keep the snap running in the container until we refresh in the host
+    lxc exec my-ubuntu -- touch /home/test-run
+    lxc exec my-ubuntu -- sh -c 'test-snapd-sh.sh -c "while [ -e /home/test-run ]; do sleep 1; done"' &
+    snap install --dangerous test-snapd-sh_1.0_all.snap
+    # remove the signal file so that the snap exits
+    lxc exec my-ubuntu -- rm /home/test-run
 
     echo "Check that we error in 'unconfined' lxd containers"
     lxd.lxc config show my-ubuntu > conf.yaml

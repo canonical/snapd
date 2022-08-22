@@ -94,7 +94,7 @@ func fetchSnapAssertionsDirect(tsto *tooling.ToolingStore, snapPath string, snap
 	}
 	f := tsto.AssertionFetcher(db, save)
 
-	_, err = image.FetchAndCheckSnapAssertions(snapPath, snapInfo, f, db)
+	_, err = image.FetchAndCheckSnapAssertions(snapPath, snapInfo, nil, f, db)
 	return assertPath, err
 }
 
@@ -122,6 +122,7 @@ func downloadDirectImpl(snapName string, revision snap.Revision, dlOpts tooling.
 	if err != nil {
 		return err
 	}
+	tsto.Stdout = Stdout
 
 	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
 	dlSnap, err := tsto.DownloadSnap(snapName, dlOpts)

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -106,6 +107,40 @@ func (b Backend) UndoCopySnapData(newInfo, oldInfo *snap.Info, _ progress.Meter,
 	}
 
 	return firstErr(err1, err2)
+}
+
+func (b Backend) SetupSnapSaveData(info *snap.Info, meter progress.Meter) error {
+	// ubuntu-save is only present on core images
+	if release.OnClassic {
+		return nil
+	}
+
+	// verify that ubuntu-save has been mounted under the expected path and
+	// that it is indeed a mount-point.
+	if hasSave, err := osutil.IsMounted(dirs.SnapSaveDir); err != nil || !hasSave {
+		if err != nil {
+			return fmt.Errorf("cannot check if ubuntu-save is mounted: %v", err)
+		}
+		return nil
+	}
+
+	saveDir := snap.CommonDataSaveDir(info.InstanceName())
+	return os.MkdirAll(saveDir, 0755)
+}
+
+func (b Backend) UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, meter progress.Meter) error {
+	// ubuntu-save is only present on core images
+	if release.OnClassic {
+		return nil
+	}
+
+	if oldInfo == nil {
+		// Clear out snap save data when removing totally
+		if err := b.RemoveSnapSaveData(newInfo); err != nil {
+			return fmt.Errorf("cannot remove save data directories for %q: %v", newInfo.InstanceName(), err)
+		}
+	}
+	return nil
 }
 
 // ClearTrashedData removes the trash. It returns no errors on the assumption that it is called very late in the game.

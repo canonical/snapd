@@ -90,6 +90,10 @@ func (dc groundDeviceContext) Base() string {
 	return dc.model.Base()
 }
 
+func (dc groundDeviceContext) Gadget() string {
+	return dc.model.Gadget()
+}
+
 func (dc groundDeviceContext) RunMode() bool {
 	return dc.systemMode == "run"
 }
@@ -98,6 +102,20 @@ func (dc groundDeviceContext) RunMode() bool {
 // TODO:UC20: will classic devices with uc20 models have a modeenv? I think so?
 func (dc groundDeviceContext) HasModeenv() bool {
 	return dc.model.Grade() != asserts.ModelGradeUnset
+}
+
+// IsCoreBoot is true when there are modes, or when there are not but
+// we are not in classic (UC16/18 case). If true this implies that a
+// kernel snap is in use.
+func (d *groundDeviceContext) IsCoreBoot() bool {
+	return d.HasModeenv() || !d.Classic()
+}
+
+// IsClassicBoot is true for classic systems with classic initramfs
+// (there are no system modes in this case). If true, the kernel comes
+// from debian packages.
+func (d *groundDeviceContext) IsClassicBoot() bool {
+	return !d.IsCoreBoot()
 }
 
 // expected interface is implemented

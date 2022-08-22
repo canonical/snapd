@@ -2632,22 +2632,22 @@ type: kernel`
 	c.Check(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core18_2.snap",
 		"snap_try_core":   "",
-		"snap_try_kernel": "pc-kernel_123.snap",
-		"snap_kernel":     "pc-kernel_x1.snap",
-		"snap_mode":       boot.TryStatus,
+		"snap_try_kernel": "",
+		"snap_kernel":     "pc-kernel_123.snap",
+		"snap_mode":       boot.DefaultStatus,
 	})
 	restarting, _ = restart.Pending(st)
 	c.Check(restarting, Equals, true)
 
 	// pretend we restarted back to the old kernel
-	s.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeKernel})
+	s.mockSuccessfulReboot(c, bloader, nil)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	// and we undo the bootvars and trigger a reboot
+	// bootvars should not have changed
 	c.Check(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core18_2.snap",
 		"snap_try_core":   "",
@@ -2973,9 +2973,9 @@ type: kernel`
 	restarting, _ = restart.Pending(st)
 	c.Check(restarting, Equals, true)
 
-	// we need to reboot with a "new" try kernel, so kernel_status was set again
+	// we revert to the previous working kernel, so kernel_status is unset now
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
-		"kernel_status": boot.TryStatus,
+		"kernel_status": "",
 	})
 
 	// we should not have extracted any more kernel assets than before, since
@@ -2992,16 +2992,14 @@ type: kernel`
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Current, DeepEquals, snap.R(1))
 
-	// since we need to do a reboot to go back to the old kernel, we should now
-	// have kernel on the bootloader as the new one, and the try kernel on the
-	// booloader as the old one
+	// we will reboot to go back to the old kernel, we should now
+	// have the old kernel on the bootloader and no try kernel
 	finalCurrentKernel, err := bloader.Kernel()
 	c.Assert(err, IsNil)
-	c.Assert(finalCurrentKernel.Filename(), Equals, kernelSnapInfo.Filename())
+	c.Assert(finalCurrentKernel.Filename(), Equals, firstKernel.Filename())
 
-	finalTryKernel, err := bloader.TryKernel()
-	c.Assert(err, IsNil)
-	c.Assert(finalTryKernel.Filename(), Equals, firstKernel.Filename())
+	_, err = bloader.TryKernel()
+	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
 
 	// TODO:UC20: this test should probably simulate another reboot and confirm
 	// that at the end of everything we have GetCurrentBoot() return the old
@@ -5382,11 +5380,11 @@ version: 20.04`
 
 	// and the undo gave us our old kernel back
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
-		"snap_core":       "core20_2.snap",
-		"snap_try_core":   "core18_1.snap",
+		"snap_core":       "core18_1.snap",
+		"snap_try_core":   "",
 		"snap_kernel":     "pc-kernel_1.snap",
 		"snap_try_kernel": "",
-		"snap_mode":       boot.TryStatus,
+		"snap_mode":       boot.DefaultStatus,
 	})
 }
 
@@ -6020,9 +6018,9 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 	c.Assert(ms.bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core_1.snap",
 		"snap_try_core":   "",
-		"snap_try_kernel": "pc-kernel_1.snap",
-		"snap_kernel":     "brand-kernel_2.snap",
-		"snap_mode":       boot.TryStatus,
+		"snap_try_kernel": "",
+		"snap_kernel":     "pc-kernel_1.snap",
+		"snap_mode":       boot.DefaultStatus,
 	})
 }
 
@@ -8093,14 +8091,14 @@ func (s *mgrsSuite) TestRemodelUC20BackToPreviousGadget(c *C) {
 	var i int
 
 	// prepare first
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Prepare snap "old-pc" (1) for remodel`))
+	c.Assert(tasks[i].Summary(), Equals, `Prepare snap "old-pc" (1) for remodel`)
 	i++
 	// then recovery system
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then gadget switch with update of assets and kernel command line
 	i += validateGadgetSwitchTasks(c, tasks[i:], "old-pc", "1")
 	// finally new model assertion
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set new model assertion`))
+	c.Assert(tasks[i].Summary(), Equals, `Set new model assertion`)
 	i++
 	c.Check(i, Equals, len(tasks))
 }
@@ -8274,14 +8272,14 @@ func (s *mgrsSuite) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) {
 	var i int
 
 	// prepare first
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Switch snap "old-pc" from channel "20/beta" to "20/edge"`))
+	c.Assert(tasks[i].Summary(), Equals, `Switch snap "old-pc" from channel "20/beta" to "20/edge"`)
 	i++
 	// then recovery system
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then gadget switch with update of assets and kernel command line
 	i += validateGadgetSwitchTasks(c, tasks[i:], "old-pc", "1")
 	// finally new model assertion
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set new model assertion`))
+	c.Assert(tasks[i].Summary(), Equals, `Set new model assertion`)
 	i++
 	c.Check(i, Equals, len(tasks))
 }
@@ -8715,7 +8713,7 @@ func (s *mgrsSuite) TestRemodelUC20ToUC22(c *C) {
 	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure)
 	i += validateRefreshTasks(c, tasks[i:], "pc", "34", isGadget)
 	// finally new model assertion
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set new model assertion`))
+	c.Assert(tasks[i].Summary(), Equals, `Set new model assertion`)
 	i++
 	c.Check(i, Equals, len(tasks))
 

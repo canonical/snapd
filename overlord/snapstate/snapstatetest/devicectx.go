@@ -66,8 +66,20 @@ func (dc *TrivialDeviceContext) Base() string {
 	return dc.DeviceModel.Base()
 }
 
+func (dc *TrivialDeviceContext) Gadget() string {
+	return dc.DeviceModel.Gadget()
+}
+
 func (dc *TrivialDeviceContext) HasModeenv() bool {
 	return dc.Model().Grade() != asserts.ModelGradeUnset
+}
+
+func (d *TrivialDeviceContext) IsCoreBoot() bool {
+	return d.HasModeenv() || !d.Classic()
+}
+
+func (d *TrivialDeviceContext) IsClassicBoot() bool {
+	return !d.IsCoreBoot()
 }
 
 func (dc *TrivialDeviceContext) RunMode() bool {

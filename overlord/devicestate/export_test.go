@@ -439,3 +439,13 @@ func MockMarkFactoryResetComplete(f func(encrypted bool) error) (restore func())
 	bootMarkFactoryResetComplete = f
 	return restore
 }
+
+func MockSecbootMarkSuccessful(f func() error) (restore func()) {
+	r := testutil.Backup(&secbootMarkSuccessful)
+	secbootMarkSuccessful = f
+	return r
+}
+
+func BuildGroundDeviceContext(model *asserts.Model, mode string) snapstate.DeviceContext {
+	return &groundDeviceContext{model: model, systemMode: mode}
+}

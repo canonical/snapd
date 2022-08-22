@@ -521,6 +521,13 @@ version: 5.0
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
 	err = os.Symlink(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
 type: kernel
 version: 5.0
@@ -537,6 +544,8 @@ version: 5.0
 		RecoverySystemDir: "20191216",
 		BasePath:          baseInSeed,
 		Base:              baseInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
 		Recovery:          false,
@@ -715,10 +724,12 @@ version: 5.0
 	// ensure grub.cfg in boot was installed from internal assets
 	c.Check(mockBootGrubCfg, testutil.FileEquals, string(grubCfgAsset))
 
-	// ensure base/kernel got copied to /var/lib/snapd/snaps
+	// ensure base/gadget/kernel got copied to /var/lib/snapd/snaps
 	core20Snap := filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "core20_3.snap")
+	gadgetSnap := filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "pc_4.snap")
 	pcKernelSnap := filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "pc-kernel_5.snap")
 	c.Check(core20Snap, testutil.FilePresent)
+	c.Check(gadgetSnap, testutil.FilePresent)
 	c.Check(pcKernelSnap, testutil.FilePresent)
 	c.Check(osutil.IsSymlink(core20Snap), Equals, false)
 	c.Check(osutil.IsSymlink(pcKernelSnap), Equals, false)
@@ -753,6 +764,7 @@ recovery_system=20191216
 current_recovery_systems=20191216
 good_recovery_systems=20191216
 base=core20_3.snap
+gadget=pc_4.snap
 current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous
@@ -862,6 +874,13 @@ version: 5.0
 	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
 	err = os.Symlink(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
 		RecoverySystemDir: "20191216",
@@ -869,6 +888,8 @@ version: 5.0
 		Base:              baseInfo,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		Recovery:          false,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
@@ -962,6 +983,13 @@ version: 5.0
 	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
 	err = os.Symlink(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
 		RecoverySystemDir: "20191216",
@@ -969,6 +997,8 @@ version: 5.0
 		Base:              baseInfo,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		Recovery:          false,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
@@ -1137,6 +1167,13 @@ version: 5.0
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
 	err = os.Symlink(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
 type: kernel
 version: 5.0
@@ -1153,6 +1190,8 @@ version: 5.0
 		RecoverySystemDir: "20191216",
 		BasePath:          baseInSeed,
 		Base:              baseInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
 		Recovery:          false,
@@ -1264,6 +1303,7 @@ recovery_system=20191216
 current_recovery_systems=20191216
 good_recovery_systems=20191216
 base=core20_3.snap
+gadget=pc_4.snap
 current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous
@@ -1379,6 +1419,13 @@ version: 5.0
 	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
 	err = os.Symlink(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
 		RecoverySystemDir: "20191216",
@@ -1386,6 +1433,8 @@ version: 5.0
 		Base:              baseInfo,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		Recovery:          false,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
@@ -1559,6 +1608,13 @@ version: 5.0
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
 	err = os.Rename(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
 	kernelSnapFiles := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
@@ -1577,6 +1633,8 @@ version: 5.0
 		RecoverySystemDir: "20191216",
 		BasePath:          baseInSeed,
 		Base:              baseInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
 		Recovery:          false,
@@ -1622,6 +1680,7 @@ recovery_system=20191216
 current_recovery_systems=20191216
 good_recovery_systems=20191216
 base=core20_3.snap
+gadget=pc_4.snap
 current_kernels=arm-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous
