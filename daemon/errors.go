@@ -26,7 +26,6 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -209,7 +208,7 @@ func SnapChangeConflict(cce *snapstate.ChangeConflictError) *apiError {
 
 // QuotaChangeConflict is an error responder used when an operation would
 // conflict with another ongoing change.
-func QuotaChangeConflict(qce *servicestate.QuotaChangeConflictError) *apiError {
+func QuotaChangeConflict(qce *snapstate.QuotaChangeConflictError) *apiError {
 	value := map[string]interface{}{}
 	if qce.Quota != "" {
 		value["quota-name"] = qce.Quota
@@ -316,7 +315,7 @@ func errToResponse(err error, snaps []string, fallback errorResponder, format st
 			snapName = err.Snap
 		case *snapstate.ChangeConflictError:
 			return SnapChangeConflict(err)
-		case *servicestate.QuotaChangeConflictError:
+		case *snapstate.QuotaChangeConflictError:
 			return QuotaChangeConflict(err)
 		case *snapstate.SnapNeedsDevModeError:
 			kind = client.ErrorKindSnapNeedsDevMode

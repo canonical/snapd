@@ -214,7 +214,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 		case 1:
 			// return a quota conflict as if we were trying to create this quota in
 			// another task
-			return nil, &servicestate.QuotaChangeConflictError{Quota: "booze", ChangeKind: "quota-control"}
+			return nil, &snapstate.QuotaChangeConflictError{Quota: "booze", ChangeKind: "quota-control"}
 		case 2:
 			// return a snap conflict as if we were trying to disable the
 			// some-snap in the quota group to be created
@@ -444,7 +444,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateConflicts(c *check.C) {
 		case 1:
 			// return a quota conflict as if we were trying to update this quota
 			// in another task
-			return nil, &servicestate.QuotaChangeConflictError{Quota: "ginger-ale", ChangeKind: "quota-control"}
+			return nil, &snapstate.QuotaChangeConflictError{Quota: "ginger-ale", ChangeKind: "quota-control"}
 		case 2:
 			// return a snap conflict as if we were trying to disable the
 			// some-snap in the quota group to be added to the group
@@ -530,7 +530,7 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaConflict(c *check.C) {
 		case 1:
 			// return a quota conflict as if we were trying to update this quota
 			// in another task
-			return nil, &servicestate.QuotaChangeConflictError{Quota: "booze", ChangeKind: "quota-control"}
+			return nil, &snapstate.QuotaChangeConflictError{Quota: "booze", ChangeKind: "quota-control"}
 		case 2:
 			// return a snap conflict as if we were trying to disable the
 			// some-snap in the quota group to be added to the group
