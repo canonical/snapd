@@ -69,6 +69,10 @@ type QuotaControlAction struct {
 	ParentName string `json:"parent-name,omitempty"`
 }
 
+func init() {
+	snapstate.AddSnapToQuotaGroup = AddSnapToQuotaGroup
+}
+
 func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -217,6 +221,21 @@ func addRestartServicesTasks(st *state.State, queueTask func(task *state.Task), 
 		})
 		queueTask(restartTask)
 	}
+}
+
+func AddSnapToQuotaGroup(st *state.State, snapName string, quotaGroup string) (*state.Task, error) {
+	if err := CheckQuotaChangeConflictMany(st, []string{quotaGroup}); err != nil {
+		return nil, err
+	}
+
+	// This could result in doing 'setup-profiles' twice, but
+	// unfortunately we can't execute this code earlier as the snap
+	// needs to appear as installed first.
+	quotaControlTask := st.NewTask("quota-add-snap", fmt.Sprintf(i18n.G("Add snap %q to quota group %q"),
+		snapName, quotaGroup))
+	quotaControlTask.Set("snap-name", snapName)
+	quotaControlTask.Set("quota-name", quotaGroup)
+	return quotaControlTask, nil
 }
 
 func (m *ServiceManager) doQuotaAddSnap(t *state.Task, _ *tomb.Tomb) error {

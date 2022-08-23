@@ -533,21 +533,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	if snapsup.QuotaGroupName != "" {
-		if err := CheckQuotaChangeConflictMany(st, []string{snapsup.QuotaGroupName}); err != nil {
+		quotaAddSnapTask, err := AddSnapToQuotaGroup(st, snapsup.InstanceName(), snapsup.QuotaGroupName)
+		if err != nil {
 			return nil, err
 		}
-
-		// This could result in doing 'setup-profiles' twice, but
-		// unfortunately we can't execute this code earlier as the snap
-		// needs to appear as installed first.
-		// XXX: Could we maybe move 'setup-profiles' to after this somehow? Or
-		// maybe just accept this could incur 'setup-profiles' twice?
-		quotaControlTask := st.NewTask("quota-add-snap", fmt.Sprintf(i18n.G("Add snap %q%s to quota group %q"),
-			snapsup.InstanceName(), revisionStr, snapsup.QuotaGroupName))
-		quotaControlTask.Set("snap-name", snapsup.InstanceName())
-		quotaControlTask.Set("quota-name", snapsup.QuotaGroupName)
-		addTask(quotaControlTask)
-		prev = quotaControlTask
+		addTask(quotaAddSnapTask)
+		prev = quotaAddSnapTask
 	}
 
 	// run new services
@@ -705,6 +696,10 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 
 var SetupGateAutoRefreshHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
+}
+
+var AddSnapToQuotaGroup = func(st *state.State, snapName string, quotaGroup string) (*state.Task, error) {
+	panic("internal error: snapstate.AddSnapToQuotaGroup is unset")
 }
 
 var generateSnapdWrappers = backend.GenerateSnapdWrappers

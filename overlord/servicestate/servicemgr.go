@@ -61,7 +61,7 @@ func Manager(st *state.State, runner *state.TaskRunner) *ServiceManager {
 
 	// TODO: undo handler
 	runner.AddHandler("quota-control", m.doQuotaControl, nil)
-	snapstate.AddAffectedQuotasByKind("quota-control", quotaControlAffectedQuotas)
+	AddAffectedQuotasByKind("quota-control", quotaControlAffectedQuotas)
 	snapstate.AddAffectedSnapsByKind("quota-control", quotaControlAffectedSnaps)
 
 	// A separate, purpose specific task to handle support for adding
@@ -70,7 +70,7 @@ func Manager(st *state.State, runner *state.TaskRunner) *ServiceManager {
 	// with the correct setup. This task also supports proper handling of
 	// failure during install and correctly removes the snap again.
 	runner.AddHandler("quota-add-snap", m.doQuotaAddSnap, m.undoQuotaAddSnap)
-	snapstate.AddAffectedQuotasByKind("quota-add-snap", quotaAddSnapAffectedQuotas)
+	AddAffectedQuotasByKind("quota-add-snap", quotaAddSnapAffectedQuotas)
 	snapstate.AddAffectedSnapsByKind("quota-add-snap", quotaAddSnapAffectedSnaps)
 
 	return m

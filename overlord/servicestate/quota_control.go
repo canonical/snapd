@@ -112,7 +112,7 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 		return nil, err
 	}
 
-	if err := snapstate.CheckQuotaChangeConflictMany(st, []string{name}); err != nil {
+	if err := CheckQuotaChangeConflictMany(st, []string{name}); err != nil {
 		return nil, err
 	}
 	if err := snapstate.CheckChangeConflictMany(st, snaps, ""); err != nil {
@@ -164,7 +164,7 @@ func RemoveQuota(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("cannot remove quota group %q with sub-groups, remove the sub-groups first", name)
 	}
 
-	if err := snapstate.CheckQuotaChangeConflictMany(st, []string{name}); err != nil {
+	if err := CheckQuotaChangeConflictMany(st, []string{name}); err != nil {
 		return nil, err
 	}
 	if err := snapstate.CheckChangeConflictMany(st, grp.Snaps, ""); err != nil {
@@ -239,7 +239,7 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*st
 		return nil, err
 	}
 
-	if err := snapstate.CheckQuotaChangeConflictMany(st, []string{name}); err != nil {
+	if err := CheckQuotaChangeConflictMany(st, []string{name}); err != nil {
 		return nil, err
 	}
 	if err := snapstate.CheckChangeConflictMany(st, updateOpts.AddSnaps, ""); err != nil {
