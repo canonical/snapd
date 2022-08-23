@@ -308,7 +308,8 @@ func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
 
 // ProvisionForCVM provisions the default TPM using a custom SRK
 // template that is created by the encrypt tool prior to first boot of
-// Azure CVM instances.
+// Azure CVM instances. It takes UbuntuSeedDir (ESP) and expects
+// "tpm2-srk.tmpl" there which is deleted after successful provision.
 //
 // Key differences with ProvisionTPM()
 // - lack of TPM or if TPM is disabled is ignored.
