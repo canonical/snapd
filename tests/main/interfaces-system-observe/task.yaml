@@ -28,15 +28,21 @@ restore: |
     fi
 
 execute: |
-    echo "Check that we can read /boot"
-    snap connect testsnap:system-observe
-    KERNEL_VERSION="$(uname -r)"
-    testsnap.cmd cat "/boot/config-$KERNEL_VERSION" | MATCH "CONFIG_"
+    # On Ubuntu Core, the kernel is delivered as a snap, so the /boot/config-*
+    # files are missing. Support for these systems will come later.
+    # Arch Linux, instead, is excluded because it only ships the kernel config
+    # via /proc/config.gz
+    if ! os.query is-core && ! os.query is-arch-linux; then
+        echo "Check that we can read /boot"
+        snap connect testsnap:system-observe
+        KERNEL_VERSION="$(uname -r)"
+        testsnap.cmd cat "/boot/config-$KERNEL_VERSION" | MATCH "CONFIG_"
 
-    echo "Check that we cannot write in /boot"
-    if testsnap.cmd sh -c "echo oops > /boot/config-$KERNEL_VERSION"; then
-        echo "/boot/ should not be writable!"
-        exit 1
+        echo "Check that we cannot write in /boot"
+        if testsnap.cmd sh -c "echo oops > /boot/config-$KERNEL_VERSION"; then
+            echo "/boot/ should not be writable!"
+            exit 1
+        fi
     fi
 
     echo "The interface is disconnected by default"

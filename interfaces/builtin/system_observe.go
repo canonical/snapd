@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
@@ -190,12 +191,18 @@ func (iface *systemObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 
 func (iface *systemObserveInterface) MountPermanentPlug(spec *mount.Specification, plug *snap.PlugInfo) error {
 	dir := filepath.Join(dirs.GlobalRootDir, "/boot")
-	if osutil.IsDirectory(dir) {
+	if matches, _ := filepath.Glob("/boot/config*"); len(matches) > 0 {
 		spec.AddMountEntry(osutil.MountEntry{
 			Name:    "/var/lib/snapd/hostfs" + dir,
 			Dir:     "/boot",
 			Options: []string{"bind", "ro"},
 		})
+	} else {
+		// TODO: if /boot/config does not exist, we should check whether the
+		// kernel is being delivered as a snap (this is the case in Ubuntu
+		// Core) and, if found, we should bind-mount the config file onto the
+		// expected location.
+		logger.Debugf("system-observe: /boot/config* not found, skipping mount of /boot/")
 	}
 	return nil
 }
