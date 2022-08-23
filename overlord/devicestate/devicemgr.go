@@ -142,13 +142,13 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	}
 
 	if !m.preseed {
-		modeEnv, err := maybeReadModeenv()
+		modeenv, err := maybeReadModeenv()
 		if err != nil {
 			return nil, err
 		}
-		if modeEnv != nil {
-			logger.Debugf("modeenv for model %s found", modeEnv.Model)
-			m.sysMode = modeEnv.Mode
+		if modeenv != nil {
+			logger.Debugf("modeenv for model %q found", modeenv.Model)
+			m.sysMode = modeenv.Mode
 		} else if release.OnClassic {
 			m.isClassicBoot = true
 		}

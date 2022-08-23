@@ -474,8 +474,7 @@ func (s *deviceMgrSuite) switchDevManagerToClassicWithModes(c *C) {
 
 	// mock the modeenv file
 	m := boot.Modeenv{
-		Mode:           "run",
-		RecoverySystem: "20191127",
+		Mode: "run",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -884,7 +883,7 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	c.Check(err, ErrorMatches, `cannot install "krnl_foo", parallel installation of kernel or gadget snaps is not supported`)
 }
 
-func (s *deviceMgrSuite) TestCheckKernelOnClassic(c *C) {
+func (s *deviceMgrSuite) TestCheckKernelOnClassicWithModes(c *C) {
 	s.switchDevManagerToClassicWithModes(c)
 
 	s.state.Lock()

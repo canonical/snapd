@@ -35,7 +35,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
@@ -62,7 +61,6 @@ type seed16 struct {
 }
 
 func (s *seed16) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
-	logger.Debugf("loading assertions for UC16/18 system")
 	if db == nil {
 		// a db was not provided, create an internal temporary one
 		var err error

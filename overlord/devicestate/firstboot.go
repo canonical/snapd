@@ -97,11 +97,11 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	mode := "run"
 	sysLabel := ""
 	preseed := false
-	hasModeenv := false
+	isCoreBoot := false
 	if opts != nil {
 		if opts.Mode != "" {
 			mode = opts.Mode
-			hasModeenv = true
+			isCoreBoot = true
 		}
 		sysLabel = opts.Label
 		preseed = opts.Preseed
@@ -120,7 +120,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	var deviceSeed seed.Seed
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
-		deviceSeed, err = importAssertionsFromSeed(st, sysLabel, hasModeenv)
+		deviceSeed, err = importAssertionsFromSeed(st, sysLabel, isCoreBoot)
 	})
 	if err != nil && err != errNothingToDo {
 		return nil, err
@@ -329,7 +329,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	return tsAll, nil
 }
 
-func importAssertionsFromSeed(st *state.State, sysLabel string, hasModeEnv bool) (seed.Seed, error) {
+func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool) (seed.Seed, error) {
 	// TODO: use some kind of context fo Device/SetDevice?
 	device, err := internal.Device(st)
 	if err != nil {
@@ -339,7 +339,7 @@ func importAssertionsFromSeed(st *state.State, sysLabel string, hasModeEnv bool)
 	// collect and
 	// set device,model from the model assertion
 	deviceSeed, err := loadDeviceSeed(st, sysLabel)
-	if err == seed.ErrNoAssertions && !hasModeEnv && release.OnClassic {
+	if err == seed.ErrNoAssertions && !isCoreBoot && release.OnClassic {
 		// if classic boot seeding is optional
 		// set the fallback model
 		err := setClassicFallbackModel(st, device)
@@ -354,6 +354,8 @@ func importAssertionsFromSeed(st *state.State, sysLabel string, hasModeEnv bool)
 	modelAssertion := deviceSeed.Model()
 
 	classicModel := modelAssertion.Classic()
+	// FIXME this will not be correct on classic with modes system when
+	// mode is not "run".
 	if release.OnClassic != classicModel {
 		var msg string
 		if classicModel {
