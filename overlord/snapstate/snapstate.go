@@ -532,6 +532,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = installHook
 	}
 
+	if snapsup.QuotaGroupName != "" {
+		quotaAddSnapTask, err := AddSnapToQuotaGroup(st, snapsup.InstanceName(), snapsup.QuotaGroupName)
+		if err != nil {
+			return nil, err
+		}
+		addTask(quotaAddSnapTask)
+		prev = quotaAddSnapTask
+	}
+
 	// run new services
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
 	addTask(startSnapServices)
@@ -687,6 +696,10 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 
 var SetupGateAutoRefreshHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
+}
+
+var AddSnapToQuotaGroup = func(st *state.State, snapName string, quotaGroup string) (*state.Task, error) {
+	panic("internal error: snapstate.AddSnapToQuotaGroup is unset")
 }
 
 var generateSnapdWrappers = backend.GenerateSnapdWrappers
