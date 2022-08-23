@@ -95,6 +95,19 @@ apparmor_parser output:
 	})
 }
 
+func (s *appArmorSuite) TestLoadProfilesReportsErrorWithZeroExitStatus(c *C) {
+	cmd := testutil.MockCommand(c, "apparmor_parser", "echo parser error; exit 0")
+	defer cmd.Restore()
+	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd"}, apparmor.CacheDir, 0)
+	c.Assert(err.Error(), Equals, `cannot load apparmor profiles: exit status 0 with parser error
+apparmor_parser output:
+parser error
+`)
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
+	})
+}
+
 func (s *appArmorSuite) TestLoadProfilesRunsAppArmorParserReplaceWithSnapdDebug(c *C) {
 	os.Setenv("SNAPD_DEBUG", "1")
 	defer os.Unsetenv("SNAPD_DEBUG")
