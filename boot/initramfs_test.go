@@ -620,10 +620,10 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			c.Assert(err, IsNil, comment)
 
 			if t.expRebootPanic != "" {
-				f := func() { boot.InitramfsRunModeSelectSnapsToMount(t.typs, m) }
+				f := func() { boot.InitramfsRunModeSelectSnapsToMount(t.typs, m, boot.InitramfsWritableDir) }
 				c.Assert(f, PanicMatches, t.expRebootPanic, comment)
 			} else {
-				mountSnaps, err := boot.InitramfsRunModeSelectSnapsToMount(t.typs, m)
+				mountSnaps, err := boot.InitramfsRunModeSelectSnapsToMount(t.typs, m, boot.InitramfsWritableDir)
 				if t.errPattern != "" {
 					c.Assert(err, ErrorMatches, t.errPattern, comment)
 				} else {
