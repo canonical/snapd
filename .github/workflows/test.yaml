@@ -454,8 +454,10 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
 
           BACKEND=google
+          SPREAD=spread
           if [[ ${{ matrix.system }} ~ *-arm-* ]]; then
               BACKEND=google-arm
+              SPREAD=spread-arm
           fi
 
           # Save previous failed test results in FAILED_TESTS env var
@@ -467,7 +469,7 @@ jobs:
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
-          (set -o pipefail; spread -abend $RUN_TESTS | tee spread.log)
+          (set -o pipefail; "$SPREAD" -abend "$RUN_TESTS" | tee spread.log)
 
     - name: Discard spread workers
       if: always()
