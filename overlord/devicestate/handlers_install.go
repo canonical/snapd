@@ -540,7 +540,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		return res, fmt.Errorf("cannot check encryption support: %v", err)
 	}
 	hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo)
-	// Note that having a fde-setup hook will disable the build-in
+	// Note that having a fde-setup hook will disable the built-in
 	// secboot encryption
 	if hasFDESetupHook {
 		res, checkEncryptionErr = m.checkFDEFeatures()
