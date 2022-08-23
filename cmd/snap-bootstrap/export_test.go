@@ -117,11 +117,11 @@ func MockSecbootUnlockEncryptedVolumeUsingKey(f func(disk disks.Disk, name strin
 	}
 }
 
-func MockSecbootProvisionTPMCVM(f func(_ string) error) (restore func()) {
-	old := secbootProvisionTPMCVM
-	secbootProvisionTPMCVM = f
+func MockSecbootProvisionForCVM(f func(_ string) error) (restore func()) {
+	old := secbootProvisionForCVM
+	secbootProvisionForCVM = f
 	return func() {
-		secbootProvisionTPMCVM = old
+		secbootProvisionForCVM = old
 	}
 }
 

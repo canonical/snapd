@@ -81,7 +81,7 @@ var (
 		snap.TypeSnapd:  "snapd",
 	}
 
-	secbootProvisionTPMCVM                       func(initramfsUbuntuSeedDir string) error
+	secbootProvisionForCVM                       func(initramfsUbuntuSeedDir string) error
 	secbootMeasureSnapSystemEpochWhenPossible    func() error
 	secbootMeasureSnapModelWhenPossible          func(findModel func() (*asserts.Model, error)) error
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
@@ -1497,7 +1497,7 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 	}
 
 	// Mount rootfs
-	if err := secbootProvisionTPMCVM(boot.InitramfsUbuntuSeedDir); err != nil {
+	if err := secbootProvisionForCVM(boot.InitramfsUbuntuSeedDir); err != nil {
 		return err
 	}
 	runModeKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "cloudimg-rootfs.sealed-key")

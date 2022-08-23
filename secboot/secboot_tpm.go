@@ -306,7 +306,7 @@ func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
 	return nil
 }
 
-// ProvisionTPMCVM provisions the default TPM using a custom SRK
+// ProvisionForCVM provisions the default TPM using a custom SRK
 // template that is created by the encrypt tool prior to first boot of
 // Azure CVM instances.
 //
@@ -314,7 +314,7 @@ func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
 // - lack of TPM or if TPM is disabled is ignored.
 // - it is fatal if TPM Provisioning requires a Lockout file
 // - Custom SRK file is required in InitramfsUbuntuSeedDir
-func ProvisionTPMCVM(initramfsUbuntuSeedDir string) error {
+func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
 	tpm, err := insecureConnectToTPM()
 	if err != nil {
 		if xerrors.Is(err, sb_tpm2.ErrNoTPM2Device) {

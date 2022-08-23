@@ -296,7 +296,7 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	// by default mock that we don't have UEFI vars, etc. to get the booted
 	// kernel partition partition uuid
 	s.AddCleanup(main.MockPartitionUUIDForBootedKernelDisk(""))
-	s.AddCleanup(main.MockSecbootProvisionTPMCVM(func(_ string) error {
+	s.AddCleanup(main.MockSecbootProvisionForCVM(func(_ string) error {
 		return nil
 	}))
 	s.AddCleanup(main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
@@ -2371,7 +2371,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 	// Mock the call to TPMCVM, to ensure that TPM provisioning is
 	// done before unlock attempt
 	provisionTPMCVMCalled := false
-	restore = main.MockSecbootProvisionTPMCVM(func(_ string) error {
+	restore = main.MockSecbootProvisionForCVM(func(_ string) error {
 		provisionTPMCVMCalled = true
 		return nil
 	})

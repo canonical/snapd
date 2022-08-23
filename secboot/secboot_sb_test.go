@@ -321,7 +321,7 @@ func (s *secbootSuite) TestLockTPMSealedKeys(c *C) {
 	}
 }
 
-func (s *secbootSuite) TestProvisionTPMCVM(c *C) {
+func (s *secbootSuite) TestProvisionForCVM(c *C) {
 	mockTpm, restore := mockSbTPMConnection(c, nil)
 	defer restore()
 
@@ -365,11 +365,11 @@ func (s *secbootSuite) TestProvisionTPMCVM(c *C) {
 	})
 	defer restore()
 
-	c.Check(secboot.ProvisionTPMCVM(dir), IsNil)
+	c.Check(secboot.ProvisionForCVM(dir), IsNil)
 	c.Check(provisioningCalls, Equals, 1)
 }
 
-func (s *secbootSuite) TestProvisionTPMCVMNoTPM(c *C) {
+func (s *secbootSuite) TestProvisionForCVMNoTPM(c *C) {
 	_, restore := mockSbTPMConnection(c, sb_tpm2.ErrNoTPM2Device)
 	defer restore()
 
@@ -379,10 +379,10 @@ func (s *secbootSuite) TestProvisionTPMCVMNoTPM(c *C) {
 	})
 	defer restore()
 
-	c.Check(secboot.ProvisionTPMCVM(c.MkDir()), IsNil)
+	c.Check(secboot.ProvisionForCVM(c.MkDir()), IsNil)
 }
 
-func (s *secbootSuite) TestProvisionTPMCVMTPMNotEnabled(c *C) {
+func (s *secbootSuite) TestProvisionForCVMTPMNotEnabled(c *C) {
 	mockTpm, restore := mockSbTPMConnection(c, nil)
 	defer restore()
 
@@ -398,7 +398,7 @@ func (s *secbootSuite) TestProvisionTPMCVMTPMNotEnabled(c *C) {
 	})
 	defer restore()
 
-	c.Check(secboot.ProvisionTPMCVM(c.MkDir()), IsNil)
+	c.Check(secboot.ProvisionForCVM(c.MkDir()), IsNil)
 }
 
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
