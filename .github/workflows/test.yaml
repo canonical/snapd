@@ -455,7 +455,7 @@ jobs:
 
           BACKEND=google
           SPREAD=spread
-          if [[ ${{ matrix.system }} ~ *-arm-* ]]; then
+          if [[ "${{ matrix.system }}" =~ -arm- ]]; then
               BACKEND=google-arm
               SPREAD=spread-arm
           fi
