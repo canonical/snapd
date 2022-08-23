@@ -131,13 +131,13 @@ prepare: |
   img="$NESTED_IMAGES_DIR/$(nested_get_image_name core)"
 
   # meh this is inefficient but it is simpler than trying to handle variable 
-  # arguments inside nested_add_file_to_vm
-  nested_add_file_to_vm "$img" 50-cloudconfig-maas-cloud-config.cfg
-  nested_add_file_to_vm "$img" 50-cloudconfig-maas-datasource.cfg
-  nested_add_file_to_vm "$img" 50-cloudconfig-maas-reporting.cfg
-  nested_add_file_to_vm "$img" 50-cloudconfig-maas-ubuntu-sso.cfg
-  nested_add_file_to_vm "$img" 50-curtin-networking.cfg
-  nested_add_file_to_vm "$img" 50-cloudconfig-gce-unsupported-config.cfg
+  # arguments inside nested_add_file_to_image
+  nested_add_file_to_image "$img" 50-cloudconfig-maas-cloud-config.cfg
+  nested_add_file_to_image "$img" 50-cloudconfig-maas-datasource.cfg
+  nested_add_file_to_image "$img" 50-cloudconfig-maas-reporting.cfg
+  nested_add_file_to_image "$img" 50-cloudconfig-maas-ubuntu-sso.cfg
+  nested_add_file_to_image "$img" 50-curtin-networking.cfg
+  nested_add_file_to_image "$img" 50-cloudconfig-gce-unsupported-config.cfg
 
   # first boot will now copy the cloud-init config we put on ubuntu-seed to 
   # the run system, filtering it in the process

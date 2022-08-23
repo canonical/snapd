@@ -288,67 +288,6 @@ nested_qemu_name() {
     esac
 }
 
-# shellcheck disable=SC2120
-nested_get_google_image_url_for_vm() {
-    case "${1:-$SPREAD_SYSTEM}" in
-        ubuntu-16.04-64)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
-            ;;
-        ubuntu-18.04-64)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/bionic-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-20.04-64)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-22.04-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/jammy-server-cloudimg-amd64.img"
-            ;;
-        *)
-            echo "unsupported system"
-            exit 1
-            ;;
-    esac
-}
-
-# shellcheck disable=SC2120
-nested_get_ubuntu_image_url_for_vm() {
-    case "${1:-$SPREAD_SYSTEM}" in
-        ubuntu-16.04-64*)
-            echo "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
-            ;;
-        ubuntu-18.04-64*)
-            echo "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-20.04-64*)
-            echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-22.04-64*)
-            echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
-            ;;
-        *)
-            echo "unsupported system"
-            exit 1
-            ;;
-        esac
-}
-
-# shellcheck disable=SC2120
-nested_get_image_url_for_vm() {
-    if [[ "$SPREAD_BACKEND" == google* ]]; then
-        nested_get_google_image_url_for_vm "$@"
-    else
-        nested_get_ubuntu_image_url_for_vm "$@"
-    fi
-}
-
-nested_get_cdimage_current_image_url() {
-    local VERSION=$1
-    local CHANNEL=$2
-    local ARCH=$3
-
-    echo "http://cdimage.ubuntu.com/ubuntu-core/$VERSION/$CHANNEL/current/ubuntu-core-$VERSION-$ARCH.img.xz"
-}
-
 nested_get_snap_rev_for_channel() {
     local SNAP=$1
     local CHANNEL=$2
@@ -599,7 +538,7 @@ nested_ensure_ubuntu_save() {
     fi
 }
 
-prepare_snapd() {
+nested_prepare_snapd() {
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
         echo "Repacking snapd snap"
         local snap_name output_name snap_id
@@ -623,7 +562,7 @@ prepare_snapd() {
     fi
 }
 
-prepare_kernel() {
+nested_prepare_kernel() {
     # allow repacking the kernel
     if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
         echo "Repacking kernel snap"
@@ -661,7 +600,7 @@ prepare_kernel() {
     fi
 }
 
-prepare_gadget() {
+nested_prepare_gadget() {
     if [ "$NESTED_REPACK_GADGET_SNAP" = "true" ]; then
         if nested_is_core_20_system || nested_is_core_22_system; then
             # Prepare the pc gadget snap (unless provided by extra-snaps)
@@ -729,7 +668,7 @@ EOF
     fi
 }
 
-prepare_base() {
+nested_prepare_base() {
     if [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
         if nested_is_core_16_system; then
             echo "No base snap to prepare in core 16"
@@ -796,10 +735,10 @@ nested_create_core_vm() {
             fi
 
             if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
-                prepare_snapd
-                prepare_kernel
-                prepare_gadget
-                prepare_base
+                nested_prepare_snapd
+                nested_prepare_kernel
+                nested_prepare_gadget
+                nested_prepare_base
             fi
 
             # Invoke ubuntu image
@@ -956,7 +895,7 @@ users:
 EOF
 }
 
-nested_add_file_to_vm() {
+nested_add_file_to_image() {
     local IMAGE=$1
     local FILE=$2
     local devloop ubuntuSeedDev tmp
@@ -992,7 +931,7 @@ nested_configure_cloud_init_on_core20_vm() {
     local IMAGE=$1
     nested_create_cloud_init_uc20_config "$NESTED_ASSETS_DIR/data.cfg"
 
-    nested_add_file_to_vm "$IMAGE" "$NESTED_ASSETS_DIR/data.cfg"
+    nested_add_file_to_image "$IMAGE" "$NESTED_ASSETS_DIR/data.cfg"
 }
 
 nested_save_serial_log() {
@@ -1024,16 +963,16 @@ nested_print_serial_log() {
 }
 
 nested_force_stop_vm() {
-    systemctl stop nested-vm
+    systemctl stop "$NESTED_VM"
 }
 
 nested_force_start_vm() {
-    # if the nested-vm is using a swtpm, we need to wait until the file exists
+    # if the $NESTED_VM is using a swtpm, we need to wait until the file exists
     # because the file disappears temporarily after qemu exits
-    if systemctl show nested-vm -p ExecStart | grep -q test-snapd-swtpm; then
+    if systemctl show "$NESTED_VM" -p ExecStart | grep -q test-snapd-swtpm; then
         retry -n 10 --wait 1 test -S /var/snap/test-snapd-swtpm/current/swtpm-sock
     fi
-    systemctl start nested-vm
+    systemctl start "$NESTED_VM"
 }
 
 nested_start_core_vm_unit() {
@@ -1077,7 +1016,7 @@ nested_start_core_vm_unit() {
     # "telnet localhost 7777". Also keeps the logs
     #
     # XXX: should serial just be logged to stdout so that we just need
-    #      to "journalctl -u nested-vm" to see what is going on ?
+    #      to "journalctl -u $NESTED_VM" to see what is going on ?
     if "$QEMU" -version | grep '2\.5'; then
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
@@ -1200,7 +1139,7 @@ nested_start_core_vm_unit() {
         ${PARAM_USB} \
         ${PARAM_CD} "
 
-    # wait for the nested-vm service to appear active
+    # wait for the $NESTED_VM service to appear active
     wait_for_service "$NESTED_VM"
 
     # make sure the service started and it is running
@@ -1325,9 +1264,12 @@ nested_create_classic_vm() {
 
     mkdir -p "$NESTED_IMAGES_DIR"
     if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+        # shellcheck source=tests/lib/image.sh
+        . "$TESTSLIB"/image.sh
+
         # Get the cloud image
         local IMAGE_URL
-        IMAGE_URL="$(nested_get_image_url_for_vm)"
+        IMAGE_URL="$(get_image_url_for_vm)"
         wget -P "$NESTED_IMAGES_DIR" "$IMAGE_URL"
         nested_download_image "$IMAGE_URL" "$IMAGE_NAME"
 
@@ -1399,7 +1341,7 @@ nested_start_classic_vm() {
     # "telnet localhost 7777". Also keeps the logs
     #
     # XXX: should serial just be logged to stdout so that we just need
-    #      to "journalctl -u nested-vm" to see what is going on ?
+    #      to "journalctl -u $NESTED_VM" to see what is going on ?
     if "$QEMU" -version | grep '2\.5'; then
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
