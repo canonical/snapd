@@ -207,7 +207,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		var now time.Time
 		for now = timeNow(); now.Sub(start) < defaultMountUnitWaitTimeout; now = timeNow() {
 			mounted, err := osutilIsMounted(where)
-			if mounted != opts.Umount {
+			if mounted == !opts.Umount {
 				break
 			}
 			if err != nil {
