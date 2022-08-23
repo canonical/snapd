@@ -1,5 +1,7 @@
 summary: test for the log parser tool
 
+backends: [google]
+
 # Github actions agents are just running in bionic and focal
 systems: [ubuntu-18.04-64, ubuntu-20.04-64]
 

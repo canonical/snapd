@@ -237,27 +237,29 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 		if saErr, ok := err.(*SnapActionError); ok && authRefreshes < 2 && len(saErr.Other) > 0 {
 			// do we need to try to refresh auths?, 2 tries
-			var refreshNeed authRefreshNeed
+			var refreshNeed AuthRefreshNeed
 			for _, otherErr := range saErr.Other {
 				switch otherErr {
 				case errUserAuthorizationNeedsRefresh:
-					refreshNeed.user = true
+					refreshNeed.User = true
 				case errDeviceAuthorizationNeedsRefresh:
-					refreshNeed.device = true
+					refreshNeed.Device = true
 				}
 			}
 			if refreshNeed.needed() {
-				err := s.refreshAuth(user, refreshNeed)
-				if err != nil {
-					// best effort
-					logger.Noticef("cannot refresh soft-expired authorisation: %v", err)
+				if a, ok := s.auth.(RefreshingAuthorizer); ok {
+					err := a.RefreshAuth(refreshNeed, s.dauthCtx, user, s.client)
+					if err != nil {
+						// best effort
+						logger.Noticef("cannot refresh soft-expired authorisation: %v", err)
+					}
+					authRefreshes++
+					// TODO: we could avoid retrying here
+					// if refreshAuth gave no error we got
+					// as many non-error results from the
+					// store as actions anyway
+					continue
 				}
-				authRefreshes++
-				// TODO: we could avoid retrying here
-				// if refreshAuth gave no error we got
-				// as many non-error results from the
-				// store as actions anyway
-				continue
 			}
 		}
 

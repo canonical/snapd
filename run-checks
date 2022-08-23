@@ -213,7 +213,14 @@ if [ "$STATIC" = 1 ]; then
             echo "Checking all the bash files"
             INITIAL_FILES="$( ( git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0) | xargs -0 file -N | awk -F": " '$2~/shell.script/{print $1}' )"
         fi
-        FILTERED_FILES="$( echo "$INITIAL_FILES"  | grep -v "$exclude_tools_path" )"
+
+        echo "Filtering files"
+        FILTERED_FILES=
+        for file in $INITIAL_FILES; do
+            if ! echo "$file" | grep -q "$exclude_tools_path"; then
+                FILTERED_FILES="$FILTERED_FILES $file"
+            fi
+        done
         if [ -n "$FILTERED_FILES" ]; then
             echo "Running shellcheck for files: $FILTERED_FILES"
             # shellcheck disable=SC2086

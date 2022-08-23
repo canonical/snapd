@@ -27,9 +27,10 @@ import (
 )
 
 type mockDevice struct {
-	bootSnap string
-	mode     string
-	uc20     bool
+	bootSnap  string
+	mode      string
+	hasModes  bool
+	isClassic bool
 
 	model *asserts.Model
 }
@@ -46,28 +47,56 @@ func MockDevice(s string) snap.Device {
 		panic("MockDevice with no snap name and @mode is unsupported")
 	}
 	return &mockDevice{
-		bootSnap: bootsnap,
-		mode:     mode,
-		uc20:     uc20,
+		bootSnap:  bootsnap,
+		mode:      mode,
+		hasModes:  uc20,
+		isClassic: bootsnap == "",
 	}
 }
 
-// MockUC20Device implements boot.Device and returns true for HasModeenv.
-// Arguments are mode (empty means "run"), and model.
-// If model is nil a default model is used (same as MakeMockUC20Model).
-func MockUC20Device(mode string, model *asserts.Model) snap.Device {
+// mockDeviceWithModes implements boot.Device and returns true for
+// HasModeenv.  Arguments are mode (empty means "run"), model, and a
+// boolean specifying if this is a classic with modes or a UC device.
+// If model is nil a default model is used (MakeMockUC20Model or
+// MakeMockClassicWithModesModel is called).
+func mockDeviceWithModes(mode string, model *asserts.Model, isClassic bool) snap.Device {
 	if mode == "" {
 		mode = "run"
 	}
 	if model == nil {
-		model = MakeMockUC20Model()
+		if isClassic {
+			model = MakeMockClassicWithModesModel()
+		} else {
+			model = MakeMockUC20Model()
+		}
 	}
 	return &mockDevice{
-		bootSnap: model.Kernel(),
-		mode:     mode,
-		uc20:     true,
-		model:    model,
+		bootSnap:  model.Kernel(),
+		mode:      mode,
+		hasModes:  true,
+		isClassic: isClassic,
+		model:     model,
 	}
+}
+
+// MockUC20Device mocks a UC with modes device.
+// Arguments are mode (empty means "run"), and model.
+func MockUC20Device(mode string, model *asserts.Model) snap.Device {
+	if model != nil && model.Classic() {
+		panic("MockUC20Device called with classic model")
+	}
+	isClassic := false
+	return mockDeviceWithModes(mode, model, isClassic)
+}
+
+// MockClassicWithModesDevice mocks a classic with modes device.
+// Arguments are mode (empty means "run"), and model.
+func MockClassicWithModesDevice(mode string, model *asserts.Model) snap.Device {
+	if model != nil && !model.Classic() {
+		panic("MockClassicWithModesDevice called with Ubuntu Core model")
+	}
+	isClassic := true
+	return mockDeviceWithModes(mode, model, isClassic)
 }
 
 func snapAndMode(str string) (snap, mode string, uc20 bool) {
@@ -78,10 +107,12 @@ func snapAndMode(str string) (snap, mode string, uc20 bool) {
 	return parts[0], parts[1], true
 }
 
-func (d *mockDevice) Kernel() string   { return d.bootSnap }
-func (d *mockDevice) Classic() bool    { return d.bootSnap == "" }
-func (d *mockDevice) RunMode() bool    { return d.mode == "run" }
-func (d *mockDevice) HasModeenv() bool { return d.uc20 }
+func (d *mockDevice) Kernel() string      { return d.bootSnap }
+func (d *mockDevice) Classic() bool       { return d.isClassic }
+func (d *mockDevice) RunMode() bool       { return d.mode == "run" }
+func (d *mockDevice) HasModeenv() bool    { return d.hasModes }
+func (d *mockDevice) IsCoreBoot() bool    { return d.hasModes || !d.isClassic }
+func (d *mockDevice) IsClassicBoot() bool { return !d.IsCoreBoot() }
 func (d *mockDevice) Base() string {
 	if d.model != nil {
 		return d.model.Base()

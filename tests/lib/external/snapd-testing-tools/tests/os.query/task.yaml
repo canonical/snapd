@@ -1,5 +1,7 @@
 summary: smoke test for the os.query tool
 
+backends: [google]
+
 execute: |
     os.query --help | MATCH 'usage: os.query is-core, is-classic'
     os.query -h | MATCH 'usage: os.query is-core, is-classic'

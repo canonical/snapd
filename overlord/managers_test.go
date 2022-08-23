@@ -8091,14 +8091,14 @@ func (s *mgrsSuite) TestRemodelUC20BackToPreviousGadget(c *C) {
 	var i int
 
 	// prepare first
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Prepare snap "old-pc" (1) for remodel`))
+	c.Assert(tasks[i].Summary(), Equals, `Prepare snap "old-pc" (1) for remodel`)
 	i++
 	// then recovery system
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then gadget switch with update of assets and kernel command line
 	i += validateGadgetSwitchTasks(c, tasks[i:], "old-pc", "1")
 	// finally new model assertion
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set new model assertion`))
+	c.Assert(tasks[i].Summary(), Equals, `Set new model assertion`)
 	i++
 	c.Check(i, Equals, len(tasks))
 }
@@ -8272,14 +8272,14 @@ func (s *mgrsSuite) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) {
 	var i int
 
 	// prepare first
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Switch snap "old-pc" from channel "20/beta" to "20/edge"`))
+	c.Assert(tasks[i].Summary(), Equals, `Switch snap "old-pc" from channel "20/beta" to "20/edge"`)
 	i++
 	// then recovery system
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then gadget switch with update of assets and kernel command line
 	i += validateGadgetSwitchTasks(c, tasks[i:], "old-pc", "1")
 	// finally new model assertion
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set new model assertion`))
+	c.Assert(tasks[i].Summary(), Equals, `Set new model assertion`)
 	i++
 	c.Check(i, Equals, len(tasks))
 }
@@ -8713,7 +8713,7 @@ func (s *mgrsSuite) TestRemodelUC20ToUC22(c *C) {
 	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure)
 	i += validateRefreshTasks(c, tasks[i:], "pc", "34", isGadget)
 	// finally new model assertion
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set new model assertion`))
+	c.Assert(tasks[i].Summary(), Equals, `Set new model assertion`)
 	i++
 	c.Check(i, Equals, len(tasks))
 

@@ -611,9 +611,9 @@ var deltaTests = []struct {
 		{url: "delta-url"},
 	},
 	info: snap.DownloadInfo{
-		AnonDownloadURL: "full-snap-url",
+		DownloadURL: "full-snap-url",
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "delta-url", Format: "xdelta3"},
+			{DownloadURL: "delta-url", Format: "xdelta3"},
 		},
 	},
 	expectedContent: "snap-content-via-delta",
@@ -625,9 +625,9 @@ var deltaTests = []struct {
 		{url: "full-snap-url"},
 	},
 	info: snap.DownloadInfo{
-		AnonDownloadURL: "full-snap-url",
+		DownloadURL: "full-snap-url",
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "delta-url", Format: "xdelta3"},
+			{DownloadURL: "delta-url", Format: "xdelta3"},
 		},
 	},
 	expectedContent: "full-snap-url-content",
@@ -638,10 +638,10 @@ var deltaTests = []struct {
 		{url: "full-snap-url"},
 	},
 	info: snap.DownloadInfo{
-		AnonDownloadURL: "full-snap-url",
+		DownloadURL: "full-snap-url",
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "delta-url", Format: "xdelta3"},
-			{AnonDownloadURL: "delta-url-2", Format: "xdelta3"},
+			{DownloadURL: "delta-url", Format: "xdelta3"},
+			{DownloadURL: "delta-url-2", Format: "xdelta3"},
 		},
 	},
 	expectedContent: "full-snap-url-content",
