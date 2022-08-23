@@ -1500,11 +1500,11 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 	if err := secbootProvisionForCVM(boot.InitramfsUbuntuSeedDir); err != nil {
 		return err
 	}
-	runModeKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "cloudimg-rootfs.sealed-key")
+	runModeCVMKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "cloudimg-rootfs.sealed-key")
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 		AllowRecoveryKey: true,
 	}
-	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "cloudimg-rootfs", runModeKey, opts)
+	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "cloudimg-rootfs", runModeCVMKey, opts)
 	if err != nil {
 		return err
 	}
