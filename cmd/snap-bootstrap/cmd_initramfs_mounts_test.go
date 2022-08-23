@@ -2372,6 +2372,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
 	// done before unlock attempt
 	provisionTPMCVMCalled := false
 	restore = main.MockSecbootProvisionForCVM(func(_ string) error {
+		// Ensure this function is only called once
+		c.Assert(provisionTPMCVMCalled, Equals, false)
 		provisionTPMCVMCalled = true
 		return nil
 	})
