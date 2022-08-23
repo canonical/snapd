@@ -4,6 +4,7 @@ details: |
   Test support for assigning a snap quota group on install of a snap
 
 prepare: |
+  snap pack "$TESTSLIB"/snaps/basic
   snap set system experimental.quota-groups=true
   tests.cleanup defer snap unset system experimental.quota-groups
 
@@ -55,3 +56,19 @@ execute: |
     echo "FAIL: Quota group is not empty"
     exit 1
   fi
+
+  echo "Installing a local snap into same group to verify option is supported for sideloaded snaps"
+  snap install --quota-group group-one --dangerous ./basic_1.0_all.snap
+
+  echo "Checking quota group details again"
+  snap quota group-one | cat -n > details.txt
+  MATCH "     1\s+name:\s+group-one$" < details.txt
+  MATCH "     2\s+constraints:$" < details.txt
+  MATCH "     3\s+memory:\s+400MB$" < details.txt
+  MATCH "     4\s+current:$" < details.txt
+  MATCH "     5\s+memory:\s+[0-9.a-zA-Z]+B$" < details.txt
+  MATCH "     6\s+snaps:$" < details.txt
+  MATCH "     7\s+-\s+basic$" < details.txt
+
+  echo "Removing the snap from the system again"
+  snap remove basic

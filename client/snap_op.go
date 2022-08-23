@@ -104,6 +104,11 @@ func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
 			return err
 		}
 	}
+	if opts.QuotaGroupName != "" {
+		if err := mw.WriteField("quota-group", opts.QuotaGroupName); err != nil {
+			return err
+		}
+	}
 	return writeFields(mw, fields)
 }
 
