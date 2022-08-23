@@ -97,11 +97,11 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	mode := "run"
 	sysLabel := ""
 	preseed := false
-	isCoreBoot := false
+	hasModeEnv := false
 	if opts != nil {
 		if opts.Mode != "" {
 			mode = opts.Mode
-			isCoreBoot = true
+			hasModeEnv = true
 		}
 		sysLabel = opts.Label
 		preseed = opts.Preseed
@@ -120,6 +120,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	var deviceSeed seed.Seed
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
+		isCoreBoot := hasModeEnv || !release.OnClassic
 		deviceSeed, err = importAssertionsFromSeed(st, sysLabel, isCoreBoot)
 	})
 	if err != nil && err != errNothingToDo {
@@ -339,7 +340,7 @@ func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool)
 	// collect and
 	// set device,model from the model assertion
 	deviceSeed, err := loadDeviceSeed(st, sysLabel)
-	if err == seed.ErrNoAssertions && !isCoreBoot && release.OnClassic {
+	if err == seed.ErrNoAssertions && !isCoreBoot {
 		// if classic boot seeding is optional
 		// set the fallback model
 		err := setClassicFallbackModel(st, device)
