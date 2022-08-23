@@ -107,7 +107,7 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20InstallModeHappy(c *C) 
 
 	setupRealGrub(c, blDir, "EFI/ubuntu", &bootloader.Options{Role: bootloader.RoleRecovery})
 
-	flags, err := boot.InitramfsActiveBootFlags(boot.ModeInstall)
+	flags, err := boot.InitramfsActiveBootFlags(boot.ModeInstall, boot.InitramfsWritableDir)
 	c.Assert(err, IsNil)
 	c.Assert(flags, HasLen, 0)
 
@@ -117,7 +117,7 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20InstallModeHappy(c *C) 
 	err = boot.SetBootFlagsInBootloader([]string{"factory"}, blDir)
 	c.Assert(err, IsNil)
 
-	flags, err = boot.InitramfsActiveBootFlags(boot.ModeInstall)
+	flags, err = boot.InitramfsActiveBootFlags(boot.ModeInstall, boot.InitramfsWritableDir)
 	c.Assert(err, IsNil)
 	c.Assert(flags, DeepEquals, []string{"factory"})
 }
@@ -163,7 +163,7 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RecoverModeNoop(c *C) {
 	err = m.WriteTo(boot.InitramfsWritableDir)
 	c.Assert(err, IsNil)
 
-	flags, err := boot.InitramfsActiveBootFlags(boot.ModeRecover)
+	flags, err := boot.InitramfsActiveBootFlags(boot.ModeRecover, boot.InitramfsWritableDir)
 	c.Assert(err, IsNil)
 	c.Assert(flags, HasLen, 0)
 
@@ -175,7 +175,7 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RecoverModeNoop(c *C) {
 	c.Assert(err, IsNil)
 
 	// still no flags since we are in recovery mode
-	flags, err = boot.InitramfsActiveBootFlags(boot.ModeRecover)
+	flags, err = boot.InitramfsActiveBootFlags(boot.ModeRecover, boot.InitramfsWritableDir)
 	c.Assert(err, IsNil)
 	c.Assert(flags, HasLen, 0)
 }
@@ -198,7 +198,7 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RRunModeHappy(c *C) {
 	err = m.WriteTo(boot.InitramfsWritableDir)
 	c.Assert(err, IsNil)
 
-	flags, err := boot.InitramfsActiveBootFlags(boot.ModeRun)
+	flags, err := boot.InitramfsActiveBootFlags(boot.ModeRun, boot.InitramfsWritableDir)
 	c.Assert(err, IsNil)
 	c.Assert(flags, HasLen, 0)
 
@@ -207,7 +207,7 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RRunModeHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	// now some flags after we set them in the modeenv
-	flags, err = boot.InitramfsActiveBootFlags(boot.ModeRun)
+	flags, err = boot.InitramfsActiveBootFlags(boot.ModeRun, boot.InitramfsWritableDir)
 	c.Assert(err, IsNil)
 	c.Assert(flags, DeepEquals, []string{"factory", "other-flag"})
 }
