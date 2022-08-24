@@ -1782,13 +1782,13 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeWritesModel(c *C) {
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileEquals, buf.String())
 }
 
-func (s *deviceMgrInstallModeSuite) testInstallGadgetNoSave(c *C) {
+func (s *deviceMgrInstallModeSuite) testInstallGadgetNoSave(c *C, grade string) {
 	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstallModel(c, grade)
 	s.makeMockInstalledPcGadget(c, "", "")
 	info, err := snapstate.CurrentInfo(s.state, "pc")
 	c.Assert(err, IsNil)
@@ -1815,16 +1815,44 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
 	defer restore()
 
-	s.testInstallGadgetNoSave(c)
+	// must be a model that requires encryption to error
+	s.testInstallGadgetNoSave(c, "secured")
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
-- Setup system for run mode \(cannot use gadget: gadget does not support encrypted data: required partition with system-save role is missing\)`)
+- Setup system for run mode \(cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing\)`)
 	// no restart request on failure
 	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetWarns(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	// pretend we have a TPM
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
+	defer restore()
+
+	s.testInstallGadgetNoSave(c, "dangerous")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem.Err(), IsNil)
+
+	c.Check(logbuf.String(), Matches, "(?s).*: cannot use encryption with the gadget, disabling encryption: gadget does not support encrypted data: required partition with system-save role is missing\n.*")
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetWithoutSaveHappy(c *C) {
@@ -1840,7 +1868,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetW
 	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return fmt.Errorf("TPM2 not available") })
 	defer restore()
 
-	s.testInstallGadgetNoSave(c)
+	s.testInstallGadgetNoSave(c, "dangerous")
 
 	s.state.Lock()
 	defer s.state.Unlock()
