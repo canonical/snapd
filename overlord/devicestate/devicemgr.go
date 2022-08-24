@@ -241,22 +241,22 @@ func newBasicHookStateHandler(context *hookstate.Context) hookstate.Handler {
 }
 
 func maybeReadModeenv() (*boot.Modeenv, error) {
-	modeEnv, err := boot.ReadModeenv("")
+	modeenv, err := boot.ReadModeenv("")
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("cannot read modeenv: %v", err)
 	}
-	return modeEnv, nil
+	return modeenv, nil
 }
 
 // ReloadModeenv is only useful for integration testing
 func (m *DeviceManager) ReloadModeenv() error {
 	osutil.MustBeTestBinary("ReloadModeenv can only be called from tests")
-	modeEnv, err := maybeReadModeenv()
+	modeenv, err := maybeReadModeenv()
 	if err != nil {
 		return err
 	}
-	if modeEnv != nil {
-		m.sysMode = modeEnv.Mode
+	if modeenv != nil {
+		m.sysMode = modeenv.Mode
 	}
 	return nil
 }
@@ -732,12 +732,12 @@ func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) 
 	}
 
 	if !m.preseed {
-		modeEnv, err := maybeReadModeenv()
+		modeenv, err := maybeReadModeenv()
 		if err != nil {
 			return nil, nil, err
 		}
-		if modeEnv != nil {
-			sysLabel = modeEnv.RecoverySystem
+		if modeenv != nil {
+			sysLabel = modeenv.RecoverySystem
 		}
 	}
 
@@ -841,16 +841,16 @@ func (m *DeviceManager) ensureSeeded() error {
 			opts.Label = m.systemForPreseeding()
 		}
 	} else {
-		modeEnv, err := maybeReadModeenv()
+		modeenv, err := maybeReadModeenv()
 		if err != nil {
 			return err
 		}
-		if modeEnv != nil {
-			logger.Debugf("modeEnv read, mode %q label %q",
-				modeEnv.Mode, modeEnv.RecoverySystem)
+		if modeenv != nil {
+			logger.Debugf("modeenv read, mode %q label %q",
+				modeenv.Mode, modeenv.RecoverySystem)
 			opts = &populateStateFromSeedOptions{
-				Mode:  modeEnv.Mode,
-				Label: modeEnv.RecoverySystem,
+				Mode:  modeenv.Mode,
+				Label: modeenv.RecoverySystem,
 			}
 		}
 	}

@@ -97,11 +97,11 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	mode := "run"
 	sysLabel := ""
 	preseed := false
-	hasModeEnv := false
+	hasModeenv := false
 	if opts != nil {
 		if opts.Mode != "" {
 			mode = opts.Mode
-			hasModeEnv = true
+			hasModeenv = true
 		}
 		sysLabel = opts.Label
 		preseed = opts.Preseed
@@ -120,7 +120,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	var deviceSeed seed.Seed
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
-		isCoreBoot := hasModeEnv || !release.OnClassic
+		isCoreBoot := hasModeenv || !release.OnClassic
 		deviceSeed, err = importAssertionsFromSeed(st, sysLabel, isCoreBoot)
 	})
 	if err != nil && err != errNothingToDo {
