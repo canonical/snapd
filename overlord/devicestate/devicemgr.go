@@ -2270,7 +2270,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	if res.UnavailableWarning != "" {
 		logger.Noticef("%s", res.UnavailableWarning)
 	}
-	// encryption disabled or preferred unencrypted
+	// encryption disabled or preferred unencrypted: follow the model preferences here even if encryption would be available
 	if res.Disabled || model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
 		res.Type = secboot.EncryptionTypeNone
 	}
@@ -2293,19 +2293,15 @@ func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *
 		res.Disabled = true
 	}
 
-	// check if encryption is available
-	var (
-		hasFDESetupHook    bool
-		checkEncryptionErr error = fmt.Errorf("internal error: no encryption check performed")
-	)
-	if kernelInfo != nil {
-		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
-			res.Type, checkEncryptionErr = m.checkFDEFeatures()
-		}
-	}
+	// check encryption: this can either be provided by the fde-setup
+	// hook mechanism or by the built-in secboot based encryption
+	hasFDESetupHook := kernelInfo != nil && hasFDESetupHookInKernel(kernelInfo)
+	checkEncryptionErr := fmt.Errorf("internal error: no encryption check performed")
 	// Note that having a fde-setup hook will disable the build-in
 	// secboot encryption
-	if !hasFDESetupHook {
+	if hasFDESetupHook {
+		res.Type, checkEncryptionErr = m.checkFDEFeatures()
+	} else {
 		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
 		if checkEncryptionErr == nil {
 			res.Type = secboot.EncryptionTypeLUKS
@@ -2313,7 +2309,6 @@ func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *
 	}
 	res.Available = (checkEncryptionErr == nil)
 
-	// check if encryption is required
 	if checkEncryptionErr != nil {
 		switch {
 		case secured:
