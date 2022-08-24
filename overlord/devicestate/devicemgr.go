@@ -2315,13 +2315,14 @@ func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *
 
 	// check if encryption is required
 	if checkEncryptionErr != nil {
-		if secured {
+		switch {
+		case secured:
 			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
-		} else if encrypted {
+		case encrypted:
 			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
-		} else if hasFDESetupHook {
+		case hasFDESetupHook:
 			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
-		} else {
+		case !hasFDESetupHook:
 			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
 		}
 	}
