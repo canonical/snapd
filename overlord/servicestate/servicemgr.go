@@ -61,17 +61,16 @@ func Manager(st *state.State, runner *state.TaskRunner) *ServiceManager {
 
 	// TODO: undo handler
 	runner.AddHandler("quota-control", m.doQuotaControl, nil)
-	AddAffectedQuotasByKind("quota-control", quotaControlAffectedQuotas)
-	snapstate.AddAffectedSnapsByKind("quota-control", quotaControlAffectedSnaps)
+	AddAffectedQuotasByKind("quota-control", affectedQuotasForQuotaControl)
+	snapstate.AddAffectedSnapsByKind("quota-control", affectedSnapsForQuotaControl)
 
-	// A separate, purpose specific task to handle support for adding
-	// a snap to a quota group upon install. We can't directly refer to
-	// the servicestate package, so this task takes care of calling quotaUpdate
+	// We can't directly refer to the servicestate internals from snapstate,
+	// so this task encapsulate taking care of calling quotaUpdate
 	// with the correct setup. This task also supports proper handling of
 	// failure during install and correctly removes the snap again.
 	runner.AddHandler("quota-add-snap", m.doQuotaAddSnap, m.undoQuotaAddSnap)
-	AddAffectedQuotasByKind("quota-add-snap", quotaAddSnapAffectedQuotas)
-	snapstate.AddAffectedSnapsByKind("quota-add-snap", quotaAddSnapAffectedSnaps)
+	AddAffectedQuotasByKind("quota-add-snap", affectedQuotasForQuotaAddSnap)
+	snapstate.AddAffectedSnapsByKind("quota-add-snap", affectedSnapsForQuotaAddSnap)
 
 	return m
 }

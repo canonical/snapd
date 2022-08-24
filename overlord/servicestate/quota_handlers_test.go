@@ -1749,10 +1749,17 @@ func (s *quotaHandlersSuite) TestDoQuotaAddSnap(c *C) {
 	st.Unlock()
 	err = s.mgr.DoQuotaAddSnap(task, nil)
 	st.Lock()
-	c.Assert(err.Error(), Equals, "internal error: cannot get snap-name: no state entry for key \"snap-name\"")
+	c.Assert(err.Error(), Equals, "no state entry for key \"snap-setup-task\"")
 
-	// now set the snapnames parameter and try again
-	task.Set("snap-name", "test-snap")
+	// now set the snap-setup parameter and try again
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "test-snap",
+			Revision: snap.R(1),
+			SnapID:   "test-snap-id",
+		},
+	}
+	task.Set("snap-setup", snapsup)
 
 	st.Unlock()
 	err = s.mgr.DoQuotaAddSnap(task, nil)
@@ -1812,7 +1819,14 @@ func (s *quotaHandlersSuite) TestDoAddSnapToJournalQuota(c *C) {
 	// DoQuotaAddSnap
 	chg := s.state.NewChange("add-snap-to-quota", "test")
 	task := s.state.NewTask("add-snap-to-quota", "test")
-	task.Set("snap-name", "test-snap")
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "test-snap",
+			Revision: snap.R(1),
+			SnapID:   "test-snap-id",
+		},
+	}
+	task.Set("snap-setup", snapsup)
 	task.Set("quota-name", "foo")
 	chg.AddTask(task)
 	st.Unlock()
@@ -1878,10 +1892,18 @@ func (s *quotaHandlersSuite) TestUndoQuotaAddSnap(c *C) {
 	st.Unlock()
 	err = s.mgr.UndoQuotaAddSnap(task, nil)
 	st.Lock()
-	c.Assert(err.Error(), Equals, "internal error: cannot get snap-name: no state entry for key \"snap-name\"")
+	c.Assert(err.Error(), Equals, "no state entry for key \"snap-setup-task\"")
 
 	// Set correct parameters so it can run while we have the lock
-	task.Set("snap-name", "test-snap")
+	// now set the snap-setup parameter and try again
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "test-snap",
+			Revision: snap.R(1),
+			SnapID:   "test-snap-id",
+		},
+	}
+	task.Set("snap-setup", snapsup)
 
 	st.Unlock()
 	err = s.mgr.UndoQuotaAddSnap(task, nil)
