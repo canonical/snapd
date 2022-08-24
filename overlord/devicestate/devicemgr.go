@@ -2295,7 +2295,7 @@ func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *
 
 	// check encryption: this can either be provided by the fde-setup
 	// hook mechanism or by the built-in secboot based encryption
-	hasFDESetupHook := kernelInfo != nil && hasFDESetupHookInKernel(kernelInfo)
+	hasFDESetupHook := hasFDESetupHookInKernel(kernelInfo)
 	checkEncryptionErr := fmt.Errorf("internal error: no encryption check performed")
 	// Note that having a fde-setup hook will disable the build-in
 	// secboot encryption
