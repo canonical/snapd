@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -113,7 +112,7 @@ unix (send, receive) type=stream peer=(label=###PLUG_SECURITY_TAGS###),
 
 const waylandConnectedPlugAppArmor = `
 # Allow access to the Wayland compositor server socket
-owner /run/user/[0-9]*/{,*/}wayland-[0-9]* rw,
+owner /run/user/[0-9]*/wayland-[0-9]* rw,
 
 # Needed when using QT_QPA_PLATFORM=wayland-egl (MESA dri config)
 /etc/drirc r,
@@ -122,6 +121,11 @@ owner /run/user/[0-9]*/{,*/}wayland-[0-9]* rw,
 const waylandConnectedPlugEglstreamAppArmor = `
 # Wayland on eglstream (Nvidia) communicates using an anonymous socket
 unix (send, receive) type=stream peer=(label=###SLOT_SECURITY_TAGS###),
+`
+
+const waylandConnectedPlugAppArmorCore = `
+# Allow access to the Wayland compositor server socket of the slot snap
+owner /run/user/[0-9]*/###SLOT_SECURITY_TAGS###/wayland-[0-9]* rw,
 `
 
 type waylandInterface struct{}
@@ -140,10 +144,14 @@ func (iface *waylandInterface) StaticInfo() interfaces.StaticInfo {
 
 func (iface *waylandInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(waylandConnectedPlugAppArmor)
-	if !release.OnClassic {
+	if !implicitSystemConnectedSlot(slot) {
 		old := "###SLOT_SECURITY_TAGS###"
 		new := slotAppLabelExpr(slot)
 		snippet := strings.Replace(waylandConnectedPlugEglstreamAppArmor, old, new, -1)
+		spec.AddSnippet(snippet)
+
+		new = "snap." + slot.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
+		snippet = strings.Replace(waylandConnectedPlugAppArmorCore, old, new, -1)
 		spec.AddSnippet(snippet)
 	}
 	return nil
