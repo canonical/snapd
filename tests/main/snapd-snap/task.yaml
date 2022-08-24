@@ -171,6 +171,10 @@ execute: |
       fi
       cat /var/lib/snapd/system-key
       echo "Rebooted successfully"
+
+      # undo the purging
+      apt install -y "$PROJECT_PATH/../"snapd_1337.*_amd64.deb
+
       exit 0
     fi
     # shellcheck disable=SC2164
@@ -378,6 +382,16 @@ execute: |
 
     # reboot to ensure snapd.apparmor still works then too
     if [ "$SPREAD_REBOOT" = "0" ]; then
+        # downgrade the snapd deb from the distro package to test that we can
+        # still handle the generated apparmor profiles etc from the snapd snap
+        echo "Downgrading snapd to distro packaged version..."
+        apt install -y --allow-downgrades snapd/$(lsb_release -sc)
+
+        # check snapd.apparmor is still working after downgrade
+        if ! os.query is-trusty && ! os.query is-xenial; then
+          systemctl status snapd.apparmor.service
+        fi
+
         echo "Rebooting to re-generate system-key..."
         REBOOT
     fi
