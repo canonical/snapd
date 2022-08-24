@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -660,10 +660,9 @@ func (s *storeTestSuite) TestEnsureDeviceSession(c *C) {
 		StoreBaseURL: mockServerURL,
 	}, dauthCtx)
 
-	device, err := sto.EnsureDeviceSession()
+	err := sto.EnsureDeviceSession()
 	c.Assert(err, IsNil)
 
-	c.Check(device.SessionMacaroon, Equals, "fresh-session-macaroon")
 	c.Check(s.device.SessionMacaroon, Equals, "fresh-session-macaroon")
 	c.Check(deviceSessionRequested, Equals, 1)
 }
@@ -724,7 +723,7 @@ func (s *storeTestSuite) TestEnsureDeviceSessionSerialisation(c *C) {
 		wgGetDevice.Add(1)
 		wg.Add(1)
 		go func() {
-			_, err := sto.EnsureDeviceSession()
+			err := sto.EnsureDeviceSession()
 			c.Assert(err, IsNil)
 			wg.Done()
 		}()

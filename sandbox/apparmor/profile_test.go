@@ -24,7 +24,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -33,10 +32,6 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/testutil"
 )
-
-func Test(t *testing.T) {
-	TestingT(t)
-}
 
 type appArmorSuite struct {
 	testutil.BaseTest

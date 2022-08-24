@@ -445,3 +445,7 @@ func MockSecbootMarkSuccessful(f func() error) (restore func()) {
 	secbootMarkSuccessful = f
 	return r
 }
+
+func BuildGroundDeviceContext(model *asserts.Model, mode string) snapstate.DeviceContext {
+	return &groundDeviceContext{model: model, systemMode: mode}
+}

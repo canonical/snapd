@@ -636,20 +636,10 @@ func getSpecificSequenceOrLatest(db *asserts.Database, headers map[string]string
 
 // validationSetAssertionForEnforce tries to fetch the validation set assertion
 // with the given accountID/name/sequence (sequence is optional) using pool and
-// checks if it's not in conflict with existing validation sets in enforcing mode
-// (all currently tracked validation set assertions get refreshed), and if they
-// are valid for installed snaps.
+// checks if it's not in conflict with existing validation sets in enforcing mode.
 func validationSetAssertionForEnforce(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (vs *asserts.ValidationSet, current int, err error) {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
-		return nil, 0, err
-	}
-
-	opts := &RefreshAssertionsOptions{IsAutoRefresh: false}
-
-	// refresh all currently tracked validation set assertions (this may or may not
-	// include the one requested by the caller).
-	if err = RefreshValidationSetAssertions(st, userID, opts); err != nil {
 		return nil, 0, err
 	}
 
@@ -761,6 +751,7 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		return nil
 	}
 
+	opts := &RefreshAssertionsOptions{IsAutoRefresh: false}
 	if err := resolvePoolNoFallback(st, pool, checkBeforeCommit, userID, deviceCtx, opts); err != nil {
 		return nil, 0, err
 	}

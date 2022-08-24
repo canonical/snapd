@@ -667,8 +667,8 @@ func (s *transactionSuite) TestExternalDeepNesting(c *C) {
 		c.Check(key, Equals, "key.external.subkey")
 
 		m := make(map[string]string)
-		m["subkey"] = fmt.Sprintf("nested-value")
-		m["other-subkey"] = fmt.Sprintf("other-nested-value")
+		m["subkey"] = "nested-value"
+		m["other-subkey"] = "other-nested-value"
 
 		return m, nil
 	})

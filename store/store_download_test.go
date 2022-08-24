@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -87,7 +87,7 @@ func (s *storeDownloadSuite) TestDownloadOK(c *C) {
 	expectedContent := []byte("I was downloaded")
 
 	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
-		c.Check(url, Equals, "anon-url")
+		c.Check(url, Equals, "URL")
 		w.Write(expectedContent)
 		return nil
 	})
@@ -95,8 +95,7 @@ func (s *storeDownloadSuite) TestDownloadOK(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = "URL"
 	snap.Size = int64(len(expectedContent))
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
@@ -114,7 +113,7 @@ func (s *storeDownloadSuite) TestDownloadRangeRequest(c *C) {
 
 	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		c.Check(resume, Equals, int64(len(partialContentStr)))
-		c.Check(url, Equals, "anon-url")
+		c.Check(url, Equals, "URL")
 		w.Write([]byte(missingContentStr))
 		return nil
 	})
@@ -122,8 +121,7 @@ func (s *storeDownloadSuite) TestDownloadRangeRequest(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = "URL"
 	snap.Sha3_384 = "abcdabcd"
 	snap.Size = int64(len(expectedContentStr))
 
@@ -142,8 +140,7 @@ func (s *storeDownloadSuite) TestResumeOfCompleted(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = "URL"
 	snap.Sha3_384 = fmt.Sprintf("%x", sha3.Sum384([]byte(expectedContentStr)))
 	snap.Size = int64(len(expectedContentStr))
 
@@ -189,8 +186,7 @@ func (s *storeDownloadSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = mockServer.URL
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = mockServer.URL
 	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
 	snap.Size = 50000
 
@@ -233,8 +229,7 @@ func (s *storeDownloadSuite) TestDownloadRetryHashErrorIsFullyRetried(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = mockServer.URL
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = mockServer.URL
 	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
 	snap.Size = 50000
 
@@ -269,8 +264,7 @@ func (s *storeDownloadSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = mockServer.URL
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = mockServer.URL
 	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
 	snap.Size = 50000
 
@@ -305,8 +299,7 @@ func (s *storeDownloadSuite) TestResumeOfTooMuchDataWorks(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = mockServer.URL
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = mockServer.URL
 	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
 	snap.Size = int64(len(snapContent))
 
@@ -335,8 +328,7 @@ func (s *storeDownloadSuite) TestDownloadRetryHashErrorIsFullyRetriedOnlyOnce(c 
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = mockServer.URL
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = mockServer.URL
 	snap.Sha3_384 = "invalid-hash"
 	snap.Size = int64(len("something invalid"))
 
@@ -368,8 +360,7 @@ func (s *storeDownloadSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = "URL"
 	snap.Sha3_384 = ""
 	snap.Size = int64(len(expectedContentStr))
 
@@ -396,8 +387,7 @@ func (s *storeDownloadSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = "URL"
 	snap.Sha3_384 = ""
 	snap.Size = int64(len(partialContentStr) + 1)
 
@@ -411,12 +401,12 @@ func (s *storeDownloadSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 	c.Assert(n, Equals, 2)
 }
 
-func (s *storeDownloadSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
+func (s *storeDownloadSuite) TestDownloadWithUser(c *C) {
 	expectedContent := []byte("I was downloaded")
 	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 		// check user is pass and auth url is used
 		c.Check(user, Equals, s.user)
-		c.Check(url, Equals, "AUTH-URL")
+		c.Check(url, Equals, "URL")
 
 		w.Write(expectedContent)
 		return nil
@@ -425,8 +415,7 @@ func (s *storeDownloadSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = "URL"
 	snap.Size = int64(len(expectedContent))
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
@@ -435,58 +424,6 @@ func (s *storeDownloadSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	defer os.Remove(path)
 
 	c.Assert(path, testutil.FileEquals, expectedContent)
-}
-
-func (s *storeDownloadSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
-	expectedContent := []byte("I was downloaded")
-	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
-		// check auth url is used
-		c.Check(url, Equals, "AUTH-URL")
-
-		w.Write(expectedContent)
-		return nil
-	})
-	defer restore()
-
-	snap := &snap.Info{}
-	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
-	snap.Size = int64(len(expectedContent))
-
-	dauthCtx := &testDauthContext{c: c, device: s.device}
-	sto := store.New(&store.Config{}, dauthCtx)
-
-	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := sto.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil)
-	c.Assert(err, IsNil)
-	defer os.Remove(path)
-
-	c.Assert(path, testutil.FileEquals, expectedContent)
-}
-
-func (s *storeDownloadSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
-	expectedContentStr := "I was downloaded"
-	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
-		c.Check(url, Equals, "anon-url")
-
-		w.Write([]byte(expectedContentStr))
-		return nil
-	})
-	defer restore()
-
-	snap := &snap.Info{}
-	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
-	snap.Size = int64(len(expectedContentStr))
-
-	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, s.localUser, nil)
-	c.Assert(err, IsNil)
-	defer os.Remove(path)
-
-	c.Assert(path, testutil.FileEquals, expectedContentStr)
 }
 
 func (s *storeDownloadSuite) TestDownloadFails(c *C) {
@@ -499,8 +436,7 @@ func (s *storeDownloadSuite) TestDownloadFails(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = "URL"
 	snap.Size = 1
 	// simulate a failed download
 	path := filepath.Join(c.MkDir(), "downloaded-file")
@@ -523,8 +459,7 @@ func (s *storeDownloadSuite) TestDownloadFailsLeavePartial(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = "URL"
 	snap.Size = 1
 	// simulate a failed download
 	path := filepath.Join(c.MkDir(), "downloaded-file")
@@ -547,8 +482,7 @@ func (s *storeDownloadSuite) TestDownloadFailsDoesNotLeavePartialIfEmpty(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = "URL"
 	snap.Size = 1
 	// simulate a failed download
 	path := filepath.Join(c.MkDir(), "downloaded-file")
@@ -573,8 +507,7 @@ func (s *storeDownloadSuite) TestDownloadSyncFails(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = "anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = "URL"
 	snap.Size = int64(len("sync will fail"))
 
 	// simulate a failed sync
@@ -588,68 +521,34 @@ func (s *storeDownloadSuite) TestDownloadSyncFails(c *C) {
 }
 
 var downloadDeltaTests = []struct {
-	info          snap.DownloadInfo
-	authenticated bool
-	deviceSession bool
-	useLocalUser  bool
-	format        string
-	expectedURL   string
-	expectError   bool
+	info        snap.DownloadInfo
+	withUser    bool
+	format      string
+	expectedURL string
+	expectError bool
 }{{
-	// An unauthenticated request downloads the anonymous delta url.
+	// No user delta download.
 	info: snap.DownloadInfo{
 		Sha3_384: "sha3",
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "anon-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
+			{DownloadURL: "delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
 		},
 	},
-	authenticated: false,
-	deviceSession: false,
-	format:        "xdelta3",
-	expectedURL:   "anon-delta-url",
-	expectError:   false,
+	format:      "xdelta3",
+	expectedURL: "delta-url",
+	expectError: false,
 }, {
-	// An authenticated request downloads the authenticated delta url.
+	// With user detla download.
 	info: snap.DownloadInfo{
 		Sha3_384: "sha3",
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "anon-delta-url", DownloadURL: "auth-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
+			{DownloadURL: "delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
 		},
 	},
-	authenticated: true,
-	deviceSession: false,
-	useLocalUser:  false,
-	format:        "xdelta3",
-	expectedURL:   "auth-delta-url",
-	expectError:   false,
-}, {
-	// A device-authenticated request downloads the authenticated delta url.
-	info: snap.DownloadInfo{
-		Sha3_384: "sha3",
-		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "anon-delta-url", DownloadURL: "auth-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
-		},
-	},
-	authenticated: false,
-	deviceSession: true,
-	useLocalUser:  false,
-	format:        "xdelta3",
-	expectedURL:   "auth-delta-url",
-	expectError:   false,
-}, {
-	// A local authenticated request downloads the anonymous delta url.
-	info: snap.DownloadInfo{
-		Sha3_384: "sha3",
-		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "anon-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
-		},
-	},
-	authenticated: true,
-	deviceSession: false,
-	useLocalUser:  true,
-	format:        "xdelta3",
-	expectedURL:   "anon-delta-url",
-	expectError:   false,
+	withUser:    true,
+	format:      "xdelta3",
+	expectedURL: "delta-url",
+	expectError: false,
 }, {
 	// An error is returned if more than one matching delta is returned by the store,
 	// though this may be handled in the future.
@@ -660,11 +559,9 @@ var downloadDeltaTests = []struct {
 			{DownloadURL: "bsdiff-delta-url", Format: "xdelta3", FromRevision: 25, ToRevision: 26},
 		},
 	},
-	authenticated: false,
-	deviceSession: false,
-	format:        "xdelta3",
-	expectedURL:   "",
-	expectError:   true,
+	format:      "xdelta3",
+	expectedURL: "",
+	expectError: true,
 }, {
 	// If the supported format isn't available, an error is returned.
 	info: snap.DownloadInfo{
@@ -674,11 +571,9 @@ var downloadDeltaTests = []struct {
 			{DownloadURL: "ydelta-delta-url", Format: "ydelta", FromRevision: 24, ToRevision: 26},
 		},
 	},
-	authenticated: false,
-	deviceSession: false,
-	format:        "bsdiff",
-	expectedURL:   "",
-	expectError:   true,
+	format:      "bsdiff",
+	expectedURL: "",
+	expectError: true,
 }}
 
 func (s *storeDownloadSuite) TestDownloadDelta(c *C) {
@@ -694,10 +589,7 @@ func (s *storeDownloadSuite) TestDownloadDelta(c *C) {
 		restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
 			c.Check(dlOpts, DeepEquals, &store.DownloadOptions{IsAutoRefresh: true})
 			expectedUser := s.user
-			if testCase.useLocalUser {
-				expectedUser = s.localUser
-			}
-			if !testCase.authenticated {
+			if !testCase.withUser {
 				expectedUser = nil
 			}
 			c.Check(user, Equals, expectedUser)
@@ -711,16 +603,8 @@ func (s *storeDownloadSuite) TestDownloadDelta(c *C) {
 		c.Assert(err, IsNil)
 		defer os.Remove(w.Name())
 
-		dauthCtx.device = nil
-		if testCase.deviceSession {
-			dauthCtx.device = s.device
-		}
-
 		authedUser := s.user
-		if testCase.useLocalUser {
-			authedUser = s.localUser
-		}
-		if !testCase.authenticated {
+		if !testCase.withUser {
 			authedUser = nil
 		}
 
@@ -879,7 +763,7 @@ func (s *storeDownloadSuite) TestDownloadCacheMiss(c *C) {
 func (s *storeDownloadSuite) TestDownloadStreamOK(c *C) {
 	expectedContent := []byte("I was downloaded")
 	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, resume int64, s *store.Store, user *auth.UserState) (*http.Response, error) {
-		c.Check(url.String(), Equals, "http://anon-url")
+		c.Check(url.String(), Equals, "URL")
 		r := &http.Response{
 			Body: ioutil.NopCloser(bytes.NewReader(expectedContent[resume:])),
 		}
@@ -894,8 +778,7 @@ func (s *storeDownloadSuite) TestDownloadStreamOK(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = "http://anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = "URL"
 	snap.Size = int64(len(expectedContent))
 
 	stream, status, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil)
@@ -930,8 +813,7 @@ func (s *storeDownloadSuite) TestDownloadStreamCachedOK(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = "http://anon-url"
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = "URL"
 	snap.Size = int64(len(expectedContent))
 	snap.Sha3_384 = "sha3_384-of-foo"
 
@@ -987,8 +869,7 @@ func (s *storeDownloadSuite) TestDownloadTimeout(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = mockServer.URL
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = mockServer.URL
 	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
 	snap.Size = 50000
 
@@ -1071,8 +952,7 @@ func (s *storeDownloadSuite) TestDownloadTimeoutOnHeaders(c *C) {
 
 	snap := &snap.Info{}
 	snap.RealName = "foo"
-	snap.AnonDownloadURL = mockServer.URL
-	snap.DownloadURL = "AUTH-URL"
+	snap.DownloadURL = mockServer.URL
 	snap.Sha3_384 = "1234"
 	snap.Size = 50000
 
