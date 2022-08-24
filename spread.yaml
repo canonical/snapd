@@ -747,6 +747,7 @@ prepare: |
     # Copy external tools from the subtree to the "$TESTSLIB"/tools directory
     # The idea is to have a single directory with all the testing tools
     cp -f "$TESTSLIB"/external/snapd-testing-tools/tools/* "$TESTSTOOLS"
+    cp -f "$TESTSLIB"/external/snapd-testing-tools/remote/* "$TESTSTOOLS"
 
     # ensure there are no broken snaps or the invariant test will fail later
     if command -v snap; then
@@ -985,6 +986,9 @@ suites:
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+
+            # Configure the ssh connection to the test vm
+            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested prepare
@@ -1032,6 +1036,9 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
+            # Configure the ssh connection to the test vm
+            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
+
             tests.nested prepare
             tests.nested build-image classic
         prepare-each: |
@@ -1078,6 +1085,9 @@ suites:
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+
+            # Configure the ssh connection to the test vm
+            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
 
             tests.nested prepare
             tests.nested build-image core
