@@ -2253,7 +2253,10 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 
 	// TODO: add error checking here and return proper error once
 	// all testsy mock KernelInfo
-	kernelInfo, _ := snapstate.KernelInfo(st, deviceCtx)
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return "", fmt.Errorf("cannot check encryption support: %v", err)
+	}
 	var gadgetInfo *gadget.Info
 	if gadgetSnapInfo, err := snapstate.GadgetInfo(st, deviceCtx); err == nil {
 		gadgetInfo, err = gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)

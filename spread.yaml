@@ -139,6 +139,7 @@ backends:
             - debian-11-64:
                   workers: 6
             - debian-sid-64:
+                  storage: 12G
                   workers: 6
 
             - fedora-35-64:

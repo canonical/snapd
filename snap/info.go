@@ -723,8 +723,7 @@ func (s *Info) DesktopPrefix() string {
 // DownloadInfo contains the information to download a snap.
 // It can be marshalled.
 type DownloadInfo struct {
-	AnonDownloadURL string `json:"anon-download-url,omitempty"`
-	DownloadURL     string `json:"download-url,omitempty"`
+	DownloadURL string `json:"download-url,omitempty"`
 
 	Size     int64  `json:"size,omitempty"`
 	Sha3_384 string `json:"sha3-384,omitempty"`
@@ -739,13 +738,12 @@ type DownloadInfo struct {
 // DeltaInfo contains the information to download a delta
 // from one revision to another.
 type DeltaInfo struct {
-	FromRevision    int    `json:"from-revision,omitempty"`
-	ToRevision      int    `json:"to-revision,omitempty"`
-	Format          string `json:"format,omitempty"`
-	AnonDownloadURL string `json:"anon-download-url,omitempty"`
-	DownloadURL     string `json:"download-url,omitempty"`
-	Size            int64  `json:"size,omitempty"`
-	Sha3_384        string `json:"sha3-384,omitempty"`
+	FromRevision int    `json:"from-revision,omitempty"`
+	ToRevision   int    `json:"to-revision,omitempty"`
+	Format       string `json:"format,omitempty"`
+	DownloadURL  string `json:"download-url,omitempty"`
+	Size         int64  `json:"size,omitempty"`
+	Sha3_384     string `json:"sha3-384,omitempty"`
 }
 
 // check that Info is a PlaceInfo
