@@ -1782,6 +1782,71 @@ func (s *quotaHandlersSuite) TestDoQuotaAddSnap(c *C) {
 	})
 }
 
+func (s *quotaHandlersSuite) TestDoQuotaAddSnapQuotaConflict(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(st, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// setup an existing quota group we can update it
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, quota.NewResourcesBuilder().WithMemoryLimit(1*quantity.SizeGiB).Build())
+	c.Assert(err, check.IsNil)
+
+	// Create a change that has a quota-control task in it for quota group foo
+	chg := st.NewChange("quota-update", "update foo quota group")
+	tsk := st.NewTask("quota-control", "update limits")
+	tsk.Set("quota-control-actions", []servicestate.QuotaControlAction{
+		{
+			Action:    "update",
+			QuotaName: "foo",
+		},
+	})
+	chg.AddTask(tsk)
+	chg.SetStatus(state.DoingStatus)
+
+	// Now we create a task for QuotaAddSnap
+	_, err = servicestate.AddSnapToQuotaGroup(st, "test-snap", "foo")
+	c.Assert(err.Error(), Equals, "quota group \"foo\" has \"quota-update\" change in progress")
+}
+
+func (s *quotaHandlersSuite) TestDoQuotaAddSnapSnapConflict(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(st, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// setup an existing quota group we can update it
+	err := servicestatetest.MockQuotaInState(st, "foo2", "", nil, quota.NewResourcesBuilder().WithMemoryLimit(1*quantity.SizeGiB).Build())
+	c.Assert(err, check.IsNil)
+
+	// Create the initial change which will contain AddSnapToQuotaGroup
+	chg1 := st.NewChange("snap-install", "installing test-snap")
+	tsk1, err := servicestate.AddSnapToQuotaGroup(st, "test-snap", "foo")
+	c.Assert(err, IsNil)
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "test-snap",
+			Revision: snap.R(1),
+			SnapID:   "test-snap-id",
+		},
+	}
+	tsk1.Set("snap-setup", snapsup)
+	chg1.AddTask(tsk1)
+	chg1.SetStatus(state.DoingStatus)
+
+	// Create a change that has a quota-control task in it for quota group foo
+	_, err = servicestate.UpdateQuota(st, "foo2", servicestate.QuotaGroupUpdate{
+		AddSnaps: []string{"test-snap"},
+	})
+	c.Assert(err.Error(), Equals, "snap \"test-snap\" has \"snap-install\" change in progress")
+}
+
 func (s *quotaHandlersSuite) TestDoAddSnapToJournalQuota(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo
