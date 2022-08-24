@@ -30,6 +30,7 @@ remap_one() {
 
 cmd_install() {
     set -x
+    apt-get update
     # shellcheck disable=SC2068
     apt-get install --yes $@
     set +x

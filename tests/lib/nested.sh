@@ -337,6 +337,9 @@ nested_get_ubuntu_image_url_for_vm() {
         ubuntu-22.04-arm-64*)
             echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-arm64.img"
             ;;
+        ubuntu-22.10-64*)
+            echo "https://cloud-images.ubuntu.com/kinetic/current/kinetic-server-cloudimg-amd64.img"
+            ;;
         *)
             echo "unsupported system"
             exit 1
