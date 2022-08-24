@@ -3079,7 +3079,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetWritesTimesyncdClock(c *C) {
 	c.Check(fi.Size(), Equals, int64(0))
 }
 
-func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirementsDisable(c *C) {
+func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -3091,55 +3091,56 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirementsDisable(c 
 	var testCases = []struct {
 		grade, storageSafety, forceUnencrypted string
 
-		expected devicestate.EncryptionRequirements
+		expected devicestate.EncryptionSupportInfo
 	}{
 		{
 			"dangerous", "", "",
-			devicestate.EncryptionRequirements{
-				Required: false, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeLUKS,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
 			},
 		},
 		{
 			"dangerous", "", "force-unencrypted",
-			devicestate.EncryptionRequirements{
-				Required: false, Available: true, Disabled: true,
-				Type:      secboot.EncryptionTypeNone,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: true,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				// Note that encryption type is set to what is available
+				Type: secboot.EncryptionTypeLUKS,
 			},
 		},
 		// not possible to disable encryption on non-dangerous devices
 		{
 			"signed", "", "",
-			devicestate.EncryptionRequirements{
-				Required: false, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeLUKS,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
 			},
 		},
 		{
 			"signed", "", "force-unencrypted",
-			devicestate.EncryptionRequirements{
-				Required: false, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeLUKS,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
 			},
 		},
 		{
 			"secured", "", "",
-			devicestate.EncryptionRequirements{
-				Required: true, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeLUKS,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
 			},
 		},
 		{
 			"secured", "", "force-unencrypted",
-			devicestate.EncryptionRequirements{
-				Required: true, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeLUKS,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
 			},
 		},
 	}
@@ -3175,7 +3176,7 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirementsDisable(c 
 			c.Assert(err, IsNil)
 		}
 
-		res, err := devicestate.DeviceManagerCheckEncryptionAndRequirements(s.mgr, mockModel, kernelInfo, gadgetInfo)
+		res, err := devicestate.DeviceManagerEncryptionSupportInfo(s.mgr, mockModel, kernelInfo, gadgetInfo)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
@@ -3183,13 +3184,13 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirementsDisable(c 
 
 var gadgetWithoutUbuntuSave = &gadget.Info{
 	Volumes: map[string]*gadget.Volume{
-		"pc": &gadget.Volume{
+		"pc": {
 			Name:       "pc",
 			Schema:     "mbr",
 			Bootloader: "grub",
 			Structure: []gadget.VolumeStructure{
-				{"ubuntu-seed", "ubuntu-seed", "ubuntu-seed", nil, nil, 700 * quantity.SizeMiB, "0d", "system-seed", "", "vfat", nil, gadget.VolumeUpdate{}},
-				{"ubuntu-data", "ubuntu-data", "ubuntu-data", nil, nil, 700 * quantity.SizeMiB, "0d", "system-data", "", "ext4", nil, gadget.VolumeUpdate{}},
+				{VolumeName: "ubuntu-seed", Name: "ubuntu-seed", Label: "ubuntu-seed", Size: 700 * quantity.SizeMiB, Role: "system-seed", Filesystem: "vfat"},
+				{VolumeName: "ubuntu-data", Name: "ubuntu-data", Label: "ubuntu-data", Size: 700 * quantity.SizeMiB, Role: "system-data", Filesystem: "ext4"},
 			},
 		},
 	},
@@ -3197,20 +3198,20 @@ var gadgetWithoutUbuntuSave = &gadget.Info{
 
 var gadgetUC20 = &gadget.Info{
 	Volumes: map[string]*gadget.Volume{
-		"pc": &gadget.Volume{
+		"pc": {
 			Name:       "pc",
 			Schema:     "mbr",
 			Bootloader: "grub",
 			Structure: []gadget.VolumeStructure{
-				{"ubuntu-seed", "ubuntu-seed", "ubuntu-seed", nil, nil, 700 * quantity.SizeMiB, "0d", "system-seed", "", "vfat", nil, gadget.VolumeUpdate{}},
-				{"ubuntu-data", "ubuntu-data", "ubuntu-data", nil, nil, 700 * quantity.SizeMiB, "0d", "system-data", "", "ext4", nil, gadget.VolumeUpdate{}},
-				{"ubuntu-save", "ubuntu-save", "ubuntu-save", nil, nil, 5 * quantity.SizeMiB, "0d", "system-save", "", "ext4", nil, gadget.VolumeUpdate{}},
+				{VolumeName: "ubuntu-seed", Name: "ubuntu-seed", Label: "ubuntu-seed", Size: 700 * quantity.SizeMiB, Role: "system-seed", Filesystem: "vfat"},
+				{VolumeName: "ubuntu-data", Name: "ubuntu-data", Label: "ubuntu-data", Size: 700 * quantity.SizeMiB, Role: "system-data", Filesystem: "ext4"},
+				{VolumeName: "ubuntu-save", Name: "ubuntu-save", Label: "ubuntu-save", Size: 5 * quantity.SizeMiB, Role: "system-save", Filesystem: "ext4"},
 			},
 		},
 	},
 }
 
-func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirementsGadgetIncompatibleWithEncryption(c *C) {
+func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -3222,63 +3223,68 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirementsGadgetInco
 		grade, storageSafety string
 		gadgetInfo           *gadget.Info
 
-		expected devicestate.EncryptionRequirements
+		expected devicestate.EncryptionSupportInfo
 	}{
 		{
 			"dangerous", "", gadgetUC20,
-			devicestate.EncryptionRequirements{
-				Required: false, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeLUKS,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
 			},
 		}, {
 			"dangerous", "", gadgetWithoutUbuntuSave,
-			devicestate.EncryptionRequirements{
-				Required: false, Available: false, Disabled: false,
-				Type:      secboot.EncryptionTypeNone,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+				Type:               secboot.EncryptionTypeNone,
+				UnavailableWarning: "cannot use encryption with the gadget, disabling encryption: gadget does not support encrypted data: required partition with system-save role is missing",
 			},
 		}, {
 			"dangerous", "encrypted", gadgetWithoutUbuntuSave,
-			devicestate.EncryptionRequirements{
-				Required: true, Available: false, Disabled: false,
-				Type:      secboot.EncryptionTypeNone,
-				PolicyErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
 			},
 		}, {
 			"signed", "", gadgetUC20,
-			devicestate.EncryptionRequirements{
-				Required: false, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeLUKS,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
 			},
 		}, {
 			"signed", "", gadgetWithoutUbuntuSave,
-			devicestate.EncryptionRequirements{
-				Required: false, Available: false, Disabled: false,
-				Type:      secboot.EncryptionTypeNone,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+				Type:               secboot.EncryptionTypeNone,
+				UnavailableWarning: "cannot use encryption with the gadget, disabling encryption: gadget does not support encrypted data: required partition with system-save role is missing",
 			},
 		}, {
 			"signed", "encrypted", gadgetWithoutUbuntuSave,
-			devicestate.EncryptionRequirements{
-				Required: true, Available: false, Disabled: false,
-				Type:      secboot.EncryptionTypeNone,
-				PolicyErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
 			},
 		}, {
 			"secured", "", gadgetUC20,
-			devicestate.EncryptionRequirements{
-				Required: true, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeLUKS,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
 			},
 		}, {
 			"secured", "", gadgetWithoutUbuntuSave,
-			devicestate.EncryptionRequirements{
-				Required: true, Available: false, Disabled: false,
-				Type:      secboot.EncryptionTypeNone,
-				PolicyErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
 			},
 		},
 	}
@@ -3303,13 +3309,13 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirementsGadgetInco
 					"default-channel": "20",
 				}},
 		})
-		res, err := devicestate.DeviceManagerCheckEncryptionAndRequirements(s.mgr, mockModel, kernelInfo, tc.gadgetInfo)
+		res, err := devicestate.DeviceManagerEncryptionSupportInfo(s.mgr, mockModel, kernelInfo, tc.gadgetInfo)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
 }
 
-func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirements(c *C) {
+func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -3320,107 +3326,115 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirements(c *C) {
 		grade, storageSafety string
 		tpmErr               error
 
-		expected devicestate.EncryptionRequirements
+		expected devicestate.EncryptionSupportInfo
 	}{
 		{
 			"dangerous", "", nil,
-			devicestate.EncryptionRequirements{
-				Required: false, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeLUKS,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
 			},
 		}, {
 			"dangerous", "", fmt.Errorf("no tpm"),
-			devicestate.EncryptionRequirements{
-				Required: false, Available: false, Disabled: false,
-				Type:      secboot.EncryptionTypeNone,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+				Type:               secboot.EncryptionTypeNone,
+				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
 			},
 		}, {
 			"dangerous", "encrypted", nil,
-			devicestate.EncryptionRequirements{
-				Required: true, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeLUKS,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
 			},
 		}, {
 			"dangerous", "encrypted", fmt.Errorf("no tpm"),
-			devicestate.EncryptionRequirements{
-				Required: true, Available: false, Disabled: false,
-				Type:      secboot.EncryptionTypeNone,
-				PolicyErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
 			},
 		},
 		{
 			"dangerous", "prefer-unencrypted", nil,
-			devicestate.EncryptionRequirements{
-				Required: false, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeNone,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferUnencrypted,
+				// Note that encryption type is set to what is available
+				Type: secboot.EncryptionTypeLUKS,
 			},
 		},
 		{
 			"signed", "", nil,
-			devicestate.EncryptionRequirements{
-				Required: false, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeLUKS,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
 			},
 		}, {
 			"signed", "", fmt.Errorf("no tpm"),
-			devicestate.EncryptionRequirements{
-				Required: false, Available: false, Disabled: false,
-				Type:      secboot.EncryptionTypeNone,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+				Type:               secboot.EncryptionTypeNone,
+				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
 			},
 		}, {
 			"signed", "encrypted", nil,
-			devicestate.EncryptionRequirements{
-				Required: true, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeLUKS,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
 			},
 		}, {
 			"signed", "prefer-unencrypted", nil,
-			devicestate.EncryptionRequirements{
-				Required: false, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeNone,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferUnencrypted,
+				// Note that encryption type is set to what is available
+				Type: secboot.EncryptionTypeLUKS,
 			},
 		}, {
 			"signed", "encrypted", fmt.Errorf("no tpm"),
-			devicestate.EncryptionRequirements{
-				Required: true, Available: false, Disabled: false,
-				Type:      secboot.EncryptionTypeNone,
-				PolicyErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
 			},
 		}, {
 			"secured", "encrypted", nil,
-			devicestate.EncryptionRequirements{
-				Required: true, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeLUKS,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
 			},
 		}, {
 			"secured", "encrypted", fmt.Errorf("no tpm"),
-			devicestate.EncryptionRequirements{
-				Required: true, Available: false, Disabled: false,
-				Type:      secboot.EncryptionTypeNone,
-				PolicyErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
 			},
 		}, {
 			"secured", "", nil,
-			devicestate.EncryptionRequirements{
-				Required: true, Available: true, Disabled: false,
-				Type:      secboot.EncryptionTypeLUKS,
-				PolicyErr: nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
 			},
 		}, {
 			"secured", "", fmt.Errorf("no tpm"),
-			devicestate.EncryptionRequirements{
-				Required: true, Available: false, Disabled: false,
-				Type:      secboot.EncryptionTypeNone,
-				PolicyErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
 			},
 		},
 	}
@@ -3448,7 +3462,7 @@ func (s *deviceMgrInstallModeSuite) TestCheckEncryptionAndRequirements(c *C) {
 					"default-channel": "20",
 				}},
 		})
-		res, err := devicestate.DeviceManagerCheckEncryptionAndRequirements(s.mgr, mockModel, kernelInfo, gadgetInfo)
+		res, err := devicestate.DeviceManagerEncryptionSupportInfo(s.mgr, mockModel, kernelInfo, gadgetInfo)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}

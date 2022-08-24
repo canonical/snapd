@@ -2215,22 +2215,32 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	return secbootRemoveRecoveryKeys(recoveryKeyDevices)
 }
 
-// EncryptionRequirements
-// TODO: move to secboot/encryption.go (?)
-type EncryptionRequirements struct {
-	// Required is set if true encryption is required
-	Required bool
-	// Available is set true if encryption is available on this device
-	Available bool
-	// Disabled is set tre if encryption got force disabled via e.g. the seed parititon
+// EncryptionSupportInfo describes what encryption is available and needed
+// for the current device
+type EncryptionSupportInfo struct {
+	// Disabled is set if to true encryption was furcefully
+	// disabled (e.g. via the seed pa partition), if set the rest
+	// of the struct content is not relevant.
 	Disabled bool
 
-	// Type returns the EncryptionType that will be used
+	// StorageSafety describes the level safety properties
+	// requested by the model
+	StorageSafety asserts.StorageSafety
+	// Available is set to true if encryption is available on this device
+	// with the used gadget.
+	Available bool
+
+	// Type us set to the EncryptionType that can be used if
+	// Available is true.
 	Type secboot.EncryptionType
 
-	// PolicyErr is the error if there is mismatch between the
-	// requirements from the model vs the capabilities of the device
-	PolicyErr error
+	// UnvailableErr is set if the encryption support availability of
+	// the this device and used gadget do not match the
+	// storage safety requirements.
+	UnavailableErr error
+	// UnavailbleWarning describes why encryption support is not
+	// available in case it is optional.
+	UnavailableWarning string
 }
 
 var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
@@ -2252,20 +2262,29 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		}
 	}
 
-	res, err := m.checkEncryptionAndRequirements(model, kernelInfo, gadgetInfo)
+	res, err := m.encryptionSupportInfo(model, kernelInfo, gadgetInfo)
 	if err != nil {
 		return "", err
 	}
-	return res.Type, res.PolicyErr
+	if res.UnavailableWarning != "" {
+		logger.Noticef("%s", res.UnavailableWarning)
+	}
+	// encryption disabled or preferred unencrypted
+	if res.Disabled || model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
+		res.Type = secboot.EncryptionTypeNone
+	}
+
+	return res.Type, res.UnavailableErr
 }
 
-func (m *DeviceManager) checkEncryptionAndRequirements(model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (res EncryptionRequirements, err error) {
+func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
 	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
-	preferUnencrypted := model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted
 
-	res.Required = secured || encrypted
+	res := EncryptionSupportInfo{
+		StorageSafety: model.StorageSafety(),
+	}
 
 	// check if we should disable encryption non-secured devices
 	// TODO:UC20: this is not the final mechanism to bypass encryption
@@ -2296,36 +2315,29 @@ func (m *DeviceManager) checkEncryptionAndRequirements(model *asserts.Model, ker
 	// check if encryption is required
 	if checkEncryptionErr != nil {
 		if secured {
-			res.PolicyErr = fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
+			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
 		} else if encrypted {
-			res.PolicyErr = fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
-		}
-
-		if hasFDESetupHook {
-			logger.Noticef("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
+			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
+		} else if hasFDESetupHook {
+			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
 		} else {
-			logger.Noticef("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
+			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
 		}
 	}
 
-	// model prefers unencrypted or encryption disabled
-	if (preferUnencrypted || res.Disabled) && !secured && !encrypted {
-		res.Type = secboot.EncryptionTypeNone
-	}
-
-	// If encryption is available and we don't have policy violations already check if the gadget
-	// is compatible with encryption.
+	// If encryption is available check if the gadget is
+	// compatible with encryption.
 	//
 	// TODO: update all tests so that gadgetInfo is always passed in
-	if gadgetInfo != nil && res.Available && res.PolicyErr == nil {
+	if gadgetInfo != nil && res.Available {
 		opts := &gadget.ValidationConstraints{
 			EncryptedData: true,
 		}
 		if err := gadget.Validate(gadgetInfo, model, opts); err != nil {
-			if res.Required {
-				res.PolicyErr = fmt.Errorf("cannot use encryption with the gadget: %v", err)
+			if secured || encrypted {
+				res.UnavailableErr = fmt.Errorf("cannot use encryption with the gadget: %v", err)
 			} else {
-				logger.Noticef("cannot use encryption with the gadget, disabling encryption: %v", err)
+				res.UnavailableWarning = fmt.Sprintf("cannot use encryption with the gadget, disabling encryption: %v", err)
 			}
 			res.Available = false
 			res.Type = secboot.EncryptionTypeNone

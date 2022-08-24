@@ -399,8 +399,8 @@ func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx
 	return mgr.checkEncryption(st, deviceCtx)
 }
 
-func DeviceManagerCheckEncryptionAndRequirements(mgr *DeviceManager, model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionRequirements, error) {
-	return mgr.checkEncryptionAndRequirements(model, kernelInfo, gadgetInfo)
+func DeviceManagerEncryptionSupportInfo(mgr *DeviceManager, model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
+	return mgr.encryptionSupportInfo(model, kernelInfo, gadgetInfo)
 }
 
 func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) (secboot.EncryptionType, error) {
