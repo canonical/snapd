@@ -43,8 +43,12 @@ type Authorizer interface {
 	// as best-effort and only log any returned error.
 	Authorize(r *http.Request, dauthCtx DeviceAndAuthContext, user *auth.UserState, opts *AuthorizeOptions) error
 
-	// HasAuth returns whether is possible to authorize requests for user.
-	HasAuth(user *auth.UserState) bool
+	// CanAuthorizeForUser should return true if the Authorizer
+	// can authorize requests on behalf of a user, either
+	// by the Authorizer using implicit data or by using auth data
+	// carried by UserState, in which case the availability of
+	// that explicit data in user should be checked.
+	CanAuthorizeForUser(user *auth.UserState) bool
 }
 
 type AuthorizeOptions struct {

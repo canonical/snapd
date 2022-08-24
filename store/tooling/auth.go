@@ -220,11 +220,13 @@ type UbuntuOneCreds struct {
 var _ store.Authorizer = (*UbuntuOneCreds)(nil)
 var _ store.RefreshingAuthorizer = (*UbuntuOneCreds)(nil)
 
-func (c *UbuntuOneCreds) Authorize(r *http.Request, _ store.DeviceAndAuthContext, user *auth.UserState, _ *store.AuthorizeOptions) error {
+func (c *UbuntuOneCreds) Authorize(r *http.Request, _ store.DeviceAndAuthContext, _ *auth.UserState, _ *store.AuthorizeOptions) error {
 	return store.UserAuthorizer{}.Authorize(r, nil, &c.User, nil)
 }
 
-func (c *UbuntuOneCreds) HasAuth(_ *auth.UserState) bool {
+func (c *UbuntuOneCreds) CanAuthorizeForUser(_ *auth.UserState) bool {
+	// UbuntuOneCreds carries a UserState with auth data by construction
+	// so we can authorize using that
 	return true
 }
 
@@ -248,6 +250,8 @@ func (c *SimpleCreds) Authorize(r *http.Request, _ store.DeviceAndAuthContext, u
 	return nil
 }
 
-func (c *SimpleCreds) HasAuth(_ *auth.UserState) bool {
+func (c *SimpleCreds) CanAuthorizeForUser(_ *auth.UserState) bool {
+	// SimpleCreds can authorize with the implicit auth data it carries
+	// on behalf of the user they were generated for
 	return true
 }

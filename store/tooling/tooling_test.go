@@ -428,7 +428,7 @@ func (s *toolingSuite) TestSimpleCreds(c *C) {
 		Scheme: "Auth-Scheme",
 		Value:  "auth-value",
 	}
-	c.Check(creds.HasAuth(nil), Equals, true)
+	c.Check(creds.CanAuthorizeForUser(nil), Equals, true)
 	r, err := http.NewRequest("POST", "http://svc", nil)
 	c.Assert(err, IsNil)
 	c.Assert(creds.Authorize(r, nil, nil, nil), IsNil)
