@@ -2251,8 +2251,6 @@ var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (secboot.EncryptionType, error) {
 	model := deviceCtx.Model()
 
-	// TODO: add error checking here and return proper error once
-	// all testsy mock KernelInfo
 	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
 	if err != nil {
 		return "", fmt.Errorf("cannot check encryption support: %v", err)
