@@ -118,9 +118,7 @@ func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bo
 	db := assertstate.DB(st)
 	st.Unlock()
 
-	u := &userManager{
-		state:    st,
-		safe:     false,
+	u := &createUserOpts{
 		assertDb: db,
 		modelAs:  model,
 		serialAs: serial,
@@ -130,7 +128,7 @@ func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bo
 	// special case: the user requested the creation of all known
 	// system-users
 	if email == "" && createKnown {
-		return u.createAllKnownSystemUsers()
+		return u.createAllKnownSystemUsers(st)
 	}
 	if email == "" {
 		return nil, &UserError{Internal: false, Err: fmt.Errorf("cannot create user: 'email' field is empty")}
@@ -154,7 +152,7 @@ func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bo
 
 	opts.Sudoer = sudoer
 	opts.ExtraUsers = !release.OnClassic
-	createdUser, err := u.addUser(username, email, opts)
+	createdUser, err := u.addUser(st, username, email, opts)
 	if err != nil {
 		return nil, &UserError{Internal: true, Err: err}
 	}
@@ -188,28 +186,22 @@ func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (str
 	return v.Username, opts, nil
 }
 
-// userManager is a helper to handle safe and unsafe modes of operations
-type userManager struct {
-	state    *state.State
-	safe     bool
+// createUserOpts is a helper to handle user operations
+type createUserOpts struct {
 	assertDb asserts.RODatabase
 	modelAs  *asserts.Model
 	serialAs *asserts.Serial
 	isSudoer bool
 }
 
-func (u *userManager) createAllKnownSystemUsers() ([]CreatedUser, *UserError) {
+func (u *createUserOpts) createAllKnownSystemUsers(state *state.State) ([]CreatedUser, *UserError) {
 	headers := map[string]string{
 		"brand-id": u.modelAs.BrandID(),
 	}
 
-	if !u.safe {
-		u.state.Lock()
-	}
+	state.Lock()
 	assertions, err := u.assertDb.FindMany(asserts.SystemUserType, headers)
-	if !u.safe {
-		u.state.Unlock()
-	}
+	state.Unlock()
 	if err != nil && !asserts.IsNotFound(err) {
 		return nil, &UserError{Internal: true, Err: fmt.Errorf("cannot find system-user assertion: %s", err)}
 	}
@@ -232,7 +224,7 @@ func (u *userManager) createAllKnownSystemUsers() ([]CreatedUser, *UserError) {
 		opts.Sudoer = u.isSudoer
 		opts.ExtraUsers = !release.OnClassic
 
-		createdUser, err := u.addUser(username, email, opts)
+		createdUser, err := u.addUser(state, username, email, opts)
 		if err != nil {
 			return nil, &UserError{Internal: true, Err: err}
 		}
@@ -296,7 +288,7 @@ func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.M
 	return su.Username(), opts, nil
 }
 
-func (u *userManager) setupLocalUser(username, email string) error {
+func (u *createUserOpts) setupLocalUser(state *state.State, username, email string) error {
 	user, err := userLookup(username)
 	if err != nil {
 		return fmt.Errorf("cannot lookup user %q: %s", username, err)
@@ -311,13 +303,9 @@ func (u *userManager) setupLocalUser(username, email string) error {
 	}
 
 	// setup new user, local-only
-	if !u.safe {
-		u.state.Lock()
-	}
-	authUser, err := auth.NewUser(u.state, username, email, "", nil)
-	if !u.safe {
-		u.state.Unlock()
-	}
+	state.Lock()
+	authUser, err := auth.NewUser(state, username, email, "", nil)
+	state.Unlock()
 	if err != nil {
 		return fmt.Errorf("cannot persist authentication details: %v", err)
 	}
@@ -344,11 +332,11 @@ func (u *userManager) setupLocalUser(username, email string) error {
 	return nil
 }
 
-func (u *userManager) addUser(username string, email string, opts *osutil.AddUserOptions) (CreatedUser, error) {
+func (u *createUserOpts) addUser(state *state.State, username string, email string, opts *osutil.AddUserOptions) (CreatedUser, error) {
 	if err := osutilAddUser(username, opts); err != nil {
 		return CreatedUser{}, fmt.Errorf("cannot add user %q: %s", username, err)
 	}
-	if err := u.setupLocalUser(username, email); err != nil {
+	if err := u.setupLocalUser(state, username, email); err != nil {
 		return CreatedUser{}, err
 	}
 
