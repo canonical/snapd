@@ -387,10 +387,10 @@ type Systemd interface {
 	// If namespaces is set to true, the log reader will include journal namespace
 	// logs, and is required to get logs for services which are in journal namespaces.
 	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
-	// AddMountUnitFile adds/enables/starts a mount unit.
-	AddMountUnitFile(name, revision, what, where, fstype string) (string, error)
-	// AddMountUnitFileWithOptions adds/enables/starts a mount unit with options.
-	AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
+	// EnsureMountUnitFile adds/enables/starts a mount unit.
+	EnsureMountUnitFile(name, revision, what, where, fstype string) (string, error)
+	// EnsureMountUnitFileWithOptions adds/enables/starts a mount unit with options.
+	EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
 	// ListMountUnits gets the list of targets of the mount units created by
@@ -1462,13 +1462,13 @@ func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 	return hostFsType, options
 }
 
-func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
+func (s *systemd) EnsureMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
 	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		hostFsType = "none"
 	}
-	return s.AddMountUnitFileWithOptions(&MountUnitOptions{
+	return s.EnsureMountUnitFileWithOptions(&MountUnitOptions{
 		Lifetime: Persistent,
 		SnapName: snapName,
 		Revision: revision,
@@ -1479,7 +1479,7 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 	})
 }
 
-func (s *systemd) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
+func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
