@@ -149,7 +149,9 @@ func (m *InterfaceManager) StartUp() error {
 	// duration of this process always add implicit slots to snapd and not to
 	// any other type: os snap and use a mapper to use names core-snapd-system
 	// on state, in memory and in API responses, respectively.
-	m.selectInterfaceMapper(snaps)
+	if err := m.selectInterfaceMapper(); err != nil {
+		return err
+	}
 
 	if err := m.addInterfaces(m.extraInterfaces); err != nil {
 		return err

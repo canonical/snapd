@@ -53,13 +53,26 @@ var (
 	writeSystemKey = interfaces.WriteSystemKey
 )
 
-func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
-	for _, snapInfo := range snaps {
-		if snapInfo.Type() == snap.TypeSnapd {
+func (m *InterfaceManager) selectInterfaceMapper() error {
+	s := m.state
+	// We check all snaps as snapd might be even reverting
+	allStates, err := snapstate.All(s)
+	if err != nil {
+		return err
+	}
+	for _, snapst := range allStates {
+		tp, err := snapst.Type()
+		if err != nil {
+			return err
+		}
+		if tp == snap.TypeSnapd {
+			logger.Noticef("CoreSnapdSystemMapper selected")
 			mapper = &CoreSnapdSystemMapper{}
 			break
 		}
 	}
+
+	return nil
 }
 
 func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
@@ -263,11 +276,15 @@ var removeStaleConnections = func(st *state.State) error {
 		if err != nil {
 			return err
 		}
+		logger.Noticef("checking connections for %s %s",
+			connRef.PlugRef.Snap, connRef.SlotRef.Snap)
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, connRef.PlugRef.Snap, &snapst); err != nil {
 			if !errors.Is(err, state.ErrNoState) {
 				return err
 			}
+			logger.Noticef("stale connection plug %s, error: %v",
+				connRef.PlugRef.Snap, err)
 			staleConns = append(staleConns, id)
 			continue
 		}
@@ -275,6 +292,8 @@ var removeStaleConnections = func(st *state.State) error {
 			if !errors.Is(err, state.ErrNoState) {
 				return err
 			}
+			logger.Noticef("stale connection slot %s, error: %v",
+				connRef.SlotRef.Snap, err)
 			staleConns = append(staleConns, id)
 			continue
 		}
@@ -343,7 +362,8 @@ ConnsLoop:
 
 		// The connection refers to a plug or slot that doesn't exist anymore, e.g. because of a refresh
 		// to a new snap revision that doesn't have the given plug/slot.
-		if plugInfo == nil || slotInfo == nil {
+		if plugInfo == nil || (slotInfo == nil &&
+			connRef.SlotRef.Snap != "snapd" && connRef.SlotRef.Snap != "core") {
 			// automatic connection can simply be removed (it will be re-created automatically if needed)
 			// as long as it wasn't disconnected manually; note that undesired flag is taken care of at
 			// the beginning of the loop.
@@ -360,6 +380,7 @@ ConnsLoop:
 						continue ConnsLoop
 					}
 				}
+				logger.Noticef("reloadConnections removing %s", connId)
 				delete(conns, connId)
 				connStateChanged = true
 			}
