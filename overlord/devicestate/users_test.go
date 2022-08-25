@@ -672,3 +672,16 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	c.Check(createdUsers, check.FitsTypeOf, expected)
 	c.Check(createdUsers, check.DeepEquals, expected)
 }
+
+func (s *usersSuite) TestCreateUserMissingEmail(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// create user
+	createdUsers, userErr := devicestate.CreateUser(s.state, s.mgr, true, false, "")
+
+	c.Assert(userErr, check.NotNil)
+	c.Check(userErr.Error(), check.Matches, `cannot create user: 'email' field is empty`)
+	c.Check(userErr.IsInternal(), check.Equals, false)
+	c.Assert(createdUsers, check.IsNil)
+}
