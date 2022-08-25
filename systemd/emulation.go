@@ -134,7 +134,7 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 	// This means that when preseeding in a lxd container, the snap will be
 	// mounted with fuse, but mount unit will use squashfs.
 	mountUnitOptions := append(fsMountOptions(fstype), squashfs.StandardOptions()...)
-	mountUnitName, err := writeMountUnitFile(&MountUnitOptions{
+	mountUnitName, modified, err := ensureMountUnitFile(&MountUnitOptions{
 		Lifetime: Persistent,
 		SnapName: snapName,
 		Revision: revision,
@@ -147,7 +147,14 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 		return "", err
 	}
 
+	if modified == mountUnchanged {
+		return mountUnitName, nil
+	}
+
 	hostFsType, actualOptions := hostFsTypeAndMountOptions(fstype)
+	if modified == mountUpdated {
+		actualOptions = append(actualOptions, "remount")
+	}
 	cmd := exec.Command("mount", "-t", hostFsType, what, where, "-o", strings.Join(actualOptions, ","))
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("cannot mount %s (%s) at %s in preseed mode: %s; %s", what, hostFsType, where, err, string(out))
