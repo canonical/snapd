@@ -32,9 +32,15 @@ func MockHasUserAdmin(mockHasUserAdmin bool) (restore func()) {
 	return restore
 }
 
-func MockDeviceStateCreateUser(createUser func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, createKnown bool, email string) ([]devicestate.CreatedUser, *devicestate.UserError)) (restore func()) {
+func MockDeviceStateCreateUser(createUser func(st *state.State, sudoer bool, email string) (devicestate.CreatedUser, *devicestate.UserError)) (restore func()) {
 	restore = testutil.Backup(&deviceStateCreateUser)
 	deviceStateCreateUser = createUser
+	return restore
+}
+
+func MockDeviceStateCreateKnownUsers(createKnownUser func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, email string) ([]devicestate.CreatedUser, *devicestate.UserError)) (restore func()) {
+	restore = testutil.Backup(&deviceStateCreateUser)
+	deviceStateCreateKnownUsers = createKnownUser
 	return restore
 }
 

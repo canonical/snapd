@@ -118,15 +118,15 @@ func (s *usersSuite) TestCreateUserNoSSHKeys(c *check.C) {
 	}
 
 	// create user
-	createdUsers, err := devicestate.CreateUser(s.state, s.mgr, true, false, "popper@lse.ac.uk")
+	createdUser, err := devicestate.CreateUser(s.state, true, "popper@lse.ac.uk")
 
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
 	c.Check(err.IsInternal(), check.Equals, false)
-	// createdUsers should be empty
-	c.Check(len(createdUsers), check.Equals, 0)
-	expected := []devicestate.CreatedUser(nil)
-	c.Check(createdUsers, check.DeepEquals, expected)
+
+	// created user should be empty
+	expected := devicestate.CreatedUser{}
+	c.Check(createdUser, check.DeepEquals, expected)
 }
 
 func (s *usersSuite) TestCreateUser(c *check.C) {
@@ -150,18 +150,15 @@ func (s *usersSuite) TestCreateUser(c *check.C) {
 
 	// user was setup in state
 	// create user
-	createdUsers, userErr := devicestate.CreateUser(s.state, s.mgr, false, false, "popper@lse.ac.uk")
+	createdUser, userErr := devicestate.CreateUser(s.state, false, "popper@lse.ac.uk")
 
 	c.Assert(userErr, check.IsNil)
-	expected := []devicestate.CreatedUser{
-		{
-			Username: "karl",
-			SSHKeys:  []string{"ssh1 # snapd {\"origin\":\"store\",\"email\":\"popper@lse.ac.uk\"}", "ssh2 # snapd {\"origin\":\"store\",\"email\":\"popper@lse.ac.uk\"}"},
-		},
+	expected := devicestate.CreatedUser{
+		Username: "karl",
+		SSHKeys:  []string{"ssh1 # snapd {\"origin\":\"store\",\"email\":\"popper@lse.ac.uk\"}", "ssh2 # snapd {\"origin\":\"store\",\"email\":\"popper@lse.ac.uk\"}"},
 	}
-	c.Check(len(createdUsers), check.Equals, 1)
-	c.Check(createdUsers, check.FitsTypeOf, expected)
-	c.Check(createdUsers, check.DeepEquals, expected)
+	c.Check(createdUser, check.FitsTypeOf, expected)
+	c.Check(createdUser, check.DeepEquals, expected)
 
 	s.state.Lock()
 	user, err := auth.User(s.state, 1)
@@ -487,7 +484,7 @@ func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange boo
 	})()
 
 	// create user
-	createdUsers, err := devicestate.CreateUser(s.state, s.mgr, false, true, "foo@bar.com")
+	createdUsers, err := devicestate.CreateKnownUsers(s.state, s.mgr, false, "foo@bar.com")
 
 	expected := []devicestate.CreatedUser{
 		{
@@ -550,7 +547,16 @@ func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, e
 	})()
 
 	// create user
-	createdUsers, err := devicestate.CreateUser(s.state, s.mgr, expectSudoer, createKnown, "")
+	var createdUsers []devicestate.CreatedUser
+	var err error
+	if createKnown {
+		createdUsers, err = devicestate.CreateKnownUsers(s.state, s.mgr, expectSudoer, "")
+	} else {
+		var createdUser devicestate.CreatedUser
+		createdUser, err = devicestate.CreateUser(s.state, expectSudoer, "")
+		createdUsers = append(createdUsers, createdUser)
+	}
+
 	expected := []devicestate.CreatedUser{
 		{
 			Username: "guy",
@@ -595,7 +601,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownNoModelError(c *check.C)
 	c.Assert(err, check.IsNil)
 
 	// create user
-	createdUsers, userErr := devicestate.CreateUser(s.state, s.mgr, true, true, "")
+	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, s.mgr, true, "")
 
 	c.Assert(userErr, check.NotNil)
 	c.Check(userErr.Error(), check.Matches, `cannot create user: cannot get model assertion: no state entry for key`)
@@ -626,7 +632,7 @@ func (s *usersSuite) TestCreateUserFromAssertionNoModel(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// create user
-	createdUsers, userErr := devicestate.CreateUser(s.state, s.mgr, true, true, "serial@bar.com")
+	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, s.mgr, true, "serial@bar.com")
 
 	c.Check(userErr, check.NotNil)
 	c.Check(userErr.Error(), check.Matches, `cannot add system-user "serial@bar.com": bound to serial assertion but device not yet registered`)
@@ -661,7 +667,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	})()
 
 	// create user
-	createdUsers, err := devicestate.CreateUser(s.state, s.mgr, false, true, "")
+	createdUsers, err := devicestate.CreateKnownUsers(s.state, s.mgr, false, "")
 	c.Assert(err, check.IsNil)
 	expected := []devicestate.CreatedUser{
 		{
@@ -678,10 +684,12 @@ func (s *usersSuite) TestCreateUserMissingEmail(c *check.C) {
 	defer restore()
 
 	// create user
-	createdUsers, userErr := devicestate.CreateUser(s.state, s.mgr, true, false, "")
+	createdUser, userErr := devicestate.CreateUser(s.state, true, "")
 
 	c.Assert(userErr, check.NotNil)
 	c.Check(userErr.Error(), check.Matches, `cannot create user: 'email' field is empty`)
 	c.Check(userErr.IsInternal(), check.Equals, false)
-	c.Assert(createdUsers, check.IsNil)
+	// created user should be empty
+	expected := devicestate.CreatedUser{}
+	c.Check(createdUser, check.DeepEquals, expected)
 }

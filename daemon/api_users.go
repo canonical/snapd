@@ -62,8 +62,9 @@ var (
 )
 
 var (
-	deviceStateCreateUser = devicestate.CreateUser
-	deviceStateRemoveUser = devicestate.RemoveUser
+	deviceStateCreateUser       = devicestate.CreateUser
+	deviceStateCreateKnownUsers = devicestate.CreateKnownUsers
+	deviceStateRemoveUser       = devicestate.RemoveUser
 )
 
 // userResponseData contains the data releated to user creation/login/query
@@ -302,11 +303,20 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		createData.Sudoer = true
 	}
 
-	if createdUsers, err := deviceStateCreateUser(st, c.d.overlord.DeviceManager(), createData.Sudoer, createData.Known, createData.Email); err != nil {
-		if err.IsInternal() {
-			return InternalError(err.Error())
+	var createdUsers []devicestate.CreatedUser
+	var userError *devicestate.UserError
+	if createData.Known {
+		createdUsers, userError = deviceStateCreateKnownUsers(st, c.d.overlord.DeviceManager(), createData.Sudoer, createData.Email)
+	} else {
+		var createdUser devicestate.CreatedUser
+		createdUser, userError = deviceStateCreateUser(st, createData.Sudoer, createData.Email)
+		createdUsers = append(createdUsers, createdUser)
+	}
+	if userError != nil {
+		if userError.IsInternal() {
+			return InternalError(userError.Error())
 		} else {
-			return BadRequest(err.Error())
+			return BadRequest(userError.Error())
 		}
 	} else {
 		for _, cu := range createdUsers {

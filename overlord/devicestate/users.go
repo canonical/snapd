@@ -61,6 +61,7 @@ func (e UserError) IsInternal() bool {
 	return e.Internal
 }
 
+// RemoveUser removes linux user account of passed username.
 func RemoveUser(st *state.State, username string) (*auth.UserState, *UserError) {
 	// TODO: allow to remove user entries by email as well
 
@@ -95,23 +96,23 @@ func RemoveUser(st *state.State, username string) (*auth.UserState, *UserError) 
 	return u, nil
 }
 
-func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bool, email string) ([]CreatedUser, *UserError) {
-	var model *asserts.Model
-	var serial *asserts.Serial
-	if createKnown {
-		var err error
-		st.Lock()
-		model, err = mgr.Model()
-		st.Unlock()
-		if err != nil {
-			return nil, &UserError{Internal: true, Err: fmt.Errorf("cannot create user: cannot get model assertion: %v", err)}
-		}
-		st.Lock()
-		serial, err = mgr.Serial()
-		st.Unlock()
-		if err != nil && !errors.Is(err, state.ErrNoState) {
-			return nil, &UserError{Internal: true, Err: fmt.Errorf("cannot create user: cannot get serial: %v", err)}
-		}
+// CreateKnownUsers create known user(s)
+// user details are fetched from existing system user assertions.
+// If no email is passed, all known users will be created based on valid system user assertions.
+// If email is passed, only corresponding system user assertion is used for user creation.
+func CreateKnownUsers(st *state.State, mgr *DeviceManager, sudoer bool, email string) ([]CreatedUser, *UserError) {
+	var err error
+	st.Lock()
+	model, err := mgr.Model()
+	st.Unlock()
+	if err != nil {
+		return nil, &UserError{Internal: true, Err: fmt.Errorf("cannot create user: cannot get model assertion: %v", err)}
+	}
+	st.Lock()
+	serial, err := mgr.Serial()
+	st.Unlock()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, &UserError{Internal: true, Err: fmt.Errorf("cannot create user: cannot get serial: %v", err)}
 	}
 
 	st.Lock()
@@ -125,42 +126,61 @@ func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bo
 		isSudoer: sudoer,
 	}
 
-	// special case: the user requested the creation of all known
-	// system-users
-	if email == "" && createKnown {
+	if email == "" {
 		return u.createAllKnownSystemUsers(st)
 	}
-	if email == "" {
-		return nil, &UserError{Internal: false, Err: fmt.Errorf("cannot create user: 'email' field is empty")}
-	}
 
-	var username string
-	var opts *osutil.AddUserOptions
-	var err error
-	if createKnown {
-		username, opts, err = getUserDetailsFromAssertion(u.assertDb, u.modelAs, u.serialAs, email)
-	} else {
-		st.Lock()
-		storeService := snapstate.Store(st, nil)
-		st.Unlock()
-		username, opts, err = getUserDetailsFromStore(storeService, email)
-	}
+	username, opts, err := getUserDetailsFromAssertion(u.assertDb, u.modelAs, u.serialAs, email)
 
 	if err != nil {
 		return nil, &UserError{Internal: false, Err: err}
 	}
-
 	opts.Sudoer = sudoer
+	createdUser, userErr := u.createUser(st, opts, username, email)
+	var createdUsers []CreatedUser
+	createdUsers = append(createdUsers, createdUser)
+	return createdUsers, userErr
+}
+
+// CreateUser creates linux user based on the passed email
+// username and public ssh keys for the created user account are determined
+// from Ubuntu store based on the passed email.
+func CreateUser(st *state.State, sudoer bool, email string) (CreatedUser, *UserError) {
+	if email == "" {
+		return CreatedUser{}, &UserError{Internal: false, Err: fmt.Errorf("cannot create user: 'email' field is empty")}
+	}
+
+	st.Lock()
+	db := assertstate.DB(st)
+	st.Unlock()
+
+	u := &createUserOpts{
+		assertDb: db,
+		modelAs:  nil,
+		serialAs: nil,
+		isSudoer: sudoer,
+	}
+
+	st.Lock()
+	storeService := snapstate.Store(st, nil)
+	st.Unlock()
+	username, opts, err := getUserDetailsFromStore(storeService, email)
+
+	if err != nil {
+		return CreatedUser{}, &UserError{Internal: false, Err: err}
+	}
+	opts.Sudoer = sudoer
+	return u.createUser(st, opts, username, email)
+}
+
+func (u *createUserOpts) createUser(st *state.State, opts *osutil.AddUserOptions, username, email string) (CreatedUser, *UserError) {
 	opts.ExtraUsers = !release.OnClassic
 	createdUser, err := u.addUser(st, username, email, opts)
 	if err != nil {
-		return nil, &UserError{Internal: true, Err: err}
+		return CreatedUser{}, &UserError{Internal: true, Err: err}
 	}
 
-	var createdUsers []CreatedUser
-	createdUsers = append(createdUsers, createdUser)
-	return createdUsers, nil
-
+	return createdUser, nil
 }
 
 func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
