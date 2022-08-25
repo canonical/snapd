@@ -38,9 +38,10 @@ execute: |
    
   echo "Create a group with the logger snap in it"
   snap set-quota group-one --journal-size=16MB --journal-rate-limit=100/10ms test-snapd-journal-quota
-  
+
+  # retry a few times if we check before the service had a chance to restart entirely
   echo "The service should still be active"
-  snap services test-snapd-journal-quota.logger | MATCH "test-snapd-journal-quota.logger\s+enabled\s+active"
+  retry -n 3 sh -c "snap services test-snapd-journal-quota.logger | MATCH 'test-snapd-journal-quota.logger\s+enabled\s+active'"
   
   # Now ask for the namespace logs and lets see if we can see messages from 'LogDaemon'
   NEW_MESSAGE_DETECTED=0
