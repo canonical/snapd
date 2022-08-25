@@ -1,0 +1,40 @@
+summary: ensure that the Wayland interface can connect to confined servers
+
+details: |
+    An unmodified Wayland compositor will create its listening socket
+    in $XDG_RUNTIME_DIR. If it is strictly confined, this will be in
+    the snap's private subdirectory.
+
+    Even if we hard link that socket to the real $XDG_RUNTIME_DIR, the
+    AppArmor rules governing access will use the path it was
+    originally bound at. This test verifies that connection is
+    possible.
+
+prepare: |
+    tests.session -u test prepare
+
+restore: |
+    tests.session -u test restore
+
+execute: |
+    echo "Install test snaps"
+    "$TESTSTOOLS"/snaps-state install-local wayland-client
+    "$TESTSTOOLS"/snaps-state install-local wayland-server
+
+    echo "Ensure wayland plug is not connected to implicit slot"
+    snap disconnect wayland-client:wayland
+
+    echo "Connect wayland-client to wayland-server"
+    snap connect wayland-client:wayland wayland-server:wayland
+
+    USER_RUNTIME_DIR="/run/user/$(id -u test)"
+
+    echo "Start the Wayland server and wait for its socket to appear"
+    tests.session -u test exec wayland-server &
+    retry -n 4 --wait 0.5 test -e "$USER_RUNTIME_DIR"/snap.wayland-server/wayland-9
+
+    echo "Hard link the socket to the location the client expects the socket"
+    ln "$USER_RUNTIME_DIR"/snap.wayland-server/wayland-9 "$USER_RUNTIME_DIR"/wayland-9
+
+    echo "The wayland client can connect to the socket"
+    tests.session -u test exec wayland-client | MATCH "Hello from wayland-server"
