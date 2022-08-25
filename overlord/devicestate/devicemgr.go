@@ -2255,12 +2255,13 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	if err != nil {
 		return "", fmt.Errorf("cannot check encryption support: %v", err)
 	}
-	var gadgetInfo *gadget.Info
-	if gadgetSnapInfo, err := snapstate.GadgetInfo(st, deviceCtx); err == nil {
-		gadgetInfo, err = gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
-		if err != nil {
-			return "", err
-		}
+	gadgetSnapInfo, err := snapstate.GadgetInfo(st, deviceCtx)
+	if err != nil {
+		return "", err
+	}
+	gadgetInfo, err := gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
+	if err != nil {
+		return "", err
 	}
 
 	res, err := m.encryptionSupportInfo(model, kernelInfo, gadgetInfo)

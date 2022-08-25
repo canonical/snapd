@@ -140,8 +140,11 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcKernelAndGadget(c *C, ins
 	kernelFn := snaptest.MakeTestSnapWithFiles(c, "name: pc-kernel\ntype: kernel\nversion: 1.0", nil)
 	err := os.Rename(kernelFn, kernelInfo.MountFile())
 	c.Assert(err, IsNil)
+	s.makeMockInstalledPcGadget(c, installDeviceHook, gadgetDefaultsYaml)
+}
 
-	si = &snap.SideInfo{
+func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, installDeviceHook string, gadgetDefaultsYaml string) {
+	si := &snap.SideInfo{
 		RealName: "pc",
 		Revision: snap.R(1),
 		SnapID:   pcSnapID,
@@ -1886,11 +1889,26 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	// TODO: update to a proper UC20 model
+	s.makeMockInstalledPcGadget(c, "", "")
+
 	mockModel := s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"display-name": "my model",
 		"architecture": "amd64",
-		"kernel":       "pc-kernel",
-		"gadget":       "pc",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              pcKernelSnapID,
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              pcSnapID,
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
 	})
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -2167,6 +2185,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogsHook(c *C
 	defer restore()
 
 	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", checkEncryptionModelHeaders)
+	s.makeMockInstalledPcGadget(c, "", "")
 	// mock kernel installed but no hook or handle so checkEncryption
 	// will fail
 	makeInstalledMockKernelSnap(c, s.state, kernelYamlWithFdeSetup)
