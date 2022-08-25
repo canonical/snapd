@@ -64,7 +64,7 @@ func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string, opts *AddSn
 
 	// TODO: the following comment is wrong, we don't need RequiredBy=snapd here?
 
-	// Not using AddMountUnitFile() because we need
+	// Not using EnsureMountUnitFile() because we need
 	// "RequiredBy=snapd.service"
 
 	content := []byte(fmt.Sprintf(`[Unit]
