@@ -59,7 +59,7 @@ var _ = check.Suite(&systemsSuite{})
 type systemsSuite struct {
 	apiBaseSuite
 
-	seedModel2019 *asserts.Model
+	seedModelForLabel20191119 *asserts.Model
 }
 
 func (s *systemsSuite) SetUpTest(c *check.C) {
@@ -68,7 +68,7 @@ func (s *systemsSuite) SetUpTest(c *check.C) {
 	s.expectRootAccess()
 }
 
-var pcGadgetUC20Yaml = `
+var pcGadgetUCYaml = `
 volumes:
   pc:
     bootloader: grub
@@ -129,7 +129,7 @@ func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
 	// add essential snaps
 	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
 	gadgetFiles := [][]string{
-		{"meta/gadget.yaml", string(pcGadgetUC20Yaml)},
+		{"meta/gadget.yaml", string(pcGadgetUCYaml)},
 		{"pc-boot.img", "pc-boot.img content"},
 		{"pc-core.img", "pc-core.img content"},
 		{"grubx64.efi", "grubx64.efi content"},
@@ -138,7 +138,7 @@ func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
 	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", gadgetFiles, snap.R(1), "my-brand", s.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
-	s.seedModel2019 = seed20.MakeSeed(c, "20191119", "my-brand", "my-model", map[string]interface{}{
+	s.seedModelForLabel20191119 = seed20.MakeSeed(c, "20191119", "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my fancy model",
 		"architecture": "amd64",
 		"base":         "core20",
@@ -798,7 +798,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
 	}
 	r := daemon.MockDevicestateModelAndGadgetInfoFromSeed(func(label string) (*asserts.Model, *gadget.Info, error) {
 		c.Check(label, check.Equals, "20191119")
-		return s.seedModel2019, mockGadgetInfo, nil
+		return s.seedModelForLabel20191119, mockGadgetInfo, nil
 	})
 	defer r()
 
@@ -810,8 +810,8 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
 	sys := rsp.Result.(daemon.OneSystemsResponse)
 	c.Assert(sys, check.DeepEquals, daemon.OneSystemsResponse{
 		Model: clientutil.ModelAssertJSON{
-			Headers: s.seedModel2019.Headers(),
-			Body:    string(s.seedModel2019.Body()),
+			Headers: s.seedModelForLabel20191119.Headers(),
+			Body:    string(s.seedModelForLabel20191119.Body()),
 		},
 		Volumes: mockGadgetInfo.Volumes,
 	})
@@ -861,8 +861,8 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 
 	c.Assert(sys, check.DeepEquals, daemon.OneSystemsResponse{
 		Model: clientutil.ModelAssertJSON{
-			Headers: s.seedModel2019.Headers(),
-			Body:    string(s.seedModel2019.Body()),
+			Headers: s.seedModelForLabel20191119.Headers(),
+			Body:    string(s.seedModelForLabel20191119.Body()),
 		},
 		Volumes: map[string]*gadget.Volume{
 			"pc": {

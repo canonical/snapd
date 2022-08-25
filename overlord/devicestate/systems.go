@@ -463,7 +463,8 @@ func ModelAndGadgetInfoFromSeed(wantedSystemLabel string) (*asserts.Model, *gadg
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
 	}
-	// XXX: no opts for now
+	// TODO: once EncryptionSupportInfo from PR#12060 is available use it
+	//       here to set the right option
 	opts := &gadget.ValidationConstraints{}
 	if err := gadget.Validate(gadgetInfo, model, opts); err != nil {
 		return nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)

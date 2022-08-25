@@ -798,7 +798,7 @@ func (s *createSystemSuite) TestCreateSystemObserverErr(c *C) {
 	c.Check(dir, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"))
 }
 
-var mockGadgetUC20Yaml = `
+var mockGadgetUCYaml = `
 volumes:
   pc:
     bootloader: grub
@@ -868,8 +868,8 @@ func (s *createSystemSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, gadgetYa
 }
 
 func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedHappy(c *C) {
-	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUC20Yaml)
-	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUC20Yaml), fakeModel)
+	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml)
+	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
 	model, gadgetInfo, err := devicestate.ModelAndGadgetInfoFromSeed("some-label")
@@ -889,7 +889,7 @@ func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorNoSeedDir(c *C) {
 }
 
 func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorNoGadget(c *C) {
-	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUC20Yaml)
+	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml)
 	// break the seed by removing the gadget
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"))
 	c.Assert(err, IsNil)
@@ -899,7 +899,7 @@ func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorNoGadget(c *C) {
 }
 
 func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorWrongGadget(c *C) {
-	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUC20Yaml)
+	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml)
 	// break the seed by changing things
 	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0644)
 	c.Assert(err, IsNil)
