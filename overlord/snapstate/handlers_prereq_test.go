@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -79,6 +80,10 @@ func (s *prereqSuite) SetUpTest(c *C) {
 		return nil, nil
 	})
 	s.AddCleanup(restore)
+
+	s.AddCleanup(osutil.MockMountInfo(``))
+
+	s.AddCleanup(snapstate.MockEnsuredMountsUpdated(s.snapmgr, true))
 }
 
 func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {

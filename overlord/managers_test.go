@@ -272,6 +272,8 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	o.InterfaceManager().DisableUDevMonitor()
 	s.o = o
 
+	s.AddCleanup(snapstate.MockEnsuredMountsUpdated(s.o.SnapManager(), true))
+
 	st.Lock()
 	defer st.Unlock()
 

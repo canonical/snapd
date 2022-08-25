@@ -2403,6 +2403,10 @@ func (s *snapmgrTestSuite) TestUpdateMakesConfigSnapshot(c *C) {
 	chg.AddAll(ts)
 
 	defer s.se.Stop()
+
+	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, true)
+	defer restore()
+
 	s.settle(c)
 
 	cfgs = nil
