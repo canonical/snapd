@@ -76,7 +76,7 @@ func (s *userSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(daemon.MockHasUserAdmin(true))
 
 	// make sure we don't call these by accident)
-	s.AddCleanup(daemon.MockDeviceStateCreateUser(func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, createKnown bool, email string) (createdUsers []devicestate.UserResponse, internalErr *devicestate.UserError) {
+	s.AddCleanup(daemon.MockDeviceStateCreateUser(func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, createKnown bool, email string) (createdUsers []devicestate.CreatedUser, internalErr *devicestate.UserError) {
 		c.Fatalf("unexpected create user %q call", email)
 		return nil, &devicestate.UserError{Internal: false, Err: fmt.Errorf("unexpected create user %q call", email)}
 	}))
@@ -456,10 +456,10 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 	expectedUsername := "karl"
 	expectedEmail := "popper@lse.ac.uk"
 
-	defer daemon.MockDeviceStateCreateUser(func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, createKnown bool, email string) ([]devicestate.UserResponse, *devicestate.UserError) {
+	defer daemon.MockDeviceStateCreateUser(func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, createKnown bool, email string) ([]devicestate.CreatedUser, *devicestate.UserError) {
 		c.Check(email, check.Equals, expectedEmail)
 		c.Check(sudoer, check.Equals, false)
-		expected := []devicestate.UserResponse{
+		expected := []devicestate.CreatedUser{
 			{
 				Username: expectedUsername,
 				SSHKeys: []string{
@@ -510,7 +510,7 @@ func (s *userSuite) TestPostUserCreateErrInternal(c *check.C) {
 
 func (s *userSuite) testCreateUserErr(c *check.C, internalErr bool) {
 	called := 0
-	defer daemon.MockDeviceStateCreateUser(func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, createKnown bool, email string) ([]devicestate.UserResponse, *devicestate.UserError) {
+	defer daemon.MockDeviceStateCreateUser(func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, createKnown bool, email string) ([]devicestate.CreatedUser, *devicestate.UserError) {
 		called++
 		if internalErr {
 			return nil, &devicestate.UserError{Internal: internalErr, Err: fmt.Errorf("wat-internal")}

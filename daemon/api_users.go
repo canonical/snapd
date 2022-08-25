@@ -223,21 +223,20 @@ func postUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func removeUser(c *Command, username string, opts postUserDeleteData) Response {
-	u, ue := deviceStateRemoveUser(c.d.overlord.State(), username)
-	if ue != nil {
-		if ue.IsInternal() {
-			return InternalError(ue.Error().Error())
+	if u, err := deviceStateRemoveUser(c.d.overlord.State(), username); err != nil {
+		if err.IsInternal() {
+			return InternalError(err.Error())
 		} else {
-			return BadRequest(ue.Error().Error())
+			return BadRequest(err.Error())
 		}
+	} else {
+		result := map[string]interface{}{
+			"removed": []userResponseData{
+				{ID: u.ID, Username: u.Username, Email: u.Email},
+			},
+		}
+		return SyncResponse(result)
 	}
-
-	result := map[string]interface{}{
-		"removed": []userResponseData{
-			{ID: u.ID, Username: u.Username, Email: u.Email},
-		},
-	}
-	return SyncResponse(result)
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -303,22 +302,20 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		createData.Sudoer = true
 	}
 
-	createdUsers, ue := deviceStateCreateUser(st, c.d.overlord.DeviceManager(), createData.Sudoer, createData.Known, createData.Email)
-	if ue != nil {
-		if ue.IsInternal() {
-			return InternalError(ue.Error().Error())
+	if createdUsers, err := deviceStateCreateUser(st, c.d.overlord.DeviceManager(), createData.Sudoer, createData.Known, createData.Email); err != nil {
+		if err.IsInternal() {
+			return InternalError(err.Error())
 		} else {
-			return BadRequest(ue.Error().Error())
+			return BadRequest(err.Error())
+		}
+	} else {
+		for _, cu := range createdUsers {
+			createdUsersResponse = append(createdUsersResponse, userResponseData{
+				Username: cu.Username,
+				SSHKeys:  cu.SSHKeys,
+			})
 		}
 	}
-
-	for _, cu := range createdUsers {
-		createdUsersResponse = append(createdUsersResponse, userResponseData{
-			Username: cu.Username,
-			SSHKeys:  cu.SSHKeys,
-		})
-	}
-
 	return SyncResponse(createdUsersResponse)
 }
 

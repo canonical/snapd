@@ -37,7 +37,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-type UserResponse struct {
+type CreatedUser struct {
 	Username string
 	SSHKeys  []string
 }
@@ -53,8 +53,8 @@ type UserError struct {
 	Internal bool
 }
 
-func (e UserError) Error() error {
-	return e.Err
+func (e *UserError) Error() string {
+	return e.Err.Error()
 }
 
 func (e UserError) IsInternal() bool {
@@ -95,7 +95,7 @@ func RemoveUser(st *state.State, username string) (*auth.UserState, *UserError) 
 	return u, nil
 }
 
-func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bool, email string) ([]UserResponse, *UserError) {
+func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bool, email string) ([]CreatedUser, *UserError) {
 	var model *asserts.Model
 	var serial *asserts.Serial
 	if createKnown {
@@ -133,7 +133,7 @@ func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bo
 		return u.createAllKnownSystemUsers()
 	}
 	if email == "" {
-		return nil, &UserError{Internal: true, Err: fmt.Errorf("cannot create user: 'email' field is empty")}
+		return nil, &UserError{Internal: false, Err: fmt.Errorf("cannot create user: 'email' field is empty")}
 	}
 
 	var username string
@@ -149,7 +149,7 @@ func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bo
 	}
 
 	if err != nil {
-		return nil, &UserError{Internal: false, Err: fmt.Errorf("%s", err)}
+		return nil, &UserError{Internal: false, Err: err}
 	}
 
 	opts.Sudoer = sudoer
@@ -159,7 +159,7 @@ func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bo
 		return nil, &UserError{Internal: true, Err: err}
 	}
 
-	var createdUsers []UserResponse
+	var createdUsers []CreatedUser
 	createdUsers = append(createdUsers, createdUser)
 	return createdUsers, nil
 
@@ -188,7 +188,7 @@ func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (str
 	return v.Username, opts, nil
 }
 
-// userManager is helper to handle safe and unsafe modes of operations
+// userManager is a helper to handle safe and unsafe modes of operations
 type userManager struct {
 	state    *state.State
 	safe     bool
@@ -198,7 +198,7 @@ type userManager struct {
 	isSudoer bool
 }
 
-func (u *userManager) createAllKnownSystemUsers() ([]UserResponse, *UserError) {
+func (u *userManager) createAllKnownSystemUsers() ([]CreatedUser, *UserError) {
 	headers := map[string]string{
 		"brand-id": u.modelAs.BrandID(),
 	}
@@ -214,7 +214,7 @@ func (u *userManager) createAllKnownSystemUsers() ([]UserResponse, *UserError) {
 		return nil, &UserError{Internal: true, Err: fmt.Errorf("cannot find system-user assertion: %s", err)}
 	}
 
-	var createdUsers []UserResponse
+	var createdUsers []CreatedUser
 	for _, as := range assertions {
 		email := as.(*asserts.SystemUser).Email()
 		// we need to use getUserDetailsFromAssertion as this verifies
@@ -234,7 +234,7 @@ func (u *userManager) createAllKnownSystemUsers() ([]UserResponse, *UserError) {
 
 		createdUser, err := u.addUser(username, email, opts)
 		if err != nil {
-			return nil, &UserError{Internal: true, Err: fmt.Errorf("%s", err)}
+			return nil, &UserError{Internal: true, Err: err}
 		}
 		createdUsers = append(createdUsers, createdUser)
 	}
@@ -344,15 +344,15 @@ func (u *userManager) setupLocalUser(username, email string) error {
 	return nil
 }
 
-func (u *userManager) addUser(username string, email string, opts *osutil.AddUserOptions) (UserResponse, error) {
+func (u *userManager) addUser(username string, email string, opts *osutil.AddUserOptions) (CreatedUser, error) {
 	if err := osutilAddUser(username, opts); err != nil {
-		return UserResponse{}, fmt.Errorf("cannot add user %q: %s", username, err)
+		return CreatedUser{}, fmt.Errorf("cannot add user %q: %s", username, err)
 	}
 	if err := u.setupLocalUser(username, email); err != nil {
-		return UserResponse{}, fmt.Errorf("%s", err)
+		return CreatedUser{}, err
 	}
 
-	return UserResponse{
+	return CreatedUser{
 		Username: username,
 		SSHKeys:  opts.SSHKeys,
 	}, nil
