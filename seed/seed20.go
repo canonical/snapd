@@ -764,17 +764,21 @@ func (s *seed20) Iter(f func(sn *Snap) error) error {
 	return nil
 }
 
-func (s *seed20) LoadAutoImportAssertion(commitTo func(*asserts.Batch) error) error {
+func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) {
 	if s.model.Grade() == asserts.ModelDangerous {
 		autoImportAssert := filepath.Join(s.systemDir, "auto-import.assert")
 		af, err := os.Open(autoImportAssert)
-		// ignore if asseertion file does not exists
+		// ignore if assertion file does not exists
 		if os.IsNotExist(err) {
 			return nil
 		}
 		if err != nil {
-			logger.Noticef("failed to open auto-import assert(%s): %v\n", autoImportAssert, err)
-			return nil
+			// Loading of the auto import assertion can fail for multiple reasons,
+			// for example assertion can expired. Since auto import assertions are loaded
+			// at the first boot, we do not want this to break the first boot as the factory image ages.
+			// Notify about the error.
+			logger.Noticef("cannot open auto-import assert(%s): %v\n", autoImportAssert, err)
+			return
 		}
 		defer af.Close()
 		batch := asserts.NewBatch(nil)

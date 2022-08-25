@@ -2878,17 +2878,17 @@ func (s *seed20Suite) TestLoadMetaWrongHashSnapParallelism2(c *C) {
 }
 
 func (s *seed20Suite) TestLoadAutoImportAssertionGradeSecuredNoAutoImportAssertion(c *C) {
-	// secured grade, no su assertion
+	// secured grade, no system user assertion
 	s.testLoadAutoImportAssertion(c, asserts.ModelSecured, none, 0644, s.commitTo)
 }
 
 func (s *seed20Suite) TestLoadAutoImportAssertionGradeSecuredAutoImportAssertion(c *C) {
-	// secured grade, with su assertion
+	// secured grade, with system user assertion
 	s.testLoadAutoImportAssertion(c, asserts.ModelSecured, valid, 0644, s.commitTo)
 }
 
 func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousNoAutoImportAssertion(c *C) {
-	// dangerous grade, no su assertion
+	// dangerous grade, no system user assertion
 	s.testLoadAutoImportAssertion(c, asserts.ModelDangerous, none, 0644, s.commitTo)
 }
 
@@ -2900,24 +2900,24 @@ func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAsserti
 }
 
 func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAssertionErrFilePerm(c *C) {
-	// dangerous grade, su assertion with wrong file permissions
+	// dangerous grade, system user assertion with wrong file permissions
 	s.testLoadAutoImportAssertion(c, asserts.ModelDangerous, valid, 0222, s.commitTo)
 }
 
 func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousInvalidAutoImportAssertion(c *C) {
-	// dangerous grade, invalid su assertion
+	// dangerous grade, invalid system user assertion
 	s.testLoadAutoImportAssertion(c, asserts.ModelDangerous, invalid, 0644, s.commitTo)
 }
 
-type suAsseertion int
+type systemUserAsseertion int
 
 const (
-	none suAsseertion = iota
+	none systemUserAsseertion = iota
 	valid
 	invalid
 )
 
-func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade, sua suAsseertion, perm os.FileMode, commitTo func(b *asserts.Batch) error) {
+func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade, sua systemUserAsseertion, perm os.FileMode, commitTo func(b *asserts.Batch) error) {
 	sysLabel := "20191018"
 	seed20 := s.createMinimalSeed(c, string(grade), sysLabel)
 	c.Assert(seed20, NotNil)
@@ -2954,11 +2954,11 @@ func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAsserti
 	c.Assert(err, IsNil)
 	// validate it's our assertion
 	c.Check(len(assertions), check.Equals, 1)
-	su := assertions[0].(*asserts.SystemUser)
-	c.Check(su.Username(), check.Equals, "guy")
-	c.Check(su.Email(), check.Equals, "foo@bar.com")
-	c.Check(su.Name(), check.Equals, "Boring Guy")
-	c.Check(su.AuthorityID(), check.Equals, "my-brand")
+	systemUser := assertions[0].(*asserts.SystemUser)
+	c.Check(systemUser.Username(), check.Equals, "guy")
+	c.Check(systemUser.Email(), check.Equals, "foo@bar.com")
+	c.Check(systemUser.Name(), check.Equals, "Boring Guy")
+	c.Check(systemUser.AuthorityID(), check.Equals, "my-brand")
 }
 
 func (s *seed20Suite) createMinimalSeed(c *C, grade string, sysLabel string) seed.Seed {
@@ -3021,10 +3021,10 @@ func (s *seed20Suite) writeValidAutoImportAssertion(c *C, sysLabel string, perm 
 	c.Assert(enc, NotNil)
 
 	for _, suMap := range systemUsers {
-		su, err := s.Brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, "")
+		systemUser, err := s.Brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, "")
 		c.Assert(err, IsNil)
-		su = su.(*asserts.SystemUser)
-		err = enc.Encode(su)
+		systemUser = systemUser.(*asserts.SystemUser)
+		err = enc.Encode(systemUser)
 		c.Assert(err, IsNil)
 	}
 }
