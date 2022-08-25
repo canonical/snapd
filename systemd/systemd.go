@@ -326,6 +326,14 @@ const (
 	EmulationModeBackend
 )
 
+type mountUpdateStatus int
+
+const (
+	mountUnchanged mountUpdateStatus = iota
+	mountUpdated
+	mountCreated
+)
+
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
 	// Backend returns the underlying implementation backend.
@@ -1392,22 +1400,40 @@ const (
 	snappyOriginModule = "X-SnapdOrigin"
 )
 
-func writeMountUnitFile(u *MountUnitOptions) (mountUnitName string, err error) {
+func ensureMountUnitFile(u *MountUnitOptions) (mountUnitName string, modified mountUpdateStatus, err error) {
 	if u == nil {
-		return "", errors.New("writeMountUnitFile() expects valid mount options")
+		return "", mountUnchanged, errors.New("ensureMountUnitFile() expects valid mount options")
 	}
 
 	mu := MountUnitPathWithLifetime(u.Lifetime, u.Where)
-	outf, err := osutil.NewAtomicFile(mu, 0644, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return "", fmt.Errorf("cannot open mount unit file: %v", err)
-	}
-	defer outf.Cancel()
+	var unitContent bytes.Buffer
 
-	if err := parsedMountUnitTemplate.Execute(outf, &u); err != nil {
-		return "", fmt.Errorf("cannot generate mount unit: %v", err)
+	if err := parsedMountUnitTemplate.Execute(&unitContent, &u); err != nil {
+		return "", mountUnchanged, fmt.Errorf("cannot generate mount unit: %v", err)
 	}
-	return filepath.Base(mu), outf.Commit()
+
+	if osutil.FileExists(mu) {
+		modified = mountUpdated
+	} else {
+		modified = mountCreated
+	}
+
+	if err := os.MkdirAll(filepath.Dir(mu), 0755); err != nil {
+		return "", mountUnchanged, fmt.Errorf("cannot create directory %s: %v", filepath.Dir(mu), err)
+	}
+
+	stateErr := osutil.EnsureFileState(mu, &osutil.MemoryFileState{
+		Content: unitContent.Bytes(),
+		Mode:    0644,
+	})
+
+	if stateErr == osutil.ErrSameState {
+		modified = mountUnchanged
+	} else if err != nil {
+		return "", mountUnchanged, err
+	}
+
+	return filepath.Base(mu), modified, nil
 }
 
 func fsMountOptions(fstype string) []string {
@@ -1457,23 +1483,28 @@ func (s *systemd) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (st
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	mountUnitName, err := writeMountUnitFile(unitOptions)
+	mountUnitName, modified, err := ensureMountUnitFile(unitOptions)
 	if err != nil {
 		return "", err
 	}
+	if modified != mountUnchanged {
+		// we need to do a daemon-reload here to ensure that systemd really
+		// knows about this new mount unit file
+		if err := s.daemonReloadNoLock(); err != nil {
+			return "", err
+		}
 
-	// we need to do a daemon-reload here to ensure that systemd really
-	// knows about this new mount unit file
-	if err := s.daemonReloadNoLock(); err != nil {
-		return "", err
-	}
-
-	units := []string{mountUnitName}
-	if err := s.EnableNoReload(units); err != nil {
-		return "", err
-	}
-	if err := s.Start(units); err != nil {
-		return "", err
+		units := []string{mountUnitName}
+		if err := s.EnableNoReload(units); err != nil {
+			return "", err
+		}
+		// In the case of mountCreated, ReloadOrRestart
+		// has the same effect as just Start.
+		// In the case of MountUpdate, we need to reload
+		// the unit.
+		if err := s.ReloadOrRestart(units); err != nil {
+			return "", err
+		}
 	}
 
 	return mountUnitName, nil

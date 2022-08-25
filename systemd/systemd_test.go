@@ -1185,7 +1185,131 @@ WantedBy=multi-user.target
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--root", rootDir, "enable", "snap-snapname-123.mount"},
-		{"start", "snap-snapname-123.mount"},
+		{"reload-or-restart", "snap-snapname-123.mount"},
+	})
+}
+
+func (s *SystemdTestSuite) TestEnureMountUnitUnchanged(c *C) {
+	rootDir := dirs.GlobalRootDir
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	// Now we create the mount unit already
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	content := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], mockSnapPath)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, IsNil)
+
+	// Should still be the same file
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], mockSnapPath))
+
+	// No call systemctl
+	c.Assert(s.argses, DeepEquals, [][]string(nil))
+}
+
+func (s *SystemdTestSuite) TestEnsureMountUnitChanged(c *C) {
+	rootDir := dirs.GlobalRootDir
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	// Now we create the mount unit already
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+
+	// Note the "someotheroption" that should be removed
+	content := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+Before=snapd.service
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide,someotheroption
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], mockSnapPath)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, IsNil)
+
+	// Should still be the same file
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], mockSnapPath))
+
+	// No call systemctl
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--root", rootDir, "enable", "snap-snapname-123.mount"},
+		{"reload-or-restart", "snap-snapname-123.mount"},
 	})
 }
 
@@ -1221,7 +1345,7 @@ WantedBy=multi-user.target
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--no-reload", "enable", "snap-snapname-x1.mount"},
-		{"start", "snap-snapname-x1.mount"},
+		{"reload-or-restart", "snap-snapname-x1.mount"},
 	})
 }
 
@@ -1270,7 +1394,7 @@ X-SnapdOrigin=bar
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--root", rootDir, "enable", "snap-snapname-345.mount"},
-		{"start", "snap-snapname-345.mount"},
+		{"reload-or-restart", "snap-snapname-345.mount"},
 	})
 }
 
@@ -1684,6 +1808,95 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "enable", "snap-snapname-123.mount"}})
 	// mount was called
 	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide,x-gvfs-hide"})
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
+}
+
+func (s *SystemdTestSuite) TestPreseedModeAddMountUnitUnchanged(c *C) {
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	content := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], mockSnapPath)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, IsNil)
+
+	// systemd was not called
+	c.Check(s.argses, HasLen, 0)
+	// no mount was called
+	c.Check(mockMountCmd.Calls(), HasLen, 0)
+}
+
+func (s *SystemdTestSuite) TestPreseedModeAddMountUniModified(c *C) {
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	// Note the "anotheroption"
+	content := fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo, revision 42
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide,anotheroption
+LazyUnmount=yes
+
+[Install]
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
+`[1:], mockSnapPath)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	mountUnitName, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, IsNil)
+
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "enable", "snap-snapname-123.mount"}})
+	// mount was called with remount option
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide,x-gvfs-hide,remount"})
 	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
 }
 
