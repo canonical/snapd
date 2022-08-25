@@ -770,7 +770,7 @@ func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) {
 		af, err := os.Open(autoImportAssert)
 		// ignore if assertion file does not exists
 		if os.IsNotExist(err) {
-			return nil
+			return
 		}
 		if err != nil {
 			// Loading of the auto import assertion can fail for multiple reasons,
@@ -786,12 +786,11 @@ func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) {
 			logger.Noticef("failed to created auto-import assertion stream: %v\n", err)
 			// if we failed to import auto-import assertion at this stage, treat error as warning
 			// notify the error, but continue with boot
-			return nil
+			return
 		}
 		if err := commitTo(batch); err != nil {
 			logger.Noticef("failed to commit auto-import assertion: %v\n", err)
-			return nil
+			return
 		}
 	}
-	return nil
 }

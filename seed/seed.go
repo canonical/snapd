@@ -157,9 +157,6 @@ type Seed interface {
 	// Iter provides a way to iterately perform a function on
 	// each of the snaps for which LoadMeta loaded their metadata.
 	Iter(f func(sn *Snap) error) error
-
-	// Auto import assertion from root of seed if grade is dangerous
-	LoadAutoImportAssertion(commitTo func(*asserts.Batch) error) error
 }
 
 // A SnapHandler can be used to perform any dedicated handling of seed
@@ -182,6 +179,14 @@ type SnapHandler interface {
 	// A different path can be returned if the snap has been copied
 	// elsewhere.
 	HandleUnassertedSnap(name, path string, tm timings.Measurer) (newPath string, err error)
+}
+
+// A AutoImportAssertionsLoaderSeed can be used to import all auto import assertions
+// via LoadAutoImportAssertions.
+type AutoImportAssertionsLoaderSeed interface {
+	// LoadAutoImportAssertions attempts to loads all Auto import assertions
+	// from the root of the seed. This is the best effort and function does not fail.
+	LoadAutoImportAssertions(commitTo func(*asserts.Batch) error)
 }
 
 // Open returns a Seed implementation for the seed at seedDir.

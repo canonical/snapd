@@ -1576,10 +1576,3 @@ func (s *seed16Suite) TestLoadEssentialAndMetaCore18(c *C) {
 		},
 	})
 }
-
-func (s *seed16Suite) TestLoadAutoImportAssertion(c *C) {
-	// try to load auto import assertions, it should fail on seed16
-	err := s.seed16.LoadAutoImportAssertion(s.commitTo)
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "Auto-import from seed is not supported")
-}

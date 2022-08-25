@@ -2932,8 +2932,9 @@ func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade
 	}
 
 	// try to load auto import assertions
-	err := seed20.LoadAutoImportAssertion(commitTo)
-	c.Assert(err, IsNil)
+	seed20AsLoader, ok := seed20.(seed.AutoImportAssertionsLoaderSeed)
+	c.Assert(ok, Equals, true)
+	seed20AsLoader.LoadAutoImportAssertions(commitTo)
 	assertions, err := s.findAutoImportAssertion(seed20)
 	c.Check(err, check.ErrorMatches, "No system user assertion found")
 	c.Assert(assertions, IsNil)
@@ -2948,8 +2949,9 @@ func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAsserti
 	s.writeValidAutoImportAssertion(c, sysLabel, 0644)
 
 	// try to load auto import assertions
-	err := seed20.LoadAutoImportAssertion(s.commitTo)
-	c.Assert(err, IsNil)
+	seed20AsLoader, ok := seed20.(seed.AutoImportAssertionsLoaderSeed)
+	c.Assert(ok, Equals, true)
+	seed20AsLoader.LoadAutoImportAssertions(s.commitTo)
 	assertions, err := s.findAutoImportAssertion(seed20)
 	c.Assert(err, IsNil)
 	// validate it's our assertion
