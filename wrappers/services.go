@@ -1833,7 +1833,7 @@ func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 		var err error
 		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %s", unit.Name), func(nested timings.Measurer) {
 			if flags != nil && flags.Reload {
-				err = sysd.ReloadOrRestart(unit.Name)
+				err = sysd.ReloadOrRestart([]string{unit.Name})
 			} else {
 				// note: stop followed by start, not just 'restart'
 				err = sysd.Restart([]string{unit.Name})

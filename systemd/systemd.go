@@ -351,7 +351,7 @@ type Systemd interface {
 	// Restart the service, waiting for it to stop before starting it again.
 	Restart(services []string) error
 	// Reload or restart the service via 'systemctl reload-or-restart'
-	ReloadOrRestart(service string) error
+	ReloadOrRestart(services []string) error
 	// RestartAll restarts the given service using systemctl restart --all
 	RestartAll(service string) error
 	// Status fetches the status of given units. Statuses are
@@ -1616,11 +1616,11 @@ func (s *systemd) ListMountUnits(snapName, origin string) ([]string, error) {
 	return mountPoints, nil
 }
 
-func (s *systemd) ReloadOrRestart(serviceName string) error {
+func (s *systemd) ReloadOrRestart(serviceNames []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
-	_, err := s.systemctl("reload-or-restart", serviceName)
+	_, err := s.systemctl(append([]string{"reload-or-restart"}, serviceNames...)...)
 	return err
 }
 
