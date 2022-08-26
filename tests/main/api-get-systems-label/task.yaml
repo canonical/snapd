@@ -9,7 +9,7 @@ execute: |
   # devmode as the snap does not have snapd-control
   snap install test-snapd-curl --devmode --edge
 
-  echo "Find the what systems are available"
+  echo "Find what systems are available"
   test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems > systems
   current_label=$(jq -r '.result.systems[0]["label"]' < systems)
 
