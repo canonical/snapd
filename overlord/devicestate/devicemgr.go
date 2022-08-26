@@ -2216,10 +2216,10 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 }
 
 // EncryptionSupportInfo describes what encryption is available and needed
-// for the current device
+// for the current device.
 type EncryptionSupportInfo struct {
-	// Disabled is set if to true encryption was furcefully
-	// disabled (e.g. via the seed pa partition), if set the rest
+	// Disabled is set if to true encryption was forcefully
+	// disabled (e.g. via the seed partition), if set the rest
 	// of the struct content is not relevant.
 	Disabled bool
 
@@ -2230,7 +2230,7 @@ type EncryptionSupportInfo struct {
 	// with the used gadget.
 	Available bool
 
-	// Type us set to the EncryptionType that can be used if
+	// Type is set to the EncryptionType that can be used if
 	// Available is true.
 	Type secboot.EncryptionType
 
@@ -2272,7 +2272,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		logger.Noticef("%s", res.UnavailableWarning)
 	}
 	// encryption disabled or preferred unencrypted: follow the model preferences here even if encryption would be available
-	if res.Disabled || model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
+	if res.Disabled || res.StorageSafety == asserts.StorageSafetyPreferUnencrypted {
 		res.Type = secboot.EncryptionTypeNone
 	}
 
@@ -2297,7 +2297,7 @@ func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *
 	// check encryption: this can either be provided by the fde-setup
 	// hook mechanism or by the built-in secboot based encryption
 	checkFDESetupHookEncryption := hasFDESetupHookInKernel(kernelInfo)
-	// Note that a fde-setup hook will disable the internal
+	// Note that having a fde-setup hook will disable the internal
 	// secboot based encryption
 	checkSecbootEncryption := !checkFDESetupHookEncryption
 	var checkEncryptionErr error
