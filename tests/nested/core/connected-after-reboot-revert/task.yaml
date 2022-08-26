@@ -46,9 +46,7 @@ execute: |
   tests.nested exec "sudo snap install --channel=\"$BLUEZ_CHANNEL\" bluez"
   tests.nested exec "snap connections bluez" | MATCH 'uhid  *bluez:uhid  *:uhid'
 
-  chg_id=$(tests.nested exec 'sudo snap install \
-                              --dangerous --transaction=all-snaps --no-wait \
-                              ./pc-kernel_badhook.snap /var/lib/snapd/snaps/snapd_*.snap')
+  chg_id=$(tests.nested exec 'sudo snap install --dangerous --transaction=all-snaps --no-wait ./pc-kernel_badhook.snap /var/lib/snapd/snaps/snapd_*.snap')
 
   echo "Wait for reboot"
   tests.nested wait-for reboot "$boot_id"
