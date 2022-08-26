@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -1587,6 +1588,7 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 	}
 	// use the disk we mounted ubuntu-boot from as a reference to find
 	// ubuntu-seed and mount it
+	hasSeedPart := true
 	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-seed")
 	if err != nil {
 		if isClassic {
@@ -1594,6 +1596,7 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 			if _, ok := err.(disks.PartitionNotFoundError); !ok {
 				return "", err
 			}
+			hasSeedPart = false
 		} else {
 			return "", err
 		}
@@ -1738,7 +1741,34 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 		}
 	}
 
-	// 4.4 mount snapd snap only on first boot
+	// 4.4 check if we expected a ubuntu-seed partition from the gadget data
+	if isClassic {
+		gadgetDir := filepath.Join(boot.InitramfsRunMntDir,
+			snapTypeToMountDir[snap.TypeGadget])
+		gadgetInfo, err := gadget.ReadInfo(gadgetDir, model)
+		if err != nil {
+			return "", err
+		}
+		seedDefinedInGadget := false
+	volLoop:
+		for _, vol := range gadgetInfo.Volumes {
+			for _, part := range vol.Structure {
+				if part.Role == gadget.SystemSeed &&
+					part.Name == "ubuntu-seed" {
+					seedDefinedInGadget = true
+					break volLoop
+				}
+			}
+		}
+		if hasSeedPart && !seedDefinedInGadget {
+			return "", fmt.Errorf("seed partition found but not defined in the gadget")
+		}
+		if !hasSeedPart && seedDefinedInGadget {
+			return "", fmt.Errorf("seed partition not found but defined in the gadget")
+		}
+	}
+
+	// 4.5 mount snapd snap only on first boot
 	if modeEnv.RecoverySystem != "" && !isClassic {
 		// load the recovery system and generate mount for snapd
 		_, essSnaps, err := mst.ReadEssential(modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
