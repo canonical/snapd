@@ -2296,23 +2296,21 @@ func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *
 
 	// check encryption: this can either be provided by the fde-setup
 	// hook mechanism or by the built-in secboot based encryption
-	hasFDESetupHook := hasFDESetupHookInKernel(kernelInfo)
-	// Add a default error here to ensure that even if the code is
-	// refactored we never return a nil checkEncryptionErr result
-	// even if no encryption check was done.
-	checkEncryptionErr := fmt.Errorf("internal error: no encryption check performed")
-	// workaround for ineffassign that will complain that the
-	// checkEncryptionErr is never used
-	_ = checkEncryptionErr
-	// Note that having a fde-setup hook will disable the build-in
-	// secboot encryption
-	if hasFDESetupHook {
+	checkFDESetupHookEncryption := hasFDESetupHookInKernel(kernelInfo)
+	// Note that a fde-setup hook will disable the internal
+	// secboot based encryption
+	checkSecbootEncryption := !checkFDESetupHookEncryption
+	var checkEncryptionErr error
+	switch {
+	case checkFDESetupHookEncryption:
 		res.Type, checkEncryptionErr = m.checkFDEFeatures()
-	} else {
+	case checkSecbootEncryption:
 		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
 		if checkEncryptionErr == nil {
 			res.Type = secboot.EncryptionTypeLUKS
 		}
+	default:
+		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
 	}
 	res.Available = (checkEncryptionErr == nil)
 
@@ -2322,10 +2320,12 @@ func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *
 			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
 		case encrypted:
 			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
-		case hasFDESetupHook:
+		case checkFDESetupHookEncryption:
 			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
-		case !hasFDESetupHook:
+		case checkSecbootEncryption:
 			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
+		default:
+			return res, fmt.Errorf("internal error: checkEncryptionErr is set but not handled by the code")
 		}
 	}
 
