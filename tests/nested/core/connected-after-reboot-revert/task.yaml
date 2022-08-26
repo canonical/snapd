@@ -6,7 +6,8 @@ details: |
   update, we still have connections to the base snap. It has been detected
   that this happens if one of the updated snaps is snapd.
 
-systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
+# TODO: UC16/ubuntu-16.04-64 needs a different approach as it still uses core
+systems: [ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
 
 execute: |
   echo "Build kernel with failing post-refresh hook"
