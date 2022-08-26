@@ -537,7 +537,7 @@ func delayedCrossMgrInit() {
 		snapstate.AddAffectedSnapsByKind("connect", connectDisconnectAffectedSnaps)
 		snapstate.AddAffectedSnapsByKind("disconnect", connectDisconnectAffectedSnaps)
 
-		// hook into snap linking/unling and activation state changes
+		// hook into snap linking/unlinking and activation state changes
 		snapstate.AddLinkSnapParticipant(snapstate.LinkSnapParticipantFunc(OnSnapLinkageChanged))
 	})
 }
@@ -551,7 +551,7 @@ func MockConnectRetryTimeout(d time.Duration) (restore func()) {
 // OnSnapLinkageChanged is used to implement
 // snapstate.LinkSnapParticipant follow activation changes for snaps
 // so that we can track revisions with security profiles on disk for
-// temporarely inactive snaps.
+// temporarily inactive snaps.
 func OnSnapLinkageChanged(st *state.State, instanceName string) error {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
