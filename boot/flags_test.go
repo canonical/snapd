@@ -180,7 +180,7 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RecoverModeNoop(c *C) {
 	c.Assert(flags, HasLen, 0)
 }
 
-func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RRunModeHappy(c *C) {
+func (s *bootFlagsSuite) testInitramfsActiveBootFlagsUC20RRunModeHappy(c *C, flagsDir string) {
 	dir := c.MkDir()
 
 	dirs.SetRootDir(dir)
@@ -192,24 +192,29 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RRunModeHappy(c *C) {
 		BootFlags: []string{},
 	}
 
-	err := os.MkdirAll(boot.InitramfsWritableDir, 0755)
+	err := os.MkdirAll(flagsDir, 0755)
 	c.Assert(err, IsNil)
 
-	err = m.WriteTo(boot.InitramfsWritableDir)
+	err = m.WriteTo(flagsDir)
 	c.Assert(err, IsNil)
 
-	flags, err := boot.InitramfsActiveBootFlags(boot.ModeRun, boot.InitramfsWritableDir)
+	flags, err := boot.InitramfsActiveBootFlags(boot.ModeRun, flagsDir)
 	c.Assert(err, IsNil)
 	c.Assert(flags, HasLen, 0)
 
 	m.BootFlags = []string{"factory", "other-flag"}
-	err = m.WriteTo(boot.InitramfsWritableDir)
+	err = m.WriteTo(flagsDir)
 	c.Assert(err, IsNil)
 
 	// now some flags after we set them in the modeenv
-	flags, err = boot.InitramfsActiveBootFlags(boot.ModeRun, boot.InitramfsWritableDir)
+	flags, err = boot.InitramfsActiveBootFlags(boot.ModeRun, flagsDir)
 	c.Assert(err, IsNil)
 	c.Assert(flags, DeepEquals, []string{"factory", "other-flag"})
+}
+
+func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RRunModeHappy(c *C) {
+	s.testInitramfsActiveBootFlagsUC20RRunModeHappy(c, boot.InitramfsWritableDir)
+	s.testInitramfsActiveBootFlagsUC20RRunModeHappy(c, c.MkDir())
 }
 
 func (s *bootFlagsSuite) TestInitramfsSetBootFlags(c *C) {
