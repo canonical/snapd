@@ -140,10 +140,24 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcKernelAndGadget(c *C, ins
 	kernelFn := snaptest.MakeTestSnapWithFiles(c, "name: pc-kernel\ntype: kernel\nversion: 1.0", nil)
 	err := os.Rename(kernelFn, kernelInfo.MountFile())
 	c.Assert(err, IsNil)
+
+	si = &snap.SideInfo{
+		RealName: "core20",
+		Revision: snap.R(2),
+		SnapID:   core20SnapID,
+	}
+	snapstate.Set(s.state, "core20", &snapstate.SnapState{
+		SnapType: "base",
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		Active:   true,
+	})
+	snaptest.MockSnapWithFiles(c, "name: core20\ntype: base", si, nil)
+
 	s.makeMockInstalledPcGadget(c, installDeviceHook, gadgetDefaultsYaml)
 }
 
-func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, installDeviceHook string, gadgetDefaultsYaml string) {
+func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, installDeviceHook string, gadgetDefaultsYaml string) *snap.Info {
 	si := &snap.SideInfo{
 		RealName: "pc",
 		Revision: snap.R(1),
@@ -162,20 +176,7 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, installDevic
 	if installDeviceHook != "" {
 		files = append(files, []string{"meta/hooks/install-device", installDeviceHook})
 	}
-	snaptest.MockSnapWithFiles(c, "name: pc\ntype: gadget", si, files)
-
-	si = &snap.SideInfo{
-		RealName: "core20",
-		Revision: snap.R(2),
-		SnapID:   core20SnapID,
-	}
-	snapstate.Set(s.state, "core20", &snapstate.SnapState{
-		SnapType: "base",
-		Sequence: []*snap.SideInfo{si},
-		Current:  si.Revision,
-		Active:   true,
-	})
-	snaptest.MockSnapWithFiles(c, "name: core20\ntype: base", si, nil)
+	return snaptest.MockSnapWithFiles(c, "name: pc\ntype: gadget", si, files)
 }
 
 func (s *deviceMgrInstallModeSuite) makeMockInstallModel(c *C, grade string) *asserts.Model {
@@ -3119,7 +3120,10 @@ func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoForceUnencrypted(c 
 	defer restore()
 
 	kernelInfo := makeInstalledMockKernelSnap(c, s.state, kernelYamlNoFdeSetup)
-	var gadgetInfo *gadget.Info = nil
+	gadgetSnapInfo := s.makeMockInstalledPcGadget(c, "", "")
+	gadgetInfo, err := gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
+	c.Assert(err, IsNil)
+
 	var testCases = []struct {
 		grade, storageSafety, forceUnencrypted string
 
@@ -3352,7 +3356,10 @@ func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 	defer s.state.Unlock()
 
 	kernelInfo := makeInstalledMockKernelSnap(c, s.state, kernelYamlNoFdeSetup)
-	var gadgetInfo *gadget.Info = nil
+	gadgetSnapInfo := s.makeMockInstalledPcGadget(c, "", "")
+	gadgetInfo, err := gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
+	c.Assert(err, IsNil)
+
 	var testCases = []struct {
 		grade, storageSafety string
 		tpmErr               error
@@ -3508,8 +3515,10 @@ func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoWithFdeHook(c *C) {
 		Model: "my-model",
 	})
 	kernelInfo := makeInstalledMockKernelSnap(c, s.state, kernelYamlWithFdeSetup)
+	gadgetSnapInfo := s.makeMockInstalledPcGadget(c, "", "")
+	gadgetInfo, err := gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
+	c.Assert(err, IsNil)
 
-	var gadgetInfo *gadget.Info = nil
 	var testCases = []struct {
 		grade, storageSafety string
 		hookErr              error

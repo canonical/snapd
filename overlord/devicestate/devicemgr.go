@@ -2331,11 +2331,7 @@ func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *
 
 	// If encryption is available check if the gadget is
 	// compatible with encryption.
-	//
-	// TODO: Update all tests so that gadgetInfo is always passed in.
-	//       This also requires some fixes for tests that use a uc16
-	//       model, e.g. TestInstallCheckEncrypted.
-	if gadgetInfo != nil && res.Available {
+	if res.Available {
 		opts := &gadget.ValidationConstraints{
 			EncryptedData: true,
 		}
