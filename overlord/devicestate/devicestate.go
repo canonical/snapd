@@ -167,8 +167,8 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 		snapType = snap.TypeGadget
 		getName = (*asserts.Model).Gadget
 	case snap.TypeKernel:
-		if release.OnClassic {
-			return fmt.Errorf("cannot install a kernel snap on classic")
+		if deviceCtx.IsClassicBoot() {
+			return fmt.Errorf("cannot install a kernel snap if classic boot")
 		}
 
 		kind = "kernel"
@@ -931,7 +931,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		}
 		// ensure a new session accounting for the new brand store
 		st.Unlock()
-		_, err := sto.EnsureDeviceSession()
+		err := sto.EnsureDeviceSession()
 		st.Lock()
 		if err != nil {
 			return nil, fmt.Errorf("cannot get a store session based on the new model assertion: %v", err)

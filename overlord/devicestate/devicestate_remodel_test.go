@@ -698,9 +698,9 @@ type freshSessionStore struct {
 	ensureDeviceSession int
 }
 
-func (sto *freshSessionStore) EnsureDeviceSession() (*auth.DeviceState, error) {
+func (sto *freshSessionStore) EnsureDeviceSession() error {
 	sto.ensureDeviceSession += 1
-	return nil, nil
+	return nil
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelStoreSwitch(c *C) {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2020 Canonical Ltd
+ * Copyright (C) 2017-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -54,6 +54,9 @@ const maxPostponementBuffer = 5 * 24 * time.Hour
 // get displayed in short period of time and it immediately goes from "14 days"
 // to "13 days" left.
 const maxInhibition = 14*24*time.Hour - time.Second
+
+// maxDuration is used to represent "forever" internally (it's 290 years).
+const maxDuration = time.Duration(1<<63 - 1)
 
 // hooks setup by devicestate
 var (
@@ -147,37 +150,25 @@ func (m *autoRefresh) LastRefresh() (time.Time, error) {
 }
 
 // EffectiveRefreshHold returns the time until to which refreshes are
-// held if refresh.hold configuration is set and accounting for the
-// max postponement since the last refresh.
+// held if refresh.hold configuration is set.
 func (m *autoRefresh) EffectiveRefreshHold() (time.Time, error) {
-	var holdTime time.Time
+	var holdValue string
 
 	tr := config.NewTransaction(m.state)
-	err := tr.Get("core", "refresh.hold", &holdTime)
+	err := tr.Get("core", "refresh.hold", &holdValue)
 	if err != nil && !config.IsNoOption(err) {
 		return time.Time{}, err
 	}
 
-	// cannot hold beyond last-refresh + max-postponement
-	lastRefresh, err := m.LastRefresh()
-	if err != nil {
-		return time.Time{}, err
-	}
-	if lastRefresh.IsZero() {
-		seedTime, err := getTime(m.state, "seed-time")
-		if err != nil {
-			return time.Time{}, err
-		}
-		if seedTime.IsZero() {
-			// no reference to know whether holding is reasonable
-			return time.Time{}, nil
-		}
-		lastRefresh = seedTime
+	if holdValue == "forever" {
+		return timeNow().Add(maxDuration), nil
 	}
 
-	limitTime := lastRefresh.Add(maxPostponement)
-	if holdTime.After(limitTime) {
-		return limitTime, nil
+	var holdTime time.Time
+	if holdValue != "" {
+		if holdTime, err = time.Parse(time.RFC3339, holdValue); err != nil {
+			return time.Time{}, err
+		}
 	}
 
 	return holdTime, nil

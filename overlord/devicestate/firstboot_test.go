@@ -208,6 +208,24 @@ func modelHeaders(modelStr string, reqSnaps ...string) map[string]interface{} {
 	}
 	if strings.HasSuffix(modelStr, "-classic") {
 		headers["classic"] = "true"
+	} else if strings.HasSuffix(modelStr, "-classic-modes") {
+		headers["classic"] = "true"
+		headers["distribution"] = "ubuntu"
+		headers["base"] = "core22"
+		headers["snaps"] = []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "22",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "22",
+			},
+		}
 	} else {
 		headers["kernel"] = "pc-kernel"
 		headers["gadget"] = "pc"
@@ -1091,8 +1109,31 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedClassicModelMismatch(c *C
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.ImportAssertionsFromSeed(st, "")
+	isCoreBoot := true
+	_, err = devicestate.ImportAssertionsFromSeed(st, "", isCoreBoot)
 	c.Assert(err, ErrorMatches, "cannot seed a classic system with an all-snaps model")
+}
+
+func (s *firstBoot16Suite) TestImportAssertionsFromSeedClassicWithModes(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	ovld, err := overlord.New(nil)
+	defer ovld.Stop()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// add the model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic-modes", nil)
+	s.WriteAssertions("model.asserts", assertsChain...)
+
+	// import them
+	st.Lock()
+	defer st.Unlock()
+
+	isCoreBoot := true
+	_, err = devicestate.ImportAssertionsFromSeed(st, "", isCoreBoot)
+	c.Assert(err, IsNil)
 }
 
 func (s *firstBoot16Suite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c *C) {
@@ -1109,7 +1150,8 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c *
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.ImportAssertionsFromSeed(st, "")
+	isCoreBoot := true
+	_, err = devicestate.ImportAssertionsFromSeed(st, "", isCoreBoot)
 	c.Assert(err, ErrorMatches, "cannot seed an all-snaps system with a classic model")
 }
 
@@ -1230,7 +1272,8 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedHappy(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	deviceSeed, err := devicestate.ImportAssertionsFromSeed(st, "")
+	isCoreBoot := true
+	deviceSeed, err := devicestate.ImportAssertionsFromSeed(st, "", isCoreBoot)
 	c.Assert(err, IsNil)
 	c.Assert(deviceSeed, NotNil)
 
@@ -1273,7 +1316,8 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedMissingSig(c *C) {
 
 	// try import and verify that its rejects because other assertions are
 	// missing
-	_, err := devicestate.ImportAssertionsFromSeed(st, "")
+	isCoreBoot := true
+	_, err := devicestate.ImportAssertionsFromSeed(st, "", isCoreBoot)
 	c.Assert(err, ErrorMatches, "cannot resolve prerequisite assertion: account-key .*")
 }
 
@@ -1292,7 +1336,8 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 
 	// try import and verify that its rejects because other assertions are
 	// missing
-	_, err := devicestate.ImportAssertionsFromSeed(st, "")
+	isCoreBoot := true
+	_, err := devicestate.ImportAssertionsFromSeed(st, "", isCoreBoot)
 	c.Assert(err, ErrorMatches, "cannot have multiple model assertions in seed")
 }
 
@@ -1311,7 +1356,8 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 
 	// try import and verify that its rejects because other assertions are
 	// missing
-	_, err := devicestate.ImportAssertionsFromSeed(st, "")
+	isCoreBoot := true
+	_, err := devicestate.ImportAssertionsFromSeed(st, "", isCoreBoot)
 	c.Assert(err, ErrorMatches, "seed must have a model assertion")
 }
 
