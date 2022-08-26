@@ -86,7 +86,12 @@ func (s *authSuite) TestMacaroonDeserializeInvalidData(c *C) {
 
 func (as *authSuite) TestNewUser(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -116,7 +121,12 @@ func (as *authSuite) TestNewUser(c *C) {
 
 func (as *authSuite) TestNewUserSortsDischarges(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "", "email@test.com", "macaroon", []string{"discharge2", "discharge1"})
+	user, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge2", "discharge1"},
+	})
 	c.Assert(err, IsNil)
 	as.state.Unlock()
 
@@ -132,13 +142,23 @@ func (as *authSuite) TestNewUserSortsDischarges(c *C) {
 
 func (as *authSuite) TestNewUserAddsToExistent(c *C) {
 	as.state.Lock()
-	firstUser, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	firstUser, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
 	// adding a new one
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "new_username", "new_email@test.com", "new_macaroon", []string{"new_discharge"})
+	user, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "new_username",
+		Email:      "new_email@test.com",
+		Macaroon:   "new_macaroon",
+		Discharges: []string{"new_discharge"},
+	})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(user.ID, Equals, 2)
@@ -179,7 +199,12 @@ func (as *authSuite) TestCheckMacaroonInvalidAuth(c *C) {
 	c.Check(user, IsNil)
 
 	as.state.Lock()
-	_, err = auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	_, err = auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -193,7 +218,12 @@ func (as *authSuite) TestCheckMacaroonInvalidAuth(c *C) {
 
 func (as *authSuite) TestCheckMacaroonValidUser(c *C) {
 	as.state.Lock()
-	expectedUser, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	expectedUser, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -213,7 +243,12 @@ func (as *authSuite) TestCheckMacaroonValidUserOldStyle(c *C) {
 	c.Check(err, IsNil)
 
 	as.state.Lock()
-	expectedUser, err := auth.NewUser(as.state, "username", "email@test.com", serializedMacaroon, []string{"discharge"})
+	expectedUser, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   serializedMacaroon,
+		Discharges: []string{"discharge"},
+	})
 	c.Check(err, IsNil)
 	// set user local macaroons with store macaroons
 	expectedUser.Macaroon = expectedUser.StoreMacaroon
@@ -234,7 +269,12 @@ func (as *authSuite) TestCheckMacaroonInvalidAuthMalformedMacaroon(c *C) {
 	var authStateData auth.AuthState
 	as.state.Lock()
 	// create a new user to ensure there is a MacaroonKey setup
-	_, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	_, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	c.Check(err, IsNil)
 	// get AuthState to get signing MacaroonKey
 	err = as.state.Get("auth", &authStateData)
@@ -265,7 +305,12 @@ func (as *authSuite) TestUserForNoAuthInState(c *C) {
 
 func (as *authSuite) TestUserForNonExistent(c *C) {
 	as.state.Lock()
-	_, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	_, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -278,7 +323,12 @@ func (as *authSuite) TestUserForNonExistent(c *C) {
 
 func (as *authSuite) TestUser(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -293,7 +343,12 @@ func (as *authSuite) TestUser(c *C) {
 
 func (as *authSuite) TestUserByUsername(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -315,14 +370,24 @@ func (as *authSuite) TestUserHasStoreAuth(c *C) {
 	c.Check(user0.HasStoreAuth(), Equals, false)
 
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(user.HasStoreAuth(), Equals, true)
 
 	// no store auth
 	as.state.Lock()
-	user, err = auth.NewUser(as.state, "username", "email@test.com", "", nil)
+	user, err = auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "",
+		Discharges: nil,
+	})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(user.HasStoreAuth(), Equals, false)
@@ -330,7 +395,12 @@ func (as *authSuite) TestUserHasStoreAuth(c *C) {
 
 func (as *authSuite) TestUpdateUser(c *C) {
 	as.state.Lock()
-	user, _ := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	user, _ := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	as.state.Unlock()
 
 	user.Username = "different"
@@ -350,7 +420,12 @@ func (as *authSuite) TestUpdateUser(c *C) {
 
 func (as *authSuite) TestUpdateUserInvalid(c *C) {
 	as.state.Lock()
-	_, _ = auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	_, _ = auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	as.state.Unlock()
 
 	user := &auth.UserState{
@@ -367,7 +442,12 @@ func (as *authSuite) TestUpdateUserInvalid(c *C) {
 
 func (as *authSuite) TestRemove(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -399,7 +479,12 @@ func (as *authSuite) TestRemove(c *C) {
 
 func (as *authSuite) TestRemoveByUsername(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -431,8 +516,18 @@ func (as *authSuite) TestRemoveByUsername(c *C) {
 
 func (as *authSuite) TestUsers(c *C) {
 	as.state.Lock()
-	user1, err1 := auth.NewUser(as.state, "user1", "email1@test.com", "macaroon", []string{"discharge"})
-	user2, err2 := auth.NewUser(as.state, "user2", "email2@test.com", "macaroon", []string{"discharge"})
+	user1, err1 := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "user1",
+		Email:      "email1@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	user2, err2 := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "user2",
+		Email:      "email2@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	as.state.Unlock()
 	c.Check(err1, IsNil)
 	c.Check(err2, IsNil)

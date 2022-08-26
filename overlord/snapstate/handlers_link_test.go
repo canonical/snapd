@@ -231,7 +231,12 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserIDAlreadySet(c *C) {
 		UserID:  1,
 	})
 	// the user
-	user, err := auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(s.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	c.Assert(err, IsNil)
 	c.Assert(user.ID, Equals, 1)
 
