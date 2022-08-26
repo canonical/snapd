@@ -139,9 +139,9 @@ type NewUserData struct {
 	Username string
 	// Email is the email associated with the user
 	Email string
-	// Macaroon is the store associated macaroon for the user
+	// Macaroon is the store-associated authentication macaroon
 	Macaroon string
-	// Discharges
+	// Discharges contains discharged store auth caveats.
 	Discharges []string
 }
 
