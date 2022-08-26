@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -72,6 +73,8 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 		snapstate.SnapServiceOptions = oldSnapServiceOptions
 		s.restartRequested = nil
 	})
+
+	s.AddCleanup(snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)}))
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
@@ -93,7 +96,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
 
 	lp := &testLinkParticipant{}
-	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
 	defer restore()
 
 	s.state.Lock()
@@ -354,7 +357,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 			return nil
 		},
 	}
-	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
 	defer restore()
 
 	// a hook might have set some config
@@ -687,7 +690,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	defer s.state.Unlock()
 
 	lp := &testLinkParticipant{}
-	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
 	defer restore()
 
 	si := &snap.SideInfo{
@@ -983,7 +986,7 @@ func (s *linkSnapSuite) TestDoLinkSnapdSnapCleanupOnErrorFirstInstall(c *C) {
 	defer s.state.Unlock()
 
 	lp := &testLinkParticipant{}
-	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
 	defer restore()
 
 	si := &snap.SideInfo{
@@ -1042,7 +1045,7 @@ func (s *linkSnapSuite) TestDoLinkSnapdSnapCleanupOnErrorNthInstall(c *C) {
 	defer s.state.Unlock()
 
 	lp := &testLinkParticipant{}
-	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
 	defer restore()
 
 	si := &snap.SideInfo{
@@ -1208,15 +1211,17 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
 				// Initially the snap gets unlinked.
 				c.Check(err, IsNil)
 				c.Check(snapst.Active, Equals, false)
+				c.Check(snapst.PendingSecurity, NotNil)
 			case 2:
 				// Then the undo handler re-links it.
 				c.Check(err, IsNil)
 				c.Check(snapst.Active, Equals, true)
+				c.Check(snapst.PendingSecurity, IsNil)
 			}
 			return nil
 		},
 	}
-	restore = snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp})
+	restore = snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged), lp})
 	defer restore()
 
 	s.state.Lock()

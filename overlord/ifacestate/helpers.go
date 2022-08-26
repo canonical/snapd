@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -980,17 +980,46 @@ func setConns(st *state.State, conns map[string]*schema.ConnState) {
 }
 
 // snapsWithSecurityProfiles returns all snaps that have active
-// security profiles: these are either snaps that are active, or about
-// to be active (pending link-snap) with a done setup-profiles
+// security profiles: these are either snaps that are active,
+// inactive snaps that are being operated on, whose profile state
+// is tracked with SnapState.PendingSecurity,
+// or snap about to be active (pending link-snap) with a done
+// setup-profiles
 func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
-	infos, err := snapstate.ActiveInfos(st)
+	all, err := snapstate.All(st)
 	if err != nil {
 		return nil, err
 	}
-	seen := make(map[string]bool, len(infos))
-	for _, info := range infos {
-		seen[info.InstanceName()] = true
+	infos := make([]*snap.Info, 0, len(all))
+	seen := make(map[string]bool, len(all))
+	for instanceName, snapst := range all {
+		if snapst.Active {
+			snapInfo, err := snapst.CurrentInfo()
+			if err != nil {
+				logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
+				continue
+			}
+			infos = append(infos, snapInfo)
+			seen[instanceName] = true
+		} else if snapst.PendingSecurity != nil {
+			// we tracked any pending security profiles for the snap
+			seen[instanceName] = true
+			si := snapst.PendingSecurity.SideInfo
+			if si == nil {
+				// profiles removed (already)
+				continue
+			}
+			snapInfo, err := snap.ReadInfo(instanceName, si)
+			if err != nil {
+				logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
+				continue
+			}
+			infos = append(infos, snapInfo)
+		}
 	}
+	// look at the changes for old snapds and also
+	// the situation that are being installed, so they do not
+	// have SnapState yet
 	for _, t := range st.Tasks() {
 		if t.Kind() != "link-snap" || t.Status().Ready() {
 			continue

@@ -234,6 +234,19 @@ type SnapState struct {
 	// MigratedToExposedHome is set if ~/Snap was created and initialized. If set, ~/Snap
 	// should be used as the snap's HOME.
 	MigratedToExposedHome bool `json:"migrated-exposed-home,omitempty"`
+
+	// PendingSecurity tracks information about snaps that have
+	// their security profiles set up but are not active.
+	// It is managed by ifacestate.
+	PendingSecurity *PendingSecurityState `json:"pending-security,omitempty"`
+}
+
+// PendingSecurityState holds information about snaps that have
+// their security profiles set up but are not active.
+type PendingSecurityState struct {
+	// SideInfo of the revision for which security profiles are or
+	// should be set up if any.
+	SideInfo *snap.SideInfo `json:"side-info,omitempty"`
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {
