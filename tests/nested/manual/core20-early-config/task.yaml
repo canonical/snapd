@@ -3,7 +3,6 @@ summary: Test that gadget config defaults are applied early on core20.
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
-    NESTED_IMAGE_ID: core20-early-config
     NESTED_ENABLE_TPM: true
     NESTED_ENABLE_SECURE_BOOT: true
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
