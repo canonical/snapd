@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/timings"
@@ -59,6 +60,7 @@ func newMemAssertionsDB(commitObserve func(verified asserts.Assertion)) (db *ass
 }
 
 func loadAssertions(assertsDir string, loadedFunc func(*asserts.Ref) error) (*asserts.Batch, error) {
+	logger.Debugf("loading assertions from %s", assertsDir)
 	dc, err := ioutil.ReadDir(assertsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
