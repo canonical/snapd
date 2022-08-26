@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/gadget"
@@ -107,16 +108,26 @@ func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 type oneSystemsResponse struct {
 	Model   clientutil.ModelAssertJSON `json:"model,omitempty"`
 	Volumes map[string]*gadget.Volume  `json:"volumes,omitempty"`
+
+	// TODO: add EncryptionSupportInfo here too
 }
 
-var devicestateModelAndGadgetInfoFromSeed = devicestate.ModelAndGadgetInfoFromSeed
+// wrapped for unit tests
+var deviceManagerModelAndGadgetInfoFromSeed = func(dm *devicestate.DeviceManager, systemLabel string) (*asserts.Model, *gadget.Info, error) {
+	return dm.ModelAndGadgetInfoFromSeed(systemLabel)
+}
 
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
 	var rsp oneSystemsResponse
 
 	wantedSystemLabel := muxVars(r)["label"]
 
-	model, gadgetInfo, err := devicestateModelAndGadgetInfoFromSeed(wantedSystemLabel)
+	st := c.d.overlord.State()
+	deviceMgr := c.d.overlord.DeviceManager()
+	st.Lock()
+	defer st.Unlock()
+
+	model, gadgetInfo, err := deviceManagerModelAndGadgetInfoFromSeed(deviceMgr, wantedSystemLabel)
 	if err != nil {
 		return InternalError(err.Error())
 	}

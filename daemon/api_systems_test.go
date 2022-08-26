@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -796,7 +797,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
 			},
 		},
 	}
-	r := daemon.MockDevicestateModelAndGadgetInfoFromSeed(func(label string) (*asserts.Model, *gadget.Info, error) {
+	r := daemon.MockDeviceManagerModelAndGadgetInfoFromSeed(func(mgr *devicestate.DeviceManager, label string) (*asserts.Model, *gadget.Info, error) {
 		c.Check(label, check.Equals, "20191119")
 		return s.seedModelForLabel20191119, mockGadgetInfo, nil
 	})
@@ -821,7 +822,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelError(c *check.C) {
 	s.daemon(c)
 	s.expectRootAccess()
 
-	r := daemon.MockDevicestateModelAndGadgetInfoFromSeed(func(label string) (*asserts.Model, *gadget.Info, error) {
+	r := daemon.MockDeviceManagerModelAndGadgetInfoFromSeed(func(mgr *devicestate.DeviceManager, label string) (*asserts.Model, *gadget.Info, error) {
 		return nil, nil, fmt.Errorf("boom")
 	})
 	defer r()
@@ -835,6 +836,9 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelError(c *check.C) {
 }
 
 func (s *systemsSuite) TestSystemsGetSpecificLabelNotFoundIntegration(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.daemon(c)
 	s.expectRootAccess()
 
@@ -846,10 +850,13 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelNotFoundIntegration(c *check.C
 }
 
 func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.daemon(c)
 	s.expectRootAccess()
 
-	restore := s.mockSystemSeeds(c)
+	restore = s.mockSystemSeeds(c)
 	defer restore()
 
 	req, err := http.NewRequest("GET", "/v2/systems/20191119", nil)

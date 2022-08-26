@@ -39,8 +39,8 @@ type (
 	OneSystemsResponse = oneSystemsResponse
 )
 
-func MockDevicestateModelAndGadgetInfoFromSeed(f func(string) (*asserts.Model, *gadget.Info, error)) (restore func()) {
-	restore = testutil.Backup(&devicestateModelAndGadgetInfoFromSeed)
-	devicestateModelAndGadgetInfoFromSeed = f
+func MockDeviceManagerModelAndGadgetInfoFromSeed(f func(*devicestate.DeviceManager, string) (*asserts.Model, *gadget.Info, error)) (restore func()) {
+	restore = testutil.Backup(&deviceManagerModelAndGadgetInfoFromSeed)
+	deviceManagerModelAndGadgetInfoFromSeed = f
 	return restore
 }

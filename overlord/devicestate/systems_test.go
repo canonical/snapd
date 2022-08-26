@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -868,49 +869,82 @@ func (s *createSystemSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, gadgetYa
 }
 
 func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedHappy(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml)
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	model, gadgetInfo, err := devicestate.ModelAndGadgetInfoFromSeed("some-label")
+	model, gadgetInfo, err := s.mgr.ModelAndGadgetInfoFromSeed("some-label")
 	c.Assert(err, IsNil)
 	c.Check(model, DeepEquals, fakeModel)
 	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
 }
 
 func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorInvalidLabel(c *C) {
-	_, _, err := devicestate.ModelAndGadgetInfoFromSeed("invalid/label")
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, _, err := s.mgr.ModelAndGadgetInfoFromSeed("invalid/label")
 	c.Assert(err, ErrorMatches, `cannot open seed: invalid seed system label: "invalid/label"`)
 }
 
 func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorNoSeedDir(c *C) {
-	_, _, err := devicestate.ModelAndGadgetInfoFromSeed("no-such-seed")
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, _, err := s.mgr.ModelAndGadgetInfoFromSeed("no-such-seed")
 	c.Assert(err, ErrorMatches, `cannot load assertions for label "no-such-seed": no seed assertions`)
 }
 
 func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorNoGadget(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml)
 	// break the seed by removing the gadget
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"))
 	c.Assert(err, IsNil)
 
-	_, _, err = devicestate.ModelAndGadgetInfoFromSeed("some-label")
+	_, _, err = s.mgr.ModelAndGadgetInfoFromSeed("some-label")
 	c.Assert(err, ErrorMatches, "cannot load gadget snap metadata: cannot stat snap:.*: no such file or directory")
 }
 
 func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorWrongGadget(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml)
 	// break the seed by changing things
 	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0644)
 	c.Assert(err, IsNil)
 
-	_, _, err = devicestate.ModelAndGadgetInfoFromSeed("some-label")
+	_, _, err = s.mgr.ModelAndGadgetInfoFromSeed("some-label")
 	c.Assert(err, ErrorMatches, `cannot load gadget snap metadata: cannot validate "/.*/pc_1.snap".* wrong size`)
 }
 
 func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorInvalidGadgetYaml(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", "")
 
-	_, _, err := devicestate.ModelAndGadgetInfoFromSeed("some-label")
+	_, _, err := s.mgr.ModelAndGadgetInfoFromSeed("some-label")
 	c.Assert(err, ErrorMatches, "cannot parse gadget.yaml: bootloader not declared in any volume")
+}
+
+func (s *createSystemSuite) TestModelAndGadgetInfoFromSeedErrorNoSeed(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// create a new manager as the "isClassicBoot" information is cached
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), nil)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, _, err = mgr.ModelAndGadgetInfoFromSeed("some-label")
+	c.Assert(err, ErrorMatches, "cannot get model and gadget information on a classic boot system")
 }

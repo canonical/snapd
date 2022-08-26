@@ -432,7 +432,10 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 
 // ModelAndGadgetInfoFromSeed return the model assertion and gadget details
 // for the given system label.
-func ModelAndGadgetInfoFromSeed(wantedSystemLabel string) (*asserts.Model, *gadget.Info, error) {
+func (m *DeviceManager) ModelAndGadgetInfoFromSeed(wantedSystemLabel string) (*asserts.Model, *gadget.Info, error) {
+	if m.isClassicBoot {
+		return nil, nil, fmt.Errorf("cannot get model and gadget information on a classic boot system")
+	}
 	s, err := seed.Open(dirs.SnapSeedDir, wantedSystemLabel)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot open seed: %v", err)
