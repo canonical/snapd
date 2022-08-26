@@ -709,7 +709,7 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 			// and device need refreshing
 			wwwAuth := resp.Header.Get("WWW-Authenticate")
 			var refreshNeed AuthRefreshNeed
-			if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+			if strings.Contains(wwwAuth, "needs_refresh=1") {
 				// refresh user
 				refreshNeed.User = true
 			}
@@ -844,7 +844,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 		}
 	}
 
-	if user == nil {
+	if !s.auth.CanAuthorizeForUser(user) {
 		return nil
 	}
 
@@ -987,7 +987,7 @@ type Search struct {
 // Find finds  (installable) snaps from the store, matching the
 // given Search.
 func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) ([]*snap.Info, error) {
-	if search.Private && user == nil {
+	if search.Private && !s.auth.CanAuthorizeForUser(user) {
 		return nil, ErrUnauthenticated
 	}
 
@@ -1317,7 +1317,7 @@ func (s *Store) Buy(options *client.BuyOptions, user *auth.UserState) (*client.B
 	if options.Currency == "" {
 		return buyOptionError("currency missing")
 	}
-	if user == nil {
+	if !s.auth.CanAuthorizeForUser(user) {
 		return nil, ErrUnauthenticated
 	}
 
@@ -1392,7 +1392,7 @@ type storeCustomer struct {
 
 // ReadyToBuy returns nil if the user's account has accepted T&Cs and has a payment method registered, and an error otherwise
 func (s *Store) ReadyToBuy(user *auth.UserState) error {
-	if user == nil {
+	if !s.auth.CanAuthorizeForUser(user) {
 		return ErrUnauthenticated
 	}
 
