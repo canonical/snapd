@@ -3,8 +3,8 @@ summary: Check that a after a revert of a boot snap connections are restored
 details: |
   This test checks that after a revert that involved a boot snap (so we had
   two reboots, one for installing and one for reverting) in a transactional
-  update, we still have connections to the base snap. It has been detected
-  that this happens if one of the updated snaps is snapd.
+  update, we still have connections to the base snap. This could happen in
+  the past if one of the updated snaps was snapd.
 
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
 
@@ -45,15 +45,28 @@ execute: |
   tests.nested exec "sudo snap install --channel=\"$BLUEZ_CHANNEL\" bluez"
   tests.nested exec "snap connections bluez" | MATCH 'uhid  *bluez:uhid  *:uhid'
 
-  chg_id=$(tests.nested exec 'sudo snap install \
+  if [ "$VERSION" -eq 16 ]; then
+      snapd_snap=$(tests.nested exec find /var/lib/snapd/seed/snaps/ -name 'core_*.snap')
+  else
+      snapd_snap=$(tests.nested exec find /var/lib/snapd/seed/snaps/ -name 'snapd_*.snap')
+  fi
+
+  chg_id=$(tests.nested exec "sudo snap install \
                               --dangerous --transaction=all-snaps --no-wait \
-                              ./pc-kernel_badhook.snap /var/lib/snapd/snaps/snapd_*.snap')
+                              ./pc-kernel_badhook.snap \"$snapd_snap\"")
 
   echo "Wait for reboot"
   tests.nested wait-for reboot "$boot_id"
 
+  # For UC16 we get two reboots on install, as both core and kernel are being updated
+  if [ "$VERSION" -eq 16 ]; then
+      boot_id="$(tests.nested boot-id)"
+      echo "Wait for second reboot for UC16"
+      tests.nested wait-for reboot "$boot_id"
+  fi
+
   boot_id="$(tests.nested boot-id)"
-  echo "Wait for second reboot after post-refresh hook failure"
+  echo "Wait for reboot after post-refresh hook failure"
   tests.nested wait-for reboot "$boot_id"
 
   boot_id="$(tests.nested boot-id)"
