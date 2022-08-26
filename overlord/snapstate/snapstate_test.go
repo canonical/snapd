@@ -228,12 +228,27 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 
 	s.state.Lock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
-	s.user, err = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	s.user, err = auth.NewUser(s.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	c.Assert(err, IsNil)
-	s.user2, err = auth.NewUser(s.state, "username2", "email2@test.com", "macaroon2", []string{"discharge2"})
+	s.user2, err = auth.NewUser(s.state, auth.NewUserData{
+		Username:   "username2",
+		Email:      "email2@test.com",
+		Macaroon:   "macaroon2",
+		Discharges: []string{"discharge2"},
+	})
 	c.Assert(err, IsNil)
 	// 3 has no store auth
-	s.user3, err = auth.NewUser(s.state, "username3", "email2@test.com", "", nil)
+	s.user3, err = auth.NewUser(s.state, auth.NewUserData{
+		Username:   "username3",
+		Email:      "email2@test.com",
+		Macaroon:   "",
+		Discharges: nil,
+	})
 	c.Assert(err, IsNil)
 
 	s.state.Set("seeded", true)
