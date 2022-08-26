@@ -126,6 +126,7 @@ unix (send, receive) type=stream peer=(label=###SLOT_SECURITY_TAGS###),
 const waylandConnectedPlugAppArmorCore = `
 # Allow access to the Wayland compositor server socket of the slot snap
 owner /run/user/[0-9]*/###SLOT_SECURITY_TAGS###/wayland-[0-9]* rw,
+owner /###SLOT_SECURITY_TAGS###/wayland-[0-9]* rw,
 `
 
 type waylandInterface struct{}

@@ -10,6 +10,8 @@ details: |
     originally bound at. This test verifies that connection is
     possible.
 
+systems: [-ubuntu-14.04*]
+
 prepare: |
     tests.session -u test prepare
 
