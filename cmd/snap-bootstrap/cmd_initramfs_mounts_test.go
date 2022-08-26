@@ -7193,6 +7193,48 @@ func (s *initramfsClassicMountsSuite) SetUpTest(c *C) {
 	s.baseInitramfsMountsSuite.SetUpTest(c)
 }
 
+func writeGadget(c *C, espName, espRole string) {
+	gadgetYaml := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: ` + espName
+
+	if espRole != "" {
+		gadgetYaml += `
+        role: ` + espRole
+	}
+
+	gadgetYaml += `
+        filesystem: vfat
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 99M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        offset: 1202M
+        size: 750M
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 4312776192
+`
+	var err error
+	gadgetDir := filepath.Join(boot.InitramfsRunMntDir, "gadget", "meta")
+	err = os.MkdirAll(gadgetDir, 0755)
+	c.Assert(err, IsNil)
+	err = osutil.AtomicWriteFile(filepath.Join(gadgetDir, "gadget.yaml"), []byte(gadgetYaml), 0644, 0)
+	c.Assert(err, IsNil)
+}
+
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
@@ -7237,8 +7279,111 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedWithS
 	err := modeEnv.WriteTo(boot.InitramfsDataDir)
 	c.Assert(err, IsNil)
 
+	// write gadget.yaml, which is checked for classic
+	writeGadget(c, "ubuntu-seed", "system-seed")
+
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
+}
+
+func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedSeedPartNotInGadget(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-boot", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
+		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+	}, nil)
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsDataDir)
+	c.Assert(err, IsNil)
+
+	// write gadget.yaml with no ubuntu-seed label
+	writeGadget(c, "EFI System partition", "")
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, ErrorMatches, "seed partition found but not defined in the gadget")
+}
+
+func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedSeedInGadgetNotInVolume(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultNoSeedWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultNoSeedWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultNoSeedWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-boot", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
+		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+	}, nil)
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsDataDir)
+	c.Assert(err, IsNil)
+
+	// write gadget.yaml, which is checked for classic
+	writeGadget(c, "ubuntu-seed", "system-seed")
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, ErrorMatches, "seed partition not found but defined in the gadget")
 }
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedNoSeedHappy(c *C) {
@@ -7329,6 +7474,9 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMou
 	err := modeEnv.WriteTo(boot.InitramfsDataDir)
 	c.Assert(err, IsNil)
 
+	// write gadget.yaml, which is checked for classic
+	writeGadget(c, "ubuntu-seed", "system-seed")
+
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 }
@@ -7381,6 +7529,9 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHap
 	defer mf.Close()
 	err = asserts.NewEncoder(mf).Encode(s.model)
 	c.Assert(err, IsNil)
+
+	// write gadget.yaml, which is checked for classic
+	writeGadget(c, "ubuntu-seed", "system-seed")
 
 	dataActivated := false
 	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(
