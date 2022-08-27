@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1571,6 +1571,13 @@ type LinkSnapParticipant interface {
 	// SnapLinkageChanged is called when a snap is linked or unlinked.
 	// The error is only logged and does not stop the task it is used from.
 	SnapLinkageChanged(st *state.State, instanceName string) error
+}
+
+// LinkSnapParticipantFunc is an adapter from function to LinkSnapParticipant.
+type LinkSnapParticipantFunc func(st *state.State, instanceName string) error
+
+func (f LinkSnapParticipantFunc) SnapLinkageChanged(st *state.State, instanceName string) error {
+	return f(st, instanceName)
 }
 
 var linkSnapParticipants []LinkSnapParticipant
