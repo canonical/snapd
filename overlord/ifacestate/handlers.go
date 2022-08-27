@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -166,7 +166,33 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	if err != nil {
 		return err
 	}
-	return m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings)
+	if err := m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings); err != nil {
+		return err
+	}
+	return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName(), snapsup.SideInfo)
+}
+
+// setupPendingProfilesSideInfo helps updating information about any
+// revision for which security profiles are set up while the snap is
+// not yet active.
+func setPendingProfilesSideInfo(st *state.State, instanceName string, si *snap.SideInfo) error {
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !snapst.IsInstalled() {
+		// not yet visible to the rest of the system, nothing to do here
+		return nil
+	}
+	if snapst.Active {
+		// nothing is pending
+		return nil
+	}
+	snapst.PendingSecurity = &snapstate.PendingSecurityState{
+		SideInfo: si,
+	}
+	snapstate.Set(st, instanceName, &snapst)
+	return nil
 }
 
 func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
@@ -282,7 +308,12 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	}
 	snapName := snapSetup.InstanceName()
 
-	return m.removeProfilesForSnap(task, tomb, snapName, perfTimings)
+	if err := m.removeProfilesForSnap(task, tomb, snapName, perfTimings); err != nil {
+		return err
+	}
+
+	// no pending profiles on disk
+	return setPendingProfilesSideInfo(task.State(), snapName, nil)
 }
 
 func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string, tm timings.Measurer) error {
@@ -356,7 +387,10 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if err != nil {
 			return err
 		}
-		return m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings)
+		if err := m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings); err != nil {
+			return err
+		}
+		return setPendingProfilesSideInfo(task.State(), snapName, sideInfo)
 	}
 }
 
