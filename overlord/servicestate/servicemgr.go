@@ -70,7 +70,8 @@ func Manager(st *state.State, runner *state.TaskRunner) *ServiceManager {
 	// failure during install and correctly removes the snap again.
 	runner.AddHandler("quota-add-snap", m.doQuotaAddSnap, m.undoQuotaAddSnap)
 	AddAffectedQuotasByKind("quota-add-snap", affectedQuotasForQuotaAddSnap)
-	snapstate.AddAffectedSnapsByKind("quota-add-snap", affectedSnapsForQuotaAddSnap)
+	// quota-add-snap uses snap-setup and because of this retrieving the snap
+	// that is being added is implicitly already supported by snapstate/conflict.go
 
 	return m
 }

@@ -1746,11 +1746,6 @@ func (s *quotaHandlersSuite) TestDoQuotaAddSnap(c *C) {
 	// DoQuotaAddSnap
 	task := s.state.NewTask("add-snap-to-quota", "test")
 
-	st.Unlock()
-	err = s.mgr.DoQuotaAddSnap(task, nil)
-	st.Lock()
-	c.Assert(err.Error(), Equals, "no state entry for key \"snap-setup-task\"")
-
 	// now set the snap-setup parameter and try again
 	snapsup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{

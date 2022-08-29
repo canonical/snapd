@@ -887,14 +887,3 @@ func affectedQuotasForQuotaAddSnap(t *state.Task) (quotas []string, err error) {
 	}
 	return []string{quotaName}, nil
 }
-
-func affectedSnapsForQuotaAddSnap(t *state.Task) (snaps []string, err error) {
-	snapsup, err := snapstate.TaskSnapSetup(t)
-	if err != nil {
-		return nil, err
-	}
-
-	// Since we only support adding snaps here, we know exactly which snaps
-	// are affected by this task.
-	return []string{snapsup.InstanceName()}, nil
-}
