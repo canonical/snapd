@@ -53,9 +53,9 @@ type GroupQuotaCPU struct {
 	// in Percentage and Count is ignored.
 	Percentage int `json:"percentage,omitempty"`
 
-	// AllowedCPUs is a list of CPU core indices that are allowed to be used by the group. Each value
+	// CPUSet is a list of CPU core indices that are allowed to be used by the group. Each value
 	// in the list refers to the CPU core number. If the list is empty, all CPU cores are allowed.
-	AllowedCPUs []int `json:"allowed-cpus,omitempty"`
+	CPUSet []int `json:"allowed-cpus,omitempty"`
 }
 
 // GroupQuotaJournal contains the supported limits for journald. Any limit set here
@@ -159,8 +159,8 @@ func (grp *Group) GetQuotaResources() Resources {
 		if grp.CPULimit.Percentage != 0 {
 			resourcesBuilder.WithCPUPercentage(grp.CPULimit.Percentage)
 		}
-		if len(grp.CPULimit.AllowedCPUs) != 0 {
-			resourcesBuilder.WithAllowedCPUs(grp.CPULimit.AllowedCPUs)
+		if len(grp.CPULimit.CPUSet) != 0 {
+			resourcesBuilder.WithCPUSet(grp.CPULimit.CPUSet)
 		}
 	}
 	if grp.TaskLimit != 0 {
@@ -296,8 +296,8 @@ type groupQuotaAllocations struct {
 	ThreadsLimit              int
 	ThreadsReservedByChildren int
 
-	AllowedCPUsLimit              []int
-	AllowedCPUsReservedByChildren []int
+	CPUSetLimit              []int
+	CPUSetReservedByChildren []int
 }
 
 func max(a, b int) int {
@@ -317,10 +317,10 @@ func maxq(a, b quantity.Size) quantity.Size {
 // GetLocalCPUSetQuota returns the current CPU set quota for the group. This
 // does not return any inheritted CPU set quota.
 func (grp *Group) GetLocalCPUSetQuota() []int {
-	if grp.CPULimit == nil || len(grp.CPULimit.AllowedCPUs) == 0 {
+	if grp.CPULimit == nil || len(grp.CPULimit.CPUSet) == 0 {
 		return []int{}
 	}
-	return grp.CPULimit.AllowedCPUs
+	return grp.CPULimit.CPUSet
 }
 
 // GetCPUSetQuota returns the currently active CPU set quota for this group, which
@@ -333,8 +333,8 @@ func (grp *Group) GetCPUSetQuota() []int {
 
 	parent := grp.parentGroup
 	for parent != nil {
-		if parent.CPULimit != nil && len(parent.CPULimit.AllowedCPUs) != 0 {
-			return parent.CPULimit.AllowedCPUs
+		if parent.CPULimit != nil && len(parent.CPULimit.CPUSet) != 0 {
+			return parent.CPULimit.CPUSet
 		}
 		parent = parent.parentGroup
 	}
@@ -377,10 +377,10 @@ func (grp *Group) getCurrentCPUAllocation() int {
 // tree and store them in the allQuotas paramater
 func (grp *Group) getQuotaAllocations(allQuotas map[string]*groupQuotaAllocations) *groupQuotaAllocations {
 	limits := &groupQuotaAllocations{
-		MemoryLimit:      grp.MemoryLimit,
-		CPULimit:         grp.getCurrentCPUAllocation(),
-		ThreadsLimit:     grp.TaskLimit,
-		AllowedCPUsLimit: grp.GetLocalCPUSetQuota(),
+		MemoryLimit:  grp.MemoryLimit,
+		CPULimit:     grp.getCurrentCPUAllocation(),
+		ThreadsLimit: grp.TaskLimit,
+		CPUSetLimit:  grp.GetLocalCPUSetQuota(),
 	}
 
 	// sliceUniqueAndSort sorts an array of ints in ascending order and removes duplicates
@@ -412,16 +412,16 @@ func (grp *Group) getQuotaAllocations(allQuotas map[string]*groupQuotaAllocation
 
 		// We need to merge the allowed CPUs lists, but we need to make sure that the list is unique, since cpu cores
 		// can be reused between sub-groups.
-		if len(subGroupLimits.AllowedCPUsLimit) > 0 {
-			limits.AllowedCPUsReservedByChildren = append(limits.AllowedCPUsReservedByChildren, subGroupLimits.AllowedCPUsLimit...)
-		} else if len(subGroupLimits.AllowedCPUsReservedByChildren) > 0 {
-			limits.AllowedCPUsReservedByChildren = append(limits.AllowedCPUsReservedByChildren, subGroupLimits.AllowedCPUsReservedByChildren...)
+		if len(subGroupLimits.CPUSetLimit) > 0 {
+			limits.CPUSetReservedByChildren = append(limits.CPUSetReservedByChildren, subGroupLimits.CPUSetLimit...)
+		} else if len(subGroupLimits.CPUSetReservedByChildren) > 0 {
+			limits.CPUSetReservedByChildren = append(limits.CPUSetReservedByChildren, subGroupLimits.CPUSetReservedByChildren...)
 		}
 	}
 
 	// Sort the allowed CPUs list, and remove duplicates.
-	if len(limits.AllowedCPUsReservedByChildren) > 0 {
-		limits.AllowedCPUsReservedByChildren = sliceUniqueAndSort(limits.AllowedCPUsReservedByChildren)
+	if len(limits.CPUSetReservedByChildren) > 0 {
+		limits.CPUSetReservedByChildren = sliceUniqueAndSort(limits.CPUSetReservedByChildren)
 	}
 
 	// Store the retrieved limits for the group
@@ -530,11 +530,11 @@ func (grp *Group) validateCPUResourceFit(allQuotas map[string]*groupQuotaAllocat
 						cpuRequested, parent.Name, cpuAvailable)
 				}
 				break
-			} else if len(limits.AllowedCPUsLimit) > 0 {
-				maxCPUAvailableInSet := len(limits.AllowedCPUsLimit) * 100
+			} else if len(limits.CPUSetLimit) > 0 {
+				maxCPUAvailableInSet := len(limits.CPUSetLimit) * 100
 				if cpuRequested > maxCPUAvailableInSet {
 					return fmt.Errorf("sub-group cpu limit of %d%% is too large to fit inside group %q with allowed CPU set %v",
-						cpuRequested, parent.Name, limits.AllowedCPUsLimit)
+						cpuRequested, parent.Name, limits.CPUSetLimit)
 				}
 				break
 			}
@@ -572,9 +572,9 @@ func (grp *Group) validateCPUsAllowedResourceFit(allQuotas map[string]*groupQuot
 	// recursive descent as we already have counted up the usage of our children.
 	currentLimits := allQuotas[grp.Name]
 	if currentLimits != nil {
-		if !isSuperset(cpusAllowed, currentLimits.AllowedCPUsReservedByChildren) {
+		if !isSuperset(cpusAllowed, currentLimits.CPUSetReservedByChildren) {
 			return fmt.Errorf("group cpu-set %v is not a superset of current subgroup usage of %v",
-				cpusAllowed, currentLimits.AllowedCPUsReservedByChildren)
+				cpusAllowed, currentLimits.CPUSetReservedByChildren)
 		}
 
 		// If we are doing further restrictions (i.e the new cpu set is a subset of the current)
@@ -590,10 +590,10 @@ func (grp *Group) validateCPUsAllowedResourceFit(allQuotas map[string]*groupQuot
 	parent := grp.parentGroup
 	for parent != nil {
 		limits := allQuotas[parent.Name]
-		if limits != nil && len(limits.AllowedCPUsLimit) != 0 {
-			if !isSuperset(limits.AllowedCPUsLimit, cpusAllowed) {
+		if limits != nil && len(limits.CPUSetLimit) != 0 {
+			if !isSuperset(limits.CPUSetLimit, cpusAllowed) {
 				return fmt.Errorf("sub-group cpu-set %v is not a subset of group %q cpu-set %v",
-					cpusAllowed, parent.Name, limits.AllowedCPUsLimit)
+					cpusAllowed, parent.Name, limits.CPUSetLimit)
 			}
 			break
 		}
@@ -713,7 +713,7 @@ func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) error {
 		if grp.CPULimit == nil {
 			grp.CPULimit = &GroupQuotaCPU{}
 		}
-		grp.CPULimit.AllowedCPUs = resourceLimits.CPUSet.CPUs
+		grp.CPULimit.CPUSet = resourceLimits.CPUSet.CPUs
 	}
 	if resourceLimits.Threads != nil {
 		grp.TaskLimit = resourceLimits.Threads.Limit

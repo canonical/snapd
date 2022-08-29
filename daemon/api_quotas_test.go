@@ -91,7 +91,7 @@ func (s *apiQuotaSuite) TestCreateQuotaValues(c *check.C) {
 			WithCPUCount(1).
 			WithCPUPercentage(100).
 			WithThreadLimit(256).
-			WithAllowedCPUs([]int{0, 1}).
+			WithCPUSet([]int{0, 1}).
 			WithJournalRate(150, time.Second).
 			WithJournalSize(quantity.SizeMiB).
 			Build())
@@ -338,7 +338,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpu2Happy(c *check.C) {
 		c.Assert(name, check.Equals, "ginger-ale")
 		c.Assert(opts, check.DeepEquals, servicestate.QuotaGroupUpdate{
 			AddSnaps:          []string{"some-snap"},
-			NewResourceLimits: quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0, 1}).Build(),
+			NewResourceLimits: quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(100).WithCPUSet([]int{0, 1}).Build(),
 		})
 		ts := state.NewTaskSet(st.NewTask("foo-quota", "..."))
 		return ts, nil
