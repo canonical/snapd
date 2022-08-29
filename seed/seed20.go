@@ -764,13 +764,13 @@ func (s *seed20) Iter(f func(sn *Snap) error) error {
 	return nil
 }
 
-func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) {
+func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) error {
 	if s.model.Grade() == asserts.ModelDangerous {
 		autoImportAssert := filepath.Join(s.systemDir, "auto-import.assert")
 		af, err := os.Open(autoImportAssert)
 		// ignore if assertion file does not exists
 		if os.IsNotExist(err) {
-			return
+			return err
 		}
 		if err != nil {
 			// Loading of the auto import assertion can fail for multiple reasons,
@@ -778,7 +778,7 @@ func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) {
 			// at the first boot, we do not want this to break the first boot as the factory image ages.
 			// Notify about the error.
 			logger.Noticef("cannot open auth import assertions file %q: %v\n", autoImportAssert, err)
-			return
+			return err
 		}
 		defer af.Close()
 		batch := asserts.NewBatch(nil)
@@ -786,11 +786,12 @@ func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) {
 			logger.Noticef("failed to created auto-import assertion stream: %v\n", err)
 			// if we failed to import auto-import assertion at this stage, treat error as warning
 			// notify the error, but continue with boot
-			return
+			return err
 		}
 		if err := commitTo(batch); err != nil {
 			logger.Noticef("failed to commit auto-import assertions: %v\n", err)
-			return
+			return err
 		}
 	}
+	return nil
 }

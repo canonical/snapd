@@ -2879,34 +2879,35 @@ func (s *seed20Suite) TestLoadMetaWrongHashSnapParallelism2(c *C) {
 
 func (s *seed20Suite) TestLoadAutoImportAssertionGradeSecuredNoAutoImportAssertion(c *C) {
 	// secured grade, no system user assertion
-	s.testLoadAutoImportAssertion(c, asserts.ModelSecured, none, 0644, s.commitTo)
+	s.testLoadAutoImportAssertion(c, asserts.ModelSecured, none, 0644, s.commitTo, nil)
 }
 
 func (s *seed20Suite) TestLoadAutoImportAssertionGradeSecuredAutoImportAssertion(c *C) {
 	// secured grade, with system user assertion
-	s.testLoadAutoImportAssertion(c, asserts.ModelSecured, valid, 0644, s.commitTo)
+	s.testLoadAutoImportAssertion(c, asserts.ModelSecured, valid, 0644, s.commitTo, nil)
 }
 
 func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousNoAutoImportAssertion(c *C) {
 	// dangerous grade, no system user assertion
-	s.testLoadAutoImportAssertion(c, asserts.ModelDangerous, none, 0644, s.commitTo)
+	s.testLoadAutoImportAssertion(c, asserts.ModelDangerous, none, 0644, s.commitTo, fmt.Errorf("*. no such file or directory"))
 }
 
 func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAssertionErrCommiter(c *C) {
 	// dangerous grade with broken commiter
+	err := fmt.Errorf("nope")
 	s.testLoadAutoImportAssertion(c, asserts.ModelDangerous, valid, 0644, func(b *asserts.Batch) error {
-		return fmt.Errorf("nope")
-	})
+		return err
+	}, err)
 }
 
 func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAssertionErrFilePerm(c *C) {
 	// dangerous grade, system user assertion with wrong file permissions
-	s.testLoadAutoImportAssertion(c, asserts.ModelDangerous, valid, 0222, s.commitTo)
+	s.testLoadAutoImportAssertion(c, asserts.ModelDangerous, valid, 0222, s.commitTo, fmt.Errorf(".* permission denied"))
 }
 
 func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousInvalidAutoImportAssertion(c *C) {
 	// dangerous grade, invalid system user assertion
-	s.testLoadAutoImportAssertion(c, asserts.ModelDangerous, invalid, 0644, s.commitTo)
+	s.testLoadAutoImportAssertion(c, asserts.ModelDangerous, invalid, 0644, s.commitTo, fmt.Errorf("unexpected EOF"))
 }
 
 type systemUserAsseertion int
@@ -2917,7 +2918,7 @@ const (
 	invalid
 )
 
-func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade, sua systemUserAsseertion, perm os.FileMode, commitTo func(b *asserts.Batch) error) {
+func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade, sua systemUserAsseertion, perm os.FileMode, commitTo func(b *asserts.Batch) error, loadError error) {
 	sysLabel := "20191018"
 	seed20 := s.createMinimalSeed(c, string(grade), sysLabel)
 	c.Assert(seed20, NotNil)
@@ -2934,7 +2935,12 @@ func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade
 	// try to load auto import assertions
 	seed20AsLoader, ok := seed20.(seed.AutoImportAssertionsLoaderSeed)
 	c.Assert(ok, Equals, true)
-	seed20AsLoader.LoadAutoImportAssertions(commitTo)
+	err := seed20AsLoader.LoadAutoImportAssertions(commitTo)
+	if loadError == nil {
+		c.Assert(err, IsNil)
+	} else {
+		c.Check(err, ErrorMatches, loadError.Error())
+	}
 	assertions, err := s.findAutoImportAssertion(seed20)
 	c.Check(err, check.ErrorMatches, "system-user assertion not found")
 	c.Assert(assertions, IsNil)
@@ -2951,7 +2957,8 @@ func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAsserti
 	// try to load auto import assertions
 	seed20AsLoader, ok := seed20.(seed.AutoImportAssertionsLoaderSeed)
 	c.Assert(ok, Equals, true)
-	seed20AsLoader.LoadAutoImportAssertions(s.commitTo)
+	err := seed20AsLoader.LoadAutoImportAssertions(s.commitTo)
+	c.Assert(err, IsNil)
 	assertions, err := s.findAutoImportAssertion(seed20)
 	c.Assert(err, IsNil)
 	// validate it's our assertion
