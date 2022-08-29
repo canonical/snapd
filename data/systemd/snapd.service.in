@@ -1,7 +1,10 @@
 [Unit]
 Description=Snap Daemon
-After=snapd.socket time-set.target
+After=snapd.socket
+After=time-set.target
+After=snapd.mounts.target
 Wants=time-set.target
+Wants=snapd.mounts.target
 Requires=snapd.socket
 OnFailure=snapd.failure.service
 # This is handled by snapd

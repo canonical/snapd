@@ -96,7 +96,7 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(dirs.SnapRuntimeServicesDir, 0755)
 	c.Assert(err, IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants"), 0755), IsNil)
 
 	// force UTC timezone, for reproducible timestamps
 	os.Setenv("TZ", "")
@@ -1164,7 +1164,8 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
 Description=Mount unit for foo, revision 42
-Before=snapd.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
 After=zfs-mount.service
 
 [Mount]
@@ -1175,7 +1176,7 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
-WantedBy=default.target multi-user.target
+WantedBy=snapd.mounts.target
 `[1:], mockSnapPath))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
@@ -1198,7 +1199,8 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
 Description=Mount unit for foodir, revision x1
-Before=snapd.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
 After=zfs-mount.service
 
 [Mount]
@@ -1209,7 +1211,7 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide,bind
 LazyUnmount=yes
 
 [Install]
-WantedBy=default.target multi-user.target
+WantedBy=snapd.mounts.target
 `[1:], snapDir))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
@@ -1244,7 +1246,8 @@ func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
 	c.Assert(filepath.Join(dirs.SnapRuntimeServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
 Description=Mount unit for foo via bar
-Before=snapd.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
 After=zfs-mount.service
 
 [Mount]
@@ -1255,7 +1258,7 @@ Options=remount,ro
 LazyUnmount=yes
 
 [Install]
-WantedBy=default.target multi-user.target
+WantedBy=snapd.mounts.target
 X-SnapdOrigin=bar
 `[1:], mockSnapPath))
 
@@ -1287,7 +1290,8 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
 Description=Mount unit for foo, revision 42
-Before=snapd.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
 After=zfs-mount.service
 
 [Mount]
@@ -1298,7 +1302,7 @@ Options=nodev,context=system_u:object_r:snappy_snap_t:s0,ro,x-gdu.hide,x-gvfs-hi
 LazyUnmount=yes
 
 [Install]
-WantedBy=default.target multi-user.target
+WantedBy=snapd.mounts.target
 `[1:], mockSnapPath))
 }
 
@@ -1331,7 +1335,8 @@ exit 0
 	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
 Description=Mount unit for foo, revision x1
-Before=snapd.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
 After=zfs-mount.service
 
 [Mount]
@@ -1342,7 +1347,7 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide,allow_other
 LazyUnmount=yes
 
 [Install]
-WantedBy=default.target multi-user.target
+WantedBy=snapd.mounts.target
 `[1:], mockSnapPath))
 }
 
@@ -1371,7 +1376,8 @@ exit 0
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
 Description=Mount unit for foo, revision x1
-Before=snapd.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
 After=zfs-mount.service
 
 [Mount]
@@ -1382,7 +1388,7 @@ Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
-WantedBy=default.target multi-user.target
+WantedBy=snapd.mounts.target
 `[1:], mockSnapPath))
 }
 
@@ -1635,7 +1641,8 @@ func (s *SystemdTestSuite) TestEmulationModeBackend(c *C) {
 const unitTemplate = `
 [Unit]
 Description=Mount unit for foo, revision 42
-Before=snapd.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
 After=zfs-mount.service
 
 [Mount]
@@ -1646,7 +1653,7 @@ Options=%s
 LazyUnmount=yes
 
 [Install]
-WantedBy=default.target multi-user.target
+WantedBy=snapd.mounts.target
 `
 
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
@@ -1670,7 +1677,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	// mount was called
 	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide,x-gvfs-hide"})
 	// unit was enabled with a symlink
-	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)), Equals, true)
+	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants", mountUnitName)), Equals, true)
 	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
 }
 
@@ -1725,7 +1732,7 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
 	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	mountUnit := makeMockMountUnit(c, mountDir)
-	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
+	symlinkPath := filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants", filepath.Base(mountUnit))
 	c.Assert(os.Symlink(mountUnit, symlinkPath), IsNil)
 
 	// Create a symlink in a different target, like if it was manually created.
@@ -1784,7 +1791,7 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmounted(c *C) {
 
 	sysd := NewEmulationMode(dirs.GlobalRootDir)
 	mountUnit := makeMockMountUnit(c, mountDir)
-	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
+	symlinkPath := filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants", filepath.Base(mountUnit))
 	c.Assert(os.Symlink(mountUnit, symlinkPath), IsNil)
 
 	c.Assert(sysd.RemoveMountUnitFile(mountDir), IsNil)
@@ -1897,7 +1904,7 @@ Type=doesntmatter
 Options=do,not,matter,either
 
 [Install]
-WantedBy=default.target multi-user.target
+WantedBy=doesntmatter.target
 X-SnapdOrigin=%s
 `, snapName, where, origin)
 		return ioutil.WriteFile(path, []byte(contents), 0644)
