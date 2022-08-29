@@ -1166,7 +1166,6 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
-After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -1201,7 +1200,6 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 Description=Mount unit for foodir, revision x1
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
-After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -1248,7 +1246,6 @@ func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
 Description=Mount unit for foo via bar
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
-After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -1292,7 +1289,6 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
-After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -1337,7 +1333,6 @@ exit 0
 Description=Mount unit for foo, revision x1
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
-After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -1378,7 +1373,6 @@ exit 0
 Description=Mount unit for foo, revision x1
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
-After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -1643,7 +1637,6 @@ const unitTemplate = `
 Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
-After=zfs-mount.service
 
 [Mount]
 What=%s

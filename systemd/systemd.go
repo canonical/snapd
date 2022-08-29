@@ -1360,15 +1360,12 @@ func ExistingMountUnitPath(mountPointDir string) string {
 
 var squashfsFsType = squashfs.FsType
 
-// XXX: After=zfs-mount.service is a workaround for LP: #1922293 (a problem
-// with order of mounting most likely related to zfs-linux and/or systemd).
 const mountUnitTemplate = `[Unit]
 Description=Mount unit for {{.SnapName}}
 {{- with .Revision}}, revision {{.}}{{end}}
 {{- with .Origin}} via {{.}}{{end}}
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
-After=zfs-mount.service
 
 [Mount]
 What={{.What}}
