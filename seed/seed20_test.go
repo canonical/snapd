@@ -2936,7 +2936,7 @@ func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade
 	c.Assert(ok, Equals, true)
 	seed20AsLoader.LoadAutoImportAssertions(commitTo)
 	assertions, err := s.findAutoImportAssertion(seed20)
-	c.Check(err, check.ErrorMatches, "No system user assertion found")
+	c.Check(err, check.ErrorMatches, "system-user assertion not found")
 	c.Assert(assertions, IsNil)
 }
 
@@ -3046,8 +3046,5 @@ func (s *seed20Suite) findAutoImportAssertion(seed20 seed.Seed) ([]asserts.Asser
 		"brand-id": seed20.Model().BrandID(),
 	})
 
-	if asserts.IsNotFound(err) {
-		return nil, fmt.Errorf("No system user assertion found")
-	}
 	return assertions, err
 }

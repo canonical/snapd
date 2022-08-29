@@ -777,7 +777,7 @@ func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) {
 			// for example assertion can expired. Since auto import assertions are loaded
 			// at the first boot, we do not want this to break the first boot as the factory image ages.
 			// Notify about the error.
-			logger.Noticef("cannot open auto-import assert(%s): %v\n", autoImportAssert, err)
+			logger.Noticef("cannot open auth import assertions file %q: %v\n", autoImportAssert, err)
 			return
 		}
 		defer af.Close()
@@ -789,7 +789,7 @@ func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) {
 			return
 		}
 		if err := commitTo(batch); err != nil {
-			logger.Noticef("failed to commit auto-import assertion: %v\n", err)
+			logger.Noticef("failed to commit auto-import assertions: %v\n", err)
 			return
 		}
 	}
