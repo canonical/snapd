@@ -152,10 +152,6 @@ func (fs *FakeSeed) Iter(f func(sn *seed.Snap) error) error {
 	return nil
 }
 
-func (fs *FakeSeed) LoadAutoImportAssertion(commitTo func(*asserts.Batch) error) error {
-	return nil
-}
-
 func (s *preseedSuite) TestSystemSnapFromSeed(c *C) {
 	tmpDir := c.MkDir()
 
