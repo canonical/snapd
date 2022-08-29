@@ -155,14 +155,14 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 		return "", fmt.Errorf("cannot mount %s (%s) at %s in preseed mode: %s; %s", what, hostFsType, where, err, string(out))
 	}
 
-	multiUserTargetWantsDir := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants")
-	if err := os.MkdirAll(multiUserTargetWantsDir, 0755); err != nil {
+	snapdMountsTargetWantsDir := filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants")
+	if err := os.MkdirAll(snapdMountsTargetWantsDir, 0755); err != nil {
 		return "", err
 	}
 
-	// cannot call systemd, so manually enable the unit by symlinking into multi-user.target.wants
+	// cannot call systemd, so manually enable the unit by symlinking into snapd.mounts.target.wants
 	mu := MountUnitPath(where)
-	enableUnitPath := filepath.Join(multiUserTargetWantsDir, mountUnitName)
+	enableUnitPath := filepath.Join(snapdMountsTargetWantsDir, mountUnitName)
 	if err := os.Symlink(mu, enableUnitPath); err != nil {
 		return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
 	}

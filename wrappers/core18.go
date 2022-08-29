@@ -180,8 +180,13 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 	if err != nil {
 		return err
 	}
+	targetUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.target"))
+	if err != nil {
+		return err
+	}
 	units := append(socketUnits, serviceUnits...)
 	units = append(units, timerUnits...)
+	units = append(units, targetUnits...)
 
 	snapdUnits := make(map[string]osutil.FileState, len(units)+1)
 	for _, unit := range units {
@@ -206,7 +211,7 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 			Mode:    st.Mode(),
 		}
 	}
-	globs := []string{"snapd.service", "snapd.socket", "snapd.*.service", "snapd.*.timer"}
+	globs := []string{"snapd.service", "snapd.socket", "snapd.*.service", "snapd.*.timer", "snapd.*.target"}
 	changed, removed, err := osutil.EnsureDirStateGlobs(dirs.SnapServicesDir, globs, snapdUnits)
 	if err != nil {
 		// TODO: uhhhh, what do we do in this case?
@@ -352,8 +357,13 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 	if err != nil {
 		return err
 	}
+	targetUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.target"))
+	if err != nil {
+		return err
+	}
 	units := append(socketUnits, serviceUnits...)
 	units = append(units, timerUnits...)
+	units = append(units, targetUnits...)
 
 	for _, snapdUnit := range units {
 		sysdUnit := filepath.Base(snapdUnit)

@@ -1,0 +1,5 @@
+[Unit]
+Description=Mounting snaps
+RefuseManualStart=yes
+# Started from snapd.mounts.target
+# X-Snapd-Snap: do-not-start

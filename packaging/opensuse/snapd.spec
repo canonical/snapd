@@ -29,7 +29,7 @@
 
 # The list of systemd services we are expected to ship. Note that this does
 # not include services that are only required on core systems.
-%global systemd_services_list snapd.socket snapd.service snapd.seeded.service snapd.failure.service %{?with_apparmor:snapd.apparmor.service}
+%global systemd_services_list snapd.socket snapd.service snapd.seeded.service snapd.failure.service %{?with_apparmor:snapd.apparmor.service} snapd.mounts.target snapd.mounts-pre.target
 %global systemd_user_services_list snapd.session-agent.socket
 
 # Alternate snap mount directory: not used by openSUSE.
@@ -478,6 +478,8 @@ fi
 %{_unitdir}/snapd.seeded.service
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
+%{_unitdir}/snapd.mounts.target
+%{_unitdir}/snapd.mounts-pre.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
 

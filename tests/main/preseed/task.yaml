@@ -122,15 +122,15 @@ execute: |
   echo "Checking that mount units have been created and enabled on the target image"
   SYSTEMD_UNITS="$IMAGE_MOUNTPOINT"/etc/systemd
   test -f "$SYSTEMD_UNITS"/system/snap-lxd-*.mount
-  test -L "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap-lxd-*.mount
+  test -L "$SYSTEMD_UNITS"/system/snapd.mounts.target.wants/snap-lxd-*.mount
   test -f "$SYSTEMD_UNITS"/system/snap-snapd-*.mount
   test -f "$SYSTEMD_UNITS"/system/snap-"${LXD_BASE_SNAP}"-*.mount
-  test -L "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap-"${LXD_BASE_SNAP}"-*.mount
-  test -L "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap-snapd-*.mount
+  test -L "$SYSTEMD_UNITS"/system/snapd.mounts.target.wants/snap-"${LXD_BASE_SNAP}"-*.mount
+  test -L "$SYSTEMD_UNITS"/system/snapd.mounts.target.wants/snap-snapd-*.mount
 
   for unit in snap.lxd.daemon.service snap.lxd.daemon.unix.socket snap.lxd.activate.service; do
     test -f "$SYSTEMD_UNITS/system/$unit"
   done
 
   echo "LXD service shouldn't be enabled at this point"
-  test ! -e "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap.lxd.activate.service
+  test ! -e "$SYSTEMD_UNITS"/system/snapd.mounts.target.wants/snap.lxd.activate.service
