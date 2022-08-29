@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -1297,6 +1298,168 @@ func (s *deviceMgrSystemsSuite) TestRecordSeededSystem(c *C) {
 		},
 	}
 	c.Assert(seededSystemsFromState, DeepEquals, expectedWithNewModel)
+}
+
+func (s *deviceMgrSystemsSuite) mockSystemUser(c *C, username string, expiration time.Time) {
+	_, err := auth.NewUser(s.state, auth.NewUserData{
+		Username:   username,
+		Email:      "email1@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+		Expiration: expiration,
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSystemsSuite) TestEnsureExpiredUsersRemoved(c *C) {
+	s.state.Lock()
+
+	// We mock a few users, with one of them having expired. We then run
+	// the code to see that it correctly removes it from the system. Important
+	// to also test with a user that has no expiration to make sure the previous
+	// users are unaffected.
+	s.mockSystemUser(c, "user1", time.Time{})
+	s.mockSystemUser(c, "expires-soon", time.Now().Add(time.Minute*5))
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+
+	// Mock the delete user callback to verify it's correctly called
+	var delUserCalled bool
+	r := devicestate.MockOsutilDelUser(func(name string, opts *osutil.DelUserOptions) error {
+		delUserCalled = true
+		c.Check(name, Equals, "remove-me")
+		c.Check(opts, NotNil)
+		return nil
+	})
+	defer r()
+
+	s.state.Unlock()
+	err := devicestate.EnsureExpiredUsersRemoved(s.mgr)
+	c.Assert(err, IsNil)
+	c.Assert(delUserCalled, Equals, true)
+}
+
+func (s *deviceMgrSystemsSuite) TestEnsureExpiredUsersRemovedNotOnClassic(c *C) {
+	// Mock being on classic, then the EnsureExpiredUsersRemoved should be a no-op
+	r := release.MockOnClassic(true)
+	defer r()
+
+	s.state.Lock()
+
+	// Mock a user that would be expired
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+
+	// Mock the delete user callback to verify it's not called
+	var delUserCalled bool
+	r = devicestate.MockOsutilDelUser(func(name string, opts *osutil.DelUserOptions) error {
+		delUserCalled = true
+		c.Check(name, Equals, "remove-me")
+		c.Check(opts, NotNil)
+		return nil
+	})
+	defer r()
+
+	s.state.Unlock()
+	err := devicestate.EnsureExpiredUsersRemoved(s.mgr)
+	c.Assert(err, IsNil)
+	c.Assert(delUserCalled, Equals, false)
+}
+
+func (s *deviceMgrSystemsSuite) TestEnsureExpiredUsersRemovedNotRecoverMode(c *C) {
+	// mock recovery mode
+	modeenv := boot.Modeenv{
+		Mode:           "recover",
+		RecoverySystem: s.mockedSystemSeeds[1].label,
+
+		Model:          s.mockedSystemSeeds[1].model.Model(),
+		BrandID:        s.mockedSystemSeeds[1].brand.AccountID(),
+		Grade:          string(s.mockedSystemSeeds[1].model.Grade()),
+		ModelSignKeyID: s.mockedSystemSeeds[1].model.SignKeyID(),
+	}
+	err := modeenv.WriteTo("")
+	c.Assert(err, IsNil)
+	// update the internal mode
+	devicestate.SetSystemMode(s.mgr, "recover")
+
+	s.state.Lock()
+
+	// Mock a user that would be expired
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+
+	// Mock the delete user callback to verify it's not called
+	var delUserCalled bool
+	r := devicestate.MockOsutilDelUser(func(name string, opts *osutil.DelUserOptions) error {
+		delUserCalled = true
+		c.Check(name, Equals, "remove-me")
+		c.Check(opts, NotNil)
+		return nil
+	})
+	defer r()
+
+	s.state.Unlock()
+	err = devicestate.EnsureExpiredUsersRemoved(s.mgr)
+	c.Assert(err, IsNil)
+	c.Assert(delUserCalled, Equals, false)
+}
+
+func (s *deviceMgrSystemsSuite) TestEnsureExpiredUsersRemovedNotInstallMode(c *C) {
+	// mock install mode
+	modeenv := boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: s.mockedSystemSeeds[1].label,
+
+		Model:          s.mockedSystemSeeds[1].model.Model(),
+		BrandID:        s.mockedSystemSeeds[1].brand.AccountID(),
+		Grade:          string(s.mockedSystemSeeds[1].model.Grade()),
+		ModelSignKeyID: s.mockedSystemSeeds[1].model.SignKeyID(),
+	}
+	err := modeenv.WriteTo("")
+	c.Assert(err, IsNil)
+	// update the internal mode
+	devicestate.SetSystemMode(s.mgr, "install")
+
+	s.state.Lock()
+
+	// Mock a user that would be expired
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+
+	// Mock the delete user callback to verify it's not called
+	var delUserCalled bool
+	r := devicestate.MockOsutilDelUser(func(name string, opts *osutil.DelUserOptions) error {
+		delUserCalled = true
+		c.Check(name, Equals, "remove-me")
+		c.Check(opts, NotNil)
+		return nil
+	})
+	defer r()
+
+	s.state.Unlock()
+	err = devicestate.EnsureExpiredUsersRemoved(s.mgr)
+	c.Assert(err, IsNil)
+	c.Assert(delUserCalled, Equals, false)
+}
+
+func (s *deviceMgrSystemsSuite) TestEnsureExpiredUsersRemovedNotUnseeded(c *C) {
+	s.state.Lock()
+
+	// Mock a user that would be expired
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+
+	// Mock the delete user callback to verify it's not called
+	var delUserCalled bool
+	r := devicestate.MockOsutilDelUser(func(name string, opts *osutil.DelUserOptions) error {
+		delUserCalled = true
+		c.Check(name, Equals, "remove-me")
+		c.Check(opts, NotNil)
+		return nil
+	})
+	defer r()
+
+	s.state.Set("seeded", false)
+
+	s.state.Unlock()
+	err := devicestate.EnsureExpiredUsersRemoved(s.mgr)
+	c.Assert(err, IsNil)
+	c.Assert(delUserCalled, Equals, false)
 }
 
 type deviceMgrSystemsCreateSuite struct {

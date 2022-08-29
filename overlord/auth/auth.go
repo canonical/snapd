@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"time"
 
 	"gopkg.in/macaroon.v1"
 
@@ -55,13 +56,14 @@ type DeviceState struct {
 
 // UserState represents an authenticated user
 type UserState struct {
-	ID              int      `json:"id"`
-	Username        string   `json:"username,omitempty"`
-	Email           string   `json:"email,omitempty"`
-	Macaroon        string   `json:"macaroon,omitempty"`
-	Discharges      []string `json:"discharges,omitempty"`
-	StoreMacaroon   string   `json:"store-macaroon,omitempty"`
-	StoreDischarges []string `json:"store-discharges,omitempty"`
+	ID              int       `json:"id"`
+	Username        string    `json:"username,omitempty"`
+	Email           string    `json:"email,omitempty"`
+	Macaroon        string    `json:"macaroon,omitempty"`
+	Discharges      []string  `json:"discharges,omitempty"`
+	StoreMacaroon   string    `json:"store-macaroon,omitempty"`
+	StoreDischarges []string  `json:"store-discharges,omitempty"`
+	Expiration      time.Time `json:"expiration,omitempty"`
 }
 
 // identificationOnly returns a *UserState with only the
@@ -143,6 +145,9 @@ type NewUserData struct {
 	Macaroon string
 	// Discharges contains discharged store auth caveats.
 	Discharges []string
+	// Expiration informs the devicestate that the user should be removed
+	// when passing the expiration time. This is an optional setting.
+	Expiration time.Time
 }
 
 // NewUser tracks a new authenticated user and saves its details in the state
@@ -179,6 +184,7 @@ func NewUser(st *state.State, userData NewUserData) (*UserState, error) {
 		Discharges:      nil,
 		StoreMacaroon:   userData.Macaroon,
 		StoreDischarges: userData.Discharges,
+		Expiration:      userData.Expiration,
 	}
 	authStateData.Users = append(authStateData.Users, authenticatedUser)
 

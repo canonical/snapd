@@ -477,3 +477,7 @@ func MockUserLookup(lookup func(username string) (*user.User, error)) (restore f
 	userLookup = lookup
 	return restore
 }
+
+func EnsureExpiredUsersRemoved(m *DeviceManager) error {
+	return m.ensureExpiredUsersRemoved()
+}
