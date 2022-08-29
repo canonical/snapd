@@ -6,8 +6,9 @@ details: |
     In order to do the full checks, it also needs the credentials of the owner of that
     snap set in the environment variables SPREAD_STORE_USER and SPREAD_STORE_PASSWORD
 
-# we don't have expect available on ubuntu-core nor can we install snapcraft
-systems: [-ubuntu-core-*]
+# ubuntu-core-*: we don't have expect available nor can we install snapcraft
+# ubuntu-18.04-32: no i386 version of snapcraft v7+ available anymore
+systems: [-ubuntu-core-*, -ubuntu-18.04-32]
 
 prepare: |
     echo "Install snapcraft from latest/candidate"
