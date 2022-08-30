@@ -387,8 +387,7 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo, bootCtx NextBootCont
 // kernel snap.
 func (ks20 *bootState20Kernel) selectAndCommitSnapInitramfsMount(modeenv *Modeenv, rootfsDir string) (sn snap.PlaceInfo, err error) {
 	// first do the generic choice of which snap to use
-	first, second, err :=
-		genericInitramfsSelectSnap(ks20, modeenv, rootfsDir, TryingStatus, "kernel")
+	first, second, err := genericInitramfsSelectSnap(ks20, modeenv, rootfsDir, TryingStatus, "kernel")
 	if err != nil && err != errTrySnapFallback {
 		return nil, err
 	}

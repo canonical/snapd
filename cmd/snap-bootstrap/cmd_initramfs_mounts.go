@@ -1743,8 +1743,7 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 
 	// 4.4 check if we expected a ubuntu-seed partition from the gadget data
 	if isClassic {
-		gadgetDir := filepath.Join(boot.InitramfsRunMntDir,
-			snapTypeToMountDir[snap.TypeGadget])
+		gadgetDir := filepath.Join(boot.InitramfsRunMntDir, snapTypeToMountDir[snap.TypeGadget])
 		gadgetInfo, err := gadget.ReadInfo(gadgetDir, model)
 		if err != nil {
 			return "", err
