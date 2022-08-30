@@ -65,13 +65,15 @@ restore: |
 
 debug: |
     cat /proc/partitions
-    LOOP="$(cat loop.txt)"
-    udevadm info --query property "${LOOP}" || true
-    udevadm info --query property "${LOOP}p1" || true
-    udevadm info --query property "${LOOP}p2" || true
-    udevadm info --query property "${LOOP}p3" || true
-    udevadm info --query property "${LOOP}p4" || true
-    udevadm info --query property "${LOOP}p5" || true
+    if [ -f loop.txt ]; then
+        LOOP="$(cat loop.txt)"
+        udevadm info --query property "${LOOP}" || true
+        udevadm info --query property "${LOOP}p1" || true
+        udevadm info --query property "${LOOP}p2" || true
+        udevadm info --query property "${LOOP}p3" || true
+        udevadm info --query property "${LOOP}p4" || true
+        udevadm info --query property "${LOOP}p5" || true
+    fi
 
 execute: |
     channel=20
