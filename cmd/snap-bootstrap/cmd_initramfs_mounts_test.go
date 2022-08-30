@@ -141,6 +141,12 @@ var (
 		KernelDeviceNode: "/dev/sda5",
 	}
 
+	cvmEncPart = disks.Partition{
+		FilesystemLabel:  "cloudimg-rootfs-enc",
+		PartitionUUID:    "cloudimg-rootfs-enc-partuuid",
+		KernelDeviceNode: "/dev/sda1",
+	}
+
 	// a boot disk without ubuntu-save
 	defaultBootDisk = &disks.MockDiskMapping{
 		Structure: []disks.Partition{
@@ -172,6 +178,15 @@ var (
 		},
 		DiskHasPartitions: true,
 		DevNum:            "defaultEncDev",
+	}
+
+	defaultCVMDisk = &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			seedPart,
+			cvmEncPart,
+		},
+		DiskHasPartitions: true,
+		DevNum:            "defaultCVMDev",
 	}
 
 	mockStateContent = `{"data":{"auth":{"users":[{"id":1,"name":"mvo"}],"macaroon-key":"not-a-cookie","last-id":1}},"some":{"other":"stuff"}}`
@@ -281,6 +296,9 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	// by default mock that we don't have UEFI vars, etc. to get the booted
 	// kernel partition partition uuid
 	s.AddCleanup(main.MockPartitionUUIDForBootedKernelDisk(""))
+	s.AddCleanup(main.MockSecbootProvisionForCVM(func(_ string) error {
+		return nil
+	}))
 	s.AddCleanup(main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
 		return nil
 	}))
@@ -2306,6 +2324,116 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "run-model-measured"), testutil.FilePresent)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunCVMModeHappy(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=cloudimg-rootfs")
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
+	defer restore()
+
+	restore = disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}:                    defaultCVMDisk,
+			{Mountpoint: boot.InitramfsDataDir, IsDecryptedDevice: true}: defaultCVMDisk,
+		},
+	)
+	defer restore()
+
+	// don't do anything from systemd-mount, we verify the arguments passed at
+	// the end with cmd.Calls
+	cmd := testutil.MockCommand(c, "systemd-mount", ``)
+	defer cmd.Restore()
+
+	// mock that in turn, /run/mnt/ubuntu-boot, /run/mnt/ubuntu-seed, etc. are
+	// mounted
+	n := 0
+	restore = main.MockOsutilIsMounted(func(where string) (bool, error) {
+		n++
+		switch n {
+		// first call for each mount returns false, then returns true, this
+		// tests in the case where systemd is racy / inconsistent and things
+		// aren't mounted by the time systemd-mount returns
+		case 1, 2:
+			c.Assert(where, Equals, boot.InitramfsUbuntuSeedDir)
+		case 3, 4:
+			c.Assert(where, Equals, boot.InitramfsDataDir)
+		case 5, 6:
+			c.Assert(where, Equals, boot.InitramfsUbuntuSeedDir)
+		default:
+			c.Errorf("unexpected IsMounted check on %s", where)
+			return false, fmt.Errorf("unexpected IsMounted check on %s", where)
+		}
+		return n%2 == 0, nil
+	})
+	defer restore()
+
+	// Mock the call to TPMCVM, to ensure that TPM provisioning is
+	// done before unlock attempt
+	provisionTPMCVMCalled := false
+	restore = main.MockSecbootProvisionForCVM(func(_ string) error {
+		// Ensure this function is only called once
+		c.Assert(provisionTPMCVMCalled, Equals, false)
+		provisionTPMCVMCalled = true
+		return nil
+	})
+	defer restore()
+
+	cloudimgActivated := false
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+		c.Assert(provisionTPMCVMCalled, Equals, true)
+		c.Assert(name, Equals, "cloudimg-rootfs")
+		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/cloudimg-rootfs.sealed-key"))
+		c.Assert(opts.AllowRecoveryKey, Equals, true)
+		c.Assert(opts.WhichModel, IsNil)
+
+		cloudimgActivated = true
+		// return true because we are using an encrypted device
+		return happyUnlocked("cloudimg-rootfs", secboot.UnlockedWithSealedKey), nil
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout.String(), Equals, "")
+
+	// 2 per mountpoint + 1 more for cross check
+	c.Assert(n, Equals, 5)
+
+	// failed to use mockSystemdMountSequence way of asserting this
+	// note that other test cases also mix & match using
+	// mockSystemdMountSequence & DeepEquals
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{
+			"systemd-mount",
+			"/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid",
+			boot.InitramfsUbuntuSeedDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+			"--options=private",
+			"--property=Before=initrd-fs.target",
+		},
+		{
+			"systemd-mount",
+			"/dev/mapper/cloudimg-rootfs-random",
+			boot.InitramfsDataDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		},
+		{
+			"systemd-mount",
+			boot.InitramfsUbuntuSeedDir,
+			"--umount",
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+		},
+	})
+
+	c.Check(provisionTPMCVMCalled, Equals, true)
+	c.Check(cloudimgActivated, Equals, true)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoSave(c *C) {

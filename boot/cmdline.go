@@ -44,10 +44,12 @@ const (
 	// ModeFactoryReset is a mode in which the device performs a factory
 	// reset.
 	ModeFactoryReset = "factory-reset"
+	// ModeRunCVM is Azure CVM specific run mode fde + classic debs
+	ModeRunCVM = "cloudimg-rootfs"
 )
 
 var (
-	validModes = []string{ModeInstall, ModeRecover, ModeFactoryReset, ModeRun}
+	validModes = []string{ModeInstall, ModeRecover, ModeFactoryReset, ModeRun, ModeRunCVM}
 )
 
 // ModeAndRecoverySystemFromKernelCommandLine returns the current system mode
