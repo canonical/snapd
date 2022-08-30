@@ -39,7 +39,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
@@ -773,25 +772,15 @@ func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) e
 			return err
 		}
 		if err != nil {
-			// Loading of the auto import assertion can fail for multiple reasons,
-			// for example assertion can expired. Since auto import assertions are loaded
-			// at the first boot, we do not want this to break the first boot as the factory image ages.
-			// Notify about the error.
-			logger.Noticef("cannot open auth import assertions file %q: %v\n", autoImportAssert, err)
 			return err
 		}
 		defer af.Close()
 		batch := asserts.NewBatch(nil)
 		if _, err := batch.AddStream(af); err != nil {
-			logger.Noticef("failed to created auto-import assertion stream: %v\n", err)
-			// if we failed to import auto-import assertion at this stage, treat error as warning
-			// notify the error, but continue with boot
 			return err
 		}
-		if err := commitTo(batch); err != nil {
-			logger.Noticef("failed to commit auto-import assertions: %v\n", err)
-			return err
-		}
+		err = commitTo(batch)
+		return err
 	}
 	return nil
 }
