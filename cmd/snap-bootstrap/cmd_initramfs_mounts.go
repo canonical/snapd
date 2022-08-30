@@ -1773,7 +1773,9 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 		}
-		return "", doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), mountReadOnlyOptions)
+		if err := doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), mountReadOnlyOptions); err != nil {
+			return "", fmt.Errorf("cannot mount snapd snap: %v", err)
+		}
 	}
 
 	return rootfsDir, nil
