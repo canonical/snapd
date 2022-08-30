@@ -8,7 +8,7 @@ details: |
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 debug: |
-    tests.nested exec "lsblk"
+    tests.nested exec "lsblk" || true
 
 execute: |
     echo "Wait for the system to be seeded first"
