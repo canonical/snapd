@@ -380,16 +380,26 @@ func probeParserFeatures() ([]string, error) {
 	return features, nil
 }
 
+func snapdAppArmorSupportsReexecImpl() bool {
+	hostInfoDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
+	_, flags, err := snapdtool.SnapdVersionFromInfoFile(hostInfoDir)
+	return err == nil && flags["SNAPD_APPARMOR_REEXEC"] == "1"
+}
+
+var snapdAppArmorSupportsReexec = snapdAppArmorSupportsReexecImpl
+
 // FindAppArmorParser returns the path of the apparmor_parser binary if one
 // is found as well as any required command-line arguments to use when
 // invoking the binary, and a boolean to indicate whether this is internal
 // to snapd (ie is provided by snapd)
 func FindAppArmorParser() (path string, args []string, internal bool, err error) {
-	// first see if we have our own internal copy which could come from
-	// the snapd snap (likely) or be part of the snapd distro package (unlikely)
+	// first see if we have our own internal copy which could come from the
+	// snapd snap (likely) or be part of the snapd distro package (unlikely)
+	// - but only use the internal one when we know there is not a system
+	// installed snapd-apparmor which does not support re-exec
 	args = make([]string, 0)
 	if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
-		if osutil.IsExecutable(path) {
+		if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() {
 			prefix := strings.TrimSuffix(path, "apparmor_parser")
 			// when using the internal apparmor_parser also use
 			// it's own configuration and includes etc plus
@@ -491,4 +501,12 @@ func MockFeatures(kernelFeatures []string, kernelError error, parserFeatures []s
 		appArmorAssessment = oldAppArmorAssessment
 	}
 
+}
+
+func MockSnapdAppArmorSupportsReexec(new func() bool) (restore func()) {
+	old := snapdAppArmorSupportsReexec
+	snapdAppArmorSupportsReexec = new
+	return func() {
+		snapdAppArmorSupportsReexec = old
+	}
 }

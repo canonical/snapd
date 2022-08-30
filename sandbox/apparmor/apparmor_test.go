@@ -49,7 +49,8 @@ func (*apparmorSuite) TestAppArmorFindAppArmorParser(c *C) {
 	defer mockParserCmd.Restore()
 	restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
 	defer restore()
-
+	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return false })
+	defer restore()
 	path, args, internal, err := apparmor.FindAppArmorParser()
 	c.Check(path, Equals, mockParserCmd.Exe())
 	c.Check(args, DeepEquals, make([]string, 0))
@@ -68,6 +69,8 @@ func (*apparmorSuite) TestAppArmorFindInternalAppArmorParser(c *C) {
 		c.Assert(path, Equals, "/proc/self/exe")
 		return filepath.Join(d, "snapd"), nil
 	})
+	defer restore()
+	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
 	defer restore()
 
 	path, args, internal, err := apparmor.FindAppArmorParser()
