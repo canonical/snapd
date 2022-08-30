@@ -185,7 +185,7 @@ type SnapHandler interface {
 // via LoadAutoImportAssertions.
 type AutoImportAssertionsLoaderSeed interface {
 	// LoadAutoImportAssertions attempts to loads all Auto import assertions
-	// from the root of the seed. This is a best effort and function does not fail.
+	// from the root of the seed.
 	LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) error
 }
 
