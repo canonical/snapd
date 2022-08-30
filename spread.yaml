@@ -231,6 +231,7 @@ backends:
                   password: ubuntu
 
     qemu:
+        memory: 4G
         systems:
             - ubuntu-14.04-32:
                   username: ubuntu
