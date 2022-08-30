@@ -270,7 +270,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	// commonly used revisions in tests
 	defaultInfoFile := `
 VERSION=2.54.3+git1.g479e745-dirty
-SNAPD_APPARMOR_REEXEC=0
+SNAPD_APPARMOR_REEXEC=1
 `
 	for _, snapName := range []string{"snapd", "core"} {
 		for _, rev := range []string{"1", "11"} {
@@ -3463,11 +3463,11 @@ func (s *snapmgrTestSuite) testEnsureRemovesVulnerableSnap(c *C, snapName string
 	// vulnerable
 	fixedInfoFile := `
 VERSION=2.54.3+git1.g479e745-dirty
-SNAPD_APPARMOR_REEXEC=0
+SNAPD_APPARMOR_REEXEC=1
 `
 	vulnInfoFile := `
 VERSION=2.54.2+git1.g479e745-dirty
-SNAPD_APPARMOR_REEXEC=0
+SNAPD_APPARMOR_REEXEC=1
 `
 
 	// revision 1 vulnerable
