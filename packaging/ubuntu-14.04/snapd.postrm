@@ -96,7 +96,10 @@ if [ "$1" = "purge" ]; then
         echo "Removing $unit"
         rm -f "/etc/systemd/system/$unit"
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
+        rm -f "/etc/systemd/system/snapd.mounts.target.wants/$unit"
     done
+    # Remove empty ".wants/" directory created by enabling mount units
+    rmdir "/etc/systemd/system/snapd.mounts.target.wants" || true
     # Units may have been removed do a reload
     systemctl -q daemon-reload || true
 
