@@ -233,9 +233,14 @@ func mergeOptions(options ...[]string) []string {
 func unclashMountEntries(entries []osutil.MountEntry) []osutil.MountEntry {
 	result := make([]osutil.MountEntry, 0, len(entries))
 
+	// The clashingEntry structure contains the information about different
+	// mount entries which use the same mount point.
 	type clashingEntry struct {
-		// Indexes of the entries in the `entries` array
-		Indexes []int
+		// Index in the `entries` array to the first entry of this clashing group
+		FirstIndex int
+		// Number of entries having this same mount point
+		Count int
+		// Merged options for the entries on this mount point
 		Options []string
 	}
 	entriesByMountPoint := make(map[string]*clashingEntry, len(entries))
@@ -245,23 +250,25 @@ func unclashMountEntries(entries []osutil.MountEntry) []osutil.MountEntry {
 		if !found {
 			index := len(result)
 			result = append(result, entries[i])
-			entriesByMountPoint[mountPoint] = &clashingEntry{Indexes: []int{index}}
+			entriesByMountPoint[mountPoint] = &clashingEntry{
+				FirstIndex: index,
+				Count:      1,
+			}
 			continue
 		}
 		// If the source and the FS type is the same, we do not consider
 		// this to be a clash, and instead will try to combine the mount
 		// flags in a way that fulfils the permissions required by all
 		// requesting entries
-		firstEntry := &result[entryInMap.Indexes[0]]
+		firstEntry := &result[entryInMap.FirstIndex]
 		if firstEntry.Name == entries[i].Name && firstEntry.Type == entries[i].Type &&
 			// Only merge entries that have no origin, or snap-update-ns will
 			// get confused
 			firstEntry.XSnapdOrigin() == "" && entries[i].XSnapdOrigin() == "" {
 			firstEntry.Options = mergeOptions(firstEntry.Options, entries[i].Options)
 		} else {
-			entryInMap.Indexes = append(entryInMap.Indexes, i)
-			c := len(entryInMap.Indexes)
-			newDir := fmt.Sprintf("%s-%d", entries[i].Dir, c)
+			entryInMap.Count++
+			newDir := fmt.Sprintf("%s-%d", entries[i].Dir, entryInMap.Count)
 			logger.Noticef("renaming mount entry for directory %q to %q to avoid a clash", entries[i].Dir, newDir)
 			entries[i].Dir = newDir
 			result = append(result, entries[i])
