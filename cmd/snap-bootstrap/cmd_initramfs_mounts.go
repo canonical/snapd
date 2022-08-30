@@ -1753,8 +1753,7 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 	volLoop:
 		for _, vol := range gadgetInfo.Volumes {
 			for _, part := range vol.Structure {
-				if part.Role == gadget.SystemSeed &&
-					part.Name == "ubuntu-seed" {
+				if part.Role == gadget.SystemSeed {
 					seedDefinedInGadget = true
 					break volLoop
 				}
