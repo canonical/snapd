@@ -143,6 +143,10 @@ func InitramfsActiveBootFlags(mode string) ([]string, error) {
 		// no boot flags are consumed / used on recover mode, so return nothing
 		return nil, nil
 
+	case ModeRunCVM:
+		// no boot flags are consumed / used on CVM mode, so return nothing
+		return nil, nil
+
 	case ModeRun:
 		// boot flags come from the modeenv
 		modeenv, err := ReadModeenv(InitramfsWritableDir)
