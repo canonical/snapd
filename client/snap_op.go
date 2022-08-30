@@ -57,6 +57,7 @@ type SnapOptions struct {
 	Purge            bool            `json:"purge,omitempty"`
 	Amend            bool            `json:"amend,omitempty"`
 	Transaction      TransactionType `json:"transaction,omitempty"`
+	QuotaGroupName   string          `json:"quota-group,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -100,6 +101,11 @@ func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
 	}
 	if opts.Transaction != "" {
 		if err := mw.WriteField("transaction", string(opts.Transaction)); err != nil {
+			return err
+		}
+	}
+	if opts.QuotaGroupName != "" {
+		if err := mw.WriteField("quota-group", opts.QuotaGroupName); err != nil {
 			return err
 		}
 	}

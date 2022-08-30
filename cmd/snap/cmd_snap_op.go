@@ -492,6 +492,7 @@ type cmdInstall struct {
 	IgnoreValidation bool                   `long:"ignore-validation"`
 	IgnoreRunning    bool                   `long:"ignore-running" hidden:"yes"`
 	Transaction      client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
+	QuotaGroupName   string                 `long:"quota-group"`
 	Positional       struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
@@ -637,6 +638,7 @@ func (x *cmdInstall) Execute([]string) error {
 		IgnoreValidation: x.IgnoreValidation,
 		IgnoreRunning:    x.IgnoreRunning,
 		Transaction:      x.Transaction,
+		QuotaGroupName:   x.QuotaGroupName,
 	}
 	x.setModes(opts)
 

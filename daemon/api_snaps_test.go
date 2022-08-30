@@ -1501,6 +1501,31 @@ func (s *snapsSuite) TestInstall(c *check.C) {
 	c.Check(calledName, check.Equals, "fake")
 }
 
+func (s *snapsSuite) TestInstallWithQuotaGroup(c *check.C) {
+	var calledFlags snapstate.Flags
+
+	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action:         "install",
+		Snaps:          []string{"fake"},
+		QuotaGroupName: "test-group",
+	}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.Dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+	c.Check(calledFlags.QuotaGroupName, check.Equals, "test-group")
+}
+
 func (s *snapsSuite) TestInstallDevMode(c *check.C) {
 	var calledFlags snapstate.Flags
 

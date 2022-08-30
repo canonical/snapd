@@ -470,6 +470,37 @@ func (cs *clientSuite) TestClientOpInstallPathManyWithOptions(c *check.C) {
 	c.Check(string(body), check.Matches, `(?s).*Content-Disposition: form-data; name="devmode"\r\n\r\ntrue\r\n.*`)
 	c.Check(string(body), check.Matches, `(?s).*Content-Disposition: form-data; name="classic"\r\n\r\ntrue\r\n.*`)
 }
+
+func (cs *clientSuite) TestClientOpInstallPathManyWithQuotaGroup(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "66b3",
+		"status-code": 202,
+		"type": "async"
+	}`
+
+	var paths []string
+	for _, name := range []string{"foo.snap", "bar.snap"} {
+		path := filepath.Join(c.MkDir(), name)
+		paths = append(paths, path)
+		c.Assert(ioutil.WriteFile(path, []byte("snap-data"), 0644), check.IsNil)
+	}
+
+	// Verify that the quota group option is serialized as a part of multipart form.
+	_, err := cs.cli.InstallPathMany(paths, &client.SnapOptions{
+		Dangerous:      true,
+		QuotaGroupName: "foo-group",
+	})
+
+	c.Assert(err, check.IsNil)
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	c.Check(string(body), check.Matches, `(?s).*Content-Disposition: form-data; name="dangerous"\r\n\r\ntrue\r\n.*`)
+	c.Check(string(body), check.Matches, `(?s).*Content-Disposition: form-data; name="quota-group"\r\n\r\nfoo-group\r\n.*`)
+}
+
 func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
 	cs.status = 202
 	cs.rsp = `{
