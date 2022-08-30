@@ -561,20 +561,7 @@ func (p *Pool) add(a Assertion, g *internal.Grouping) error {
 		Type:       AccountKeyType,
 		PrimaryKey: []string{a.SignKeyID()},
 	}
-	if err := p.addPrerequisite(keyRef, g); err != nil {
-		return err
-	}
-	// signatoryID is never empty as it is equal to authorityID otherwise
-	if a.SignatoryID() != a.AuthorityID() {
-		delegationRef := &Ref{
-			Type:       AuthorityDelegationType,
-			PrimaryKey: []string{a.AuthorityID(), a.SignatoryID()},
-		}
-		if err := p.addPrerequisite(delegationRef, g); err != nil {
-			return err
-		}
-	}
-	return nil
+	return p.addPrerequisite(keyRef, g)
 }
 
 func (p *Pool) resolveWith(unresolved map[string]unresolvedAssertRecord, uniq string, u unresolvedAssertRecord, a Assertion, extrag *internal.Grouping) (ok bool, err error) {
