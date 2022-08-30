@@ -222,35 +222,50 @@ layout:
 }
 
 func (s *specSuite) TestSpecificationMergedClash(c *C) {
-	// A clash where both source and FS type are the same, gets resolved by
-	// merging the entries
-	entry1 := osutil.MountEntry{Dir: "/usr/foo", Type: "tmpfs", Name: "tmpfs"}
-	s.spec.AddMountEntry(entry1)
-	entry2 := osutil.MountEntry{Dir: "/usr/foo", Type: "tmpfs", Name: "tmpfs"}
-	s.spec.AddMountEntry(entry2)
-	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
-		{Dir: "/usr/foo", Type: "tmpfs", Name: "tmpfs", Options: []string{}},
-	})
-}
+	defaultEntry := osutil.MountEntry{
+		Dir:  "/usr/foo",
+		Type: "tmpfs",
+		Name: "/here",
+	}
+	for _, td := range []struct {
+		// Options for all the clashing mount entries
+		Options [][]string
+		// Expected options for the merged mount entry
+		ExpectedOptions []string
+	}{
+		{
+			// If all entries are read-only, the merged entry is also RO
+			Options:         [][]string{{"noatime", "ro"}, {"ro"}},
+			ExpectedOptions: []string{"noatime", "ro"},
+		},
+		{
+			// If one entry is rbind, the recursiveness is preserved
+			Options:         [][]string{{"bind", "rw"}, {"rbind", "ro"}},
+			ExpectedOptions: []string{"rbind"},
+		},
+		{
+			// With simple bind, no recursiveness is added
+			Options:         [][]string{{"bind", "noatime"}, {"bind", "noexec"}},
+			ExpectedOptions: []string{"noatime", "noexec", "bind"},
+		},
+		{
+			// Ordinary flags are preserved
+			Options:         [][]string{{"noexec", "noatime"}, {"noatime", "nomand"}, {"nodev"}},
+			ExpectedOptions: []string{"noexec", "noatime", "nomand", "nodev"},
+		},
+	} {
+		for _, options := range td.Options {
+			entry := defaultEntry
+			entry.Options = options
+			s.spec.AddMountEntry(entry)
+		}
+		c.Check(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+			{Dir: "/usr/foo", Name: "/here", Type: "tmpfs", Options: td.ExpectedOptions},
+		}, Commentf("Clashing entries: %q", td.Options))
 
-func (s *specSuite) TestSpecificationMergedClashBind(c *C) {
-	// A clash where both source and FS type are the same, gets resolved by
-	// merging the entries
-	entry1 := osutil.MountEntry{
-		Dir:     "/usr/foo",
-		Name:    "/here",
-		Options: []string{"bind", "rw"},
+		// reset the spec after each iteration, or flags will leak
+		s.spec = &mount.Specification{}
 	}
-	s.spec.AddMountEntry(entry1)
-	entry2 := osutil.MountEntry{
-		Dir:     "/usr/foo",
-		Name:    "/here",
-		Options: []string{"rbind", "ro"},
-	}
-	s.spec.AddMountEntry(entry2)
-	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
-		{Dir: "/usr/foo", Name: "/here", Options: []string{"rbind"}},
-	})
 }
 
 func (s *specSuite) TestParallelInstanceMountEntriesNoInstanceKey(c *C) {
