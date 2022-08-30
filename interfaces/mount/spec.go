@@ -191,6 +191,11 @@ func mergeOptions(options ...[]string) []string {
 				isRBind = true
 				fallthrough
 			case "bind":
+				// We know that the passed entries will either be all
+				// bind-mounts, or none will be a bind-mount (because
+				// unclashMountEntries() invokes us only if the source, target,
+				// and FS type are the same). That's why we check only the
+				// first entry here.
 				if i == 0 {
 					firstEntryIsBindMount = true
 				}
