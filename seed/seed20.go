@@ -764,23 +764,23 @@ func (s *seed20) Iter(f func(sn *Snap) error) error {
 }
 
 func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) error {
-	if s.model.Grade() == asserts.ModelDangerous {
-		autoImportAssert := filepath.Join(s.systemDir, "auto-import.assert")
-		af, err := os.Open(autoImportAssert)
-		// ignore if assertion file does not exists
-		if os.IsNotExist(err) {
-			return err
-		}
-		if err != nil {
-			return err
-		}
-		defer af.Close()
-		batch := asserts.NewBatch(nil)
-		if _, err := batch.AddStream(af); err != nil {
-			return err
-		}
-		err = commitTo(batch)
+	if s.model.Grade() != asserts.ModelDangerous {
+		return nil
+	}
+
+	autoImportAssert := filepath.Join(s.systemDir, "auto-import.assert")
+	af, err := os.Open(autoImportAssert)
+	// ignore if assertion file does not exists
+	if os.IsNotExist(err) {
 		return err
 	}
-	return nil
+	if err != nil {
+		return err
+	}
+	defer af.Close()
+	batch := asserts.NewBatch(nil)
+	if _, err := batch.AddStream(af); err != nil {
+		return err
+	}
+	return commitTo(batch)
 }
