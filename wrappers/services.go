@@ -169,7 +169,7 @@ RuntimeMaxUse=%[1]d
 }
 
 func formatJournalRateConf(grp *quota.Group) string {
-	if grp.JournalLimit.RateCount == 0 || grp.JournalLimit.RatePeriod == 0 {
+	if !grp.JournalLimit.RateEnabled {
 		return ""
 	}
 	return fmt.Sprintf(`RateLimitIntervalSec=%dus
