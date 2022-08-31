@@ -73,7 +73,7 @@ var getQuotaUsage = func(grp *quota.Group) (*client.QuotaValues, error) {
 		currentUsage.Memory = mem
 	}
 
-	if grp.TaskLimit != 0 {
+	if grp.ThreadLimit != 0 {
 		threads, err := grp.CurrentTaskUsage()
 		if err != nil {
 			return nil, err
@@ -87,7 +87,7 @@ var getQuotaUsage = func(grp *quota.Group) (*client.QuotaValues, error) {
 func createQuotaValues(grp *quota.Group) *client.QuotaValues {
 	var constraints client.QuotaValues
 	constraints.Memory = grp.MemoryLimit
-	constraints.Threads = grp.TaskLimit
+	constraints.Threads = grp.ThreadLimit
 
 	if grp.CPULimit != nil {
 		constraints.CPU = &client.QuotaCPUValues{
