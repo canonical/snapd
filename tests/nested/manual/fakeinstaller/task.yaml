@@ -1,0 +1,44 @@
+summary: Check that the /system/<label> API works via fake installer
+
+# this is a UC20 specific test
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+environment:
+    # nested test so that we can test encryted installs eventually
+    # TODO enable tpm variant too for testing of encryption installs
+    NESTED_ENABLE_TPM: false
+    NESTED_ENABLE_SECURE_BOOT: false
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
+    NESTED_ENABLE_OVMF: true
+
+prepare: |
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+
+  # TODO: create a classic VM here once we have support for classic systems
+  #       that can have a recovery seed dir
+  tests.nested build-image core
+  tests.nested create-vm core
+
+execute: |
+  # build fakeinstaller and put in place
+  go build -o fakeinstaller "$TESTSLIB"/fakeinstaller/main.go
+  tests.nested copy fakeinstaller
+  # create fake disk for the installer to work on
+  tests.nested exec "truncate --size=4G fake-disk.img"
+  loop_device=$(tests.nested exec "sudo losetup --show -f ./fake-disk.img")
+  tests.nested exec "echo 'label: gpt\nwrite' | sudo sfdisk $loop_device"
+  # get the seed label
+  seed_label=$(tests.nested exec "ls /var/lib/snapd/seed/systems/")
+  # and "install" the current seed to the fake disk
+  tests.nested exec "sudo ./fakeinstaller $seed_label $loop_device"
+
+  # validate that the fake installer created the expected partitions
+  tests.nested exec "sudo fdisk -x $loop_device" > fdisk_output
+  MATCH "${loop_device}p1 .* BIOS Boot"   < fdisk_output
+  # TODO: the real MVP hybrid device will not contain a ubuntu-seed
+  #       partition
+  MATCH "${loop_device}p2 .* ubuntu-seed" < fdisk_output
+  MATCH "${loop_device}p3 .* ubuntu-boot" < fdisk_output
+  MATCH "${loop_device}p4 .* ubuntu-save" < fdisk_output
+  MATCH "${loop_device}p5 .* ubuntu-data" < fdisk_output
