@@ -253,9 +253,30 @@ version: 1.0
 	}
 }
 
+func (s *snapmgrTestSuite) setModel(model *asserts.Model) {
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: model,
+		CtxStore:    s.fakeStore,
+	}
+	s.AddCleanup(snapstatetest.MockDeviceContext(deviceCtx))
+	s.state.Set("seeded", true)
+}
+
 func (s *snapmgrTestSuite) TestInstallSnapdSnapTypeOnClassic(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// setup a classic model so the device context says we are on classic
+	a := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"classic":      "true",
+	})
+	s.setModel(a.(*asserts.Model))
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
 	ts, err := snapstate.Install(context.Background(), s.state, "snapd", opts, 0, snapstate.Flags{})

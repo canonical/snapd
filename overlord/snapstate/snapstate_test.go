@@ -36,6 +36,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -4235,6 +4236,8 @@ func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 	defer st.Unlock()
 
 	task := st.NewTask("auto-connect", "...")
+	chg := st.NewChange("test-finish-restart", "...")
+	chg.AddTask(task)
 
 	// not restarting
 	restart.MockPending(st, restart.RestartUnset)
@@ -4262,6 +4265,8 @@ func (s *snapmgrTestSuite) TestFinishRestartNoopWhenPreseeding(c *C) {
 	defer st.Unlock()
 
 	task := st.NewTask("auto-connect", "...")
+	chg := st.NewChange("test-finish-restart", "...")
+	chg.AddTask(task)
 
 	// not restarting
 	si := &snap.SideInfo{RealName: "some-app"}
@@ -4330,6 +4335,8 @@ type: snapd
 		release.MockOnClassic(tc.onClassic)
 
 		task := st.NewTask("auto-connect", "...")
+		chg := st.NewChange("test-finish-restart", "...")
+		chg.AddTask(task)
 		si := &snap.SideInfo{Revision: snap.R("x2"), RealName: tc.snapName}
 		snapInfo := snaptest.MockSnapCurrent(c, string(tc.snapYaml), si)
 		snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snapInfo.SnapType}
@@ -5902,6 +5909,18 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapStartsAutomaticallyWhenEnabled
 func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// setup a classic model so the device context says we are on classic
+	a := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"classic":      "true",
+	})
+	s.setModel(a.(*asserts.Model))
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
@@ -7687,6 +7706,18 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 		Current:  snap.R(1),
 		SnapType: "snapd",
 	})
+
+	// setup a classic model so the device context says we are on classic
+	a := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"classic":      "true",
+	})
+	s.setModel(a.(*asserts.Model))
 
 	chg := s.state.NewChange("snapd-refresh", "refresh snapd")
 	ts, err := snapstate.Update(s.state, "snapd", nil, 0, snapstate.Flags{})
