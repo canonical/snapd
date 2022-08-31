@@ -28,30 +28,29 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 )
 
 func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		return fmt.Errorf("cannot run update boot config task on a classic system")
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
 
+	devCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+	if devCtx.IsClassicBoot() {
+		return fmt.Errorf("cannot run update boot config task on a classic system")
+	}
+
 	var seeded bool
-	err := st.Get("seeded", &seeded)
+	err = st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
 		// do nothing during first boot & seeding
 		return nil
-	}
-	devCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return err
 	}
 
 	if devCtx.Model().Grade() == asserts.ModelGradeUnset {
@@ -80,10 +79,12 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 	}
 	if updated {
 		t.Logf("updated boot config assets")
-		// boot assets were updated, request a restart now so that the
-		// situation does not end up more complicated if more updates of
-		// boot assets were to be applied
-		snapstate.RestartSystem(t, nil)
+		// boot assets were updated, request a restart now if allowed by
+		// the system type so that the situation does not end up more
+		// complicated if more updates of boot assets were to be applied
+		if err := snapstate.MaybeReboot(t); err != nil {
+			return err
+		}
 	}
 
 	// minimize wasteful redos

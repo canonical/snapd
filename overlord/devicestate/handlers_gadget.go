@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -82,10 +81,6 @@ var (
 )
 
 func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		return fmt.Errorf("cannot run update gadget assets task on a classic system")
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -98,6 +93,9 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	remodelCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return err
+	}
+	if remodelCtx.IsClassicBoot() {
+		return fmt.Errorf("cannot run update gadget assets task on a classic system")
 	}
 	isRemodel := remodelCtx.ForRemodeling()
 	groundDeviceCtx := remodelCtx.GroundContext()
@@ -210,9 +208,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 	// TODO: consider having the option to do this early via recovery in
 	// core20, have fallback code as well there
-	snapstate.RestartSystem(t, nil)
-
-	return nil
+	return snapstate.MaybeReboot(t)
 }
 
 func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, isUndo bool) (updated bool, err error) {
@@ -249,16 +245,20 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 }
 
 func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		return fmt.Errorf("internal error: cannot run update gadget kernel command line task on a classic system")
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
 
+	devCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+	if devCtx.IsClassicBoot() {
+		return fmt.Errorf("internal error: cannot run update gadget kernel command line task on a classic system")
+	}
+
 	var seeded bool
-	err := st.Get("seeded", &seeded)
+	err = st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -285,21 +285,24 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 	// kernel command line
 
 	// kernel command line was updated, request a reboot to make it effective
-	snapstate.RestartSystem(t, nil)
-	return nil
+	return snapstate.MaybeReboot(t)
 }
 
 func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		return fmt.Errorf("internal error: cannot run update gadget kernel command line task on a classic system")
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
 
+	devCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+	if devCtx.IsClassicBoot() {
+		return fmt.Errorf("internal error: cannot run undo update gadget kernel command line task on a classic system")
+	}
+
 	var seeded bool
-	err := st.Get("seeded", &seeded)
+	err = st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -322,6 +325,5 @@ func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb)
 	t.SetStatus(state.UndoneStatus)
 
 	// kernel command line was updated, request a reboot to make it effective
-	snapstate.RestartSystem(t, nil)
-	return nil
+	return snapstate.MaybeReboot(t)
 }
