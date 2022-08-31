@@ -176,8 +176,13 @@ func (qr *Resources) validateJournalQuota() error {
 	}
 
 	if qr.Journal.Rate != nil {
-		if qr.Journal.Rate.Count <= 0 || qr.Journal.Rate.Period < time.Microsecond {
-			return fmt.Errorf("journal quota must have a rate count larger than zero and period at least 1 microsecond (minimum resolution)")
+		// The only invalid numbers for the count are those less than 0
+		if qr.Journal.Rate.Count < 0 {
+			return fmt.Errorf("journal quota must have a rate count equal to or larger than zero")
+		}
+		// The only invalid numbers for period are values larger than 0 but less than 1us
+		if qr.Journal.Rate.Period > 0 && qr.Journal.Rate.Period < time.Microsecond {
+			return fmt.Errorf("journal quota must have a period of at least 1 microsecond (minimum resolution)")
 		}
 	}
 	return nil
@@ -335,16 +340,8 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 				newLimits.Journal.Size.Limit, journalLimitMin.IECString())
 		}
 
-		if qr.Journal.Rate != nil && newLimits.Journal.Rate != nil {
-			count := newLimits.Journal.Rate.Count
-			period := newLimits.Journal.Rate.Period
-
-			// Validate() will make sure the period is atleast one microsecond, here
-			// we simply check against != 0 to make sure the user is not removing limit
-			if count == 0 && period == 0 {
-				return fmt.Errorf("cannot remove journal rate limit from quota group")
-			}
-		}
+		// Allow any changes done to the rate/period, as 0 values mean turning off
+		// rate-limit for the group, overriding the journal default which is 10000/30s
 	}
 
 	return nil

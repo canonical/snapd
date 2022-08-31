@@ -71,9 +71,13 @@ type GroupQuotaJournal struct {
 
 	// RateCount/RatePeriod determines the maximum rate of journal writes for
 	// the group. The count is the number of journal messages that can be written
-	// in each period. 0 Values here means there is no limit currently set.
-	RateCount  int           `json:"rate-count,omitempty"`
-	RatePeriod time.Duration `json:"rate-period,omitempty"`
+	// in each period. We treat rate values a bit different as 0 are valid values
+	// here and used to override the journal default rate (which is not unlimited),
+	// and thus the reason we have RateEnabled to tell us whether the values are
+	// to be used.
+	RateEnabled bool          `json:"rate-enabled,omitempty"`
+	RateCount   int           `json:"rate-count,omitempty"`
+	RatePeriod  time.Duration `json:"rate-period,omitempty"`
 }
 
 // Group is a quota group of snaps, services or sub-groups that are all subject
@@ -171,7 +175,7 @@ func (grp *Group) GetQuotaResources() Resources {
 		if grp.JournalLimit.Size != 0 {
 			resourcesBuilder.WithJournalSize(grp.JournalLimit.Size)
 		}
-		if grp.JournalLimit.RateCount != 0 && grp.JournalLimit.RatePeriod != 0 {
+		if grp.JournalLimit.RateEnabled {
 			resourcesBuilder.WithJournalRate(grp.JournalLimit.RateCount, grp.JournalLimit.RatePeriod)
 		}
 	}
@@ -726,6 +730,7 @@ func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) error {
 			grp.JournalLimit.Size = resourceLimits.Journal.Size.Limit
 		}
 		if resourceLimits.Journal.Rate != nil {
+			grp.JournalLimit.RateEnabled = true
 			grp.JournalLimit.RateCount = resourceLimits.Journal.Rate.Count
 			grp.JournalLimit.RatePeriod = resourceLimits.Journal.Rate.Period
 		}
