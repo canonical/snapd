@@ -3116,9 +3116,6 @@ func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoForceUnencrypted(c 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
-	defer restore()
-
 	kernelInfo := makeInstalledMockKernelSnap(c, s.state, kernelYamlNoFdeSetup)
 	gadgetSnapInfo := s.makeMockInstalledPcGadget(c, "", "")
 	gadgetInfo, err := gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
@@ -3126,11 +3123,12 @@ func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoForceUnencrypted(c 
 
 	var testCases = []struct {
 		grade, storageSafety, forceUnencrypted string
+		tpmErr                                 error
 
 		expected devicestate.EncryptionSupportInfo
 	}{
 		{
-			"dangerous", "", "",
+			"dangerous", "", "", nil,
 			devicestate.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
@@ -3138,17 +3136,30 @@ func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoForceUnencrypted(c 
 			},
 		},
 		{
-			"dangerous", "", "force-unencrypted",
+			"dangerous", "", "force-unencrypted", nil,
 			devicestate.EncryptionSupportInfo{
-				Available: true, Disabled: true,
+				// Encryption is forcefully disabled
+				// here so no further
+				// availability/enc-type checks are
+				// performed.
+				Available: false, Disabled: true,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
-				// Note that encryption type is set to what is available
-				Type: secboot.EncryptionTypeLUKS,
+				Type:          secboot.EncryptionTypeNone,
+			},
+		},
+		{
+			"dangerous", "", "force-unencrypted", fmt.Errorf("no tpm"),
+			devicestate.EncryptionSupportInfo{
+				// Encryption is forcefully disabled
+				// here so the "no tpm" error is never visible
+				Available: false, Disabled: true,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeNone,
 			},
 		},
 		// not possible to disable encryption on non-dangerous devices
 		{
-			"signed", "", "",
+			"signed", "", "", nil,
 			devicestate.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
@@ -3156,7 +3167,7 @@ func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoForceUnencrypted(c 
 			},
 		},
 		{
-			"signed", "", "force-unencrypted",
+			"signed", "", "force-unencrypted", nil,
 			devicestate.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyPreferEncrypted,
@@ -3164,7 +3175,16 @@ func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoForceUnencrypted(c 
 			},
 		},
 		{
-			"secured", "", "",
+			"signed", "", "force-unencrypted", fmt.Errorf("no tpm"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+				Type:               secboot.EncryptionTypeNone,
+				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
+			},
+		},
+		{
+			"secured", "", "", nil,
 			devicestate.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
@@ -3172,16 +3192,28 @@ func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoForceUnencrypted(c 
 			},
 		},
 		{
-			"secured", "", "force-unencrypted",
+			"secured", "", "force-unencrypted", nil,
 			devicestate.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety: asserts.StorageSafetyEncrypted,
 				Type:          secboot.EncryptionTypeLUKS,
+			},
+		},
+		{
+			"secured", "", "force-unencrypted", fmt.Errorf("no tpm"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
 			},
 		},
 	}
 
 	for _, tc := range testCases {
+		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return tc.tpmErr })
+		defer restore()
+
 		mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
 			"display-name":   "my model",
 			"architecture":   "amd64",

@@ -2292,6 +2292,7 @@ func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *
 	// TODO:UC20: this is not the final mechanism to bypass encryption
 	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
 		res.Disabled = true
+		return res, nil
 	}
 
 	// check encryption: this can either be provided by the fde-setup
