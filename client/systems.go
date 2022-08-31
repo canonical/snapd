@@ -26,6 +26,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -137,4 +138,27 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 		return xerrors.Errorf("cannot request system reboot: %v", err)
 	}
 	return nil
+}
+
+// XXX duplicated from "clientutil" but can't be imported here because
+//     of circular imports
+type modelJson struct {
+	Headers map[string]interface{} `json:"headers,omitempty"`
+	Body    string                 `json:"body,omitempty"`
+}
+
+type SystemDetailsData struct {
+	Model   modelJson                 `json:"model,omitempty"`
+	Volumes map[string]*gadget.Volume `json:"volumes,omitempty"`
+
+	// TODO: add EncryptionSupportInfo here too
+}
+
+func (client *Client) SystemDetails(seedLabel string) (*SystemDetailsData, error) {
+	var rsp SystemDetailsData
+
+	if _, err := client.doSync("GET", "/v2/systems/"+seedLabel, nil, nil, nil, &rsp); err != nil {
+		return nil, xerrors.Errorf("cannot get details for system %q: %v", seedLabel, err)
+	}
+	return &rsp, nil
 }
