@@ -203,7 +203,7 @@ func (qr *Resources) CheckFeatureRequirements() error {
 	return nil
 }
 
-// IsZero returns whether or not there is at least one limit set
+// IsZero returns true if there is no limit set
 func (qr *Resources) IsZero() bool {
 	return qr.Memory == nil && qr.CPU == nil && qr.CPUSet == nil && qr.Threads == nil && qr.Journal == nil
 }
