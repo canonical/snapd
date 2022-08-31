@@ -167,7 +167,6 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts 
 		if !opts.CreateAllMissingPartitions && !gadget.IsCreatableAtInstall(p.VolumeStructure) {
 			return nil, nil, fmt.Errorf("cannot create partition %s", p)
 		}
-
 		// Check if the data partition should be expanded
 		newSizeInSectors := uint64(s.Size) / sectorSize
 		if s.Role == gadget.SystemData && canExpandData && startInSectors+newSizeInSectors < dl.UsableSectorsEnd {
