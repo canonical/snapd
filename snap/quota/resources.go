@@ -203,6 +203,11 @@ func (qr *Resources) CheckFeatureRequirements() error {
 	return nil
 }
 
+// IsZero returns whether or not there is at least one limit set
+func (qr *Resources) IsZero() bool {
+	return qr.Memory == nil && qr.CPU == nil && qr.CPUSet == nil && qr.Threads == nil && qr.Journal == nil
+}
+
 // Validate performs basic validation of the provided quota resources for a group.
 // The restrictions imposed are that at least one limit should be set, and each
 // of the imposed limits are not zero.
@@ -210,7 +215,7 @@ func (qr *Resources) CheckFeatureRequirements() error {
 // Note that before applying the quota to the system
 // CheckFeatureRequirements() should be called.
 func (qr *Resources) Validate() error {
-	if qr.Memory == nil && qr.CPU == nil && qr.CPUSet == nil && qr.Threads == nil && qr.Journal == nil {
+	if qr.IsZero() {
 		return fmt.Errorf("quota group must have at least one resource limit set")
 	}
 

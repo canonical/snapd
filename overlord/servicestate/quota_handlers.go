@@ -416,8 +416,8 @@ func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]
 		return nil, nil, false, fmt.Errorf("internal error, AddSnaps option cannot be used with remove action")
 	}
 
-	if action.ResourceLimits.Memory != nil {
-		return nil, nil, false, fmt.Errorf("internal error, MemoryLimit option cannot be used with remove action")
+	if !action.ResourceLimits.IsZero() {
+		return nil, nil, false, fmt.Errorf("internal error, quota limit options cannot be used with remove action")
 	}
 
 	// XXX: remove this limitation eventually

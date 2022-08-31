@@ -916,6 +916,30 @@ func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
 	checkSvcAndSliceState(c, "test-snap.svc1", "foo", quota.NewResourcesBuilder().Build())
 }
 
+func (s *quotaHandlersSuite) TestQuotaRemoveWithLimitSetFails(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	err := servicestatetest.MockQuotaInState(st, "foo", "", []string{"test-snap"},
+		quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	// but we can remove the sub-group successfully first
+	qc := servicestate.QuotaControlAction{
+		Action:         "remove",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithThreadLimit(16).Build(),
+	}
+
+	err = s.callDoQuotaControl(&qc)
+	c.Assert(err, ErrorMatches, `internal error, quota limit options cannot be used with remove action`)
+}
+
 func (s *quotaHandlersSuite) TestQuotaSnapModifyExistingMixable(c *C) {
 	st := s.state
 	st.Lock()
