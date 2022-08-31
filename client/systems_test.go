@@ -26,6 +26,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -214,4 +215,84 @@ func (cs *clientSuite) TestRequestSystemRebootErrorWithSystem(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `cannot request system reboot into "1234": failed`)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
+}
+
+func (cs *clientSuite) TestSystemDetailsNone(c *check.C) {
+	cs.rsp = `{
+	    "type": "sync",
+	    "status-code": 404,
+	    "result": {
+	       "kind": "assertion-not-found",
+	       "value": "model"
+            }
+	}`
+	_, err := cs.cli.SystemDetails("20190102")
+	c.Assert(err, check.IsNil)
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/20190102")
+}
+
+func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
+	cs.rsp = `{
+	    "type": "sync",
+	    "status-code": 200,
+	    "result": {
+                "current": true,
+                "label": "20200101",
+                "model": {
+                    "model": "this-is-model-id",
+                    "brand-id": "brand-id-1",
+                    "display-name": "wonky model"
+                },
+                "brand": {
+                    "id": "brand-id-1",
+                    "username":"brand-username-1",
+                    "display-name":"Brandy Display Name",
+                    "validation":"validated"
+                },
+                "actions": [
+                    {"title": "recover", "mode": "recover"},
+                    {"title": "reinstall", "mode": "install"}
+                ],
+                "volumes": {
+                    "pc": {
+                        "schema":"gpt",
+                        "bootloader":"grub",
+                        "structure":[{"name":"mbr","type":"mbr","size":440}]
+                    }
+                }
+            }
+	}`
+	sys, err := cs.cli.SystemDetails("20190102")
+	c.Assert(err, check.IsNil)
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/20190102")
+	c.Check(sys, check.DeepEquals, &client.SystemDetailsData{
+		Current: true,
+		Label:   "20200101",
+		Model: map[string]interface{}{
+			"model":        "this-is-model-id",
+			"brand-id":     "brand-id-1",
+			"display-name": "wonky model",
+		},
+		Brand: snap.StoreAccount{
+			ID:          "brand-id-1",
+			Username:    "brand-username-1",
+			DisplayName: "Brandy Display Name",
+			Validation:  "validated",
+		},
+		Actions: []client.SystemAction{
+			{Title: "recover", Mode: "recover"},
+			{Title: "reinstall", Mode: "install"},
+		},
+		Volumes: map[string]*gadget.Volume{
+			"pc": {
+				Schema:     "gpt",
+				Bootloader: "grub",
+				Structure: []gadget.VolumeStructure{
+					{Name: "mbr", Type: "mbr", Size: 440},
+				},
+			},
+		},
+	})
 }
