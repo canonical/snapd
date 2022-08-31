@@ -56,11 +56,20 @@ func reloadPartitionTable(gadgetRoot string, device string) error {
 	}
 }
 
-// createMissingPartitions creates the partitions listed in the laid out volume
+type Constraints struct {
+	// Allow creating all partitions not just role-* ones
+	AllPartitions bool
+}
+
+// CreateMissingPartitions creates the partitions listed in the laid out volume
 // pv that are missing from the existing device layout, returning a list of
 // structures that have been created.
-func createMissingPartitions(gadgetRoot string, dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) ([]gadget.OnDiskStructure, error) {
-	buf, created, err := buildPartitionList(dl, pv)
+func CreateMissingPartitions(gadgetRoot string, dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, constraints *Constraints) ([]gadget.OnDiskStructure, error) {
+	if constraints == nil {
+		constraints = &Constraints{}
+	}
+
+	buf, created, err := buildPartitionList(dl, pv, constraints)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +113,11 @@ func createMissingPartitions(gadgetRoot string, dl *gadget.OnDiskVolume, pv *gad
 // device contents and gadget structure list, in sfdisk dump format, and
 // returns a partitioning description suitable for sfdisk input and a
 // list of the partitions to be created.
-func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []gadget.OnDiskStructure, err error) {
+func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, constraints *Constraints) (sfdiskInput *bytes.Buffer, toBeCreated []gadget.OnDiskStructure, err error) {
+	if constraints == nil {
+		constraints = &Constraints{}
+	}
+
 	sectorSize := uint64(dl.SectorSize)
 
 	// Keep track what partitions we already have on disk - the keys to this map
@@ -147,10 +160,9 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 		}
 
 		// Only allow creating certain partitions, namely the ubuntu-* roles
-		if !gadget.IsCreatableAtInstall(p.VolumeStructure) {
+		if !constraints.AllPartitions && !gadget.IsCreatableAtInstall(p.VolumeStructure) {
 			return nil, nil, fmt.Errorf("cannot create partition %s", p)
 		}
-
 		// Check if the data partition should be expanded
 		newSizeInSectors := uint64(s.Size) / sectorSize
 		if s.Role == gadget.SystemData && canExpandData && startInSectors+newSizeInSectors < dl.UsableSectorsEnd {

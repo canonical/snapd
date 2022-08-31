@@ -233,7 +233,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 
 	var created []gadget.OnDiskStructure
 	timings.Run(perfTimings, "create-partitions", "Create partitions", func(timings.Measurer) {
-		created, err = createMissingPartitions(gadgetRoot, diskLayout, laidOutBootVol)
+		created, err = CreateMissingPartitions(gadgetRoot, diskLayout, laidOutBootVol, nil)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot create the partitions: %v", err)
