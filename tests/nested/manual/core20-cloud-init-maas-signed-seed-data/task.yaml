@@ -33,7 +33,6 @@ environment:
   NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-{VERSION}-auto-import.assert
 
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-signed.model
-  NESTED_IMAGE_ID: grade-signed-cloud-init-maas-$GADGET_DATASOURCE
 
   # for the fake store
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir

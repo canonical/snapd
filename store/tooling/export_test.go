@@ -20,7 +20,6 @@
 package tooling
 
 import (
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -29,12 +28,8 @@ var (
 	ErrPathInBase        = errPathInBase
 )
 
-func (tsto *ToolingStore) User() *auth.UserState {
-	return tsto.user
-}
-
-func ToolingStoreContext() store.DeviceAndAuthContext {
-	return toolingStoreContext{}
+func (tsto *ToolingStore) Creds() store.Authorizer {
+	return tsto.creds
 }
 
 func (opts *DownloadSnapOptions) Validate() error {

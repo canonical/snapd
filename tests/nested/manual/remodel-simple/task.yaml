@@ -8,7 +8,6 @@ systems: [ubuntu-18.04-64, ubuntu-20.04-64]
 
 environment:
     NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/test-snapd-remodel-auto-import.assert
-    NESTED_IMAGE_ID: remodel-simple
     NESTED_ENABLE_TPM: false
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_USE_CLOUD_INIT: false
