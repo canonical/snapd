@@ -26,6 +26,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -137,4 +138,49 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 		return xerrors.Errorf("cannot request system reboot: %v", err)
 	}
 	return nil
+}
+
+type InstallStep string
+
+const (
+	InstallStepSetupStorageEncryption InstallStep = "setup-storage-encryption"
+	InstallStepFinish                 InstallStep = "finish"
+)
+
+type SystemActionInstall struct {
+	// Step is the install step, either "setup-storage-encryption"
+	// or "finish".
+	Step InstallStep `json:"step,omitempty"`
+	// OnVolumes is the volume description of the volumes that the
+	// given step should operate on.
+	OnVolumes map[string][]gadget.Volume `json:"on-volumes,omitempty"`
+}
+
+// XXX: or SystemInstallStep() ?
+// InstallSystem will perform the given install step for the given volumes
+func (client *Client) InstallSystem(systemLabel string, step InstallStep, volumes map[string][]gadget.Volume) (changeID string, err error) {
+	// verification is done by the backend
+	req := struct {
+		Action string `json:"action"`
+		*SystemActionInstall
+	}{
+		Action: "install",
+		SystemActionInstall: &SystemActionInstall{
+			Step:      step,
+			OnVolumes: volumes,
+		},
+	}
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(&req); err != nil {
+		return "", err
+	}
+	chgID, err := client.doAsync("POST", "/v2/systems/"+systemLabel, nil, nil, &body)
+	if err != nil {
+		if systemLabel != "" {
+			return "", xerrors.Errorf("cannot request system install for %q: %v", systemLabel, err)
+		}
+		return "", xerrors.Errorf("cannot request system install: %v", err)
+	}
+	return chgID, nil
 }

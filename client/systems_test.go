@@ -26,6 +26,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -212,6 +213,58 @@ func (cs *clientSuite) TestRequestSystemRebootErrorWithSystem(c *check.C) {
 	}`
 	err := cs.cli.RebootToSystem("1234", "install")
 	c.Assert(err, check.ErrorMatches, `cannot request system reboot into "1234": failed`)
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
+}
+
+func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"type": "async",
+		"status-code": 202,
+		"change": "42"
+	}`
+	vols := map[string][]gadget.Volume{
+		"pc": {
+			{Schema: "dos", Bootloader: "mbr", ID: "0c", Name: "pc"},
+		},
+	}
+	chgID, err := cs.cli.InstallSystem("1234", client.InstallStepFinish, vols)
+	c.Assert(err, check.IsNil)
+	c.Assert(chgID, check.Equals, "42")
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	var req map[string]interface{}
+	err = json.Unmarshal(body, &req)
+	c.Assert(err, check.IsNil)
+	c.Assert(req, check.DeepEquals, map[string]interface{}{
+		"action": "install",
+		"step":   "finish",
+		"on-volumes": map[string]interface{}{
+			"pc": []interface{}{
+				map[string]interface{}{
+					"schema":     "dos",
+					"bootloader": "mbr",
+					"id":         "0c",
+					"name":       "pc",
+					"structure":  nil,
+				},
+			},
+		},
+	})
+}
+
+func (cs *clientSuite) TestRequestSystemInstallErrorNoSystem(c *check.C) {
+	cs.rsp = `{
+	    "type": "error",
+	    "status-code": 500,
+	    "result": {"message": "failed"}
+	}`
+	_, err := cs.cli.InstallSystem("1234", client.InstallStepFinish, nil)
+	c.Assert(err, check.ErrorMatches, `cannot request system install for "1234": failed`)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
 }
