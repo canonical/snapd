@@ -8,7 +8,7 @@ environment:
     DISK_MAPPING_JSON: /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/disk-mapping.json
 
 prepare: |
-    if not os.query os.query is-pc-amd64; then
+    if not os.query is-pc-amd64; then
         echo "test designed for amd64 architecture, exiting..."
         exit
     fi
