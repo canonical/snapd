@@ -137,7 +137,7 @@ func setImageBootFlags(flags []string, blVars map[string]string) error {
 // used by a userspace that is newer than the initramfs, but empty flags will be
 // dropped automatically.
 // Only to be used on UC20+ systems with recovery systems.
-func InitramfsActiveBootFlags(mode string) ([]string, error) {
+func InitramfsActiveBootFlags(mode string, rootfsDir string) ([]string, error) {
 	switch mode {
 	case ModeRecover:
 		// no boot flags are consumed / used on recover mode, so return nothing
@@ -149,7 +149,7 @@ func InitramfsActiveBootFlags(mode string) ([]string, error) {
 
 	case ModeRun:
 		// boot flags come from the modeenv
-		modeenv, err := ReadModeenv(InitramfsWritableDir)
+		modeenv, err := ReadModeenv(rootfsDir)
 		if err != nil {
 			return nil, err
 		}
