@@ -8,7 +8,7 @@ details: |
 #   Object /org/freedesktop/UDisks2/block_devices/loop200 is not a mountable filesystem.
 # 2021-11-02: disabled ubuntu-18.04-32 because it keeps failing when trying
 #             to create/use /dev/loop200
-systems: [-ubuntu-core-*, -arch-linux-*, -centos-9-*, -ubuntu-18.04-32]
+systems: [-ubuntu-core-*, -arch-linux-*, -centos-9-*, -fedora-*, -ubuntu-18.04-32]
 
 environment:
     FS_PATH: "$(pwd)/dev0-fake0"
