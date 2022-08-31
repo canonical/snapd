@@ -5139,3 +5139,26 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallNewNoReseal(c *
 	// no reseal
 	c.Check(resealCalls, Equals, 0)
 }
+
+func (s *bootenvSuite) TestSnapTypeAffectsBootForDev(c *C) {
+	classicDev := boottest.MockDevice("")
+	legacyCoreDev := boottest.MockDevice("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
+	coreDevInstallMode := boottest.MockUC20Device("install", nil)
+
+	for _, typ := range []snap.Type{
+		snap.TypeKernel,
+		snap.TypeOS,
+		snap.TypeBase,
+	} {
+		c.Check(boot.SnapTypeAffectsBootForDev(typ, classicDev), Equals, false)
+		c.Check(boot.SnapTypeAffectsBootForDev(typ, legacyCoreDev), Equals, true)
+		c.Check(boot.SnapTypeAffectsBootForDev(typ, coreDev), Equals, true)
+		c.Check(boot.SnapTypeAffectsBootForDev(typ, coreDevInstallMode), Equals, false)
+	}
+
+	classicWithModesDev := boottest.MockClassicWithModesDevice("", nil)
+	c.Check(boot.SnapTypeAffectsBootForDev(snap.TypeKernel, classicWithModesDev), Equals, true)
+	c.Check(boot.SnapTypeAffectsBootForDev(snap.TypeOS, classicWithModesDev), Equals, false)
+	c.Check(boot.SnapTypeAffectsBootForDev(snap.TypeBase, classicWithModesDev), Equals, false)
+}
