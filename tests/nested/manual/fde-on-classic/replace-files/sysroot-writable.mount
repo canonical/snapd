@@ -1,0 +1,17 @@
+[Unit]
+DefaultDependencies=no
+Before=initrd-fs.target
+
+Wants=sysroot.mount
+After=sysroot.mount
+
+After=run-mnt-data.mount
+After=run-mnt-base.mount
+After=snap-initramfs-mounts.service
+
+ConditionPathIsMountPoint=/run/mnt/base
+
+[Mount]
+What=/run/mnt/data
+Type=none
+Options=bind
