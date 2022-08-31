@@ -52,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var _ = check.Suite(&systemsSuite{})
@@ -973,4 +974,27 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 			},
 		},
 	})
+}
+
+// TODO: update once "action":"install" is actually doing something :)
+func (s *systemsSuite) TestSystemInstallActionNotImplementedYet(c *check.C) {
+	s.daemon(c)
+
+	body := map[string]string{
+		"action": "install",
+		"step":   "finish",
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+	c.Assert(err, check.IsNil)
+
+	// as root
+	s.asRootAuth(req)
+	rec := httptest.NewRecorder()
+	s.serveHTTP(c, rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	// TODO: update once it actually does something
+	c.Check(rec.Body.String(), testutil.Contains, "system action install is not implemented yet")
 }

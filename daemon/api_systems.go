@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"os"
 
@@ -156,29 +157,42 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 	return SyncResponse(rsp)
 }
 
-type systemActionRequest struct {
-	Action string `json:"action"`
-	client.SystemAction
-}
-
 func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
-	var req systemActionRequest
 	systemLabel := muxVars(r)["label"]
 
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&req); err != nil {
+	// XXX: is there a better way to partially decode?
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return BadRequest("cannot read request body: %v", err)
+	}
+
+	var act struct {
+		Action string `json:"action"`
+	}
+	if err := json.Unmarshal(body, &act); err != nil {
 		return BadRequest("cannot decode request body into system action: %v", err)
 	}
-	if decoder.More() {
-		return BadRequest("extra content found in request body")
-	}
-	switch req.Action {
+	switch act.Action {
 	case "do":
+		var req client.SystemAction
+		if err := json.Unmarshal(body, &req); err != nil {
+			return BadRequest("cannot decode request body into system action: %v", err)
+		}
 		return postSystemActionDo(c, systemLabel, &req)
 	case "reboot":
+		var req client.SystemAction
+		if err := json.Unmarshal(body, &req); err != nil {
+			return BadRequest("cannot decode request body into system action: %v", err)
+		}
 		return postSystemActionReboot(c, systemLabel, &req)
+	case "install":
+		var req client.SystemActionInstall
+		if err := json.Unmarshal(body, &req); err != nil {
+			return BadRequest("cannot decode request body into system action: %v", err)
+		}
+		return postSystemActionInstall(c, systemLabel, &req)
 	default:
-		return BadRequest("unsupported action %q", req.Action)
+		return BadRequest("unsupported action %q", act.Action)
 	}
 }
 
@@ -200,7 +214,7 @@ var deviceManagerReboot = func(dm *devicestate.DeviceManager, systemLabel, mode 
 	return dm.Reboot(systemLabel, mode)
 }
 
-func postSystemActionReboot(c *Command, systemLabel string, req *systemActionRequest) Response {
+func postSystemActionReboot(c *Command, systemLabel string, req *client.SystemAction) Response {
 	dm := c.d.overlord.DeviceManager()
 	if err := deviceManagerReboot(dm, systemLabel, req.Mode); err != nil {
 		return handleSystemActionErr(err, systemLabel)
@@ -208,7 +222,7 @@ func postSystemActionReboot(c *Command, systemLabel string, req *systemActionReq
 	return SyncResponse(nil)
 }
 
-func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest) Response {
+func postSystemActionDo(c *Command, systemLabel string, req *client.SystemAction) Response {
 	if systemLabel == "" {
 		return BadRequest("system action requires the system label to be provided")
 	}
@@ -224,4 +238,9 @@ func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest
 		return handleSystemActionErr(err, systemLabel)
 	}
 	return SyncResponse(nil)
+}
+
+func postSystemActionInstall(c *Command, systemLabel string, req *client.SystemActionInstall) Response {
+	// TODO: call new devicestate.InstallStep()
+	return BadRequest("system action install is not implemented yet")
 }
