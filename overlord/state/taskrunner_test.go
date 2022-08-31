@@ -809,6 +809,35 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 	c.Check(t.AtTime().IsZero(), Equals, false)
 }
 
+func (ts *taskRunnerSuite) TestStopAskForHold(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	ch := make(chan bool)
+	r.AddHandler("ask-for-hold", func(t *state.Task, tb *tomb.Tomb) error {
+		ch <- true
+		<-tb.Dying()
+		// ask for hold
+		return &state.Hold{}
+	}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := st.NewTask("ask-for-hold", "...")
+	chg.AddTask(t)
+	st.Unlock()
+
+	r.Ensure()
+	<-ch
+	r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(t.Status(), Equals, state.HoldStatus)
+}
+
 func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
 	ensureBeforeTick := make(chan bool, 1)
 	sb := &stateBackend{

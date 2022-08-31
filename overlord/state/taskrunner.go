@@ -46,6 +46,17 @@ func (r *Retry) Error() string {
 	return "task should be retried"
 }
 
+// Hold is returned from a handler to signal that the task cannot
+// proceed at the moment and that some manual action from the user
+// is usually required at this point.
+type Hold struct {
+	Reason string
+}
+
+func (r *Hold) Error() string {
+	return "task hold, manual action required"
+}
+
 type blockedFunc func(t *Task, running []*Task) bool
 
 // TaskRunner controls the running of goroutines to execute known task kinds.
@@ -222,7 +233,7 @@ func (r *TaskRunner) run(t *Task) {
 		switch err.(type) {
 		case nil:
 			// we are ok
-		case *Retry:
+		case *Retry, *Hold:
 			// preserve
 		default:
 			if r.stopped {
@@ -242,6 +253,8 @@ func (r *TaskRunner) run(t *Task) {
 			} else if x.After != 0 {
 				t.At(timeNow().Add(x.After))
 			}
+		case *Hold:
+			t.SetStatus(HoldStatus)
 		case nil:
 			var next []*Task
 			switch t.Status() {
