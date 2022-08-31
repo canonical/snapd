@@ -35,8 +35,8 @@ func MockDeviceManagerReboot(f func(*devicestate.DeviceManager, string, string) 
 }
 
 type (
-	SystemsResponse    = systemsResponse
-	OneSystemsResponse = oneSystemsResponse
+	SystemsResponse   = systemsResponse
+	OneSystemResponse = oneSystemResponse
 )
 
 func MockDeviceManagerModelAndGadgetInfoFromSeed(f func(*devicestate.DeviceManager, string) (*asserts.Model, *gadget.Info, error)) (restore func()) {

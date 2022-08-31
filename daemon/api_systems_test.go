@@ -808,8 +808,8 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
 	rsp := s.syncReq(c, req, nil)
 
 	c.Assert(rsp.Status, check.Equals, 200)
-	sys := rsp.Result.(daemon.OneSystemsResponse)
-	c.Assert(sys, check.DeepEquals, daemon.OneSystemsResponse{
+	sys := rsp.Result.(daemon.OneSystemResponse)
+	c.Assert(sys, check.DeepEquals, daemon.OneSystemResponse{
 		Model: clientutil.ModelAssertJSON{
 			Headers: s.seedModelForLabel20191119.Headers(),
 			Body:    string(s.seedModelForLabel20191119.Body()),
@@ -864,9 +864,9 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	rsp := s.syncReq(c, req, nil)
 
 	c.Assert(rsp.Status, check.Equals, 200)
-	sys := rsp.Result.(daemon.OneSystemsResponse)
+	sys := rsp.Result.(daemon.OneSystemResponse)
 
-	c.Assert(sys, check.DeepEquals, daemon.OneSystemsResponse{
+	c.Assert(sys, check.DeepEquals, daemon.OneSystemResponse{
 		Model: clientutil.ModelAssertJSON{
 			Headers: s.seedModelForLabel20191119.Headers(),
 			Body:    string(s.seedModelForLabel20191119.Body()),

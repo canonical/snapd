@@ -105,7 +105,7 @@ func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(&rsp)
 }
 
-type oneSystemsResponse struct {
+type oneSystemResponse struct {
 	Model   clientutil.ModelAssertJSON `json:"model,omitempty"`
 	Volumes map[string]*gadget.Volume  `json:"volumes,omitempty"`
 
@@ -118,7 +118,7 @@ var deviceManagerModelAndGadgetInfoFromSeed = func(dm *devicestate.DeviceManager
 }
 
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
-	var rsp oneSystemsResponse
+	var rsp oneSystemResponse
 
 	wantedSystemLabel := muxVars(r)["label"]
 
