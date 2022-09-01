@@ -2072,9 +2072,7 @@ func (s *SnapOpSuite) TestRemoveRevision(c *check.C) {
 func (s *SnapOpSuite) TestRemoveManyOptions(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--revision=17", "one", "two"})
-	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify options`)
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--purge", "one", "two"})
-	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify options`)
+	c.Assert(err, check.ErrorMatches, `cannot use --revision with multiple snap names`)
 }
 
 func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
@@ -2115,6 +2113,35 @@ func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, total)
+}
+
+func (s *SnapOpSuite) TestRemoveManyPurge(c *check.C) {
+	n := 0
+	errMsg := "stopping test after creating change successfully"
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+				"action": "remove",
+				"snaps":  []interface{}{"one", "two"},
+				"purge":  true,
+			})
+
+			c.Check(r.Method, check.Equals, "POST")
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+		default:
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type":"error", "result": {"message":%q, "kind":""}, "status-code": 400}`, errMsg)
+		}
+
+		n++
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--purge", "one", "two"})
+	// purge option was processed, the failure comes after
+	c.Assert(err, check.ErrorMatches, errMsg)
 }
 
 func (s *SnapOpSuite) TestInstallManyChannel(c *check.C) {
