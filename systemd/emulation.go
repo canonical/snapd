@@ -22,10 +22,12 @@ package systemd
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -188,10 +190,30 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 		}
 	}
 
-	multiUserTargetWantsDir := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants")
-	enableUnitPathSymlink := filepath.Join(multiUserTargetWantsDir, filepath.Base(unit))
-	if err := os.Remove(enableUnitPathSymlink); err != nil {
+	// `systemctl disable` removes all symlinks, so we should do the same
+	units, err := ioutil.ReadDir(dirs.SnapServicesDir)
+	if err != nil {
 		return err
+	}
+	for _, target := range units {
+		if !target.IsDir() {
+			continue
+		}
+		if !strings.HasSuffix(target.Name(), ".wants") && !strings.HasSuffix(target.Name(), ".requires") {
+			continue
+		}
+		dir := filepath.Join(dirs.SnapServicesDir, target.Name())
+		enableUnitPathSymlink := filepath.Join(dir, filepath.Base(unit))
+		err := os.Remove(enableUnitPathSymlink)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.Remove(dir); err != nil {
+			pathErr, ok := err.(*os.PathError)
+			if !ok || pathErr.Err != syscall.ENOTEMPTY {
+				return err
+			}
+		}
 	}
 
 	if err := os.Remove(unit); err != nil {
