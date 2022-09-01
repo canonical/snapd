@@ -1808,20 +1808,11 @@ func (m *DeviceManager) SystemAndGadgetInfo(wantedSystemLabel string) (*System, 
 	if m.isClassicBoot {
 		return nil, nil, fmt.Errorf("cannot get model and gadget information on a classic boot system")
 	}
-	s, err := seed.Open(dirs.SnapSeedDir, wantedSystemLabel)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot open seed: %v", err)
-	}
-	if err := s.LoadAssertions(nil, nil); err != nil {
-		return nil, nil, fmt.Errorf("cannot load assertions for label %q: %v", wantedSystemLabel, err)
-	}
-
-	// get current system as input for systemFromOpenSeed()
+	// get current system as input for loadSeedAndSystem()
 	systemMode := m.SystemMode(SysAny)
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
-	// get the system for the given label
-	sys, err := systemFromOpenSeed(s, wantedSystemLabel, currentSys)
+	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys)
 	if err != nil {
 		return nil, nil, err
 	}

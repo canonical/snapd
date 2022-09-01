@@ -77,22 +77,23 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 }
 
 func systemFromSeed(label string, current *currentSystem) (*System, error) {
-	s, err := seed.Open(dirs.SnapSeedDir, label)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open: %v", err)
-	}
-	if err := s.LoadAssertions(nil, nil); err != nil {
-		return nil, fmt.Errorf("cannot load assertions: %v", err)
-	}
-	return systemFromOpenSeed(s, label, current)
+	_, sys, err := loadSeedAndSystem(label, current)
+	return sys, err
 }
 
-func systemFromOpenSeed(s seed.Seed, label string, current *currentSystem) (*System, error) {
+func loadSeedAndSystem(label string, current *currentSystem) (seed.Seed, *System, error) {
+	s, err := seed.Open(dirs.SnapSeedDir, label)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot open: %v", err)
+	}
+	if err := s.LoadAssertions(nil, nil); err != nil {
+		return nil, nil, fmt.Errorf("cannot load assertions for label %q: %v", label, err)
+	}
 	// get the model
 	model := s.Model()
 	brand, err := s.Brand()
 	if err != nil {
-		return nil, fmt.Errorf("cannot obtain brand: %v", err)
+		return nil, nil, fmt.Errorf("cannot obtain brand: %v", err)
 	}
 	system := &System{
 		Current: false,
@@ -105,7 +106,7 @@ func systemFromOpenSeed(s seed.Seed, label string, current *currentSystem) (*Sys
 		system.Current = true
 		system.Actions = current.actions
 	}
-	return system, nil
+	return s, system, nil
 }
 
 type currentSystem struct {

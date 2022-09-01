@@ -706,7 +706,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeBroken(c *C) {
 	c.Assert(err, IsNil)
 
 	err = s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
-	c.Assert(err, ErrorMatches, "cannot load seed system: cannot load assertions: .*")
+	c.Assert(err, ErrorMatches, `cannot load seed system: cannot load assertions for label "20191119": .*`)
 	c.Check(s.restartRequests, HasLen, 0)
 	c.Check(s.logbuf.String(), Equals, "")
 }
@@ -2348,7 +2348,7 @@ func (s *modelAndGadgetInfoSuite) TestModelAndGadgetInfoHappy(c *C) {
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidLabel(c *C) {
 	_, _, err := s.mgr.SystemAndGadgetInfo("invalid/label")
-	c.Assert(err, ErrorMatches, `cannot open seed: invalid seed system label: "invalid/label"`)
+	c.Assert(err, ErrorMatches, `cannot open: invalid seed system label: "invalid/label"`)
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeedDir(c *C) {
