@@ -20,6 +20,7 @@
 package servicestate
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -60,8 +61,17 @@ func Manager(st *state.State, runner *state.TaskRunner) *ServiceManager {
 
 	// TODO: undo handler
 	runner.AddHandler("quota-control", m.doQuotaControl, nil)
+	AddAffectedQuotasByKind("quota-control", affectedQuotasForQuotaControl)
+	snapstate.AddAffectedSnapsByKind("quota-control", affectedSnapsForQuotaControl)
 
-	snapstate.AddAffectedSnapsByKind("quota-control", quotaControlAffectedSnaps)
+	// We can't directly refer to the servicestate internals from snapstate,
+	// so this task encapsulate taking care of calling quotaUpdate
+	// with the correct setup. This task also supports proper handling of
+	// failure during install and correctly removes the snap again.
+	runner.AddHandler("quota-add-snap", m.doQuotaAddSnap, m.undoQuotaAddSnap)
+	AddAffectedQuotasByKind("quota-add-snap", affectedQuotasForQuotaAddSnap)
+	// quota-add-snap uses snap-setup and because of this retrieving the snap
+	// that is being added is implicitly already supported by snapstate/conflict.go
 
 	return m
 }
@@ -85,7 +95,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	// only run after we are seeded
 	var seeded bool
 	err = m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
@@ -97,7 +107,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 
 	// ensure all snap services are updated
 	allStates, err := snapstate.All(m.state)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -108,7 +118,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	}
 
 	allGrps, err := AllQuotas(m.state)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 

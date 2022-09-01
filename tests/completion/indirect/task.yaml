@@ -22,6 +22,7 @@ execute: |
   #shellcheck disable=SC1090
   source "${SPREAD_PATH}/${SPREAD_SUITE}/${SPREAD_VARIANT}.vars"
   export _OUT0 _OUT1 _OUT2 _KEY1 _KEY2 _COMP
+  export XDG_DATA_DIRS="${XDG_DATA_DIRS:-}${XDG_DATA_DIRS:+:}/var/lib/snapd/desktop"
   for c in test-snapd-complexion test-snapd-complexion.two cplx cplx2; do
     sudo CMD=$c "PATH=$PATH" _COMPLETE_SH=true -E -u test expect -d -f "$d"/task.exp
     sudo CMD=$c "PATH=$PATH" _COMPLETE_SH=false -E -u test expect -d -f "$d"/task.exp

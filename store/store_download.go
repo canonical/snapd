@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -264,16 +264,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		logger.Debugf("Starting download of %q.", partialPath)
 	}
 
-	authAvail, err := s.authAvailable(user)
-	if err != nil {
-		return err
-	}
-
-	url := downloadInfo.AnonDownloadURL
-	if url == "" || authAvail {
-		url = downloadInfo.DownloadURL
-	}
-
+	url := downloadInfo.DownloadURL
 	if downloadInfo.Size == 0 || resume < downloadInfo.Size {
 		err = download(ctx, name, downloadInfo.Sha3_384, url, user, s, w, resume, pbar, dlOpts)
 		if err != nil {
@@ -626,17 +617,7 @@ func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *s
 		return file, 206, nil
 	}
 
-	authAvail, err := s.authAvailable(user)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	downloadURL := downloadInfo.AnonDownloadURL
-	if downloadURL == "" || authAvail {
-		downloadURL = downloadInfo.DownloadURL
-	}
-
-	storeURL, err := url.Parse(downloadURL)
+	storeURL, err := url.Parse(downloadInfo.DownloadURL)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -677,15 +658,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		return fmt.Errorf("store returned unsupported delta format %q (only xdelta3 currently)", deltaInfo.Format)
 	}
 
-	authAvail, err := s.authAvailable(user)
-	if err != nil {
-		return err
-	}
-
-	url := deltaInfo.AnonDownloadURL
-	if url == "" || authAvail {
-		url = deltaInfo.DownloadURL
-	}
+	url := deltaInfo.DownloadURL
 
 	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar, dlOpts)
 }

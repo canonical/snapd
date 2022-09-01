@@ -70,7 +70,7 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
 	s.AddCleanup(restore)
@@ -1118,8 +1118,9 @@ func (snapshotSuite) TestRestoreWorksWithCompatibleEpoch(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(found, check.DeepEquals, []string{"a-snap"})
 	tasks := taskset.Tasks()
-	c.Assert(tasks, check.HasLen, 1)
+	c.Assert(tasks, check.HasLen, 2)
 	c.Check(tasks[0].Kind(), check.Equals, "restore-snapshot")
+	c.Check(tasks[1].Kind(), check.Equals, "cleanup-after-restore")
 	c.Check(tasks[0].Summary(), check.Equals, `Restore data of snap "a-snap" from snapshot set #42`)
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
@@ -1154,8 +1155,9 @@ func (snapshotSuite) TestRestore(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(found, check.DeepEquals, []string{"a-snap"})
 	tasks := taskset.Tasks()
-	c.Assert(tasks, check.HasLen, 1)
+	c.Assert(tasks, check.HasLen, 2)
 	c.Check(tasks[0].Kind(), check.Equals, "restore-snapshot")
+	c.Check(tasks[1].Kind(), check.Equals, "cleanup-after-restore")
 	c.Check(tasks[0].Summary(), check.Equals, `Restore data of snap "a-snap" from snapshot set #42`)
 	var snapshot map[string]interface{}
 	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
@@ -1255,7 +1257,9 @@ func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOp
 	defer st.Unlock()
 
 	// the three restores warn about the missing home (but no errors, no panics)
-	for _, task := range change.Tasks() {
+	c.Assert(change.Tasks(), check.HasLen, 4)
+	restoreTasks := change.Tasks()[:3]
+	for _, task := range restoreTasks {
 		c.Check(strings.Join(task.Log(), "\n"), check.Matches, `.* Skipping restore of "[^"]+/home/b-user/[^"]+" as "[^"]+/home/b-user" doesn't exist.`)
 	}
 
@@ -1333,8 +1337,9 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 	defer st.Unlock()
 
 	tasks := change.Tasks()
-	c.Check(tasks, check.HasLen, 3)
-	for _, task := range tasks {
+	c.Check(tasks, check.HasLen, 4)
+	restoreTasks := tasks[:3]
+	for _, task := range restoreTasks {
 		if strings.Contains(task.Summary(), `"too-snap"`) {
 			// too-snap was set up to fail, should always fail with
 			// 'permission denied' (see the mkdirall w/mode 0 above)

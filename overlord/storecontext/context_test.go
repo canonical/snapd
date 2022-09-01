@@ -60,7 +60,12 @@ func (s *storeCtxSuite) SetUpTest(c *C) {
 
 func (s *storeCtxSuite) TestUpdateUserAuth(c *C) {
 	s.state.Lock()
-	user, _ := auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	user, _ := auth.NewUser(s.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	s.state.Unlock()
 
 	newDischarges := []string{"updated-discharge"}
@@ -80,7 +85,12 @@ func (s *storeCtxSuite) TestUpdateUserAuth(c *C) {
 
 func (s *storeCtxSuite) TestUpdateUserAuthOtherUpdate(c *C) {
 	s.state.Lock()
-	user, _ := auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	user, _ := auth.NewUser(s.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	otherUpdateUser := *user
 	otherUpdateUser.Macaroon = "macaroon2"
 	otherUpdateUser.StoreDischarges = []string{"other-discharges"}
@@ -113,7 +123,12 @@ func (s *storeCtxSuite) TestUpdateUserAuthOtherUpdate(c *C) {
 
 func (s *storeCtxSuite) TestUpdateUserAuthInvalid(c *C) {
 	s.state.Lock()
-	_, _ = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	_, _ = auth.NewUser(s.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	s.state.Unlock()
 
 	user := &auth.UserState{

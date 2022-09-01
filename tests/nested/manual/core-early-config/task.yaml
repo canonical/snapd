@@ -3,9 +3,6 @@ summary: Test that config defaults are applied early when image is created.
 # core18 specific test (and nested vm is derived from host system)
 systems: [ubuntu-18.04-64]
 
-environment:
-    NESTED_IMAGE_ID: core-early-config
-
 prepare: |
     # modify and repack gadget snap (add defaults section and install hook)
     snap download --channel=18/stable pc
@@ -18,10 +15,6 @@ prepare: |
     mksquashfs squashfs-root "$GADGET_SNAP" -comp xz -no-fragments -no-progress
     rm -rf squashfs-root
     mv "$GADGET_SNAP" "$(tests.nested get extra-snaps-path)"
-
-    snap download --channel=18/edge pc-kernel
-    KERNEL_SNAP=$(ls pc-kernel_*.snap)
-    mv "$KERNEL_SNAP" "$(tests.nested get extra-snaps-path)"
 
     tests.nested build-image core 
 

@@ -1825,6 +1825,48 @@ func (s *SnapSuite) TestRefreshChannelDuplicationError(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "Please specify a single channel")
 }
 
+func (s *SnapOpSuite) TestNotInstalledError(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{
+			"type": "error",
+			"result": {
+				"message": "Snap was not installed",
+				"kind": "snap-not-installed",
+				"status-code": 400
+				}}`)
+	})
+
+	for _, t := range []struct {
+		cmd string
+		err bool
+	}{
+		{cmd: "refresh foo", err: true},
+		{cmd: "refresh foo bar", err: true},
+		{cmd: "install foo", err: true},
+		{cmd: "install foo bar", err: true},
+		{cmd: "revert foo", err: true},
+		{cmd: "switch --channel stable foo", err: true},
+		{cmd: "switch --channel stable foo bar", err: true},
+		{cmd: "enable foo", err: true},
+		{cmd: "enable foo bar", err: true},
+		{cmd: "disable foo", err: true},
+		{cmd: "disable foo bar", err: true},
+		{cmd: "list foo", err: true},
+		{cmd: "list foo bar", err: true},
+		{cmd: "save foo", err: true},
+		{cmd: "save foo bar", err: true},
+		{cmd: "remove foo", err: false},
+		{cmd: "remove foo bar", err: false},
+	} {
+		_, err := snap.Parser(snap.Client()).ParseArgs(strings.Fields(t.cmd))
+		if t.err {
+			c.Check(err, check.ErrorMatches, "Snap was not installed")
+		} else {
+			c.Check(err, check.IsNil)
+		}
+	}
+}
+
 func (s *SnapOpSuite) TestInstallFromChannel(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
@@ -2246,6 +2288,7 @@ func (s *SnapOpSuite) TestWaitServerError(c *check.C) {
 		{"disable", "foo"},
 		{"try", "."},
 		{"switch", "--channel=foo", "bar"},
+		{"debug", "migrate-home", "foo"},
 		// commands that use waitMixin from elsewhere
 		{"start", "foo"},
 		{"stop", "foo"},

@@ -20,8 +20,6 @@
 package strutil_test
 
 import (
-	"fmt"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/strutil"
@@ -96,9 +94,8 @@ func (s *VersionTestSuite) TestVersionCompare(c *C) {
 		{"1.4+OOo3.0.0~", "1.4+OOo3.0.0-4", -1, nil}, // another tilde check
 		{"2.4.7-1", "2.4.7-z", -1, nil},              // revision comparing
 		{"1.002-1+b2", "1.00", 1, nil},               // whatever...
-
-		// broken
-		{"0--0", "0", 0, fmt.Errorf(`invalid version "0--0"`)},
+		{"12-20220319-1ubuntu1", "13-1-1", -1, nil},  // two "-" are legal
+		{"0--0", "0", 1, nil},                        // also legal (urgh)
 	} {
 		res, err := strutil.VersionCompare(t.A, t.B)
 		if t.err != nil {
@@ -118,7 +115,6 @@ func (s *VersionTestSuite) TestVersionInvalid(c *C) {
 		{"1:2", false},
 		{"12:34", false},
 		{"1234:", false},
-		{"1--1", false},
 		{"1.0", true},
 		{"1234", true},
 	} {

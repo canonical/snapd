@@ -43,7 +43,7 @@ type Store struct{}
 // ensure we conform
 var _ snapstate.StoreService = Store{}
 
-func (Store) EnsureDeviceSession() (*auth.DeviceState, error) {
+func (Store) EnsureDeviceSession() error {
 	panic("Store.EnsureDeviceSession not expected")
 }
 

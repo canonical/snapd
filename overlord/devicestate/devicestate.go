@@ -23,6 +23,7 @@ package devicestate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -138,7 +139,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	// Check model exists, for validity. We always have a model, either
 	// seeded or a generic one that ships with snapd.
 	_, err := findModel(st)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return false, nil
 	}
 	if err != nil {
@@ -146,7 +147,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	}
 
 	_, err = findSerial(st, nil)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return false, nil
 	}
 	if err != nil {
@@ -166,8 +167,8 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 		snapType = snap.TypeGadget
 		getName = (*asserts.Model).Gadget
 	case snap.TypeKernel:
-		if release.OnClassic {
-			return fmt.Errorf("cannot install a kernel snap on classic")
+		if deviceCtx.IsClassicBoot() {
+			return fmt.Errorf("cannot install a kernel snap if classic boot")
 		}
 
 		kind = "kernel"
@@ -522,7 +523,7 @@ func prereqsFromSnapTaskSet(ts *state.TaskSet) ([]string, error) {
 		// find the first task that carries snap setup
 		sup, err := snapstate.TaskSnapSetup(t)
 		if err != nil {
-			if err != state.ErrNoState {
+			if !errors.Is(err, state.ErrNoState) {
 				return nil, err
 			}
 			// try the next one
@@ -849,7 +850,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if !seeded {
@@ -862,7 +863,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	}
 
 	if _, err := findSerial(st, nil); err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			return nil, fmt.Errorf("cannot remodel without a serial")
 		}
 		return nil, err
@@ -930,7 +931,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		}
 		// ensure a new session accounting for the new brand store
 		st.Unlock()
-		_, err := sto.EnsureDeviceSession()
+		err := sto.EnsureDeviceSession()
 		st.Lock()
 		if err != nil {
 			return nil, fmt.Errorf("cannot get a store session based on the new model assertion: %v", err)
@@ -1060,7 +1061,7 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 func CreateRecoverySystem(st *state.State, label string) (*state.Change, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if !seeded {

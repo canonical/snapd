@@ -20,6 +20,7 @@
 package internal
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
@@ -32,7 +33,7 @@ import (
 func AllQuotas(st *state.State) (map[string]*quota.Group, error) {
 	var quotas map[string]*quota.Group
 	if err := st.Get("quotas", &quotas); err != nil {
-		if err != state.ErrNoState {
+		if !errors.Is(err, state.ErrNoState) {
 			return nil, err
 		}
 		// otherwise there are no quotas so just return nil

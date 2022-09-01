@@ -247,9 +247,7 @@ type RODatabase interface {
 // A Checker defines a check on an assertion considering aspects such as
 // the signing key, and consistency with other
 // assertions in the database.
-// It can also participate in validating and filtering delegation assertion
-// constraint in the case of delegation.
-type Checker func(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error)
+type Checker func(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) error
 
 // Database holds assertions and can be used to sign or check
 // further assertions.
@@ -452,9 +450,9 @@ func (db *Database) Check(assert Assertion) error {
 	var err error
 	if typ.flags&noAuthority == 0 {
 		// TODO: later may need to consider type of assert to find candidate keys
-		accKey, err = db.findAccountKey(assert.SignatoryID(), assert.SignKeyID())
+		accKey, err = db.findAccountKey(assert.AuthorityID(), assert.SignKeyID())
 		if IsNotFound(err) {
-			return fmt.Errorf("no matching public key %q for signature by %q", assert.SignKeyID(), assert.SignatoryID())
+			return fmt.Errorf("no matching public key %q for signature by %q", assert.SignKeyID(), assert.AuthorityID())
 		}
 		if err != nil {
 			return fmt.Errorf("error finding matching public key for signature: %v", err)
@@ -465,13 +463,11 @@ func (db *Database) Check(assert Assertion) error {
 		}
 	}
 
-	var delegationConstraints []*AssertionConstraints
 	for _, checker := range db.checkers {
-		acs, err := checker(assert, accKey, delegationConstraints, db, earliestTime, latestTime)
+		err := checker(assert, accKey, db, earliestTime, latestTime)
 		if err != nil {
 			return err
 		}
-		delegationConstraints = acs
 	}
 
 	return nil
@@ -737,64 +733,66 @@ func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[
 // assertion checkers
 
 // CheckSigningKeyIsNotExpired checks that the signing key is not expired.
-func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
+func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) error {
 	if signingKey == nil {
 		// assert isn't signed with an account-key key, CheckSignature
 		// will fail anyway unless we teach it more stuff,
 		// Also this check isn't so relevant for self-signed asserts
 		// (e.g. account-key-request)
-		return nil, nil
+		return nil
 	}
 	if !signingKey.isValidAssumingCurTimeWithin(checkTimeEarliest, checkTimeLatest) {
-		return nil, fmt.Errorf("assertion is signed with expired public key %q from %q", assert.SignKeyID(), assert.SignatoryID())
+		mismatchReason := timeMismatchMsg(checkTimeEarliest, checkTimeLatest, signingKey.since, signingKey.until)
+		return fmt.Errorf("assertion is signed with expired public key %q from %q: %s", assert.SignKeyID(), assert.AuthorityID(), mismatchReason)
 	}
-	return delegationConstraints, nil
+	return nil
+}
+
+func timeMismatchMsg(earliest, latest, keySince, keyUntil time.Time) string {
+	var msg string
+
+	validFrom := earliest.Format(time.RFC3339)
+	if !latest.IsZero() && !latest.Equal(earliest) {
+		validTo := latest.Format(time.RFC3339)
+		msg = fmt.Sprintf("current time range is [%s, %s]", validFrom, validTo)
+	} else {
+		msg = fmt.Sprintf("current time is %s", validFrom)
+	}
+
+	keyFrom := keySince.Format(time.RFC3339)
+	if !keyUntil.IsZero() {
+		keyTo := keyUntil.Format(time.RFC3339)
+		return msg + fmt.Sprintf(" but key is valid during [%s, %s)", keyFrom, keyTo)
+	}
+
+	return msg + fmt.Sprintf(" but key is valid from %s", keyFrom)
 }
 
 // CheckSignature checks that the signature is valid.
-func CheckSignature(assert Assertion, signingKey *AccountKey, _ []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) (delegationConstraints []*AssertionConstraints, err error) {
+func CheckSignature(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) (err error) {
 	var pubKey PublicKey
 	if signingKey != nil {
 		pubKey = signingKey.publicKey()
-		if assert.SignatoryID() != signingKey.AccountID() {
-			// XXX authority-delegation: s/signatory/authority/
-			return nil, fmt.Errorf("assertion authority %q does not match public key from %q", assert.SignatoryID(), signingKey.AccountID())
-		}
-		if assert.SignatoryID() != assert.AuthorityID() {
-			ad, err := roDB.Find(AuthorityDelegationType, map[string]string{
-				"account-id":  assert.AuthorityID(),
-				"delegate-id": assert.SignatoryID(),
-			})
-			if err != nil {
-				if IsNotFound(err) {
-					return nil, fmt.Errorf("no matching authority-delegation for signing delegation from %q to %q", assert.AuthorityID(), assert.SignatoryID())
-
-				}
-				return nil, err
-			}
-			acs := ad.(*AuthorityDelegation).MatchingConstraints(assert)
-			if len(acs) == 0 {
-				return nil, fmt.Errorf("no matching constraints supporting delegated %s assertion from %q to %q", assert.Type().Name, assert.AuthorityID(), assert.SignatoryID())
-			}
-			delegationConstraints = acs
+		if assert.AuthorityID() != signingKey.AccountID() {
+			return fmt.Errorf("assertion authority %q does not match public key from %q", assert.AuthorityID(), signingKey.AccountID())
 		}
 	} else {
 		custom, ok := assert.(customSigner)
 		if !ok {
-			return nil, fmt.Errorf("cannot check no-authority assertion type %q", assert.Type().Name)
+			return fmt.Errorf("cannot check no-authority assertion type %q", assert.Type().Name)
 		}
 		pubKey = custom.signKey()
 	}
 	content, encSig := assert.Signature()
 	signature, err := decodeSignature(encSig)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = pubKey.verify(content, signature)
 	if err != nil {
-		return nil, fmt.Errorf("failed signature verification: %v", err)
+		return fmt.Errorf("failed signature verification: %v", err)
 	}
-	return delegationConstraints, nil
+	return nil
 }
 
 type timestamped interface {
@@ -803,13 +801,13 @@ type timestamped interface {
 
 // CheckTimestampVsSigningKeyValidity verifies that the timestamp of
 // the assertion is within the signing key validity.
-func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
+func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) error {
 	if signingKey == nil {
 		// assert isn't signed with an account-key key, CheckSignature
 		// will fail anyway unless we teach it more stuff.
 		// Also this check isn't so relevant for self-signed asserts
 		// (e.g. account-key-request)
-		return nil, nil
+		return nil
 	}
 	if tstamped, ok := assert.(timestamped); ok {
 		checkTime := tstamped.Timestamp()
@@ -818,11 +816,11 @@ func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey
 			if !signingKey.Until().IsZero() {
 				until = fmt.Sprintf(" until %q", signingKey.Until())
 			}
-			return nil, fmt.Errorf("%s assertion timestamp %q outside of signing key validity (key valid since %q%s)",
+			return fmt.Errorf("%s assertion timestamp %q outside of signing key validity (key valid since %q%s)",
 				assert.Type().Name, checkTime, signingKey.Since(), until)
 		}
 	}
-	return delegationConstraints, nil
+	return nil
 }
 
 // A consistencyChecker performs further checks based on the full
@@ -832,68 +830,12 @@ type consistencyChecker interface {
 }
 
 // CheckCrossConsistency verifies that the assertion is consistent with the other statements in the database.
-func CheckCrossConsistency(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
+func CheckCrossConsistency(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) error {
 	// see if the assertion requires further checks
 	if checker, ok := assert.(consistencyChecker); ok {
-		return delegationConstraints, checker.checkConsistency(roDB, signingKey)
+		return checker.checkConsistency(roDB, signingKey)
 	}
-	return delegationConstraints, nil
-}
-
-// CheckDelegationIsNotExpired checks that there is at least one not expired delegation constraint.
-func CheckDelegationIsNotExpired(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
-	if len(delegationConstraints) == 0 {
-		// nothing to do
-		return nil, nil
-	}
-	notExpired := make([]*AssertionConstraints, 0, len(delegationConstraints))
-	for _, ac := range delegationConstraints {
-		if ac.isValidAssumingCurTimeWithin(checkTimeEarliest, checkTimeLatest) {
-			notExpired = append(notExpired, ac)
-		}
-	}
-	if len(notExpired) == 0 {
-		return nil, fmt.Errorf("all constraints supporting delegated %s assertion from %q to %q are expired", assert.Type().Name, assert.AuthorityID(), assert.SignatoryID())
-	}
-	return notExpired, nil
-}
-
-// CheckTimestampVsDelegationValidity verifies that the timestamp of
-// the assertion is within at least one of the delegation constraints validity.
-func CheckTimestampVsDelegationValidity(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
-	if len(delegationConstraints) == 0 {
-		// nothing to do
-		return nil, nil
-	}
-	if tstamped, ok := assert.(timestamped); ok {
-		checkTime := tstamped.Timestamp()
-		valid := make([]*AssertionConstraints, 0, len(delegationConstraints))
-		for _, ac := range delegationConstraints {
-			if ac.isValidAt(checkTime) {
-				valid = append(valid, ac)
-			}
-		}
-		if len(valid) == 0 {
-			return nil, fmt.Errorf("delegated %s assertion from %q to %q timestamp %q is outside of all supporting delegation constraints validity", assert.Type().Name, assert.AuthorityID(), assert.SignatoryID(), checkTime)
-		}
-		return valid, nil
-	}
-	return delegationConstraints, nil
-}
-
-// CheckDelegation performs the final verification of delegation based
-// on filtered delegation assertion constraints.
-func CheckDelegation(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
-	if signingKey == nil || assert.SignatoryID() == assert.AuthorityID() {
-		// not a delegation scenario
-		return nil, nil
-	}
-	for _, ac := range delegationConstraints {
-		if ac.Check(assert) == nil {
-			return nil, nil
-		}
-	}
-	return nil, fmt.Errorf("no valid constraints supporting delegated %s assertion from %q to %q", assert.Type().Name, assert.AuthorityID(), assert.SignatoryID())
+	return nil
 }
 
 // DefaultCheckers lists the default and recommended assertion
@@ -902,10 +844,6 @@ func CheckDelegation(assert Assertion, signingKey *AccountKey, delegationConstra
 var DefaultCheckers = []Checker{
 	CheckSigningKeyIsNotExpired,
 	CheckSignature,
-	// XXX authority-delegation disabled
-	// CheckDelegationIsNotExpired,
 	CheckTimestampVsSigningKeyValidity,
-	// CheckTimestampVsDelegationValidity,
-	// CheckDelegation,
 	CheckCrossConsistency,
 }

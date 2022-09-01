@@ -12,7 +12,7 @@ details: |
     The test uses a snap that carries a unikernel built to be run on top of qemu, boot and
     respond to ping. Once the domain is created, the test checks connectivity to the unikernel.
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-2*]
 
 prepare: |
     # Given test user is added to the libvirt group

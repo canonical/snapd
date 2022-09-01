@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/systemd"
 )
 
 var (
@@ -209,13 +208,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		return AppNotFound("no matching services")
 	}
 
-	serviceNames := make([]string, len(appInfos))
-	for i, appInfo := range appInfos {
-		serviceNames[i] = appInfo.ServiceName()
-	}
-
-	sysd := systemd.New(systemd.SystemMode, progress.Null)
-	reader, err := sysd.LogReader(serviceNames, n, follow)
+	reader, err := servicestate.LogReader(appInfos, n, follow)
 	if err != nil {
 		return InternalError("cannot get logs: %v", err)
 	}

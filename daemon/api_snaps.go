@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -201,6 +202,7 @@ type snapInstruction struct {
 	Transaction            client.TransactionType `json:"transaction"`
 	Snaps                  []string               `json:"snaps"`
 	Users                  []string               `json:"users"`
+	ValidationSets         []string               `json:"validation-sets"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -387,9 +389,9 @@ func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 
 	if inst.Revision.Unset() {
-		ts, err = snapstateRevert(st, inst.Snaps[0], flags)
+		ts, err = snapstateRevert(st, inst.Snaps[0], flags, "")
 	} else {
-		ts, err = snapstateRevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
+		ts, err = snapstateRevertToRevision(st, inst.Snaps[0], inst.Revision, flags, "")
 	}
 	if err != nil {
 		return "", nil, err
@@ -560,7 +562,11 @@ type snapManyActionFunc func(*snapInstruction, *state.State) (*snapInstructionRe
 func (inst *snapInstruction) dispatchForMany() (op snapManyActionFunc) {
 	switch inst.Action {
 	case "refresh":
-		op = snapUpdateMany
+		if len(inst.ValidationSets) > 0 {
+			op = snapEnforceValidationSets
+		} else {
+			op = snapUpdateMany
+		}
 	case "install":
 		op = snapInstallMany
 	case "remove":
@@ -651,6 +657,46 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 		Summary:  msg,
 		Affected: updated,
 		Tasksets: tasksets,
+	}, nil
+}
+
+func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+	if len(inst.ValidationSets) > 0 && len(inst.Snaps) != 0 {
+		return nil, fmt.Errorf("snap names cannot be specified with validation sets to enforce")
+	}
+
+	snaps, ignoreValidationSnaps, err := snapstate.InstalledSnaps(st)
+	if err != nil {
+		return nil, err
+	}
+
+	// we need refreshed snap-declarations, this ensures that snap-declarations
+	// and their prerequisite assertions are updated regularly; do not update all
+	// validation-set assertions (this is implied by passing nil opts) - only
+	// those requested via inst.ValidationSets will get updated by
+	// assertstateTryEnforceValidationSets below.
+	if err := assertstateRefreshSnapAssertions(st, inst.userID, nil); err != nil {
+		return nil, err
+	}
+
+	var validationErr *snapasserts.ValidationSetsValidationError
+	err = assertstateTryEnforceValidationSets(st, inst.ValidationSets, inst.userID, snaps, ignoreValidationSnaps)
+	if err != nil {
+		var ok bool
+		validationErr, ok = err.(*snapasserts.ValidationSetsValidationError)
+		if !ok {
+			return nil, err
+		}
+	}
+	tss, affected, err := snapstateEnforceSnaps(context.TODO(), st, inst.ValidationSets, validationErr, inst.userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &snapInstructionResult{
+		Summary:  fmt.Sprintf("Enforced validation sets: %s", strutil.Quoted(inst.ValidationSets)),
+		Affected: affected,
+		Tasksets: tss,
 	}, nil
 }
 

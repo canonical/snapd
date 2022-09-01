@@ -3,10 +3,11 @@ project: snapd
 environment:
     GOHOME: /home/gopath
     GOPATH: $GOHOME
-    # on some distros the default GOPROXY setting is 'direct' (eg. Fedora), the
-    # go import tags of packages such as maze.io/x/crypt (which is one of
-    # secboot dependencies), cannot be obtained when poking the import URL
-    # directly, thus we need to force the golang.org hosted proxy to be used
+    # On some distros the default GOPROXY setting is 'direct' (eg. Fedora).
+    # Some of the external go packages may get removed or could be temporary
+    # offline (as happened with maze.io/x/crypt), and then the sources are
+    # only available through the proxy cache. Play it safe and enable the
+    # proxy to allow for least CI interruptions.
     GOPROXY: https://proxy.golang.org,direct
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
@@ -44,7 +45,7 @@ environment:
     UBUNTU_IMAGE_SNAP_CHANNEL: "latest/candidate"
     # controls whether ubuntu-image is built using the current snapd tree as a
     # dependency or the one listed in its go.mod
-    UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-false}")'
+    UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
@@ -107,6 +108,7 @@ backends:
             - ubuntu-18.04-32:
                   workers: 6
             - ubuntu-18.04-64:
+                  storage: 12G
                   workers: 8
             - ubuntu-20.04-64:
                   storage: 12G
@@ -129,10 +131,11 @@ backends:
                   image: ubuntu-20.04-64
                   workers: 1
                   secure-boot: true
-            - ubuntu-21.10-64:
+            - ubuntu-22.04-64:
                   storage: 12G
                   workers: 8
-            - ubuntu-22.04-64:
+            - ubuntu-22.10-64:
+                  image: ubuntu-os-cloud-devel/ubuntu-2210-amd64
                   storage: 12G
                   workers: 8
 
@@ -141,14 +144,12 @@ backends:
             - debian-11-64:
                   workers: 6
             - debian-sid-64:
+                  storage: 12G
                   workers: 6
 
-            - fedora-33-64:
-                  workers: 6
-                  manual: true
-            - fedora-34-64:
-                  workers: 6
             - fedora-35-64:
+                  workers: 6
+            - fedora-36-64:
                   workers: 6
 
             - arch-linux-64:
@@ -164,12 +165,16 @@ backends:
             - centos-8-64:
                   workers: 6
                   storage: preserve-size
-                  image: centos-stream-8
-            # unstable systems below
-            - opensuse-15.2-64:
+                  image: centos-8-64
+            - centos-9-64:
                   workers: 6
-                  manual: true
+                  storage: preserve-size
+                  image: centos-9-64
+
+            # unstable systems below
             - opensuse-15.3-64:
+                  workers: 6
+            - opensuse-15.4-64:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
@@ -185,7 +190,7 @@ backends:
                   workers: 6
             - ubuntu-20.04-64:
                   workers: 6
-            - ubuntu-21.10-64:
+            - ubuntu-22.04-64:
                   workers: 6
 
     google-nested:
@@ -208,10 +213,6 @@ backends:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
                   workers: 7
-            - ubuntu-21.10-64:
-                  image: ubuntu-2110-64-virt-enabled
-                  storage: 20G
-                  workers: 3
             - ubuntu-22.04-64:
                   image: ubuntu-2204-64-virt-enabled
                   storage: 20G
@@ -228,6 +229,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
 
@@ -279,9 +283,6 @@ backends:
             - ubuntu-20.04-32:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-21.10-64:
-                  username: ubuntu
-                  password: ubuntu
             - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
@@ -300,9 +301,6 @@ backends:
             - amazon-linux-2-64:
                   username: ec2-user
                   password: ec2-user
-            - opensuse-15.2-64:
-                  username: opensuse
-                  password: opensuse
             - opensuse-tumbleweed-64:
                   username: opensuse
                   password: opensuse
@@ -970,6 +968,8 @@ suites:
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
+            # Generic imane name which has to be overwritten in the test
+            NESTED_IMAGE_ID: "unset"
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
@@ -985,7 +985,7 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-               build_ubuntu_image
+               get_ubuntu_image
             fi
 
             # Install the snapd built
@@ -993,6 +993,10 @@ suites:
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested prepare
+            if os.query is-xenial && ! command -v ubuntu-image >/dev/null; then
+                # This is needed because the snap in removed during on restore-each
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            fi
         restore-each: |
             tests.nested vm remove
             tests.nested restore
@@ -1027,7 +1031,7 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                build_ubuntu_image
+                get_ubuntu_image
             fi
 
             # Install the snapd built
@@ -1074,7 +1078,7 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                build_ubuntu_image
+                get_ubuntu_image
             fi
 
             # Install the snapd built

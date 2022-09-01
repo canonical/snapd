@@ -55,6 +55,7 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcudnn{,_adv_infer,_adv_train,_cnn_infer,_cnn_train,_ops_infer,_ops_train}*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvrtc{,-builtins}*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvToolsExt.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}nvidia/wine/*.dll rm,
 
 # Support reading the Vulkan ICD files
 /var/lib/snapd/lib/vulkan/ r,
@@ -136,12 +137,14 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 @{PROC}/driver/prl_vtg rw,
 
 # /sys/devices
-/sys/devices/{,*pcie-controller/,platform/soc/*.pcie/}pci[0-9a-f]*/**/config r,
-/sys/devices/{,*pcie-controller/,platform/soc/*.pcie/}pci[0-9a-f]*/**/revision r,
-/sys/devices/{,*pcie-controller/,platform/soc/*.pcie/}pci[0-9a-f]*/**/boot_vga r,
-/sys/devices/{,*pcie-controller/,platform/soc/*.pcie/}pci[0-9a-f]*/**/{,subsystem_}class r,
-/sys/devices/{,*pcie-controller/,platform/soc/*.pcie/}pci[0-9a-f]*/**/{,subsystem_}device r,
-/sys/devices/{,*pcie-controller/,platform/soc/*.pcie/}pci[0-9a-f]*/**/{,subsystem_}vendor r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/config r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/revision r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/resource r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/irq r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/boot_vga r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/{,subsystem_}class r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/{,subsystem_}device r,
+/sys/devices/{,*pcie-controller/,platform/{soc,scb}/*.pcie/}pci[0-9a-f]*/**/{,subsystem_}vendor r,
 /sys/devices/**/drm{,_dp_aux_dev}/** r,
 
 # FIXME: this is an information leak and snapd should instead query udev for

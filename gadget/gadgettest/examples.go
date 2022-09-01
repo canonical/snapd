@@ -85,6 +85,19 @@ volumes:
       type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
 `
 
+// from UC18 image, for testing the implicit system data partition case
+const RaspiUC18SimplifiedYaml = `
+volumes:
+  pi:
+    schema: mbr
+    bootloader: u-boot
+    structure:
+      - type: 0C
+        filesystem: vfat
+        filesystem-label: system-boot
+        size: 256M
+`
+
 var expPiSeedStructureTraits = gadget.DiskStructureDeviceTraits{
 	OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
 	OriginalKernelPath: "/dev/mmcblk0p1",
@@ -222,6 +235,33 @@ var ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits = gadget.DiskVolumeDeviceTr
 		expPiBootStructureTraits,
 		expPiSaveEncStructureTraits,
 		expPiDataEncStructureTraits,
+	},
+}
+
+// ExpectedRaspiUC18DiskVolumeDeviceTraits, for testing the implicit system
+// data partition case
+var ExpectedRaspiUC18DiskVolumeDeviceTraits = gadget.DiskVolumeDeviceTraits{
+	OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+	OriginalKernelPath: "/dev/mmcblk0",
+	DiskID:             "7c301cbd",
+	Size:               32010928128,
+	SectorSize:         512,
+	Schema:             "dos",
+	Structure: []gadget.DiskStructureDeviceTraits{
+		{
+			OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
+			OriginalKernelPath: "/dev/mmcblk0p1",
+			PartitionUUID:      "7c301cbd-01",
+			PartitionType:      "0C",
+			PartitionLabel:     "",
+			FilesystemUUID:     "23F9-881F",
+			FilesystemLabel:    "system-boot",
+			FilesystemType:     "vfat",
+			Offset:             quantity.OffsetMiB,
+			Size:               256 * quantity.SizeMiB,
+		},
+		// note no writable structure here - since it's not in the YAML, we
+		// don't save it in the traits either
 	},
 }
 
@@ -390,6 +430,48 @@ var ExpectedRaspiMockDiskInstallModeMapping = &disks.MockDiskMapping{
 	Structure: []disks.Partition{
 		// only ubuntu-seed
 		mockSeedPartition,
+	},
+}
+
+// ExpectedRaspiUC18MockDiskMapping, for testing the implicit system data partition case
+var ExpectedRaspiUC18MockDiskMapping = &disks.MockDiskMapping{
+	DevNode:             "/dev/mmcblk0",
+	DevPath:             "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+	DevNum:              "179:0",
+	DiskUsableSectorEnd: 30528 * oneMeg / 512,
+	DiskSizeInBytes:     30528 * oneMeg,
+	SectorSizeBytes:     512,
+	DiskSchema:          "dos",
+	ID:                  "7c301cbd",
+	Structure: []disks.Partition{
+		{
+			PartitionUUID:    "7c301cbd-01",
+			PartitionType:    "0C",
+			FilesystemLabel:  "system-boot",
+			FilesystemUUID:   "23F9-881F",
+			FilesystemType:   "vfat",
+			Major:            179,
+			Minor:            1,
+			KernelDeviceNode: "/dev/mmcblk0p1",
+			KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
+			DiskIndex:        1,
+			StartInBytes:     oneMeg,
+			SizeInBytes:      256 * oneMeg,
+		},
+		{
+			PartitionUUID:    "7c301cbd-02",
+			PartitionType:    "83",
+			FilesystemLabel:  "writable",
+			FilesystemUUID:   "cba2b8b3-c2e4-4e51-9a57-d35041b7bf9a",
+			FilesystemType:   "ext4",
+			Major:            179,
+			Minor:            2,
+			KernelDeviceNode: "/dev/mmcblk0p2",
+			KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
+			DiskIndex:        2,
+			StartInBytes:     (1 + 256) * oneMeg,
+			SizeInBytes:      32270 * oneMeg,
+		},
 	},
 }
 

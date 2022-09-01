@@ -1,5 +1,7 @@
 summary: smoke test for the spread-shellcheck tool
 
+backends: [google]
+
 systems: [ ubuntu-20.04-64 ]
 
 prepare: |
@@ -34,4 +36,9 @@ execute: |
     # Check that dirs can be excluded
     cp "$PWD/tasks/task4" "$PWD/tasks/task.yaml"
     spread-shellcheck "$PROJECT_PATH/tests" -e "$PWD/tasks"
+    rm "$PWD/tasks/task.yaml"
+
+    # Check that files can be excluded
+    cp "$PWD/tasks/task4" "$PWD/tasks/task.yaml"
+    spread-shellcheck "$PROJECT_PATH/tests" "$PWD/tasks/task.yaml" -e "$PWD/tasks"
     rm "$PWD/tasks/task.yaml"

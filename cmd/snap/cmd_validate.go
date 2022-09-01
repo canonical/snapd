@@ -21,21 +21,19 @@ package main
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
 
 type cmdValidate struct {
 	clientMixin
-	Monitor bool `long:"monitor"`
-	// XXX: enforce mode is not supported yet
-	Enforce    bool `long:"enforce" hidden:"yes"`
+	Monitor    bool `long:"monitor"`
+	Enforce    bool `long:"enforce"`
 	Forget     bool `long:"forget"`
 	Positional struct {
 		ValidationSet string `positional-arg-name:"<validation-set>"`
@@ -64,35 +62,6 @@ func init() {
 	}})
 	// XXX: remove once api has landed
 	cmd.hidden = true
-}
-
-func splitValidationSetArg(arg string) (account, name string, seq int, err error) {
-	parts := strings.Split(arg, "=")
-	if len(parts) > 2 {
-		return "", "", 0, fmt.Errorf("cannot parse validation set, expected account/name=seq")
-	}
-	if len(parts) == 2 {
-		seq, err = strconv.Atoi(parts[1])
-		if err != nil {
-			return "", "", 0, err
-		}
-	}
-
-	parts = strings.Split(parts[0], "/")
-	if len(parts) != 2 {
-		return "", "", 0, fmt.Errorf("expected a single account/name")
-	}
-
-	account = parts[0]
-	name = parts[1]
-	if !asserts.IsValidAccountID(account) {
-		return "", "", 0, fmt.Errorf("invalid account ID %q", account)
-	}
-	if !asserts.IsValidValidationSetName(name) {
-		return "", "", 0, fmt.Errorf("invalid validation set name %q", name)
-	}
-
-	return account, name, seq, nil
 }
 
 func fmtValid(res *client.ValidationSetResult) string {
@@ -136,9 +105,9 @@ func (cmd *cmdValidate) Execute(args []string) error {
 	var seq int
 	var err error
 	if cmd.Positional.ValidationSet != "" {
-		accountID, name, seq, err = splitValidationSetArg(cmd.Positional.ValidationSet)
+		accountID, name, seq, err = snapasserts.ParseValidationSet(cmd.Positional.ValidationSet)
 		if err != nil {
-			return fmt.Errorf("cannot parse validation set %q: %v", cmd.Positional.ValidationSet, err)
+			return err
 		}
 	}
 
@@ -152,7 +121,16 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			Mode:     action,
 			Sequence: seq,
 		}
-		return cmd.client.ApplyValidationSet(accountID, name, opts)
+		res, err := cmd.client.ApplyValidationSet(accountID, name, opts)
+		if err != nil {
+			return err
+		}
+		// only print valid/invalid status for monitor mode; enforce fails with an error if invalid
+		// and otherwise has no output.
+		if action == "monitor" {
+			fmt.Fprintln(Stdout, fmtValid(res))
+		}
+		return nil
 	}
 
 	// no validation set argument, print list with extended info

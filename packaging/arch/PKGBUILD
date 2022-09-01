@@ -11,7 +11,7 @@ pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd' 'apparmor')
 optdepends=('bash-completion: bash completion support'
             'xdg-desktop-portal: desktop integration')
-pkgver=2.55.5
+pkgver=2.57.1
 pkgrel=1
 arch=('x86_64' 'i686' 'armv7h' 'aarch64')
 url="https://github.com/snapcore/snapd"
@@ -77,6 +77,7 @@ build() {
   go build "${flags[@]}" -o "$srcdir/go/bin/snapd" $GOFLAGS "${_gourl}/cmd/snapd"
   go build "${flags[@]}" -o "$srcdir/go/bin/snap-seccomp" $GOFLAGS "${_gourl}/cmd/snap-seccomp"
   go build "${flags[@]}" -o "$srcdir/go/bin/snap-failure" $GOFLAGS "${_gourl}/cmd/snap-failure"
+  go build "${flags[@]}" -o "$srcdir/go/bin/snapd-apparmor" $GOFLAGS "${_gourl}/cmd/snapd-apparmor"
   # build snap-exec and snap-update-ns completely static for base snaps
   go build "${staticflags[@]}" -o "$srcdir/go/bin/snap-update-ns" $GOFLAGS "${_gourl}/cmd/snap-update-ns"
   go build "${staticflags[@]}" -o "$srcdir/go/bin/snap-exec" $GOFLAGS "${_gourl}/cmd/snap-exec"
@@ -155,6 +156,7 @@ package() {
   install -Dm755 "$srcdir/go/bin/snapd" "$pkgdir/usr/lib/snapd/snapd"
   install -Dm755 "$srcdir/go/bin/snap-seccomp" "$pkgdir/usr/lib/snapd/snap-seccomp"
   install -Dm755 "$srcdir/go/bin/snap-failure" "$pkgdir/usr/lib/snapd/snap-failure"
+  install -Dm755 "$srcdir/go/bin/snapd-apparmor" "$pkgdir/usr/lib/snapd/snapd-apparmor"
   install -Dm755 "$srcdir/go/bin/snap-update-ns" "$pkgdir/usr/lib/snapd/snap-update-ns"
   install -Dm755 "$srcdir/go/bin/snap-exec" "$pkgdir/usr/lib/snapd/snap-exec"
   # Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl

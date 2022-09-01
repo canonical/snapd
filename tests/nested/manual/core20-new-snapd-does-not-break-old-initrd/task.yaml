@@ -29,8 +29,6 @@ environment:
   START_SNAPD_VERSION/startwithnew: new
   START_SNAPD_VERSION/startwithold: old
 
-  NESTED_IMAGE_ID: uc20-breakages-testing-$START_SNAPD_VERSION
-
   # all variants need encryption turned on
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
@@ -83,8 +81,13 @@ prepare: |
 execute: |
   # on the old variant, copy and install the new snapd to it
   if [ "$START_SNAPD_VERSION" = "old" ]; then
-    tests.nested copy snapd-from-branch.snap  
-    tests.nested exec "sudo snap install --dangerous snapd-from-branch.snap"
+    tests.nested copy snapd-from-branch.snap
+    # This may trigger a reboot if the "managed boot config assets" change
+    # (e.g. grub.cfg). Hence this waits unti lthe change is completed even
+    # across reboots (retry will ensure that even if ssh cannot connect
+    # during the reboot it keeps trying).
+    REMOTE_CHG_ID=$(tests.nested exec "sudo snap install --dangerous snapd-from-branch.snap --no-wait")
+    retry --wait 5 -n 24 sh -c "tests.nested exec \"snap changes\" | MATCH ^${REMOTE_CHG_ID}.*Done"
   fi
 
   # try a refresh to a new kernel revision which will trigger a reseal and then

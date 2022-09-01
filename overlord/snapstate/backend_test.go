@@ -323,6 +323,10 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		slot.Apps["dbus-daemon"] = info.Apps["dbus-daemon"]
 	}
 
+	if spec.Name == "provenance-snap" {
+		info.SnapProvenance = "prov"
+	}
+
 	return info, nil
 }
 
@@ -411,6 +415,14 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "outdated-consumer"
 	case "outdated-producer-id":
 		name = "outdated-producer"
+	// for validation-sets testing
+	case "aaqKhntON3vR7kwEbVPsILm7bUViPDzx":
+		name = "some-snap"
+	// for validation-sets testing
+	case "bgtKhntON3vR7kwEbVPsILm7bUViPDzx":
+		name = "some-other-snap"
+	case "provenance-snap-id":
+		name = "provenance-snap"
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
@@ -469,6 +481,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 				Attrs:     map[string]interface{}{"content": "some-content"},
 			},
 		}
+	} else if name == "provenance-snap" {
+		info.SnapProvenance = "prov"
 	}
 
 	switch cand.channel {
@@ -752,6 +766,8 @@ type fakeSnappyBackend struct {
 
 	// TODO cleanup triggers above
 	maybeInjectErr func(*fakeOp) error
+
+	infos map[string]*snap.Info
 }
 
 func (f *fakeSnappyBackend) maybeErrForLastOp() error {
@@ -929,8 +945,31 @@ apps:
 		info.Base = "core24"
 	}
 
+	if storedInfo, ok := f.infos[name]; ok {
+		storedInfo.SideInfo = *si
+		info = storedInfo
+	}
+
 	info.InstanceKey = instanceKey
 	return info, nil
+}
+
+func (f *fakeSnappyBackend) addSnapApp(name, app string) {
+	if f.infos == nil {
+		f.infos = make(map[string]*snap.Info)
+	}
+
+	snapYaml := fmt.Sprintf(`name: %s
+apps:
+  %s:
+`, name, app)
+
+	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	if err != nil {
+		panic(err)
+	}
+
+	f.infos[name] = info
 }
 
 func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info) {
@@ -970,6 +1009,14 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	}
 
 	f.appendOp(op)
+	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) SetupSnapSaveData(info *snap.Info, meter progress.Meter) error {
+	f.appendOp(&fakeOp{
+		op:   "setup-snap-save-data",
+		path: info.CommonDataSaveDir(),
+	})
 	return f.maybeErrForLastOp()
 }
 
@@ -1106,6 +1153,19 @@ func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.I
 	return f.maybeErrForLastOp()
 }
 
+func (f *fakeSnappyBackend) UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, meter progress.Meter) error {
+	old := "<no-old>"
+	if oldInfo != nil {
+		old = oldInfo.CommonDataSaveDir()
+	}
+	f.appendOp(&fakeOp{
+		op:   "undo-setup-snap-save-data",
+		path: newInfo.CommonDataSaveDir(),
+		old:  old,
+	})
+	return f.maybeErrForLastOp()
+}
+
 func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkContext, meter progress.Meter) error {
 	meter.Notify("unlink")
 	f.appendOp(&fakeOp{
@@ -1139,6 +1199,14 @@ func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.Sna
 	f.appendOp(&fakeOp{
 		op:   "remove-snap-common-data",
 		path: info.MountDir(),
+	})
+	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) RemoveSnapSaveData(info *snap.Info) error {
+	f.appendOp(&fakeOp{
+		op:   "remove-snap-save-data",
+		path: snap.CommonDataSaveDir(info.InstanceName()),
 	})
 	return f.maybeErrForLastOp()
 }
@@ -1277,7 +1345,7 @@ func (f *fakeSnappyBackend) UndoHideSnapData(snapName string) error {
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision) (*backend.UndoInfo, error) {
+func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision, opts *dirs.SnapDirOptions) (*backend.UndoInfo, error) {
 	f.appendOp(&fakeOp{op: "init-exposed-snap-home", name: snapName, revno: rev})
 
 	if err := f.maybeErrForLastOp(); err != nil {

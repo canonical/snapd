@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
@@ -71,7 +72,7 @@ func snapEnv(info *snap.Info, opts *dirs.SnapDirOptions) osutil.Environment {
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
 func basicEnv(info *snap.Info) osutil.Environment {
-	return osutil.Environment{
+	env := osutil.Environment{
 		// This uses CoreSnapMountDir because the computed environment
 		// variables are conveyed to the started application process which
 		// shall *either* execute with the new mount namespace where snaps are
@@ -95,6 +96,16 @@ func basicEnv(info *snap.Info) osutil.Environment {
 		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 		"SNAP_REEXEC":       os.Getenv("SNAP_REEXEC"),
 	}
+
+	// Add the ubuntu-save specific environment variable if
+	// the snap folder exists in the save directory.
+	if exists, isDir, err := osutil.DirExists(snap.CommonDataSaveDir(info.InstanceName())); err == nil && exists && isDir {
+		env["SNAP_SAVE_DATA"] = snap.CommonDataSaveDir(info.InstanceName())
+	} else if err != nil {
+		logger.Noticef("cannot determine existence of save data directory for snap %q: %v",
+			info.InstanceName(), err)
+	}
+	return env
 }
 
 // userEnv returns the user-level environment variables for a snap.
