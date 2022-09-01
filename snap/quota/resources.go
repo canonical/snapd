@@ -203,8 +203,8 @@ func (qr *Resources) CheckFeatureRequirements() error {
 	return nil
 }
 
-// IsZero returns true if there is no limit set
-func (qr *Resources) IsZero() bool {
+// Unset returns true if there is no limit set
+func (qr *Resources) Unset() bool {
 	return qr.Memory == nil && qr.CPU == nil && qr.CPUSet == nil && qr.Threads == nil && qr.Journal == nil
 }
 
@@ -215,7 +215,7 @@ func (qr *Resources) IsZero() bool {
 // Note that before applying the quota to the system
 // CheckFeatureRequirements() should be called.
 func (qr *Resources) Validate() error {
-	if qr.IsZero() {
+	if qr.Unset() {
 		return fmt.Errorf("quota group must have at least one resource limit set")
 	}
 
