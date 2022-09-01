@@ -1802,8 +1802,8 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 	return systems, nil
 }
 
-// SystemAndGadgetInfo return the model assertion and gadget details
-// for the given system label.
+// SystemAndGadgetInfo return the system details including the model
+// assertion and gadget details for the given system label.
 func (m *DeviceManager) SystemAndGadgetInfo(wantedSystemLabel string) (*System, *gadget.Info, error) {
 	if m.isClassicBoot {
 		return nil, nil, fmt.Errorf("cannot get model and gadget information on a classic boot system")
