@@ -24,7 +24,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/gadget"
@@ -113,8 +112,8 @@ type oneSystemResponse struct {
 }
 
 // wrapped for unit tests
-var deviceManagerModelAndGadgetInfoFromSeed = func(dm *devicestate.DeviceManager, systemLabel string) (*asserts.Model, *gadget.Info, error) {
-	return dm.ModelAndGadgetInfoFromSeed(systemLabel)
+var deviceManagerSystemAndGadgetInfo = func(dm *devicestate.DeviceManager, systemLabel string) (*devicestate.System, *gadget.Info, error) {
+	return dm.SystemAndGadgetInfo(systemLabel)
 }
 
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -122,18 +121,14 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	wantedSystemLabel := muxVars(r)["label"]
 
-	st := c.d.overlord.State()
 	deviceMgr := c.d.overlord.DeviceManager()
-	st.Lock()
-	defer st.Unlock()
 
-	model, gadgetInfo, err := deviceManagerModelAndGadgetInfoFromSeed(deviceMgr, wantedSystemLabel)
+	sys, gadgetInfo, err := deviceManagerSystemAndGadgetInfo(deviceMgr, wantedSystemLabel)
 	if err != nil {
 		return InternalError(err.Error())
 	}
 	rsp.Model = clientutil.ModelAssertJSON{
-		Headers: model.Headers(),
-		Body:    string(model.Body()),
+		Headers: sys.Model.Headers(),
 	}
 	rsp.Volumes = gadgetInfo.Volumes
 

@@ -1802,6 +1802,62 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 	return systems, nil
 }
 
+// SystemAndGadgetInfo return the model assertion and gadget details
+// for the given system label.
+func (m *DeviceManager) SystemAndGadgetInfo(wantedSystemLabel string) (*System, *gadget.Info, error) {
+	if m.isClassicBoot {
+		return nil, nil, fmt.Errorf("cannot get model and gadget information on a classic boot system")
+	}
+	s, err := seed.Open(dirs.SnapSeedDir, wantedSystemLabel)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot open seed: %v", err)
+	}
+	if err := s.LoadAssertions(nil, nil); err != nil {
+		return nil, nil, fmt.Errorf("cannot load assertions for label %q: %v", wantedSystemLabel, err)
+	}
+	model := s.Model()
+
+	// 2. get the gadget volumes for the given seed-label
+	perf := &timings.Timings{}
+	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, perf); err != nil {
+		return nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
+	}
+	gadgetSnap := s.EssentialSnaps()[0]
+	if gadgetSnap.Path == "" {
+		return nil, nil, fmt.Errorf("internal error: cannot get gadget snap path")
+	}
+	snapf, err := snapfile.Open(gadgetSnap.Path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	gadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot read gadget.yaml: %v", err)
+	}
+	gadgetInfo, err := gadget.InfoFromGadgetYaml(gadgetYaml, model)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
+	}
+	// TODO: once EncryptionSupportInfo from PR#12060 is available use it
+	//       here to set the right option
+	opts := &gadget.ValidationConstraints{}
+	if err := gadget.Validate(gadgetInfo, model, opts); err != nil {
+		return nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
+	}
+
+	// get current system as input for systemFromOpenSeed()
+	systemMode := m.SystemMode(SysAny)
+	currentSys, _ := currentSystemForMode(m.state, systemMode)
+
+	// get seed system
+	sys, err := systemFromOpenSeed(s, wantedSystemLabel, currentSys)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return sys, gadgetInfo, nil
+}
+
 var ErrUnsupportedAction = errors.New("unsupported action")
 
 // Reboot triggers a reboot into the given systemLabel and mode.

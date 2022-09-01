@@ -797,9 +797,13 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
 			},
 		},
 	}
-	r := daemon.MockDeviceManagerModelAndGadgetInfoFromSeed(func(mgr *devicestate.DeviceManager, label string) (*asserts.Model, *gadget.Info, error) {
+	r := daemon.MockDeviceManagerSystemAndGadgetInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, error) {
 		c.Check(label, check.Equals, "20191119")
-		return s.seedModelForLabel20191119, mockGadgetInfo, nil
+		sys := &devicestate.System{
+			Model: s.seedModelForLabel20191119,
+			Label: "20191119",
+		}
+		return sys, mockGadgetInfo, nil
 	})
 	defer r()
 
@@ -822,7 +826,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelError(c *check.C) {
 	s.daemon(c)
 	s.expectRootAccess()
 
-	r := daemon.MockDeviceManagerModelAndGadgetInfoFromSeed(func(mgr *devicestate.DeviceManager, label string) (*asserts.Model, *gadget.Info, error) {
+	r := daemon.MockDeviceManagerSystemAndGadgetInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, error) {
 		return nil, nil, fmt.Errorf("boom")
 	})
 	defer r()
