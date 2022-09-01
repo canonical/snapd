@@ -1,7 +1,7 @@
 summary: check that os-release is correct
 
 debug: |
-    cat /etc/lsb-release
+    cat /etc/lsb-release || true
 
 execute: |
     echo "Check the DISTRIB_RELEASE is correct in /etc/lsb-release file" 

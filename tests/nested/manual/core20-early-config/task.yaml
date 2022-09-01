@@ -35,7 +35,7 @@ restore: |
 
 debug: |
     # show if anything went wrong during seeding
-    tests.nested exec "snap change 1"
+    tests.nested exec "snap change 1" || true
 
 execute: |
     check_core20_early_config(){
