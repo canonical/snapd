@@ -1727,12 +1727,43 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
 	mountUnit := makeMockMountUnit(c, mountDir)
 	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
 	c.Assert(os.Symlink(mountUnit, symlinkPath), IsNil)
+
+	// Create a symlink in a different target, like if it was manually created.
+	manualTargetWants := filepath.Join(dirs.SnapServicesDir, "some-other.target.wants")
+	os.MkdirAll(manualTargetWants, os.ModePerm)
+	c.Assert(osutil.IsDirectory(manualTargetWants), Equals, true)
+	manualSymlinkPath := filepath.Join(manualTargetWants, filepath.Base(mountUnit))
+	c.Assert(os.Symlink(mountUnit, manualSymlinkPath), IsNil)
+
+	// Create yet another symlink in a different target, like if it was manually created.
+	// This time we use `.requires` instead of `.wants`. And we add another unit in that target
+	// to test the case we should not remove the `.requires`/`.wants` directory.
+	nonEmptyManualTargetWants := filepath.Join(dirs.SnapServicesDir, "some-non-empty-other.target.requires")
+	os.MkdirAll(nonEmptyManualTargetWants, os.ModePerm)
+	c.Assert(osutil.IsDirectory(nonEmptyManualTargetWants), Equals, true)
+	manualSymlinkPathInNonEmpty := filepath.Join(nonEmptyManualTargetWants, filepath.Base(mountUnit))
+	c.Assert(os.Symlink(mountUnit, manualSymlinkPathInNonEmpty), IsNil)
+	otherMountDir := dirs.GlobalRootDir + "/snap/bar/51"
+	otherMountUnit := makeMockMountUnit(c, otherMountDir)
+	otherSymlinkPath := filepath.Join(nonEmptyManualTargetWants, filepath.Base(otherMountUnit))
+	c.Assert(os.Symlink(otherMountUnit, otherSymlinkPath), IsNil)
+
 	c.Assert(sysd.RemoveMountUnitFile(mountDir), IsNil)
 
 	// the file is gone
 	c.Check(osutil.FileExists(mountUnit), Equals, false)
 	// unit symlink is gone
 	c.Check(osutil.IsSymlink(symlinkPath), Equals, false)
+	// unit symlink manually instaled is gone
+	c.Check(osutil.IsSymlink(manualSymlinkPath), Equals, false)
+	c.Assert(osutil.IsDirectory(manualTargetWants), Equals, false)
+	// Make sure we do not remove non empty .requires directory
+	c.Check(osutil.IsSymlink(manualSymlinkPathInNonEmpty), Equals, false)
+	c.Assert(osutil.IsDirectory(nonEmptyManualTargetWants), Equals, true)
+	c.Check(osutil.IsSymlink(otherSymlinkPath), Equals, true)
+	// unit symlink manually instaled is gone
+	c.Check(osutil.IsSymlink(manualSymlinkPath), Equals, false)
+	c.Assert(osutil.IsDirectory(manualTargetWants), Equals, false)
 	// and systemd was not called
 	c.Check(s.argses, HasLen, 0)
 	// umount was called
