@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -141,6 +142,23 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcKernelAndGadget(c *C, ins
 	c.Assert(err, IsNil)
 
 	si = &snap.SideInfo{
+		RealName: "core20",
+		Revision: snap.R(2),
+		SnapID:   core20SnapID,
+	}
+	snapstate.Set(s.state, "core20", &snapstate.SnapState{
+		SnapType: "base",
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		Active:   true,
+	})
+	snaptest.MockSnapWithFiles(c, "name: core20\ntype: base", si, nil)
+
+	s.makeMockInstalledPcGadget(c, installDeviceHook, gadgetDefaultsYaml)
+}
+
+func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, installDeviceHook string, gadgetDefaultsYaml string) *snap.Info {
+	si := &snap.SideInfo{
 		RealName: "pc",
 		Revision: snap.R(1),
 		SnapID:   pcSnapID,
@@ -158,20 +176,7 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcKernelAndGadget(c *C, ins
 	if installDeviceHook != "" {
 		files = append(files, []string{"meta/hooks/install-device", installDeviceHook})
 	}
-	snaptest.MockSnapWithFiles(c, "name: pc\ntype: gadget", si, files)
-
-	si = &snap.SideInfo{
-		RealName: "core20",
-		Revision: snap.R(2),
-		SnapID:   core20SnapID,
-	}
-	snapstate.Set(s.state, "core20", &snapstate.SnapState{
-		SnapType: "base",
-		Sequence: []*snap.SideInfo{si},
-		Current:  si.Revision,
-		Active:   true,
-	})
-	snaptest.MockSnapWithFiles(c, "name: core20\ntype: base", si, nil)
+	return snaptest.MockSnapWithFiles(c, "name: pc\ntype: gadget", si, files)
 }
 
 func (s *deviceMgrInstallModeSuite) makeMockInstallModel(c *C, grade string) *asserts.Model {
@@ -1781,13 +1786,13 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeWritesModel(c *C) {
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileEquals, buf.String())
 }
 
-func (s *deviceMgrInstallModeSuite) testInstallGadgetNoSave(c *C) {
+func (s *deviceMgrInstallModeSuite) testInstallGadgetNoSave(c *C, grade string) {
 	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstallModel(c, grade)
 	s.makeMockInstalledPcKernelAndGadget(c, "", "")
 	info, err := snapstate.CurrentInfo(s.state, "pc")
 	c.Assert(err, IsNil)
@@ -1814,16 +1819,44 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
 	defer restore()
 
-	s.testInstallGadgetNoSave(c)
+	// must be a model that requires encryption to error
+	s.testInstallGadgetNoSave(c, "secured")
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
-- Setup system for run mode \(cannot use gadget: gadget does not support encrypted data: required partition with system-save role is missing\)`)
+- Setup system for run mode \(cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing\)`)
 	// no restart request on failure
 	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetWarns(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	// pretend we have a TPM
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
+	defer restore()
+
+	s.testInstallGadgetNoSave(c, "dangerous")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem.Err(), IsNil)
+
+	c.Check(logbuf.String(), Matches, "(?s).*: cannot use encryption with the gadget, disabling encryption: gadget does not support encrypted data: required partition with system-save role is missing\n.*")
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetWithoutSaveHappy(c *C) {
@@ -1839,7 +1872,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetW
 	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return fmt.Errorf("TPM2 not available") })
 	defer restore()
 
-	s.testInstallGadgetNoSave(c)
+	s.testInstallGadgetNoSave(c, "dangerous")
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1854,10 +1887,29 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	s.makeMockInstalledPcGadget(c, "", "")
+
 	mockModel := s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"display-name": "my model",
 		"architecture": "amd64",
-		"kernel":       "pc-kernel",
-		"gadget":       "pc",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              pcKernelSnapID,
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              pcSnapID,
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
 	})
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
@@ -1906,6 +1958,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 		encryptionType, err := devicestate.DeviceManagerCheckEncryption(s.mgr, st, deviceCtx)
 		c.Assert(err, IsNil)
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
+		if !tc.hasTPM {
+			c.Check(logbuf.String(), Matches, ".*: not encrypting device storage as checking TPM gave: tpm says no\n")
+		}
 	}
 }
 
@@ -1961,7 +2016,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedStorageSafety(c *C)
 		encryptionType, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
 		c.Assert(err, IsNil)
 		encrypt := (encryptionType != secboot.EncryptionTypeNone)
-		c.Check(encrypt, Equals, tc.expectedEncryption)
+		c.Check(encrypt, Equals, tc.expectedEncryption, Commentf("%v", tc))
 	}
 }
 
@@ -2131,6 +2186,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogsHook(c *C
 	defer restore()
 
 	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", checkEncryptionModelHeaders)
+	s.makeMockInstalledPcGadget(c, "", "")
 	// mock kernel installed but no hook or handle so checkEncryption
 	// will fail
 	makeInstalledMockKernelSnap(c, s.state, kernelYamlWithFdeSetup)
@@ -3054,4 +3110,555 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetWritesTimesyncdClock(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(fi.ModTime().Round(time.Second), Equals, now.Round(time.Second))
 	c.Check(fi.Size(), Equals, int64(0))
+}
+
+func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	kernelInfo := makeInstalledMockKernelSnap(c, s.state, kernelYamlNoFdeSetup)
+	gadgetSnapInfo := s.makeMockInstalledPcGadget(c, "", "")
+	gadgetInfo, err := gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
+	c.Assert(err, IsNil)
+
+	var testCases = []struct {
+		grade, storageSafety, forceUnencrypted string
+		tpmErr                                 error
+
+		expected devicestate.EncryptionSupportInfo
+	}{
+		{
+			"dangerous", "", "", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
+			},
+		},
+		{
+			"dangerous", "", "force-unencrypted", nil,
+			devicestate.EncryptionSupportInfo{
+				// Encryption is forcefully disabled
+				// here so no further
+				// availability/enc-type checks are
+				// performed.
+				Available: false, Disabled: true,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeNone,
+			},
+		},
+		{
+			"dangerous", "", "force-unencrypted", fmt.Errorf("no tpm"),
+			devicestate.EncryptionSupportInfo{
+				// Encryption is forcefully disabled
+				// here so the "no tpm" error is never visible
+				Available: false, Disabled: true,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeNone,
+			},
+		},
+		// not possible to disable encryption on non-dangerous devices
+		{
+			"signed", "", "", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
+			},
+		},
+		{
+			"signed", "", "force-unencrypted", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
+			},
+		},
+		{
+			"signed", "", "force-unencrypted", fmt.Errorf("no tpm"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+				Type:               secboot.EncryptionTypeNone,
+				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
+			},
+		},
+		{
+			"secured", "", "", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
+			},
+		},
+		{
+			"secured", "", "force-unencrypted", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
+			},
+		},
+		{
+			"secured", "", "force-unencrypted", fmt.Errorf("no tpm"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return tc.tpmErr })
+		defer restore()
+
+		mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+			"display-name":   "my model",
+			"architecture":   "amd64",
+			"base":           "core20",
+			"grade":          tc.grade,
+			"storage-safety": tc.storageSafety,
+			"snaps": []interface{}{
+				map[string]interface{}{
+					"name":            "pc-kernel",
+					"id":              pcKernelSnapID,
+					"type":            "kernel",
+					"default-channel": "20",
+				},
+				map[string]interface{}{
+					"name":            "pc",
+					"id":              pcSnapID,
+					"type":            "gadget",
+					"default-channel": "20",
+				}},
+		})
+		forceUnencryptedPath := filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")
+		if tc.forceUnencrypted == "" {
+			os.Remove(forceUnencryptedPath)
+		} else {
+			err := os.MkdirAll(filepath.Dir(forceUnencryptedPath), 0755)
+			c.Assert(err, IsNil)
+			err = ioutil.WriteFile(forceUnencryptedPath, nil, 0644)
+			c.Assert(err, IsNil)
+		}
+
+		res, err := devicestate.DeviceManagerEncryptionSupportInfo(s.mgr, mockModel, kernelInfo, gadgetInfo)
+		c.Assert(err, IsNil)
+		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
+	}
+}
+
+var gadgetWithoutUbuntuSave = &gadget.Info{
+	Volumes: map[string]*gadget.Volume{
+		"pc": {
+			Name:       "pc",
+			Schema:     "mbr",
+			Bootloader: "grub",
+			Structure: []gadget.VolumeStructure{
+				{VolumeName: "ubuntu-seed", Name: "ubuntu-seed", Label: "ubuntu-seed", Size: 700 * quantity.SizeMiB, Role: "system-seed", Filesystem: "vfat"},
+				{VolumeName: "ubuntu-data", Name: "ubuntu-data", Label: "ubuntu-data", Size: 700 * quantity.SizeMiB, Role: "system-data", Filesystem: "ext4"},
+			},
+		},
+	},
+}
+
+var gadgetUC20 = &gadget.Info{
+	Volumes: map[string]*gadget.Volume{
+		"pc": {
+			Name:       "pc",
+			Schema:     "mbr",
+			Bootloader: "grub",
+			Structure: []gadget.VolumeStructure{
+				{VolumeName: "ubuntu-seed", Name: "ubuntu-seed", Label: "ubuntu-seed", Size: 700 * quantity.SizeMiB, Role: "system-seed", Filesystem: "vfat"},
+				{VolumeName: "ubuntu-data", Name: "ubuntu-data", Label: "ubuntu-data", Size: 700 * quantity.SizeMiB, Role: "system-data", Filesystem: "ext4"},
+				{VolumeName: "ubuntu-save", Name: "ubuntu-save", Label: "ubuntu-save", Size: 5 * quantity.SizeMiB, Role: "system-save", Filesystem: "ext4"},
+			},
+		},
+	},
+}
+
+func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
+	defer restore()
+
+	kernelInfo := makeInstalledMockKernelSnap(c, s.state, kernelYamlNoFdeSetup)
+	var testCases = []struct {
+		grade, storageSafety string
+		gadgetInfo           *gadget.Info
+
+		expected devicestate.EncryptionSupportInfo
+	}{
+		{
+			"dangerous", "", gadgetUC20,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
+			},
+		}, {
+			"dangerous", "", gadgetWithoutUbuntuSave,
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+				Type:               secboot.EncryptionTypeNone,
+				UnavailableWarning: "cannot use encryption with the gadget, disabling encryption: gadget does not support encrypted data: required partition with system-save role is missing",
+			},
+		}, {
+			"dangerous", "encrypted", gadgetWithoutUbuntuSave,
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
+			},
+		}, {
+			"signed", "", gadgetUC20,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
+			},
+		}, {
+			"signed", "", gadgetWithoutUbuntuSave,
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+				Type:               secboot.EncryptionTypeNone,
+				UnavailableWarning: "cannot use encryption with the gadget, disabling encryption: gadget does not support encrypted data: required partition with system-save role is missing",
+			},
+		}, {
+			"signed", "encrypted", gadgetWithoutUbuntuSave,
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
+			},
+		}, {
+			"secured", "", gadgetUC20,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
+			},
+		}, {
+			"secured", "", gadgetWithoutUbuntuSave,
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot use encryption with the gadget: gadget does not support encrypted data: required partition with system-save role is missing"),
+			},
+		},
+	}
+	for _, tc := range testCases {
+		mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+			"display-name":   "my model",
+			"architecture":   "amd64",
+			"base":           "core20",
+			"grade":          tc.grade,
+			"storage-safety": tc.storageSafety,
+			"snaps": []interface{}{
+				map[string]interface{}{
+					"name":            "pc-kernel",
+					"id":              pcKernelSnapID,
+					"type":            "kernel",
+					"default-channel": "20",
+				},
+				map[string]interface{}{
+					"name":            "pc",
+					"id":              pcSnapID,
+					"type":            "gadget",
+					"default-channel": "20",
+				}},
+		})
+		res, err := devicestate.DeviceManagerEncryptionSupportInfo(s.mgr, mockModel, kernelInfo, tc.gadgetInfo)
+		c.Assert(err, IsNil)
+		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
+	}
+}
+
+func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoWithTPM(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	kernelInfo := makeInstalledMockKernelSnap(c, s.state, kernelYamlNoFdeSetup)
+	gadgetSnapInfo := s.makeMockInstalledPcGadget(c, "", "")
+	gadgetInfo, err := gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
+	c.Assert(err, IsNil)
+
+	var testCases = []struct {
+		grade, storageSafety string
+		tpmErr               error
+
+		expected devicestate.EncryptionSupportInfo
+	}{
+		{
+			"dangerous", "", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
+			},
+		}, {
+			"dangerous", "", fmt.Errorf("no tpm"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+				Type:               secboot.EncryptionTypeNone,
+				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
+			},
+		}, {
+			"dangerous", "encrypted", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
+			},
+		}, {
+			"dangerous", "encrypted", fmt.Errorf("no tpm"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
+			},
+		},
+		{
+			"dangerous", "prefer-unencrypted", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferUnencrypted,
+				// Note that encryption type is set to what is available
+				Type: secboot.EncryptionTypeLUKS,
+			},
+		},
+		{
+			"signed", "", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
+			},
+		}, {
+			"signed", "", fmt.Errorf("no tpm"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+				Type:               secboot.EncryptionTypeNone,
+				UnavailableWarning: "not encrypting device storage as checking TPM gave: no tpm",
+			},
+		}, {
+			"signed", "encrypted", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
+			},
+		}, {
+			"signed", "prefer-unencrypted", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferUnencrypted,
+				// Note that encryption type is set to what is available
+				Type: secboot.EncryptionTypeLUKS,
+			},
+		}, {
+			"signed", "encrypted", fmt.Errorf("no tpm"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: no tpm"),
+			},
+		}, {
+			"secured", "encrypted", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
+			},
+		}, {
+			"secured", "encrypted", fmt.Errorf("no tpm"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+			},
+		}, {
+			"secured", "", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeLUKS,
+			},
+		}, {
+			"secured", "", fmt.Errorf("no tpm"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: no tpm"),
+			},
+		},
+	}
+	for _, tc := range testCases {
+		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return tc.tpmErr })
+		defer restore()
+
+		mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+			"display-name":   "my model",
+			"architecture":   "amd64",
+			"base":           "core20",
+			"grade":          tc.grade,
+			"storage-safety": tc.storageSafety,
+			"snaps": []interface{}{
+				map[string]interface{}{
+					"name":            "pc-kernel",
+					"id":              pcKernelSnapID,
+					"type":            "kernel",
+					"default-channel": "20",
+				},
+				map[string]interface{}{
+					"name":            "pc",
+					"id":              pcSnapID,
+					"type":            "gadget",
+					"default-channel": "20",
+				}},
+		})
+		res, err := devicestate.DeviceManagerEncryptionSupportInfo(s.mgr, mockModel, kernelInfo, gadgetInfo)
+		c.Assert(err, IsNil)
+		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
+	}
+}
+
+func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoWithFdeHook(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+	})
+	kernelInfo := makeInstalledMockKernelSnap(c, s.state, kernelYamlWithFdeSetup)
+	gadgetSnapInfo := s.makeMockInstalledPcGadget(c, "", "")
+	gadgetInfo, err := gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
+	c.Assert(err, IsNil)
+
+	var testCases = []struct {
+		grade, storageSafety string
+		hookErr              error
+
+		expected devicestate.EncryptionSupportInfo
+	}{
+		{
+			"dangerous", "", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeDeviceSetupHook,
+			},
+		}, {
+			"dangerous", "", fmt.Errorf("hook error"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+				Type:               secboot.EncryptionTypeNone,
+				UnavailableWarning: `not encrypting device storage as querying kernel fde-setup hook did not succeed: cannot run hook for "features": run hook "fde-setup": hook error`,
+			},
+		}, {
+			"dangerous", "encrypted", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeDeviceSetupHook,
+			},
+		}, {
+			"dangerous", "encrypted", fmt.Errorf("hook error"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf(`cannot encrypt device storage as mandated by encrypted storage-safety model option: cannot run hook for "features": run hook "fde-setup": hook error`),
+			},
+		}, {
+			"signed", "", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyPreferEncrypted,
+				Type:          secboot.EncryptionTypeDeviceSetupHook,
+			},
+		}, {
+			"signed", "", fmt.Errorf("hook error"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+				Type:               secboot.EncryptionTypeNone,
+				UnavailableWarning: `not encrypting device storage as querying kernel fde-setup hook did not succeed: cannot run hook for "features": run hook "fde-setup": hook error`,
+			},
+		}, {
+			"signed", "encrypted", fmt.Errorf("hook error"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf(`cannot encrypt device storage as mandated by encrypted storage-safety model option: cannot run hook for "features": run hook "fde-setup": hook error`),
+			},
+		}, {
+			"secured", "", fmt.Errorf("hook error"),
+			devicestate.EncryptionSupportInfo{
+				Available: false, Disabled: false,
+				StorageSafety:  asserts.StorageSafetyEncrypted,
+				Type:           secboot.EncryptionTypeNone,
+				UnavailableErr: fmt.Errorf(`cannot encrypt device storage as mandated by model grade secured: cannot run hook for "features": run hook "fde-setup": hook error`),
+			},
+		}, {
+			"secured", "", nil,
+			devicestate.EncryptionSupportInfo{
+				Available: true, Disabled: false,
+				StorageSafety: asserts.StorageSafetyEncrypted,
+				Type:          secboot.EncryptionTypeDeviceSetupHook,
+			},
+		},
+	}
+	for _, tc := range testCases {
+		hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+			ctx.Lock()
+			defer ctx.Unlock()
+			ctx.Set("fde-setup-result", []byte(`{"features":["device-setup"]}`))
+			return nil, tc.hookErr
+		}
+		rhk := hookstate.MockRunHook(hookInvoke)
+		defer rhk()
+
+		mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+			"display-name":   "my model",
+			"architecture":   "amd64",
+			"base":           "core20",
+			"grade":          tc.grade,
+			"storage-safety": tc.storageSafety,
+			"snaps": []interface{}{
+				map[string]interface{}{
+					"name":            "pc-kernel",
+					"id":              pcKernelSnapID,
+					"type":            "kernel",
+					"default-channel": "20",
+				},
+				map[string]interface{}{
+					"name":            "pc",
+					"id":              pcSnapID,
+					"type":            "gadget",
+					"default-channel": "20",
+				}},
+		})
+		res, err := devicestate.DeviceManagerEncryptionSupportInfo(s.mgr, mockModel, kernelInfo, gadgetInfo)
+		c.Assert(err, IsNil)
+		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
+	}
 }
