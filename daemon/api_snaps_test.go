@@ -2596,7 +2596,7 @@ func (s *snapsSuite) TestHoldAllRefreshes(c *check.C) {
 		c.Assert(err, check.IsNil)
 		c.Assert(res.Tasksets, check.Not(check.IsNil))
 		c.Assert(res.Affected, check.IsNil)
-		c.Assert(res.Summary, check.Equals, `Hold refreshes for all snaps.`)
+		c.Assert(res.Summary, check.Equals, `Hold auto-refreshes for all snaps.`)
 		restore()
 	}
 }
@@ -2625,7 +2625,7 @@ func (s *snapsSuite) TestHoldManyRefreshes(c *check.C) {
 		c.Assert(err, check.IsNil)
 		c.Assert(res.Tasksets, check.IsNil)
 		c.Assert(res.Affected, check.DeepEquals, snaps)
-		c.Assert(res.Summary, check.Equals, fmt.Sprintf(`Hold refreshes for %s.`, strutil.Quoted(snaps)))
+		c.Assert(res.Summary, check.Equals, fmt.Sprintf(`Hold general refreshes for %s.`, strutil.Quoted(snaps)))
 		restore()
 	}
 }
@@ -2652,7 +2652,7 @@ func (s *snapsSuite) TestHoldRefresh(c *check.C) {
 		summary, tasksets, err := inst.Dispatch()(inst, st)
 		c.Assert(err, check.IsNil)
 		c.Assert(tasksets, check.IsNil)
-		c.Assert(summary, check.Equals, `Hold refreshes for "some-snap".`)
+		c.Assert(summary, check.Equals, `Hold general refreshes for "some-snap".`)
 		restore()
 	}
 }
@@ -2678,7 +2678,7 @@ func (s *snapsSuite) TestUnholdAllRefreshes(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(res.Tasksets, check.Not(check.IsNil))
 	c.Assert(res.Affected, check.IsNil)
-	c.Assert(res.Summary, check.Equals, `Remove hold on refreshes of all snaps.`)
+	c.Assert(res.Summary, check.Equals, `Remove hold on auto-refreshes of all snaps.`)
 }
 
 func (s *snapsSuite) TestUnholdManyRefreshes(c *check.C) {
@@ -2705,7 +2705,7 @@ func (s *snapsSuite) TestUnholdManyRefreshes(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(res.Tasksets, check.IsNil)
 	c.Assert(res.Affected, check.DeepEquals, snaps)
-	c.Assert(res.Summary, check.Equals, fmt.Sprintf(`Remove hold on refreshes of %s.`, strutil.Quoted(inst.Snaps)))
+	c.Assert(res.Summary, check.Equals, fmt.Sprintf(`Remove hold on general refreshes of %s.`, strutil.Quoted(inst.Snaps)))
 }
 
 func (s *snapsSuite) TestUnholdRefresh(c *check.C) {
@@ -2730,7 +2730,7 @@ func (s *snapsSuite) TestUnholdRefresh(c *check.C) {
 
 	c.Assert(err, check.IsNil)
 	c.Assert(tasksets, check.IsNil)
-	c.Assert(summary, check.Equals, `Remove hold on refreshes of "some-snap".`)
+	c.Assert(summary, check.Equals, `Remove hold on general refreshes of "some-snap".`)
 }
 
 func (s *snapsSuite) TestHoldWithInvalidTime(c *check.C) {

@@ -152,13 +152,13 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	chg := newChange(st, inst.Action+"-snap", msg, tsets, inst.Snaps)
 	if len(tsets) == 0 {
 		chg.SetStatus(state.DoneStatus)
-	} else {
-		ensureStateSoon(st)
 	}
 
 	if inst.SystemRestartImmediate {
 		chg.Set("system-restart-immediate", true)
 	}
+
+	ensureStateSoon(st)
 
 	return AsyncResponse(nil, chg.ID())
 }
@@ -590,13 +590,13 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	chg := newChange(st, inst.Action+"-snap", res.Summary, res.Tasksets, res.Affected)
 	if len(res.Tasksets) == 0 {
 		chg.SetStatus(state.DoneStatus)
-	} else {
-		ensureStateSoon(st)
 	}
 
 	if inst.SystemRestartImmediate {
 		chg.Set("system-restart-immediate", true)
 	}
+
+	ensureStateSoon(st)
 
 	chg.Set("api-data", map[string]interface{}{"snap-names": res.Affected})
 
@@ -899,14 +899,14 @@ func snapHoldMany(inst *snapInstruction, st *state.State) (res *snapInstructionR
 		}
 
 		tss = []*state.TaskSet{ts}
-		msg = i18n.G("Hold refreshes for all snaps.")
+		msg = i18n.G("Hold auto-refreshes for all snaps.")
 	} else {
 		// XXX take level from request
 		if err := snapstateHoldRefreshesBySystem(st, snapstate.HoldGeneral, inst.Time, inst.Snaps); err != nil {
 			return nil, err
 		}
 
-		msg = fmt.Sprintf(i18n.G("Hold refreshes for %s."), strutil.Quoted(inst.Snaps))
+		msg = fmt.Sprintf(i18n.G("Hold general refreshes for %s."), strutil.Quoted(inst.Snaps))
 	}
 
 	return &snapInstructionResult{
@@ -928,13 +928,13 @@ func snapUnholdMany(inst *snapInstruction, st *state.State) (res *snapInstructio
 		}
 
 		tss = []*state.TaskSet{ts}
-		msg = i18n.G("Remove hold on refreshes of all snaps.")
+		msg = i18n.G("Remove hold on auto-refreshes of all snaps.")
 	} else {
 		if err := snapstateProceedWithRefresh(st, "system", inst.Snaps); err != nil {
 			return nil, err
 		}
 
-		msg = fmt.Sprintf(i18n.G("Remove hold on refreshes of %s."), strutil.Quoted(inst.Snaps))
+		msg = fmt.Sprintf(i18n.G("Remove hold on general refreshes of %s."), strutil.Quoted(inst.Snaps))
 	}
 
 	return &snapInstructionResult{

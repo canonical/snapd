@@ -95,9 +95,10 @@ store's collaboration feature, and to be logged in (see 'snap help login').
 
 Note a later refresh will typically undo a revision override.
 
-Using --hold without specifying any snaps will hold all snap refreshes. Holds
-are only applied to general refreshes (including auto-refreshes), but snaps can
-still be refreshed in specific refreshes (i.e, 'snap refresh snap-a snap-b').
+Holds (--hold) specified for snaps are only applied to general refreshes ('snap 
+refresh' without specifying snaps and auto-refreshes), but snaps can still be
+refreshed in specific refreshes (i.e, 'snap refresh snap-a snap-b'). Using
+--hold without specifying any snaps will only hold auto-refreshes for all snaps.
 `)
 
 var longTryHelp = i18n.G(`
@@ -909,17 +910,11 @@ func (x *cmdRefresh) holdRefreshes() (err error) {
 	}
 
 	names := installedSnapNames(x.Positional.Snaps)
-	var changeID, snapStr string
+	var changeID string
 	if len(names) == 1 {
 		changeID, err = x.client.HoldRefreshes(names[0], &opts)
-		snapStr = names[0]
 	} else {
 		changeID, err = x.client.HoldRefreshesMany(names, &opts)
-		if len(names) == 0 {
-			snapStr = "all snaps"
-		} else {
-			snapStr = strutil.Quoted(names)
-		}
 	}
 
 	if err != nil {
@@ -934,23 +929,22 @@ func (x *cmdRefresh) holdRefreshes() (err error) {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, i18n.G("Held refreshes of %s until %s\n"), snapStr, opts.Time)
+	if len(names) == 0 {
+		fmt.Fprintf(Stdout, i18n.G("Held auto-refreshes of all snaps until %s\n"), opts.Time)
+	} else {
+		fmt.Fprintf(Stdout, i18n.G("Held general refreshes of %s until %s\n"), strutil.Quoted(names), opts.Time)
+	}
+
 	return nil
 }
 
 func (x *cmdRefresh) unholdRefreshes() (err error) {
 	names := installedSnapNames(x.Positional.Snaps)
-	var changeID, snapStr string
+	var changeID string
 	if len(names) == 1 {
 		changeID, err = x.client.UnholdRefreshes(names[0], nil)
-		snapStr = names[0]
 	} else {
 		changeID, err = x.client.UnholdRefreshesMany(names, nil)
-		if len(names) == 0 {
-			snapStr = "all snaps"
-		} else {
-			snapStr = strutil.Quoted(names)
-		}
 	}
 
 	if err != nil {
@@ -965,7 +959,12 @@ func (x *cmdRefresh) unholdRefreshes() (err error) {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, i18n.G("Removed hold on refreshes for %s\n"), snapStr)
+	if len(names) == 0 {
+		fmt.Fprintf(Stdout, i18n.G("Removed hold on auto-refreshes of all snaps\n"))
+	} else {
+		fmt.Fprintf(Stdout, i18n.G("Removed hold on general refreshes of %s\n"), strutil.Quoted(names))
+	}
+
 	return nil
 }
 

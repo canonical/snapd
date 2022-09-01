@@ -165,16 +165,16 @@ func (client *Client) HoldRefreshes(name string, options *SnapOptions) (changeID
 	return client.doSnapAction("hold", name, options)
 }
 
-func (client *Client) HoldRefreshesMany(name []string, options *SnapOptions) (changeID string, err error) {
-	return client.doMultiSnapAction("hold", name, options)
+func (client *Client) HoldRefreshesMany(names []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("hold", names, options)
 }
 
 func (client *Client) UnholdRefreshes(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("unhold", name, options)
 }
 
-func (client *Client) UnholdRefreshesMany(name []string, options *SnapOptions) (changeID string, err error) {
-	return client.doMultiSnapAction("unhold", name, options)
+func (client *Client) UnholdRefreshesMany(names []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("unhold", names, options)
 }
 
 func (client *Client) Enable(name string, options *SnapOptions) (changeID string, err error) {
