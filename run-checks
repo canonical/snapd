@@ -206,13 +206,21 @@ if [ "$STATIC" = 1 ]; then
         echo "Checking shell scripts..."
         if [ -n "$CHANGED_FILES" ]; then
             echo "Checking just the changed bash files"
+            echo "Changed files: $CHANGED_FILES"
             # shellcheck disable=SC2086
             INITIAL_FILES="$( file -N $CHANGED_FILES | awk -F": " '$2~/shell.script/{print $1}' )"
         else
             echo "Checking all the bash files"
             INITIAL_FILES="$( ( git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0) | xargs -0 file -N | awk -F": " '$2~/shell.script/{print $1}' )"
         fi
-        FILTERED_FILES="$( echo "$INITIAL_FILES"  | grep -v "$exclude_tools_path" )"
+
+        echo "Filtering files"
+        FILTERED_FILES=
+        for file in $INITIAL_FILES; do
+            if ! echo "$file" | grep -q "$exclude_tools_path"; then
+                FILTERED_FILES="$FILTERED_FILES $file"
+            fi
+        done
         if [ -n "$FILTERED_FILES" ]; then
             echo "Running shellcheck for files: $FILTERED_FILES"
             # shellcheck disable=SC2086
@@ -242,8 +250,9 @@ if [ "$STATIC" = 1 ]; then
         else
             FILTERED_FILES="$FILTERED_FILES tests"
         fi
+        # XXX: exclude core20-preseed test as its environment block confuses shellcheck, and it's not possible to disable shellcheck there.
         # shellcheck disable=SC2086
-        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $FILTERED_FILES --exclude "$exclude_tools_path"
+        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $FILTERED_FILES --exclude "$exclude_tools_path" --exclude "tests/nested/manual/core20-preseed"
     fi
 
     if [ -z "${SKIP_MISSPELL-}" ]; then
@@ -310,6 +319,13 @@ if [ "$STATIC" = 1 ]; then
     if [ -z "${SKIP_TESTS_FORMAT_CHECK-}" ] || [ "$SKIP_TESTS_FORMAT_CHECK" = 0 ]; then
         echo "Checking tests formatting"
         ./tests/lib/external/snapd-testing-tools/utils/check-test-format ./tests
+    fi
+
+    echo "Checking for usages of !=, == or Equals with ErrNoState"
+    if got=$(grep -n -R -E "(\!=|==|Equals,) (state\.)?ErrNoState" --include=*.go) ; then
+      echo "Don't use equality checks with ErrNoState, use errors.Is() instead"
+      echo "$got"
+      exit 1
     fi
 fi
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -93,6 +93,10 @@ type Config struct {
 	StoreBaseURL      *url.URL
 	AssertionsBaseURL *url.URL
 
+	// Authorizer used to authorize requests, can be nil and a default
+	// will be used.
+	Authorizer Authorizer
+
 	// StoreID is the store id used if we can't get one through the DeviceAndAuthContext.
 	StoreID string
 
@@ -146,11 +150,12 @@ type Store struct {
 	infoFields   []string
 	findFields   []string
 	deltaFormat  string
+
+	auth Authorizer
 	// reused http client
 	client *http.Client
 
-	dauthCtx  DeviceAndAuthContext
-	sessionMu sync.Mutex
+	dauthCtx DeviceAndAuthContext
 
 	mu                sync.Mutex
 	suggestedCurrency string
@@ -399,6 +404,16 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		Timeout:    requestTimeout,
 		MayLogBody: true,
 	})
+	auth := cfg.Authorizer
+	if auth == nil {
+		if dauthCtx != nil {
+			auth = &deviceAuthorizer{endpointURL: store.endpointURL}
+		} else {
+			auth = UserAuthorizer{}
+		}
+	}
+	store.auth = auth
+
 	store.SetCacheDownloads(cfg.CacheDownloads)
 
 	return store
@@ -494,177 +509,13 @@ func (s *Store) LoginUser(username, password, otp string) (string, string, error
 	return macaroon, discharge, nil
 }
 
-// authAvailable returns true if there is a user and/or device session setup
-func (s *Store) authAvailable(user *auth.UserState) (bool, error) {
-	if user.HasStoreAuth() {
-		return true, nil
-	} else {
-		var device *auth.DeviceState
-		var err error
-		if s.dauthCtx != nil {
-			device, err = s.dauthCtx.Device()
-			if err != nil {
-				return false, err
-			}
-		}
-		return device != nil && device.SessionMacaroon != "", nil
-	}
-}
-
-// authenticateUser will add the store expected Macaroon Authorization header for user
-func authenticateUser(r *http.Request, user *auth.UserState) {
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, `Macaroon root="%s"`, user.StoreMacaroon)
-
-	// deserialize root macaroon (we need its signature to do the discharge binding)
-	root, err := auth.MacaroonDeserialize(user.StoreMacaroon)
-	if err != nil {
-		logger.Debugf("cannot deserialize root macaroon: %v", err)
-		return
-	}
-
-	for _, d := range user.StoreDischarges {
-		// prepare discharge for request
-		discharge, err := auth.MacaroonDeserialize(d)
-		if err != nil {
-			logger.Debugf("cannot deserialize discharge macaroon: %v", err)
-			return
-		}
-		discharge.Bind(root.Signature())
-
-		serializedDischarge, err := auth.MacaroonSerialize(discharge)
-		if err != nil {
-			logger.Debugf("cannot re-serialize discharge macaroon: %v", err)
-			return
-		}
-		fmt.Fprintf(&buf, `, discharge="%s"`, serializedDischarge)
-	}
-	r.Header.Set("Authorization", buf.String())
-}
-
-// refreshDischarges will request refreshed discharge macaroons for the user
-func refreshDischarges(httpClient *http.Client, user *auth.UserState) ([]string, error) {
-	newDischarges := make([]string, len(user.StoreDischarges))
-	for i, d := range user.StoreDischarges {
-		discharge, err := auth.MacaroonDeserialize(d)
-		if err != nil {
-			return nil, err
-		}
-		if discharge.Location() != UbuntuoneLocation {
-			newDischarges[i] = d
-			continue
-		}
-
-		refreshedDischarge, err := refreshDischargeMacaroon(httpClient, d)
-		if err != nil {
-			return nil, err
-		}
-		newDischarges[i] = refreshedDischarge
-	}
-	return newDischarges, nil
-}
-
-// refreshUser will refresh user discharge macaroon and update state
-func (s *Store) refreshUser(user *auth.UserState) error {
-	if s.dauthCtx == nil {
-		return fmt.Errorf("user credentials need to be refreshed but update in place only supported in snapd")
-	}
-	newDischarges, err := refreshDischarges(s.client, user)
-	if err != nil {
-		return err
-	}
-
-	curUser, err := s.dauthCtx.UpdateUserAuth(user, newDischarges)
-	if err != nil {
-		return err
-	}
-	// update in place
-	*user = *curUser
-
-	return nil
-}
-
-// refreshDeviceSession will set or refresh the device session in the state
-func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
-	if s.dauthCtx == nil {
-		return fmt.Errorf("internal error: no device and auth context")
-	}
-
-	s.sessionMu.Lock()
-	defer s.sessionMu.Unlock()
-	// check that no other goroutine has already got a new session etc...
-	device1, err := s.dauthCtx.Device()
-	if err != nil {
-		return err
-	}
-	// We can replace device with "device1" here because Device
-	// and UpdateDeviceAuth (and the underlying SetDevice)
-	// require/use the global state lock, so the reading/setting
-	// values have a total order, and device1 cannot come before
-	// device in that order. See also:
-	// https://github.com/snapcore/snapd/pull/6716#discussion_r277025834
-	if *device1 != *device {
-		// nothing to do
-		*device = *device1
-		return nil
-	}
-
-	nonce, err := requestStoreDeviceNonce(s.client, s.endpointURL(deviceNonceEndpPath, nil).String())
-	if err != nil {
-		return err
-	}
-
-	devSessReqParams, err := s.dauthCtx.DeviceSessionRequestParams(nonce)
-	if err != nil {
-		return err
-	}
-
-	session, err := requestDeviceSession(s.client, s.endpointURL(deviceSessionEndpPath, nil).String(), devSessReqParams, device.SessionMacaroon)
-	if err != nil {
-		return err
-	}
-
-	curDevice, err := s.dauthCtx.UpdateDeviceAuth(device, session)
-	if err != nil {
-		return err
-	}
-	// update in place
-	*device = *curDevice
-	return nil
-}
-
 // EnsureDeviceSession makes sure the store has a device session available.
 // Expects the store to have an AuthContext.
-func (s *Store) EnsureDeviceSession() (*auth.DeviceState, error) {
-	if s.dauthCtx == nil {
-		return nil, fmt.Errorf("internal error: no authContext")
+func (s *Store) EnsureDeviceSession() error {
+	if a, ok := s.auth.(*deviceAuthorizer); ok {
+		return a.EnsureDeviceSession(s.dauthCtx, s.client)
 	}
-
-	device, err := s.dauthCtx.Device()
-	if err != nil {
-		return nil, err
-	}
-
-	if device.SessionMacaroon != "" {
-		return device, nil
-	}
-	if device.Serial == "" {
-		return nil, ErrNoSerial
-	}
-	// we don't have a session yet but have a serial, try
-	// to get a session
-	err = s.refreshDeviceSession(device)
-	if err != nil {
-		return nil, err
-	}
-	return device, err
-}
-
-// authenticateDevice will add the store expected Macaroon X-Device-Authorization header for device
-func authenticateDevice(r *http.Request, device *auth.DeviceState, apiLevel apiLevel) {
-	if device != nil && device.SessionMacaroon != "" {
-		r.Header.Set(hdrSnapDeviceAuthorization[apiLevel], fmt.Sprintf(`Macaroon root="%s"`, device.SessionMacaroon))
-	}
+	return nil
 }
 
 func (s *Store) setStoreID(r *http.Request, apiLevel apiLevel) (customStore bool) {
@@ -853,68 +704,35 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 			return nil, err
 		}
 
-		wwwAuth := resp.Header.Get("WWW-Authenticate")
 		if resp.StatusCode == 401 && authRefreshes < 4 {
 			// 4 tries: 2 tries for each in case both user
 			// and device need refreshing
-			var refreshNeed authRefreshNeed
-			if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+			wwwAuth := resp.Header.Get("WWW-Authenticate")
+			var refreshNeed AuthRefreshNeed
+			if strings.Contains(wwwAuth, "needs_refresh=1") {
 				// refresh user
-				refreshNeed.user = true
+				refreshNeed.User = true
 			}
 			if strings.Contains(wwwAuth, "refresh_device_session=1") {
 				// refresh device session
-				refreshNeed.device = true
+				refreshNeed.Device = true
 			}
 			if refreshNeed.needed() {
-				err := s.refreshAuth(user, refreshNeed)
-				if err != nil {
-					return nil, err
+				if a, ok := s.auth.(RefreshingAuthorizer); ok {
+					err := a.RefreshAuth(refreshNeed, s.dauthCtx, user, s.client)
+					if err != nil {
+						return nil, err
+					}
+					// close previous response and retry
+					resp.Body.Close()
+					authRefreshes++
+					continue
 				}
-				// close previous response and retry
-				resp.Body.Close()
-				authRefreshes++
-				continue
 			}
 		}
 
 		return resp, err
 	}
-}
-
-type authRefreshNeed struct {
-	device bool
-	user   bool
-}
-
-func (rn *authRefreshNeed) needed() bool {
-	return rn.device || rn.user
-}
-
-func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
-	if need.user {
-		// refresh user
-		err := s.refreshUser(user)
-		if err != nil {
-			return err
-		}
-	}
-	if need.device {
-		// refresh device session
-		if s.dauthCtx == nil {
-			return fmt.Errorf("internal error: no device and auth context")
-		}
-		device, err := s.dauthCtx.Device()
-		if err != nil {
-			return err
-		}
-
-		err = s.refreshDeviceSession(device)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // build a new http.Request with headers for the store
@@ -930,23 +748,20 @@ func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user
 	}
 
 	customStore := s.setStoreID(req, reqOptions.APILevel)
-
-	if s.dauthCtx != nil && (customStore || reqOptions.DeviceAuthNeed != deviceAuthCustomStoreOnly) {
-		device, err := s.EnsureDeviceSession()
+	authOpts := AuthorizeOptions{apiLevel: reqOptions.APILevel}
+	authOpts.deviceAuth = customStore || reqOptions.DeviceAuthNeed != deviceAuthCustomStoreOnly
+	if authOpts.deviceAuth {
+		err := s.EnsureDeviceSession()
 		if err != nil && err != ErrNoSerial {
 			return nil, err
 		}
 		if err == ErrNoSerial {
 			// missing serial assertion, log and continue without device authentication
 			logger.Debugf("cannot set device session: %v", err)
-		} else {
-			authenticateDevice(req, device, reqOptions.APILevel)
 		}
 	}
-
-	// only set user authentication if user logged in to the store
-	if user.HasStoreAuth() {
-		authenticateUser(req, user)
+	if err := s.auth.Authorize(req, s.dauthCtx, user, &authOpts); err != nil {
+		logger.Debugf("cannot authorize store request: %v", err)
 	}
 
 	req.Header.Set("User-Agent", s.userAgent)
@@ -1029,7 +844,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 		}
 	}
 
-	if user == nil {
+	if !s.auth.CanAuthorizeForUser(user) {
 		return nil
 	}
 
@@ -1172,7 +987,7 @@ type Search struct {
 // Find finds  (installable) snaps from the store, matching the
 // given Search.
 func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) ([]*snap.Info, error) {
-	if search.Private && user == nil {
+	if search.Private && !s.auth.CanAuthorizeForUser(user) {
 		return nil, ErrUnauthenticated
 	}
 
@@ -1502,7 +1317,7 @@ func (s *Store) Buy(options *client.BuyOptions, user *auth.UserState) (*client.B
 	if options.Currency == "" {
 		return buyOptionError("currency missing")
 	}
-	if user == nil {
+	if !s.auth.CanAuthorizeForUser(user) {
 		return nil, ErrUnauthenticated
 	}
 
@@ -1577,7 +1392,7 @@ type storeCustomer struct {
 
 // ReadyToBuy returns nil if the user's account has accepted T&Cs and has a payment method registered, and an error otherwise
 func (s *Store) ReadyToBuy(user *auth.UserState) error {
-	if user == nil {
+	if !s.auth.CanAuthorizeForUser(user) {
 		return ErrUnauthenticated
 	}
 

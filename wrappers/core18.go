@@ -27,7 +27,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"syscall"
-	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -35,10 +34,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
-	"github.com/snapcore/snapd/timeout"
 )
-
-var snapdServiceStopTimeout = time.Duration(timeout.DefaultTimeout)
 
 // catches units that run /usr/bin/snap (with args), or things in /usr/lib/snapd/
 var execStartRe = regexp.MustCompile(`(?m)^ExecStart=(/usr/bin/snap\s+.*|/usr/lib/snapd/.*)$`)
@@ -111,7 +107,7 @@ WantedBy=snapd.service
 	// meh this is killing snap services that use Requires=<this-unit> because
 	// it doesn't use verbatim systemctl restart, it instead does it with
 	// a systemctl stop and then a systemctl start, which triggers LP #1924805
-	if err := sysd.Restart(units, 5*time.Second); err != nil {
+	if err := sysd.Restart(units); err != nil {
 		return err
 	}
 
@@ -132,7 +128,7 @@ func undoSnapdToolingMountUnit(sysd systemd.Systemd) error {
 	// XXX: it is ok to stop the mount unit, the failover handler
 	// executes snapd directly from the previous revision of snapd snap or
 	// the core snap, the handler is running directly from the mounted snapd snap
-	if err := sysd.Stop(units, snapdServiceStopTimeout); err != nil {
+	if err := sysd.Stop(units); err != nil {
 		return err
 	}
 	return os.Remove(mountUnitPath)
@@ -224,7 +220,7 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 	// stop all removed units first
 	for _, unit := range removed {
 		serviceUnits := []string{unit}
-		if err := sysd.Stop(serviceUnits, 5*time.Second); err != nil {
+		if err := sysd.Stop(serviceUnits); err != nil {
 			logger.Noticef("failed to stop %q: %v", unit, err)
 		}
 		if err := sysd.DisableNoReload(serviceUnits); err != nil {
@@ -289,7 +285,7 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 				// we can never restart the snapd.socket because
 				// this will also bring down snapd itself
 				if unit != "snapd.socket" {
-					if err := sysd.Restart(serviceUnits, 5*time.Second); err != nil {
+					if err := sysd.Restart(serviceUnits); err != nil {
 						return err
 					}
 				}
@@ -374,7 +370,7 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 			if err := sysd.DisableNoReload(unit); err != nil {
 				logger.Noticef("failed to disable %q: %v", unit, err)
 			}
-			if err := sysd.Stop(unit, snapdServiceStopTimeout); err != nil {
+			if err := sysd.Stop(unit); err != nil {
 				return err
 			}
 		}
@@ -412,7 +408,7 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 				return err
 			}
 			if isActive {
-				if err := sysd.Restart(unit, snapdServiceStopTimeout); err != nil {
+				if err := sysd.Restart(unit); err != nil {
 					return err
 				}
 			} else {

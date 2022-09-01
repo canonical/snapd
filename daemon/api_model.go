@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/snapcore/snapd/asserts"
@@ -98,7 +99,7 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	devmgr := c.d.overlord.DeviceManager()
 
 	model, err := devmgr.Model()
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return &apiError{
 			Status:  404,
 			Message: "no model assertion yet",
@@ -138,7 +139,7 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 	devmgr := c.d.overlord.DeviceManager()
 
 	serial, err := devmgr.Serial()
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return &apiError{
 			Status:  404,
 			Message: "no serial assertion yet",

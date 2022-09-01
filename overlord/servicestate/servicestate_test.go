@@ -22,6 +22,8 @@ package servicestate_test
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -450,4 +452,129 @@ func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
 		task := tasks[0]
 		c.Check(task.Summary(), Equals, tc.expectedSummary)
 	}
+}
+
+func (s *snapServiceOptionsSuite) TestLogReader(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	si := snap.SideInfo{RealName: "foo", Revision: snap.R(1)}
+	snp := &snap.Info{SideInfo: si}
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	appInfos := []*snap.AppInfo{
+		{
+			Snap:        snp,
+			Name:        "svc1",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+		{
+			Snap:        snp,
+			Name:        "svc2",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+	}
+
+	restore := systemd.MockSystemdVersion(230, nil)
+	defer restore()
+
+	var jctlCalls int
+	restore = systemd.MockJournalctl(func(svcs []string, n int, follow, namespaces bool) (rc io.ReadCloser, err error) {
+		jctlCalls++
+		c.Check(svcs, DeepEquals, []string{"snap.foo.svc1.service", "snap.foo.svc2.service"})
+		c.Check(n, Equals, 100)
+		c.Check(follow, Equals, false)
+		c.Check(namespaces, Equals, false)
+		return ioutil.NopCloser(strings.NewReader("")), nil
+	})
+	defer restore()
+
+	_, err := servicestate.LogReader(appInfos, 100, false)
+	c.Assert(err, IsNil)
+	c.Check(jctlCalls, Equals, 1)
+}
+
+func (s *snapServiceOptionsSuite) TestLogReaderFailsWithNonServices(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	si := snap.SideInfo{RealName: "foo", Revision: snap.R(1)}
+	snp := &snap.Info{SideInfo: si}
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	appInfos := []*snap.AppInfo{
+		{
+			Snap:        snp,
+			Name:        "svc1",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+		// Introduce a non-service to make sure we fail on this
+		{
+			Snap: snp,
+			Name: "app1",
+		},
+	}
+
+	_, err := servicestate.LogReader(appInfos, 100, false)
+	c.Assert(err.Error(), Equals, `cannot read logs for app "app1": not a service`)
+}
+
+func (s *snapServiceOptionsSuite) TestLogReaderNamespaces(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	si := snap.SideInfo{RealName: "foo", Revision: snap.R(1)}
+	snp := &snap.Info{SideInfo: si}
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	appInfos := []*snap.AppInfo{
+		{
+			Snap:        snp,
+			Name:        "svc1",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+		{
+			Snap:        snp,
+			Name:        "svc2",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+	}
+
+	var jctlCalls int
+
+	restore := systemd.MockSystemdVersion(245, nil)
+	defer restore()
+	restore = systemd.MockJournalctl(func(svcs []string, n int, follow, namespaces bool) (rc io.ReadCloser, err error) {
+		jctlCalls++
+		c.Check(svcs, DeepEquals, []string{"snap.foo.svc1.service", "snap.foo.svc2.service"})
+		c.Check(n, Equals, 100)
+		c.Check(follow, Equals, false)
+		c.Check(namespaces, Equals, true)
+		return ioutil.NopCloser(strings.NewReader("")), nil
+	})
+	defer restore()
+
+	_, err := servicestate.LogReader(appInfos, 100, false)
+	c.Assert(err, IsNil)
+	c.Check(jctlCalls, Equals, 1)
 }

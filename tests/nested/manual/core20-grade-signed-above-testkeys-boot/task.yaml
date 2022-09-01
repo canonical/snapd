@@ -28,7 +28,6 @@ environment:
   MODEL_GRADE/signed: signed
 
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-${MODEL_GRADE}.model
-  NESTED_IMAGE_ID: testkeys-${MODEL_GRADE}
 
   # for the fake store
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir

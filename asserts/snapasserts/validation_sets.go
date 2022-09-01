@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -63,8 +64,9 @@ func (e *ValidationSetsConflictError) Error() string {
 // ValidationSetsValidationError describes an error arising
 // from validation of snaps against ValidationSets.
 type ValidationSetsValidationError struct {
-	// MissingSnaps maps missing snap names to the validation sets requiring them.
-	MissingSnaps map[string][]string
+	// MissingSnaps maps missing snap names to the expected revisions and respective validation sets requiring them.
+	// Revisions may be unset if no specific revision is required
+	MissingSnaps map[string]map[snap.Revision][]string
 	// InvalidSnaps maps snap names to the validation sets declaring them invalid.
 	InvalidSnaps map[string][]string
 	// WronRevisionSnaps maps snap names to the expected revisions and respective
@@ -94,9 +96,27 @@ func (e *ValidationSetsValidationError) Error() string {
 		}
 	}
 
-	printDetails("missing required snaps", e.MissingSnaps, func(snapName string, validationSetKeys []string) string {
-		return fmt.Sprintf("%s (required by sets %s)", snapName, strings.Join(validationSetKeys, ","))
-	})
+	if len(e.MissingSnaps) > 0 {
+		fmt.Fprintf(buf, "\n- missing required snaps:")
+		for snapName, revisions := range e.MissingSnaps {
+			revisionsSorted := make([]snap.Revision, 0, len(revisions))
+			for rev := range revisions {
+				revisionsSorted = append(revisionsSorted, rev)
+			}
+			sort.Sort(byRevision(revisionsSorted))
+			t := make([]string, 0, len(revisionsSorted))
+			for _, rev := range revisionsSorted {
+				keys := revisions[rev]
+				if rev.Unset() {
+					t = append(t, fmt.Sprintf("at any revision by sets %s", strings.Join(keys, ",")))
+				} else {
+					t = append(t, fmt.Sprintf("at revision %s by sets %s", rev, strings.Join(keys, ",")))
+				}
+			}
+			fmt.Fprintf(buf, "\n  - %s (required %s)", snapName, strings.Join(t, ", "))
+		}
+	}
+
 	printDetails("invalid snaps", e.InvalidSnaps, func(snapName string, validationSetKeys []string) string {
 		return fmt.Sprintf("%s (invalid for sets %s)", snapName, strings.Join(validationSetKeys, ","))
 	})
@@ -367,7 +387,7 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValid
 
 	// snapName -> validationSet key -> validation set
 	invalid := make(map[string]map[string]bool)
-	missing := make(map[string]map[string]bool)
+	missing := make(map[string]map[snap.Revision]map[string]bool)
 	wrongrev := make(map[string]map[snap.Revision]map[string]bool)
 	sets := make(map[string]*asserts.ValidationSet)
 
@@ -411,9 +431,12 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValid
 					// is only possible to have it with a wrong revision, or installed while invalid, in both
 					// cases through --ignore-validation flag).
 					if missing[rc.Name] == nil {
-						missing[rc.Name] = make(map[string]bool)
+						missing[rc.Name] = make(map[snap.Revision]map[string]bool)
 					}
-					missing[rc.Name][rc.validationSetKey] = true
+					if missing[rc.Name][rev] == nil {
+						missing[rc.Name][rev] = make(map[string]bool)
+					}
+					missing[rc.Name][rev][rc.validationSetKey] = true
 					sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 				}
 			}
@@ -438,8 +461,19 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValid
 	if len(invalid) > 0 || len(missing) > 0 || len(wrongrev) > 0 {
 		verr := &ValidationSetsValidationError{
 			InvalidSnaps: setsToLists(invalid),
-			MissingSnaps: setsToLists(missing),
 			Sets:         sets,
+		}
+		if len(missing) > 0 {
+			verr.MissingSnaps = make(map[string]map[snap.Revision][]string)
+			for snapName, revs := range missing {
+				verr.MissingSnaps[snapName] = make(map[snap.Revision][]string)
+				for rev, keys := range revs {
+					for key := range keys {
+						verr.MissingSnaps[snapName][rev] = append(verr.MissingSnaps[snapName][rev], key)
+					}
+					sort.Strings(verr.MissingSnaps[snapName][rev])
+				}
+			}
 		}
 		if len(wrongrev) > 0 {
 			verr.WrongRevisionSnaps = make(map[string]map[snap.Revision][]string)
@@ -550,4 +584,38 @@ func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]string,
 
 	sort.Strings(keys)
 	return keys, nil
+}
+
+// ParseValidationSet parses a validation set string (account/name or account/name=sequence)
+// and returns its individual components, or an error.
+func ParseValidationSet(arg string) (account, name string, seq int, err error) {
+	errPrefix := func() string {
+		return fmt.Sprintf("cannot parse validation set %q", arg)
+	}
+	parts := strings.Split(arg, "=")
+	if len(parts) > 2 {
+		return "", "", 0, fmt.Errorf("%s: expected account/name=seq", errPrefix())
+	}
+	if len(parts) == 2 {
+		seq, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return "", "", 0, fmt.Errorf("%s: invalid sequence: %v", errPrefix(), err)
+		}
+	}
+
+	parts = strings.Split(parts[0], "/")
+	if len(parts) != 2 {
+		return "", "", 0, fmt.Errorf("%s: expected a single account/name", errPrefix())
+	}
+
+	account = parts[0]
+	name = parts[1]
+	if !asserts.IsValidAccountID(account) {
+		return "", "", 0, fmt.Errorf("%s: invalid account ID %q", errPrefix(), account)
+	}
+	if !asserts.IsValidValidationSetName(name) {
+		return "", "", 0, fmt.Errorf("%s: invalid validation set name %q", errPrefix(), name)
+	}
+
+	return account, name, seq, nil
 }

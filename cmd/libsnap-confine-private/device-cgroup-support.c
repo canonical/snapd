@@ -338,10 +338,15 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
 
     /* TODO: open("/sys/fs/bpf") and then mkdirat?  */
     static const char bpf_snap_base[] = "/sys/fs/bpf/snap";
-    if (mkdir(bpf_snap_base, 0700) == 0) {
+    /* Using 0000 permissions to avoid a race condition; we'll set the right
+     * permissions after chmod. */
+    if (mkdir(bpf_snap_base, 0000) == 0) {
         /* the new directory must be owned by root:root. */
         if (chown(bpf_snap_base, 0, 0) < 0) {
             die("cannot set root ownership on %s directory", bpf_snap_base);
+        }
+        if (chmod(bpf_snap_base, 0700) < 0) {
+            die("cannot set 0700 permissions on %s directory", bpf_snap_base);
         }
     } else if (errno != EEXIST) {
         die("cannot create %s directory", bpf_snap_base);
@@ -694,11 +699,16 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
     const char *security_tag_relpath = security_tag;
     if (!from_existing) {
         /* Open snap.$SNAP_NAME.$APP_NAME relative to /sys/fs/cgroup/devices,
-         * creating the directory if necessary. */
-        if (mkdirat(devices_fd, security_tag_relpath, 0755) == 0) {
+         * creating the directory if necessary.
+         * Using 0000 permissions to avoid a race condition; we'll set the
+         * right permissions after chmod. */
+        if (mkdirat(devices_fd, security_tag_relpath, 0000) == 0) {
             /* the new directory must be owned by root:root. */
             if (fchownat(devices_fd, security_tag_relpath, 0, 0, AT_SYMLINK_NOFOLLOW) < 0) {
                 die("cannot set root ownership on %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
+            }
+            if (fchmodat(devices_fd, security_tag_relpath, 0755, 0) < 0) {
+                die("cannot set 0755 permissions on %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
             }
         } else if (errno != EEXIST) {
             die("cannot create directory %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);

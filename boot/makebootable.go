@@ -38,6 +38,8 @@ type BootableSet struct {
 	BasePath   string
 	Kernel     *snap.Info
 	KernelPath string
+	Gadget     *snap.Info
+	GadgetPath string
 
 	RecoverySystemLabel string
 	// RecoverySystemDir is a path to a directory with recovery system
@@ -290,16 +292,11 @@ func MakeRecoverySystemBootable(rootdir string, relativeRecoverySystemDir string
 	return nil
 }
 
-// MakeRunnableSystem is like MakeBootableImage in that it sets up a system to
-// be able to boot, but is unique in that it is intended to be called from UC20
-// install mode and makes the run system bootable (hence it is called
-// "runnable").
-// Note that this function does not update the recovery bootloader env to
-// actually transition to run mode here, that is left to the caller via
-// something like boot.EnsureNextBootToRunMode(). This is to enable separately
-// setting up a run system and actually transitioning to it, with hooks, etc.
-// running in between.
-func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+type makeRunnableOptions struct {
+	AfterDataReset bool
+}
+
+func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver, makeOpts makeRunnableOptions) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: cannot make pre-UC20 system runnable")
 	}
@@ -308,12 +305,12 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	//   install the boot.sel onto ubuntu-boot directly, but the file should be
 	//   managed by snapd instead
 
-	// copy kernel/base into the ubuntu-data partition
+	// copy kernel/base/gadget into the ubuntu-data partition
 	snapBlobDir := dirs.SnapBlobDirUnder(InstallHostWritableDir)
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
-	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath} {
+	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath, bootWith.GadgetPath} {
 		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
 		// if the source filename is a symlink, don't copy the symlink, copy the
 		// target file instead of copying the symlink, as the initramfs won't
@@ -359,6 +356,7 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		CurrentKernelCommandLines: nil,
 		// keep this comment to make gofmt 1.9 happy
 		Base:           filepath.Base(bootWith.BasePath),
+		Gadget:         filepath.Base(bootWith.GadgetPath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 		BrandID:        model.BrandID(),
 		Model:          model.Model(),
@@ -457,8 +455,11 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	}
 
 	if sealer != nil {
+		flags := sealKeyToModeenvFlags{
+			FactoryReset: makeOpts.AfterDataReset,
+		}
 		// seal the encryption key to the parameters specified in modeenv
-		if err := sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, model, modeenv); err != nil {
+		if err := sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, model, modeenv, flags); err != nil {
 			return err
 		}
 	}
@@ -469,4 +470,26 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		return fmt.Errorf("cannot record %q as a recovery capable system: %v", recoverySystemLabel, err)
 	}
 	return nil
+}
+
+// MakeRunnableSystem is like MakeBootableImage in that it sets up a system to
+// be able to boot, but is unique in that it is intended to be called from UC20
+// install mode and makes the run system bootable (hence it is called
+// "runnable").
+// Note that this function does not update the recovery bootloader env to
+// actually transition to run mode here, that is left to the caller via
+// something like boot.EnsureNextBootToRunMode(). This is to enable separately
+// setting up a run system and actually transitioning to it, with hooks, etc.
+// running in between.
+func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{})
+}
+
+// MakeRunnableSystemAfterDataReset sets up the system to be able to boot, but it is
+// intended to be called from UC20 factory reset mode right before switching
+// back to the new run system.
+func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
+		AfterDataReset: true,
+	})
 }

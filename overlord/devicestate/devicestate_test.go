@@ -22,6 +22,7 @@ package devicestate_test
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -245,6 +246,9 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.AddCleanup(devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
 		return true, nil
 	}))
+	s.AddCleanup(devicestate.MockSecbootMarkSuccessful(func() error {
+		return nil
+	}))
 }
 
 func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
@@ -465,6 +469,37 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnNonRunModes(c *C)
 	c.Assert(err, IsNil)
 }
 
+func (s *deviceMgrSuite) switchDevManagerToClassicWithModes(c *C) {
+	release.OnClassic = true
+
+	// mock the modeenv file
+	m := boot.Modeenv{
+		Mode: "run",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	// re-create manager so that modeenv file is-read
+	s.mgr, err = devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOnClassicWithModes(c *C) {
+	s.switchDevManagerToClassicWithModes(c)
+	s.setPCModelInState(c)
+
+	secbootMarkSuccessfulCalled := 0
+	r := devicestate.MockSecbootMarkSuccessful(func() error {
+		secbootMarkSuccessfulCalled++
+		return nil
+	})
+	defer r()
+
+	err := devicestate.EnsureBootOk(s.mgr)
+	c.Assert(err, IsNil)
+	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
+}
+
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 	n := 0
 	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) (ts []*state.TaskSet, err error) {
@@ -505,6 +540,13 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.setPCModelInState(c)
 
+	secbootMarkSuccessfulCalled := 0
+	r := devicestate.MockSecbootMarkSuccessful(func() error {
+		secbootMarkSuccessfulCalled++
+		return nil
+	})
+	defer r()
+
 	s.bootloader.SetBootVars(map[string]string{
 		"snap_mode":     boot.TryingStatus,
 		"snap_try_core": "core_1.snap",
@@ -524,6 +566,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	err := devicestate.EnsureBootOk(s.mgr)
 	s.state.Lock()
 	c.Assert(err, IsNil)
+	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
 
 	m, err := s.bootloader.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
@@ -779,20 +822,25 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	defer s.state.Unlock()
 	kernelInfo := snaptest.MockInfo(c, "{type: kernel, name: lnrk, version: 0}", nil)
 
-	// not on classic
+	// not on classic without modes
 	release.OnClassic = true
-	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, nil)
-	c.Check(err, ErrorMatches, `cannot install a kernel snap on classic`)
+	// model assertion in device context
+	model := fakeMyModel(map[string]interface{}{
+		"classic": "true",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, deviceCtx)
+	c.Check(err, ErrorMatches, `cannot install a kernel snap if classic boot`)
 	release.OnClassic = false
 
 	s.setupBrands()
 	// model assertion in device context
-	model := fakeMyModel(map[string]interface{}{
+	model = fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
 		"gadget":       "gadget",
 		"kernel":       "krnl",
 	})
-	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 
 	err = devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install kernel "lnrk", model assertion requests "krnl"`)
@@ -833,6 +881,40 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	otherKrnlInfo.InstanceKey = "foo"
 	err = devicestate.CheckGadgetOrKernel(s.state, otherKrnlInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install "krnl_foo", parallel installation of kernel or gadget snaps is not supported`)
+}
+
+func (s *deviceMgrSuite) TestCheckKernelOnClassicWithModes(c *C) {
+	s.switchDevManagerToClassicWithModes(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	kernelInfo := snaptest.MockInfo(c, "{type: kernel, name: pc-kernel, version: 0}", nil)
+
+	// model assertion in device context
+	model := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"classic":      "true",
+		"grade":        "dangerous",
+		"distribution": "ubuntu",
+		"base":         "core22",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "22",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "22",
+			},
+		},
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, deviceCtx)
+	c.Check(err, IsNil)
 }
 
 func (s *deviceMgrSuite) TestCanAutoRefreshOnCore(c *C) {
@@ -1898,4 +1980,168 @@ func (s *deviceMgrSuite) TestVoidDirPermissionsGetFixed(c *C) {
 	msgs := strings.TrimSpace(logbuf.String())
 	c.Check(msgs, Matches, "(?sm).*fixing permissions of .*/var/lib/snapd/void to 0111")
 	c.Check(strings.Split(msgs, "\n"), HasLen, 1)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) {
+	defer release.MockOnClassic(false)
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+	devicestate.SetBootOkRan(s.mgr, false)
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	// encrypted system
+	mockSnapFDEFile(c, "marker", nil)
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"),
+		[]byte("save-key"), 0644)
+	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0755), IsNil)
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+		[]byte("old"), 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+		[]byte("save"), 0644)
+	c.Assert(err, IsNil)
+	// matches the .factory key
+	factoryResetMarkercontent := []byte(`{"fallback-save-key-sha3-384":"d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b"}
+`)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+
+	completeCalls := 0
+	restore := devicestate.MockMarkFactoryResetComplete(func(encrypted bool) error {
+		completeCalls++
+		c.Check(encrypted, Equals, true)
+		return nil
+	})
+	defer restore()
+	transitionCalls := 0
+	restore = devicestate.MockSecbootTransitionEncryptionKeyChange(func(mountpoint string, key keys.EncryptionKey) error {
+		transitionCalls++
+		c.Check(mountpoint, Equals, boot.InitramfsUbuntuSaveDir)
+		c.Check(key, DeepEquals, keys.EncryptionKey([]byte("save-key")))
+		return nil
+	})
+	defer restore()
+
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	c.Check(completeCalls, Equals, 1)
+	c.Check(transitionCalls, Equals, 1)
+	// factory reset marker is gone, the key was verified successfully
+	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.SnapFDEDir, "marker"), testutil.FilePresent)
+
+	completeCalls = 0
+	transitionCalls = 0
+	// try again, no marker, nothing should happen
+	devicestate.SetPostFactoryResetRan(s.mgr, false)
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	// nothing was called
+	c.Check(completeCalls, Equals, 0)
+	c.Check(transitionCalls, Equals, 0)
+
+	// have the marker, but migrate the key as if boot code would do it and
+	// try again, in this setup the marker hash matches the migrated key
+	c.Check(os.Rename(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")),
+		IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+
+	devicestate.SetPostFactoryResetRan(s.mgr, false)
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(completeCalls, Equals, 1)
+	c.Check(transitionCalls, Equals, 1)
+	// the marker was again removed
+	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c *C) {
+	defer release.MockOnClassic(false)
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+	devicestate.SetBootOkRan(s.mgr, false)
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	// encrypted system
+	mockSnapFDEFile(c, "marker", nil)
+	c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0755), IsNil)
+	err := ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+		[]byte("old"), 0644)
+	c.Check(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+		[]byte("save"), 0644)
+	c.Check(err, IsNil)
+	// does not match the save key
+	factoryResetMarkercontent := []byte(`{"fallback-save-key-sha3-384":"uh-oh"}
+`)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+
+	completeCalls := 0
+	restore := devicestate.MockMarkFactoryResetComplete(func(encrypted bool) error {
+		completeCalls++
+		c.Check(encrypted, Equals, true)
+		return nil
+	})
+	defer restore()
+
+	err = s.mgr.Ensure()
+	c.Assert(err, ErrorMatches, "devicemgr: cannot verify factory reset marker: fallback sealed key digest mismatch, got d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b expected uh-oh")
+
+	c.Check(completeCalls, Equals, 0)
+	// factory reset marker is gone, the key was verified successfully
+	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapFDEDir, "marker"), testutil.FilePresent)
+
+	// try again, no marker, hit the same error
+	devicestate.SetPostFactoryResetRan(s.mgr, false)
+	err = s.mgr.Ensure()
+	c.Assert(err, ErrorMatches, "devicemgr: cannot verify factory reset marker: fallback sealed key digest mismatch, got d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b expected uh-oh")
+	c.Check(completeCalls, Equals, 0)
+
+	// and again, but not resetting the 'ran' check, so nothing is checked or called
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(completeCalls, Equals, 0)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C) {
+	defer release.MockOnClassic(false)
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+	devicestate.SetBootOkRan(s.mgr, false)
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	// mock the factory reset marker of a system that isn't encrypted
+	c.Assert(os.MkdirAll(dirs.SnapDeviceDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), []byte("{}"), 0644), IsNil)
+
+	completeCalls := 0
+	restore := devicestate.MockMarkFactoryResetComplete(func(encrypted bool) error {
+		completeCalls++
+		c.Check(encrypted, Equals, false)
+		return nil
+	})
+	defer restore()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	c.Check(completeCalls, Equals, 1)
+	// factory reset marker is gone
+	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
+
+	// try again, no marker, nothing should happen
+	devicestate.SetPostFactoryResetRan(s.mgr, false)
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	// nothing was called
+	c.Check(completeCalls, Equals, 1)
 }

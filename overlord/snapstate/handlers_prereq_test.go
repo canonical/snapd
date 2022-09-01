@@ -75,7 +75,7 @@ func (s *prereqSuite) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restoreInstallSize)
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
 	s.AddCleanup(restore)

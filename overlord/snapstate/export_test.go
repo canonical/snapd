@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -106,7 +106,7 @@ var (
 	CanRemove              = canRemove
 	CanDisable             = canDisable
 	CachedStore            = cachedStore
-	DefaultRefreshSchedule = defaultRefreshSchedule
+	DefaultRefreshSchedule = defaultRefreshScheduleStr
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags
@@ -313,6 +313,7 @@ var (
 var (
 	InhibitRefresh = inhibitRefresh
 	MaxInhibition  = maxInhibition
+	MaxDuration    = maxDuration
 )
 
 type RefreshCandidate = refreshCandidate
@@ -349,7 +350,6 @@ type HoldState = holdState
 var (
 	HoldDurationLeft           = holdDurationLeft
 	LastRefreshed              = lastRefreshed
-	HeldSnaps                  = heldSnaps
 	PruneRefreshCandidates     = pruneRefreshCandidates
 	ResetGatingForRefreshed    = resetGatingForRefreshed
 	PruneGating                = pruneGating
@@ -414,7 +414,7 @@ func MockRestoreValidationSetsTracking(f func(*state.State) error) (restore func
 	}
 }
 
-func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refreshedSnaps []string) ([]*state.TaskSet, error)) (restore func()) {
+func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refreshedSnaps []string, fromChange string) ([]*state.TaskSet, error)) (restore func()) {
 	old := maybeRestoreValidationSetsAndRevertSnaps
 	maybeRestoreValidationSetsAndRevertSnaps = f
 	return func() {

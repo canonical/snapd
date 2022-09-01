@@ -90,6 +90,12 @@ func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app), pids: 101`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101})
 
+	// Unless refresh-mode is set to "ignore-running"
+	s.info.Apps["app"].RefreshMode = "ignore-running"
+	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
+	c.Assert(err, IsNil)
+	s.info.Apps["app"].RefreshMode = ""
+
 	// Hooks behave just like apps. IDEA: perhaps hooks should not be
 	// killed this way? They have their own life-cycle management.
 	s.pids = map[string][]int{
@@ -112,15 +118,12 @@ func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 }
 
 func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
-	// Regular services are blocking hard refresh check.
-	// We were expecting them to be gone by now.
+	// Services are ignored by hard refresh check.
 	s.pids = map[string][]int{
 		"snap.pkg.daemon": {100},
 	}
 	err := snapstate.HardNothingRunningRefreshCheck(s.info)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "pkg" has running apps (daemon), pids: 100`)
-	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{100})
+	c.Assert(err, IsNil)
 
 	// When the service is supposed to endure refreshes it will not be
 	// stopped. As such such services cannot block refresh.
@@ -138,6 +141,12 @@ func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
 	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app), pids: 101`)
 	c.Assert(err, FitsTypeOf, &snapstate.BusySnapError{})
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101})
+
+	// Unless refresh-mode is set to "ignore-running"
+	s.info.Apps["app"].RefreshMode = "ignore-running"
+	err = snapstate.HardNothingRunningRefreshCheck(s.info)
+	c.Assert(err, IsNil)
+	s.info.Apps["app"].RefreshMode = ""
 
 	// Hooks are equally blocking hard refresh check.
 	s.pids = map[string][]int{

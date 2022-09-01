@@ -379,20 +379,22 @@ jobs:
         - arch-linux-64
         - centos-7-64
         - centos-8-64
+        - centos-9-64
         - debian-10-64
         - debian-11-64
         - debian-sid-64
-        - fedora-34-64
         - fedora-35-64
+        - fedora-36-64
         - opensuse-15.3-64
+        - opensuse-15.4-64
         - opensuse-tumbleweed-64
         - ubuntu-14.04-64
         - ubuntu-16.04-64
         - ubuntu-18.04-32
         - ubuntu-18.04-64
         - ubuntu-20.04-64
-        - ubuntu-21.10-64
         - ubuntu-22.04-64
+        - ubuntu-22.10-64
         - ubuntu-core-16-64
         - ubuntu-core-18-64
         - ubuntu-core-20-64
@@ -490,16 +492,17 @@ jobs:
       if: always()
       run: |
           if [ -f spread.log ]; then
-              echo "Running spread log analyzer"
-              # Aborted cannot be used to determine if we need to re-run all because it could be a aborted an entire suite
-              if grep -q "Aborted tasks: 0" spread.log; then
-                  ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
-                  jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | select( .level == "task" or .level == "tasks" ) | .detail.lines[]' spread-results.json | grep "google:" | cut -d '-' -f2- | tr '\n' ' ' > "$FAILED_TESTS_FILE"
-                  echo "Failed tests saved for re-execution: $(cat $FAILED_TESTS_FILE)"
-              else
-                  echo "No failed tests saved, this means all the tests will be executed next run"
-                  touch "$FAILED_TESTS_FILE"
+              echo "Running spread log parser"
+              ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
+
+              echo "Determining which tests were executed"
+              RUN_TESTS="google:${{ matrix.system }}:tests/..."
+              if [ -n "$FAILED_TESTS" ]; then
+                  RUN_TESTS="$FAILED_TESTS"
               fi
+
+              echo "Running spread log analyzer"
+              ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
           else
               echo "No spread log found, saving empty list of failed tests"
               touch "$FAILED_TESTS_FILE"
@@ -615,16 +618,17 @@ jobs:
       if: always()
       run: |
           if [ -f spread.log ]; then
-              echo "Running spread log analyzer"
-              # Aborted cannot be used to determine if we need to re-run all because it could be a aborted an entire suite
-              if grep -q "Aborted tasks: 0" spread.log; then
-                  ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
-                  jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | select( .level == "task" or .level == "tasks" ) | .detail.lines[]' spread-results.json | grep "google-nested:" | cut -d '-' -f2- | tr '\n' ' ' > "$FAILED_TESTS_FILE"
-                  echo "Failed tests saved for re-execution: $(cat $FAILED_TESTS_FILE)"
-              else
-                  echo "No failed tests saved, this means all the tests will be executed next run"
-                  touch "$FAILED_TESTS_FILE"
+              echo "Running spread log parser"
+              ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
+    
+              echo "Determining which tests were executed"
+              RUN_TESTS="google-nested:${{ matrix.system }}:tests/nested/..."
+              if [ -n "$FAILED_TESTS" ]; then
+                  RUN_TESTS="$FAILED_TESTS"
               fi
+
+              echo "Running spread log analyzer"
+              ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
           else
               echo "No spread log found, saving empty list of failed tests"
               touch "$FAILED_TESTS_FILE"

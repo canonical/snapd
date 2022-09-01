@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2018 Canonical Ltd
+ * Copyright (C) 2017-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -137,7 +137,7 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	s.state.Set("refresh-privacy-key", "privacy-key")
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
 	s.AddCleanup(restore)
@@ -394,6 +394,37 @@ func (s *autoRefreshTestSuite) TestDefaultScheduleIsRandomized(c *C) {
 				Commentf("clock span %v is not randomized", span))
 		}
 	}
+}
+
+func (s *autoRefreshTestSuite) TestRefreshHoldForever(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lastRefresh := time.Now().Add(-12 * time.Hour)
+	s.state.Set("last-refresh", lastRefresh)
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", "forever")
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	s.state.Unlock()
+	err := af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+
+	// no refresh
+	c.Check(s.store.ops, HasLen, 0)
+
+	var storedRefresh time.Time
+	c.Assert(s.state.Get("last-refresh", &storedRefresh), IsNil)
+	cmt := Commentf("expected %s but got %s instead", lastRefresh.Format(time.RFC3339), storedRefresh.Format(time.RFC3339))
+	c.Check(storedRefresh.Equal(lastRefresh), Equals, true, cmt)
+
+	var holdVal string
+	err = tr.Get("core", "refresh.hold", &holdVal)
+	c.Assert(err, IsNil)
+	c.Check(holdVal, Equals, "forever")
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshHold(c *C) {
@@ -670,11 +701,7 @@ func (s *autoRefreshTestSuite) TestEffectiveRefreshHold(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// assume no seed-time
-	s.state.Set("seed-time", nil)
-
 	af := snapstate.NewAutoRefresh(s.state)
-
 	t0, err := af.EffectiveRefreshHold()
 	c.Assert(err, IsNil)
 	c.Check(t0.IsZero(), Equals, true)
@@ -684,24 +711,23 @@ func (s *autoRefreshTestSuite) TestEffectiveRefreshHold(c *C) {
 	tr.Set("core", "refresh.hold", holdTime)
 	tr.Commit()
 
-	seedTime := holdTime.Add(-100 * 24 * time.Hour)
-	s.state.Set("seed-time", seedTime)
-
 	t1, err := af.EffectiveRefreshHold()
 	c.Assert(err, IsNil)
-	c.Check(t1.Equal(seedTime.Add(95*24*time.Hour)), Equals, true)
-
-	lastRefresh := holdTime.Add(-99 * 24 * time.Hour)
-	s.state.Set("last-refresh", lastRefresh)
-
-	t1, err = af.EffectiveRefreshHold()
-	c.Assert(err, IsNil)
-	c.Check(t1.Equal(lastRefresh.Add(95*24*time.Hour)), Equals, true)
-
-	s.state.Set("last-refresh", holdTime.Add(-6*time.Hour))
-	t1, err = af.EffectiveRefreshHold()
-	c.Assert(err, IsNil)
 	c.Check(t1.Equal(holdTime), Equals, true)
+
+	longTime := time.Now().Add(snapstate.MaxDuration + time.Hour)
+	// truncate time that isn't part of the RFC3339 timestamp
+	longTime = longTime.UTC().Truncate(time.Second)
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", longTime.Format(time.RFC3339))
+	tr.Commit()
+
+	t2, err := af.EffectiveRefreshHold()
+	c.Assert(err, IsNil)
+
+	t2 = t2.UTC().Truncate(time.Second)
+	c.Check(t2.Equal(longTime), Equals, true)
 }
 
 func (s *autoRefreshTestSuite) TestEnsureLastRefreshAnchor(c *C) {

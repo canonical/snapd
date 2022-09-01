@@ -1,0 +1,114 @@
+#!/bin/bash -e
+
+show_help() {
+    echo "usage: tests.systemd create-and-start-unit <UNIT-NAME> <UNIT-COMMAND-LINE> <UNIT-OVERRIDE>"
+    echo "       tests.systemd stop-and-remove-unit <UNIT-NAME>"
+    echo "       tests.systemd wait-for-service <UNIT-NAME> <UNIT-STATE>"
+}
+
+# Create and start a persistent systemd unit that survives reboots. Use as:
+#   systemd_create_and_start_unit "name" "my-service --args"
+# The third arg supports "overrides" which allow to customize the service
+# as needed, e.g.:
+#   systemd_create_and_start_unit "name" "start" "[Unit]\nAfter=foo"
+create_and_start_unit() {
+    local name=$1
+    local start_line=$2
+    local override=$3
+
+    if [ -z "$name" ]; then
+        echo "tests.systemd: unit name cannot be empty"
+        return 1
+    fi
+    if [ -z "$start_line" ]; then
+        echo "tests.systemd: unit command line cannot be empty"
+        return 1
+    fi
+    if [ -f "/etc/systemd/system/$name.service" ]; then
+        echo "tests.systemd: unit service file already exist"
+        return 1  
+    fi
+
+    printf '[Unit]\nDescription=Support for test %s\n[Service]\nType=simple\nExecStart=%s\n[Install]\nWantedBy=multi-user.target\n' "$name" "$start_line" > "/etc/systemd/system/$name.service"
+    if [ -n "$override" ]; then
+        mkdir -p "/etc/systemd/system/$name.service.d"
+        # shellcheck disable=SC2059
+        printf "$override" >> "/etc/systemd/system/$name.service.d/override.conf"
+    fi
+
+    systemctl daemon-reload
+    systemctl enable "$name"
+    systemctl start "$name"
+    wait_for_service "$name"
+}
+
+stop_and_remove_unit() {
+    local name=$1
+
+    if [ -z "$name" ]; then
+        echo "tests.systemd: unit name cannot be empty"
+        return 1
+    fi
+
+    systemctl stop "$name" || true
+    systemctl disable "$name" || true
+
+    rm -f "/etc/systemd/system/$name.service"
+    rm -rf "/etc/systemd/system/$name.service.d"
+    systemctl daemon-reload
+}
+
+wait_for_service() {
+    local service_name="$1"
+    local state="${2:-active}"
+
+    if [ -z "$service_name" ]; then
+        echo "tests.systemd: unit name cannot be empty"
+        return 1
+    fi
+
+    for i in $(seq 300); do
+        if systemctl show -p ActiveState "$service_name" | grep -q "ActiveState=$state"; then
+            return
+        fi
+        # show debug output every 1min
+        if [ "$i" -gt 0 ] && [ $(( i % 60 )) = 0 ]; then
+            systemctl status "$service_name" || true
+        fi
+        sleep 1
+    done
+
+    echo "tests.systemd: service $service_name did not become $state"
+    return 1
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit
+                ;;
+            *)
+                action=$(echo "$1" | tr '-' '_')
+                shift
+                break
+                ;;
+        esac
+    done
+
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "tests.systemd: no such command: $action" >&2
+        show_help
+        exit 1
+    fi
+
+    "$action" "$@"
+}
+
+main "$@"

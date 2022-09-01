@@ -210,7 +210,12 @@ func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
 
 	// setup local-only user
 	state.Lock()
-	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
+	localUser, err := auth.NewUser(state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "",
+		Discharges: nil,
+	})
 	state.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -253,7 +258,12 @@ func (s *userSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 
 	// setup local-only user
 	state.Lock()
-	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
+	localUser, err := auth.NewUser(state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "",
+		Discharges: nil,
+	})
 	state.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -296,7 +306,12 @@ func (s *userSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
 
 	// setup local-only user
 	state.Lock()
-	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
+	localUser, err := auth.NewUser(state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "",
+		Discharges: nil,
+	})
 	state.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -339,7 +354,12 @@ func (s *userSuite) TestLogoutUser(c *check.C) {
 	s.expectLoginAccess()
 
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	state.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -617,7 +637,12 @@ func (s *userSuite) TestPostUserActionRemoveNoUsername(c *check.C) {
 func (s *userSuite) TestPostUserActionRemoveDelUserErr(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, "some-user", "email@test.com", "macaroon", []string{"discharge"})
+	_, err := auth.NewUser(st, auth.NewUserData{
+		Username:   "some-user",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	st.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -680,7 +705,12 @@ func (s *userSuite) TestPostUserActionRemoveNoUserInState(c *check.C) {
 func (s *userSuite) TestPostUserActionRemove(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	user, err := auth.NewUser(st, "some-user", "email@test.com", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(st, auth.NewUserData{
+		Username:   "some-user",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	st.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -1058,7 +1088,12 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *che
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	_, err := auth.NewUser(st, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	st.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -1076,7 +1111,12 @@ func (s *userSuite) TestPostCreateUserAutomaticManagedDoesNotActOrError(c *check
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	_, err := auth.NewUser(st, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	st.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -1150,7 +1190,12 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) 
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	_, err := auth.NewUser(st, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	st.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -1244,7 +1289,12 @@ func (s *userSuite) TestUsersEmpty(c *check.C) {
 func (s *userSuite) TestUsersHasUser(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	u, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})
+	u, err := auth.NewUser(st, auth.NewUserData{
+		Username:   "someuser",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 

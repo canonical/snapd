@@ -3,7 +3,7 @@
 // +build !nomanagers
 
 /*
- * Copyright (C) 2017-2018 Canonical Ltd
+ * Copyright (C) 2017-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -69,7 +69,7 @@ func validateRefreshSchedule(tr config.Conf) error {
 	if err != nil {
 		return err
 	}
-	if refreshHoldStr != "" {
+	if refreshHoldStr != "" && refreshHoldStr != "forever" {
 		if _, err := time.Parse(time.RFC3339, refreshHoldStr); err != nil {
 			return fmt.Errorf("refresh.hold cannot be parsed: %v", err)
 		}

@@ -97,9 +97,11 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	mode := "run"
 	sysLabel := ""
 	preseed := false
+	hasModeenv := false
 	if opts != nil {
 		if opts.Mode != "" {
 			mode = opts.Mode
+			hasModeenv = true
 		}
 		sysLabel = opts.Label
 		preseed = opts.Preseed
@@ -108,7 +110,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if seeded {
@@ -118,7 +120,8 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	var deviceSeed seed.Seed
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
-		deviceSeed, err = importAssertionsFromSeed(st, sysLabel)
+		isCoreBoot := hasModeenv || !release.OnClassic
+		deviceSeed, err = importAssertionsFromSeed(st, sysLabel, isCoreBoot)
 	})
 	if err != nil && err != errNothingToDo {
 		return nil, err
@@ -327,7 +330,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	return tsAll, nil
 }
 
-func importAssertionsFromSeed(st *state.State, sysLabel string) (seed.Seed, error) {
+func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool) (seed.Seed, error) {
 	// TODO: use some kind of context fo Device/SetDevice?
 	device, err := internal.Device(st)
 	if err != nil {
@@ -337,8 +340,8 @@ func importAssertionsFromSeed(st *state.State, sysLabel string) (seed.Seed, erro
 	// collect and
 	// set device,model from the model assertion
 	deviceSeed, err := loadDeviceSeed(st, sysLabel)
-	if err == seed.ErrNoAssertions && release.OnClassic {
-		// on classic seeding is optional
+	if err == seed.ErrNoAssertions && !isCoreBoot {
+		// if classic boot seeding is optional
 		// set the fallback model
 		err := setClassicFallbackModel(st, device)
 		if err != nil {
@@ -352,6 +355,8 @@ func importAssertionsFromSeed(st *state.State, sysLabel string) (seed.Seed, erro
 	modelAssertion := deviceSeed.Model()
 
 	classicModel := modelAssertion.Classic()
+	// FIXME this will not be correct on classic with modes system when
+	// mode is not "run".
 	if release.OnClassic != classicModel {
 		var msg string
 		if classicModel {

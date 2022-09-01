@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2020 Canonical Ltd
+ * Copyright (C) 2017-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -40,7 +41,7 @@ import (
 )
 
 // the default refresh pattern
-const defaultRefreshSchedule = "00:00~24:00/4"
+const defaultRefreshScheduleStr = "00:00~24:00/4"
 
 // cannot keep without refreshing for more than maxPostponement
 const maxPostponement = 95 * 24 * time.Hour
@@ -54,11 +55,22 @@ const maxPostponementBuffer = 5 * 24 * time.Hour
 // to "13 days" left.
 const maxInhibition = 14*24*time.Hour - time.Second
 
+// maxDuration is used to represent "forever" internally (it's 290 years).
+const maxDuration = time.Duration(1<<63 - 1)
+
 // hooks setup by devicestate
 var (
 	CanAutoRefresh        func(st *state.State) (bool, error)
 	CanManageRefreshes    func(st *state.State) bool
 	IsOnMeteredConnection func() (bool, error)
+
+	defaultRefreshSchedule = func() []*timeutil.Schedule {
+		refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshScheduleStr)
+		if err != nil {
+			panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
+		}
+		return refreshSchedule
+	}()
 )
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
@@ -138,37 +150,25 @@ func (m *autoRefresh) LastRefresh() (time.Time, error) {
 }
 
 // EffectiveRefreshHold returns the time until to which refreshes are
-// held if refresh.hold configuration is set and accounting for the
-// max postponement since the last refresh.
+// held if refresh.hold configuration is set.
 func (m *autoRefresh) EffectiveRefreshHold() (time.Time, error) {
-	var holdTime time.Time
+	var holdValue string
 
 	tr := config.NewTransaction(m.state)
-	err := tr.Get("core", "refresh.hold", &holdTime)
+	err := tr.Get("core", "refresh.hold", &holdValue)
 	if err != nil && !config.IsNoOption(err) {
 		return time.Time{}, err
 	}
 
-	// cannot hold beyond last-refresh + max-postponement
-	lastRefresh, err := m.LastRefresh()
-	if err != nil {
-		return time.Time{}, err
-	}
-	if lastRefresh.IsZero() {
-		seedTime, err := getTime(m.state, "seed-time")
-		if err != nil {
-			return time.Time{}, err
-		}
-		if seedTime.IsZero() {
-			// no reference to know whether holding is reasonable
-			return time.Time{}, nil
-		}
-		lastRefresh = seedTime
+	if holdValue == "forever" {
+		return timeNow().Add(maxDuration), nil
 	}
 
-	limitTime := lastRefresh.Add(maxPostponement)
-	if holdTime.After(limitTime) {
-		return limitTime, nil
+	var holdTime time.Time
+	if holdValue != "" {
+		if holdTime, err = time.Parse(time.RFC3339, holdValue); err != nil {
+			return time.Time{}, err
+		}
 	}
 
 	return holdTime, nil
@@ -231,7 +231,7 @@ func canRefreshOnMeteredConnection(st *state.State) (bool, error) {
 	tr := config.NewTransaction(st)
 	var onMetered string
 	err := tr.GetMaybe("core", "refresh.metered", &onMetered)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}
 
@@ -414,64 +414,76 @@ func (m *autoRefresh) ensureLastRefreshAnchor() {
 	}
 }
 
+func getRefreshScheduleConf(st *state.State) (confStr string, legacy bool, err error) {
+	tr := config.NewTransaction(st)
+
+	err = tr.Get("core", "refresh.timer", &confStr)
+	if err != nil && !config.IsNoOption(err) {
+		return "", false, err
+	}
+
+	// if not set, fallback to refresh.schedule
+	if confStr == "" {
+		if err := tr.Get("core", "refresh.schedule", &confStr); err != nil && !config.IsNoOption(err) {
+			return "", false, err
+		}
+		legacy = true
+	}
+
+	return confStr, legacy, nil
+}
+
 // refreshScheduleWithDefaultsFallback returns the current refresh schedule
-// and refresh string. When an invalid refresh schedule is set by the user
-// the refresh schedule is automatically reset to the default.
-//
-// TODO: we can remove the refreshSchedule reset because we have validation
-//       of the schedule now.
-func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, legacy bool, err error) {
-	managed, requested, legacy := refreshScheduleManaged(m.state)
-	if managed {
+// and refresh string.
+func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (sched []*timeutil.Schedule, scheduleConf string, legacy bool, err error) {
+	scheduleConf, legacy, err = getRefreshScheduleConf(m.state)
+	if err != nil {
+		return nil, "", false, err
+	}
+
+	// user requests refreshes to be managed by an external snap
+	if scheduleConf == "managed" {
+		if CanManageRefreshes == nil || !CanManageRefreshes(m.state) {
+			// there's no snap to manage refreshes so use default schedule
+			if !m.managedDeniedLogged {
+				logger.Noticef("managed refresh schedule denied, no properly configured snapd-control")
+				m.managedDeniedLogged = true
+			}
+
+			return defaultRefreshSchedule, defaultRefreshScheduleStr, false, nil
+		}
+
 		if m.lastRefreshSchedule != "managed" {
 			logger.Noticef("refresh is managed via the snapd-control interface")
 			m.lastRefreshSchedule = "managed"
 		}
 		m.managedDeniedLogged = false
+
 		return nil, "managed", legacy, nil
-	} else if requested {
-		// managed refresh schedule was denied
-		if !m.managedDeniedLogged {
-			logger.Noticef("managed refresh schedule denied, no properly configured snapd-control")
-			m.managedDeniedLogged = true
-		}
-		// fallback to default schedule
-		return refreshScheduleDefault()
+	}
+	m.managedDeniedLogged = false
+
+	if scheduleConf == "" {
+		return defaultRefreshSchedule, defaultRefreshScheduleStr, false, nil
+	}
+
+	// if we read the newer 'refresh.timer' option
+	var errPrefix string
+	if !legacy {
+		sched, err = timeutil.ParseSchedule(scheduleConf)
+		errPrefix = "cannot use refresh.timer configuration"
 	} else {
-		m.managedDeniedLogged = false
+		sched, err = timeutil.ParseLegacySchedule(scheduleConf)
+		errPrefix = "cannot use refresh.schedule configuration"
 	}
 
-	tr := config.NewTransaction(m.state)
-	// try the new refresh.timer config option first
-	err = tr.Get("core", "refresh.timer", &scheduleAsStr)
-	if err != nil && !config.IsNoOption(err) {
-		return nil, "", false, err
-	}
-	if scheduleAsStr != "" {
-		ts, err = timeutil.ParseSchedule(scheduleAsStr)
-		if err != nil {
-			logger.Noticef("cannot use refresh.timer configuration: %s", err)
-			return refreshScheduleDefault()
-		}
-		return ts, scheduleAsStr, false, nil
+	if err != nil {
+		// log instead of fail in order not to prevent auto-refreshes
+		logger.Noticef("%s: %v", errPrefix, err)
+		return defaultRefreshSchedule, defaultRefreshScheduleStr, false, nil
 	}
 
-	// fallback to legacy refresh.schedule setting when the new
-	// config option is not set
-	err = tr.Get("core", "refresh.schedule", &scheduleAsStr)
-	if err != nil && !config.IsNoOption(err) {
-		return nil, "", false, err
-	}
-	if scheduleAsStr != "" {
-		ts, err = timeutil.ParseLegacySchedule(scheduleAsStr)
-		if err != nil {
-			logger.Noticef("cannot use refresh.schedule configuration: %s", err)
-			return refreshScheduleDefault()
-		}
-		return ts, scheduleAsStr, true, nil
-	}
-
-	return refreshScheduleDefault()
+	return sched, scheduleConf, legacy, nil
 }
 
 func autoRefreshSummary(updated []string) string {
@@ -551,15 +563,6 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	return nil
 }
 
-func refreshScheduleDefault() (ts []*timeutil.Schedule, scheduleStr string, legacy bool, err error) {
-	refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshSchedule)
-	if err != nil {
-		panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
-	}
-
-	return refreshSchedule, defaultRefreshSchedule, false, nil
-}
-
 func autoRefreshInFlight(st *state.State) bool {
 	for _, chg := range st.Changes() {
 		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
@@ -569,42 +572,11 @@ func autoRefreshInFlight(st *state.State) bool {
 	return false
 }
 
-// refreshScheduleManaged returns true if the refresh schedule of the
-// device is managed by an external snap
-func refreshScheduleManaged(st *state.State) (managed, requested, legacy bool) {
-	var confStr string
-
-	// this will only be "nil" if running in tests
-	if CanManageRefreshes == nil {
-		return false, false, legacy
-	}
-
-	// check new style timer first
-	tr := config.NewTransaction(st)
-	err := tr.Get("core", "refresh.timer", &confStr)
-	if err != nil && !config.IsNoOption(err) {
-		return false, false, legacy
-	}
-	// if not set, fallback to refresh.schedule
-	if confStr == "" {
-		if err := tr.Get("core", "refresh.schedule", &confStr); err != nil {
-			return false, false, legacy
-		}
-		legacy = true
-	}
-
-	if confStr != "managed" {
-		return false, false, legacy
-	}
-
-	return CanManageRefreshes(st), true, legacy
-}
-
 // getTime retrieves a time from a state value.
 func getTime(st *state.State, timeKey string) (time.Time, error) {
 	var t1 time.Time
 	err := st.Get(timeKey, &t1)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return time.Time{}, err
 	}
 	return t1, nil

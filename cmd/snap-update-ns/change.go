@@ -465,6 +465,18 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				logger.Debugf("cannot remove a mount point on read-only filesystem %q", path)
 				return nil
 			}
+			if err == syscall.EBUSY {
+				// It's still unclear how this can happen. For the time being
+				// let the operation succeed and log the event.
+				logger.Noticef("cannot remove mount point, got EBUSY: %q", path)
+				if isMount, err := osutil.IsMounted(path); isMount {
+					mounts, _ := osutil.LoadMountInfo()
+					logger.Noticef("%q is still a mount point:\n%s", path, mounts)
+				} else if err != nil {
+					logger.Noticef("cannot read mountinfo: %v", err)
+				}
+				return nil
+			}
 			// If we were removing a directory but it was not empty then just
 			// ignore the error. This is the equivalent of the non-empty file
 			// check we do above. See rmdir(2) for explanation why we accept
@@ -499,13 +511,20 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		desired[i].Dir = filepath.Clean(desired[i].Dir)
 	}
 
+	// Make yet another copy of the current entries, to retain their original
+	// order (the "current" variable is going to be sorted soon); just using
+	// currentProfile.Entries is not reliable because it didn't undergo the
+	// cleanup of the Dir paths.
+	unsortedCurrent := make([]osutil.MountEntry, len(current))
+	copy(unsortedCurrent, current)
+
 	dumpMountEntries := func(entries []osutil.MountEntry, pfx string) {
 		logger.Debugf(pfx)
 		for _, en := range entries {
 			logger.Debugf("- %v", en)
 		}
 	}
-	dumpMountEntries(desired, "desired mount entries")
+	dumpMountEntries(current, "current mount entries")
 	// Sort only the desired lists by directory name with implicit trailing
 	// slash and the mount kind.
 	// Note that the current profile is a log of what was applied and should
@@ -542,6 +561,13 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 			continue
 		}
 		skipDir = "" // reset skip prefix as it no longer applies
+
+		if current[i].XSnapdOrigin() == "rootfs" {
+			// This is the rootfs setup by snap-confine, we should not touch it
+			logger.Debugf("reusing rootfs")
+			reuse[dir] = true
+			continue
+		}
 
 		// Reuse synthetic entries if their needed-by entry is desired.
 		// Synthetic entries cannot exist on their own and always couple to a
@@ -582,7 +608,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	var changes []*Change
 
 	// Unmount entries not reused in reverse to handle children before their parent.
-	unmountOrder := currentProfile.Entries
+	unmountOrder := unsortedCurrent
 	for i := len(unmountOrder) - 1; i >= 0; i-- {
 		if reuse[unmountOrder[i].Dir] {
 			changes = append(changes, &Change{Action: Keep, Entry: unmountOrder[i]})
