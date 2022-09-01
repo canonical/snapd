@@ -34,10 +34,11 @@ var (
 )
 
 type systemUserSuite struct {
-	until     time.Time
-	untilLine string
-	since     time.Time
-	sinceLine string
+	until            time.Time
+	untilLine        string
+	since            time.Time
+	sinceLine        string
+	userValidForLine string
 
 	formatLine string
 	modelsLine string
@@ -60,6 +61,7 @@ const systemUserExample = "type: system-user\n" +
 	"  - ssh-rsa AAAABcdefg\n" +
 	"SINCELINE\n" +
 	"UNTILLINE\n" +
+	"USERVALIDFOR\n" +
 	"body-length: 0\n" +
 	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 	"\n\n" +
@@ -72,10 +74,12 @@ func (s *systemUserSuite) SetUpTest(c *C) {
 	s.untilLine = fmt.Sprintf("until: %s\n", s.until.Format(time.RFC3339))
 	s.modelsLine = "models:\n  - frobinator\n"
 	s.formatLine = "format: 0\n"
+	s.userValidForLine = "user-valid-for: until-expiration\n"
 	s.systemUserStr = strings.Replace(systemUserExample, "UNTILLINE\n", s.untilLine, 1)
 	s.systemUserStr = strings.Replace(s.systemUserStr, "SINCELINE\n", s.sinceLine, 1)
 	s.systemUserStr = strings.Replace(s.systemUserStr, "MODELSLINE\n", s.modelsLine, 1)
 	s.systemUserStr = strings.Replace(s.systemUserStr, "FORMATLINE\n", s.formatLine, 1)
+	s.systemUserStr = strings.Replace(s.systemUserStr, "USERVALIDFOR\n", s.userValidForLine, 1)
 }
 
 func (s *systemUserSuite) TestDecodeOK(c *C) {
@@ -266,4 +270,46 @@ func (s *systemUserSuite) TestSuggestedFormat(c *C) {
 	fmtnum, err = asserts.SuggestFormat(asserts.SystemUserType, headers, nil)
 	c.Assert(err, IsNil)
 	c.Check(fmtnum, Equals, 1)
+}
+
+func (s *systemUserSuite) TestNoUserValidFor(c *C) {
+	s.systemUserStr = strings.Replace(s.systemUserStr, s.userValidForLine, "", 1)
+	a, err := asserts.Decode([]byte(s.systemUserStr))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SystemUserType)
+	su := a.(*asserts.SystemUser)
+	c.Check(su.Expiration(time.Now()), Equals, time.Time{})
+}
+
+func (s *systemUserSuite) TestUserValidForExpiration(c *C) {
+	a, err := asserts.Decode([]byte(s.systemUserStr))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SystemUserType)
+	su := a.(*asserts.SystemUser)
+	c.Check(su.Expiration(time.Now()), Equals, s.until)
+}
+
+func (s *systemUserSuite) TestUserValidForDuration(c *C) {
+	s.systemUserStr = strings.Replace(s.systemUserStr, s.userValidForLine, "user-valid-for: 24h\n", 1)
+	a, err := asserts.Decode([]byte(s.systemUserStr))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SystemUserType)
+	su := a.(*asserts.SystemUser)
+	now := time.Now()
+	c.Check(su.Expiration(now), Equals, now.Add(24*time.Hour))
+}
+
+func (s *systemUserSuite) TestUserValidForInvalidValue(c *C) {
+	s.systemUserStr = strings.Replace(s.systemUserStr, s.userValidForLine, "user-valid-for: tomorrow\n", 1)
+	_, err := asserts.Decode([]byte(s.systemUserStr))
+	c.Assert(err, ErrorMatches, `assertion system-user: cannot parse value 'user-valid-for': "tomorrow" is invalid`)
+}
+
+func (s *systemUserSuite) TestUserValidForMissing(c *C) {
+	s.systemUserStr = strings.Replace(s.systemUserStr, s.userValidForLine, "", 1)
+	a, err := asserts.Decode([]byte(s.systemUserStr))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SystemUserType)
+	su := a.(*asserts.SystemUser)
+	c.Check(su.Expiration(time.Now()), Equals, time.Time{})
 }
