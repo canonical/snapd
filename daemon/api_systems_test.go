@@ -39,7 +39,6 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -814,11 +813,8 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(daemon.OneSystemResponse)
 	c.Assert(sys, check.DeepEquals, daemon.OneSystemResponse{
-		Label: "20191119",
-		Model: clientutil.ModelAssertJSON{
-			Headers: s.seedModelForLabel20191119.Headers(),
-			Body:    string(s.seedModelForLabel20191119.Body()),
-		},
+		Label:   "20191119",
+		Model:   s.seedModelForLabel20191119.Headers(),
 		Volumes: mockGadgetInfo.Volumes,
 	})
 }
@@ -873,10 +869,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 
 	c.Assert(sys, check.DeepEquals, daemon.OneSystemResponse{
 		Label: "20191119",
-		Model: clientutil.ModelAssertJSON{
-			Headers: s.seedModelForLabel20191119.Headers(),
-			Body:    string(s.seedModelForLabel20191119.Body()),
-		},
+		Model: s.seedModelForLabel20191119.Headers(),
 		Actions: []client.SystemAction{
 			{Title: "Install", Mode: "install"},
 		},

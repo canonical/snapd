@@ -25,7 +25,6 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -107,10 +106,10 @@ func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 type oneSystemResponse struct {
 	// First part is designed to look like `client.System` - the
 	// only difference is how the model is represented
-	Current bool                       `json:"current,omitempty"`
-	Label   string                     `json:"label,omitempty"`
-	Model   clientutil.ModelAssertJSON `json:"model,omitempty"`
-	Actions []client.SystemAction      `json:"actions,omitempty"`
+	Current bool                   `json:"current,omitempty"`
+	Label   string                 `json:"label,omitempty"`
+	Model   map[string]interface{} `json:"model,omitempty"`
+	Actions []client.SystemAction  `json:"actions,omitempty"`
 
 	// Volumes contains the volumes defined from the gadget snap
 	Volumes map[string]*gadget.Volume `json:"volumes,omitempty"`
@@ -136,10 +135,8 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 	rsp := oneSystemResponse{
 		Current: sys.Current,
 		Label:   sys.Label,
-		Model: clientutil.ModelAssertJSON{
-			Headers: sys.Model.Headers(),
-			// no body: we expect models to have empty bodies
-		},
+		// no body: we expect models to have empty bodies
+		Model:   sys.Model.Headers(),
 		Volumes: gadgetInfo.Volumes,
 	}
 	for _, sa := range sys.Actions {
