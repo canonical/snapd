@@ -2370,9 +2370,6 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoGadget(c *C) {
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorWrongGadget(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml)
 	// break the seed by changing things
 	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0644)
