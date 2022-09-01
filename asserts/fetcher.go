@@ -90,7 +90,7 @@ func (f *fetcher) chase(ref *Ref, a Assertion) error {
 			return err
 		}
 	}
-	if err := f.fetchAccountKey(a.SignKeyID(), a.SignatoryID(), a.AuthorityID()); err != nil {
+	if err := f.fetchAccountKey(a.SignKeyID()); err != nil {
 		return err
 	}
 	if err := f.save(a); err != nil {
@@ -106,26 +106,13 @@ func (f *fetcher) Fetch(ref *Ref) error {
 	return f.chase(ref, nil)
 }
 
-// fetchAccountKey behaves like Fetch for the account-key with the given key id
-// and related authority-delegation if needed for the provided
-// authority account-ids.
-func (f *fetcher) fetchAccountKey(keyID, signatoryID, authorityID string) error {
+// fetchAccountKey behaves like Fetch for the account-key with the given key id.
+func (f *fetcher) fetchAccountKey(keyID string) error {
 	keyRef := &Ref{
 		Type:       AccountKeyType,
 		PrimaryKey: []string{keyID},
 	}
-	if err := f.Fetch(keyRef); err != nil {
-		return err
-	}
-	// signatoryID is never empty as it is equal to authorityID otherwise
-	if signatoryID == authorityID {
-		return nil
-	}
-	delegationRef := &Ref{
-		Type:       AuthorityDelegationType,
-		PrimaryKey: []string{authorityID, signatoryID},
-	}
-	return f.Fetch(delegationRef)
+	return f.Fetch(keyRef)
 }
 
 // Save retrieves the prerequisites of the assertion recursively,

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	tomb "gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -69,6 +71,15 @@ func (s *quotaControlSuite) SetUpTest(c *C) {
 		return nil
 	})
 	s.AddCleanup(r)
+
+	// Add fake handlers for tasks handled by interfaces manager
+	fakeHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		task.State().Lock()
+		_, err := snapstate.TaskSnapSetup(task)
+		task.State().Unlock()
+		return err
+	}
+	s.o.TaskRunner().AddHandler("setup-profiles", fakeHandler, fakeHandler)
 }
 
 type quotaGroupState struct {
@@ -85,9 +96,9 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 	for name, grp := range m {
 		expGrp, ok := exp[name]
 		c.Assert(ok, Equals, true, Commentf("unexpected group %q in state", name))
-		c.Assert(expGrp.ResourceLimits.Memory, NotNil)
-		c.Assert(grp.MemoryLimit, Equals, expGrp.ResourceLimits.Memory.Limit)
 		c.Assert(grp.ParentGroup, Equals, expGrp.ParentGroup)
+		groupResources := grp.GetQuotaResources()
+		c.Assert(groupResources, DeepEquals, expGrp.ResourceLimits)
 
 		c.Assert(grp.Snaps, HasLen, len(expGrp.Snaps))
 		if len(expGrp.Snaps) != 0 {
@@ -100,7 +111,7 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 				if grp.ParentGroup != "" {
 					slicePath = grp.ParentGroup + "/" + name
 				}
-				checkSvcAndSliceState(c, sn+".svc1", slicePath, grp.MemoryLimit)
+				checkSvcAndSliceState(c, sn+".svc1", slicePath, groupResources)
 			}
 		}
 
@@ -111,28 +122,53 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 	}
 }
 
-func checkSvcAndSliceState(c *C, snapSvc string, slicePath string, sliceMem quantity.Size) {
+// shouldMentionSlice returns whether or not a slice file
+// should be mentioned in the service unit file. It does in the case
+// when a quota is set.
+func shouldMentionSlice(resources quota.Resources) bool {
+	if resources.Memory == nil && resources.CPU == nil &&
+		resources.CPUSet == nil && resources.Threads == nil &&
+		resources.Journal == nil {
+		return false
+	}
+	return true
+}
+
+func checkSvcAndSliceState(c *C, snapSvc string, slicePath string, resources quota.Resources) {
 	slicePath = systemd.EscapeUnitNamePath(slicePath)
 	// make sure the service file exists
 	svcFileName := filepath.Join(dirs.SnapServicesDir, "snap."+snapSvc+".service")
 	c.Assert(svcFileName, testutil.FilePresent)
 
-	if sliceMem != 0 {
+	if shouldMentionSlice(resources) {
 		// the service file should mention this slice
 		c.Assert(svcFileName, testutil.FileContains, fmt.Sprintf("\nSlice=snap.%s.slice\n", slicePath))
 	} else {
 		c.Assert(svcFileName, Not(testutil.FileContains), fmt.Sprintf("Slice=snap.%s.slice", slicePath))
 	}
-	checkSliceState(c, slicePath, sliceMem)
+	checkSliceState(c, slicePath, resources)
 }
 
-func checkSliceState(c *C, sliceName string, sliceMem quantity.Size) {
+func checkSliceState(c *C, sliceName string, resources quota.Resources) {
 	sliceFileName := filepath.Join(dirs.SnapServicesDir, "snap."+sliceName+".slice")
-	if sliceMem != 0 {
-		c.Assert(sliceFileName, testutil.FilePresent)
-		c.Assert(sliceFileName, testutil.FileContains, fmt.Sprintf("\nMemoryMax=%s\n", sliceMem.String()))
-	} else {
-		c.Assert(sliceFileName, testutil.FileAbsent)
+	if !shouldMentionSlice(resources) {
+		c.Assert(sliceFileName, Not(testutil.FilePresent))
+		return
+	}
+
+	c.Assert(sliceFileName, testutil.FilePresent)
+	if resources.Memory != nil {
+		c.Assert(sliceFileName, testutil.FileContains, fmt.Sprintf("\nMemoryMax=%s\n", resources.Memory.Limit.String()))
+	}
+	if resources.CPU != nil {
+		c.Assert(sliceFileName, testutil.FileContains, fmt.Sprintf("\nCPUQuota=%d%%\n", resources.CPU.Count*resources.CPU.Percentage))
+	}
+	if resources.CPUSet != nil {
+		allowedCpusValue := strutil.IntsToCommaSeparated(resources.CPUSet.CPUs)
+		c.Assert(sliceFileName, testutil.FileContains, fmt.Sprintf("\nAllowedCPUs=%s\n", allowedCpusValue))
+	}
+	if resources.Threads != nil {
+		c.Assert(sliceFileName, testutil.FileContains, fmt.Sprintf("\nThreadsMax=%d\n", resources.Threads.Limit))
 	}
 }
 
@@ -1041,4 +1077,44 @@ func (s *quotaControlSuite) TestUpdateQuotaModifyExistingMixable(c *C) {
 		NewResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB * 2).Build(),
 	})
 	c.Assert(err, ErrorMatches, `quota group "mixed-grp" has mixed snaps and sub-groups, which is no longer supported; removal and re-creation is necessary to modify it`)
+}
+
+func (s *quotaControlSuite) TestAddSnapToQuotaGroup(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	t, err := servicestate.AddSnapToQuotaGroup(st, "test-snap", "foo")
+	c.Assert(err, IsNil)
+	c.Assert(t.Kind(), Equals, "quota-add-snap")
+	c.Assert(t.Summary(), Equals, "Add snap \"test-snap\" to quota group \"foo\"")
+}
+
+func (s *quotaControlSuite) TestAddSnapToQuotaGroupQuotaConflict(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()
+	ts, err := servicestate.CreateQuota(st, "foo", "", []string{"test-snap"}, quotaConstraits)
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("quota-control", "...")
+	chg1.AddAll(ts)
+
+	_, err = servicestate.AddSnapToQuotaGroup(st, "test-snap2", "foo")
+	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
 }

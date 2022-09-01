@@ -40,6 +40,8 @@ const systemPackagesDocConnectedPlugAppArmor = `
 # Description: can access documentation of system packages.
 
 /usr/share/doc/{,**} r,
+/usr/share/cups/doc-root/{,**} r,
+/usr/share/gimp/2.0/help/{,**} r,
 /usr/share/gtk-doc/{,**} r,
 /usr/share/libreoffice/help/{,**} r,
 /usr/share/xubuntu-docs/{,**} r,
@@ -56,6 +58,12 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/doc/ -> /usr/share/doc/,\n")
 	emit("  remount options=(bind, ro) /usr/share/doc/,\n")
 	emit("  umount /usr/share/doc/,\n")
+	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/cups/doc-root/ -> /usr/share/cups/doc-root/,\n")
+	emit("  remount options=(bind, ro) /usr/share/cups/doc-root/,\n")
+	emit("  umount /usr/share/cups/doc-root/,\n")
+	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/gimp/2.0/help/ -> /usr/share/gimp/2.0/help/,\n")
+	emit("  remount options=(bind, ro) /usr/share/gimp/2.0/help/,\n")
+	emit("  umount /usr/share/gimp/2.0/help/,\n")
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/gtk-doc/ -> /usr/share/gtk-doc/,\n")
 	emit("  remount options=(bind, ro) /usr/share/gtk-doc/,\n")
 	emit("  umount /usr/share/gtk-doc/,\n")
@@ -75,6 +83,16 @@ func (iface *systemPackagesDocInterface) MountConnectedPlug(spec *mount.Specific
 	spec.AddMountEntry(osutil.MountEntry{
 		Name:    "/var/lib/snapd/hostfs/usr/share/doc",
 		Dir:     "/usr/share/doc",
+		Options: []string{"bind", "ro"},
+	})
+	spec.AddMountEntry(osutil.MountEntry{
+		Name:    "/var/lib/snapd/hostfs/usr/share/cups/doc-root",
+		Dir:     "/usr/share/cups/doc-root",
+		Options: []string{"bind", "ro"},
+	})
+	spec.AddMountEntry(osutil.MountEntry{
+		Name:    "/var/lib/snapd/hostfs/usr/share/gimp/2.0/help",
+		Dir:     "/usr/share/gimp/2.0/help",
 		Options: []string{"bind", "ro"},
 	})
 	spec.AddMountEntry(osutil.MountEntry{

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -97,6 +97,8 @@ type SnapSetup struct {
 	Flags
 
 	SnapPath string `json:"snap-path,omitempty"`
+
+	ExpectedProvenance string `json:"provenance,omitempty"`
 
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
@@ -232,6 +234,19 @@ type SnapState struct {
 	// MigratedToExposedHome is set if ~/Snap was created and initialized. If set, ~/Snap
 	// should be used as the snap's HOME.
 	MigratedToExposedHome bool `json:"migrated-exposed-home,omitempty"`
+
+	// PendingSecurity tracks information about snaps that have
+	// their security profiles set up but are not active.
+	// It is managed by ifacestate.
+	PendingSecurity *PendingSecurityState `json:"pending-security,omitempty"`
+}
+
+// PendingSecurityState holds information about snaps that have
+// their security profiles set up but are not active.
+type PendingSecurityState struct {
+	// SideInfo of the revision for which security profiles are or
+	// should be set up if any.
+	SideInfo *snap.SideInfo `json:"side-info,omitempty"`
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {
@@ -528,6 +543,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 
 	// misc
 	runner.AddHandler("switch-snap", m.doSwitchSnap, nil)
+	runner.AddHandler("migrate-snap-home", m.doMigrateSnapHome, m.undoMigrateSnapHome)
 
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
@@ -599,8 +615,7 @@ func (m *SnapManager) NextRefresh() time.Time {
 }
 
 // EffectiveRefreshHold returns the time until to which refreshes are
-// held if refresh.hold configuration is set and accounting for the
-// max postponement since the last refresh.
+// held if refresh.hold configuration is set.
 // The caller should be holding the state lock.
 func (m *SnapManager) EffectiveRefreshHold() (time.Time, error) {
 	return m.autoRefresh.EffectiveRefreshHold()

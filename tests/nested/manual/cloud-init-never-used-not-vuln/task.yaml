@@ -10,7 +10,6 @@ environment:
     NESTED_BUILD_SNAPD_FROM_CURRENT/refresh: false
     NESTED_BUILD_SNAPD_FROM_CURRENT/firstboot: true
     NESTED_USE_CLOUD_INIT: false
-    NESTED_IMAGE_ID: cloud-init-never-$NESTED_BUILD_SNAPD_FROM_CURRENT
 
     # this test is only running on nested systems, so only amd64 for now
     SNAPD_2_45_SNAPD_SNAP: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.45_7777.snap

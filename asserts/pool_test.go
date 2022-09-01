@@ -41,7 +41,6 @@ type poolSuite struct {
 	decl1_1   *asserts.TestOnlyDecl
 	rev1_1111 *asserts.TestOnlyRev
 	rev1_3333 *asserts.TestOnlyRev
-	rev1_5555 *asserts.TestOnlyRev
 
 	decl2     *asserts.TestOnlyDecl
 	rev2_2222 *asserts.TestOnlyRev
@@ -161,19 +160,6 @@ func (s *poolSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 	s.db = db
-
-	// delegation
-	devDB := assertstest.NewSigningDB(s.dev1Acct.AccountID(), testPrivKey2)
-	a, err = devDB.Sign(asserts.TestOnlyRevType, map[string]interface{}{
-		"authority-id": "hub",
-		"signatory-id": s.dev1Acct.AccountID(),
-		"h":            "5555",
-		"id":           "one",
-		"dev-id":       "developer1",
-	}, nil, "")
-	c.Assert(err, IsNil)
-	s.rev1_5555 = a.(*asserts.TestOnlyRev)
-
 }
 
 func (s *poolSuite) TestAddUnresolved(c *C) {
@@ -293,52 +279,6 @@ func (s *poolSuite) TestFetch(c *C) {
 	storeKeyAt.Revision = asserts.RevisionNotKnown
 	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
 		asserts.MakePoolGrouping(0): {storeKeyAt, dev1AcctAt, decl1At},
-	})
-	c.Check(toResolveSeq, HasLen, 0)
-
-	c.Check(pool.Err("for_one"), IsNil)
-}
-
-func (s *poolSuite) TestFetchDelegation(c *C) {
-	c.Skip("authority-delegation disabled")
-
-	pool := asserts.NewPool(s.db, 64)
-
-	at5555 := &asserts.AtRevision{
-		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"5555"}},
-		Revision: asserts.RevisionNotKnown,
-	}
-	err := pool.AddUnresolved(at5555, "for_one")
-	c.Assert(err, IsNil)
-
-	toResolve, toResolveSeq, err := pool.ToResolve()
-	c.Assert(err, IsNil)
-	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
-		asserts.MakePoolGrouping(0): {at5555},
-	})
-	c.Check(toResolveSeq, HasLen, 0)
-
-	ok, err := pool.Add(s.rev1_5555, asserts.MakePoolGrouping(0))
-	c.Assert(err, IsNil)
-	c.Assert(ok, Equals, true)
-
-	toResolve, toResolveSeq, err = pool.ToResolve()
-	c.Assert(err, IsNil)
-	sortToResolve(toResolve)
-	dev1AcctAt := s.dev1Acct.At()
-	dev1AcctAt.Revision = asserts.RevisionNotKnown
-	decl1At := s.decl1.At()
-	decl1At.Revision = asserts.RevisionNotKnown
-	devKeyAt := &asserts.AtRevision{
-		Ref:      asserts.Ref{Type: asserts.AccountKeyType, PrimaryKey: []string{testPrivKey2.PublicKey().ID()}},
-		Revision: asserts.RevisionNotKnown,
-	}
-	delegAt := &asserts.AtRevision{
-		Ref:      asserts.Ref{Type: asserts.AuthorityDelegationType, PrimaryKey: []string{"hub", "developer1"}},
-		Revision: asserts.RevisionNotKnown,
-	}
-	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
-		asserts.MakePoolGrouping(0): {devKeyAt, dev1AcctAt, delegAt, decl1At},
 	})
 	c.Check(toResolveSeq, HasLen, 0)
 

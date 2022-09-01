@@ -4,11 +4,8 @@ systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
   VARIANT/nogadget: "no-gadget"
-  NESTED_IMAGE_ID/nogadget: core20-kernel-commandline-bootconfig-no-gadget
   VARIANT/gadgetextra: "gadget-extra"
-  NESTED_IMAGE_ID/gadgetextra: core20-kernel-commandline-bootconfig-gadget-extra
   VARIANT/gadgetfull: "gadget-full"
-  NESTED_IMAGE_ID/gadgetfull: core20-kernel-commandline-bootconfig-gadget-full
 
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
   NESTED_ENABLE_TPM: true
@@ -51,7 +48,7 @@ prepare: |
         ;;
       gadget-full)
         # keep the console so that we have useful debug logs
-        echo 'snapd.debug=1 console=ttyS0 full hello from test' > pc-gadget/cmdline.full
+        echo 'snapd.debug=1 console=ttyS0,115200n8 full hello from test' > pc-gadget/cmdline.full
         ;;
       *)
         echo "unexpected variant $VARIANT, fix the test"
@@ -105,7 +102,7 @@ execute: |
   fi
   
   echo "check boot assets have been updated"
-  tests.nested exec "sudo cat /boot/grub/grub.cfg" | MATCH "Snapd-Boot-Config-Edition: 2"
+  tests.nested exec "sudo cat /boot/grub/grub.cfg" | MATCH "Snapd-Boot-Config-Edition: 4"
   tests.nested exec "sudo cat /boot/grub/grub.cfg" | MATCH "set snapd_static_cmdline_args='.*bootassetstesting'"
 
   tests.nested exec "cat /proc/cmdline" > system.cmdline
@@ -123,7 +120,7 @@ execute: |
     gadget-full)
       echo "check that static command line element is not used, gadget provides the full set"
       NOMATCH bootassetstesting < system.cmdline
-      MATCH "snapd_recovery_mode=run snapd.debug=1 console=ttyS0 full hello from test" < system.cmdline
+      MATCH "snapd_recovery_mode=run snapd.debug=1 console=ttyS0,115200n8 full hello from test" < system.cmdline
       ;;
   esac
 

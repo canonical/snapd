@@ -34,17 +34,24 @@ import (
 func InitramfsRunModeSelectSnapsToMount(
 	typs []snap.Type,
 	modeenv *Modeenv,
+	rootfsDir string,
 ) (map[snap.Type]snap.PlaceInfo, error) {
 	var sn snap.PlaceInfo
 	var err error
 	m := make(map[snap.Type]snap.PlaceInfo)
 	for _, typ := range typs {
 		// TODO: consider passing a bootStateUpdate20 instead?
-		var selectSnapFn func(*Modeenv) (snap.PlaceInfo, error)
+		var selectSnapFn func(*Modeenv, string) (snap.PlaceInfo, error)
 		switch typ {
 		case snap.TypeBase:
 			bs := &bootState20Base{}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
+		case snap.TypeGadget:
+			// Do not mount if modeenv does not have gadget entry
+			if modeenv.Gadget == "" {
+				continue
+			}
+			selectSnapFn = selectGadgetSnap
 		case snap.TypeKernel:
 			blOpts := &bootloader.Options{
 				Role:        bootloader.RoleRunMode,
@@ -57,7 +64,7 @@ func InitramfsRunModeSelectSnapsToMount(
 			}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
 		}
-		sn, err = selectSnapFn(modeenv)
+		sn, err = selectSnapFn(modeenv, rootfsDir)
 		if err != nil {
 			return nil, err
 		}

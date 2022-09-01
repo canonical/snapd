@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -44,6 +45,7 @@ func (s *handlersSuite) SetUpTest(c *C) {
 	s.baseHandlerSuite.SetUpTest(c)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
+	s.AddCleanup(osutil.MockMountInfo(""))
 }
 
 func (s *handlersSuite) TestSetTaskSnapSetupFirstTask(c *C) {

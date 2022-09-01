@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1184,6 +1184,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:   false,
+		IsUndo:         true,
 		ServiceOptions: opts,
 	}
 	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
@@ -1255,6 +1256,10 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		return copyDataErr
 	}
 
+	if err := m.backend.SetupSnapSaveData(newInfo, pb); err != nil {
+		return err
+	}
+
 	var oldBase string
 	if oldInfo != nil {
 		oldBase = oldInfo.Base
@@ -1282,7 +1287,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapsup.MigratedHidden = true
 		fallthrough
 	case home:
-		undo, err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision)
+		undo, err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision, opts.getSnapDirOpts())
 		if err != nil {
 			return err
 		}
@@ -1410,6 +1415,9 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
 	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, dirOpts); err != nil {
+		return err
+	}
+	if err := m.backend.UndoSetupSnapSaveData(newInfo, oldInfo, pb); err != nil {
 		return err
 	}
 
@@ -1563,6 +1571,13 @@ type LinkSnapParticipant interface {
 	// SnapLinkageChanged is called when a snap is linked or unlinked.
 	// The error is only logged and does not stop the task it is used from.
 	SnapLinkageChanged(st *state.State, instanceName string) error
+}
+
+// LinkSnapParticipantFunc is an adapter from function to LinkSnapParticipant.
+type LinkSnapParticipantFunc func(st *state.State, instanceName string) error
+
+func (f LinkSnapParticipantFunc) SnapLinkageChanged(st *state.State, instanceName string) error {
+	return f(st, instanceName)
 }
 
 var linkSnapParticipants []LinkSnapParticipant
@@ -2024,7 +2039,7 @@ func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) error {
 		return err
 	}
 	bp := boot.Participant(info, info.Type(), groundDeviceCtx)
-	rebootInfo, err := bp.SetNextBoot()
+	rebootInfo, err := bp.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
 	if err != nil {
 		return err
 	}
@@ -2195,6 +2210,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	firstInstall := oldCurrent.Unset()
 	linkCtx := backend.LinkContext{
 		FirstInstall: firstInstall,
+		IsUndo:       true,
 	}
 	var backendErr error
 	if newInfo.Type() == snap.TypeSnapd && !firstInstall {
@@ -2704,6 +2720,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:   false,
+		IsUndo:         true,
 		ServiceOptions: opts,
 	}
 	reboot, err := m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings)
@@ -2753,6 +2770,12 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	if len(snapst.Sequence) == 1 {
 		// Only remove data common between versions if this is the last version
 		if err = m.backend.RemoveSnapCommonData(info, dirOpts); err != nil {
+			return err
+		}
+
+		// Same for the common snap save data directory, we only remove it if this
+		// is the last version.
+		if err = m.backend.RemoveSnapSaveData(info); err != nil {
 			return err
 		}
 
@@ -3554,9 +3577,11 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		}
 	}
 
+	chg := t.Change()
+
 	// if any snap failed to refresh, reconsider validation set tracking
 	if failed {
-		tasksets, err := maybeRestoreValidationSetsAndRevertSnaps(st, snaps)
+		tasksets, err := maybeRestoreValidationSetsAndRevertSnaps(st, snaps, chg.ID())
 		if err != nil {
 			return err
 		}
@@ -3596,7 +3621,7 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	if err := t.Get("rerefresh-setup", &re); err != nil {
 		return err
 	}
-	chg := t.Change()
+
 	updated, tasksets, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, re.UserID, reRefreshFilter, re.Flags, chg.ID())
 	if err != nil {
 		return err
@@ -3658,16 +3683,77 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 	return nil
 }
 
+func (m *SnapManager) doMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
+	opts, err := getDirMigrationOpts(st, snapst, snapsup)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	dirOpts := opts.getSnapDirOpts()
+	undo, err := m.backend.InitExposedSnapHome(snapsup.InstanceName(), snapsup.Revision(), dirOpts)
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
+	defer st.Unlock()
+	t.Set("undo-exposed-home-init", undo)
+	snapsup.MigratedToExposedHome = true
+
+	return SetTaskSnapSetup(t, snapsup)
+}
+
+func (m *SnapManager) undoMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	var undo backend.UndoInfo
+
+	st.Lock()
+	err = t.Get("undo-exposed-home-init", &undo)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	if err := m.backend.UndoInitExposedSnapHome(snapsup.InstanceName(), &undo); err != nil {
+		return err
+	}
+
+	snapsup.MigratedToExposedHome = false
+	snapst.MigratedToExposedHome = false
+
+	st.Lock()
+	defer st.Unlock()
+	return writeMigrationStatus(t, snapst, snapsup)
+}
+
 // maybeRestoreValidationSetsAndRevertSnaps restores validation-sets to their
 // previous state using validation sets stack if there are any enforced
 // validation sets and - if necessary - creates tasksets to revert some or all
 // of the refreshed snaps to their previous revisions to satisfy the restored
 // validation sets tracking.
-var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSnaps []string) ([]*state.TaskSet, error) {
-	enforcedSets, err := EnforcedValidationSets(st, nil)
+var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSnaps []string, fromChange string) ([]*state.TaskSet, error) {
+	enforcedSets, err := EnforcedValidationSets(st)
 	if err != nil {
 		return nil, err
 	}
+
 	if enforcedSets == nil {
 		// no enforced validation sets, nothing to do
 		return nil, nil
@@ -3675,10 +3761,12 @@ var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSn
 
 	installedSnaps, ignoreValidation, err := InstalledSnaps(st)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("internal error: cannot get installed snaps: %v", err)
 	}
+
 	if err := enforcedSets.CheckInstalledSnaps(installedSnaps, ignoreValidation); err == nil {
 		// validation sets are still correct, nothing to do
+		logger.Debugf("validation sets are still correct after partial refresh")
 		return nil, nil
 	}
 
@@ -3690,51 +3778,72 @@ var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSn
 	// no snaps were refreshed, after restoring validation sets tracking
 	// there is nothing else to do
 	if len(refreshedSnaps) == 0 {
+		logger.Debugf("validation set tracking restored, no snaps were refreshed")
 		return nil, nil
+	}
+
+	// we need to fetch enforced sets again because of RestoreValidationSetsTracking.
+	enforcedSets, err = EnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+
+	if enforcedSets == nil {
+		return nil, fmt.Errorf("internal error: no enforced validation sets after restoring from the stack")
 	}
 
 	// check installed snaps again against restored validation-sets.
 	// this may fail which is fine, but it tells us which snaps are
 	// at invalid revisions and need reverting.
-	// note: we need to fetch enforced sets again because of RestoreValidationSetsTracking.
-	enforcedSets, err = EnforcedValidationSets(st, nil)
-	if err != nil {
-		return nil, err
-	}
-	if enforcedSets == nil {
-		return nil, fmt.Errorf("internal error: no enforced validation sets after restoring from the stack")
-	}
 	err = enforcedSets.CheckInstalledSnaps(installedSnaps, ignoreValidation)
 	if err == nil {
 		// all fine after restoring validation sets: this can happen if previous
 		// validation sets only required a snap (regardless of its revision), then
 		// after update they require a specific snap revision, so after restoring
 		// we are back with the good state.
+		logger.Debugf("validation sets still valid after partial refresh, no snaps need reverting")
 		return nil, nil
 	}
 	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
 	if !ok {
-		return nil, err
+		return nil, fmt.Errorf("internal error: %v", err)
 	}
+
 	if len(verr.WrongRevisionSnaps) == 0 {
 		// if we hit ValidationSetsValidationError but it's not about wrong revisions,
 		// then something is really broken (we shouldn't have invalid or missing required
 		// snaps at this point).
 		return nil, fmt.Errorf("internal error: unexpected validation error of installed snaps after unsuccesfull refresh: %v", verr)
 	}
+
+	wrongRevSnaps := func() []string {
+		snaps := make([]string, 0, len(verr.WrongRevisionSnaps))
+		for sn := range verr.WrongRevisionSnaps {
+			snaps = append(snaps, sn)
+		}
+		return snaps
+	}
+	logger.Debugf("refreshed snaps: %s, snaps at wrong revisions: %s", strutil.Quoted(refreshedSnaps), strutil.Quoted(wrongRevSnaps()))
+
 	// revert some or all snaps
 	var tss []*state.TaskSet
 	for _, snapName := range refreshedSnaps {
 		if verr.WrongRevisionSnaps[snapName] != nil {
 			// XXX: should we be extra paranoid and use RevertToRevision with
 			// the specific revision from verr.WrongRevisionSnaps?
-			ts, err := Revert(st, snapName, Flags{RevertStatus: NotBlocked})
+			ts, err := Revert(st, snapName, Flags{RevertStatus: NotBlocked}, fromChange)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("cannot revert snap %q: %v", snapName, err)
 			}
 			tss = append(tss, ts)
+			delete(verr.WrongRevisionSnaps, snapName)
 		}
 	}
+
+	if len(verr.WrongRevisionSnaps) > 0 {
+		return nil, fmt.Errorf("internal error: some snaps were not refreshed but are at wrong revisions: %s", strutil.Quoted(wrongRevSnaps()))
+	}
+
 	return tss, nil
 }
 

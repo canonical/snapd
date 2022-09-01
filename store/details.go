@@ -27,7 +27,6 @@ import (
 
 // snapDetails encapsulates the data sent to us from the store as JSON.
 type snapDetails struct {
-	AnonDownloadURL  string             `json:"anon_download_url,omitempty"`
 	Architectures    []string           `json:"architecture"`
 	Channel          string             `json:"channel,omitempty"`
 	DownloadSha3_384 string             `json:"download_sha3_384,omitempty"`
@@ -99,7 +98,6 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
-	info.AnonDownloadURL = d.AnonDownloadURL
 	info.DownloadURL = d.DownloadURL
 	info.Prices = d.Prices
 	info.Private = d.Private

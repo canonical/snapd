@@ -13,6 +13,10 @@ prepare: |
     echo text >/usr/share/xubuntu-docs/content
     mkdir -p /usr/share/gtk-doc
     echo text >/usr/share/gtk-doc/content
+    mkdir -p /usr/share/cups/doc-root
+    echo text >/usr/share/cups/doc-root/content
+    mkdir -p /usr/share/gimp/2.0/help
+    echo text >/usr/share/gimp/2.0/help/content
 
 restore: |
     snap remove --purge test-snapd-app
@@ -29,6 +33,8 @@ execute: |
     test-snapd-app.sh -c 'cat /usr/share/libreoffice/help/content' | MATCH text
     test-snapd-app.sh -c 'cat /usr/share/xubuntu-docs/content' | MATCH text
     test-snapd-app.sh -c 'cat /usr/share/gtk-doc/content' | MATCH text
+    test-snapd-app.sh -c 'cat /usr/share/cups/doc-root/content' | MATCH text
+    test-snapd-app.sh -c 'cat /usr/share/gimp/2.0/help/content' | MATCH text
 
     # The interface can be disconnected
     snap disconnect test-snapd-app:system-packages-doc
@@ -36,3 +42,5 @@ execute: |
     not test-snapd-app.sh -c 'test -e /usr/share/libreoffice/help/content'
     not test-snapd-app.sh -c 'test -e /usr/share/xubuntu-docs/content'
     not test-snapd-app.sh -c 'test -e /usr/share/gtk-doc/content'
+    not test-snapd-app.sh -c 'test -e /usr/share/cups/doc-root/content'
+    not test-snapd-app.sh -c 'test -e /usr/share/gimp/2.0/help/content'

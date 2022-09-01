@@ -159,8 +159,8 @@ var (
 	key = keys.EncryptionKey{'e', 'n', 'c', 'r', 'y', 'p', 't', 1, 1, 1, 1}
 )
 
-func (s *keymgrSuite) TestChangeEncryptionKeyHappy(c *C) {
-	err := secboot.ChangeEncryptionKey("/dev/foo/bar", key)
+func (s *keymgrSuite) TestStageEncryptionKeyHappy(c *C) {
+	err := secboot.StageEncryptionKeyChange("/dev/foo/bar", key)
 	c.Assert(err, IsNil)
 	c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/foo/bar"},
@@ -171,10 +171,11 @@ func (s *keymgrSuite) TestChangeEncryptionKeyHappy(c *C) {
 			"--wait", "--pipe", "--collect", "--service-type=exec", "--quiet",
 			"--property=KeyringMode=inherit", "--",
 			s.keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-partuuid/something",
+			"--stage",
 		},
 	})
 	c.Check(s.keymgrCmd.Calls(), DeepEquals, [][]string{
-		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/something"},
+		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/something", "--stage"},
 	})
 	var b bytes.Buffer
 	json.NewEncoder(&b).Encode(struct {
@@ -185,12 +186,12 @@ func (s *keymgrSuite) TestChangeEncryptionKeyHappy(c *C) {
 	c.Check(filepath.Join(s.d, "input"), testutil.FileEquals, b.String())
 }
 
-func (s *keymgrSuite) TestChangeEncryptionKeyBadUdev(c *C) {
+func (s *keymgrSuite) TestStageEncryptionKeyBadUdev(c *C) {
 	udevadmCmd := testutil.MockCommand(c, "udevadm", `
 	echo "unhappy udev"
 `)
 	defer udevadmCmd.Restore()
-	err := secboot.ChangeEncryptionKey("/dev/foo/bar", key)
+	err := secboot.StageEncryptionKeyChange("/dev/foo/bar", key)
 	c.Assert(err, ErrorMatches, "cannot get UUID of partition /dev/foo/bar: cannot get required udev partition UUID property")
 	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/foo/bar"},
@@ -199,7 +200,7 @@ func (s *keymgrSuite) TestChangeEncryptionKeyBadUdev(c *C) {
 	c.Check(s.keymgrCmd.Calls(), HasLen, 0)
 }
 
-func (s *keymgrSuite) TestChangeEncryptionKeyBadKeymgr(c *C) {
+func (s *keymgrSuite) TestStageTransitionEncryptionKeyBadKeymgr(c *C) {
 	keymgrCmd := testutil.MockCommand(c, "snap-fde-keymgr", `echo keymgr very unhappy; exit 1`)
 	defer keymgrCmd.Restore()
 	// update where /proc/self/exe resolves to
@@ -208,26 +209,87 @@ func (s *keymgrSuite) TestChangeEncryptionKeyBadKeymgr(c *C) {
 	})
 	defer restore()
 
-	err := secboot.ChangeEncryptionKey("/dev/foo/bar", key)
+	err := secboot.StageEncryptionKeyChange("/dev/foo/bar", key)
 	c.Assert(err, ErrorMatches, "cannot run FDE key manager tool: cannot run .*: keymgr very unhappy")
 
-	c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "info", "--query", "property", "--name", "/dev/foo/bar"},
-	})
 	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
 		{
 			"systemd-run",
 			"--wait", "--pipe", "--collect", "--service-type=exec", "--quiet",
 			"--property=KeyringMode=inherit", "--",
 			keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-partuuid/something",
+			"--stage",
 		},
 	})
 	c.Check(keymgrCmd.Calls(), DeepEquals, [][]string{
-		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/something"},
+		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/something", "--stage"},
+	})
+
+	s.systemdRunCmd.ForgetCalls()
+	keymgrCmd.ForgetCalls()
+
+	s.mocksForDeviceMounts(c)
+	err = secboot.TransitionEncryptionKeyChange("/foo", key)
+	c.Assert(err, ErrorMatches, "cannot run FDE key manager tool: cannot run .*: keymgr very unhappy")
+
+	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
+		{
+			"systemd-run",
+			"--wait", "--pipe", "--collect", "--service-type=exec", "--quiet",
+			"--property=KeyringMode=inherit", "--",
+			keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-partuuid/foo-uuid",
+			"--transition",
+		},
+	})
+	c.Check(keymgrCmd.Calls(), DeepEquals, [][]string{
+		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/foo-uuid", "--transition"},
 	})
 }
 
-func (s *keymgrSuite) mocksForRecoveryKeys(c *C) (udevadmCmd *testutil.MockCmd) {
+func (s *keymgrSuite) TestTransitionEncryptionKeyNoMountDev(c *C) {
+	restore := osutil.MockMountInfo(`
+27 27 600:3 / /foo rw,relatime shared:7 - vfat /dev/mapper/foo rw
+`[1:])
+	s.AddCleanup(restore)
+
+	udevadmCmd := testutil.MockCommand(c, "udevadm", `echo nope; exit 1`)
+	defer udevadmCmd.Restore()
+
+	err := secboot.TransitionEncryptionKeyChange("/foo", key)
+	c.Assert(err, ErrorMatches, "cannot find matching device: cannot partition for mount /foo: cannot process udev properties of /dev/mapper/foo: nope")
+}
+
+func (s *keymgrSuite) TestTransitionEncryptionKeyHappy(c *C) {
+	udevadmCmd := s.mocksForDeviceMounts(c)
+
+	err := secboot.TransitionEncryptionKeyChange("/foo", key)
+	c.Assert(err, IsNil)
+	c.Check(udevadmCmd.Calls(), DeepEquals, [][]string{
+		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/foo"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304"},
+	})
+	c.Check(s.systemdRunCmd.Calls(), DeepEquals, [][]string{
+		{
+			"systemd-run",
+			"--wait", "--pipe", "--collect", "--service-type=exec", "--quiet",
+			"--property=KeyringMode=inherit", "--",
+			s.keymgrCmd.Exe(), "change-encryption-key", "--device", "/dev/disk/by-partuuid/foo-uuid",
+			"--transition",
+		},
+	})
+	c.Check(s.keymgrCmd.Calls(), DeepEquals, [][]string{
+		{"snap-fde-keymgr", "change-encryption-key", "--device", "/dev/disk/by-partuuid/foo-uuid", "--transition"},
+	})
+	var b bytes.Buffer
+	json.NewEncoder(&b).Encode(struct {
+		Key []byte `json:"key"`
+	}{
+		Key: key,
+	})
+	c.Check(filepath.Join(s.d, "input"), testutil.FileEquals, b.String())
+}
+
+func (s *keymgrSuite) mocksForDeviceMounts(c *C) (udevadmCmd *testutil.MockCmd) {
 	restore := osutil.MockMountInfo(`
 27 27 600:3 / /foo rw,relatime shared:7 - vfat /dev/mapper/foo rw
 27 27 600:4 / /bar rw,relatime shared:7 - vfat /dev/mapper/bar rw
@@ -279,7 +341,7 @@ done
 }
 
 func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
-	udevadmCmd := s.mocksForRecoveryKeys(c)
+	udevadmCmd := s.mocksForDeviceMounts(c)
 
 	rkey, err := secboot.EnsureRecoveryKey(filepath.Join(s.d, "recovery.key"), []secboot.RecoveryKeyDevice{
 		{Mountpoint: "/foo"},
@@ -317,7 +379,7 @@ func (s *keymgrSuite) TestEnsureRecoveryKey(c *C) {
 }
 
 func (s *keymgrSuite) TestRemoveRecoveryKey(c *C) {
-	udevadmCmd := s.mocksForRecoveryKeys(c)
+	udevadmCmd := s.mocksForDeviceMounts(c)
 
 	snaptest.PopulateDir(s.d, [][]string{
 		{"recovery.key", "foobar"},

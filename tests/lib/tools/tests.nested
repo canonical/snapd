@@ -212,6 +212,9 @@ vm() {
         status)
             nested_status_vm
             ;;
+        unclean-reboot)
+            nested_force_restart_vm
+            ;;
         *)
             echo "tests.nested: action not supported: $1" >&2
             exit 1

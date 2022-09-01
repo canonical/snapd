@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,7 +22,6 @@ package daemon_test
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -31,7 +30,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -43,9 +41,11 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -63,6 +63,19 @@ func (s *sideloadSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+}
+
+func (s *sideloadSuite) markSeeded(d *daemon.Daemon) {
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	st.Set("seeded", true)
+	model := s.Brands.Model("can0nical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "kernel",
+	})
+	snapstatetest.MockDeviceModel(model)
 }
 
 var sideLoadBodyWithoutDevMode = "" +
@@ -143,6 +156,7 @@ func (s *sideloadSuite) TestSideloadSnapJailMode(c *check.C) {
 
 func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedInstanceName string, expectedFlags snapstate.Flags) (summary string, systemRestartImmediate bool) {
 	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
 
 	soon := 0
 	var origEnsureStateSoon func(*state.State)
@@ -279,24 +293,32 @@ func (s *sideloadSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 
 func (s *sideloadSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 	d := s.daemonWithOverlordMockAndStore()
+	s.markSeeded(d)
 	// add the assertions first
 	st := d.Overlord().State()
+
+	fooSnap := snaptest.MakeTestSnapWithFiles(c, `name: foo
+version: 1`, nil)
+	digest, size, err := asserts.SnapFileSHA3_384(fooSnap)
+	c.Assert(err, check.IsNil)
+	fooSnapBytes, err := ioutil.ReadFile(fooSnap)
+	c.Assert(err, check.IsNil)
 
 	dev1Acct := assertstest.NewAccount(s.StoreSigning, "devel1", nil, "")
 
 	snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
-		"snap-id":      "x-id",
-		"snap-name":    "x",
+		"snap-id":      "foo-id",
+		"snap-name":    "foo",
 		"publisher-id": dev1Acct.AccountID(),
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
 
 	snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
-		"snap-sha3-384": "YK0GWATaZf09g_fvspYPqm_qtaiqf-KjaNj5uMEQCjQpuXWPjqQbeBINL5H_A0Lo",
-		"snap-size":     "5",
-		"snap-id":       "x-id",
+		"snap-sha3-384": digest,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-id":       "foo-id",
 		"snap-revision": "41",
 		"developer-id":  dev1Acct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
@@ -309,25 +331,24 @@ func (s *sideloadSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 		assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""), dev1Acct, snapDecl, snapRev)
 	}()
 
-	body := "" +
-		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"snap\"; filename=\"x.snap\"\r\n" +
-		"\r\n" +
-		"xyzzy\r\n" +
-		"----hello--\r\n"
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	bodyBuf := new(bytes.Buffer)
+	bodyBuf.WriteString("----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"foo.snap\"\r\n\r\n")
+	bodyBuf.Write(fooSnapBytes)
+	bodyBuf.WriteString("\r\n----hello--\r\n")
+	req, err := http.NewRequest("POST", "/v2/snaps", bodyBuf)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
 	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
 		c.Check(flags, check.Equals, snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap})
 		c.Check(si, check.DeepEquals, &snap.SideInfo{
-			RealName: "x",
-			SnapID:   "x-id",
+			RealName: "foo",
+			SnapID:   "foo-id",
 			Revision: snap.R(41),
 		})
 
-		return state.NewTaskSet(), &snap.Info{SuggestedName: "x"}, nil
+		return state.NewTaskSet(), &snap.Info{SuggestedName: "foo"}, nil
 	})()
 
 	rsp := s.asyncReq(c, req, nil)
@@ -336,16 +357,16 @@ func (s *sideloadSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
-	c.Check(chg.Summary(), check.Equals, `Install "x" snap from file "x.snap"`)
+	c.Check(chg.Summary(), check.Equals, `Install "foo" snap from file "foo.snap"`)
 	var names []string
 	err = chg.Get("snap-names", &names)
 	c.Assert(err, check.IsNil)
-	c.Check(names, check.DeepEquals, []string{"x"})
+	c.Check(names, check.DeepEquals, []string{"foo"})
 	var apiData map[string]interface{}
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, check.IsNil)
 	c.Check(apiData, check.DeepEquals, map[string]interface{}{
-		"snap-name": "x",
+		"snap-name": "foo",
 	})
 }
 
@@ -356,7 +377,8 @@ func (s *sideloadSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMockAndStore()
+	d := s.daemonWithOverlordMockAndStore()
+	s.markSeeded(d)
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
@@ -405,7 +427,8 @@ func (s *sideloadSuite) TestSideloadSnapChangeConflict(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMockAndStore()
+	d := s.daemonWithOverlordMockAndStore()
+	s.markSeeded(d)
 
 	defer daemon.MockUnsafeReadSnapInfo(func(path string) (*snap.Info, error) {
 		return &snap.Info{SuggestedName: "foo"}, nil
@@ -448,7 +471,8 @@ func (s *sideloadSuite) TestSideloadSnapInstanceNameNoKey(c *check.C) {
 }
 
 func (s *sideloadSuite) TestSideloadSnapInstanceNameMismatch(c *check.C) {
-	s.daemonWithFakeSnapManager(c)
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
 
 	defer daemon.MockUnsafeReadSnapInfo(func(path string) (*snap.Info, error) {
 		return &snap.Info{SuggestedName: "bar"}, nil
@@ -650,6 +674,7 @@ func (s *sideloadSuite) TestSideloadCleanUpUnusedTempSnapFiles(c *check.C) {
 
 func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
 	expectedFlags := &snapstate.Flags{RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionAllSnaps}
 
 	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
@@ -818,76 +843,13 @@ func (s *sideloadSuite) errReadInfo(c *check.C, body string) {
 
 func (s *sideloadSuite) TestSideloadManySnapsAsserted(c *check.C) {
 	d := s.daemonWithOverlordMockAndStore()
+	s.markSeeded(d)
 	st := d.Overlord().State()
 	snaps := []string{"one", "two"}
-	s.mockAssertions(c, st, snaps)
+	snapData := s.mockAssertions(c, st, snaps)
 
-	body := "----hello--\r\n"
 	expectedFlags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap}
-	s.testSideloadManySnaps(c, st, body, snaps, expectedFlags)
-}
 
-func (s *sideloadSuite) TestSideloadManySnapsOneNotAsserted(c *check.C) {
-	d := s.daemonWithOverlordMockAndStore()
-	st := d.Overlord().State()
-	snaps := []string{"one", "two"}
-	s.mockAssertions(c, st, []string{"one"})
-
-	body := "----hello--\r\n"
-
-	fileSnaps := make([]string, len(snaps))
-	for i, snap := range snaps {
-		fileSnaps[i] = "file-" + snap
-		body += "Content-Disposition: form-data; name=\"snap\"; filename=\"" + fileSnaps[i] + "\"\r\n" +
-			"\r\n" +
-			snap + "\r\n" +
-			"----hello--\r\n"
-	}
-
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
-	c.Assert(err, check.IsNil)
-	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
-	rsp := s.errorReq(c, req, nil)
-
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Message, check.Matches, "cannot find signatures with metadata for snap \"file-two\"")
-}
-
-func (s *sideloadSuite) mockAssertions(c *check.C, st *state.State, snaps []string) {
-	for _, snap := range snaps {
-		hash := crypto.SHA3_384.New()
-		data := []byte(snap)
-		hash.Write(data)
-		digest := hash.Sum(nil)
-
-		base64Digest, err := asserts.EncodeDigest(crypto.SHA3_384, digest)
-		c.Assert(err, check.IsNil)
-		dev1Acct := assertstest.NewAccount(s.StoreSigning, "devel1", nil, "")
-		snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
-			"series":       "16",
-			"snap-id":      snap + "-id",
-			"snap-name":    snap,
-			"publisher-id": dev1Acct.AccountID(),
-			"timestamp":    time.Now().Format(time.RFC3339),
-		}, nil, "")
-		c.Assert(err, check.IsNil)
-		snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
-			"snap-sha3-384": base64Digest,
-			"snap-size":     strconv.Itoa(len(data)),
-			"snap-id":       snap + "-id",
-			"snap-revision": "41",
-			"developer-id":  dev1Acct.AccountID(),
-			"timestamp":     time.Now().Format(time.RFC3339),
-		}, nil, "")
-		c.Assert(err, check.IsNil)
-
-		st.Lock()
-		assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""), dev1Acct, snapDecl, snapRev)
-		st.Unlock()
-	}
-}
-
-func (s *sideloadSuite) testSideloadManySnaps(c *check.C, st *state.State, body string, snaps []string, expectedFlags snapstate.Flags) {
 	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
 		c.Check(*flags, check.DeepEquals, expectedFlags)
 
@@ -907,16 +869,16 @@ func (s *sideloadSuite) testSideloadManySnaps(c *check.C, st *state.State, body 
 	})
 	defer restore()
 
+	bodyBuf := bytes.NewBufferString("----hello--\r\n")
 	fileSnaps := make([]string, len(snaps))
 	for i, snap := range snaps {
 		fileSnaps[i] = "file-" + snap
-		body += "Content-Disposition: form-data; name=\"snap\"; filename=\"" + fileSnaps[i] + "\"\r\n" +
-			"\r\n" +
-			snap + "\r\n" +
-			"----hello--\r\n"
+		bodyBuf.WriteString("Content-Disposition: form-data; name=\"snap\"; filename=\"" + fileSnaps[i] + "\"\r\n\r\n")
+		bodyBuf.Write(snapData[i])
+		bodyBuf.WriteString("\r\n----hello--\r\n")
 	}
 
-	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	req, err := http.NewRequest("POST", "/v2/snaps", bodyBuf)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 	rsp := s.asyncReq(c, req, nil)
@@ -927,6 +889,75 @@ func (s *sideloadSuite) testSideloadManySnaps(c *check.C, st *state.State, body 
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Install snaps %s from files %s`, strutil.Quoted(snaps), strutil.Quoted(fileSnaps)))
+
+}
+
+func (s *sideloadSuite) TestSideloadManySnapsOneNotAsserted(c *check.C) {
+	d := s.daemonWithOverlordMockAndStore()
+	s.markSeeded(d)
+	st := d.Overlord().State()
+	snaps := []string{"one", "two"}
+	snapData := s.mockAssertions(c, st, []string{"one"})
+	// unasserted snap
+	twoSnap := snaptest.MakeTestSnapWithFiles(c, `name: two
+version: 1`, nil)
+	twoSnapData, err := ioutil.ReadFile(twoSnap)
+	c.Assert(err, check.IsNil)
+	snapData = append(snapData, twoSnapData)
+
+	bodyBuf := bytes.NewBufferString("----hello--\r\n")
+	fileSnaps := make([]string, len(snaps))
+	for i, snap := range snaps {
+		fileSnaps[i] = "file-" + snap
+		bodyBuf.WriteString("Content-Disposition: form-data; name=\"snap\"; filename=\"" + fileSnaps[i] + "\"\r\n\r\n")
+		bodyBuf.Write(snapData[i])
+		bodyBuf.WriteString("\r\n----hello--\r\n")
+	}
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bodyBuf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+	rsp := s.errorReq(c, req, nil)
+
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Message, check.Matches, "cannot find signatures with metadata for snap \"file-two\"")
+}
+
+func (s *sideloadSuite) mockAssertions(c *check.C, st *state.State, snaps []string) (snapData [][]byte) {
+	for _, snap := range snaps {
+		thisSnap := snaptest.MakeTestSnapWithFiles(c, fmt.Sprintf(`name: %s
+version: 1`, snap), nil)
+		digest, size, err := asserts.SnapFileSHA3_384(thisSnap)
+		c.Assert(err, check.IsNil)
+		thisSnapData, err := ioutil.ReadFile(thisSnap)
+		c.Assert(err, check.IsNil)
+		snapData = append(snapData, thisSnapData)
+
+		dev1Acct := assertstest.NewAccount(s.StoreSigning, "devel1", nil, "")
+		snapDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+			"series":       "16",
+			"snap-id":      snap + "-id",
+			"snap-name":    snap,
+			"publisher-id": dev1Acct.AccountID(),
+			"timestamp":    time.Now().Format(time.RFC3339),
+		}, nil, "")
+		c.Assert(err, check.IsNil)
+		snapRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+			"snap-sha3-384": digest,
+			"snap-size":     fmt.Sprintf("%d", size),
+			"snap-id":       snap + "-id",
+			"snap-revision": "41",
+			"developer-id":  dev1Acct.AccountID(),
+			"timestamp":     time.Now().Format(time.RFC3339),
+		}, nil, "")
+		c.Assert(err, check.IsNil)
+
+		st.Lock()
+		assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""), dev1Acct, snapDecl, snapRev)
+		st.Unlock()
+	}
+
+	return snapData
 }
 
 type trySuite struct {

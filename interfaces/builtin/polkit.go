@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/polkit"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/polkit/validate"
 	"github.com/snapcore/snapd/snap"
 )
@@ -146,7 +147,7 @@ func init() {
 		commonInterface{
 			name:                  "polkit",
 			summary:               polkitSummary,
-			implicitOnCore:        false,
+			implicitOnCore:        osutil.IsExecutable("/usr/libexec/polkitd"),
 			implicitOnClassic:     true,
 			baseDeclarationPlugs:  polkitBaseDeclarationPlugs,
 			baseDeclarationSlots:  polkitBaseDeclarationSlots,

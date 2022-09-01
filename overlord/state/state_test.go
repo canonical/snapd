@@ -1003,3 +1003,17 @@ func (ss *stateSuite) TestTimingsSupport(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(tims, DeepEquals, []int{1, 2, 3})
 }
+
+func (ss *stateSuite) TestNoStateErrorIs(c *C) {
+	err := &state.NoStateError{Key: "foo"}
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{Key: "bar"})
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+}
+
+func (ss *stateSuite) TestNoStateErrorString(c *C) {
+	err := &state.NoStateError{}
+	c.Assert(err.Error(), Equals, `no state entry for key`)
+	err.Key = "foo"
+	c.Assert(err.Error(), Equals, `no state entry for key "foo"`)
+}

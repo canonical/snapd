@@ -402,7 +402,7 @@ func (ts *taskRunnerSuite) TestAbortAcrossLanesDescendantTask(c *C) {
 		c.Logf("do %q", task.Summary())
 		label := task.Summary()
 		if label == "t15" {
-			ch <- fmt.Sprintf("t15:error")
+			ch <- "t15:error"
 			return fmt.Errorf("mock error")
 		}
 		ch <- fmt.Sprintf("%s:do", label)
@@ -504,7 +504,7 @@ func (ts *taskRunnerSuite) TestAbortAcrossLanesStriclyOrderedTasks(c *C) {
 		c.Logf("do %q", task.Summary())
 		label := task.Summary()
 		if label == "t24" {
-			ch <- fmt.Sprintf("t24:error")
+			ch <- "t24:error"
 			return fmt.Errorf("mock error")
 		}
 		ch <- fmt.Sprintf("%s:do", label)

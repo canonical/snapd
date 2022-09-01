@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -151,7 +151,7 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 				return fmt.Errorf("cannot unlock inhibit lock for snap %s: %v", snapName, err)
 			}
 		}
-		return snapstate.ProceedWithRefresh(st, snapName)
+		return snapstate.ProceedWithRefresh(st, snapName, nil)
 	} else {
 		var ok bool
 		action, ok = a.(snapstate.GateAutoRefreshAction)
@@ -172,7 +172,7 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 	case snapstate.GateAutoRefreshProceed:
 		// for action=proceed the ctlcmd doesn't call ProceedWithRefresh
 		// immediately, do it here.
-		if err := snapstate.ProceedWithRefresh(st, snapName); err != nil {
+		if err := snapstate.ProceedWithRefresh(st, snapName, nil); err != nil {
 			return err
 		}
 		if h.refreshAppAwareness {
