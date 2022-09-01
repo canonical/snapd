@@ -2347,9 +2347,6 @@ func (s *modelAndGadgetInfoSuite) TestModelAndGadgetInfoHappy(c *C) {
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidLabel(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	_, _, err := s.mgr.SystemAndGadgetInfo("invalid/label")
 	c.Assert(err, ErrorMatches, `cannot open seed: invalid seed system label: "invalid/label"`)
 }
