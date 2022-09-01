@@ -1815,7 +1815,16 @@ func (m *DeviceManager) SystemAndGadgetInfo(wantedSystemLabel string) (*System, 
 	if err := s.LoadAssertions(nil, nil); err != nil {
 		return nil, nil, fmt.Errorf("cannot load assertions for label %q: %v", wantedSystemLabel, err)
 	}
-	model := s.Model()
+
+	// get current system as input for systemFromOpenSeed()
+	systemMode := m.SystemMode(SysAny)
+	currentSys, _ := currentSystemForMode(m.state, systemMode)
+
+	// get the system for the given label
+	sys, err := systemFromOpenSeed(s, wantedSystemLabel, currentSys)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	// 2. get the gadget volumes for the given seed-label
 	perf := &timings.Timings{}
@@ -1834,25 +1843,15 @@ func (m *DeviceManager) SystemAndGadgetInfo(wantedSystemLabel string) (*System, 
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot read gadget.yaml: %v", err)
 	}
-	gadgetInfo, err := gadget.InfoFromGadgetYaml(gadgetYaml, model)
+	gadgetInfo, err := gadget.InfoFromGadgetYaml(gadgetYaml, sys.Model)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
 	}
 	// TODO: once EncryptionSupportInfo from PR#12060 is available use it
 	//       here to set the right option
 	opts := &gadget.ValidationConstraints{}
-	if err := gadget.Validate(gadgetInfo, model, opts); err != nil {
+	if err := gadget.Validate(gadgetInfo, sys.Model, opts); err != nil {
 		return nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
-	}
-
-	// get current system as input for systemFromOpenSeed()
-	systemMode := m.SystemMode(SysAny)
-	currentSys, _ := currentSystemForMode(m.state, systemMode)
-
-	// get seed system
-	sys, err := systemFromOpenSeed(s, wantedSystemLabel, currentSys)
-	if err != nil {
-		return nil, nil, err
 	}
 
 	return sys, gadgetInfo, nil
