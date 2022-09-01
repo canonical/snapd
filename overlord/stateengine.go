@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -102,6 +103,10 @@ func (se *StateEngine) StartUp() error {
 		return nil
 	}
 	se.startedUp = true
+	// Maybe restart held tasks if necessary
+	if err := se.maybeRestartHeldTasks(); err != nil {
+		return err
+	}
 	var errs []error
 	for _, m := range se.managers {
 		if starterUp, ok := m.(StateStarterUp); ok {
@@ -114,6 +119,35 @@ func (se *StateEngine) StartUp() error {
 	if len(errs) != 0 {
 		return &startupError{errs}
 	}
+	return nil
+}
+
+func (se *StateEngine) maybeRestartHeldTasks() error {
+	s := se.state
+	s.Lock()
+	defer s.Unlock()
+
+	for _, ch := range s.Changes() {
+		var chBootId string
+		if err := ch.Get("boot-id", &chBootId); err != nil {
+			continue
+		}
+
+		currentBootID, err := osutil.BootID()
+		if err != nil {
+			return err
+		}
+		if currentBootID != chBootId {
+			logger.Debugf("restart already happened, moving forward change %s", ch.ID())
+			for _, t := range ch.Tasks() {
+				if t.Status() != state.HoldStatus {
+					continue
+				}
+				t.SetStatus(state.DoStatus)
+			}
+		}
+	}
+
 	return nil
 }
 
