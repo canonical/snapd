@@ -105,10 +105,18 @@ func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 type oneSystemResponse struct {
+	// First part is designed to look like `client.System` - the
+	// only difference is how the model is represented
+	Current bool                       `json:"current,omitempty"`
+	Label   string                     `json:"label,omitempty"`
 	Model   clientutil.ModelAssertJSON `json:"model,omitempty"`
-	Volumes map[string]*gadget.Volume  `json:"volumes,omitempty"`
+	Actions []client.SystemAction      `json:"actions,omitempty"`
 
-	// TODO: add EncryptionSupportInfo here too
+	// Volumes contains the volumes defined from the gadget snap
+	Volumes map[string]*gadget.Volume `json:"volumes,omitempty"`
+
+	// TODO: add "storage-encryption" via the
+	// devicestate.EncryptionSupportInfo() here too
 }
 
 // wrapped for unit tests
@@ -117,8 +125,6 @@ var deviceManagerSystemAndGadgetInfo = func(dm *devicestate.DeviceManager, syste
 }
 
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
-	var rsp oneSystemResponse
-
 	wantedSystemLabel := muxVars(r)["label"]
 
 	deviceMgr := c.d.overlord.DeviceManager()
@@ -127,10 +133,21 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	rsp.Model = clientutil.ModelAssertJSON{
-		Headers: sys.Model.Headers(),
+	rsp := oneSystemResponse{
+		Current: sys.Current,
+		Label:   sys.Label,
+		Model: clientutil.ModelAssertJSON{
+			Headers: sys.Model.Headers(),
+			// no body: we expect models to have empty bodies
+		},
+		Volumes: gadgetInfo.Volumes,
 	}
-	rsp.Volumes = gadgetInfo.Volumes
+	for _, sa := range sys.Actions {
+		rsp.Actions = append(rsp.Actions, client.SystemAction{
+			Title: sa.Title,
+			Mode:  sa.Mode,
+		})
+	}
 
 	return SyncResponse(rsp)
 }

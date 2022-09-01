@@ -814,6 +814,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(daemon.OneSystemResponse)
 	c.Assert(sys, check.DeepEquals, daemon.OneSystemResponse{
+		Label: "20191119",
 		Model: clientutil.ModelAssertJSON{
 			Headers: s.seedModelForLabel20191119.Headers(),
 			Body:    string(s.seedModelForLabel20191119.Body()),
@@ -871,9 +872,13 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	sys := rsp.Result.(daemon.OneSystemResponse)
 
 	c.Assert(sys, check.DeepEquals, daemon.OneSystemResponse{
+		Label: "20191119",
 		Model: clientutil.ModelAssertJSON{
 			Headers: s.seedModelForLabel20191119.Headers(),
 			Body:    string(s.seedModelForLabel20191119.Body()),
+		},
+		Actions: []client.SystemAction{
+			{Title: "Install", Mode: "install"},
 		},
 		Volumes: map[string]*gadget.Volume{
 			"pc": {
