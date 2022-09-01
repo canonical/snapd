@@ -533,11 +533,18 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		if (errno == ENOENT) {
 			// Create the hostfs directory if one is missing. This directory is a part
 			// of packaging now so perhaps this code can be removed later.
-			if (mkdir(SC_HOSTFS_DIR, 0755) < 0) {
+			// Note: we use 0000 as permissions here, to avoid the risk that
+			// the user manages to fiddle with the newly created directory
+			// before we have the chance to chown it to root:root. We are
+			// setting the usual 0755 permissions just after the chown below.
+			if (mkdir(SC_HOSTFS_DIR, 0000) < 0) {
 				die("cannot perform operation: mkdir %s", SC_HOSTFS_DIR);
 			}
 			if (chown(SC_HOSTFS_DIR, 0, 0) < 0) {
 				die("cannot set root ownership on %s directory", SC_HOSTFS_DIR);
+			}
+			if (chmod(SC_HOSTFS_DIR, 0755) < 0) {
+				die("cannot set 0755 permissions on %s directory", SC_HOSTFS_DIR);
 			}
 		} else {
 			die("cannot stat %s", SC_HOSTFS_DIR);
