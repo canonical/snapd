@@ -87,6 +87,9 @@ ptrace (read),
 @{PROC}/*/{,task/*/}status r,
 @{PROC}/*/{,task/*/}wchan r,
 
+# Allow reading processes security label
+@{PROC}/*/{,task/*/}attr/{,apparmor/}current r,
+
 # Allow discovering the os-release of the host
 /var/lib/snapd/hostfs/etc/os-release rk,
 /var/lib/snapd/hostfs/usr/lib/os-release rk,
