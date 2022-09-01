@@ -959,6 +959,38 @@ func (s *SnapOpSuite) TestInstallPathDangerous(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestInstallPathQuotaGroup(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+		form := testForm(r, c)
+		defer form.RemoveAll()
+
+		c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
+		c.Check(form.Value["quota-group"], check.DeepEquals, []string{"foo"})
+		c.Check(form.Value["snap-path"], check.NotNil)
+		c.Check(form.Value["transaction"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 4)
+
+		name, _, body := formFile(form, c)
+		c.Check(name, check.Equals, "snap")
+		c.Check(string(body), check.Equals, "snap-data")
+	}
+
+	snapBody := []byte("snap-data")
+	s.RedirectClientToTestServer(s.srv.handle)
+	snapPath := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	c.Assert(err, check.IsNil)
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--quota-group", "foo", snapPath})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
 func (s *SnapOpSuite) TestInstallPathManyTransactional(c *check.C) {
 	snaps := []string{"foo.snap", "bar.snap"}
 	total := 4

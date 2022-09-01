@@ -1385,6 +1385,21 @@ func (s *snapsSuite) TestPostSnapCohortUnsupportedAction(c *check.C) {
 	}
 }
 
+func (s *snapsSuite) TestPostSnapQuotaGroupWrongAction(c *check.C) {
+	s.daemonWithOverlordMock()
+	const expectedErr = "quota-group can only be specified for install"
+
+	for _, action := range []string{"remove", "refresh", "revert", "enable", "disable", "xyzzy"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "quota-group": "foo"}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
 func (s *snapsSuite) TestPostSnapLeaveCohortUnsupportedAction(c *check.C) {
 	s.daemonWithOverlordMock()
 	const expectedErr = "leave-cohort can only be specified for refresh or switch"
