@@ -635,7 +635,7 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 500)
-	c.Check(rspe.Message, check.Matches, `cannot load seed system: cannot load assertions: .*`)
+	c.Check(rspe.Message, check.Matches, `cannot load seed system: cannot load assertions for label "20191119": .*`)
 }
 
 func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
