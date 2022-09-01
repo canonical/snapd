@@ -1804,9 +1804,9 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 
 // SystemAndGadgetInfo return the system details including the model
 // assertion and gadget details for the given system label.
-func (m *DeviceManager) SystemAndGadgetInfo(wantedSystemLabel string) (*System, *gadget.Info, error) {
+func (m *DeviceManager) SystemAndGadgetAndKernelInfo(wantedSystemLabel string) (*System, *gadget.Info, *snap.Info, error) {
 	if m.isClassicBoot {
-		return nil, nil, fmt.Errorf("cannot get model and gadget information on a classic boot system")
+		return nil, nil, nil, fmt.Errorf("cannot get model and gadget information on a classic boot system")
 	}
 	// get current system as input for loadSeedAndSystem()
 	systemMode := m.SystemMode(SysAny)
@@ -1814,38 +1814,60 @@ func (m *DeviceManager) SystemAndGadgetInfo(wantedSystemLabel string) (*System, 
 
 	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// 2. get the gadget volumes for the given seed-label
 	perf := &timings.Timings{}
 	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, perf); err != nil {
-		return nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
+		return nil, nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
 	}
 	gadgetSnap := s.EssentialSnaps()[0]
 	if gadgetSnap.Path == "" {
-		return nil, nil, fmt.Errorf("internal error: cannot get gadget snap path")
+		return nil, nil, nil, fmt.Errorf("internal error: cannot get gadget snap path")
 	}
 	snapf, err := snapfile.Open(gadgetSnap.Path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
+		return nil, nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
 	}
 	gadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read gadget.yaml: %v", err)
+		return nil, nil, nil, fmt.Errorf("cannot read gadget.yaml: %v", err)
 	}
 	gadgetInfo, err := gadget.InfoFromGadgetYaml(gadgetYaml, sys.Model)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
-	}
-	// TODO: once EncryptionSupportInfo from PR#12060 is available use it
-	//       here to set the right option
-	opts := &gadget.ValidationConstraints{}
-	if err := gadget.Validate(gadgetInfo, sys.Model, opts); err != nil {
-		return nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
+		return nil, nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
 	}
 
-	return sys, gadgetInfo, nil
+	// need kernel details to validate storage against encryption
+	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeKernel}, perf); err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot load kernel snap metadata: %v", err)
+	}
+	kernelSnap := s.EssentialSnaps()[0]
+	if kernelSnap.Path == "" {
+		return nil, nil, nil, fmt.Errorf("internal error: cannot get kernel snap path")
+	}
+	snapf, err = snapfile.Open(gadgetSnap.Path)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	kernelInfo, err := snap.ReadInfoFromSnapFile(snapf, kernelSnap.SideInfo)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	encInfo, err := m.EncryptionSupportInfo(sys.Model, kernelInfo, gadgetInfo)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	opts := &gadget.ValidationConstraints{
+		EncryptedData: encInfo.StorageSafety == asserts.StorageSafetyEncrypted,
+	}
+	if err := gadget.Validate(gadgetInfo, sys.Model, opts); err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
+	}
+
+	return sys, gadgetInfo, kernelInfo, nil
 }
 
 var ErrUnsupportedAction = errors.New("unsupported action")
@@ -2318,7 +2340,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		return "", err
 	}
 
-	res, err := m.encryptionSupportInfo(model, kernelInfo, gadgetInfo)
+	res, err := m.EncryptionSupportInfo(model, kernelInfo, gadgetInfo)
 	if err != nil {
 		return "", err
 	}
@@ -2333,7 +2355,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	return res.Type, res.UnavailableErr
 }
 
-func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
+func (m *DeviceManager) EncryptionSupportInfo(model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
 	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted

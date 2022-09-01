@@ -140,6 +140,21 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 	return nil
 }
 
+type StorageEncryption struct {
+	// string: "yes"/"no-but-optional"/"no-and-required"
+	Available string `json:"available,omitempty"`
+
+	// StorageSafety can have values of asserts.StorageSafety
+	// and also "disabled" if the encryption got forcefully disabled
+	StorageSafety string `json:"storage-safety,omitempty"`
+
+	// Type have values of secboot.Type: "", "cryptsetup",
+	// "device-setup-hook"
+	Type string `json:"encryption-type"`
+
+	UnavailableReason string `json:"unavailalbe-reason,omitempty"`
+}
+
 type SystemDetails struct {
 	// First part is designed to look like `client.System` - the
 	// only difference is how the model is represented
@@ -152,7 +167,7 @@ type SystemDetails struct {
 	// Volumes contains the volumes defined from the gadget snap
 	Volumes map[string]*gadget.Volume `json:"volumes,omitempty"`
 
-	// TODO: add EncryptionSupportInfo here too
+	StorageEncryption *StorageEncryption `json:"storage-encryption,omitempty"`
 }
 
 func (client *Client) SystemDetails(seedLabel string) (*SystemDetails, error) {

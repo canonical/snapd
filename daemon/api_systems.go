@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -104,8 +105,38 @@ func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 // wrapped for unit tests
-var deviceManagerSystemAndGadgetInfo = func(dm *devicestate.DeviceManager, systemLabel string) (*devicestate.System, *gadget.Info, error) {
-	return dm.SystemAndGadgetInfo(systemLabel)
+var deviceManagerSystemAndGadgetAndKernelInfo = func(dm *devicestate.DeviceManager, systemLabel string) (*devicestate.System, *gadget.Info, *snap.Info, error) {
+	return dm.SystemAndGadgetAndKernelInfo(systemLabel)
+}
+
+// wrapped for unit tests
+var deviceManagerEncryptionSupportInfo = func(dm *devicestate.DeviceManager, model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (devicestate.EncryptionSupportInfo, error) {
+	return dm.EncryptionSupportInfo(model, kernelInfo, gadgetInfo)
+}
+
+func storageEncryption(encInfo *devicestate.EncryptionSupportInfo) *client.StorageEncryption {
+	storageEnc := &client.StorageEncryption{
+		StorageSafety: string(encInfo.StorageSafety),
+		Type:          string(encInfo.Type),
+	}
+	if encInfo.Disabled {
+		storageEnc.StorageSafety = "disabled"
+	}
+	required := (encInfo.StorageSafety == asserts.StorageSafetyEncrypted)
+	switch {
+	case required && encInfo.Available:
+		storageEnc.Available = "yes"
+	case !required && encInfo.Available:
+		storageEnc.Available = "yes"
+	case required && !encInfo.Available:
+		storageEnc.Available = "no-and-required"
+		storageEnc.UnavailableReason = encInfo.UnavailableErr.Error()
+	case !required && !encInfo.Available:
+		storageEnc.Available = "no-but-optional"
+		storageEnc.UnavailableReason = encInfo.UnavailableWarning
+	}
+
+	return storageEnc
 }
 
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -113,10 +144,16 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	deviceMgr := c.d.overlord.DeviceManager()
 
-	sys, gadgetInfo, err := deviceManagerSystemAndGadgetInfo(deviceMgr, wantedSystemLabel)
+	sys, gadgetInfo, kernelInfo, err := deviceManagerSystemAndGadgetAndKernelInfo(deviceMgr, wantedSystemLabel)
 	if err != nil {
 		return InternalError(err.Error())
 	}
+
+	encryptionInfo, err := deviceManagerEncryptionSupportInfo(deviceMgr, sys.Model, kernelInfo, gadgetInfo)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
 	rsp := client.SystemDetails{
 		Current: sys.Current,
 		Label:   sys.Label,
@@ -127,8 +164,9 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 			Validation:  sys.Brand.Validation(),
 		},
 		// no body: we expect models to have empty bodies
-		Model:   sys.Model.Headers(),
-		Volumes: gadgetInfo.Volumes,
+		Model:             sys.Model.Headers(),
+		Volumes:           gadgetInfo.Volumes,
+		StorageEncryption: storageEncryption(&encryptionInfo),
 	}
 	for _, sa := range sys.Actions {
 		rsp.Actions = append(rsp.Actions, client.SystemAction{

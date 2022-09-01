@@ -798,14 +798,28 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
 			},
 		},
 	}
-	r := daemon.MockDeviceManagerSystemAndGadgetInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, error) {
+	mockKernelInfo := &snap.Info{
+		SuggestedName: "pc-kernel",
+		SnapType:      snap.TypeKernel,
+	}
+
+	r := daemon.MockDeviceManagerEncryptionSupportInfo(func(dm *devicestate.DeviceManager, model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (devicestate.EncryptionSupportInfo, error) {
+		return devicestate.EncryptionSupportInfo{
+			Available:          false,
+			StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+			UnavailableWarning: "not encrypting device storage as checking TPM gave: some reason",
+		}, nil
+	})
+	defer r()
+
+	r = daemon.MockDeviceManagerSystemAndGadgetAndKernelInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *snap.Info, error) {
 		c.Check(label, check.Equals, "20191119")
 		sys := &devicestate.System{
 			Model: s.seedModelForLabel20191119,
 			Label: "20191119",
 			Brand: s.Brands.Account("my-brand"),
 		}
-		return sys, mockGadgetInfo, nil
+		return sys, mockGadgetInfo, mockKernelInfo, nil
 	})
 	defer r()
 
@@ -824,6 +838,11 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
 			DisplayName: "My-brand",
 			Validation:  "unproven",
 		},
+		StorageEncryption: &client.StorageEncryption{
+			Available:         "no-but-optional",
+			StorageSafety:     "prefer-encrypted",
+			UnavailableReason: "not encrypting device storage as checking TPM gave: some reason",
+		},
 		Volumes: mockGadgetInfo.Volumes,
 	})
 }
@@ -832,8 +851,8 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelError(c *check.C) {
 	s.daemon(c)
 	s.expectRootAccess()
 
-	r := daemon.MockDeviceManagerSystemAndGadgetInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, error) {
-		return nil, nil, fmt.Errorf("boom")
+	r := daemon.MockDeviceManagerSystemAndGadgetAndKernelInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *snap.Info, error) {
+		return nil, nil, nil, fmt.Errorf("boom")
 	})
 	defer r()
 
@@ -869,6 +888,15 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	restore = s.mockSystemSeeds(c)
 	defer restore()
 
+	r := daemon.MockDeviceManagerEncryptionSupportInfo(func(dm *devicestate.DeviceManager, model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (devicestate.EncryptionSupportInfo, error) {
+		return devicestate.EncryptionSupportInfo{
+			Available:          false,
+			StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+			UnavailableWarning: "not encrypting device storage as checking TPM gave: some reason",
+		}, nil
+	})
+	defer r()
+
 	req, err := http.NewRequest("GET", "/v2/systems/20191119", nil)
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
@@ -888,6 +916,11 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 			Username:    "my-brand",
 			DisplayName: "My-brand",
 			Validation:  "unproven",
+		},
+		StorageEncryption: &client.StorageEncryption{
+			Available:         "no-but-optional",
+			StorageSafety:     "prefer-encrypted",
+			UnavailableReason: "not encrypting device storage as checking TPM gave: some reason",
 		},
 		Volumes: map[string]*gadget.Volume{
 			"pc": {
