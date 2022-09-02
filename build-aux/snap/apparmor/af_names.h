@@ -1,13 +1,15 @@
-// this file was generated on a Ubuntu kinetic install from the upstream
-// apparmor-3.0.7 release tarball as follows:
-//
-// AA_VER=3.0.7
-// wget \
-// "https://launchpad.net/apparmor/3.0/${AA_VER}/+download/apparmor-${AA_VER}.tar.gz"
-// tar xf "apparmor-${AA_VER}.tar.gz"
-// cd "apparmor-${AA_VER}"
-// make -C parser af_names.h
-//
+/*
+  this file was generated on a Ubuntu kinetic install from the upstream
+  apparmor-3.0.7 release tarball as follows:
+
+  AA_VER=3.0.7
+  wget \
+  "https://launchpad.net/apparmor/3.0/${AA_VER}/+download/apparmor-${AA_VER}.tar.gz"
+  tar xf "apparmor-${AA_VER}.tar.gz"
+  cd "apparmor-${AA_VER}"
+  make -C parser af_names.h
+
+ */
 #ifndef AF_UNSPEC
 #  define AF_UNSPEC 0
 #endif
