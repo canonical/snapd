@@ -17,6 +17,12 @@ execute: |
   test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems/"$current_label" > current-system
   echo "Ensure the result contains a model assertion"
   jq -r '.result.model.type' < current-system | MATCH model
+  echo "Ensure the result looks like a systems reply"
+  jq -r '.result.label' < current-system | MATCH "$current_label"
+  jq -r '.result.current' < current-system | MATCH '(true|false)'
+  # we expect at least one current action to be available and
+  # each action always has a mode
+  jq -r '.result.actions[0]' < current-system | MATCH 'mode'
   echo "Ensure the result contains the gadget volumes"
   jq -r '.result.volumes' < current-system | MATCH bootloader
   jq -r '.result.volumes' < current-system | MATCH VolumeName
