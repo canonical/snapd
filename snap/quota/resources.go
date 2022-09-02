@@ -205,7 +205,7 @@ func (qr *Resources) CheckFeatureRequirements() error {
 
 // Unset returns true if there is no limit set
 func (qr *Resources) Unset() bool {
-	return qr.Memory == nil && qr.CPU == nil && qr.CPUSet == nil && qr.Threads == nil && qr.Journal == nil
+	return *qr == Resources{}
 }
 
 // Validate performs basic validation of the provided quota resources for a group.
