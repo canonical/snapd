@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // ValidateNoAppArmorRegexp will check that the given string does not
@@ -367,7 +368,7 @@ func probeParserFeatures() ([]string, error) {
 			probe:   "capability audit_read,",
 		},
 	}
-	features := make([]string, 0, 5)
+	features := make([]string, 0, len(featureProbes)+1)
 	for _, fp := range featureProbes {
 		if tryAppArmorParserFeature(parser, args, fp.probe) {
 			features = append(features, fp.feature)
@@ -395,14 +396,14 @@ var snapdAppArmorSupportsReexec = snapdAppArmorSupportsReexecImpl
 func FindAppArmorParser() (path string, args []string, internal bool, err error) {
 	// first see if we have our own internal copy which could come from the
 	// snapd snap (likely) or be part of the snapd distro package (unlikely)
-	// - but only use the internal one when we know there is not a system
-	// installed snapd-apparmor which does not support re-exec
+	// - but only use the internal one when we know that the system
+	// installed snapd-apparmor support re-exec
 	args = make([]string, 0)
 	if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
 		if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() {
 			prefix := strings.TrimSuffix(path, "apparmor_parser")
 			// when using the internal apparmor_parser also use
-			// it's own configuration and includes etc plus
+			// its own configuration and includes etc plus
 			// also ensure we use the 3.0 feature ABI to get
 			// the widest array of policy features across the
 			// widest array of kernel versions
@@ -504,9 +505,7 @@ func MockFeatures(kernelFeatures []string, kernelError error, parserFeatures []s
 }
 
 func MockSnapdAppArmorSupportsReexec(new func() bool) (restore func()) {
-	old := snapdAppArmorSupportsReexec
+	restore = testutil.Backup(&snapdAppArmorSupportsReexec)
 	snapdAppArmorSupportsReexec = new
-	return func() {
-		snapdAppArmorSupportsReexec = old
-	}
+	return restore
 }

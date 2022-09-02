@@ -53,7 +53,7 @@ func (*apparmorSuite) TestAppArmorFindAppArmorParser(c *C) {
 	defer restore()
 	path, args, internal, err := apparmor.FindAppArmorParser()
 	c.Check(path, Equals, mockParserCmd.Exe())
-	c.Check(args, DeepEquals, make([]string, 0))
+	c.Check(args, DeepEquals, []string{})
 	c.Check(internal, Equals, false)
 	c.Check(err, Equals, nil)
 }
