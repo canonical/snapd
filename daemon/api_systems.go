@@ -110,6 +110,7 @@ type oneSystemResponse struct {
 	Label   string                 `json:"label,omitempty"`
 	Model   map[string]interface{} `json:"model,omitempty"`
 	Actions []client.SystemAction  `json:"actions,omitempty"`
+	Brand   snap.StoreAccount      `json:"brand"`
 
 	// Volumes contains the volumes defined from the gadget snap
 	Volumes map[string]*gadget.Volume `json:"volumes,omitempty"`
@@ -135,6 +136,12 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 	rsp := oneSystemResponse{
 		Current: sys.Current,
 		Label:   sys.Label,
+		Brand: snap.StoreAccount{
+			ID:          sys.Brand.AccountID(),
+			Username:    sys.Brand.Username(),
+			DisplayName: sys.Brand.DisplayName(),
+			Validation:  sys.Brand.Validation(),
+		},
 		// no body: we expect models to have empty bodies
 		Model:   sys.Model.Headers(),
 		Volumes: gadgetInfo.Volumes,

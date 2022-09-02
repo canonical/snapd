@@ -780,6 +780,8 @@ func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
 }
 
 func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
+	s.mockSystemSeeds(c)
+
 	s.daemon(c)
 	s.expectRootAccess()
 
@@ -801,6 +803,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
 		sys := &devicestate.System{
 			Model: s.seedModelForLabel20191119,
 			Label: "20191119",
+			Brand: s.Brands.Account("my-brand"),
 		}
 		return sys, mockGadgetInfo, nil
 	})
@@ -813,8 +816,14 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(daemon.OneSystemResponse)
 	c.Assert(sys, check.DeepEquals, daemon.OneSystemResponse{
-		Label:   "20191119",
-		Model:   s.seedModelForLabel20191119.Headers(),
+		Label: "20191119",
+		Model: s.seedModelForLabel20191119.Headers(),
+		Brand: snap.StoreAccount{
+			ID:          "my-brand",
+			Username:    "my-brand",
+			DisplayName: "My-brand",
+			Validation:  "unproven",
+		},
 		Volumes: mockGadgetInfo.Volumes,
 	})
 }
@@ -872,6 +881,13 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 		Model: s.seedModelForLabel20191119.Headers(),
 		Actions: []client.SystemAction{
 			{Title: "Install", Mode: "install"},
+		},
+
+		Brand: snap.StoreAccount{
+			ID:          "my-brand",
+			Username:    "my-brand",
+			DisplayName: "My-brand",
+			Validation:  "unproven",
 		},
 		Volumes: map[string]*gadget.Volume{
 			"pc": {
