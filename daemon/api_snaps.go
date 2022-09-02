@@ -272,7 +272,7 @@ func (inst *snapInstruction) validate() error {
 		return fmt.Errorf("invalid value for transaction type: %s", inst.Transaction)
 	}
 	if inst.QuotaGroupName != "" && inst.Action != "install" {
-		return fmt.Errorf("quota-group can only be specified for install")
+		return fmt.Errorf("quota-group can only be specified on install")
 	}
 
 	return inst.snapRevisionOptions.validate()

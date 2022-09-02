@@ -1387,7 +1387,7 @@ func (s *snapsSuite) TestPostSnapCohortUnsupportedAction(c *check.C) {
 
 func (s *snapsSuite) TestPostSnapQuotaGroupWrongAction(c *check.C) {
 	s.daemonWithOverlordMock()
-	const expectedErr = "quota-group can only be specified for install"
+	const expectedErr = "quota-group can only be specified on install"
 
 	for _, action := range []string{"remove", "refresh", "revert", "enable", "disable", "xyzzy"} {
 		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "quota-group": "foo"}`, action))
