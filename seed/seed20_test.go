@@ -2910,15 +2910,15 @@ func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousInvalidAutoImport
 	s.testLoadAutoImportAssertion(c, asserts.ModelDangerous, invalid, 0644, s.commitTo, fmt.Errorf("unexpected EOF"))
 }
 
-type systemUserAsseertion int
+type systemUserAssertion int
 
 const (
-	none systemUserAsseertion = iota
+	none systemUserAssertion = iota
 	valid
 	invalid
 )
 
-func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade, sua systemUserAsseertion, perm os.FileMode, commitTo func(b *asserts.Batch) error, loadError error) {
+func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade, sua systemUserAssertion, perm os.FileMode, commitTo func(b *asserts.Batch) error, loadError error) {
 	sysLabel := "20191018"
 	seed20 := s.createMinimalSeed(c, string(grade), sysLabel)
 	c.Assert(seed20, NotNil)
