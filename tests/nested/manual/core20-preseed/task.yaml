@@ -8,7 +8,6 @@ systems: [ubuntu-20.04-64]
 
 environment:
   NESTED_UBUNTU_IMAGE_PRESEED_KEY: "\" (test)\""
-  NESTED_IMAGE_ID: core20-preseeding
   NESTED_ENABLE_TPM: false
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true

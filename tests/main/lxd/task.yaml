@@ -91,9 +91,17 @@ execute: |
     # prep two containers, the my-ubuntu normal container and the
     # my-nesting-ubuntu nesting container
 
-    VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
-    lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
-    lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-nesting-ubuntu -c security.nesting=true
+    # There isn't an official image for kinetic yet, let's use the community one
+    if os.query is-ubuntu 22.10; then
+        CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
+        lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu
+        lxc launch --quiet "images:ubuntu/$CODENAME" my-nesting-ubuntu -c security.nesting=true
+    else
+        VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
+        lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
+        lxc launch --quiet "ubuntu:$VERSION_ID" my-nesting-ubuntu -c security.nesting=true
+    fi
+
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
         snap info lxd
@@ -162,7 +170,14 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- lxd waitready
     lxd.lxc exec my-nesting-ubuntu -- lxd init --auto
 
-    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "ubuntu:${VERSION_ID:-}" my-inner-ubuntu
+    # There isn't an official image for kinetic yet, let's use the community one
+    if os.query is-ubuntu 22.10; then
+      CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
+      lxd.lxc exec my-nesting-ubuntu -- lxc launch --quiet "images:ubuntu/$CODENAME" my-inner-ubuntu
+    else
+      VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
+      lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-inner-ubuntu
+    fi
     lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
 
     echo "Install lxd-demo server to exercise the lxd interface"

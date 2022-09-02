@@ -9,7 +9,7 @@ restore: |
 
 debug: |
     ls /etc/systemd/system/snapd.service.d
-    cat /etc/systemd/system/snapd.service.d/*
+    cat /etc/systemd/system/snapd.service.d/* || true
 
 execute: |
     systemd_ver="$(systemctl --version|head -1|cut -d ' ' -f2)"

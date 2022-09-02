@@ -17,12 +17,10 @@ restore: |
     rm -f /tmp/serialport{0,1}
 
 debug: |
-    set +e
-    tests.nested exec "snap connections --all"
-    tests.nested exec "snap list"
-    tests.nested exec "dmesg"
-    tests.nested exec 'sudo jq -r ".data[\"hotplug-slots\"]" /var/lib/snapd/state.json'
-    set -e
+    tests.nested exec "snap connections --all" || true
+    tests.nested exec "snap list" || true
+    tests.nested exec "dmesg" || true
+    tests.nested exec 'sudo jq -r ".data[\"hotplug-slots\"]" /var/lib/snapd/state.json' || true
 
 execute: |
     #shellcheck source=tests/lib/nested.sh

@@ -9,9 +9,6 @@ environment:
   SNAPD_SOURCE_SNAP/snapd: snapd
   SNAPD_SOURCE_SNAP/core: core
 
-  # needed to get a custom image
-  NESTED_IMAGE_ID: vuln-$SNAPD_SOURCE_SNAP-auto-removed
-
   # where we mount the image
   IMAGE_MOUNTPOINT: /mnt/cloudimg
 

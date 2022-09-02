@@ -1,5 +1,7 @@
 summary: smoke test for the os.query tool
 
+backends: [google]
+
 execute: |
     os.query --help | MATCH 'usage: os.query is-core, is-classic'
     os.query -h | MATCH 'usage: os.query is-core, is-classic'
@@ -47,17 +49,17 @@ execute: |
             os.query is-pc-amd64
             ! os.query is-arm
             ;;
-        ubuntu-21.10-64)
-            os.query is-classic
-            os.query is-ubuntu 21.10
-            ! os.query is-ubuntu 21.04
-            ! os.query is-core
-            ;;
         ubuntu-22.04-64)
             os.query is-jammy
             os.query is-classic
             os.query is-ubuntu 22.04
             ! os.query is-ubuntu 20.04
+            ! os.query is-core
+            ;;
+        ubuntu-22.10-64)
+            os.query is-classic
+            os.query is-ubuntu 22.10
+            ! os.query is-ubuntu 21.04
             ! os.query is-core
             ;;
         debian-10-64)

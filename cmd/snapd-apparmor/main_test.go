@@ -121,7 +121,7 @@ func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
 	// test error case
 	testutil.MockCommand(c, "apparmor_parser", "echo mocked parser failed > /dev/stderr; exit 1")
 	err = snapd_apparmor.LoadAppArmorProfiles()
-	c.Check(err.Error(), Equals, fmt.Sprintf("cannot load apparmor profiles: exit status 1\napparmor_parser output:\nmocked parser failed\n"))
+	c.Check(err.Error(), Equals, "cannot load apparmor profiles: exit status 1\napparmor_parser output:\nmocked parser failed\n")
 
 	// rename so file is ignored
 	err = os.Rename(profile, profile+"~")

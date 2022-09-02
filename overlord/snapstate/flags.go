@@ -98,6 +98,10 @@ type Flags struct {
 	// "per-snap" in case each snap is treated in a different
 	// transaction.
 	Transaction client.TransactionType `json:"transaction,omitempty"`
+
+	// QuotaGroupName represents the quota group a snap should be assigned
+	// to during installation.
+	QuotaGroupName string `json:"quota-group,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode

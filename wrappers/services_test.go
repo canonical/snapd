@@ -226,7 +226,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 		WithMemoryLimit(quantity.SizeGiB).
 		WithCPUCount(2).
 		WithCPUPercentage(50).
-		WithAllowedCPUs([]int{0, 1}).
+		WithCPUSet([]int{0, 1}).
 		WithThreadLimit(32).
 		Build()
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
@@ -429,7 +429,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountAndCpuSetQuota
 	// set up arbitrary quotas for the group to test they get written correctly to the slice
 	resourceLimits := quota.NewResourcesBuilder().
 		WithCPUPercentage(50).
-		WithAllowedCPUs([]int{0}).
+		WithCPUSet([]int{0}).
 		Build()
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
@@ -1185,7 +1185,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 	var err error
 	resourceLimits := quota.NewResourcesBuilder().
 		WithMemoryLimit(quantity.SizeGiB).
-		WithAllowedCPUs([]int{0}).
+		WithCPUSet([]int{0}).
 		Build()
 	// make a root quota group without any snaps in it
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
