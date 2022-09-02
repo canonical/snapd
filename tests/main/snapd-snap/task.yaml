@@ -253,7 +253,11 @@ execute: |
     snap debug sandbox-features --required apparmor:parser:snapd-internal
 
     echo "Then we should be able to compile policy using the internal apparmor_parser"
-    /snap/snapd/current/usr/lib/snapd/apparmor_parser --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf -b /snap/snapd/current/usr/lib/snapd/apparmor.d --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/3.0 -r /var/lib/snapd/apparmor/profiles/snap.snapcraft.snapcraft
+    /snap/snapd/current/usr/lib/snapd/apparmor_parser \
+      --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf \
+      -b /snap/snapd/current/usr/lib/snapd/apparmor.d \
+      --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/3.0 \
+      -r /var/lib/snapd/apparmor/profiles/snap.snapcraft.snapcraft
 
     echo "Then we should be able to successfully install a snap"
     snap install hello-world
