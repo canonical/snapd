@@ -21,6 +21,7 @@ package gadget_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -3606,17 +3607,59 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsImplicitSystemDataHap
 }
 
 func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
-	tagsEqual := func(c *C, i interface{}) {
+	tagsValid := func(c *C, i interface{}) {
 		st := reflect.TypeOf(i).Elem()
 		num := st.NumField()
 		for i := 0; i < num; i++ {
+			// ensure yaml/json is consistent
 			tagYaml := st.Field(i).Tag.Get("yaml")
 			tagJSON := st.Field(i).Tag.Get("json")
 			c.Check(tagYaml, Equals, tagJSON)
+
+			// ensure we don't accidently export fields without tags
+			if tagJSON == "" && st.Field(i).IsExported() {
+				c.Errorf("field %q exported but has no json tag", st.Field(i).Name)
+			}
 		}
 	}
 
-	tagsEqual(c, &gadget.Volume{})
-	tagsEqual(c, &gadget.VolumeStructure{})
-	tagsEqual(c, &gadget.VolumeContent{})
+	tagsValid(c, &gadget.Volume{})
+	tagsValid(c, &gadget.VolumeStructure{})
+	tagsValid(c, &gadget.VolumeContent{})
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetInfoInternalFieldsNoJSON(c *C) {
+	enc, err := json.Marshal(&gadget.Volume{
+		Schema:     "mbr",
+		Bootloader: "grub",
+		ID:         "0c",
+		Structure:  []gadget.VolumeStructure{},
+		// not json exported
+		Name: "should-be-ignored-by-json",
+	})
+	c.Assert(err, IsNil)
+	c.Check(string(enc), Equals, `{"schema":"mbr","bootloader":"grub","id":"0c","structure":[]}`)
+
+	enc, err = json.Marshal(&gadget.VolumeStructure{
+		// not json exported
+		VolumeName: "should-be-ignored-by-json",
+		Content: []gadget.VolumeContent{
+			{Target: "some-target"},
+		},
+		Update: gadget.VolumeUpdate{
+			Edition: 2,
+		},
+		// not json export
+		Name:        "pc",
+		Label:       "ubuntu-seed",
+		Role:        "system-seed",
+		Offset:      asOffsetPtr(123),
+		OffsetWrite: mustParseGadgetRelativeOffset(c, "mbr+92"),
+		Size:        888,
+		Type:        "0C",
+		ID:          "gpt-id",
+		Filesystem:  "vfat",
+	})
+	c.Assert(err, IsNil)
+	c.Check(string(enc), Equals, `{"name":"pc","filesystem-label":"ubuntu-seed","offset":123,"offset-write":{"relative-to":"mbr","offset":92},"size":888,"type":"0C","role":"system-seed","id":"gpt-id","filesystem":"vfat"}`)
 }
