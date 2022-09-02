@@ -25,4 +25,5 @@ execute: |
   jq -r '.result.actions[0]' < current-system | MATCH 'mode'
   echo "Ensure the result contains the gadget volumes"
   jq -r '.result.volumes' < current-system | MATCH bootloader
-  jq -r '.result.volumes' < current-system | MATCH VolumeName
+  # internal fields are not exported
+  jq -r '.result.volumes' < current-system | NOTMATCH VolumeName

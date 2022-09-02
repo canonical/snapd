@@ -3614,6 +3614,9 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
 			// ensure yaml/json is consistent
 			tagYaml := st.Field(i).Tag.Get("yaml")
 			tagJSON := st.Field(i).Tag.Get("json")
+			if tagJSON == "-" {
+				continue
+			}
 			c.Check(tagYaml, Equals, tagJSON)
 
 			// ensure we don't accidently export fields without tags
@@ -3626,30 +3629,30 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
 	tagsValid(c, &gadget.Volume{})
 	tagsValid(c, &gadget.VolumeStructure{})
 	tagsValid(c, &gadget.VolumeContent{})
+	tagsValid(c, &gadget.RelativeOffset{})
+	tagsValid(c, &gadget.VolumeUpdate{})
 }
 
-func (s *gadgetYamlTestSuite) TestGadgetInfoInternalFieldsNoJSON(c *C) {
+func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeInternalFieldsNoJSON(c *C) {
+	// check
 	enc, err := json.Marshal(&gadget.Volume{
+		// not json exported
+		Name: "should-be-ignored-by-json",
+		// exported
 		Schema:     "mbr",
 		Bootloader: "grub",
 		ID:         "0c",
 		Structure:  []gadget.VolumeStructure{},
-		// not json exported
-		Name: "should-be-ignored-by-json",
 	})
 	c.Assert(err, IsNil)
 	c.Check(string(enc), Equals, `{"schema":"mbr","bootloader":"grub","id":"0c","structure":[]}`)
+}
 
-	enc, err = json.Marshal(&gadget.VolumeStructure{
+func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeStructureInternalFieldsNoJSON(c *C) {
+	volS := &gadget.VolumeStructure{
 		// not json exported
 		VolumeName: "should-be-ignored-by-json",
-		Content: []gadget.VolumeContent{
-			{Target: "some-target"},
-		},
-		Update: gadget.VolumeUpdate{
-			Edition: 2,
-		},
-		// not json export
+		// exported
 		Name:        "pc",
 		Label:       "ubuntu-seed",
 		Role:        "system-seed",
@@ -3659,7 +3662,33 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoInternalFieldsNoJSON(c *C) {
 		Type:        "0C",
 		ID:          "gpt-id",
 		Filesystem:  "vfat",
-	})
+		Content: []gadget.VolumeContent{
+			{
+				UnresolvedSource: "source",
+				Target:           "some-target",
+				Image:            "image",
+				Offset:           asOffsetPtr(12),
+				OffsetWrite:      mustParseGadgetRelativeOffset(c, "mbr+192"),
+				Size:             321,
+				Unpack:           true,
+			},
+		},
+		Update: gadget.VolumeUpdate{
+			Edition:  2,
+			Preserve: []string{"foo"},
+		},
+	}
+	b, err := json.Marshal(volS)
 	c.Assert(err, IsNil)
-	c.Check(string(enc), Equals, `{"name":"pc","filesystem-label":"ubuntu-seed","offset":123,"offset-write":{"relative-to":"mbr","offset":92},"size":888,"type":"0C","role":"system-seed","id":"gpt-id","filesystem":"vfat"}`)
+	// ensure the json looks json-ish
+	c.Check(string(b), Equals, `{"name":"pc","filesystem-label":"ubuntu-seed","offset":123,"offset-write":{"relative-to":"mbr","offset":92},"size":888,"type":"0C","role":"system-seed","id":"gpt-id","filesystem":"vfat","content":[{"source":"source","target":"some-target","image":"image","offset":12,"offset-write":{"relative-to":"mbr","offset":192},"size":321,"unpack":true}],"update":{"edition":2,"preserve":["foo"]}}`)
+
+	// check that the new structure has no volumeName
+	var newVolS *gadget.VolumeStructure
+	err = json.Unmarshal(b, &newVolS)
+	c.Assert(err, IsNil)
+	c.Check(newVolS.VolumeName, Equals, "")
+	// but otherwise they are identical
+	newVolS.VolumeName = volS.VolumeName
+	c.Check(volS, DeepEquals, newVolS)
 }

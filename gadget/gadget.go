@@ -115,7 +115,7 @@ type Volume struct {
 	// Structure describes the structures that are part of the volume
 	Structure []VolumeStructure `yaml:"structure" json:"structure"`
 	// Name is the name of the volume from the gadget.yaml
-	Name string
+	Name string `json:"-"`
 }
 
 // VolumeStructure describes a single structure inside a volume. A structure can
@@ -123,7 +123,7 @@ type Volume struct {
 // within the volume.
 type VolumeStructure struct {
 	// VolumeName is the name of the volume that this structure belongs to.
-	VolumeName string
+	VolumeName string `json:"-"`
 	// Name, when non empty, provides the name of the structure
 	Name string `yaml:"name" json:"name"`
 	// Label provides the filesystem label
@@ -205,8 +205,8 @@ func (vc VolumeContent) String() string {
 }
 
 type VolumeUpdate struct {
-	Edition  edition.Number `yaml:"edition"`
-	Preserve []string       `yaml:"preserve"`
+	Edition  edition.Number `yaml:"edition" json:"edition"`
+	Preserve []string       `yaml:"preserve" json:"preserve"`
 }
 
 // DiskVolumeDeviceTraits is a set of traits about a disk that were measured at
@@ -1091,9 +1091,9 @@ const (
 type RelativeOffset struct {
 	// RelativeTo names the structure relative to which the location of the
 	// address write will be calculated.
-	RelativeTo string
+	RelativeTo string `yaml:"relative-to" json:"relative-to"`
 	// Offset is a 32-bit value
-	Offset quantity.Offset
+	Offset quantity.Offset `yaml:"offset" json:"offset"`
 }
 
 func (r *RelativeOffset) String() string {
