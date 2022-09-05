@@ -263,18 +263,21 @@ func ProcessPathInTrackingCgroup(pid int) (string, error) {
 	// It will forever stay present in the kernel but will not be present in
 	// the file-system. As such, allow v2 to register only if it is really
 	// mounted on the system.
-	var allowV2 bool
+	var useV2 bool
 	if ver, err := Version(); err != nil {
 		return "", err
 	} else if ver == V2 {
-		allowV2 = true
+		useV2 = true
 	}
 	entry, err := scanProcCgroupFile(fname, func(e *procInfoEntry) bool {
-		if e.CgroupID == 0 && allowV2 {
-			return true
-		}
-		if len(e.Controllers) == 1 && e.Controllers[0] == "name=systemd" {
-			return true
+		if useV2 {
+			if e.CgroupID == 0 {
+				return true
+			}
+		} else {
+			if len(e.Controllers) == 1 && e.Controllers[0] == "name=systemd" {
+				return true
+			}
 		}
 		return false
 	})
