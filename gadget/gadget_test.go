@@ -3626,7 +3626,8 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
 			}
 			c.Check(tagYaml, Equals, tagJSON)
 
-			// ensure we don't accidently export fields without tags
+			// ensure we don't accidentally export fields
+			// without tags
 			if tagJSON == "" && isExported(st.Field(i)) {
 				c.Errorf("field %q exported but has no json tag", st.Field(i).Name)
 			}
