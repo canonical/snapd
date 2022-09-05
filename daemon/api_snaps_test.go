@@ -816,8 +816,9 @@ func (s *snapsSuite) TestInstallManyEmptyName(c *check.C) {
 }
 
 func (s *snapsSuite) TestRemoveMany(c *check.C) {
-	defer daemon.MockSnapstateRemoveMany(func(s *state.State, names []string) ([]string, []*state.TaskSet, error) {
+	defer daemon.MockSnapstateRemoveMany(func(s *state.State, names []string, opts *snapstate.RemoveFlags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 2)
+		c.Check(opts.Purge, check.Equals, false)
 		t := s.NewTask("fake-remove-2", "Remove two")
 		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
@@ -833,6 +834,24 @@ func (s *snapsSuite) TestRemoveMany(c *check.C) {
 	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
 }
 
+func (s *snapsSuite) TestRemoveManyWithPurge(c *check.C) {
+	defer daemon.MockSnapstateRemoveMany(func(s *state.State, names []string, opts *snapstate.RemoveFlags) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 2)
+		c.Check(opts.Purge, check.Equals, true)
+		t := s.NewTask("fake-remove-2", "Remove two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{Action: "remove", Purge: true, Snaps: []string{"foo", "bar"}}
+	st := d.Overlord().State()
+	st.Lock()
+	res, err := inst.DispatchForMany()(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(res.Summary, check.Equals, `Remove snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
+}
 func (s *snapsSuite) TestSnapInfoOneIntegration(c *check.C) {
 	d := s.daemon(c)
 

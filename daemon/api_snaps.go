@@ -701,7 +701,8 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 }
 
 func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	removed, tasksets, err := snapstateRemoveMany(st, inst.Snaps)
+	flags := &snapstate.RemoveFlags{Purge: inst.Purge}
+	removed, tasksets, err := snapstateRemoveMany(st, inst.Snaps, flags)
 	if err != nil {
 		return nil, err
 	}

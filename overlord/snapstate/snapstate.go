@@ -3155,7 +3155,7 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
-func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
+func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, []*state.TaskSet, error) {
 	names = strutil.Deduplicate(names)
 
 	if err := validateSnapNames(names); err != nil {
@@ -3169,7 +3169,7 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 
 	for _, name := range names {
-		ts, snapshotSize, err := removeTasks(st, name, snap.R(0), nil)
+		ts, snapshotSize, err := removeTasks(st, name, snap.R(0), flags)
 		// FIXME: is this expected behavior?
 		if _, ok := err.(*snap.NotInstalledError); ok {
 			continue
