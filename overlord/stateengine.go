@@ -127,24 +127,32 @@ func (se *StateEngine) maybeRestartHeldTasks() error {
 	s.Lock()
 	defer s.Unlock()
 
+	// Move forward tasks that were waiting for an external reboot
 	for _, ch := range s.Changes() {
 		var chBootId string
 		if err := ch.Get("boot-id", &chBootId); err != nil {
 			continue
 		}
-
 		currentBootID, err := osutil.BootID()
 		if err != nil {
 			return err
 		}
-		if currentBootID != chBootId {
-			logger.Debugf("restart already happened, moving forward change %s", ch.ID())
-			for _, t := range ch.Tasks() {
-				if t.Status() != state.HoldStatus {
-					continue
-				}
-				t.SetStatus(state.DoStatus)
+		if currentBootID == chBootId {
+			continue
+		}
+		for _, t := range ch.Tasks() {
+			if t.Status() != state.HoldStatus {
+				continue
 			}
+			var waitingReboot bool
+			t.Get("waiting-reboot", &waitingReboot)
+			if !waitingReboot {
+				continue
+			}
+			logger.Debugf("restart already happened, moving forward task %q for change %s",
+				t.Summary(), ch.ID())
+			t.SetStatus(state.DoStatus)
+			t.Set("waiting-reboot", nil)
 		}
 	}
 

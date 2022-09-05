@@ -1939,6 +1939,7 @@ func MaybeReboot(t *state.Task) error {
 	t.Change().Set("boot-id", bootId)
 	if release.OnClassic {
 		t.Logf("Not restarting as this is a classic device.")
+		t.Set("waiting-reboot", true)
 		// TODO notify GUI
 	} else {
 		t.Logf("Requested system restart.")
