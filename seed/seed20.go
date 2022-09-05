@@ -770,10 +770,6 @@ func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) e
 
 	autoImportAssert := filepath.Join(s.systemDir, "auto-import.assert")
 	af, err := os.Open(autoImportAssert)
-	// ignore if assertion file does not exists
-	if os.IsNotExist(err) {
-		return err
-	}
 	if err != nil {
 		return err
 	}
