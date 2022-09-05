@@ -25,6 +25,7 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/snap"
@@ -32,7 +33,7 @@ import (
 
 var systemsCmd = &Command{
 	Path:       "/v2/systems",
-	GET:        getSystems,
+	GET:        getAllSystems,
 	ReadAccess: authenticatedAccess{},
 	// this is awkward, we want the postSystemsAction function to be used
 	// when the label is empty too, but the router will not handle the request
@@ -44,7 +45,10 @@ var systemsCmd = &Command{
 }
 
 var systemsActionCmd = &Command{
-	Path:        "/v2/systems/{label}",
+	Path:       "/v2/systems/{label}",
+	GET:        getSystemDetails,
+	ReadAccess: rootAccess{},
+
 	POST:        postSystemsAction,
 	WriteAccess: rootAccess{},
 }
@@ -53,7 +57,7 @@ type systemsResponse struct {
 	Systems []client.System `json:"systems,omitempty"`
 }
 
-func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
+func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 	var rsp systemsResponse
 
 	seedSystems, err := c.d.overlord.DeviceManager().Systems()
@@ -97,6 +101,59 @@ func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 		})
 	}
 	return SyncResponse(&rsp)
+}
+
+type oneSystemResponse struct {
+	// First part is designed to look like `client.System` - the
+	// only difference is how the model is represented
+	Current bool                   `json:"current,omitempty"`
+	Label   string                 `json:"label,omitempty"`
+	Model   map[string]interface{} `json:"model,omitempty"`
+	Actions []client.SystemAction  `json:"actions,omitempty"`
+	Brand   snap.StoreAccount      `json:"brand"`
+
+	// Volumes contains the volumes defined from the gadget snap
+	Volumes map[string]*gadget.Volume `json:"volumes,omitempty"`
+
+	// TODO: add "storage-encryption" via the
+	// devicestate.EncryptionSupportInfo() here too
+}
+
+// wrapped for unit tests
+var deviceManagerSystemAndGadgetInfo = func(dm *devicestate.DeviceManager, systemLabel string) (*devicestate.System, *gadget.Info, error) {
+	return dm.SystemAndGadgetInfo(systemLabel)
+}
+
+func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
+	wantedSystemLabel := muxVars(r)["label"]
+
+	deviceMgr := c.d.overlord.DeviceManager()
+
+	sys, gadgetInfo, err := deviceManagerSystemAndGadgetInfo(deviceMgr, wantedSystemLabel)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	rsp := oneSystemResponse{
+		Current: sys.Current,
+		Label:   sys.Label,
+		Brand: snap.StoreAccount{
+			ID:          sys.Brand.AccountID(),
+			Username:    sys.Brand.Username(),
+			DisplayName: sys.Brand.DisplayName(),
+			Validation:  sys.Brand.Validation(),
+		},
+		// no body: we expect models to have empty bodies
+		Model:   sys.Model.Headers(),
+		Volumes: gadgetInfo.Volumes,
+	}
+	for _, sa := range sys.Actions {
+		rsp.Actions = append(rsp.Actions, client.SystemAction{
+			Title: sa.Title,
+			Mode:  sa.Mode,
+		})
+	}
+
+	return SyncResponse(rsp)
 }
 
 type systemActionRequest struct {
