@@ -38,7 +38,10 @@ const (
 	// to an aggregation of its tasks' statuses. See Change.Status for details.
 	DefaultStatus Status = 0
 
-	// HoldStatus means the task should not run, perhaps as a consequence of an error on another task.
+	// HoldStatus means the task should not run for the moment, perhaps as a
+	// consequence of an error on another task or because an external action
+	// is needed (i.e. on classic we require the user to reboot after a
+	// kernel snap update).
 	HoldStatus Status = 1
 
 	// DoStatus means the change or task is ready to start.
