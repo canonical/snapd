@@ -96,7 +96,7 @@ func maybeCreateXdgDirectories() error {
 
 	for _, relDir := range []string{".cache", ".config", ".local/share"} {
 		path := filepath.Join(usr.HomeDir, relDir)
-		if err := os.MkdirAll(path, 0700); err != nil && os.IsNotExist(err) {
+		if err := os.MkdirAll(path, 0700); err != nil {
 			return err
 		}
 	}
