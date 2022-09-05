@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -38,6 +38,7 @@ import (
 type bootChain struct {
 	BrandID        string             `json:"brand-id"`
 	Model          string             `json:"model"`
+	Classic        bool               `json:"classic,omitempty"`
 	Grade          asserts.ModelGrade `json:"grade"`
 	ModelSignKeyID string             `json:"model-sign-key-id"`
 	AssetChain     []bootAsset        `json:"asset-chain"`
@@ -54,6 +55,7 @@ func (b *bootChain) modelForSealing() *modelForSealing {
 	return &modelForSealing{
 		brandID:        b.BrandID,
 		model:          b.Model,
+		classic:        b.Classic,
 		grade:          b.Grade,
 		modelSignKeyID: b.ModelSignKeyID,
 	}
