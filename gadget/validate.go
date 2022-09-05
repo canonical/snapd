@@ -84,8 +84,10 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 	}
 
 	expectedSeed := false
+	isClassic := false
 	if model != nil {
 		expectedSeed = wantsSystemSeed(model)
+		isClassic = model.Classic()
 	} else {
 		// if system-seed role is mentioned assume the uc20
 		// consistency rules
@@ -98,7 +100,7 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 		}
 	}
 
-	if err := ensureRolesConsistency(roles, expectedSeed); err != nil {
+	if err := ensureRolesConsistency(roles, expectedSeed, isClassic); err != nil {
 		return err
 	}
 
@@ -173,7 +175,7 @@ func validateReservedLabels(vs *VolumeStructure, reservedLabels []string) error 
 	return nil
 }
 
-func ensureRolesConsistency(roles map[string]*roleInstance, expectedSeed bool) error {
+func ensureRolesConsistency(roles map[string]*roleInstance, expectedSeed, isClassic bool) error {
 	// TODO: should we validate usage of uc20 specific system-recovery-{image,select}
 	//       roles too? they should only be used on uc20 systems, so models that
 	//       have a grade set and are not classic
@@ -190,9 +192,11 @@ func ensureRolesConsistency(roles map[string]*roleInstance, expectedSeed bool) e
 		if expectedSeed {
 			return fmt.Errorf("model requires system-seed structure, but none was found")
 		}
-		// without SystemSeed, system-data label must be implicit or writable
-		if err := checkImplicitLabel(SystemData, roles[SystemData].s, implicitSystemDataLabel); err != nil {
-			return err
+		if !isClassic {
+			// without SystemSeed, system-data label must be implicit or writable
+			if err := checkImplicitLabel(SystemData, roles[SystemData].s, implicitSystemDataLabel); err != nil {
+				return err
+			}
 		}
 	case roles[SystemSeed] != nil && roles[SystemData] != nil:
 		// error if we don't have the SystemSeed constraint but we have a system-seed structure

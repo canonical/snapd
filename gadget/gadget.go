@@ -533,7 +533,7 @@ func classicOrUndetermined(m Model) bool {
 }
 
 func wantsSystemSeed(m Model) bool {
-	return m != nil && m.Grade() != asserts.ModelGradeUnset
+	return m != nil && m.Grade() != asserts.ModelGradeUnset && !m.Classic()
 }
 
 func compatWithPibootOrIndeterminate(m Model) bool {
