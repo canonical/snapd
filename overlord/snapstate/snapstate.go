@@ -3143,9 +3143,6 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
 func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, []*state.TaskSet, error) {
-	if flags == nil {
-		flags = &RemoveFlags{}
-	}
 	names = strutil.Deduplicate(names)
 
 	if err := validateSnapNames(names); err != nil {
