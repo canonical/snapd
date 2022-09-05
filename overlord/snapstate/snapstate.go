@@ -797,7 +797,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	//
 	// Applies only to core-like boot, except if classic with modes for
 	// base/core updates.
-	if boot.SnapTypeAffectsBootForDev(snapsup.Type, deviceCtx) {
+	if boot.SnapTypeParticipatesInBoot(snapsup.Type, deviceCtx) {
 		// get the name of the name relevant for booting
 		// based on the given type
 		model := deviceCtx.Model()

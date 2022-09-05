@@ -5151,14 +5151,14 @@ func (s *bootenvSuite) TestSnapTypeAffectsBootForDev(c *C) {
 		snap.TypeOS,
 		snap.TypeBase,
 	} {
-		c.Check(boot.SnapTypeAffectsBootForDev(typ, classicDev), Equals, false)
-		c.Check(boot.SnapTypeAffectsBootForDev(typ, legacyCoreDev), Equals, true)
-		c.Check(boot.SnapTypeAffectsBootForDev(typ, coreDev), Equals, true)
-		c.Check(boot.SnapTypeAffectsBootForDev(typ, coreDevInstallMode), Equals, false)
+		c.Check(boot.SnapTypeParticipatesInBoot(typ, classicDev), Equals, false)
+		c.Check(boot.SnapTypeParticipatesInBoot(typ, legacyCoreDev), Equals, true)
+		c.Check(boot.SnapTypeParticipatesInBoot(typ, coreDev), Equals, true)
+		c.Check(boot.SnapTypeParticipatesInBoot(typ, coreDevInstallMode), Equals, false)
 	}
 
 	classicWithModesDev := boottest.MockClassicWithModesDevice("", nil)
-	c.Check(boot.SnapTypeAffectsBootForDev(snap.TypeKernel, classicWithModesDev), Equals, true)
-	c.Check(boot.SnapTypeAffectsBootForDev(snap.TypeOS, classicWithModesDev), Equals, false)
-	c.Check(boot.SnapTypeAffectsBootForDev(snap.TypeBase, classicWithModesDev), Equals, false)
+	c.Check(boot.SnapTypeParticipatesInBoot(snap.TypeKernel, classicWithModesDev), Equals, true)
+	c.Check(boot.SnapTypeParticipatesInBoot(snap.TypeOS, classicWithModesDev), Equals, false)
+	c.Check(boot.SnapTypeParticipatesInBoot(snap.TypeBase, classicWithModesDev), Equals, false)
 }
