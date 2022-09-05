@@ -17,8 +17,8 @@ execute: |
   test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems/"$current_label" > current-system
   echo "Ensure the result contains a model assertion"
   jq -r '.result.model.type' < current-system | MATCH model
-  jq -r '.result.model.series < current-system | MATCH 16
-  jq -r '.result.model.base < current-system | MATCH "core[0-9][0-9]"
+  jq -r '.result.model.series' < current-system | MATCH 16
+  jq -r '.result.model.base' < current-system | MATCH "core[0-9][0-9]"
   echo "Ensure the result looks like a systems reply"
   jq -r '.result.brand.id' < current-system | MATCH "$(snap model --verbose|awk '/brand-id:/ {print $2}')"
   jq -r '.result.brand.validation' < current-system | MATCH '(verified|unproven|starred)'
