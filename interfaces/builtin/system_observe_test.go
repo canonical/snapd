@@ -21,10 +21,15 @@ package builtin_test
 
 import (
 	. "gopkg.in/check.v1"
+	"os"
+	"path/filepath"
+	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -84,12 +89,38 @@ func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "ptrace")
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "@{PROC}/partitions r,")
 
+	updateNS := apparmorSpec.UpdateNS()
+	expectedUpdateNS := `  # Read-only access to /boot
+  mount options=(bind,rw) /var/lib/snapd/hostfs/boot/ -> /boot/,
+  mount options=(bind,remount,ro) -> /boot/,
+  umount /boot/,
+`
+	c.Assert(strings.Join(updateNS[:], "\n"), Equals, expectedUpdateNS)
+
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "ptrace\n")
+}
+
+func (s *SystemObserveInterfaceSuite) TestMountPermanentPlug(c *C) {
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/boot"), 0777), IsNil)
+
+	mountSpec := &mount.Specification{}
+	c.Assert(mountSpec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
+
+	entries := mountSpec.MountEntries()
+	c.Assert(entries, HasLen, 1)
+
+	const hostfs = "/var/lib/snapd/hostfs"
+	c.Check(entries[0].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/boot"))
+	c.Check(entries[0].Dir, Equals, "/boot")
+	c.Check(entries[0].Options, DeepEquals, []string{"bind", "ro"})
 }
 
 func (s *SystemObserveInterfaceSuite) TestInterfaces(c *C) {
