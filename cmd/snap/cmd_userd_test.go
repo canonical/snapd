@@ -335,3 +335,27 @@ func (s *userdSuite) TestAutostartErrorsInBoth(c *C) {
 .*/\.snap/data
 `)
 }
+
+func (s *userdSuite) TestCreateXdgDirs(c *C) {
+	userDir := path.Join(c.MkDir(), "home")
+	mockUserCurrent := func() (*user.User, error) {
+		return &user.User{HomeDir: userDir}, nil
+	}
+	r := snap.MockUserCurrent(mockUserCurrent)
+	defer r()
+
+	r = autostart.MockUserCurrent(mockUserCurrent)
+	defer r()
+
+	// run userd
+	args, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"})
+	c.Assert(err, IsNil)
+	c.Assert(args, DeepEquals, []string{})
+
+	// make sure that the directories were created
+	for _, relDir := range []string{".cache", ".config", ".local/share"} {
+		st, err := os.Stat(filepath.Join(userDir, relDir))
+		c.Assert(err, IsNil)
+		c.Assert(st.Mode()&os.ModePerm, Equals, os.FileMode(0700))
+	}
+}

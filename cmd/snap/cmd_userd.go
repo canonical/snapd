@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -87,9 +88,29 @@ func maybeFixupUsrSnapPermissions(usrSnapDir string) error {
 	return nil
 }
 
+func maybeCreateXdgDirectories() error {
+	usr, err := userCurrent()
+	if err != nil {
+		return err
+	}
+
+	for _, relDir := range []string{".cache", ".config", ".local/share"} {
+		path := filepath.Join(usr.HomeDir, relDir)
+		if err := os.MkdirAll(path, 0700); err != nil && os.IsNotExist(err) {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (x *cmdUserd) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	if err := maybeCreateXdgDirectories(); err != nil {
+		fmt.Fprintf(Stderr, "cannot create XDG directory in $HOME: %v", err)
 	}
 
 	if x.Autostart {
