@@ -724,25 +724,9 @@ var generateSnapdWrappers = backend.GenerateSnapdWrappers
 // For snapd snap updates this will also rerun wrappers generation to fully
 // catch up with any change.
 func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
-	// For classic we have not forced a reboot, so we need to look at the
-	// boot id to check if the reboot has already happened or not. If not,
-	// we return with a Hold error.
-	if release.OnClassic {
-		// boot-id will be present only if a reboot was required,
-		// otherwise we continue down the function.
-		var changeBootId string
-		if err := task.Change().Get("boot-id", &changeBootId); err == nil {
-			currentBootID, err := osutil.BootID()
-			if err != nil {
-				return err
-			}
-			if currentBootID == changeBootId {
-				task.Logf("Waiting for manual restart...")
-				return &state.Hold{Reason: "waiting for user to reboot"}
-			}
-			logger.Debugf("restart already happened for change %s",
-				task.Change().ID())
-		}
+	// Check restart related data to find out if restart really happened
+	if err := restart.CheckRestartHappened(task); err != nil {
+		return err
 	}
 	if snapdenv.Preseeding() {
 		// nothing to do when preseeding
@@ -840,25 +824,39 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	return nil
 }
 
-// RestartSystem requests a system restart.
-// It considers how the Change the task belongs to is configured
-// (system-restart-immediate) to choose whether request an immediate
-// restart or not.
-func RestartSystem(task *state.Task, rebootInfo *boot.RebootInfo) {
-	chg := task.Change()
-	var immediate bool
-	if chg != nil {
-		// ignore errors intentionally, to follow
-		// RequestRestart itself which does not
-		// return errors. If the state is corrupt
-		// something else will error
-		chg.Get("system-restart-immediate", &immediate)
+// MaybeRestartSystem will maybe schedule a reboot by calling the
+// homonym function in restart package.
+func MaybeRestartSystem(t *state.Task) error {
+	// Store restart related information in the task state
+	if err := restart.SetRestartData(t); err != nil {
+		return err
 	}
-	rst := restart.RestartSystem
-	if immediate {
-		rst = restart.RestartSystemNow
+
+	if release.OnClassic {
+		t.Logf("Not restarting as this is a classic device.")
+		// TODO notify GUI
+	} else {
+		// We consider how the Change the task belongs to is configured
+		// (system-restart-immediate) to choose whether request an immediate
+		// restart or not.
+		chg := t.Change()
+		var immediate bool
+		if chg != nil {
+			// ignore errors intentionally, to follow
+			// RequestRestart itself which does not
+			// return errors. If the state is corrupt
+			// something else will error
+			chg.Get("system-restart-immediate", &immediate)
+		}
+		rst := restart.RestartSystem
+		if immediate {
+			rst = restart.RestartSystemNow
+		}
+		restart.Request(t.State(), rst, nil)
+		t.Logf("Requested system restart.")
 	}
-	restart.Request(task.State(), rst, rebootInfo)
+
+	return nil
 }
 
 func contentAttr(attrer interfaces.Attrer) string {

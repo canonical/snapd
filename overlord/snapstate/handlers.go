@@ -1928,27 +1928,6 @@ func setMigrationFlagsinState(snapst *SnapState, snapsup *SnapSetup) {
 	}
 }
 
-// MaybeReboot will schedule a reboot if allowed by the type of system.
-func MaybeReboot(t *state.Task) error {
-	// Store current boot id to be able to check later if we have
-	// rebooted or not
-	bootId, err := osutil.BootID()
-	if err != nil {
-		return err
-	}
-	t.Change().Set("boot-id", bootId)
-	if release.OnClassic {
-		t.Logf("Not restarting as this is a classic device.")
-		t.Set("waiting-reboot", true)
-		// TODO notify GUI
-	} else {
-		t.Logf("Requested system restart.")
-		RestartSystem(t, nil)
-	}
-
-	return nil
-}
-
 // maybeRestart will schedule a reboot or restart as needed for the
 // just linked snap with info if it's a core or snapd or kernel snap.
 func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootInfo boot.RebootInfo) error {
@@ -1961,7 +1940,7 @@ func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootInfo bo
 	st := t.State()
 
 	if rebootInfo.RebootRequired {
-		return MaybeReboot(t)
+		return MaybeRestartSystem(t)
 	}
 
 	typ := info.Type()

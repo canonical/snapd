@@ -24,7 +24,10 @@ import (
 	"errors"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 )
 
 type RestartType int
@@ -161,4 +164,102 @@ func ReplaceBootID(st *state.State, bootID string) {
 	}
 	rs := cached.(*restartState)
 	rs.bootID = bootID
+}
+
+// CheckRestartHappened returns an error in case the (expected)
+// restart did not happen.
+func CheckRestartHappened(t *state.Task) error {
+	// For classic we have not forced a reboot, so we need to look at the
+	// boot id to check if the reboot has already happened or not. If not,
+	// we return with a Hold error.
+	if release.OnClassic {
+		// boot-id will be present only if a reboot was required,
+		// otherwise we continue down the function.
+		var changeBootId string
+		if err := t.Change().Get("boot-id", &changeBootId); err == nil {
+			currentBootID, err := osutil.BootID()
+			if err != nil {
+				return err
+			}
+			if currentBootID == changeBootId {
+				t.Logf("Waiting for manual restart...")
+				return &state.Hold{Reason: "waiting for user to reboot"}
+			}
+			logger.Debugf("restart already happened for change %s",
+				t.Change().ID())
+		}
+	}
+
+	return nil
+}
+
+// SetRestartData sets restart relevant data in the task state.
+func SetRestartData(t *state.Task) error {
+	// Store current boot id to be able to check later if we have
+	// rebooted or not
+	bootId, err := osutil.BootID()
+	if err != nil {
+		return err
+	}
+	t.Change().Set("boot-id", bootId)
+	if release.OnClassic {
+		t.Set("waiting-reboot", true)
+	}
+
+	return nil
+}
+
+// RestartManager implements interfaces invoked by StateEngine for all
+// registered managers.
+type RestartManager struct {
+	state *state.State
+}
+
+// Manager returns a new RestartManager.
+func Manager(s *state.State) *RestartManager {
+	return &RestartManager{state: s}
+}
+
+// StartUp implements StateStarterUp.Startup.
+func (m *RestartManager) StartUp() error {
+	s := m.state
+	s.Lock()
+	defer s.Unlock()
+
+	// Move forward tasks that were waiting for an external reboot
+	for _, ch := range m.state.Changes() {
+		var chBootId string
+		if err := ch.Get("boot-id", &chBootId); err != nil {
+			continue
+		}
+		currentBootID, err := osutil.BootID()
+		if err != nil {
+			return err
+		}
+		if currentBootID == chBootId {
+			continue
+		}
+		for _, t := range ch.Tasks() {
+			if t.Status() != state.HoldStatus {
+				continue
+			}
+			var waitingReboot bool
+			t.Get("waiting-reboot", &waitingReboot)
+			if !waitingReboot {
+				continue
+			}
+			logger.Debugf("restart already happened, moving forward task %q for change %s",
+				t.Summary(), ch.ID())
+			t.SetStatus(state.DoStatus)
+			t.Set("waiting-reboot", nil)
+		}
+	}
+
+	return nil
+}
+
+// Ensure implements StateManager.Ensure. Required by StateEngine, we
+// actually do nothing here.
+func (m *RestartManager) Ensure() error {
+	return nil
 }

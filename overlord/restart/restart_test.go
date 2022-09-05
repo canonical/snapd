@@ -26,6 +26,8 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
@@ -191,4 +193,67 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(h2.rebootAsExpected, Equals, true)
 	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), testutil.ErrorIs, state.ErrNoState)
+}
+
+func (ses *restartSuite) TestRestartHeldTasks(c *C) {
+	s := state.New(nil)
+
+	s.Lock()
+	tsk := s.NewTask("held-task", "...")
+	tsk.SetStatus(state.HoldStatus)
+	chg := s.NewChange("mychange", "...")
+	chg.AddTask(tsk)
+	s.Unlock()
+
+	// No boot id set, status does not change
+	se := overlord.NewStateEngine(s)
+	se.AddManager(restart.Manager(s))
+	err := se.StartUp()
+	c.Assert(err, IsNil)
+	s.Lock()
+	c.Check(tsk.Status(), Equals, state.HoldStatus)
+	s.Unlock()
+
+	s.Lock()
+	currentBootId, err := osutil.BootID()
+	c.Assert(err, IsNil)
+	chg.Set("boot-id", currentBootId)
+	testBid := ""
+	chg.Get("boot-id", &testBid)
+	s.Unlock()
+
+	// boot id has not changed, status does not change
+	se = overlord.NewStateEngine(s)
+	se.AddManager(restart.Manager(s))
+	err = se.StartUp()
+	c.Assert(err, IsNil)
+	s.Lock()
+	c.Check(tsk.Status(), Equals, state.HoldStatus)
+	s.Unlock()
+
+	s.Lock()
+	chg.Set("boot-id", "11111111-1111-1111-1111-111111111111")
+	s.Unlock()
+
+	// boot id changed but waiting-reboot not set, status does not change
+	se = overlord.NewStateEngine(s)
+	se.AddManager(restart.Manager(s))
+	err = se.StartUp()
+	c.Assert(err, IsNil)
+	s.Lock()
+	c.Check(tsk.Status(), Equals, state.HoldStatus)
+	s.Unlock()
+
+	s.Lock()
+	tsk.Set("waiting-reboot", true)
+	s.Unlock()
+
+	// boot id changed and waiting-reboot set, status changes
+	se = overlord.NewStateEngine(s)
+	se.AddManager(restart.Manager(s))
+	err = se.StartUp()
+	c.Assert(err, IsNil)
+	s.Lock()
+	c.Check(tsk.Status(), Equals, state.DoStatus)
+	s.Unlock()
 }

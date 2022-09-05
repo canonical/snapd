@@ -24,7 +24,6 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -103,10 +102,6 @@ func (se *StateEngine) StartUp() error {
 		return nil
 	}
 	se.startedUp = true
-	// Maybe restart held tasks if necessary
-	if err := se.maybeRestartHeldTasks(); err != nil {
-		return err
-	}
 	var errs []error
 	for _, m := range se.managers {
 		if starterUp, ok := m.(StateStarterUp); ok {
@@ -119,43 +114,6 @@ func (se *StateEngine) StartUp() error {
 	if len(errs) != 0 {
 		return &startupError{errs}
 	}
-	return nil
-}
-
-func (se *StateEngine) maybeRestartHeldTasks() error {
-	s := se.state
-	s.Lock()
-	defer s.Unlock()
-
-	// Move forward tasks that were waiting for an external reboot
-	for _, ch := range s.Changes() {
-		var chBootId string
-		if err := ch.Get("boot-id", &chBootId); err != nil {
-			continue
-		}
-		currentBootID, err := osutil.BootID()
-		if err != nil {
-			return err
-		}
-		if currentBootID == chBootId {
-			continue
-		}
-		for _, t := range ch.Tasks() {
-			if t.Status() != state.HoldStatus {
-				continue
-			}
-			var waitingReboot bool
-			t.Get("waiting-reboot", &waitingReboot)
-			if !waitingReboot {
-				continue
-			}
-			logger.Debugf("restart already happened, moving forward task %q for change %s",
-				t.Summary(), ch.ID())
-			t.SetStatus(state.DoStatus)
-			t.Set("waiting-reboot", nil)
-		}
-	}
-
 	return nil
 }
 

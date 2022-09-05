@@ -82,7 +82,7 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		// boot assets were updated, request a restart now if allowed by
 		// the system type so that the situation does not end up more
 		// complicated if more updates of boot assets were to be applied
-		if err := snapstate.MaybeReboot(t); err != nil {
+		if err := snapstate.MaybeRestartSystem(t); err != nil {
 			return err
 		}
 	}

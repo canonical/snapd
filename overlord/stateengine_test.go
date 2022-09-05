@@ -24,7 +24,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -179,51 +178,4 @@ func (ses *stateEngineSuite) TestStop(c *C) {
 
 	err := se.Ensure()
 	c.Check(err, ErrorMatches, "state engine already stopped")
-}
-
-func (ses *stateEngineSuite) TestRestartHeldTasks(c *C) {
-	s := state.New(nil)
-
-	s.Lock()
-	tsk := s.NewTask("held-task", "...")
-	tsk.SetStatus(state.HoldStatus)
-	chg := s.NewChange("mychange", "...")
-	chg.AddTask(tsk)
-	s.Unlock()
-
-	// No boot id set, status does not change
-	se := overlord.NewStateEngine(s)
-	err := se.StartUp()
-	c.Assert(err, IsNil)
-	s.Lock()
-	c.Check(tsk.Status(), Equals, state.HoldStatus)
-	s.Unlock()
-
-	s.Lock()
-	currentBootId, err := osutil.BootID()
-	c.Assert(err, IsNil)
-	chg.Set("boot-id", currentBootId)
-	testBid := ""
-	chg.Get("boot-id", &testBid)
-	s.Unlock()
-
-	// boot id has not changed, status does not change
-	se = overlord.NewStateEngine(s)
-	err = se.StartUp()
-	c.Assert(err, IsNil)
-	s.Lock()
-	c.Check(tsk.Status(), Equals, state.HoldStatus)
-	s.Unlock()
-
-	s.Lock()
-	chg.Set("boot-id", "11111111-1111-1111-1111-111111111111")
-	s.Unlock()
-
-	// boot id changed, status changes
-	se = overlord.NewStateEngine(s)
-	err = se.StartUp()
-	c.Assert(err, IsNil)
-	s.Lock()
-	c.Check(tsk.Status(), Equals, state.DoStatus)
-	s.Unlock()
 }

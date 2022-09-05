@@ -47,8 +47,8 @@ func (r *Retry) Error() string {
 }
 
 // Hold is returned from a handler to signal that the task cannot
-// proceed at the moment and that some manual action from the user
-// is usually required at this point.
+// proceed at the moment maybe because some manual action from the
+// user required at this point or because of errors.
 type Hold struct {
 	Reason string
 }
