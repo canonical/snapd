@@ -19,6 +19,9 @@ BINDIR := /usr/bin
 LIBEXECDIR := /usr/lib
 SYSTEMDSYSTEMUNITDIR := /lib/systemd/system
 
+# NOTE: the code in wrappers/core18.go assumes that all our service units's
+# name start with the "snapd." prefix; units whose filename does not have this
+# prefix will not be installed on the host!
 SYSTEMD_UNITS_GENERATED := $(wildcard *.in)
 # NOTE: sort removes duplicates so this gives us all the units, generated or otherwise
 SYSTEMD_UNITS = $(sort $(SYSTEMD_UNITS_GENERATED:.in=) $(wildcard *.service) $(wildcard *.timer) $(wildcard *.socket))
