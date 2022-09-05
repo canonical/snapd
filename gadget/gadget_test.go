@@ -3607,6 +3607,13 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsImplicitSystemDataHap
 }
 
 func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
+	// TODO: once we move to go 1.17 just use
+	//       reflect.StructField.IsExported() directly
+	var isExported = func(s reflect.StructField) bool {
+		// see https://pkg.go.dev/reflect#StructField
+		return s.PkgPath == ""
+	}
+
 	tagsValid := func(c *C, i interface{}) {
 		st := reflect.TypeOf(i).Elem()
 		num := st.NumField()
@@ -3620,7 +3627,7 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
 			c.Check(tagYaml, Equals, tagJSON)
 
 			// ensure we don't accidently export fields without tags
-			if tagJSON == "" && st.Field(i).IsExported() {
+			if tagJSON == "" && isExported(st.Field(i)) {
 				c.Errorf("field %q exported but has no json tag", st.Field(i).Name)
 			}
 		}
