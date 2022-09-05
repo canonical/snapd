@@ -30,7 +30,7 @@ parts:
     plugin: nil
     source-type: git
     source: https://git.launchpad.net/snapd
-    source-branch: release/2.56
+    source-branch: release/2.57
     build-snaps:
       - on riscv64: [go/1.16/stable]
       - else: [go/1.13/stable]
