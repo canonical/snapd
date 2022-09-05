@@ -59,7 +59,7 @@ dbus (send,receive)
     bus=system
     path=/org/freedesktop/login1
     interface=org.freedesktop.login1.Manager
-    member={GetSession,GetSeat}
+    member={ActivateSession,GetSession,GetSeat,KillSession,ListSessions,LockSession,TerminateSession,UnlockSession}
     peer=(label=unconfined),
 `
 
