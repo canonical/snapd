@@ -140,7 +140,7 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 	return nil
 }
 
-type SystemDetailsData struct {
+type SystemDetails struct {
 	// First part is designed to look like `client.System` - the
 	// only difference is how the model is represented
 	Current bool                   `json:"current,omitempty"`
@@ -155,8 +155,8 @@ type SystemDetailsData struct {
 	// TODO: add EncryptionSupportInfo here too
 }
 
-func (client *Client) SystemDetails(seedLabel string) (*SystemDetailsData, error) {
-	var rsp SystemDetailsData
+func (client *Client) SystemDetails(seedLabel string) (*SystemDetails, error) {
+	var rsp SystemDetails
 
 	if _, err := client.doSync("GET", "/v2/systems/"+seedLabel, nil, nil, nil, &rsp); err != nil {
 		return nil, xerrors.Errorf("cannot get details for system %q: %v", seedLabel, err)

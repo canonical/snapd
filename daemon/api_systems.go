@@ -117,7 +117,7 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	rsp := client.SystemDetailsData{
+	rsp := client.SystemDetails{
 		Current: sys.Current,
 		Label:   sys.Label,
 		Brand: snap.StoreAccount{

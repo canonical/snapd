@@ -267,7 +267,7 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/20190102")
-	c.Check(sys, check.DeepEquals, &client.SystemDetailsData{
+	c.Check(sys, check.DeepEquals, &client.SystemDetails{
 		Current: true,
 		Label:   "20200101",
 		Model: map[string]interface{}{
