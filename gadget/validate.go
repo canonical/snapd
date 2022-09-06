@@ -199,7 +199,9 @@ func ensureRolesConsistency(roles map[string]*roleInstance, hasModes bool) error
 			return fmt.Errorf("model requires system-seed structure, but none was found")
 		}
 		// without SystemSeed, system-data label must be implicit or writable
-		if err := checkImplicitLabel(SystemData, roles[SystemData].s, implicitSystemDataLabel); err != nil {
+		if err := checkImplicitLabels(
+			[]roleLabel{{role: SystemData, label: implicitSystemDataLabel}},
+			roles); err != nil {
 			return err
 		}
 	case roles[SystemSeed] != nil && roles[SystemData] != nil:
@@ -244,10 +246,6 @@ func ensureRolesConsistencyOnModalClassic(roles map[string]*roleInstance) error 
 	}
 
 	// Make sure labels are as expected - save is optional
-	type roleLabel struct {
-		role  string
-		label string
-	}
 	roleLabelToCheck := []roleLabel{
 		{SystemBoot, ubuntuBootLabel}, {SystemData, ubuntuDataLabel}}
 	roleLabelOptional := []roleLabel{
@@ -257,11 +255,8 @@ func ensureRolesConsistencyOnModalClassic(roles map[string]*roleInstance) error 
 			roleLabelToCheck = append(roleLabelToCheck, rlLb)
 		}
 	}
-	for _, rlLb := range roleLabelToCheck {
-		if err := checkImplicitLabel(rlLb.role, roles[rlLb.role].s,
-			rlLb.label); err != nil {
-			return err
-		}
+	if err := checkImplicitLabels(roleLabelToCheck, roles); err != nil {
+		return err
 	}
 
 	// Check that boot/seed/save are in the same volume
@@ -281,26 +276,37 @@ func ensureSystemSaveRuleConsistency(roles map[string]*roleInstance) error {
 		// previous checks should stop reaching here
 		return fmt.Errorf("internal error: system-save requires system-seed and system-data structures")
 	}
-	if err := checkImplicitLabel(SystemSave, roles[SystemSave].s, ubuntuSaveLabel); err != nil {
+	if err := checkImplicitLabels([]roleLabel{roleLabelSave}, roles); err != nil {
 		return err
 	}
 	return nil
 }
 
 func checkSeedDataImplicitLabels(roles map[string]*roleInstance) error {
-	if err := checkImplicitLabel(SystemData, roles[SystemData].s, ubuntuDataLabel); err != nil {
-		return err
-	}
-	if err := checkImplicitLabel(SystemSeed, roles[SystemSeed].s, ubuntuSeedLabel); err != nil {
+	if err := checkImplicitLabels([]roleLabel{roleLabelData, roleLabelSeed}, roles); err != nil {
 		return err
 	}
 	return nil
 }
 
-func checkImplicitLabel(role string, vs *VolumeStructure, implicitLabel string) error {
-	if vs.Label != "" && vs.Label != implicitLabel {
-		return fmt.Errorf("%s structure must have an implicit label or %q, not %q", role, implicitLabel, vs.Label)
+// roleLabel contains a partition role and the default expected label.
+type roleLabel struct {
+	role  string
+	label string
+}
 
+var (
+	roleLabelSeed = roleLabel{role: SystemSeed, label: ubuntuSeedLabel}
+	roleLabelSave = roleLabel{role: SystemSave, label: ubuntuSaveLabel}
+	roleLabelData = roleLabel{role: SystemData, label: ubuntuDataLabel}
+)
+
+func checkImplicitLabels(roleLabels []roleLabel, roles map[string]*roleInstance) error {
+	for _, rlLb := range roleLabels {
+		volStruct := roles[rlLb.role].s
+		if volStruct.Label != "" && volStruct.Label != rlLb.label {
+			return fmt.Errorf("%s structure must have an implicit label or %q, not %q", rlLb.role, rlLb.label, volStruct.Label)
+		}
 	}
 	return nil
 }
