@@ -103,22 +103,6 @@ func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(&rsp)
 }
 
-type oneSystemResponse struct {
-	// First part is designed to look like `client.System` - the
-	// only difference is how the model is represented
-	Current bool                   `json:"current,omitempty"`
-	Label   string                 `json:"label,omitempty"`
-	Model   map[string]interface{} `json:"model,omitempty"`
-	Actions []client.SystemAction  `json:"actions,omitempty"`
-	Brand   snap.StoreAccount      `json:"brand"`
-
-	// Volumes contains the volumes defined from the gadget snap
-	Volumes map[string]*gadget.Volume `json:"volumes,omitempty"`
-
-	// TODO: add "storage-encryption" via the
-	// devicestate.EncryptionSupportInfo() here too
-}
-
 // wrapped for unit tests
 var deviceManagerSystemAndGadgetInfo = func(dm *devicestate.DeviceManager, systemLabel string) (*devicestate.System, *gadget.Info, error) {
 	return dm.SystemAndGadgetInfo(systemLabel)
@@ -133,7 +117,7 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	rsp := oneSystemResponse{
+	rsp := client.SystemDetails{
 		Current: sys.Current,
 		Label:   sys.Label,
 		Brand: snap.StoreAccount{

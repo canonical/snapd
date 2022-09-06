@@ -814,8 +814,8 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
 	rsp := s.syncReq(c, req, nil)
 
 	c.Assert(rsp.Status, check.Equals, 200)
-	sys := rsp.Result.(daemon.OneSystemResponse)
-	c.Assert(sys, check.DeepEquals, daemon.OneSystemResponse{
+	sys := rsp.Result.(client.SystemDetails)
+	c.Assert(sys, check.DeepEquals, client.SystemDetails{
 		Label: "20191119",
 		Model: s.seedModelForLabel20191119.Headers(),
 		Brand: snap.StoreAccount{
@@ -874,9 +874,9 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	rsp := s.syncReq(c, req, nil)
 
 	c.Assert(rsp.Status, check.Equals, 200)
-	sys := rsp.Result.(daemon.OneSystemResponse)
+	sys := rsp.Result.(client.SystemDetails)
 
-	c.Assert(sys, check.DeepEquals, daemon.OneSystemResponse{
+	c.Assert(sys, check.DeepEquals, client.SystemDetails{
 		Label: "20191119",
 		Model: s.seedModelForLabel20191119.Headers(),
 		Actions: []client.SystemAction{
