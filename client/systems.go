@@ -147,7 +147,7 @@ const (
 	InstallStepFinish                 InstallStep = "finish"
 )
 
-type systemActionInstall struct {
+type SystemActionInstall struct {
 	// Step is the install step, either "setup-storage-encryption"
 	// or "finish".
 	Step InstallStep `json:"step,omitempty"`
@@ -166,10 +166,10 @@ func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptio
 	// verification is done by the backend
 	req := struct {
 		Action string `json:"action"`
-		*systemActionInstall
+		*SystemActionInstall
 	}{
 		Action: "install",
-		systemActionInstall: &systemActionInstall{
+		SystemActionInstall: &SystemActionInstall{
 			Step:      opts.Step,
 			OnVolumes: opts.Volumes,
 		},
