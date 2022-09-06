@@ -1,6 +1,6 @@
 summary: Check that the /system/<label> API works via fake installer
 
-# this is a UC20 specific test
+# this is a UC20+ specific test
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
@@ -15,8 +15,9 @@ prepare: |
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB/prepare.sh"
 
-  # TODO: create a classic VM here once we have support for classic systems
-  #       that can have a recovery seed dir
+  # TODO: create a classic VM here once we have support for classic
+  #       systems that can have a recovery seed dir (see
+  #       tests/main/fakeinstaller/task.yaml)
   tests.nested build-image core
   tests.nested create-vm core
 
