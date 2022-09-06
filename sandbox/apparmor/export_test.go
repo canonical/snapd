@@ -59,6 +59,12 @@ func MockParserSearchPath(new string) (restore func()) {
 	}
 }
 
+func MockSnapdAppArmorSupportsReexec(new func() bool) (restore func()) {
+	restore = testutil.Backup(&snapdAppArmorSupportsReexec)
+	snapdAppArmorSupportsReexec = new
+	return restore
+}
+
 var (
 	ProbeKernelFeatures = probeKernelFeatures
 	ProbeParserFeatures = probeParserFeatures

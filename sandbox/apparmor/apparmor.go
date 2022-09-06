@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/testutil"
 )
 
 // ValidateNoAppArmorRegexp will check that the given string does not
@@ -502,10 +501,4 @@ func MockFeatures(kernelFeatures []string, kernelError error, parserFeatures []s
 		appArmorAssessment = oldAppArmorAssessment
 	}
 
-}
-
-func MockSnapdAppArmorSupportsReexec(new func() bool) (restore func()) {
-	restore = testutil.Backup(&snapdAppArmorSupportsReexec)
-	snapdAppArmorSupportsReexec = new
-	return restore
 }
