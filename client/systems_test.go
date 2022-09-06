@@ -226,7 +226,13 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 	}`
 	vols := map[string][]gadget.Volume{
 		"pc": {
-			{Schema: "dos", Bootloader: "mbr", ID: "0c", Name: "pc"},
+			{
+				Schema: "dos",
+				Bootloader: "mbr",
+				ID: "0c",
+				// Note that name is not exported as json
+				Name: "pc",
+			},
 		},
 	}
 	chgID, err := cs.cli.InstallSystem("1234", client.InstallStepFinish, vols)
@@ -249,7 +255,6 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 					"schema":     "dos",
 					"bootloader": "mbr",
 					"id":         "0c",
-					"name":       "pc",
 					"structure":  nil,
 				},
 			},
