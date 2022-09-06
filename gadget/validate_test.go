@@ -342,8 +342,8 @@ volumes:
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, b.Bytes())
 
 		mod := &gadgettest.ModelCharacteristics{
-			IsClassic:  false,
-			SystemSeed: tc.requireSeed,
+			IsClassic: false,
+			HasModes:  tc.requireSeed,
 		}
 		ginfo, err := gadget.ReadInfo(s.dir, mod)
 		c.Assert(err, IsNil)
@@ -359,7 +359,7 @@ volumes:
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(bloader))
 
 	mod := &gadgettest.ModelCharacteristics{
-		SystemSeed: true,
+		HasModes: true,
 	}
 
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
@@ -717,7 +717,7 @@ var gadgetYamlContentWithSave = gadgetYamlContentNoSave + `
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportErr(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentNoSave))
 
-	mod := &gadgettest.ModelCharacteristics{SystemSeed: true}
+	mod := &gadgettest.ModelCharacteristics{HasModes: true}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
@@ -728,7 +728,7 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportErr(c *C) {
 
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportHappy(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentWithSave))
-	mod := &gadgettest.ModelCharacteristics{SystemSeed: true}
+	mod := &gadgettest.ModelCharacteristics{HasModes: true}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
@@ -740,18 +740,18 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportHappy(c *C) {
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportNoUC20(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlPC))
 
-	mod := &gadgettest.ModelCharacteristics{SystemSeed: false}
+	mod := &gadgettest.ModelCharacteristics{HasModes: false}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
 		EncryptedData: true,
 	})
-	c.Assert(err, ErrorMatches, `internal error: cannot support encrypted data without requiring system-seed`)
+	c.Assert(err, ErrorMatches, `internal error: cannot support encrypted data in a non-modal system`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportMultiVolumeHappy(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(mockMultiVolumeUC20GadgetYaml))
-	mod := &gadgettest.ModelCharacteristics{SystemSeed: true}
+	mod := &gadgettest.ModelCharacteristics{HasModes: true}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{

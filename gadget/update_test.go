@@ -41,7 +41,7 @@ import (
 
 var (
 	uc16Model = &gadgettest.ModelCharacteristics{}
-	uc20Model = &gadgettest.ModelCharacteristics{SystemSeed: true}
+	uc20Model = &gadgettest.ModelCharacteristics{HasModes: true}
 )
 
 type updateTestSuite struct {

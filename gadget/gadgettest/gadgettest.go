@@ -103,8 +103,8 @@ func MustLayOutSingleVolumeFromGadget(gadgetRoot, kernelRoot string, model gadge
 }
 
 type ModelCharacteristics struct {
-	IsClassic  bool
-	SystemSeed bool
+	IsClassic bool
+	HasModes  bool
 }
 
 func (m *ModelCharacteristics) Classic() bool {
@@ -112,7 +112,7 @@ func (m *ModelCharacteristics) Classic() bool {
 }
 
 func (m *ModelCharacteristics) Grade() asserts.ModelGrade {
-	if m.SystemSeed {
+	if m.HasModes {
 		return asserts.ModelSigned
 	}
 	return asserts.ModelGradeUnset

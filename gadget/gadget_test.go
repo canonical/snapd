@@ -651,8 +651,8 @@ var (
 		IsClassic: false,
 	}
 	uc20Mod = &gadgettest.ModelCharacteristics{
-		IsClassic:  false,
-		SystemSeed: true,
+		IsClassic: false,
+		HasModes:  true,
 	}
 )
 
@@ -946,8 +946,8 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 
 var classicModelCharacteristics = []gadget.Model{
 	nil,
-	&gadgettest.ModelCharacteristics{IsClassic: false, SystemSeed: false},
-	&gadgettest.ModelCharacteristics{IsClassic: true, SystemSeed: false},
+	&gadgettest.ModelCharacteristics{IsClassic: false, HasModes: false},
+	&gadgettest.ModelCharacteristics{IsClassic: true, HasModes: false},
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlPCHappy(c *C) {
@@ -985,8 +985,8 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkUC20Happy(c *C) {
 	c.Assert(err, IsNil)
 
 	uc20Model := &gadgettest.ModelCharacteristics{
-		SystemSeed: true,
-		IsClassic:  false,
+		HasModes:  true,
+		IsClassic: false,
 	}
 
 	_, err = gadget.ReadInfo(s.dir, uc20Model)
@@ -1705,7 +1705,7 @@ volumes:
 	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(bloader), 0644)
 	c.Assert(err, IsNil)
 	mod := &gadgettest.ModelCharacteristics{
-		SystemSeed: true,
+		HasModes: true,
 	}
 
 	_, err = gadget.ReadInfoAndValidate(s.dir, mod, nil)
@@ -2235,7 +2235,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileNoVolumesSystemSeed(
 	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfoFromSnapFile(snapf, &gadgettest.ModelCharacteristics{SystemSeed: true})
+	_, err = gadget.ReadInfoFromSnapFile(snapf, &gadgettest.ModelCharacteristics{HasModes: true})
 	c.Check(err, ErrorMatches, "model requires system-seed partition, but no system-seed or system-data partition found")
 }
 
@@ -3526,7 +3526,7 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsMultipleGPTVolumes(c 
 	defer restore()
 
 	mod := &gadgettest.ModelCharacteristics{
-		SystemSeed: true,
+		HasModes: true,
 	}
 	vols, err := gadgettest.LayoutMultiVolumeFromYaml(
 		c.MkDir(),
