@@ -421,3 +421,23 @@ func (s *apparmorSuite) TestValidateFreeFromAAREhappy(c *C) {
 		c.Check(apparmor.ValidateNoAppArmorRegexp(s), IsNil, Commentf("%q raised an error but shouldn't", s))
 	}
 }
+
+func (s *apparmorSuite) TestSnapdAppArmorSupportsReexecImpl(c *C) {
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+
+	// with no info file should indicate it does not support reexec
+	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
+
+	d := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
+	c.Assert(os.MkdirAll(d, 0755), IsNil)
+	infoFile := filepath.Join(d, "info")
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=foo"), 0644), IsNil)
+	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=foo\nSNAPD_APPARMOR_REEXEC=0"), 0644), IsNil)
+	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=foo\nSNAPD_APPARMOR_REEXEC=foo"), 0644), IsNil)
+	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=foo\nSNAPD_APPARMOR_REEXEC=1"), 0644), IsNil)
+	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, true)
+}

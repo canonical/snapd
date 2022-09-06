@@ -73,6 +73,8 @@ var (
 	RequiredParserFeatures  = requiredParserFeatures
 	PreferredKernelFeatures = preferredKernelFeatures
 	PreferredParserFeatures = preferredParserFeatures
+
+	SnapdAppArmorSupportsRexecImpl = snapdAppArmorSupportsReexecImpl
 )
 
 func FreshAppArmorAssessment() {
