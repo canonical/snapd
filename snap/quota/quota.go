@@ -175,6 +175,10 @@ func (grp *Group) GetQuotaResources() Resources {
 		if grp.JournalLimit.Size != 0 {
 			resourcesBuilder.WithJournalSize(grp.JournalLimit.Size)
 		}
+		// We cannot just check for RateCount and RatePeriod and call WithJournalRate()
+		// only if both are non-zero, because not calling WithJournalRate() causes the
+		// system's default rate count and rate period to be used; what we really want
+		// here is to be able to completely disable the rate-limit for a journal quota.
 		if grp.JournalLimit.RateEnabled {
 			resourcesBuilder.WithJournalRate(grp.JournalLimit.RateCount, grp.JournalLimit.RatePeriod)
 		}
