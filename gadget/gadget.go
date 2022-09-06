@@ -532,7 +532,7 @@ func classicOrUndetermined(m Model) bool {
 	return m == nil || m.Classic()
 }
 
-func wantsSystemSeed(m Model) bool {
+func hasGrade(m Model) bool {
 	return m != nil && m.Grade() != asserts.ModelGradeUnset
 }
 

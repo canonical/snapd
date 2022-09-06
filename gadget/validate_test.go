@@ -275,37 +275,45 @@ volumes:
     structure:`
 
 	for i, tc := range []struct {
-		addSeed     bool
-		dataLabel   string
-		noData      bool
-		requireSeed bool
-		addSave     bool
-		saveLabel   string
-		err         string
+		addSeed   bool
+		addBoot   bool
+		isClassic bool
+		dataLabel string
+		noData    bool
+		hasModes  bool
+		addSave   bool
+		saveLabel string
+		err       string
 	}{
-		{addSeed: true, noData: true, requireSeed: true, err: "the system-seed role requires system-data to be defined"},
-		{addSeed: true, noData: true, requireSeed: false, err: "the system-seed role requires system-data to be defined"},
-		{addSeed: true, requireSeed: true},
+		{addSeed: true, noData: true, hasModes: true, err: "the system-seed role requires system-data to be defined"},
+		{addSeed: true, noData: true, hasModes: false, err: "the system-seed role requires system-data to be defined"},
+		{addSeed: true, hasModes: true},
 		{addSeed: true, err: `model does not support the system-seed role`},
-		{addSeed: true, dataLabel: "writable", requireSeed: true,
+		{addSeed: true, dataLabel: "writable", hasModes: true,
 			err: `system-data structure must have an implicit label or "ubuntu-data", not "writable"`},
 		{addSeed: true, dataLabel: "writable",
 			err: `model does not support the system-seed role`},
-		{addSeed: true, dataLabel: "ubuntu-data", requireSeed: true},
+		{addSeed: true, dataLabel: "ubuntu-data", hasModes: true},
 		{addSeed: true, dataLabel: "ubuntu-data",
 			err: `model does not support the system-seed role`},
-		{dataLabel: "writable", requireSeed: true,
+		{dataLabel: "writable", hasModes: true,
 			err: `model requires system-seed structure, but none was found`},
 		{dataLabel: "writable"},
-		{dataLabel: "ubuntu-data", requireSeed: true,
+		{dataLabel: "ubuntu-data", hasModes: true,
 			err: `model requires system-seed structure, but none was found`},
 		{dataLabel: "ubuntu-data", err: `system-data structure must have an implicit label or "writable", not "ubuntu-data"`},
-		{addSave: true, requireSeed: true, addSeed: true},
+		{addSave: true, hasModes: true, addSeed: true},
 		{addSave: true, err: `model does not support the system-save role`},
-		{addSeed: true, requireSeed: true, addSave: true, saveLabel: "foo",
+		{addSeed: true, hasModes: true, addSave: true, saveLabel: "foo",
 			err: `system-save structure must have an implicit label or "ubuntu-save", not "foo"`},
+		{isClassic: true, hasModes: true, addBoot: true},
+		{isClassic: true, hasModes: true, addBoot: true, addSave: true},
+		{isClassic: true, hasModes: true, addSeed: true, addBoot: true, addSave: true},
+		{isClassic: true, hasModes: true, addBoot: true, addSave: true, saveLabel: "ubuntu-save"},
+		{isClassic: true, hasModes: true, err: `system-boot and system-data roles are needed on classic`},
+		{isClassic: true, hasModes: true, addBoot: true, addSave: true, saveLabel: "random-label", err: `system-save structure must have an implicit label or "ubuntu-save", not "random-label"`},
 	} {
-		c.Logf("tc: %v %v %v %v", i, tc.addSeed, tc.dataLabel, tc.requireSeed)
+		c.Logf("tc: %v %v %v %v", i, tc.addSeed, tc.dataLabel, tc.hasModes)
 		b := &bytes.Buffer{}
 
 		fmt.Fprintf(b, bloader)
@@ -315,6 +323,13 @@ volumes:
         size: 10M
         type: 83
         role: system-seed`)
+		}
+		if tc.addBoot {
+			fmt.Fprintf(b, `
+      - name: Boot
+        size: 10M
+        type: 83
+        role: system-boot`)
 		}
 
 		if !tc.noData {
@@ -342,8 +357,8 @@ volumes:
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, b.Bytes())
 
 		mod := &gadgettest.ModelCharacteristics{
-			IsClassic: false,
-			HasModes:  tc.requireSeed,
+			IsClassic: tc.isClassic,
+			HasModes:  tc.hasModes,
 		}
 		ginfo, err := gadget.ReadInfo(s.dir, mod)
 		c.Assert(err, IsNil)
@@ -1019,4 +1034,155 @@ assets:
 	c.Assert(err, IsNil)
 	err = gadget.ValidateContent(ginfo, s.dir, kernelUnpackDir)
 	c.Assert(err, ErrorMatches, `no asset from the kernel.yaml needing synced update is consumed by the gadget at "/.*"`)
+}
+
+func (s *validateGadgetTestSuite) TestValidateModalClassicGadget(c *C) {
+	gadgetYaml := `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: EFI System partition
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 99M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        offset: 1202M
+        size: 750M
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 4312776192
+`
+
+	mod := &gadgettest.ModelCharacteristics{
+		IsClassic: true,
+		HasModes:  true,
+	}
+	giMeta, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), mod)
+	c.Assert(err, IsNil)
+
+	err = gadget.Validate(giMeta, mod, nil)
+	c.Check(err, IsNil)
+}
+
+func (s *validateGadgetTestSuite) TestValidateSystemRoleSplitAcrossVolumesClassicOk(c *C) {
+	// This is allowed for modal classic
+	const gadgetYaml = `
+volumes:
+  pc1:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        # whats the appropriate size?
+        size: 750M
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+  pc2:
+    structure:
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+
+	mod := &gadgettest.ModelCharacteristics{
+		IsClassic: true,
+		HasModes:  true,
+	}
+	giMeta, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), mod)
+	c.Assert(err, IsNil)
+
+	err = gadget.Validate(giMeta, mod, nil)
+	c.Check(err, IsNil)
+}
+
+func (s *validateGadgetTestSuite) TestValidateSystemRoleSplitAcrossVolumesClassicFail(c *C) {
+	// This is not allowed for modal classic
+	const gadgetYaml = `
+volumes:
+  pc1:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        # whats the appropriate size?
+        size: 750M
+  pc2:
+    structure:
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+
+	mod := &gadgettest.ModelCharacteristics{
+		IsClassic: true,
+		HasModes:  true,
+	}
+	giMeta, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), mod)
+	c.Assert(err, IsNil)
+
+	err = gadget.Validate(giMeta, mod, nil)
+	c.Check(err, ErrorMatches, `system-boot and system-save are expected to share the same volume`)
 }
