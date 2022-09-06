@@ -1404,6 +1404,21 @@ func (s *snapsSuite) TestPostSnapCohortUnsupportedAction(c *check.C) {
 	}
 }
 
+func (s *snapsSuite) TestPostSnapQuotaGroupWrongAction(c *check.C) {
+	s.daemonWithOverlordMock()
+	const expectedErr = "quota-group can only be specified on install"
+
+	for _, action := range []string{"remove", "refresh", "revert", "enable", "disable", "xyzzy"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "quota-group": "foo"}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
 func (s *snapsSuite) TestPostSnapLeaveCohortUnsupportedAction(c *check.C) {
 	s.daemonWithOverlordMock()
 	const expectedErr = "leave-cohort can only be specified for refresh or switch"
@@ -1518,6 +1533,31 @@ func (s *snapsSuite) TestInstall(c *check.C) {
 	_, _, err := inst.Dispatch()(inst, st)
 	c.Check(err, check.IsNil)
 	c.Check(calledName, check.Equals, "fake")
+}
+
+func (s *snapsSuite) TestInstallWithQuotaGroup(c *check.C) {
+	var calledFlags snapstate.Flags
+
+	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action:         "install",
+		Snaps:          []string{"fake"},
+		QuotaGroupName: "test-group",
+	}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.Dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+	c.Check(calledFlags.QuotaGroupName, check.Equals, "test-group")
 }
 
 func (s *snapsSuite) TestInstallDevMode(c *check.C) {
