@@ -1,0 +1,79 @@
+summary: Ensure installer APIs works on unencrypted devices
+
+# needs a modern ubuntu
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+prepare: |
+  if [ -d /var/lib/snapd/seed ]; then
+      mv /var/lib/snapd/seed /var/lib/snapd/seed.orig
+  fi
+
+restore: |
+  rm -rf /var/lib/snapd/seed
+  if [ -d /var/lib/snapd/seed.orig ]; then
+      mv /var/lib/snapd/seed.orig /var/lib/snapd/seed
+  fi
+
+execute: |
+  # XXX: the code in DeviceManager.SystemAndGadgetInfo() will only work on
+  # classic systems with modeenv right now (which is something we may need
+  # to fix to work from the classic installer).
+  # For now pretend we have a modeenv
+  echo "mode=run" > /var/lib/snapd/modeenv
+  tests.cleanup defer rm -f /var/lib/snapd/modeenv
+
+  # prepare a fake classic seed
+  LABEL=20220808
+  mkdir -p /var/lib/snapd/seed/systems/"$LABEL"/assertions
+  cp -a "$TESTSLIB"/assertions/developer1-22-classic-dangerous.model \
+      /var/lib/snapd/seed/systems/"$LABEL"/model
+  cat "$TESTSLIB"/assertions/developer1.account-key >> \
+      /var/lib/snapd/seed/systems/"$LABEL"/assertions/model-etc
+  echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/model-etc
+  cat "$TESTSLIB"/assertions/developer1.account >> \
+      /var/lib/snapd/seed/systems/"$LABEL"/assertions/model-etc
+  echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/model-etc
+  cat "$TESTSLIB"/assertions/testrootorg-store.account-key >> \
+      /var/lib/snapd/seed/systems/"$LABEL"/assertions/model-etc
+
+  TDIR=/var/lib/snapd/seed/snaps
+  mkdir -p "$TDIR"
+  cat "$TDIR"/pc_*.assert >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
+  echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
+  snap download --target-directory="$TDIR" --channel=22 pc-kernel
+  cat "$TDIR"/pc-kernel_*.assert >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
+  echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
+  snap download --target-directory="$TDIR" core22
+  cat "$TDIR"/core22_*.assert >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
+  echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snap
+  snap download --target-directory="$TDIR" snapd
+  cat "$TDIR"/snapd_*.assert >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
+  echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
+  # TODO: use custom pc gadget for classic instead of UC one
+  snap download --target-directory="$TDIR" --channel=22 pc
+
+  # do some light checking that the system is valid
+  snap install test-snapd-curl --devmode --edge
+  snap install jq --devmode --edge
+  test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems | jq '.result.systems[0].label' | MATCHES "$LABEL"
+  test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems/"$LABEL" > system
+  jq '.result.model.distribution' system | MATCH "ubuntu"
+  
+  # build fakeinstaller and put in place
+  go build -o fakeinstaller "$TESTSLIB"/fakeinstaller/main.go
+
+  # create fake disk for the installer to work on
+  truncate --size=4G fake-disk.img
+  loop_device=$(losetup --show -f ./fake-disk.img)
+  echo "label: gpt\nwrite" | sfdisk "$loop_device"
+  # and "install" the current seed to the fake disk
+  ./fakeinstaller "$LABEL" "$loop_device"
+  # validate that the fake installer created the expected partitions
+  fdisk -x "$loop_device" > fdisk_output
+  MATCH "${loop_device}p1 .* BIOS Boot"   < fdisk_output
+  # TODO: the real MVP hybrid device will not contain a ubuntu-seed
+  #       partition (needs a different gadget)
+  MATCH "${loop_device}p2 .* ubuntu-seed" < fdisk_output
+  MATCH "${loop_device}p3 .* ubuntu-boot" < fdisk_output
+  MATCH "${loop_device}p4 .* ubuntu-save" < fdisk_output
+  MATCH "${loop_device}p5 .* ubuntu-data" < fdisk_output
