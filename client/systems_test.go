@@ -227,15 +227,19 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 	vols := map[string][]gadget.Volume{
 		"pc": {
 			{
-				Schema: "dos",
+				Schema:     "dos",
 				Bootloader: "mbr",
-				ID: "0c",
+				ID:         "0c",
 				// Note that name is not exported as json
 				Name: "pc",
 			},
 		},
 	}
-	chgID, err := cs.cli.InstallSystem("1234", client.InstallStepFinish, vols)
+	opts := &client.InstallSystemOptions{
+		Step:    client.InstallStepFinish,
+		Volumes: vols,
+	}
+	chgID, err := cs.cli.InstallSystem("1234", opts)
 	c.Assert(err, check.IsNil)
 	c.Assert(chgID, check.Equals, "42")
 	c.Check(cs.req.Method, check.Equals, "POST")
@@ -268,7 +272,10 @@ func (cs *clientSuite) TestRequestSystemInstallErrorNoSystem(c *check.C) {
 	    "status-code": 500,
 	    "result": {"message": "failed"}
 	}`
-	_, err := cs.cli.InstallSystem("1234", client.InstallStepFinish, nil)
+	opts := &client.InstallSystemOptions{
+		Step: client.InstallStepFinish,
+	}
+	_, err := cs.cli.InstallSystem("1234", opts)
 	c.Assert(err, check.ErrorMatches, `cannot request system install for "1234": failed`)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")

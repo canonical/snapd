@@ -156,8 +156,13 @@ type systemActionInstall struct {
 	OnVolumes map[string][]gadget.Volume `json:"on-volumes,omitempty"`
 }
 
+type InstallSystemOptions struct {
+	Step    InstallStep
+	Volumes map[string][]gadget.Volume
+}
+
 // InstallSystem will perform the given install step for the given volumes
-func (client *Client) InstallSystem(systemLabel string, step InstallStep, volumes map[string][]gadget.Volume) (changeID string, err error) {
+func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptions) (changeID string, err error) {
 	// verification is done by the backend
 	req := struct {
 		Action string `json:"action"`
@@ -165,8 +170,8 @@ func (client *Client) InstallSystem(systemLabel string, step InstallStep, volume
 	}{
 		Action: "install",
 		systemActionInstall: &systemActionInstall{
-			Step:      step,
-			OnVolumes: volumes,
+			Step:      opts.Step,
+			OnVolumes: opts.Volumes,
 		},
 	}
 
