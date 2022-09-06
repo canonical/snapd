@@ -140,6 +140,31 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 	return nil
 }
 
+type SystemDetails struct {
+	// First part is designed to look like `client.System` - the
+	// only difference is how the model is represented
+	Current bool                   `json:"current,omitempty"`
+	Label   string                 `json:"label,omitempty"`
+	Model   map[string]interface{} `json:"model,omitempty"`
+	Brand   snap.StoreAccount      `json:"brand,omitempty"`
+	Actions []SystemAction         `json:"actions,omitempty"`
+
+	// Volumes contains the volumes defined from the gadget snap
+	Volumes map[string]*gadget.Volume `json:"volumes,omitempty"`
+
+	// TODO: add EncryptionSupportInfo here too
+}
+
+func (client *Client) SystemDetails(seedLabel string) (*SystemDetails, error) {
+	var rsp SystemDetails
+
+	if _, err := client.doSync("GET", "/v2/systems/"+seedLabel, nil, nil, nil, &rsp); err != nil {
+		return nil, xerrors.Errorf("cannot get details for system %q: %v", seedLabel, err)
+	}
+	return &rsp, nil
+}
+
+
 type InstallStep string
 
 const (
