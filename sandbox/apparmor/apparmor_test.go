@@ -308,6 +308,24 @@ profile snap-test {
 	features, err := apparmor.ProbeParserFeatures()
 	c.Check(err, Equals, os.ErrNotExist)
 	c.Check(features, DeepEquals, []string{})
+
+	// pretend we have an internal apparmor_parser
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
+	c.Assert(os.MkdirAll(d, 0755), IsNil)
+	p := filepath.Join(d, "apparmor_parser")
+	c.Assert(ioutil.WriteFile(p, nil, 0755), IsNil)
+	restore = snapdtool.MockOsReadlink(func(path string) (string, error) {
+		c.Assert(path, Equals, "/proc/self/exe")
+		return filepath.Join(d, "snapd"), nil
+	})
+	defer restore()
+	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
+	defer restore()
+	features, err = apparmor.ProbeParserFeatures()
+	c.Check(err, Equals, nil)
+	c.Check(features, DeepEquals, []string{"snapd-internal"})
 }
 
 func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
