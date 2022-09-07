@@ -596,7 +596,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 	return curSnaps, nil
 }
 
-func refreshCandidates(ctx context.Context, st *state.State, names []string, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
+func refreshCandidates(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
 	snapStates, err := All(st)
 	if err != nil {
 		return nil, nil, nil, err
@@ -629,9 +629,21 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	ignoreValidationByInstanceName := make(map[string]bool)
 	nCands := 0
 
-	enforcedSets, err := EnforcedValidationSets(st)
-	if err != nil {
-		return nil, nil, nil, err
+	var enforcedSets *snapasserts.ValidationSets
+	var revOptsByName map[string]*RevisionOptions
+
+	// if refreshing to specific revision to enforce a new validation set, we've
+	// already checked against other enforced sets
+	if revOpts == nil {
+		enforcedSets, err = EnforcedValidationSets(st)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	} else {
+		revOptsByName = make(map[string]*RevisionOptions, len(revOpts))
+		for i, opts := range revOpts {
+			revOptsByName[names[i]] = opts
+		}
 	}
 
 	addCand := func(installed *store.CurrentSnap, snapst *SnapState) error {
@@ -657,8 +669,14 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		}
 
 		if !snapst.IgnoreValidation {
-			if enforcedSets != nil {
-				requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(installed.InstanceName))
+			var requiredValsets []string
+			var requiredRevision snap.Revision
+
+			if revOpts != nil {
+				opts := revOptsByName[installed.InstanceName]
+				requiredValsets, requiredRevision = opts.ValidationSets, opts.Revision
+			} else if enforcedSets != nil {
+				requiredValsets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(installed.InstanceName))
 				// note, this errors out the entire refresh
 				if err != nil {
 					return err
@@ -668,9 +686,10 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 				if !requiredRevision.Unset() && installed.Revision == requiredRevision {
 					return nil
 				}
-				if len(requiredValsets) > 0 {
-					setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
-				}
+			}
+
+			if len(requiredValsets) > 0 {
+				setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
 			}
 		}
 
