@@ -346,7 +346,12 @@ func (s *apiBaseSuite) asUserAuth(c *check.C, req *http.Request) {
 	if s.authUser == nil {
 		st := s.d.Overlord().State()
 		st.Lock()
-		u, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+		u, err := auth.NewUser(st, auth.NewUserData{
+			Username:   "username",
+			Email:      "email@test.com",
+			Macaroon:   "macaroon",
+			Discharges: []string{"discharge"},
+		})
 		st.Unlock()
 		c.Assert(err, check.IsNil)
 		s.authUser = u

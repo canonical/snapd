@@ -4504,6 +4504,87 @@ func (s *snapmgrTestSuite) TestInstallPrerequisiteWithSameDeviceContext(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestInstallQuotaGroup(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var quotaWasCalled bool
+	s.o.TaskRunner().AddHandler("quota-add-snap", func(t *state.Task, _ *tomb.Tomb) error {
+		quotaWasCalled = true
+		t.State().Lock()
+		ss, err := snapstate.TaskSnapSetup(t)
+		t.State().Unlock()
+		c.Assert(err, IsNil)
+		c.Assert(ss.QuotaGroupName, Equals, "foo")
+		return nil
+	}, nil)
+
+	flags := snapstate.Flags{
+		QuotaGroupName: "foo",
+	}
+
+	chg := s.state.NewChange("install", "")
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, flags)
+	c.Assert(err, IsNil)
+	c.Check(ts.Tasks(), Not(HasLen), 0)
+	chg.AddAll(ts)
+
+	s.settle(c)
+
+	c.Check(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(quotaWasCalled, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestInstallUndoQuotaGroup(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var quotaWasCalled bool
+	var quotaUndoWasCalled bool
+	s.o.TaskRunner().AddHandler("quota-add-snap", func(t *state.Task, _ *tomb.Tomb) error {
+		quotaWasCalled = true
+		t.State().Lock()
+		ss, err := snapstate.TaskSnapSetup(t)
+		t.State().Unlock()
+		c.Assert(err, IsNil)
+		c.Assert(ss.QuotaGroupName, Equals, "foo")
+		return nil
+	}, func(t *state.Task, _ *tomb.Tomb) error {
+		quotaUndoWasCalled = true
+		return nil
+	})
+
+	flags := snapstate.Flags{
+		QuotaGroupName: "foo",
+	}
+
+	chg := s.state.NewChange("install", "")
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, flags)
+	c.Assert(err, IsNil)
+	c.Check(ts.Tasks(), Not(HasLen), 0)
+	chg.AddAll(ts)
+
+	// fail the change after the quota-on-install task (after state is saved)
+	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+		return errors.New("expected")
+	}, nil)
+
+	failingTask := s.state.NewTask("fail", "expected failure")
+	chg.AddTask(failingTask)
+	linkTask := findLastTask(chg, "quota-add-snap")
+	failingTask.WaitFor(linkTask)
+	for _, lane := range linkTask.Lanes() {
+		failingTask.JoinLane(lane)
+	}
+
+	s.settle(c)
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(quotaWasCalled, Equals, true)
+	c.Check(quotaUndoWasCalled, Equals, true)
+}
+
 func (s *snapmgrTestSuite) TestInstallMigrateData(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

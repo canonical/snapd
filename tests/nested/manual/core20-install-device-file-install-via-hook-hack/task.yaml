@@ -9,8 +9,6 @@ details: |
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
-    NESTED_IMAGE_ID: core20-install-device-system-files-hack
-
     # use snapd from the spread run so that we have testkeys trusted in the
     # snapd run
     NESTED_BUILD_SNAPD_FROM_CURRENT: true

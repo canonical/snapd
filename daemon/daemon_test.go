@@ -122,7 +122,12 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 	d := newTestDaemon(c)
 	st := d.Overlord().State()
 	st.Lock()
-	authUser, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	authUser, err := auth.NewUser(st, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -440,7 +445,12 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 	d := newTestDaemon(c)
 	st := d.Overlord().State()
 	st.Lock()
-	authUser, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	authUser, err := auth.NewUser(st, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 

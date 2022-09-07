@@ -288,6 +288,12 @@ nested_qemu_name() {
     esac
 }
 
+        ubuntu-22.10-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/kinetic-server-cloudimg-amd64.img"
+            ;;
+            ;;
+        ubuntu-22.10-64*)
+            echo "https://cloud-images.ubuntu.com/kinetic/current/kinetic-server-cloudimg-amd64.img"
 nested_get_snap_rev_for_channel() {
     local SNAP=$1
     local CHANNEL=$2

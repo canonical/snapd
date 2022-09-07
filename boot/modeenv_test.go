@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -68,6 +68,7 @@ func (s *modeenvSuite) TestKnownKnown(c *C) {
 		"base_status":           true,
 		"current_kernels":       true,
 		"model":                 true,
+		"classic":               true,
 		"grade":                 true,
 		"model_sign_key_id":     true,
 		"try_model":             true,
@@ -812,6 +813,7 @@ try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm
 	c.Assert(err, IsNil)
 	c.Check(modeenv.Model, Equals, "ubuntu-core-20-amd64")
 	c.Check(modeenv.BrandID, Equals, "canonical")
+	c.Check(modeenv.Classic, Equals, false)
 	c.Check(modeenv.Grade, Equals, "dangerous")
 	c.Check(modeenv.ModelSignKeyID, Equals, "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn")
 	// candidate model
@@ -844,6 +846,55 @@ try_model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g
 `)
 }
 
+func (s *modeenvSuite) TestModeenvWithClassicModelGradeSignKeyID(c *C) {
+	s.makeMockModeenvFile(c, `mode=run
+model=canonical/ubuntu-classic-20-amd64
+grade=dangerous
+classic=true
+model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+try_model=developer1/testkeys-snapd-secured-classic-20-amd64
+try_grade=secured
+try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+`)
+
+	modeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	c.Check(modeenv.Model, Equals, "ubuntu-classic-20-amd64")
+	c.Check(modeenv.BrandID, Equals, "canonical")
+	c.Check(modeenv.Classic, Equals, true)
+	c.Check(modeenv.Grade, Equals, "dangerous")
+	c.Check(modeenv.ModelSignKeyID, Equals, "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn")
+	// candidate model
+	c.Check(modeenv.TryModel, Equals, "testkeys-snapd-secured-classic-20-amd64")
+	c.Check(modeenv.TryBrandID, Equals, "developer1")
+	c.Check(modeenv.TryGrade, Equals, "secured")
+	c.Check(modeenv.TryModelSignKeyID, Equals, "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu")
+
+	// change some model data now
+	modeenv.Model = "testkeys-snapd-signed-classic-20-amd64"
+	modeenv.BrandID = "developer1"
+	modeenv.Grade = "signed"
+	modeenv.ModelSignKeyID = "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu"
+
+	modeenv.TryModel = "bar"
+	modeenv.TryBrandID = "foo"
+	modeenv.TryGrade = "dangerous"
+	modeenv.TryModelSignKeyID = "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn"
+
+	// and write it
+	c.Assert(modeenv.Write(), IsNil)
+
+	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run
+model=developer1/testkeys-snapd-signed-classic-20-amd64
+classic=true
+grade=signed
+model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+try_model=foo/bar
+try_grade=dangerous
+try_model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+`)
+}
+
 func (s *modeenvSuite) TestModelForSealing(c *C) {
 	s.makeMockModeenvFile(c, `mode=run
 model=canonical/ubuntu-core-20-amd64
@@ -860,6 +911,7 @@ try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm
 	modelForSealing := modeenv.ModelForSealing()
 	c.Check(modelForSealing.Model(), Equals, "ubuntu-core-20-amd64")
 	c.Check(modelForSealing.BrandID(), Equals, "canonical")
+	c.Check(modelForSealing.Classic(), Equals, false)
 	c.Check(modelForSealing.Grade(), Equals, asserts.ModelGrade("dangerous"))
 	c.Check(modelForSealing.SignKeyID(), Equals, "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn")
 	c.Check(modelForSealing.Series(), Equals, "16")
@@ -869,6 +921,42 @@ try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm
 	tryModelForSealing := modeenv.TryModelForSealing()
 	c.Check(tryModelForSealing.Model(), Equals, "testkeys-snapd-secured-core-20-amd64")
 	c.Check(tryModelForSealing.BrandID(), Equals, "developer1")
+	c.Check(tryModelForSealing.Classic(), Equals, false)
+	c.Check(tryModelForSealing.Grade(), Equals, asserts.ModelGrade("secured"))
+	c.Check(tryModelForSealing.SignKeyID(), Equals, "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu")
+	c.Check(tryModelForSealing.Series(), Equals, "16")
+	c.Check(boot.ModelUniqueID(tryModelForSealing), Equals,
+		"developer1/testkeys-snapd-secured-core-20-amd64,secured,EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu")
+}
+
+func (s *modeenvSuite) TestClassicModelForSealing(c *C) {
+	s.makeMockModeenvFile(c, `mode=run
+model=canonical/ubuntu-core-20-amd64
+classic=true
+grade=dangerous
+model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+try_model=developer1/testkeys-snapd-secured-core-20-amd64
+try_grade=secured
+try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+`)
+
+	modeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+
+	modelForSealing := modeenv.ModelForSealing()
+	c.Check(modelForSealing.Model(), Equals, "ubuntu-core-20-amd64")
+	c.Check(modelForSealing.BrandID(), Equals, "canonical")
+	c.Check(modelForSealing.Classic(), Equals, true)
+	c.Check(modelForSealing.Grade(), Equals, asserts.ModelGrade("dangerous"))
+	c.Check(modelForSealing.SignKeyID(), Equals, "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn")
+	c.Check(modelForSealing.Series(), Equals, "16")
+	c.Check(boot.ModelUniqueID(modelForSealing), Equals,
+		"canonical/ubuntu-core-20-amd64,dangerous,9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn")
+
+	tryModelForSealing := modeenv.TryModelForSealing()
+	c.Check(tryModelForSealing.Model(), Equals, "testkeys-snapd-secured-core-20-amd64")
+	c.Check(tryModelForSealing.BrandID(), Equals, "developer1")
+	c.Check(tryModelForSealing.Classic(), Equals, true)
 	c.Check(tryModelForSealing.Grade(), Equals, asserts.ModelGrade("secured"))
 	c.Check(tryModelForSealing.SignKeyID(), Equals, "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu")
 	c.Check(tryModelForSealing.Series(), Equals, "16")

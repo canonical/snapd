@@ -100,8 +100,8 @@ CPUAccounting=true
 		fmt.Fprintf(buf, "CPUQuota=%d%%\n", min(cpuQuotaSnap, cpuQuotaMax))
 	}
 
-	if grp.CPULimit != nil && len(grp.CPULimit.AllowedCPUs) != 0 {
-		allowedCpusValue := strutil.IntsToCommaSeparated(grp.CPULimit.AllowedCPUs)
+	if grp.CPULimit != nil && len(grp.CPULimit.CPUSet) != 0 {
+		allowedCpusValue := strutil.IntsToCommaSeparated(grp.CPULimit.CPUSet)
 		fmt.Fprintf(buf, "AllowedCPUs=%s\n", allowedCpusValue)
 	}
 

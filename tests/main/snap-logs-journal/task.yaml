@@ -5,57 +5,57 @@ details: |
 # these systems do not support journal quota groups due to their old systemd versions.
 # requires systemd v245+
 systems:
-  - -ubuntu-14.04-*
+  - -amazon-linux-2-*
   - -centos-7-*
   - -centos-8-*
   - -debian-10-64
-  - -amazon-linux-2-*
+  - -ubuntu-14.04-*
   - -ubuntu-16.04-*
-  - -ubuntu-core-16-*
   - -ubuntu-18.04-*
+  - -ubuntu-core-16-*
   - -ubuntu-core-18-*
 
 prepare: |
-  snap install test-snapd-stressd --edge
-  tests.cleanup defer snap remove --purge test-snapd-stressd
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-journal-quota
+  tests.cleanup defer snap remove --purge test-snapd-journal-quota
   snap set system experimental.quota-groups=true
   tests.cleanup defer snap unset system experimental.quota-groups
 
 restore: |
   echo "Stopping the service"
-  snap stop test-snapd-stressd.logger
+  snap stop test-snapd-journal-quota.logger
+
+  echo "Trying to remove the quota group (if created)"
+  snap remove-quota group-one || true
 
 execute: |
   echo "Starting service and verifying that log messages are sent to default journal namespace"
-  snap start test-snapd-stressd.logger
+  snap start test-snapd-journal-quota.logger
   
-  # The logger service prints 5 messages every 5 seconds, so lets wait 5 seconds to ensure
-  # that messages appear inside journalctl
-  sleep 5
-
-  # Ask for logs for that snap
-  snap logs test-snapd-stressd.logger | MATCH "LogDaemon"
+  # Now ask for logs and lets see if we can see messages from 'LogDaemon'
+  # The format of the log messages are 'LogDaemon: message number: X'
+  retry -n 5 sh -c "snap logs test-snapd-journal-quota.logger | MATCH LogDaemon"
    
   echo "Create a group with the logger snap in it"
-  snap set-quota group-one --journal-size=16MB --journal-rate-limit=100/10ms test-snapd-stressd
-  
+  snap set-quota group-one --journal-size=16MB --journal-rate-limit=100/10ms test-snapd-journal-quota
+
+  # retry a few times if we check before the service had a chance to restart entirely
   echo "The service should still be active"
-  snap services test-snapd-stressd.logger | MATCH "test-snapd-stressd.logger\s+disabled\s+active"
-  
-  # wait additional 5 seconds to ensure that the service has been outputting logs
-  sleep 5
+  retry -n 3 sh -c "snap services test-snapd-journal-quota.logger | MATCH 'test-snapd-journal-quota.logger\s+enabled\s+active'"
   
   # Now ask for the namespace logs and lets see if we can see messages from 'LogDaemon'
-  INITIAL_NO=$(snap logs test-snapd-stressd.logger | MATCH "LogDaemon" | tail -n 1 | awk '{print $9}')
-  for i in $(seq 1 5); do
-    sleep 5
-      CURRENT_NO=$(snap logs test-snapd-stressd.logger | MATCH "LogDaemon" | tail -n 1 | awk '{print $9}')
+  NEW_MESSAGE_DETECTED=0
+  INITIAL_NO=$(snap logs test-snapd-journal-quota.logger | grep "LogDaemon" | tail -n 1 | awk '{print $NF}')
+  for i in $(seq 5); do
+    sleep 1
+      CURRENT_NO=$(snap logs test-snapd-journal-quota.logger | grep "LogDaemon" | tail -n 1 | awk '{print $NF}')
       if [ "$CURRENT_NO" -gt "$INITIAL_NO" ]; then
           echo "LogDaemon messages detected after $i tries"
+          NEW_MESSAGE_DETECTED=1
           break
       fi
   done
-  if [ "$CURRENT_NO" -lt "$INITIAL_NO" ]; then
-      echo "Failed to see new log messages after 25 seconds"
+  if [ "$NEW_MESSAGE_DETECTED" = "0" ]; then
+      echo "Failed to see new log messages after 5 seconds"
       exit 1
   fi

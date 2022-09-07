@@ -170,7 +170,12 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		user.Email = loginData.Email
 		err = auth.UpdateUser(st, user)
 	} else {
-		user, err = auth.NewUser(st, loginData.Username, loginData.Email, macaroon, []string{discharge})
+		user, err = auth.NewUser(st, auth.NewUserData{
+			Username:   loginData.Username,
+			Email:      loginData.Email,
+			Macaroon:   macaroon,
+			Discharges: []string{discharge},
+		})
 	}
 	st.Unlock()
 	if err != nil {
@@ -569,7 +574,12 @@ func setupLocalUser(st *state.State, username, email string) error {
 
 	// setup new user, local-only
 	st.Lock()
-	authUser, err := auth.NewUser(st, username, email, "", nil)
+	authUser, err := auth.NewUser(st, auth.NewUserData{
+		Username:   username,
+		Email:      email,
+		Macaroon:   "",
+		Discharges: nil,
+	})
 	st.Unlock()
 	if err != nil {
 		return fmt.Errorf("cannot persist authentication details: %v", err)

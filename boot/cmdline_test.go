@@ -108,6 +108,9 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 		cmd:   "snapd_recovery_system=not-this-one snapd_recovery_mode=install snapd_recovery_system=1234",
 		mode:  "install",
 		label: "1234",
+	}, {
+		cmd:  "snapd_recovery_mode=cloudimg-rootfs",
+		mode: boot.ModeRunCVM,
 	}} {
 		c.Logf("tc: %q", tc)
 		s.mockProcCmdlineContent(c, tc.cmd)

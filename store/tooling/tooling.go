@@ -20,14 +20,11 @@
 package tooling
 
 import (
-	"bytes"
 	"context"
 	"crypto"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"os/signal"
@@ -35,7 +32,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/mvo5/goconfigparser"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -43,7 +39,6 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
-	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -54,8 +49,8 @@ type ToolingStore struct {
 	// left unset stdout is used
 	Stdout io.Writer
 
-	sto  StoreImpl
-	user *auth.UserState
+	sto StoreImpl
+	cfg *store.Config
 }
 
 // A StoreImpl can find metadata on snaps, download snaps and fetch assertions.
@@ -75,128 +70,23 @@ func newToolingStore(arch, storeID string) (*ToolingStore, error) {
 	cfg := store.DefaultConfig()
 	cfg.Architecture = arch
 	cfg.StoreID = storeID
-	var user *auth.UserState
-	if authFn := os.Getenv("UBUNTU_STORE_AUTH_DATA_FILENAME"); authFn != "" {
-		var err error
-		user, err = readAuthFile(authFn)
+	creds, err := getAuthorizer()
+	if err != nil {
+		return nil, err
+	}
+	cfg.Authorizer = creds
+	if storeURL := os.Getenv("UBUNTU_STORE_URL"); storeURL != "" {
+		u, err := url.Parse(storeURL)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid UBUNTU_STORE_URL: %v", err)
 		}
+		cfg.StoreBaseURL = u
 	}
-	sto := store.New(cfg, toolingStoreContext{})
+	sto := store.New(cfg, nil)
 	return &ToolingStore{
-		sto:  sto,
-		user: user,
+		sto: sto,
+		cfg: cfg,
 	}, nil
-}
-
-type authData struct {
-	Macaroon   string   `json:"macaroon"`
-	Discharges []string `json:"discharges"`
-}
-
-func readAuthFile(authFn string) (*auth.UserState, error) {
-	data, err := ioutil.ReadFile(authFn)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read auth file %q: %v", authFn, err)
-	}
-
-	creds, err := parseAuthFile(authFn, data)
-	if err != nil {
-		// try snapcraft login format instead
-		var err2 error
-		creds, err2 = parseSnapcraftLoginFile(authFn, data)
-		if err2 != nil {
-			trimmed := bytes.TrimSpace(data)
-			if len(trimmed) > 0 && trimmed[0] == '[' {
-				return nil, err2
-			}
-			return nil, err
-		}
-	}
-
-	return &auth.UserState{
-		StoreMacaroon:   creds.Macaroon,
-		StoreDischarges: creds.Discharges,
-	}, nil
-}
-
-func parseAuthFile(authFn string, data []byte) (*authData, error) {
-	var creds authData
-	err := json.Unmarshal(data, &creds)
-	if err != nil {
-		return nil, fmt.Errorf("cannot decode auth file %q: %v", authFn, err)
-	}
-	if creds.Macaroon == "" || len(creds.Discharges) == 0 {
-		return nil, fmt.Errorf("invalid auth file %q: missing fields", authFn)
-	}
-	return &creds, nil
-}
-
-func snapcraftLoginSection() string {
-	if snapdenv.UseStagingStore() {
-		return "login.staging.ubuntu.com"
-	}
-	return "login.ubuntu.com"
-}
-
-func parseSnapcraftLoginFile(authFn string, data []byte) (*authData, error) {
-	errPrefix := fmt.Sprintf("invalid snapcraft login file %q", authFn)
-
-	cfg := goconfigparser.New()
-	if err := cfg.ReadString(string(data)); err != nil {
-		return nil, fmt.Errorf("%s: %v", errPrefix, err)
-	}
-	sec := snapcraftLoginSection()
-	macaroon, err := cfg.Get(sec, "macaroon")
-	if err != nil {
-		return nil, fmt.Errorf("%s: %s", errPrefix, err)
-	}
-	unboundDischarge, err := cfg.Get(sec, "unbound_discharge")
-	if err != nil {
-		return nil, fmt.Errorf("%s: %v", errPrefix, err)
-	}
-	if macaroon == "" || unboundDischarge == "" {
-		return nil, fmt.Errorf("invalid snapcraft login file %q: empty fields", authFn)
-	}
-	return &authData{
-		Macaroon:   macaroon,
-		Discharges: []string{unboundDischarge},
-	}, nil
-}
-
-// toolingStoreContext implements trivially store.DeviceAndAuthContext
-// except implementing UpdateUserAuth properly to be used to refresh a
-// soft-expired user macaroon.
-type toolingStoreContext struct{}
-
-func (tac toolingStoreContext) CloudInfo() (*auth.CloudInfo, error) {
-	return nil, nil
-}
-
-func (tac toolingStoreContext) Device() (*auth.DeviceState, error) {
-	return &auth.DeviceState{}, nil
-}
-
-func (tac toolingStoreContext) DeviceSessionRequestParams(_ string) (*store.DeviceSessionRequestParams, error) {
-	return nil, store.ErrNoSerial
-}
-
-func (tac toolingStoreContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {
-	return "", defaultURL, nil
-}
-
-func (tac toolingStoreContext) StoreID(fallback string) (string, error) {
-	return fallback, nil
-}
-
-func (tac toolingStoreContext) UpdateDeviceAuth(_ *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
-	return nil, fmt.Errorf("internal error: no device state in tools")
-}
-
-func (tac toolingStoreContext) UpdateUserAuth(user *auth.UserState, discharges []string) (*auth.UserState, error) {
-	user.StoreDischarges = discharges
-	return user, nil
 }
 
 // NewToolingStoreFromModel creates ToolingStore for the snap store used by the given model.
@@ -304,7 +194,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadSnapOptions) (d
 		Channel:      opts.Channel,
 	}}
 
-	sars, _, err := sto.SnapAction(context.TODO(), nil, actions, nil, tsto.user, nil)
+	sars, _, err := sto.SnapAction(context.TODO(), nil, actions, nil, nil, nil)
 	if err != nil {
 		// err will be 'cannot download snap "foo": <reasons>'
 		return nil, err
@@ -353,7 +243,7 @@ func (tsto *ToolingStore) snapDownload(targetFn string, sar *store.SnapActionRes
 	}()
 
 	dlOpts := &store.DownloadOptions{LeavePartialOnError: opts.LeavePartialOnError}
-	if err = tsto.sto.Download(context.TODO(), snap.SnapName(), targetFn, &snap.DownloadInfo, pb, tsto.user, dlOpts); err != nil {
+	if err = tsto.sto.Download(context.TODO(), snap.SnapName(), targetFn, &snap.DownloadInfo, pb, nil, dlOpts); err != nil {
 		return nil, err
 	}
 
@@ -432,7 +322,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 		})
 	}
 
-	sars, _, err := tsto.sto.SnapAction(context.TODO(), current, actions, nil, tsto.user, nil)
+	sars, _, err := tsto.sto.SnapAction(context.TODO(), current, actions, nil, nil, nil)
 	if err != nil {
 		// err will be 'cannot download snap "foo": <reasons>'
 		return nil, err
@@ -456,7 +346,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 // AssertionFetcher creates an asserts.Fetcher for assertions using dlOpts for authorization, the fetcher will add assertions in the given database and after that also call save for each of them.
 func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, tsto.user)
+		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, nil)
 	}
 	save2 := func(a asserts.Assertion) error {
 		// for checking
@@ -478,7 +368,7 @@ func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]str
 	if err != nil {
 		return nil, err
 	}
-	return tsto.sto.Assertion(at, pk, tsto.user)
+	return tsto.sto.Assertion(at, pk, nil)
 }
 
 // MockToolingStore creates a ToolingStore that uses the provided StoreImpl

@@ -19,6 +19,18 @@
 
 package builtin
 
+import (
+	"path/filepath"
+
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+)
+
 const systemObserveSummary = `allows observing all processes and drivers`
 
 const systemObserveBaseDeclarationSlots = `
@@ -86,6 +98,9 @@ ptrace (read),
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,
 @{PROC}/*/{,task/*/}wchan r,
+
+# Allow reading processes security label
+@{PROC}/*/{,task/*/}attr/{,apparmor/}current r,
 
 # Allow discovering the os-release of the host
 /var/lib/snapd/hostfs/etc/os-release rk,
@@ -157,15 +172,53 @@ const systemObserveConnectedPlugSecComp = `
 #@deny ptrace
 `
 
+type systemObserveInterface struct {
+	commonInterface
+}
+
+func (iface *systemObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(systemObserveConnectedPlugAppArmor)
+	spec.SetSuppressPtraceTrace()
+	// Allow mounting boot partition to snap-update-ns
+	emit := spec.AddUpdateNSf
+	target := "/boot"
+	source := "/var/lib/snapd/hostfs" + target
+	emit("  # Read-only access to %s", target)
+	// When setting up a read-only bind mount, snap-update-ns first creates a
+	// plain read/write bind mount, and then remounts it to readonly.
+	emit("  mount options=(bind,rw) %s/ -> %s/,", source, target)
+	emit("  mount options=(bind,remount,ro) -> %s/,", target)
+	emit("  umount %s/,\n", target)
+	return nil
+}
+
+func (iface *systemObserveInterface) MountPermanentPlug(spec *mount.Specification, plug *snap.PlugInfo) error {
+	dir := filepath.Join(dirs.GlobalRootDir, "/boot")
+	if matches, _ := filepath.Glob("/boot/config*"); len(matches) > 0 {
+		spec.AddMountEntry(osutil.MountEntry{
+			Name:    "/var/lib/snapd/hostfs" + dir,
+			Dir:     "/boot",
+			Options: []string{"bind", "ro"},
+		})
+	} else {
+		// TODO: if /boot/config does not exist, we should check whether the
+		// kernel is being delivered as a snap (this is the case in Ubuntu
+		// Core) and, if found, we should bind-mount the config file onto the
+		// expected location.
+		logger.Debugf("system-observe: /boot/config* not found, skipping mount of /boot/")
+	}
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "system-observe",
-		summary:               systemObserveSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  systemObserveBaseDeclarationSlots,
-		connectedPlugAppArmor: systemObserveConnectedPlugAppArmor,
-		connectedPlugSecComp:  systemObserveConnectedPlugSecComp,
-		suppressPtraceTrace:   true,
+	registerIface(&systemObserveInterface{
+		commonInterface: commonInterface{
+			name:                 "system-observe",
+			summary:              systemObserveSummary,
+			implicitOnCore:       true,
+			implicitOnClassic:    true,
+			baseDeclarationSlots: systemObserveBaseDeclarationSlots,
+			connectedPlugSecComp: systemObserveConnectedPlugSecComp,
+		},
 	})
 }

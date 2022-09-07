@@ -58,6 +58,9 @@ dbus (send)
 #   https://gitlab.gnome.org/GNOME/at-spi2-core/-/issues/43
 owner /{,var/}run/user/[0-9]*/at-spi/bus* rw,
 
+# Allow access to the socket used by speech-dispatcher
+owner /{,var/}run/user/[0-9]*/speech-dispatcher/speechd.sock rw,
+
 # Allow the accessibility services in the user session to send us any events
 dbus (receive)
     bus=accessibility

@@ -4,11 +4,8 @@ systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
   VARIANT/nogadget: "no-gadget"
-  NESTED_IMAGE_ID/nogadget: core20-kernel-commandline-bootconfig-no-gadget
   VARIANT/gadgetextra: "gadget-extra"
-  NESTED_IMAGE_ID/gadgetextra: core20-kernel-commandline-bootconfig-gadget-extra
   VARIANT/gadgetfull: "gadget-full"
-  NESTED_IMAGE_ID/gadgetfull: core20-kernel-commandline-bootconfig-gadget-full
 
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
   NESTED_ENABLE_TPM: true
