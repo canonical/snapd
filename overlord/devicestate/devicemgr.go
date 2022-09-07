@@ -339,14 +339,14 @@ func (m *DeviceManager) maybeMountUbuntuSave() error {
 	}
 
 	// In newer core20/core22 we have a mount unit for ubuntu-save, which we
-	// we will try to start first
+	// we will try to start first. Invoking systemd-mount in this case would fail.
 	err = exec.Command("systemctl", "enable", "var-lib-snapd-save.mount", "--now").Run()
 	if err == nil {
 		logger.Noticef("mount unit for ubuntu-save was started")
 		return nil
 	}
 
-	// Otherwise try to directly mount the partition by using a transient unit
+	// Otherwise try to directly mount the partition with systemd-mount.
 	logger.Noticef("bind-mounting ubuntu-save under %v", dirs.SnapSaveDir)
 	err = systemd.New(systemd.SystemMode, progress.Null).Mount(boot.InitramfsUbuntuSaveDir,
 		dirs.SnapSaveDir, "-o", "bind")
@@ -357,6 +357,15 @@ func (m *DeviceManager) maybeMountUbuntuSave() error {
 	return nil
 }
 
+// ensureUbuntuSaveSnapFolders creates the necessary folder structure for
+// /var/lib/snapd/save/snap/<snap>. This is normally done during installation
+// of a snap, but there are two cases where this can be insufficient.
+//
+// 1. When migrating to a newer snapd, folders are not automatically created for
+//    snaps that are already installed. They will be created during a refresh, but
+//    we should not rely on that uncertainty.
+// 2. During install mode for the gadget/kernel/etc, the folders are not created.
+//    So this function can be invoked as a part of system-setup.
 func (m *DeviceManager) ensureUbuntuSaveSnapFolders() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -378,6 +387,9 @@ func (m *DeviceManager) ensureUbuntuSaveSnapFolders() error {
 	return nil
 }
 
+// maybeSetupUbuntuSave sets up ubuntu-save partition. It makes sure
+// to mount ubuntu-save (if feasible), and ensures the correct snap
+// folders are present according to currently installed snaps.
 func (m *DeviceManager) maybeSetupUbuntuSave() error {
 	if err := m.maybeMountUbuntuSave(); err != nil {
 		return err
