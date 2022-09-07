@@ -471,9 +471,7 @@ func (bs *bootedSuite) TestFinishRestartKernelClassicWithModes(c *C) {
 	chg := st.NewChange("test-finish-restart", "...")
 	chg.AddTask(task)
 	// Set same boot id as the system to start with
-	currentBootId, err := osutil.BootID()
-	c.Check(err, IsNil)
-	chg.Set("boot-id", currentBootId)
+	task.Set("hold-for-boot-id", "boot-id-0")
 
 	// Updating to kernel rev. 2
 	si := &snap.SideInfo{RealName: "kernel", Revision: snap.R(2)}
@@ -481,14 +479,14 @@ func (bs *bootedSuite) TestFinishRestartKernelClassicWithModes(c *C) {
 	snaptest.MockSnap(c, "name: kernel\ntype: kernel\nversion: 2", si)
 
 	// We get a Hold error as boot id has not changed so reboot has not happened
-	err = snapstate.FinishRestart(task, snapsup)
+	err := snapstate.FinishRestart(task, snapsup)
 	c.Check(err, DeepEquals, &state.Hold{Reason: "waiting for user to reboot"})
 	c.Check(err, ErrorMatches, "task hold, manual action required")
 
 	// kernel snap, restarted, right kernel revision, no rollback
 	// Use some random boot-id different from the current one from the system,
 	// so FinishRestart thinks that a reboot has happened.
-	chg.Set("boot-id", "11111111-1111-1111-1111-111111111111")
+	task.Set("hold-for-boot-id", "11111111-1111-1111-1111-111111111111")
 	bs.bootloader.BootVars["snap_mode"] = ""
 	bs.bootloader.SetBootKernel("kernel_2.snap")
 	err = snapstate.FinishRestart(task, snapsup)

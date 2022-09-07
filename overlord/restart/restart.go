@@ -25,7 +25,6 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 )
@@ -141,19 +140,16 @@ func ReplaceBootID(st *state.State, bootID string) {
 // CheckRestartHappened returns an error in case the (expected)
 // restart did not happen.
 func CheckRestartHappened(t *state.Task) error {
+	rm := restartManager(t.State())
 	// For classic we have not forced a reboot, so we need to look at the
 	// boot id to check if the reboot has already happened or not. If not,
 	// we return with a Hold error.
 	if release.OnClassic {
-		// boot-id will be present only if a reboot was required,
-		// otherwise we continue down the function.
-		var changeBootId string
-		if err := t.Change().Get("boot-id", &changeBootId); err == nil {
-			currentBootID, err := osutil.BootID()
-			if err != nil {
-				return err
-			}
-			if currentBootID == changeBootId {
+		// hold-for-boot-id will be present only if a reboot was required
+		var holdBootId string
+		if err := t.Get("hold-for-boot-id", &holdBootId); err == nil {
+			// Is system boot id the same as the one in the task?
+			if rm.bootID == holdBootId {
 				t.Logf("Waiting for manual restart...")
 				return &state.Hold{Reason: "waiting for user to reboot"}
 			}
@@ -167,15 +163,11 @@ func CheckRestartHappened(t *state.Task) error {
 
 // SetRestartData sets restart relevant data in the task state.
 func SetRestartData(t *state.Task) error {
-	// Store current boot id to be able to check later if we have
-	// rebooted or not
-	bootId, err := osutil.BootID()
-	if err != nil {
-		return err
-	}
-	t.Change().Set("boot-id", bootId)
+	rm := restartManager(t.State())
 	if release.OnClassic {
-		t.Set("waiting-reboot", true)
+		// Store current boot id to be able to check later if we have
+		// rebooted or not
+		t.Set("hold-for-boot-id", rm.bootID)
 	}
 
 	return nil
@@ -230,27 +222,25 @@ func (m *RestartManager) StartUp() error {
 
 	// Move forward tasks that were waiting for an external reboot
 	for _, ch := range m.state.Changes() {
-		var chBootId string
-		if err := ch.Get("boot-id", &chBootId); err != nil {
-			continue
-		}
-		if rm.bootID == chBootId {
-			// Current boot id has not changed
-			continue
-		}
 		for _, t := range ch.Tasks() {
 			if t.Status() != state.HoldStatus {
 				continue
 			}
-			var waitingReboot bool
-			t.Get("waiting-reboot", &waitingReboot)
-			if !waitingReboot {
+
+			var holdBootId string
+			if err := t.Get("hold-for-boot-id", &holdBootId); err != nil {
 				continue
 			}
+
+			if rm.bootID == holdBootId {
+				// Current boot id has not changed
+				continue
+			}
+
 			logger.Debugf("restart already happened, moving forward task %q for change %s",
 				t.Summary(), ch.ID())
 			t.SetStatus(state.DoStatus)
-			t.Set("waiting-reboot", nil)
+			t.Set("hold-for-boot-id", nil)
 		}
 	}
 

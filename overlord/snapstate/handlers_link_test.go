@@ -860,9 +860,6 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBase(c *C) {
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
 	c.Assert(t.Log(), HasLen, 1)
 	c.Check(t.Log()[0], Matches, `.*INFO Requested system restart.*`)
-	// A boot id must have been set in the task by MaybeReboot
-	var bootId string
-	c.Check(t.Change().Get("boot-id", &bootId), IsNil)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *C) {
@@ -910,7 +907,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *
 	c.Check(t.Log()[0], Matches, `.*INFO Not restarting as this is a classic device.`)
 	// A boot id must have been set in the task by MaybeReboot
 	var bootId string
-	c.Check(chg.Get("boot-id", &bootId), IsNil)
+	c.Check(t.Get("hold-for-boot-id", &bootId), IsNil)
 	c.Check(bootId, NotNil)
 }
 
@@ -1382,9 +1379,6 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCoreBase(c *C) {
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
-	// A boot id must have been set in the task by MaybeReboot
-	var bootId string
-	c.Check(chg.Get("boot-id", &bootId), IsNil)
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnapCoreClassic(c *C) {

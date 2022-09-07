@@ -218,25 +218,19 @@ func (ses *restartSuite) TestRestartHeldTasks(c *C) {
 	chg.AddTask(tsk)
 	s.Unlock()
 
-	// No boot id is set in the change, status does not change
+	// No hold boot id is set in the task, status does not change
 	currentBootId := "00000000-0000-0000-0000-000000000000"
 	runStartUpAndCheckStatus(c, s, tsk, currentBootId, state.HoldStatus)
 
-	// same boot id in change/system, status does not change
+	// same boot id in task/system, status does not change
 	s.Lock()
-	chg.Set("boot-id", currentBootId)
+	tsk.Set("hold-for-boot-id", currentBootId)
 	s.Unlock()
 	runStartUpAndCheckStatus(c, s, tsk, currentBootId, state.HoldStatus)
 
-	// boot id changed in change but waiting-reboot not set, status does not change
+	// hold boot id changed in task, status changes
 	s.Lock()
-	chg.Set("boot-id", "11111111-1111-1111-1111-111111111111")
-	s.Unlock()
-	runStartUpAndCheckStatus(c, s, tsk, currentBootId, state.HoldStatus)
-
-	// boot id changed and waiting-reboot set, status changes
-	s.Lock()
-	tsk.Set("waiting-reboot", true)
+	tsk.Set("hold-for-boot-id", "11111111-1111-1111-1111-111111111111")
 	s.Unlock()
 	runStartUpAndCheckStatus(c, s, tsk, currentBootId, state.DoStatus)
 }
