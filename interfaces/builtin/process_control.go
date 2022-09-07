@@ -46,6 +46,8 @@ capability kill,
 signal (send),
 /{,usr/}bin/kill ixr,
 /{,usr/}bin/pkill ixr,
+
+@{PROC}/self/coredump_filter wr,
 `
 
 const processControlConnectedPlugSecComp = `
