@@ -107,6 +107,7 @@ type Overlord struct {
 	deviceMgr  *devicestate.DeviceManager
 	cmdMgr     *cmdstate.CommandManager
 	shotMgr    *snapshotstate.SnapshotManager
+	restartMgr *restart.RestartManager
 	// proxyConf mediates the http proxy config
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
@@ -213,6 +214,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.cmdMgr = x
 	case *snapshotstate.SnapshotManager:
 		o.shotMgr = x
+	case *restart.RestartManager:
+		o.restartMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
@@ -659,6 +662,11 @@ func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 // SnapshotManager returns the manager responsible for snapshots.
 func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
 	return o.shotMgr
+}
+
+// RestartManager returns the manager responsible for snapshots.
+func (o *Overlord) RestartManager() *restart.RestartManager {
+	return o.restartMgr
 }
 
 // Mock creates an Overlord without any managers and with a backend
