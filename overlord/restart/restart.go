@@ -222,6 +222,9 @@ func (m *RestartManager) StartUp() error {
 
 	// Move forward tasks that were waiting for an external reboot
 	for _, ch := range m.state.Changes() {
+		if ch.IsReady() {
+			continue
+		}
 		for _, t := range ch.Tasks() {
 			if t.Status() != state.HoldStatus {
 				continue
