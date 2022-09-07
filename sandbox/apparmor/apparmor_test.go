@@ -101,12 +101,14 @@ func (*apparmorSuite) TestAppArmorSystemCacheFallsback(c *C) {
 	err := os.MkdirAll(systemCacheDir, 0755)
 	c.Assert(err, IsNil)
 	dirs.SetRootDir(dir1)
+	defer dirs.SetRootDir("")
 	c.Assert(apparmor.SystemCacheDir, Equals, systemCacheDir)
 
 	// but if we set a new root dir without the system cache dir, now the var is
 	// set to the CacheDir
 	dir2 := c.MkDir()
 	dirs.SetRootDir(dir2)
+	defer dirs.SetRootDir("")
 	c.Assert(apparmor.SystemCacheDir, Equals, apparmor.CacheDir)
 
 	// finally test that it's insufficient to just have the conf dir, we need
@@ -115,6 +117,7 @@ func (*apparmorSuite) TestAppArmorSystemCacheFallsback(c *C) {
 	err = os.MkdirAll(filepath.Join(dir3, "/etc/apparmor.d"), 0755)
 	c.Assert(err, IsNil)
 	dirs.SetRootDir(dir3)
+	defer dirs.SetRootDir("")
 	c.Assert(apparmor.SystemCacheDir, Equals, apparmor.CacheDir)
 }
 
@@ -312,6 +315,7 @@ profile snap-test {
 	// pretend we have an internal apparmor_parser
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
+	defer dirs.SetRootDir("")
 	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
 	c.Assert(os.MkdirAll(d, 0755), IsNil)
 	p := filepath.Join(d, "apparmor_parser")
@@ -425,6 +429,7 @@ func (s *apparmorSuite) TestValidateFreeFromAAREhappy(c *C) {
 func (s *apparmorSuite) TestSnapdAppArmorSupportsReexecImpl(c *C) {
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
+	defer dirs.SetRootDir("")
 
 	// with no info file should indicate it does not support reexec
 	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)
