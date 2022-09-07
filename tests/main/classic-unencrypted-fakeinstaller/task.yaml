@@ -21,6 +21,9 @@ execute: |
   # For now pretend we have a modeenv
   echo "mode=run" > /var/lib/snapd/modeenv
   tests.cleanup defer rm -f /var/lib/snapd/modeenv
+  # need snapd restart as GET /systems/<label> is only available on systems
+  # with a modeenv
+  systemctl restart snapd
 
   # prepare a fake classic seed
   LABEL=20220808
@@ -38,6 +41,8 @@ execute: |
 
   TDIR=/var/lib/snapd/seed/snaps
   mkdir -p "$TDIR"
+  # TODO: use custom pc gadget for classic instead of UC one
+  snap download --target-directory="$TDIR" --channel=22 pc
   cat "$TDIR"/pc_*.assert >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
   echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
   snap download --target-directory="$TDIR" --channel=22 pc-kernel
@@ -45,12 +50,10 @@ execute: |
   echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
   snap download --target-directory="$TDIR" core22
   cat "$TDIR"/core22_*.assert >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
-  echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snap
+  echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
   snap download --target-directory="$TDIR" snapd
   cat "$TDIR"/snapd_*.assert >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
   echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
-  # TODO: use custom pc gadget for classic instead of UC one
-  snap download --target-directory="$TDIR" --channel=22 pc
 
   # do some light checking that the system is valid
   snap install test-snapd-curl --devmode --edge
@@ -77,3 +80,4 @@ execute: |
   MATCH "${loop_device}p3 .* ubuntu-boot" < fdisk_output
   MATCH "${loop_device}p4 .* ubuntu-save" < fdisk_output
   MATCH "${loop_device}p5 .* ubuntu-data" < fdisk_output
+
