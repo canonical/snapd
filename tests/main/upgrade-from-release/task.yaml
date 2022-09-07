@@ -18,6 +18,11 @@ execute: |
         exit
     fi
 
+    if os.query is-arm; then
+        echo "there is no content for arm64 in repo http://archive.ubuntu.com/ubuntu (just amd64 and i386)"
+        exit
+    fi
+
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
 
@@ -29,19 +34,18 @@ execute: |
         UBUNTU_CODENAME=trusty-security
     fi
 
-    # on anything but 16.04 get the snapd from the current distro
-    # release (without -updates)
-    if [ "${VERSION_ID}" != "16.04" ]; then
-        echo "deb http://archive.ubuntu.com/ubuntu ${UBUNTU_CODENAME} main" > /tmp/no-updates.list
-        apt update -o dir::etc::sourcelist=/tmp/no-updates.list -o dir::etc::sourceparts=/tmp/not-exists
-        apt install -o dir::etc::sourcelist=/tmp/no-updates.list -o dir::etc::sourceparts=/tmp/not-exists -y snapd
-        apt update -qq
-    else
+    if os.query is-ubuntu 16.04; then
         # 16.04 is ESM so get the latest version from the official archive
         # (we can't get the very first version because it's so old it
         # cannot run our test snaps)
         apt install -y snapd=2.48.3
+    else
+        echo "deb http://archive.ubuntu.com/ubuntu ${UBUNTU_CODENAME} main" > /tmp/no-updates.list
+        apt update -o dir::etc::sourcelist=/tmp/no-updates.list -o dir::etc::sourceparts=/tmp/not-exists
+        apt install -o dir::etc::sourcelist=/tmp/no-updates.list -o dir::etc::sourceparts=/tmp/not-exists -y snapd
+        apt update -qq
     fi
+
     declare -A EXPECTED_SNAPD_VERSIONS=(
         ["22.04"]='2.55.3\+22.04'
         ["20.04"]='2.44.3\+20.04'
