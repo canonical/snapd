@@ -36,7 +36,10 @@ execute: |
     retry -n 4 --wait 0.5 test -e "$USER_RUNTIME_DIR"/snap.wayland-server/wayland-9
 
     echo "Hard link the socket to the location the client expects the socket"
-    ln "$USER_RUNTIME_DIR"/snap.wayland-server/wayland-9 "$USER_RUNTIME_DIR"/wayland-9
+    tests.session -u test exec ln "$USER_RUNTIME_DIR"/snap.wayland-server/wayland-9 "$USER_RUNTIME_DIR"/wayland-9
+
+    echo "The two paths now represent the same socket"
+    ls -li "$USER_RUNTIME_DIR"/snap.wayland-server/wayland-9 "$USER_RUNTIME_DIR"/wayland-9
 
     echo "The wayland client can connect to the socket"
     tests.session -u test exec wayland-client | MATCH "Hello from wayland-server"
