@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -369,6 +369,8 @@ var gradeToCode = map[ModelGrade]uint32{
 	ModelDangerous:  0x10000,
 	ModelSigned:     0x80000,
 	ModelSecured:    0x100000,
+	// reserved by secboot to measure classic models
+	// "ClassicModelGradeMask": 0x80000000
 }
 
 // Code returns a bit representation of the grade, for example for

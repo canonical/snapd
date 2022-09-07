@@ -453,7 +453,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	// commonly used core and snapd revisions in tests
 	defaultInfoFile := `
 VERSION=2.54.3+git1.g479e745-dirty
-SNAPD_APPARMOR_REEXEC=0
+SNAPD_APPARMOR_REEXEC=1
 `
 	for _, snapName := range []string{"snapd", "core"} {
 		for _, rev := range []string{"1", "11", "30"} {

@@ -31,7 +31,7 @@ restore: |
 
 debug: |
     ls -lah /var/cache/fontconfig/
-    dpkg-reconfigure fontconfig
+    dpkg-reconfigure fontconfig || true
     ls -lah /var/cache/fontconfig/
 
 execute: |

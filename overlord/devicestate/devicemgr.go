@@ -1802,6 +1802,52 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 	return systems, nil
 }
 
+// SystemAndGadgetInfo return the system details including the model
+// assertion and gadget details for the given system label.
+func (m *DeviceManager) SystemAndGadgetInfo(wantedSystemLabel string) (*System, *gadget.Info, error) {
+	if m.isClassicBoot {
+		return nil, nil, fmt.Errorf("cannot get model and gadget information on a classic boot system")
+	}
+	// get current system as input for loadSeedAndSystem()
+	systemMode := m.SystemMode(SysAny)
+	currentSys, _ := currentSystemForMode(m.state, systemMode)
+
+	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// 2. get the gadget volumes for the given seed-label
+	perf := &timings.Timings{}
+	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, perf); err != nil {
+		return nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
+	}
+	gadgetSnap := s.EssentialSnaps()[0]
+	if gadgetSnap.Path == "" {
+		return nil, nil, fmt.Errorf("internal error: cannot get gadget snap path")
+	}
+	snapf, err := snapfile.Open(gadgetSnap.Path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	gadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot read gadget.yaml: %v", err)
+	}
+	gadgetInfo, err := gadget.InfoFromGadgetYaml(gadgetYaml, sys.Model)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
+	}
+	// TODO: once EncryptionSupportInfo from PR#12060 is available use it
+	//       here to set the right option
+	opts := &gadget.ValidationConstraints{}
+	if err := gadget.Validate(gadgetInfo, sys.Model, opts); err != nil {
+		return nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
+	}
+
+	return sys, gadgetInfo, nil
+}
+
 var ErrUnsupportedAction = errors.New("unsupported action")
 
 // Reboot triggers a reboot into the given systemLabel and mode.
@@ -2221,4 +2267,139 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	}] = reinstallKeyFile
 
 	return secbootRemoveRecoveryKeys(recoveryKeyDevices)
+}
+
+// EncryptionSupportInfo describes what encryption is available and needed
+// for the current device.
+type EncryptionSupportInfo struct {
+	// Disabled is set if to true encryption was forcefully
+	// disabled (e.g. via the seed partition), if set the rest
+	// of the struct content is not relevant.
+	Disabled bool
+
+	// StorageSafety describes the level safety properties
+	// requested by the model
+	StorageSafety asserts.StorageSafety
+	// Available is set to true if encryption is available on this device
+	// with the used gadget.
+	Available bool
+
+	// Type is set to the EncryptionType that can be used if
+	// Available is true.
+	Type secboot.EncryptionType
+
+	// UnvailableErr is set if the encryption support availability of
+	// the this device and used gadget do not match the
+	// storage safety requirements.
+	UnavailableErr error
+	// UnavailbleWarning describes why encryption support is not
+	// available in case it is optional.
+	UnavailableWarning string
+}
+
+var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
+
+// checkEncryption verifies whether encryption should be used based on the
+// model grade and the availability of a TPM device or a fde-setup hook
+// in the kernel.
+func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (secboot.EncryptionType, error) {
+	model := deviceCtx.Model()
+
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return "", fmt.Errorf("cannot check encryption support: %v", err)
+	}
+	gadgetSnapInfo, err := snapstate.GadgetInfo(st, deviceCtx)
+	if err != nil {
+		return "", err
+	}
+	gadgetInfo, err := gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
+	if err != nil {
+		return "", err
+	}
+
+	res, err := m.encryptionSupportInfo(model, kernelInfo, gadgetInfo)
+	if err != nil {
+		return "", err
+	}
+	if res.UnavailableWarning != "" {
+		logger.Noticef("%s", res.UnavailableWarning)
+	}
+	// encryption disabled or preferred unencrypted: follow the model preferences here even if encryption would be available
+	if res.Disabled || res.StorageSafety == asserts.StorageSafetyPreferUnencrypted {
+		res.Type = secboot.EncryptionTypeNone
+	}
+
+	return res.Type, res.UnavailableErr
+}
+
+func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
+	secured := model.Grade() == asserts.ModelSecured
+	dangerous := model.Grade() == asserts.ModelDangerous
+	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
+
+	res := EncryptionSupportInfo{
+		StorageSafety: model.StorageSafety(),
+	}
+
+	// check if we should disable encryption non-secured devices
+	// TODO:UC20: this is not the final mechanism to bypass encryption
+	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
+		res.Disabled = true
+		return res, nil
+	}
+
+	// check encryption: this can either be provided by the fde-setup
+	// hook mechanism or by the built-in secboot based encryption
+	checkFDESetupHookEncryption := hasFDESetupHookInKernel(kernelInfo)
+	// Note that having a fde-setup hook will disable the internal
+	// secboot based encryption
+	checkSecbootEncryption := !checkFDESetupHookEncryption
+	var checkEncryptionErr error
+	switch {
+	case checkFDESetupHookEncryption:
+		res.Type, checkEncryptionErr = m.checkFDEFeatures()
+	case checkSecbootEncryption:
+		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
+		if checkEncryptionErr == nil {
+			res.Type = secboot.EncryptionTypeLUKS
+		}
+	default:
+		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
+	}
+	res.Available = (checkEncryptionErr == nil)
+
+	if checkEncryptionErr != nil {
+		switch {
+		case secured:
+			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
+		case encrypted:
+			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
+		case checkFDESetupHookEncryption:
+			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
+		case checkSecbootEncryption:
+			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
+		default:
+			return res, fmt.Errorf("internal error: checkEncryptionErr is set but not handled by the code")
+		}
+	}
+
+	// If encryption is available check if the gadget is
+	// compatible with encryption.
+	if res.Available {
+		opts := &gadget.ValidationConstraints{
+			EncryptedData: true,
+		}
+		if err := gadget.Validate(gadgetInfo, model, opts); err != nil {
+			if secured || encrypted {
+				res.UnavailableErr = fmt.Errorf("cannot use encryption with the gadget: %v", err)
+			} else {
+				res.UnavailableWarning = fmt.Sprintf("cannot use encryption with the gadget, disabling encryption: %v", err)
+			}
+			res.Available = false
+			res.Type = secboot.EncryptionTypeNone
+		}
+	}
+
+	return res, nil
 }

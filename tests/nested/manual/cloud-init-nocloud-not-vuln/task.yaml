@@ -58,10 +58,9 @@ prepare: |
     tests.nested create-vm core --param-cdrom "-cdrom $(pwd)/seed.iso"
 
 debug: |
-    if [ -f snapd-before-reboot.logs ]; then
-        echo "logs before reboot"
-        cat snapd-before-reboot.logs
-    fi
+    echo "logs before reboot"
+    cat snapd-before-reboot.logs || true
+
     echo "logs from current nested VM boot snapd"
     tests.nested exec "sudo journalctl -e --no-pager -u snapd" || true
 

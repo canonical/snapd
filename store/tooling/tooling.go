@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -48,8 +49,8 @@ type ToolingStore struct {
 	// left unset stdout is used
 	Stdout io.Writer
 
-	sto   StoreImpl
-	creds store.Authorizer
+	sto StoreImpl
+	cfg *store.Config
 }
 
 // A StoreImpl can find metadata on snaps, download snaps and fetch assertions.
@@ -74,10 +75,17 @@ func newToolingStore(arch, storeID string) (*ToolingStore, error) {
 		return nil, err
 	}
 	cfg.Authorizer = creds
+	if storeURL := os.Getenv("UBUNTU_STORE_URL"); storeURL != "" {
+		u, err := url.Parse(storeURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid UBUNTU_STORE_URL: %v", err)
+		}
+		cfg.StoreBaseURL = u
+	}
 	sto := store.New(cfg, nil)
 	return &ToolingStore{
-		sto:   sto,
-		creds: creds,
+		sto: sto,
+		cfg: cfg,
 	}, nil
 }
 

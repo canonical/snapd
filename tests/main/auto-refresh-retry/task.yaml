@@ -12,7 +12,7 @@ restore: |
 
 debug: |
     systemctl cat snapd.service
-    ip netns list
+    ip netns list || true
     ip netns pids testns || true
 
 execute: |
