@@ -96,20 +96,24 @@ func (rs *RestartManager) rebootDidNotHappen(st *state.State) error {
 	return nil
 }
 
-// Request asks for a restart of the managing process.
-// The state needs to be locked to request a restart.
-func Request(st *state.State, t RestartType, rebootInfo *boot.RebootInfo) {
+func restartManager(st *state.State) *RestartManager {
 	cached := st.Cached(restartManagerKey{})
 	if cached == nil {
 		panic("internal error: cannot request a restart before restart.Manager")
 	}
-	rs := cached.(*RestartManager)
+	return cached.(*RestartManager)
+}
+
+// Request asks for a restart of the managing process.
+// The state needs to be locked to request a restart.
+func Request(st *state.State, t RestartType, rebootInfo *boot.RebootInfo) {
+	rm := restartManager(st)
 	switch t {
 	case RestartSystem, RestartSystemNow, RestartSystemHaltNow, RestartSystemPoweroffNow:
-		st.Set("system-restart-from-boot-id", rs.bootID)
+		st.Set("system-restart-from-boot-id", rm.bootID)
 	}
-	rs.restarting = t
-	rs.handleRestart(t, rebootInfo)
+	rm.restarting = t
+	rm.handleRestart(t, rebootInfo)
 }
 
 // Pending returns whether a restart was requested with Request and of which type.
@@ -118,28 +122,20 @@ func Pending(st *state.State) (bool, RestartType) {
 	if cached == nil {
 		return false, RestartUnset
 	}
-	rs := cached.(*RestartManager)
-	return rs.restarting != RestartUnset, rs.restarting
+	rm := cached.(*RestartManager)
+	return rm.restarting != RestartUnset, rm.restarting
 }
 
 func MockPending(st *state.State, restarting RestartType) RestartType {
-	cached := st.Cached(restartManagerKey{})
-	if cached == nil {
-		panic("internal error: cannot mock a restart request before restart.Manager")
-	}
-	rs := cached.(*RestartManager)
-	old := rs.restarting
-	rs.restarting = restarting
+	rm := restartManager(st)
+	old := rm.restarting
+	rm.restarting = restarting
 	return old
 }
 
 func ReplaceBootID(st *state.State, bootID string) {
-	cached := st.Cached(restartManagerKey{})
-	if cached == nil {
-		panic("internal error: cannot mock a restart request before restart.Manager")
-	}
-	rs := cached.(*RestartManager)
-	rs.bootID = bootID
+	rm := restartManager(st)
+	rm.bootID = bootID
 }
 
 // CheckRestartHappened returns an error in case the (expected)
@@ -230,11 +226,7 @@ func (m *RestartManager) StartUp() error {
 	s.Lock()
 	defer s.Unlock()
 
-	cached := s.Cached(restartManagerKey{})
-	if cached == nil {
-		panic("internal error: cannot mock a restart request before restart.Manager")
-	}
-	rm := cached.(*RestartManager)
+	rm := restartManager(s)
 
 	// Move forward tasks that were waiting for an external reboot
 	for _, ch := range m.state.Changes() {
