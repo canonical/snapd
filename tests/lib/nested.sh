@@ -288,15 +288,6 @@ nested_qemu_name() {
     esac
 }
 
-        ubuntu-20.04-arm-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-arm64.img"
-            ;;
-        ubuntu-20.04-arm-64*)
-            echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-arm64.img"
-            ;;
-            ;;
-        ubuntu-22.04-arm-64*)
-            echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-arm64.img"
 nested_get_snap_rev_for_channel() {
     local SNAP=$1
     local CHANNEL=$2
