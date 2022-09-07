@@ -724,13 +724,13 @@ var generateSnapdWrappers = backend.GenerateSnapdWrappers
 // For snapd snap updates this will also rerun wrappers generation to fully
 // catch up with any change.
 func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
-	// Check restart related data to find out if restart really happened
-	if err := restart.CheckRestartHappened(task); err != nil {
-		return err
-	}
 	if snapdenv.Preseeding() {
 		// nothing to do when preseeding
 		return nil
+	}
+	// Check restart related data to find out if restart really happened
+	if err := restart.CheckRestartHappened(task); err != nil {
+		return err
 	}
 	if ok, _ := restart.Pending(task.State()); ok {
 		// don't continue until we are in the restarted snapd
