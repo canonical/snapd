@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -313,6 +313,7 @@ var (
 var (
 	InhibitRefresh = inhibitRefresh
 	MaxInhibition  = maxInhibition
+	MaxDuration    = maxDuration
 )
 
 type RefreshCandidate = refreshCandidate
@@ -349,7 +350,6 @@ type HoldState = holdState
 var (
 	HoldDurationLeft           = holdDurationLeft
 	LastRefreshed              = lastRefreshed
-	HeldSnaps                  = heldSnaps
 	PruneRefreshCandidates     = pruneRefreshCandidates
 	ResetGatingForRefreshed    = resetGatingForRefreshed
 	PruneGating                = pruneGating

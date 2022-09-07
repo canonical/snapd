@@ -13,6 +13,11 @@ restore: |
     distro_install_build_snapd
 
 execute: |
+    if os.query is-ubuntu 22.10; then
+        echo "Ubuntu kinetic is skipped until it is released."
+        exit
+    fi
+
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
 

@@ -660,10 +660,7 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted ass
 				return err
 			}
 		}
-		if a.SignatoryID() != a.AuthorityID() {
-			return fmt.Errorf("signing authority delegation is not supported for repairs")
-		}
-		if _, err := asserts.CheckSignature(a, key.(*asserts.AccountKey), nil, nil, time.Time{}, time.Time{}); err != nil {
+		if err := asserts.CheckSignature(a, key.(*asserts.AccountKey), nil, time.Time{}, time.Time{}); err != nil {
 			return err
 		}
 		a = key

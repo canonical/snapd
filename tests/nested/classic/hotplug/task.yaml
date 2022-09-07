@@ -21,13 +21,11 @@ restore: |
     rm -f /tmp/serialport{0,1}
 
 debug: |
-    set +e
-    remote.exec "snap connections --all"
-    remote.exec "snap list"
-    remote.exec "dmesg"
-    remote.exec 'sudo jq -r ".data[\"hotplug-slots\"]" /var/lib/snapd/state.json'
-    remote.exec 'lsmod'
-    set -e
+    remote.exec "snap connections --all" || true
+    remote.exec "snap list" || true
+    remote.exec "dmesg" || true
+    remote.exec 'sudo jq -r ".data[\"hotplug-slots\"]" /var/lib/snapd/state.json' || true
+    remote.exec 'lsmod' || true
 
 execute: |
     #shellcheck source=tests/lib/hotplug.sh

@@ -4,7 +4,7 @@ environment:
     CONSUMER_SNAP: test-snapd-policy-app-consumer
 
 debug: |
-    journalctl -u snap.apparmor.service
+    "$TESTSTOOLS"/journal-state get-log -u snap.apparmor.service
 
 execute: |
     if ! systemctl is-active snapd.apparmor.service; then

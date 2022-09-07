@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -41,6 +42,7 @@ func checkSystemdVersion() {
 }
 
 func init() {
+	snapstate.AddSnapToQuotaGroup = AddSnapToQuotaGroup
 	EnsureQuotaUsability()
 }
 
@@ -311,69 +313,20 @@ func EnsureSnapAbsentFromQuota(st *state.State, snap string) error {
 	return nil
 }
 
-// QuotaChangeConflictError represents an error because of quota group conflicts between changes.
-type QuotaChangeConflictError struct {
-	Quota      string
-	ChangeKind string
-	// a Message is optional, otherwise one is composed from the other information
-	Message string
-}
-
-func (e *QuotaChangeConflictError) Error() string {
-	if e.Message != "" {
-		return e.Message
-	}
-	if e.ChangeKind != "" {
-		return fmt.Sprintf("quota group %q has %q change in progress", e.Quota, e.ChangeKind)
-	}
-	return fmt.Sprintf("quota group %q has changes in progress", e.Quota)
-}
-
-// CheckQuotaChangeConflictMany ensures that for the given quota groups no other
-// changes that alters them (like create, update, remove) are in
-// progress. If a conflict is detected an error is returned.
-func CheckQuotaChangeConflictMany(st *state.State, quotaNames []string) error {
-	quotaMap := make(map[string]bool, len(quotaNames))
-	for _, k := range quotaNames {
-		quotaMap[k] = true
+// AddSnapToQuotaGroup returns a task for adding a snap to a quota group. It wraps the task creation
+// with proper conflict detection for the affected quota-group. Conflict detection for the snap being
+// added must be done by the larger context, as this function is intended to be used in the context
+// of a more complex change.
+func AddSnapToQuotaGroup(st *state.State, snapName string, quotaGroup string) (*state.Task, error) {
+	if err := CheckQuotaChangeConflictMany(st, []string{quotaGroup}); err != nil {
+		return nil, err
 	}
 
-	for _, task := range st.Tasks() {
-		chg := task.Change()
-		if chg == nil || chg.IsReady() {
-			continue
-		}
-
-		quotas, err := affectedQuotas(task)
-		if err != nil {
-			return err
-		}
-
-		for _, quota := range quotas {
-			if quotaMap[quota] {
-				return &QuotaChangeConflictError{Quota: quota, ChangeKind: chg.Kind()}
-			}
-		}
-	}
-
-	return nil
-}
-
-func affectedQuotas(task *state.Task) ([]string, error) {
-	// so far only quota-control is relevant
-	if task.Kind() != "quota-control" {
-		return nil, nil
-	}
-
-	qcs := []QuotaControlAction{}
-	if err := task.Get("quota-control-actions", &qcs); err != nil {
-		return nil, fmt.Errorf("internal error: cannot get quota-control-actions: %v", err)
-	}
-	quotas := make([]string, 0, len(qcs))
-	for _, qc := range qcs {
-		// TODO: the affected quotas will expand beyond this
-		// if we support reparenting or orphaning
-		quotas = append(quotas, qc.QuotaName)
-	}
-	return quotas, nil
+	// This could result in doing 'setup-profiles' twice, but
+	// unfortunately we can't execute this code earlier as the snap
+	// needs to appear as installed first.
+	quotaControlTask := st.NewTask("quota-add-snap", fmt.Sprintf(i18n.G("Add snap %q to quota group %q"),
+		snapName, quotaGroup))
+	quotaControlTask.Set("quota-name", quotaGroup)
+	return quotaControlTask, nil
 }

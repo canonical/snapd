@@ -29,8 +29,6 @@ environment:
   START_SNAPD_VERSION/startwithnew: new
   START_SNAPD_VERSION/startwithold: old
 
-  NESTED_IMAGE_ID: uc20-breakages-testing-$START_SNAPD_VERSION
-
   # all variants need encryption turned on
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true

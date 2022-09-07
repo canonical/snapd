@@ -30,9 +30,7 @@ environment:
 
   # TODO: enable after creating an associated auto-import assertion + model
   # MODEL_GRADE/dangerous: dangerous
-
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-${MODEL_GRADE}.model
-  NESTED_IMAGE_ID: gadget-cloud-conf-testkeys-${MODEL_GRADE}
 
   # for the fake store
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir

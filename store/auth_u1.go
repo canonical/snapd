@@ -81,6 +81,10 @@ func (a UserAuthorizer) Authorize(r *http.Request, _ DeviceAndAuthContext, user 
 	return nil
 }
 
+func (a UserAuthorizer) CanAuthorizeForUser(user *auth.UserState) bool {
+	return user.HasStoreAuth()
+}
+
 func (a UserAuthorizer) RefreshAuth(need AuthRefreshNeed, dauthCtx DeviceAndAuthContext, user *auth.UserState, client *http.Client) error {
 	if user == nil || !need.User {
 		return nil

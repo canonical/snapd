@@ -12,19 +12,16 @@ environment:
   NESTED_ENABLE_TPM/encrypted: "true"
   NESTED_ENABLE_SECURE_BOOT/encrypted: "true"
   NESTED_UBUNTU_SAVE/encrypted: "add"
-  NESTED_IMAGE_ID/encrypted: core20-encrypted
 
   # add ubuntu-save, but but no TPM or secure boot support
   NESTED_ENABLE_TPM/plainwithsave: "false"
   NESTED_ENABLE_SECURE_BOOT/plainwithsave: "false"
   NESTED_UBUNTU_SAVE/plainwithsave: "add"
-  NESTED_IMAGE_ID/plainwithsave: core20-plain-with-ubuntu-save
 
   # no ubuntu-save, no TPM, no secure boot
   NESTED_ENABLE_TPM/plain: "false"
   NESTED_ENABLE_SECURE_BOOT/plain: "false"
   NESTED_UBUNTU_SAVE/plain: "remove"
-  NESTED_IMAGE_ID/plain: core20-plain-no-ubuntu-save
 
 prepare: |
     # NESTED_ENABLE_TPM and NESTED_UBUNTU_SAVE are used by build-image

@@ -42,11 +42,11 @@ func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 		{quota.NewResourcesBuilder().Build(), `quota group must have at least one resource limit set`},
 		{quota.NewResourcesBuilder().WithMemoryLimit(0).Build(), `memory quota must have a limit set`},
 		{quota.NewResourcesBuilder().WithCPUPercentage(0).Build(), `invalid cpu quota with a cpu quota of 0`},
-		{quota.NewResourcesBuilder().WithAllowedCPUs(nil).Build(), `cpu-set quota must not be empty`},
+		{quota.NewResourcesBuilder().WithCPUSet(nil).Build(), `cpu-set quota must not be empty`},
 		{quota.NewResourcesBuilder().WithThreadLimit(0).Build(), `invalid thread quota with a thread count of 0`},
 		{quota.NewResourcesBuilder().Build(), `quota group must have at least one resource limit set`},
 		{quota.NewResourcesBuilder().WithCPUCount(1).Build(), `invalid cpu quota with count of >0 and percentage of 0`},
-		{quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).Build(), `cpu usage 200% is larger than the maximum allowed for provided set \[0\] of 100%`},
+		{quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(100).WithCPUSet([]int{0}).Build(), `cpu usage 200% is larger than the maximum allowed for provided set \[0\] of 100%`},
 		{quota.NewResourcesBuilder().WithJournalRate(0, 1).Build(), `journal quota must have a rate count larger than zero and period at least 1 microsecond \(minimum resolution\)`},
 		{quota.NewResourcesBuilder().WithJournalRate(1, 0).Build(), `journal quota must have a rate count larger than zero and period at least 1 microsecond \(minimum resolution\)`},
 		{quota.NewResourcesBuilder().WithJournalRate(1, time.Nanosecond).Build(), `journal quota must have a rate count larger than zero and period at least 1 microsecond \(minimum resolution\)`},
@@ -68,7 +68,7 @@ func (s *resourcesTestSuite) TestResourceCheckFeatureRequirementsCgroupv1(c *C) 
 	c.Check(good.Validate(), IsNil)
 
 	// cpu set with cgroup v1 is not supported
-	bad := quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build()
+	bad := quota.NewResourcesBuilder().WithCPUSet([]int{0, 1}).Build()
 	c.Check(bad.CheckFeatureRequirements(), ErrorMatches, "cannot use CPU set with cgroup version 1")
 }
 
@@ -81,7 +81,7 @@ func (s *resourcesTestSuite) TestResourceCheckFeatureRequirementsCgroupv1Err(c *
 	c.Check(good.Validate(), IsNil)
 
 	// cpu set without cgroup detection is not supported
-	bad := quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build()
+	bad := quota.NewResourcesBuilder().WithCPUSet([]int{0, 1}).Build()
 	c.Check(bad.CheckFeatureRequirements(), ErrorMatches, "some cgroup detection error")
 }
 
@@ -91,7 +91,7 @@ func (s *resourcesTestSuite) TestQuotaValidationPasses(c *C) {
 	}{
 		{quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build()},
 		{quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build()},
-		{quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build()},
+		{quota.NewResourcesBuilder().WithCPUSet([]int{0, 1}).Build()},
 		{quota.NewResourcesBuilder().WithThreadLimit(16).Build()},
 		{quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB).Build()},
 		{quota.NewResourcesBuilder().WithJournalRate(1, time.Microsecond).Build()},
@@ -141,8 +141,8 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 			`cannot remove cpu limit from quota group`,
 		},
 		{
-			quota.NewResourcesBuilder().WithThreadLimit(16).WithAllowedCPUs([]int{0, 1}).Build(),
-			quota.NewResourcesBuilder().WithAllowedCPUs([]int{}).Build(),
+			quota.NewResourcesBuilder().WithThreadLimit(16).WithCPUSet([]int{0, 1}).Build(),
+			quota.NewResourcesBuilder().WithCPUSet([]int{}).Build(),
 			`cannot remove all allowed cpus from quota group`,
 		},
 		// ensure that changes will call "Validate" too
@@ -162,23 +162,23 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 			`invalid cpu quota with count of >0 and percentage of 0`,
 		},
 		{
-			quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build(),
+			quota.NewResourcesBuilder().WithCPUSet([]int{0, 1}).Build(),
 			quota.NewResourcesBuilder().WithCPUCount(8).WithCPUPercentage(100).Build(),
 			`cpu usage 800% is larger than the maximum allowed for provided set \[0 1\] of 200%`,
 		},
 		{
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
-			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(100).WithAllowedCPUs([]int{0, 1}).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(100).WithCPUSet([]int{0, 1}).Build(),
 			`cpu usage 400% is larger than the maximum allowed for provided set \[0 1\] of 200%`,
 		},
 		{
 			quota.NewResourcesBuilder().WithCPUCount(6).WithCPUPercentage(100).Build(),
-			quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build(),
+			quota.NewResourcesBuilder().WithCPUSet([]int{0, 1}).Build(),
 			`cpu usage 600% is larger than the maximum allowed for provided set \[0 1\] of 200%`,
 		},
 		{
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
-			quota.NewResourcesBuilder().WithAllowedCPUs([]int{}).Build(),
+			quota.NewResourcesBuilder().WithCPUSet([]int{}).Build(),
 			`cpu-set quota must not be empty`,
 		},
 		{
@@ -241,13 +241,13 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationPasses(c *C) {
 		},
 		{
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(4).WithCPUPercentage(25).Build(),
-			quota.NewResourcesBuilder().WithAllowedCPUs([]int{0}).Build(),
-			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0}).Build(),
+			quota.NewResourcesBuilder().WithCPUSet([]int{0}).Build(),
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(4).WithCPUPercentage(25).WithCPUSet([]int{0}).Build(),
 		},
 		{
-			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0}).Build(),
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(4).WithCPUPercentage(25).WithCPUSet([]int{0}).Build(),
 			quota.NewResourcesBuilder().WithThreadLimit(128).Build(),
-			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0}).WithThreadLimit(128).Build(),
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(4).WithCPUPercentage(25).WithCPUSet([]int{0}).WithThreadLimit(128).Build(),
 		},
 		{
 			quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(100).Build(),
@@ -260,19 +260,19 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationPasses(c *C) {
 			quota.NewResourcesBuilder().WithCPUCount(0).WithCPUPercentage(25).Build(),
 		},
 		{
-			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0}).Build(),
-			quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1, 2}).Build(),
-			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0, 1, 2}).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithCPUSet([]int{0}).Build(),
+			quota.NewResourcesBuilder().WithCPUSet([]int{0, 1, 2}).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithCPUSet([]int{0, 1, 2}).Build(),
 		},
 		{
-			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0, 1, 2}).Build(),
-			quota.NewResourcesBuilder().WithAllowedCPUs([]int{0}).Build(),
-			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0}).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithCPUSet([]int{0, 1, 2}).Build(),
+			quota.NewResourcesBuilder().WithCPUSet([]int{0}).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithCPUSet([]int{0}).Build(),
 		},
 		{
-			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0, 1, 2}).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithCPUSet([]int{0, 1, 2}).Build(),
 			quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build(),
-			quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).WithAllowedCPUs([]int{0, 1, 2}).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).WithCPUSet([]int{0, 1, 2}).Build(),
 		},
 		{
 			quota.NewResourcesBuilder().WithJournalRate(15, 5*time.Second).Build(),

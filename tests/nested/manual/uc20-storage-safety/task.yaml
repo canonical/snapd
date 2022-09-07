@@ -10,7 +10,6 @@ environment:
 
     MODEL_STORAGE_SAFETY/preferunencrypted: prefer-unencrypted
     NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-storage-safety-${MODEL_STORAGE_SAFETY}.model
-    NESTED_IMAGE_ID: core20-storage-safety-${MODEL_STORAGE_SAFETY}
     NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
     NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
 

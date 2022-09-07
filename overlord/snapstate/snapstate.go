@@ -532,6 +532,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = installHook
 	}
 
+	if snapsup.QuotaGroupName != "" {
+		quotaAddSnapTask, err := AddSnapToQuotaGroup(st, snapsup.InstanceName(), snapsup.QuotaGroupName)
+		if err != nil {
+			return nil, err
+		}
+		addTask(quotaAddSnapTask)
+		prev = quotaAddSnapTask
+	}
+
 	// run new services
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
 	addTask(startSnapServices)
@@ -687,6 +696,10 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 
 var SetupGateAutoRefreshHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
+}
+
+var AddSnapToQuotaGroup = func(st *state.State, snapName string, quotaGroup string) (*state.Task, error) {
+	panic("internal error: snapstate.AddSnapToQuotaGroup is unset")
 }
 
 var generateSnapdWrappers = backend.GenerateSnapdWrappers
@@ -1492,12 +1505,19 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 			CohortKey: snapst.CohortKey,
 		}
 		return opts, snapst.Flags, snapst
-
 	}
 
 	toUpdate := make([]minimalInstallInfo, len(updates))
 	for i, up := range updates {
 		toUpdate[i] = installSnapInfo{up}
+	}
+
+	// don't refresh held snaps in a general refresh
+	if len(names) == 0 {
+		toUpdate, err = filterHeldSnaps(st, toUpdate)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if err = checkDiskSpace(st, "refresh", toUpdate, userID); err != nil {
@@ -1510,6 +1530,23 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	}
 	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
 	return updated, tasksets, nil
+}
+
+// filterHeldSnaps filters held snaps from being updated in a general refresh.
+func filterHeldSnaps(st *state.State, updates []minimalInstallInfo) ([]minimalInstallInfo, error) {
+	heldSnaps, err := HeldSnaps(st)
+	if err != nil {
+		return nil, err
+	}
+
+	filteredUpdates := make([]minimalInstallInfo, 0, len(updates))
+	for _, update := range updates {
+		if !heldSnaps[update.InstanceName()] {
+			filteredUpdates = append(filteredUpdates, update)
+		}
+	}
+
+	return filteredUpdates, nil
 }
 
 func doUpdate(ctx context.Context, st *state.State, names []string, updates []minimalInstallInfo, params updateParamsFunc, userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, []*state.TaskSet, error) {
@@ -3118,7 +3155,7 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
-func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
+func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, []*state.TaskSet, error) {
 	names = strutil.Deduplicate(names)
 
 	if err := validateSnapNames(names); err != nil {
@@ -3132,7 +3169,7 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 
 	for _, name := range names {
-		ts, snapshotSize, err := removeTasks(st, name, snap.R(0), nil)
+		ts, snapshotSize, err := removeTasks(st, name, snap.R(0), flags)
 		// FIXME: is this expected behavior?
 		if _, ok := err.(*snap.NotInstalledError); ok {
 			continue
