@@ -136,6 +136,7 @@ execute: |
     echo "Check that the directories have the right permissions"
     tests.nested exec "stat /var/lib/snapd/save/snap/ -c %a" | MATCH 755
     tests.nested exec "stat /var/lib/snapd/save/snap/pc -c %a" | MATCH 755
+    tests.nested exec "stat /var/lib/snapd/save/snap/pc/certs -c %a" | MATCH 755
 
     echo "Check that the files from install-device were installed"
     tests.nested exec "cat /var/lib/snapd/save/snap/pc/my-data.conf" | MATCH '# empty configuration file'
