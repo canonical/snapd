@@ -324,7 +324,12 @@ func (u *createUserOpts) setupLocalUser(state *state.State, username, email stri
 
 	// setup new user, local-only
 	state.Lock()
-	authUser, err := auth.NewUser(state, username, email, "", nil)
+	authUser, err := auth.NewUser(state, auth.NewUserData{
+		Username:   username,
+		Email:      email,
+		Macaroon:   "",
+		Discharges: nil,
+	})
 	state.Unlock()
 	if err != nil {
 		return fmt.Errorf("cannot persist authentication details: %v", err)
