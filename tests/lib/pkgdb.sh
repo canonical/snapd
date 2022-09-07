@@ -608,20 +608,22 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-utils
                 "
             ;;
-        ubuntu-20.04-64)
+        ubuntu-20.04-64|ubuntu-20.04-arm-64)
+            # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
                 evolution-data-server
                 fwupd
                 gccgo-9
                 libvirt-daemon-system
+                linux-tools-$(uname -r)
                 packagekit
                 qemu-kvm
                 qemu-utils
                 shellcheck
                 "
             ;;
-        ubuntu-22.04-64|ubuntu-22.10-64)
+        ubuntu-22.04-64|ubuntu-22.04-arm-64|ubuntu-22.10-64)
             # bpftool is part of linux-tools package
             echo "
                 dbus-user-session

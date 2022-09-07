@@ -180,6 +180,22 @@ backends:
                   workers: 6
                   manual: true
 
+    google-arm:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-central1-a
+        plan: t2a-standard-1
+        halt-timeout: 2h
+        systems:
+            - ubuntu-20.04-arm-64:
+                  image: ubuntu-os-cloud/ubuntu-2004-lts-arm64
+                  workers: 8
+                  storage: 12G
+            - ubuntu-22.04-arm-64:
+                  image: ubuntu-os-cloud/ubuntu-2204-lts-arm64
+                  workers: 8
+                  storage: 12G
+
     google-sru:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
