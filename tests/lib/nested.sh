@@ -7,14 +7,14 @@
 . "$TESTSLIB"/store.sh
 
 : "${NESTED_WORK_DIR:=/tmp/work-dir}"
-NESTED_IMAGES_DIR="$NESTED_WORK_DIR/images"
-NESTED_RUNTIME_DIR="$NESTED_WORK_DIR/runtime"
-NESTED_ASSETS_DIR="$NESTED_WORK_DIR/assets"
-NESTED_LOGS_DIR="$NESTED_WORK_DIR/logs"
+: NESTED_IMAGES_DIR="$NESTED_WORK_DIR/images"
+: NESTED_RUNTIME_DIR="$NESTED_WORK_DIR/runtime"
+: NESTED_ASSETS_DIR="$NESTED_WORK_DIR/assets"
+: NESTED_LOGS_DIR="$NESTED_WORK_DIR/logs"
 
-NESTED_VM=nested-vm
-NESTED_SSH_PORT=8022
-NESTED_MON_PORT=8888
+: NESTED_VM=nested-vm
+: NESTED_SSH_PORT=8022
+: NESTED_MON_PORT=8888
 
 : "${NESTED_CUSTOM_MODEL:=}"
 : "${NESTED_CUSTOM_AUTO_IMPORT_ASSERTION:=}"
@@ -288,12 +288,6 @@ nested_qemu_name() {
     esac
 }
 
-        ubuntu-22.10-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/kinetic-server-cloudimg-amd64.img"
-            ;;
-            ;;
-        ubuntu-22.10-64*)
-            echo "https://cloud-images.ubuntu.com/kinetic/current/kinetic-server-cloudimg-amd64.img"
 nested_get_snap_rev_for_channel() {
     local SNAP=$1
     local CHANNEL=$2
