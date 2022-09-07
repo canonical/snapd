@@ -676,34 +676,6 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreParanoidChecks(c *C) {
 	c.Check(s.restartRequests, HasLen, 0)
 }
 
-func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
-
-	restore = devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
-		return errors.New("unexpected call")
-	})
-	defer restore()
-
-	s.state.Lock()
-
-	s.state.Set("seeded", true)
-
-	t := s.state.NewTask("update-gadget-assets", "update gadget")
-	chg := s.state.NewChange("sample", "...")
-	chg.AddTask(t)
-
-	s.state.Unlock()
-
-	s.settle(c)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	c.Assert(chg.IsReady(), Equals, true)
-	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n- update gadget \\(no state entry for key \"snap-setup-task\"\\)")
-	c.Check(t.Status(), Equals, state.ErrorStatus)
-}
-
 type mockUpdater struct{}
 
 func (m *mockUpdater) Backup() error { return nil }
