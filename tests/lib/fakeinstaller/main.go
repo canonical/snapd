@@ -22,13 +22,26 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/mkfs"
 )
+
+func firstVol(volumes map[string]*gadget.Volume) *gadget.Volume {
+	for _, vol := range volumes {
+		return vol
+	}
+	return nil
+}
 
 func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) error {
 	if len(volumes) != 1 {
@@ -56,11 +69,7 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) erro
 	kernelRoot := ""
 
 	// TODO: support multiple volumes, see gadget/install/install.go
-	var vol *gadget.Volume
-	for _, avol := range volumes {
-		vol = avol
-		break
-	}
+	vol := firstVol(volumes)
 	lvol, err := gadget.LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
 	if err != nil {
 		return fmt.Errorf("cannot layout volume: %v", err)
@@ -76,6 +85,10 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) erro
 	return nil
 }
 
+func runMntFor(label string) string {
+	return filepath.Join(dirs.GlobalRootDir, "/run/mnt/", label)
+}
+
 func postSystemsInstallSetupStorageEncryption(details *client.SystemDetails) error {
 	// TODO: check details.StorageEncryption and call POST
 	// /systems/<seed-label> with "action":"install" and
@@ -89,13 +102,66 @@ func postSystemsInstallFinish(details *client.SystemDetails) error {
 	return nil
 }
 
+// XXX: pass in created partitions instead?
+// XXX2: should we mount or will snapd mount?
+func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Volume) error {
+	// only support a single volume for now
+	if len(volumes) != 1 {
+		return fmt.Errorf("got unexpected number of volumes %v", len(volumes))
+	}
+
+	disk, err := disks.DiskFromDeviceName(bootDevice)
+	if err != nil {
+		return err
+	}
+	vol := firstVol(volumes)
+
+	for _, stru := range vol.Structure {
+		if stru.Label == "" || stru.Filesystem == "" {
+			continue
+		}
+
+		part, err := disk.FindMatchingPartitionWithPartLabel(stru.Label)
+		if err != nil {
+			return err
+		}
+		// XXX: reuse
+		// gadget/install/content.go:mountFilesystem() instead
+		// (it will also call udevadm)
+		if err := mkfs.Make(stru.Filesystem, part.KernelDeviceNode, stru.Label, 0, 0); err != nil {
+			return err
+		}
+
+		// mount
+		mountPoint := runMntFor(stru.Label)
+		if err := os.MkdirAll(mountPoint, 0755); err != nil {
+			return err
+		}
+		// XXX: is there a better way?
+		if output, err := exec.Command("mount", part.KernelDeviceNode, mountPoint).CombinedOutput(); err != nil {
+			return osutil.OutputErr(output, err)
+		}
+	}
+	return nil
+}
+
 func createClassicRootfsIfNeeded(bootDevice string, details *client.SystemDetails) error {
 	// TODO: check model and if classic create rootfs somehow
 	return nil
 }
 
 func createSeedOnTarget(bootDevice, seedLabel string) error {
-	// TODO: copy installer seed to target
+	// XXX: too naive?
+	dataMnt := runMntFor("ubuntu-data")
+	src := dirs.SnapSeedDir
+	dst := dirs.SnapSeedDirUnder(dataMnt)
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	if output, err := exec.Command("cp", "-a", src, dst).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+
 	return nil
 }
 
@@ -127,6 +193,9 @@ func run() error {
 	}
 	if err := postSystemsInstallSetupStorageEncryption(details); err != nil {
 		return fmt.Errorf("cannot setup storage encryption: %v", err)
+	}
+	if err := createAndMountFilesystems(bootDevice, details.Volumes); err != nil {
+		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
 	if err := createClassicRootfsIfNeeded(bootDevice, details); err != nil {
 		return fmt.Errorf("cannot create classic rootfs: %v", err)
