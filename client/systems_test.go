@@ -255,7 +255,7 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
                     {"title": "reinstall", "mode": "install"}
                 ],
                 "storage-encryption": {
-                    "available":"yes",
+                    "support":"available",
                     "storage-safety":"prefer-encrypted",
                     "encryption-type":"cryptsetup"
                 },
@@ -291,7 +291,7 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
 			{Title: "reinstall", Mode: "install"},
 		},
 		StorageEncryption: &client.StorageEncryption{
-			Available:     "yes",
+			Support:       "available",
 			StorageSafety: "prefer-encrypted",
 			Type:          "cryptsetup",
 		},

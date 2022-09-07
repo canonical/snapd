@@ -120,19 +120,20 @@ func storageEncryption(encInfo *devicestate.EncryptionSupportInfo) *client.Stora
 		Type:          string(encInfo.Type),
 	}
 	if encInfo.Disabled {
-		storageEnc.StorageSafety = "disabled"
+		storageEnc.Support = "disabled"
+		return storageEnc
 	}
 	required := (encInfo.StorageSafety == asserts.StorageSafetyEncrypted)
 	switch {
 	case required && encInfo.Available:
-		storageEnc.Available = "yes"
+		storageEnc.Support = "available"
 	case !required && encInfo.Available:
-		storageEnc.Available = "yes"
+		storageEnc.Support = "available"
 	case required && !encInfo.Available:
-		storageEnc.Available = "no-and-required"
+		storageEnc.Support = "defective"
 		storageEnc.UnavailableReason = encInfo.UnavailableErr.Error()
 	case !required && !encInfo.Available:
-		storageEnc.Available = "no-but-optional"
+		storageEnc.Support = "unavailable"
 		storageEnc.UnavailableReason = encInfo.UnavailableWarning
 	}
 

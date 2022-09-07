@@ -839,7 +839,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelHappy(c *check.C) {
 			Validation:  "unproven",
 		},
 		StorageEncryption: &client.StorageEncryption{
-			Available:         "no-but-optional",
+			Support:           "unavailable",
 			StorageSafety:     "prefer-encrypted",
 			UnavailableReason: "not encrypting device storage as checking TPM gave: some reason",
 		},
@@ -918,7 +918,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 			Validation:  "unproven",
 		},
 		StorageEncryption: &client.StorageEncryption{
-			Available:         "no-but-optional",
+			Support:           "unavailable",
 			StorageSafety:     "prefer-encrypted",
 			UnavailableReason: "not encrypting device storage as checking TPM gave: some reason",
 		},

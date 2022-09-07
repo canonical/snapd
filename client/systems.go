@@ -141,17 +141,24 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 }
 
 type StorageEncryption struct {
-	// string: "yes"/"no-but-optional"/"no-and-required"
-	Available string `json:"available,omitempty"`
+	// A string that can contain:
+	// "disabled"    - forcefull disabled the device
+	// "available"   - encryption usable
+	// "unavailable" - encryption unavailable but not required
+	// "defective"   - encryption unavailable and required, this is an error
+	Support string `json:"support,omitempty"`
 
 	// StorageSafety can have values of asserts.StorageSafety
-	// and also "disabled" if the encryption got forcefully disabled
 	StorageSafety string `json:"storage-safety,omitempty"`
 
 	// Type have values of secboot.Type: "", "cryptsetup",
 	// "device-setup-hook"
 	Type string `json:"encryption-type"`
 
+	// UnavailableReason describes why the encryption is not
+	// available in a human readable form. Depending on if
+	// encryption is required or not this should be presented to
+	// the user as either an error or as information.
 	UnavailableReason string `json:"unavailalbe-reason,omitempty"`
 }
 
