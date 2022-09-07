@@ -29,7 +29,7 @@ execute: |
   echo "Checking that all quotas can be listed"
   snap quotas | cat -n > quotas.txt
   MATCH "     1\s+Quota\s+Parent\s+Constraints\s+Current$" < quotas.txt
-  MATCH "     2\s+group-one\s+memory=400MB\s*$" < quotas.txt
+  MATCH "     2\s+group-one\s+memory=400MB(\s*|\s*memory=[0-9.a-zA-Z]+)\s*$" < quotas.txt
   
   echo "Checking quota group details"
   snap quota group-one | cat -n > details.txt
