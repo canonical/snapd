@@ -756,7 +756,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	return updates, stateByInstanceName, ignoreValidationByInstanceName, nil
 }
 
-func installCandidates(st *state.State, names []string, channel string, user *auth.UserState) ([]store.SnapActionResult, error) {
+func installCandidates(st *state.State, names []string, revOpts []*RevisionOptions, channel string, user *auth.UserState) ([]store.SnapActionResult, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return nil, err
@@ -767,9 +767,14 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 		return nil, err
 	}
 
-	enforcedSets, err := EnforcedValidationSets(st)
-	if err != nil {
-		return nil, err
+	// if installing a specific revision, we may be trying to enforce a validation
+	// set so don't check against current ones.
+	var enforcedSets *snapasserts.ValidationSets
+	if revOpts == nil {
+		enforcedSets, err = EnforcedValidationSets(st)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	actions := make([]*store.SnapAction, len(names))
@@ -781,7 +786,13 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 			Channel: channel,
 		}
 
-		if enforcedSets != nil {
+		var requiredValSets []string
+		var requiredRevision snap.Revision
+
+		if revOpts != nil {
+			requiredValSets = revOpts[i].ValidationSets
+			requiredRevision = revOpts[i].Revision
+		} else if enforcedSets != nil {
 			// check for invalid presence first to have a list of sets where it's invalid
 			invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
 			if err != nil {
@@ -789,17 +800,20 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 					return nil, err
 				} // else presence is optional or required, carry on
 			}
+
 			if len(invalidForValSets) > 0 {
 				return nil, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, strings.Join(invalidForValSets, ","))
 			}
-			requiredValSets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(name))
+			requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
 			if err != nil {
 				return nil, err
 			}
-			if len(requiredValSets) > 0 {
-				setActionValidationSetsAndRequiredRevision(action, requiredValSets, requiredRevision)
-			}
 		}
+
+		if len(requiredValSets) > 0 {
+			setActionValidationSetsAndRequiredRevision(action, requiredValSets, requiredRevision)
+		}
+
 		actions[i] = action
 	}
 

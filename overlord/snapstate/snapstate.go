@@ -1242,9 +1242,10 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 	return tasksets, nil
 }
 
-// InstallMany installs everything from the given list of names.
+// InstallMany installs everything from the given list of names. When specifying
+// revisions, the checks against enforced validation sets are bypassed.
 // Note that the state must be locked by the caller.
-func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -1280,7 +1281,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 		return nil, nil, err
 	}
 
-	installs, err := installCandidates(st, toInstall, "stable", user)
+	installs, err := installCandidates(st, toInstall, revOpts, "stable", user)
 	if err != nil {
 		return nil, nil, err
 	}

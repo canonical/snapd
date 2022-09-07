@@ -590,7 +590,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 		}
 	}
 	transaction := inst.Transaction
-	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID, &snapstate.Flags{Transaction: transaction})
+	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, nil, inst.userID, &snapstate.Flags{Transaction: transaction})
 	if err != nil {
 		return nil, err
 	}
