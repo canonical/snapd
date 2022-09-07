@@ -129,11 +129,12 @@ func (s *standbySuite) TestStartChecks(c *C) {
 
 	defer standby.MockStandbyWait(time.Millisecond)()
 	s.state.Lock()
-	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		c.Check(t, Equals, restart.RestartSocket)
 		n++
 		ch2 <- struct{}{}
 	}))
+	c.Assert(err, IsNil)
 	s.state.Unlock()
 
 	m := standby.New(s.state)
@@ -161,9 +162,10 @@ func (s *standbySuite) TestStartChecks(c *C) {
 func (s *standbySuite) TestStopWaits(c *C) {
 	defer standby.MockStandbyWait(time.Millisecond)()
 	s.state.Lock()
-	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		c.Fatal("request restart should have not been called")
 	}))
+	c.Assert(err, IsNil)
 	s.state.Unlock()
 
 	ch := make(chan struct{})

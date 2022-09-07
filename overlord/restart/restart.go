@@ -60,60 +60,36 @@ type Handler interface {
 	RebootDidNotHappen(st *state.State) error
 }
 
-// Init initializes the support for restarts requests.
-// It takes the current boot id to track and verify reboots and a
-// Handler that handles the actual requests and reacts to reboot
-// happening.
-// It must be called with the state lock held.
-func Init(st *state.State, curBootID string, h Handler) error {
-	rs := &restartState{
-		h:      h,
-		bootID: curBootID,
-	}
-	var fromBootID string
-	err := st.Get("system-restart-from-boot-id", &fromBootID)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	st.Cache(restartStateKey{}, rs)
-	if fromBootID == "" {
-		return rs.rebootAsExpected(st)
-	}
-	if fromBootID == curBootID {
-		return rs.rebootDidNotHappen(st)
-	}
-	// we rebooted alright
-	ClearReboot(st)
-	return rs.rebootAsExpected(st)
-}
-
 // ClearReboot clears state information about tracking requested reboots.
 func ClearReboot(st *state.State) {
 	st.Set("system-restart-from-boot-id", nil)
 }
 
-type restartStateKey struct{}
+type restartManagerKey struct{}
 
-type restartState struct {
+// RestartManager implements interfaces invoked by StateEngine for all
+// registered managers.
+type RestartManager struct {
+	state      *state.State
 	restarting RestartType
 	h          Handler
 	bootID     string
 }
 
-func (rs *restartState) handleRestart(t RestartType, rebootInfo *boot.RebootInfo) {
+func (rs *RestartManager) handleRestart(t RestartType, rebootInfo *boot.RebootInfo) {
 	if rs.h != nil {
 		rs.h.HandleRestart(t, rebootInfo)
 	}
 }
 
-func (rs *restartState) rebootAsExpected(st *state.State) error {
+func (rs *RestartManager) rebootAsExpected(st *state.State) error {
 	if rs.h != nil {
 		return rs.h.RebootAsExpected(st)
 	}
 	return nil
 }
 
-func (rs *restartState) rebootDidNotHappen(st *state.State) error {
+func (rs *RestartManager) rebootDidNotHappen(st *state.State) error {
 	if rs.h != nil {
 		return rs.h.RebootDidNotHappen(st)
 	}
@@ -123,11 +99,11 @@ func (rs *restartState) rebootDidNotHappen(st *state.State) error {
 // Request asks for a restart of the managing process.
 // The state needs to be locked to request a restart.
 func Request(st *state.State, t RestartType, rebootInfo *boot.RebootInfo) {
-	cached := st.Cached(restartStateKey{})
+	cached := st.Cached(restartManagerKey{})
 	if cached == nil {
-		panic("internal error: cannot request a restart before restart.Init")
+		panic("internal error: cannot request a restart before restart.Manager")
 	}
-	rs := cached.(*restartState)
+	rs := cached.(*RestartManager)
 	switch t {
 	case RestartSystem, RestartSystemNow, RestartSystemHaltNow, RestartSystemPoweroffNow:
 		st.Set("system-restart-from-boot-id", rs.bootID)
@@ -138,31 +114,31 @@ func Request(st *state.State, t RestartType, rebootInfo *boot.RebootInfo) {
 
 // Pending returns whether a restart was requested with Request and of which type.
 func Pending(st *state.State) (bool, RestartType) {
-	cached := st.Cached(restartStateKey{})
+	cached := st.Cached(restartManagerKey{})
 	if cached == nil {
 		return false, RestartUnset
 	}
-	rs := cached.(*restartState)
+	rs := cached.(*RestartManager)
 	return rs.restarting != RestartUnset, rs.restarting
 }
 
 func MockPending(st *state.State, restarting RestartType) RestartType {
-	cached := st.Cached(restartStateKey{})
+	cached := st.Cached(restartManagerKey{})
 	if cached == nil {
-		panic("internal error: cannot mock a restart request before restart.Init")
+		panic("internal error: cannot mock a restart request before restart.Manager")
 	}
-	rs := cached.(*restartState)
+	rs := cached.(*RestartManager)
 	old := rs.restarting
 	rs.restarting = restarting
 	return old
 }
 
 func ReplaceBootID(st *state.State, bootID string) {
-	cached := st.Cached(restartStateKey{})
+	cached := st.Cached(restartManagerKey{})
 	if cached == nil {
-		panic("internal error: cannot mock a restart request before restart.Init")
+		panic("internal error: cannot mock a restart request before restart.Manager")
 	}
-	rs := cached.(*restartState)
+	rs := cached.(*RestartManager)
 	rs.bootID = bootID
 }
 
@@ -209,15 +185,43 @@ func SetRestartData(t *state.Task) error {
 	return nil
 }
 
-// RestartManager implements interfaces invoked by StateEngine for all
-// registered managers.
-type RestartManager struct {
-	state *state.State
-}
+// Manager initializes the support for restarts requests and returns a
+// new RestartManager. It takes the current boot id to track and
+// verify reboots and a Handler that handles the actual requests and
+// reacts to reboot happening. It must be called with the state lock
+// held.
+func Manager(st *state.State, curBootID string, h Handler) (*RestartManager, error) {
+	rm := &RestartManager{
+		state:  st,
+		h:      h,
+		bootID: curBootID,
+	}
+	var fromBootID string
+	err := st.Get("system-restart-from-boot-id", &fromBootID)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+	st.Cache(restartManagerKey{}, rm)
+	if fromBootID == "" {
+		// We didn't need a reboot, it might have happened or
+		// not but things are fine in either case.
+		if err := rm.rebootAsExpected(st); err != nil {
+			return nil, err
+		}
+	} else if fromBootID == curBootID {
+		// We were waiting for a reboot that did not happen
+		if err := rm.rebootDidNotHappen(st); err != nil {
+			return nil, err
+		}
+	} else {
+		// we rebooted alright
+		ClearReboot(st)
+		if err := rm.rebootAsExpected(st); err != nil {
+			return nil, err
+		}
+	}
 
-// Manager returns a new RestartManager.
-func Manager(s *state.State) *RestartManager {
-	return &RestartManager{state: s}
+	return rm, nil
 }
 
 // StartUp implements StateStarterUp.Startup.
@@ -226,17 +230,20 @@ func (m *RestartManager) StartUp() error {
 	s.Lock()
 	defer s.Unlock()
 
+	cached := s.Cached(restartManagerKey{})
+	if cached == nil {
+		panic("internal error: cannot mock a restart request before restart.Manager")
+	}
+	rm := cached.(*RestartManager)
+
 	// Move forward tasks that were waiting for an external reboot
 	for _, ch := range m.state.Changes() {
 		var chBootId string
 		if err := ch.Get("boot-id", &chBootId); err != nil {
 			continue
 		}
-		currentBootID, err := osutil.BootID()
-		if err != nil {
-			return err
-		}
-		if currentBootID == chBootId {
+		if rm.bootID == chBootId {
+			// Current boot id has not changed
 			continue
 		}
 		for _, t := range ch.Tasks() {

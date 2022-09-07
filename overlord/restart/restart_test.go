@@ -26,7 +26,6 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
@@ -74,7 +73,7 @@ func (s *restartSuite) TestRequestRestartDaemon(c *C) {
 
 	h := &testHandler{}
 
-	err := restart.Init(st, "boot-id-1", h)
+	_, err := restart.Manager(st, "boot-id-1", h)
 	c.Assert(err, IsNil)
 	c.Check(h.rebootAsExpected, Equals, true)
 
@@ -97,7 +96,7 @@ func (s *restartSuite) TestRequestRestartDaemonNoHandler(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	err := restart.Init(st, "boot-id-1", nil)
+	_, err := restart.Manager(st, "boot-id-1", nil)
 	c.Assert(err, IsNil)
 
 	restart.Request(st, restart.RestartDaemon, nil)
@@ -113,7 +112,7 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	defer st.Unlock()
 
 	h := &testHandler{}
-	err := restart.Init(st, "boot-id-1", h)
+	_, err := restart.Manager(st, "boot-id-1", h)
 	c.Assert(err, IsNil)
 	c.Check(h.rebootAsExpected, Equals, true)
 
@@ -134,7 +133,7 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	c.Check(fromBootID, Equals, "boot-id-1")
 
 	h1 := &testHandler{}
-	err = restart.Init(st, "boot-id-1", h1)
+	_, err = restart.Manager(st, "boot-id-1", h1)
 	c.Assert(err, IsNil)
 	c.Check(h1.rebootAsExpected, Equals, false)
 	c.Check(h1.rebootDidNotHappen, Equals, true)
@@ -143,7 +142,7 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	c.Check(fromBootID, Equals, "boot-id-1")
 
 	h2 := &testHandler{}
-	err = restart.Init(st, "boot-id-2", h2)
+	_, err = restart.Manager(st, "boot-id-2", h2)
 	c.Assert(err, IsNil)
 	c.Check(h2.rebootAsExpected, Equals, true)
 	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), testutil.ErrorIs, state.ErrNoState)
@@ -155,7 +154,7 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	defer st.Unlock()
 
 	h := &testHandler{}
-	err := restart.Init(st, "boot-id-1", h)
+	_, err := restart.Manager(st, "boot-id-1", h)
 	c.Assert(err, IsNil)
 	c.Check(h.rebootAsExpected, Equals, true)
 
@@ -180,7 +179,7 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	c.Check(fromBootID, Equals, "boot-id-1")
 
 	h1 := &testHandler{}
-	err = restart.Init(st, "boot-id-1", h1)
+	_, err = restart.Manager(st, "boot-id-1", h1)
 	c.Assert(err, IsNil)
 	c.Check(h1.rebootAsExpected, Equals, false)
 	c.Check(h1.rebootDidNotHappen, Equals, true)
@@ -189,10 +188,24 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	c.Check(fromBootID, Equals, "boot-id-1")
 
 	h2 := &testHandler{}
-	err = restart.Init(st, "boot-id-2", h2)
+	_, err = restart.Manager(st, "boot-id-2", h2)
 	c.Assert(err, IsNil)
 	c.Check(h2.rebootAsExpected, Equals, true)
 	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), testutil.ErrorIs, state.ErrNoState)
+}
+
+func runStartUpAndCheckStatus(c *C, s *state.State, tsk *state.Task, bootID string, expectedStatus state.Status) {
+	se := overlord.NewStateEngine(s)
+	s.Lock()
+	mgr, err := restart.Manager(s, bootID, nil)
+	s.Unlock()
+	c.Assert(err, IsNil)
+	se.AddManager(mgr)
+	err = se.StartUp()
+	c.Assert(err, IsNil)
+	s.Lock()
+	c.Check(tsk.Status(), Equals, expectedStatus)
+	s.Unlock()
 }
 
 func (ses *restartSuite) TestRestartHeldTasks(c *C) {
@@ -205,55 +218,25 @@ func (ses *restartSuite) TestRestartHeldTasks(c *C) {
 	chg.AddTask(tsk)
 	s.Unlock()
 
-	// No boot id set, status does not change
-	se := overlord.NewStateEngine(s)
-	se.AddManager(restart.Manager(s))
-	err := se.StartUp()
-	c.Assert(err, IsNil)
-	s.Lock()
-	c.Check(tsk.Status(), Equals, state.HoldStatus)
-	s.Unlock()
+	// No boot id is set in the change, status does not change
+	currentBootId := "00000000-0000-0000-0000-000000000000"
+	runStartUpAndCheckStatus(c, s, tsk, currentBootId, state.HoldStatus)
 
+	// same boot id in change/system, status does not change
 	s.Lock()
-	currentBootId, err := osutil.BootID()
-	c.Assert(err, IsNil)
 	chg.Set("boot-id", currentBootId)
-	testBid := ""
-	chg.Get("boot-id", &testBid)
 	s.Unlock()
+	runStartUpAndCheckStatus(c, s, tsk, currentBootId, state.HoldStatus)
 
-	// boot id has not changed, status does not change
-	se = overlord.NewStateEngine(s)
-	se.AddManager(restart.Manager(s))
-	err = se.StartUp()
-	c.Assert(err, IsNil)
-	s.Lock()
-	c.Check(tsk.Status(), Equals, state.HoldStatus)
-	s.Unlock()
-
+	// boot id changed in change but waiting-reboot not set, status does not change
 	s.Lock()
 	chg.Set("boot-id", "11111111-1111-1111-1111-111111111111")
 	s.Unlock()
+	runStartUpAndCheckStatus(c, s, tsk, currentBootId, state.HoldStatus)
 
-	// boot id changed but waiting-reboot not set, status does not change
-	se = overlord.NewStateEngine(s)
-	se.AddManager(restart.Manager(s))
-	err = se.StartUp()
-	c.Assert(err, IsNil)
-	s.Lock()
-	c.Check(tsk.Status(), Equals, state.HoldStatus)
-	s.Unlock()
-
+	// boot id changed and waiting-reboot set, status changes
 	s.Lock()
 	tsk.Set("waiting-reboot", true)
 	s.Unlock()
-
-	// boot id changed and waiting-reboot set, status changes
-	se = overlord.NewStateEngine(s)
-	se.AddManager(restart.Manager(s))
-	err = se.StartUp()
-	c.Assert(err, IsNil)
-	s.Lock()
-	c.Check(tsk.Status(), Equals, state.DoStatus)
-	s.Unlock()
+	runStartUpAndCheckStatus(c, s, tsk, currentBootId, state.DoStatus)
 }

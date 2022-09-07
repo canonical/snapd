@@ -125,7 +125,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 		path:         dirs.SnapStateFile,
 		ensureBefore: o.ensureBefore,
 	}
-	s, err := o.loadState(backend, restartHandler)
+	s, err := o.loadState(backend)
 	if err != nil {
 		return nil, err
 	}
@@ -138,6 +138,12 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 		return true
 	}
 	o.runner.AddOptionalHandler(matchAnyUnknownTask, handleUnknownTask, nil)
+
+	restartMgr, err := o.createRestartManager(s, restartHandler)
+	if err != nil {
+		return nil, err
+	}
+	o.addManager(restartMgr)
 
 	hookMgr, err := hookstate.Manager(s, o.runner)
 	if err != nil {
@@ -174,7 +180,6 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
-	o.addManager(restart.Manager(s))
 
 	if err := configstateInit(s, hookMgr); err != nil {
 		return nil, err
@@ -194,6 +199,18 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	snapstate.ReplaceStore(s, sto)
 
 	return o, nil
+}
+
+func (o *Overlord) createRestartManager(s *state.State, restartHandler restart.Handler) (*restart.RestartManager, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	curBootID, err := osutil.BootID()
+	if err != nil {
+		return nil, fmt.Errorf("fatal: cannot find current boot id: %v", err)
+	}
+
+	return restart.Manager(s, curBootID, restartHandler)
 }
 
 func (o *Overlord) addManager(mgr StateManager) {
@@ -257,7 +274,7 @@ func lockWithTimeout(l *osutil.FileLock, timeout time.Duration) error {
 	}
 }
 
-func (o *Overlord) loadState(backend state.Backend, restartHandler restart.Handler) (*state.State, error) {
+func (o *Overlord) loadState(backend state.Backend) (*state.State, error) {
 	flock, err := initStateFileLock()
 	if err != nil {
 		return nil, fmt.Errorf("fatal: error opening lock file: %v", err)
@@ -271,11 +288,6 @@ func (o *Overlord) loadState(backend state.Backend, restartHandler restart.Handl
 	}
 	logger.Noticef("Acquired state lock file")
 
-	curBootID, err := osutil.BootID()
-	if err != nil {
-		return nil, fmt.Errorf("fatal: cannot find current boot id: %v", err)
-	}
-
 	perfTimings := timings.New(map[string]string{"startup": "load-state"})
 
 	if !osutil.FileExists(dirs.SnapStateFile) {
@@ -286,7 +298,6 @@ func (o *Overlord) loadState(backend state.Backend, restartHandler restart.Handl
 			return nil, fmt.Errorf("fatal: directory %q must be present", stateDir)
 		}
 		s := state.New(backend)
-		initRestart(s, curBootID, restartHandler)
 		patch.Init(s)
 		return s, nil
 	}
@@ -308,23 +319,12 @@ func (o *Overlord) loadState(backend state.Backend, restartHandler restart.Handl
 	perfTimings.Save(s)
 	s.Unlock()
 
-	err = initRestart(s, curBootID, restartHandler)
-	if err != nil {
-		return nil, err
-	}
-
 	// one-shot migrations
 	err = patch.Apply(s)
 	if err != nil {
 		return nil, err
 	}
 	return s, nil
-}
-
-func initRestart(s *state.State, curBootID string, restartHandler restart.Handler) error {
-	s.Lock()
-	defer s.Unlock()
-	return restart.Init(s, curBootID, restartHandler)
 }
 
 func (o *Overlord) newStoreWithContext(storeCtx store.DeviceAndAuthContext) snapstate.StoreService {

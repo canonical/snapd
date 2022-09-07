@@ -165,12 +165,13 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.state.Lock()
-	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType) {
+	_, err = restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType) {
 		s.restartRequests = append(s.restartRequests, req)
 		if s.restartObserve != nil {
 			s.restartObserve()
 		}
 	}))
+	c.Assert(err, IsNil)
 	s.state.Unlock()
 	s.se = s.o.StateEngine()
 
