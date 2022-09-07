@@ -164,7 +164,6 @@ func (client *Client) SystemDetails(seedLabel string) (*SystemDetails, error) {
 	return &rsp, nil
 }
 
-
 type InstallStep string
 
 const (
@@ -172,18 +171,14 @@ const (
 	InstallStepFinish                 InstallStep = "finish"
 )
 
-type SystemActionInstall struct {
+type InstallSystemOptions struct {
 	// Step is the install step, either "setup-storage-encryption"
 	// or "finish".
 	Step InstallStep `json:"step,omitempty"`
+
 	// OnVolumes is the volume description of the volumes that the
 	// given step should operate on.
 	OnVolumes map[string][]gadget.Volume `json:"on-volumes,omitempty"`
-}
-
-type InstallSystemOptions struct {
-	Step    InstallStep
-	Volumes map[string][]gadget.Volume
 }
 
 // InstallSystem will perform the given install step for the given volumes
@@ -191,13 +186,10 @@ func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptio
 	// verification is done by the backend
 	req := struct {
 		Action string `json:"action"`
-		*SystemActionInstall
+		*InstallSystemOptions
 	}{
-		Action: "install",
-		SystemActionInstall: &SystemActionInstall{
-			Step:      opts.Step,
-			OnVolumes: opts.Volumes,
-		},
+		Action:               "install",
+		InstallSystemOptions: opts,
 	}
 
 	var body bytes.Buffer

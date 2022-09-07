@@ -144,7 +144,7 @@ type systemActionRequest struct {
 	Action string `json:"action"`
 
 	client.SystemAction
-	client.SystemActionInstall
+	client.InstallSystemOptions
 }
 
 func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {

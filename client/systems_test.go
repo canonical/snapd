@@ -331,8 +331,8 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 		},
 	}
 	opts := &client.InstallSystemOptions{
-		Step:    client.InstallStepFinish,
-		Volumes: vols,
+		Step:      client.InstallStepFinish,
+		OnVolumes: vols,
 	}
 	chgID, err := cs.cli.InstallSystem("1234", opts)
 	c.Assert(err, check.IsNil)
