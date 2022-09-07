@@ -183,6 +183,10 @@ type InstallSystemOptions struct {
 
 // InstallSystem will perform the given install step for the given volumes
 func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptions) (changeID string, err error) {
+	if systemLabel == "" {
+		return "", fmt.Errorf("cannot install with an empty system label")
+	}
+
 	// verification is done by the backend
 	req := struct {
 		Action string `json:"action"`
@@ -198,10 +202,7 @@ func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptio
 	}
 	chgID, err := client.doAsync("POST", "/v2/systems/"+systemLabel, nil, nil, &body)
 	if err != nil {
-		if systemLabel != "" {
-			return "", xerrors.Errorf("cannot request system install for %q: %v", systemLabel, err)
-		}
-		return "", xerrors.Errorf("cannot request system install: %v", err)
+		return "", xerrors.Errorf("cannot request system install for %q: %v", systemLabel, err)
 	}
 	return chgID, nil
 }

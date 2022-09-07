@@ -312,6 +312,18 @@ func (cs *clientSuite) TestRequestSystemInstallErrorNoSystem(c *check.C) {
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
 }
 
+func (cs *clientSuite) TestRequestSystemInstallEmptySystemLabel(c *check.C) {
+	cs.rsp = `{
+	    "type": "error",
+	    "status-code": 500,
+	    "result": {"message": "failed"}
+	}`
+	_, err := cs.cli.InstallSystem("", nil)
+	c.Assert(err, check.ErrorMatches, `cannot install with an empty system label`)
+	// no request was performed
+	c.Check(cs.req, check.IsNil)
+}
+
 func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 	cs.status = 202
 	cs.rsp = `{
