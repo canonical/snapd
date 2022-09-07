@@ -141,8 +141,10 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 }
 
 type StorageEncryption struct {
-	// A string that can contain:
-	// "disabled"    - forcefull disabled the device
+	// Support describes the level of hardware support available,
+	// it can have the values:
+	//
+	// "disabled"    - forcefull disabled by the device
 	// "available"   - encryption usable
 	// "unavailable" - encryption unavailable but not required
 	// "defective"   - encryption unavailable and required, this is an error
