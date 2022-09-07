@@ -216,5 +216,6 @@ func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest
 
 func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRequest) Response {
 	// TODO: call new devicestate.InstallStep()
+	// TODO2: ensure devicestate.InstallStep() checks that systemLabel is not empty
 	return BadRequest("system action install is not implemented yet")
 }
