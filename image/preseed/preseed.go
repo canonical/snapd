@@ -175,6 +175,8 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedOpts) error {
 	if err != nil {
 		return err
 	}
+	tsto.Stdout = Stdout
+
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
 		return tsto.AssertionFetcher(adb, save)
 	}

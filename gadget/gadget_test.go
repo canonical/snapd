@@ -21,10 +21,12 @@ package gadget_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -3602,4 +3604,99 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsImplicitSystemDataHap
 	c.Assert(traitsMap, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
 		"pc": gadgettest.UC16ImplicitSystemDataDeviceTraits,
 	})
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
+	// TODO: once we move to go 1.17 just use
+	//       reflect.StructField.IsExported() directly
+	var isExported = func(s reflect.StructField) bool {
+		// see https://pkg.go.dev/reflect#StructField
+		return s.PkgPath == ""
+	}
+
+	tagsValid := func(c *C, i interface{}) {
+		st := reflect.TypeOf(i).Elem()
+		num := st.NumField()
+		for i := 0; i < num; i++ {
+			// ensure yaml/json is consistent
+			tagYaml := st.Field(i).Tag.Get("yaml")
+			tagJSON := st.Field(i).Tag.Get("json")
+			if tagJSON == "-" {
+				continue
+			}
+			c.Check(tagYaml, Equals, tagJSON)
+
+			// ensure we don't accidentally export fields
+			// without tags
+			if tagJSON == "" && isExported(st.Field(i)) {
+				c.Errorf("field %q exported but has no json tag", st.Field(i).Name)
+			}
+		}
+	}
+
+	tagsValid(c, &gadget.Volume{})
+	tagsValid(c, &gadget.VolumeStructure{})
+	tagsValid(c, &gadget.VolumeContent{})
+	tagsValid(c, &gadget.RelativeOffset{})
+	tagsValid(c, &gadget.VolumeUpdate{})
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeInternalFieldsNoJSON(c *C) {
+	// check
+	enc, err := json.Marshal(&gadget.Volume{
+		// not json exported
+		Name: "should-be-ignored-by-json",
+		// exported
+		Schema:     "mbr",
+		Bootloader: "grub",
+		ID:         "0c",
+		Structure:  []gadget.VolumeStructure{},
+	})
+	c.Assert(err, IsNil)
+	c.Check(string(enc), Equals, `{"schema":"mbr","bootloader":"grub","id":"0c","structure":[]}`)
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeStructureInternalFieldsNoJSON(c *C) {
+	volS := &gadget.VolumeStructure{
+		// not json exported
+		VolumeName: "should-be-ignored-by-json",
+		// exported
+		Name:        "pc",
+		Label:       "ubuntu-seed",
+		Role:        "system-seed",
+		Offset:      asOffsetPtr(123),
+		OffsetWrite: mustParseGadgetRelativeOffset(c, "mbr+92"),
+		Size:        888,
+		Type:        "0C",
+		ID:          "gpt-id",
+		Filesystem:  "vfat",
+		Content: []gadget.VolumeContent{
+			{
+				UnresolvedSource: "source",
+				Target:           "some-target",
+				Image:            "image",
+				Offset:           asOffsetPtr(12),
+				OffsetWrite:      mustParseGadgetRelativeOffset(c, "mbr+192"),
+				Size:             321,
+				Unpack:           true,
+			},
+		},
+		Update: gadget.VolumeUpdate{
+			Edition:  2,
+			Preserve: []string{"foo"},
+		},
+	}
+	b, err := json.Marshal(volS)
+	c.Assert(err, IsNil)
+	// ensure the json looks json-ish
+	c.Check(string(b), Equals, `{"name":"pc","filesystem-label":"ubuntu-seed","offset":123,"offset-write":{"relative-to":"mbr","offset":92},"size":888,"type":"0C","role":"system-seed","id":"gpt-id","filesystem":"vfat","content":[{"source":"source","target":"some-target","image":"image","offset":12,"offset-write":{"relative-to":"mbr","offset":192},"size":321,"unpack":true}],"update":{"edition":2,"preserve":["foo"]}}`)
+
+	// check that the new structure has no volumeName
+	var newVolS *gadget.VolumeStructure
+	err = json.Unmarshal(b, &newVolS)
+	c.Assert(err, IsNil)
+	c.Check(newVolS.VolumeName, Equals, "")
+	// but otherwise they are identical
+	newVolS.VolumeName = volS.VolumeName
+	c.Check(volS, DeepEquals, newVolS)
 }

@@ -21,8 +21,10 @@ package tooling_test
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -109,7 +111,39 @@ func (s *toolingSuite) setupSnaps(c *C, publishers map[string]string, defaultsYa
 	s.MakeAssertedSnap(c, packageCore, nil, snap.R(3), "canonical")
 }
 
-func (s *toolingSuite) TestNewToolingStoreWithAuth(c *C) {
+func (s *toolingSuite) TestNewToolingStore(c *C) {
+	// default
+	u, err := url.Parse("https://api.snapcraft.io/")
+	c.Assert(err, IsNil)
+
+	tsto, err := tooling.NewToolingStore()
+	c.Assert(err, IsNil)
+
+	c.Check(tsto.StoreURL(), DeepEquals, u)
+}
+
+func (s *toolingSuite) TestNewToolingStoreUbuntuStoreURL(c *C) {
+	u, err := url.Parse("https://api.other")
+	c.Assert(err, IsNil)
+
+	os.Setenv("UBUNTU_STORE_URL", "https://api.other")
+	defer os.Unsetenv("UBUNTU_STORE_URL")
+
+	tsto, err := tooling.NewToolingStore()
+	c.Assert(err, IsNil)
+
+	c.Check(tsto.StoreURL(), DeepEquals, u)
+}
+
+func (s *toolingSuite) TestNewToolingStoreInvalidUbuntuStoreURL(c *C) {
+	os.Setenv("UBUNTU_STORE_URL", ":/what")
+	defer os.Unsetenv("UBUNTU_STORE_URL")
+
+	_, err := tooling.NewToolingStore()
+	c.Assert(err, ErrorMatches, `invalid UBUNTU_STORE_URL: .*`)
+}
+
+func (s *toolingSuite) TestNewToolingStoreWithAuthFile(c *C) {
 	tmpdir := c.MkDir()
 	authFn := filepath.Join(tmpdir, "auth.json")
 	err := ioutil.WriteFile(authFn, []byte(`{
@@ -123,9 +157,64 @@ func (s *toolingSuite) TestNewToolingStoreWithAuth(c *C) {
 
 	tsto, err := tooling.NewToolingStore()
 	c.Assert(err, IsNil)
-	user := tsto.User()
-	c.Check(user.StoreMacaroon, Equals, "MACAROON")
-	c.Check(user.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
+	creds := tsto.Creds()
+	u1creds, ok := creds.(*tooling.UbuntuOneCreds)
+	c.Assert(ok, Equals, true)
+	c.Check(u1creds.User.StoreMacaroon, Equals, "MACAROON")
+	c.Check(u1creds.User.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
+}
+
+func (s *toolingSuite) TestNewToolingStoreWithBase64AuthFile(c *C) {
+	tmpdir := c.MkDir()
+	authFn := filepath.Join(tmpdir, "auth7a")
+	authObj := []byte(`{
+"r": "MACAROON",
+"d": "DISCHARGE"
+}`)
+	enc := []byte(base64.StdEncoding.EncodeToString(authObj))
+	err := ioutil.WriteFile(authFn, enc, 0600)
+	c.Assert(err, IsNil)
+
+	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
+	defer os.Unsetenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
+
+	tsto, err := tooling.NewToolingStore()
+	c.Assert(err, IsNil)
+	creds := tsto.Creds()
+	u1creds, ok := creds.(*tooling.UbuntuOneCreds)
+	c.Assert(ok, Equals, true)
+	c.Check(u1creds.User.StoreMacaroon, Equals, "MACAROON")
+	c.Check(u1creds.User.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
+}
+
+func (s *toolingSuite) TestNewToolingStoreWithAuthFileErrors(c *C) {
+	tmpdir := c.MkDir()
+	authFn := filepath.Join(tmpdir, "creds")
+
+	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
+	defer os.Unsetenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
+
+	tests := []struct {
+		data string
+		err  string
+	}{
+		{"", `invalid auth file ".*/creds": empty`},
+		{" {}", `invalid auth file ".*/creds": missing fields`},
+		{" [...", `invalid snapcraft login file ".*/creds": No section: login.ubuntu.com`},
+		{`[login.ubuntu.com]
+macaroon =
+unbound_discharge =
+`, `invalid snapcraft login file ".*/creds": empty fields`},
+		{"=", `invalid auth file ".*/creds": not a recognizable format`},
+	}
+
+	for _, t := range tests {
+		err := ioutil.WriteFile(authFn, []byte(t.data), 0600)
+		c.Assert(err, IsNil)
+
+		_, err = tooling.NewToolingStore()
+		c.Check(err, ErrorMatches, t.err)
+	}
 }
 
 func (s *toolingSuite) TestNewToolingStoreWithAuthFromSnapcraftLoginFile(c *C) {
@@ -143,9 +232,63 @@ unbound_discharge = DISCHARGE
 
 	tsto, err := tooling.NewToolingStore()
 	c.Assert(err, IsNil)
-	user := tsto.User()
-	c.Check(user.StoreMacaroon, Equals, "MACAROON")
-	c.Check(user.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
+	creds := tsto.Creds()
+	u1creds, ok := creds.(*tooling.UbuntuOneCreds)
+	c.Assert(ok, Equals, true)
+	c.Check(u1creds.User.StoreMacaroon, Equals, "MACAROON")
+	c.Check(u1creds.User.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
+}
+func (s *toolingSuite) TestNewToolingStoreWithAuthFromEnv(c *C) {
+	tests := []struct {
+		dat string
+		a   store.Authorizer
+		err string
+	}{
+		{dat: `{
+"r": "MACAROON",
+"d": "DISCHARGE"
+}`, a: &tooling.UbuntuOneCreds{User: auth.UserState{
+			StoreMacaroon:   "MACAROON",
+			StoreDischarges: []string{"DISCHARGE"},
+		}}}, {dat: `{ "t": "u1-macaroon",
+"v": {
+  "r": "MACAROON",
+  "d": "DISCHARGE"
+}}`, a: &tooling.UbuntuOneCreds{User: auth.UserState{
+			StoreMacaroon:   "MACAROON",
+			StoreDischarges: []string{"DISCHARGE"},
+		}}}, {dat: `{`, err: `cannot unmarshal base64-decoded auth credentials from UBUNTU_STORE_AUTH: unexpected end of JSON input`}, {dat: `{}`, err: `cannot recognize unmarshalled base64-decoded auth credentials from UBUNTU_STORE_AUTH: no known field combination set`}, {dat: `{ "t": "macaroon",
+"v": "MACAROON0"
+}`, a: &tooling.SimpleCreds{
+			Scheme: "Macaroon",
+			Value:  "MACAROON0",
+		}}, {dat: `{ "t": "bearer",
+"v": "tok"
+}`, a: &tooling.SimpleCreds{
+			Scheme: "Bearer",
+			Value:  "tok",
+		}}, {dat: `{"t": "u1-macaroon"}`,
+			err: `cannot recognize unmarshalled base64-decoded auth credentials from UBUNTU_STORE_AUTH: no known field combination set`,
+		}, {dat: `{"t": "macaroon"}`,
+			err: `cannot recognize unmarshalled base64-decoded auth credentials from UBUNTU_STORE_AUTH: no known field combination set`,
+		}, {dat: `{"t": 1}`,
+			err: `cannot recognize unmarshalled base64-decoded auth credentials from UBUNTU_STORE_AUTH: no known field combination set`,
+		}, {dat: `{"t": "macaroon", "v": []}`,
+			err: `cannot recognize unmarshalled base64-decoded auth credentials from UBUNTU_STORE_AUTH: no known field combination set`,
+		}}
+	defer os.Unsetenv("UBUNTU_STORE_AUTH")
+
+	for _, t := range tests {
+		os.Setenv("UBUNTU_STORE_AUTH", base64.StdEncoding.EncodeToString([]byte(t.dat)))
+		tsto, err := tooling.NewToolingStore()
+		if t.err == "" {
+			c.Assert(err, IsNil)
+			creds := tsto.Creds()
+			c.Check(creds, DeepEquals, t.a)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
 }
 
 func (s *toolingSuite) TestDownloadpOptionsString(c *C) {
@@ -298,56 +441,30 @@ func (s *toolingSuite) Assertion(assertType *asserts.AssertionType, primaryKey [
 	return ref.Resolve(s.StoreSigning.Find)
 }
 
-type toolingStoreContextSuite struct {
-	sc store.DeviceAndAuthContext
-}
-
-var _ = Suite(&toolingStoreContextSuite{})
-
-func (s *toolingStoreContextSuite) SetUpTest(c *C) {
-	s.sc = tooling.ToolingStoreContext()
-}
-
-func (s *toolingStoreContextSuite) TestNopBits(c *C) {
-	info, err := s.sc.CloudInfo()
-	c.Assert(err, IsNil)
-	c.Check(info, IsNil)
-
-	device, err := s.sc.Device()
-	c.Assert(err, IsNil)
-	c.Check(device, DeepEquals, &auth.DeviceState{})
-
-	p, err := s.sc.DeviceSessionRequestParams("")
-	c.Assert(err, Equals, store.ErrNoSerial)
-	c.Check(p, IsNil)
-
-	defURL, err := url.Parse("http://store")
-	c.Assert(err, IsNil)
-	proxyStoreID, proxyStoreURL, err := s.sc.ProxyStoreParams(defURL)
-	c.Assert(err, IsNil)
-	c.Check(proxyStoreID, Equals, "")
-	c.Check(proxyStoreURL, Equals, defURL)
-
-	storeID, err := s.sc.StoreID("")
-	c.Assert(err, IsNil)
-	c.Check(storeID, Equals, "")
-
-	storeID, err = s.sc.StoreID("my-store")
-	c.Assert(err, IsNil)
-	c.Check(storeID, Equals, "my-store")
-
-	_, err = s.sc.UpdateDeviceAuth(nil, "")
-	c.Assert(err, NotNil)
-}
-
-func (s *toolingStoreContextSuite) TestUpdateUserAuth(c *C) {
-	u := &auth.UserState{
+func (s *toolingSuite) TestUpdateUserAuth(c *C) {
+	u := auth.UserState{
 		StoreMacaroon:   "macaroon",
 		StoreDischarges: []string{"discharge1"},
 	}
+	creds := &tooling.UbuntuOneCreds{
+		User: u,
+	}
 
-	u1, err := s.sc.UpdateUserAuth(u, []string{"discharge2"})
+	u1, err := creds.UpdateUserAuth(&u, []string{"discharge2"})
 	c.Assert(err, IsNil)
-	c.Check(u1, Equals, u)
+	c.Check(u1, Equals, &u)
 	c.Check(u1.StoreDischarges, DeepEquals, []string{"discharge2"})
+}
+
+func (s *toolingSuite) TestSimpleCreds(c *C) {
+	creds := &tooling.SimpleCreds{
+		Scheme: "Auth-Scheme",
+		Value:  "auth-value",
+	}
+	c.Check(creds.CanAuthorizeForUser(nil), Equals, true)
+	r, err := http.NewRequest("POST", "http://svc", nil)
+	c.Assert(err, IsNil)
+	c.Assert(creds.Authorize(r, nil, nil, nil), IsNil)
+	auth := r.Header.Get("Authorization")
+	c.Check(auth, Equals, `Auth-Scheme auth-value`)
 }

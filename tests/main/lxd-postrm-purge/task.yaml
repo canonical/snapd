@@ -27,10 +27,15 @@ prepare: |
     lxd waitready
     lxd init --auto
 
-    # the snapd package we build as part of the tests will only run on the
-    # distro we build on. So we need to launch the right ubuntu version.
-    VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
-    lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
+    # There isn't an official image for kinetic yet, let's use the community one
+    if os.query is-ubuntu 22.10; then
+        CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
+        lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu
+    else
+        VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
+        lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
+    fi
+
     # precondition check
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"

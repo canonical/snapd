@@ -21,7 +21,7 @@ restore: |
     "$TESTSTOOLS"/lxd-state undo-mount-changes
 
 debug: |
-    lxc exec bionic -- bash -c "SNAPD_DEBUG=1 /usr/lib/snapd/snap-update-ns maas"
+    lxc exec bionic -- bash -c "SNAPD_DEBUG=1 /usr/lib/snapd/snap-update-ns maas" || true
 
 execute: |
     # first command is done twice due to https://bugs.launchpad.net/snapd/+bug/1865503
