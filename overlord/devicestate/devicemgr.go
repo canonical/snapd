@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -181,6 +182,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
+	runner.AddHandler("prepare-ubuntu-save", m.doPrepareUbuntuSave, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
 	runner.AddHandler("factory-reset-run-system", m.doFactoryResetRunSystem, nil)
 	runner.AddHandler("restart-system-to-run-mode", m.doRestartSystemToRunMode, nil)
@@ -289,9 +291,7 @@ func (m *DeviceManager) SystemMode(sysExpect SysExpectation) string {
 
 // StartUp implements StateStarterUp.Startup.
 func (m *DeviceManager) StartUp() error {
-	// TODO:UC20: ubuntu-save needs to be mounted for recover too
-	if !release.OnClassic && m.SystemMode(SysHasModeenv) == "run" {
-		// UC20 and run mode => setup /var/lib/snapd/save
+	if m.shouldMountUbuntuSave() {
 		if err := m.maybeSetupUbuntuSave(); err != nil {
 			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
 		}
@@ -309,16 +309,22 @@ func (m *DeviceManager) StartUp() error {
 	return EarlyConfig(m.state, m.preloadGadget)
 }
 
-func (m *DeviceManager) maybeSetupUbuntuSave() error {
-	// only called for UC20
+func (m *DeviceManager) shouldMountUbuntuSave() bool {
+	if release.OnClassic {
+		return false
+	}
+	// TODO:UC20+: ubuntu-save needs to be mounted for recover too
+	return m.SystemMode(SysHasModeenv) == "install" ||
+		m.SystemMode(SysHasModeenv) == "run"
+}
 
+func (m *DeviceManager) maybeMountUbuntuSave() error {
 	saveMounted, err := osutil.IsMounted(dirs.SnapSaveDir)
 	if err != nil {
 		return err
 	}
 	if saveMounted {
 		logger.Noticef("save already mounted under %v", dirs.SnapSaveDir)
-		m.saveAvailable = true
 		return nil
 	}
 
@@ -329,20 +335,60 @@ func (m *DeviceManager) maybeSetupUbuntuSave() error {
 	if !runMntSaveMounted {
 		// we don't have ubuntu-save, save will be used directly
 		logger.Noticef("no ubuntu-save mount")
-		m.saveAvailable = true
 		return nil
 	}
 
-	logger.Noticef("bind-mounting ubuntu-save under %v", dirs.SnapSaveDir)
+	// In newer core20/core22 we have a mount unit for ubuntu-save, which we
+	// we will try to start first
+	err = exec.Command("systemctl", "enable", "var-lib-snapd-save.mount", "--now").Run()
+	if err == nil {
+		logger.Noticef("mount unit for ubuntu-save was started")
+		return nil
+	}
 
+	// Otherwise try to directly mount the partition by using a transient unit
+	logger.Noticef("bind-mounting ubuntu-save under %v", dirs.SnapSaveDir)
 	err = systemd.New(systemd.SystemMode, progress.Null).Mount(boot.InitramfsUbuntuSaveDir,
 		dirs.SnapSaveDir, "-o", "bind")
 	if err != nil {
 		logger.Noticef("bind-mounting ubuntu-save failed %v", err)
 		return fmt.Errorf("cannot bind mount %v under %v: %v", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, err)
 	}
-	m.saveAvailable = true
 	return nil
+}
+
+func (m *DeviceManager) ensureUbuntuSaveSnapFolders() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	snaps, err := snapstate.All(m.state)
+	if err != nil {
+		return err
+	}
+
+	for _, s := range snaps {
+		saveDir := snap.CommonDataSaveDir(s.InstanceName())
+		if exists, _, _ := osutil.DirExists(saveDir); exists {
+			continue
+		}
+		if err := os.MkdirAll(saveDir, 0755); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *DeviceManager) maybeSetupUbuntuSave() error {
+	if err := m.maybeMountUbuntuSave(); err != nil {
+		return err
+	}
+
+	// At this point ubuntu-save should be available under the
+	// /var/lib/snapd/save path, so we mark the partition as such.
+	// The last step is to ensure needed folder structure is present
+	// for the per-snap folder storage.
+	m.saveAvailable = true
+	return m.ensureUbuntuSaveSnapFolders()
 }
 
 type deviceMgrKey struct{}
@@ -1147,6 +1193,10 @@ func (m *DeviceManager) ensureInstalled() error {
 	// exists in the snap
 	var installDevice *state.Task
 	if hasInstallDeviceHook {
+		// add the task that ensures ubuntu-save is available after the system
+		// setup to the install-device hook
+		addTask(m.state.NewTask("prepare-ubuntu-save", i18n.G("Prepare ubuntu-save snap folders")))
+
 		summary := i18n.G("Run install-device hook")
 		hooksup := &hookstate.HookSetup{
 			// TODO: what's a reasonable timeout for the install-device hook?

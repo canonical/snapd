@@ -1106,22 +1106,29 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	c.Check(installSystem.Err(), IsNil)
 
 	tasks := installSystem.Tasks()
-	c.Assert(tasks, HasLen, 3)
+	c.Assert(tasks, HasLen, 4)
 	setupRunSystemTask := tasks[0]
-	installDevice := tasks[1]
-	restartSystemToRunModeTask := tasks[2]
+	prepareUbuntuSave := tasks[1]
+	installDevice := tasks[2]
+	restartSystemToRunModeTask := tasks[3]
 
 	c.Assert(setupRunSystemTask.Kind(), Equals, "setup-run-system")
+	c.Assert(prepareUbuntuSave.Kind(), Equals, "prepare-ubuntu-save")
 	c.Assert(restartSystemToRunModeTask.Kind(), Equals, "restart-system-to-run-mode")
 	c.Assert(installDevice.Kind(), Equals, "run-hook")
 
 	// setup-run-system has no pre-reqs
 	c.Assert(setupRunSystemTask.WaitTasks(), HasLen, 0)
 
-	// install-device has a pre-req of setup-run-system
-	waitTasks := installDevice.WaitTasks()
+	// prepare-ubuntu-save has a pre-req of setup-run-system
+	waitTasks := prepareUbuntuSave.WaitTasks()
 	c.Assert(waitTasks, HasLen, 1)
-	c.Assert(waitTasks[0].ID(), Equals, setupRunSystemTask.ID())
+	c.Check(waitTasks[0].ID(), Equals, setupRunSystemTask.ID())
+
+	// install-device has a pre-req of prepare-ubuntu-save
+	waitTasks = installDevice.WaitTasks()
+	c.Assert(waitTasks, HasLen, 1)
+	c.Check(waitTasks[0].ID(), Equals, prepareUbuntuSave.ID())
 
 	// install-device restart-task references to restart-system-to-run-mode
 	var restartTask string
@@ -1132,7 +1139,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	// restart-system-to-run-mode has a pre-req of install-device
 	waitTasks = restartSystemToRunModeTask.WaitTasks()
 	c.Assert(waitTasks, HasLen, 1)
-	c.Assert(waitTasks[0].ID(), Equals, installDevice.ID())
+	c.Check(waitTasks[0].ID(), Equals, installDevice.ID())
 
 	// we did request a restart through restartSystemToRunModeTask
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
@@ -1228,12 +1235,14 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithBrokenInstallDeviceHookUnhapp
 - Run install-device hook \(run hook \"install-device\": hook exited broken\)`)
 
 	tasks := installSystem.Tasks()
-	c.Assert(tasks, HasLen, 3)
+	c.Assert(tasks, HasLen, 4)
 	setupRunSystemTask := tasks[0]
-	installDevice := tasks[1]
-	restartSystemToRunModeTask := tasks[2]
+	prepareUbuntuSave := tasks[1]
+	installDevice := tasks[2]
+	restartSystemToRunModeTask := tasks[3]
 
 	c.Assert(setupRunSystemTask.Kind(), Equals, "setup-run-system")
+	c.Assert(prepareUbuntuSave.Kind(), Equals, "prepare-ubuntu-save")
 	c.Assert(installDevice.Kind(), Equals, "run-hook")
 	c.Assert(restartSystemToRunModeTask.Kind(), Equals, "restart-system-to-run-mode")
 

@@ -250,6 +250,10 @@ func writeTimings(st *state.State, rootdir, fromMode string) error {
 	return nil
 }
 
+func (m *DeviceManager) doPrepareUbuntuSave(t *state.Task, _ *tomb.Tomb) error {
+	return m.maybeSetupUbuntuSave()
+}
+
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -373,6 +377,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
+
 	return nil
 }
 
