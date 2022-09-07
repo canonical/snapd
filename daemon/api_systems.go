@@ -105,13 +105,8 @@ func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 // wrapped for unit tests
-var deviceManagerSystemAndGadgetAndKernelInfo = func(dm *devicestate.DeviceManager, systemLabel string) (*devicestate.System, *gadget.Info, *snap.Info, error) {
-	return dm.SystemAndGadgetAndKernelInfo(systemLabel)
-}
-
-// wrapped for unit tests
-var deviceManagerEncryptionSupportInfo = func(dm *devicestate.DeviceManager, model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (devicestate.EncryptionSupportInfo, error) {
-	return dm.EncryptionSupportInfo(model, kernelInfo, gadgetInfo)
+var deviceManagerSystemAndGadgetAndEncryptionInfo = func(dm *devicestate.DeviceManager, systemLabel string) (*devicestate.System, *gadget.Info, *devicestate.EncryptionSupportInfo, error) {
+	return dm.SystemAndGadgetAndEncryptionInfo(systemLabel)
 }
 
 func storageEncryption(encInfo *devicestate.EncryptionSupportInfo) *client.StorageEncryption {
@@ -125,14 +120,12 @@ func storageEncryption(encInfo *devicestate.EncryptionSupportInfo) *client.Stora
 	}
 	required := (encInfo.StorageSafety == asserts.StorageSafetyEncrypted)
 	switch {
-	case required && encInfo.Available:
+	case encInfo.Available:
 		storageEnc.Support = "available"
-	case !required && encInfo.Available:
-		storageEnc.Support = "available"
-	case required && !encInfo.Available:
+	case !encInfo.Available && required:
 		storageEnc.Support = "defective"
 		storageEnc.UnavailableReason = encInfo.UnavailableErr.Error()
-	case !required && !encInfo.Available:
+	case !encInfo.Available && !required:
 		storageEnc.Support = "unavailable"
 		storageEnc.UnavailableReason = encInfo.UnavailableWarning
 	}
@@ -145,12 +138,7 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	deviceMgr := c.d.overlord.DeviceManager()
 
-	sys, gadgetInfo, kernelInfo, err := deviceManagerSystemAndGadgetAndKernelInfo(deviceMgr, wantedSystemLabel)
-	if err != nil {
-		return InternalError(err.Error())
-	}
-
-	encryptionInfo, err := deviceManagerEncryptionSupportInfo(deviceMgr, sys.Model, kernelInfo, gadgetInfo)
+	sys, gadgetInfo, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, wantedSystemLabel)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -167,7 +155,7 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 		// no body: we expect models to have empty bodies
 		Model:             sys.Model.Headers(),
 		Volumes:           gadgetInfo.Volumes,
-		StorageEncryption: storageEncryption(&encryptionInfo),
+		StorageEncryption: storageEncryption(encryptionInfo),
 	}
 	for _, sa := range sys.Actions {
 		rsp.Actions = append(rsp.Actions, client.SystemAction{

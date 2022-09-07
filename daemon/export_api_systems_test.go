@@ -20,10 +20,8 @@
 package daemon
 
 import (
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -39,14 +37,8 @@ type (
 	SystemsResponse = systemsResponse
 )
 
-func MockDeviceManagerSystemAndGadgetAndKernelInfo(f func(*devicestate.DeviceManager, string) (*devicestate.System, *gadget.Info, *snap.Info, error)) (restore func()) {
-	restore = testutil.Backup(&deviceManagerSystemAndGadgetAndKernelInfo)
-	deviceManagerSystemAndGadgetAndKernelInfo = f
-	return restore
-}
-
-func MockDeviceManagerEncryptionSupportInfo(f func(dm *devicestate.DeviceManager, model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (devicestate.EncryptionSupportInfo, error)) (restore func()) {
-	restore = testutil.Backup(&deviceManagerEncryptionSupportInfo)
-	deviceManagerEncryptionSupportInfo = f
+func MockDeviceManagerSystemAndGadgetAndEncryptionInfo(f func(*devicestate.DeviceManager, string) (*devicestate.System, *gadget.Info, *devicestate.EncryptionSupportInfo, error)) (restore func()) {
+	restore = testutil.Backup(&deviceManagerSystemAndGadgetAndEncryptionInfo)
+	deviceManagerSystemAndGadgetAndEncryptionInfo = f
 	return restore
 }

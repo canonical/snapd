@@ -1802,9 +1802,10 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 	return systems, nil
 }
 
-// SystemAndGadgetInfo return the system details including the model
-// assertion and gadget details for the given system label.
-func (m *DeviceManager) SystemAndGadgetAndKernelInfo(wantedSystemLabel string) (*System, *gadget.Info, *snap.Info, error) {
+// SystemAndGadgetAndEncryptionInfo return the system details
+// including the model assertion, gadget details and encryption info
+// for the given system label.
+func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel string) (*System, *gadget.Info, *EncryptionSupportInfo, error) {
 	if m.isClassicBoot {
 		return nil, nil, nil, fmt.Errorf("cannot get model and gadget information on a classic boot system")
 	}
@@ -1856,7 +1857,7 @@ func (m *DeviceManager) SystemAndGadgetAndKernelInfo(wantedSystemLabel string) (
 		return nil, nil, nil, err
 	}
 
-	encInfo, err := m.EncryptionSupportInfo(sys.Model, kernelInfo, gadgetInfo)
+	encInfo, err := m.encryptionSupportInfo(sys.Model, kernelInfo, gadgetInfo)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -1867,7 +1868,7 @@ func (m *DeviceManager) SystemAndGadgetAndKernelInfo(wantedSystemLabel string) (
 		return nil, nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
 	}
 
-	return sys, gadgetInfo, kernelInfo, nil
+	return sys, gadgetInfo, &encInfo, nil
 }
 
 var ErrUnsupportedAction = errors.New("unsupported action")
@@ -2340,7 +2341,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		return "", err
 	}
 
-	res, err := m.EncryptionSupportInfo(model, kernelInfo, gadgetInfo)
+	res, err := m.encryptionSupportInfo(model, kernelInfo, gadgetInfo)
 	if err != nil {
 		return "", err
 	}
@@ -2355,7 +2356,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	return res.Type, res.UnavailableErr
 }
 
-func (m *DeviceManager) EncryptionSupportInfo(model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
+func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
 	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
