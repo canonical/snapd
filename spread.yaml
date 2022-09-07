@@ -730,11 +730,6 @@ prepare: |
         rmdir "$DELTA_PREFIX"
     fi
 
-    # TODO: drop once 21.10 images are fixed
-    if [[ "$SPREAD_SYSTEM" == ubuntu-21.10-* ]] && [[ -e /home/ubuntu/.ssh ]]; then
-        chown -R ubuntu:ubuntu /home/ubuntu/.ssh
-    fi
-
     # Take the MATCH and REBOOT functions from spread and allow our shell
     # scripts to use them as shell commands. The replacements are real
     # executables in tests/lib/bin (which is on PATH) but they source
