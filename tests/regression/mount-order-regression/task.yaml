@@ -73,9 +73,9 @@ execute: |
     $SNAP/data-dir/sounds
     EOF
 
-    if os.query is-amd64; then
+    if os.query is-pc-amd64; then
         check_non_empty /usr/lib/$LINUX_GNU_NAME/webkit2gtk-4.0
-        check_non_empty/usr/lib/$LINUX_GNU_NAME/webkit2gtk-4.0/injected-bundle
+        check_non_empty /usr/lib/$LINUX_GNU_NAME/webkit2gtk-4.0/injected-bundle
         check_non_empty /usr/share/xml/iso-codes
     fi
 
