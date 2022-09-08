@@ -2333,8 +2333,10 @@ func (s *modelAndGadgetInfoSuite) TestModelAndGadgetInfoHappy(c *C) {
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	// TODO: check encryptionInfo
-	system, gadgetInfo, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return fmt.Errorf("really no tpm") })
+	defer restore()
+
+	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, IsNil)
 	c.Check(system, DeepEquals, &devicestate.System{
 		Label: "some-label",
@@ -2345,6 +2347,11 @@ func (s *modelAndGadgetInfoSuite) TestModelAndGadgetInfoHappy(c *C) {
 		},
 	})
 	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
+	c.Check(encInfo, DeepEquals, &devicestate.EncryptionSupportInfo{
+		Available:          false,
+		StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+		UnavailableWarning: "not encrypting device storage as checking TPM gave: really no tpm",
+	})
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidLabel(c *C) {
