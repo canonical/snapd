@@ -16,8 +16,9 @@ prepare: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
 
-  IMGURL=$(tests.nested download image-url ubuntu-20.04-64)
-  wget --quiet "$IMGURL" -O cloudimg.img
+  # shellcheck source=tests/lib/image.sh
+  . "$TESTSLIB"/image.sh
+  wget --quiet "$(get_image_url_for_vm ubuntu-20.04-64)" -O cloudimg.img
 
   modprobe nbd
 

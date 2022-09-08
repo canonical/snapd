@@ -64,7 +64,6 @@ show_help() {
     echo ""
     echo "REMOTE_FILE:"
     echo "  snakeoil-key: snakeoil key"
-    echo "  image-url: url used to build a classic vm"
     echo "  spread: the spread binary"
     echo ""
     echo "EVENT:"
@@ -273,10 +272,6 @@ download() {
     case "$1" in
         snakeoil-key)
             action=nested_get_snakeoil_key
-            shift
-            ;;
-        image-url)
-            action=nested_get_image_url_for_vm
             shift
             ;;
         spread)

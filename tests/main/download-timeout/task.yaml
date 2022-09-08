@@ -16,6 +16,11 @@ environment:
   OVERRIDES_FILE: /etc/systemd/system/snapd.service.d/env-overrides.conf
 
 prepare: |
+  if not os.query is-pc-amd64; then
+      echo "tc fail to add a device in arm architecture with error: 'Cannot find device ens4'"
+      exit
+  fi
+
   cat <<EOF >> "$OVERRIDES_FILE"
   Environment=SNAP_MIN_DOWNLOAD_SPEED=${SNAP_MIN_DOWNLOAD_SPEED}
   Environment=SNAP_DOWNLOAD_MEAS_WINDOW=${SNAP_DOWNLOAD_MEAS_WINDOW}
@@ -25,10 +30,15 @@ prepare: |
   systemctl restart snapd.{socket,service}
 
 restore: |
+  if not os.query is-pc-amd64; then
+      echo "tc fail to add a device in arm architecture with error: 'Cannot find device ens4'"
+      exit
+  fi
   # We need to skip this step in 22.10 because it fails with error:
   # Error: Qdisc not classful. We have an error talking to the kernel
   # The test works well even after skipping this
   if not os.query is-ubuntu 22.10; then
+
       tc filter del dev ens4
   fi
   tc qdisc del dev ens4 ingress
@@ -38,6 +48,11 @@ restore: |
   systemctl restart snapd.{socket,service}
 
 execute: |
+  if not os.query is-pc-amd64; then
+      echo "tc fail to add a device in arm architecture with error: 'Cannot find device ens4'"
+      exit
+  fi
+
   tc qdisc add dev ens4 ingress
   tc filter add dev ens4 root protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1
   tc filter add dev ens4 parent ffff: protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1
