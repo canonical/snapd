@@ -148,14 +148,14 @@ type StorageEncryption struct {
 	// "available"   - encryption usable
 	// "unavailable" - encryption unavailable but not required
 	// "defective"   - encryption unavailable and required, this is an error
-	Support string `json:"support,omitempty"`
+	Support string `json:"support"`
 
 	// StorageSafety can have values of asserts.StorageSafety
 	StorageSafety string `json:"storage-safety,omitempty"`
 
 	// Type have values of secboot.Type: "", "cryptsetup",
 	// "device-setup-hook"
-	Type string `json:"encryption-type"`
+	Type string `json:"encryption-type,omitempty"`
 
 	// UnavailableReason describes why the encryption is not
 	// available in a human readable form. Depending on if
