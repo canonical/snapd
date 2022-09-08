@@ -1820,10 +1820,12 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 
 	// 2. get the gadget volumes for the given seed-label
 	perf := &timings.Timings{}
-	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, perf); err != nil {
+	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeKernel, snap.TypeGadget}, perf); err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
 	}
-	gadgetSnap := s.EssentialSnaps()[0]
+	// EssentialSnaps is always ordered, see asserts.Model.EssentialSnaps:
+	// "snapd, kernel, boot base, gadget."
+	gadgetSnap := s.EssentialSnaps()[1]
 	if gadgetSnap.Path == "" {
 		return nil, nil, nil, fmt.Errorf("internal error: cannot get gadget snap path")
 	}
@@ -1839,11 +1841,7 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
 	}
-
-	// need kernel details to validate storage against encryption
-	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeKernel}, perf); err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot load kernel snap metadata: %v", err)
-	}
+	// get kernel to check encryptionSupport
 	kernelSnap := s.EssentialSnaps()[0]
 	if kernelSnap.Path == "" {
 		return nil, nil, nil, fmt.Errorf("internal error: cannot get kernel snap path")
