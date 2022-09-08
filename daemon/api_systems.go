@@ -110,13 +110,14 @@ var deviceManagerSystemAndGadgetAndEncryptionInfo = func(dm *devicestate.DeviceM
 }
 
 func storageEncryption(encInfo *devicestate.EncryptionSupportInfo) *client.StorageEncryption {
+	if encInfo.Disabled {
+		return &client.StorageEncryption{
+			Support: "disabled",
+		}
+	}
 	storageEnc := &client.StorageEncryption{
 		StorageSafety: string(encInfo.StorageSafety),
 		Type:          string(encInfo.Type),
-	}
-	if encInfo.Disabled {
-		storageEnc.Support = "disabled"
-		return storageEnc
 	}
 	required := (encInfo.StorageSafety == asserts.StorageSafetyEncrypted)
 	switch {
