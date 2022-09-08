@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-CFG_FILE=remote.setup.cfg
+CFG_FILE="${REMOTE_CFG_FILE:-$(pwd)/remote.setup.cfg}"
 
 show_help() {
     echo "usage: remote.setup config --host <host> --port <port> --user <USER> [--pass <PASS>] [--cert <CERT>]"
