@@ -41,4 +41,4 @@ jobs:
 
     - name: Run test
       run: |
-          spread google:tests/
+          spread google:tests/ google-nested:tests/
