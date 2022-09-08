@@ -211,9 +211,9 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 	return total, nil
 }
 
-func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valsets []string, requiredRevision snap.Revision) {
+func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valsets []snapasserts.ValidationSetKey, requiredRevision snap.Revision) {
 	for _, vs := range valsets {
-		keyParts := strings.Split(vs, "/")
+		keyParts := strings.Split(vs.String(), "/")
 		action.ValidationSets = append(action.ValidationSets, keyParts)
 	}
 	if !requiredRevision.Unset() {
@@ -250,7 +250,7 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 	}
 
 	var requiredRevision snap.Revision
-	var requiredValSets []string
+	var requiredValSets []snapasserts.ValidationSetKey
 
 	if !flags.IgnoreValidation {
 		if len(revOpts.ValidationSets) > 0 {
@@ -282,7 +282,7 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 			// check if desired revision matches the revision required by validation sets
 			if !requiredRevision.Unset() && !revOpts.Revision.Unset() && revOpts.Revision.N != requiredRevision.N {
 				return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q at requested revision %s without --ignore-validation, revision %s required by validation sets: %s",
-					name, revOpts.Revision, requiredRevision, strings.Join(requiredValSets, ","))
+					name, revOpts.Revision, requiredRevision, snapasserts.ValidationSetKeySlice(requiredValSets).CommaSeparated())
 			}
 		}
 	}
@@ -352,7 +352,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 	}
 
 	var requiredRevision snap.Revision
-	var requiredValsets []string
+	var requiredValsets []snapasserts.ValidationSetKey
 
 	if !flags.IgnoreValidation {
 		enforcedSets, err := EnforcedValidationSets(st)
@@ -366,7 +366,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 			}
 			if !requiredRevision.Unset() && snapst.Current == requiredRevision {
 				logger.Debugf("snap %q is already at the revision %s required by validation sets: %s, skipping",
-					curInfo.InstanceName(), snapst.Current, strings.Join(requiredValsets, ","))
+					curInfo.InstanceName(), snapst.Current, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
 				return nil, store.ErrNoUpdateAvailable
 			}
 			if len(requiredValsets) > 0 {
@@ -483,7 +483,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revOpts *RevisionO
 	}
 
 	var requiredRevision snap.Revision
-	var requiredValsets []string
+	var requiredValsets []snapasserts.ValidationSetKey
 
 	var storeFlags store.SnapActionFlags
 	if !flags.IgnoreValidation {
@@ -503,7 +503,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revOpts *RevisionO
 				if !requiredRevision.Unset() {
 					if revOpts.Revision != requiredRevision {
 						return nil, fmt.Errorf("cannot update snap %q to revision %s without --ignore-validation, revision %s is required by validation sets: %s",
-							curInfo.InstanceName(), revOpts.Revision, requiredRevision, strings.Join(requiredValsets, ","))
+							curInfo.InstanceName(), revOpts.Revision, requiredRevision, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
 					}
 					// note, not checking if required revision matches snapst.Current because
 					// this is already indirectly prevented by infoForUpdate().
@@ -669,7 +669,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 		}
 
 		if !snapst.IgnoreValidation {
-			var requiredValsets []string
+			var requiredValsets []snapasserts.ValidationSetKey
 			var requiredRevision snap.Revision
 
 			if revOpts != nil {
@@ -805,7 +805,7 @@ func installCandidates(st *state.State, names []string, revOpts []*RevisionOptio
 			Channel: channel,
 		}
 
-		var requiredValSets []string
+		var requiredValSets []snapasserts.ValidationSetKey
 		var requiredRevision snap.Revision
 
 		if revOpts != nil {
