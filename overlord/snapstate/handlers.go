@@ -1200,8 +1200,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
-	m.maybeRestart(t, oldInfo, reboot)
-	return nil
+	return m.finishTaskWithMaybeRestart(t, state.UndoneStatus, oldInfo, reboot)
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
@@ -1906,7 +1905,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}
 	if !rebootInfo.RebootRequired || canReboot {
-		m.maybeRestart(t, newInfo, rebootInfo)
+		if err := m.finishTaskWithMaybeRestart(t, state.DoneStatus, newInfo, rebootInfo); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -1926,21 +1927,20 @@ func setMigrationFlagsinState(snapst *SnapState, snapsup *SnapSetup) {
 	}
 }
 
-// maybeRestart will schedule a reboot or restart as needed for the
+// finishTaskWithMaybeRestart will schedule a reboot or restart as needed for the
 // just linked snap with info if it's a core or snapd or kernel snap.
-func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootInfo boot.RebootInfo) {
+func (m *SnapManager) finishTaskWithMaybeRestart(t *state.Task, status state.Status, info *snap.Info, rebootInfo boot.RebootInfo) error {
 	// Don't restart when preseeding - we will switch to new snapd on
 	// first boot.
 	if m.preseed {
-		return
+		return nil
 	}
 
 	st := t.State()
 
 	if rebootInfo.RebootRequired {
 		t.Logf("Requested system restart.")
-		RestartSystem(t, &rebootInfo)
-		return
+		return RestartSystem(t, status, &rebootInfo)
 	}
 
 	typ := info.Type()
@@ -1957,11 +1957,11 @@ func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootInfo bo
 	restartReason := daemonRestartReason(st, typ)
 	if restartReason == "" {
 		// no message -> no restart
-		return
+		return nil
 	}
 
 	t.Logf(restartReason)
-	restart.Request(st, restart.RestartDaemon, nil)
+	return FinishTaskWithRestart(t, status, restart.RestartDaemon, nil)
 }
 
 func daemonRestartReason(st *state.State, typ snap.Type) string {
@@ -2046,9 +2046,7 @@ func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) error {
 
 	// we may just have switch back to the old kernel/base/core so
 	// we may need to restart
-	m.maybeRestart(t, info, rebootInfo)
-
-	return nil
+	return m.finishTaskWithMaybeRestart(t, state.UndoneStatus, info, rebootInfo)
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -2233,16 +2231,14 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return backendErr
 	}
 
-	if err := m.maybeUndoRemodelBootChanges(t); err != nil {
-		return err
-	}
-
 	// restart only when snapd was installed for the first time and the rest of
 	// the cleanup is performed by snapd from core;
 	// when reverting a subsequent snapd revision, the restart happens in
 	// undoLinkCurrentSnap() instead
 	if firstInstall && newInfo.Type() == snap.TypeSnapd {
-		m.maybeRestart(t, newInfo, boot.RebootInfo{RebootRequired: false})
+		if err := m.finishTaskWithMaybeRestart(t, state.UndoneStatus, newInfo, boot.RebootInfo{RebootRequired: false}); err != nil {
+			return err
+		}
 	}
 
 	// write sequence file for failover helpers
@@ -2265,9 +2261,13 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// core snap -> next core snap
 	if release.OnClassic && newInfo.Type() == snap.TypeOS && oldCurrent.Unset() {
 		t.Logf("Requested daemon restart (undo classic initial core install)")
-		restart.Request(st, restart.RestartDaemon, nil)
+
+		if err := FinishTaskWithRestart(t, state.UndoneStatus, restart.RestartDaemon, nil); err != nil {
+			return err
+		}
 	}
-	return nil
+
+	return m.maybeUndoRemodelBootChanges(t)
 }
 
 // countMissingRevs counts how many of the revisions aren't present in the sequence of sideInfos
@@ -2733,9 +2733,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just linked back a core snap, request a restart
 	// so that we switch executing its snapd.
-	m.maybeRestart(t, info, reboot)
-
-	return nil
+	return m.finishTaskWithMaybeRestart(t, state.UndoneStatus, info, reboot)
 }
 
 func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
