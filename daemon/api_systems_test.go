@@ -885,7 +885,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 		// mockSystemSeed will ensure everything here is coming from
 		// the mocked seed except the encryptionInfo
 		sys, gadgetInfo, encInfo, err := deviceMgr.SystemAndGadgetAndEncryptionInfo(label)
-		// encryptionInfo needs get overriden here to get reliable tests
+		// encryptionInfo needs get overridden here to get reliable tests
 		encInfo.Available = false
 		encInfo.StorageSafety = asserts.StorageSafetyPreferEncrypted
 		encInfo.UnavailableWarning = "not encrypting device storage as checking TPM gave: some reason"
