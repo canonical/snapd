@@ -47,7 +47,7 @@ signal (send),
 /{,usr/}bin/kill ixr,
 /{,usr/}bin/pkill ixr,
 
-@{PROC}/self/coredump_filter wr,
+@{PROC}/[0-9]*/coredump_filter wr,
 `
 
 const processControlConnectedPlugSecComp = `
