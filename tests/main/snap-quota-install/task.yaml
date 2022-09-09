@@ -26,6 +26,8 @@ execute: |
   echo "Installing hello-world and assigning it quota group group-one"
   snap install hello-world --quota-group group-one
   
+  # We expect that group-one will use memory, but we do not care how much memory
+  # it's using, so we just accept whatever (if any) memory in use.
   echo "Checking that all quotas can be listed"
   snap quotas | cat -n > quotas.txt
   MATCH "     1\s+Quota\s+Parent\s+Constraints\s+Current$" < quotas.txt
