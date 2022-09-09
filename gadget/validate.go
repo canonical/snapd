@@ -84,6 +84,7 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 	}
 
 	hasModes := false
+	// Classic with gadget + kernel snaps
 	isClassicWithModes := false
 	if model != nil {
 		hasModes = hasGrade(model)
@@ -262,10 +263,8 @@ func ensureRolesConsistencyOnModalClassic(roles map[string]*roleInstance) error 
 	// Check that boot/seed/save are in the same volume
 	bootVolName := roles[SystemBoot].volName
 	for _, rlLb := range roleLabelOptional {
-		if roles[rlLb.role] != nil {
-			if roles[rlLb.role].volName != bootVolName {
-				return fmt.Errorf("system-boot and %s are expected to share the same volume", rlLb.role)
-			}
+		if roles[rlLb.role] != nil && roles[rlLb.role].volName != bootVolName {
+			return fmt.Errorf("system-boot and %s are expected to share the same volume", rlLb.role)
 		}
 	}
 	return nil
