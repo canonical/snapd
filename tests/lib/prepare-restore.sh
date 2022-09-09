@@ -484,10 +484,7 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             best_golang=golang-1.13
-            if [[ "$SPREAD_SYSTEM" == debian-9-* ]]; then
-                echo "debian-9 tests disabled (no golang-1.13)"
-                exit 1
-            elif [[ "$SPREAD_SYSTEM" == debian-10-* ]]; then
+            if [[ "$SPREAD_SYSTEM" == debian-10-* ]]; then
                 # debian-10 needs backports for golang-1.13
                 echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list
                 apt update
