@@ -176,11 +176,9 @@ func (qr *Resources) validateJournalQuota() error {
 	}
 
 	if qr.Journal.Rate != nil {
-		// The only invalid numbers for the count are those less than 0
 		if qr.Journal.Rate.Count < 0 {
 			return fmt.Errorf("journal quota must have a rate count equal to or larger than zero")
 		}
-		// The only invalid numbers for period are values larger than 0 but less than 1us
 		if qr.Journal.Rate.Period > 0 && qr.Journal.Rate.Period < time.Microsecond {
 			return fmt.Errorf("journal quota must have a period of at least 1 microsecond (minimum resolution)")
 		}

@@ -69,15 +69,16 @@ type GroupQuotaJournal struct {
 	// journald namespaces is 4GB. A value of 0 here means no limit is present.
 	Size quantity.Size `json:"size,omitempty"`
 
-	// RateCount/RatePeriod determines the maximum rate of journal writes for
-	// the group. The count is the number of journal messages that can be written
-	// in each period. We treat rate values a bit different as 0 are valid values
-	// here and used to override the journal default rate (which is not unlimited),
-	// and thus the reason we have RateEnabled to tell us whether the values are
-	// to be used.
-	RateEnabled bool          `json:"rate-enabled,omitempty"`
-	RateCount   int           `json:"rate-count,omitempty"`
-	RatePeriod  time.Duration `json:"rate-period,omitempty"`
+	// RateEnabled tells us whether or not the values provided in RateCount and
+	// RatePeriod should be written.
+	RateEnabled bool `json:"rate-enabled,omitempty"`
+	// RateCount is the number of messages allowed each RatePeriod. A zero value
+	// in this field will disable the rate-limit.
+	RateCount int `json:"rate-count,omitempty"`
+	// RatePeriod is the time-period for when the rate resets. Each RatePeriod,
+	// RateCount number of messages is allowed. A zero value in this field will
+	// disable the rate-limit.
+	RatePeriod time.Duration `json:"rate-period,omitempty"`
 }
 
 // Group is a quota group of snaps, services or sub-groups that are all subject
