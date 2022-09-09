@@ -145,8 +145,13 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 	return nil
 }
 
-func createClassicRootfsIfNeeded(bootDevice string, details *client.SystemDetails) error {
-	// TODO: check model and if classic create rootfs somehow
+func createClassicRootfsIfNeeded(rootfsCreator string) error {
+	dst := runMntFor("ubuntu-data")
+
+	if output, err := exec.Command(rootfsCreator, dst).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+
 	return nil
 }
 
@@ -171,15 +176,14 @@ func writeModeenvOnTarget(seedLabel string) error {
 	return nil
 }
 
-func run() error {
-	if len(os.Args) != 3 {
-		return fmt.Errorf("need seed-label and target-device as argument\n")
+func run(seedLabel, bootDevice, rootfsCreator string) error {
+	if len(os.Args) != 4 {
+		// xxx: allow installing real UC without a classic-rootfs later
+		return fmt.Errorf("need seed-label, target-device and classic-rootfs as argument\n")
 	}
 	os.Setenv("SNAPD_DEBUG", "1")
 	logger.SimpleSetup()
 
-	seedLabel := os.Args[1]
-	bootDevice := os.Args[2]
 	logger.Noticef("installing on %q", bootDevice)
 
 	cli := client.New(nil)
@@ -197,7 +201,7 @@ func run() error {
 	if err := createAndMountFilesystems(bootDevice, details.Volumes); err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
-	if err := createClassicRootfsIfNeeded(bootDevice, details); err != nil {
+	if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
 		return fmt.Errorf("cannot create classic rootfs: %v", err)
 	}
 	if err := createSeedOnTarget(bootDevice, seedLabel); err != nil {
@@ -217,7 +221,11 @@ func run() error {
 }
 
 func main() {
-	if err := run(); err != nil {
+	seedLabel := os.Args[1]
+	bootDevice := os.Args[2]
+	rootfsCreator := os.Args[3]
+
+	if err := run(seedLabel, bootDevice, rootfsCreator); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
