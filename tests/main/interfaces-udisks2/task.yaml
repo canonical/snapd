@@ -35,7 +35,7 @@ execute: |
     dd if=/dev/zero of="$FS_PATH" bs=1M count=10
     mkfs.ext4 -F "$FS_PATH"
     # create the loopback block device
-    udisksctl loop-setup -rf "$FS_PATH"
+    udisksctl loop-setup -f "$FS_PATH"
 
     device="$(losetup -j "$FS_PATH" | cut -d: -f1)"
 
