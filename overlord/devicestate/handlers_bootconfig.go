@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -79,17 +80,18 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		return fmt.Errorf("cannot update boot config assets: %v", err)
 	}
 
-	// minimize wasteful redos
-	t.SetStatus(state.DoneStatus)
-
+	finalStatus := state.DoneStatus
 	if updated {
 		t.Logf("updated boot config assets")
 		// boot assets were updated, request a restart now so that the
 		// situation does not end up more complicated if more updates of
 		// boot assets were to be applied
-		if err := snapstate.RestartSystem(t, state.DoneStatus, nil); err != nil {
+		if err := snapstate.FinishTaskWithRestart(t, finalStatus, restart.RestartSystem, nil); err != nil {
 			return err
 		}
+	} else {
+		// minimize wasteful redos
+		t.SetStatus(finalStatus)
 	}
 
 	return nil

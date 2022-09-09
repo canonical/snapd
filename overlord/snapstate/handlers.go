@@ -1885,7 +1885,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	notifyLinkParticipants(t, snapsup.InstanceName())
 
 	// Make sure if state commits and snapst is mutated we won't be rerun
-	t.SetStatus(state.DoneStatus)
+	finalStatus := state.DoneStatus
+	t.SetStatus(finalStatus)
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd.
@@ -1905,7 +1906,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}
 	if !rebootInfo.RebootRequired || canReboot {
-		if err := m.finishTaskWithMaybeRestart(t, state.DoneStatus, newInfo, rebootInfo); err != nil {
+		if err := m.finishTaskWithMaybeRestart(t, finalStatus, newInfo, rebootInfo); err != nil {
 			return err
 		}
 	}
@@ -1927,8 +1928,9 @@ func setMigrationFlagsinState(snapst *SnapState, snapsup *SnapSetup) {
 	}
 }
 
-// finishTaskWithMaybeRestart will schedule a reboot or restart as needed for the
-// just linked snap with info if it's a core or snapd or kernel snap.
+// finishTaskWithMaybeRestart will set the final status for the task
+// and schedule a reboot or restart as needed for the just linked snap
+// with info if it's a core, snapd or kernel snap.
 func (m *SnapManager) finishTaskWithMaybeRestart(t *state.Task, status state.Status, info *snap.Info, rebootInfo boot.RebootInfo) error {
 	// Don't restart when preseeding - we will switch to new snapd on
 	// first boot.
@@ -1940,7 +1942,7 @@ func (m *SnapManager) finishTaskWithMaybeRestart(t *state.Task, status state.Sta
 
 	if rebootInfo.RebootRequired {
 		t.Logf("Requested system restart.")
-		return RestartSystem(t, status, &rebootInfo)
+		return FinishTaskWithRestart(t, status, restart.RestartSystem, &rebootInfo)
 	}
 
 	typ := info.Type()
@@ -2046,7 +2048,8 @@ func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) error {
 
 	// we may just have switch back to the old kernel/base/core so
 	// we may need to restart
-	return m.finishTaskWithMaybeRestart(t, state.UndoneStatus, info, rebootInfo)
+	// In this case we keep the current status (not finished yet).
+	return m.finishTaskWithMaybeRestart(t, t.Status(), info, rebootInfo)
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -2231,12 +2234,17 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return backendErr
 	}
 
+	if err := m.maybeUndoRemodelBootChanges(t); err != nil {
+		return err
+	}
+
 	// restart only when snapd was installed for the first time and the rest of
 	// the cleanup is performed by snapd from core;
 	// when reverting a subsequent snapd revision, the restart happens in
 	// undoLinkCurrentSnap() instead
 	if firstInstall && newInfo.Type() == snap.TypeSnapd {
-		if err := m.finishTaskWithMaybeRestart(t, state.UndoneStatus, newInfo, boot.RebootInfo{RebootRequired: false}); err != nil {
+		// In this case we keep the current status (not finished yet).
+		if err := m.finishTaskWithMaybeRestart(t, t.Status(), newInfo, boot.RebootInfo{RebootRequired: false}); err != nil {
 			return err
 		}
 	}
@@ -2252,7 +2260,8 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	notifyLinkParticipants(t, snapsup.InstanceName())
 
 	// Make sure if state commits and snapst is mutated we won't be rerun
-	t.SetStatus(state.UndoneStatus)
+	finalStatus := state.UndoneStatus
+	t.SetStatus(finalStatus)
 
 	// If we are on classic and have no previous version of core
 	// we may have restarted from a distro package into the core
@@ -2262,12 +2271,12 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if release.OnClassic && newInfo.Type() == snap.TypeOS && oldCurrent.Unset() {
 		t.Logf("Requested daemon restart (undo classic initial core install)")
 
-		if err := FinishTaskWithRestart(t, state.UndoneStatus, restart.RestartDaemon, nil); err != nil {
+		if err := FinishTaskWithRestart(t, finalStatus, restart.RestartDaemon, nil); err != nil {
 			return err
 		}
 	}
 
-	return m.maybeUndoRemodelBootChanges(t)
+	return nil
 }
 
 // countMissingRevs counts how many of the revisions aren't present in the sequence of sideInfos
