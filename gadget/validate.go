@@ -102,10 +102,11 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 	}
 
 	if isClassicWithModes {
-		if err := ensureRolesConsistencyOnModalClassic(roles); err != nil {
+		if err := ensureRolesConsistencyClassicWithModes(roles); err != nil {
 			return err
 		}
 	} else {
+		// The seed is expected on UC with modes
 		if err := ensureRolesConsistency(roles, hasModes); err != nil {
 			return err
 		}
@@ -114,7 +115,7 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 	if extra != nil {
 		if extra.EncryptedData {
 			if !hasModes {
-				return fmt.Errorf("internal error: cannot support encrypted data in a non-modal system")
+				return fmt.Errorf("internal error: cannot support encrypted data in a system without modes")
 			}
 			if roles[SystemSave] == nil {
 				return fmt.Errorf("gadget does not support encrypted data: required partition with system-save role is missing")
@@ -182,32 +183,31 @@ func validateReservedLabels(vs *VolumeStructure, reservedLabels []string) error 
 	return nil
 }
 
-func ensureRolesConsistency(roles map[string]*roleInstance, hasModes bool) error {
+func ensureRolesConsistency(roles map[string]*roleInstance, seedExpected bool) error {
 	// TODO: should we validate usage of uc20 specific system-recovery-{image,select}
 	//       roles too? they should only be used on uc20 systems, so models that
 	//       have a grade set and are not classic boot
 
 	switch {
 	case roles[SystemSeed] == nil && roles[SystemData] == nil:
-		if hasModes {
+		if seedExpected {
 			return fmt.Errorf("model requires system-seed partition, but no system-seed or system-data partition found")
 		}
 	case roles[SystemSeed] != nil && roles[SystemData] == nil:
 		return fmt.Errorf("the system-seed role requires system-data to be defined")
 	case roles[SystemSeed] == nil && roles[SystemData] != nil:
 		// error if we have the SystemSeed constraint but no actual system-seed structure
-		if hasModes {
+		if seedExpected {
 			return fmt.Errorf("model requires system-seed structure, but none was found")
 		}
 		// without SystemSeed, system-data label must be implicit or writable
-		if err := checkImplicitLabels(
-			[]roleLabel{{role: SystemData, label: implicitSystemDataLabel}},
-			roles); err != nil {
+		if err := checkImplicitLabels(roles,
+			roleLabel{role: SystemData, label: implicitSystemDataLabel}); err != nil {
 			return err
 		}
 	case roles[SystemSeed] != nil && roles[SystemData] != nil:
 		// error if we don't have the SystemSeed constraint but we have a system-seed structure
-		if !hasModes {
+		if !seedExpected {
 			return fmt.Errorf("model does not support the system-seed role")
 		}
 		if err := checkSeedDataImplicitLabels(roles); err != nil {
@@ -215,7 +215,7 @@ func ensureRolesConsistency(roles map[string]*roleInstance, hasModes bool) error
 		}
 	}
 	if roles[SystemSave] != nil {
-		if !hasModes {
+		if !seedExpected {
 			return fmt.Errorf("model does not support the system-save role")
 		}
 		if err := ensureSystemSaveRuleConsistency(roles); err != nil {
@@ -223,7 +223,7 @@ func ensureRolesConsistency(roles map[string]*roleInstance, hasModes bool) error
 		}
 	}
 
-	if hasModes {
+	if seedExpected {
 		// make sure that all roles come from the same volume
 		// TODO:UC20: there is more to do in order to support multi-volume situations
 
@@ -241,22 +241,20 @@ func ensureRolesConsistency(roles map[string]*roleInstance, hasModes bool) error
 	return nil
 }
 
-func ensureRolesConsistencyOnModalClassic(roles map[string]*roleInstance) error {
+func ensureRolesConsistencyClassicWithModes(roles map[string]*roleInstance) error {
 	if roles[SystemBoot] == nil || roles[SystemData] == nil {
 		return fmt.Errorf("system-boot and system-data roles are needed on classic")
 	}
 
 	// Make sure labels are as expected - save is optional
-	roleLabelToCheck := []roleLabel{
-		{SystemBoot, ubuntuBootLabel}, {SystemData, ubuntuDataLabel}}
-	roleLabelOptional := []roleLabel{
-		{SystemSeed, ubuntuSeedLabel}, {SystemSave, ubuntuSaveLabel}}
+	roleLabelToCheck := []roleLabel{roleLabelBoot, roleLabelData}
+	roleLabelOptional := []roleLabel{roleLabelSeed, roleLabelSave}
 	for _, rlLb := range roleLabelOptional {
 		if roles[rlLb.role] != nil {
 			roleLabelToCheck = append(roleLabelToCheck, rlLb)
 		}
 	}
-	if err := checkImplicitLabels(roleLabelToCheck, roles); err != nil {
+	if err := checkImplicitLabels(roles, roleLabelToCheck...); err != nil {
 		return err
 	}
 
@@ -275,14 +273,14 @@ func ensureSystemSaveRuleConsistency(roles map[string]*roleInstance) error {
 		// previous checks should stop reaching here
 		return fmt.Errorf("internal error: system-save requires system-seed and system-data structures")
 	}
-	if err := checkImplicitLabels([]roleLabel{roleLabelSave}, roles); err != nil {
+	if err := checkImplicitLabels(roles, roleLabelSave); err != nil {
 		return err
 	}
 	return nil
 }
 
 func checkSeedDataImplicitLabels(roles map[string]*roleInstance) error {
-	if err := checkImplicitLabels([]roleLabel{roleLabelData, roleLabelSeed}, roles); err != nil {
+	if err := checkImplicitLabels(roles, roleLabelData, roleLabelSeed); err != nil {
 		return err
 	}
 	return nil
@@ -296,13 +294,17 @@ type roleLabel struct {
 
 var (
 	roleLabelSeed = roleLabel{role: SystemSeed, label: ubuntuSeedLabel}
+	roleLabelBoot = roleLabel{role: SystemBoot, label: ubuntuBootLabel}
 	roleLabelSave = roleLabel{role: SystemSave, label: ubuntuSaveLabel}
 	roleLabelData = roleLabel{role: SystemData, label: ubuntuDataLabel}
 )
 
-func checkImplicitLabels(roleLabels []roleLabel, roles map[string]*roleInstance) error {
+func checkImplicitLabels(roles map[string]*roleInstance, roleLabels ...roleLabel) error {
 	for _, rlLb := range roleLabels {
 		volStruct := roles[rlLb.role].s
+		if volStruct == nil {
+			return fmt.Errorf("internal error: %q not in volume", rlLb.role)
+		}
 		if volStruct.Label != "" && volStruct.Label != rlLb.label {
 			return fmt.Errorf("%s structure must have an implicit label or %q, not %q", rlLb.role, rlLb.label, volStruct.Label)
 		}

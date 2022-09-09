@@ -761,7 +761,7 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportNoUC20(c *C) {
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
 		EncryptedData: true,
 	})
-	c.Assert(err, ErrorMatches, `internal error: cannot support encrypted data in a non-modal system`)
+	c.Assert(err, ErrorMatches, `internal error: cannot support encrypted data in a system without modes`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportMultiVolumeHappy(c *C) {
