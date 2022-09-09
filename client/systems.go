@@ -167,8 +167,16 @@ func (client *Client) SystemDetails(seedLabel string) (*SystemDetails, error) {
 type InstallStep string
 
 const (
+	// Creates a change to setup encryption for the partitions
+	// with system-{data,save} roles. The successful change has a
+	// created device mapper devices ready to use.
 	InstallStepSetupStorageEncryption InstallStep = "setup-storage-encryption"
-	InstallStepFinish                 InstallStep = "finish"
+
+	// Creates a change to finish the installation. The change
+	// ensures all volume structure content is written to disk, it
+	// sets up boot, kernel etc and when finished the installed
+	// system is ready for reboot.
+	InstallStepFinish InstallStep = "finish"
 )
 
 type InstallSystemOptions struct {
