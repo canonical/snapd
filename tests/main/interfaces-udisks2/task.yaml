@@ -10,14 +10,12 @@ systems: [-ubuntu-core-*, -ubuntu-18.04-32]
 
 environment:
     FS_PATH: "$(pwd)/dev0-fake0"
-    MMCBLK_PATH: /dev/mmcblk-fake0
 
 prepare: |
     snap install test-snapd-udisks2
 
 restore: |
-    losetup -d "$MMCBLK_PATH" || true
-    rm -f "$MMCBLK_PATH" "$FS_PATH"
+    rm -f "$FS_PATH"
 
 execute: |
     echo "The interface is not connected by default"
