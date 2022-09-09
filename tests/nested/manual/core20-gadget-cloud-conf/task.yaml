@@ -127,7 +127,7 @@ execute: |
   remote.exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
 
   echo "And we can run things as the normal user"
-  remote.exec --user normal-user --pwd ubuntu "sudo true"
+  remote.exec --user normal-user --pass ubuntu "sudo true"
 
   echo "Waiting for snapd to react to cloud-init"
   retry --wait 1 -n 60 sh -c 'remote.exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'
