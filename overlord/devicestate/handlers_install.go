@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
@@ -1175,4 +1176,47 @@ func rotateEncryptionKeys() error {
 		return fmt.Errorf("cannot transition the encryption key: %v", err)
 	}
 	return nil
+}
+
+func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var seedLabel string
+	if err := t.Get("seed-label", &seedLabel); err != nil {
+		return err
+	}
+	var onVolumes map[string]*client.InstallVolume
+	if err := t.Get("on-volumes", &onVolumes); err != nil {
+		return err
+	}
+	logger.Debugf("install-finish for %q on %v", seedLabel, onVolumes)
+	// TODO: use the seed to get gadget/kernel
+	// - install missing volumes structure content
+	// - install gadget assets
+	// - install kenrel
+	// - make system bootable (include writing modeenv)
+
+	return fmt.Errorf("finish install step not implemented yet")
+}
+
+func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var seedLabel string
+	if err := t.Get("seed-label", &seedLabel); err != nil {
+		return err
+	}
+	var onVolumes map[string]*client.InstallVolume
+	if err := t.Get("on-volumes", &onVolumes); err != nil {
+		return err
+	}
+	logger.Debugf("install-setup-storage-encyption for %q on %v", seedLabel, onVolumes)
+	// TODO: find device with role system-{data,seed} and setup
+	// storage encryption
+
+	return fmt.Errorf("setup storage encryption step not implemented yet")
 }

@@ -47,12 +47,12 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/testutil"
 )
 
 var _ = check.Suite(&systemsSuite{})
@@ -976,13 +976,37 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	})
 }
 
-// TODO: update once "action":"install" is actually doing something :)
-func (s *systemsSuite) TestSystemInstallActionNotImplementedYet(c *check.C) {
-	s.daemon(c)
+func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevicestate(c *check.C) {
+	s.testSystemInstallActionCallsDevicestate(c, "setup-storage-encryption", daemon.MockDevicestateInstallSetupStorageEncryption)
+}
 
-	body := map[string]string{
+func (s *systemsSuite) TestSystemInstallActionFinishCallsDevicestate(c *check.C) {
+	s.testSystemInstallActionCallsDevicestate(c, "finish", daemon.MockDevicestateInstallFinish)
+}
+
+func (s *systemsSuite) testSystemInstallActionCallsDevicestate(c *check.C, step string, mocker func(func(st *state.State, label string, onVolumes map[string]*client.InstallVolume) (*state.Change, error)) (restore func())) {
+	d := s.daemon(c)
+	st := d.Overlord().State()
+
+	nCalls := 0
+	var gotOnVolumes map[string]*client.InstallVolume
+	var gotLabel string
+	r := mocker(func(st *state.State, label string, onVolumes map[string]*client.InstallVolume) (*state.Change, error) {
+		gotLabel = label
+		gotOnVolumes = onVolumes
+		nCalls++
+		return st.NewChange("foo", "..."), nil
+	})
+	defer r()
+
+	body := map[string]interface{}{
 		"action": "install",
-		"step":   "finish",
+		"step":   step,
+		"on-volumes": map[string]interface{}{
+			"pc": map[string]interface{}{
+				"bootloader": "grub",
+			},
+		},
 	}
 	b, err := json.Marshal(body)
 	c.Assert(err, check.IsNil)
@@ -990,11 +1014,102 @@ func (s *systemsSuite) TestSystemInstallActionNotImplementedYet(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
 	c.Assert(err, check.IsNil)
 
-	// as root
-	s.asRootAuth(req)
-	rec := httptest.NewRecorder()
-	s.serveHTTP(c, rec, req)
-	c.Check(rec.Code, check.Equals, 400)
-	// TODO: update once it actually does something
-	c.Check(rec.Body.String(), testutil.Contains, "system action install is not implemented yet")
+	rsp := s.asyncReq(c, req, nil)
+
+	st.Lock()
+	chg := st.Change(rsp.Change)
+	st.Unlock()
+	c.Check(chg, check.NotNil)
+	c.Check(chg.ID(), check.Equals, "1")
+	c.Check(nCalls, check.Equals, 1)
+	c.Check(gotLabel, check.Equals, "20191119")
+	c.Check(gotOnVolumes, check.DeepEquals, map[string]*client.InstallVolume{
+		"pc": {
+			Volume: &gadget.Volume{
+				Bootloader: "grub",
+			},
+		},
+	})
+}
+
+func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {
+	d := s.daemon(c)
+	st := d.Overlord().State()
+
+	for _, tc := range []struct {
+		installStep      string
+		expectedNumTasks int
+	}{
+		{"finish", 1},
+		{"setup-storage-encryption", 1},
+	} {
+		body := map[string]interface{}{
+			"action": "install",
+			"step":   tc.installStep,
+			"on-volumes": map[string]interface{}{
+				"pc": map[string]interface{}{
+					"bootloader": "grub",
+				},
+			},
+		}
+		b, err := json.Marshal(body)
+		c.Assert(err, check.IsNil)
+		buf := bytes.NewBuffer(b)
+		req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+		c.Assert(err, check.IsNil)
+
+		rsp := s.asyncReq(c, req, nil)
+
+		st.Lock()
+		chg := st.Change(rsp.Change)
+		tasks := chg.Tasks()
+		st.Unlock()
+
+		c.Check(chg, check.NotNil, check.Commentf("%v", tc))
+		c.Check(tasks, check.HasLen, tc.expectedNumTasks, check.Commentf("%v", tc))
+	}
+}
+
+func (s *systemsSuite) TestSystemInstallActionErrorMissingVolumes(c *check.C) {
+	s.daemon(c)
+
+	for _, tc := range []struct {
+		installStep string
+		expectedErr string
+	}{
+		{"finish", `cannot finish install for "20191119": cannot finish install without volumes data (api)`},
+		{"setup-storage-encryption", `cannot setup storage encryption for install from "20191119": cannot setup storage encryption without volumes data (api)`},
+	} {
+		body := map[string]interface{}{
+			"action": "install",
+			"step":   tc.installStep,
+			// note that "on-volumes" is missing which will
+			// trigger a bug
+		}
+		b, err := json.Marshal(body)
+		c.Assert(err, check.IsNil)
+		buf := bytes.NewBuffer(b)
+		req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Error(), check.Equals, tc.expectedErr)
+	}
+}
+
+func (s *systemsSuite) TestSystemInstallActionError(c *check.C) {
+	s.daemon(c)
+
+	body := map[string]string{
+		"action": "install",
+		"step":   "unknown-install-step",
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Error(), check.Equals, `unsupported install step "unknown-install-step" (api)`)
 }

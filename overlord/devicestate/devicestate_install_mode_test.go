@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
@@ -3661,4 +3662,139 @@ func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoWithFdeHook(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
+}
+
+type installStepSuite struct {
+	deviceMgrSystemsBaseSuite
+}
+
+var _ = Suite(&installStepSuite{})
+
+func (s *installStepSuite) SetUpTest(c *C) {
+	classic := false
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
+}
+
+var mockOnVolumes = map[string]*client.InstallVolume{
+	"pc": {
+		Volume: &gadget.Volume{
+			Bootloader: "grub",
+		},
+	},
+}
+
+func (s *installStepSuite) TestDeviceManagerInstallFinishEmptyLabelError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg, err := devicestate.InstallFinish(s.state, "", mockOnVolumes)
+	c.Check(err, ErrorMatches, "cannot finish install with an empty system label")
+	c.Check(chg, IsNil)
+}
+
+func (s *installStepSuite) TestDeviceManagerInstallFinishNoVolumesError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg, err := devicestate.InstallFinish(s.state, "1234", nil)
+	c.Check(err, ErrorMatches, "cannot finish install without volumes data")
+	c.Check(chg, IsNil)
+}
+
+func (s *installStepSuite) TestDeviceManagerInstallFinishTasksAndChange(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg, err := devicestate.InstallFinish(s.state, "1234", mockOnVolumes)
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+	c.Check(chg.Summary(), Matches, `Finish install for label "1234"`)
+	tsks := chg.Tasks()
+	c.Check(tsks, HasLen, 1)
+	tskInstallFinish := tsks[0]
+	c.Check(tskInstallFinish.Summary(), Matches, `Finish install for label "1234"`)
+	var onLabel string
+	err = tskInstallFinish.Get("seed-label", &onLabel)
+	c.Assert(err, IsNil)
+	c.Assert(onLabel, Equals, "1234")
+	var onVols map[string]*client.InstallVolume
+	err = tskInstallFinish.Get("on-volumes", &onVols)
+	c.Assert(err, IsNil)
+	c.Assert(onVols, DeepEquals, mockOnVolumes)
+}
+
+func (s *installStepSuite) TestDeviceManagerInstallFinishRunthrough(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	s.state.Set("seeded", true)
+	chg, err := devicestate.InstallFinish(s.state, "1234", mockOnVolumes)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	s.settle(c)
+	st.Lock()
+
+	c.Check(chg.IsReady(), Equals, true)
+	// TODO: update once the change actually does something
+	c.Check(chg.Err(), ErrorMatches, `(?ms).*finish install step not implemented yet.*`)
+}
+
+func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionEmptyLabelError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "", mockOnVolumes)
+	c.Check(err, ErrorMatches, "cannot setup storage encryption with an empty system label")
+	c.Check(chg, IsNil)
+}
+
+func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionNoVolumesError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", nil)
+	c.Check(err, ErrorMatches, "cannot setup storage encryption without volumes data")
+	c.Check(chg, IsNil)
+}
+
+func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionTasksAndChange(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes)
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+	c.Check(chg.Summary(), Matches, `Setup storage encryption for label "1234"`)
+	tsks := chg.Tasks()
+	c.Check(tsks, HasLen, 1)
+	tskInstallFinish := tsks[0]
+	c.Check(tskInstallFinish.Summary(), Matches, `Setup storage encryption for label "1234"`)
+	var onLabel string
+	err = tskInstallFinish.Get("seed-label", &onLabel)
+	c.Assert(err, IsNil)
+	c.Assert(onLabel, Equals, "1234")
+	var onVols map[string]*client.InstallVolume
+	err = tskInstallFinish.Get("on-volumes", &onVols)
+	c.Assert(err, IsNil)
+	c.Assert(onVols, DeepEquals, mockOnVolumes)
+}
+
+func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionRunthrough(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	s.state.Set("seeded", true)
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	s.settle(c)
+	st.Lock()
+
+	c.Check(chg.IsReady(), Equals, true)
+	// TODO: update once the change actually does something
+	c.Check(chg.Err(), ErrorMatches, `(?ms).*setup storage encryption step not implemented yet.*`)
 }

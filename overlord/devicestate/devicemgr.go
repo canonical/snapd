@@ -206,6 +206,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("finalize-recovery-system", m.doFinalizeTriedRecoverySystem, m.undoFinalizeTriedRecoverySystem)
 	runner.AddCleanup("finalize-recovery-system", m.cleanupRecoverySystem)
 
+	// used from the install API
+	runner.AddHandler("install-finish", m.doInstallFinish, nil)
+	runner.AddHandler("install-setup-storage-encryption", m.doInstallSetupStorageEncryption, nil)
+
 	runner.AddBlocked(gadgetUpdateBlocked)
 
 	// wire FDE kernel hook support into boot
