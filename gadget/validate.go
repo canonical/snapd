@@ -210,7 +210,7 @@ func ensureRolesConsistency(roles map[string]*roleInstance, seedExpected bool) e
 		if !seedExpected {
 			return fmt.Errorf("model does not support the system-seed role")
 		}
-		if err := checkSeedDataImplicitLabels(roles); err != nil {
+		if err := checkImplicitLabels(roles, roleLabelData, roleLabelSeed); err != nil {
 			return err
 		}
 	}
@@ -274,13 +274,6 @@ func ensureSystemSaveRuleConsistency(roles map[string]*roleInstance) error {
 		return fmt.Errorf("internal error: system-save requires system-seed and system-data structures")
 	}
 	if err := checkImplicitLabels(roles, roleLabelSave); err != nil {
-		return err
-	}
-	return nil
-}
-
-func checkSeedDataImplicitLabels(roles map[string]*roleInstance) error {
-	if err := checkImplicitLabels(roles, roleLabelData, roleLabelSeed); err != nil {
 		return err
 	}
 	return nil
