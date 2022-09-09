@@ -163,3 +163,46 @@ func (client *Client) SystemDetails(seedLabel string) (*SystemDetails, error) {
 	}
 	return &rsp, nil
 }
+
+type InstallStep string
+
+const (
+	InstallStepSetupStorageEncryption InstallStep = "setup-storage-encryption"
+	InstallStepFinish                 InstallStep = "finish"
+)
+
+type InstallSystemOptions struct {
+	// Step is the install step, either "setup-storage-encryption"
+	// or "finish".
+	Step InstallStep `json:"step,omitempty"`
+
+	// OnVolumes is the volume description of the volumes that the
+	// given step should operate on.
+	OnVolumes map[string][]gadget.Volume `json:"on-volumes,omitempty"`
+}
+
+// InstallSystem will perform the given install step for the given volumes
+func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptions) (changeID string, err error) {
+	if systemLabel == "" {
+		return "", fmt.Errorf("cannot install with an empty system label")
+	}
+
+	// verification is done by the backend
+	req := struct {
+		Action string `json:"action"`
+		*InstallSystemOptions
+	}{
+		Action:               "install",
+		InstallSystemOptions: opts,
+	}
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(&req); err != nil {
+		return "", err
+	}
+	chgID, err := client.doAsync("POST", "/v2/systems/"+systemLabel, nil, nil, &body)
+	if err != nil {
+		return "", xerrors.Errorf("cannot request system install for %q: %v", systemLabel, err)
+	}
+	return chgID, nil
+}
