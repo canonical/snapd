@@ -1527,7 +1527,7 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveSystemCtlFails(c 
 	c.Assert(err, IsNil)
 
 	// this one now fails without a known reason, systemd-mount should not
-	// be invoked, and we should recieve an error
+	// be invoked, and we should receive an error
 	sysctlCmd := testutil.MockCommand(c, "systemctl", "echo failed; exit 1")
 	defer sysctlCmd.Restore()
 
