@@ -1113,7 +1113,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	restartSystemToRunModeTask := tasks[3]
 
 	c.Assert(setupRunSystemTask.Kind(), Equals, "setup-run-system")
-	c.Assert(prepareUbuntuSave.Kind(), Equals, "prepare-ubuntu-save")
+	c.Assert(prepareUbuntuSave.Kind(), Equals, "setup-ubuntu-save")
 	c.Assert(restartSystemToRunModeTask.Kind(), Equals, "restart-system-to-run-mode")
 	c.Assert(installDevice.Kind(), Equals, "run-hook")
 
@@ -1242,7 +1242,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithBrokenInstallDeviceHookUnhapp
 	restartSystemToRunModeTask := tasks[3]
 
 	c.Assert(setupRunSystemTask.Kind(), Equals, "setup-run-system")
-	c.Assert(prepareUbuntuSave.Kind(), Equals, "prepare-ubuntu-save")
+	c.Assert(prepareUbuntuSave.Kind(), Equals, "setup-ubuntu-save")
 	c.Assert(installDevice.Kind(), Equals, "run-hook")
 	c.Assert(restartSystemToRunModeTask.Kind(), Equals, "restart-system-to-run-mode")
 

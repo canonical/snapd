@@ -336,6 +336,8 @@ type Systemd interface {
 	// only necessary to apply manager's configuration like
 	// watchdog.
 	DaemonReexec() error
+	// Enable the given services, optionally with additional arguments
+	Enable(serviceNames []string, additionalArgs []string) error
 	// EnableNoReload the given services, do not reload systemd.
 	EnableNoReload(services []string) error
 	// DisableNoReload the given services, do not reload system.
@@ -565,6 +567,18 @@ func (s *systemd) DaemonReexec() error {
 	return err
 }
 
+func (s *systemd) Enable(serviceNames []string, additionalArgs []string) error {
+	if len(serviceNames) == 0 {
+		return nil
+	}
+	var args []string
+	args = append(args, additionalArgs...)
+	args = append(args, "enable")
+	args = append(args, serviceNames...)
+	_, err := s.systemctl(args...)
+	return err
+}
+
 func (s *systemd) EnableNoReload(serviceNames []string) error {
 	if len(serviceNames) == 0 {
 		return nil
@@ -576,10 +590,7 @@ func (s *systemd) EnableNoReload(serviceNames []string) error {
 	} else {
 		args = append(args, "--no-reload")
 	}
-	args = append(args, "enable")
-	args = append(args, serviceNames...)
-	_, err := s.systemctl(args...)
-	return err
+	return s.Enable(serviceNames, args)
 }
 
 func (s *systemd) Unmask(serviceName string) error {

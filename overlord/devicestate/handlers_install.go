@@ -251,7 +251,7 @@ func writeTimings(st *state.State, rootdir, fromMode string) error {
 }
 
 func (m *DeviceManager) doPrepareUbuntuSave(t *state.Task, _ *tomb.Tomb) error {
-	return m.maybeSetupUbuntuSave()
+	return m.setupUbuntuSave()
 }
 
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
