@@ -91,13 +91,11 @@ func (s *loginSessionControlSuite) TestConnectedPlugSnippet(c *C) {
     bus=system
     path=/org/freedesktop/login1/seat/**
     interface=org.freedesktop.login1.Seat
-    member={ActiveSession,SwitchTo}
     peer=(label=unconfined),`)
 	c.Assert(snippet, testutil.Contains, `dbus (send,receive)
     bus=system
     path=/org/freedesktop/login1/session/**
     interface=org.freedesktop.login1.Session
-    member={TakeControl,TakeDevice,PauseDevice,PauseDeviceComplete,ResumeDevice,ReleaseDevice,Active,State,Lock,Unlock,Activate,ReleaseControl}
     peer=(label=unconfined),`)
 	c.Assert(snippet, testutil.Contains, `dbus (send,receive)
     bus=system
