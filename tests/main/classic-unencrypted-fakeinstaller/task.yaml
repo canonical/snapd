@@ -70,7 +70,7 @@ execute: |
   loop_device=$(losetup --show -f ./fake-disk.img)
   echo "label: gpt" | sfdisk "$loop_device"
   # and "install" the current seed to the fake disk
-  ./fakeinstaller "$LABEL" "$loop_device"
+  ./fakeinstaller "$LABEL" "$loop_device" "$TESTSLIB"/fakeinstaller/mk-classic-rootfs.sh
   # validate that the fake installer created the expected partitions
   fdisk -x "$loop_device" > fdisk_output
   MATCH "${loop_device}p1 .* BIOS Boot"   < fdisk_output
@@ -88,4 +88,5 @@ execute: |
   done
   # seed is populated
   test -d /run/mnt/ubuntu-data/var/lib/snapd/seed/systems/"$LABEL"
-
+  # rootfs is there
+  test -x /run/mnt/ubuntu-data/usr/lib/systemd/systemd
