@@ -1036,7 +1036,7 @@ assets:
 	c.Assert(err, ErrorMatches, `no asset from the kernel.yaml needing synced update is consumed by the gadget at "/.*"`)
 }
 
-func (s *validateGadgetTestSuite) TestValidateModalClassicGadget(c *C) {
+func (s *validateGadgetTestSuite) TestValidateClassicWithModesGadget(c *C) {
 	gadgetYaml := `volumes:
   pc:
     bootloader: grub
@@ -1084,7 +1084,7 @@ func (s *validateGadgetTestSuite) TestValidateModalClassicGadget(c *C) {
 }
 
 func (s *validateGadgetTestSuite) TestValidateSystemRoleSplitAcrossVolumesClassicOk(c *C) {
-	// This is allowed for modal classic
+	// This is allowed for classic with modes
 	const gadgetYaml = `
 volumes:
   pc1:
@@ -1136,7 +1136,7 @@ volumes:
 }
 
 func (s *validateGadgetTestSuite) TestValidateSystemRoleSplitAcrossVolumesClassicFail(c *C) {
-	// This is not allowed for modal classic
+	// This is not allowed for classic with modes
 	const gadgetYaml = `
 volumes:
   pc1:
