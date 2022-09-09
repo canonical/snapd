@@ -41,7 +41,7 @@ execute: |
 
     # We retry because there is a race with the device becoming
     # registered by udisks2. The issue can be easily reproduced on ubuntu-20.04
-    retry -n 15 --wait 1 sh -c "test-snapd-udisks2.udisksctl  mount -b \"$device\" -t ext4 | MATCH 'Mounted /dev/'"
+    retry -n 15 --wait 1 sh -c "test-snapd-udisks2.udisksctl mount -b \"$device\" -t ext4 | MATCH 'Mounted /dev/'"
     test-snapd-udisks2.udisksctl unmount -b "$device" | MATCH "Unmounted /dev/"
 
     if [ "$(snap debug confinement)" = partial ] ; then
