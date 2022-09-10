@@ -12,6 +12,9 @@ environment:
     APPROVED_SNAP_ID/microk8s: EaXqgt1lyCaxKaQCU349mlodBkDCXRcg
     APPROVED_SNAP_NAME/microk8s: microk8s
     TESTED_USERS/microk8s: snap_microk8s
+    APPROVED_SNAP_ID/azureiotedge: 8neFt3wtSaWGgIbEepgIJcEZ3fnz7Lwt
+    APPROVED_SNAP_NAME/azureiotedge: azure-iot-edge
+    TESTED_USERS/azureiotedge: snap_aziotedge
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

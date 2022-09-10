@@ -155,4 +155,7 @@ var SupportedSystemUsernames = map[string]systemUsername{
 	"snap_microk8s": {Id: 584789, AllowedSnapIds: []string{
 		"EaXqgt1lyCaxKaQCU349mlodBkDCXRcg", // microk8s
 	}},
+	"snap_aziotedge": {Id: 584790, AllowedSnapIds: []string{
+		"8neFt3wtSaWGgIbEepgIJcEZ3fnz7Lwt", // azure-iot-edge
+	}},
 }
