@@ -501,7 +501,7 @@ debug-each: |
         # add another echo in case the serial log is missing a newline
         echo
 
-        tests.nested exec "sudo journalctl --no-pager -u snapd" || true
+        remote.exec "sudo journalctl --no-pager -u snapd" || true
     fi
 
     echo "# definition of snapd.service"
