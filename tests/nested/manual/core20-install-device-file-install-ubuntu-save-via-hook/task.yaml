@@ -49,11 +49,11 @@ prepare: |
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
 
-    # setup the fakestore, but don't use it for our snapd here on the host VM, so
-    # tear down the staging_store immediately afterwards so that only the SAS is 
-    # running and our snapd is not pointed at it, ubuntu-image is the only thing 
-    # that actually needs to use the fakestore, and we will manually point it at
-    # the fakestore below using NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL
+    # Setup the fake-store for ubuntu-image to use when creating our core image.
+    # We immediately tear down the staging store, to make sure snapd is not pointed
+    # towards this once we invoke ubuntu-image. 
+    # We also need to point NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL towards the newly
+    # setup fake-store to actually have it use it.
     setup_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
     teardown_staging_store
 
