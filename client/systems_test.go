@@ -331,15 +331,13 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 		"status-code": 202,
 		"change": "42"
 	}`
-	vols := map[string][]gadget.Volume{
+	vols := map[string]*gadget.Volume{
 		"pc": {
-			{
-				Schema:     "dos",
-				Bootloader: "mbr",
-				ID:         "0c",
-				// Note that name is not exported as json
-				Name: "pc",
-			},
+			Schema:     "dos",
+			Bootloader: "mbr",
+			ID:         "0c",
+			// Note that name is not exported as json
+			Name: "pc",
 		},
 	}
 	opts := &client.InstallSystemOptions{
@@ -361,13 +359,11 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 		"action": "install",
 		"step":   "finish",
 		"on-volumes": map[string]interface{}{
-			"pc": []interface{}{
-				map[string]interface{}{
-					"schema":     "dos",
-					"bootloader": "mbr",
-					"id":         "0c",
-					"structure":  nil,
-				},
+			"pc": map[string]interface{}{
+				"schema":     "dos",
+				"bootloader": "mbr",
+				"id":         "0c",
+				"structure":  nil,
 			},
 		},
 	})

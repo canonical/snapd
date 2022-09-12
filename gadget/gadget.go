@@ -158,6 +158,11 @@ type VolumeStructure struct {
 	// Content of the structure
 	Content []VolumeContent `yaml:"content" json:"content"`
 	Update  VolumeUpdate    `yaml:"update" json:"update"`
+
+	// Device is only meaningful when used from the install
+	Device string `json:"device,omitempty`
+	// UnenyptedDevice is only meaningful when used from the install
+	UnencryptedDevice string `json:"unencrypted-device,omitempty"`
 }
 
 // HasFilesystem returns true if the structure is using a filesystem.

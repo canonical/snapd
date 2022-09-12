@@ -178,7 +178,7 @@ type InstallSystemOptions struct {
 
 	// OnVolumes is the volume description of the volumes that the
 	// given step should operate on.
-	OnVolumes map[string][]gadget.Volume `json:"on-volumes,omitempty"`
+	OnVolumes map[string]*gadget.Volume `json:"on-volumes,omitempty"`
 }
 
 // InstallSystem will perform the given install step for the given volumes
