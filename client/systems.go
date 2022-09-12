@@ -168,7 +168,7 @@ type StorageEncryption struct {
 	// available in a human readable form. Depending on if
 	// encryption is required or not this should be presented to
 	// the user as either an error or as information.
-	UnavailableReason string `json:"unavailalbe-reason,omitempty"`
+	UnavailableReason string `json:"unavailable-reason,omitempty"`
 }
 
 type SystemDetails struct {
