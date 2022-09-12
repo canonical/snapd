@@ -35,7 +35,7 @@ execute: |
   boot_id="$(tests.nested boot-id)"
 
   echo "Install kernel with failing post-refresh hook"
-  tests.nested copy pc-kernel_badhook.snap
+  remote.push pc-kernel_badhook.snap
 
   # install bluez
   BLUEZ_CHANNEL=$VERSION
