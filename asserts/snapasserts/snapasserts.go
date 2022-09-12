@@ -22,7 +22,6 @@ package snapasserts
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/release"
@@ -39,39 +38,6 @@ type Finder interface {
 	// FindMany finds assertions based on arbitrary headers.
 	// It returns a NotFoundError if no assertion can be found.
 	FindMany(assertionType *asserts.AssertionType, headers map[string]string) ([]asserts.Assertion, error)
-}
-
-// ValidationSetKey is a string-backed primary key for a validation set assertion.
-type ValidationSetKey string
-
-// NewValidationSetKey returns a validation set key for a validation set.
-func NewValidationSetKey(vs asserts.ValidationSet) ValidationSetKey {
-	return ValidationSetKey(strings.Join(vs.Ref().PrimaryKey, "/"))
-}
-
-func (vsk ValidationSetKey) String() string {
-	return string(vsk)
-}
-
-// ValidationSetKeySlice can be used to sort slices of ValidationSetKey.
-type ValidationSetKeySlice []ValidationSetKey
-
-func (s ValidationSetKeySlice) Len() int           { return len(s) }
-func (s ValidationSetKeySlice) Less(i, j int) bool { return s[i] < s[j] }
-func (s ValidationSetKeySlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-
-// CommaSeparated returns the validation set keys separated by commas.
-func (s ValidationSetKeySlice) CommaSeparated() string {
-	var sb strings.Builder
-
-	for i, vsKey := range s {
-		sb.WriteString(vsKey.String())
-		if i < len(s)-1 {
-			sb.WriteRune(',')
-		}
-	}
-
-	return sb.String()
 }
 
 func findSnapDeclaration(snapID, name string, db Finder) (*asserts.SnapDeclaration, error) {
