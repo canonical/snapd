@@ -1825,11 +1825,30 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	}
 	// EssentialSnaps is always ordered, see asserts.Model.EssentialSnaps:
 	// "snapd, kernel, boot base, gadget."
+	//
+	// kernel info needed to check encryptionSupport
+	kernelSnap := s.EssentialSnaps()[0]
+	if kernelSnap.Path == "" {
+		return nil, nil, nil, fmt.Errorf("internal error: cannot get kernel snap path")
+	}
+	snapf, err := snapfile.Open(gadgetSnap.Path)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot open kernel snap: %v", err)
+	}
+	kernelInfo, err := snap.ReadInfoFromSnapFile(snapf, kernelSnap.SideInfo)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if kernelInfo.SnapType != snap.TypeKernel {
+		return nil, nil, nil, fmt.Errorf("cannot use kernel info, expected kernel but got: %v", kernelInfo.SnapType)
+	}
+
+	// gadget info needed to check encryptionSupport and gadget contraints
 	gadgetSnap := s.EssentialSnaps()[1]
 	if gadgetSnap.Path == "" {
 		return nil, nil, nil, fmt.Errorf("internal error: cannot get gadget snap path")
 	}
-	snapf, err := snapfile.Open(gadgetSnap.Path)
+	snapf, err = snapfile.Open(gadgetSnap.Path)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
 	}
@@ -1840,19 +1859,6 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	gadgetInfo, err := gadget.InfoFromGadgetYaml(gadgetYaml, sys.Model)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
-	}
-	// get kernel to check encryptionSupport
-	kernelSnap := s.EssentialSnaps()[0]
-	if kernelSnap.Path == "" {
-		return nil, nil, nil, fmt.Errorf("internal error: cannot get kernel snap path")
-	}
-	snapf, err = snapfile.Open(gadgetSnap.Path)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
-	}
-	kernelInfo, err := snap.ReadInfoFromSnapFile(snapf, kernelSnap.SideInfo)
-	if err != nil {
-		return nil, nil, nil, err
 	}
 
 	encInfo, err := m.encryptionSupportInfo(sys.Model, kernelInfo, gadgetInfo)
