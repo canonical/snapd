@@ -76,19 +76,19 @@ func (s *userSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(daemon.MockHasUserAdmin(true))
 
 	// make sure we don't call these by accident)
-	s.AddCleanup(daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string) (createdUsers devicestate.CreatedUser, internalErr *devicestate.UserError) {
+	s.AddCleanup(daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string) (createdUsers devicestate.CreatedUser, internalErr error) {
 		c.Fatalf("unexpected create user %q call", email)
-		return devicestate.CreatedUser{}, &devicestate.UserError{Internal: false, Err: fmt.Errorf("unexpected create user %q call", email)}
+		return devicestate.CreatedUser{}, &devicestate.UserError{Err: fmt.Errorf("unexpected create user %q call", email)}
 	}))
 
-	s.AddCleanup(daemon.MockDeviceStateCreateKnownUsers(func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, email string) (createdUsers []devicestate.CreatedUser, internalErr *devicestate.UserError) {
+	s.AddCleanup(daemon.MockDeviceStateCreateKnownUsers(func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, email string) (createdUsers []devicestate.CreatedUser, internalErr error) {
 		c.Fatalf("unexpected create user %q call", email)
-		return nil, &devicestate.UserError{Internal: false, Err: fmt.Errorf("unexpected create user %q call", email)}
+		return nil, &devicestate.UserError{Err: fmt.Errorf("unexpected create user %q call", email)}
 	}))
 
-	s.AddCleanup(daemon.MockDeviceStateRemoveUser(func(st *state.State, username string) (*auth.UserState, *devicestate.UserError) {
+	s.AddCleanup(daemon.MockDeviceStateRemoveUser(func(st *state.State, username string) (*auth.UserState, error) {
 		c.Fatalf("unexpected remove user %q call", username)
-		return nil, &devicestate.UserError{Internal: false, Err: fmt.Errorf("unexpected remove user %q call", username)}
+		return nil, &devicestate.UserError{Err: fmt.Errorf("unexpected remove user %q call", username)}
 	}))
 
 	s.loginUserStoreMacaroon = ""
@@ -481,7 +481,7 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 	expectedUsername := "karl"
 	expectedEmail := "popper@lse.ac.uk"
 
-	defer daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string) (devicestate.CreatedUser, *devicestate.UserError) {
+	defer daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string) (devicestate.CreatedUser, error) {
 		c.Check(email, check.Equals, expectedEmail)
 		c.Check(sudoer, check.Equals, false)
 		expected := devicestate.CreatedUser{
@@ -533,12 +533,12 @@ func (s *userSuite) TestPostUserCreateErrInternal(c *check.C) {
 
 func (s *userSuite) testCreateUserErr(c *check.C, internalErr bool) {
 	called := 0
-	defer daemon.MockDeviceStateCreateKnownUsers(func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, email string) ([]devicestate.CreatedUser, *devicestate.UserError) {
+	defer daemon.MockDeviceStateCreateKnownUsers(func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, email string) ([]devicestate.CreatedUser, error) {
 		called++
 		if internalErr {
-			return nil, &devicestate.UserError{Internal: internalErr, Err: fmt.Errorf("wat-internal")}
+			return nil, fmt.Errorf("internal error: wat-internal")
 		} else {
-			return nil, &devicestate.UserError{Internal: internalErr, Err: fmt.Errorf("wat-badrequest")}
+			return nil, &devicestate.UserError{Err: fmt.Errorf("wat-badrequest")}
 		}
 	})()
 
@@ -550,7 +550,7 @@ func (s *userSuite) testCreateUserErr(c *check.C, internalErr bool) {
 	c.Check(called, check.Equals, 1)
 	if internalErr {
 		c.Check(rspe.Status, check.Equals, 500)
-		c.Check(rspe.Message, check.Equals, "wat-internal")
+		c.Check(rspe.Message, check.Equals, "internal error: wat-internal")
 	} else {
 		c.Check(rspe.Status, check.Equals, 400)
 		c.Check(rspe.Message, check.Equals, "wat-badrequest")
@@ -638,12 +638,12 @@ func (s *userSuite) testpostUserActionRemoveDelUserErr(c *check.C, internalErr b
 	c.Check(err, check.IsNil)
 
 	called := 0
-	defer daemon.MockDeviceStateRemoveUser(func(st *state.State, username string) (*auth.UserState, *devicestate.UserError) {
+	defer daemon.MockDeviceStateRemoveUser(func(st *state.State, username string) (*auth.UserState, error) {
 		called++
 		if internalErr {
-			return nil, &devicestate.UserError{Internal: internalErr, Err: fmt.Errorf("wat-internal")}
+			return nil, fmt.Errorf("internal error: wat-internal")
 		} else {
-			return nil, &devicestate.UserError{Internal: internalErr, Err: fmt.Errorf("wat-badrequest")}
+			return nil, &devicestate.UserError{Err: fmt.Errorf("wat-badrequest")}
 		}
 	})()
 
@@ -655,7 +655,7 @@ func (s *userSuite) testpostUserActionRemoveDelUserErr(c *check.C, internalErr b
 	c.Check(called, check.Equals, 1)
 	if internalErr {
 		c.Check(rspe.Status, check.Equals, 500)
-		c.Check(rspe.Message, check.Equals, "wat-internal")
+		c.Check(rspe.Message, check.Equals, "internal error: wat-internal")
 	} else {
 		c.Check(rspe.Status, check.Equals, 400)
 		c.Check(rspe.Message, check.Equals, "wat-badrequest")
@@ -668,7 +668,7 @@ func (s *userSuite) TestPostUserActionRemove(c *check.C) {
 	expectedEmail := "email@test.com"
 
 	called := 0
-	defer daemon.MockDeviceStateRemoveUser(func(st *state.State, username string) (*auth.UserState, *devicestate.UserError) {
+	defer daemon.MockDeviceStateRemoveUser(func(st *state.State, username string) (*auth.UserState, error) {
 		called++
 		removedUser := &auth.UserState{ID: expectedID, Username: expectedUsername, Email: expectedEmail}
 

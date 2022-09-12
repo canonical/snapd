@@ -37,88 +37,77 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-type CreatedUser struct {
-	Username string
-	SSHKeys  []string
-}
-
 var (
 	osutilAddUser = osutil.AddUser
 	osutilDelUser = osutil.DelUser
 	userLookup    = user.Lookup
 )
 
+// UserError is used for errors which are known to snapd. This is errors
+// originate from this code here.
 type UserError struct {
-	Err      error
-	Internal bool
+	Err error
 }
 
 func (e *UserError) Error() string {
 	return e.Err.Error()
 }
 
-func (e UserError) IsInternal() bool {
-	return e.Internal
+// CreatedUser is the returned result which wraps some resulting data
+// from a create user operation.
+type CreatedUser struct {
+	Username string
+	SSHKeys  []string
 }
 
-// RemoveUser removes linux user account of passed username.
-func RemoveUser(st *state.State, username string) (*auth.UserState, *UserError) {
-	// TODO: allow to remove user entries by email as well
+// CreateUser creates linux user based on the passed email, username
+// and public ssh keys for the created user account are determined
+// from Ubuntu store based on the passed email.
+func CreateUser(st *state.State, sudoer bool, email string) (CreatedUser, error) {
+	if email == "" {
+		return CreatedUser{}, &UserError{Err: fmt.Errorf("cannot create user: 'email' field is empty")}
+	}
 
-	// catch silly errors
-	if username == "" {
-		return nil, &UserError{Internal: false, Err: fmt.Errorf("need a username to remove")}
+	db := assertstate.DB(st)
+	u := &createUserOpts{
+		assertDb: db,
+		modelAs:  nil,
+		serialAs: nil,
+		isSudoer: sudoer,
 	}
-	// check the user is known to snapd
-	st.Lock()
-	_, err := auth.UserByUsername(st, username)
+
+	storeService := snapstate.Store(st, nil)
 	st.Unlock()
-	if err == auth.ErrInvalidUser {
-		return nil, &UserError{Internal: false, Err: fmt.Errorf("user %q is not known", username)}
-	}
+	username, opts, err := getUserDetailsFromStore(storeService, email)
+	st.Lock()
+
 	if err != nil {
-		return nil, &UserError{Internal: true, Err: err}
+		return CreatedUser{}, &UserError{Err: err}
 	}
-
-	// first remove the system user
-	if err := osutilDelUser(username, &osutil.DelUserOptions{ExtraUsers: !release.OnClassic}); err != nil {
-		return nil, &UserError{Internal: true, Err: err}
+	opts.Sudoer = sudoer
+	createdUser, err := u.createUser(st, opts, username, email)
+	if err != nil {
+		return CreatedUser{}, err
 	}
-
-	// then the UserState
-	st.Lock()
-	u, err := auth.RemoveUserByUsername(st, username)
-	st.Unlock()
-	// ErrInvalidUser means "not found" in this case
-	if err != nil && err != auth.ErrInvalidUser {
-		return nil, &UserError{Internal: true, Err: err}
-	}
-	return u, nil
+	return createdUser, nil
 }
 
 // CreateKnownUsers create known user(s)
 // user details are fetched from existing system user assertions.
 // If no email is passed, all known users will be created based on valid system user assertions.
 // If email is passed, only corresponding system user assertion is used for user creation.
-func CreateKnownUsers(st *state.State, mgr *DeviceManager, sudoer bool, email string) ([]CreatedUser, *UserError) {
-	var err error
-	st.Lock()
+func CreateKnownUsers(st *state.State, mgr *DeviceManager, sudoer bool, email string) ([]CreatedUser, error) {
 	model, err := mgr.Model()
-	st.Unlock()
 	if err != nil {
-		return nil, &UserError{Internal: true, Err: fmt.Errorf("cannot create user: cannot get model assertion: %v", err)}
+		return nil, fmt.Errorf("cannot create user: cannot get model assertion: %v", err)
 	}
-	st.Lock()
+
 	serial, err := mgr.Serial()
-	st.Unlock()
 	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return nil, &UserError{Internal: true, Err: fmt.Errorf("cannot create user: cannot get serial: %v", err)}
+		return nil, fmt.Errorf("cannot create user: cannot get serial: %v", err)
 	}
 
-	st.Lock()
 	db := assertstate.DB(st)
-	st.Unlock()
-
 	u := &createUserOpts{
 		assertDb: db,
 		modelAs:  model,
@@ -131,53 +120,55 @@ func CreateKnownUsers(st *state.State, mgr *DeviceManager, sudoer bool, email st
 	}
 
 	username, opts, err := getUserDetailsFromAssertion(u.assertDb, u.modelAs, u.serialAs, email)
-
 	if err != nil {
-		return nil, &UserError{Internal: false, Err: err}
+		return nil, &UserError{Err: err}
 	}
+
 	opts.Sudoer = sudoer
-	createdUser, userErr := u.createUser(st, opts, username, email)
-	var createdUsers []CreatedUser
-	createdUsers = append(createdUsers, createdUser)
-	return createdUsers, userErr
+	createdUser, err := u.createUser(st, opts, username, email)
+	if err != nil {
+		return nil, err
+	}
+	return []CreatedUser{createdUser}, nil
 }
 
-// CreateUser creates linux user based on the passed email
-// username and public ssh keys for the created user account are determined
-// from Ubuntu store based on the passed email.
-func CreateUser(st *state.State, sudoer bool, email string) (CreatedUser, *UserError) {
-	if email == "" {
-		return CreatedUser{}, &UserError{Internal: false, Err: fmt.Errorf("cannot create user: 'email' field is empty")}
+// RemoveUser removes linux user account of passed username.
+func RemoveUser(st *state.State, username string) (*auth.UserState, error) {
+	// TODO: allow to remove user entries by email as well
+
+	// catch silly errors
+	if username == "" {
+		return nil, &UserError{Err: fmt.Errorf("need a username to remove")}
 	}
 
-	st.Lock()
-	db := assertstate.DB(st)
-	st.Unlock()
-
-	u := &createUserOpts{
-		assertDb: db,
-		modelAs:  nil,
-		serialAs: nil,
-		isSudoer: sudoer,
+	// check the user is known to snapd
+	_, err := auth.UserByUsername(st, username)
+	if err == auth.ErrInvalidUser {
+		return nil, &UserError{Err: fmt.Errorf("user %q is not known", username)}
 	}
-
-	st.Lock()
-	storeService := snapstate.Store(st, nil)
-	st.Unlock()
-	username, opts, err := getUserDetailsFromStore(storeService, email)
-
 	if err != nil {
-		return CreatedUser{}, &UserError{Internal: false, Err: err}
+		return nil, err
 	}
-	opts.Sudoer = sudoer
-	return u.createUser(st, opts, username, email)
+
+	// first remove the system user
+	if err := osutilDelUser(username, &osutil.DelUserOptions{ExtraUsers: !release.OnClassic}); err != nil {
+		return nil, err
+	}
+
+	// then the UserState
+	u, err := auth.RemoveUserByUsername(st, username)
+	// ErrInvalidUser means "not found" in this case
+	if err != nil && err != auth.ErrInvalidUser {
+		return nil, err
+	}
+	return u, nil
 }
 
-func (u *createUserOpts) createUser(st *state.State, opts *osutil.AddUserOptions, username, email string) (CreatedUser, *UserError) {
+func (u *createUserOpts) createUser(st *state.State, opts *osutil.AddUserOptions, username, email string) (CreatedUser, error) {
 	opts.ExtraUsers = !release.OnClassic
 	createdUser, err := u.addUser(st, username, email, opts)
 	if err != nil {
-		return CreatedUser{}, &UserError{Internal: true, Err: err}
+		return CreatedUser{}, err
 	}
 
 	return createdUser, nil
@@ -214,16 +205,14 @@ type createUserOpts struct {
 	isSudoer bool
 }
 
-func (u *createUserOpts) createAllKnownSystemUsers(state *state.State) ([]CreatedUser, *UserError) {
+func (u *createUserOpts) createAllKnownSystemUsers(state *state.State) ([]CreatedUser, error) {
 	headers := map[string]string{
 		"brand-id": u.modelAs.BrandID(),
 	}
 
-	state.Lock()
 	assertions, err := u.assertDb.FindMany(asserts.SystemUserType, headers)
-	state.Unlock()
 	if err != nil && !asserts.IsNotFound(err) {
-		return nil, &UserError{Internal: true, Err: fmt.Errorf("cannot find system-user assertion: %s", err)}
+		return nil, &UserError{Err: fmt.Errorf("cannot find system-user assertion: %s", err)}
 	}
 
 	var createdUsers []CreatedUser
@@ -246,7 +235,7 @@ func (u *createUserOpts) createAllKnownSystemUsers(state *state.State) ([]Create
 
 		createdUser, err := u.addUser(state, username, email, opts)
 		if err != nil {
-			return nil, &UserError{Internal: true, Err: err}
+			return nil, err
 		}
 		createdUsers = append(createdUsers, createdUser)
 	}
@@ -323,14 +312,12 @@ func (u *createUserOpts) setupLocalUser(state *state.State, username, email stri
 	}
 
 	// setup new user, local-only
-	state.Lock()
 	authUser, err := auth.NewUser(state, auth.NewUserData{
 		Username:   username,
 		Email:      email,
 		Macaroon:   "",
 		Discharges: nil,
 	})
-	state.Unlock()
 	if err != nil {
 		return fmt.Errorf("cannot persist authentication details: %v", err)
 	}

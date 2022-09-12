@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/store"
 )
@@ -229,8 +230,12 @@ func postUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func removeUser(c *Command, username string, opts postUserDeleteData) Response {
-	if u, err := deviceStateRemoveUser(c.d.overlord.State(), username); err != nil {
-		if err.IsInternal() {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	if u, err := deviceStateRemoveUser(st, username); err != nil {
+		if _, ok := err.(*devicestate.UserError); !ok {
 			return InternalError(err.Error())
 		} else {
 			return BadRequest(err.Error())
@@ -308,17 +313,9 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		createData.Sudoer = true
 	}
 
-	var createdUsers []devicestate.CreatedUser
-	var userError *devicestate.UserError
-	if createData.Known {
-		createdUsers, userError = deviceStateCreateKnownUsers(st, c.d.overlord.DeviceManager(), createData.Sudoer, createData.Email)
-	} else {
-		var createdUser devicestate.CreatedUser
-		createdUser, userError = deviceStateCreateUser(st, createData.Sudoer, createData.Email)
-		createdUsers = append(createdUsers, createdUser)
-	}
+	createdUsers, userError := createUserWrapper(st, c.d.overlord.DeviceManager(), createData)
 	if userError != nil {
-		if userError.IsInternal() {
+		if _, ok := userError.(*devicestate.UserError); !ok {
 			return InternalError(userError.Error())
 		} else {
 			return BadRequest(userError.Error())
@@ -332,6 +329,18 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		}
 	}
 	return SyncResponse(createdUsersResponse)
+}
+
+func createUserWrapper(st *state.State, mgr *devicestate.DeviceManager, createData postUserCreateData) ([]devicestate.CreatedUser, error) {
+	st.Lock()
+	defer st.Unlock()
+
+	if createData.Known {
+		return deviceStateCreateKnownUsers(st, mgr, createData.Sudoer, createData.Email)
+	} else {
+		user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email)
+		return []devicestate.CreatedUser{user}, err
+	}
 }
 
 type postUserData struct {
