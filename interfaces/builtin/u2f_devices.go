@@ -162,6 +162,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "16d0",
 		ProductIDPattern: "0e90",
 	},
+	{
+		Name:             "Flipper Zero",
+		VendorIDPattern:  "0483",
+		ProductIDPattern: "5741",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `
