@@ -216,7 +216,7 @@ Icon=${SNAP}/meep
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 X-SnapInstanceName=foo
 Name=foo
-Icon=%s/foo/12/meep
+Icon=%s/foo/current/meep
 
 # the empty line above is fine
 `, dirs.SnapMountDir))
