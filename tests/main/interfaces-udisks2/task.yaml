@@ -15,7 +15,10 @@ prepare: |
     snap install test-snapd-udisks2
 
 restore: |
-    rm -f "$FS_PATH"
+    device="$(losetup -j "$FS_PATH" | cut -d: -f1)"
+    if [ -n "$device" ]; then
+        udisksctl loop-delete -b "$device"
+    fi
 
 execute: |
     echo "The interface is not connected by default"
