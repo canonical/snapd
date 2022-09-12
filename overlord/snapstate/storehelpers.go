@@ -271,7 +271,7 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 					} // else presence is optional or required, carry on
 				}
 				if len(invalidForValSets) > 0 {
-					return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, strings.Join(invalidForValSets, ","))
+					return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, snapasserts.ValidationSetKeySlice(invalidForValSets).CommaSeparated())
 				}
 				requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
 				if err != nil {
@@ -821,7 +821,7 @@ func installCandidates(st *state.State, names []string, revOpts []*RevisionOptio
 			}
 
 			if len(invalidForValSets) > 0 {
-				return nil, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, strings.Join(invalidForValSets, ","))
+				return nil, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, snapasserts.ValidationSetKeySlice(invalidForValSets).CommaSeparated())
 			}
 			requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
 			if err != nil {

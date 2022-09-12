@@ -990,11 +990,11 @@ func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
 	// invalid in two sets
 	vsKeys, err = valsets.CheckPresenceInvalid(naming.Snap("my-snap"))
 	c.Assert(err, IsNil)
-	c.Check(vsKeys, DeepEquals, []string{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2"})
+	c.Check(vsKeys, DeepEquals, []snapasserts.ValidationSetKey{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2"})
 
 	vsKeys, err = valsets.CheckPresenceInvalid(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
 	c.Assert(err, IsNil)
-	c.Check(vsKeys, DeepEquals, []string{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2"})
+	c.Check(vsKeys, DeepEquals, []snapasserts.ValidationSetKey{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2"})
 
 	// other-snap isn't invalid
 	vsKeys, err = valsets.CheckPresenceInvalid(naming.Snap("other-snap"))

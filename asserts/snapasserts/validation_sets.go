@@ -594,7 +594,7 @@ func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]Valida
 // presence of the given snap as invalid. PresenceConstraintError is returned if
 // presence of the snap is "optional" or "required".
 // The method assumes that validation sets are not in conflict.
-func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]string, error) {
+func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]ValidationSetKey, error) {
 	cstrs := v.constraintsForSnap(snapRef)
 	if cstrs == nil {
 		return nil, nil
@@ -602,7 +602,7 @@ func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]string,
 	if cstrs.presence != asserts.PresenceInvalid {
 		return nil, &PresenceConstraintError{snapRef.SnapName(), cstrs.presence}
 	}
-	var keys []string
+	var keys []ValidationSetKey
 	for _, revCstr := range cstrs.revisions {
 		for _, rc := range revCstr {
 			if rc.Presence == asserts.PresenceInvalid {
@@ -610,12 +610,12 @@ func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]string,
 				if vs == nil {
 					return nil, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
 				}
-				keys = append(keys, strings.Join(vs.Ref().PrimaryKey, "/"))
+				keys = append(keys, NewValidationSetKey(*vs))
 			}
 		}
 	}
 
-	sort.Strings(keys)
+	sort.Sort(ValidationSetKeySlice(keys))
 	return keys, nil
 }
 
