@@ -984,6 +984,10 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, fmt.Errorf("internal error: snap name to install %q not provided", path)
 	}
 
+	if flags.Lane != 0 {
+		return nil, nil, fmt.Errorf("transaction lane is unsupported in InstallPath")
+	}
+
 	if instanceName == "" {
 		instanceName = si.RealName
 	}
@@ -1096,6 +1100,10 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	}
 	if opts.CohortKey != "" && !opts.Revision.Unset() {
 		return nil, errors.New("cannot specify revision and cohort")
+	}
+
+	if flags.Lane != 0 {
+		return nil, fmt.Errorf("transaction lane is unsupported in InstallWithDeviceContext")
 	}
 
 	if opts.Channel == "" {
@@ -1297,7 +1305,11 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 
 	var transactionLane int
 	if flags.Transaction == client.TransactionAllSnaps {
-		transactionLane = st.NewLane()
+		if flags.Lane != 0 {
+			transactionLane = flags.Lane
+		} else {
+			transactionLane = st.NewLane()
+		}
 	}
 	tasksets := make([]*state.TaskSet, 0, len(installs))
 	for _, sar := range installs {
@@ -1610,7 +1622,11 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 	// and bases and then other snaps
 	var transactionLane int
 	if globalFlags.Transaction == client.TransactionAllSnaps {
-		transactionLane = st.NewLane()
+		if globalFlags.Lane != 0 {
+			transactionLane = globalFlags.Lane
+		} else {
+			transactionLane = st.NewLane()
+		}
 	}
 	for _, update := range updates {
 		snapsup, snapst, err := update.(readyUpdateInfo).SnapSetupForUpdate(st, params, userID, globalFlags)

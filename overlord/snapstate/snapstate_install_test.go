@@ -5481,3 +5481,154 @@ func (s *snapmgrTestSuite) TestInstallManyConsidersProvenance(c *C) {
 
 	c.Check(snapsup.ExpectedProvenance, Equals, "prov")
 }
+
+func (s *snapmgrTestSuite) TestInstallManyTransactionalWithLane(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lane := s.state.NewLane()
+	flags := &snapstate.Flags{
+		Transaction: client.TransactionAllSnaps,
+		Lane:        lane,
+	}
+	affected, tss, err := snapstate.InstallMany(s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
+	c.Assert(err, IsNil)
+	c.Check(affected, DeepEquals, []string{"some-snap", "some-other-snap"})
+	c.Check(tss, HasLen, 2)
+
+	for _, ts := range tss {
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{lane})
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallManyLaneIgnoredWithoutTransactional(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	checkLaneNotUsed := func(tss []*state.TaskSet, lane int) {
+		for _, ts := range tss {
+			for _, t := range ts.Tasks() {
+				c.Assert(t.Lanes(), Not(DeepEquals), []int{lane})
+			}
+		}
+	}
+
+	lane := s.state.NewLane()
+	flags := &snapstate.Flags{
+		Lane: lane,
+	}
+
+	affected, tss, err := snapstate.InstallMany(s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
+	c.Assert(err, IsNil)
+	c.Check(affected, DeepEquals, []string{"some-snap", "some-other-snap"})
+	c.Check(tss, HasLen, 2)
+	checkLaneNotUsed(tss, lane)
+
+	flags.Transaction = client.TransactionPerSnap
+
+	affected, tss, err = snapstate.InstallMany(s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
+	c.Assert(err, IsNil)
+	c.Check(affected, DeepEquals, []string{"some-snap", "some-other-snap"})
+	c.Check(tss, HasLen, 2)
+	checkLaneNotUsed(tss, lane)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyTransactionalWithLane(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lane := s.state.NewLane()
+	flags := &snapstate.Flags{
+		Transaction: client.TransactionAllSnaps,
+		Lane:        lane,
+	}
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "other-snap"}
+	for _, name := range snapNames {
+		yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+`, name)
+		paths = append(paths, makeTestSnap(c, yaml))
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("3"),
+		}
+		sideInfos = append(sideInfos, si)
+	}
+
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, flags)
+	c.Assert(err, IsNil)
+	c.Check(tss, HasLen, 2)
+
+	for _, ts := range tss {
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{lane})
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyLaneIgnoredWithoutTransactional(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	checkLaneNotUsed := func(tss []*state.TaskSet, lane int) {
+		for _, ts := range tss {
+			for _, t := range ts.Tasks() {
+				c.Assert(t.Lanes(), Not(DeepEquals), []int{lane})
+			}
+		}
+	}
+
+	lane := s.state.NewLane()
+	flags := &snapstate.Flags{
+		Lane: lane,
+	}
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	for _, name := range []string{"some-snap", "other-snap"} {
+		yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+`, name)
+		paths = append(paths, makeTestSnap(c, yaml))
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("3"),
+		}
+		sideInfos = append(sideInfos, si)
+	}
+
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, flags)
+	c.Assert(err, IsNil)
+	c.Check(tss, HasLen, 2)
+	checkLaneNotUsed(tss, lane)
+
+	flags.Transaction = client.TransactionPerSnap
+
+	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, flags)
+	c.Assert(err, IsNil)
+	c.Check(tss, HasLen, 2)
+	checkLaneNotUsed(tss, lane)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathWithTransactionLaneForbidden(c *C) {
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R("3")}
+	tss, info, err := snapstate.InstallPath(s.state, si, "", "", "", snapstate.Flags{Lane: 1})
+	c.Assert(err, ErrorMatches, "transaction lane is unsupported in InstallPath")
+	c.Check(tss, IsNil)
+	c.Check(info, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestInstallWithTransactionLaneForbidden(c *C) {
+	tss, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", nil, 0, snapstate.Flags{Lane: 1}, nil, "")
+	c.Assert(err, ErrorMatches, "transaction lane is unsupported in InstallWithDeviceContext")
+	c.Check(tss, IsNil)
+}
