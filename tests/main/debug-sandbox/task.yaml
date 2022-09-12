@@ -10,7 +10,7 @@ execute: |
         # Debian, openSUSE, Arch because partial apparmor is enabled
         snap debug sandbox-features | MATCH "apparmor: .+"
         ;;
-    fedora-*|debian-9-*)
+    fedora-*)
         # Fedora because it uses SELinux
         snap debug sandbox-features | NOMATCH "apparmor: .+"
         ;;

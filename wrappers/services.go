@@ -132,8 +132,8 @@ TasksAccounting=true
 `
 	buf := bytes.NewBufferString(header)
 
-	if grp.TaskLimit != 0 {
-		fmt.Fprintf(buf, "TasksMax=%d\n", grp.TaskLimit)
+	if grp.ThreadLimit != 0 {
+		fmt.Fprintf(buf, "TasksMax=%d\n", grp.ThreadLimit)
 	}
 	return buf.String()
 }
@@ -169,7 +169,7 @@ RuntimeMaxUse=%[1]d
 }
 
 func formatJournalRateConf(grp *quota.Group) string {
-	if grp.JournalLimit.RateCount == 0 || grp.JournalLimit.RatePeriod == 0 {
+	if !grp.JournalLimit.RateEnabled {
 		return ""
 	}
 	return fmt.Sprintf(`RateLimitIntervalSec=%dus
