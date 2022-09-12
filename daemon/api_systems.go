@@ -112,7 +112,7 @@ var deviceManagerSystemAndGadgetAndEncryptionInfo = func(dm *devicestate.DeviceM
 func storageEncryption(encInfo *devicestate.EncryptionSupportInfo) *client.StorageEncryption {
 	if encInfo.Disabled {
 		return &client.StorageEncryption{
-			Support: "disabled",
+			Support: client.StorageEncryptionSupportDisabled,
 		}
 	}
 	storageEnc := &client.StorageEncryption{
@@ -122,12 +122,12 @@ func storageEncryption(encInfo *devicestate.EncryptionSupportInfo) *client.Stora
 	required := (encInfo.StorageSafety == asserts.StorageSafetyEncrypted)
 	switch {
 	case encInfo.Available:
-		storageEnc.Support = "available"
+		storageEnc.Support = client.StorageEncryptionSupportAvailable
 	case !encInfo.Available && required:
-		storageEnc.Support = "defective"
+		storageEnc.Support = client.StorageEncryptionSupportDefective
 		storageEnc.UnavailableReason = encInfo.UnavailableErr.Error()
 	case !encInfo.Available && !required:
-		storageEnc.Support = "unavailable"
+		storageEnc.Support = client.StorageEncryptionSupportUnavailable
 		storageEnc.UnavailableReason = encInfo.UnavailableWarning
 	}
 

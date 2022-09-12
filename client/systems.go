@@ -140,15 +140,22 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 	return nil
 }
 
+type StorageEncryptionSupport string
+
+const (
+	// forcefull disabled by the device
+	StorageEncryptionSupportDisabled = "disabled"
+	// encryption available and usable
+	StorageEncryptionSupportAvailable = "available"
+	// encryption unavailable but not required
+	StorageEncryptionSupportUnavailable = "unavailable"
+	// encryption unavailable and required, this is an error
+	StorageEncryptionSupportDefective = "defective"
+)
+
 type StorageEncryption struct {
-	// Support describes the level of hardware support available,
-	// it can have the values:
-	//
-	// "disabled"    - forcefull disabled by the device
-	// "available"   - encryption usable
-	// "unavailable" - encryption unavailable but not required
-	// "defective"   - encryption unavailable and required, this is an error
-	Support string `json:"support"`
+	// Support describes the level of hardware support available.
+	Support StorageEncryptionSupport `json:"support"`
 
 	// StorageSafety can have values of asserts.StorageSafety
 	StorageSafety string `json:"storage-safety,omitempty"`
