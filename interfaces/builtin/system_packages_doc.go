@@ -75,13 +75,9 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	emit("  umount /usr/share/xubuntu-docs/,\n")
 	// The mount targets under /usr/share/ do not necessarily exist in the
 	// base image, in which case, we need to create a writable mimic.
-	// We are probably abusing GenWritableProfile() here by passing an AppArmor
-	// pattern as the path, but as long as the pattern does not contain a "/"
-	// (which would confuse Go's filepath routines) we should be fine. The next
-	// line with the gimp/2.0 path could not be merged into the same rule
-	// exactly because it contains a "/".
-	apparmor.GenWritableProfile(emit, "/usr/share/{libreoffice,cups}/", 3)
+	apparmor.GenWritableProfile(emit, "/usr/share/cups/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/gimp/2.0/", 3)
+	apparmor.GenWritableProfile(emit, "/usr/share/libreoffice/", 3)
 	return nil
 }
 
