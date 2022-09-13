@@ -73,9 +73,11 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/xubuntu-docs/ -> /usr/share/xubuntu-docs/,\n")
 	emit("  remount options=(bind, ro) /usr/share/xubuntu-docs/,\n")
 	emit("  umount /usr/share/xubuntu-docs/,\n")
-	// the mount targets under /usr/share/ do not necessarily exist in the
-	// base image, in which case, we need to create a writable mimic
-	apparmor.GenWritableProfile(emit, "/usr/share/", 3)
+	// The mount targets under /usr/share/ do not necessarily exist in the
+	// base image, in which case, we need to create a writable mimic.
+	apparmor.GenWritableProfile(emit, "/usr/share/cups/", 3)
+	apparmor.GenWritableProfile(emit, "/usr/share/gimp/2.0/", 3)
+	apparmor.GenWritableProfile(emit, "/usr/share/libreoffice/", 3)
 	return nil
 }
 
