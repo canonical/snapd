@@ -160,7 +160,7 @@ type StorageEncryption struct {
 	// StorageSafety can have values of asserts.StorageSafety
 	StorageSafety string `json:"storage-safety,omitempty"`
 
-	// Type have values of secboot.Type: "", "cryptsetup",
+	// Type has values of secboot.Type: "", "cryptsetup",
 	// "device-setup-hook"
 	Type string `json:"encryption-type,omitempty"`
 

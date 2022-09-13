@@ -1824,7 +1824,8 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 		return nil, nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
 	}
 	// EssentialSnaps is always ordered, see asserts.Model.EssentialSnaps:
-	// "snapd, kernel, boot base, gadget."
+	// "snapd, kernel, boot base, gadget." and snaps not loaded above
+	// like "snapd" will be skipped and not part of the EssentialSnaps list
 	//
 	// kernel info needed to check encryptionSupport
 	kernelSnap := s.EssentialSnaps()[0]
