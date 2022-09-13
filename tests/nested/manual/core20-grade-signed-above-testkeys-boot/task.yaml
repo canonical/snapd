@@ -122,12 +122,12 @@ execute: |
   fi
 
   # wait for the initialize device task to be done
-  retry -n 200 --wait 1 sh -c "tests.nested exec snap changes | MATCH 'Done.*Initialize device'"
+  retry -n 200 --wait 1 sh -c "remote.exec snap changes | MATCH 'Done.*Initialize device'"
 
   # Get the nested system version
   VERSION="$(tests.nested show version)"
 
   echo "Check we have the right model from snap model"
-  tests.nested exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-${MODEL_GRADE}-core-$VERSION-amd64"
-  tests.nested exec "sudo snap model --verbose" | MATCH "grade:\s+${MODEL_GRADE}"
-  tests.nested exec "sudo snap model --verbose --serial" | MATCH "serial:\s+7777"
+  remote.exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-${MODEL_GRADE}-core-$VERSION-amd64"
+  remote.exec "sudo snap model --verbose" | MATCH "grade:\s+${MODEL_GRADE}"
+  remote.exec "sudo snap model --verbose --serial" | MATCH "serial:\s+7777"

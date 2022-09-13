@@ -26,4 +26,4 @@ execute: |
     # Check errors
     remote.push testfile 2>&1 | MATCH "remote.push: local and remote paths are required"
     rm -f remote.setup.cfg
-    remote.push testfile "/home/tools-user-1" 2>&1 | MATCH "remote.push: config file \"remote.setup.cfg\" not found, please run remote.setup command first"
+    remote.push testfile "/home/tools-user-1" 2>&1 | MATCH "remote.push: config file \"$(pwd)/remote.setup.cfg\" not found, please run remote.setup command first"

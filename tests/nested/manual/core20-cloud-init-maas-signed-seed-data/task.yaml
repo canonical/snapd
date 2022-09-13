@@ -155,11 +155,11 @@ restore: |
   teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
 
 debug: |
-  tests.nested exec "snap changes" || true
-  tests.nested exec "snap tasks 1" || true
-  tests.nested exec "snap tasks 2" || true
+  remote.exec "snap changes" || true
+  remote.exec "snap tasks 1" || true
+  remote.exec "snap tasks 2" || true
 
-  tests.nested exec "cloud-init status --long" || true
+  remote.exec "cloud-init status --long" || true
 
 execute: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -191,12 +191,12 @@ execute: |
   sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported to be in error state after 3 minutes"
   EOF
 
-  tests.nested copy /tmp/snapd-journal-match-script-disable-state.sh
-  tests.nested copy /tmp/snapd-journal-match-script-error-notice-state.sh
-  tests.nested copy /tmp/snapd-journal-match-script-error-disable-state.sh
-  tests.nested exec "chmod +x /home/user1/snapd-journal-match-script-disable-state.sh"
-  tests.nested exec "chmod +x /home/user1/snapd-journal-match-script-error-notice-state.sh"
-  tests.nested exec "chmod +x /home/user1/snapd-journal-match-script-error-disable-state.sh"
+  remote.push /tmp/snapd-journal-match-script-disable-state.sh
+  remote.push /tmp/snapd-journal-match-script-error-notice-state.sh
+  remote.push /tmp/snapd-journal-match-script-error-disable-state.sh
+  remote.exec "chmod +x /home/user1/snapd-journal-match-script-disable-state.sh"
+  remote.exec "chmod +x /home/user1/snapd-journal-match-script-error-notice-state.sh"
+  remote.exec "chmod +x /home/user1/snapd-journal-match-script-error-disable-state.sh"
 
   # there are two options here, one is where we actually let cloud-init stay 
   # enabled with the variant where the gadget allowed it, in which case 
@@ -205,20 +205,20 @@ execute: |
   # all datasources in which case snapd notices cloud-init as being disabled
   if [ "$GADGET_DATASOURCE" = "explicitly-none" ]; then
     # snapd should disable cloud-init
-    retry --wait 1 -n 60 sh -c 'tests.nested exec /home/user1/snapd-journal-match-script-disable-state.sh'
+    retry --wait 1 -n 60 sh -c 'remote.exec /home/user1/snapd-journal-match-script-disable-state.sh'
 
-    tests.nested exec "cloud-init status" | MATCH "status: disabled"
+    remote.exec "cloud-init status" | MATCH "status: disabled"
   else
     # the first message is about snapd noticing that cloud-init is in error, and
     # for how long snapd will wait for cloud-init, this message should show up
     # relatively quickly
-    retry --wait 1 -n 60 sh -c 'tests.nested exec /home/user1/snapd-journal-match-script-error-notice-state.sh'
+    retry --wait 1 -n 60 sh -c 'remote.exec /home/user1/snapd-journal-match-script-error-notice-state.sh'
 
     # we now wait for 3 minutes before snapd gives up waiting and disables 
     # cloud-init
-    retry --wait 4 -n 60 sh -c 'tests.nested exec /home/user1/snapd-journal-match-script-error-disable-state.sh'
+    retry --wait 4 -n 60 sh -c 'remote.exec /home/user1/snapd-journal-match-script-error-disable-state.sh'
 
-    tests.nested exec "cloud-init status" | MATCH "status: error"
+    remote.exec "cloud-init status" | MATCH "status: error"
   fi
 
   echo "Ensuring that cloud-init got disabled"
@@ -226,7 +226,7 @@ execute: |
   # MAAS datasource being broken and thus getting eventually disabled by snapd
   # uggggggghhhhhhhhhh bash quoting strikes again - arguments to the test 
   # command do not get passed if we do something obvious like
-  # retry --wait 1 -n 240 sh -c "tests.nested exec sh -c 'test -f /etc/cloud/cloud-init.disabled'"
+  # retry --wait 1 -n 240 sh -c "remote.exec sh -c 'test -f /etc/cloud/cloud-init.disabled'"
   # so instead we must put this command into a file, copy it over and then
   # execute this file, putting the scoreboard at BASH ∞ + 1, IAN 0
   cat > /tmp/snapd-cloud-init-disabled-check.sh << 'EOF'
@@ -234,36 +234,36 @@ execute: |
   test -f /etc/cloud/cloud-init.disabled
   EOF
 
-  tests.nested copy /tmp/snapd-cloud-init-disabled-check.sh
-  tests.nested exec "chmod +x /home/user1/snapd-cloud-init-disabled-check.sh"
+  remote.push /tmp/snapd-cloud-init-disabled-check.sh
+  remote.exec "chmod +x /home/user1/snapd-cloud-init-disabled-check.sh"
 
-  retry --wait 1 -n 240 sh -c "tests.nested exec /home/user1/snapd-cloud-init-disabled-check.sh"
+  retry --wait 1 -n 240 sh -c "remote.exec /home/user1/snapd-cloud-init-disabled-check.sh"
 
   echo "Relevant files were copied"
   if [ "$GADGET_DATASOURCE" = "explicitly-none" ]; then
     # gadget said no datasources so nothing was copied
-    tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-cloud-config.cfg"
-    tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-datasource.cfg"
-    tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-reporting.cfg"
-    tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/90_50-curtin-networking.cfg"
+    remote.exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-cloud-config.cfg"
+    remote.exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-datasource.cfg"
+    remote.exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-reporting.cfg"
+    remote.exec "! test -f /etc/cloud/cloud.cfg.d/90_50-curtin-networking.cfg"
   else
-    tests.nested exec "test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-cloud-config.cfg"
-    tests.nested exec "test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-datasource.cfg"
-    tests.nested exec "test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-reporting.cfg"
-    tests.nested exec "test -f /etc/cloud/cloud.cfg.d/90_50-curtin-networking.cfg"
+    remote.exec "test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-cloud-config.cfg"
+    remote.exec "test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-datasource.cfg"
+    remote.exec "test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-reporting.cfg"
+    remote.exec "test -f /etc/cloud/cloud.cfg.d/90_50-curtin-networking.cfg"
   fi
 
   echo "Filtered files were not copied"
-  tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-ubuntu-sso.cfg"
-  tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-gce-unsupported-config.cfg"
+  remote.exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-ubuntu-sso.cfg"
+  remote.exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-gce-unsupported-config.cfg"
 
   # check that the gadget cloud.conf was copied too if it exists and is 
   # meaningful
   echo "The gadget cloud.conf was copied if it was in the gadget"
   if [ "$GADGET_DATASOURCE" = absent ]; then
-    tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/80_device_gadget.cfg"
+    remote.exec "! test -f /etc/cloud/cloud.cfg.d/80_device_gadget.cfg"
   else
-    tests.nested exec "test -f /etc/cloud/cloud.cfg.d/80_device_gadget.cfg"
+    remote.exec "test -f /etc/cloud/cloud.cfg.d/80_device_gadget.cfg"
   fi
 
   echo "The datasource_list restriction file was installed if we copied files"
@@ -274,10 +274,10 @@ execute: |
     # statically support and what the gadget says and what ubuntu-seed says is
     # not empty, so the only case where files don't get installed of the 3 
     # variants is where the gadget datasource says explicitly none
-    tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/99_snapd_datasource.cfg"
+    remote.exec "! test -f /etc/cloud/cloud.cfg.d/99_snapd_datasource.cfg"
   else
-    tests.nested exec "test -f /etc/cloud/cloud.cfg.d/99_snapd_datasource.cfg"
-    tests.nested exec "cat /etc/cloud/cloud.cfg.d/99_snapd_datasource.cfg" > datasource_restrict.cfg
+    remote.exec "test -f /etc/cloud/cloud.cfg.d/99_snapd_datasource.cfg"
+    remote.exec "cat /etc/cloud/cloud.cfg.d/99_snapd_datasource.cfg" > datasource_restrict.cfg
     # check that it has only MAAS
     #shellcheck disable=SC2002
     cat datasource_restrict.cfg | yaml2json | jq -r '."datasource_list" | .[]' | MATCH MAAS

@@ -15,17 +15,17 @@ prepare: |
     tests.nested create-vm core
 
     go build ./getdalockout.go
-    tests.nested copy ./getdalockout
+    remote.push ./getdalockout
 
 execute: |
-    tests.nested exec "sudo snap wait system seed.loaded"
+    remote.exec "sudo snap wait system seed.loaded"
     tests.nested wait-for device-initialized
 
     # lockout value is zero initially
-    tests.nested exec sudo ./getdalockout | MATCH "lockout counter value: 0"
+    remote.exec sudo ./getdalockout | MATCH "lockout counter value: 0"
 
     boot_id=$(tests.nested boot-id)
-    tests.nested exec "sudo sync"
+    remote.exec "sudo sync"
     # force an (external) reboot
     tests.nested vm unclean-reboot
     tests.nested wait-for reboot "${boot_id}"
@@ -33,4 +33,4 @@ execute: |
 
     # and is still zero after a unclean shutdown, it will happen in
     # secboot.MarkSuccessful so there is a race
-    retry -n 10 --wait 2 sh -c 'tests.nested exec sudo ./getdalockout | MATCH "lockout counter value: 0"'
+    retry -n 10 --wait 2 sh -c 'remote.exec sudo ./getdalockout | MATCH "lockout counter value: 0"'
