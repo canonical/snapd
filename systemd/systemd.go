@@ -1360,12 +1360,15 @@ func ExistingMountUnitPath(mountPointDir string) string {
 
 var squashfsFsType = squashfs.FsType
 
+// Note that WantedBy=multi-user.target and Before=local-fs.target are
+// only used to allow downgrading to an older version of snapd.
 const mountUnitTemplate = `[Unit]
 Description=Mount unit for {{.SnapName}}
 {{- with .Revision}}, revision {{.}}{{end}}
 {{- with .Origin}} via {{.}}{{end}}
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What={{.What}}
@@ -1376,6 +1379,7 @@ LazyUnmount=yes
 
 [Install]
 WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
 {{- with .Origin}}
 X-SnapdOrigin={{.}}
 {{- end}}

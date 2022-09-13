@@ -106,6 +106,8 @@ execute: |
     test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"
     # shellcheck disable=SC2251
     ! test -d /etc/systemd/system/snapd.mounts.target.wants
+    # shellcheck disable=SC2251
+    ! test -d /etc/systemd/system/multi-user.target.wants
     test -z "$(find /etc/systemd/system/sockets.target.wants/ -name 'snap.*')"
     test -z "$(find /etc/systemd/system/timers.target.wants/ -name 'snap.*')"
     if ! os.query is-trusty; then

@@ -97,6 +97,8 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	err = os.MkdirAll(dirs.SnapRuntimeServicesDir, 0755)
 	c.Assert(err, IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants"), 0755), IsNil)
+	// This is only to handle older version of snapd
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755), IsNil)
 
 	// force UTC timezone, for reproducible timestamps
 	os.Setenv("TZ", "")
@@ -1166,6 +1168,7 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What=%s
@@ -1176,6 +1179,7 @@ LazyUnmount=yes
 
 [Install]
 WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
 `[1:], mockSnapPath))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
@@ -1200,6 +1204,7 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 Description=Mount unit for foodir, revision x1
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What=%s
@@ -1210,6 +1215,7 @@ LazyUnmount=yes
 
 [Install]
 WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
 `[1:], snapDir))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
@@ -1246,6 +1252,7 @@ func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
 Description=Mount unit for foo via bar
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What=%s
@@ -1256,6 +1263,7 @@ LazyUnmount=yes
 
 [Install]
 WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
 X-SnapdOrigin=bar
 `[1:], mockSnapPath))
 
@@ -1289,6 +1297,7 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What=%s
@@ -1299,6 +1308,7 @@ LazyUnmount=yes
 
 [Install]
 WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
 `[1:], mockSnapPath))
 }
 
@@ -1333,6 +1343,7 @@ exit 0
 Description=Mount unit for foo, revision x1
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What=%s
@@ -1343,6 +1354,7 @@ LazyUnmount=yes
 
 [Install]
 WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
 `[1:], mockSnapPath))
 }
 
@@ -1373,6 +1385,7 @@ exit 0
 Description=Mount unit for foo, revision x1
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What=%s
@@ -1383,6 +1396,7 @@ LazyUnmount=yes
 
 [Install]
 WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
 `[1:], mockSnapPath))
 }
 
@@ -1637,6 +1651,7 @@ const unitTemplate = `
 Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What=%s
@@ -1647,6 +1662,7 @@ LazyUnmount=yes
 
 [Install]
 WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
 `
 
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
@@ -1671,6 +1687,8 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide,x-gvfs-hide"})
 	// unit was enabled with a symlink
 	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants", mountUnitName)), Equals, true)
+	// This is only to handle older version of snapd
+	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)), Equals, true)
 	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
 }
 
@@ -1727,6 +1745,9 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
 	mountUnit := makeMockMountUnit(c, mountDir)
 	symlinkPath := filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants", filepath.Base(mountUnit))
 	c.Assert(os.Symlink(mountUnit, symlinkPath), IsNil)
+	// This is only to handle older version of snapd
+	oldSymlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
+	c.Assert(os.Symlink(mountUnit, oldSymlinkPath), IsNil)
 
 	// Create a symlink in a different target, like if it was manually created.
 	manualTargetWants := filepath.Join(dirs.SnapServicesDir, "some-other.target.wants")
@@ -1786,6 +1807,9 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmounted(c *C) {
 	mountUnit := makeMockMountUnit(c, mountDir)
 	symlinkPath := filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants", filepath.Base(mountUnit))
 	c.Assert(os.Symlink(mountUnit, symlinkPath), IsNil)
+	// This is only to handle older version of snapd
+	oldSymlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
+	c.Assert(os.Symlink(mountUnit, oldSymlinkPath), IsNil)
 
 	c.Assert(sysd.RemoveMountUnitFile(mountDir), IsNil)
 

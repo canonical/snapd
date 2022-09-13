@@ -155,17 +155,31 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 		return "", fmt.Errorf("cannot mount %s (%s) at %s in preseed mode: %s; %s", what, hostFsType, where, err, string(out))
 	}
 
-	snapdMountsTargetWantsDir := filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants")
-	if err := os.MkdirAll(snapdMountsTargetWantsDir, 0755); err != nil {
-		return "", err
+	// Cannot call systemd, so manually enable the unit by
+	// symlinking into the targets' .wants directories.
+	// snapd.mounts.target is the proper target to install mounts.
+	// However, in order to handle preseeding of old images with old
+	// version of snapd, we also need to add the unit to
+	// multi-user.target
+	targets := []string{
+		"snapd.mounts.target",
+		"multi-user.target",
 	}
 
-	// cannot call systemd, so manually enable the unit by symlinking into snapd.mounts.target.wants
 	mu := MountUnitPath(where)
-	enableUnitPath := filepath.Join(snapdMountsTargetWantsDir, mountUnitName)
-	if err := os.Symlink(mu, enableUnitPath); err != nil {
-		return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
+
+	for _, target := range targets {
+		targetWantsDir := filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s.wants", target))
+		if err := os.MkdirAll(targetWantsDir, 0755); err != nil {
+			return "", err
+		}
+
+		enableUnitPath := filepath.Join(targetWantsDir, mountUnitName)
+		if err := os.Symlink(mu, enableUnitPath); err != nil {
+			return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
+		}
 	}
+
 	return mountUnitName, nil
 }
 
