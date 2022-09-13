@@ -1832,7 +1832,7 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	if kernelSnap.Path == "" {
 		return nil, nil, nil, fmt.Errorf("internal error: cannot get kernel snap path")
 	}
-	snapf, err := snapfile.Open(gadgetSnap.Path)
+	snapf, err := snapfile.Open(kernelSnap.Path)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot open kernel snap: %v", err)
 	}
