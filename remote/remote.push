@@ -44,8 +44,8 @@ remote_push() {
     SSH_PASS="$(_get_pass)"
     SSH_CERT="$(_get_cert)"
 
-    # shellcheck disable=SC2153
-    "$SSH_PASS" scp "$SSH_CERT" -P "$TESTS_REMOTE_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$1" "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST":"$2"
+    # shellcheck disable=SC2153,SC2086
+    $SSH_PASS scp $SSH_CERT -P "$TESTS_REMOTE_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$1" "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST":"$2"
 }
 
 main() {
