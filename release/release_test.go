@@ -149,7 +149,7 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestNonWSL(c *C) {
-	defer release.MockFileExists(func(string) bool {
+	defer release.MockFileExists(func(s string) bool {
 		c.Check(s, Equals, "/proc/sys/fs/binfmt_misc/WSLInterop")
 		return false
 	})()
@@ -158,7 +158,7 @@ func (s *ReleaseTestSuite) TestNonWSL(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestWSL(c *C) {
-	defer release.MockFileExists(func(string) bool {
+	defer release.MockFileExists(func(s string) bool {
 		c.Check(s, Equals, "/proc/sys/fs/binfmt_misc/WSLInterop")
 		return true
 	})()
