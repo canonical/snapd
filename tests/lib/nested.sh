@@ -88,38 +88,6 @@ nested_check_unit_stays_active() {
     done
 }
 
-nested_check_boot_errors() {
-    local cursor=$1
-    # Check if the service started and it is running without errors
-    if nested_is_core_20_system && ! nested_check_unit_stays_active "$NESTED_VM" 15 1; then
-        # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
-        # It is reproducible on an Intel machine without unrestricted mode support, the failure is most likely due to the guest entering an invalid state for Intel VT
-        # The workaround is to restart the vm and check that qemu doesn't go into this bad state again
-        if "$TESTSTOOLS"/journal-state get-log-from-cursor "$cursor" -u "$NESTED_VM" | MATCH "cpu_asidx_from_attrs: Assertion.*failed"; then
-            return 1
-        fi
-    fi
-}
-
-nested_retry_start_with_boot_errors() {
-    local retry=3
-    local cursor
-    cursor="$("$TESTSTOOLS"/journal-state get-test-cursor)"
-    while [ "$retry" -ge 0 ]; do
-        retry=$(( retry - 1 ))
-        if ! nested_check_boot_errors "$cursor"; then
-            cursor="$("$TESTSTOOLS"/journal-state get-last-cursor)"
-            nested_force_restart_vm
-            sleep 3
-        else
-            return 0
-        fi
-    done
-
-    echo "VM failing to boot, aborting!"
-    return 1
-}
-
 nested_get_boot_id() {
     nested_exec "cat /proc/sys/kernel/random/boot_id"
 }
@@ -1033,7 +1001,7 @@ nested_start_core_vm_unit() {
     if nested_is_kvm_enabled; then
         ATTR_KVM=",accel=kvm"
         # CPU can be defined just when kvm is enabled
-        PARAM_CPU="-cpu host"
+        PARAM_CPU="-cpu host,pmu=off"
     fi
 
     local PARAM_MACHINE
@@ -1141,9 +1109,6 @@ nested_start_core_vm_unit() {
 
     # wait for the $NESTED_VM service to appear active
     wait_for_service "$NESTED_VM"
-
-    # make sure the service started and it is running
-    nested_retry_start_with_boot_errors
 
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
@@ -1318,7 +1283,7 @@ nested_start_classic_vm() {
     local PARAM_MACHINE PARAM_IMAGE PARAM_SEED PARAM_SERIAL PARAM_BIOS PARAM_TPM
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MACHINE="-machine ubuntu,accel=kvm"
-        PARAM_CPU="-cpu host"
+        PARAM_CPU="-cpu host,pmu=off"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         # check if we have nested kvm
         if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then

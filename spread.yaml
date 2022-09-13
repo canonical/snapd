@@ -227,7 +227,7 @@ backends:
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
-                  workers: 7
+                  workers: 8
             - ubuntu-22.04-64:
                   image: ubuntu-2204-64-virt-enabled
                   storage: 20G
@@ -989,7 +989,7 @@ suites:
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3 intel-microcode
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1000,6 +1000,7 @@ suites:
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+            modprobe kvm_intel emulate_invalid_guest_state=0
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested prepare
@@ -1035,7 +1036,7 @@ suites:
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3 intel-microcode
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1046,6 +1047,7 @@ suites:
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+            modprobe kvm_intel emulate_invalid_guest_state=0
 
             tests.nested prepare
             tests.nested build-image classic
@@ -1082,7 +1084,7 @@ suites:
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3 intel-microcode
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1093,6 +1095,7 @@ suites:
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+            modprobe kvm_intel emulate_invalid_guest_state=0
 
             tests.nested prepare
             tests.nested build-image core
