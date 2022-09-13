@@ -91,6 +91,7 @@ restore: |
        systemctl stop "$(systemd-escape --path "/snap/test-snapd-with-configure${SUFFIX}/$TEST_REVNO.mount")"
        rm -f "/etc/systemd/system/snap-test-snapd-with-configure${SUFFIX}-${TEST_REVNO}.mount"
        rm -f "/etc/systemd/system/snapd.mounts.target.wants/snap-test-snapd-with-configure${SUFFIX}-${TEST_REVNO}.mount"
+       rm -f "/etc/systemd/system/multi-user.target.wants/snap-test-snapd-with-configure${SUFFIX}-${TEST_REVNO}.mount"
        rm -f "/var/lib/snapd/snaps/test-snapd-with-configure${SUFFIX}"_*.snap
        systemctl daemon-reload
     fi

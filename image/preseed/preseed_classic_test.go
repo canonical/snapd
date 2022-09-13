@@ -285,6 +285,9 @@ func (s *preseedSuite) TestReset(c *C) {
 			{filepath.Join(dirs.SnapServicesDir, "snap.foo.timer"), ""},
 			{filepath.Join(dirs.SnapServicesDir, "snap.foo.socket"), ""},
 			{filepath.Join(dirs.SnapServicesDir, "snap-foo.mount"), ""},
+			// In order to allow preseeding of images with older snapd, we need to also
+			// add the mount in multi-user.target
+			{filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", "snap-foo.mount"), ""},
 			{filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants", "snap-foo.mount"), ""},
 			{filepath.Join(dirs.SnapDataDir, "foo", "bar"), ""},
 			{filepath.Join(dirs.SnapCacheDir, "foocache", "bar"), ""},

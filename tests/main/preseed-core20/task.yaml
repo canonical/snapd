@@ -129,12 +129,16 @@ execute: |
 
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.core-fixup.service" < files.log
   MATCH "^etc/systemd/system/snapd.mounts.target.wants/snap-pc-.*.mount" < files.log
+  MATCH "^etc/systemd/system/multi-user.target.wants/snap-pc-.*.mount" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.spread-tests-run-mode-tweaks.service" < files.log
   MATCH "^etc/systemd/system/snapd.mounts.target.wants/snap-pc.*kernel-.*.mount" < files.log
+  MATCH "^etc/systemd/system/multi-user.target.wants/snap-pc.*kernel-.*.mount" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.autoimport.service" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.apparmor.service" < files.log
   MATCH "^etc/systemd/system/snapd.mounts.target.wants/snap-core20-.*.mount" < files.log
+  MATCH "^etc/systemd/system/multi-user.target.wants/snap-core20-.*.mount" < files.log
   MATCH "^etc/systemd/system/snapd.mounts.target.wants/snap-snapd-.*.mount" < files.log
+  MATCH "^etc/systemd/system/multi-user.target.wants/snap-snapd-.*.mount" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.seeded.service" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.recovery-chooser-trigger.service" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.service" < files.log
