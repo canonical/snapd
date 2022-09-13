@@ -85,8 +85,14 @@ func NewValidationSetKey(vs asserts.ValidationSet) ValidationSetKey {
 	return ValidationSetKey(strings.Join(vs.Ref().PrimaryKey, "/"))
 }
 
-func (vsk ValidationSetKey) String() string {
-	return string(vsk)
+func (k ValidationSetKey) String() string {
+	return string(k)
+}
+
+// Components returns the components of the validation set's primary key (see
+// assertion types in asserts/asserts.go).
+func (k ValidationSetKey) Components() []string {
+	return strings.Split(k.String(), "/")
 }
 
 // ValidationSetKeySlice can be used to sort slices of ValidationSetKey.

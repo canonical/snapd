@@ -6521,12 +6521,12 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationRefreshToRequire
 		}}}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:         "refresh",
-			InstanceName:   "some-snap",
-			SnapID:         "some-snap-id",
-			Revision:       snap.R(11),
-			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
-			Flags:          store.SnapActionEnforceValidation,
+			Action:            "refresh",
+			InstanceName:      "some-snap",
+			SnapID:            "some-snap-id",
+			Revision:          snap.R(11),
+			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
+			Flags:             store.SnapActionEnforceValidation,
 		},
 		revno: snap.R(11),
 	}}
@@ -6591,11 +6591,11 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAnyRevision(c
 		}}}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:         "refresh",
-			InstanceName:   "some-snap",
-			SnapID:         "some-snap-id",
-			ValidationSets: [][]string{{"16", "foo", "bar", "2"}},
-			Flags:          store.SnapActionEnforceValidation,
+			Action:            "refresh",
+			InstanceName:      "some-snap",
+			SnapID:            "some-snap-id",
+			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/2"},
+			Flags:             store.SnapActionEnforceValidation,
 		},
 		revno: snap.R(11),
 	}}
@@ -6661,11 +6661,11 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationSetAny
 		}}}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:         "refresh",
-			InstanceName:   "some-snap",
-			SnapID:         "some-snap-id",
-			Revision:       snap.R(11),
-			ValidationSets: [][]string{{"16", "foo", "bar", "2"}},
+			Action:            "refresh",
+			InstanceName:      "some-snap",
+			SnapID:            "some-snap-id",
+			Revision:          snap.R(11),
+			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/2"},
 		},
 		revno: snap.R(11),
 	}}
@@ -6728,11 +6728,11 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWithMa
 	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:         "refresh",
-			InstanceName:   "some-snap",
-			SnapID:         "some-snap-id",
-			Revision:       snap.R(11),
-			ValidationSets: [][]string{{"16", "foo", "bar", "2"}},
+			Action:            "refresh",
+			InstanceName:      "some-snap",
+			SnapID:            "some-snap-id",
+			Revision:          snap.R(11),
+			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/2"},
 			// XXX: updateToRevisionInfo doesn't set store.SnapActionEnforceValidation flag?
 		},
 		revno: snap.R(11),
@@ -6996,11 +6996,11 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetsCohortIgnore
 	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:         "refresh",
-			InstanceName:   "some-snap",
-			SnapID:         "some-snap-id",
-			Revision:       snap.R(5),
-			ValidationSets: [][]string{{"16", "foo", "bar", "2"}},
+			Action:            "refresh",
+			InstanceName:      "some-snap",
+			SnapID:            "some-snap-id",
+			Revision:          snap.R(5),
+			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/2"},
 		},
 		revno: snap.R(5),
 	}}
@@ -7168,11 +7168,11 @@ func (s *validationSetsSuite) TestUpdateToRevisionWithValidationSets(c *C) {
 		}}}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:         "refresh",
-			InstanceName:   "some-snap",
-			SnapID:         "some-snap-id",
-			Revision:       snap.R(11),
-			ValidationSets: [][]string{{"16", "foo", "bar"}, {"16", "foo", "baz"}},
+			Action:            "refresh",
+			InstanceName:      "some-snap",
+			SnapID:            "some-snap-id",
+			Revision:          snap.R(11),
+			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"},
 		},
 		revno: snap.R(11),
 	}}

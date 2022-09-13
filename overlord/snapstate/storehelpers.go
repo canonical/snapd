@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -213,8 +212,7 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 
 func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valsets []snapasserts.ValidationSetKey, requiredRevision snap.Revision) {
 	for _, vs := range valsets {
-		keyParts := strings.Split(vs.String(), "/")
-		action.ValidationSets = append(action.ValidationSets, keyParts)
+		action.ValidationSetKeys = append(action.ValidationSetKeys, vs)
 	}
 	if !requiredRevision.Unset() {
 		action.Revision = requiredRevision
