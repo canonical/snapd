@@ -34,11 +34,11 @@ func MockOSReleasePath(filename string) (restore func()) {
 	}
 }
 
-func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func()) {
-	old := ioutilReadFile
-	ioutilReadFile = newReadfile
+func MockFileExists(mockFileExists func(string) bool) (restorer func()) {
+	old := fileExists
+	fileExists = mockFileExists
 	return func() {
-		ioutilReadFile = old
+		fileExists = old
 	}
 }
 
