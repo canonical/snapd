@@ -1490,7 +1490,7 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveRunModeHappy(c *C
 	c.Assert(err, IsNil)
 
 	// make this one fail so we test both are invoked
-	sysctlCmd := testutil.MockCommand(c, "systemctl", "echo 'Failed to enable unit: Unit file var-lib-snapd-save.mount does not exist.'; exit 1")
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "echo 'Failed to start var-lib-snapd-save.mount: Unit var-lib-snapd-save.mount not found.'; exit 1")
 	defer sysctlCmd.Restore()
 
 	mountCmd := testutil.MockCommand(c, "systemd-mount", "")
@@ -1508,7 +1508,7 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveRunModeHappy(c *C
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
 	c.Check(sysctlCmd.Calls(), DeepEquals, [][]string{
-		{"systemctl", "--now", "enable", "var-lib-snapd-save.mount"},
+		{"systemctl", "start", "var-lib-snapd-save.mount"},
 	})
 	c.Check(mountCmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "-o", "bind", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir},
@@ -1539,9 +1539,9 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveSystemCtlFails(c 
 
 	err = mgr.StartUp()
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot set up ubuntu-save: systemctl command [--now enable var-lib-snapd-save.mount] failed with exit status 1: failed\n")
+	c.Check(err.Error(), Equals, "cannot set up ubuntu-save: systemctl command [start var-lib-snapd-save.mount] failed with exit status 1: failed\n")
 	c.Check(sysctlCmd.Calls(), DeepEquals, [][]string{
-		{"systemctl", "--now", "enable", "var-lib-snapd-save.mount"},
+		{"systemctl", "start", "var-lib-snapd-save.mount"},
 	})
 	c.Check(mountCmd.Calls(), HasLen, 0)
 
@@ -1572,7 +1572,7 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveMountUnitExists(c
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
 	c.Check(sysctlCmd.Calls(), DeepEquals, [][]string{
-		{"systemctl", "--now", "enable", "var-lib-snapd-save.mount"},
+		{"systemctl", "start", "var-lib-snapd-save.mount"},
 	})
 	c.Check(mountCmd.Calls(), HasLen, 0)
 
@@ -1636,7 +1636,7 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveErr(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
-	sysctlCmd := testutil.MockCommand(c, "systemctl", "echo 'Failed to enable unit: Unit file var-lib-snapd-save.mount does not exist.'; exit 1")
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "echo 'Failed to start var-lib-snapd-save.mount: Unit var-lib-snapd-save.mount not found.'; exit 1")
 	defer sysctlCmd.Restore()
 
 	mountCmd := testutil.MockCommand(c, "systemd-mount", "echo failed; exit 1")
@@ -1648,7 +1648,7 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveErr(c *C) {
 	err = mgr.StartUp()
 	c.Assert(err, ErrorMatches, "cannot set up ubuntu-save: cannot bind mount .*/run/mnt/ubuntu-save under .*/var/lib/snapd/save: failed")
 	c.Check(sysctlCmd.Calls(), DeepEquals, [][]string{
-		{"systemctl", "--now", "enable", "var-lib-snapd-save.mount"},
+		{"systemctl", "start", "var-lib-snapd-save.mount"},
 	})
 	c.Check(mountCmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "-o", "bind", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir},

@@ -340,9 +340,7 @@ func (m *DeviceManager) ensureUbuntuSaveIsMounted() error {
 
 	// In newer core20/core22 we have a mount unit for ubuntu-save, which we
 	// will try to start first. Invoking systemd-mount in this case would fail.
-	err = sysd.Enable([]string{"var-lib-snapd-save.mount"}, systemd.EnableOptions{
-		StartNow: true,
-	})
+	err = sysd.Start([]string{"var-lib-snapd-save.mount"})
 	if err == nil {
 		logger.Noticef("mount unit for ubuntu-save was started")
 		return nil
@@ -350,7 +348,7 @@ func (m *DeviceManager) ensureUbuntuSaveIsMounted() error {
 		// We only fall through and mount directly if the failure was because of a missing
 		// mount file, which possible does not exist. Any other failure we treat as an actual
 		// error.
-		if !strings.Contains(err.Error(), "Unit file var-lib-snapd-save.mount does not exist.") {
+		if !strings.Contains(err.Error(), "Unit var-lib-snapd-save.mount not found.") {
 			return err
 		}
 	}
