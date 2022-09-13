@@ -331,14 +331,40 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 		"status-code": 202,
 		"change": "42"
 	}`
-	vols := map[string][]gadget.Volume{
+	vols := map[string]*client.InstallVolume{
 		"pc": {
-			{
+			Volume: &gadget.Volume{
 				Schema:     "dos",
 				Bootloader: "mbr",
-				ID:         "0c",
+				ID:         "id",
 				// Note that name is not exported as json
 				Name: "pc",
+				// Note that this will be "shadowed"
+				// and not actually be visible, as it
+				// is more nested, see
+				// https://pkg.go.dev/encoding/json#Marshal
+				Structure: []gadget.VolumeStructure{
+					{
+						Name:  "we-do-not-not-see-this-name",
+						Label: "we-do-not-see-this-label",
+					},
+				},
+			},
+			Structure: []client.InstallVolumeStructure{
+				{
+					Device: "/dev/sda1",
+					VolumeStructure: &gadget.VolumeStructure{
+						Label:      "label",
+						Name:       "vol-name",
+						ID:         "id",
+						Size:       1234,
+						Type:       "type",
+						Filesystem: "fs",
+						Role:       "system-boot",
+						// not exported to json
+						VolumeName: "vol-name",
+					},
+				},
 			},
 		},
 	}
@@ -361,12 +387,28 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 		"action": "install",
 		"step":   "finish",
 		"on-volumes": map[string]interface{}{
-			"pc": []interface{}{
-				map[string]interface{}{
-					"schema":     "dos",
-					"bootloader": "mbr",
-					"id":         "0c",
-					"structure":  nil,
+			"pc": map[string]interface{}{
+				"schema":     "dos",
+				"bootloader": "mbr",
+				"id":         "id",
+				"structure": []interface{}{
+					map[string]interface{}{
+						"device":           "/dev/sda1",
+						"filesystem-label": "label",
+						"name":             "vol-name",
+						"id":               "id",
+						"size":             float64(1234),
+						"type":             "type",
+						"filesystem":       "fs",
+						"role":             "system-boot",
+						"offset":           nil,
+						"offset-write":     nil,
+						"content":          nil,
+						"update": map[string]interface{}{
+							"edition":  float64(0),
+							"preserve": nil,
+						},
+					},
 				},
 			},
 		},
