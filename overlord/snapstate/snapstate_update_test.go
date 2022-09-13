@@ -5196,7 +5196,7 @@ func (s *validationSetsSuite) TestUpdateManyWithRevisionOpts(c *C) {
 
 	// updating "some-snap" with revision opts should succeed because current
 	// validation sets should be ignored
-	revOpts := []*snapstate.RevisionOptions{{Revision: snap.R(2), ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/2"}}}
+	revOpts := []*snapstate.RevisionOptions{{Revision: snap.R(2), ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/2"}}}
 	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, revOpts, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"some-snap"})
@@ -7146,7 +7146,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionWithValidationSets(c *C) {
 
 	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
 
-	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"}}, 0, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"}}, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	var snapsup snapstate.SnapSetup

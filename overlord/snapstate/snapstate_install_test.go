@@ -4168,7 +4168,7 @@ func (s *validationSetsSuite) TestInstallManyWithRevisionOpts(c *C) {
 
 	// installing "some-snap" with revision opts should succeed because current
 	// validation sets should be ignored
-	revOpts := []*snapstate.RevisionOptions{{Revision: snap.R(2), ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/2"}}}
+	revOpts := []*snapstate.RevisionOptions{{Revision: snap.R(2), ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/2"}}}
 	affected, tss, err := snapstate.InstallMany(s.state, []string{"some-snap"}, revOpts, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"some-snap"})
@@ -4498,7 +4498,7 @@ func (s *validationSetsSuite) TestInstallSnapWithValidationSets(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	opts := &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"}}
+	opts := &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"}}
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 

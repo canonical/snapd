@@ -251,9 +251,9 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 	var requiredValSets []snapasserts.ValidationSetKey
 
 	if !flags.IgnoreValidation {
-		if len(revOpts.ValidationSets) > 0 {
+		if len(revOpts.ValidationSetKeys) > 0 {
 			requiredRevision = revOpts.Revision
-			requiredValSets = revOpts.ValidationSets
+			requiredValSets = revOpts.ValidationSetKeys
 		} else {
 			enforcedSets, err := EnforcedValidationSets(st)
 			if err != nil {
@@ -341,7 +341,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 		Flags:   storeFlags,
 	}
 
-	if len(opts.ValidationSets) > 0 {
+	if len(opts.ValidationSetKeys) > 0 {
 		// update to a specific revision is handled by updateToRevisionInfo.
 		// updating without a revision while enforcing validation sets is not a
 		// viable scenario (although we could handle it if desired), we only install/refresh
@@ -485,9 +485,9 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revOpts *RevisionO
 
 	var storeFlags store.SnapActionFlags
 	if !flags.IgnoreValidation {
-		if len(revOpts.ValidationSets) > 0 {
+		if len(revOpts.ValidationSetKeys) > 0 {
 			requiredRevision = revOpts.Revision
-			requiredValsets = revOpts.ValidationSets
+			requiredValsets = revOpts.ValidationSetKeys
 		} else {
 			enforcedSets, err := EnforcedValidationSets(st)
 			if err != nil {
@@ -672,7 +672,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 
 			if revOpts != nil {
 				opts := revOptsByName[installed.InstanceName]
-				requiredValsets, requiredRevision = opts.ValidationSets, opts.Revision
+				requiredValsets, requiredRevision = opts.ValidationSetKeys, opts.Revision
 			} else if enforcedSets != nil {
 				requiredValsets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(installed.InstanceName))
 				// note, this errors out the entire refresh
@@ -807,7 +807,7 @@ func installCandidates(st *state.State, names []string, revOpts []*RevisionOptio
 		var requiredRevision snap.Revision
 
 		if revOpts != nil {
-			requiredValSets = revOpts[i].ValidationSets
+			requiredValSets = revOpts[i].ValidationSetKeys
 			requiredRevision = revOpts[i].Revision
 		} else if enforcedSets != nil {
 			// check for invalid presence first to have a list of sets where it's invalid
