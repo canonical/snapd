@@ -44,6 +44,9 @@ func SetUserAgentFromVersion(version string, probeForceDevMode func() bool, extr
 	if Testing() {
 		extras = append(extras, "testing")
 	}
+	if release.OnWSL {
+		extras = append(extras, "wsl")
+	}
 	extraProdStr := ""
 	if len(extraProds) != 0 {
 		extraProdStr = " " + strings.Join(extraProds, " ")
