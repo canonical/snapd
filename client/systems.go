@@ -174,7 +174,7 @@ const (
 type InstallVolumeStructure struct {
 	*gadget.VolumeStructure
 
-	// The installer need to set those
+	// The installer need to set those as needed depending on step.
 	Device            string `json:"device,omitempty"`
 	UnencryptedDevice string `json:"unencrypted-device,omitempty"`
 }

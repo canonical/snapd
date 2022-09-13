@@ -324,7 +324,7 @@ func (cs *clientSuite) TestRequestSystemInstallEmptySystemLabel(c *check.C) {
 	c.Check(cs.req, check.IsNil)
 }
 
-func (cs *clientSuite) TestRequestSystemInstallShadowsExistingStruct(c *check.C) {
+func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 	cs.status = 202
 	cs.rsp = `{
 		"type": "async",
@@ -340,7 +340,8 @@ func (cs *clientSuite) TestRequestSystemInstallShadowsExistingStruct(c *check.C)
 				// Note that name is not exported as json
 				Name: "pc",
 				// Note that this will be "shadowed"
-				// and not actually be visible, see
+				// and not actually be visible, as it
+				// is more nested, see
 				// https://pkg.go.dev/encoding/json#Marshal
 				Structure: []gadget.VolumeStructure{
 					{
