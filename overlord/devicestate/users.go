@@ -44,7 +44,7 @@ var (
 )
 
 // UserError is used for errors which are known to snapd. This is errors
-// originate from this code here.
+// that originate from this code here.
 type UserError struct {
 	Err error
 }
@@ -96,13 +96,13 @@ func CreateUser(st *state.State, sudoer bool, email string) (CreatedUser, error)
 // user details are fetched from existing system user assertions.
 // If no email is passed, all known users will be created based on valid system user assertions.
 // If email is passed, only corresponding system user assertion is used for user creation.
-func CreateKnownUsers(st *state.State, mgr *DeviceManager, sudoer bool, email string) ([]CreatedUser, error) {
-	model, err := mgr.Model()
+func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]CreatedUser, error) {
+	model, err := findModel(st)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create user: cannot get model assertion: %v", err)
 	}
 
-	serial, err := mgr.Serial()
+	serial, err := findSerial(st, nil)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("cannot create user: cannot get serial: %v", err)
 	}

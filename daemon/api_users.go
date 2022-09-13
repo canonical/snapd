@@ -235,10 +235,10 @@ func removeUser(c *Command, username string, opts postUserDeleteData) Response {
 	defer st.Unlock()
 
 	if u, err := deviceStateRemoveUser(st, username); err != nil {
-		if _, ok := err.(*devicestate.UserError); !ok {
-			return InternalError(err.Error())
-		} else {
+		if _, ok := err.(*devicestate.UserError); ok {
 			return BadRequest(err.Error())
+		} else {
+			return InternalError(err.Error())
 		}
 	} else {
 		result := map[string]interface{}{
@@ -313,12 +313,12 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		createData.Sudoer = true
 	}
 
-	createdUsers, userError := createUserWrapper(st, c.d.overlord.DeviceManager(), createData)
+	createdUsers, userError := createUserWrapper(st, createData)
 	if userError != nil {
-		if _, ok := userError.(*devicestate.UserError); !ok {
-			return InternalError(userError.Error())
-		} else {
+		if _, ok := userError.(*devicestate.UserError); ok {
 			return BadRequest(userError.Error())
+		} else {
+			return InternalError(userError.Error())
 		}
 	} else {
 		for _, cu := range createdUsers {
@@ -331,12 +331,12 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	return SyncResponse(createdUsersResponse)
 }
 
-func createUserWrapper(st *state.State, mgr *devicestate.DeviceManager, createData postUserCreateData) ([]devicestate.CreatedUser, error) {
+func createUserWrapper(st *state.State, createData postUserCreateData) ([]devicestate.CreatedUser, error) {
 	st.Lock()
 	defer st.Unlock()
 
 	if createData.Known {
-		return deviceStateCreateKnownUsers(st, mgr, createData.Sudoer, createData.Email)
+		return deviceStateCreateKnownUsers(st, createData.Sudoer, createData.Email)
 	} else {
 		user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email)
 		return []devicestate.CreatedUser{user}, err

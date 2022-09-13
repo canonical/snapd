@@ -38,7 +38,7 @@ func MockDeviceStateCreateUser(createUser func(st *state.State, sudoer bool, ema
 	return restore
 }
 
-func MockDeviceStateCreateKnownUsers(createKnownUser func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, email string) ([]devicestate.CreatedUser, error)) (restore func()) {
+func MockDeviceStateCreateKnownUsers(createKnownUser func(st *state.State, sudoer bool, email string) ([]devicestate.CreatedUser, error)) (restore func()) {
 	restore = testutil.Backup(&deviceStateCreateUser)
 	deviceStateCreateKnownUsers = createKnownUser
 	return restore

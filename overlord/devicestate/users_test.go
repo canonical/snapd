@@ -512,7 +512,7 @@ func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange boo
 
 	// create user
 	s.state.Lock()
-	createdUsers, err := devicestate.CreateKnownUsers(s.state, s.mgr, false, "foo@bar.com")
+	createdUsers, err := devicestate.CreateKnownUsers(s.state, false, "foo@bar.com")
 	s.state.Unlock()
 
 	expected := []devicestate.CreatedUser{
@@ -580,7 +580,7 @@ func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, e
 	var err error
 	s.state.Lock()
 	if createKnown {
-		createdUsers, err = devicestate.CreateKnownUsers(s.state, s.mgr, expectSudoer, "")
+		createdUsers, err = devicestate.CreateKnownUsers(s.state, expectSudoer, "")
 	} else {
 		var createdUser devicestate.CreatedUser
 		createdUser, err = devicestate.CreateUser(s.state, expectSudoer, "")
@@ -633,7 +633,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownNoModelError(c *check.C)
 
 	// create user
 	s.state.Lock()
-	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, s.mgr, true, "")
+	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "")
 	s.state.Unlock()
 
 	c.Assert(userErr, check.NotNil)
@@ -666,7 +666,7 @@ func (s *usersSuite) TestCreateUserFromAssertionNoModel(c *check.C) {
 
 	// create user
 	s.state.Lock()
-	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, s.mgr, true, "serial@bar.com")
+	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "serial@bar.com")
 	s.state.Unlock()
 
 	c.Check(userErr, check.NotNil)
@@ -708,7 +708,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 
 	// create user
 	s.state.Lock()
-	createdUsers, err := devicestate.CreateKnownUsers(s.state, s.mgr, false, "")
+	createdUsers, err := devicestate.CreateKnownUsers(s.state, false, "")
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
 	expected := []devicestate.CreatedUser{
@@ -719,6 +719,44 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	c.Check(len(createdUsers), check.Equals, 1)
 	c.Check(createdUsers, check.FitsTypeOf, expected)
 	c.Check(createdUsers, check.DeepEquals, expected)
+}
+
+func (s *usersSuite) TestCreateUserFromAssertionAllKnownButSkipExists(c *check.C) {
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
+
+	s.state.Lock()
+	_, err := auth.NewUser(s.state, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	s.state.Unlock()
+	c.Check(err, check.IsNil)
+
+	// mock the calls that create the user
+	userLookUps := map[string]bool{}
+	addUserCalled := false
+	defer devicestate.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
+		addUserCalled = true
+		return fmt.Errorf("osutil.AddUser should not have been called")
+	})()
+
+	// report users as known so we dont make a call to create user
+	defer devicestate.MockUserLookup(func(username string) (*user.User, error) {
+		userLookUps[username] = true
+		// return nil to indicate successful lookup
+		return nil, nil
+	})()
+
+	// create user
+	s.state.Lock()
+	createdUsers, err := devicestate.CreateKnownUsers(s.state, false, "")
+	s.state.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(len(createdUsers), check.Equals, 0)
+	c.Check(len(userLookUps), check.Equals, 1)
+	c.Check(addUserCalled, check.Equals, false)
 }
 
 func (s *usersSuite) TestCreateUserMissingEmail(c *check.C) {
