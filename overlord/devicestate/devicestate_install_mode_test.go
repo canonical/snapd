@@ -3670,7 +3670,7 @@ type installStepSuite struct {
 var _ = Suite(&installStepSuite{})
 
 func (s *installStepSuite) SetUpTest(c *C) {
-	classic := false
+	classic := true
 	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 }
 
