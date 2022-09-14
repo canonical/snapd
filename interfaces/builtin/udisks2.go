@@ -20,6 +20,8 @@
 package builtin
 
 import (
+	"io/ioutil"
+	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -431,10 +433,21 @@ func (iface *udisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 
 func (iface *udisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	if !implicitSystemPermanentSlot(slot) {
-		spec.AddSnippet(udisks2PermanentSlotUDev)
-		spec.TagDevice(`SUBSYSTEM=="block"`)
-		// # This tags all USB devices, so we'll use AppArmor to mediate specific access (eg, /dev/sd* and /dev/mmcblk*)
-		spec.TagDevice(`SUBSYSTEM=="usb"`)
+		var udevFile string
+		slot.Attr("udev-file", &udevFile)
+		if udevFile != "" {
+			mountDir := slot.Snap.MountDir()
+			data, err := ioutil.ReadFile(filepath.Join(mountDir, udevFile))
+			if err != nil {
+				return err
+			}
+			spec.AddSnippet(string(data))
+		} else {
+			spec.AddSnippet(udisks2PermanentSlotUDev)
+			spec.TagDevice(`SUBSYSTEM=="block"`)
+			// # This tags all USB devices, so we'll use AppArmor to mediate specific access (eg, /dev/sd* and /dev/mmcblk*)
+			spec.TagDevice(`SUBSYSTEM=="usb"`)
+		}
 	}
 	return nil
 }
