@@ -216,18 +216,10 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 const udisks2PermanentSlotDBus = `
 <policy user="root">
     <allow own="org.freedesktop.UDisks2"/>
+</policy>
+
+<policy context="default">
     <allow send_destination="org.freedesktop.UDisks2"/>
-</policy>
-
-<policy context="default">
-    <allow send_destination="org.freedesktop.UDisks2" send_interface="org.freedesktop.DBus.Introspectable" />
-</policy>
-`
-
-const udisks2ConnectedPlugDBus = `
-<policy context="default">
-    <deny own="org.freedesktop.UDisks2"/>
-    <deny send_destination="org.freedesktop.UDisks2"/>
 </policy>
 `
 
@@ -400,13 +392,6 @@ func (iface *udisks2Interface) StaticInfo() interfaces.StaticInfo {
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: udisks2BaseDeclarationSlots,
 	}
-}
-
-func (iface *udisks2Interface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if !implicitSystemConnectedSlot(slot) {
-		spec.AddSnippet(udisks2ConnectedPlugDBus)
-	}
-	return nil
 }
 
 func (iface *udisks2Interface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
