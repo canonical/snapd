@@ -101,8 +101,7 @@ network netlink raw,
 # Mount points could be in /run/media/<user>/* or /media/<user>/*
 /run/systemd/seats/* r,
 /{,run/}media/{,**} rw,
-mount options=(ro,nosuid,nodev) /dev/{sd*,mmcblk*} -> /{,run/}media/**,
-mount options=(rw,nosuid,nodev) /dev/{sd*,mmcblk*} -> /{,run/}media/**,
+mount /dev/{dm-*,nvme*,vd*,hd*,sd*,mmcblk*,fd*,sr*} -> /{,run/}media/**,
 umount /{,run/}media/**,
 
 # This should probably be patched to use $SNAP_DATA/run/...
@@ -117,12 +116,21 @@ umount /{,run/}media/**,
 
 # Udisks2 needs to read the raw device for partition information. These rules
 # give raw read access to the system disks and therefore the entire system.
-/dev/sd* r,
-/dev/mmcblk* r,
-/dev/vd* r,
+/dev/{dm-*,nvme*,vd*,hd*,sd*,mmcblk*,fd*,sr*} r,
 
 # Needed for probing raw devices
 capability sys_rawio,
+
+/run/ rw,
+/run/cryptsetup/{,**} rwk,
+/run/mount/utab.lock rwk,
+/run/mount/utab.* rw,
+/run/mount/utab rw,
+/run/udisks2/{,**} rw,
+/sys/devices/**/block/**/uevent w,
+
+/{usr/,}{sbin,bin}/dumpe2fs ixr,
+/etc/crypttab r,
 `
 
 const udisks2ConnectedSlotAppArmor = `
