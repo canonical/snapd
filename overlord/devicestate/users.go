@@ -164,16 +164,6 @@ func RemoveUser(st *state.State, username string) (*auth.UserState, error) {
 	return u, nil
 }
 
-func (u *createUserOpts) createUser(st *state.State, opts *osutil.AddUserOptions, username, email string) (CreatedUser, error) {
-	opts.ExtraUsers = !release.OnClassic
-	createdUser, err := u.addUser(st, username, email, opts)
-	if err != nil {
-		return CreatedUser{}, err
-	}
-
-	return createdUser, nil
-}
-
 func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
 	v, err := theStore.UserInfo(email)
 	if err != nil {
@@ -203,6 +193,16 @@ type createUserOpts struct {
 	modelAs  *asserts.Model
 	serialAs *asserts.Serial
 	isSudoer bool
+}
+
+func (u *createUserOpts) createUser(st *state.State, opts *osutil.AddUserOptions, username, email string) (CreatedUser, error) {
+	opts.ExtraUsers = !release.OnClassic
+	createdUser, err := u.addUser(st, username, email, opts)
+	if err != nil {
+		return CreatedUser{}, err
+	}
+
+	return createdUser, nil
 }
 
 func (u *createUserOpts) createAllKnownSystemUsers(state *state.State) ([]CreatedUser, error) {
