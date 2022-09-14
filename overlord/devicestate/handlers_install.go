@@ -40,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
@@ -1187,7 +1186,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("system-label", &seedLabel); err != nil {
 		return err
 	}
-	var onVolumes map[string]*client.InstallVolume
+	var onVolumes map[string]*gadget.Volume
 	if err := t.Get("on-volumes", &onVolumes); err != nil {
 		return err
 	}
@@ -1210,7 +1209,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	if err := t.Get("system-label", &seedLabel); err != nil {
 		return err
 	}
-	var onVolumes map[string]*client.InstallVolume
+	var onVolumes map[string]*gadget.Volume
 	if err := t.Get("on-volumes", &onVolumes); err != nil {
 		return err
 	}

@@ -39,7 +39,6 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
@@ -3675,11 +3674,9 @@ func (s *installStepSuite) SetUpTest(c *C) {
 	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 }
 
-var mockOnVolumes = map[string]*client.InstallVolume{
+var mockOnVolumes = map[string]*gadget.Volume{
 	"pc": {
-		Volume: &gadget.Volume{
-			Bootloader: "grub",
-		},
+		Bootloader: "grub",
 	},
 }
 
@@ -3717,7 +3714,7 @@ func (s *installStepSuite) TestDeviceManagerInstallFinishTasksAndChange(c *C) {
 	err = tskInstallFinish.Get("system-label", &onLabel)
 	c.Assert(err, IsNil)
 	c.Assert(onLabel, Equals, "1234")
-	var onVols map[string]*client.InstallVolume
+	var onVols map[string]*gadget.Volume
 	err = tskInstallFinish.Get("on-volumes", &onVols)
 	c.Assert(err, IsNil)
 	c.Assert(onVols, DeepEquals, mockOnVolumes)
@@ -3775,7 +3772,7 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionTasksAn
 	err = tskInstallFinish.Get("system-label", &onLabel)
 	c.Assert(err, IsNil)
 	c.Assert(onLabel, Equals, "1234")
-	var onVols map[string]*client.InstallVolume
+	var onVols map[string]*gadget.Volume
 	err = tskInstallFinish.Get("on-volumes", &onVols)
 	c.Assert(err, IsNil)
 	c.Assert(onVols, DeepEquals, mockOnVolumes)

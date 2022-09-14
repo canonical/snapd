@@ -984,14 +984,14 @@ func (s *systemsSuite) TestSystemInstallActionFinishCallsDevicestate(c *check.C)
 	s.testSystemInstallActionCallsDevicestate(c, "finish", daemon.MockDevicestateInstallFinish)
 }
 
-func (s *systemsSuite) testSystemInstallActionCallsDevicestate(c *check.C, step string, mocker func(func(st *state.State, label string, onVolumes map[string]*client.InstallVolume) (*state.Change, error)) (restore func())) {
+func (s *systemsSuite) testSystemInstallActionCallsDevicestate(c *check.C, step string, mocker func(func(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error)) (restore func())) {
 	d := s.daemon(c)
 	st := d.Overlord().State()
 
 	nCalls := 0
-	var gotOnVolumes map[string]*client.InstallVolume
+	var gotOnVolumes map[string]*gadget.Volume
 	var gotLabel string
-	r := mocker(func(st *state.State, label string, onVolumes map[string]*client.InstallVolume) (*state.Change, error) {
+	r := mocker(func(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error) {
 		gotLabel = label
 		gotOnVolumes = onVolumes
 		nCalls++
@@ -1023,11 +1023,9 @@ func (s *systemsSuite) testSystemInstallActionCallsDevicestate(c *check.C, step 
 	c.Check(chg.ID(), check.Equals, "1")
 	c.Check(nCalls, check.Equals, 1)
 	c.Check(gotLabel, check.Equals, "20191119")
-	c.Check(gotOnVolumes, check.DeepEquals, map[string]*client.InstallVolume{
+	c.Check(gotOnVolumes, check.DeepEquals, map[string]*gadget.Volume{
 		"pc": {
-			Volume: &gadget.Volume{
-				Bootloader: "grub",
-			},
+			Bootloader: "grub",
 		},
 	})
 }

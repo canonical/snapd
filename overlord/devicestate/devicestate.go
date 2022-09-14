@@ -33,7 +33,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -1080,7 +1079,7 @@ func CreateRecoverySystem(st *state.State, label string) (*state.Change, error) 
 // InstallFinish creates a change that will finish the install for the given
 // label and volumes. This includes writing missing volume content, seting
 // up the bootloader and installing the kernel.
-func InstallFinish(st *state.State, label string, onVolumes map[string]*client.InstallVolume) (*state.Change, error) {
+func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error) {
 	if label == "" {
 		return nil, fmt.Errorf("cannot finish install with an empty system label")
 	}
@@ -1100,7 +1099,7 @@ func InstallFinish(st *state.State, label string, onVolumes map[string]*client.I
 // InstallSetupStorageEncryption creates a change that will setup the
 // storage encryption for the install of the given label and
 // volumes.
-func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[string]*client.InstallVolume) (*state.Change, error) {
+func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error) {
 	if label == "" {
 		return nil, fmt.Errorf("cannot setup storage encryption with an empty system label")
 	}

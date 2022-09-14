@@ -179,20 +179,6 @@ const (
 	InstallStepFinish InstallStep = "finish"
 )
 
-type InstallVolumeStructure struct {
-	*gadget.VolumeStructure
-
-	// The installer need to set those as needed depending on step.
-	Device            string `json:"device,omitempty"`
-	UnencryptedDevice string `json:"unencrypted-device,omitempty"`
-}
-
-type InstallVolume struct {
-	*gadget.Volume
-
-	Structure []InstallVolumeStructure `json:"structure"`
-}
-
 type InstallSystemOptions struct {
 	// Step is the install step, either "setup-storage-encryption"
 	// or "finish".
@@ -200,7 +186,7 @@ type InstallSystemOptions struct {
 
 	// OnVolumes is the volume description of the volumes that the
 	// given step should operate on.
-	OnVolumes map[string]*InstallVolume `json:"on-volumes,omitempty"`
+	OnVolumes map[string]*gadget.Volume `json:"on-volumes,omitempty"`
 }
 
 // InstallSystem will perform the given install step for the given volumes
