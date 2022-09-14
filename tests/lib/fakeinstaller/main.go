@@ -102,39 +102,27 @@ func postSystemsInstallFinish(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
 	laidoutStructs []gadget.OnDiskStructure) error {
 
-	volumes := make(map[string]*client.InstallVolume)
+	vols := make(map[string]*gadget.Volume)
 	for volName, gadgetVol := range details.Volumes {
-
-		installVolStructs := []client.InstallVolumeStructure{}
 		laidIdx := 0
-		for _, volStruct := range gadgetVol.Structure {
+		for i := range gadgetVol.Structure {
 			// TODO mbr is special, what is the device for that?
 			var device string
-			if volStruct.Role == "mbr" {
+			if gadgetVol.Structure[i].Role == "mbr" {
 				device = bootDevice
 			} else {
 				device = laidoutStructs[laidIdx].Node
 				laidIdx++
 			}
-			fmt.Println("XXX", volStruct.Name, "in device", device)
-			installVolStructs = append(installVolStructs,
-				client.InstallVolumeStructure{
-					VolumeStructure:   &volStruct,
-					Device:            device,
-					UnencryptedDevice: "",
-				})
+			gadgetVol.Structure[i].Device = device
 		}
-
-		volumes[volName] = &client.InstallVolume{
-			Volume:    gadgetVol,
-			Structure: installVolStructs,
-		}
+		vols[volName] = gadgetVol
 	}
 
 	// Finish steps does the writing of assets
 	opts := &client.InstallSystemOptions{
 		Step:      client.InstallStepFinish,
-		OnVolumes: volumes,
+		OnVolumes: vols,
 	}
 	chgId, err := cli.InstallSystem(details.Label, opts)
 	if err != nil {
