@@ -259,12 +259,12 @@ func ProcessPathInTrackingCgroup(pid int) (string, error) {
 	// 1:name=systemd:/user.slice/user-1000.slice/user@1000.service/tmux.slice/tmux@default.service
 	// 0::/user.slice/user-1000.slice/user@1000.service/tmux.slice/tmux@default.service
 
-	// The cgroup hierarchy (both v1 and v2) can be "dangling" after being
+	// A cgroup hierarchy (both v1 and v2) can be "dangling" after being
 	// mounted and unmounted.
 	// It will stay present in the kernel (and therefore its paths may appear
 	// in the /proc/<pid>/cgroup file) as long as there are some processes in
-	// it, but it will not be present in the file-system. As such, allow v2 to
-	// register only if it is really mounted on the system.
+	// it, but it will not be present in the file-system. As such, use v2
+	// if it is really mounted on the filesystem, otherwise try v1.
 	var useV2 bool
 	if ver, err := Version(); err != nil {
 		return "", err

@@ -262,7 +262,7 @@ func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
 		{cgVersion: cgroup.V2, cgroups: noise + "", path: "", errMsg: "cannot find tracking cgroup"},
 		{cgVersion: cgroup.V2, cgroups: noise + "0::/foo", path: "/foo"},
 		{cgVersion: cgroup.V2, cgroups: noise + "1:name=systemd:/bar", errMsg: "cannot find tracking cgroup"},
-		// In only V1 is mounted, then the same configuration works
+		// If only V1 is mounted, then the same configuration works
 		{cgVersion: cgroup.V1, cgroups: noise + "1:name=systemd:/bar", path: "/bar"},
 		// First match wins (normally they are in sync).
 		{cgVersion: cgroup.V1, cgroups: noise + "1:name=systemd:/bar\n0::/foo", path: "/bar"},
