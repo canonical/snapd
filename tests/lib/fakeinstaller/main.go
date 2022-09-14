@@ -43,17 +43,17 @@ func firstVol(volumes map[string]*gadget.Volume) *gadget.Volume {
 	return nil
 }
 
-func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) error {
+func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]gadget.OnDiskStructure, error) {
 	if len(volumes) != 1 {
-		return fmt.Errorf("got unexpected number of volumes %v", len(volumes))
+		return nil, fmt.Errorf("got unexpected number of volumes %v", len(volumes))
 	}
 
 	diskLayout, err := gadget.OnDiskVolumeFromDevice(bootDevice)
 	if err != nil {
-		return fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
+		return nil, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
 	if len(diskLayout.Structure) > 0 {
-		return fmt.Errorf("cannot yet install on a disk that has partitions")
+		return nil, fmt.Errorf("cannot yet install on a disk that has partitions")
 	}
 
 	constraints := gadget.LayoutConstraints{
@@ -72,17 +72,17 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) erro
 	vol := firstVol(volumes)
 	lvol, err := gadget.LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
 	if err != nil {
-		return fmt.Errorf("cannot layout volume: %v", err)
+		return nil, fmt.Errorf("cannot layout volume: %v", err)
 	}
 
 	iconst := &install.Constraints{AllPartitions: true}
 	created, err := install.CreateMissingPartitions(gadgetRoot, diskLayout, lvol, iconst)
 	if err != nil {
-		return fmt.Errorf("cannot create parititons: %v", err)
+		return nil, fmt.Errorf("cannot create parititons: %v", err)
 	}
 	logger.Noticef("created %v partitions", created)
 
-	return nil
+	return created, nil
 }
 
 func runMntFor(label string) string {
@@ -96,9 +96,52 @@ func postSystemsInstallSetupStorageEncryption(details *client.SystemDetails) err
 	return nil
 }
 
-func postSystemsInstallFinish(details *client.SystemDetails) error {
-	// TODO: call POST /systems/<seed-label> with
-	// "action":"install" and "step":"finish"
+// TODO laidoutStructs is used to get the devices, when encryption is
+// happening maybe we need to find the information differently.
+func postSystemsInstallFinish(cli *client.Client,
+	details *client.SystemDetails, bootDevice string,
+	laidoutStructs []gadget.OnDiskStructure) error {
+
+	volumes := make(map[string]*client.InstallVolume)
+	for volName, gadgetVol := range details.Volumes {
+
+		installVolStructs := []client.InstallVolumeStructure{}
+		laidIdx := 0
+		for _, volStruct := range gadgetVol.Structure {
+			// TODO mbr is special, what is the device for that?
+			var device string
+			if volStruct.Role == "mbr" {
+				device = bootDevice
+			} else {
+				device = laidoutStructs[laidIdx].Node
+				laidIdx++
+			}
+			fmt.Println("XXX", volStruct.Name, "in device", device)
+			installVolStructs = append(installVolStructs,
+				client.InstallVolumeStructure{
+					VolumeStructure:   &volStruct,
+					Device:            device,
+					UnencryptedDevice: "",
+				})
+		}
+
+		volumes[volName] = &client.InstallVolume{
+			Volume:    gadgetVol,
+			Structure: installVolStructs,
+		}
+	}
+
+	// Finish steps does the writing of assets
+	opts := &client.InstallSystemOptions{
+		Step:      client.InstallStepFinish,
+		OnVolumes: volumes,
+	}
+	chgId, err := cli.InstallSystem(details.Label, opts)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Change %s created\n", chgId)
+
 	return nil
 }
 
@@ -192,28 +235,30 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 		return err
 	}
 	// TODO: grow the data-partition based on disk size
-	if err := createPartitions(bootDevice, details.Volumes); err != nil {
+	laidoutStructs, err := createPartitions(bootDevice, details.Volumes)
+	if err != nil {
 		return fmt.Errorf("cannot setup partitions: %v", err)
 	}
+	fmt.Println("laidoutStructs len:", len(laidoutStructs))
 	if err := postSystemsInstallSetupStorageEncryption(details); err != nil {
 		return fmt.Errorf("cannot setup storage encryption: %v", err)
 	}
 	if err := createAndMountFilesystems(bootDevice, details.Volumes); err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
-	if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
-		return fmt.Errorf("cannot create classic rootfs: %v", err)
-	}
-	if err := createSeedOnTarget(bootDevice, seedLabel); err != nil {
-		return fmt.Errorf("cannot create seed on target: %v", err)
-	}
-	// XXX: or will POST {"action":"install","step":"finalize"} do that?
-	if err := writeModeenvOnTarget(seedLabel); err != nil {
-		return fmt.Errorf("cannot write modeenv on target: %v", err)
-	}
+	// if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
+	// 	return fmt.Errorf("cannot create classic rootfs: %v", err)
+	// }
+	// if err := createSeedOnTarget(bootDevice, seedLabel); err != nil {
+	// 	return fmt.Errorf("cannot create seed on target: %v", err)
+	// }
+	// // XXX: or will POST {"action":"install","step":"finalize"} do that?
+	// if err := writeModeenvOnTarget(seedLabel); err != nil {
+	// 	return fmt.Errorf("cannot write modeenv on target: %v", err)
+	// }
 	// XXX: will the POST below trigger a reboot on the snapd side? if
 	//      not we need to reboot here
-	if err := postSystemsInstallFinish(details); err != nil {
+	if err := postSystemsInstallFinish(cli, details, bootDevice, laidoutStructs); err != nil {
 		return fmt.Errorf("cannot finalize install: %v", err)
 	}
 
