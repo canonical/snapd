@@ -194,15 +194,9 @@ func (s *UDisks2InterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestDBusSpec(c *C) {
 	spec := &dbus.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `<policy context="default">`)
-
-	spec = &dbus.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<policy user="root">`)
-	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `send_interface="org.freedesktop.DBus.Introspectable"`)
 }
 
 func (s *UDisks2InterfaceSuite) TestDBusSpecOnClassic(c *C) {
