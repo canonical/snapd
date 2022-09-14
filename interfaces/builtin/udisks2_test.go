@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -126,10 +125,6 @@ func (s *UDisks2InterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestAppArmorSpec(c *C) {
-	// on a core system with udisks2 slot coming from a regular app snap.
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	// The label uses short form when exactly one app is bound to the udisks2 slot
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
@@ -180,10 +175,6 @@ func (s *UDisks2InterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
-	// on a core system with udisks2 slot coming from a the classic distro.
-	restore := release.MockOnClassic(true)
-	defer restore()
-
 	// connected plug to core slot
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
@@ -202,10 +193,6 @@ func (s *UDisks2InterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestDBusSpec(c *C) {
-	// on a core system with udisks2 slot coming from a regular app snap.
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	spec := &dbus.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -219,10 +206,6 @@ func (s *UDisks2InterfaceSuite) TestDBusSpec(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestDBusSpecOnClassic(c *C) {
-	// on a core system with udisks2 slot coming from a the classic distro.
-	restore := release.MockOnClassic(true)
-	defer restore()
-
 	// connected plug to core slot
 	spec := &dbus.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
@@ -232,10 +215,6 @@ func (s *UDisks2InterfaceSuite) TestDBusSpecOnClassic(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestUDevSpec(c *C) {
-	// on a core system with udisks2 slot coming from a regular app snap.
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	spec := &udev.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 4)
@@ -248,20 +227,12 @@ SUBSYSTEM=="usb", TAG+="snap_producer_app"`)
 }
 
 func (s *UDisks2InterfaceSuite) TestUDevSpecOnClassic(c *C) {
-	// on a core system with udisks2 slot coming from a the classic distro.
-	restore := release.MockOnClassic(true)
-	defer restore()
-
 	spec := &udev.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *UDisks2InterfaceSuite) TestSecCompSpec(c *C) {
-	// on a core system with udisks2 slot coming from a regular app snap.
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
@@ -269,10 +240,6 @@ func (s *UDisks2InterfaceSuite) TestSecCompSpec(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestSecCompSpecOnClassic(c *C) {
-	// on a core system with udisks2 slot coming from a the classic distro.
-	restore := release.MockOnClassic(true)
-	defer restore()
-
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
