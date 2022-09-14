@@ -90,8 +90,8 @@ get_boot_id() {
 
 wait_for_reconnect_ssh() {
     echo "remote.wait-for: waiting for ssh is recoonected"
-    wait_for_no_ssh
-    wait_for_ssh
+    wait_for_no_ssh "$DEFAULT_WAIT_FOR_NO_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_NO_SSH_WAIT"
+    wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
 }
 
 wait_for_reboot() {
@@ -108,7 +108,7 @@ wait_for_reboot() {
         return
     fi
 
-    while [ $attempts -ge 0 ]; do
+    while [ "$attempts" -ge 0 ]; do
         echo -n '.'
         attempts=$(( attempts - 1 ))
         # The get_boot_id could fail because the connection is broken due to the reboot
@@ -167,7 +167,7 @@ wait_for_refresh(){
         echo ""
 
         if ! remote.exec "true" &>/dev/null; then
-            wait_for_ssh
+            wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
         fi
 
         if remote.exec "snap changes" | grep -Eq "$change_id.*Doing.*(Auto-refresh|Refresh)"; then

@@ -1807,11 +1807,12 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 	return systems, nil
 }
 
-// SystemAndGadgetInfo return the system details including the model
-// assertion and gadget details for the given system label.
-func (m *DeviceManager) SystemAndGadgetInfo(wantedSystemLabel string) (*System, *gadget.Info, error) {
+// SystemAndGadgetAndEncryptionInfo return the system details
+// including the model assertion, gadget details and encryption info
+// for the given system label.
+func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel string) (*System, *gadget.Info, *EncryptionSupportInfo, error) {
 	if m.isClassicBoot {
-		return nil, nil, fmt.Errorf("cannot get model and gadget information on a classic boot system")
+		return nil, nil, nil, fmt.Errorf("cannot get model and gadget information on a classic boot system")
 	}
 	// get current system as input for loadSeedAndSystem()
 	systemMode := m.SystemMode(SysAny)
@@ -1819,38 +1820,65 @@ func (m *DeviceManager) SystemAndGadgetInfo(wantedSystemLabel string) (*System, 
 
 	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// 2. get the gadget volumes for the given system-label
 	perf := &timings.Timings{}
-	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, perf); err != nil {
-		return nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
+	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeKernel, snap.TypeGadget}, perf); err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
 	}
-	gadgetSnap := s.EssentialSnaps()[0]
-	if gadgetSnap.Path == "" {
-		return nil, nil, fmt.Errorf("internal error: cannot get gadget snap path")
+	// EssentialSnaps is always ordered, see asserts.Model.EssentialSnaps:
+	// "snapd, kernel, boot base, gadget." and snaps not loaded above
+	// like "snapd" will be skipped and not part of the EssentialSnaps list
+	//
+	// kernel info needed to check encryptionSupport
+	kernelSnap := s.EssentialSnaps()[0]
+	if kernelSnap.Path == "" {
+		return nil, nil, nil, fmt.Errorf("internal error: cannot get kernel snap path")
 	}
-	snapf, err := snapfile.Open(gadgetSnap.Path)
+	snapf, err := snapfile.Open(kernelSnap.Path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
+		return nil, nil, nil, fmt.Errorf("cannot open kernel snap: %v", err)
+	}
+	kernelInfo, err := snap.ReadInfoFromSnapFile(snapf, kernelSnap.SideInfo)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if kernelInfo.SnapType != snap.TypeKernel {
+		return nil, nil, nil, fmt.Errorf("cannot use kernel info, expected kernel but got: %v", kernelInfo.SnapType)
+	}
+
+	// gadget info needed to check encryptionSupport and gadget contraints
+	gadgetSnap := s.EssentialSnaps()[1]
+	if gadgetSnap.Path == "" {
+		return nil, nil, nil, fmt.Errorf("internal error: cannot get gadget snap path")
+	}
+	snapf, err = snapfile.Open(gadgetSnap.Path)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
 	}
 	gadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read gadget.yaml: %v", err)
+		return nil, nil, nil, fmt.Errorf("cannot read gadget.yaml: %v", err)
 	}
 	gadgetInfo, err := gadget.InfoFromGadgetYaml(gadgetYaml, sys.Model)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
-	}
-	// TODO: once EncryptionSupportInfo from PR#12060 is available use it
-	//       here to set the right option
-	opts := &gadget.ValidationConstraints{}
-	if err := gadget.Validate(gadgetInfo, sys.Model, opts); err != nil {
-		return nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
+		return nil, nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
 	}
 
-	return sys, gadgetInfo, nil
+	encInfo, err := m.encryptionSupportInfo(sys.Model, kernelInfo, gadgetInfo)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	opts := &gadget.ValidationConstraints{
+		EncryptedData: encInfo.StorageSafety == asserts.StorageSafetyEncrypted,
+	}
+	if err := gadget.Validate(gadgetInfo, sys.Model, opts); err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
+	}
+
+	return sys, gadgetInfo, &encInfo, nil
 }
 
 var ErrUnsupportedAction = errors.New("unsupported action")

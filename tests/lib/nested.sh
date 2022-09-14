@@ -32,7 +32,7 @@ nested_wait_for_ssh() {
     local retry=800
     local wait=1
 
-    until nested_exec "true"; do
+    until remote.exec "true"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for command 'true' to succeed. Aborting!"
@@ -46,7 +46,7 @@ nested_wait_for_no_ssh() {
     local retry=200
     local wait=1
 
-    while nested_exec "true"; do
+    while remote.exec "true"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for command 'true' to fail. Aborting!"
@@ -62,7 +62,7 @@ nested_wait_for_snap_command() {
     local retry=200
     local wait=1
 
-    while ! nested_exec "command -v snap"; do
+    while ! remote.exec "command -v snap"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for command 'command -v snap' to success. Aborting!"
@@ -121,7 +121,7 @@ nested_retry_start_with_boot_errors() {
 }
 
 nested_get_boot_id() {
-    nested_exec "cat /proc/sys/kernel/random/boot_id"
+    remote.exec "cat /proc/sys/kernel/random/boot_id"
 }
 
 nested_wait_for_reboot() {
@@ -154,11 +154,11 @@ nested_uc20_transition_to_system_mode() {
 
     local current_boot_id
     current_boot_id=$(nested_get_boot_id)
-    nested_exec "sudo snap reboot --$mode $recovery_system"
+    remote.exec "sudo snap reboot --$mode $recovery_system"
     nested_wait_for_reboot "$current_boot_id"
 
     # verify we are now in the requested mode
-    if ! nested_exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=$mode"; then
+    if ! remote.exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=$mode"; then
         return 1
     fi
 
@@ -167,17 +167,17 @@ nested_uc20_transition_to_system_mode() {
 }
 
 nested_prepare_ssh() {
-    nested_exec "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
-    nested_exec "echo test:ubuntu | sudo chpasswd"
-    nested_exec "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
+    remote.exec "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
+    remote.exec "echo test:ubuntu | sudo chpasswd"
+    remote.exec "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
     # Check we can connect with the new test user and make sudo
-    nested_exec_as test ubuntu "sudo true"
+    remote.exec --user test --pass ubuntu "sudo true"
 
-    nested_exec "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
-    nested_exec "echo external:ubuntu | sudo chpasswd"
-    nested_exec "echo 'external ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-external"
+    remote.exec "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
+    remote.exec "echo external:ubuntu | sudo chpasswd"
+    remote.exec "echo 'external ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-external"
     # Check we can connect with the new external user and make sudo
-    nested_exec_as external ubuntu "sudo true"
+    remote.exec --user external --pass ubuntu "sudo true"
 }
 
 
@@ -353,22 +353,22 @@ nested_refresh_to_new_core() {
     else
         echo "Refreshing the core/snapd snap"
         if nested_is_classic_nested_system; then
-            nested_exec "sudo snap refresh core --${NEW_CHANNEL}"
-            nested_exec "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
+            remote.exec "sudo snap refresh core --${NEW_CHANNEL}"
+            remote.exec "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
 
         if nested_is_core_18_system || nested_is_core_20_system || nested_is_core_22_system; then
-            nested_exec "sudo snap refresh snapd --${NEW_CHANNEL}"
-            nested_exec "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
+            remote.exec "sudo snap refresh snapd --${NEW_CHANNEL}"
+            remote.exec "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
-            CHANGE_ID=$(nested_exec "sudo snap refresh core --${NEW_CHANNEL} --no-wait")
+            CHANGE_ID=$(remote.exec "sudo snap refresh core --${NEW_CHANNEL} --no-wait")
             nested_wait_for_no_ssh
             nested_wait_for_ssh
             # wait for the refresh to be done before checking, if we check too
             # quickly then operations on the core snap like reverting, etc. may
             # fail because it will have refresh-snap change in progress
-            nested_exec "snap watch $CHANGE_ID"
-            nested_exec "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
+            remote.exec "snap watch $CHANGE_ID"
+            remote.exec "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
     fi
 }
@@ -1158,7 +1158,7 @@ nested_start_core_vm_unit() {
         # where the snap command appears, then immediately disappears and then 
         # re-appears immediately after and so the next command fails
         attempts=0
-        until nested_exec "sudo snap wait system seed.loaded"; do
+        until remote.exec "sudo snap wait system seed.loaded"; do
             attempts=$(( attempts + 1))
             if [ "$attempts" = 3 ]; then
                 echo "failed to wait for snap wait command to return successfully"
@@ -1170,7 +1170,7 @@ nested_start_core_vm_unit() {
         nested_prepare_tools
         # Wait for cloud init to be done if the system is using cloud-init
         if [ "$NESTED_USE_CLOUD_INIT" = true ]; then
-            nested_exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
+            remote.exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
         fi
     fi
 }
@@ -1236,8 +1236,8 @@ nested_shutdown() {
     # written become empty all of a sudden, so doing a sync here in the VM, and
     # another one in the host when done probably helps to avoid that, and at
     # least can't hurt anything
-    nested_exec "sync"
-    nested_exec "sudo shutdown now" || true
+    remote.exec "sync"
+    remote.exec "sudo shutdown now" || true
     nested_wait_for_no_ssh
     nested_force_stop_vm
     wait_for_service "$NESTED_VM" inactive
@@ -1394,11 +1394,7 @@ nested_status_vm() {
     systemctl status "$NESTED_VM" || true
 }
 
-nested_exec() {
-    sshpass -p ubuntu ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$@"
-}
-
-nested_exec_as() {
+remote.exec_as() {
     local USER="$1"
     local PASSWD="$2"
     shift 2
@@ -1407,56 +1403,48 @@ nested_exec_as() {
 
 nested_prepare_tools() {
     TOOLS_PATH=/writable/test-tools
-    if ! nested_exec "test -d $TOOLS_PATH" &>/dev/null; then
-        nested_exec "sudo mkdir -p $TOOLS_PATH"
-        nested_exec "sudo chown user1:user1 $TOOLS_PATH"
+    if ! remote.exec "test -d $TOOLS_PATH" &>/dev/null; then
+        remote.exec "sudo mkdir -p $TOOLS_PATH"
+        remote.exec "sudo chown user1:user1 $TOOLS_PATH"
     fi
 
-    if ! nested_exec "test -e $TOOLS_PATH/retry" &>/dev/null; then
-        nested_copy "$TESTSTOOLS/retry"
-        nested_exec "mv retry $TOOLS_PATH/retry"
+    if ! remote.exec "test -e $TOOLS_PATH/retry" &>/dev/null; then
+        remote.push "$TESTSTOOLS/retry"
+        remote.exec "mv retry $TOOLS_PATH/retry"
     fi
 
-    if ! nested_exec "test -e $TOOLS_PATH/not" &>/dev/null; then
-        nested_copy "$TESTSTOOLS/not"
-        nested_exec "mv not $TOOLS_PATH/not"
+    if ! remote.exec "test -e $TOOLS_PATH/not" &>/dev/null; then
+        remote.push "$TESTSTOOLS/not"
+        remote.exec "mv not $TOOLS_PATH/not"
     fi
 
-    if ! nested_exec "test -e $TOOLS_PATH/MATCH" &>/dev/null; then
+    if ! remote.exec "test -e $TOOLS_PATH/MATCH" &>/dev/null; then
         . "$TESTSLIB"/spread-funcs.sh
         echo '#!/bin/bash' > MATCH_FILE
         type MATCH | tail -n +2 >> MATCH_FILE
         echo 'MATCH "$@"' >> MATCH_FILE
         chmod +x MATCH_FILE
-        nested_copy "MATCH_FILE"
-        nested_exec "mv MATCH_FILE $TOOLS_PATH/MATCH"
+        remote.push "MATCH_FILE"
+        remote.exec "mv MATCH_FILE $TOOLS_PATH/MATCH"
         rm -f MATCH_FILE
     fi
 
-    if ! nested_exec "test -e $TOOLS_PATH/NOMATCH" &>/dev/null; then
+    if ! remote.exec "test -e $TOOLS_PATH/NOMATCH" &>/dev/null; then
         . "$TESTSLIB"/spread-funcs.sh
         echo '#!/bin/bash' > NOMATCH_FILE
         type NOMATCH | tail -n +2 >> NOMATCH_FILE
         echo 'NOMATCH "$@"' >> NOMATCH_FILE
         chmod +x NOMATCH_FILE
-        nested_copy "NOMATCH_FILE"
-        nested_exec "mv NOMATCH_FILE $TOOLS_PATH/NOMATCH"
+        remote.push "NOMATCH_FILE"
+        remote.exec "mv NOMATCH_FILE $TOOLS_PATH/NOMATCH"
         rm -f NOMATCH_FILE
     fi
 
-    if ! nested_exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
+    if ! remote.exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
         # shellcheck disable=SC2016
-        REMOTE_PATH="$(nested_exec 'echo $PATH')"
-        nested_exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH | sudo tee -a /etc/environment"
+        REMOTE_PATH="$(remote.exec 'echo $PATH')"
+        remote.exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH | sudo tee -a /etc/environment"
     fi
-}
-
-nested_copy() {
-    sshpass -p ubuntu scp -P "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$@" user1@localhost:~
-}
-
-nested_copy_from_remote() {
-    sshpass -p ubuntu scp -P "$SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost:"$1" "$2"
 }
 
 nested_add_tty_chardev() {
@@ -1488,11 +1476,11 @@ nested_del_device() {
 
 nested_get_core_revision_for_channel() {
     local CHANNEL=$1
-    nested_exec "snap info core" | awk "/${CHANNEL}: / {print(\$4)}" | sed -e 's/(\(.*\))/\1/'
+    remote.exec "snap info core" | awk "/${CHANNEL}: / {print(\$4)}" | sed -e 's/(\(.*\))/\1/'
 }
 
 nested_get_core_revision_installed() {
-    nested_exec "snap info core" | awk "/installed: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
+    remote.exec "snap info core" | awk "/installed: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
 }
 
 nested_fetch_spread() {
@@ -1523,7 +1511,7 @@ nested_wait_for_device_initialized_change() {
     local retry=60
     local wait=1
 
-    while ! nested_exec "snap changes" | MATCH "Done.*Initialize device"; do
+    while ! remote.exec "snap changes" | MATCH "Done.*Initialize device"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for device to be fully initialized. Aborting!"

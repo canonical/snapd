@@ -2328,12 +2328,15 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, ga
 	}, nil)
 }
 
-func (s *modelAndGadgetInfoSuite) TestModelAndGadgetInfoHappy(c *C) {
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C) {
 	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml)
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	system, gadgetInfo, err := s.mgr.SystemAndGadgetInfo("some-label")
+	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return fmt.Errorf("really no tpm") })
+	defer restore()
+
+	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, IsNil)
 	c.Check(system, DeepEquals, &devicestate.System{
 		Label: "some-label",
@@ -2344,15 +2347,20 @@ func (s *modelAndGadgetInfoSuite) TestModelAndGadgetInfoHappy(c *C) {
 		},
 	})
 	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
+	c.Check(encInfo, DeepEquals, &devicestate.EncryptionSupportInfo{
+		Available:          false,
+		StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+		UnavailableWarning: "not encrypting device storage as checking TPM gave: really no tpm",
+	})
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidLabel(c *C) {
-	_, _, err := s.mgr.SystemAndGadgetInfo("invalid/label")
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("invalid/label")
 	c.Assert(err, ErrorMatches, `cannot open: invalid seed system label: "invalid/label"`)
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeedDir(c *C) {
-	_, _, err := s.mgr.SystemAndGadgetInfo("no-such-seed")
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("no-such-seed")
 	c.Assert(err, ErrorMatches, `cannot load assertions for label "no-such-seed": no seed assertions`)
 }
 
@@ -2362,7 +2370,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoGadget(c *C) {
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"))
 	c.Assert(err, IsNil)
 
-	_, _, err = s.mgr.SystemAndGadgetInfo("some-label")
+	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, ErrorMatches, "cannot load gadget snap metadata: cannot stat snap:.*: no such file or directory")
 }
 
@@ -2372,14 +2380,14 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorWrongGadget(c *C) 
 	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0644)
 	c.Assert(err, IsNil)
 
-	_, _, err = s.mgr.SystemAndGadgetInfo("some-label")
+	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, ErrorMatches, `cannot load gadget snap metadata: cannot validate "/.*/pc_1.snap".* wrong size`)
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidGadgetYaml(c *C) {
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", "")
 
-	_, _, err := s.mgr.SystemAndGadgetInfo("some-label")
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, ErrorMatches, "cannot parse gadget.yaml: bootloader not declared in any volume")
 }
 
@@ -2391,6 +2399,6 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeed(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), nil)
 	c.Assert(err, IsNil)
 
-	_, _, err = mgr.SystemAndGadgetInfo("some-label")
+	_, _, _, err = mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, ErrorMatches, "cannot get model and gadget information on a classic boot system")
 }

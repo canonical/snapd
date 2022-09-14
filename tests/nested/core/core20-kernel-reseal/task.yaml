@@ -23,27 +23,27 @@ prepare: |
   snap pack pc-kernel
   rm -rf pc-kernel
   mv pc-kernel_*.snap new-pc-kernel.snap
-  tests.nested copy new-pc-kernel.snap
+  remote.push new-pc-kernel.snap
 
 execute: |
-  SEALED_KEY_MTIME_1="$(tests.nested exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
-  RESEAL_COUNT_1="$(tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+  SEALED_KEY_MTIME_1="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  RESEAL_COUNT_1="$(remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
 
   echo "Install new (unasserted) kernel and wait for reboot/change finishing"
   boot_id="$( tests.nested boot-id )"
-  REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous new-pc-kernel.snap --no-wait)
+  REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous new-pc-kernel.snap --no-wait)
   tests.nested wait-for reboot "${boot_id}"
-  tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
+  remote.exec sudo snap watch "${REMOTE_CHG_ID}"
 
   echo "Check that we are using the right kernel"
-  tests.nested exec sudo grep -q -a "This program cannot be run in XXX mode" /boot/grub/kernel.efi
+  remote.exec sudo grep -q -a "This program cannot be run in XXX mode" /boot/grub/kernel.efi
 
   echo "Check ubuntu-data.sealed-key mtime is newer"
-  SEALED_KEY_MTIME_2="$(tests.nested exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  SEALED_KEY_MTIME_2="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
   test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
 
   echo "Check that we have boot chains"
-  tests.nested exec sudo test -e /var/lib/snapd/device/fde/boot-chains
+  remote.exec sudo test -e /var/lib/snapd/device/fde/boot-chains
 
-  RESEAL_COUNT_2="$(tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+  RESEAL_COUNT_2="$(remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
   test "$RESEAL_COUNT_2" -gt "$RESEAL_COUNT_1"

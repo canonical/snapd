@@ -2,30 +2,30 @@ summary: Create ubuntu classic image, install snapd and test hotplug feature
 
 prepare: |
     echo "Install snapd.deb in the nested vm"
-    tests.nested copy "${GOHOME}"/snapd_*.deb
-    tests.nested exec "sudo apt update"
-    tests.nested exec "sudo apt install -y ./snapd_*.deb"
+    remote.push "${GOHOME}"/snapd_*.deb
+    remote.exec "sudo apt update"
+    remote.exec "sudo apt install -y ./snapd_*.deb"
     
     echo "Install linux-modules-extra package as it provides ftdi_sio and usbserial kernel modules"
     #shellcheck disable=SC2016
-    tests.nested exec 'DEBIAN_FRONTEND=noninteractive sudo -E apt install -y "linux-modules-extra-$(uname -r)"'
+    remote.exec 'DEBIAN_FRONTEND=noninteractive sudo -E apt install -y "linux-modules-extra-$(uname -r)"'
 
     snap pack "$TESTSLIB"/snaps/serial-port-hotplug
-    tests.nested copy serial-port-hotplug_1.0_all.snap
+    remote.push serial-port-hotplug_1.0_all.snap
     echo "Add test user to dialout group required for ttyUSB* devices"
-    tests.nested exec "sudo usermod -a -G dialout user1"
+    remote.exec "sudo usermod -a -G dialout user1"
 
-    tests.nested exec "sudo snap install --devmode jq"
+    remote.exec "sudo snap install --devmode jq"
 
 restore: |
     rm -f /tmp/serialport{0,1}
 
 debug: |
-    tests.nested exec "snap connections --all" || true
-    tests.nested exec "snap list" || true
-    tests.nested exec "dmesg" || true
-    tests.nested exec 'sudo jq -r ".data[\"hotplug-slots\"]" /var/lib/snapd/state.json' || true
-    tests.nested exec 'lsmod' || true
+    remote.exec "snap connections --all" || true
+    remote.exec "snap list" || true
+    remote.exec "dmesg" || true
+    remote.exec 'sudo jq -r ".data[\"hotplug-slots\"]" /var/lib/snapd/state.json' || true
+    remote.exec 'lsmod' || true
 
 execute: |
     #shellcheck source=tests/lib/hotplug.sh
@@ -33,23 +33,23 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     
-    if tests.nested exec "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
+    if remote.exec "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
         echo "USB serial already registered, exiting..."
         exit 1
     fi
 
-    tests.nested exec "sudo snap install hello-world"
+    remote.exec "sudo snap install hello-world"
 
     echo "Enabling hotplug"
-    tests.nested exec "sudo snap set core experimental.hotplug=true"
+    remote.exec "sudo snap set core experimental.hotplug=true"
 
     echo "Plugging the device"
     hotplug_add_dev1
 
     # precondition checks to make sure qemu setup is correct
-    tests.nested exec "retry --wait 1 -n 5 sh -c 'udevadm info -e | MATCH ID_MODEL=QEMU_USB_SERIAL'"
+    remote.exec "retry --wait 1 -n 5 sh -c 'udevadm info -e | MATCH ID_MODEL=QEMU_USB_SERIAL'"
 
-    tests.nested exec "ls /dev/tty*" | MATCH "ttyUSB0"
+    remote.exec "ls /dev/tty*" | MATCH "ttyUSB0"
 
     echo "Checking that qemuusbserial hotplug slot is present"
     check_slot_present qemuusbserial
@@ -60,8 +60,8 @@ execute: |
     hotplug_del_dev1
 
     # precondition check to make sure qemu event was triggered correctly
-    tests.nested exec "retry --wait 1 -n 5 sh -c 'udevadm info -e | NOMATCH ID_MODEL=QEMU_USB_SERIAL'"
-    if tests.nested exec "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
+    remote.exec "retry --wait 1 -n 5 sh -c 'udevadm info -e | NOMATCH ID_MODEL=QEMU_USB_SERIAL'"
+    if remote.exec "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
         echo "USB serial should not be registered anymore, exiting..."
         exit 1
     fi
@@ -77,16 +77,16 @@ execute: |
     check_slot_present qemuusbserial
 
     echo "Installing test snap with serial port plug"
-    tests.nested exec "sudo snap install --dangerous serial-port-hotplug_1.0_all.snap"
+    remote.exec "sudo snap install --dangerous serial-port-hotplug_1.0_all.snap"
 
     echo "Connecting hotplug slot of the first device"
-    tests.nested exec "sudo snap connect serial-port-hotplug:serial-port :qemuusbserial"
+    remote.exec "sudo snap connect serial-port-hotplug:serial-port :qemuusbserial"
     check_slot_connected qemuusbserial
 
     echo "Veryfing serial-port permissions of the snap"
     verify_apparmor_profile "/dev/ttyUSB0"
-    tests.nested exec "/snap/bin/serial-port-hotplug.consumer write-1" | MATCH "Access to /dev/ttyUSB0 ok"
-    tests.nested exec "/snap/bin/serial-port-hotplug.consumer write-2" | MATCH "Access to /dev/ttyUSB1 failed"
+    remote.exec "/snap/bin/serial-port-hotplug.consumer write-1" | MATCH "Access to /dev/ttyUSB0 ok"
+    remote.exec "/snap/bin/serial-port-hotplug.consumer write-2" | MATCH "Access to /dev/ttyUSB1 failed"
     MATCH "write-1 on /dev/ttyUSB0" < /tmp/serialport1
 
     echo "Unplugging the device"
@@ -122,23 +122,23 @@ execute: |
     echo "Veryfing serial-port permissions of the snap, the first device is now expected on ttyUSB1"
     check_slot_device_path qemuusbserial "/dev/ttyUSB1"
     verify_apparmor_profile "/dev/ttyUSB1"
-    tests.nested exec "/snap/bin/serial-port-hotplug.consumer write-3" | MATCH "Access to /dev/ttyUSB0 failed"
-    tests.nested exec "/snap/bin/serial-port-hotplug.consumer write-4" | MATCH "Access to /dev/ttyUSB1 ok"
+    remote.exec "/snap/bin/serial-port-hotplug.consumer write-3" | MATCH "Access to /dev/ttyUSB0 failed"
+    remote.exec "/snap/bin/serial-port-hotplug.consumer write-4" | MATCH "Access to /dev/ttyUSB1 ok"
     MATCH "write-3 on /dev/ttyUSB1" < /tmp/serialport1
 
     echo "Restarting snapd should restore both hotplug slots since devices are still present"
-    tests.nested exec "sudo systemctl stop snapd.service snapd.socket"
-    tests.nested exec "sudo systemctl start snapd.service snapd.socket"
+    remote.exec "sudo systemctl stop snapd.service snapd.socket"
+    remote.exec "sudo systemctl start snapd.service snapd.socket"
     check_slot_connected qemuusbserial
     check_slot_not_gone qemuusbserial
     check_slot_present qemuusbserial-1
-    tests.nested exec "/snap/bin/serial-port-hotplug.consumer write-5" | MATCH "Access to /dev/ttyUSB1 ok"
+    remote.exec "/snap/bin/serial-port-hotplug.consumer write-5" | MATCH "Access to /dev/ttyUSB1 ok"
     MATCH "write-5 on /dev/ttyUSB1" < /tmp/serialport1
 
     echo "Unplugging first device while snapd is stopped and then starting snapd remembers the slot internally due to connection"
-    tests.nested exec "sudo systemctl stop snapd.service snapd.socket"
+    remote.exec "sudo systemctl stop snapd.service snapd.socket"
     hotplug_del_dev1
-    tests.nested exec "sudo systemctl start snapd.service snapd.socket"
+    remote.exec "sudo systemctl start snapd.service snapd.socket"
     check_slot_not_present qemuusbserial
     check_slot_gone qemuusbserial
 
@@ -150,7 +150,7 @@ execute: |
     echo "Disconnecting first slot and then unplugging the device removes the slot completely"
     # manual snap disconnect doesn't implement retry and errors out if there are conflicting changes, so wait for hotplug changes to complete
     wait_for_all_changes
-    tests.nested exec "sudo snap disconnect serial-port-hotplug:serial-port :qemuusbserial"
+    remote.exec "sudo snap disconnect serial-port-hotplug:serial-port :qemuusbserial"
     check_slot_present qemuusbserial
     hotplug_del_dev1
     check_slot_not_present qemuusbserial
@@ -168,12 +168,12 @@ execute: |
     check_slot_device_path qemuusbserial "/dev/ttyUSB0"
 
     echo "Connecting hotplug slot of the first device again"
-    tests.nested exec "sudo snap connect serial-port-hotplug:serial-port :qemuusbserial"
+    remote.exec "sudo snap connect serial-port-hotplug:serial-port :qemuusbserial"
     check_slot_connected qemuusbserial
 
-    tests.nested exec "cat /var/snap/serial-port-hotplug/common/connect-plug-done" | MATCH "/dev/ttyUSB0"
+    remote.exec "cat /var/snap/serial-port-hotplug/common/connect-plug-done" | MATCH "/dev/ttyUSB0"
 
     echo "Hotplug slot stays after removing the snap"
-    tests.nested exec "sudo snap remove serial-port-hotplug"
+    remote.exec "sudo snap remove serial-port-hotplug"
     check_slot_present qemuusbserial
     check_slot_not_gone qemuusbserial
