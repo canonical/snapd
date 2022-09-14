@@ -234,20 +234,20 @@ func removeUser(c *Command, username string, opts postUserDeleteData) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	if u, err := deviceStateRemoveUser(st, username); err != nil {
+	u, err := deviceStateRemoveUser(st, username)
+	if err != nil {
 		if _, ok := err.(*devicestate.UserError); ok {
 			return BadRequest(err.Error())
-		} else {
-			return InternalError(err.Error())
 		}
-	} else {
-		result := map[string]interface{}{
-			"removed": []userResponseData{
-				{ID: u.ID, Username: u.Username, Email: u.Email},
-			},
-		}
-		return SyncResponse(result)
+		return InternalError(err.Error())
 	}
+
+	result := map[string]interface{}{
+		"removed": []userResponseData{
+			{ID: u.ID, Username: u.Username, Email: u.Email},
+		},
+	}
+	return SyncResponse(result)
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -313,34 +313,33 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		createData.Sudoer = true
 	}
 
-	createdUsers, userError := createUserWrapper(st, createData)
-	if userError != nil {
-		if _, ok := userError.(*devicestate.UserError); ok {
-			return BadRequest(userError.Error())
-		} else {
-			return InternalError(userError.Error())
+	createdUsers, err := doUserWrapper(st, createData)
+	if err != nil {
+		if _, ok := err.(*devicestate.UserError); ok {
+			return BadRequest(err.Error())
 		}
-	} else {
-		for _, cu := range createdUsers {
-			createdUsersResponse = append(createdUsersResponse, userResponseData{
-				Username: cu.Username,
-				SSHKeys:  cu.SSHKeys,
-			})
-		}
+		return InternalError(err.Error())
+	}
+
+	for _, cu := range createdUsers {
+		createdUsersResponse = append(createdUsersResponse, userResponseData{
+			Username: cu.Username,
+			SSHKeys:  cu.SSHKeys,
+		})
 	}
 	return SyncResponse(createdUsersResponse)
 }
 
-func createUserWrapper(st *state.State, createData postUserCreateData) ([]devicestate.CreatedUser, error) {
+func doUserWrapper(st *state.State, createData postUserCreateData) ([]devicestate.CreatedUser, error) {
 	st.Lock()
 	defer st.Unlock()
 
 	if createData.Known {
 		return deviceStateCreateKnownUsers(st, createData.Sudoer, createData.Email)
-	} else {
-		user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email)
-		return []devicestate.CreatedUser{user}, err
 	}
+
+	user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email)
+	return []devicestate.CreatedUser{user}, err
 }
 
 type postUserData struct {
