@@ -8939,34 +8939,22 @@ func (s *snapmgrTestSuite) TestUpdateManyLaneIgnoredWithoutTransactional(c *C) {
 		})
 	}
 
-	checkLaneNotUsed := func(tss []*state.TaskSet, lane int) {
-		for _, ts := range tss {
-			for _, t := range ts.Tasks() {
-				c.Assert(t.Lanes(), Not(DeepEquals), []int{lane})
-			}
-		}
-	}
-
 	lane := s.state.NewLane()
 	flags := &snapstate.Flags{
 		Lane: lane,
-		// the check rerefresh taskset doesn't run in the same lane
-		NoReRefresh: true,
 	}
 
 	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
-	c.Assert(err, IsNil)
-	c.Check(affected, testutil.DeepUnsortedMatches, []string{"some-snap", "some-other-snap"})
-	c.Check(tss, HasLen, 2)
-	checkLaneNotUsed(tss, lane)
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(tss, IsNil)
+	c.Check(affected, IsNil)
 
 	flags.Transaction = client.TransactionPerSnap
 
 	affected, tss, err = snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
-	c.Assert(err, IsNil)
-	c.Check(affected, testutil.DeepUnsortedMatches, []string{"some-snap", "some-other-snap"})
-	c.Check(tss, HasLen, 2)
-	checkLaneNotUsed(tss, lane)
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(tss, IsNil)
+	c.Check(affected, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestUpdateTransactionalWithLane(c *C) {
@@ -9025,19 +9013,11 @@ func (s *snapmgrTestSuite) TestUpdateLaneIgnoredWithoutTransactional(c *C) {
 	})
 
 	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, *flags)
-	c.Assert(err, IsNil)
-	c.Assert(ts, Not(IsNil))
-
-	for _, t := range ts.Tasks() {
-		c.Assert(t.Lanes(), Not(DeepEquals), []int{lane})
-	}
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(ts, IsNil)
 
 	flags.Transaction = client.TransactionPerSnap
 	ts, err = snapstate.Update(s.state, "some-snap", nil, s.user.ID, *flags)
-	c.Assert(err, IsNil)
-	c.Assert(ts, Not(IsNil))
-
-	for _, t := range ts.Tasks() {
-		c.Assert(t.Lanes(), Not(DeepEquals), []int{lane})
-	}
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(ts, IsNil)
 }

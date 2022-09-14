@@ -5507,32 +5507,22 @@ func (s *snapmgrTestSuite) TestInstallManyLaneIgnoredWithoutTransactional(c *C) 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	checkLaneNotUsed := func(tss []*state.TaskSet, lane int) {
-		for _, ts := range tss {
-			for _, t := range ts.Tasks() {
-				c.Assert(t.Lanes(), Not(DeepEquals), []int{lane})
-			}
-		}
-	}
-
 	lane := s.state.NewLane()
 	flags := &snapstate.Flags{
 		Lane: lane,
 	}
 
 	affected, tss, err := snapstate.InstallMany(s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
-	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, []string{"some-snap", "some-other-snap"})
-	c.Check(tss, HasLen, 2)
-	checkLaneNotUsed(tss, lane)
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(affected, IsNil)
+	c.Check(tss, IsNil)
 
 	flags.Transaction = client.TransactionPerSnap
 
 	affected, tss, err = snapstate.InstallMany(s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
-	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, []string{"some-snap", "some-other-snap"})
-	c.Check(tss, HasLen, 2)
-	checkLaneNotUsed(tss, lane)
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(affected, IsNil)
+	c.Check(tss, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestInstallPathManyTransactionalWithLane(c *C) {
@@ -5577,14 +5567,6 @@ func (s *snapmgrTestSuite) TestInstallPathManyLaneIgnoredWithoutTransactional(c 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	checkLaneNotUsed := func(tss []*state.TaskSet, lane int) {
-		for _, ts := range tss {
-			for _, t := range ts.Tasks() {
-				c.Assert(t.Lanes(), Not(DeepEquals), []int{lane})
-			}
-		}
-	}
-
 	lane := s.state.NewLane()
 	flags := &snapstate.Flags{
 		Lane: lane,
@@ -5607,16 +5589,13 @@ epoch: 1
 	}
 
 	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, flags)
-	c.Assert(err, IsNil)
-	c.Check(tss, HasLen, 2)
-	checkLaneNotUsed(tss, lane)
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(tss, IsNil)
 
 	flags.Transaction = client.TransactionPerSnap
-
 	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, flags)
-	c.Assert(err, IsNil)
-	c.Check(tss, HasLen, 2)
-	checkLaneNotUsed(tss, lane)
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(tss, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestInstallPathWithTransactionLaneForbidden(c *C) {

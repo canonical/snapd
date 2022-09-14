@@ -1303,6 +1303,11 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 		return nil, nil, err
 	}
 
+	// can only specify a lane when running multiple operations transactionally
+	if flags.Transaction != client.TransactionAllSnaps && flags.Lane != 0 {
+		return nil, nil, errors.New("cannot specify a lane without setting transaction to \"all-snaps\"")
+	}
+
 	var transactionLane int
 	if flags.Transaction == client.TransactionAllSnaps {
 		if flags.Lane != 0 {
@@ -1311,6 +1316,7 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 			transactionLane = st.NewLane()
 		}
 	}
+
 	tasksets := make([]*state.TaskSet, 0, len(installs))
 	for _, sar := range installs {
 		info := sar.Info
@@ -1617,6 +1623,11 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		}
 	}
 	var kernelTs, gadgetTs, bootBaseTs *state.TaskSet
+
+	// can only specify a lane when running multiple operations transactionally
+	if globalFlags.Transaction != client.TransactionAllSnaps && globalFlags.Lane != 0 {
+		return nil, nil, errors.New("cannot specify a lane without setting transaction to \"all-snaps\"")
+	}
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
