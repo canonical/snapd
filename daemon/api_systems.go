@@ -142,7 +142,9 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 
 type systemActionRequest struct {
 	Action string `json:"action"`
+
 	client.SystemAction
+	client.InstallSystemOptions
 }
 
 func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -161,6 +163,8 @@ func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Respon
 		return postSystemActionDo(c, systemLabel, &req)
 	case "reboot":
 		return postSystemActionReboot(c, systemLabel, &req)
+	case "install":
+		return postSystemActionInstall(c, systemLabel, &req)
 	default:
 		return BadRequest("unsupported action %q", req.Action)
 	}
@@ -208,4 +212,10 @@ func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest
 		return handleSystemActionErr(err, systemLabel)
 	}
 	return SyncResponse(nil)
+}
+
+func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRequest) Response {
+	// TODO: call new devicestate.InstallStep()
+	// TODO2: ensure devicestate.InstallStep() checks that systemLabel is not empty
+	return BadRequest("system action install is not implemented yet")
 }

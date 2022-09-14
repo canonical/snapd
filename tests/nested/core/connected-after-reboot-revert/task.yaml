@@ -30,12 +30,12 @@ execute: |
   snap pack pc-kernel/ --filename=pc-kernel_badhook.snap
 
   echo "Wait for the system to be seeded first"
-  tests.nested exec "sudo snap wait system seed.loaded"
+  remote.exec "sudo snap wait system seed.loaded"
 
   boot_id="$(tests.nested boot-id)"
 
   echo "Install kernel with failing post-refresh hook"
-  tests.nested copy pc-kernel_badhook.snap
+  remote.push pc-kernel_badhook.snap
 
   # install bluez
   BLUEZ_CHANNEL=$VERSION
@@ -43,10 +43,10 @@ execute: |
       BLUEZ_CHANNEL=latest
   fi
   echo "Install bluez snap and make sure connections to the base are performed"
-  tests.nested exec "sudo snap install --channel=\"$BLUEZ_CHANNEL\" bluez"
-  tests.nested exec "snap connections bluez" | MATCH 'uhid  *bluez:uhid  *:uhid'
+  remote.exec "sudo snap install --channel=\"$BLUEZ_CHANNEL\" bluez"
+  remote.exec "snap connections bluez" | MATCH 'uhid  *bluez:uhid  *:uhid'
 
-  chg_id=$(tests.nested exec 'sudo snap install --dangerous --transaction=all-snaps --no-wait ./pc-kernel_badhook.snap /var/lib/snapd/snaps/snapd_*.snap')
+  chg_id=$(remote.exec 'sudo snap install --dangerous --transaction=all-snaps --no-wait ./pc-kernel_badhook.snap /var/lib/snapd/snaps/snapd_*.snap')
 
   echo "Wait for reboot"
   tests.nested wait-for reboot "$boot_id"
@@ -57,25 +57,25 @@ execute: |
 
   boot_id="$(tests.nested boot-id)"
   # wait for change to finish with error
-  not tests.nested exec sudo snap watch "$chg_id"
+  not remote.exec sudo snap watch "$chg_id"
   # make sure that no additional reboots have happened while the change finished
   test "$boot_id" = "$(tests.nested boot-id)"
 
   echo "Check that connections to the base are kept"
-  tests.nested exec "snap connections bluez" | MATCH 'uhid  *bluez:uhid  *:uhid'
+  remote.exec "snap connections bluez" | MATCH 'uhid  *bluez:uhid  *:uhid'
 
   echo "Check that change finished with failure and that the old snap is being used"
-  tests.nested exec "snap info pc-kernel | MATCH 'installed:.*\(x1\)'"
-  tests.nested exec "snap changes | MATCH \"^$chg_id.*Error\""
+  remote.exec "snap info pc-kernel | MATCH 'installed:.*\(x1\)'"
+  remote.exec "snap changes | MATCH \"^$chg_id.*Error\""
   if [ "$VERSION" -ge 20 ]; then
       # shellcheck disable=SC2016
-      tests.nested exec 'test $(readlink /run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi) = pc-kernel_x1.snap/kernel.efi'
-      tests.nested exec 'cat /run/mnt/ubuntu-boot/EFI/ubuntu/grubenv | MATCH "^kernel_status=$"'
+      remote.exec 'test $(readlink /run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi) = pc-kernel_x1.snap/kernel.efi'
+      remote.exec 'cat /run/mnt/ubuntu-boot/EFI/ubuntu/grubenv | MATCH "^kernel_status=$"'
       echo "Check that modeenv has only the old kernel"
-      tests.nested exec 'cat /var/lib/snapd/modeenv | MATCH "^current_kernels=pc-kernel_x1.snap$"'
+      remote.exec 'cat /var/lib/snapd/modeenv | MATCH "^current_kernels=pc-kernel_x1.snap$"'
   else
-      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_kernel=pc-kernel_x1.snap$"'
-      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_mode=$"'
-      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_try_kernel=$"'
-      tests.nested exec 'cat /proc/cmdline | MATCH snap_kernel=pc-kernel_x1.snap'
+      remote.exec 'cat /boot/grub/grubenv | MATCH "^snap_kernel=pc-kernel_x1.snap$"'
+      remote.exec 'cat /boot/grub/grubenv | MATCH "^snap_mode=$"'
+      remote.exec 'cat /boot/grub/grubenv | MATCH "^snap_try_kernel=$"'
+      remote.exec 'cat /proc/cmdline | MATCH snap_kernel=pc-kernel_x1.snap'
   fi

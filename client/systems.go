@@ -163,3 +163,68 @@ func (client *Client) SystemDetails(seedLabel string) (*SystemDetails, error) {
 	}
 	return &rsp, nil
 }
+
+type InstallStep string
+
+const (
+	// Creates a change to setup encryption for the partitions
+	// with system-{data,save} roles. The successful change has a
+	// created device mapper devices ready to use.
+	InstallStepSetupStorageEncryption InstallStep = "setup-storage-encryption"
+
+	// Creates a change to finish the installation. The change
+	// ensures all volume structure content is written to disk, it
+	// sets up boot, kernel etc and when finished the installed
+	// system is ready for reboot.
+	InstallStepFinish InstallStep = "finish"
+)
+
+type InstallVolumeStructure struct {
+	*gadget.VolumeStructure
+
+	// The installer need to set those as needed depending on step.
+	Device            string `json:"device,omitempty"`
+	UnencryptedDevice string `json:"unencrypted-device,omitempty"`
+}
+
+type InstallVolume struct {
+	*gadget.Volume
+
+	Structure []InstallVolumeStructure `json:"structure"`
+}
+
+type InstallSystemOptions struct {
+	// Step is the install step, either "setup-storage-encryption"
+	// or "finish".
+	Step InstallStep `json:"step,omitempty"`
+
+	// OnVolumes is the volume description of the volumes that the
+	// given step should operate on.
+	OnVolumes map[string]*InstallVolume `json:"on-volumes,omitempty"`
+}
+
+// InstallSystem will perform the given install step for the given volumes
+func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptions) (changeID string, err error) {
+	if systemLabel == "" {
+		return "", fmt.Errorf("cannot install with an empty system label")
+	}
+
+	// verification is done by the backend
+	req := struct {
+		Action string `json:"action"`
+		*InstallSystemOptions
+	}{
+		Action:               "install",
+		InstallSystemOptions: opts,
+	}
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(&req); err != nil {
+		return "", err
+	}
+	chgID, err := client.doAsync("POST", "/v2/systems/"+systemLabel, nil, nil, &body)
+	if err != nil {
+		return "", xerrors.Errorf("cannot request system install for %q: %v", systemLabel, err)
+	}
+	return chgID, nil
+}

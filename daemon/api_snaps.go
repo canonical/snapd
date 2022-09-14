@@ -590,7 +590,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 		}
 	}
 	transaction := inst.Transaction
-	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID, &snapstate.Flags{Transaction: transaction})
+	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, nil, inst.userID, &snapstate.Flags{Transaction: transaction})
 	if err != nil {
 		return nil, err
 	}
@@ -628,7 +628,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 
 	transaction := inst.Transaction
 	// TODO: use a per-request context
-	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID, &snapstate.Flags{
+	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, nil, inst.userID, &snapstate.Flags{
 		IgnoreRunning: inst.IgnoreRunning,
 		Transaction:   transaction,
 	})

@@ -46,7 +46,7 @@ execute: |
   systemctl show --property=ControlGroup snap.test-snapd-journal-quota.logger.service | grep -F "$SLICE_REGEXP"
 
   echo "The service should also still be active"
-  snap services test-snapd-journal-quota.logger | MATCH "test-snapd-journal-quota.logger\s+enabled\s+active"
+  retry -n 3 sh -c "snap services test-snapd-journal-quota.logger | MATCH 'test-snapd-journal-quota.logger\s+enabled\s+active'"
 
   # Verify the contents of /etc/systemd/journald@snap-group-one.conf
   echo "Verifying the journal config contents"
@@ -63,7 +63,7 @@ execute: |
   snap set-quota group-one --journal-size=64MB
 
   echo "And the service is still active"
-  snap services test-snapd-journal-quota.logger | MATCH "test-snapd-journal-quota.logger\s+enabled\s+active"
+  retry -n 3 sh -c "snap services test-snapd-journal-quota.logger | MATCH 'test-snapd-journal-quota.logger\s+enabled\s+active'"
 
   # Ensure that the new size is printed in the journal logs. We requested 64MB but
   # this will most likely print out as 61.0M, so lets be a bit flexible
@@ -77,7 +77,7 @@ execute: |
   LOGGER_PID=$(systemctl show --property=MainPID --value snap.test-snapd-journal-quota.logger.service)
   snap remove-quota group-one
   systemctl show --property=MainPID --value snap.test-snapd-journal-quota.logger.service | NOMATCH "$LOGGER_PID"
-  snap services test-snapd-journal-quota.logger | MATCH "test-snapd-journal-quota.logger\s+enabled\s+active"
+  retry -n 3 sh -c "snap services test-snapd-journal-quota.logger | MATCH 'test-snapd-journal-quota.logger\s+enabled\s+active'"
 
   echo "And the service is not in a slice anymore"
   systemctl show --property=ControlGroup snap.test-snapd-journal-quota.logger.service | grep -vF "$SLICE_REGEXP"
