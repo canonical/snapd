@@ -1182,15 +1182,15 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	var seedLabel string
-	if err := t.Get("system-label", &seedLabel); err != nil {
+	var systemLabel string
+	if err := t.Get("system-label", &systemLabel); err != nil {
 		return err
 	}
 	var onVolumes map[string]*gadget.Volume
 	if err := t.Get("on-volumes", &onVolumes); err != nil {
 		return err
 	}
-	logger.Debugf("install-finish for %q on %v", seedLabel, onVolumes)
+	logger.Debugf("install-finish for %q on %v", systemLabel, onVolumes)
 	// TODO: use the seed to get gadget/kernel
 	// - install missing volumes structure content
 	// - install gadget assets
@@ -1205,15 +1205,15 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	st.Lock()
 	defer st.Unlock()
 
-	var seedLabel string
-	if err := t.Get("system-label", &seedLabel); err != nil {
+	var systemLabel string
+	if err := t.Get("system-label", &systemLabel); err != nil {
 		return err
 	}
 	var onVolumes map[string]*gadget.Volume
 	if err := t.Get("on-volumes", &onVolumes); err != nil {
 		return err
 	}
-	logger.Debugf("install-setup-storage-encyption for %q on %v", seedLabel, onVolumes)
+	logger.Debugf("install-setup-storage-encyption for %q on %v", systemLabel, onVolumes)
 	// TODO: find device with role system-{data,seed} and setup
 	// storage encryption
 

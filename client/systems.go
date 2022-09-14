@@ -155,11 +155,11 @@ type SystemDetails struct {
 	// TODO: add EncryptionSupportInfo here too
 }
 
-func (client *Client) SystemDetails(seedLabel string) (*SystemDetails, error) {
+func (client *Client) SystemDetails(systemLabel string) (*SystemDetails, error) {
 	var rsp SystemDetails
 
-	if _, err := client.doSync("GET", "/v2/systems/"+seedLabel, nil, nil, nil, &rsp); err != nil {
-		return nil, xerrors.Errorf("cannot get details for system %q: %v", seedLabel, err)
+	if _, err := client.doSync("GET", "/v2/systems/"+systemLabel, nil, nil, nil, &rsp); err != nil {
+		return nil, xerrors.Errorf("cannot get details for system %q: %v", systemLabel, err)
 	}
 	return &rsp, nil
 }
