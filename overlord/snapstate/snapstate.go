@@ -2025,11 +2025,11 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 
 // RevisionOptions control the selection of a snap revision.
 type RevisionOptions struct {
-	Channel           string
-	Revision          snap.Revision
-	ValidationSetKeys []snapasserts.ValidationSetKey
-	CohortKey         string
-	LeaveCohort       bool
+	Channel        string
+	Revision       snap.Revision
+	ValidationSets []snapasserts.ValidationSetKey
+	CohortKey      string
+	LeaveCohort    bool
 }
 
 // Update initiates a change updating a snap.

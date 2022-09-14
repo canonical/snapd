@@ -57,8 +57,8 @@ type CurrentSnap struct {
 	Block            []snap.Revision
 	Epoch            snap.Epoch
 	CohortKey        string
-	// ValidationSetKeys is an optional array of validation sets primary keys.
-	ValidationSetKeys []snapasserts.ValidationSetKey
+	// ValidationSets is an optional array of validation set primary keys.
+	ValidationSets []snapasserts.ValidationSetKey
 }
 
 type AssertionQuery interface {
@@ -78,7 +78,7 @@ type currentSnapV2JSON struct {
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
 	CohortKey        string     `json:"cohort-key,omitempty"`
-	// ValidationSets is an optional array of validation sets primary keys.
+	// ValidationSets is an optional array of validation set primary keys.
 	ValidationSets [][]string `json:"validation-sets,omitempty"`
 }
 
@@ -98,9 +98,9 @@ type SnapAction struct {
 	CohortKey    string
 	Flags        SnapActionFlags
 	Epoch        snap.Epoch
-	// ValidationSetKeys is an optional array of validation sets primary keys
+	// ValidationSets is an optional array of validation set primary keys
 	// (relevant for install and refresh actions).
-	ValidationSetKeys []snapasserts.ValidationSetKey
+	ValidationSets []snapasserts.ValidationSetKey
 }
 
 func isValidAction(action string) bool {
@@ -331,8 +331,8 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			refreshedDate = &curSnap.RefreshedDate
 		}
 
-		valsetKeys := make([][]string, 0, len(curSnap.ValidationSetKeys))
-		for _, vsKey := range curSnap.ValidationSetKeys {
+		valsetKeys := make([][]string, 0, len(curSnap.ValidationSets))
+		for _, vsKey := range curSnap.ValidationSets {
 			valsetKeys = append(valsetKeys, vsKey.Components())
 		}
 
@@ -377,8 +377,8 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			ignoreValidation = &f
 		}
 
-		valsetKeyComponents := make([][]string, 0, len(a.ValidationSetKeys))
-		for _, vsKey := range a.ValidationSetKeys {
+		valsetKeyComponents := make([][]string, 0, len(a.ValidationSets))
+		for _, vsKey := range a.ValidationSets {
 			valsetKeyComponents = append(valsetKeyComponents, vsKey.Components())
 		}
 

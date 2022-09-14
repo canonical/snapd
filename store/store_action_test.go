@@ -1292,11 +1292,11 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 	results, _, err := sto.SnapAction(s.ctx, nil,
 		[]*store.SnapAction{
 			{
-				Action:            action,
-				InstanceName:      "hello-world",
-				Channel:           "beta",
-				CohortKey:         cohort,
-				ValidationSetKeys: validationSets,
+				Action:         action,
+				InstanceName:   "hello-world",
+				Channel:        "beta",
+				CohortKey:      cohort,
+				ValidationSets: validationSets,
 			},
 		}, nil, nil, nil)
 	c.Assert(err, IsNil)
@@ -2580,15 +2580,15 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
 			// not actually set during refresh, but supported by snapAction
-			ValidationSetKeys: []snapasserts.ValidationSetKey{"foo/other"},
+			ValidationSets: []snapasserts.ValidationSetKey{"foo/other"},
 		},
 	}, []*store.SnapAction{
 		{
-			Action:            "refresh",
-			SnapID:            helloWorldSnapID,
-			Channel:           "stable",
-			InstanceName:      "hello-world",
-			ValidationSetKeys: []snapasserts.ValidationSetKey{"foo/bar", "foo/baz"},
+			Action:         "refresh",
+			SnapID:         helloWorldSnapID,
+			Channel:        "stable",
+			InstanceName:   "hello-world",
+			ValidationSets: []snapasserts.ValidationSetKey{"foo/bar", "foo/baz"},
 		},
 	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(err, IsNil)

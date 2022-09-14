@@ -212,7 +212,7 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 
 func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valsets []snapasserts.ValidationSetKey, requiredRevision snap.Revision) {
 	for _, vs := range valsets {
-		action.ValidationSetKeys = append(action.ValidationSetKeys, vs)
+		action.ValidationSets = append(action.ValidationSets, vs)
 	}
 	if !requiredRevision.Unset() {
 		action.Revision = requiredRevision
@@ -251,9 +251,9 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 	var requiredValSets []snapasserts.ValidationSetKey
 
 	if !flags.IgnoreValidation {
-		if len(revOpts.ValidationSetKeys) > 0 {
+		if len(revOpts.ValidationSets) > 0 {
 			requiredRevision = revOpts.Revision
-			requiredValSets = revOpts.ValidationSetKeys
+			requiredValSets = revOpts.ValidationSets
 		} else {
 			enforcedSets, err := EnforcedValidationSets(st)
 			if err != nil {
@@ -341,7 +341,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 		Flags:   storeFlags,
 	}
 
-	if len(opts.ValidationSetKeys) > 0 {
+	if len(opts.ValidationSets) > 0 {
 		// update to a specific revision is handled by updateToRevisionInfo.
 		// updating without a revision while enforcing validation sets is not a
 		// viable scenario (although we could handle it if desired), we only install/refresh
@@ -485,9 +485,9 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revOpts *RevisionO
 
 	var storeFlags store.SnapActionFlags
 	if !flags.IgnoreValidation {
-		if len(revOpts.ValidationSetKeys) > 0 {
+		if len(revOpts.ValidationSets) > 0 {
 			requiredRevision = revOpts.Revision
-			requiredValsets = revOpts.ValidationSetKeys
+			requiredValsets = revOpts.ValidationSets
 		} else {
 			enforcedSets, err := EnforcedValidationSets(st)
 			if err != nil {
@@ -672,7 +672,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 
 			if revOpts != nil {
 				opts := revOptsByName[installed.InstanceName]
-				requiredValsets, requiredRevision = opts.ValidationSetKeys, opts.Revision
+				requiredValsets, requiredRevision = opts.ValidationSets, opts.Revision
 			} else if enforcedSets != nil {
 				requiredValsets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(installed.InstanceName))
 				// note, this errors out the entire refresh
@@ -807,7 +807,7 @@ func installCandidates(st *state.State, names []string, revOpts []*RevisionOptio
 		var requiredRevision snap.Revision
 
 		if revOpts != nil {
-			requiredValSets = revOpts[i].ValidationSetKeys
+			requiredValSets = revOpts[i].ValidationSets
 			requiredRevision = revOpts[i].Revision
 		} else if enforcedSets != nil {
 			// check for invalid presence first to have a list of sets where it's invalid

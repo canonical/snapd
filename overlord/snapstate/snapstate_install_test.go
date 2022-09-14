@@ -4051,10 +4051,10 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSet(c *C) {
 	expectedOp := fakeOp{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:            "install",
-			InstanceName:      "some-snap",
-			Channel:           "stable",
-			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
+			Action:         "install",
+			InstanceName:   "some-snap",
+			Channel:        "stable",
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 		},
 		revno: snap.R(11),
 	}
@@ -4068,10 +4068,10 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSetAtRevision(
 	expectedOp := fakeOp{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:            "install",
-			Revision:          snap.R(2),
-			InstanceName:      "some-snap",
-			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
+			Action:         "install",
+			Revision:       snap.R(2),
+			InstanceName:   "some-snap",
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 		},
 		revno: snap.R(2),
 	}
@@ -4085,10 +4085,10 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSetCohortIgnor
 	expectedOp := fakeOp{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:            "install",
-			Revision:          snap.R(2),
-			InstanceName:      "some-snap",
-			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
+			Action:         "install",
+			Revision:       snap.R(2),
+			InstanceName:   "some-snap",
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 		},
 		revno: snap.R(2),
 	}
@@ -4168,7 +4168,7 @@ func (s *validationSetsSuite) TestInstallManyWithRevisionOpts(c *C) {
 
 	// installing "some-snap" with revision opts should succeed because current
 	// validation sets should be ignored
-	revOpts := []*snapstate.RevisionOptions{{Revision: snap.R(2), ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/2"}}}
+	revOpts := []*snapstate.RevisionOptions{{Revision: snap.R(2), ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/2"}}}
 	affected, tss, err := snapstate.InstallMany(s.state, []string{"some-snap"}, revOpts, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"some-snap"})
@@ -4196,10 +4196,10 @@ func (s *validationSetsSuite) TestInstallManyRequiredForValidationSetOK(c *C) {
 	expectedOps := fakeOps{{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:            "install",
-			InstanceName:      "one",
-			Channel:           "stable",
-			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
+			Action:         "install",
+			InstanceName:   "one",
+			Channel:        "stable",
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 		},
 		revno: snap.R(11),
 	}, {
@@ -4223,19 +4223,19 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 	expectedOps := fakeOps{{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:            "install",
-			InstanceName:      "one",
-			Revision:          snap.R(11),
-			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
+			Action:         "install",
+			InstanceName:   "one",
+			Revision:       snap.R(11),
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 		},
 		revno: snap.R(11),
 	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:            "install",
-			InstanceName:      "two",
-			Revision:          snap.R(2),
-			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
+			Action:         "install",
+			InstanceName:   "two",
+			Revision:       snap.R(2),
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 		},
 		revno: snap.R(2),
 	}}
@@ -4498,7 +4498,7 @@ func (s *validationSetsSuite) TestInstallSnapWithValidationSets(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	opts := &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"}}
+	opts := &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"}}
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
@@ -4506,10 +4506,10 @@ func (s *validationSetsSuite) TestInstallSnapWithValidationSets(c *C) {
 	expectedOp := fakeOp{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:            "install",
-			InstanceName:      "some-snap",
-			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"},
-			Revision:          snap.R(11),
+			Action:         "install",
+			InstanceName:   "some-snap",
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"},
+			Revision:       snap.R(11),
 		},
 		revno: snap.R(11),
 	}

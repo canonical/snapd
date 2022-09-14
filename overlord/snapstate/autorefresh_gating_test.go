@@ -2916,10 +2916,10 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:            "refresh",
-			InstanceName:      "snap-c",
-			SnapID:            "snap-c-id",
-			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
+			Action:         "refresh",
+			InstanceName:   "snap-c",
+			SnapID:         "snap-c-id",
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 		},
 		revno: snap.R(11),
 	}, {
@@ -2949,21 +2949,21 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:            "refresh",
-			InstanceName:      "snap-c",
-			SnapID:            "snap-c-id",
-			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
+			Action:         "refresh",
+			InstanceName:   "snap-c",
+			SnapID:         "snap-c-id",
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 		},
 		revno: snap.R(11),
 	})
 	c.Check(s.fakeBackend.ops[3], DeepEquals, fakeOp{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:            "refresh",
-			InstanceName:      "some-snap",
-			SnapID:            "some-snap-id",
-			ValidationSetKeys: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
-			Revision:          snap.R(11),
+			Action:         "refresh",
+			InstanceName:   "some-snap",
+			SnapID:         "some-snap-id",
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
+			Revision:       snap.R(11),
 		},
 		revno: snap.R(11),
 	})
