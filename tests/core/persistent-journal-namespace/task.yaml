@@ -51,11 +51,10 @@ execute: |
 
   # Verify that, over a few seconds, nothing is created
   # to make sure the namespace is not recreating the path
-  for i in {1..3}
-  do 
-    not test -e /var/log/journal
-    sleep 1
-  done
+  if retry -n 3 sh -c "test -e /var/log/journal"; then
+    echo "Journal path was recreated, it shouldn't have happened"
+    exit 1
+  fi
 
   # Stop and cleanup
   snap stop test-snapd-journal-quota.logger
