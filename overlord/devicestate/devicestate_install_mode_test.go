@@ -3708,13 +3708,13 @@ func (s *installStepSuite) TestDeviceManagerInstallFinishTasksAndChange(c *C) {
 	chg, err := devicestate.InstallFinish(s.state, "1234", mockOnVolumes)
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
-	c.Check(chg.Summary(), Matches, `Finish install for label "1234"`)
+	c.Check(chg.Summary(), Matches, `Finish setup of run system for "1234"`)
 	tsks := chg.Tasks()
 	c.Check(tsks, HasLen, 1)
 	tskInstallFinish := tsks[0]
-	c.Check(tskInstallFinish.Summary(), Matches, `Finish install for label "1234"`)
+	c.Check(tskInstallFinish.Summary(), Matches, `Finish setup of run system for "1234"`)
 	var onLabel string
-	err = tskInstallFinish.Get("seed-label", &onLabel)
+	err = tskInstallFinish.Get("system-label", &onLabel)
 	c.Assert(err, IsNil)
 	c.Assert(onLabel, Equals, "1234")
 	var onVols map[string]*client.InstallVolume
@@ -3766,13 +3766,13 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionTasksAn
 	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes)
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
-	c.Check(chg.Summary(), Matches, `Setup storage encryption for label "1234"`)
+	c.Check(chg.Summary(), Matches, `Setup storage encryption for installing system "1234"`)
 	tsks := chg.Tasks()
 	c.Check(tsks, HasLen, 1)
 	tskInstallFinish := tsks[0]
-	c.Check(tskInstallFinish.Summary(), Matches, `Setup storage encryption for label "1234"`)
+	c.Check(tskInstallFinish.Summary(), Matches, `Setup storage encryption for installing system "1234"`)
 	var onLabel string
-	err = tskInstallFinish.Get("seed-label", &onLabel)
+	err = tskInstallFinish.Get("system-label", &onLabel)
 	c.Assert(err, IsNil)
 	c.Assert(onLabel, Equals, "1234")
 	var onVols map[string]*client.InstallVolume

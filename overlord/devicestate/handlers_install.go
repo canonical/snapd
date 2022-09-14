@@ -1184,7 +1184,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	defer st.Unlock()
 
 	var seedLabel string
-	if err := t.Get("seed-label", &seedLabel); err != nil {
+	if err := t.Get("system-label", &seedLabel); err != nil {
 		return err
 	}
 	var onVolumes map[string]*client.InstallVolume
@@ -1207,7 +1207,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	defer st.Unlock()
 
 	var seedLabel string
-	if err := t.Get("seed-label", &seedLabel); err != nil {
+	if err := t.Get("system-label", &seedLabel); err != nil {
 		return err
 	}
 	var onVolumes map[string]*client.InstallVolume

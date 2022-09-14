@@ -1088,9 +1088,9 @@ func InstallFinish(st *state.State, label string, onVolumes map[string]*client.I
 		return nil, fmt.Errorf("cannot finish install without volumes data")
 	}
 
-	chg := st.NewChange("install-step-finish", fmt.Sprintf("Finish install for label %q", label))
-	finishTask := st.NewTask("install-finish", fmt.Sprintf("Finish install for label %q", label))
-	finishTask.Set("seed-label", label)
+	chg := st.NewChange("install-step-finish", fmt.Sprintf("Finish setup of run system for %q", label))
+	finishTask := st.NewTask("install-finish", fmt.Sprintf("Finish setup of run system for %q", label))
+	finishTask.Set("system-label", label)
 	finishTask.Set("on-volumes", onVolumes)
 	chg.AddTask(finishTask)
 
@@ -1108,9 +1108,9 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 		return nil, fmt.Errorf("cannot setup storage encryption without volumes data")
 	}
 
-	chg := st.NewChange("install-step-setup-storage-encryption", fmt.Sprintf("Setup storage encryption for label %q", label))
-	setupStorageEncryptionTask := st.NewTask("install-setup-storage-encryption", fmt.Sprintf("Setup storage encryption for label %q", label))
-	setupStorageEncryptionTask.Set("seed-label", label)
+	chg := st.NewChange("install-step-setup-storage-encryption", fmt.Sprintf("Setup storage encryption for installing system %q", label))
+	setupStorageEncryptionTask := st.NewTask("install-setup-storage-encryption", fmt.Sprintf("Setup storage encryption for installing system %q", label))
+	setupStorageEncryptionTask.Set("system-label", label)
 	setupStorageEncryptionTask.Set("on-volumes", onVolumes)
 	chg.AddTask(setupStorageEncryptionTask)
 

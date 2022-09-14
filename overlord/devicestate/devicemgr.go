@@ -207,6 +207,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddCleanup("finalize-recovery-system", m.cleanupRecoverySystem)
 
 	// used from the install API
+	// TODO: use better task names that are close to our usual pattern
 	runner.AddHandler("install-finish", m.doInstallFinish, nil)
 	runner.AddHandler("install-setup-storage-encryption", m.doInstallSetupStorageEncryption, nil)
 
@@ -1821,7 +1822,7 @@ func (m *DeviceManager) SystemAndGadgetInfo(wantedSystemLabel string) (*System, 
 		return nil, nil, err
 	}
 
-	// 2. get the gadget volumes for the given seed-label
+	// 2. get the gadget volumes for the given system-label
 	perf := &timings.Timings{}
 	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, perf); err != nil {
 		return nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
