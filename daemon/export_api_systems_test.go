@@ -37,8 +37,8 @@ type (
 	SystemsResponse = systemsResponse
 )
 
-func MockDeviceManagerSystemAndGadgetInfo(f func(*devicestate.DeviceManager, string) (*devicestate.System, *gadget.Info, error)) (restore func()) {
-	restore = testutil.Backup(&deviceManagerSystemAndGadgetInfo)
-	deviceManagerSystemAndGadgetInfo = f
+func MockDeviceManagerSystemAndGadgetAndEncryptionInfo(f func(*devicestate.DeviceManager, string) (*devicestate.System, *gadget.Info, *devicestate.EncryptionSupportInfo, error)) (restore func()) {
+	restore = testutil.Backup(&deviceManagerSystemAndGadgetAndEncryptionInfo)
+	deviceManagerSystemAndGadgetAndEncryptionInfo = f
 	return restore
 }

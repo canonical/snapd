@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -104,8 +105,33 @@ func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 // wrapped for unit tests
-var deviceManagerSystemAndGadgetInfo = func(dm *devicestate.DeviceManager, systemLabel string) (*devicestate.System, *gadget.Info, error) {
-	return dm.SystemAndGadgetInfo(systemLabel)
+var deviceManagerSystemAndGadgetAndEncryptionInfo = func(dm *devicestate.DeviceManager, systemLabel string) (*devicestate.System, *gadget.Info, *devicestate.EncryptionSupportInfo, error) {
+	return dm.SystemAndGadgetAndEncryptionInfo(systemLabel)
+}
+
+func storageEncryption(encInfo *devicestate.EncryptionSupportInfo) *client.StorageEncryption {
+	if encInfo.Disabled {
+		return &client.StorageEncryption{
+			Support: client.StorageEncryptionSupportDisabled,
+		}
+	}
+	storageEnc := &client.StorageEncryption{
+		StorageSafety: string(encInfo.StorageSafety),
+		Type:          string(encInfo.Type),
+	}
+	required := (encInfo.StorageSafety == asserts.StorageSafetyEncrypted)
+	switch {
+	case encInfo.Available:
+		storageEnc.Support = client.StorageEncryptionSupportAvailable
+	case !encInfo.Available && required:
+		storageEnc.Support = client.StorageEncryptionSupportDefective
+		storageEnc.UnavailableReason = encInfo.UnavailableErr.Error()
+	case !encInfo.Available && !required:
+		storageEnc.Support = client.StorageEncryptionSupportUnavailable
+		storageEnc.UnavailableReason = encInfo.UnavailableWarning
+	}
+
+	return storageEnc
 }
 
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -113,10 +139,11 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	deviceMgr := c.d.overlord.DeviceManager()
 
-	sys, gadgetInfo, err := deviceManagerSystemAndGadgetInfo(deviceMgr, wantedSystemLabel)
+	sys, gadgetInfo, encryptionInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(deviceMgr, wantedSystemLabel)
 	if err != nil {
 		return InternalError(err.Error())
 	}
+
 	rsp := client.SystemDetails{
 		Current: sys.Current,
 		Label:   sys.Label,
@@ -127,8 +154,9 @@ func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Respons
 			Validation:  sys.Brand.Validation(),
 		},
 		// no body: we expect models to have empty bodies
-		Model:   sys.Model.Headers(),
-		Volumes: gadgetInfo.Volumes,
+		Model:             sys.Model.Headers(),
+		Volumes:           gadgetInfo.Volumes,
+		StorageEncryption: storageEncryption(encryptionInfo),
 	}
 	for _, sa := range sys.Actions {
 		rsp.Actions = append(rsp.Actions, client.SystemAction{

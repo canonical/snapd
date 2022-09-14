@@ -254,6 +254,11 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
                     {"title": "recover", "mode": "recover"},
                     {"title": "reinstall", "mode": "install"}
                 ],
+                "storage-encryption": {
+                    "support":"available",
+                    "storage-safety":"prefer-encrypted",
+                    "encryption-type":"cryptsetup"
+                },
                 "volumes": {
                     "pc": {
                         "schema":"gpt",
@@ -284,6 +289,11 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
 		Actions: []client.SystemAction{
 			{Title: "recover", Mode: "recover"},
 			{Title: "reinstall", Mode: "install"},
+		},
+		StorageEncryption: &client.StorageEncryption{
+			Support:       "available",
+			StorageSafety: "prefer-encrypted",
+			Type:          "cryptsetup",
 		},
 		Volumes: map[string]*gadget.Volume{
 			"pc": {

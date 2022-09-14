@@ -140,6 +140,37 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 	return nil
 }
 
+type StorageEncryptionSupport string
+
+const (
+	// forcefull disabled by the device
+	StorageEncryptionSupportDisabled = "disabled"
+	// encryption available and usable
+	StorageEncryptionSupportAvailable = "available"
+	// encryption unavailable but not required
+	StorageEncryptionSupportUnavailable = "unavailable"
+	// encryption unavailable and required, this is an error
+	StorageEncryptionSupportDefective = "defective"
+)
+
+type StorageEncryption struct {
+	// Support describes the level of hardware support available.
+	Support StorageEncryptionSupport `json:"support"`
+
+	// StorageSafety can have values of asserts.StorageSafety
+	StorageSafety string `json:"storage-safety,omitempty"`
+
+	// Type has values of secboot.Type: "", "cryptsetup",
+	// "device-setup-hook"
+	Type string `json:"encryption-type,omitempty"`
+
+	// UnavailableReason describes why the encryption is not
+	// available in a human readable form. Depending on if
+	// encryption is required or not this should be presented to
+	// the user as either an error or as information.
+	UnavailableReason string `json:"unavailable-reason,omitempty"`
+}
+
 type SystemDetails struct {
 	// First part is designed to look like `client.System` - the
 	// only difference is how the model is represented
@@ -152,7 +183,7 @@ type SystemDetails struct {
 	// Volumes contains the volumes defined from the gadget snap
 	Volumes map[string]*gadget.Volume `json:"volumes,omitempty"`
 
-	// TODO: add EncryptionSupportInfo here too
+	StorageEncryption *StorageEncryption `json:"storage-encryption,omitempty"`
 }
 
 func (client *Client) SystemDetails(seedLabel string) (*SystemDetails, error) {
