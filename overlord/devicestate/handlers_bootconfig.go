@@ -80,19 +80,16 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		return fmt.Errorf("cannot update boot config assets: %v", err)
 	}
 
+	// set this status already to minimize wasteful redos
 	finalStatus := state.DoneStatus
 	if updated {
 		t.Logf("updated boot config assets")
 		// boot assets were updated, request a restart now so that the
 		// situation does not end up more complicated if more updates of
 		// boot assets were to be applied
-		if err := snapstate.FinishTaskWithRestart(t, finalStatus, restart.RestartSystem, nil); err != nil {
-			return err
-		}
-	} else {
-		// minimize wasteful redos
-		t.SetStatus(finalStatus)
+		return snapstate.FinishTaskWithRestart(t, finalStatus, restart.RestartSystem, nil)
 	}
 
+	t.SetStatus(finalStatus)
 	return nil
 }

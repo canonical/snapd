@@ -1886,7 +1886,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	finalStatus := state.DoneStatus
-	t.SetStatus(finalStatus)
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd.
@@ -1906,11 +1905,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}
 	if !rebootInfo.RebootRequired || canReboot {
-		if err := m.finishTaskWithMaybeRestart(t, finalStatus, newInfo, rebootInfo); err != nil {
-			return err
-		}
+		return m.finishTaskWithMaybeRestart(t, finalStatus, newInfo, rebootInfo)
 	}
-
+	t.SetStatus(finalStatus)
 	return nil
 }
 
@@ -2270,10 +2267,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// core snap -> next core snap
 	if release.OnClassic && newInfo.Type() == snap.TypeOS && oldCurrent.Unset() {
 		t.Logf("Requested daemon restart (undo classic initial core install)")
-
-		if err := FinishTaskWithRestart(t, finalStatus, restart.RestartDaemon, nil); err != nil {
-			return err
-		}
+		return FinishTaskWithRestart(t, finalStatus, restart.RestartDaemon, nil)
 	}
 
 	return nil
