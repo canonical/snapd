@@ -1791,6 +1791,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
+	if err := m.maybeDiscardNamespacesOnSnapdDowngrade(st, newInfo); err != nil {
+		return fmt.Errorf("cannot discard preserved namespaces: %v", err)
+	}
+
 	// Restore configuration of the target revision (if available) on revert
 	if isInstalled {
 		// Make a copy of configuration of current snap revision
@@ -2005,6 +2009,33 @@ func daemonRestartReason(st *state.State, typ snap.Type) string {
 	}
 
 	return "Requested daemon restart (snapd snap)."
+}
+
+// maybeDiscardNamespacesOnSnapdDowngrade must be called when we are about to
+// activate a different snapd version. It checks whether we are performing a
+// downgrade to a snapd version that does not support the
+// "x-snapd.origin=rootfs" option (which we use when mounting a snap's "/" as a
+// tmpfs) and, if so, discards all preserved snap namespaces; failure to do so
+// would cause snap-update-ns to misbehave and destroy our namespace.
+// This method assumes that the State is locked.
+func (m *SnapManager) maybeDiscardNamespacesOnSnapdDowngrade(st *state.State, snapInfo *snap.Info) error {
+	if snapInfo.Type() != snap.TypeSnapd || snapInfo.Version == "" {
+		return nil
+	}
+
+	// Support for "x-snapd.origin=rootfs" was introduced in snapd 2.57
+	if compare, err := strutil.VersionCompare(snapInfo.Version, "2.57"); err == nil && compare < 0 {
+		logger.Noticef("Downgrading snapd to version %q, discarding preserved namespaces", snapInfo.Version)
+		allSnaps, err := All(st)
+		if err != nil {
+			return err
+		}
+		for _, snap := range allSnaps {
+			logger.Debugf("Discarding namespace for snap %q", snap.InstanceName())
+			m.backend.DiscardSnapNamespace(snap.InstanceName())
+		}
+	}
+	return nil
 }
 
 // maybeUndoRemodelBootChanges will check if an undo needs to update the
