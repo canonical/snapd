@@ -7,7 +7,6 @@ systems:
   - -ubuntu-core-18-*
 
 prepare: |
-  systemctl status snapd > before.txt
   "$TESTSTOOLS"/snaps-state install-local test-snapd-journal-quota
   snap set system experimental.quota-groups=true
   tests.cleanup defer snap unset system experimental.quota-groups
@@ -17,7 +16,7 @@ restore: |
   snap stop test-snapd-journal-quota.logger
   snap remove-quota group-one
 
-  # disable persistent journal
+  # disable persistent journal and reload the journal
   rm -rf /var/log/journal
   systemctl kill --signal=SIGUSR1 systemd-journald
     
@@ -40,7 +39,7 @@ execute: |
   # this check relies on *anything* getting logged; enabling persistent
   # journal writes an entry about journal size, which should be sufficient.
   MACHINE_ID=$(cat /etc/machine-id)
-  retry -n30 --wait 1 test -e "/var/log/journal/$MACHINE_ID"
+  retry -n 30 --wait 1 test -e "/var/log/journal/$MACHINE_ID"
 
   echo "Starting service to fill namespace with logs"
   snap start test-snapd-journal-quota.logger
@@ -55,7 +54,7 @@ execute: |
 
   # Verify that, over a few seconds, nothing is created
   # to make sure the namespace is not recreating the path
-  if retry -n 3 sh -c "test -e /var/log/journal"; then
+  if retry -n 2 sh -c "test -e /var/log/journal"; then
     echo "Journal path was recreated, it shouldn't have happened"
     exit 1
   fi
