@@ -13,6 +13,10 @@ prepare: |
   tests.cleanup defer snap unset system experimental.quota-groups
 
 restore: |
+  # Stop test service and cleanup
+  snap stop test-snapd-journal-quota.logger
+  snap remove-quota group-one
+
   # disable persistent journal
   rm -rf /var/log/journal
   systemctl kill --signal=SIGUSR1 systemd-journald
@@ -55,7 +59,3 @@ execute: |
     echo "Journal path was recreated, it shouldn't have happened"
     exit 1
   fi
-
-  # Stop and cleanup
-  snap stop test-snapd-journal-quota.logger
-  snap remove-quota group-one
