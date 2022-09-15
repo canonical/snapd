@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -3614,7 +3615,7 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
 		return s.PkgPath == ""
 	}
 
-	tagsValid := func(c *C, i interface{}) {
+	tagsValid := func(c *C, i interface{}, noYaml []string) {
 		st := reflect.TypeOf(i).Elem()
 		num := st.NumField()
 		for i := 0; i < num; i++ {
@@ -3624,7 +3625,13 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
 			if tagJSON == "-" {
 				continue
 			}
-			c.Check(tagYaml, Equals, tagJSON)
+			if strutil.ListContains(noYaml, st.Field(i).Name) {
+				c.Check(tagYaml, Equals, "-")
+				c.Check(tagJSON, Not(Equals), "")
+				c.Check(tagJSON, Not(Equals), "-")
+			} else {
+				c.Check(tagYaml, Equals, tagJSON)
+			}
 
 			// ensure we don't accidentally export fields
 			// without tags
@@ -3634,11 +3641,14 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
 		}
 	}
 
-	tagsValid(c, &gadget.Volume{})
-	tagsValid(c, &gadget.VolumeStructure{})
-	tagsValid(c, &gadget.VolumeContent{})
-	tagsValid(c, &gadget.RelativeOffset{})
-	tagsValid(c, &gadget.VolumeUpdate{})
+	tagsValid(c, &gadget.Volume{}, nil)
+	// gadget.VolumeStructure.{Unencrypted,}Device is never part of
+	// Yaml so the test checks that the yaml tag is "-"
+	noYaml := []string{"Device", "UnencryptedDevice"}
+	tagsValid(c, &gadget.VolumeStructure{}, noYaml)
+	tagsValid(c, &gadget.VolumeContent{}, nil)
+	tagsValid(c, &gadget.RelativeOffset{}, nil)
+	tagsValid(c, &gadget.VolumeUpdate{}, nil)
 }
 
 func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeInternalFieldsNoJSON(c *C) {

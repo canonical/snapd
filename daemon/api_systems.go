@@ -134,6 +134,11 @@ func storageEncryption(encInfo *devicestate.EncryptionSupportInfo) *client.Stora
 	return storageEnc
 }
 
+var (
+	devicestateInstallFinish                 = devicestate.InstallFinish
+	devicestateInstallSetupStorageEncryption = devicestate.InstallSetupStorageEncryption
+)
+
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
 	wantedSystemLabel := muxVars(r)["label"]
 
@@ -243,7 +248,24 @@ func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest
 }
 
 func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRequest) Response {
-	// TODO: call new devicestate.InstallStep()
-	// TODO2: ensure devicestate.InstallStep() checks that systemLabel is not empty
-	return BadRequest("system action install is not implemented yet")
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	switch req.Step {
+	case client.InstallStepSetupStorageEncryption:
+		chg, err := devicestateInstallSetupStorageEncryption(st, systemLabel, req.OnVolumes)
+		if err != nil {
+			return BadRequest("cannot setup storage encryption for install from %q: %v", systemLabel, err)
+		}
+		return AsyncResponse(nil, chg.ID())
+	case client.InstallStepFinish:
+		chg, err := devicestateInstallFinish(st, systemLabel, req.OnVolumes)
+		if err != nil {
+			return BadRequest("cannot finish install for %q: %v", systemLabel, err)
+		}
+		return AsyncResponse(nil, chg.ID())
+	default:
+		return BadRequest("unsupported install step %q", req.Step)
+	}
 }

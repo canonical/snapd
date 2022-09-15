@@ -158,6 +158,12 @@ type VolumeStructure struct {
 	// Content of the structure
 	Content []VolumeContent `yaml:"content" json:"content"`
 	Update  VolumeUpdate    `yaml:"update" json:"update"`
+
+	// Note that the Device and UnencryptedDevice fields will never
+	// be part of the yaml and just used as part of the POST
+	// /systems/<label> API that is used by an installer.
+	Device            string `yaml:"-" json:"device,omitempty"`
+	UnencryptedDevice string `yaml:"-" json:"unencrypted-device,omitempty"`
 }
 
 // HasFilesystem returns true if the structure is using a filesystem.
