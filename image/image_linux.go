@@ -507,6 +507,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
+	// TODO: There will be classic UC20+ model based systems
+	//       that will have a bootable  ubuntu-seed partition.
+	//       This will need to be handled here eventually too.
 	if opts.Classic {
 		var fpath string
 		if core20 {
