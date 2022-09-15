@@ -302,11 +302,6 @@ func MockJournalctl(f func(svcs []string, n int, follow, namespaces bool) (io.Re
 	}
 }
 
-type EnableOptions struct {
-	NoReload bool
-	StartNow bool
-}
-
 type MountUnitOptions struct {
 	// Whether the unit is transient or persistent across reboots
 	Lifetime UnitLifetime
@@ -341,8 +336,6 @@ type Systemd interface {
 	// only necessary to apply manager's configuration like
 	// watchdog.
 	DaemonReexec() error
-	// Enable the given services with the provided options
-	Enable(serviceNames []string, opts EnableOptions) error
 	// EnableNoReload the given services, do not reload systemd.
 	EnableNoReload(services []string) error
 	// DisableNoReload the given services, do not reload system.
@@ -572,32 +565,21 @@ func (s *systemd) DaemonReexec() error {
 	return err
 }
 
-func (s *systemd) Enable(serviceNames []string, opts EnableOptions) error {
+func (s *systemd) EnableNoReload(serviceNames []string) error {
 	if len(serviceNames) == 0 {
 		return nil
 	}
 	var args []string
-	if opts.NoReload {
-		if s.rootDir != "" {
-			// passing root already implies no reload
-			args = append(args, "--root", s.rootDir)
-		} else {
-			args = append(args, "--no-reload")
-		}
-	}
-	if opts.StartNow {
-		args = append(args, "--now")
+	if s.rootDir != "" {
+		// passing root already implies no reload
+		args = append(args, "--root", s.rootDir)
+	} else {
+		args = append(args, "--no-reload")
 	}
 	args = append(args, "enable")
 	args = append(args, serviceNames...)
 	_, err := s.systemctl(args...)
 	return err
-}
-
-func (s *systemd) EnableNoReload(serviceNames []string) error {
-	return s.Enable(serviceNames, EnableOptions{
-		NoReload: true,
-	})
 }
 
 func (s *systemd) Unmask(serviceName string) error {

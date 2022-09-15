@@ -58,10 +58,6 @@ func (s *emulation) DaemonReexec() error {
 	return &notImplementedError{"DaemonReexec"}
 }
 
-func (s *emulation) Enable(services []string, opts EnableOptions) error {
-	return &notImplementedError{"Enable"}
-}
-
 func (s *emulation) EnableNoReload(services []string) error {
 	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "enable"}, services...)...)
 	return err
