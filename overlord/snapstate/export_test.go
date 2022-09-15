@@ -272,7 +272,7 @@ var (
 func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) (restartRequested, rebootRequired bool, err error) {
 	maybeRst, err := m.maybeUndoRemodelBootChanges(t)
 	if maybeRst != nil {
-		return true, maybeRst.rebootInfo.RebootRequired, nil
+		return true, maybeRst.RebootRequired, nil
 	}
 	return false, false, err
 }
