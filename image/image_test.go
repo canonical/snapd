@@ -2682,6 +2682,110 @@ func (s *imageSuite) TestSetupSeedClassic(c *C) {
 	c.Check(osutil.FileExists(blobdir), Equals, false)
 }
 
+func (s *imageSuite) TestSetupSeedClassicUC20(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	s.makeSnap(c, "snapd", nil, snap.R(1), "")
+	s.makeSnap(c, "core20", nil, snap.R(20), "")
+	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
+	gadgetContent := [][]string{
+		{"grub-recovery.conf", "# recovery grub.cfg"},
+		{"grub.conf", "# boot grub.cfg"},
+		{"meta/gadget.yaml", pcUC20GadgetYaml},
+	}
+	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "")
+	s.makeSnap(c, "required20", nil, snap.R(21), "other")
+
+	// classic UC20+ based model
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			},
+		},
+	})
+
+	prepareDir := c.MkDir()
+
+	opts := &image.Options{
+		Classic:    true,
+		PrepareDir: prepareDir,
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, IsNil)
+
+	// check seed
+	seeddir := filepath.Join(prepareDir, "system-seed")
+	seedsnapsdir := filepath.Join(seeddir, "snaps")
+	essSnaps, runSnaps, _ := s.loadSeed(c, seeddir)
+	c.Check(essSnaps, HasLen, 4)
+	c.Check(runSnaps, HasLen, 1)
+
+	stableChannel := "latest/stable"
+
+	// check the files are in place
+	for i, name := range []string{"snapd", "pc-kernel", "core20", "pc"} {
+		info := s.AssertedSnapInfo(name)
+
+		channel := stableChannel
+		switch name {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+
+		fn := info.Filename()
+		p := filepath.Join(seedsnapsdir, fn)
+		c.Check(p, testutil.FilePresent)
+		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
+			Path:          p,
+			SideInfo:      &info.SideInfo,
+			EssentialType: info.Type(),
+			Essential:     true,
+			Required:      true,
+			Channel:       channel,
+		})
+	}
+	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
+		Path:     filepath.Join(seedsnapsdir, "required20_21.snap"),
+		SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+		Required: true,
+		Channel:  stableChannel,
+	})
+	c.Check(runSnaps[0].Path, testutil.FilePresent)
+
+	l, err := ioutil.ReadDir(seedsnapsdir)
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 5)
+
+	// Ensure that system-seed/ dir does not contain any bootloader or
+	// extra files other than "snaps" ans "systems".
+	dirs, err := filepath.Glob(seeddir + "/*")
+	c.Assert(err, IsNil)
+	c.Check(dirs, DeepEquals, []string{
+		seeddir + "/snaps", seeddir + "/systems",
+	})
+}
+
 func (s *imageSuite) TestSetupSeedClassicWithLocalClassicSnap(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
