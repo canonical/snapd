@@ -26,3 +26,12 @@ var (
 	IsContainerWithInternalPolicy = isContainerWithInternalPolicy
 	LoadAppArmorProfiles          = loadAppArmorProfiles
 )
+
+func MockWSL(fun func()) {
+	old := isWsl
+	isWsl = func() bool {
+		return true
+	}
+	fun()
+	isWsl = old
+}

@@ -49,6 +49,10 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 )
 
+var isWsl = func() bool {
+	return release.OnWSL
+}
+
 // Checks to see if the current container is capable of having internal AppArmor
 // profiles that should be loaded.
 //
@@ -69,13 +73,13 @@ import (
 // unsupported configuration that cannot be properly handled by this function.
 //
 func isContainerWithInternalPolicy() bool {
+	if isWsl() {
+		return true
+	}
+
 	var appArmorSecurityFSPath = filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor")
 	var nsStackedPath = filepath.Join(appArmorSecurityFSPath, ".ns_stacked")
 	var nsNamePath = filepath.Join(appArmorSecurityFSPath, ".ns_name")
-
-	if release.OnWSL {
-		return true
-	}
 
 	contents, err := ioutil.ReadFile(nsStackedPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
