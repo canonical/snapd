@@ -210,10 +210,10 @@ func (x *cmdRemove) Execute([]string) error {
 		return x.removeOne(opts)
 	}
 
-	if x.Purge || x.Revision != "" {
-		return errors.New(i18n.G("a single snap name is needed to specify options"))
+	if x.Revision != "" {
+		return errors.New(i18n.G("cannot use --revision with multiple snap names"))
 	}
-	return x.removeMany(nil)
+	return x.removeMany(opts)
 }
 
 type channelMixin struct {
@@ -492,6 +492,7 @@ type cmdInstall struct {
 	IgnoreValidation bool                   `long:"ignore-validation"`
 	IgnoreRunning    bool                   `long:"ignore-running" hidden:"yes"`
 	Transaction      client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
+	QuotaGroupName   string                 `long:"quota-group"`
 	Positional       struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
@@ -637,6 +638,7 @@ func (x *cmdInstall) Execute([]string) error {
 		IgnoreValidation: x.IgnoreValidation,
 		IgnoreRunning:    x.IgnoreRunning,
 		Transaction:      x.Transaction,
+		QuotaGroupName:   x.QuotaGroupName,
 	}
 	x.setModes(opts)
 
@@ -1157,6 +1159,8 @@ func init() {
 			"ignore-running": i18n.G("Ignore running hooks or applications blocking the installation"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"quota-group": i18n.G("Add the snap to a quota group on install"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{

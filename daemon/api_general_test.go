@@ -61,7 +61,7 @@ func (s *generalSuite) TestRoot(c *check.C) {
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
 	expected := []interface{}{"TBD"}
 	var rsp daemon.RespJSON
@@ -107,7 +107,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
 	expected := map[string]interface{}{
 		"series":  "16",
@@ -185,7 +185,7 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
 	expected := map[string]interface{}{
 		"series":  "16",
@@ -265,7 +265,7 @@ func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
 	expected := map[string]interface{}{
 		"series":  "16",
@@ -317,7 +317,12 @@ func (s *generalSuite) TestSysInfoIsManaged(c *check.C) {
 
 	st := d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})
+	_, err := auth.NewUser(st, auth.NewUserData{
+		Username:   "someuser",
+		Email:      "mymail@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 

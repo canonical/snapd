@@ -538,10 +538,12 @@ func (fsbss *fsBackstoreSuite) TestOptionalPrimaryKeys(c *C) {
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.TestOnlyType,
 	})
+	c.Check(a, IsNil)
 	a, err = bs.Get(asserts.TestOnlyType, []string{"k5", "o1-a6"}, 0)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.TestOnlyType,
 	})
+	c.Check(a, IsNil)
 
 	// revert to initial type definition
 	r()
@@ -555,6 +557,7 @@ func (fsbss *fsBackstoreSuite) TestOptionalPrimaryKeys(c *C) {
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.TestOnlyType,
 	})
+	c.Check(a, IsNil)
 	a, err = bs.Get(asserts.TestOnlyType, []string{"k4"}, 0)
 	c.Assert(err, IsNil)
 	c.Check(a.Ref().PrimaryKey, DeepEquals, []string{"k4"})
@@ -562,6 +565,7 @@ func (fsbss *fsBackstoreSuite) TestOptionalPrimaryKeys(c *C) {
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.TestOnlyType,
 	})
+	c.Check(a, IsNil)
 }
 
 func (fsbss *fsBackstoreSuite) TestOptionalPrimaryKeysSearch(c *C) {

@@ -532,6 +532,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = installHook
 	}
 
+	if snapsup.QuotaGroupName != "" {
+		quotaAddSnapTask, err := AddSnapToQuotaGroup(st, snapsup.InstanceName(), snapsup.QuotaGroupName)
+		if err != nil {
+			return nil, err
+		}
+		addTask(quotaAddSnapTask)
+		prev = quotaAddSnapTask
+	}
+
 	// run new services
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), snapsup.InstanceName(), revisionStr))
 	addTask(startSnapServices)
@@ -687,6 +696,10 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 
 var SetupGateAutoRefreshHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
+}
+
+var AddSnapToQuotaGroup = func(st *state.State, snapName string, quotaGroup string) (*state.Task, error) {
+	panic("internal error: snapstate.AddSnapToQuotaGroup is unset")
 }
 
 var generateSnapdWrappers = backend.GenerateSnapdWrappers
@@ -1229,9 +1242,10 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 	return tasksets, nil
 }
 
-// InstallMany installs everything from the given list of names.
+// InstallMany installs everything from the given list of names. When specifying
+// revisions, the checks against enforced validation sets are bypassed.
 // Note that the state must be locked by the caller.
-func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -1267,7 +1281,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 		return nil, nil, err
 	}
 
-	installs, err := installCandidates(st, toInstall, "stable", user)
+	installs, err := installCandidates(st, toInstall, revOpts, "stable", user)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1338,7 +1352,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 // RefreshCandidates gets a list of candidates for update
 // Note that the state must be locked by the caller.
 func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, error) {
-	updates, _, _, err := refreshCandidates(context.TODO(), st, nil, user, nil)
+	updates, _, _, err := refreshCandidates(context.TODO(), st, nil, nil, user, nil)
 	return updates, err
 }
 
@@ -1348,8 +1362,8 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
-func UpdateMany(ctx context.Context, st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
-	return updateManyFiltered(ctx, st, names, userID, nil, flags, "")
+func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+	return updateManyFiltered(ctx, st, names, revOpts, userID, nil, flags, "")
 }
 
 // EnforceSnaps installs/updates/removes snaps reported by validationErrorToSolve.
@@ -1439,7 +1453,7 @@ func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) err
 	return nil
 }
 
-func updateManyFiltered(ctx context.Context, st *state.State, names []string, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, []*state.TaskSet, error) {
+func updateManyFiltered(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, []*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -1457,7 +1471,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	names = strutil.Deduplicate(names)
 
 	refreshOpts := &store.RefreshOptions{IsAutoRefresh: flags.IsAutoRefresh}
-	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, refreshOpts)
+	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, revOpts, user, refreshOpts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1492,12 +1506,19 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 			CohortKey: snapst.CohortKey,
 		}
 		return opts, snapst.Flags, snapst
-
 	}
 
 	toUpdate := make([]minimalInstallInfo, len(updates))
 	for i, up := range updates {
 		toUpdate[i] = installSnapInfo{up}
+	}
+
+	// don't refresh held snaps in a general refresh
+	if len(names) == 0 {
+		toUpdate, err = filterHeldSnaps(st, toUpdate)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if err = checkDiskSpace(st, "refresh", toUpdate, userID); err != nil {
@@ -1510,6 +1531,23 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	}
 	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
 	return updated, tasksets, nil
+}
+
+// filterHeldSnaps filters held snaps from being updated in a general refresh.
+func filterHeldSnaps(st *state.State, updates []minimalInstallInfo) ([]minimalInstallInfo, error) {
+	heldSnaps, err := HeldSnaps(st)
+	if err != nil {
+		return nil, err
+	}
+
+	filteredUpdates := make([]minimalInstallInfo, 0, len(updates))
+	for _, update := range updates {
+		if !heldSnaps[update.InstanceName()] {
+			filteredUpdates = append(filteredUpdates, update)
+		}
+	}
+
+	return filteredUpdates, nil
 }
 
 func doUpdate(ctx context.Context, st *state.State, names []string, updates []minimalInstallInfo, params updateParamsFunc, userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, []*state.TaskSet, error) {
@@ -1989,7 +2027,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 type RevisionOptions struct {
 	Channel        string
 	Revision       snap.Revision
-	ValidationSets []string
+	ValidationSets []snapasserts.ValidationSetKey
 	CohortKey      string
 	LeaveCohort    bool
 }
@@ -2218,7 +2256,7 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 	}
 	if !gateAutoRefreshHook {
 		// old-style refresh (gate-auto-refresh-hook feature disabled)
-		return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true})
+		return UpdateMany(ctx, st, nil, nil, userID, &Flags{IsAutoRefresh: true})
 	}
 
 	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.
@@ -2237,7 +2275,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 
 	refreshOpts := &store.RefreshOptions{IsAutoRefresh: true}
 	// XXX: should we skip refreshCandidates if forGatingSnap isn't empty (meaning we're handling proceed from a snap)?
-	candidates, snapstateByInstance, ignoreValidationByInstanceName, err := refreshCandidates(ctx, st, nil, user, refreshOpts)
+	candidates, snapstateByInstance, ignoreValidationByInstanceName, err := refreshCandidates(ctx, st, nil, nil, user, refreshOpts)
 	if err != nil {
 		// XXX: should we reset "refresh-candidates" to nil in state for some types
 		// of errors?
@@ -2881,14 +2919,14 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	// removeAll is set if we're removing the snap completely
 	if removeAll {
 		if requiredRevision.Unset() {
-			return fmt.Errorf("snap %q is required by validation sets: %s", si.InstanceName(), strings.Join(requiredValsets, ","))
+			return fmt.Errorf("snap %q is required by validation sets: %s", si.InstanceName(), snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
 		}
-		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), requiredRevision, strings.Join(requiredValsets, ","))
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), requiredRevision, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
 	}
 
 	// rev is set at this point (otherwise we would hit removeAll case)
 	if requiredRevision.N == rev.N {
-		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), rev, strings.Join(requiredValsets, ","))
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), rev, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
 	} // else - it's ok to remove a revision different than the required
 	return nil
 }
@@ -3118,7 +3156,7 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
-func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
+func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, []*state.TaskSet, error) {
 	names = strutil.Deduplicate(names)
 
 	if err := validateSnapNames(names); err != nil {
@@ -3132,7 +3170,7 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 
 	for _, name := range names {
-		ts, snapshotSize, err := removeTasks(st, name, snap.R(0), nil)
+		ts, snapshotSize, err := removeTasks(st, name, snap.R(0), flags)
 		// FIXME: is this expected behavior?
 		if _, ok := err.(*snap.NotInstalledError); ok {
 			continue

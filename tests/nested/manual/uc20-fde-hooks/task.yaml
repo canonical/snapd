@@ -4,7 +4,6 @@ summary: Check that the fde-setup hooks work
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
-    NESTED_IMAGE_ID: core20-fde-setup
     NESTED_ENABLE_TPM: false
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -29,8 +28,8 @@ prepare: |
 
 execute: |
   echo "Check that we have an encrypted system"
-  tests.nested exec "find /dev/mapper" | MATCH ubuntu-data-[0-9a-f-]+
-  tests.nested exec "test ! -e /var/lib/snapd/device/fde/recovery.key"
-  tests.nested exec "test -e /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"
-  tests.nested exec "test -e /run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"
-  tests.nested exec "test -e /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"
+  remote.exec "find /dev/mapper" | MATCH ubuntu-data-[0-9a-f-]+
+  remote.exec "test ! -e /var/lib/snapd/device/fde/recovery.key"
+  remote.exec "test -e /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"
+  remote.exec "test -e /run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"
+  remote.exec "test -e /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"

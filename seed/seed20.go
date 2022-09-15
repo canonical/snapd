@@ -318,15 +318,14 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, essType snap.Typ
 		snapPath = newPath
 	}
 
-	signedProv, err := snapasserts.CrossCheckProvenance(snapName, snapRev, snapDecl, s.model, s.db)
-	if err != nil {
+	if _, err := snapasserts.CrossCheckProvenance(snapName, snapRev, snapDecl, s.model, s.db); err != nil {
 		return "", nil, nil, err
 	}
 
 	// we have an authorized snap-revision with matching hash for
 	// the blob, double check that the snap metadata provenance is
 	// as expected
-	if err := snapasserts.CheckProvenance(snapPath, signedProv); err != nil {
+	if err := snapasserts.CheckProvenanceWithVerifiedRevision(snapPath, snapRev); err != nil {
 		return "", nil, nil, err
 	}
 
@@ -773,4 +772,22 @@ func (s *seed20) Iter(f func(sn *Snap) error) error {
 		}
 	}
 	return nil
+}
+
+func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) error {
+	if s.model.Grade() != asserts.ModelDangerous {
+		return nil
+	}
+
+	autoImportAssert := filepath.Join(s.systemDir, "auto-import.assert")
+	af, err := os.Open(autoImportAssert)
+	if err != nil {
+		return err
+	}
+	defer af.Close()
+	batch := asserts.NewBatch(nil)
+	if _, err := batch.AddStream(af); err != nil {
+		return err
+	}
+	return commitTo(batch)
 }

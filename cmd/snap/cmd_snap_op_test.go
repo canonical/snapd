@@ -419,6 +419,28 @@ func (s *SnapOpSuite) TestInstallDevMode(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestInstallQuotaGroup(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":      "install",
+			"channel":     "candidate",
+			"quota-group": "test-group",
+			"transaction": string(client.TransactionPerSnap),
+		})
+		s.srv.channel = "candidate"
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "candidate", "--quota-group", "test-group", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(candidate\) 1.0 from Bar installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
 func (s *SnapOpSuite) TestInstallClassic(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
@@ -929,6 +951,38 @@ func (s *SnapOpSuite) TestInstallPathDangerous(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--dangerous", snapPath})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallPathQuotaGroup(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+		form := testForm(r, c)
+		defer form.RemoveAll()
+
+		c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
+		c.Check(form.Value["quota-group"], check.DeepEquals, []string{"foo"})
+		c.Check(form.Value["snap-path"], check.NotNil)
+		c.Check(form.Value["transaction"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 4)
+
+		name, _, body := formFile(form, c)
+		c.Check(name, check.Equals, "snap")
+		c.Check(string(body), check.Equals, "snap-data")
+	}
+
+	snapBody := []byte("snap-data")
+	s.RedirectClientToTestServer(s.srv.handle)
+	snapPath := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	c.Assert(err, check.IsNil)
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--quota-group", "foo", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
@@ -2072,9 +2126,7 @@ func (s *SnapOpSuite) TestRemoveRevision(c *check.C) {
 func (s *SnapOpSuite) TestRemoveManyOptions(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--revision=17", "one", "two"})
-	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify options`)
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--purge", "one", "two"})
-	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify options`)
+	c.Assert(err, check.ErrorMatches, `cannot use --revision with multiple snap names`)
 }
 
 func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
@@ -2115,6 +2167,35 @@ func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, total)
+}
+
+func (s *SnapOpSuite) TestRemoveManyPurge(c *check.C) {
+	n := 0
+	errMsg := "stopping test after creating change successfully"
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+				"action": "remove",
+				"snaps":  []interface{}{"one", "two"},
+				"purge":  true,
+			})
+
+			c.Check(r.Method, check.Equals, "POST")
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+		default:
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type":"error", "result": {"message":%q, "kind":""}, "status-code": 400}`, errMsg)
+		}
+
+		n++
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--purge", "one", "two"})
+	// purge option was processed, the failure comes after
+	c.Assert(err, check.ErrorMatches, errMsg)
 }
 
 func (s *SnapOpSuite) TestInstallManyChannel(c *check.C) {

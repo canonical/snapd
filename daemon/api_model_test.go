@@ -178,7 +178,7 @@ func (s *modelSuite) TestGetModelHasModelAssertion(c *check.C) {
 
 	// check that we get an assertion response
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion")
 
 	// check that there is only one assertion
 	dec := asserts.NewDecoder(rec.Body)
@@ -300,7 +300,7 @@ func (s *modelSuite) TestGetModelHasSerialAssertion(c *check.C) {
 
 	// check that we get an assertion response
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion")
 
 	// check that there is only one assertion
 	dec := asserts.NewDecoder(rec.Body)

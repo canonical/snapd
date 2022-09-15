@@ -1,10 +1,14 @@
 summary: smoke test for the remote.pull tool
 
+backends: [google]
+
 # Amazon linux is skipped because no sshpass available
-systems: [-amazon-linux-*]
+# ubuntu-22.10-64 is skipped because no sshpass available
+systems: [-amazon-linux-*, -ubuntu-22.10-64]
 
 prepare: |
     tests.pkgs install sshpass
+    remote.setup config --host localhost --port 22 --user tools-user-1 --pass tools-user-1
 
 restore: |
     tests.pkgs remove sshpass
@@ -15,7 +19,6 @@ execute: |
     remote.pull -h | MATCH 'usage: remote.pull <REMOTE_PATH> <LOCAL_PATH>'
 
     # check basic pull 
-    remote.setup config --host localhost --port 22 --user tools-user-1 --pass tools-user-1
     touch /home/tools-user-1/testfile
     remote.pull testfile .
     test -f testfile
@@ -23,4 +26,4 @@ execute: |
     # Check errors
     remote.pull testfile 2>&1 | MATCH "remote.pull: local and remote paths are required"
     rm -f remote.setup.cfg
-    remote.pull /home/tools-user-1/testfile . 2>&1 | MATCH "remote.pull: config file \"remote.setup.cfg\" not found, please run remote.setup command first"
+    remote.pull /home/tools-user-1/testfile . 2>&1 | MATCH "remote.pull: config file \"$(pwd)/remote.setup.cfg\" not found, please run remote.setup command first"

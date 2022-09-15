@@ -1,14 +1,13 @@
 summary: verify a simple UC20 remodel
 details: |
   Execute a simple remodel scenario under the test-snapd brand. Both models use
-  the same test-snapd-whitebox device view store. The new model requires
-  additional snaps that are present in the test-snapd-whitebox store.
+  the same test-snapd-from device view store. The new model requires
+  additional snaps that are present in the test-snapd-from store.
 
 systems: [ubuntu-18.04-64, ubuntu-20.04-64]
 
 environment:
     NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/test-snapd-remodel-auto-import.assert
-    NESTED_IMAGE_ID: uc20-remodel-testing
     NESTED_ENABLE_TPM: false
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_USE_CLOUD_INIT: false
@@ -17,7 +16,7 @@ environment:
     NESTED_REPACK_BASE_SNAP: false
     SNAPD_TEST_BRAND: test-snapd
     # store we are remodeling from
-    SNAPD_STORE_WHITEBOX: CQvkdMjgbapk821Po2cF
+    SNAPD_STORE_FROM: CQvkdMjgbapk821Po2cF
     # device serial, this should match the sub-store mapping rules in the serial
     # vault
     SERIAL: 1234-snapd-remodel-testing
@@ -47,31 +46,31 @@ execute: |
     # wait until device is initialized and has a serial
     tests.nested wait-for device-initialized
 
-    tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
-    tests.nested exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_WHITEBOX\$"
-    tests.nested exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc$'
-    tests.nested exec "snap model --assertion --serial" | MATCH "serial: ${SERIAL}\$"
+    remote.exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
+    remote.exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_FROM\$"
+    remote.exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc$'
+    remote.exec "snap model --assertion --serial" | MATCH "serial: ${SERIAL}\$"
 
     # the new model requires hello-world snap to be present, make sure that the
     # snap and its dependency core aren't installed yet
-    not tests.nested exec "snap list hello-world"
-    not tests.nested exec "snap list core"
+    not remote.exec "snap list hello-world"
+    not remote.exec "snap list core"
 
     # snapd gets stuck ensuring prerequisites of hello-world, which is the
     # installation of core, workaround this problem by installing core
     # explicitly
     # TODO: drop this once prereq is fixed
-    tests.nested exec "snap install core"
+    remote.exec "snap install core"
 
-    tests.nested copy "$TESTSLIB/assertions/test-snapd-remodel-pc-just-model-$variant.model"
-    CHANGE_ID="$(tests.nested exec "sudo snap remodel --no-wait test-snapd-remodel-pc-just-model-$variant.model")"
+    remote.push "$TESTSLIB/assertions/test-snapd-remodel-pc-just-model-$variant.model"
+    CHANGE_ID="$(remote.exec "sudo snap remodel --no-wait test-snapd-remodel-pc-just-model-$variant.model")"
     test -n "$CHANGE_ID"
     # very long retry wait for the change to be in stable state, where stable
     # means that it's done or failed in which case we fail the test on the next
     # check just below
-    retry -n 100 --wait 5 sh -c "tests.nested exec sudo snap changes | grep -E '^${CHANGE_ID}\s+(Done|Undone|Error)'"
+    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | grep -E '^${CHANGE_ID}\s+(Done|Undone|Error)'"
     # check that the change was successful
-    tests.nested exec sudo snap changes | MATCH "^${CHANGE_ID}\s+Done"
+    remote.exec sudo snap changes | MATCH "^${CHANGE_ID}\s+Done"
 
     current_boot_id="$( tests.nested boot-id )"
     if [ "$variant" = "20" ] || [ "$variant" = "22" ]; then
@@ -84,15 +83,15 @@ execute: |
     fi
 
     # we are remodeling within the same brand and store
-    tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
-    tests.nested exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_WHITEBOX\$"
+    remote.exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
+    remote.exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_FROM\$"
     # new model
-    tests.nested exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc-just-model$'
+    remote.exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc-just-model$'
     # but the same serial
-    tests.nested exec "snap model --assertion --serial" | MATCH "serial: ${SERIAL}\$"
+    remote.exec "snap model --assertion --serial" | MATCH "serial: ${SERIAL}\$"
 
     # both new snaps are installed now
-    tests.nested exec "snap list hello-world"
-    tests.nested exec "snap list core"
+    remote.exec "snap list hello-world"
+    remote.exec "snap list core"
     # and it's possible to run hello-world
-    tests.nested exec "hello-world" | MATCH 'Hello World!'
+    remote.exec "hello-world" | MATCH 'Hello World!'

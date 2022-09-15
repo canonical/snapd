@@ -178,8 +178,7 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func addRefreshProfileTasks(st *state.State, queueTask func(task *state.Task), servicesAffected map[*snap.Info][]*snap.AppInfo) *state.TaskSet {
-	ts := state.NewTaskSet()
+func addRefreshProfileTasks(st *state.State, queueTask func(task *state.Task), servicesAffected map[*snap.Info][]*snap.AppInfo) {
 	for info := range servicesAffected {
 		setupProfilesTask := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Update snap %q (%s) security profiles"), info.SnapName(), info.Revision))
 		setupProfilesTask.Set("snap-setup", &snapstate.SnapSetup{
@@ -190,7 +189,6 @@ func addRefreshProfileTasks(st *state.State, queueTask func(task *state.Task), s
 		})
 		queueTask(setupProfilesTask)
 	}
-	return ts
 }
 
 func addRestartServicesTasks(st *state.State, queueTask func(task *state.Task), grpName string, servicesAffected map[*snap.Info][]*snap.AppInfo) {
@@ -219,6 +217,80 @@ func addRestartServicesTasks(st *state.State, queueTask func(task *state.Task), 
 		})
 		queueTask(restartTask)
 	}
+}
+
+func (m *ServiceManager) doQuotaAddSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	snapsup, err := snapstate.TaskSnapSetup(t)
+	if err != nil {
+		return err
+	}
+
+	var quotaName string
+	if err := t.Get("quota-name", &quotaName); err != nil {
+		return fmt.Errorf("internal error: cannot get quota-name: %v", err)
+	}
+
+	allGrps, err := AllQuotas(st)
+	if err != nil {
+		return err
+	}
+
+	qc := QuotaControlAction{
+		Action:    "update",
+		QuotaName: quotaName,
+		AddSnaps:  []string{snapsup.InstanceName()},
+	}
+	grp, allGrps, _, err := quotaUpdate(st, qc, allGrps)
+	if err != nil {
+		return err
+	}
+
+	// ensure service and slices on disk and their states are updated
+	opts := &ensureSnapServicesForGroupOptions{
+		allGrps: allGrps,
+	}
+
+	servicesAffected, err := ensureSnapServicesForGroup(st, t, grp, opts)
+	if err != nil {
+		return err
+	}
+
+	// ensure that if any services are affected, they get their profiles
+	// refreshed immediately as a part of the install change.
+	if len(servicesAffected) > 0 && grp.JournalLimit != nil {
+		ts := state.NewTaskSet()
+		addRefreshProfileTasks(st, func(task *state.Task) {
+			ts.AddTask(task)
+		}, servicesAffected)
+		snapstate.InjectTasks(t, ts)
+	}
+	return nil
+}
+
+func (m *ServiceManager) undoQuotaAddSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	snapsup, err := snapstate.TaskSnapSetup(t)
+	if err != nil {
+		return err
+	}
+
+	if err := EnsureSnapAbsentFromQuota(st, snapsup.InstanceName()); err != nil {
+		return err
+	}
+	return nil
 }
 
 var osutilBootID = osutil.BootID
@@ -344,8 +416,8 @@ func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]
 		return nil, nil, false, fmt.Errorf("internal error, AddSnaps option cannot be used with remove action")
 	}
 
-	if action.ResourceLimits.Memory != nil {
-		return nil, nil, false, fmt.Errorf("internal error, MemoryLimit option cannot be used with remove action")
+	if !action.ResourceLimits.Unset() {
+		return nil, nil, false, fmt.Errorf("internal error, quota limit options cannot be used with remove action")
 	}
 
 	// XXX: remove this limitation eventually
@@ -749,7 +821,21 @@ func validateSnapForAddingToGroup(st *state.State, snaps []string, group string,
 	return nil
 }
 
-func quotaControlAffectedSnaps(t *state.Task) (snaps []string, err error) {
+func affectedQuotasForQuotaControl(t *state.Task) (quotas []string, err error) {
+	qcs := []QuotaControlAction{}
+	if err := t.Get("quota-control-actions", &qcs); err != nil {
+		return nil, fmt.Errorf("internal error: cannot get quota-control-actions: %v", err)
+	}
+	quotas = make([]string, 0, len(qcs))
+	for _, qc := range qcs {
+		// TODO: the affected quotas will expand beyond this
+		// if we support reparenting or orphaning
+		quotas = append(quotas, qc.QuotaName)
+	}
+	return quotas, nil
+}
+
+func affectedSnapsForQuotaControl(t *state.Task) (snaps []string, err error) {
 	qcs := []QuotaControlAction{}
 	if err := t.Get("quota-control-actions", &qcs); err != nil {
 		return nil, fmt.Errorf("internal error: cannot get quota-control-actions: %v", err)
@@ -792,4 +878,12 @@ func quotaControlAffectedSnaps(t *state.Task) (snaps []string, err error) {
 		}
 	}
 	return snaps, nil
+}
+
+func affectedQuotasForQuotaAddSnap(t *state.Task) (quotas []string, err error) {
+	var quotaName string
+	if err := t.Get("quota-name", &quotaName); err != nil {
+		return nil, fmt.Errorf("internal error: cannot get quota-name: %v", err)
+	}
+	return []string{quotaName}, nil
 }

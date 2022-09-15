@@ -176,11 +176,9 @@ func (qr *Resources) validateJournalQuota() error {
 	}
 
 	if qr.Journal.Rate != nil {
-		// The only invalid numbers for the count are those less than 0
 		if qr.Journal.Rate.Count < 0 {
 			return fmt.Errorf("journal quota must have a rate count equal to or larger than zero")
 		}
-		// The only invalid numbers for period are values larger than 0 but less than 1us
 		if qr.Journal.Rate.Period > 0 && qr.Journal.Rate.Period < time.Microsecond {
 			return fmt.Errorf("journal quota must have a period of at least 1 microsecond (minimum resolution)")
 		}
@@ -208,6 +206,11 @@ func (qr *Resources) CheckFeatureRequirements() error {
 	return nil
 }
 
+// Unset returns true if there is no limit set
+func (qr *Resources) Unset() bool {
+	return *qr == Resources{}
+}
+
 // Validate performs basic validation of the provided quota resources for a group.
 // The restrictions imposed are that at least one limit should be set, and each
 // of the imposed limits are not zero.
@@ -215,7 +218,7 @@ func (qr *Resources) CheckFeatureRequirements() error {
 // Note that before applying the quota to the system
 // CheckFeatureRequirements() should be called.
 func (qr *Resources) Validate() error {
-	if qr.Memory == nil && qr.CPU == nil && qr.CPUSet == nil && qr.Threads == nil && qr.Journal == nil {
+	if qr.Unset() {
 		return fmt.Errorf("quota group must have at least one resource limit set")
 	}
 

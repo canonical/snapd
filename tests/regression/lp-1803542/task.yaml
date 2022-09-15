@@ -1,9 +1,11 @@
 summary: Regression test for https://bugs.launchpad.net/snapd/+bug/1803542
+
 environment:
     VARIANT/absent: absent
     VARIANT/present: present
     VARIANT/shared: shared
     VARIANT/private: private
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     # Ensure that every snap namespace is discarded.
@@ -19,8 +21,10 @@ prepare: |
         fi
     done
     not findmnt --noheadings /run/snapd/ns
+
 debug: |
     cat /proc/self/mountinfo
+
 execute: |
     case "$VARIANT" in
        absent)

@@ -107,6 +107,10 @@ const (
 	// authorization data from TPMLockoutAuthFile will be used to authorize
 	// provisioning and will get overwritten in the process.
 	TPMPartialReprovision
+	// TPMProvisionFullWithoutLockout indicates full provisioning
+	// without using lockout authorization data, as currently used
+	// by Azure CVM
+	TPMProvisionFullWithoutLockout
 )
 
 type SealKeysParams struct {

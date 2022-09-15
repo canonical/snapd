@@ -3,17 +3,17 @@ summary: Disable and enable back core services via snap set with reboot.
 systems: [ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
 
 execute: |
-  tests.nested exec "systemctl status systemd-resolved.service" | MATCH "Active: +active"
+  remote.exec "systemctl status systemd-resolved.service" | MATCH "Active: +active"
 
   echo "Disabling systemd-resolved service"
-  tests.nested exec "sudo snap set system service.systemd-resolved.disable=true"
-  tests.nested exec "systemctl status systemd-resolved.service" | MATCH "Active: +inactive"
+  remote.exec "sudo snap set system service.systemd-resolved.disable=true"
+  remote.exec "systemctl status systemd-resolved.service" | MATCH "Active: +inactive"
 
   current_boot_id=$(tests.nested boot-id)
-  tests.nested exec "sudo reboot" || true
+  remote.exec "sudo reboot" || true
   tests.nested wait-for reboot "$current_boot_id"
 
   echo "Enabling systemd-resolved service back"
-  tests.nested exec "systemctl status systemd-resolved.service" | MATCH "Active: +inactive"
-  tests.nested exec "sudo snap set system service.systemd-resolved.disable=false"
-  tests.nested exec "systemctl status systemd-resolved.service" | MATCH "Active: +active"
+  remote.exec "systemctl status systemd-resolved.service" | MATCH "Active: +inactive"
+  remote.exec "sudo snap set system service.systemd-resolved.disable=false"
+  remote.exec "systemctl status systemd-resolved.service" | MATCH "Active: +active"

@@ -46,6 +46,8 @@ github.com/snapcore/bolt v1.3.2-0.20210908134111-63c8bfcf7af8 h1:WmyDfH38e3MaMWr
 github.com/snapcore/bolt v1.3.2-0.20210908134111-63c8bfcf7af8/go.mod h1:Z6z3sf12AMDjT/4tbT/PmzzdACAxkWGhkuKWiVpTWLM=
 github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785 h1:PaunR+BhraKSLxt2awQ42zofkP+NKh/VjQ0PjIMk/y4=
 github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785/go.mod h1:D3SsWAXK7wCCBZu+Vk5hc1EuKj/L3XN1puEMXTU4LrQ=
+github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066 h1:InG0EmriMOiI4YgtQNOo+6fNxzLCYioo3Q3BCVLdMCE=
+github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066/go.mod h1:VuAdaITF1MrGzxPU+8GxagM1HW2vg7QhEFEeGHbmEMU=
 github.com/snapcore/secboot v0.0.0-20211018143212-802bb19ca263 h1:cq2rG4JcNBCwHvo7iNdJL4nb8Ns7L/aOUd1EFs2toFs=
 github.com/snapcore/secboot v0.0.0-20211018143212-802bb19ca263/go.mod h1:72paVOkm4sJugXt+v9ItmnjXgO921D8xqsbH2OekouY=
 github.com/snapcore/secboot v0.0.0-20220905094328-6a625ee231d3 h1:58BNTUsb16y89bcfYRU23V9ykMhOHHGy9zrVKgKFiqU=
@@ -108,5 +110,3 @@ gopkg.in/yaml.v2 v2.4.0 h1:D8xgwECY7CYvx+Y2n4sBz93Jn9JRvxdiyyo8CTfuKaY=
 gopkg.in/yaml.v2 v2.4.0/go.mod h1:RDklbk79AGWmwhnvt/jBztapEOGDOx6ZbXqjP6csGnQ=
 gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b h1:h8qDotaEPuJATrMmW04NCwg7v22aHH28wwpauUhK9Oo=
 gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
-maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 h1:UrD21H1Ue5Nl8f2x/NQJBRdc49YGmla3mRStinH8CCE=
-maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066/go.mod h1:DEvumi+swYmlKxSlnsvPwS15tRjoypCCeJFXswU5FfQ=

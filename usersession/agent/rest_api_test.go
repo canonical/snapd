@@ -103,7 +103,7 @@ func (s *restSuite) TestSessionInfo(c *C) {
 	rec := httptest.NewRecorder()
 	agent.SessionInfoCmd.GET(agent.SessionInfoCmd, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -147,7 +147,7 @@ func (s *restSuite) testServiceControlDaemonReload(c *C, contentType string) {
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -165,7 +165,7 @@ func (s *restSuite) TestServiceControlStart(c *C) {
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -184,7 +184,7 @@ func (s *restSuite) TestServicesStartNonSnap(c *C) {
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -213,7 +213,7 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -256,7 +256,7 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -288,7 +288,7 @@ func (s *restSuite) TestServicesStop(c *C) {
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -309,7 +309,7 @@ func (s *restSuite) TestServicesStopNonSnap(c *C) {
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -341,7 +341,7 @@ func (s *restSuite) TestServicesStopReportsError(c *C) {
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -368,7 +368,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationMalformedContentType(c *C)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 400)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -382,7 +382,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentType(c *
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 400)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -396,7 +396,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentEncoding
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 400)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -411,7 +411,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationMalformedRequestBody(c *C)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 400)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -429,7 +429,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationNoSessionBus(c *C) {
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -445,7 +445,7 @@ func (s *restSuite) testPostPendingRefreshNotificationBody(c *C, refreshInfo *cl
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -589,7 +589,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationNotificationServerFailure(
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
@@ -605,7 +605,7 @@ func (s *restSuite) testPostFinishRefreshNotificationBody(c *C, refreshInfo *cli
 	rec := httptest.NewRecorder()
 	agent.FinishRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)

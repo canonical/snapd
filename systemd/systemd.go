@@ -566,7 +566,7 @@ func (s *systemd) DaemonReexec() error {
 }
 
 func (s *systemd) EnableNoReload(serviceNames []string) error {
-	if 0 == len(serviceNames) {
+	if len(serviceNames) == 0 {
 		return nil
 	}
 	var args []string
@@ -593,7 +593,7 @@ func (s *systemd) Unmask(serviceName string) error {
 }
 
 func (s *systemd) DisableNoReload(serviceNames []string) error {
-	if 0 == len(serviceNames) {
+	if len(serviceNames) == 0 {
 		return nil
 	}
 	var args []string
