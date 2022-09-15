@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.57.2
+Version:        2.57.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -981,6 +981,13 @@ fi
 
 
 %changelog
+* Thu Sep 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.57.3
+ - i/b/system-observe: allow reading processes security label
+ - sandbox/cgroup: don't check V1 cgroup if V2 is active
+ - asserts,boot,secboot: switch to a secboot version measuring
+   classic
+
 * Fri Sep 02 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.57.2
  - store/tooling,tests: support UBUNTU_STORE_URL override env var

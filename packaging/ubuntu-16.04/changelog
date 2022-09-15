@@ -1,3 +1,13 @@
+snapd (2.57.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1983035
+    - i/b/system-observe: allow reading processes security label
+    - sandbox/cgroup: don't check V1 cgroup if V2 is active
+    - asserts,boot,secboot: switch to a secboot version measuring
+      classic
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 15 Sep 2022 08:25:30 +0200
+
 snapd (2.57.2) xenial; urgency=medium
 
   * New upstream release, LP: #1983035
