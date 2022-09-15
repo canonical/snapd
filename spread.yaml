@@ -979,6 +979,8 @@ suites:
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
+            # Add snapd debug and log to serial console
+            NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
             # Generic imane name which has to be overwritten in the test
             NESTED_IMAGE_ID: "unset"
             # Configuration file used for remote tools
@@ -992,7 +994,7 @@ suites:
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3 libvirt-daemon-system
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1049,7 +1051,7 @@ suites:
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3 libvirt-daemon-system
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1098,6 +1100,8 @@ suites:
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
+            # Add snapd debug and log to serial console
+            NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$SPREAD_PATH/remote.setup.cfg"
         manual: true
@@ -1107,7 +1111,7 @@ suites:
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3 libvirt-daemon-system
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04

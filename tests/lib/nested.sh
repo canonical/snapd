@@ -619,6 +619,13 @@ defaults:
     journal:
       persistent: true
 EOF
+            if [ "$NESTED_SNAPD_DEBUG_TO_SERIAL" = "true" ]; then
+                # add snapd debug and log to serial console for extra
+                # visibility what happens when a machine fails to boot
+                echo 'console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1 ' > pc-gadget/cmdline.extra
+            fi
+
+            # pack it
             snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
             gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
