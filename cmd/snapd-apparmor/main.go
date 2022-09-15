@@ -44,17 +44,10 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snapdtool"
 )
-
-func isWSL() bool {
-	if output, err := exec.Command("systemd-detect-virt", "--container").Output(); err == nil {
-		virt := strings.TrimSpace(string(output))
-		return virt == "wsl"
-	}
-	return false
-}
 
 // Checks to see if the current container is capable of having internal AppArmor
 // profiles that should be loaded.
@@ -80,7 +73,7 @@ func isContainerWithInternalPolicy() bool {
 	var nsStackedPath = filepath.Join(appArmorSecurityFSPath, ".ns_stacked")
 	var nsNamePath = filepath.Join(appArmorSecurityFSPath, ".ns_name")
 
-	if isWSL() {
+	if release.OnWSL {
 		return true
 	}
 
