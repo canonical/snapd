@@ -1058,6 +1058,12 @@ func (s *systemsSuite) testSystemInstallActionCallsDevicestate(c *check.C, step 
 	d := s.daemon(c)
 	st := d.Overlord().State()
 
+	soon := 0
+	_, restore := daemon.MockEnsureStateSoon(func(st *state.State) {
+		soon++
+	})
+	defer restore()
+
 	nCalls := 0
 	var gotOnVolumes map[string]*gadget.Volume
 	var gotLabel string
@@ -1098,11 +1104,19 @@ func (s *systemsSuite) testSystemInstallActionCallsDevicestate(c *check.C, step 
 			Bootloader: "grub",
 		},
 	})
+
+	c.Check(soon, check.Equals, 1)
 }
 
 func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {
 	d := s.daemon(c)
 	st := d.Overlord().State()
+
+	var soon int
+	_, restore := daemon.MockEnsureStateSoon(func(st *state.State) {
+		soon++
+	})
+	defer restore()
 
 	for _, tc := range []struct {
 		installStep      string
@@ -1111,6 +1125,7 @@ func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {
 		{"finish", 1},
 		{"setup-storage-encryption", 1},
 	} {
+		soon = 0
 		body := map[string]interface{}{
 			"action": "install",
 			"step":   tc.installStep,
@@ -1135,6 +1150,7 @@ func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {
 
 		c.Check(chg, check.NotNil, check.Commentf("%v", tc))
 		c.Check(tasks, check.HasLen, tc.expectedNumTasks, check.Commentf("%v", tc))
+		c.Check(soon, check.Equals, 1)
 	}
 }
 
