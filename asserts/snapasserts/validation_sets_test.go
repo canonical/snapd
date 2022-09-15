@@ -1099,7 +1099,7 @@ func (s *validationSetsSuite) TestValidationSetKeyFormat(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	valSetKey := snapasserts.NewValidationSetKey(*valSet)
+	valSetKey := snapasserts.NewValidationSetKey(valSet)
 	c.Assert(valSetKey.String(), Equals, fmt.Sprintf("%s/%s/%s/%d", series, acc, name, sequence))
 }
 
@@ -1119,7 +1119,7 @@ func (s *validationSetsSuite) TestValidationSetKeySliceCommaSeparated(c *C) {
 }
 
 func (s *validationSetsSuite) TestValidationSetKeyComponents(c *C) {
-	valsetKey := snapasserts.NewValidationSetKey(*assertstest.FakeAssertion(map[string]interface{}{
+	valsetKey := snapasserts.NewValidationSetKey(assertstest.FakeAssertion(map[string]interface{}{
 		"type":         "validation-set",
 		"series":       "a",
 		"authority-id": "b",
