@@ -49,7 +49,7 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 )
 
-var isWsl = func() bool {
+var isWSL = func() bool {
 	return release.OnWSL
 }
 
@@ -73,7 +73,7 @@ var isWsl = func() bool {
 // unsupported configuration that cannot be properly handled by this function.
 //
 func isContainerWithInternalPolicy() bool {
-	if isWsl() {
+	if isWSL() {
 		return true
 	}
 

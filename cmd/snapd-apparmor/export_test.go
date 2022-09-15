@@ -27,11 +27,10 @@ var (
 	LoadAppArmorProfiles          = loadAppArmorProfiles
 )
 
-func MockWSL(fun func()) {
-	old := isWsl
-	isWsl = func() bool {
-		return true
+func MockWSL(mock func() bool) (restorer func()) {
+	old := isWSL
+	isWSL = mock
+	return func() {
+		isWSL = old
 	}
-	fun()
-	isWsl = old
 }
