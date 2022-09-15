@@ -122,7 +122,8 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const upowerObservePermanentSlotDBus = `
-<!-- DBus policy for upower (based on upstream version 0.99.4) -->
+<!-- From upstream version 1.90.0 -->
+<!-- Only root can own the service -->
 <policy user="root">
   <allow own="org.freedesktop.UPower"/>
 </policy>
@@ -140,8 +141,6 @@ const upowerObservePermanentSlotDBus = `
          send_interface="org.freedesktop.DBus.Properties"/>
   <allow send_destination="org.freedesktop.UPower.KbdBacklight"
          send_interface="org.freedesktop.DBus.Properties"/>
-  <allow send_destination="org.freedesktop.UPower.Wakeups"
-         send_interface="org.freedesktop.DBus.Properties"/>
 
   <allow send_destination="org.freedesktop.UPower"
          send_interface="org.freedesktop.UPower"/>
@@ -149,8 +148,6 @@ const upowerObservePermanentSlotDBus = `
          send_interface="org.freedesktop.UPower.Device"/>
   <allow send_destination="org.freedesktop.UPower"
          send_interface="org.freedesktop.UPower.KbdBacklight"/>
-  <allow send_destination="org.freedesktop.UPower"
-         send_interface="org.freedesktop.UPower.Wakeups"/>
 </policy>
 `
 
