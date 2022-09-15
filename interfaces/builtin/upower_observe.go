@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -231,7 +230,7 @@ func (iface *upowerObserveInterface) StaticInfo() interfaces.StaticInfo {
 func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
-	if release.OnClassic {
+	if implicitSystemConnectedSlot(slot) {
 		// Let confined apps access unconfined upower on classic
 		new = "unconfined"
 	}
@@ -241,17 +240,23 @@ func (iface *upowerObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 }
 
 func (iface *upowerObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(upowerObservePermanentSlotAppArmor)
+	if !implicitSystemPermanentSlot(slot) {
+		spec.AddSnippet(upowerObservePermanentSlotAppArmor)
+	}
 	return nil
 }
 
 func (iface *upowerObserveInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(upowerObservePermanentSlotSeccomp)
+	if !implicitSystemPermanentSlot(slot) {
+		spec.AddSnippet(upowerObservePermanentSlotSeccomp)
+	}
 	return nil
 }
 
 func (iface *upowerObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(upowerObservePermanentSlotDBus)
+	if !implicitSystemPermanentSlot(slot) {
+		spec.AddSnippet(upowerObservePermanentSlotDBus)
+	}
 	return nil
 }
 
