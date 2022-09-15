@@ -44,6 +44,13 @@ var (
 	// snapdMountPath is where target core/snapd is going to be mounted in the target chroot
 	snapdMountPath = "/tmp/snapd-preseed"
 	syscallChroot  = syscall.Chroot
+	// list of the permitted sysfs overlay paths
+	// this list has to be kept in sync with sysfs paths used by snap interfaces, e.g. gpio
+	permitedSysfsOverlays = []string{
+		"sys/class/backlight", "sys/class/bluetooth", "sys/class/gpio",
+		"sys/class/leds", "sys/class/ptp", "sys/class/pwm",
+		"sys/class/rtc", "sys/class/video4linux", "sys/devices/platform",
+		"sys/devices/pci0000:00"}
 )
 
 // checkChroot does a basic validity check of the target chroot environment, e.g. makes
@@ -281,21 +288,13 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 
 	if sysfsOverlay != "" {
 		// bind mount only permitted directories under sys/class and sys/devices
-		for _, dir := range []string{
-			"sys/class/backlight", "sys/class/bluetooth", "sys/class/gpio",
-			"sys/class/leds", "sys/class/ptp", "sys/class/pwm",
-			"sys/class/rtc", "sys/class/video4linux", "sys/devices/platform",
-			"sys/devices/pci0000:00"} {
+		for _, dir := range permitedSysfsOverlays {
 			info, err := os.Stat(underOverlay(dir))
 			if err == nil && info.IsDir() {
 				// ensure dir exists
-				if _, err := os.Stat(underPreseed(dir)); errors.Is(err, os.ErrNotExist) {
-					err := os.MkdirAll(underPreseed(dir), os.ModePerm)
-					if err != nil {
-						return nil, fmt.Errorf("cannot create overlay dir (%s): %v", underPreseed(dir), err)
-					}
-				} else if err != nil {
-					return nil, fmt.Errorf("cannot stat (%s): %v", underPreseed(dir), err)
+				err := os.MkdirAll(underPreseed(dir), os.ModePerm)
+				if err != nil {
+					return nil, fmt.Errorf("cannot create overlay dir (%s): %v", underPreseed(dir), err)
 				}
 				mounts = append(mounts, []string{"--bind", underOverlay(dir), underPreseed(dir)})
 			}
