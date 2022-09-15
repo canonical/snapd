@@ -2675,7 +2675,7 @@ func (s *imageSuite) TestSetupSeedClassic(c *C) {
 		"snap_kernel": "",
 	})
 
-	c.Check(s.stderr.String(), Matches, `WARNING: ensure that the contents under .*/var/lib/snapd/seed are owned by root:root in the \(final\) image`)
+	c.Check(s.stderr.String(), Matches, `WARNING: ensure that the contents under .*/var/lib/snapd/seed are owned by root:root in the \(final\) image\n`)
 
 	// no blob dir created
 	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
@@ -2813,7 +2813,7 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
 		"snap_kernel": "",
 	})
 
-	c.Check(s.stderr.String(), Matches, `WARNING: ensure that the contents under .*/var/lib/snapd/seed are owned by root:root in the \(final\) image`)
+	c.Check(s.stderr.String(), Matches, `WARNING: ensure that the contents under .*/var/lib/snapd/seed are owned by root:root in the \(final\) image\n`)
 
 	// no blob dir created
 	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
