@@ -560,6 +560,7 @@ WantedBy=multi-user.target
 	)
 	jconfTempl := `# Journald configuration for snap quota group %s
 [Journal]
+Storage=auto
 `
 
 	sliceTempl := `[Unit]
@@ -663,6 +664,7 @@ WantedBy=multi-user.target
 	)
 	jconfTempl := `# Journald configuration for snap quota group %s
 [Journal]
+Storage=auto
 SystemMaxUse=10485760
 RuntimeMaxUse=10485760
 RateLimitIntervalSec=5000000us
@@ -769,6 +771,7 @@ WantedBy=multi-user.target
 	)
 	jconfTempl := `# Journald configuration for snap quota group %s
 [Journal]
+Storage=auto
 RateLimitIntervalSec=0us
 RateLimitBurst=0
 `
