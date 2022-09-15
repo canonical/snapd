@@ -8919,7 +8919,7 @@ func (s *snapmgrTestSuite) TestUpdateManyTransactionalWithLane(c *C) {
 	}
 }
 
-func (s *snapmgrTestSuite) TestUpdateManyLaneIgnoredWithoutTransactional(c *C) {
+func (s *snapmgrTestSuite) TestUpdateManyLaneErrorsWithLaneButNoTransaction(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -8990,7 +8990,7 @@ func (s *snapmgrTestSuite) TestUpdateTransactionalWithLane(c *C) {
 	}
 }
 
-func (s *snapmgrTestSuite) TestUpdateLaneIgnoredWithoutTransactional(c *C) {
+func (s *snapmgrTestSuite) TestUpdateLaneErrorsWithLaneButNoTransaction(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 

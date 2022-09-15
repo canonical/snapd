@@ -5503,7 +5503,7 @@ func (s *snapmgrTestSuite) TestInstallManyTransactionalWithLane(c *C) {
 	}
 }
 
-func (s *snapmgrTestSuite) TestInstallManyLaneIgnoredWithoutTransactional(c *C) {
+func (s *snapmgrTestSuite) TestInstallManyErrorsWithLaneButNoTransaction(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -5563,7 +5563,7 @@ epoch: 1
 	}
 }
 
-func (s *snapmgrTestSuite) TestInstallPathManyLaneIgnoredWithoutTransactional(c *C) {
+func (s *snapmgrTestSuite) TestInstallPathManyErrorsWithLaneButNoTransaction(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
