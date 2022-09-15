@@ -330,7 +330,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	return SyncResponse(createdUsersResponse)
 }
 
-func doUserWrapper(st *state.State, createData postUserCreateData) ([]devicestate.CreatedUser, error) {
+func doUserWrapper(st *state.State, createData postUserCreateData) ([]*devicestate.CreatedUser, error) {
 	st.Lock()
 	defer st.Unlock()
 
@@ -339,7 +339,7 @@ func doUserWrapper(st *state.State, createData postUserCreateData) ([]devicestat
 	}
 
 	user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email)
-	return []devicestate.CreatedUser{user}, err
+	return []*devicestate.CreatedUser{user}, err
 }
 
 type postUserData struct {

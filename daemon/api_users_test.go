@@ -76,12 +76,12 @@ func (s *userSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(daemon.MockHasUserAdmin(true))
 
 	// make sure we don't call these by accident)
-	s.AddCleanup(daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string) (createdUsers devicestate.CreatedUser, internalErr error) {
+	s.AddCleanup(daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string) (createdUsers *devicestate.CreatedUser, internalErr error) {
 		c.Fatalf("unexpected create user %q call", email)
-		return devicestate.CreatedUser{}, &devicestate.UserError{Err: fmt.Errorf("unexpected create user %q call", email)}
+		return nil, &devicestate.UserError{Err: fmt.Errorf("unexpected create user %q call", email)}
 	}))
 
-	s.AddCleanup(daemon.MockDeviceStateCreateKnownUsers(func(st *state.State, sudoer bool, email string) (createdUsers []devicestate.CreatedUser, internalErr error) {
+	s.AddCleanup(daemon.MockDeviceStateCreateKnownUsers(func(st *state.State, sudoer bool, email string) (createdUsers []*devicestate.CreatedUser, internalErr error) {
 		c.Fatalf("unexpected create user %q call", email)
 		return nil, &devicestate.UserError{Err: fmt.Errorf("unexpected create user %q call", email)}
 	}))
@@ -481,10 +481,10 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 	expectedUsername := "karl"
 	expectedEmail := "popper@lse.ac.uk"
 
-	defer daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string) (devicestate.CreatedUser, error) {
+	defer daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string) (*devicestate.CreatedUser, error) {
 		c.Check(email, check.Equals, expectedEmail)
 		c.Check(sudoer, check.Equals, false)
-		expected := devicestate.CreatedUser{
+		expected := &devicestate.CreatedUser{
 			Username: expectedUsername,
 			SSHKeys: []string{
 				`ssh1 # snapd {"origin":"store","email":"popper@lse.ac.uk"}`,
@@ -533,7 +533,7 @@ func (s *userSuite) TestPostUserCreateErrInternal(c *check.C) {
 
 func (s *userSuite) testCreateUserErr(c *check.C, internalErr bool) {
 	called := 0
-	defer daemon.MockDeviceStateCreateKnownUsers(func(st *state.State, sudoer bool, email string) ([]devicestate.CreatedUser, error) {
+	defer daemon.MockDeviceStateCreateKnownUsers(func(st *state.State, sudoer bool, email string) ([]*devicestate.CreatedUser, error) {
 		called++
 		if internalErr {
 			return nil, fmt.Errorf("internal error: wat-internal")
