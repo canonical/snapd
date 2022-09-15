@@ -313,7 +313,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		createData.Sudoer = true
 	}
 
-	createdUsers, err := doUserWrapper(st, createData)
+	createdUsers, err := doCreateUser(st, createData)
 	if err != nil {
 		if _, ok := err.(*devicestate.UserError); ok {
 			return BadRequest(err.Error())
@@ -330,7 +330,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	return SyncResponse(createdUsersResponse)
 }
 
-func doUserWrapper(st *state.State, createData postUserCreateData) ([]*devicestate.CreatedUser, error) {
+func doCreateUser(st *state.State, createData postUserCreateData) ([]*devicestate.CreatedUser, error) {
 	st.Lock()
 	defer st.Unlock()
 
