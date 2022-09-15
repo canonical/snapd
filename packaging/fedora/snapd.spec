@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.57.2
+Version:        2.57.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -981,6 +981,18 @@ fi
 
 
 %changelog
+* Thu Sep 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.57.3
+ - wrappers: journal namespaces did not honor journal.persistent
+ - snap/quota,wrappers: allow using 0 values for the journal rate to
+   override the system default values
+ - multiple: clear up naming convention for cpu-set quota
+ - i/b/mount-control: allow custom filesystem types
+ - i/b/system-observe: allow reading processes security label
+ - sandbox/cgroup: don't check V1 cgroup if V2 is active
+ - asserts,boot,secboot: switch to a secboot version measuring
+   classic
+
 * Fri Sep 02 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.57.2
  - store/tooling,tests: support UBUNTU_STORE_URL override env var
