@@ -114,7 +114,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	}()
 
 	uc20Mod := &gadgettest.ModelCharacteristics{
-		SystemSeed: true,
+		HasModes: true,
 	}
 
 	s.setupMockUdevSymlinks(c, "mmcblk0p1")
@@ -598,7 +598,7 @@ type factoryResetOpts struct {
 
 func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	uc20Mod := &gadgettest.ModelCharacteristics{
-		SystemSeed: true,
+		HasModes: true,
 	}
 
 	if opts.noSave && opts.encryption {
