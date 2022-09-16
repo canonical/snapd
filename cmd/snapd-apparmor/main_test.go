@@ -159,9 +159,7 @@ func (s *mainSuite) TestIsContainer(c *C) {
 	defer detectCmd.Restore()
 	defer snapd_apparmor.MockWSL(true)()
 	c.Check(snapd_apparmor.IsContainer(), Equals, true)
-	c.Assert(detectCmd.Calls(), DeepEquals, [][]string{
-		{"systemd-detect-virt", "--quiet", "--container"}})
-
+	c.Assert(detectCmd.Calls(), DeepEquals, [][]string(nil))
 }
 
 func (s *mainSuite) TestValidateArgs(c *C) {
