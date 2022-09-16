@@ -258,12 +258,14 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 		if err != nil {
 			return BadRequest("cannot setup storage encryption for install from %q: %v", systemLabel, err)
 		}
+		ensureStateSoon(st)
 		return AsyncResponse(nil, chg.ID())
 	case client.InstallStepFinish:
 		chg, err := devicestateInstallFinish(st, systemLabel, req.OnVolumes)
 		if err != nil {
 			return BadRequest("cannot finish install for %q: %v", systemLabel, err)
 		}
+		ensureStateSoon(st)
 		return AsyncResponse(nil, chg.ID())
 	default:
 		return BadRequest("unsupported install step %q", req.Step)
