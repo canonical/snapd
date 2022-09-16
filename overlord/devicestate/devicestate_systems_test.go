@@ -2400,5 +2400,5 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeed(c *C) {
 	c.Assert(err, IsNil)
 
 	_, _, _, err = mgr.SystemAndGadgetAndEncryptionInfo("some-label")
-	c.Assert(err, ErrorMatches, "cannot get model and gadget information on a classic boot system")
+	c.Assert(err, ErrorMatches, `cannot load assertions for label "some-label": no seed assertions`)
 }

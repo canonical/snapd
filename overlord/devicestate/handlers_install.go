@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -58,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -67,6 +69,7 @@ var (
 	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
 	installRun                           = install.Run
 	installFactoryReset                  = install.FactoryReset
+	installWriteContent                  = install.WriteContent
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
@@ -251,6 +254,28 @@ func writeTimings(st *state.State, rootdir, fromMode string) error {
 	return nil
 }
 
+// buildInstallObservers will create observers for the gadget assets used
+// while assets are being installed.
+func buildInstallObservers(model *asserts.Model, gadgetDir string, useEncryption bool) (
+	observer gadget.ContentObserver, trustedObserver *boot.TrustedAssetsInstallObserver, err error) {
+
+	// observer will be a nil interface by default
+	trustedObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption)
+	if err != nil && err != boot.ErrObserverNotApplicable {
+		return nil, nil, fmt.Errorf("cannot setup asset install observer: %v", err)
+	}
+	if err == nil {
+		observer = trustedObserver
+		if !useEncryption {
+			// there will be no key sealing, so past the
+			// installation pass no other methods need to be called
+			trustedObserver = nil
+		}
+	}
+
+	return observer, trustedObserver, nil
+}
+
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -312,20 +337,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
-	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
-	// get a nice nil interface by default
-	var installObserver gadget.ContentObserver
-	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption)
-	if err != nil && err != boot.ErrObserverNotApplicable {
-		return fmt.Errorf("cannot setup asset install observer: %v", err)
-	}
-	if err == nil {
-		installObserver = trustedInstallObserver
-		if !useEncryption {
-			// there will be no key sealing, so past the
-			// installation pass no other methods need to be called
-			trustedInstallObserver = nil
-		}
+	installObserver, trustedInstallObserver, err := buildInstallObservers(model, gadgetDir, useEncryption)
+	if err != nil {
+		return err
 	}
 
 	var installedSystem *install.InstalledSystemSideData
@@ -1198,12 +1212,34 @@ func snapInfoFrom(seedInfo *seed.Snap) (*snap.Info, error) {
 	return snap.ReadInfoFromSnapFile(snapf, seedInfo.SideInfo)
 }
 
-func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
-	perf := timings.New(nil)
+func mountSeedSnap(seedSn *seed.Snap) (mountpoint string, restore func() error, err error) {
+	mountpoint = filepath.Join(dirs.SnapRunDir, "snap-content", string(seedSn.EssentialType))
+	if err := os.MkdirAll(mountpoint, 0755); err != nil {
+		return "", nil, err
+	}
 
+	// temporarily mount the filesystem
+	logger.Debugf("Mounting %q in %q", seedSn.Path, mountpoint)
+	sd := systemd.New(systemd.SystemMode, progress.Null)
+	if err := sd.Mount(seedSn.Path, mountpoint); err != nil {
+		return "", nil, fmt.Errorf("cannot mount %q at %q: %v", seedSn.Path, mountpoint, err)
+	}
+	return mountpoint,
+		func() error {
+			logger.Debugf("Unmounting %q", mountpoint)
+			return sd.Umount(mountpoint)
+		},
+		nil
+}
+
+func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
+	var err error
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
 
 	var systemLabel string
 	if err := t.Get("system-label", &systemLabel); err != nil {
@@ -1217,54 +1253,70 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	// TODO: use the seed to get gadget/kernel
 	// - install missing volumes structure content
+	// - install gadget assets
+	// - install kernel
+	// - make system bootable (include writing modeenv)
 
-	// XXX: this code currently assumes that the installer has mounted
-	//      things at the right places under /run/mnt/ubuntu-{boot,data}
-	ds, err := loadDeviceSeed(st, systemLabel)
+	st.Unlock()
+	sys, _, snapInfos, snapSeeds, _, err :=
+		m.LoadLabelInformation(systemLabel)
+	st.Lock()
 	if err != nil {
 		return err
 	}
-	if err := ds.LoadEssentialMeta(nil, perf); err != nil {
-		return err
+	// Mount gadget and kernel
+	mntPtForType := make(map[snap.Type]string)
+	for _, seedSn := range []*seed.Snap{snapSeeds[snap.TypeGadget], snapSeeds[snap.TypeKernel]} {
+		mntPt, rest, err := mountSeedSnap(seedSn)
+		mntPtForType[seedSn.EssentialType] = mntPt
+		if err != nil {
+			return err
+		}
+		defer func() {
+			errRest := rest()
+			if errRest != nil {
+				err = errRest
+			}
+		}()
 	}
-	// TODO: add sealer
-	var sealer *boot.TrustedAssetsInstallObserver
 
-	// EssentialSnaps is always ordered, see asserts.Model.EssentialSnaps:
-	// "snapd, kernel, boot base, gadget."
-	kernelInfo, err := snapInfoFrom(ds.EssentialSnaps()[1])
+	// TODO useEncryption equals true case
+	useEncryption := false
+	installObserver, trustedInstallObserver, err := buildInstallObservers(sys.Model, mntPtForType[snap.TypeGadget], useEncryption)
 	if err != nil {
 		return err
 	}
-	baseInfo, err := snapInfoFrom(ds.EssentialSnaps()[2])
+
+	logger.Noticef("writing content to partitions")
+	timings.Run(perfTimings, "install-finish", "Writing content to partitions", func(tm timings.Measurer) {
+		st.Unlock()
+		defer st.Lock()
+		err = installWriteContent(onVolumes, installObserver,
+			mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, perfTimings)
+	})
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot write content: %v", err)
 	}
-	gadgetInfo, err := snapInfoFrom(ds.EssentialSnaps()[3])
-	if err != nil {
-		return err
-	}
-	gadgetMountDir := filepath.Join(dirs.RunDir, "mnt", "gadget")
-	if err := mountSnap(ds.EssentialSnaps()[3].Path, gadgetMountDir); err != nil {
-		return err
-	}
-	defer func() { exec.Command("umount", gadgetMountDir).Run() }()
+
+	// TODO base?
 	bootWith := &boot.BootableSet{
-		Base:       baseInfo,
-		BasePath:   ds.EssentialSnaps()[2].Path,
-		Kernel:     kernelInfo,
-		KernelPath: ds.EssentialSnaps()[1].Path,
-		Gadget:     gadgetInfo,
-		GadgetPath: ds.EssentialSnaps()[3].Path,
+		Base:       snapInfos[snap.TypeBase],
+		BasePath:   snapSeeds[snap.TypeBase].Path,
+		Kernel:     snapInfos[snap.TypeKernel],
+		KernelPath: snapSeeds[snap.TypeKernel].Path,
+		Gadget:     snapInfos[snap.TypeGadget],
+		GadgetPath: snapSeeds[snap.TypeGadget].Path,
 
-		UnpackedGadgetDir: gadgetMountDir,
+		UnpackedGadgetDir: mntPtForType[snap.TypeGadget],
 		Recovery:          false,
 	}
 
-	if err := boot.MakeRunnableSystem(ds.Model(), bootWith, sealer); err != nil {
+	logger.Debugf("making the installed system runnable")
+	if err := boot.MakeRunnableSystem(sys.Model, bootWith, trustedInstallObserver); err != nil {
 		return err
 	}
-	return nil
+
+	return err
 }
 
 func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.Tomb) error {
