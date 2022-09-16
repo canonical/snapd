@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdenv"
 )
 
@@ -39,6 +40,14 @@ func (s *UASuite) SetUpTest(c *C) {
 
 func (s *UASuite) TearDownTest(c *C) {
 	s.restore()
+}
+
+func mockWsl(onWSL bool) (restorer func()) {
+	oldWSL := release.OnWSL
+	release.OnWSL = onWSL
+	return func() {
+		release.OnWSL = oldWSL
+	}
 }
 
 func (s *UASuite) TestUserAgent(c *C) {
@@ -62,6 +71,20 @@ func (s *UASuite) TestUserAgent(c *C) {
 	snapdenv.SetUserAgentFromVersion("10", probeForceDevMode, "extraProd")
 	ua = snapdenv.UserAgent()
 	c.Check(strings.Contains(ua, "devmode"), Equals, true)
+}
+
+func (s *UASuite) TestUserAgentWSL(c *C) {
+	restore := mockWsl(false)
+	snapdenv.SetUserAgentFromVersion("10", nil)
+	ua := snapdenv.UserAgent()
+	c.Check(strings.Contains(ua, "wsl"), Equals, false)
+	restore()
+
+	restore = mockWsl(true)
+	snapdenv.SetUserAgentFromVersion("10", nil)
+	ua = snapdenv.UserAgent()
+	c.Check(strings.Contains(ua, "wsl"), Equals, true)
+	restore()
 }
 
 func (s *UASuite) TestStripUnsafeRunes(c *C) {
