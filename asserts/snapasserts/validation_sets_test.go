@@ -1099,7 +1099,7 @@ func (s *validationSetsSuite) TestValidationSetKeyFormat(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
-	valSetKey := snapasserts.NewValidationSetKey(*valSet)
+	valSetKey := snapasserts.NewValidationSetKey(valSet)
 	c.Assert(valSetKey.String(), Equals, fmt.Sprintf("%s/%s/%s/%d", series, acc, name, sequence))
 }
 
@@ -1116,4 +1116,23 @@ func (s *validationSetsSuite) TestValidationSetKeySliceSort(c *C) {
 func (s *validationSetsSuite) TestValidationSetKeySliceCommaSeparated(c *C) {
 	valSets := snapasserts.ValidationSetKeySlice([]snapasserts.ValidationSetKey{"1/a/a/1", "1/a/b/1", "1/a/b/2", "2/a/a/1"})
 	c.Assert(valSets.CommaSeparated(), Equals, "1/a/a/1,1/a/b/1,1/a/b/2,2/a/a/1")
+}
+
+func (s *validationSetsSuite) TestValidationSetKeyComponents(c *C) {
+	valsetKey := snapasserts.NewValidationSetKey(assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"series":       "a",
+		"authority-id": "b",
+		"account-id":   "b",
+		"name":         "c",
+		"sequence":     "13",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       "mysnapididididididididididididid",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet))
+	c.Assert(valsetKey.Components(), DeepEquals, []string{"a", "b", "c", "13"})
 }
