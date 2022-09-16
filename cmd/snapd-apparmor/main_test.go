@@ -65,7 +65,7 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 
 	// simulate being inside WSL
 	func() {
-		defer snapd_apparmor.MockWSL(true)
+		defer snapd_apparmor.MockWSL(true)()
 		c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
 	}()
 
@@ -157,7 +157,7 @@ func (s *mainSuite) TestIsContainer(c *C) {
 	// Test WSL2 with custom kernel
 	detectCmd = testutil.MockCommand(c, "systemd-detect-virt", "echo failed > /dev/stderr; exit 1")
 	defer detectCmd.Restore()
-	defer snapd_apparmor.MockWSL(true)
+	defer snapd_apparmor.MockWSL(true)()
 	c.Check(snapd_apparmor.IsContainer(), Equals, true)
 	c.Assert(detectCmd.Calls(), DeepEquals, [][]string{
 		{"systemd-detect-virt", "--quiet", "--container"}})
@@ -232,7 +232,7 @@ func (s *integrationSuite) TestRunInContainerSkipsLoading(c *C) {
 }
 
 func (s *integrationSuite) TestRunInContainerWithInternalPolicyLoadsProfiles(c *C) {
-	snapd_apparmor.MockWSL(true)
+	defer snapd_apparmor.MockWSL(true)()
 	err := snapd_apparmor.Run()
 	c.Assert(err, IsNil)
 	c.Check(s.logBuf.String(), testutil.Contains, "DEBUG: inside container environment")
