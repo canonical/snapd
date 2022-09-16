@@ -64,10 +64,9 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
 	// simulate being inside WSL
-	func() {
-		defer snapd_apparmor.MockWSL(true)()
-		c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
-	}()
+	restore := snapd_apparmor.MockWSL(true)
+	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
+	restore()
 
 	// simulate being inside a container environment
 	testutil.MockCommand(c, "systemd-detect-virt", "echo lxc")
