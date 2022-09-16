@@ -802,8 +802,10 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	return nil
 }
 
-// FinishTaskWithRestart will finish any task that needs a restart, by
+// FinishTaskWithRestart will finish a task that needs a restart, by
 // setting its status and requesting a restart.
+// It should usually be invoked returning its result immediately
+// from the caller.
 // TODO not implemented yet: we will return an error in the future if
 // we want to hold the restart. We will also add post hold status and
 // boot id information in the task in that case.

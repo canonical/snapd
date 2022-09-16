@@ -1200,7 +1200,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
-	return m.finishTaskWithMaybeRestart(t, state.UndoneStatus, maybeRestart{info: oldInfo, RebootInfo: reboot})
+	return m.finishTaskWithMaybeRestart(t, state.UndoneStatus, restartPossibility{info: oldInfo, RebootInfo: reboot})
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
@@ -1905,10 +1905,11 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}
 	if !rebootInfo.RebootRequired || canReboot {
-		return m.finishTaskWithMaybeRestart(t, finalStatus, maybeRestart{info: newInfo, RebootInfo: rebootInfo})
+		return m.finishTaskWithMaybeRestart(t, finalStatus, restartPossibility{info: newInfo, RebootInfo: rebootInfo})
+	} else {
+		t.SetStatus(finalStatus)
+		return nil
 	}
-	t.SetStatus(finalStatus)
-	return nil
 }
 
 func setMigrationFlagsinState(snapst *SnapState, snapsup *SnapSetup) {
@@ -1925,17 +1926,20 @@ func setMigrationFlagsinState(snapst *SnapState, snapsup *SnapSetup) {
 	}
 }
 
-// maybeRestart carries information to decide whether a restart of some form
-// is required.
-type maybeRestart struct {
+// restartPossibility carries information to decide whether a restart
+// of some form is required. Non-nil pointers to values of it
+// can be used in task code to signal that the task should return
+// invoking finishTaskWithMaybeRestart.
+type restartPossibility struct {
 	info *snap.Info
 	boot.RebootInfo
 }
 
 // finishTaskWithMaybeRestart will set the final status for the task
 // and schedule a reboot or restart as needed for the just linked snap
-// with info if it's a core, snapd or kernel snap.
-func (m *SnapManager) finishTaskWithMaybeRestart(t *state.Task, status state.Status, maybeRst maybeRestart) error {
+// passed in through the restartPossibility parameter, based on the
+// snap type.
+func (m *SnapManager) finishTaskWithMaybeRestart(t *state.Task, status state.Status, restartPoss restartPossibility) error {
 	// Don't restart when preseeding - we will switch to new snapd on
 	// first boot.
 	if m.preseed {
@@ -1944,12 +1948,12 @@ func (m *SnapManager) finishTaskWithMaybeRestart(t *state.Task, status state.Sta
 
 	st := t.State()
 
-	if maybeRst.RebootRequired {
+	if restartPoss.RebootRequired {
 		t.Logf("Requested system restart.")
-		return FinishTaskWithRestart(t, status, restart.RestartSystem, &maybeRst.RebootInfo)
+		return FinishTaskWithRestart(t, status, restart.RestartSystem, &restartPoss.RebootInfo)
 	}
 
-	typ := maybeRst.info.Type()
+	typ := restartPoss.info.Type()
 
 	// If the type of the snap requesting this start is non-trivial that either
 	// means we are on Ubuntu Core and the type is a base/kernel/gadget which
@@ -1993,7 +1997,8 @@ func daemonRestartReason(st *state.State, typ snap.Type) string {
 // bootloader. This can happen if e.g. a new kernel gets installed. This
 // will switch the bootloader to the new kernel but if the change is later
 // undone we need to switch back to the kernel of the old model.
-func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) (*maybeRestart, error) {
+// It returns a non-nil *restartPossibility if a restart should be considered.
+func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) (*restartPossibility, error) {
 	// get the new and the old model
 	deviceCtx, err := DeviceCtx(t.State(), t, nil)
 	if err != nil {
@@ -2052,7 +2057,7 @@ func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) (*maybeRestart,
 
 	// we may just have switch back to the old kernel/base/core so
 	// we may need to restart
-	return &maybeRestart{info: info, RebootInfo: rebootInfo}, nil
+	return &restartPossibility{info: info, RebootInfo: rebootInfo}, nil
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -2237,9 +2242,9 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return backendErr
 	}
 
-	// maybeRst will be set if we should maybe schedule a restart
-	var maybeRst *maybeRestart
-	maybeRst, err = m.maybeUndoRemodelBootChanges(t)
+	// restartPoss will be set if we should maybe schedule a restart
+	var restartPoss *restartPossibility
+	restartPoss, err = m.maybeUndoRemodelBootChanges(t)
 	if err != nil {
 		return err
 	}
@@ -2249,7 +2254,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// when reverting a subsequent snapd revision, the restart happens in
 	// undoLinkCurrentSnap() instead
 	if firstInstall && newInfo.Type() == snap.TypeSnapd {
-		maybeRst = &maybeRestart{info: newInfo, RebootInfo: boot.RebootInfo{RebootRequired: false}}
+		restartPoss = &restartPossibility{info: newInfo, RebootInfo: boot.RebootInfo{RebootRequired: false}}
 	}
 
 	// write sequence file for failover helpers
@@ -2269,8 +2274,8 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.SetStatus(finalStatus)
 
 	// should we maybe restart?
-	if maybeRst != nil {
-		return m.finishTaskWithMaybeRestart(t, finalStatus, *maybeRst)
+	if restartPoss != nil {
+		return m.finishTaskWithMaybeRestart(t, finalStatus, *restartPoss)
 	}
 
 	// If we are on classic and have no previous version of core
@@ -2749,7 +2754,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just linked back a core snap, request a restart
 	// so that we switch executing its snapd.
-	return m.finishTaskWithMaybeRestart(t, state.UndoneStatus, maybeRestart{info: info, RebootInfo: reboot})
+	return m.finishTaskWithMaybeRestart(t, state.UndoneStatus, restartPossibility{info: info, RebootInfo: reboot})
 }
 
 func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
