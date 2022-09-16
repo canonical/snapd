@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -96,6 +97,23 @@ func postSystemsInstallSetupStorageEncryption(details *client.SystemDetails) err
 	return nil
 }
 
+// XXX: reuse/extract cmd/snap/wait.go:waitMixin()
+func waitChange(chgId string) error {
+	cli := client.New(nil)
+	chg, err := cli.Change(chgId)
+	if err != nil {
+		return err
+	}
+	for {
+		if chg.Err != "" {
+			return errors.New(chg.Err)
+		}
+		if chg.Ready {
+			return nil
+		}
+	}
+}
+
 // TODO laidoutStructs is used to get the devices, when encryption is
 // happening maybe we need to find the information differently.
 func postSystemsInstallFinish(cli *client.Client,
@@ -129,8 +147,7 @@ func postSystemsInstallFinish(cli *client.Client,
 		return err
 	}
 	fmt.Printf("Change %s created\n", chgId)
-
-	return nil
+	return waitChange(chgId)
 }
 
 // XXX: pass in created partitions instead?
