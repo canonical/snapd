@@ -30,14 +30,13 @@ execute: |
   mkdir -p /var/lib/snapd/seed/systems/"$LABEL"/assertions
   cp -a "$TESTSLIB"/assertions/developer1-22-classic-dangerous.model \
       /var/lib/snapd/seed/systems/"$LABEL"/model
-  cat "$TESTSLIB"/assertions/developer1.account-key >> \
-      /var/lib/snapd/seed/systems/"$LABEL"/assertions/model-etc
-  echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/model-etc
-  cat "$TESTSLIB"/assertions/developer1.account >> \
-      /var/lib/snapd/seed/systems/"$LABEL"/assertions/model-etc
-  echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/model-etc
-  cat "$TESTSLIB"/assertions/testrootorg-store.account-key >> \
-      /var/lib/snapd/seed/systems/"$LABEL"/assertions/model-etc
+  {
+      cat "$TESTSLIB"/assertions/developer1.account-key
+      echo
+      cat "$TESTSLIB"/assertions/developer1.account
+      echo
+      cat "$TESTSLIB"/assertions/testrootorg-store.account-key
+  } >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/model-etc
 
   TDIR=/var/lib/snapd/seed/snaps
   mkdir -p "$TDIR"
