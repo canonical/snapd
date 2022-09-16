@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"unicode"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -366,6 +368,115 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 		KeyForRole:    keyForRole,
 		DeviceForRole: devicesForRoles,
 	}, nil
+}
+
+func partIndexFromPartName(part string) (uint64, error) {
+	partRunes := []rune(part)
+	i := len(partRunes)
+	for ; i > 0; i-- {
+		if !unicode.IsDigit(partRunes[i-1]) {
+			break
+		}
+	}
+
+	partIdxStr := string(partRunes[i:])
+	if partIdxStr == "" {
+		return 0, fmt.Errorf("partition index not found in %q", part)
+	}
+
+	return strconv.ParseUint(partIdxStr, 10, 64)
+}
+
+func partFromIndex(disk disks.Disk, idx uint64) (disks.Partition, error) {
+	parts, err := disk.Partitions()
+	if err != nil {
+		return disks.Partition{}, err
+	}
+	for _, p := range parts {
+		if p.DiskIndex == idx {
+			return p, nil
+		}
+	}
+
+	return disks.Partition{}, fmt.Errorf("cannot find partition index %d", idx)
+}
+
+func laidOutStructForDiskStruct(
+	laidVols map[string]*gadget.LaidOutVolume,
+	onDiskStruct *gadget.OnDiskStructure) (*gadget.LaidOutStructure, error) {
+
+	for _, laidVol := range laidVols {
+		for _, laidStruct := range laidVol.LaidOutStructure {
+			// Partlabel on disk must match gadget spec
+			if onDiskStruct.Name == laidStruct.Name {
+				return &laidStruct, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("cannot find laid out structure for %q", onDiskStruct.Name)
+}
+
+func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentObserver,
+	gadgetRoot, kernelRoot string, model *asserts.Model, perfTimings timings.Measurer) error {
+
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
+	if err != nil {
+		return fmt.Errorf("when writing content: cannot layout volumes: %v", err)
+	}
+
+	for _, vol := range onVolumes {
+		for _, volStruct := range vol.Structure {
+			// TODO fixme
+			if volStruct.Role == "mbr" {
+				continue
+			}
+			// TODO write raw content?
+			if volStruct.Role == "" {
+				continue
+			}
+			device := filepath.Base(volStruct.Device)
+			partPath, err := os.Readlink(filepath.Join("/sys/class/block", device))
+			if err != nil {
+				return err
+			}
+			// Remove initial ../../ and make path absolute
+			partPath = filepath.Join("/sys", partPath[6:])
+			logger.Debugf("Installing on partition %s", partPath)
+			// Removing the last component will give us the disk path
+			diskPath := filepath.Dir(partPath)
+			disk, err := disks.DiskFromDevicePath(diskPath)
+			if err != nil {
+				return fmt.Errorf("cannot retrieve disk information for %q: %v", partPath, err)
+			}
+			partName := filepath.Base(partPath)
+			partIdx, err := partIndexFromPartName(partName)
+			if err != nil {
+				return fmt.Errorf("cannot find partition index in %q: %v", partPath, err)
+			}
+			diskPart, err := partFromIndex(disk, partIdx)
+			if err != nil {
+				return fmt.Errorf("cannot find partition %q: %v", partPath, err)
+			}
+
+			onDiskStruct, err := gadget.OnDiskStructureFromPartition(diskPart)
+			if err != nil {
+				return fmt.Errorf("cannot retrieve on disk partition info for %q: %v", volStruct.Name, err)
+			}
+			laidOutStruct, err := laidOutStructForDiskStruct(allLaidOutVols, &onDiskStruct)
+			if err != nil {
+				return err
+			}
+			// Fill ResolvedContent
+			onDiskStruct.LaidOutStructure = *laidOutStruct
+
+			if err := writePartitionContent(&onDiskStruct, perfTimings, observer, volStruct.Device); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
