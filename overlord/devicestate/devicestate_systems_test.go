@@ -45,7 +45,6 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -2391,14 +2390,36 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidGadgetYaml(
 	c.Assert(err, ErrorMatches, "cannot parse gadget.yaml: bootloader not declared in any volume")
 }
 
-func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeed(c *C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
-
-	// create a new manager as the "isClassicBoot" information is cached
-	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), nil)
+func (s *modelAndGadgetInfoSuite) TestLoadLabelInformation(c *C) {
+	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml)
+	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	_, _, _, err = mgr.SystemAndGadgetAndEncryptionInfo("some-label")
-	c.Assert(err, ErrorMatches, "cannot get model and gadget information on a classic boot system")
+	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return fmt.Errorf("really no tpm") })
+	defer restore()
+
+	system, gadgetInfo, essentialSnaps, seedSnaps, encInfo, err := s.mgr.LoadLabelInformation("some-label")
+	c.Assert(err, IsNil)
+	c.Check(system, DeepEquals, &devicestate.System{
+		Label: "some-label",
+		Model: fakeModel,
+		Brand: s.brands.Account("my-brand"),
+		Actions: []devicestate.SystemAction{
+			{Title: "Install", Mode: "install"},
+		},
+	})
+	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
+	c.Check(essentialSnaps, HasLen, 3)
+	c.Check(essentialSnaps[snap.TypeBase].SuggestedName, Equals, "core20")
+	c.Check(essentialSnaps[snap.TypeGadget].SuggestedName, Equals, "pc")
+	c.Check(essentialSnaps[snap.TypeKernel].SuggestedName, Equals, "pc-kernel")
+	c.Check(seedSnaps, HasLen, 3)
+	c.Check(seedSnaps[snap.TypeBase].SideInfo.RealName, Equals, "core20")
+	c.Check(seedSnaps[snap.TypeGadget].SideInfo.RealName, Equals, "pc")
+	c.Check(seedSnaps[snap.TypeKernel].SideInfo.RealName, Equals, "pc-kernel")
+	c.Check(encInfo, DeepEquals, &devicestate.EncryptionSupportInfo{
+		Available:          false,
+		StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+		UnavailableWarning: "not encrypting device storage as checking TPM gave: really no tpm",
+	})
 }
