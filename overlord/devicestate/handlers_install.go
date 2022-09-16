@@ -1250,6 +1250,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 	defer func() { exec.Command("umount", gadgetMountDir).Run() }()
 	bootWith := &boot.BootableSet{
+		// TODO: base is not really needed on a classic+modes systems
 		Base:       baseInfo,
 		BasePath:   ds.EssentialSnaps()[2].Path,
 		Kernel:     kernelInfo,
@@ -1260,7 +1261,10 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		RecoverySystemLabel: systemLabel,
 
 		UnpackedGadgetDir: gadgetMountDir,
-		Recovery:          false,
+
+		// TODO: somehow tell MakeRunnableSystem that
+		//       the grub is on ESP and kernel on ubuntu-boot
+		Recovery: false,
 	}
 
 	if err := boot.MakeRunnableSystem(ds.Model(), bootWith, sealer); err != nil {
