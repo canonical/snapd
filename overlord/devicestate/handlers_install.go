@@ -1241,10 +1241,9 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	// TODO: use the seed to get gadget/kernel
 	// - install missing volumes structure content
-	// - install gadget assets
-	// - install kenrel
-	// - make system bootable (include writing modeenv)
 
+	// XXX: this code currently assumes that the installer has mounted
+	//      things at the right places under /run/mnt/ubuntu-{boot,data}
 	ds, err := loadDeviceSeed(st, systemLabel)
 	if err != nil {
 		return err
@@ -1283,6 +1282,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		GadgetPath: ds.EssentialSnaps()[3].Path,
 
 		UnpackedGadgetDir: gadgetMountDir,
+		Recovery:          false,
 	}
 
 	if err := boot.MakeRunnableSystem(ds.Model(), bootWith, sealer); err != nil {
