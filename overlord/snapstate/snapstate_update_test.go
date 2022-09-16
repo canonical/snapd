@@ -6525,7 +6525,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationRefreshToRequire
 			InstanceName:   "some-snap",
 			SnapID:         "some-snap-id",
 			Revision:       snap.R(11),
-			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 			Flags:          store.SnapActionEnforceValidation,
 		},
 		revno: snap.R(11),
@@ -6594,7 +6594,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAnyRevision(c
 			Action:         "refresh",
 			InstanceName:   "some-snap",
 			SnapID:         "some-snap-id",
-			ValidationSets: [][]string{{"16", "foo", "bar", "2"}},
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/2"},
 			Flags:          store.SnapActionEnforceValidation,
 		},
 		revno: snap.R(11),
@@ -6665,7 +6665,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationSetAny
 			InstanceName:   "some-snap",
 			SnapID:         "some-snap-id",
 			Revision:       snap.R(11),
-			ValidationSets: [][]string{{"16", "foo", "bar", "2"}},
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/2"},
 		},
 		revno: snap.R(11),
 	}}
@@ -6732,7 +6732,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWithMa
 			InstanceName:   "some-snap",
 			SnapID:         "some-snap-id",
 			Revision:       snap.R(11),
-			ValidationSets: [][]string{{"16", "foo", "bar", "2"}},
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/2"},
 			// XXX: updateToRevisionInfo doesn't set store.SnapActionEnforceValidation flag?
 		},
 		revno: snap.R(11),
@@ -7000,7 +7000,7 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetsCohortIgnore
 			InstanceName:   "some-snap",
 			SnapID:         "some-snap-id",
 			Revision:       snap.R(5),
-			ValidationSets: [][]string{{"16", "foo", "bar", "2"}},
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/2"},
 		},
 		revno: snap.R(5),
 	}}
@@ -7172,7 +7172,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionWithValidationSets(c *C) {
 			InstanceName:   "some-snap",
 			SnapID:         "some-snap-id",
 			Revision:       snap.R(11),
-			ValidationSets: [][]string{{"16", "foo", "bar"}, {"16", "foo", "baz"}},
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"},
 		},
 		revno: snap.R(11),
 	}}
@@ -8878,4 +8878,146 @@ func (s *snapmgrTestSuite) TestGeneralRefreshSkipsGatedSnaps(c *C) {
 	c.Check(chg.Err(), IsNil)
 	c.Check(chg.IsReady(), Equals, true)
 	c.Check(chg.Status(), Equals, state.DoneStatus)
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyTransactionalWithLane(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, name := range []string{"some-snap", "some-other-snap"} {
+		snapID := fmt.Sprintf("%s-id", name)
+		si := &snap.SideInfo{
+			RealName: name,
+			SnapID:   snapID,
+			Revision: snap.R(7),
+		}
+
+		snaptest.MockSnap(c, `name: some-snap`, si)
+		snapstate.Set(s.state, name, &snapstate.SnapState{
+			Active:   true,
+			Sequence: []*snap.SideInfo{si},
+			Current:  si.Revision,
+		})
+	}
+
+	lane := s.state.NewLane()
+	flags := &snapstate.Flags{
+		Transaction: client.TransactionAllSnaps,
+		Lane:        lane,
+		// the check rerefresh taskset doesn't run in the same lane
+		NoReRefresh: true,
+	}
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
+	c.Assert(err, IsNil)
+	c.Check(affected, testutil.DeepUnsortedMatches, []string{"some-snap", "some-other-snap"})
+	c.Check(tss, HasLen, 2)
+
+	for _, ts := range tss {
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{lane})
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyLaneErrorsWithLaneButNoTransaction(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, name := range []string{"some-snap", "some-other-snap"} {
+		snapID := fmt.Sprintf("%s-id", name)
+		si := &snap.SideInfo{
+			RealName: name,
+			SnapID:   snapID,
+			Revision: snap.R(7),
+		}
+
+		snaptest.MockSnap(c, `name: some-snap`, si)
+		snapstate.Set(s.state, name, &snapstate.SnapState{
+			Active:   true,
+			Sequence: []*snap.SideInfo{si},
+			Current:  si.Revision,
+		})
+	}
+
+	lane := s.state.NewLane()
+	flags := &snapstate.Flags{
+		Lane: lane,
+	}
+
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(tss, IsNil)
+	c.Check(affected, IsNil)
+
+	flags.Transaction = client.TransactionPerSnap
+
+	affected, tss, err = snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(tss, IsNil)
+	c.Check(affected, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestUpdateTransactionalWithLane(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	snaptest.MockSnap(c, `name: some-snap`, si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	lane := s.state.NewLane()
+	flags := &snapstate.Flags{
+		Transaction: client.TransactionAllSnaps,
+		Lane:        lane,
+		// the check rerefresh taskset doesn't run in the same lane
+		NoReRefresh: true,
+	}
+
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, *flags)
+	c.Assert(err, IsNil)
+	c.Assert(ts, Not(IsNil))
+	for _, t := range ts.Tasks() {
+		c.Assert(t.Lanes(), DeepEquals, []int{lane})
+	}
+}
+
+func (s *snapmgrTestSuite) TestUpdateLaneErrorsWithLaneButNoTransaction(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lane := s.state.NewLane()
+	flags := &snapstate.Flags{
+		Lane: lane,
+	}
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	snaptest.MockSnap(c, `name: some-snap`, si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, *flags)
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(ts, IsNil)
+
+	flags.Transaction = client.TransactionPerSnap
+	ts, err = snapstate.Update(s.state, "some-snap", nil, s.user.ID, *flags)
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(ts, IsNil)
 }

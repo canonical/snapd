@@ -773,3 +773,21 @@ func (s *seed20) Iter(f func(sn *Snap) error) error {
 	}
 	return nil
 }
+
+func (s *seed20) LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) error {
+	if s.model.Grade() != asserts.ModelDangerous {
+		return nil
+	}
+
+	autoImportAssert := filepath.Join(s.systemDir, "auto-import.assert")
+	af, err := os.Open(autoImportAssert)
+	if err != nil {
+		return err
+	}
+	defer af.Close()
+	batch := asserts.NewBatch(nil)
+	if _, err := batch.AddStream(af); err != nil {
+		return err
+	}
+	return commitTo(batch)
+}

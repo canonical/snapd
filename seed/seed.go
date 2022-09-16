@@ -181,6 +181,14 @@ type SnapHandler interface {
 	HandleUnassertedSnap(name, path string, tm timings.Measurer) (newPath string, err error)
 }
 
+// A AutoImportAssertionsLoaderSeed can be used to import all auto import assertions
+// via LoadAutoImportAssertions.
+type AutoImportAssertionsLoaderSeed interface {
+	// LoadAutoImportAssertions attempts to loads all Auto import assertions
+	// from the root of the seed.
+	LoadAutoImportAssertions(commitTo func(*asserts.Batch) error) error
+}
+
 // Open returns a Seed implementation for the seed at seedDir.
 // label if not empty is used to identify a Core 20 recovery system seed.
 func Open(seedDir, label string) (Seed, error) {
