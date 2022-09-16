@@ -29,7 +29,6 @@ var (
 	LoadAppArmorProfiles          = loadAppArmorProfiles
 )
 
-// version should be 0 outside wsl, and 1 or 2 within wsl
 func MockWSL(on_wsl bool) (restorer func()) {
 	old_wsl := release.OnWSL
 
