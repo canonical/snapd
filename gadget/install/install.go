@@ -218,7 +218,6 @@ func installOnePartition(part *gadget.OnDiskStructure, encryptionType secboot.En
 // size.
 func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options,
 	perfTimings timings.Measurer) (bootVolGadgetName string, created []gadget.OnDiskStructure, allLaidOutVols map[string]*gadget.LaidOutVolume, bootVolSectorSize quantity.Size, err error) {
-
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
 	logger.Noticef("        encryption: %v", options.EncryptionType)
