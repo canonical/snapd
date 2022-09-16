@@ -81,24 +81,24 @@ prepare: |
 execute: |
   # on the old variant, copy and install the new snapd to it
   if [ "$START_SNAPD_VERSION" = "old" ]; then
-    tests.nested copy snapd-from-branch.snap
+    remote.push snapd-from-branch.snap
     # This may trigger a reboot if the "managed boot config assets" change
     # (e.g. grub.cfg). Hence this waits unti lthe change is completed even
     # across reboots (retry will ensure that even if ssh cannot connect
     # during the reboot it keeps trying).
-    REMOTE_CHG_ID=$(tests.nested exec "sudo snap install --dangerous snapd-from-branch.snap --no-wait")
-    retry --wait 5 -n 24 sh -c "tests.nested exec \"snap changes\" | MATCH ^${REMOTE_CHG_ID}.*Done"
+    REMOTE_CHG_ID=$(remote.exec "sudo snap install --dangerous snapd-from-branch.snap --no-wait")
+    retry --wait 5 -n 24 sh -c "remote.exec \"snap changes\" | MATCH ^${REMOTE_CHG_ID}.*Done"
   fi
 
   # try a refresh to a new kernel revision which will trigger a reseal and then
   # a reboot
-  tests.nested copy new-kernel.snap
+  remote.push new-kernel.snap
 
   boot_id="$( tests.nested boot-id )"
-  REMOTE_CHG_ID=$(tests.nested exec "sudo snap install --dangerous new-kernel.snap --no-wait")
+  REMOTE_CHG_ID=$(remote.exec "sudo snap install --dangerous new-kernel.snap --no-wait")
   tests.nested wait-for reboot "${boot_id}"
-  tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
+  remote.exec sudo snap watch "${REMOTE_CHG_ID}"
 
-  tests.nested exec "snap changes" | tail -n +2 | awk '{print $2}' | NOMATCH Error
+  remote.exec "snap changes" | tail -n +2 | awk '{print $2}' | NOMATCH Error
 
   # TODO: also check transitioning to the recovery seed system too?

@@ -4,22 +4,21 @@ details: |
     The udisks2 interface allows operating as or interacting with the UDisks2 service
 
 # Interfaces not defined for ubuntu core systems
-# FIXME: `udisksctl mount -b  "$device"` fails on arch with:
-#   Object /org/freedesktop/UDisks2/block_devices/loop200 is not a mountable filesystem.
 # 2021-11-02: disabled ubuntu-18.04-32 because it keeps failing when trying
 #             to create/use /dev/loop200
-systems: [-ubuntu-core-*, -arch-linux-*, -centos-9-*, -ubuntu-18.04-32]
+systems: [-ubuntu-core-*, -ubuntu-18.04-32]
 
 environment:
     FS_PATH: "$(pwd)/dev0-fake0"
-    MMCBLK_PATH: /dev/mmcblk-fake0
 
 prepare: |
     snap install test-snapd-udisks2
 
 restore: |
-    losetup -d "$MMCBLK_PATH" || true
-    rm -f "$MMCBLK_PATH" "$FS_PATH"
+    device="$(losetup -j "$FS_PATH" | cut -d: -f1)"
+    if [ -n "$device" ]; then
+        udisksctl loop-delete -b "$device"
+    fi
 
 execute: |
     echo "The interface is not connected by default"
@@ -39,8 +38,7 @@ execute: |
     dd if=/dev/zero of="$FS_PATH" bs=1M count=10
     mkfs.ext4 -F "$FS_PATH"
     # create the loopback block device
-    mknod "$MMCBLK_PATH" b 7 200
-    losetup "$MMCBLK_PATH" "$FS_PATH"
+    udisksctl loop-setup -f "$FS_PATH"
 
     device="$(losetup -j "$FS_PATH" | cut -d: -f1)"
 

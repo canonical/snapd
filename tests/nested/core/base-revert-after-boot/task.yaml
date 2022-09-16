@@ -34,13 +34,13 @@ execute: |
   snap pack "$base"/ --filename="$base"_badhook.snap
 
   echo "Wait for the system to be seeded first"
-  tests.nested exec "sudo snap wait system seed.loaded"
+  remote.exec "sudo snap wait system seed.loaded"
 
   boot_id="$(tests.nested boot-id)"
 
   echo "Install base with failing post-refresh hook"
-  tests.nested copy "$base"_badhook.snap
-  chg_id=$(tests.nested exec "sudo snap install --dangerous --no-wait ./${base}_badhook.snap")
+  remote.push "$base"_badhook.snap
+  chg_id=$(remote.exec "sudo snap install --dangerous --no-wait ./${base}_badhook.snap")
 
   echo "Wait for reboot"
   tests.nested wait-for reboot "$boot_id"
@@ -51,16 +51,16 @@ execute: |
 
   boot_id="$(tests.nested boot-id)"
   # wait for change to finish with error
-  not tests.nested exec sudo snap watch "$chg_id"
+  not remote.exec sudo snap watch "$chg_id"
   # make sure that no additional reboots have happened while the change finished
   test "$boot_id" = "$(tests.nested boot-id)"
 
   echo "Check that change finished with failure and that the old snap is being used"
-  tests.nested exec "snap info $base | MATCH 'installed:.*\(x1\)'"
-  tests.nested exec "snap changes | MATCH \"^$chg_id.*Error\""
+  remote.exec "snap info $base | MATCH 'installed:.*\(x1\)'"
+  remote.exec "snap changes | MATCH \"^$chg_id.*Error\""
 
   if [ "$VERSION" -ge 20 ]; then
-      modeenv_data=$(tests.nested exec 'cat /var/lib/snapd/modeenv')
+      modeenv_data=$(remote.exec 'cat /var/lib/snapd/modeenv')
       if ! [[ "$modeenv_data" == *base=${base}_x1.snap* ]]; then
               echo "Incorrect base in modeenv: $modeenv_data"
               exit 1
@@ -78,8 +78,8 @@ execute: |
       if [ "$VERSION" -eq 16 ]; then
           SNAP=core
       fi
-      tests.nested exec "cat /boot/grub/grubenv | MATCH \"^snap_core=${SNAP}_x1.snap$\""
-      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_mode=$"'
-      tests.nested exec 'cat /boot/grub/grubenv | MATCH "^snap_try_core=$"'
-      tests.nested exec "cat /proc/cmdline | MATCH snap_core=${SNAP}_x1.snap"
+      remote.exec "cat /boot/grub/grubenv | MATCH \"^snap_core=${SNAP}_x1.snap$\""
+      remote.exec 'cat /boot/grub/grubenv | MATCH "^snap_mode=$"'
+      remote.exec 'cat /boot/grub/grubenv | MATCH "^snap_try_core=$"'
+      remote.exec "cat /proc/cmdline | MATCH snap_core=${SNAP}_x1.snap"
   fi

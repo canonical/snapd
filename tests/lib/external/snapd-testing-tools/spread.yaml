@@ -17,7 +17,6 @@ backends:
             - ubuntu-20.04-64:
             - ubuntu-22.04-64:
             - ubuntu-22.10-64:
-                image: ubuntu-os-cloud-devel/ubuntu-2210-amd64
             - debian-10-64:
             - debian-11-64:
             - debian-sid-64:            

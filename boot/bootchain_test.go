@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1241,9 +1241,26 @@ func (s *bootchainSuite) TestModelForSealing(c *C) {
 	modelForSealing := bc.SecbootModelForSealing()
 	c.Check(modelForSealing.Model(), Equals, "my-model")
 	c.Check(modelForSealing.BrandID(), Equals, "my-brand")
+	c.Check(modelForSealing.Classic(), Equals, false)
 	c.Check(modelForSealing.Grade(), Equals, asserts.ModelGrade("signed"))
 	c.Check(modelForSealing.SignKeyID(), Equals, "my-key-id")
 	c.Check(modelForSealing.Series(), Equals, "16")
 	c.Check(boot.ModelUniqueID(modelForSealing), Equals, "my-brand/my-model,signed,my-key-id")
 
+}
+
+func (s *bootchainSuite) TestClassicModelForSealing(c *C) {
+	bc := boot.BootChain{
+		BrandID:        "my-brand",
+		Model:          "my-model",
+		Classic:        true,
+		Grade:          "signed",
+		ModelSignKeyID: "my-key-id",
+	}
+
+	modelForSealing := bc.SecbootModelForSealing()
+	c.Check(modelForSealing.Model(), Equals, "my-model")
+	c.Check(modelForSealing.BrandID(), Equals, "my-brand")
+	c.Check(modelForSealing.Classic(), Equals, true)
+	c.Check(boot.ModelUniqueID(modelForSealing), Equals, "my-brand/my-model,signed,my-key-id")
 }
