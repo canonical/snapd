@@ -466,6 +466,12 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		}
 	}
 
+	// Some uc20+ systems have no recovery (e.g. classic+modes)
+	if !bootWith.Recovery {
+		// done
+		return nil
+	}
+
 	// so far so good, we managed to install the system, so it can be used
 	// for recovery as well
 	if err := MarkRecoveryCapableSystem(recoverySystemLabel); err != nil {
