@@ -248,7 +248,7 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 		// We need a way to layout volumes
 		// without looking at the content for the installer code.
 		// This needs to at least very that all content using layouts
-		// have a size defined and that it's not implict from the
+		// have a size defined and that it's not implicit from the
 		// size of the content binary (if this is a thing?).
 		if !constraints.SkipLayoutStructureContent {
 			content, err := layOutStructureContent(gadgetRootDir, &structures[idx], byName)
