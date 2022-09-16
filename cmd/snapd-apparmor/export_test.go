@@ -19,8 +19,6 @@
 
 package main
 
-import "github.com/snapcore/snapd/release"
-
 var (
 	Run                           = run
 	ValidateArgs                  = validateArgs
@@ -28,12 +26,3 @@ var (
 	IsContainerWithInternalPolicy = isContainerWithInternalPolicy
 	LoadAppArmorProfiles          = loadAppArmorProfiles
 )
-
-func MockWSL(onWSL bool) (restorer func()) {
-	oldWSL := release.OnWSL
-
-	release.OnWSL = onWSL
-	return func() {
-		release.OnWSL = oldWSL
-	}
-}
