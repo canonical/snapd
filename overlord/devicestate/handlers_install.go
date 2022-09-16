@@ -1257,6 +1257,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		Gadget:     gadgetInfo,
 		GadgetPath: ds.EssentialSnaps()[3].Path,
 
+		RecoverySystemLabel: systemLabel,
+
 		UnpackedGadgetDir: gadgetMountDir,
 		Recovery:          false,
 	}
@@ -1264,6 +1266,27 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if err := boot.MakeRunnableSystem(ds.Model(), bootWith, sealer); err != nil {
 		return err
 	}
+
+	// Copy recovery system into the classic partition
+	//
+	// TODO: "system-data" path here is wrong
+	ubuntuDataMnt := filepath.Join(dirs.RunDir, "mnt/ubuntu-data")
+	dst := dirs.SnapdStateDir(filepath.Join(ubuntuDataMnt, "system-data"))
+	if output, err := exec.Command("cp", "-a", dirs.SnapSeedDir, dst).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+
+	// GIGANTIC HACK: undo the "system-data" thing
+	dirs, err := filepath.Glob(ubuntuDataMnt + "/system-data/*")
+	if err != nil {
+		return err
+	}
+	for _, d := range dirs {
+		if output, err := exec.Command("mv", d, ubuntuDataMnt).CombinedOutput(); err != nil {
+			return osutil.OutputErr(output, err)
+		}
+	}
+
 	return nil
 }
 
