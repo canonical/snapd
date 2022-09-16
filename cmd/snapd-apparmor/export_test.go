@@ -29,11 +29,11 @@ var (
 	LoadAppArmorProfiles          = loadAppArmorProfiles
 )
 
-func MockWSL(on_wsl bool) (restorer func()) {
-	old_wsl := release.OnWSL
+func MockWSL(onWSL bool) (restorer func()) {
+	oldWSL := release.OnWSL
 
-	release.OnWSL = on_wsl
+	release.OnWSL = onWSL
 	return func() {
-		release.OnWSL = old_wsl
+		release.OnWSL = oldWSL
 	}
 }
