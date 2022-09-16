@@ -1008,7 +1008,7 @@ nested_start_core_vm_unit() {
     if nested_is_kvm_enabled; then
         ATTR_KVM=",accel=kvm"
         # CPU can be defined just when kvm is enabled
-        PARAM_CPU="-cpu host,pmu=off"
+        PARAM_CPU="-cpu host"
     fi
 
     local PARAM_MACHINE
@@ -1299,7 +1299,7 @@ nested_start_classic_vm() {
     local PARAM_MACHINE PARAM_IMAGE PARAM_SEED PARAM_SERIAL PARAM_BIOS PARAM_TPM
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MACHINE="-machine ubuntu,accel=kvm"
-        PARAM_CPU="-cpu host,pmu=off"
+        PARAM_CPU="-cpu host"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         # check if we have nested kvm
         if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
