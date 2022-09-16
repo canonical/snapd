@@ -1033,6 +1033,7 @@ nested_start_core_vm_unit() {
     PARAM_ASSERTIONS=""
     PARAM_BIOS=""
     PARAM_TPM=""
+    PARAM_REEXEC_ON_FAILURE=""
     if [ "$NESTED_USE_CLOUD_INIT" != "true" ]; then
         # TODO: fix using the old way of an ext4 formatted drive w/o partitions
         #       as this used to work but has since regressed
@@ -1089,6 +1090,14 @@ nested_start_core_vm_unit() {
     fi
     PARAM_IMAGE="$PARAM_IMAGE,${PARAM_PHYS_BLOCK_SIZE},${PARAM_LOGI_BLOCK_SIZE}"
 
+    if nested_is_core_20_system; then
+        # This is to deal with the following qemu error that it just happens using q35 machines in focal
+        # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
+        # It is reproducible on an Intel machine without unrestricted mode support, the failure is most likely due to the guest entering an invalid state for Intel VT
+        # The workaround is to restart the vm and check that qemu doesn't go into this bad state again
+        PARAM_REEXEC_ON_FAILURE="[Service]\nRestart=on-failure\nRestartSec=5s"
+    fi
+
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
     # make sure we start with clean log file
@@ -1112,7 +1121,7 @@ nested_start_core_vm_unit() {
         ${PARAM_SERIAL} \
         ${PARAM_MONITOR} \
         ${PARAM_USB} \
-        ${PARAM_CD} "
+        ${PARAM_CD} " "${PARAM_REEXEC_ON_FAILURE}"
 
     # wait for the $NESTED_VM service to appear active
     wait_for_service "$NESTED_VM"
