@@ -131,7 +131,8 @@ func loadAppArmorProfiles() error {
 }
 
 func isContainer() bool {
-	return (exec.Command("systemd-detect-virt", "--quiet", "--container").Run() == nil)
+	// systemd's implementation may fail on WSL2 with custom kernels
+	return release.OnWSL || (exec.Command("systemd-detect-virt", "--quiet", "--container").Run() == nil)
 }
 
 func validateArgs(args []string) error {
