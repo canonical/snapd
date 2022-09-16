@@ -49,10 +49,6 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 )
 
-var isWSL = func() bool {
-	return release.OnWSL
-}
-
 // Checks to see if the current container is capable of having internal AppArmor
 // profiles that should be loaded.
 //
@@ -73,7 +69,7 @@ var isWSL = func() bool {
 // unsupported configuration that cannot be properly handled by this function.
 //
 func isContainerWithInternalPolicy() bool {
-	if isWSL() {
+	if release.OnWSL {
 		return true
 	}
 

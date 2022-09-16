@@ -65,7 +65,7 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 
 	// simulate being inside WSL
 	func() {
-		defer snapd_apparmor.MockWSL(func() bool { return true })
+		defer snapd_apparmor.MockWSL(true)
 		c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
 	}()
 
@@ -232,7 +232,7 @@ func (s *integrationSuite) TestRunInContainerSkipsLoading(c *C) {
 }
 
 func (s *integrationSuite) TestRunInContainerWithInternalPolicyLoadsProfiles(c *C) {
-	snapd_apparmor.MockWSL(func() bool { return true })
+	snapd_apparmor.MockWSL(true)
 	err := snapd_apparmor.Run()
 	c.Assert(err, IsNil)
 	c.Check(s.logBuf.String(), testutil.Contains, "DEBUG: inside container environment")

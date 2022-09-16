@@ -19,6 +19,8 @@
 
 package main
 
+import "github.com/snapcore/snapd/release"
+
 var (
 	Run                           = run
 	ValidateArgs                  = validateArgs
@@ -27,10 +29,12 @@ var (
 	LoadAppArmorProfiles          = loadAppArmorProfiles
 )
 
-func MockWSL(mock func() bool) (restorer func()) {
-	old := isWSL
-	isWSL = mock
+// version should be 0 outside wsl, and 1 or 2 within wsl
+func MockWSL(on_wsl bool) (restorer func()) {
+	old_wsl := release.OnWSL
+
+	release.OnWSL = on_wsl
 	return func() {
-		isWSL = old
+		release.OnWSL = old_wsl
 	}
 }
