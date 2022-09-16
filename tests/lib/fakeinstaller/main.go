@@ -251,18 +251,18 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err := createAndMountFilesystems(bootDevice, details.Volumes); err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
-	// if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
-	// 	return fmt.Errorf("cannot create classic rootfs: %v", err)
-	// }
-	// if err := createSeedOnTarget(bootDevice, seedLabel); err != nil {
-	// 	return fmt.Errorf("cannot create seed on target: %v", err)
-	// }
-	// // XXX: or will POST {"action":"install","step":"finalize"} do that?
-	// if err := writeModeenvOnTarget(seedLabel); err != nil {
-	// 	return fmt.Errorf("cannot write modeenv on target: %v", err)
-	// }
-	// XXX: will the POST below trigger a reboot on the snapd side? if
-	//      not we need to reboot here
+	if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
+		return fmt.Errorf("cannot create classic rootfs: %v", err)
+	}
+	if err := createSeedOnTarget(bootDevice, seedLabel); err != nil {
+		return fmt.Errorf("cannot create seed on target: %v", err)
+	}
+	// XXX: or will POST {"action":"install","step":"finalize"} do that?
+	if err := writeModeenvOnTarget(seedLabel); err != nil {
+		return fmt.Errorf("cannot write modeenv on target: %v", err)
+	}
+	//XXX: will the POST below trigger a reboot on the snapd side? if
+	//     not we need to reboot here
 	if err := postSystemsInstallFinish(cli, details, bootDevice, laidoutStructs); err != nil {
 		return fmt.Errorf("cannot finalize install: %v", err)
 	}
