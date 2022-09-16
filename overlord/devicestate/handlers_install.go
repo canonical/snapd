@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
@@ -1201,7 +1202,29 @@ func rotateEncryptionKeys() error {
 	return nil
 }
 
+// XXX: we probably have this already
+func mountSnap(snapPath, mountDir string) error {
+	if err := os.MkdirAll(mountDir, 0755); err != nil {
+		return err
+	}
+	if output, err := exec.Command("mount", snapPath, mountDir).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+
+	return nil
+}
+
+func snapInfoFrom(seedInfo *seed.Snap) (*snap.Info, error) {
+	snapf, err := snapfile.Open(seedInfo.Path)
+	if err != nil {
+		return nil, err
+	}
+	return snap.ReadInfoFromSnapFile(snapf, seedInfo.SideInfo)
+}
+
 func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
+	perf := timings.New(nil)
+
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1214,14 +1237,58 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("on-volumes", &onVolumes); err != nil {
 		return err
 	}
-	logger.Debugf("install-finish for %q on %v", systemLabel, onVolumes)
+	logger.Debugf("starting install-finish for %q on %v", systemLabel, onVolumes)
+
 	// TODO: use the seed to get gadget/kernel
 	// - install missing volumes structure content
 	// - install gadget assets
 	// - install kenrel
 	// - make system bootable (include writing modeenv)
 
-	return fmt.Errorf("finish install step not implemented yet")
+	ds, err := loadDeviceSeed(st, systemLabel)
+	if err != nil {
+		return err
+	}
+	if err := ds.LoadEssentialMeta(nil, perf); err != nil {
+		return err
+	}
+	// TODO: add sealer
+	var sealer *boot.TrustedAssetsInstallObserver
+
+	// EssentialSnaps is always ordered, see asserts.Model.EssentialSnaps:
+	// "snapd, kernel, boot base, gadget."
+	kernelInfo, err := snapInfoFrom(ds.EssentialSnaps()[1])
+	if err != nil {
+		return err
+	}
+	baseInfo, err := snapInfoFrom(ds.EssentialSnaps()[2])
+	if err != nil {
+		return err
+	}
+	gadgetInfo, err := snapInfoFrom(ds.EssentialSnaps()[3])
+	if err != nil {
+		return err
+	}
+	gadgetMountDir := filepath.Join(dirs.RunDir, "mnt", "gadget")
+	if err := mountSnap(ds.EssentialSnaps()[3].Path, gadgetMountDir); err != nil {
+		return err
+	}
+	defer func() { exec.Command("umount", gadgetMountDir).Run() }()
+	bootWith := &boot.BootableSet{
+		Base:       baseInfo,
+		BasePath:   ds.EssentialSnaps()[2].Path,
+		Kernel:     kernelInfo,
+		KernelPath: ds.EssentialSnaps()[1].Path,
+		Gadget:     gadgetInfo,
+		GadgetPath: ds.EssentialSnaps()[3].Path,
+
+		UnpackedGadgetDir: gadgetMountDir,
+	}
+
+	if err := boot.MakeRunnableSystem(ds.Model(), bootWith, sealer); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.Tomb) error {
