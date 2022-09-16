@@ -1811,74 +1811,81 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 // including the model assertion, gadget details and encryption info
 // for the given system label.
 func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel string) (*System, *gadget.Info, *EncryptionSupportInfo, error) {
-	if m.isClassicBoot {
-		return nil, nil, nil, fmt.Errorf("cannot get model and gadget information on a classic boot system")
-	}
+	sys, gadgetInfo, _, _, encInfo, err := m.LoadLabelInformation(wantedSystemLabel)
+	return sys, gadgetInfo, encInfo, err
+}
+
+// LoadLabelInformation loads information for the given label, which
+// includes system, gadget information, gadget and kernel snaps info,
+// gadget and kernel seed snap info, and encryption support info.
+func (m *DeviceManager) LoadLabelInformation(wantedSystemLabel string) (
+	*System, *gadget.Info, map[snap.Type]*snap.Info, map[snap.Type]*seed.Snap, *EncryptionSupportInfo, error) {
+
 	// get current system as input for loadSeedAndSystem()
 	systemMode := m.SystemMode(SysAny)
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
 	// 2. get the gadget volumes for the given system-label
 	perf := &timings.Timings{}
-	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeKernel, snap.TypeGadget}, perf); err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
+	types := []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget}
+	if err := s.LoadEssentialMeta(types, perf); err != nil {
+		return nil, nil, nil, nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
 	}
 	// EssentialSnaps is always ordered, see asserts.Model.EssentialSnaps:
 	// "snapd, kernel, boot base, gadget." and snaps not loaded above
 	// like "snapd" will be skipped and not part of the EssentialSnaps list
 	//
-	// kernel info needed to check encryptionSupport
-	kernelSnap := s.EssentialSnaps()[0]
-	if kernelSnap.Path == "" {
-		return nil, nil, nil, fmt.Errorf("internal error: cannot get kernel snap path")
-	}
-	snapf, err := snapfile.Open(kernelSnap.Path)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot open kernel snap: %v", err)
-	}
-	kernelInfo, err := snap.ReadInfoFromSnapFile(snapf, kernelSnap.SideInfo)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	if kernelInfo.SnapType != snap.TypeKernel {
-		return nil, nil, nil, fmt.Errorf("cannot use kernel info, expected kernel but got: %v", kernelInfo.SnapType)
+	snapInfos := make(map[snap.Type]*snap.Info)
+	seedSnaps := make(map[snap.Type]*seed.Snap)
+	var gadgetInfo *gadget.Info
+	for i, typ := range types {
+		seedSnap := s.EssentialSnaps()[i]
+		if seedSnap.Path == "" {
+			return nil, nil, nil, nil, nil, fmt.Errorf("internal error: cannot get snap path for %s", typ)
+		}
+		snapf, err := snapfile.Open(seedSnap.Path)
+		if err != nil {
+			return nil, nil, nil, nil, nil, fmt.Errorf("cannot open snap from %q: %v", seedSnap.Path, err)
+		}
+		snapInfo, err := snap.ReadInfoFromSnapFile(snapf, seedSnap.SideInfo)
+		if err != nil {
+			return nil, nil, nil, nil, nil, err
+		}
+		if snapInfo.SnapType != typ {
+			return nil, nil, nil, nil, nil, fmt.Errorf("cannot use snap info, expected %s but got: %v", typ, snapInfo.SnapType)
+		}
+		switch typ {
+		case snap.TypeGadget:
+			gadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
+			if err != nil {
+				return nil, nil, nil, nil, nil, fmt.Errorf("cannot read gadget.yaml: %v", err)
+			}
+			gadgetInfo, err = gadget.InfoFromGadgetYaml(gadgetYaml, sys.Model)
+			if err != nil {
+				return nil, nil, nil, nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
+			}
+		}
+		seedSnaps[typ] = seedSnap
+		snapInfos[typ] = snapInfo
 	}
 
-	// gadget info needed to check encryptionSupport and gadget contraints
-	gadgetSnap := s.EssentialSnaps()[1]
-	if gadgetSnap.Path == "" {
-		return nil, nil, nil, fmt.Errorf("internal error: cannot get gadget snap path")
-	}
-	snapf, err = snapfile.Open(gadgetSnap.Path)
+	encInfo, err := m.encryptionSupportInfo(sys.Model, snapInfos[snap.TypeKernel], gadgetInfo)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
-	}
-	gadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot read gadget.yaml: %v", err)
-	}
-	gadgetInfo, err := gadget.InfoFromGadgetYaml(gadgetYaml, sys.Model)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
-	}
-
-	encInfo, err := m.encryptionSupportInfo(sys.Model, kernelInfo, gadgetInfo)
-	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 	opts := &gadget.ValidationConstraints{
 		EncryptedData: encInfo.StorageSafety == asserts.StorageSafetyEncrypted,
 	}
 	if err := gadget.Validate(gadgetInfo, sys.Model, opts); err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
 	}
 
-	return sys, gadgetInfo, &encInfo, nil
+	return sys, gadgetInfo, snapInfos, seedSnaps, &encInfo, nil
 }
 
 var ErrUnsupportedAction = errors.New("unsupported action")
