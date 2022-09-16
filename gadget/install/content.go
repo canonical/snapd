@@ -78,6 +78,7 @@ func writeFilesystemContent(ds *gadget.OnDiskStructure, fsDevice string, observe
 	}
 
 	// temporarily mount the filesystem
+	logger.Debugf("mounting %q in %q (fs type %q)", fsDevice, mountpoint, ds.Filesystem)
 	if err := sysMount(fsDevice, mountpoint, ds.Filesystem, 0, ""); err != nil {
 		return fmt.Errorf("cannot mount filesystem %q at %q: %v", ds.Node, mountpoint, err)
 	}
