@@ -214,7 +214,14 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), []byte(`hello world`), 0644), IsNil)
 
-	c.Assert(preseed.Core20(tmpDir, "", customAppArmorFeaturesDir, sysfsOverlay), IsNil)
+	opts := &preseed.CorePreseedOpts{
+		PrepareImageDir:           tmpDir,
+		PreseedSignKey:            "",
+		AppArmorKernelFeaturesDir: customAppArmorFeaturesDir,
+		SysfsOverlay:              sysfsOverlay,
+	}
+
+	c.Assert(preseed.Core20(opts), IsNil)
 
 	c.Check(mockChootCmd.Calls()[0], DeepEquals, []string{"chroot", preseedTmpDir, "/usr/lib/snapd/snapd"})
 
@@ -407,7 +414,13 @@ func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
 	err := ioutil.WriteFile(mockChrootCmd.Exe(), []byte("invalid-exe"), 0755)
 	c.Check(err, IsNil)
 
-	opts := &preseed.PreseedOpts{PreseedChrootDir: tmpdir}
-	err = preseed.RunUC20PreseedMode(opts)
+	popts := &preseed.PreseedOpts{
+		PreseedChrootDir: tmpdir,
+	}
+	opts := &preseed.CorePreseedOpts{
+		PrepareImageDir: tmpdir,
+	}
+
+	err = preseed.RunUC20PreseedMode(opts, popts)
 	c.Check(err, ErrorMatches, `error running snapd, please try installing the "qemu-user-static" package: fork/exec .* exec format error`)
 }

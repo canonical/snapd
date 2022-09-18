@@ -49,16 +49,31 @@ var (
 	Stderr io.Writer = os.Stderr
 )
 
-type preseedOpts struct {
-	PrepareImageDir  string
-	PreseedChrootDir string
-	SystemLabel      string
-	WritableDir      string
-	PreseedSignKey   string
+// CorePreseedOpts provides required and optional
+// options for core preseeding
+type CorePreseedOpts struct {
+	// prepare image directory
+	PrepareImageDir string
+	// key to sign preseeded data with
+	PreseedSignKey string
 	// optional path to AppArmor kernel features directory
 	AppArmorKernelFeaturesDir string
 	// optional sysfs overlay
 	SysfsOverlay string
+}
+
+// preseedOpts holds internal preseeding options
+type preseedOpts struct {
+	// chroot directory to run chroot from
+	PreseedChrootDir string
+	// stystem label of system to be seededs
+	SystemLabel string
+	// writable directory
+	WritableDir string
+	// snapd mount point
+	snapdSnapPath string
+	// base snap mount point
+	baseSnapPath string
 }
 
 type targetSnapdInfo struct {
@@ -80,7 +95,7 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-func writePreseedAssertion(artifactDigest []byte, opts *preseedOpts) error {
+func writePreseedAssertion(artifactDigest []byte, opts *CorePreseedOpts, popts *preseedOpts) error {
 	keypairMgr, err := getKeypairManager()
 	if err != nil {
 		return err
@@ -97,7 +112,7 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedOpts) error {
 	}
 
 	sysDir := filepath.Join(opts.PrepareImageDir, "system-seed")
-	sd, err := seedOpen(sysDir, opts.SystemLabel)
+	sd, err := seedOpen(sysDir, popts.SystemLabel)
 	if err != nil {
 		return err
 	}
@@ -162,7 +177,7 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedOpts) error {
 		"series":            "16",
 		"brand-id":          model.BrandID(),
 		"model":             model.Model(),
-		"system-label":      opts.SystemLabel,
+		"system-label":      popts.SystemLabel,
 		"artifact-sha3-384": base64Digest,
 		"timestamp":         time.Now().UTC().Format(time.RFC3339),
 		"snaps":             snaps,
@@ -186,7 +201,7 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedOpts) error {
 		return fmt.Errorf("cannot fetch assertion: %v", err)
 	}
 
-	serialized, err := os.OpenFile(filepath.Join(sysDir, "systems", opts.SystemLabel, "preseed"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	serialized, err := os.OpenFile(filepath.Join(sysDir, "systems", popts.SystemLabel, "preseed"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		return err
 	}

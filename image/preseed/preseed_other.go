@@ -31,6 +31,6 @@ func Classic(chrootDir string) error {
 	return preseedNotAvailableError
 }
 
-func Core20(chrootDir, key, aaFaaFeaturesDir string) error {
+func Core20(opts *CorePreseedOpts) error {
 	return preseedNotAvailableError
 }

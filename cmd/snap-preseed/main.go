@@ -121,7 +121,13 @@ func run(parser *flags.Parser, args []string) (err error) {
 	}
 
 	if probeCore20ImageDir(chrootDir) {
-		return preseedCore20(chrootDir, opts.PreseedSignKey, opts.AppArmorFeaturesDir, opts.SysfsOverlay)
+		coreOpts := &preseed.CorePreseedOpts{
+			PrepareImageDir:           chrootDir,
+			PreseedSignKey:            opts.PreseedSignKey,
+			AppArmorKernelFeaturesDir: opts.AppArmorFeaturesDir,
+			SysfsOverlay:              opts.SysfsOverlay,
+		}
+		return preseedCore20(coreOpts)
 	}
 	return preseedClassic(chrootDir)
 }

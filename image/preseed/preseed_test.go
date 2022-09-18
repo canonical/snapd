@@ -329,13 +329,16 @@ func (s *preseedSuite) TestCreatePreseedArtifact(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "/usr/lib/snapd/preseed.json"), []byte(exportFileContents), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(prepareDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
-	opts := &preseed.PreseedOpts{
+	popts := &preseed.PreseedOpts{
 		PreseedChrootDir: tmpDir,
-		PrepareImageDir:  prepareDir,
-		WritableDir:      writableDir,
 		SystemLabel:      "20220203",
+		WritableDir:      writableDir,
 	}
-	_, err := preseed.CreatePreseedArtifact(opts)
+	opts := &preseed.CorePreseedOpts{
+		PrepareImageDir: prepareDir,
+	}
+
+	_, err := preseed.CreatePreseedArtifact(opts, popts)
 	c.Assert(err, IsNil)
 	c.Check(mockTar.Calls(), DeepEquals, [][]string{
 		{"tar", "-czf", filepath.Join(tmpDir, "prepare-dir/system-seed/systems/20220203/preseed.tgz"), "-p", "-C",

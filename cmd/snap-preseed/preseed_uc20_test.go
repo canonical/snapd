@@ -45,11 +45,11 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
 	var called bool
-	restorePreseed := main.MockPreseedCore20(func(dir, key, aaDir, sfso string) error {
-		c.Check(dir, Equals, tmpDir)
-		c.Check(key, Equals, "key")
-		c.Check(aaDir, Equals, "/custom/aa/features")
-		c.Check(sfso, Equals, "/sysfs-overlay")
+	restorePreseed := main.MockPreseedCore20(func(opts *main.PreseedCoreOptions) error {
+		c.Check(opts.PrepareImageDir, Equals, tmpDir)
+		c.Check(opts.PreseedSignKey, Equals, "key")
+		c.Check(opts.AppArmorKernelFeaturesDir, Equals, "/custom/aa/features")
+		c.Check(opts.SysfsOverlay, Equals, "/sysfs-overlay")
 		called = true
 		return nil
 	})
@@ -74,11 +74,11 @@ func (s *startPreseedSuite) TestRunPreseedUC20HappyNoArgs(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
 	var called bool
-	restorePreseed := main.MockPreseedCore20(func(dir, key, aaDir, sfso string) error {
-		c.Check(dir, Equals, tmpDir)
-		c.Check(key, Equals, "")
-		c.Check(aaDir, Equals, "")
-		c.Check(sfso, Equals, "")
+	restorePreseed := main.MockPreseedCore20(func(opts *main.PreseedCoreOptions) error {
+		c.Check(opts.PrepareImageDir, Equals, tmpDir)
+		c.Check(opts.PreseedSignKey, Equals, "")
+		c.Check(opts.AppArmorKernelFeaturesDir, Equals, "")
+		c.Check(opts.SysfsOverlay, Equals, "")
 		called = true
 		return nil
 	})
