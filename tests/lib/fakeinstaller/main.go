@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -100,17 +101,19 @@ func postSystemsInstallSetupStorageEncryption(details *client.SystemDetails) err
 // XXX: reuse/extract cmd/snap/wait.go:waitMixin()
 func waitChange(chgId string) error {
 	cli := client.New(nil)
-	chg, err := cli.Change(chgId)
-	if err != nil {
-		return err
-	}
 	for {
+		chg, err := cli.Change(chgId)
+		if err != nil {
+			return err
+		}
+
 		if chg.Err != "" {
 			return errors.New(chg.Err)
 		}
 		if chg.Ready {
 			return nil
 		}
+		time.Sleep(1 * time.Second)
 	}
 }
 
