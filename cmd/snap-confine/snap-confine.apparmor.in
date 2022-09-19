@@ -161,6 +161,7 @@
     mount options=(rw rshared) -> /var/lib/snapd/snap/,
 
     # boostrapping the mount namespace
+    /tmp/snap.rootfs_*/ rw,
     mount options=(rw rshared) -> /,
     mount options=(rw bind) /tmp/snap.rootfs_*/ -> /tmp/snap.rootfs_*/,
     mount options=(rw unbindable) -> /tmp/snap.rootfs_*/,
@@ -313,10 +314,11 @@
     # set up snap-specific private /tmp dir
     capability chown,
     /tmp/ rw,
-    /tmp/snap.*/ rw,
-    /tmp/snap.*/tmp/ rw,
+    /tmp/snap-private-tmp/ rw,
+    /tmp/snap-private-tmp/snap.*/ rw,
+    /tmp/snap-private-tmp/snap.*/tmp/ rw,
     mount options=(rw private) ->  /tmp/,
-    mount options=(rw bind) /tmp/snap.*/tmp/ -> /tmp/,
+    mount options=(rw bind) /tmp/snap-private-tmp/snap.*/tmp/ -> /tmp/,
     mount fstype=devpts options=(rw) devpts -> /dev/pts/,
     mount options=(rw bind) /dev/pts/ptmx -> /dev/ptmx,     # for bind mounting
     mount options=(rw bind) /dev/pts/ptmx -> /dev/pts/ptmx, # for bind mounting under LXD

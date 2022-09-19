@@ -20,7 +20,7 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
-    rm -rf "$SNAP_INSTALL_DIR" /tmp/foo /tmp/snap.not-test-snapd-sh /tmp/snap.test-snapd-sh/
+    rm -rf "$SNAP_INSTALL_DIR" /tmp/foo /tmp/snap-private-tmp/snap.not-test-snapd-sh /tmp/snap-private-tmp/snap.test-snapd-sh/
     tests.session -u test restore
 
 execute: |
