@@ -158,14 +158,13 @@ func InitramfsActiveBootFlags(mode string, rootfsDir string) ([]string, error) {
 		// to reduce the number of times we read the modeenv ?
 		return modeenv.BootFlags, nil
 
-	case ModeInstall:
-		// boot flags always come from the bootenv of the recovery bootloader
-		// in install mode
-		return readBootFlagsFromRecoveryBootloader()
-
 	case ModeFactoryReset:
 		// Reuse the code from ModeInstall as we have a lot of
 		// identical conditions.
+		fallthrough
+	case ModeInstall:
+		// boot flags always come from the bootenv of the recovery bootloader
+		// in install mode
 		return readBootFlagsFromRecoveryBootloader()
 
 	default:
@@ -347,8 +346,8 @@ func HostUbuntuDataForMode(mode string) ([]string, error) {
 	case ModeFactoryReset:
 		// In factory reset, our conditions are a lot similar to install mode,
 		// as we recreate the ubuntu-data partition. Make similar assumptions
-		// and checks like ModeInstall. We also make sure to check as we don't even
-		// know if ubuntu-data has been mounted yet.
+		// and checks like ModeInstall. Take into account ubuntu-data might not
+		// be mounted when this check is called.
 		factoryResetModeLocation := filepath.Dir(InstallHostWritableDir)
 		if exists, _, _ := osutil.DirExists(factoryResetModeLocation); exists {
 			runDataRootfsMountLocations = []string{factoryResetModeLocation}
