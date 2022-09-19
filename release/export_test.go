@@ -35,6 +35,7 @@ func MockOSReleasePath(filename string) (restore func()) {
 }
 
 func MockFileExists(mockFileExists func(string) bool) (restorer func()) {
+	// Cannot use testutil.Backup due to import loop
 	old := fileExists
 	fileExists = mockFileExists
 	return func() {
