@@ -1170,6 +1170,23 @@ func (s *deviceMgrSuite) TestCanManageRefreshesNoRefreshScheduleManaged(c *C) {
 	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
 }
 
+func (s *deviceMgrSuite) TestResetSession(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(devicestate.ResetSession(st), IsNil)
+
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		SessionMacaroon: "session",
+	})
+	c.Assert(devicestate.ResetSession(st), IsNil)
+
+	device, err := devicestatetest.Device(st)
+	c.Assert(err, IsNil)
+	c.Check(device.SessionMacaroon, Equals, "")
+}
+
 func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	st := state.New(nil)
 

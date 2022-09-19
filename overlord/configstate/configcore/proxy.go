@@ -3,7 +3,7 @@
 // +build !nomanagers
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,6 +32,11 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate"
+)
+
+var (
+	devicestateResetSession = devicestate.ResetSession
 )
 
 var proxyConfigKeys = map[string]bool{
@@ -120,4 +125,43 @@ func validateProxyStore(tr config.Conf) error {
 		return fmt.Errorf("cannot set proxy.store to %q with a matching store assertion with url unset", proxyStore)
 	}
 	return err
+}
+
+func handleProxyStore(tr config.Conf, opts *fsOnlyContext) error {
+	for _, name := range tr.Changes() {
+		if !strings.HasPrefix(name, "core.proxy.store") {
+			continue
+		}
+		proxyStore, err := coreCfg(tr, "proxy.store")
+		if err != nil {
+			return err
+		}
+		var prevProxyStore string
+		if err := tr.GetPristine("core", "proxy.store", &prevProxyStore); err != nil && !config.IsNoOption(err) {
+			return err
+		}
+		if proxyStore != prevProxyStore {
+			// XXX ideally we should do this only when
+			// committing but we don't have infrastructure
+			// for that ATM, it just means the store will
+			// have to recreate the session.
+			// XXX the store code doesn't acquire the
+			// store ids and the session together
+			// atomically, this can be fixed only in a
+			// larger cleanup of how
+			// store.DeviceAndAuthContext operates.
+			// Hopefully it is atypical to set proxy.store
+			// while non-automatic store operations are
+			// happening, this approach is a best-effort
+			// for now.
+			state := tr.State()
+			state.Lock()
+			defer state.Unlock()
+			if err := devicestateResetSession(state); err != nil {
+				return err
+			}
+		}
+		break
+	}
+	return nil
 }
