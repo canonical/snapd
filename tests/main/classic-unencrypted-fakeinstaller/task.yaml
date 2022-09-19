@@ -25,11 +25,13 @@ execute: |
   # with a modeenv
   systemctl restart snapd
 
+  # TODO: replace with "snap prepare-image my.model" once pr#112146 landed
+  # (all seed creation code)
+
   # prepare a fake classic seed
   LABEL=20220808
   mkdir -p /var/lib/snapd/seed/systems/"$LABEL"/assertions
-  cp -a "$TESTSLIB"/assertions/developer1-22-classic-dangerous.model \
-      /var/lib/snapd/seed/systems/"$LABEL"/model
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-22-classic-dangerous.json > /var/lib/snapd/seed/systems/"$LABEL"/model
   {
       cat "$TESTSLIB"/assertions/developer1.account-key
       echo
