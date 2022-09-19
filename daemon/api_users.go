@@ -321,7 +321,9 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		return InternalError(err.Error())
 	}
 
-	if createData.singleUserResultCompat {
+	// We only handle singleUserResultCompat if the request
+	// was *not* to create all known system users.
+	if (!createData.Known || createData.Email != "") && createData.singleUserResultCompat {
 		return SyncResponse(&userResponseData{
 			Username: createdUsers[0].Username,
 			SSHKeys:  createdUsers[0].SSHKeys,

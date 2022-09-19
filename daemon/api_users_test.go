@@ -481,6 +481,7 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 	expectedUsername := "karl"
 	expectedEmail := "popper@lse.ac.uk"
 
+	var deviceStateCreateUserCalled bool
 	defer daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string) (*devicestate.CreatedUser, error) {
 		c.Check(email, check.Equals, expectedEmail)
 		c.Check(sudoer, check.Equals, false)
@@ -491,6 +492,7 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 				`ssh2 # snapd {"origin":"store","email":"popper@lse.ac.uk"}`,
 			},
 		}
+		deviceStateCreateUserCalled = true
 		return expected, nil
 	})()
 
@@ -521,6 +523,7 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
+	c.Check(deviceStateCreateUserCalled, check.Equals, true)
 }
 
 func (s *userSuite) TestPostUserCreateErrBadRequest(c *check.C) {
@@ -980,26 +983,27 @@ func (s *userSuite) TestUsersHasUser(c *check.C) {
 
 func (s *userSuite) testPostCreateUserFromAssertion(c *check.C, postData string, expectSudoer bool) {
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser, partnerUser, serialUser, badUser, badUserNoMatchingSerial, unknownUser})
-	created := map[string]bool{}
+
 	// mock the calls that create the user
+	var deviceStateCreateUserCalled bool
 	defer daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string) (*devicestate.CreatedUser, error) {
-		var createdUser *devicestate.CreatedUser
-		switch email {
-		case "foo@bar.com":
-			createdUser.Username = "guy"
-			created["guy"] = true
-		case "p@partner.com":
-			createdUser.Username = "partnerguy"
-			created["partnerguy"] = true
-		case "serial@bar.com":
-			createdUser.Username = "goodserialguy"
-			created["goodserialguy"] = true
-		default:
-			c.Logf("unexpected email %q", email)
-			c.Fail()
-		}
+		deviceStateCreateUserCalled = true
+		return nil, nil
+	})()
+	defer daemon.MockDeviceStateCreateKnownUsers(func(st *state.State, sudoer bool, email string) ([]*devicestate.CreatedUser, error) {
 		c.Check(sudoer, check.Equals, expectSudoer)
-		return createdUser, nil
+		createdUsers := []*devicestate.CreatedUser{
+			{
+				Username: "goodserialguy",
+			},
+			{
+				Username: "guy",
+			},
+			{
+				Username: "partnerguy",
+			},
+		}
+		return createdUsers, nil
 	})()
 
 	// do it!
@@ -1012,6 +1016,7 @@ func (s *userSuite) testPostCreateUserFromAssertion(c *check.C, postData string,
 	// note that we get a list here instead of a single
 	// userResponseData item
 	c.Check(rsp.Result, check.FitsTypeOf, []daemon.UserResponseData{})
+	c.Check(deviceStateCreateUserCalled, check.Equals, false)
 	seen := map[string]bool{}
 	for _, u := range rsp.Result.([]daemon.UserResponseData) {
 		seen[u.Username] = true
@@ -1022,14 +1027,6 @@ func (s *userSuite) testPostCreateUserFromAssertion(c *check.C, postData string,
 		"partnerguy":    true,
 		"goodserialguy": true,
 	})
-
-	// ensure the user was added to the state
-	st := s.d.Overlord().State()
-	st.Lock()
-	users, err := auth.Users(st)
-	c.Assert(err, check.IsNil)
-	st.Unlock()
-	c.Check(users, check.HasLen, 3)
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {

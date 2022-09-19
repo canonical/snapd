@@ -141,6 +141,8 @@ func (s *usersSuite) TestCreateUser(c *check.C) {
 		SSHKeys:          []string{"ssh1", "ssh2"},
 		OpenIDIdentifier: "xxyyzz",
 	}
+
+	var addUserCalled bool
 	defer devicestate.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
 		c.Check(username, check.Equals, expectedUsername)
 		c.Check(opts.SSHKeys, check.DeepEquals, []string{
@@ -149,6 +151,7 @@ func (s *usersSuite) TestCreateUser(c *check.C) {
 		})
 		c.Check(opts.Gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
 		c.Check(opts.Sudoer, check.Equals, false)
+		addUserCalled = true
 		return nil
 	})()
 
@@ -173,6 +176,7 @@ func (s *usersSuite) TestCreateUser(c *check.C) {
 	c.Check(user.Username, check.Equals, expectedUsername)
 	c.Check(user.Email, check.Equals, s.userInfoExpectedEmail)
 	c.Check(user.Macaroon, check.NotNil)
+	c.Check(addUserCalled, check.Equals, true)
 	// auth saved to user home dir
 	outfile := filepath.Join(s.mockUserHome, ".snap", "auth.json")
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
@@ -469,7 +473,6 @@ func (s *usersSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 
 func (s *usersSuite) TestCreateUserFromAssertion(c *check.C) {
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
-
 	s.createUserFromAssertion(c, false)
 }
 
@@ -481,29 +484,20 @@ func (s *usersSuite) TestCreateUserFromAssertionWithForcePasswordChange(c *check
 	user["force-password-change"] = "true"
 	lusers := []map[string]interface{}{user}
 	s.makeSystemUsers(c, lusers)
-
-	// mock the calls that create the user
-	defer devicestate.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
-		c.Check(username, check.Equals, "guy")
-		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
-		c.Check(opts.Sudoer, check.Equals, false)
-		c.Check(opts.Password, check.Equals, "$6$salt$hash")
-		c.Check(opts.ForcePasswordChange, check.Equals, true)
-		return nil
-	})()
-
 	s.createUserFromAssertion(c, true)
 }
 
 func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange bool) {
 
 	// mock the calls that create the user
+	var addUserCalled bool
 	defer devicestate.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
 		c.Check(username, check.Equals, "guy")
 		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
 		c.Check(opts.Sudoer, check.Equals, false)
 		c.Check(opts.Password, check.Equals, "$6$salt$hash")
 		c.Check(opts.ForcePasswordChange, check.Equals, forcePasswordChange)
+		addUserCalled = true
 		return nil
 	})()
 
@@ -521,6 +515,7 @@ func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange boo
 	c.Check(len(createdUsers), check.Equals, 1)
 	c.Check(createdUsers, check.FitsTypeOf, expected)
 	c.Check(createdUsers, check.DeepEquals, expected)
+	c.Check(addUserCalled, check.Equals, true)
 
 	// ensure the user was added to the state
 	s.state.Lock()
@@ -546,6 +541,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllAutomatic(c *check.C) {
 func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, expectSudoer bool) {
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser, partnerUser, serialUser, badUser, badUserNoMatchingSerial, unknownUser})
 	created := map[string]bool{}
+
 	// mock the calls that create the user
 	defer devicestate.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
 		switch username {
@@ -564,6 +560,7 @@ func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, e
 		created[username] = true
 		return nil
 	})()
+
 	// make sure we report them as non-existing until created
 	defer devicestate.MockUserLookup(func(username string) (*user.User, error) {
 		if created[username] {
@@ -584,6 +581,12 @@ func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, e
 		createdUsers = append(createdUsers, createdUser)
 	}
 	s.state.Unlock()
+
+	c.Check(created, check.DeepEquals, map[string]bool{
+		"guy":           true,
+		"partnerguy":    true,
+		"goodserialguy": true,
+	})
 
 	expected := []*devicestate.CreatedUser{
 		{
@@ -708,6 +711,9 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	createdUsers, err := devicestate.CreateKnownUsers(s.state, false, "")
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
+	c.Check(created, check.DeepEquals, map[string]bool{
+		"guy": true,
+	})
 	expected := []*devicestate.CreatedUser{
 		{
 			Username: "guy",
