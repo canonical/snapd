@@ -321,6 +321,13 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		return InternalError(err.Error())
 	}
 
+	if createData.singleUserResultCompat {
+		return SyncResponse(&userResponseData{
+			Username: createdUsers[0].Username,
+			SSHKeys:  createdUsers[0].SSHKeys,
+		})
+	}
+
 	for _, cu := range createdUsers {
 		createdUsersResponse = append(createdUsersResponse, userResponseData{
 			Username: cu.Username,

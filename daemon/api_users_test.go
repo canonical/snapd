@@ -509,7 +509,7 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 		buf := bytes.NewBufferString(fmt.Sprintf(`{"email": "%s"}`, expectedEmail))
 		req, err = http.NewRequest("POST", "/v2/create-user", buf)
 		c.Assert(err, check.IsNil)
-		expected = []daemon.UserResponseData{expectedItem}
+		expected = &expectedItem
 	} else {
 		var err error
 		buf := bytes.NewBufferString(fmt.Sprintf(`{"action":"create","email": "%s"}`, expectedEmail))
@@ -774,6 +774,76 @@ var goodUser = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
+var partnerUser = map[string]interface{}{
+	"authority-id": "partner",
+	"brand-id":     "my-brand",
+	"email":        "p@partner.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model"},
+	"name":         "Partner Guy",
+	"username":     "partnerguy",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
+var serialUser = map[string]interface{}{
+	"format":       "1",
+	"authority-id": "my-brand",
+	"brand-id":     "my-brand",
+	"email":        "serial@bar.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model"},
+	"serials":      []interface{}{"serialserial"},
+	"name":         "Serial Guy",
+	"username":     "goodserialguy",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
+var badUser = map[string]interface{}{
+	// bad user (not valid for this model)
+	"authority-id": "my-brand",
+	"brand-id":     "my-brand",
+	"email":        "foobar@bar.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"non-of-the-models-i-have"},
+	"name":         "Random Gal",
+	"username":     "gal",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
+var badUserNoMatchingSerial = map[string]interface{}{
+	"format":       "1",
+	"authority-id": "my-brand",
+	"brand-id":     "my-brand",
+	"email":        "noserial@bar.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model"},
+	"serials":      []interface{}{"different-serialserial"},
+	"name":         "No Serial Guy",
+	"username":     "noserial",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
+var unknownUser = map[string]interface{}{
+	"authority-id": "unknown",
+	"brand-id":     "my-brand",
+	"email":        "x@partner.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model"},
+	"name":         "XGuy",
+	"username":     "xguy",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnownClassicErrors(c *check.C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
@@ -906,4 +976,69 @@ func (s *userSuite) TestUsersHasUser(c *check.C) {
 	}
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *userSuite) testPostCreateUserFromAssertion(c *check.C, postData string, expectSudoer bool) {
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser, partnerUser, serialUser, badUser, badUserNoMatchingSerial, unknownUser})
+	created := map[string]bool{}
+	// mock the calls that create the user
+	defer daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string) (*devicestate.CreatedUser, error) {
+		var createdUser *devicestate.CreatedUser
+		switch email {
+		case "foo@bar.com":
+			createdUser.Username = "guy"
+			created["guy"] = true
+		case "p@partner.com":
+			createdUser.Username = "partnerguy"
+			created["partnerguy"] = true
+		case "serial@bar.com":
+			createdUser.Username = "goodserialguy"
+			created["goodserialguy"] = true
+		default:
+			c.Logf("unexpected email %q", email)
+			c.Fail()
+		}
+		c.Check(sudoer, check.Equals, expectSudoer)
+		return createdUser, nil
+	})()
+
+	// do it!
+	buf := bytes.NewBufferString(postData)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+
+	// note that we get a list here instead of a single
+	// userResponseData item
+	c.Check(rsp.Result, check.FitsTypeOf, []daemon.UserResponseData{})
+	seen := map[string]bool{}
+	for _, u := range rsp.Result.([]daemon.UserResponseData) {
+		seen[u.Username] = true
+		c.Check(u, check.DeepEquals, daemon.UserResponseData{Username: u.Username})
+	}
+	c.Check(seen, check.DeepEquals, map[string]bool{
+		"guy":           true,
+		"partnerguy":    true,
+		"goodserialguy": true,
+	})
+
+	// ensure the user was added to the state
+	st := s.d.Overlord().State()
+	st.Lock()
+	users, err := auth.Users(st)
+	c.Assert(err, check.IsNil)
+	st.Unlock()
+	c.Check(users, check.HasLen, 3)
+}
+
+func (s *userSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
+	expectSudoer := false
+	s.testPostCreateUserFromAssertion(c, `{"known":true}`, expectSudoer)
+}
+
+func (s *userSuite) TestPostCreateUserFromAssertionAllAutomatic(c *check.C) {
+	// automatic implies "sudoder"
+	expectSudoer := true
+	s.testPostCreateUserFromAssertion(c, `{"automatic":true}`, expectSudoer)
 }
