@@ -119,7 +119,7 @@ func (s *X11InterfaceSuite) TestMountSpec(c *C) {
 	spec = &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{{
-		Name:    "/var/lib/snapd/hostfs/tmp/snap.x11/tmp/.X11-unix",
+		Name:    "/var/lib/snapd/hostfs/tmp/snap-private-tmp/snap.x11/tmp/.X11-unix",
 		Dir:     "/tmp/.X11-unix",
 		Options: []string{"bind", "ro"},
 	}})
@@ -155,7 +155,7 @@ func (s *X11InterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "fontconfig")
 	c.Assert(spec.UpdateNS(), HasLen, 1)
-	c.Assert(spec.UpdateNS()[0], testutil.Contains, `mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/snap.x11/tmp/.X11-unix/ -> /tmp/.X11-unix/,`)
+	c.Assert(spec.UpdateNS()[0], testutil.Contains, `mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/snap-private-tmp/snap.x11/tmp/.X11-unix/ -> /tmp/.X11-unix/,`)
 
 	// Slot side connection permissions
 	spec = &apparmor.Specification{}
