@@ -1310,7 +1310,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		UnpackedGadgetDir: mntPtForType[snap.TypeGadget],
 
 		RecoverySystemLabel: systemLabel,
-		RecoverySystemDir:   systemLabel,
+		// TODO: important but a bit unclear why needed
+		RecoverySystemDir: systemLabel,
 
 		Recovery: false,
 
