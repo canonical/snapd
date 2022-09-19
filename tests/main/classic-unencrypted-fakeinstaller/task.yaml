@@ -41,16 +41,16 @@ execute: |
   TDIR=/var/lib/snapd/seed/snaps
   mkdir -p "$TDIR"
   # TODO: use custom pc gadget for classic instead of UC one
-  snap download --target-directory="$TDIR" --channel=22 pc
+  snap download --target-directory="$TDIR" --channel=22/edge pc
   cat "$TDIR"/pc_*.assert >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
   echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
-  snap download --target-directory="$TDIR" --channel=22 pc-kernel
+  snap download --target-directory="$TDIR" --channel=22/edge pc-kernel
   cat "$TDIR"/pc-kernel_*.assert >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
   echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
-  snap download --target-directory="$TDIR" core22
+  snap download --target-directory="$TDIR" --channel=edge core22
   cat "$TDIR"/core22_*.assert >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
   echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
-  snap download --target-directory="$TDIR" snapd
+  snap download --target-directory="$TDIR" --channel=edge snapd
   cat "$TDIR"/snapd_*.assert >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
   echo >> /var/lib/snapd/seed/systems/"$LABEL"/assertions/snaps
 
