@@ -1321,7 +1321,10 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		GadgetPath: snapSeeds[snap.TypeGadget].Path,
 
 		UnpackedGadgetDir: mntPtForType[snap.TypeGadget],
-		Recovery:          false,
+
+		RecoverySystemLabel: systemLabel,
+
+		Recovery: false,
 	}
 
 	logger.Debugf("making the installed system runnable")
@@ -1329,7 +1332,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return err
+	return nil
 }
 
 func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.Tomb) error {
