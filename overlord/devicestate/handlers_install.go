@@ -1310,8 +1310,12 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		UnpackedGadgetDir: mntPtForType[snap.TypeGadget],
 
 		RecoverySystemLabel: systemLabel,
+		RecoverySystemDir:   systemLabel,
 
 		Recovery: false,
+
+		// XXX: rename to something more neutral like "TargetDir" ?
+		InstallHostWritableDir: filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"),
 	}
 
 	logger.Debugf("making the installed system runnable")

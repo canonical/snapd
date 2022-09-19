@@ -51,6 +51,12 @@ type BootableSet struct {
 
 	// Recover is set when making the recovery partition bootable.
 	Recovery bool
+
+	// XXX:
+	// InstallHostWritableDir is different on
+	// classic /run/mnt/ubuntu-data vs
+	// core    /run/mnt/ubuntu-data/system-data
+	InstallHostWritableDir string
 }
 
 // MakeBootableImage sets up the given bootable set and target filesystem
@@ -300,13 +306,19 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: cannot make pre-UC20 system runnable")
 	}
+	// XXX: ensure bootWith always sets this dir
+	targetDir := bootWith.InstallHostWritableDir
+	if targetDir == "" {
+		targetDir = InstallHostWritableDir
+	}
+
 	// TODO:UC20:
 	// - figure out what to do for uboot gadgets, currently we require them to
 	//   install the boot.sel onto ubuntu-boot directly, but the file should be
 	//   managed by snapd instead
 
 	// copy kernel/base/gadget into the ubuntu-data partition
-	snapBlobDir := dirs.SnapBlobDirUnder(InstallHostWritableDir)
+	snapBlobDir := dirs.SnapBlobDirUnder(targetDir)
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
@@ -330,7 +342,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	}
 
 	// replicate the boot assets cache in host's writable
-	if err := CopyBootAssetsCacheToRoot(InstallHostWritableDir); err != nil {
+	if err := CopyBootAssetsCacheToRoot(targetDir); err != nil {
 		return fmt.Errorf("cannot replicate boot assets cache: %v", err)
 	}
 
@@ -452,7 +464,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 
 	// all fields that needed to be set in the modeenv must have been set by
 	// now, write modeenv to disk
-	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
+	if err := modeenv.WriteTo(targetDir); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 
