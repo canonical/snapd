@@ -67,7 +67,7 @@ func (s *UASuite) TestUserAgent(c *C) {
 }
 
 func (s *UASuite) TestUserAgentWSL(c *C) {
-	defer testutil.Backup(&release.OnWSL)
+	defer testutil.Backup(&release.OnWSL)()
 
 	release.OnWSL = false
 	snapdenv.SetUserAgentFromVersion("10", nil)
