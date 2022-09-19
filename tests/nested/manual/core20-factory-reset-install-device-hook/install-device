@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# install the files the same way the specific device does this - note we don't
+# create the directories since that requires extra permissions we don't have 
+# here, system-files only allows us access to the specific files
+
+# add a udev rule if executed from factory-reset
+# when not in install mode _writable_defaults are present under /run/mnt/data
+# and not /run/mnt/ubuntu-data
+if snapctl system-mode | grep "factory-reset"; then
+    cat << EOF > /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/udev/rules.d/09-my-custom-udev.rules
+# do udev rules things here
+EOF
+    exit 0
+fi
+
+# add modprobe.d config
+cat << EOF > /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/modprobe.d/my-modprobe.conf
+# configure modprobe here
+EOF
+
+# add modules-load.d config
+cat << EOF > /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/modules-load.d/my-modules-load.conf
+# load modules here
+EOF
