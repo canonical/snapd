@@ -2,6 +2,11 @@
 
 set -e
 
+# uncomment for better debug messages
+#set -x
+#exec > /tmp/mk-classic-rootfs.sh.log
+#exec 2>&1
+
 
 # XXX: merge with the work from alfonso in
 # tests/nested/manual/fde-on-classic/mk-image.sh (PR:12102)
@@ -48,6 +53,14 @@ PermitRootLogin yes
 PasswordAuthentication yes
 EOF
 
+    # install the current in-development version of snapd when available,
+    # this will give us seeding support
+    package=$(find "$GOPATH" -maxdepth 1 -name "snapd_*.deb")
+    if [ -e "$package"  ]; then
+        cp "$package" "$DESTDIR"/var/cache/apt/archives
+        sudo chroot "$DESTDIR" /usr/bin/sh -c \
+             "DEBIAN_FRONTEND=noninteractive apt install -y /var/cache/apt/archives/$(basename $package)"
+    fi
 }
 
 # get target dir from user
