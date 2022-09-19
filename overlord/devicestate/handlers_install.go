@@ -250,7 +250,7 @@ func writeTimings(st *state.State, rootdir, fromMode string) error {
 	return nil
 }
 
-func (m *DeviceManager) doPrepareUbuntuSave(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceManager) doSetupUbuntuSave(t *state.Task, _ *tomb.Tomb) error {
 	return m.setupUbuntuSave()
 }
 

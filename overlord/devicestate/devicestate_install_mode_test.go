@@ -1108,12 +1108,12 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	tasks := installSystem.Tasks()
 	c.Assert(tasks, HasLen, 4)
 	setupRunSystemTask := tasks[0]
-	prepareUbuntuSave := tasks[1]
+	setupUbuntuSave := tasks[1]
 	installDevice := tasks[2]
 	restartSystemToRunModeTask := tasks[3]
 
 	c.Assert(setupRunSystemTask.Kind(), Equals, "setup-run-system")
-	c.Assert(prepareUbuntuSave.Kind(), Equals, "setup-ubuntu-save")
+	c.Assert(setupUbuntuSave.Kind(), Equals, "setup-ubuntu-save")
 	c.Assert(restartSystemToRunModeTask.Kind(), Equals, "restart-system-to-run-mode")
 	c.Assert(installDevice.Kind(), Equals, "run-hook")
 
@@ -1121,14 +1121,14 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	c.Assert(setupRunSystemTask.WaitTasks(), HasLen, 0)
 
 	// prepare-ubuntu-save has a pre-req of setup-run-system
-	waitTasks := prepareUbuntuSave.WaitTasks()
+	waitTasks := setupUbuntuSave.WaitTasks()
 	c.Assert(waitTasks, HasLen, 1)
 	c.Check(waitTasks[0].ID(), Equals, setupRunSystemTask.ID())
 
 	// install-device has a pre-req of prepare-ubuntu-save
 	waitTasks = installDevice.WaitTasks()
 	c.Assert(waitTasks, HasLen, 1)
-	c.Check(waitTasks[0].ID(), Equals, prepareUbuntuSave.ID())
+	c.Check(waitTasks[0].ID(), Equals, setupUbuntuSave.ID())
 
 	// install-device restart-task references to restart-system-to-run-mode
 	var restartTask string
@@ -1237,12 +1237,12 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithBrokenInstallDeviceHookUnhapp
 	tasks := installSystem.Tasks()
 	c.Assert(tasks, HasLen, 4)
 	setupRunSystemTask := tasks[0]
-	prepareUbuntuSave := tasks[1]
+	setupUbuntuSave := tasks[1]
 	installDevice := tasks[2]
 	restartSystemToRunModeTask := tasks[3]
 
 	c.Assert(setupRunSystemTask.Kind(), Equals, "setup-run-system")
-	c.Assert(prepareUbuntuSave.Kind(), Equals, "setup-ubuntu-save")
+	c.Assert(setupUbuntuSave.Kind(), Equals, "setup-ubuntu-save")
 	c.Assert(installDevice.Kind(), Equals, "run-hook")
 	c.Assert(restartSystemToRunModeTask.Kind(), Equals, "restart-system-to-run-mode")
 
@@ -3670,4 +3670,73 @@ func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoWithFdeHook(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallWithUbuntuSaveSnapFoldersHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	hooksCalled := []*hookstate.Context{}
+	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		ctx.Lock()
+		defer ctx.Unlock()
+
+		hooksCalled = append(hooksCalled, ctx)
+		return nil, nil
+	})
+	defer restore()
+
+	// For the snap folders to be created we must have two things in order
+	// 1. The path /var/lib/snapd/save must exists
+	// 2. It must be a mount point
+	// We do this as this is the easiest way for us to trigger the conditions
+	// where it creates the per-snap folders
+	snapSaveDir := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/save")
+	err := os.MkdirAll(snapSaveDir, 0755)
+	c.Assert(err, IsNil)
+
+	restore = osutil.MockMountInfo(fmt.Sprintf(mountSnapSaveFmt, dirs.GlobalRootDir))
+	defer restore()
+
+	err = ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+		[]byte("mode=install\n"), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	s.makeMockInstallModel(c, "dangerous")
+	// set a install-device hook, otherwise the setup-ubuntu-save task won't
+	// be triggered
+	s.makeMockInstalledPcKernelAndGadget(c, "install-device-hook-content", "")
+	devicestate.SetSystemMode(s.mgr, "install")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(s.restartRequests, HasLen, 1)
+	tasks := installSystem.Tasks()
+	c.Check(tasks, HasLen, 4)
+
+	c.Assert(hooksCalled, HasLen, 1)
+	c.Assert(hooksCalled[0].HookName(), Equals, "install-device")
+
+	snapFolderDir := filepath.Join(snapSaveDir, "snap")
+	ucSnapFolderExists := func(snapName string) bool {
+		exists, isDir, err := osutil.DirExists(filepath.Join(snapFolderDir, snapName))
+		return err == nil && exists && isDir
+	}
+
+	// verify that a folder is created for pc-kernel and core20
+	// (the two snaps mocked by makeMockInstalledPcKernelAndGadget)
+	c.Check(ucSnapFolderExists("pc-kernel"), Equals, true)
+	c.Check(ucSnapFolderExists("core20"), Equals, true)
 }

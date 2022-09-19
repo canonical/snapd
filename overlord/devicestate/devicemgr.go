@@ -181,7 +181,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
-	runner.AddHandler("setup-ubuntu-save", m.doPrepareUbuntuSave, nil)
+	runner.AddHandler("setup-ubuntu-save", m.doSetupUbuntuSave, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
 	runner.AddHandler("factory-reset-run-system", m.doFactoryResetRunSystem, nil)
 	runner.AddHandler("restart-system-to-run-mode", m.doRestartSystemToRunMode, nil)
@@ -348,6 +348,7 @@ func (m *DeviceManager) ensureUbuntuSaveIsMounted() error {
 		// We only fall through and mount directly if the failure was because of a missing
 		// mount file, which possible does not exist. Any other failure we treat as an actual
 		// error.
+		// XXX: systemd ideally should start returning some kind UnitNotFound errors in this situation
 		if !strings.Contains(err.Error(), "Unit var-lib-snapd-save.mount not found.") {
 			return err
 		}
