@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type UASuite struct {
@@ -40,14 +41,6 @@ func (s *UASuite) SetUpTest(c *C) {
 
 func (s *UASuite) TearDownTest(c *C) {
 	s.restore()
-}
-
-func mockWsl(onWSL bool) (restorer func()) {
-	oldWSL := release.OnWSL
-	release.OnWSL = onWSL
-	return func() {
-		release.OnWSL = oldWSL
-	}
 }
 
 func (s *UASuite) TestUserAgent(c *C) {
@@ -74,17 +67,17 @@ func (s *UASuite) TestUserAgent(c *C) {
 }
 
 func (s *UASuite) TestUserAgentWSL(c *C) {
-	restore := mockWsl(false)
+	defer testutil.Backup(&release.OnWSL)
+
+	release.OnWSL = false
 	snapdenv.SetUserAgentFromVersion("10", nil)
 	ua := snapdenv.UserAgent()
 	c.Check(strings.Contains(ua, "wsl"), Equals, false)
-	restore()
 
-	restore = mockWsl(true)
+	release.OnWSL = true
 	snapdenv.SetUserAgentFromVersion("10", nil)
 	ua = snapdenv.UserAgent()
 	c.Check(strings.Contains(ua, "wsl"), Equals, true)
-	restore()
 }
 
 func (s *UASuite) TestStripUnsafeRunes(c *C) {
