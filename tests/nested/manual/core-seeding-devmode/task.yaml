@@ -13,7 +13,7 @@ prepare: |
     tests.nested create-vm core
 
 execute: |
-    tests.nested exec "sudo snap wait system seed.loaded"
+    remote.exec "sudo snap wait system seed.loaded"
 
     # godd is installed
-    tests.nested exec "snap list godd" | MATCH "godd"
+    remote.exec "snap list godd" | MATCH "godd"

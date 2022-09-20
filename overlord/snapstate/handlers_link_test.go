@@ -1944,9 +1944,9 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesUnrelatedAppDoesNothing(c
 		},
 	})
 
-	err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
+	restartRequested, _, err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
-	c.Check(s.restartRequested, HasLen, 0)
+	c.Check(restartRequested, Equals, false)
 }
 
 func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesSameKernel(c *C) {
@@ -1963,9 +1963,9 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesSameKernel(c *C) {
 		Type: "kernel",
 	})
 
-	err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
+	restartRequested, _, err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
-	c.Check(s.restartRequested, HasLen, 0)
+	c.Check(restartRequested, Equals, false)
 }
 
 func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
@@ -2017,7 +2017,7 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 	})
 
 	// now we simulate that the new kernel is getting undone
-	err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
+	restartRequested, rebootRequired, err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
 
 	// that will schedule a boot into the previous kernel
@@ -2026,8 +2026,8 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 		"snap_kernel":     "kernel_1.snap",
 		"snap_try_kernel": "",
 	})
-	c.Check(s.restartRequested, HasLen, 1)
-	c.Check(s.restartRequested[0], Equals, restart.RestartSystem)
+	c.Check(restartRequested, Equals, true)
+	c.Check(rebootRequired, Equals, true)
 }
 
 func (s *linkSnapSuite) testDoLinkSnapWithToolingDependency(c *C, classicOrBase string) {

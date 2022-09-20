@@ -254,6 +254,11 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
                     {"title": "recover", "mode": "recover"},
                     {"title": "reinstall", "mode": "install"}
                 ],
+                "storage-encryption": {
+                    "support":"available",
+                    "storage-safety":"prefer-encrypted",
+                    "encryption-type":"cryptsetup"
+                },
                 "volumes": {
                     "pc": {
                         "schema":"gpt",
@@ -284,6 +289,11 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
 		Actions: []client.SystemAction{
 			{Title: "recover", Mode: "recover"},
 			{Title: "reinstall", Mode: "install"},
+		},
+		StorageEncryption: &client.StorageEncryption{
+			Support:       "available",
+			StorageSafety: "prefer-encrypted",
+			Type:          "cryptsetup",
 		},
 		Volumes: map[string]*gadget.Volume{
 			"pc": {
@@ -331,14 +341,27 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 		"status-code": 202,
 		"change": "42"
 	}`
-	vols := map[string][]gadget.Volume{
+	vols := map[string]*gadget.Volume{
 		"pc": {
-			{
-				Schema:     "dos",
-				Bootloader: "mbr",
-				ID:         "0c",
-				// Note that name is not exported as json
-				Name: "pc",
+			Schema:     "dos",
+			Bootloader: "mbr",
+			ID:         "id",
+			// Note that name is not exported as json
+			Name: "pc",
+			Structure: []gadget.VolumeStructure{
+				{
+					Device: "/dev/sda1",
+
+					Label:      "label",
+					Name:       "vol-name",
+					ID:         "id",
+					Size:       1234,
+					Type:       "type",
+					Filesystem: "fs",
+					Role:       "system-boot",
+					// not exported to json
+					VolumeName: "vol-name",
+				},
 			},
 		},
 	}
@@ -361,12 +384,28 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 		"action": "install",
 		"step":   "finish",
 		"on-volumes": map[string]interface{}{
-			"pc": []interface{}{
-				map[string]interface{}{
-					"schema":     "dos",
-					"bootloader": "mbr",
-					"id":         "0c",
-					"structure":  nil,
+			"pc": map[string]interface{}{
+				"schema":     "dos",
+				"bootloader": "mbr",
+				"id":         "id",
+				"structure": []interface{}{
+					map[string]interface{}{
+						"device":           "/dev/sda1",
+						"filesystem-label": "label",
+						"name":             "vol-name",
+						"id":               "id",
+						"size":             float64(1234),
+						"type":             "type",
+						"filesystem":       "fs",
+						"role":             "system-boot",
+						"offset":           nil,
+						"offset-write":     nil,
+						"content":          nil,
+						"update": map[string]interface{}{
+							"edition":  float64(0),
+							"preserve": nil,
+						},
+					},
 				},
 			},
 		},
