@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
@@ -457,7 +458,11 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
-func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, factoryReset bool) {
+func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, factoryReset, classic bool) {
+	restore := release.MockOnClassic(classic)
+	defer restore()
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
 	bootloader.Force(nil)
 
 	model := boottest.MakeMockUC20Model()
@@ -507,7 +512,7 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, factoryReset bool) 
 		{"grubx64.efi", "grub content"},
 		{"meta/snap.yaml", gadgetSnapYaml},
 	})
-	restore := assets.MockInternal("grub-recovery.cfg", grubRecoveryCfgAsset)
+	restore = assets.MockInternal("grub-recovery.cfg", grubRecoveryCfgAsset)
 	defer restore()
 	restore = assets.MockInternal("grub.cfg", grubCfgAsset)
 	defer restore()
@@ -758,7 +763,12 @@ version: 5.0
 	c.Check(extractedKernelSymlink, testutil.FilePresent)
 
 	// ensure modeenv looks correct
-	ubuntuDataModeEnvPath := filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
+	var ubuntuDataModeEnvPath string
+	if classic {
+		ubuntuDataModeEnvPath = filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/var/lib/snapd/modeenv")
+	} else {
+		ubuntuDataModeEnvPath = filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
+	}
 	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, `mode=run
 recovery_system=20191216
 current_recovery_systems=20191216
@@ -822,12 +832,26 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20Install(c *C) {
 	const factoryReset = false
-	s.testMakeSystemRunnable20(c, factoryReset)
+	const classic = false
+	s.testMakeSystemRunnable20(c, factoryReset, classic)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOnClassic(c *C) {
+	const factoryReset = false
+	const classic = true
+	s.testMakeSystemRunnable20(c, factoryReset, classic)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryReset(c *C) {
 	const factoryReset = true
-	s.testMakeSystemRunnable20(c, factoryReset)
+	const classic = false
+	s.testMakeSystemRunnable20(c, factoryReset, classic)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryResetOnClassic(c *C) {
+	const factoryReset = true
+	const classic = true
+	s.testMakeSystemRunnable20(c, factoryReset, classic)
 }
 
 func (s *makeBootable20Suite) TestMakeRunnableSystem20ModeInstallBootConfigErr(c *C) {

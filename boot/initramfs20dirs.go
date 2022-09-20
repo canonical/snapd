@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/release"
 )
 
 var (
@@ -97,7 +98,13 @@ func setInitramfsDirVars(rootdir string) {
 	InitramfsUbuntuBootDir = filepath.Join(InitramfsRunMntDir, "ubuntu-boot")
 	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
 	InitramfsUbuntuSaveDir = filepath.Join(InitramfsRunMntDir, "ubuntu-save")
-	InstallHostWritableDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data", "system-data")
+	// On classic+modes systems the writable dir is directly under
+	// "ubuntu-data"
+	if release.OnClassic {
+		InstallHostWritableDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data")
+	} else {
+		InstallHostWritableDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data", "system-data")
+	}
 	InstallHostDeviceSaveDir = filepath.Join(InitramfsUbuntuSaveDir, "device")
 	InstallHostFDEDataDir = dirs.SnapFDEDirUnder(InstallHostWritableDir)
 	InstallHostFDESaveDir = filepath.Join(InstallHostDeviceSaveDir, "fde")

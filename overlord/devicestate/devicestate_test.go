@@ -140,6 +140,8 @@ var (
 func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.BaseTest.SetUpTest(c)
 
+	s.AddCleanup(release.MockOnClassic(classic))
+
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
@@ -157,8 +159,6 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(s.bootloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
-
-	s.AddCleanup(release.MockOnClassic(classic))
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.restartObserve = nil
