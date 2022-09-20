@@ -54,7 +54,7 @@ func (s *mainSuite) TearDownTest(c *C) {
 }
 
 func MockWSL(onWSL bool) (restorer func()) {
-	restorer = testutil.Backup(release.OnWSL)
+	restorer = testutil.Backup(&release.OnWSL)
 	release.OnWSL = onWSL
 	return
 }
