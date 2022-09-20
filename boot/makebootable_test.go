@@ -125,7 +125,7 @@ version: 4.0
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
 
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, nil)
 	c.Assert(err, IsNil)
 
 	// check the bootloader config
@@ -238,7 +238,7 @@ version: 5.0
 		Recovery:            true,
 	}
 
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, nil)
 	c.Assert(err, IsNil)
 
 	// ensure only a single file got copied (the grub.cfg)
@@ -315,7 +315,7 @@ version: 5.0
 	}
 	bootFlags := []string{"factory"}
 
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, bootFlags)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, bootFlags)
 	c.Assert(err, IsNil)
 
 	// ensure the correct recovery system configuration was set
@@ -377,7 +377,7 @@ version: 5.0
 		Recovery:            true,
 	}
 
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, nil)
 	if errMsg != "" {
 		c.Assert(err, ErrorMatches, errMsg)
 		return
@@ -434,7 +434,7 @@ func (s *makeBootable20Suite) TestMakeBootableImage20UnsetRecoverySystemLabelErr
 		Recovery:          true,
 	}
 
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, nil)
 	c.Assert(err, ErrorMatches, "internal error: recovery system label unset")
 }
 
@@ -447,7 +447,7 @@ func (s *makeBootable20Suite) TestMakeBootableImage20MultipleRecoverySystemsErro
 	err = os.MkdirAll(filepath.Join(s.rootdir, "systems/20191205"), 0755)
 	c.Assert(err, IsNil)
 
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, nil)
 	c.Assert(err, ErrorMatches, "cannot make multiple recovery systems bootable yet")
 }
 
@@ -1541,7 +1541,7 @@ version: 5.0
 	}
 
 	// TODO:UC20: enable this use case
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, nil)
 	c.Assert(err, ErrorMatches, `non-empty uboot.env not supported on UC20\+ yet`)
 }
 
@@ -1591,7 +1591,7 @@ version: 5.0
 		Recovery:            true,
 	}
 
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, nil)
 	c.Assert(err, IsNil)
 
 	// since uboot.conf was absent, we won't have installed the uboot.env, as
