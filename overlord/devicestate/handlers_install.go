@@ -1325,7 +1325,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	// install the bootloader configuration from the gadget
 	// TODO where to take this from?
-	seedDir := "/run/mnt/ubuntu-seed"
+	seedDir := boot.InitramfsUbuntuSeedDir
 	// installs in recovery: grub.cfg, grubenv, but in install mode?
 	logger.Debugf("making the recovery partition bootable")
 	if err := boot.MakeBootableImage(sys.Model, seedDir, bootWith, boot.ModeRun, []string{}); err != nil {
@@ -1335,6 +1335,11 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	// sets environment
 	logger.Debugf("making the recovery partition runnable")
 	if err := boot.MakeRecoverySystemBootable(seedDir, "/", recovBootWith); err != nil {
+		return err
+	}
+
+	// write the model
+	if err := prepareRunSystemData(sys.Model, bootWith.UnpackedGadgetDir, perfTimings); err != nil {
 		return err
 	}
 
