@@ -1091,7 +1091,7 @@ nested_start_core_vm_unit() {
     PARAM_IMAGE="$PARAM_IMAGE,${PARAM_PHYS_BLOCK_SIZE},${PARAM_LOGI_BLOCK_SIZE}"
 
     if nested_is_core_20_system; then
-        # This is to deal with the following qemu error that it just happens using q35 machines in focal
+        # This is to deal with the following qemu error which occurs using q35 machines in focal
         # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
         # It is reproducible on an Intel machine without unrestricted mode support, the failure is most likely due to the guest entering an invalid state for Intel VT
         # The workaround is to restart the vm and check that qemu doesn't go into this bad state again
