@@ -1409,7 +1409,6 @@ cache_snaps(){
     # Download each of the snaps we want to pre-cache. Note that `snap download`
     # a quick no-op if the file is complete.
     for snap_name in "$@"; do
-        # TODO remove this once test-snapd-sh-core22 leaves edge
         snap download "$snap_name"
 
         # Copy all of the snaps back to the spool directory. From there we
