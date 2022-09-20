@@ -16,11 +16,11 @@ execute: |
     # shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     boot_id="$(tests.nested boot-id)"
-    tests.nested exec snap model |MATCH 'model +my-model$'
+    remote.exec snap model |MATCH 'model +my-model$'
     # XXX: recovery system label is based on a date; we may end up with a
     # different label if the remodel runs around midnight; the label will
     # conflict with an existing system label
-    label_base=$(tests.nested exec "date '+%Y%m%d'")
+    label_base=$(remote.exec "date '+%Y%m%d'")
 
     # wait until device is initialized and has a serial
     tests.nested wait-for device-initialized
@@ -29,70 +29,70 @@ execute: |
     VERSION="$(tests.nested show version)"
 
     echo "Refresh model assertion to revision 2"
-    tests.nested copy "$TESTSLIB/assertions/valid-for-testing-pc-revno-2-$VERSION.model"
-    REMOTE_CHG_ID="$(tests.nested exec sudo snap remodel --no-wait "valid-for-testing-pc-revno-2-$VERSION.model")"
+    remote.push "$TESTSLIB/assertions/valid-for-testing-pc-revno-2-$VERSION.model"
+    REMOTE_CHG_ID="$(remote.exec sudo snap remodel --no-wait "valid-for-testing-pc-revno-2-$VERSION.model")"
     tests.nested wait-for reboot "${boot_id}"
-    tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
+    remote.exec sudo snap watch "${REMOTE_CHG_ID}"
 
     echo "Verify the system is back in run mode"
-    tests.nested exec "sudo cat /proc/cmdline" | MATCH snapd_recovery_mode=run
+    remote.exec "sudo cat /proc/cmdline" | MATCH snapd_recovery_mode=run
 
     # this is a simple model revision refresh
     echo "Verify the model"
-    tests.nested exec snap model --verbose > rev-2-model
+    remote.exec snap model --verbose > rev-2-model
     MATCH 'model: +my-model' < rev-2-model
     MATCH 'revision: +2' < rev-2-model
 
     # seed system was created
     revno2_label="${label_base}-1"
     echo "Verify seed system with label $revno2_label"
-    tests.nested exec "sudo cat /run/mnt/ubuntu-seed/systems/${revno2_label}/model" > revno-2-from-seed.model
+    remote.exec "sudo cat /run/mnt/ubuntu-seed/systems/${revno2_label}/model" > revno-2-from-seed.model
     MATCH 'model: my-model' < revno-2-from-seed.model
     MATCH 'revision: 2' < revno-2-from-seed.model
-    tests.nested exec "sudo cat /var/lib/snapd/modeenv" > modeenv
+    remote.exec "sudo cat /var/lib/snapd/modeenv" > modeenv
     MATCH "current_recovery_systems=.*,${revno2_label}" < modeenv
     MATCH "good_recovery_systems=.*,${revno2_label}" < modeenv
-    tests.nested exec "sudo snap debug boot-vars --root-dir=/run/mnt/ubuntu-seed" | MATCH "snapd_good_recovery_systems=${label_base},${revno2_label}"
+    remote.exec "sudo snap debug boot-vars --root-dir=/run/mnt/ubuntu-seed" | MATCH "snapd_good_recovery_systems=${label_base},${revno2_label}"
 
     # the revision pulls in test-snapd-tools-core2* snap
     echo "Verify new model revision snaps"
-    tests.nested exec snap list "test-snapd-tools-core$VERSION"
+    remote.exec snap list "test-snapd-tools-core$VERSION"
     # the snap is pulled in from the store, so it should be located in shared
     # snaps directory
-    tests.nested exec find /run/mnt/ubuntu-seed/snaps -name "test-snapd-tools-core${VERSION}_*.snap" | MATCH "test-snapd-tools-core$VERSION"
+    remote.exec find /run/mnt/ubuntu-seed/snaps -name "test-snapd-tools-core${VERSION}_*.snap" | MATCH "test-snapd-tools-core$VERSION"
 
     boot_id="$(tests.nested boot-id)"
 
     echo "Refresh model assertion to revision 3"
-    tests.nested copy "$TESTSLIB/assertions/valid-for-testing-pc-revno-3-$VERSION.model"
-    REMOTE_CHG_ID="$(tests.nested exec sudo snap remodel --no-wait "valid-for-testing-pc-revno-3-$VERSION.model")"
+    remote.push "$TESTSLIB/assertions/valid-for-testing-pc-revno-3-$VERSION.model"
+    REMOTE_CHG_ID="$(remote.exec sudo snap remodel --no-wait "valid-for-testing-pc-revno-3-$VERSION.model")"
     tests.nested wait-for reboot "${boot_id}"
-    tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
+    remote.exec sudo snap watch "${REMOTE_CHG_ID}"
 
     echo "Verify the model"
-    tests.nested exec snap model --verbose > rev-3-model
+    remote.exec snap model --verbose > rev-3-model
     MATCH 'model: +my-model' < rev-3-model
     MATCH 'revision: +3' < rev-3-model
 
     # seed system was created
     revno3_label="${label_base}-2"
     echo "Verify seed system with label $revno3_label"
-    tests.nested exec "sudo cat /run/mnt/ubuntu-seed/systems/${revno3_label}/model" > revno-3-from-seed.model
+    remote.exec "sudo cat /run/mnt/ubuntu-seed/systems/${revno3_label}/model" > revno-3-from-seed.model
     MATCH 'model: my-model' < revno-3-from-seed.model
     MATCH 'revision: 3' < revno-3-from-seed.model
-    tests.nested exec "sudo cat /var/lib/snapd/modeenv" > modeenv
+    remote.exec "sudo cat /var/lib/snapd/modeenv" > modeenv
     MATCH "current_recovery_systems=.*,${revno3_label}" < modeenv
     MATCH "good_recovery_systems=.*,${revno3_label}" < modeenv
-    tests.nested exec "sudo snap debug boot-vars --root-dir=/run/mnt/ubuntu-seed" | MATCH "snapd_good_recovery_systems=${label_base},${revno2_label},${revno3_label}"
+    remote.exec "sudo snap debug boot-vars --root-dir=/run/mnt/ubuntu-seed" | MATCH "snapd_good_recovery_systems=${label_base},${revno2_label},${revno3_label}"
 
     # because the system is considered 'seeded' we are able to switch to the
     # recover mode
     echo "Switch to recover mode of new seed system"
     boot_id="$(tests.nested boot-id)"
-    tests.nested exec sudo snap reboot --recover "${revno3_label}" | MATCH 'Reboot into ".*" "recover" mode'
+    remote.exec sudo snap reboot --recover "${revno3_label}" | MATCH 'Reboot into ".*" "recover" mode'
     tests.nested wait-for reboot "${boot_id}"
     # Verify we are in recover mode with the expected system label
-    tests.nested exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=recover snapd_recovery_system=${revno3_label} "
+    remote.exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=recover snapd_recovery_system=${revno3_label} "
 
     # we are in recover mode, so tools need to be set up again
     nested_prepare_tools
@@ -100,13 +100,13 @@ execute: |
     boot_id="$(tests.nested boot-id)"
     echo "And back to run mode"
     tests.nested wait-for snap-command
-    tests.nested exec "sudo snap wait system seed.loaded"
-    tests.nested exec sudo snap reboot --run | MATCH 'Reboot into "run" mode.'
+    remote.exec "sudo snap wait system seed.loaded"
+    remote.exec sudo snap reboot --run | MATCH 'Reboot into "run" mode.'
     tests.nested wait-for reboot "${boot_id}"
-    tests.nested exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=run "
+    remote.exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=run "
 
     echo "Verify all recovery systems are listed"
-    tests.nested exec "sudo snap recovery" > recovery.out
+    remote.exec "sudo snap recovery" > recovery.out
     for label in "$label_base" "$revno2_label" "$revno3_label"; do
         MATCH "$label " < recovery.out
     done

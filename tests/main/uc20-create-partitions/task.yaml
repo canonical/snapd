@@ -8,6 +8,11 @@ environment:
     DISK_MAPPING_JSON: /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/disk-mapping.json
 
 prepare: |
+    if not os.query is-pc-amd64; then
+        echo "test designed for amd64 architecture, exiting..."
+        exit
+    fi
+
     echo "Create a fake block device image that looks like an image from u-i"
     truncate --size=5GB fake.img
 
@@ -44,6 +49,11 @@ prepare: |
     unsquashfs -d gadget-dir pc_*.snap
 
 restore: |
+    if not os.query is-pc-amd64; then
+        echo "test designed for amd64 architecture, exiting..."
+        exit
+    fi
+
     for label in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot other-ext4; do
         if mountpoint "/run/mnt/$label"; then
             umount "/run/mnt/$label"
@@ -76,6 +86,11 @@ debug: |
     fi
 
 execute: |
+    if not os.query is-pc-amd64; then
+        echo "test designed for amd64 architecture, exiting..."
+        exit
+    fi
+
     channel=20
     if os.query is-ubuntu 22.04 || os.query is-ubuntu 22.10; then
         channel=22

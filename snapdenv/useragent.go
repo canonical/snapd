@@ -41,6 +41,9 @@ func SetUserAgentFromVersion(version string, probeForceDevMode func() bool, extr
 	if probeForceDevMode != nil && probeForceDevMode() {
 		extras = append(extras, "devmode")
 	}
+	if release.OnWSL {
+		extras = append(extras, "wsl")
+	}
 	if Testing() {
 		extras = append(extras, "testing")
 	}

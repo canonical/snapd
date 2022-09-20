@@ -12,10 +12,12 @@ environment:
   LXD_BASE_SNAP: core20
 
 prepare: |
-  # the get_image_url_for_nested_vm is a convenient helper that returns
-  # a cloud image url matching current $SPREAD_SYSTEM.
+  # shellcheck source=tests/lib/image.sh
+  . "$TESTSLIB"/image.sh
 
-  wget --quiet "$(tests.nested download image-url)" -O cloudimg.img
+  # the get_image_url_for_vm is a convenient helper that returns
+  # a cloud image url matching current $SPREAD_SYSTEM.
+  wget --quiet "$(get_image_url_for_vm)" -O cloudimg.img
   mkdir -p "$IMAGE_MOUNTPOINT"
 
   #shellcheck source=tests/lib/preseed.sh

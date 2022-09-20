@@ -112,12 +112,12 @@ execute: |
 
   # wait for snap seeding to be done
   tests.nested wait-for snap-command
-  tests.nested exec "sudo snap wait system seed.loaded"
+  remote.exec "sudo snap wait system seed.loaded"
 
   # push both snaps to the vm
-  tests.nested copy core-from-branch.snap
+  remote.push core-from-branch.snap
 
-  tests.nested copy snapd-from-branch.snap
+  remote.push snapd-from-branch.snap
 
   if os.query is-xenial; then
     # on UC16, initially we will only have the core snap installed, run those
@@ -125,15 +125,15 @@ execute: |
 
     # this will reboot as we refresh to our core snap
     boot_id="$( tests.nested boot-id )"
-    REMOTE_CHG_ID="$(tests.nested exec sudo snap install --no-wait --dangerous core-from-branch.snap)"
+    REMOTE_CHG_ID="$(remote.exec sudo snap install --no-wait --dangerous core-from-branch.snap)"
     tests.nested wait-for reboot "${boot_id}"
-    tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
+    remote.exec sudo snap watch "${REMOTE_CHG_ID}"
 
-    tests.nested exec sudo snap install --devmode --beta "$BASE_CORE_DEVMODE_SNAP"
-    tests.nested exec sudo snap install "$BASE_CORE_STRICT_SNAP"
+    remote.exec sudo snap install --devmode --beta "$BASE_CORE_DEVMODE_SNAP"
+    remote.exec sudo snap install "$BASE_CORE_STRICT_SNAP"
 
     # umask is the command we execute to avoid yet another layer of quoting
-    OUTPUT=$(echo "snap run ${BASE_CORE_STRICT_SNAP}.sh -c umask" | tests.nested exec "snap run --shell ${BASE_CORE_DEVMODE_SNAP}")
+    OUTPUT=$(echo "snap run ${BASE_CORE_STRICT_SNAP}.sh -c umask" | remote.exec "snap run --shell ${BASE_CORE_DEVMODE_SNAP}")
     if [ "$OUTPUT" != "0002" ]; then
       echo "test failed"
       exit 1
@@ -141,12 +141,12 @@ execute: |
 
     # now install the snapd snap and run those tests
     echo "install the snapd snap"
-    tests.nested exec sudo snap install --dangerous snapd-from-branch.snap
+    remote.exec sudo snap install --dangerous snapd-from-branch.snap
 
     # trigger regeneration of profiles
-    tests.nested exec sudo systemctl stop snapd.socket snapd.service
-    tests.nested exec sudo rm -f /var/lib/snapd/system-key
-    tests.nested exec sudo systemctl start snapd.socket snapd.service
+    remote.exec sudo systemctl stop snapd.socket snapd.service
+    remote.exec sudo rm -f /var/lib/snapd/system-key
+    remote.exec sudo systemctl start snapd.socket snapd.service
 
     # also install the non-core base snap, note that we can install and use it
     # even without the snapd snap, but we cannot execute other snaps from this 
@@ -155,16 +155,16 @@ execute: |
     # /usr/bin/snap -> /snap/snapd/current/usr/bin/snap
     # which effectively requires the snapd snap to be installed to execute other
     # snaps from inside the devmode non-core based snap
-    tests.nested exec sudo snap install --devmode "$BASE_NON_CORE_DEVMODE_SNAP"
+    remote.exec sudo snap install --devmode "$BASE_NON_CORE_DEVMODE_SNAP"
 
     # umask is the command we execute to avoid yet another layer of quoting
-    OUTPUT=$(echo "snap run ${BASE_CORE_STRICT_SNAP}.sh -c umask" | tests.nested exec "snap run --shell ${BASE_CORE_DEVMODE_SNAP}")
+    OUTPUT=$(echo "snap run ${BASE_CORE_STRICT_SNAP}.sh -c umask" | remote.exec "snap run --shell ${BASE_CORE_DEVMODE_SNAP}")
     if [ "$OUTPUT" != "0002" ]; then
       echo "test failed"
       exit 1
     fi
 
-    OUTPUT=$(echo "snap run ${BASE_CORE_STRICT_SNAP}.sh -c umask" | tests.nested exec "snap run --shell ${BASE_NON_CORE_DEVMODE_SNAP}.sh")
+    OUTPUT=$(echo "snap run ${BASE_CORE_STRICT_SNAP}.sh -c umask" | remote.exec "snap run --shell ${BASE_NON_CORE_DEVMODE_SNAP}.sh")
     if [ "$OUTPUT" != "0002" ]; then
       echo "test failed"
       exit 1
@@ -173,15 +173,15 @@ execute: |
   elif os.query is-bionic; then
     # on UC18, initially we will only have the snapd snap installed, run those
     # tests first
-    tests.nested exec sudo snap install  --dangerous snapd-from-branch.snap
+    remote.exec sudo snap install  --dangerous snapd-from-branch.snap
 
     # snaps that don't depend on the core snap
-    tests.nested exec sudo snap install --devmode "$BASE_NON_CORE_DEVMODE_SNAP"
-    tests.nested exec sudo snap install "$BASE_NON_CORE_STRICT_SNAP"
+    remote.exec sudo snap install --devmode "$BASE_NON_CORE_DEVMODE_SNAP"
+    remote.exec sudo snap install "$BASE_NON_CORE_STRICT_SNAP"
 
 
     # umask is the command we execute to avoid yet another layer of quoting
-    OUTPUT=$(echo "snap run ${BASE_NON_CORE_STRICT_SNAP}.sh -c umask" | tests.nested exec "snap run --shell ${BASE_NON_CORE_DEVMODE_SNAP}.sh" )
+    OUTPUT=$(echo "snap run ${BASE_NON_CORE_STRICT_SNAP}.sh -c umask" | remote.exec "snap run --shell ${BASE_NON_CORE_DEVMODE_SNAP}.sh" )
     if [ "$OUTPUT" != "0002" ]; then
       echo "test failed"
       exit 1
@@ -189,24 +189,24 @@ execute: |
 
     # now install the core snap and run those tests
     echo "install the core snap"
-    tests.nested exec sudo snap install --dangerous core-from-branch.snap
+    remote.exec sudo snap install --dangerous core-from-branch.snap
 
     # trigger regeneration of profiles
-    tests.nested exec sudo systemctl stop snapd.socket snapd.service
-    tests.nested exec sudo rm -f /var/lib/snapd/system-key
-    tests.nested exec sudo systemctl start snapd.socket snapd.service
+    remote.exec sudo systemctl stop snapd.socket snapd.service
+    remote.exec sudo rm -f /var/lib/snapd/system-key
+    remote.exec sudo systemctl start snapd.socket snapd.service
 
     # snap that does depend on the core snap
-    tests.nested exec sudo snap install --devmode --beta "$BASE_CORE_DEVMODE_SNAP"
-    tests.nested exec sudo snap install "$BASE_CORE_STRICT_SNAP"
+    remote.exec sudo snap install --devmode --beta "$BASE_CORE_DEVMODE_SNAP"
+    remote.exec sudo snap install "$BASE_CORE_STRICT_SNAP"
 
-    OUTPUT=$(echo "snap run ${BASE_CORE_STRICT_SNAP}.sh -c umask" | tests.nested exec "snap run --shell ${BASE_CORE_DEVMODE_SNAP}")
+    OUTPUT=$(echo "snap run ${BASE_CORE_STRICT_SNAP}.sh -c umask" | remote.exec "snap run --shell ${BASE_CORE_DEVMODE_SNAP}")
     if [ "$OUTPUT" != "0002" ]; then
       echo "test failed"
       exit 1
     fi
 
-    OUTPUT=$(echo "snap run ${BASE_CORE_STRICT_SNAP}.sh -c umask" | tests.nested exec "snap run --shell ${BASE_NON_CORE_DEVMODE_SNAP}.sh")
+    OUTPUT=$(echo "snap run ${BASE_CORE_STRICT_SNAP}.sh -c umask" | remote.exec "snap run --shell ${BASE_NON_CORE_DEVMODE_SNAP}.sh")
     if [ "$OUTPUT" != "0002" ]; then
       echo "test failed"
       exit 1

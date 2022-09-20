@@ -227,13 +227,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	decoder := json.NewDecoder(r.Body)
 
 	// pendingSnapRefreshInfo holds information about pending snap refresh provided by snapd.
-	type pendingSnapRefreshInfo struct {
-		InstanceName        string        `json:"instance-name"`
-		TimeRemaining       time.Duration `json:"time-remaining,omitempty"`
-		BusyAppName         string        `json:"busy-app-name,omitempty"`
-		BusyAppDesktopEntry string        `json:"busy-app-desktop-entry,omitempty"`
-	}
-	var refreshInfo pendingSnapRefreshInfo
+	var refreshInfo client.PendingSnapRefreshInfo
 	if err := decoder.Decode(&refreshInfo); err != nil {
 		return BadRequest("cannot decode request body into pending snap refresh info: %v", err)
 	}

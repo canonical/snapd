@@ -117,7 +117,7 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 	}
 
 	if model.Classic() {
-		fmt.Fprintf(Stdout, "ubuntu classic preseeding")
+		fmt.Fprintf(Stdout, "ubuntu classic preseeding\n")
 	} else {
 		if model.Base() == "core20" {
 			fmt.Fprintf(Stdout, "UC20+ preseeding\n")
@@ -388,6 +388,9 @@ func prepareCore20Chroot(prepareImageDir, aaFeaturesDir string) (preseed *presee
 			fmt.Fprintf(Stdout, "%v", err)
 		}
 		if err := os.RemoveAll(writableTmpDir); err != nil {
+			fmt.Fprintf(Stdout, "%v", err)
+		}
+		if err := os.RemoveAll(snapdMountPath); err != nil {
 			fmt.Fprintf(Stdout, "%v", err)
 		}
 	}

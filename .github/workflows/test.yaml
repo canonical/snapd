@@ -393,6 +393,7 @@ jobs:
         - ubuntu-18.04-32
         - ubuntu-18.04-64
         - ubuntu-20.04-64
+        - ubuntu-20.04-arm-64
         - ubuntu-22.04-64
         - ubuntu-22.10-64
         - ubuntu-core-16-64
@@ -452,8 +453,15 @@ jobs:
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
 
+          BACKEND=google
+          SPREAD=spread
+          if [[ "${{ matrix.system }}" =~ -arm- ]]; then
+              BACKEND=google-arm
+              SPREAD=spread-arm
+          fi
+
           # Save previous failed test results in FAILED_TESTS env var
-          RUN_TESTS="google:${{ matrix.system }}:tests/..."
+          RUN_TESTS="$BACKEND:${{ matrix.system }}:tests/..."
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
           fi
@@ -461,7 +469,8 @@ jobs:
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
-          (set -o pipefail; spread -abend $RUN_TESTS | tee spread.log)
+          echo "Running command: $SPREAD -abend $RUN_TESTS"
+          (set -o pipefail; $SPREAD -abend $RUN_TESTS | tee spread.log)
 
     - name: Discard spread workers
       if: always()
@@ -495,8 +504,13 @@ jobs:
               echo "Running spread log parser"
               ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
 
+              BACKEND=google
+              if [[ "${{ matrix.system }}" =~ -arm- ]]; then
+                  BACKEND=google-arm
+              fi
+
               echo "Determining which tests were executed"
-              RUN_TESTS="google:${{ matrix.system }}:tests/..."
+              RUN_TESTS="$BACKEND:${{ matrix.system }}:tests/..."
               if [ -n "$FAILED_TESTS" ]; then
                   RUN_TESTS="$FAILED_TESTS"
               fi

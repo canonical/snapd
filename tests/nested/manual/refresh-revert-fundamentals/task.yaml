@@ -40,7 +40,7 @@ prepare: |
     tests.nested create-vm core
 
 debug: |
-    tests.nested exec "snap changes" || true
+    remote.exec "snap changes" || true
 
 execute: |
     if [ -f skip.test ]; then
@@ -50,11 +50,11 @@ execute: |
     FROM_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
     TO_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
 
-    tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_CHANNEL}.*"
+    remote.exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_CHANNEL}.*"
 
     echo "Refresh the snap $SNAP"
     INITIAL_BOOT_ID=$(tests.nested boot-id)
-    REFRESH_ID=$(tests.nested exec "sudo snap refresh --no-wait --channel $NESTED_CORE_REFRESH_CHANNEL $SNAP")
+    REFRESH_ID=$(remote.exec "sudo snap refresh --no-wait --channel $NESTED_CORE_REFRESH_CHANNEL $SNAP")
 
     case "$SNAP" in
         snapd|pc)
@@ -62,8 +62,8 @@ execute: |
             # resealing took place we are still able to boot
             # The following commands could fails in case the connection is suddenly
             # stopped because of the reboot in the nested machine
-            tests.nested exec "snap watch $REFRESH_ID" || true
-            tests.nested exec "sudo reboot" || true
+            remote.exec "snap watch $REFRESH_ID" || true
+            remote.exec "sudo reboot" || true
             ;;
         pc-kernel|core20)
             # don't manually reboot, wait for automatic snapd reboot
@@ -73,19 +73,19 @@ execute: |
     SECOND_BOOT_ID=$(tests.nested boot-id)
 
     echo "Check the new version of the snaps is correct after the system reboot"
-    tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
+    remote.exec "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
 
     echo "Check the change is completed"
     case "$SNAP" in
         pc-kernel|core20)
             #shellcheck disable=SC2098
             #shellcheck disable=SC2097
-            retry --wait 1 -n 10 --env REFRESH_ID="$REFRESH_ID" sh -c "tests.nested exec snap changes | MATCH \"$REFRESH_ID\s+Done\s+.*\""
+            retry --wait 1 -n 10 --env REFRESH_ID="$REFRESH_ID" sh -c "remote.exec snap changes | MATCH \"$REFRESH_ID\s+Done\s+.*\""
             ;;
     esac
 
     echo "Revert the snap $SNAP"
-    REVERT_ID=$(tests.nested exec "sudo snap revert --no-wait $SNAP")
+    REVERT_ID=$(remote.exec "sudo snap revert --no-wait $SNAP")
 
     case "$SNAP" in
         snapd|pc)
@@ -93,8 +93,8 @@ execute: |
             # resealing took place we are still able to boot
             # The following commands could fails in case the connection is suddenly
             # stopped because of the reboot in the nested machine
-            tests.nested exec "snap watch $REVERT_ID" || true
-            tests.nested exec "sudo reboot" || true
+            remote.exec "snap watch $REVERT_ID" || true
+            remote.exec "sudo reboot" || true
             ;;
         pc-kernel|core20)
             # don't manually reboot, wait for automatic snapd reboot
@@ -103,11 +103,11 @@ execute: |
     tests.nested wait-for reboot "$SECOND_BOOT_ID"
 
     echo "Check the version of the snaps after the revert is correct"
-    tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
+    remote.exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
 
     echo "Check the change is completed"
     case "$SNAP" in
         pc-kernel|core20)
-            retry --wait 1 -n 10 --env REVERT_ID="$REVERT_ID" sh -c "tests.nested exec snap changes | MATCH \"$REVERT_ID\s+Done\s+.*\""
+            retry --wait 1 -n 10 --env REVERT_ID="$REVERT_ID" sh -c "remote.exec snap changes | MATCH \"$REVERT_ID\s+Done\s+.*\""
             ;;
     esac

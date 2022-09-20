@@ -17,12 +17,12 @@ restore: |
   teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
 
 debug: |
-  tests.nested exec "snap connections --all" || true
-  tests.nested exec "snap changes" || true
-  tests.nested exec "snap change 1" || true
-  tests.nested exec "snap model" || true
-  tests.nested exec "snap list" || true
-  tests.nested exec "sudo python3 -m json.tool /var/lib/snapd/state.json" || true
+  remote.exec "snap connections --all" || true
+  remote.exec "snap changes" || true
+  remote.exec "snap change 1" || true
+  remote.exec "snap model" || true
+  remote.exec "snap list" || true
+  remote.exec "sudo python3 -m json.tool /var/lib/snapd/state.json" || true
 
 execute: |
   #shellcheck source=tests/lib/store.sh
@@ -59,8 +59,8 @@ execute: |
   tests.nested build-image core
   tests.nested create-vm core
   # precondition check
-  tests.nested exec "snap model" | MATCH nested-20-amd64-test-snapd-connections
-  tests.nested exec "snap list test-snapd-connections"
+  remote.exec "snap model" | MATCH nested-20-amd64-test-snapd-connections
+  remote.exec "snap list test-snapd-connections"
 
   # check that there is an auto-connection
-  tests.nested exec "snap connections" | MATCH 'serial-port  *test-snapd-connections:serial-1  *pc:serial-1'
+  remote.exec "snap connections" | MATCH 'serial-port  *test-snapd-connections:serial-1  *pc:serial-1'

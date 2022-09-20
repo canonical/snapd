@@ -740,7 +740,7 @@ func (s *snapmgrTestSuite) TestInstallManySnapOneWithDefaultTrack(c *C) {
 	defer s.state.Unlock()
 
 	snapNames := []string{"some-snap", "some-snap-with-default-track"}
-	installed, tss, err := snapstate.InstallMany(s.state, snapNames, s.user.ID, nil)
+	installed, tss, err := snapstate.InstallMany(s.state, snapNames, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Assert(installed, DeepEquals, snapNames)
 
@@ -3301,10 +3301,10 @@ func (s *snapmgrTestSuite) TestInstallValidatesInstanceNames(c *C) {
 	_, err = snapstate.Install(context.Background(), s.state, "foo_123_456", nil, 0, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "123_456"`)
 
-	_, _, err = snapstate.InstallMany(s.state, []string{"foo--invalid"}, 0, nil)
+	_, _, err = snapstate.InstallMany(s.state, []string{"foo--invalid"}, nil, 0, nil)
 	c.Assert(err, ErrorMatches, `invalid instance name: invalid snap name: "foo--invalid"`)
 
-	_, _, err = snapstate.InstallMany(s.state, []string{"foo_123_456"}, 0, nil)
+	_, _, err = snapstate.InstallMany(s.state, []string{"foo_123_456"}, nil, 0, nil)
 	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "123_456"`)
 
 	mockSnap := makeTestSnap(c, `name: some-snap
@@ -3417,7 +3417,7 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	installed, tts, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0, nil)
+	installed, tts, err := snapstate.InstallMany(s.state, []string{"one", "two"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
@@ -3438,7 +3438,7 @@ func (s *snapmgrTestSuite) TestInstallManyDevMode(c *C) {
 	defer s.state.Unlock()
 
 	snapNames := []string{"one", "two"}
-	installed, tts, err := snapstate.InstallMany(s.state, snapNames, 0, &snapstate.Flags{DevMode: true})
+	installed, tts, err := snapstate.InstallMany(s.state, snapNames, nil, 0, &snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	c.Check(installed, DeepEquals, snapNames)
@@ -3463,7 +3463,7 @@ func (s *snapmgrTestSuite) TestInstallManyTransactionally(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	installed, tts, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0,
+	installed, tts, err := snapstate.InstallMany(s.state, []string{"one", "two"}, nil, 0,
 		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
@@ -3489,7 +3489,7 @@ func (s *snapmgrTestSuite) TestInstallManyWithPrereqsTransactionally(c *C) {
 	snapstate.Set(s.state, "core", nil)
 
 	snapsToInstall := []string{"snap1", "snap2"}
-	installed, tts, err := snapstate.InstallMany(s.state, snapsToInstall, 0,
+	installed, tts, err := snapstate.InstallMany(s.state, snapsToInstall, nil, 0,
 		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
@@ -3570,7 +3570,7 @@ func (s *snapmgrTestSuite) TestInstallManyTransactionallyFails(c *C) {
 
 	chg := s.state.NewChange("install", "install some snaps")
 	installed, tts, err := snapstate.InstallMany(s.state,
-		[]string{"some-snap", "some-other-snap"}, 0,
+		[]string{"some-snap", "some-other-snap"}, nil, 0,
 		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Check(installed, DeepEquals, []string{"some-snap", "some-other-snap"})
@@ -3602,7 +3602,7 @@ func (s *snapmgrTestSuite) TestInstallManyDiskSpaceError(c *C) {
 	tr.Set("core", "experimental.check-disk-space-install", true)
 	tr.Commit()
 
-	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0, nil)
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, nil, 0, nil)
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: one, two`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
@@ -3621,7 +3621,7 @@ func (s *snapmgrTestSuite) TestInstallManyDiskCheckDisabled(c *C) {
 	tr.Set("core", "experimental.check-disk-space-install", false)
 	tr.Commit()
 
-	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0, nil)
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, nil, 0, nil)
 	c.Check(err, IsNil)
 }
 
@@ -3631,7 +3631,7 @@ func (s *snapmgrTestSuite) TestInstallManyTooEarly(c *C) {
 
 	s.state.Set("seeded", nil)
 
-	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0, nil)
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, nil, 0, nil)
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Assert(err, ErrorMatches, `too early for operation, device not yet seeded or device model not acknowledged`)
 }
@@ -3640,11 +3640,11 @@ func (s *snapmgrTestSuite) TestInstallManyChecksPreconditions(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, _, err := snapstate.InstallMany(s.state, []string{"some-snap-now-classic"}, 0, nil)
+	_, _, err := snapstate.InstallMany(s.state, []string{"some-snap-now-classic"}, nil, 0, nil)
 	c.Assert(err, NotNil)
 	c.Check(err, DeepEquals, &snapstate.SnapNeedsClassicError{Snap: "some-snap-now-classic"})
 
-	_, _, err = snapstate.InstallMany(s.state, []string{"some-snap_foo"}, 0, nil)
+	_, _, err = snapstate.InstallMany(s.state, []string{"some-snap_foo"}, nil, 0, nil)
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")
 }
 
@@ -4075,7 +4075,7 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSet(c *C) {
 			Action:         "install",
 			InstanceName:   "some-snap",
 			Channel:        "stable",
-			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 		},
 		revno: snap.R(11),
 	}
@@ -4092,7 +4092,7 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSetAtRevision(
 			Action:         "install",
 			Revision:       snap.R(2),
 			InstanceName:   "some-snap",
-			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 		},
 		revno: snap.R(2),
 	}
@@ -4109,7 +4109,7 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSetCohortIgnor
 			Action:         "install",
 			Revision:       snap.R(2),
 			InstanceName:   "some-snap",
-			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 		},
 		revno: snap.R(2),
 	}
@@ -4157,8 +4157,51 @@ func (s *validationSetsSuite) installManySnapReferencedByValidationSet(c *C, sna
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0, nil)
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, nil, 0, nil)
 	return err
+}
+
+func (s *validationSetsSuite) TestInstallManyWithRevisionOpts(c *C) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		// current validation set forbids "some-snap"
+		vs := snapasserts.NewValidationSets()
+		snapOne := map[string]interface{}{
+			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-snap",
+			"presence": "invalid",
+		}
+		vsa1 := s.mockValidationSetAssert(c, "bar", "1", snapOne)
+		vs.Add(vsa1.(*asserts.ValidationSet))
+		return vs, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	// installing "some-snap" with revision opts should succeed because current
+	// validation sets should be ignored
+	revOpts := []*snapstate.RevisionOptions{{Revision: snap.R(2), ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/2"}}}
+	affected, tss, err := snapstate.InstallMany(s.state, []string{"some-snap"}, revOpts, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(affected, DeepEquals, []string{"some-snap"})
+
+	chg := s.state.NewChange("install", "")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	s.settle(c)
+	c.Check(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
 func (s *validationSetsSuite) TestInstallManyInvalidForValidationSetRefused(c *C) {
@@ -4177,7 +4220,7 @@ func (s *validationSetsSuite) TestInstallManyRequiredForValidationSetOK(c *C) {
 			Action:         "install",
 			InstanceName:   "one",
 			Channel:        "stable",
-			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 		},
 		revno: snap.R(11),
 	}, {
@@ -4204,7 +4247,7 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 			Action:         "install",
 			InstanceName:   "one",
 			Revision:       snap.R(11),
-			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 		},
 		revno: snap.R(11),
 	}, {
@@ -4213,7 +4256,7 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 			Action:         "install",
 			InstanceName:   "two",
 			Revision:       snap.R(2),
-			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar/1"},
 		},
 		revno: snap.R(2),
 	}}
@@ -4476,7 +4519,7 @@ func (s *validationSetsSuite) TestInstallSnapWithValidationSets(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	opts := &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSets: []string{"16/foo/bar", "16/foo/baz"}}
+	opts := &snapstate.RevisionOptions{Revision: snap.R(11), ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"}}
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
@@ -4486,7 +4529,7 @@ func (s *validationSetsSuite) TestInstallSnapWithValidationSets(c *C) {
 		action: store.SnapAction{
 			Action:         "install",
 			InstanceName:   "some-snap",
-			ValidationSets: [][]string{{"16", "foo", "bar"}, {"16", "foo", "baz"}},
+			ValidationSets: []snapasserts.ValidationSetKey{"16/foo/bar", "16/foo/baz"},
 			Revision:       snap.R(11),
 		},
 		revno: snap.R(11),
@@ -4701,7 +4744,7 @@ func (s *snapmgrTestSuite) TestInstallDeduplicatesSnapNames(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	installed, ts, err := snapstate.InstallMany(s.state, []string{"some-snap", "some-base", "some-snap", "some-base"}, s.user.ID, nil)
+	installed, ts, err := snapstate.InstallMany(s.state, []string{"some-snap", "some-base", "some-snap", "some-base"}, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Check(installed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
 	c.Check(ts, HasLen, 2)
@@ -5450,7 +5493,7 @@ func (s *snapmgrTestSuite) TestInstallManyConsidersProvenance(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, tss, err := snapstate.InstallMany(s.state, []string{"provenance-snap"}, s.user.ID, &snapstate.Flags{})
+	_, tss, err := snapstate.InstallMany(s.state, []string{"provenance-snap"}, nil, s.user.ID, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	var snapsup snapstate.SnapSetup
@@ -5458,4 +5501,134 @@ func (s *snapmgrTestSuite) TestInstallManyConsidersProvenance(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapsup.ExpectedProvenance, Equals, "prov")
+}
+
+func (s *snapmgrTestSuite) TestInstallManyTransactionalWithLane(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lane := s.state.NewLane()
+	flags := &snapstate.Flags{
+		Transaction: client.TransactionAllSnaps,
+		Lane:        lane,
+	}
+	affected, tss, err := snapstate.InstallMany(s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
+	c.Assert(err, IsNil)
+	c.Check(affected, DeepEquals, []string{"some-snap", "some-other-snap"})
+	c.Check(tss, HasLen, 2)
+
+	for _, ts := range tss {
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{lane})
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallManyErrorsWithLaneButNoTransaction(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lane := s.state.NewLane()
+	flags := &snapstate.Flags{
+		Lane: lane,
+	}
+
+	affected, tss, err := snapstate.InstallMany(s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(affected, IsNil)
+	c.Check(tss, IsNil)
+
+	flags.Transaction = client.TransactionPerSnap
+
+	affected, tss, err = snapstate.InstallMany(s.state, []string{"some-snap", "some-other-snap"}, nil, s.user.ID, flags)
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(affected, IsNil)
+	c.Check(tss, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyTransactionalWithLane(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lane := s.state.NewLane()
+	flags := &snapstate.Flags{
+		Transaction: client.TransactionAllSnaps,
+		Lane:        lane,
+	}
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "other-snap"}
+	for _, name := range snapNames {
+		yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+`, name)
+		paths = append(paths, makeTestSnap(c, yaml))
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("3"),
+		}
+		sideInfos = append(sideInfos, si)
+	}
+
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, flags)
+	c.Assert(err, IsNil)
+	c.Check(tss, HasLen, 2)
+
+	for _, ts := range tss {
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{lane})
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyErrorsWithLaneButNoTransaction(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lane := s.state.NewLane()
+	flags := &snapstate.Flags{
+		Lane: lane,
+	}
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	for _, name := range []string{"some-snap", "other-snap"} {
+		yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+`, name)
+		paths = append(paths, makeTestSnap(c, yaml))
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("3"),
+		}
+		sideInfos = append(sideInfos, si)
+	}
+
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, flags)
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(tss, IsNil)
+
+	flags.Transaction = client.TransactionPerSnap
+	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, flags)
+	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
+	c.Check(tss, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathWithTransactionLaneForbidden(c *C) {
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R("3")}
+	tss, info, err := snapstate.InstallPath(s.state, si, "", "", "", snapstate.Flags{Lane: 1})
+	c.Assert(err, ErrorMatches, "transaction lane is unsupported in InstallPath")
+	c.Check(tss, IsNil)
+	c.Check(info, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestInstallWithTransactionLaneForbidden(c *C) {
+	tss, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", nil, 0, snapstate.Flags{Lane: 1}, nil, "")
+	c.Assert(err, ErrorMatches, "transaction lane is unsupported in InstallWithDeviceContext")
+	c.Check(tss, IsNil)
 }

@@ -226,7 +226,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 		WithMemoryLimit(quantity.SizeGiB).
 		WithCPUCount(2).
 		WithCPUPercentage(50).
-		WithAllowedCPUs([]int{0, 1}).
+		WithCPUSet([]int{0, 1}).
 		WithThreadLimit(32).
 		Build()
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
@@ -429,7 +429,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountAndCpuSetQuota
 	// set up arbitrary quotas for the group to test they get written correctly to the slice
 	resourceLimits := quota.NewResourcesBuilder().
 		WithCPUPercentage(50).
-		WithAllowedCPUs([]int{0}).
+		WithCPUSet([]int{0}).
 		Build()
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
@@ -560,6 +560,7 @@ WantedBy=multi-user.target
 	)
 	jconfTempl := `# Journald configuration for snap quota group %s
 [Journal]
+Storage=auto
 `
 
 	sliceTempl := `[Unit]
@@ -663,10 +664,116 @@ WantedBy=multi-user.target
 	)
 	jconfTempl := `# Journald configuration for snap quota group %s
 [Journal]
+Storage=auto
 SystemMaxUse=10485760
 RuntimeMaxUse=10485760
 RateLimitIntervalSec=5000000us
 RateLimitBurst=15
+`
+
+	sliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+X-Snappy=yes
+
+[Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
+`
+
+	jconfContent := fmt.Sprintf(jconfTempl, grp.Name)
+	sliceContent := fmt.Sprintf(sliceTempl, grp.Name)
+
+	exp := []changesObservation{
+		{
+			grp:      grp,
+			unitType: "journald",
+			new:      jconfContent,
+			old:      "",
+			name:     "foogroup",
+		},
+		{
+			snapName: "hello-snap",
+			unitType: "service",
+			name:     "svc1",
+			old:      "",
+			new:      svcContent,
+		},
+		{
+			grp:      grp,
+			unitType: "slice",
+			new:      sliceContent,
+			old:      "",
+			name:     "foogroup",
+		},
+	}
+	r, observe := expChangeObserver(c, exp)
+	defer r()
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	c.Assert(svcFile, testutil.FileEquals, svcContent)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotaRateAsZero(c *C) {
+	// Ensure that the journald.conf file is correctly written
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	// set up arbitrary quotas for the group to test they get written correctly to the slice
+	resourceLimits := quota.NewResourcesBuilder().
+		WithJournalRate(0, 0).
+		Build()
+	grp, err := quota.NewGroup("foogroup", resourceLimits)
+	c.Assert(err, IsNil)
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {QuotaGroup: grp},
+	}
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	svcContent := fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+Slice=snap.foogroup.slice
+LogNamespace=snap-foogroup
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+	)
+	jconfTempl := `# Journald configuration for snap quota group %s
+[Journal]
+Storage=auto
+RateLimitIntervalSec=0us
+RateLimitBurst=0
 `
 
 	sliceTempl := `[Unit]
@@ -1185,7 +1292,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 	var err error
 	resourceLimits := quota.NewResourcesBuilder().
 		WithMemoryLimit(quantity.SizeGiB).
-		WithAllowedCPUs([]int{0}).
+		WithCPUSet([]int{0}).
 		Build()
 	// make a root quota group without any snaps in it
 	grp, err := quota.NewGroup("foogroup", resourceLimits)

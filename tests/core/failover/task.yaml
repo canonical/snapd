@@ -75,9 +75,9 @@ restore: |
     rm -rf "$BUILD_DIR"
 
 debug: |
-    snap debug boot-vars
-    snap list
-    snap changes
+    snap debug boot-vars || true
+    snap list || true
+    snap changes || true
 
 execute: |
     if [ "$TARGET_SNAP" = "kernel" ] && os.query is-arm; then

@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -56,8 +57,8 @@ type CurrentSnap struct {
 	Block            []snap.Revision
 	Epoch            snap.Epoch
 	CohortKey        string
-	// ValidationSets is an optional array of validation sets primary keys.
-	ValidationSets [][]string
+	// ValidationSets is an optional array of validation set primary keys.
+	ValidationSets []snapasserts.ValidationSetKey
 }
 
 type AssertionQuery interface {
@@ -77,7 +78,7 @@ type currentSnapV2JSON struct {
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
 	CohortKey        string     `json:"cohort-key,omitempty"`
-	// ValidationSets is an optional array of validation sets primary keys.
+	// ValidationSets is an optional array of validation set primary keys.
 	ValidationSets [][]string `json:"validation-sets,omitempty"`
 }
 
@@ -97,9 +98,9 @@ type SnapAction struct {
 	CohortKey    string
 	Flags        SnapActionFlags
 	Epoch        snap.Epoch
-	// ValidationSets is an optional array of validation sets primary keys
+	// ValidationSets is an optional array of validation set primary keys
 	// (relevant for install and refresh actions).
-	ValidationSets [][]string
+	ValidationSets []snapasserts.ValidationSetKey
 }
 
 func isValidAction(action string) bool {
@@ -329,6 +330,12 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if !curSnap.RefreshedDate.IsZero() {
 			refreshedDate = &curSnap.RefreshedDate
 		}
+
+		valsetKeys := make([][]string, 0, len(curSnap.ValidationSets))
+		for _, vsKey := range curSnap.ValidationSets {
+			valsetKeys = append(valsetKeys, vsKey.Components())
+		}
+
 		curSnapJSONs[i] = &currentSnapV2JSON{
 			SnapID:           curSnap.SnapID,
 			InstanceKey:      instanceKey,
@@ -338,7 +345,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			RefreshedDate:    refreshedDate,
 			Epoch:            curSnap.Epoch,
 			CohortKey:        curSnap.CohortKey,
-			ValidationSets:   curSnap.ValidationSets,
+			ValidationSets:   valsetKeys,
 		}
 	}
 
@@ -370,6 +377,11 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			ignoreValidation = &f
 		}
 
+		valsetKeyComponents := make([][]string, 0, len(a.ValidationSets))
+		for _, vsKey := range a.ValidationSets {
+			valsetKeyComponents = append(valsetKeyComponents, vsKey.Components())
+		}
+
 		var instanceKey string
 		aJSON := &snapActionJSON{
 			Action:           a.Action,
@@ -377,7 +389,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			Channel:          a.Channel,
 			Revision:         a.Revision.N,
 			CohortKey:        a.CohortKey,
-			ValidationSets:   a.ValidationSets,
+			ValidationSets:   valsetKeyComponents,
 			IgnoreValidation: ignoreValidation,
 		}
 		if !a.Revision.Unset() {

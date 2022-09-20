@@ -20,6 +20,8 @@
 package tooling
 
 import (
+	"net/url"
+
 	"github.com/snapcore/snapd/store"
 )
 
@@ -29,7 +31,11 @@ var (
 )
 
 func (tsto *ToolingStore) Creds() store.Authorizer {
-	return tsto.creds
+	return tsto.cfg.Authorizer
+}
+
+func (tsto *ToolingStore) StoreURL() *url.URL {
+	return tsto.cfg.StoreBaseURL
 }
 
 func (opts *DownloadSnapOptions) Validate() error {
