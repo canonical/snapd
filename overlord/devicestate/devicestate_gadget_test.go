@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -400,7 +400,8 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 	// should have been removed right after update
 	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
 	if isClassic {
-		c.Check(s.restartRequests, HasLen, 0)
+		// XXX CLASSIC-NO-REBOOT
+		c.Check(s.restartRequests, HasLen, 1)
 	} else {
 		c.Check(s.restartRequests, DeepEquals, []restart.RestartType{expectedRst})
 	}
@@ -1194,12 +1195,16 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		// we log on success
 		log := tsk.Log()
 		if logMatch != "" {
-			c.Assert(log, HasLen, 2)
+			if !isClassic {
+				c.Assert(log, HasLen, 1)
+			} else {
+				// XXX CLASSIC-NO-REBOOT
+				c.Assert(log, HasLen, 1)
+				isClassic = false
+			}
 			c.Check(log[0], Matches, fmt.Sprintf(".* %v", logMatch))
 			if isClassic {
 				c.Check(log[1], Matches, ".* Not restarting as this is a classic device.")
-			} else {
-				c.Check(log[1], Matches, ".* Requested system restart.")
 			}
 		} else {
 			c.Check(log, HasLen, 0)
@@ -1595,11 +1600,9 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	c.Check(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.*total undo.*")
 	c.Check(tsk.Status(), Equals, state.UndoneStatus)
 	log := tsk.Log()
-	c.Assert(log, HasLen, 4)
+	c.Assert(log, HasLen, 2)
 	c.Check(log[0], Matches, ".* Updated kernel command line")
-	c.Check(log[1], Matches, ".* Requested system restart.")
-	c.Check(log[2], Matches, ".* Reverted kernel command line change")
-	c.Check(log[3], Matches, ".* Requested system restart.")
+	c.Check(log[1], Matches, ".* Reverted kernel command line change")
 	// update was applied and then undone
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow, restart.RestartSystemNow})
 	c.Check(restartCount, Equals, 2)
@@ -1699,14 +1702,17 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineClassicWithModesUpdateUndo(c
 	c.Check(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.*total undo.*")
 	c.Check(tsk.Status(), Equals, state.UndoneStatus)
 	log := tsk.Log()
-	c.Assert(log, HasLen, 4)
+	// XXX CLASSIC-NO-REBOOT
+	c.Assert(log, HasLen, 2)
 	c.Check(log[0], Matches, ".* Updated kernel command line")
-	c.Check(log[1], Matches, ".* Not restarting as this is a classic device.")
-	c.Check(log[2], Matches, ".* Reverted kernel command line change")
-	c.Check(log[3], Matches, ".* Not restarting as this is a classic device.")
+	// XXX CLASSIC-NO-REBOOT c.Check(log[1], Matches, ".* Not restarting as this is a classic device.")
+	c.Check(log[1], Matches, ".* Reverted kernel command line change")
+	// XXX CLASSIC-NO-REBOOT c.Check(log[3], Matches, ".* Not restarting as this is a classic device.")
 	// update was applied and then undone, but no restarts happened
-	c.Check(s.restartRequests, HasLen, 0)
-	c.Check(restartCount, Equals, 0)
+	// XXX CLASSIC-NO-REBOOT
+	c.Check(s.restartRequests, HasLen, 2)
+	// XXX CLASSIC-NO-REBOOT
+	c.Check(restartCount, Equals, 2)
 	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{
