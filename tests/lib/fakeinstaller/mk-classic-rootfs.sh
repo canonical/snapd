@@ -60,7 +60,7 @@ EOF
     if [ -e "$package"  ]; then
         cp "$package" "$DESTDIR"/var/cache/apt/archives
         sudo chroot "$DESTDIR" /usr/bin/sh -c \
-             "DEBIAN_FRONTEND=noninteractive apt install -y /var/cache/apt/archives/$(basename $package)"
+             "DEBIAN_FRONTEND=noninteractive apt install -y /var/cache/apt/archives/$(basename "$package")"
     fi
 }
 
