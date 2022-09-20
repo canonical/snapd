@@ -1298,7 +1298,11 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot write content: %v", err)
 	}
 
-	// TODO base?
+	recovBootWith := &boot.RecoverySystemBootableSet{
+		Kernel:          snapInfos[snap.TypeKernel],
+		KernelPath:      snapSeeds[snap.TypeKernel].Path,
+		GadgetSnapOrDir: snapSeeds[snap.TypeGadget].Path,
+	}
 	bootWith := &boot.BootableSet{
 		Base:       snapInfos[snap.TypeBase],
 		BasePath:   snapSeeds[snap.TypeBase].Path,
@@ -1313,13 +1317,28 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		// TODO: important but a bit unclear why needed
 		RecoverySystemDir: systemLabel,
 
-		Recovery: false,
+		Recovery: true,
 
 		// XXX: rename to something more neutral like "TargetDir" ?
 		InstallHostWritableDir: filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"),
 	}
 
-	logger.Debugf("making the installed system runnable")
+	// install the bootloader configuration from the gadget
+	// TODO where to take this from?
+	seedDir := "/run/mnt/ubuntu-seed"
+	// installs in recovery: grub.cfg, grubenv, but in install mode?
+	logger.Debugf("making the recovery partition bootable")
+	if err := boot.MakeBootableImage(sys.Model, seedDir, bootWith, boot.ModeRun, []string{}); err != nil {
+		return err
+	}
+
+	// sets environment
+	logger.Debugf("making the recovery partition runnable")
+	if err := boot.MakeRecoverySystemBootable(seedDir, "/", recovBootWith); err != nil {
+		return err
+	}
+
+	logger.Debugf("making the installed system runnable for systemLabel %s", systemLabel)
 	if err := boot.MakeRunnableSystem(sys.Model, bootWith, trustedInstallObserver); err != nil {
 		return err
 	}
