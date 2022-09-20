@@ -802,25 +802,37 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	return nil
 }
 
-// RestartSystem requests a system restart.
-// It considers how the Change the task belongs to is configured
-// (system-restart-immediate) to choose whether request an immediate
-// restart or not.
-func RestartSystem(task *state.Task, rebootInfo *boot.RebootInfo) {
-	chg := task.Change()
-	var immediate bool
-	if chg != nil {
-		// ignore errors intentionally, to follow
-		// RequestRestart itself which does not
-		// return errors. If the state is corrupt
-		// something else will error
-		chg.Get("system-restart-immediate", &immediate)
+// FinishTaskWithRestart will finish a task that needs a restart, by
+// setting its status and requesting a restart.
+// It should usually be invoked returning its result immediately
+// from the caller.
+// TODO not implemented yet: we will return an error in the future if
+// we want to hold the restart. We will also add post hold status and
+// boot id information in the task in that case.
+func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.RestartType,
+	rebootInfo *boot.RebootInfo) error {
+
+	// If system restart is requested, consider how the change the
+	// task belongs to is configured (system-restart-immediate) to
+	// choose whether request an immediate restart or not.
+	if rt == restart.RestartSystem {
+		chg := task.Change()
+		var immediate bool
+		if chg != nil {
+			// ignore errors intentionally, to follow
+			// RequestRestart itself which does not
+			// return errors. If the state is corrupt
+			// something else will error
+			chg.Get("system-restart-immediate", &immediate)
+		}
+		if immediate {
+			rt = restart.RestartSystemNow
+		}
 	}
-	rst := restart.RestartSystem
-	if immediate {
-		rst = restart.RestartSystemNow
-	}
-	restart.Request(task.State(), rst, rebootInfo)
+
+	task.SetStatus(status)
+	restart.Request(task.State(), rt, rebootInfo)
+	return nil
 }
 
 func contentAttr(attrer interfaces.Attrer) string {
