@@ -55,6 +55,7 @@ EOF
 
     # install the current in-development version of snapd when available,
     # this will give us seeding support
+    GOPATH="${GOPATH:-./}"
     package=$(find "$GOPATH" -maxdepth 1 -name "snapd_*.deb")
     if [ -e "$package"  ]; then
         cp "$package" "$DESTDIR"/var/cache/apt/archives
