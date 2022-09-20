@@ -70,7 +70,7 @@ type BootableSet struct {
 // from UC20 install mode.
 // For a UC20 image a set of boot flags that will be set in the recovery
 // boot environment can be specified.
-func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableSet, bootFlags []string) error {
+func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableSet, recoveryMode string, bootFlags []string) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		if len(bootFlags) != 0 {
 			return fmt.Errorf("no boot flags support for UC16/18")
@@ -81,7 +81,7 @@ func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableS
 	if !bootWith.Recovery {
 		return fmt.Errorf("internal error: MakeBootableImage called at runtime, use MakeRunnableSystem instead")
 	}
-	return makeBootable20(rootdir, bootWith, bootFlags)
+	return makeBootable20(rootdir, bootWith, recoveryMode, bootFlags)
 }
 
 // makeBootable16 setups the image filesystem for boot with UC16
@@ -161,7 +161,7 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	return nil
 }
 
-func makeBootable20(rootdir string, bootWith *BootableSet, bootFlags []string) error {
+func makeBootable20(rootdir string, bootWith *BootableSet, recoveryMode string, bootFlags []string) error {
 	// we can only make a single recovery system bootable right now
 	recoverySystems, err := filepath.Glob(filepath.Join(rootdir, "systems/*"))
 	if err != nil {
@@ -207,7 +207,7 @@ func makeBootable20(rootdir string, bootWith *BootableSet, bootFlags []string) e
 	// ubuntu-seed
 	blVars["snapd_recovery_system"] = bootWith.RecoverySystemLabel
 	// always set the mode as install
-	blVars["snapd_recovery_mode"] = ModeInstall
+	blVars["snapd_recovery_mode"] = recoveryMode
 	if err := bl.SetBootVars(blVars); err != nil {
 		return fmt.Errorf("cannot set recovery environment: %v", err)
 	}

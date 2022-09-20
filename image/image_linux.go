@@ -585,7 +585,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
-	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
+	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, boot.ModeInstall, opts.Customizations.BootFlags); err != nil {
 		return err
 	}
 
