@@ -53,7 +53,7 @@ func (s *mainSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func MockWSL(onWSL bool) (restorer func()) {
+func mockWSL(onWSL bool) (restorer func()) {
 	restorer = testutil.Backup(&release.OnWSL)
 	release.OnWSL = onWSL
 	return
@@ -71,7 +71,7 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
 	// simulate being inside WSL
-	restore := MockWSL(true)
+	restore := mockWSL(true)
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
 	restore()
 
@@ -162,7 +162,7 @@ func (s *mainSuite) TestIsContainer(c *C) {
 
 	// Test WSL2 with custom kernel
 	detectCmd = testutil.MockCommand(c, "systemd-detect-virt", "echo failed > /dev/stderr; exit 1")
-	defer MockWSL(true)()
+	defer mockWSL(true)()
 	c.Check(snapd_apparmor.IsContainer(), Equals, true)
 	c.Assert(detectCmd.Calls(), DeepEquals, [][]string(nil))
 }
@@ -235,7 +235,7 @@ func (s *integrationSuite) TestRunInContainerSkipsLoading(c *C) {
 }
 
 func (s *integrationSuite) TestRunInContainerWithInternalPolicyLoadsProfiles(c *C) {
-	defer MockWSL(true)()
+	defer mockWSL(true)()
 	err := snapd_apparmor.Run()
 	c.Assert(err, IsNil)
 	c.Check(s.logBuf.String(), testutil.Contains, "DEBUG: inside container environment")
