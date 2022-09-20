@@ -902,13 +902,10 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *
 	s.state.Lock()
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
-	c.Check(s.restartRequested, HasLen, 0)
-	c.Assert(t.Log(), HasLen, 1)
-	c.Check(t.Log()[0], Matches, `.*INFO Not restarting as this is a classic device.`)
-	// A boot id must have been set in the task by MaybeReboot
-	var bootId string
-	c.Check(t.Get("hold-for-boot-id", &bootId), IsNil)
-	c.Check(bootId, NotNil)
+	// XXX CLASSIC-NO-REBOOT
+	c.Check(s.restartRequested, HasLen, 1)
+	// c.Assert(t.Log(), HasLen, 1)
+	// c.Check(t.Log()[0], Matches, `.*INFO Not restarting as this is a classic device.`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmediate(c *C) {

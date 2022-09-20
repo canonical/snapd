@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 )
 
 type RestartType int
@@ -137,6 +136,7 @@ func ReplaceBootID(st *state.State, bootID string) {
 	rm.bootID = bootID
 }
 
+/*
 // CheckRestartHappened returns an error in case the (expected)
 // restart did not happen.
 func CheckRestartHappened(t *state.Task) error {
@@ -172,6 +172,7 @@ func SetRestartData(t *state.Task) error {
 
 	return nil
 }
+*/
 
 // Manager initializes the support for restarts requests and returns a
 // new RestartManager. It takes the current boot id to track and

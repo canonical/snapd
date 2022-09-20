@@ -310,8 +310,6 @@ func (bs *bootedSuite) TestFinishRestartCore(c *C) {
 	defer st.Unlock()
 
 	task := st.NewTask("auto-connect", "...")
-	chg := st.NewChange("test-finish-restart", "...")
-	chg.AddTask(task)
 
 	// not core snap
 	si := &snap.SideInfo{RealName: "some-app"}
@@ -358,8 +356,6 @@ func (bs *bootedSuite) TestFinishRestartBootableBase(c *C) {
 	defer st.Unlock()
 
 	task := st.NewTask("auto-connect", "...")
-	chg := st.NewChange("test-finish-restart", "...")
-	chg.AddTask(task)
 
 	// not core snap
 	si := &snap.SideInfo{RealName: "some-app", Revision: snap.R(1)}
@@ -412,8 +408,6 @@ func (bs *bootedSuite) TestFinishRestartKernel(c *C) {
 	defer st.Unlock()
 
 	task := st.NewTask("auto-connect", "...")
-	chg := st.NewChange("test-finish-restart", "...")
-	chg.AddTask(task)
 
 	// not kernel snap
 	si := &snap.SideInfo{RealName: "some-app", Revision: snap.R(1)}
@@ -463,34 +457,62 @@ func (bs *bootedSuite) TestFinishRestartKernelClassicWithModes(c *C) {
 	r = snapstatetest.MockDeviceModel(MakeModelClassicWithModes("pc", nil))
 	defer r()
 
+	bl := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bl)
+	kernel, err := snap.ParsePlaceInfoFromSnapFileName("canonical-pc-linux_2.snap")
+	c.Assert(err, IsNil)
+	bl.SetEnabledKernel(kernel)
+
 	st := bs.state
 	st.Lock()
 	defer st.Unlock()
 
 	task := st.NewTask("auto-connect", "...")
-	chg := st.NewChange("test-finish-restart", "...")
-	chg.AddTask(task)
-	// Set same boot id as the system to start with
-	task.Set("hold-for-boot-id", "boot-id-0")
 
-	// Updating to kernel rev. 2
-	si := &snap.SideInfo{RealName: "kernel", Revision: snap.R(2)}
+	// not kernel snap
+	si := &snap.SideInfo{RealName: "some-app", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
+	err = snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si})
+	c.Check(err, IsNil)
+
+	// different kernel (may happen with remodel)
+	si = &snap.SideInfo{RealName: "other-kernel"}
+	snaptest.MockSnap(c, "name: other-kernel\ntype: kernel\nversion: 1", si)
+	err = snapstate.FinishRestart(task, &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeKernel})
+	c.Check(err, IsNil)
+
+	si = &snap.SideInfo{RealName: "kernel"}
 	snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeKernel}
+	snaptest.MockSnap(c, "name: kernel\ntype: kernel\nversion: 1", si)
+	// kernel snap, restarting ... wait
+	restart.MockPending(st, restart.RestartSystem)
+	err = snapstate.FinishRestart(task, snapsup)
+	c.Check(err, FitsTypeOf, &state.Retry{})
+
+	// kernel snap, restarted, waiting for current core revision
+	restart.MockPending(st, restart.RestartUnset)
+	bl.BootVars["kernel_status"] = boot.TryingStatus
+	err = snapstate.FinishRestart(task, snapsup)
+	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
+
+	// kernel snap updated
+	si.Revision = snap.R(2)
 	snaptest.MockSnap(c, "name: kernel\ntype: kernel\nversion: 2", si)
 
-	// We get a Hold error as boot id has not changed so reboot has not happened
-	err := snapstate.FinishRestart(task, snapsup)
-	c.Check(err, DeepEquals, &state.Hold{Reason: "waiting for user to reboot"})
-	c.Check(err, ErrorMatches, "task hold, manual action required")
-
 	// kernel snap, restarted, right kernel revision, no rollback
-	// Use some random boot-id different from the current one from the system,
-	// so FinishRestart thinks that a reboot has happened.
-	task.Set("hold-for-boot-id", "11111111-1111-1111-1111-111111111111")
-	bs.bootloader.BootVars["snap_mode"] = ""
-	bs.bootloader.SetBootKernel("kernel_2.snap")
+	bl.BootVars["kernel_status"] = ""
+	kernel, err = snap.ParsePlaceInfoFromSnapFileName("kernel_2.snap")
+	c.Assert(err, IsNil)
+	bl.SetEnabledKernel(kernel)
 	err = snapstate.FinishRestart(task, snapsup)
 	c.Check(err, IsNil)
+
+	// kernel snap, restarted, wrong core revision, rollback!
+	kernel, err = snap.ParsePlaceInfoFromSnapFileName("kernel_1.snap")
+	c.Assert(err, IsNil)
+	bl.SetEnabledKernel(kernel)
+	err = snapstate.FinishRestart(task, snapsup)
+	c.Check(err, ErrorMatches, `cannot finish kernel installation, there was a rollback across reboot`)
 }
 
 func (bs *bootedSuite) TestFinishRestartEphemeralModeSkipsRollbackDetection(c *C) {
@@ -502,8 +524,6 @@ func (bs *bootedSuite) TestFinishRestartEphemeralModeSkipsRollbackDetection(c *C
 	defer st.Unlock()
 
 	task := st.NewTask("auto-connect", "...")
-	chg := st.NewChange("test-finish-restart", "...")
-	chg.AddTask(task)
 
 	si := &snap.SideInfo{RealName: "kernel"}
 	snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeKernel}

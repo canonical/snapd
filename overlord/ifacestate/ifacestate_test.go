@@ -47,7 +47,6 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
-	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -231,12 +230,6 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.se = s.o.StateEngine()
-	// We need the restart manager due to calls to restart.CheckRestartHappened
-	s.state.Lock()
-	restartMgr, err := restart.Manager(s.state, "boot-id-0", nil)
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-	s.o.AddManager(restartMgr)
 
 	s.SetupAsserts(c, s.state, &s.BaseTest)
 

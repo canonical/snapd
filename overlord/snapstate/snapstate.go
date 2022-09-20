@@ -728,10 +728,6 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		// nothing to do when preseeding
 		return nil
 	}
-	// Check restart related data to find out if restart really happened
-	if err := restart.CheckRestartHappened(task); err != nil {
-		return err
-	}
 	if ok, _ := restart.Pending(task.State()); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
@@ -814,6 +810,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		if err != nil {
 			return err
 		}
+
 		if snapsup.InstanceName() != current.SnapName() || snapsup.SideInfo.Revision != current.SnapRevision() {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
