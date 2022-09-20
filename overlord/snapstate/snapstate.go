@@ -984,6 +984,10 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, fmt.Errorf("internal error: snap name to install %q not provided", path)
 	}
 
+	if flags.Lane != 0 {
+		return nil, nil, fmt.Errorf("transaction lane is unsupported in InstallPath")
+	}
+
 	if instanceName == "" {
 		instanceName = si.RealName
 	}
@@ -1096,6 +1100,10 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	}
 	if opts.CohortKey != "" && !opts.Revision.Unset() {
 		return nil, errors.New("cannot specify revision and cohort")
+	}
+
+	if flags.Lane != 0 {
+		return nil, fmt.Errorf("transaction lane is unsupported in InstallWithDeviceContext")
 	}
 
 	if opts.Channel == "" {
@@ -1242,9 +1250,10 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 	return tasksets, nil
 }
 
-// InstallMany installs everything from the given list of names.
+// InstallMany installs everything from the given list of names. When specifying
+// revisions, the checks against enforced validation sets are bypassed.
 // Note that the state must be locked by the caller.
-func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -1280,7 +1289,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 		return nil, nil, err
 	}
 
-	installs, err := installCandidates(st, toInstall, "stable", user)
+	installs, err := installCandidates(st, toInstall, revOpts, "stable", user)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1294,10 +1303,20 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 		return nil, nil, err
 	}
 
+	// can only specify a lane when running multiple operations transactionally
+	if flags.Transaction != client.TransactionAllSnaps && flags.Lane != 0 {
+		return nil, nil, errors.New("cannot specify a lane without setting transaction to \"all-snaps\"")
+	}
+
 	var transactionLane int
 	if flags.Transaction == client.TransactionAllSnaps {
-		transactionLane = st.NewLane()
+		if flags.Lane != 0 {
+			transactionLane = flags.Lane
+		} else {
+			transactionLane = st.NewLane()
+		}
 	}
+
 	tasksets := make([]*state.TaskSet, 0, len(installs))
 	for _, sar := range installs {
 		info := sar.Info
@@ -1351,7 +1370,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 // RefreshCandidates gets a list of candidates for update
 // Note that the state must be locked by the caller.
 func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, error) {
-	updates, _, _, err := refreshCandidates(context.TODO(), st, nil, user, nil)
+	updates, _, _, err := refreshCandidates(context.TODO(), st, nil, nil, user, nil)
 	return updates, err
 }
 
@@ -1361,8 +1380,8 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
-func UpdateMany(ctx context.Context, st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
-	return updateManyFiltered(ctx, st, names, userID, nil, flags, "")
+func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+	return updateManyFiltered(ctx, st, names, revOpts, userID, nil, flags, "")
 }
 
 // EnforceSnaps installs/updates/removes snaps reported by validationErrorToSolve.
@@ -1452,7 +1471,7 @@ func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) err
 	return nil
 }
 
-func updateManyFiltered(ctx context.Context, st *state.State, names []string, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, []*state.TaskSet, error) {
+func updateManyFiltered(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, []*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -1470,7 +1489,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	names = strutil.Deduplicate(names)
 
 	refreshOpts := &store.RefreshOptions{IsAutoRefresh: flags.IsAutoRefresh}
-	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, refreshOpts)
+	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, revOpts, user, refreshOpts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1605,11 +1624,20 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 	}
 	var kernelTs, gadgetTs, bootBaseTs *state.TaskSet
 
+	// can only specify a lane when running multiple operations transactionally
+	if globalFlags.Transaction != client.TransactionAllSnaps && globalFlags.Lane != 0 {
+		return nil, nil, errors.New("cannot specify a lane without setting transaction to \"all-snaps\"")
+	}
+
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
 	var transactionLane int
 	if globalFlags.Transaction == client.TransactionAllSnaps {
-		transactionLane = st.NewLane()
+		if globalFlags.Lane != 0 {
+			transactionLane = globalFlags.Lane
+		} else {
+			transactionLane = st.NewLane()
+		}
 	}
 	for _, update := range updates {
 		snapsup, snapst, err := update.(readyUpdateInfo).SnapSetupForUpdate(st, params, userID, globalFlags)
@@ -2026,7 +2054,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 type RevisionOptions struct {
 	Channel        string
 	Revision       snap.Revision
-	ValidationSets []string
+	ValidationSets []snapasserts.ValidationSetKey
 	CohortKey      string
 	LeaveCohort    bool
 }
@@ -2255,7 +2283,7 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 	}
 	if !gateAutoRefreshHook {
 		// old-style refresh (gate-auto-refresh-hook feature disabled)
-		return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true})
+		return UpdateMany(ctx, st, nil, nil, userID, &Flags{IsAutoRefresh: true})
 	}
 
 	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.
@@ -2274,7 +2302,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 
 	refreshOpts := &store.RefreshOptions{IsAutoRefresh: true}
 	// XXX: should we skip refreshCandidates if forGatingSnap isn't empty (meaning we're handling proceed from a snap)?
-	candidates, snapstateByInstance, ignoreValidationByInstanceName, err := refreshCandidates(ctx, st, nil, user, refreshOpts)
+	candidates, snapstateByInstance, ignoreValidationByInstanceName, err := refreshCandidates(ctx, st, nil, nil, user, refreshOpts)
 	if err != nil {
 		// XXX: should we reset "refresh-candidates" to nil in state for some types
 		// of errors?
@@ -2918,14 +2946,14 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	// removeAll is set if we're removing the snap completely
 	if removeAll {
 		if requiredRevision.Unset() {
-			return fmt.Errorf("snap %q is required by validation sets: %s", si.InstanceName(), strings.Join(requiredValsets, ","))
+			return fmt.Errorf("snap %q is required by validation sets: %s", si.InstanceName(), snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
 		}
-		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), requiredRevision, strings.Join(requiredValsets, ","))
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), requiredRevision, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
 	}
 
 	// rev is set at this point (otherwise we would hit removeAll case)
 	if requiredRevision.N == rev.N {
-		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), rev, strings.Join(requiredValsets, ","))
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), rev, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
 	} // else - it's ok to remove a revision different than the required
 	return nil
 }

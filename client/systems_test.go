@@ -254,6 +254,11 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
                     {"title": "recover", "mode": "recover"},
                     {"title": "reinstall", "mode": "install"}
                 ],
+                "storage-encryption": {
+                    "support":"available",
+                    "storage-safety":"prefer-encrypted",
+                    "encryption-type":"cryptsetup"
+                },
                 "volumes": {
                     "pc": {
                         "schema":"gpt",
@@ -285,12 +290,122 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
 			{Title: "recover", Mode: "recover"},
 			{Title: "reinstall", Mode: "install"},
 		},
+		StorageEncryption: &client.StorageEncryption{
+			Support:       "available",
+			StorageSafety: "prefer-encrypted",
+			Type:          "cryptsetup",
+		},
 		Volumes: map[string]*gadget.Volume{
 			"pc": {
 				Schema:     "gpt",
 				Bootloader: "grub",
 				Structure: []gadget.VolumeStructure{
 					{Name: "mbr", Type: "mbr", Size: 440},
+				},
+			},
+		},
+	})
+}
+
+func (cs *clientSuite) TestRequestSystemInstallErrorNoSystem(c *check.C) {
+	cs.rsp = `{
+	    "type": "error",
+	    "status-code": 500,
+	    "result": {"message": "failed"}
+	}`
+	opts := &client.InstallSystemOptions{
+		Step: client.InstallStepFinish,
+	}
+	_, err := cs.cli.InstallSystem("1234", opts)
+	c.Assert(err, check.ErrorMatches, `cannot request system install for "1234": failed`)
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
+}
+
+func (cs *clientSuite) TestRequestSystemInstallEmptySystemLabel(c *check.C) {
+	cs.rsp = `{
+	    "type": "error",
+	    "status-code": 500,
+	    "result": {"message": "failed"}
+	}`
+	_, err := cs.cli.InstallSystem("", nil)
+	c.Assert(err, check.ErrorMatches, `cannot install with an empty system label`)
+	// no request was performed
+	c.Check(cs.req, check.IsNil)
+}
+
+func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"type": "async",
+		"status-code": 202,
+		"change": "42"
+	}`
+	vols := map[string]*gadget.Volume{
+		"pc": {
+			Schema:     "dos",
+			Bootloader: "mbr",
+			ID:         "id",
+			// Note that name is not exported as json
+			Name: "pc",
+			Structure: []gadget.VolumeStructure{
+				{
+					Device: "/dev/sda1",
+
+					Label:      "label",
+					Name:       "vol-name",
+					ID:         "id",
+					Size:       1234,
+					Type:       "type",
+					Filesystem: "fs",
+					Role:       "system-boot",
+					// not exported to json
+					VolumeName: "vol-name",
+				},
+			},
+		},
+	}
+	opts := &client.InstallSystemOptions{
+		Step:      client.InstallStepFinish,
+		OnVolumes: vols,
+	}
+	chgID, err := cs.cli.InstallSystem("1234", opts)
+	c.Assert(err, check.IsNil)
+	c.Assert(chgID, check.Equals, "42")
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	var req map[string]interface{}
+	err = json.Unmarshal(body, &req)
+	c.Assert(err, check.IsNil)
+	c.Assert(req, check.DeepEquals, map[string]interface{}{
+		"action": "install",
+		"step":   "finish",
+		"on-volumes": map[string]interface{}{
+			"pc": map[string]interface{}{
+				"schema":     "dos",
+				"bootloader": "mbr",
+				"id":         "id",
+				"structure": []interface{}{
+					map[string]interface{}{
+						"device":           "/dev/sda1",
+						"filesystem-label": "label",
+						"name":             "vol-name",
+						"id":               "id",
+						"size":             float64(1234),
+						"type":             "type",
+						"filesystem":       "fs",
+						"role":             "system-boot",
+						"offset":           nil,
+						"offset-write":     nil,
+						"content":          nil,
+						"update": map[string]interface{}{
+							"edition":  float64(0),
+							"preserve": nil,
+						},
+					},
 				},
 			},
 		},

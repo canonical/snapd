@@ -53,23 +53,23 @@ execute: |
     # wait until device is initialized and has a serial
     tests.nested wait-for device-initialized
 
-    tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
-    tests.nested exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_FROM\$"
-    tests.nested exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc$'
-    tests.nested exec "snap model --assertion --serial" | MATCH "serial: ${SERIAL}\$"
+    remote.exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
+    remote.exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_FROM\$"
+    remote.exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc$'
+    remote.exec "snap model --assertion --serial" | MATCH "serial: ${SERIAL}\$"
 
     # the new model requires test-snapd-tools-core* snap to be present, make
     # sure that the snap isn't installed yet
-    tests.nested exec "snap list" | NOMATCH test-snapd-tools
+    remote.exec "snap list" | NOMATCH test-snapd-tools
 
-    tests.nested copy "$TESTSLIB/assertions/test-snapd-remodel-pc-cross-store-$variant.model"
-    CHANGE_ID="$(tests.nested exec "sudo snap remodel --no-wait test-snapd-remodel-pc-cross-store-$variant.model")"
+    remote.push "$TESTSLIB/assertions/test-snapd-remodel-pc-cross-store-$variant.model"
+    CHANGE_ID="$(remote.exec "sudo snap remodel --no-wait test-snapd-remodel-pc-cross-store-$variant.model")"
     test -n "$CHANGE_ID"
     # very long retry wait for the change to be in stable state, once it's
     # stable it does not mean that the change was successful yet
-    retry -n 100 --wait 5 sh -c "tests.nested exec sudo snap changes | grep -E '^${CHANGE_ID}\s+(Done|Undone|Error)'"
+    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | grep -E '^${CHANGE_ID}\s+(Done|Undone|Error)'"
     # check that now
-    tests.nested exec sudo snap changes | MATCH "^${CHANGE_ID}\s+Done"
+    remote.exec sudo snap changes | MATCH "^${CHANGE_ID}\s+Done"
 
     current_boot_id="$( tests.nested boot-id )"
     if [ "$variant" = "20" ] || [ "$variant" = "22" ]; then
@@ -82,15 +82,15 @@ execute: |
     fi
 
     # we are remodeling within the same store
-    tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
+    remote.exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
     # new model
-    tests.nested exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc-cross-store$'
+    remote.exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc-cross-store$'
     # new store
-    tests.nested exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_REMODEL\$"
+    remote.exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_REMODEL\$"
     # but the same serial
-    tests.nested exec "snap model --assertion --serial" | MATCH "serial: ${SERIAL}\$"
+    remote.exec "snap model --assertion --serial" | MATCH "serial: ${SERIAL}\$"
 
     # new snap is installed
-    tests.nested exec "snap list test-snapd-tools-core${variant}"
+    remote.exec "snap list test-snapd-tools-core${variant}"
     # and it's possible to run hello-world
-    tests.nested exec "test-snapd-tools-core${variant}.cmd echo 'Hello World'" | MATCH 'Hello World'
+    remote.exec "test-snapd-tools-core${variant}.cmd echo 'Hello World'" | MATCH 'Hello World'

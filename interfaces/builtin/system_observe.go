@@ -194,7 +194,7 @@ func (iface *systemObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 
 func (iface *systemObserveInterface) MountPermanentPlug(spec *mount.Specification, plug *snap.PlugInfo) error {
 	dir := filepath.Join(dirs.GlobalRootDir, "/boot")
-	if matches, _ := filepath.Glob("/boot/config*"); len(matches) > 0 {
+	if matches, _ := filepath.Glob(filepath.Join(dir, "config*")); len(matches) > 0 {
 		spec.AddMountEntry(osutil.MountEntry{
 			Name:    "/var/lib/snapd/hostfs" + dir,
 			Dir:     "/boot",

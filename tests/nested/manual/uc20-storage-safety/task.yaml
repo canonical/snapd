@@ -55,10 +55,10 @@ execute: |
     fi
 
     echo "Verify that no fde keys are generated"
-    tests.nested exec "test ! -d /var/lib/snapd/device/fde"
+    remote.exec "test ! -d /var/lib/snapd/device/fde"
 
     # TODO: once we have a install-mode log (PR#9545) we could grep
     #       "installing system unencrypted because of ..."
 
     echo "Check that data is mounted from a regular device, not a mapper"
-    tests.nested exec "mount" | MATCH "/dev/[svh]da[45] on /run/mnt/data"
+    remote.exec "mount" | MATCH "/dev/[svh]da[45] on /run/mnt/data"

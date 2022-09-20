@@ -285,6 +285,11 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir s
 	c.Assert(err, IsNil)
 	defer r.Close()
 
+	// check directory targetSnapdRoot was deleted
+	_, err = os.Stat(targetSnapdRoot)
+	c.Assert(err, NotNil)
+	c.Check(os.IsNotExist(err), Equals, true)
+
 	seen := make(map[string]bool)
 	dec := asserts.NewDecoder(r)
 	for {

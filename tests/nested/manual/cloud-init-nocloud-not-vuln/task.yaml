@@ -62,7 +62,7 @@ debug: |
     cat snapd-before-reboot.logs || true
 
     echo "logs from current nested VM boot snapd"
-    tests.nested exec "sudo journalctl -e --no-pager -u snapd" || true
+    remote.exec "sudo journalctl -e --no-pager -u snapd" || true
 
 execute: |
     # the VM here will use both system-user assertions and cloud-init to create
@@ -70,14 +70,14 @@ execute: |
     # the legitimate cloud-init user is the normal-user user
 
     # wait for cloud-init to finish importing the first seed
-    tests.nested exec "sudo cloud-init status --wait"
+    remote.exec "sudo cloud-init status --wait"
 
     echo "The initial cloud-init user was created"
-    tests.nested exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
+    remote.exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
 
     # wait for snap seeding to be done
     tests.nested wait-for snap-command
-    tests.nested exec "sudo snap wait system seed.loaded"
+    remote.exec "sudo snap wait system seed.loaded"
 
     # if we are not building from current, then we need to prep the snapd snap
     # to install with the fix, this simulates/verifies that devices in the field
@@ -87,10 +87,10 @@ execute: |
         if os.query is-xenial; then
             # build the core snap for this run
             "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core
-            tests.nested copy "$PWD/core-from-snapd-deb.snap"
+            remote.push "$PWD/core-from-snapd-deb.snap"
 
             # install the core snap
-            tests.nested exec "sudo snap install core-from-snapd-deb.snap --dangerous"
+            remote.exec "sudo snap install core-from-snapd-deb.snap --dangerous"
 
             # now we wait for the reboot for the new core snap
             tests.nested wait-for no-ssh
@@ -98,10 +98,10 @@ execute: |
         else
             # build the snapd snap for this run
             "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
-            tests.nested copy "$PWD/snapd-from-deb.snap"
+            remote.push "$PWD/snapd-from-deb.snap"
 
             # install the snapd snap
-            tests.nested exec "sudo snap install snapd-from-deb.snap --dangerous"
+            remote.exec "sudo snap install snapd-from-deb.snap --dangerous"
         fi
     fi
 
@@ -117,21 +117,21 @@ execute: |
     # action that we can test for.
 
     echo "Waiting for cloud-init..."
-    tests.nested exec "cloud-init status --wait"
+    remote.exec "cloud-init status --wait"
 
     echo "Waiting for snapd to react to cloud-init"
     # It is needed || true because in ubuntu-core-16 there is not any cloud-init message in the journal log
-    retry --wait 1 -n 60 sh -c 'tests.nested exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'
+    retry --wait 1 -n 60 sh -c 'remote.exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'
 
     # ensure that snapd restricted cloud-init with the zzzz_snapd.cfg file
     echo "Ensuring that snapd restricted cloud-init"
-    tests.nested exec "cloud-init status" | MATCH "status: done"
-    tests.nested exec "test ! -f /etc/cloud/cloud-init.disabled"
-    tests.nested exec "test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
-    tests.nested exec "cat /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg" | MATCH "manual_cache_clean: true"
+    remote.exec "cloud-init status" | MATCH "status: done"
+    remote.exec "test ! -f /etc/cloud/cloud-init.disabled"
+    remote.exec "test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+    remote.exec "cat /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg" | MATCH "manual_cache_clean: true"
 
     # save snapd logs before continuing as the logs are not persistent
-    tests.nested exec "sudo journalctl -e --no-pager -u snapd" > snapd-before-reboot.logs
+    remote.exec "sudo journalctl -e --no-pager -u snapd" > snapd-before-reboot.logs
 
     # gracefully shutdown so that we don't have file corruption
     echo "Gracefully shutting down the nested VM to prepare a simulated attack"
@@ -149,13 +149,13 @@ execute: |
     # provided a cloud-init drive but importantly, it will not import the drive,
     # so wait for cloud-init to settle down before continuing
     echo "Waiting for cloud-init..."
-    tests.nested exec "cloud-init status --wait"
+    remote.exec "cloud-init status --wait"
 
     # the attacker-user should not have been created
     echo "The cloud-init attacker user was not created"
-    tests.nested exec "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
+    remote.exec "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
 
     echo "cloud-init is still restricted"
-    tests.nested exec "cloud-init status" | MATCH "status: done"
-    tests.nested exec "test ! -f /etc/cloud/cloud-init.disabled"
-    tests.nested exec "test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+    remote.exec "cloud-init status" | MATCH "status: done"
+    remote.exec "test ! -f /etc/cloud/cloud-init.disabled"
+    remote.exec "test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"

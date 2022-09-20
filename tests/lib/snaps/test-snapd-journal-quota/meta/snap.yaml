@@ -6,3 +6,4 @@ apps:
     logger:
         command: bin/logger
         daemon: simple
+        restart-condition: always

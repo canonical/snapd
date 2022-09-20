@@ -14,30 +14,30 @@ environment:
 
 execute: |
     echo "Wait for the system to be seeded first"
-    tests.nested exec "sudo snap wait system seed.loaded"
+    remote.exec "sudo snap wait system seed.loaded"
     tests.nested wait-for device-initialized
 
-    INITIAL_SERIAL=$(tests.nested exec snap model --serial | grep -Po 'serial:\s+\K.*')
+    INITIAL_SERIAL=$(remote.exec snap model --serial | grep -Po 'serial:\s+\K.*')
 
     echo "Reinstall the system"
     boot_id=$(tests.nested boot-id)
     # add || true in case the SSH connection is broken while executing this 
     # since this command causes an immediate reboot
-    tests.nested exec "sudo snap reboot --install" || true
+    remote.exec "sudo snap reboot --install" || true
 
     tests.nested wait-for reboot "${boot_id}"
 
     # check that we are back in run mode
-    tests.nested exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
+    remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
 
     # wait for the system to get setup and finish seeding
     tests.nested wait-for snap-command
-    tests.nested exec "sudo snap wait system seed.loaded"
+    remote.exec "sudo snap wait system seed.loaded"
 
     # wait up to two minutes for serial registration
-    retry -n 60 --wait 2 tests.nested exec snap model --serial
+    retry -n 60 --wait 2 remote.exec snap model --serial
 
-    END_SERIAL=$(tests.nested exec snap model --serial | grep -Po 'serial:\s+\K.*')
+    END_SERIAL=$(remote.exec snap model --serial | grep -Po 'serial:\s+\K.*')
     if [ "$INITIAL_SERIAL" = "$END_SERIAL" ]; then
         echo "test failed, same serial assertion after reinstallation"
         exit 1

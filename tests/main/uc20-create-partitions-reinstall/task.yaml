@@ -7,6 +7,11 @@ environment:
     SNAPD_DEBUG: "1"
 
 prepare: |
+    if not os.query is-pc-amd64; then
+        echo "test designed for amd64 architecture, exiting..."
+        exit
+    fi
+
     echo "Create a fake block device image that looks like an image from u-i"
     truncate --size=20GB fake.img
 
@@ -35,6 +40,11 @@ prepare: |
     unsquashfs -d gadget-dir pc_*.snap
 
 restore: |
+    if not os.query is-pc-amd64; then
+        echo "test designed for amd64 architecture, exiting..."
+        exit
+    fi
+
     for label in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot; do
         if mountpoint "/run/mnt/$label"; then
             umount "/run/mnt/$label"
@@ -63,6 +73,11 @@ debug: |
     fi
 
 execute: |
+    if not os.query is-pc-amd64; then
+        echo "test designed for amd64 architecture, exiting..."
+        exit
+    fi
+
     LOOP="$(cat loop.txt)"
 
     # debug message to see if the udev database is correctly updated
