@@ -70,6 +70,7 @@ var (
 	installRun                           = install.Run
 	installFactoryReset                  = install.FactoryReset
 	installWriteContent                  = install.WriteContent
+	installEncryptPartitions             = install.EncryptPartitions
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
@@ -1367,6 +1368,9 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
 	var systemLabel string
 	if err := t.Get("system-label", &systemLabel); err != nil {
 		return err
@@ -1376,8 +1380,33 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return err
 	}
 	logger.Debugf("install-setup-storage-encyption for %q on %v", systemLabel, onVolumes)
-	// TODO: find device with role system-{data,seed} and setup
-	// storage encryption
 
-	return fmt.Errorf("setup storage encryption step not implemented yet")
+	st.Unlock()
+	sys, gadgetInfo, snapInfos, snapSeeds, _, err :=
+		m.LoadLabelInformation(systemLabel)
+	st.Lock()
+	if err != nil {
+		return err
+	}
+
+	// Mount gadget and kernel
+	mntPtForType := make(map[snap.Type]string)
+	mountpoints, rest, err := mountSeedSnaps(snapSeeds[snap.TypeGadget], snapSeeds[snap.TypeKernel])
+	if err != nil {
+		return err
+	}
+	defer rest()
+	mntPtForType[snap.TypeGadget] = mountpoints[0]
+	mntPtForType[snap.TypeKernel] = mountpoints[1]
+
+	encryptInfo, err := m.encryptionSupportInfo(sys.Model, snapInfos[snap.TypeKernel], gadgetInfo)
+	if err != nil {
+		return err
+	}
+	useEncryption := (encryptInfo.Type != secboot.EncryptionTypeNone)
+	logger.Debugf("useEncryption is %t", useEncryption)
+
+	// FIXME this is fixed to LUKS at the moment
+	return installEncryptPartitions(onVolumes, mntPtForType[snap.TypeGadget],
+		mntPtForType[snap.TypeKernel], sys.Model, secboot.EncryptionTypeLUKS, perfTimings)
 }
