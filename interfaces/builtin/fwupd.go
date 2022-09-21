@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -55,6 +56,11 @@ const fwupdPermanentSlotAppArmor = `
   # Allow libfwup to access efivarfs with immutable flag
   capability linux_immutable,
 
+  capability dac_read_search,
+  capability dac_override,
+  capability sys_rawio,
+  capability sys_nice,
+
   # For udev
   network netlink raw,
 
@@ -71,6 +77,27 @@ const fwupdPermanentSlotAppArmor = `
   /sys/firmware/efi/efivars/ r,
   /sys/firmware/efi/efivars/** rw,
 
+  /proc/modules r,
+  /proc/swaps r,
+  /proc/sys/kernel/tainted r,
+  /sys/kernel/security/tpm*/binary_bios_measurements r,
+  /sys/kernel/security/lockdown r,
+  /sys/power/mem_sleep r,
+
+  /run/udev/data/* r,
+  /run/mount/utab r,
+
+  owner @{PROC}/@{pid}/mountinfo r,
+  owner @{PROC}/@{pid}/mounts r,
+
+  /dev/tpm* rw,
+  /dev/tpmrm* rw,
+  /dev/cpu/*/msr rw,
+  /dev/mei[0-9]* rw,
+  /dev/nvme[0-9]* rw,
+  /dev/gpiochip[0-9]* rw,
+  /dev/drm_dp_aux[0-9]* rw,
+
   # Allow write access for efi firmware updater
   /boot/efi/{,**/} r,
   # allow access to fwupd* and fw/ under boot/ for core systems
@@ -82,7 +109,6 @@ const fwupdPermanentSlotAppArmor = `
   /boot/efi/EFI/ubuntu/fw/** rw,
 
   # Allow access from efivar library
-  owner @{PROC}/@{pid}/mounts r,
   /sys/devices/{pci*,platform}/**/block/**/partition r,
   # Introspect the block devices to get partition guid and size information
   /run/udev/data/b[0-9]*:[0-9]* r,
@@ -111,6 +137,49 @@ const fwupdPermanentSlotAppArmor = `
   dbus (bind)
       bus=system
       name="org.freedesktop.fwupd",
+
+  # fwupdtool may need to stop fwupd
+  dbus (send)
+      bus=system
+      interface=org.freedesktop.DBus.Properties
+      path=/org/freedesktop/systemd1
+      member=Get{,All}
+      peer=(label=unconfined),
+
+  dbus (send)
+      bus=system
+      interface=org.freedesktop.DBus.Properties
+      path=/org/freedesktop/systemd1/unit/snap_2dfwupd_2dfwupd_2dservice
+      member=GetAll
+      peer=(label=unconfined),
+
+  dbus (send)
+      bus=system
+      path=/org/freedesktop/systemd1
+      interface=org.freedesktop.systemd1.Manager
+      member=GetUnit
+      peer=(label=unconfined),
+
+  dbus (send)
+      bus=system
+      interface=org.freedesktop.systemd1.Unit
+      path=/org/freedesktop/systemd1/unit/snap_2dfwupd_2dfwupd_2dservice
+      member=Stop
+      peer=(label=unconfined),
+
+  dbus (receive)
+      bus=system
+      path=/org/freedesktop/systemd1/unit/snap_2dfwupd_2dfwupd_2dservice
+      interface=org.freedesktop.DBus.Properties
+      member="PropertiesChanged"
+      peer=(label=unconfined),
+
+  dbus (receive)
+      bus=system
+      path=/org/freedesktop/systemd1
+      interface=org.freedesktop.systemd1.Manager
+      member="Job{New,Removed}"
+      peer=(label=unconfined),
 `
 
 const fwupdPermanentSlotAppArmorClassic = `
@@ -248,6 +317,18 @@ func (iface *fwupdInterface) StaticInfo() interfaces.StaticInfo {
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: fwupdBaseDeclarationSlots,
 	}
+}
+
+func (iface *fwupdInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	if !implicitSystemPermanentSlot(slot) {
+		spec.TagDevice(`KERNEL=="drm_dp_aux[0-9]*"`)
+		spec.TagDevice(`KERNEL=="gpiochip[0-9]*"`)
+		spec.TagDevice(`KERNEL=="tpm[0-9]*"`)
+		spec.TagDevice(`KERNEL=="nvme[0-9]*"`)
+		spec.TagDevice(`KERNEL=="mei[0-9]*"`)
+	}
+
+	return nil
 }
 
 func (iface *fwupdInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
