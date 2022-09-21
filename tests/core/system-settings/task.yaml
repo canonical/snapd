@@ -16,7 +16,7 @@ execute: |
 
     echo "Check that setting the timezone works"
     timedatectl set-timezone "America/Cordoba"
-    date +"%Z" | MATCH 'CE[S]?T'
+    date +"%Z" | MATCH '-03'
     timedatectl | MATCH "Time zone: America/Cordoba"
     MATCH "America/Cordoba" < /etc/timezone
     test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/America/Cordoba"
