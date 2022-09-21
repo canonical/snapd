@@ -501,10 +501,10 @@ func getUserDetailsFromAssertion(st *state.State, modelAs *asserts.Model, serial
 	// check that the signer of the assertion is one of the accepted ones
 	sysUserAuths := modelAs.SystemUserAuthority()
 	if len(sysUserAuths) > 0 && !strutil.ListContains(sysUserAuths, su.AuthorityID()) {
-		return "", nil, fmt.Errorf("%s%q not in accepted authorities %q", errorPrefix, email, su.AuthorityID(), sysUserAuths)
+		return "", nil, fmt.Errorf("%s%q not in accepted authorities %q", errorPrefix, su.AuthorityID(), sysUserAuths)
 	}
 	if len(su.Series()) > 0 && !strutil.ListContains(su.Series(), series) {
-		return "", nil, fmt.Errorf("%s%q not in series %q", errorPrefix, email, series, su.Series())
+		return "", nil, fmt.Errorf("%s%q not in series %q", errorPrefix, series, su.Series())
 	}
 	if len(su.Models()) > 0 && !strutil.ListContains(su.Models(), model) {
 		return "", nil, fmt.Errorf("%s%q not in models %q", errorPrefix, model, su.Models())
