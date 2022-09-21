@@ -91,11 +91,38 @@ func runMntFor(label string) string {
 	return filepath.Join(dirs.GlobalRootDir, "/run/mnt/", label)
 }
 
-func postSystemsInstallSetupStorageEncryption(details *client.SystemDetails) error {
-	// TODO: check details.StorageEncryption and call POST
-	// /systems/<seed-label> with "action":"install" and
-	// "step":"setup-storage-encryption"
-	return nil
+func postSystemsInstallSetupStorageEncryption(cli *client.Client,
+	details *client.SystemDetails, bootDevice string,
+	onDiskParts []gadget.OnDiskStructure) error {
+
+	// We are modifiying the details struct here
+	for _, gadgetVol := range details.Volumes {
+		for i := range gadgetVol.Structure {
+			switch gadgetVol.Structure[i].Role {
+			case "system-save", "system-data":
+				// only roles for which we will want encryption
+			default:
+				continue
+			}
+			for _, part := range onDiskParts {
+				if part.Name == gadgetVol.Structure[i].Name {
+					gadgetVol.Structure[i].UnencryptedDevice = part.Node
+				}
+			}
+		}
+	}
+
+	// Storage encryption makes specified partitions encrypted
+	opts := &client.InstallSystemOptions{
+		Step:      client.InstallStepSetupStorageEncryption,
+		OnVolumes: details.Volumes,
+	}
+	chgId, err := cli.InstallSystem(details.Label, opts)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Change %s created\n", chgId)
+	return waitChange(chgId)
 }
 
 // XXX: reuse/extract cmd/snap/wait.go:waitMixin()
@@ -248,7 +275,7 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 		return fmt.Errorf("cannot setup partitions: %v", err)
 	}
 	fmt.Println("laidoutStructs len:", len(laidoutStructs))
-	if err := postSystemsInstallSetupStorageEncryption(details); err != nil {
+	if err := postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, laidoutStructs); err != nil {
 		return fmt.Errorf("cannot setup storage encryption: %v", err)
 	}
 	if err := createAndMountFilesystems(bootDevice, details.Volumes); err != nil {
