@@ -506,6 +506,52 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 	return nil
 }
 
+func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRoot string,
+	model *asserts.Model, encryptionType secboot.EncryptionType, perfTimings timings.Measurer) error {
+
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
+	if err != nil {
+		return fmt.Errorf("when encrypting partitions: cannot layout volumes: %v", err)
+	}
+
+	for volName, vol := range onVolumes {
+		var sectorSize quantity.Size
+		for _, volStruct := range vol.Structure {
+			logger.Debugf("volStruct.UnencryptedDevice is %q",
+				volStruct.UnencryptedDevice)
+			if volStruct.UnencryptedDevice == "" {
+				continue
+			}
+			device := filepath.Base(volStruct.UnencryptedDevice)
+
+			// get sector size only once per volume
+			if sectorSize == 0 {
+				disk, err := diskForPartition(device)
+				if err != nil {
+					return err
+				}
+				sz, err := disk.SectorSize()
+				if err != nil {
+					return err
+				}
+				sectorSize = quantity.Size(sz)
+			}
+
+			onDiskStruct, err := getOnDiskStructFromDevice(device, volName, allLaidOutVols)
+			if err != nil {
+				return fmt.Errorf("cannot retrieve on disk info for %q: %v", device, err)
+			}
+
+			_, _, _, err = encryptPartition(onDiskStruct, encryptionType, sectorSize, perfTimings)
+			if err != nil {
+				return fmt.Errorf("cannot encrypt %q: %v", device, err)
+			}
+		}
+	}
+
+	return nil
+}
+
 func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
 	logger.Noticef("performing factory reset on an installed system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
