@@ -207,6 +207,10 @@ func (vs *ValidationSet) Timestamp() time.Time {
 	return vs.timestamp
 }
 
+func (vs *ValidationSet) Prerequisites() []*Ref {
+	return []*Ref{{Type: AccountKeyType, PrimaryKey: []string{vs.SignKeyID()}}}
+}
+
 func checkSequence(headers map[string]interface{}, name string) (int, error) {
 	seqnum, err := checkInt(headers, name)
 	if err != nil {

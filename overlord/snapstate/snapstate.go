@@ -1444,7 +1444,7 @@ func ResolveEnforcementError(ctx context.Context, st *state.State, vsMap map[str
 
 	if len(valErr.MissingSnaps) > 0 {
 		names, revOpts := collectRevOpts(valErr.MissingSnaps)
-		flags := &Flags{Transaction: client.TransactionAllSnaps, Lane: lane, Required: true}
+		flags := &Flags{Transaction: client.TransactionAllSnaps, Lane: lane}
 
 		installed, tss, err := InstallMany(st, names, revOpts, userID, flags)
 		if err != nil {
@@ -1456,6 +1456,8 @@ func ResolveEnforcementError(ctx context.Context, st *state.State, vsMap map[str
 	}
 
 	updateTrackingTask := st.NewTask("update-validation-set-tracking", "Update validation sets tracking")
+	updateTrackingTask.Set("userID", userID)
+
 	encodedAsserts := make(map[string][]byte, len(vsMap))
 	for vsStr, vs := range vsMap {
 		encodedAsserts[vsStr] = asserts.Encode(vs)
@@ -3861,7 +3863,7 @@ func MockEnforceSingleRebootForBaseKernelGadget(val bool) (restore func()) {
 	}
 }
 
-func MockEnforceValidationSets(f func(*state.State, map[string]*asserts.ValidationSet, []*snapasserts.InstalledSnap, map[string]bool) error) func() {
+func MockEnforceValidationSets(f func(*state.State, map[string]*asserts.ValidationSet, []*snapasserts.InstalledSnap, map[string]bool, int) error) func() {
 	osutil.MustBeTestBinary("mocking can be done only in tests")
 
 	old := EnforceValidationSets

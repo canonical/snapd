@@ -3768,6 +3768,11 @@ func (m *SnapManager) doUpdateValidationSetTracking(t *state.Task, _ *tomb.Tomb)
 	st.Lock()
 	defer st.Unlock()
 
+	var userID int
+	if err := t.Get("userID", &userID); err != nil {
+		return err
+	}
+
 	encodedAsserts := make(map[string][]byte)
 	if err := t.Get("validation-sets", &encodedAsserts); err != nil {
 		return err
@@ -3792,7 +3797,7 @@ func (m *SnapManager) doUpdateValidationSetTracking(t *state.Task, _ *tomb.Tomb)
 		return err
 	}
 
-	if err := EnforceValidationSets(st, decodedAsserts, snaps, ignoreValidation); err != nil {
+	if err := EnforceValidationSets(st, decodedAsserts, snaps, ignoreValidation, userID); err != nil {
 		return fmt.Errorf("internal error: cannot enforce validation sets: %v", err)
 	}
 

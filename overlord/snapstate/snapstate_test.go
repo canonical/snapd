@@ -167,7 +167,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 
-	restore = snapstate.MockEnforceValidationSets(func(*state.State, map[string]*asserts.ValidationSet, []*snapasserts.InstalledSnap, map[string]bool) error {
+	restore = snapstate.MockEnforceValidationSets(func(*state.State, map[string]*asserts.ValidationSet, []*snapasserts.InstalledSnap, map[string]bool, int) error {
 		return nil
 	})
 	s.AddCleanup(restore)
@@ -8500,7 +8500,7 @@ func (s *snapmgrTestSuite) TestEnforceSnaps(c *C) {
 	}
 
 	var calledEnforce bool
-	restore := snapstate.MockEnforceValidationSets(func(_ *state.State, usrKeysToVss map[string]*asserts.ValidationSet, snaps []*snapasserts.InstalledSnap, snapsToIgnore map[string]bool) error {
+	restore := snapstate.MockEnforceValidationSets(func(_ *state.State, usrKeysToVss map[string]*asserts.ValidationSet, snaps []*snapasserts.InstalledSnap, snapsToIgnore map[string]bool, _ int) error {
 		calledEnforce = true
 		c.Check(usrKeysToVss, DeepEquals, vsKeyToVs)
 		c.Check(snaps, testutil.DeepUnsortedMatches, []*snapasserts.InstalledSnap{
@@ -8540,7 +8540,7 @@ func (s *snapmgrTestSuite) TestEnforceSnaps(c *C) {
 func (s *snapmgrTestSuite) TestEnforceSnapsTransactionalReverse(c *C) {
 	// fail to enforce the validation set at the end to trigger an undo
 	expectedErr := errors.New("expected")
-	restore := snapstate.MockEnforceValidationSets(func(*state.State, map[string]*asserts.ValidationSet, []*snapasserts.InstalledSnap, map[string]bool) error {
+	restore := snapstate.MockEnforceValidationSets(func(*state.State, map[string]*asserts.ValidationSet, []*snapasserts.InstalledSnap, map[string]bool, int) error {
 		return expectedErr
 	})
 	defer restore()

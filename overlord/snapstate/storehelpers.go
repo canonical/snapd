@@ -48,7 +48,7 @@ var TryEnforceValidationSets func(*state.State, []string, int, []*snapasserts.In
 
 // EnforceValidationSets allows to hook enforcing validation sets without
 // fetching them. It's hooked from assertstate.
-var EnforceValidationSets func(*state.State, map[string]*asserts.ValidationSet, []*snapasserts.InstalledSnap, map[string]bool) error
+var EnforceValidationSets func(*state.State, map[string]*asserts.ValidationSet, []*snapasserts.InstalledSnap, map[string]bool, int) error
 
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID

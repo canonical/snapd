@@ -894,7 +894,17 @@ func TryEnforceValidationSets(st *state.State, validationSets []string, userID i
 // EnforceValidationSets takes a map from validation set specifiers in the
 // foo/bar=N syntax to ValidationSet assertions and enforces the sets, if possible.
 // It doesn't fetch any validation sets.
-func EnforceValidationSets(st *state.State, vsMap map[string]*asserts.ValidationSet, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+func EnforceValidationSets(st *state.State, vsMap map[string]*asserts.ValidationSet, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool, userID int) error {
+	user, err := userFromUserID(st, userID)
+	if err != nil {
+		return err
+	}
+
+	sto := snapstate.Store(st, nil)
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
+	}
+
 	db := cachedDB(st)
 	batch := asserts.NewBatch(nil)
 
@@ -916,6 +926,24 @@ func EnforceValidationSets(st *state.State, vsMap map[string]*asserts.Validation
 
 		newTracking = append(newTracking, tr)
 		extraVs = append(extraVs, vs)
+
+		for _, prereq := range vs.Prerequisites() {
+			fetching := func(f asserts.Fetcher) error {
+				if err := f.Fetch(prereq); err != nil {
+					return fmt.Errorf("cannot find prerequisite for validation set %s: %v", vsStr, err)
+				}
+
+				return nil
+			}
+
+			st.Unlock()
+			err = batch.Fetch(db, retrieve, fetching)
+			st.Lock()
+			if err != nil {
+				return err
+			}
+		}
+
 		batch.Add(vs)
 	}
 
