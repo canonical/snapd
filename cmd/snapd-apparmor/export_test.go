@@ -25,4 +25,5 @@ var (
 	IsContainer                   = isContainer
 	IsContainerWithInternalPolicy = isContainerWithInternalPolicy
 	LoadAppArmorProfiles          = loadAppArmorProfiles
+	MockParserSearchPath          = mockParserSearchPath
 )

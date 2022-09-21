@@ -91,6 +91,8 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
 	parserCmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer parserCmd.Restore()
+	restore := snapd_apparmor.MockParserSearchPath(parserCmd.BinDir())
+	defer restore()
 	err := snapd_apparmor.LoadAppArmorProfiles()
 	c.Assert(err, IsNil)
 	// since no profiles to load the parser should not have been called
@@ -119,7 +121,10 @@ func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
 			profile}})
 
 	// test error case
-	testutil.MockCommand(c, "apparmor_parser", "echo mocked parser failed > /dev/stderr; exit 1")
+	parserCmd = testutil.MockCommand(c, "apparmor_parser", "echo mocked parser failed > /dev/stderr; exit 1")
+	defer parserCmd.Restore()
+	restore = snapd_apparmor.MockParserSearchPath(parserCmd.BinDir())
+	defer restore()
 	err = snapd_apparmor.LoadAppArmorProfiles()
 	c.Check(err.Error(), Equals, "cannot load apparmor profiles: exit status 1\napparmor_parser output:\nmocked parser failed\n")
 
@@ -201,6 +206,8 @@ func (s *integrationSuite) SetUpTest(c *C) {
 	// simulate a single profile to load
 	s.parserCmd = testutil.MockCommand(c, "apparmor_parser", "")
 	s.AddCleanup(s.parserCmd.Restore)
+	restore := snapd_apparmor.MockParserSearchPath(s.parserCmd.BinDir())
+	s.AddCleanup(restore)
 	err := os.MkdirAll(dirs.SnapAppArmorDir, 0755)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "foo")
