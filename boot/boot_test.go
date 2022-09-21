@@ -30,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -531,6 +532,32 @@ func (s *bootenvSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	c.Check(err, ErrorMatches, "cannot get boot settings: broken bootloader")
 }
 
+func (s *bootenvSuite) TestSnapTypeParticipatesInBoot(c *C) {
+	classicDev := boottest.MockDevice("")
+	legacyCoreDev := boottest.MockDevice("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
+	coreDevInstallMode := boottest.MockUC20Device("install", nil)
+
+	for _, typ := range []snap.Type{
+		snap.TypeKernel,
+		snap.TypeOS,
+		snap.TypeBase,
+	} {
+		c.Check(boot.SnapTypeParticipatesInBoot(typ, classicDev), Equals, false)
+		c.Check(boot.SnapTypeParticipatesInBoot(typ, legacyCoreDev), Equals, true)
+		c.Check(boot.SnapTypeParticipatesInBoot(typ, coreDev), Equals, true)
+		c.Check(boot.SnapTypeParticipatesInBoot(typ, coreDevInstallMode), Equals, true)
+	}
+
+	classicWithModesDev := boottest.MockClassicWithModesDevice("", nil)
+	c.Check(boot.SnapTypeParticipatesInBoot(snap.TypeKernel, classicWithModesDev), Equals, true)
+	c.Check(boot.SnapTypeParticipatesInBoot(snap.TypeOS, classicWithModesDev), Equals, false)
+	c.Check(boot.SnapTypeParticipatesInBoot(snap.TypeBase, classicWithModesDev), Equals, false)
+
+	classicWithModesDevInstallMode := boottest.MockClassicWithModesDevice("install", nil)
+	c.Check(boot.SnapTypeParticipatesInBoot(snap.TypeKernel, classicWithModesDevInstallMode), Equals, true)
+}
+
 func (s *bootenvSuite) TestParticipant(c *C) {
 	info := &snap.Info{}
 	info.RealName = "some-snap"
@@ -702,6 +729,57 @@ func (s *bootenvSuite) TestKernelWithModel(c *C) {
 		krn := boot.Kernel(info, snap.TypeKernel, dev)
 		c.Check(krn.IsTrivial(), Equals, t.nop)
 		c.Check(krn, DeepEquals, t.krn)
+	}
+}
+
+func (s *bootenvSuite) TestParticipantClassicWithModesWithModel(c *C) {
+	modelHdrs := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "brand",
+		"series":       "16",
+		"brand-id":     "brand",
+		"model":        "baz-3000",
+		"architecture": "amd64",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"base":         "core22",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name": "kernel",
+				"id":   "pclinuxdidididididididididididid",
+				"type": "kernel",
+			},
+			map[string]interface{}{
+				"name": "gadget",
+				"id":   "pcididididididididididididididid",
+				"type": "gadget",
+			},
+		},
+	}
+	model := assertstest.FakeAssertion(modelHdrs).(*asserts.Model)
+	classicWithModesDev := boottest.MockClassicWithModesDevice("", model)
+
+	tests := []struct {
+		name       string
+		typ        snap.Type
+		nonTrivial bool
+	}{
+		{"some-snap", snap.TypeApp, false},
+		{"core22", snap.TypeBase, false},
+		{"kernel", snap.TypeKernel, true},
+		{"gadget", snap.TypeGadget, true},
+	}
+
+	for _, t := range tests {
+		info := &snap.Info{}
+		info.RealName = t.name
+
+		bp := boot.Participant(info, t.typ, classicWithModesDev)
+		if !t.nonTrivial {
+			c.Check(bp.IsTrivial(), Equals, true)
+		} else {
+			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(info, t.typ, classicWithModesDev))
+		}
 	}
 }
 
