@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -99,6 +99,7 @@ type Overlord struct {
 	inited     bool
 	startedUp  bool
 	runner     *state.TaskRunner
+	restartMgr *restart.RestartManager
 	snapMgr    *snapstate.SnapManager
 	serviceMgr *servicestate.ServiceManager
 	assertMgr  *assertstate.AssertManager
@@ -124,7 +125,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 		path:         dirs.SnapStateFile,
 		ensureBefore: o.ensureBefore,
 	}
-	s, err := o.loadState(backend, restartHandler)
+	s, restartMgr, err := o.loadState(backend, restartHandler)
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +138,8 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 		return true
 	}
 	o.runner.AddOptionalHandler(matchAnyUnknownTask, handleUnknownTask, nil)
+
+	o.addManager(restartMgr)
 
 	hookMgr, err := hookstate.Manager(s, o.runner)
 	if err != nil {
@@ -212,6 +215,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.cmdMgr = x
 	case *snapshotstate.SnapshotManager:
 		o.shotMgr = x
+	case *restart.RestartManager:
+		o.restartMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
@@ -253,23 +258,23 @@ func lockWithTimeout(l *osutil.FileLock, timeout time.Duration) error {
 	}
 }
 
-func (o *Overlord) loadState(backend state.Backend, restartHandler restart.Handler) (*state.State, error) {
+func (o *Overlord) loadState(backend state.Backend, restartHandler restart.Handler) (*state.State, *restart.RestartManager, error) {
 	flock, err := initStateFileLock()
 	if err != nil {
-		return nil, fmt.Errorf("fatal: error opening lock file: %v", err)
+		return nil, nil, fmt.Errorf("fatal: error opening lock file: %v", err)
 	}
 	o.stateFLock = flock
 
 	logger.Noticef("Acquiring state lock file")
 	if err := lockWithTimeout(o.stateFLock, stateLockTimeout); err != nil {
 		logger.Noticef("Failed to lock state file")
-		return nil, fmt.Errorf("fatal: could not lock state file: %v", err)
+		return nil, nil, fmt.Errorf("fatal: could not lock state file: %v", err)
 	}
 	logger.Noticef("Acquired state lock file")
 
 	curBootID, err := osutil.BootID()
 	if err != nil {
-		return nil, fmt.Errorf("fatal: cannot find current boot id: %v", err)
+		return nil, nil, fmt.Errorf("fatal: cannot find current boot id: %v", err)
 	}
 
 	perfTimings := timings.New(map[string]string{"startup": "load-state"})
@@ -279,17 +284,20 @@ func (o *Overlord) loadState(backend state.Backend, restartHandler restart.Handl
 		// by the snapd package
 		stateDir := filepath.Dir(dirs.SnapStateFile)
 		if !osutil.IsDirectory(stateDir) {
-			return nil, fmt.Errorf("fatal: directory %q must be present", stateDir)
+			return nil, nil, fmt.Errorf("fatal: directory %q must be present", stateDir)
 		}
 		s := state.New(backend)
-		initRestart(s, curBootID, restartHandler)
+		restartMgr, err := initRestart(s, curBootID, restartHandler)
+		if err != nil {
+			return nil, nil, err
+		}
 		patch.Init(s)
-		return s, nil
+		return s, restartMgr, nil
 	}
 
 	r, err := os.Open(dirs.SnapStateFile)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read the state file: %s", err)
+		return nil, nil, fmt.Errorf("cannot read the state file: %s", err)
 	}
 	defer r.Close()
 
@@ -298,29 +306,29 @@ func (o *Overlord) loadState(backend state.Backend, restartHandler restart.Handl
 		s, err = state.ReadState(backend, r)
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	s.Lock()
 	perfTimings.Save(s)
 	s.Unlock()
 
-	err = initRestart(s, curBootID, restartHandler)
+	restartMgr, err := initRestart(s, curBootID, restartHandler)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// one-shot migrations
 	err = patch.Apply(s)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return s, nil
+	return s, restartMgr, nil
 }
 
-func initRestart(s *state.State, curBootID string, restartHandler restart.Handler) error {
+func initRestart(s *state.State, curBootID string, restartHandler restart.Handler) (*restart.RestartManager, error) {
 	s.Lock()
 	defer s.Unlock()
-	return restart.Init(s, curBootID, restartHandler)
+	return restart.Manager(s, curBootID, restartHandler)
 }
 
 func (o *Overlord) newStoreWithContext(storeCtx store.DeviceAndAuthContext) snapstate.StoreService {
@@ -611,6 +619,11 @@ func (o *Overlord) StateEngine() *StateEngine {
 // tasks for all managers under the overlord.
 func (o *Overlord) TaskRunner() *state.TaskRunner {
 	return o.runner
+}
+
+// RestartManager returns the manager responsible for restart state.
+func (o *Overlord) RestartManager() *restart.RestartManager {
+	return o.restartMgr
 }
 
 // SnapManager returns the snap manager responsible for snaps under
