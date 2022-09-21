@@ -126,8 +126,9 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.state.Lock()
-	restart.Init(s.state, "boot-id-0", nil)
+	_, err := restart.Manager(s.state, "boot-id-0", nil)
 	s.state.Unlock()
+	c.Assert(err, IsNil)
 
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
@@ -172,7 +173,6 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 
-	var err error
 	s.snapmgr, err = snapstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 
