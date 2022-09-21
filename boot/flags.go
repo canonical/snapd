@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -288,7 +289,7 @@ func setNextBootFlags(dev snap.Device, rootDir string, flags []string) error {
 // ubuntu-data in an untrusted manner, but for the purposes of this function
 // that is ignored.
 // This is primarily meant to be consumed by "snap{,ctl} system-mode".
-func HostUbuntuDataForMode(mode string) ([]string, error) {
+func HostUbuntuDataForMode(mode string, mod gadget.Model) ([]string, error) {
 	var runDataRootfsMountLocations []string
 	switch mode {
 	case ModeRun:
@@ -330,7 +331,7 @@ func HostUbuntuDataForMode(mode string) ([]string, error) {
 
 		// note that we may be running in install mode before this directory is
 		// actually created so check if it exists first
-		installModeLocation := filepath.Dir(InstallHostWritableDir)
+		installModeLocation := filepath.Dir(InstallHostWritableDir(mod))
 		if exists, _, _ := osutil.DirExists(installModeLocation); exists {
 			runDataRootfsMountLocations = []string{installModeLocation}
 		}

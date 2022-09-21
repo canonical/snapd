@@ -101,7 +101,7 @@ func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialT
 // is verified at the time the key auth policy is computed.
 func (mst *initramfsMountsState) UnverifiedBootModel() (*asserts.Model, error) {
 	if mst.mode != "run" {
-		return nil, fmt.Errorf("internal error: unverified boot model access is for limited run mode use")
+		return nil, fmt.Errorf("internal error: unverified boot model access is for limited {run,cloudimg,rootfs} mode use")
 	}
 
 	mf, err := os.Open(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))

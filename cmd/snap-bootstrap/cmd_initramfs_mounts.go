@@ -146,28 +146,29 @@ func generateInitramfsMounts() (err error) {
 	}
 
 	// rootfs is different in UC vs classic with modes
-	rootfsDir := boot.InitramfsWritableDir
+	var model gadget.Model
 	switch mode {
 	case "recover":
-		err = generateMountsModeRecover(mst)
+		model, err = generateMountsModeRecover(mst)
 	case "install":
-		err = generateMountsModeInstall(mst)
+		model, err = generateMountsModeInstall(mst)
 	case "factory-reset":
-		err = generateMountsModeFactoryReset(mst)
+		model, err = generateMountsModeFactoryReset(mst)
 	case "run":
-		rootfsDir, err = generateMountsModeRun(mst)
+		model, err = generateMountsModeRun(mst)
 	case "cloudimg-rootfs":
-		err = generateMountsModeRunCVM(mst)
+		model, err = generateMountsModeRunCVM(mst)
 	default:
 		// this should never be reached, ModeAndRecoverySystemFromKernelCommandLine
 		// will have returned a non-nill error above if there was another mode
 		// specified on the kernel command line for some reason
 		return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
 	}
-
 	if err != nil {
 		return err
 	}
+	isRunMode := (mode == "run")
+	rootfsDir := boot.InitramfsWritableDir(model, isRunMode)
 
 	// finally, the initramfs is responsible for reading the boot flags and
 	// copying them to /run, so that userspace has an unambiguous place to read
@@ -197,26 +198,27 @@ func generateInitramfsMounts() (err error) {
 
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
-func generateMountsModeInstall(mst *initramfsMountsState) error {
+func generateMountsModeInstall(mst *initramfsMountsState) (gadget.Model, error) {
 	// steps 1 and 2 are shared with recover mode
 	model, snaps, err := generateMountsCommonInstallRecover(mst)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// 3. final step: write modeenv to tmpfs data dir and disable cloud-init in
 	//   install mode
 	modeEnv, err := mst.EphemeralModeenvForModel(model, snaps)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
-		return err
+	isRunMode := false
+	if err := modeEnv.WriteTo(boot.InitramfsWritableDir(model, isRunMode)); err != nil {
+		return nil, err
 	}
 
 	// done, no output, no error indicates to initramfs we are done with
 	// mounting stuff
-	return nil
+	return model, nil
 }
 
 // copyNetworkConfig copies the network configuration to the target
@@ -781,7 +783,7 @@ func (m *recoverModeStateMachine) finalize() error {
 		//       ubuntu-data and ubuntu-save unlockable and have matching marker
 		//       files in order to use the files from ubuntu-data to log-in,
 		//       etc.
-		trustData, _ := checkDataAndSavePairing(boot.InitramfsHostWritableDir)
+		trustData, _ := checkDataAndSavePairing(boot.InitramfsHostWritableDir(m.model))
 		if !trustData {
 			part.MountState = partitionMountedUntrusted
 			m.degradedState.LogErrorf("cannot trust ubuntu-data, ubuntu-save and ubuntu-data are not marked as from the same install")
@@ -968,7 +970,7 @@ func (m *recoverModeStateMachine) mountData() (stateFunc, error) {
 func (m *recoverModeStateMachine) unlockEncryptedSaveRunKey() (stateFunc, error) {
 	// to get to this state, we needed to have mounted ubuntu-data on host, so
 	// if encrypted, we can try to read the run key from host ubuntu-data
-	saveKey := device.SaveKeyUnder(dirs.SnapFDEDirUnder(boot.InitramfsHostWritableDir))
+	saveKey := device.SaveKeyUnder(dirs.SnapFDEDirUnder(boot.InitramfsHostWritableDir(m.model)))
 	key, err := ioutil.ReadFile(saveKey)
 	if err != nil {
 		// log the error and skip to trying the fallback key
@@ -1082,18 +1084,18 @@ func (m *recoverModeStateMachine) mountSave() (stateFunc, error) {
 	return nil, nil
 }
 
-func generateMountsModeRecover(mst *initramfsMountsState) error {
+func generateMountsModeRecover(mst *initramfsMountsState) (gadget.Model, error) {
 	// steps 1 and 2 are shared with install mode
 	model, snaps, err := generateMountsCommonInstallRecover(mst)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// get the disk that we mounted the ubuntu-seed partition from as a
 	// reference point for future mounts
 	disk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// for most cases we allow the use of fallback to unlock/mount things
@@ -1108,9 +1110,9 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 			// finalize reboots or panics
 			logger.Noticef("try recovery system state is inconsistent: %v", err)
-			finalizeTryRecoverySystemAndReboot(boot.TryRecoverySystemOutcomeInconsistent)
+			finalizeTryRecoverySystemAndReboot(model, boot.TryRecoverySystemOutcomeInconsistent)
 		}
-		return err
+		return nil, err
 	}
 	if tryingCurrentSystem {
 		// but in this case, use only the run keys
@@ -1118,7 +1120,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 		// make sure that if rebooted, the next boot goes into run mode
 		if err := boot.EnsureNextBootToRunMode(""); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -1158,17 +1160,17 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 			logger.Noticef("try recovery system %q failed: %v", mst.recoverySystem, err)
 		}
 		// finalize reboots or panics
-		finalizeTryRecoverySystemAndReboot(outcome)
+		finalizeTryRecoverySystemAndReboot(model, outcome)
 	}
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// 3.1 write out degraded.json if we ended up falling back somewhere
 	if machine.degraded() {
 		if err := machine.degradedState.serializeTo("degraded.json"); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -1185,13 +1187,13 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		// TODO: erroring here should fallback to copySafeDefaultData and
 		// proceed on with degraded mode anyways
 		if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
-			return err
+			return nil, err
 		}
 		if err := copyNetworkConfig(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
-			return err
+			return nil, err
 		}
 		if err := copyUbuntuDataMisc(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
-			return err
+			return nil, err
 		}
 	} else {
 		// we don't have ubuntu-data host mountpoint, so we should setup safe
@@ -1201,16 +1203,17 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		// could login
 
 		if err := copySafeDefaultData(boot.InitramfsDataDir); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	modeEnv, err := mst.EphemeralModeenvForModel(model, snaps)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
-		return err
+	isRunMode := false
+	if err := modeEnv.WriteTo(boot.InitramfsWritableDir(model, isRunMode)); err != nil {
+		return nil, err
 	}
 
 	// finally we need to modify the bootenv to mark the system as successful,
@@ -1218,25 +1221,25 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// anything else, you are auto-transitioned back to run mode
 	// TODO:UC20: as discussed unclear we need to pass the recovery system here
 	if err := boot.EnsureNextBootToRunMode(mst.recoverySystem); err != nil {
-		return err
+		return nil, err
 	}
 
 	// done, no output, no error indicates to initramfs we are done with
 	// mounting stuff
-	return nil
+	return model, nil
 }
 
-func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
+func generateMountsModeFactoryReset(mst *initramfsMountsState) (gadget.Model, error) {
 	// steps 1 and 2 are shared with install mode
 	model, snaps, err := generateMountsCommonInstallRecover(mst)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// get the disk that we mounted the ubuntu-seed partition from as a
 	// reference point for future mounts
 	disk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// step 3: find ubuntu-save, unlock and mount, note that factory-reset
 	// mode only cares about ubuntu-save, as ubuntu-data and ubuntu-boot
@@ -1262,29 +1265,30 @@ func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 	}()
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := machine.degradedState.serializeTo("factory-reset-bootstrap.json"); err != nil {
-		return err
+		return nil, err
 	}
 
 	// disable console-conf as it won't be needed
 	if err := disableConsoleConf(boot.InitramfsDataDir); err != nil {
-		return err
+		return nil, err
 	}
 
 	modeEnv, err := mst.EphemeralModeenvForModel(model, snaps)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
-		return err
+	isRunMode := false
+	if err := modeEnv.WriteTo(boot.InitramfsWritableDir(model, isRunMode)); err != nil {
+		return nil, err
 	}
 
 	// done, no output, no error indicates to initramfs we are done with
 	// mounting stuff
-	return nil
+	return model, nil
 }
 
 // checkDataAndSavePairing make sure that ubuntu-data and ubuntu-save
@@ -1429,6 +1433,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 	}
 	gadgetSnap := squashfs.New(gadgetPath)
 
+	isRunMode := false
 	// we need to configure the ephemeral system with defaults and such using
 	// from the seed gadget
 	configOpts := &sysconfig.Options{
@@ -1438,7 +1443,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 		// config and users should already be setup and we will copy those
 		// further down in the setup for recover mode
 		AllowCloudInit: false,
-		TargetRootDir:  boot.InitramfsWritableDir,
+		TargetRootDir:  boot.InitramfsWritableDir(model, isRunMode),
 		GadgetSnap:     gadgetSnap,
 	}
 	if err := sysconfig.ConfigureTargetSystem(model, configOpts); err != nil {
@@ -1486,22 +1491,33 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 	return true, nil
 }
 
-func generateMountsModeRunCVM(mst *initramfsMountsState) error {
+// XXX: feels wrong
+type genericCVMModel struct{}
+
+func (*genericCVMModel) Classic() bool {
+	return true
+}
+
+func (*genericCVMModel) Grade() asserts.ModelGrade {
+	return "signed"
+}
+
+func generateMountsModeRunCVM(mst *initramfsMountsState) (gadget.Model, error) {
 	// Mount ESP as UbuntuSeedDir which has UEFI label
 	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "UEFI"); err != nil {
-		return err
+		return nil, err
 	}
 
 	// get the disk that we mounted the ESP from as a reference
 	// point for future mounts
 	disk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Mount rootfs
 	if err := secbootProvisionForCVM(boot.InitramfsUbuntuSeedDir); err != nil {
-		return err
+		return nil, err
 	}
 	runModeCVMKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "cloudimg-rootfs.sealed-key")
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
@@ -1509,14 +1525,14 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 	}
 	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "cloudimg-rootfs", runModeCVMKey, opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	fsckSystemdOpts := &systemdMountOptions{
 		NeedsFsck: true,
 		Ephemeral: true,
 	}
 	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Verify that cloudimg-rootfs comes from where we expect it to
@@ -1529,33 +1545,34 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) error {
 
 	matches, err := disk.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !matches {
 		// failed to verify that cloudimg-rootfs mountpoint
 		// comes from the same disk as ESP
-		return fmt.Errorf("cannot validate boot: cloudimg-rootfs mountpoint is expected to be from disk %s but is not", disk.Dev())
+		return nil, fmt.Errorf("cannot validate boot: cloudimg-rootfs mountpoint is expected to be from disk %s but is not", disk.Dev())
 	}
 
 	// Unmount ESP because otherwise unmounting is racy and results in booted systems without ESP
 	if err := doSystemdMount("", boot.InitramfsUbuntuSeedDir, &systemdMountOptions{Umount: true, Ephemeral: true}); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	// XXX: or could we use "return mst.UnverifiedBootModel()" here?
+	return &genericCVMModel{}, nil
 }
 
-func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
+func generateMountsModeRun(mst *initramfsMountsState) (gadget.Model, error) {
 	// 1. mount ubuntu-boot
 	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// get the disk that we mounted the ubuntu-boot partition from as a
 	// reference point for future mounts
 	disk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuBootDir, nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// 1.1. measure model
@@ -1563,23 +1580,21 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 		return secbootMeasureSnapModelWhenPossible(mst.UnverifiedBootModel)
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	// The model is now measured, use it to check if this is a classic install
+	// The model is now measured
 	model, err := mst.UnverifiedBootModel()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	isClassic := model.Classic()
-	var rootfsDir string
-	if isClassic {
+	if model.Classic() {
 		logger.Noticef("generating mounts for classic system, run mode")
-		rootfsDir = boot.InitramfsDataDir
 	} else {
 		logger.Noticef("generating mounts for Ubuntu Core system, run mode")
-		rootfsDir = boot.InitramfsWritableDir
 	}
+	isRunMode := true
 
 	// 2. mount ubuntu-seed (optional for classic)
 	systemdOpts := &systemdMountOptions{
@@ -1594,11 +1609,11 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 		if isClassic {
 			// If there is no ubuntu-seed on classic, that's fine
 			if _, ok := err.(disks.PartitionNotFoundError); !ok {
-				return "", err
+				return nil, err
 			}
 			hasSeedPart = false
 		} else {
-			return "", err
+			return nil, err
 		}
 	}
 	// fsck is safe to run on ubuntu-seed as per the manpage, it should not
@@ -1609,13 +1624,13 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 	if partUUID != "" {
 		if err := doSystemdMount(fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID),
 			boot.InitramfsUbuntuSeedDir, systemdOpts); err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 
 	// 2.1 Update bootloader variables now that boot/seed are mounted
 	if err := boot.InitramfsRunModeUpdateBootloaderVars(); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// at this point on a system with TPM-based encryption
@@ -1633,7 +1648,7 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 	}
 	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// TODO: do we actually need fsck if we are mounting a mapper device?
@@ -1650,14 +1665,14 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 		dataMountOpts.Private = true
 	}
 	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, dataMountOpts); err != nil {
-		return "", err
+		return nil, err
 	}
 	isEncryptedDev := unlockRes.IsEncrypted
 
 	// 3.2. mount ubuntu-save (if present)
-	haveSave, err := maybeMountSave(disk, rootfsDir, isEncryptedDev, systemdOpts)
+	haveSave, err := maybeMountSave(disk, boot.InitramfsWritableDir(model, isRunMode), isEncryptedDev, systemdOpts)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// 4.1 verify that ubuntu-data comes from where we expect it to
@@ -1670,21 +1685,21 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 
 	matches, err := disk.MountPointIsFromDisk(boot.InitramfsDataDir, diskOpts)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if !matches {
 		// failed to verify that ubuntu-data mountpoint comes from the same disk
 		// as ubuntu-boot
-		return "", fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
+		return nil, fmt.Errorf("cannot validate boot: ubuntu-data mountpoint is expected to be from disk %s but is not", disk.Dev())
 	}
 	if haveSave {
 		// 4.1a we have ubuntu-save, verify it as well
 		matches, err = disk.MountPointIsFromDisk(boot.InitramfsUbuntuSaveDir, diskOpts)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if !matches {
-			return "", fmt.Errorf("cannot validate boot: ubuntu-save mountpoint is expected to be from disk %s but is not", disk.Dev())
+			return nil, fmt.Errorf("cannot validate boot: ubuntu-save mountpoint is expected to be from disk %s but is not", disk.Dev())
 		}
 
 		if isEncryptedDev {
@@ -1696,20 +1711,20 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 			// be locked.
 			// for symmetry with recover code and extra paranoia
 			// though also check that the markers match.
-			paired, err := checkDataAndSavePairing(rootfsDir)
+			paired, err := checkDataAndSavePairing(boot.InitramfsWritableDir(model, isRunMode))
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 			if !paired {
-				return "", fmt.Errorf("cannot validate boot: ubuntu-save and ubuntu-data are not marked as from the same install")
+				return nil, fmt.Errorf("cannot validate boot: ubuntu-save and ubuntu-data are not marked as from the same install")
 			}
 		}
 	}
 
 	// 4.2. read modeenv
-	modeEnv, err := boot.ReadModeenv(rootfsDir)
+	modeEnv, err := boot.ReadModeenv(boot.InitramfsWritableDir(model, isRunMode))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// order in the list must not change as it determines the mount order
@@ -1720,9 +1735,9 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 
 	// 4.2 choose base, gadget and kernel snaps (this includes updating
 	//     modeenv if needed to try the base snap)
-	mounts, err := boot.InitramfsRunModeSelectSnapsToMount(typs, modeEnv, rootfsDir)
+	mounts, err := boot.InitramfsRunModeSelectSnapsToMount(typs, modeEnv, boot.InitramfsWritableDir(model, isRunMode))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// TODO:UC20: with grade > dangerous, verify the kernel snap hash against
@@ -1734,9 +1749,9 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 	for _, typ := range typs {
 		if sn, ok := mounts[typ]; ok {
 			dir := snapTypeToMountDir[typ]
-			snapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), sn.Filename())
+			snapPath := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir(model, isRunMode)), sn.Filename())
 			if err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
-				return "", err
+				return nil, err
 			}
 		}
 	}
@@ -1746,7 +1761,7 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 		gadgetDir := filepath.Join(boot.InitramfsRunMntDir, snapTypeToMountDir[snap.TypeGadget])
 		gadgetInfo, err := gadget.ReadInfo(gadgetDir, model)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		seedDefinedInGadget := false
 	volLoop:
@@ -1759,10 +1774,10 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 			}
 		}
 		if hasSeedPart && !seedDefinedInGadget {
-			return "", fmt.Errorf("seed partition found but not defined in the gadget")
+			return nil, fmt.Errorf("seed partition found but not defined in the gadget")
 		}
 		if !hasSeedPart && seedDefinedInGadget {
-			return "", fmt.Errorf("seed partition not found but defined in the gadget")
+			return nil, fmt.Errorf("seed partition not found but defined in the gadget")
 		}
 	}
 
@@ -1771,26 +1786,26 @@ func generateMountsModeRun(mst *initramfsMountsState) (string, error) {
 		// load the recovery system and generate mount for snapd
 		_, essSnaps, err := mst.ReadEssential(modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
 		if err != nil {
-			return "", fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
+			return nil, fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 		}
 		if err := doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), mountReadOnlyOptions); err != nil {
-			return "", fmt.Errorf("cannot mount snapd snap: %v", err)
+			return nil, fmt.Errorf("cannot mount snapd snap: %v", err)
 		}
 	}
 
-	return rootfsDir, nil
+	return model, nil
 }
 
-var tryRecoverySystemHealthCheck = func() error {
+var tryRecoverySystemHealthCheck = func(model gadget.Model) error {
 	// check that writable is accessible by checking whether the
 	// state file exists
-	if !osutil.FileExists(dirs.SnapStateFileUnder(boot.InitramfsHostWritableDir)) {
+	if !osutil.FileExists(dirs.SnapStateFileUnder(boot.InitramfsHostWritableDir(model))) {
 		return fmt.Errorf("host state file is not accessible")
 	}
 	return nil
 }
 
-func finalizeTryRecoverySystemAndReboot(outcome boot.TryRecoverySystemOutcome) (err error) {
+func finalizeTryRecoverySystemAndReboot(model gadget.Model, outcome boot.TryRecoverySystemOutcome) (err error) {
 	// from this point on, we must finish with a system reboot
 	defer func() {
 		if rebootErr := boot.InitramfsReboot(); rebootErr != nil {
@@ -1805,7 +1820,7 @@ func finalizeTryRecoverySystemAndReboot(outcome boot.TryRecoverySystemOutcome) (
 	}()
 
 	if outcome == boot.TryRecoverySystemOutcomeSuccess {
-		if err := tryRecoverySystemHealthCheck(); err != nil {
+		if err := tryRecoverySystemHealthCheck(model); err != nil {
 			// health checks failed, the recovery system is considered
 			// unsuccessful
 			outcome = boot.TryRecoverySystemOutcomeFailure

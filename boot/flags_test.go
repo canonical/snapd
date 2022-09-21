@@ -337,6 +337,8 @@ func (s *bootFlagsSuite) TestUserspaceBootFlagsUC20(c *C) {
 }
 
 func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
+	uc20Dev := boottest.MockUC20Device("run", nil)
+
 	tt := []struct {
 		mode               string
 		createExpDirs      bool
@@ -461,7 +463,7 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 			}
 		}
 
-		dataMountDirs, err := boot.HostUbuntuDataForMode(t.mode)
+		dataMountDirs, err := boot.HostUbuntuDataForMode(t.mode, uc20Dev.Model())
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, comment)
 			c.Assert(dataMountDirs, IsNil)

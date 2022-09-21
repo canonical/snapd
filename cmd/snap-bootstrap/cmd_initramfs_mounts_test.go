@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -6532,7 +6533,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHealthCheckFails(c 
 	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0750), IsNil)
 	c.Assert(ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
 
-	restore = main.MockTryRecoverySystemHealthCheck(func() error {
+	restore = main.MockTryRecoverySystemHealthCheck(func(gadget.Model) error {
 		return fmt.Errorf("mock failure")
 	})
 	defer restore()
