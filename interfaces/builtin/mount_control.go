@@ -465,7 +465,7 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 		options := strings.Join(mountInfo.options, ",")
 
 		emit("  mount %s options=(%s) \"%s\" -> \"%s{,/}\",\n", typeRule, options, source, target)
-		emit("  umount \"%s\",\n", target)
+		emit("  umount \"%s{,/}\",\n", target)
 		return nil
 	})
 
