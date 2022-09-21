@@ -15,8 +15,8 @@ execute: |
     hostname | MATCH coole-kiste
 
     echo "Check that setting the timezone works"
-    timedatectl set-timezone "Europe/Berlin"
+    timedatectl set-timezone "America/Cordoba"
     date +"%Z" | MATCH 'CE[S]?T'
-    timedatectl | MATCH "Time zone: Europe/Berlin"
-    MATCH "Europe/Berlin" < /etc/timezone
-    test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/Europe/Berlin"
+    timedatectl | MATCH "Time zone: America/Cordoba"
+    MATCH "America/Cordoba" < /etc/timezone
+    test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/America/Cordoba"

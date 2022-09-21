@@ -142,9 +142,9 @@ execute: |
     python3 -c 'import json,sys; j=json.loads(sys.stdin.read()); print(j["data"]["config"]);' < /var/lib/snapd/state.json | NOMATCH Europe/Malta
 
     echo "and setting it again in snapd also works"
-    snap set system system.timezone=Europe/Berlin
-    MATCH "Europe/Berlin" < /etc/timezone
-    test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/Europe/Berlin"
+    snap set system system.timezone=America/Cordoba
+    MATCH "America/Cordoba" < /etc/timezone
+    test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/America/Cordoba"
     
     echo "and setting the timezone outside of snapd is reflected by snap get"
     timedatectl set-timezone "America/Denver"
