@@ -1121,7 +1121,7 @@ func (s *backendSuite) TestCombineSnippetsIncludeIfExists(c *C) {
 	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
 
-	restoreTemplate := apparmor.MockTemplate("###INCLUDEIFEXISTSSNAPTUNING###")
+	restoreTemplate := apparmor.MockTemplate("###INCLUDE_IF_EXISTS_SNAP_TUNING###")
 	defer restoreTemplate()
 
 	type includeIfExistsScenario struct {

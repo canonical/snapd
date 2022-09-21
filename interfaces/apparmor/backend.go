@@ -869,7 +869,7 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
   %[2]s
 `, usrLibSnapdConfineTransitionRule, nonBaseCoreTransitionSnippet)
 
-		case "###INCLUDEIFEXISTSSNAPTUNING###":
+		case "###INCLUDE_IF_EXISTS_SNAP_TUNING###":
 			features, _ := parserFeatures()
 			if strutil.ListContains(features, "include-if-exists") {
 				return `#include if exists "/var/lib/snapd/apparmor/snap-tuning"`
