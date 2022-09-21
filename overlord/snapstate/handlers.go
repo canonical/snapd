@@ -34,6 +34,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
@@ -3760,6 +3761,42 @@ func (m *SnapManager) undoMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error 
 	st.Lock()
 	defer st.Unlock()
 	return writeMigrationStatus(t, snapst, snapsup)
+}
+
+func (m *SnapManager) doUpdateValidationSetTracking(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	encodedAsserts := make(map[string][]byte)
+	if err := t.Get("validation-sets", &encodedAsserts); err != nil {
+		return err
+	}
+
+	decodedAsserts := make(map[string]*asserts.ValidationSet, len(encodedAsserts))
+	for vsStr, encAssert := range encodedAsserts {
+		decAssert, err := asserts.Decode(encAssert)
+		if err != nil {
+			return err
+		}
+
+		vsAssert, ok := decAssert.(*asserts.ValidationSet)
+		if !ok {
+			return errors.New("expected encoded assertion to be of type ValidationSet")
+		}
+		decodedAsserts[vsStr] = vsAssert
+	}
+
+	snaps, ignoreValidation, err := InstalledSnaps(st)
+	if err != nil {
+		return err
+	}
+
+	if err := EnforceValidationSets(st, decodedAsserts, snaps, ignoreValidation); err != nil {
+		return fmt.Errorf("internal error: cannot enforce validation sets: %v", err)
+	}
+
+	return nil
 }
 
 // maybeRestoreValidationSetsAndRevertSnaps restores validation-sets to their

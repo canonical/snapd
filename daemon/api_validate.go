@@ -271,7 +271,7 @@ func applyValidationSet(c *Command, r *http.Request, user *auth.UserState) Respo
 }
 
 var assertstateMonitorValidationSet = assertstate.MonitorValidationSet
-var assertstateEnforceValidationSet = assertstate.EnforceValidationSet
+var assertstateEnforceValidationSet = assertstate.FetchAndEnforceValidationSet
 var assertstateTryEnforceValidationSets = assertstate.TryEnforceValidationSets
 
 // updateValidationSet handles snap validate --monitor and --enforce accountId/name[=sequence].

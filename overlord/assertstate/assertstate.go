@@ -373,6 +373,10 @@ func delayedCrossMgrInit() {
 	snapstate.AddCurrentTrackingToValidationSetsStack = addCurrentTrackingToValidationSetsHistory
 	// hook the helper for restoring validation sets tracking from the stack
 	snapstate.RestoreValidationSetsTracking = RestoreValidationSetsTracking
+	// hook helper for trying to enforce sets
+	snapstate.TryEnforceValidationSets = TryEnforceValidationSets
+	// hook helper for enforcing validation sets without fetching them
+	snapstate.EnforceValidationSets = EnforceValidationSets
 }
 
 // AutoRefreshAssertions tries to refresh all assertions
@@ -887,10 +891,62 @@ func TryEnforceValidationSets(st *state.State, validationSets []string, userID i
 	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
-// EnforceValidationSet tries to fetch the given validation set and enforce it.
+// EnforceValidationSets takes a map from validation set specifiers in the
+// foo/bar=N syntax to ValidationSet assertions and enforces the sets, if possible.
+// It doesn't fetch any validation sets.
+func EnforceValidationSets(st *state.State, vsMap map[string]*asserts.ValidationSet, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+	db := cachedDB(st)
+	batch := asserts.NewBatch(nil)
+
+	extraVs := make([]*asserts.ValidationSet, 0, len(vsMap))
+	newTracking := make([]*ValidationSetTracking, 0, len(vsMap))
+	for vsStr, vs := range vsMap {
+		_, _, sequence, err := snapasserts.ParseValidationSet(vsStr)
+		if err != nil {
+			return err
+		}
+
+		tr := &ValidationSetTracking{
+			AccountID: vs.AccountID(),
+			Name:      vs.Name(),
+			Mode:      Enforce,
+			// may be 0 meaning no pinning
+			PinnedAt: sequence,
+		}
+
+		newTracking = append(newTracking, tr)
+		extraVs = append(extraVs, vs)
+		batch.Add(vs)
+	}
+
+	valsets, err := EnforcedValidationSets(st, extraVs...)
+	if err != nil {
+		return err
+	}
+
+	if err := valsets.Conflict(); err != nil {
+		return err
+	}
+
+	if err := valsets.CheckInstalledSnaps(snaps, ignoreValidation); err != nil {
+		return err
+	}
+
+	if err := batch.CommitTo(db, nil); err != nil {
+		return err
+	}
+
+	for _, tr := range newTracking {
+		UpdateValidationSet(st, tr)
+	}
+
+	return addCurrentTrackingToValidationSetsHistory(st)
+}
+
+// FetchAndEnforceValidationSet tries to fetch the given validation set and enforce it.
 // If all validation sets constrains are satisfied, the current validation sets
 // tracking state is saved in validation sets history.
-func EnforceValidationSet(st *state.State, accountID, name string, sequence, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*ValidationSetTracking, error) {
+func FetchAndEnforceValidationSet(st *state.State, accountID, name string, sequence, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*ValidationSetTracking, error) {
 	_, current, err := validationSetAssertionForEnforce(st, accountID, name, sequence, userID, snaps, ignoreValidation)
 	if err != nil {
 		return nil, err
