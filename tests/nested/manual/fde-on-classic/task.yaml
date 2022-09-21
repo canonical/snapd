@@ -47,13 +47,13 @@ execute: |
   snap pack --filename=pc-kernel-new.snap "$CACHE_D"/snap-pc-kernel
 
   # validate that the image boots and seeds
-  tests.nested exec "sudo snap wait system seed.loaded"
+  remote.exec "sudo snap wait system seed.loaded"
 
-  tests.nested exec 'cat /etc/os-release | MATCH VERSION_ID=\"22.04\"'
-  tests.nested exec "snap list pc-kernel"
-  tests.nested exec "snap list pc"
-  tests.nested exec "snap list core22"
-  tests.nested exec "snap list snapd"
+  remote.exec 'cat /etc/os-release | MATCH VERSION_ID=\"22.04\"'
+  remote.exec "snap list pc-kernel"
+  remote.exec "snap list pc"
+  remote.exec "snap list core22"
+  remote.exec "snap list snapd"
 
   # XXX CLASSIC-NO-REBOOT
   exit 0
@@ -65,21 +65,21 @@ execute: |
       printf "Test installing snap from file %s\n" "$snap_filename"
       tests.nested copy "$snap_filename"
       boot_id=$(tests.nested boot-id)
-      REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous "$snap_filename" --no-wait)
+      REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous "$snap_filename" --no-wait)
       # Wait until we stall in the connection of interface as we wait for a reboot
-      retry --wait 1 -n 60 sh -c "tests.nested exec \"snap change $REMOTE_CHG_ID | grep -E 'Doing .*Automatically connect eligible plugs and slots of snap'\""
+      retry --wait 1 -n 60 sh -c "remote.exec \"snap change $REMOTE_CHG_ID | grep -E 'Doing .*Automatically connect eligible plugs and slots of snap'\""
       # Check that no reboot has been scheduled, then force a reboot
       not test -f /run/systemd/shutdown/scheduled
-      tests.nested exec sudo reboot || true
+      remote.exec sudo reboot || true
       tests.nested wait-for reboot "$boot_id"
-      tests.nested exec sudo snap watch "$REMOTE_CHG_ID"
+      remote.exec sudo snap watch "$REMOTE_CHG_ID"
   }
 
   refresh_snap_and_reboot pc-kernel-new.snap
   refresh_snap_and_reboot pc-new.snap
 
   for f in /boot/grub/kernel.efi /run/mnt/ubuntu-boot/EFI/boot/bootx64.efi /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi; do
-      tests.nested exec sudo grep -q -a '"This program cannot be run in XXX mode"' "$f"
+      remote.exec sudo grep -q -a '"This program cannot be run in XXX mode"' "$f"
   done
 
   rm -rf "$CACHE_D"
