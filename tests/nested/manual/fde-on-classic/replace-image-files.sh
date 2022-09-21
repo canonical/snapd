@@ -5,10 +5,6 @@ replace_initramfs_bits() {
     if [ ! -d initrd ]; then
         objcopy -O binary -j .initrd "$KERNEL_EFI_ORIG" initrd.img
         unmkinitramfs initrd.img initrd
-        SYSTEMD_D=initrd/main/usr/lib/systemd/system
-
-        # Copy files from https://github.com/snapcore/core-initrd/pull/106
-        cp replace-files/* "$SYSTEMD_D"/
     fi
 
     # Retrieve efi stub from ppa so we can rebuild kernel.efi
