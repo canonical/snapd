@@ -409,13 +409,18 @@ func partFromIndex(disk disks.Disk, idx uint64) (disks.Partition, error) {
 	return disks.Partition{}, fmt.Errorf("cannot find partition index %d", idx)
 }
 
-func laidOutStructForDiskStruct(
+// laidOutStructForDiskStruct searches for the laid out structure that
+// matches a given on disk structure.
+func laidOutStructForDiskStruct(gadgetVolName string,
 	laidVols map[string]*gadget.LaidOutVolume,
 	onDiskStruct *gadget.OnDiskStructure) (*gadget.LaidOutStructure, error) {
 
 	for _, laidVol := range laidVols {
+		// Check that this is the right volume
+		if laidVol.Name != gadgetVolName {
+			continue
+		}
 		for _, laidStruct := range laidVol.LaidOutStructure {
-			// Partlabel on disk must match gadget spec
 			if onDiskStruct.Name == laidStruct.Name {
 				return &laidStruct, nil
 			}
@@ -423,6 +428,47 @@ func laidOutStructForDiskStruct(
 	}
 
 	return nil, fmt.Errorf("cannot find laid out structure for %q", onDiskStruct.Name)
+}
+
+// getOnDiskStructFromDevice obtains the current on disk structure
+// from a device string like sda1 or nvme0n1p2. We take the laid out
+// information from laidOutVols and insert it in the disk structure.
+func getOnDiskStructFromDevice(device, gadgtVolName string, laidOutVols map[string]*gadget.LaidOutVolume) (*gadget.OnDiskStructure, error) {
+	partPath, err := os.Readlink(filepath.Join("/sys/class/block", device))
+	if err != nil {
+		return nil, err
+	}
+	// Remove initial ../../ and make path absolute
+	partPath = filepath.Join("/sys", partPath[6:])
+	logger.Debugf("Installing on partition %s", partPath)
+	// Removing the last component will give us the disk path
+	diskPath := filepath.Dir(partPath)
+	disk, err := disks.DiskFromDevicePath(diskPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot retrieve disk information for %q: %v", partPath, err)
+	}
+	partName := filepath.Base(partPath)
+	partIdx, err := partIndexFromPartName(partName)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find partition index in %q: %v", partPath, err)
+	}
+	diskPart, err := partFromIndex(disk, partIdx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find partition %q: %v", partPath, err)
+	}
+
+	onDiskStruct, err := gadget.OnDiskStructureFromPartition(diskPart)
+	if err != nil {
+		return nil, fmt.Errorf("cannot retrieve on disk partition info for %q: %v", device, err)
+	}
+	laidOutStruct, err := laidOutStructForDiskStruct(gadgtVolName, laidOutVols, &onDiskStruct)
+	if err != nil {
+		return nil, err
+	}
+	// Fill ResolvedContent
+	onDiskStruct.LaidOutStructure = *laidOutStruct
+
+	return &onDiskStruct, nil
 }
 
 func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentObserver,
@@ -433,7 +479,7 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 		return fmt.Errorf("when writing content: cannot layout volumes: %v", err)
 	}
 
-	for _, vol := range onVolumes {
+	for volName, vol := range onVolumes {
 		for _, volStruct := range vol.Structure {
 			// TODO fixme
 			if volStruct.Role == "mbr" {
@@ -443,42 +489,14 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 			if volStruct.Role == "" {
 				continue
 			}
+
 			device := filepath.Base(volStruct.Device)
-			partPath, err := os.Readlink(filepath.Join("/sys/class/block", device))
+			onDiskStruct, err := getOnDiskStructFromDevice(device, volName, allLaidOutVols)
 			if err != nil {
-				return err
-			}
-			// Remove initial ../../ and make path absolute
-			partPath = filepath.Join("/sys", partPath[6:])
-			logger.Debugf("Installing on partition %s", partPath)
-			// Removing the last component will give us the disk path
-			diskPath := filepath.Dir(partPath)
-			disk, err := disks.DiskFromDevicePath(diskPath)
-			if err != nil {
-				return fmt.Errorf("cannot retrieve disk information for %q: %v", partPath, err)
-			}
-			partName := filepath.Base(partPath)
-			partIdx, err := partIndexFromPartName(partName)
-			if err != nil {
-				return fmt.Errorf("cannot find partition index in %q: %v", partPath, err)
-			}
-			diskPart, err := partFromIndex(disk, partIdx)
-			if err != nil {
-				return fmt.Errorf("cannot find partition %q: %v", partPath, err)
+				return fmt.Errorf("cannot retrieve on disk info for %q: %v", device, err)
 			}
 
-			onDiskStruct, err := gadget.OnDiskStructureFromPartition(diskPart)
-			if err != nil {
-				return fmt.Errorf("cannot retrieve on disk partition info for %q: %v", volStruct.Name, err)
-			}
-			laidOutStruct, err := laidOutStructForDiskStruct(allLaidOutVols, &onDiskStruct)
-			if err != nil {
-				return err
-			}
-			// Fill ResolvedContent
-			onDiskStruct.LaidOutStructure = *laidOutStruct
-
-			if err := writePartitionContent(&onDiskStruct, perfTimings, observer, volStruct.Device); err != nil {
+			if err := writePartitionContent(onDiskStruct, perfTimings, observer, volStruct.Device); err != nil {
 				return err
 			}
 		}
