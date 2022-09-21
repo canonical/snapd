@@ -176,7 +176,7 @@ parts:
       # copy in a pregenerated list of network address families so that the
       # parser gets built to support as many as possible even if glibc in
       # the current build environment does not support them
-      cp $SNAPCRAFT_PROJECT_DIR/build-aux/snap/apparmor/af_names.h .
+      cp $SNAPCRAFT_PROJECT_DIR/build-aux/snap/local/apparmor/af_names.h .
       make -j
       mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
       cp -a apparmor_parser $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/
