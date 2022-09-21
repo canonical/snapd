@@ -63,8 +63,8 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		s.restartRequested = append(s.restartRequested, t)
 	}))
-	c.Assert(err, IsNil)
 	s.state.Unlock()
+	c.Assert(err, IsNil)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 

@@ -134,8 +134,8 @@ func (s *standbySuite) TestStartChecks(c *C) {
 		n++
 		ch2 <- struct{}{}
 	}))
-	c.Assert(err, IsNil)
 	s.state.Unlock()
+	c.Assert(err, IsNil)
 
 	m := standby.New(s.state)
 	m.AddOpinion(opine(func() bool {
@@ -165,8 +165,8 @@ func (s *standbySuite) TestStopWaits(c *C) {
 	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		c.Fatal("request restart should have not been called")
 	}))
-	c.Assert(err, IsNil)
 	s.state.Unlock()
+	c.Assert(err, IsNil)
 
 	ch := make(chan struct{})
 	opineReady := make(chan struct{})

@@ -77,8 +77,8 @@ func (s *baseHookManagerSuite) commonSetUpTest(c *C) {
 	s.state = s.o.State()
 	s.state.Lock()
 	_, err := restart.Manager(s.state, "boot-id-0", nil)
-	c.Assert(err, IsNil)
 	s.state.Unlock()
+	c.Assert(err, IsNil)
 	manager, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	s.manager = manager

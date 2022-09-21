@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,14 +17,15 @@
  *
  */
 
-// Package restart implements requesting restarts from any part of the code that has access to state.
+// Package restart implements requesting restarts from any part of the
+// code that has access to state. It also implements a mimimal manager
+// to take care of restart state.
 package restart
 
 import (
 	"errors"
 
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -58,15 +59,9 @@ type Handler interface {
 	RebootDidNotHappen(st *state.State) error
 }
 
-// ClearReboot clears state information about tracking requested reboots.
-func ClearReboot(st *state.State) {
-	st.Set("system-restart-from-boot-id", nil)
-}
-
 type restartManagerKey struct{}
 
-// RestartManager implements interfaces invoked by StateEngine for all
-// registered managers.
+// RestartManager takes care of restart-related state.
 type RestartManager struct {
 	state      *state.State
 	restarting RestartType
@@ -74,30 +69,78 @@ type RestartManager struct {
 	bootID     string
 }
 
-func (rs *RestartManager) handleRestart(t RestartType, rebootInfo *boot.RebootInfo) {
-	if rs.h != nil {
-		rs.h.HandleRestart(t, rebootInfo)
+// Manager returns a new restart manager and initializes the support
+// for restarts requests. It takes the current boot id to track and
+// verify reboots and a Handler that handles the actual requests and
+// reacts to reboot happening. It must be called with the state lock
+// held.
+func Manager(st *state.State, curBootID string, h Handler) (*RestartManager, error) {
+	rm := &RestartManager{
+		state:  st,
+		h:      h,
+		bootID: curBootID,
+	}
+	var fromBootID string
+	err := st.Get("system-restart-from-boot-id", &fromBootID)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+	st.Cache(restartManagerKey{}, rm)
+	if err := rm.init(fromBootID, curBootID); err != nil {
+		return nil, err
+	}
+	return rm, nil
+}
+
+func (rm *RestartManager) init(fromBootID, curBootID string) error {
+	if fromBootID == "" {
+		// We didn't need a reboot, it might have happened or
+		// not but things are fine in either case.
+		return rm.rebootAsExpected()
+	}
+	if fromBootID == curBootID {
+		return rm.rebootDidNotHappen()
+	}
+	// we rebooted alright
+	ClearReboot(rm.state)
+	return rm.rebootAsExpected()
+}
+
+// ClearReboot clears state information about tracking requested reboots.
+func ClearReboot(st *state.State) {
+	st.Set("system-restart-from-boot-id", nil)
+}
+
+// Ensure implements StateManager.Ensure. Required by StateEngine, we
+// actually do nothing here.
+func (m *RestartManager) Ensure() error {
+	return nil
+}
+
+func (rm *RestartManager) handleRestart(t RestartType, rebootInfo *boot.RebootInfo) {
+	if rm.h != nil {
+		rm.h.HandleRestart(t, rebootInfo)
 	}
 }
 
-func (rs *RestartManager) rebootAsExpected(st *state.State) error {
-	if rs.h != nil {
-		return rs.h.RebootAsExpected(st)
+func (rm *RestartManager) rebootAsExpected() error {
+	if rm.h != nil {
+		return rm.h.RebootAsExpected(rm.state)
 	}
 	return nil
 }
 
-func (rs *RestartManager) rebootDidNotHappen(st *state.State) error {
-	if rs.h != nil {
-		return rs.h.RebootDidNotHappen(st)
+func (rm *RestartManager) rebootDidNotHappen() error {
+	if rm.h != nil {
+		return rm.h.RebootDidNotHappen(rm.state)
 	}
 	return nil
 }
 
-func restartManager(st *state.State) *RestartManager {
+func restartManager(st *state.State, errMsg string) *RestartManager {
 	cached := st.Cached(restartManagerKey{})
 	if cached == nil {
-		panic("internal error: cannot request a restart before restart.Manager")
+		panic(errMsg)
 	}
 	return cached.(*RestartManager)
 }
@@ -105,7 +148,7 @@ func restartManager(st *state.State) *RestartManager {
 // Request asks for a restart of the managing process.
 // The state needs to be locked to request a restart.
 func Request(st *state.State, t RestartType, rebootInfo *boot.RebootInfo) {
-	rm := restartManager(st)
+	rm := restartManager(st, "internal error: cannot request a restart before RestartManager initialization")
 	switch t {
 	case RestartSystem, RestartSystemNow, RestartSystemHaltNow, RestartSystemPoweroffNow:
 		st.Set("system-restart-from-boot-id", rm.bootID)
@@ -125,14 +168,14 @@ func Pending(st *state.State) (bool, RestartType) {
 }
 
 func MockPending(st *state.State, restarting RestartType) RestartType {
-	rm := restartManager(st)
+	rm := restartManager(st, "internal error: cannot mock a restart request before RestartManager initialization")
 	old := rm.restarting
 	rm.restarting = restarting
 	return old
 }
 
 func ReplaceBootID(st *state.State, bootID string) {
-	rm := restartManager(st)
+	rm := restartManager(st, "internal error: cannot mock a restart request before RestartManager initialization")
 	rm.bootID = bootID
 }
 
@@ -174,45 +217,7 @@ func SetRestartData(t *state.Task) error {
 }
 */
 
-// Manager initializes the support for restarts requests and returns a
-// new RestartManager. It takes the current boot id to track and
-// verify reboots and a Handler that handles the actual requests and
-// reacts to reboot happening. It must be called with the state lock
-// held.
-func Manager(st *state.State, curBootID string, h Handler) (*RestartManager, error) {
-	rm := &RestartManager{
-		state:  st,
-		h:      h,
-		bootID: curBootID,
-	}
-	var fromBootID string
-	err := st.Get("system-restart-from-boot-id", &fromBootID)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return nil, err
-	}
-	st.Cache(restartManagerKey{}, rm)
-	if fromBootID == "" {
-		// We didn't need a reboot, it might have happened or
-		// not but things are fine in either case.
-		if err := rm.rebootAsExpected(st); err != nil {
-			return nil, err
-		}
-	} else if fromBootID == curBootID {
-		// We were waiting for a reboot that did not happen
-		if err := rm.rebootDidNotHappen(st); err != nil {
-			return nil, err
-		}
-	} else {
-		// we rebooted alright
-		ClearReboot(st)
-		if err := rm.rebootAsExpected(st); err != nil {
-			return nil, err
-		}
-	}
-
-	return rm, nil
-}
-
+/*
 // StartUp implements StateStarterUp.Startup.
 func (m *RestartManager) StartUp() error {
 	s := m.state
@@ -250,9 +255,4 @@ func (m *RestartManager) StartUp() error {
 
 	return nil
 }
-
-// Ensure implements StateManager.Ensure. Required by StateEngine, we
-// actually do nothing here.
-func (m *RestartManager) Ensure() error {
-	return nil
-}
+*/

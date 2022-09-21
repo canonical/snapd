@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -123,8 +123,8 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.state = s.o.State()
 	s.state.Lock()
 	_, err := restart.Manager(s.state, "boot-id-0", nil)
-	c.Assert(err, IsNil)
 	s.state.Unlock()
+	c.Assert(err, IsNil)
 
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
@@ -4236,8 +4236,6 @@ func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 	defer st.Unlock()
 
 	task := st.NewTask("auto-connect", "...")
-	chg := st.NewChange("test-finish-restart", "...")
-	chg.AddTask(task)
 
 	// not restarting
 	restart.MockPending(st, restart.RestartUnset)
@@ -4265,8 +4263,6 @@ func (s *snapmgrTestSuite) TestFinishRestartNoopWhenPreseeding(c *C) {
 	defer st.Unlock()
 
 	task := st.NewTask("auto-connect", "...")
-	chg := st.NewChange("test-finish-restart", "...")
-	chg.AddTask(task)
 
 	// not restarting
 	si := &snap.SideInfo{RealName: "some-app"}
@@ -4335,8 +4331,6 @@ type: snapd
 		release.MockOnClassic(tc.onClassic)
 
 		task := st.NewTask("auto-connect", "...")
-		chg := st.NewChange("test-finish-restart", "...")
-		chg.AddTask(task)
 		si := &snap.SideInfo{Revision: snap.R("x2"), RealName: tc.snapName}
 		snapInfo := snaptest.MockSnapCurrent(c, string(tc.snapYaml), si)
 		snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snapInfo.SnapType}

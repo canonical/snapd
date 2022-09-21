@@ -85,8 +85,8 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.state = bs.o.State()
 	bs.state.Lock()
 	_, err = restart.Manager(bs.state, "boot-id-0", nil)
-	c.Assert(err, IsNil)
 	bs.state.Unlock()
+	c.Assert(err, IsNil)
 	bs.snapmgr, err = snapstate.Manager(bs.state, bs.o.TaskRunner())
 	c.Assert(err, IsNil)
 

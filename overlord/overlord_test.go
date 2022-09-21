@@ -116,6 +116,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 
 	c.Check(o.StateEngine(), NotNil)
 	c.Check(o.TaskRunner(), NotNil)
+	c.Check(o.RestartManager(), NotNil)
 	c.Check(o.SnapManager(), NotNil)
 	c.Check(o.ServiceManager(), NotNil)
 	c.Check(o.AssertManager(), NotNil)
@@ -124,7 +125,6 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.DeviceManager(), NotNil)
 	c.Check(o.CommandManager(), NotNil)
 	c.Check(o.SnapshotManager(), NotNil)
-	c.Check(o.RestartManager(), NotNil)
 	c.Check(configstateInitCalled, Equals, true)
 
 	o.InterfaceManager().DisableUDevMonitor()
@@ -176,6 +176,7 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
+	c.Check(o.RestartManager(), NotNil)
 
 	state := o.State()
 	c.Assert(err, IsNil)

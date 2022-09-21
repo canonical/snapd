@@ -171,8 +171,8 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 			s.restartObserve()
 		}
 	}))
-	c.Assert(err, IsNil)
 	s.state.Unlock()
+	c.Assert(err, IsNil)
 	s.se = s.o.StateEngine()
 
 	s.AddCleanup(sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel))

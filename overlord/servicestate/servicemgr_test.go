@@ -83,8 +83,8 @@ func (s *baseServiceMgrTestSuite) SetUpTest(c *C) {
 			s.restartObserve()
 		}
 	}))
-	c.Assert(err, IsNil)
 	s.state.Unlock()
+	c.Assert(err, IsNil)
 	s.se = s.o.StateEngine()
 
 	s.mgr = servicestate.Manager(s.state, s.o.TaskRunner())
