@@ -517,8 +517,6 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRo
 	for volName, vol := range onVolumes {
 		var sectorSize quantity.Size
 		for _, volStruct := range vol.Structure {
-			logger.Debugf("volStruct.UnencryptedDevice is %q",
-				volStruct.UnencryptedDevice)
 			if volStruct.UnencryptedDevice == "" {
 				continue
 			}
