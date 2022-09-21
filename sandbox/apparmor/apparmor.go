@@ -502,3 +502,11 @@ func MockFeatures(kernelFeatures []string, kernelError error, parserFeatures []s
 	}
 
 }
+
+func MockParserSearchPath(new string) (restore func()) {
+	oldAppArmorParserSearchPath := parserSearchPath
+	parserSearchPath = new
+	return func() {
+		parserSearchPath = oldAppArmorParserSearchPath
+	}
+}

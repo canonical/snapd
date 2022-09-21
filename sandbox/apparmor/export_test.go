@@ -51,14 +51,6 @@ func MockFsRootPath(path string) (restorer func()) {
 	}
 }
 
-func MockParserSearchPath(new string) (restore func()) {
-	oldAppArmorParserSearchPath := parserSearchPath
-	parserSearchPath = new
-	return func() {
-		parserSearchPath = oldAppArmorParserSearchPath
-	}
-}
-
 func MockSnapdAppArmorSupportsReexec(new func() bool) (restore func()) {
 	restore = testutil.Backup(&snapdAppArmorSupportsReexec)
 	snapdAppArmorSupportsReexec = new
