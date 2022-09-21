@@ -422,11 +422,8 @@ func laidOutStructForDiskStruct(gadgetVolName string,
 	return nil, fmt.Errorf("cannot find laid out structure for %q", onDiskStruct.Name)
 }
 
-// getOnDiskStructFromDevice obtains the current on disk structure
-// from a device string like sda1 or nvme0n1p2. We take the laid out
-// information from laidOutVols and insert it in the disk structure.
-func getOnDiskStructFromDevice(device, gadgtVolName string, laidOutVols map[string]*gadget.LaidOutVolume) (*gadget.OnDiskStructure, error) {
-	partPath, err := os.Readlink(filepath.Join("/sys/class/block", device))
+func diskForPartition(part string) (disks.Disk, error) {
+	partPath, err := os.Readlink(filepath.Join("/sys/class/block", part))
 	if err != nil {
 		return nil, err
 	}
@@ -439,14 +436,26 @@ func getOnDiskStructFromDevice(device, gadgtVolName string, laidOutVols map[stri
 	if err != nil {
 		return nil, fmt.Errorf("cannot retrieve disk information for %q: %v", partPath, err)
 	}
-	partName := filepath.Base(partPath)
-	partIdx, err := partIndexFromPartName(partName)
+
+	return disk, nil
+}
+
+// getOnDiskStructFromDevice obtains the current on disk structure
+// from a device string like sda1 or nvme0n1p2. We take the laid out
+// information from laidOutVols and insert it in the disk structure.
+func getOnDiskStructFromDevice(device, gadgtVolName string, laidOutVols map[string]*gadget.LaidOutVolume) (*gadget.OnDiskStructure, error) {
+	disk, err := diskForPartition(device)
 	if err != nil {
-		return nil, fmt.Errorf("cannot find partition index in %q: %v", partPath, err)
+		return nil, fmt.Errorf("cannot retrieve disk information for %q: %v", device, err)
+	}
+
+	partIdx, err := partIndexFromPartName(device)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find partition index in %q: %v", device, err)
 	}
 	diskPart, err := partFromIndex(disk, partIdx)
 	if err != nil {
-		return nil, fmt.Errorf("cannot find partition %q: %v", partPath, err)
+		return nil, fmt.Errorf("cannot find partition %q: %v", device, err)
 	}
 
 	onDiskStruct, err := gadget.OnDiskStructureFromPartition(diskPart)
