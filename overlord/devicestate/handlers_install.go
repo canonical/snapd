@@ -1212,24 +1212,41 @@ func snapInfoFrom(seedInfo *seed.Snap) (*snap.Info, error) {
 	return snap.ReadInfoFromSnapFile(snapf, seedInfo.SideInfo)
 }
 
-func mountSeedSnap(seedSn *seed.Snap) (mountpoint string, restore func() error, err error) {
-	mountpoint = filepath.Join(dirs.SnapRunDir, "snap-content", string(seedSn.EssentialType))
-	if err := os.MkdirAll(mountpoint, 0755); err != nil {
-		return "", nil, err
+func mountSeedSnaps(seedSnaps ...*seed.Snap) (mountpoints []string, restore func() error, err error) {
+	sd := systemd.New(systemd.SystemMode, progress.Null)
+
+	unmountFunc := func() error {
+		var err error
+		// Try to unmount all, even if there are errors.
+		// The last error will be the one returned.
+		for _, mpt := range mountpoints {
+			logger.Debugf("unmounting %q", mpt)
+			if err = sd.Umount(mpt); err != nil {
+				logger.Noticef("cannot unmount %q: %v", mpt, err)
+			}
+		}
+		return err
 	}
 
-	// temporarily mount the filesystem
-	logger.Debugf("Mounting %q in %q", seedSn.Path, mountpoint)
-	sd := systemd.New(systemd.SystemMode, progress.Null)
-	if err := sd.Mount(seedSn.Path, mountpoint); err != nil {
-		return "", nil, fmt.Errorf("cannot mount %q at %q: %v", seedSn.Path, mountpoint, err)
+	for _, seedSn := range seedSnaps {
+
+		mountpoint := filepath.Join(dirs.SnapRunDir, "snap-content", string(seedSn.EssentialType))
+		if err := os.MkdirAll(mountpoint, 0755); err != nil {
+			unmountFunc()
+			return nil, nil, err
+		}
+
+		// temporarily mount the filesystem
+		logger.Debugf("Mounting %q in %q", seedSn.Path, mountpoint)
+		if err := sd.Mount(seedSn.Path, mountpoint); err != nil {
+			unmountFunc()
+			return nil, nil, fmt.Errorf("cannot mount %q at %q: %v", seedSn.Path, mountpoint, err)
+		}
+
+		mountpoints = append(mountpoints, mountpoint)
 	}
-	return mountpoint,
-		func() error {
-			logger.Debugf("Unmounting %q", mountpoint)
-			return sd.Umount(mountpoint)
-		},
-		nil
+
+	return mountpoints, unmountFunc, nil
 }
 
 func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
@@ -1266,19 +1283,13 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 	// Mount gadget and kernel
 	mntPtForType := make(map[snap.Type]string)
-	for _, seedSn := range []*seed.Snap{snapSeeds[snap.TypeGadget], snapSeeds[snap.TypeKernel]} {
-		mntPt, rest, err := mountSeedSnap(seedSn)
-		mntPtForType[seedSn.EssentialType] = mntPt
-		if err != nil {
-			return err
-		}
-		defer func() {
-			errRest := rest()
-			if errRest != nil {
-				err = errRest
-			}
-		}()
+	mountpoints, rest, err := mountSeedSnaps(snapSeeds[snap.TypeGadget], snapSeeds[snap.TypeKernel])
+	if err != nil {
+		return err
 	}
+	defer rest()
+	mntPtForType[snap.TypeGadget] = mountpoints[0]
+	mntPtForType[snap.TypeKernel] = mountpoints[1]
 
 	// TODO useEncryption equals true case
 	useEncryption := false
