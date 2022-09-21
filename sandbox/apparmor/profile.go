@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -99,19 +98,14 @@ func LoadProfiles(fnames []string, cacheDir string, flags AaParserFlags) error {
 		args = append(args, "--quiet")
 	}
 
-	parser, requiredArgs, internal, err := FindAppArmorParser()
-	if err != nil || !internal {
-		// if we couldn't find the parser with apparmor_sandbox
-		// then fall-back to trying to find one in the current PATH
-		// - same for if we are not using the internal
-		// apparmor_parser so that we can support a mocked parser
-		// during tests
-		parser = "apparmor_parser"
+	cmd, _, err := AppArmorParser()
+	if err != nil {
+		return err
 	}
 
-	args = append(args, requiredArgs...)
-	args = append(args, fnames...)
-	output, err := exec.Command(parser, args...).CombinedOutput()
+	cmd.Args = append(cmd.Args, args...)
+	cmd.Args = append(cmd.Args, fnames...)
+	output, err := cmd.CombinedOutput()
 	if err != nil || strings.Contains(string(output), "parser error") {
 		if err == nil {
 			// ensure we have an error to report

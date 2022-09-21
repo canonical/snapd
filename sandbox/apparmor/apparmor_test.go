@@ -44,21 +44,21 @@ type apparmorSuite struct{}
 
 var _ = Suite(&apparmorSuite{})
 
-func (*apparmorSuite) TestAppArmorFindAppArmorParser(c *C) {
+func (*apparmorSuite) TestAppArmorParser(c *C) {
 	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer mockParserCmd.Restore()
 	restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
 	defer restore()
 	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return false })
 	defer restore()
-	path, args, internal, err := apparmor.FindAppArmorParser()
-	c.Check(path, Equals, mockParserCmd.Exe())
-	c.Check(args, DeepEquals, []string{})
+	cmd, internal, err := apparmor.AppArmorParser()
+	c.Check(cmd.Path, Equals, mockParserCmd.Exe())
+	c.Check(cmd.Args, DeepEquals, []string{mockParserCmd.Exe()})
 	c.Check(internal, Equals, false)
 	c.Check(err, Equals, nil)
 }
 
-func (*apparmorSuite) TestAppArmorFindInternalAppArmorParser(c *C) {
+func (*apparmorSuite) TestAppArmorInternalAppArmorParser(c *C) {
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
 	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
@@ -73,15 +73,16 @@ func (*apparmorSuite) TestAppArmorFindInternalAppArmorParser(c *C) {
 	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
 	defer restore()
 
-	path, args, internal, err := apparmor.FindAppArmorParser()
+	cmd, internal, err := apparmor.AppArmorParser()
 	c.Check(err, IsNil)
-	c.Check(args, DeepEquals, []string{
+	c.Check(cmd.Path, Equals, p)
+	c.Check(cmd.Args, DeepEquals, []string{
+		p,
 		"--config-file", filepath.Join(d, "/apparmor/parser.conf"),
 		"--base", filepath.Join(d, "/apparmor.d"),
 		"--policy-features", filepath.Join(d, "/apparmor.d/abi/3.0"),
 	})
 	c.Check(internal, Equals, true)
-	c.Check(path, Equals, p)
 }
 
 func (*apparmorSuite) TestAppArmorLevelTypeStringer(c *C) {
