@@ -319,6 +319,11 @@ install -m 644 -D %{indigo_srcdir}/data/completion/bash/etelpmoc.sh %{buildroot}
 install -d -p %{buildroot}%{_datadir}/zsh/site-functions
 install -m 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
 
+# Remove prompt services
+rm %{buildroot}%{_unitdir}/snapd.aa-prompt-listener.service
+rm %{buildroot}%{_userunitdir}/snapd.aa-prompt-ui.service
+rm %{buildroot}%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
+
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
 
