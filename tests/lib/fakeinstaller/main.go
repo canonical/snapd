@@ -107,6 +107,7 @@ func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 			for _, part := range onDiskParts {
 				if part.Name == gadgetVol.Structure[i].Name {
 					gadgetVol.Structure[i].UnencryptedDevice = part.Node
+					break
 				}
 			}
 		}
@@ -148,21 +149,27 @@ func waitChange(chgId string) error {
 // happening maybe we need to find the information differently.
 func postSystemsInstallFinish(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
-	laidoutStructs []gadget.OnDiskStructure) error {
+	onDiskParts []gadget.OnDiskStructure) error {
 
 	vols := make(map[string]*gadget.Volume)
 	for volName, gadgetVol := range details.Volumes {
-		laidIdx := 0
 		for i := range gadgetVol.Structure {
 			// TODO mbr is special, what is the device for that?
-			var device string
 			if gadgetVol.Structure[i].Role == "mbr" {
-				device = bootDevice
-			} else {
-				device = laidoutStructs[laidIdx].Node
-				laidIdx++
+				gadgetVol.Structure[i].Device = bootDevice
+				continue
 			}
-			gadgetVol.Structure[i].Device = device
+			for _, part := range onDiskParts {
+				// Same partition label
+				if part.Name == gadgetVol.Structure[i].Name {
+					node := part.Node
+					if gadgetVol.Structure[i].UnencryptedDevice != "" {
+						node = filepath.Join("/dev/mapper", part.Name)
+					}
+					gadgetVol.Structure[i].Device = node
+					break
+				}
+			}
 		}
 		vols[volName] = gadgetVol
 	}
@@ -199,14 +206,21 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 			continue
 		}
 
-		part, err := disk.FindMatchingPartitionWithPartLabel(stru.Label)
-		if err != nil {
-			return err
+		var partNode string
+		if stru.UnencryptedDevice != "" {
+			// XXX Assuming here that the encryption was successful
+			partNode = filepath.Join("/dev/mapper", stru.Label)
+		} else {
+			part, err := disk.FindMatchingPartitionWithPartLabel(stru.Label)
+			if err != nil {
+				return err
+			}
+			partNode = part.KernelDeviceNode
 		}
 		// XXX: reuse
 		// gadget/install/content.go:mountFilesystem() instead
 		// (it will also call udevadm)
-		if err := mkfs.Make(stru.Filesystem, part.KernelDeviceNode, stru.Label, 0, 0); err != nil {
+		if err := mkfs.Make(stru.Filesystem, partNode, stru.Label, 0, 0); err != nil {
 			return err
 		}
 
@@ -216,7 +230,7 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 			return err
 		}
 		// XXX: is there a better way?
-		if output, err := exec.Command("mount", part.KernelDeviceNode, mountPoint).CombinedOutput(); err != nil {
+		if output, err := exec.Command("mount", partNode, mountPoint).CombinedOutput(); err != nil {
 			return osutil.OutputErr(output, err)
 		}
 	}
