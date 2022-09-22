@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type cmdValidate struct {
@@ -126,13 +127,25 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			if err != nil {
 				return err
 			}
-			_, err = cmd.wait(changeID)
+			chg, err := cmd.wait(changeID)
 			if err != nil {
 				if err == noWait {
 					return nil
 				}
 				return err
 			}
+
+			var names []string
+			if err := chg.Get("snap-names", &names); err != nil {
+				return err
+			}
+
+			if len(names) != 0 {
+				fmt.Fprintf(Stdout, i18n.G("Refreshed/installed snaps %s to enforce validation set %q\n"), strutil.Quoted(names), cmd.Positional.ValidationSet)
+			} else {
+				fmt.Fprintf(Stdout, i18n.G("Enforced validation set %q\n"), cmd.Positional.ValidationSet)
+			}
+
 			return nil
 		}
 
