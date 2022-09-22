@@ -1250,6 +1250,10 @@ func mountSeedSnaps(seedSnaps ...*seed.Snap) (mountpoints []string, restore func
 	return mountpoints, unmountFunc, nil
 }
 
+type encryptionSetupDataKey struct {
+	systemLabel string
+}
+
 func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	var err error
 	st := t.State()
@@ -1268,6 +1272,12 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	logger.Debugf("starting install-finish for %q on %v", systemLabel, onVolumes)
+
+	cached := st.Cached(encryptionSetupDataKey{systemLabel})
+	if cached == nil {
+		return fmt.Errorf("no encryption setup data found for %q", systemLabel)
+	}
+	setupData := cached.(*install.EncryptionSetupData)
 
 	// TODO: use the seed to get gadget/kernel
 	// - install missing volumes structure content
@@ -1309,6 +1319,20 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot write content: %v", err)
 	}
+
+	if err := install.FinishEncryption(setupData); err != nil {
+		return fmt.Errorf("cannot finish encryption: %v", err)
+	}
+
+	if trustedInstallObserver != nil {
+		if err := prepareEncryptedSystemData(install.KeysForRole(setupData), trustedInstallObserver); err != nil {
+			return err
+		}
+	}
+
+	// if err := prepareRunSystemData(sys.Model, mntPtForType[snap.TypeGadget], perfTimings); err != nil {
+	// 	return err
+	// }
 
 	recovBootWith := &boot.RecoverySystemBootableSet{
 		Kernel:          snapInfos[snap.TypeKernel],
@@ -1356,7 +1380,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	logger.Debugf("making the installed system runnable for systemLabel %s", systemLabel)
-	if err := boot.MakeRunnableSystem(sys.Model, bootWith, trustedInstallObserver); err != nil {
+	if err := bootMakeRunnable(sys.Model, bootWith, trustedInstallObserver); err != nil {
 		return err
 	}
 
@@ -1407,6 +1431,13 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	logger.Debugf("useEncryption is %t", useEncryption)
 
 	// FIXME this is fixed to LUKS at the moment
-	return installEncryptPartitions(onVolumes, mntPtForType[snap.TypeGadget],
+	encryptionSetupData, err := installEncryptPartitions(onVolumes, mntPtForType[snap.TypeGadget],
 		mntPtForType[snap.TypeKernel], sys.Model, secboot.EncryptionTypeLUKS, perfTimings)
+	if err != nil {
+		return err
+	}
+
+	st.Cache(encryptionSetupDataKey{systemLabel}, encryptionSetupData)
+
+	return nil
 }

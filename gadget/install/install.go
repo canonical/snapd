@@ -40,6 +40,24 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+// partEncryptionData contains meta-data for an ecrypted partition.
+type partEncryptionData struct {
+	volName             string
+	fsDevice            string
+	encryptionKey       keys.EncryptionKey
+	encryptedSectorSize quantity.Size
+	encryptionParams    gadget.StructureEncryptionParameters
+	onDiskStruct        *gadget.OnDiskStructure
+}
+
+// encryptionSetupData stores information needed across install
+// API calls
+type EncryptionSetupData struct {
+	// maps from partition label to data
+	laidOutVols map[string]*gadget.LaidOutVolume
+	parts       map[string]partEncryptionData
+}
+
 // diskWithSystemSeed will locate a disk that has the partition corresponding
 // to a structure with SystemSeed role of the specified gadget volume and return
 // the device node.
@@ -278,6 +296,21 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 	return allLaidOutVols, created, diskLayout.SectorSize, laidOutBootVol.Name, nil
 }
 
+func createEncryptionParams(encTyp secboot.EncryptionType) gadget.StructureEncryptionParameters {
+	switch encTyp {
+	case secboot.EncryptionTypeLUKS:
+		return gadget.StructureEncryptionParameters{
+			Method: gadget.EncryptionLUKS,
+		}
+	case secboot.EncryptionTypeDeviceSetupHook:
+		return gadget.StructureEncryptionParameters{
+			Method: gadget.EncryptionICE,
+		}
+	}
+	logger.Noticef("internal error: unknown encryption parameter %q", encTyp)
+	return gadget.StructureEncryptionParameters{}
+}
+
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
 func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
@@ -331,17 +364,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 				keyForRole = map[string]keys.EncryptionKey{}
 			}
 			keyForRole[part.Role] = encryptionKey
-
-			switch options.EncryptionType {
-			case secboot.EncryptionTypeLUKS:
-				partsEncrypted[part.Name] = gadget.StructureEncryptionParameters{
-					Method: gadget.EncryptionLUKS,
-				}
-			case secboot.EncryptionTypeDeviceSetupHook:
-				partsEncrypted[part.Name] = gadget.StructureEncryptionParameters{
-					Method: gadget.EncryptionICE,
-				}
-			}
+			partsEncrypted[part.Name] = createEncryptionParams(options.EncryptionType)
 		}
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
 			if err := mountFilesystem(fsDevice, part.Filesystem, part.Label, boot.InitramfsRunMntDir); err != nil {
@@ -509,14 +532,51 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 	return nil
 }
 
+func FinishEncryption(setupData *EncryptionSetupData) error {
+	// Save storage traits to save/data partitions
+	encryptionParams := map[string]gadget.StructureEncryptionParameters{}
+	var volName string
+	for name, p := range setupData.parts {
+		encryptionParams[name] = p.encryptionParams
+		// XXX
+		volName = p.volName
+	}
+	optsPerVol := map[string]*gadget.DiskVolumeValidationOptions{
+		// this assumes that the encrypted partitions above are always only on the
+		// system-boot volume, this assumption may change
+		volName: {
+			ExpectedStructureEncryption: encryptionParams,
+		},
+	}
+	// save the traits to ubuntu-data host and optionally to ubuntu-save if it exists
+	// FIXME ubuntu-save forced to true
+	if err := saveStorageTraits(setupData.laidOutVols, optsPerVol, true); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
+	keyForRole := make(map[string]keys.EncryptionKey)
+	for _, p := range setupData.parts {
+		keyForRole[p.onDiskStruct.Role] = p.encryptionKey
+	}
+	return keyForRole
+}
+
 func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRoot string,
-	model *asserts.Model, encryptionType secboot.EncryptionType, perfTimings timings.Measurer) error {
+	model *asserts.Model, encryptionType secboot.EncryptionType, perfTimings timings.Measurer) (*EncryptionSetupData, error) {
 
 	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
 	if err != nil {
-		return fmt.Errorf("when encrypting partitions: cannot layout volumes: %v", err)
+		return nil, fmt.Errorf("when encrypting partitions: cannot layout volumes: %v", err)
 	}
 
+	setupData := &EncryptionSetupData{
+		laidOutVols: allLaidOutVols,
+		parts:       make(map[string]partEncryptionData),
+	}
 	for volName, vol := range onVolumes {
 		var sectorSize quantity.Size
 		for _, volStruct := range vol.Structure {
@@ -529,28 +589,37 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRo
 			if sectorSize == 0 {
 				disk, err := diskForPartition(device)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				sz, err := disk.SectorSize()
 				if err != nil {
-					return err
+					return nil, err
 				}
 				sectorSize = quantity.Size(sz)
 			}
 
 			onDiskStruct, err := getOnDiskStructFromDevice(device, volName, allLaidOutVols)
 			if err != nil {
-				return fmt.Errorf("cannot retrieve on disk info for %q: %v", device, err)
+				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", device, err)
 			}
 
-			_, _, _, err = encryptPartition(onDiskStruct, encryptionType, sectorSize, perfTimings)
+			// fsDevice will be /dev/mapper/ubuntu-data, etc.
+			fsDevice, encryptionKey, fsSectorSize, err :=
+				encryptPartition(onDiskStruct, encryptionType, sectorSize, perfTimings)
 			if err != nil {
-				return fmt.Errorf("cannot encrypt %q: %v", device, err)
+				return nil, fmt.Errorf("cannot encrypt %q: %v", device, err)
 			}
+			setupData.parts[onDiskStruct.Name] = partEncryptionData{
+				volName:             volName,
+				fsDevice:            fsDevice,
+				encryptionKey:       encryptionKey,
+				encryptedSectorSize: fsSectorSize,
+				encryptionParams:    createEncryptionParams(encryptionType),
+				onDiskStruct:        onDiskStruct}
 		}
 	}
 
-	return nil
+	return setupData, nil
 }
 
 func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
