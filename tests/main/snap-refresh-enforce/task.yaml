@@ -34,7 +34,7 @@ execute: |
     exit 1
   fi
 
-  "$TESTSTOOLS"/to-one-line "$(cat log.txt)" | MATCH "error: cannot remove "test-snapd-tools": snap "test-snapd-tools" is not removable: "test-snapd-tools" is required by validation sets: 16/$ACCOUNT_ID/refresh-enforce-set/1"
+  "$TESTSTOOLS"/to-one-line "$(cat log.txt)" | MATCH "error: cannot remove \"test-snapd-tools\": snap \"test-snapd-tools\" is not removable: \"test-snapd-tools\" is required by validation sets: 16/$ACCOUNT_ID/refresh-enforce-set/1"
 
   echo "Check that --enforce --refresh can't auto-resolve if it requires removing snaps"
   snap validate --forget "$ACCOUNT_ID"/refresh-enforce-set
