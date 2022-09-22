@@ -122,7 +122,7 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
 		c.Check(keyFile, Equals, filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"))
 		c.Check(rkeyDevs, DeepEquals, []secboot.RecoveryKeyDevice{
 			{
-				Mountpoint: filepath.Dir(boot.InstallHostWritableDir),
+				Mountpoint: filepath.Dir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")),
 			},
 			{
 				Mountpoint:         boot.InitramfsUbuntuSaveDir,
