@@ -8,9 +8,6 @@ restore: |
   snap validate --forget "$ACCOUNT_ID"/refresh-enforce-set || true
 
 execute: |
-  # precondition check
-  snap list | MATCH "test-snapd-tools +1\.0 +[0-9]+ +latest/stable"
-
   echo "Check that --enforce --refresh installs required snaps"
   # TODO: test the auto-resolution for wrong revisions by installing revision 2
   # and checking it's moved to revision 1
@@ -34,9 +31,15 @@ execute: |
     exit 1
   fi
 
-  "$TESTSTOOLS"/to-one-line "$(cat log.txt)" | MATCH "error: cannot remove \"test-snapd-tools\": snap \"test-snapd-tools\" is not removable: \"test-snapd-tools\" is required by validation sets: 16/$ACCOUNT_ID/refresh-enforce-set/1"
+  "$TESTSTOOLS"/to-one-line "$(cat log.txt)" | MATCH "error: cannot remove \"test-snapd-tools\": snap \"test-snapd-tools\" is not removable: snap \"test-snapd-tools\" is required by validation sets: 16/$ACCOUNT_ID/refresh-enforce-set/1"
 
   echo "Check that --enforce --refresh can't auto-resolve if it requires removing snaps"
   snap validate --forget "$ACCOUNT_ID"/refresh-enforce-set
   snap install hello-world
-  snap validate --refresh --enforce "$ACCOUNT_ID"/refresh-enforce-set 2>&1 | MATCH "error: cannot refresh: cannot auto-resolve enforcement constraints that require removing snaps: \"hello-world\""
+
+  if snap validate --refresh --enforce "$ACCOUNT_ID"/refresh-enforce-set > log.txt 2>&1; then
+    echo "Expected snap validate --refresh --enforce to fail"
+    exit 1
+  fi
+
+  "$TESTSTOOLS"/to-one-line "$(cat log.txt)" | MATCH "error: cannot refresh: cannot auto-resolve enforcement constraints that require removing snaps: \"hello-world\""

@@ -911,17 +911,24 @@ func EnforceValidationSets(st *state.State, vsMap map[string]*asserts.Validation
 	extraVs := make([]*asserts.ValidationSet, 0, len(vsMap))
 	newTracking := make([]*ValidationSetTracking, 0, len(vsMap))
 	for vsStr, vs := range vsMap {
-		_, _, sequence, err := snapasserts.ParseValidationSet(vsStr)
+		_, _, pinnedSeq, err := snapasserts.ParseValidationSet(vsStr)
 		if err != nil {
 			return err
+		}
+
+		if pinnedSeq != 0 && pinnedSeq != vs.Sequence() {
+			// the assertions we get here come from a previous attempt at enforcing which
+			// obtained them with the same valset string so this shouldn't be possible
+			return fmt.Errorf("internal error: trying to enforce validation set with sequence point different than pinned")
 		}
 
 		tr := &ValidationSetTracking{
 			AccountID: vs.AccountID(),
 			Name:      vs.Name(),
 			Mode:      Enforce,
+			Current:   vs.Sequence(),
 			// may be 0 meaning no pinning
-			PinnedAt: sequence,
+			PinnedAt: pinnedSeq,
 		}
 
 		newTracking = append(newTracking, tr)

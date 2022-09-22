@@ -4376,6 +4376,14 @@ func (s *assertMgrSuite) TestForgetValidationSet(c *C) {
 }
 
 func (s *assertMgrSuite) TestEnforceValidationSets(c *C) {
+	s.testEnforceValidationSets(c, 0)
+}
+
+func (s *assertMgrSuite) TestEnforceValidationSetsWithPinning(c *C) {
+	s.testEnforceValidationSets(c, 1)
+}
+
+func (s *assertMgrSuite) testEnforceValidationSets(c *C, pinnedSeq int) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -4408,8 +4416,12 @@ func (s *assertMgrSuite) TestEnforceValidationSets(c *C) {
 	remoteVs := s.validationSetAssertForSnaps(c, "foo", "2", "1", snaps)
 	c.Assert(s.storeSigning.Add(remoteVs), IsNil)
 
+	requestedValSet := fmt.Sprintf("%s/foo", s.dev1Acct.AccountID())
+	if pinnedSeq != 0 {
+		requestedValSet = fmt.Sprintf("%s=%d", requestedValSet, pinnedSeq)
+	}
 	valSets := map[string]*asserts.ValidationSet{
-		fmt.Sprintf("%s/foo=1", s.dev1Acct.AccountID()): localVs,
+		requestedValSet: localVs,
 	}
 	installedSnaps := []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
@@ -4434,8 +4446,8 @@ func (s *assertMgrSuite) TestEnforceValidationSets(c *C) {
 		AccountID: s.dev1Acct.AccountID(),
 		Name:      "foo",
 		Mode:      assertstate.Enforce,
-		// the map key contains a sequence number so this should be pinned
-		PinnedAt: 1,
+		Current:   1,
+		PinnedAt:  pinnedSeq,
 	})
 }
 
@@ -4502,7 +4514,32 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithNoLocalAssertions(c *C) {
 		AccountID: s.dev1Acct.AccountID(),
 		Name:      "foo",
 		Mode:      assertstate.Enforce,
+		Current:   1,
 		// the map key contains a sequence number so this should be pinned
 		PinnedAt: 1,
 	})
+}
+
+func (s *assertMgrSuite) TestEnforceValidationSetsWithMismatchedPinnedSeq(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// nothing in the DB; only in the store
+	snapstate.ReplaceStore(st, s.fakeStore)
+
+	vs := s.validationSetAssertForSnaps(c, "foo", "1", "1", []interface{}{
+		map[string]interface{}{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "some-snap",
+			"presence": "required",
+		}})
+
+	// user requested op with sequence 2 but we're passing a different sequence
+	valSets := map[string]*asserts.ValidationSet{
+		fmt.Sprintf("%s/foo=2", s.dev1Acct.AccountID()): vs,
+	}
+
+	err := assertstate.EnforceValidationSets(st, valSets, nil, nil, 0)
+	c.Assert(err, ErrorMatches, "internal error: trying to enforce validation set with sequence point different than pinned")
 }

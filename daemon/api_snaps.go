@@ -708,9 +708,9 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 }
 
 func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr *snapasserts.ValidationSetsValidationError) ([]*state.TaskSet, []string, error) {
-	// the key holds pinning information while the value holds the actual assertion
-	// used in the early check (so that we use the same assertion after trying to
-	// meet the constraints
+	// Keep the assertion used to try to enforce so that we use the same sequence/revision
+	// after resolving the constraints. Also keep the request string because it
+	// holds pinning information (e.g., "foo/bar=5) which we must write.
 	vsMap := make(map[string]*asserts.ValidationSet, len(inst.ValidationSets))
 	for _, vsStr := range inst.ValidationSets {
 		account, name, _, err := snapasserts.ParseValidationSet(vsStr)

@@ -335,7 +335,6 @@ func (v *ValidationSets) Add(valset *asserts.ValidationSet) error {
 	if _, ok := v.sets[k]; ok {
 		return fmt.Errorf("cannot add a second validation-set under %q", k)
 	}
-
 	v.sets[k] = valset
 	for _, sn := range valset.Snaps() {
 		v.addSnap(sn, k)
