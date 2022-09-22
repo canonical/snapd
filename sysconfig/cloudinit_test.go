@@ -28,7 +28,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
@@ -100,11 +99,11 @@ func (s *sysconfigSuite) TestHasGadgetCloudConf(c *C) {
 // this test is for initramfs calls that disable cloud-init for the ephemeral
 // writable partition that is used while running during install or recover mode
 func (s *sysconfigSuite) TestEphemeralModeInitramfsCloudInitDisables(c *C) {
-	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
+	writableDefaultsDir := sysconfig.WritableDefaultsDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	err := sysconfig.DisableCloudInit(writableDefaultsDir)
 	c.Assert(err, IsNil)
 
-	ubuntuDataCloudDisabled := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	ubuntuDataCloudDisabled := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
 }
 
