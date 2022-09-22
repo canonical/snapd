@@ -27,11 +27,11 @@ execute: |
             tests.session has-session-systemd-and-dbus | MATCH 'ok'
             tests.session has-session-systemd-and-dbus
             ;;
-        ubuntu-core-16-*)
+        ubuntu-core-1[68]-*)
             tests.session has-system-systemd-and-dbus | MATCH 'ok'
             tests.session has-system-systemd-and-dbus
-            # Ubuntu Core 16 did not support user sessions.
-            # Note that Ubuntu Core 18/20/22 are in the default case down below, and
+            # Ubuntu Core 16 and Ubuntu Core 18 did not support user sessions.
+            # Note that Ubuntu Core 20 is in the default case down below, and
             # does support this feature.
             tests.session has-session-systemd-and-dbus | MATCH 'no user dbus.socket'
             not tests.session has-session-systemd-and-dbus
