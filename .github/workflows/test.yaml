@@ -195,7 +195,7 @@ jobs:
 
   unit-tests:
     needs: [static-checks]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     env:
       GOPATH: ${{ github.workspace }}
       # Set PATH to ignore the load of magic binaries from /usr/local/bin And
