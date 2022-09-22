@@ -150,15 +150,12 @@ func SnapTypeParticipatesInBoot(t snap.Type, dev snap.Device) bool {
 	switch t {
 	case snap.TypeBase, snap.TypeOS:
 		// Bases are not boot participants for classic with modes
-		if dev.Classic() {
-			return false
-		}
+		return !dev.Classic()
 	case snap.TypeKernel, snap.TypeGadget:
-	default:
-		return false
+		return true
 	}
 
-	return true
+	return false
 }
 
 func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
