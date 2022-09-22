@@ -1222,7 +1222,11 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model) (syste
 	// that the system-* roles are all on the same volume
 	for name, vol := range info.Volumes {
 		// layout all volumes saving them
-		lvol, err := LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
+		opts := &LayoutOptions{
+			GadgetRootDir: gadgetRoot,
+			KernelRootDir: kernelRoot,
+		}
+		lvol, err := LayoutVolume(vol, opts, constraints)
 		if err != nil {
 			return nil, nil, err
 		}

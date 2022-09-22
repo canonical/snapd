@@ -230,7 +230,7 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 
 	// the expected expanded writable partition size is:
 	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
-	sfdiskInput, create, err := install.BuildPartitionList(dl, pv)
+	sfdiskInput, create, err := install.BuildPartitionList(dl, pv, nil)
 	c.Assert(err, IsNil)
 	c.Assert(sfdiskInput.String(), Equals,
 		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
@@ -262,7 +262,7 @@ func (s *partitionTestSuite) TestBuildPartitionListOnlyCreatablePartitions(c *C)
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
-	_, _, err = install.BuildPartitionList(dl, pv)
+	_, _, err = install.BuildPartitionList(dl, pv, nil)
 	c.Assert(err, ErrorMatches, `cannot create partition #1 \(\"BIOS Boot\"\)`)
 }
 
@@ -296,7 +296,10 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
-	created, err := install.CreateMissingPartitions(s.gadgetRoot, dl, pv)
+	opts := &install.CreateOptions{
+		GadgetRootDir: s.gadgetRoot,
+	}
+	created, err := install.CreateMissingPartitions(dl, pv, opts)
 	c.Assert(err, IsNil)
 	c.Assert(created, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureWritable})
 	c.Assert(calls, Equals, 1)

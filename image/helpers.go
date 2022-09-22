@@ -85,8 +85,12 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 	}
 	targetDir := filepath.Join(fullPrepareDir, "resolved-content")
 
+	opts := &gadget.LayoutOptions{
+		GadgetRootDir: gadgetUnpackDir,
+		KernelRootDir: kernelUnpackDir,
+	}
 	for volName, vol := range info.Volumes {
-		pvol, err := gadget.LayoutVolume(gadgetUnpackDir, kernelUnpackDir, vol, gadget.DefaultConstraints)
+		pvol, err := gadget.LayoutVolume(vol, opts, gadget.DefaultConstraints)
 		if err != nil {
 			return err
 		}

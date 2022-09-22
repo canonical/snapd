@@ -56,11 +56,23 @@ func reloadPartitionTable(gadgetRoot string, device string) error {
 	}
 }
 
+type CreateOptions struct {
+	// The gadget root dir
+	GadgetRootDir string
+
+	// Allow creating all partitions not just role-* ones
+	AllPartitions bool
+}
+
 // createMissingPartitions creates the partitions listed in the laid out volume
 // pv that are missing from the existing device layout, returning a list of
 // structures that have been created.
-func createMissingPartitions(gadgetRoot string, dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) ([]gadget.OnDiskStructure, error) {
-	buf, created, err := buildPartitionList(dl, pv)
+func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts *CreateOptions) ([]gadget.OnDiskStructure, error) {
+	if opts == nil {
+		opts = &CreateOptions{}
+	}
+
+	buf, created, err := buildPartitionList(dl, pv, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +93,7 @@ func createMissingPartitions(gadgetRoot string, dl *gadget.OnDiskVolume, pv *gad
 	}
 
 	// Re-read the partition table
-	if err := reloadPartitionTable(gadgetRoot, dl.Device); err != nil {
+	if err := reloadPartitionTable(opts.GadgetRootDir, dl.Device); err != nil {
 		return nil, err
 	}
 
@@ -104,7 +116,10 @@ func createMissingPartitions(gadgetRoot string, dl *gadget.OnDiskVolume, pv *gad
 // device contents and gadget structure list, in sfdisk dump format, and
 // returns a partitioning description suitable for sfdisk input and a
 // list of the partitions to be created.
-func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []gadget.OnDiskStructure, err error) {
+func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts *CreateOptions) (sfdiskInput *bytes.Buffer, toBeCreated []gadget.OnDiskStructure, err error) {
+	if opts == nil {
+		opts = &CreateOptions{}
+	}
 	sectorSize := uint64(dl.SectorSize)
 
 	// Keep track what partitions we already have on disk - the keys to this map
@@ -147,7 +162,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 		}
 
 		// Only allow creating certain partitions, namely the ubuntu-* roles
-		if !gadget.IsCreatableAtInstall(p.VolumeStructure) {
+		if !opts.AllPartitions && !gadget.IsCreatableAtInstall(p.VolumeStructure) {
 			return nil, nil, fmt.Errorf("cannot create partition %s", p)
 		}
 

@@ -4306,8 +4306,9 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMul
 
 	allLaidOutVolumes := map[string]*gadget.LaidOutVolume{}
 
+	opts := &gadget.LayoutOptions{GadgetRootDir: gadgetRoot}
 	for volName, vol := range info.Volumes {
-		lvol, err := gadget.LayoutVolume(gadgetRoot, "", vol, constraints)
+		lvol, err := gadget.LayoutVolume(vol, opts, constraints)
 		c.Assert(err, IsNil)
 		allLaidOutVolumes[volName] = lvol
 	}

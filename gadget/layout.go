@@ -30,6 +30,12 @@ import (
 	"github.com/snapcore/snapd/kernel"
 )
 
+// LayoutOptions defines the options to layout a given volume
+type LayoutOptions struct {
+	GadgetRootDir string
+	KernelRootDir string
+}
+
 // LayoutConstraints defines the constraints for arranging structures within a
 // volume
 type LayoutConstraints struct {
@@ -39,6 +45,10 @@ type LayoutConstraints struct {
 	// SkipResolveContent will skip resolving content paths
 	// and `$kernel:` style references
 	SkipResolveContent bool
+
+	// SkipLayoutStructureContent will skipp laying out
+	// content structure data
+	SkipLayoutStructureContent bool
 }
 
 // LaidOutVolume defines the size of a volume and arrangement of all the
@@ -206,8 +216,11 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 
 // LayoutVolume attempts to completely lay out the volume, that is the
 // structures and their content, using provided constraints
-func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constraints LayoutConstraints) (*LaidOutVolume, error) {
+func LayoutVolume(volume *Volume, opts *LayoutOptions, constraints LayoutConstraints) (*LaidOutVolume, error) {
 	var err error
+	if opts == nil {
+		opts = &LayoutOptions{}
+	}
 
 	var kernelInfo *kernel.Info
 	if !constraints.SkipResolveContent {
@@ -218,7 +231,7 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 		// Note that the kernelRootDir may reference the running
 		// kernel if there is a gadget update or the new kernel if
 		// there is a kernel update.
-		kernelInfo, err = kernel.ReadInfo(kernelRootDir)
+		kernelInfo, err = kernel.ReadInfo(opts.KernelRootDir)
 		if err != nil {
 			return nil, err
 		}
@@ -241,22 +254,28 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 		}
 
 		// lay out raw content
-		content, err := layOutStructureContent(gadgetRootDir, &structures[idx], byName)
-		if err != nil {
-			return nil, err
-		}
 
-		for _, c := range content {
-			if c.AbsoluteOffsetWrite != nil && *c.AbsoluteOffsetWrite > fartherstOffsetWrite {
-				fartherstOffsetWrite = *c.AbsoluteOffsetWrite
+		// We need a way to layout volumes
+		// without looking at the content for the installer code.
+		// This needs to at least very that all content using layouts
+		// have a size defined and that it's not implicit from the
+		// size of the content binary (if this is a thing?).
+		if !constraints.SkipLayoutStructureContent {
+			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx], byName)
+			if err != nil {
+				return nil, err
 			}
+			for _, c := range content {
+				if c.AbsoluteOffsetWrite != nil && *c.AbsoluteOffsetWrite > fartherstOffsetWrite {
+					fartherstOffsetWrite = *c.AbsoluteOffsetWrite
+				}
+			}
+			structures[idx].LaidOutContent = content
 		}
-
-		structures[idx].LaidOutContent = content
 
 		// resolve filesystem content
 		if !constraints.SkipResolveContent {
-			resolvedContent, err := resolveVolumeContent(gadgetRootDir, kernelRootDir, kernelInfo, &structures[idx], nil)
+			resolvedContent, err := resolveVolumeContent(opts.GadgetRootDir, opts.KernelRootDir, kernelInfo, &structures[idx], nil)
 			if err != nil {
 				return nil, err
 			}
@@ -273,7 +292,7 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 		Volume:           volume,
 		Size:             volumeSize,
 		LaidOutStructure: structures,
-		RootDir:          gadgetRootDir,
+		RootDir:          opts.GadgetRootDir,
 	}
 	return vol, nil
 }
