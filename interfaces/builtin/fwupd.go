@@ -278,14 +278,13 @@ const fwupdConnectedSlotAppArmor = `
 const fwupdPermanentSlotDBus = `
 <policy user="root">
     <allow own="org.freedesktop.fwupd"/>
+</policy>
+<policy context="default">
+    <deny own="org.freedesktop.fwupd"/>
     <allow send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.fwupd"/>
     <allow send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.DBus.Properties"/>
     <allow send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.DBus.Introspectable"/>
     <allow send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.DBus.Peer"/>
-</policy>
-<policy context="default">
-    <deny own="org.freedesktop.fwupd"/>
-    <deny send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.fwupd"/>
 </policy>
 `
 
