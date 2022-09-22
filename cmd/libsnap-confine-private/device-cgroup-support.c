@@ -323,7 +323,8 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     }
 
     char path[PATH_MAX] = {0};
-    sc_must_snprintf(path, sizeof path, "/sys/fs/bpf/snap/%s", self->v2.tag);
+    static const char bpf_base[] = "/sys/fs/bpf";
+    sc_must_snprintf(path, sizeof path, "%s/snap/%s", bpf_base, self->v2.tag);
 
     /* we expect bpffs to be mounted at /sys/fs/bpf, which should have been done
      * by systemd, but some systems out there are a weird mix of older userland
@@ -336,21 +337,25 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         debug("bpffs mounted at /sys/fs/bpf");
     }
 
-    /* TODO: open("/sys/fs/bpf") and then mkdirat?  */
-    static const char bpf_snap_base[] = "/sys/fs/bpf/snap";
     /* Using 0000 permissions to avoid a race condition; we'll set the right
      * permissions after chmod. */
-    if (mkdir(bpf_snap_base, 0000) == 0) {
+    int bpf_fd = open(bpf_base, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (bpf_fd < 0) {
+        die("cannot open %s", bpf_base);
+    }
+
+    if (mkdirat(bpf_fd, "snap", 0000) == 0) {
         /* the new directory must be owned by root:root. */
-        if (chown(bpf_snap_base, 0, 0) < 0) {
-            die("cannot set root ownership on %s directory", bpf_snap_base);
+        if (fchownat(bpf_fd, "snap", 0, 0, AT_SYMLINK_NOFOLLOW) < 0) {
+            die("cannot set root ownership on %s/snap directory", bpf_base);
         }
-        if (chmod(bpf_snap_base, 0700) < 0) {
-            die("cannot set 0700 permissions on %s directory", bpf_snap_base);
+        if (fchmodat(bpf_fd, "snap", 0700, AT_SYMLINK_NOFOLLOW) < 0) {
+            die("cannot set 0700 permissions on %s/snap directory", bpf_base);
         }
     } else if (errno != EEXIST) {
-        die("cannot create %s directory", bpf_snap_base);
+        die("cannot create %s/snap directory", bpf_base);
     }
+    close(bpf_fd);
 
     /* and obtain a file descriptor to the map, also as root */
     int devmap_fd = bpf_get_by_path(path);
