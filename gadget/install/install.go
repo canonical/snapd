@@ -482,12 +482,15 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 
 	for volName, vol := range onVolumes {
 		for _, volStruct := range vol.Structure {
-			// TODO fixme
-			if volStruct.Role == "mbr" {
+			switch volStruct.Role {
+			// TODO how to write raw content?
+			case "mbr", "":
 				continue
-			}
-			// TODO write raw content?
-			if volStruct.Role == "" {
+			// TODO these are special when encrypted so it is
+			// not easy to treat it as normal partitions. Also,
+			// not sure if gadget defined "content:" applies
+			// for them.
+			case "system-save", "system-data":
 				continue
 			}
 
