@@ -1,0 +1,119 @@
+summary: Check that the installer API works
+
+# this is a UC20+ specific test
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+environment:
+    # nested test so that we can test encryted installs eventually
+    # TODO enable tpm variant too for testing of encryption installs
+    NESTED_ENABLE_TPM: false
+    NESTED_ENABLE_SECURE_BOOT: false
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
+    NESTED_ENABLE_OVMF: true
+    STORE_ADDR: localhost:11028
+    STORE_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+  echo "Install used snaps"
+  snap install test-snapd-curl --devmode --edge
+  snap install jq --devmode --edge
+  if [ -d /var/lib/snapd/seed ]; then
+      mv /var/lib/snapd/seed /var/lib/snapd/seed.orig
+  fi
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+  setup_fake_store "$STORE_DIR"
+
+restore: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+  if [ -d /var/lib/snapd/seed.orig ]; then
+      rm -rf /var/lib/snapd/seed
+      mv /var/lib/snapd/seed.orig /var/lib/snapd/seed
+  fi
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+  teardown_fake_store "$STORE_DIR"
+  rm -rf ./classic-root
+
+execute: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+
+  # XXX: the code in DeviceManager.SystemAndGadgetInfo() will only work on
+  # classic systems with modeenv right now (which is something we may need
+  # to fix to work from the classic installer).
+  # For now pretend we have a modeenv
+  echo "mode=run" > /var/lib/snapd/modeenv
+  tests.cleanup defer rm -f /var/lib/snapd/modeenv
+  # need snapd restart as GET /systems/<label> is only available on systems
+  # with a modeenv
+  systemctl restart snapd
+
+  echo Expose the needed assertions through the fakestore
+  cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts" 
+  export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+  # prepare a classic seed
+  # TODO:
+  # - create pc-classic custom gadget (once PR#12174 is merged)
+  # - kernel with updated initrd
+  # - repacked snapd snap
+  # (should be as simple as addinga "--snap=./local-gadget.snap ...")
+  LABEL="$(date +%Y%m%d)"
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-22-classic-dangerous.json > my.model
+  snap prepare-image --classic --channel=edge my.model ./classic-seed
+  cp -a ./classic-seed/system-seed/ /var/lib/snapd/seed
+
+  # do some light checking that the system is valid
+  test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems | jq '.result.systems[0].label' | MATCH "$LABEL"
+  test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems/"$LABEL" > system
+  jq '.result.model.distribution' system | MATCH "ubuntu"
+
+  # build muinstaller and put in place
+  go build -o muinstaller "$TESTSLIB"/muinstaller/main.go
+
+  # create boot disk for the installer to work on
+  truncate --size=4G boot.img
+  loop_device=$(losetup --show -f ./boot.img)
+  # TODO: this works around the fact that a "loop" device has no
+  #       ID_PART_TABLE_TYPE udev attribute that our code in
+  #       osutil/disks/disks_linux.go expected in diskFromUDevProps()
+  #       over a completely empty disk
+  echo "label: gpt" | sfdisk "$loop_device"
+  # and "install" the current seed to the boot disk
+  # NOTE that this currently is expected to fail because the "finish" step
+  #      in snapd is not done yet
+  not ./muinstaller "$LABEL" "$loop_device" "$TESTSLIB"/muinstaller/mk-classic-rootfs.sh 2> stderr
+  MATCH "finish install step not implemented" < stderr
+
+  # validate that the muinstaller created the expected partitions
+  fdisk -x "$loop_device" > fdisk_output
+  MATCH "${loop_device}p1 .* BIOS Boot"   < fdisk_output
+  # TODO: the real MVP classic+modes device will not contain a ubuntu-seed
+  #       partition (needs the gadget from #12174)
+  MATCH "${loop_device}p2 .* ubuntu-seed" < fdisk_output
+  MATCH "${loop_device}p3 .* ubuntu-boot" < fdisk_output
+  MATCH "${loop_device}p4 .* ubuntu-save" < fdisk_output
+  MATCH "${loop_device}p5 .* ubuntu-data" < fdisk_output
+
+  # seed is populated
+  test -d /run/mnt/ubuntu-data/var/lib/snapd/seed/systems/"$LABEL"
+  MATCH "classic: true" < /run/mnt/ubuntu-data/var/lib/snapd/seed/systems/"$LABEL"/model
+  # rootfs is there
+  test -x /run/mnt/ubuntu-data/usr/lib/systemd/systemd
+  # ensure not "ubuntu-data/system-data" is generated, this is a dir only
+  # used on core and should not be there on classic
+  not test -d /run/mnt/ubuntu-data/system-data
+
+  # TODO: eventually this is a bootable image, boot into it here and
+  # do light checking

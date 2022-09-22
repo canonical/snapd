@@ -1,0 +1,21 @@
+name: muinstaller
+version: "0.1"
+summary: Minimal Unattended Installer
+description: |
+  Minimal Unattended Installer (muinstaller) is a minimal installer
+  for Ubuntu Core
+confinement: classic
+base: core22
+
+apps:
+  muinstaller:
+    # XXX: make this a daemon
+    command: bin/muinstaller
+
+# TODO: add spread test that builds the muinstaller from snapd to ensure
+#       we don't accidentally break it
+parts:
+  muinstaller:
+    plugin: go
+    source: .
+    build-snaps: [go/1.13/stable]
