@@ -282,7 +282,7 @@ func (s *validateSuite) TestValidationSetsRefreshEnforceWithNoResolution(c *chec
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
-			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-names": []}}}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
 
 		default:
 			c.Fatalf("expected to get 2 requests, now on %d", n+1)

@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -136,7 +137,7 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			}
 
 			var names []string
-			if err := chg.Get("snap-names", &names); err != nil {
+			if err := chg.Get("snap-names", &names); err != nil && !errors.Is(err, client.ErrNoData) {
 				return err
 			}
 
