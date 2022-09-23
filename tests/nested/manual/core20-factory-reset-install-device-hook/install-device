@@ -6,18 +6,18 @@
 
 # add a udev rule if executed from factory-reset
 if snapctl system-mode | grep "factory-reset"; then
-    cat << EOF > /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/udev/rules.d/09-my-custom-udev.rules
+    cat << EOF > /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/udev/rules.d/from-factory-reset.conf
 # this udev rule should only appear after factory-reset mode
 EOF
     exit 0
 fi
 
 # add modprobe.d config
-cat << EOF > /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/modprobe.d/my-modprobe.conf
+cat << EOF > /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/modprobe.d/from-install.conf
 # this modprobe conf should only appear after install mode
 EOF
 
 # add modules-load.d config
-cat << EOF > /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/modules-load.d/my-modules-load.conf
+cat << EOF > /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/modules-load.d/from-install.conf
 # this module load conf should only appear after install mode
 EOF

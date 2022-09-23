@@ -1160,10 +1160,13 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	m.ensureInstalledRan = true
 
-	var prev *state.Task
+	// Create both setup-run-system and restart-system-to-run-mode tasks as they
+	// will run unconditionally. They will be chained together with optionally the
+	// install-device hook task.
 	setupRunSystem := m.state.NewTask("setup-run-system", i18n.G("Setup system for run mode"))
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 
+	var prev *state.Task
 	tasks := []*state.Task{setupRunSystem}
 	addTask := func(t *state.Task) {
 		t.WaitFor(prev)
@@ -1239,10 +1242,13 @@ func (m *DeviceManager) ensureFactoryReset() error {
 
 	m.ensureFactoryResetRan = true
 
-	var prev *state.Task
+	// Create both factory-reset-run-system and restart-system-to-run-mode tasks as they
+	// will run unconditionally. They will be chained together with optionally the
+	// install-device hook task.
 	factoryReset := m.state.NewTask("factory-reset-run-system", i18n.G("Perform factory reset of the system"))
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 
+	var prev *state.Task
 	tasks := []*state.Task{factoryReset}
 	addTask := func(t *state.Task) {
 		t.WaitFor(prev)

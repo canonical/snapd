@@ -3102,7 +3102,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 	// factory-reset-run-system has no pre-reqs
 	c.Assert(factoryResetTask.WaitTasks(), HasLen, 0)
 
-	// install-device has a pre-req of prepare-ubuntu-save
+	// install-device has a pre-req of factory-reset-run-system
 	waitTasks := installDeviceTask.WaitTasks()
 	c.Assert(waitTasks, HasLen, 1)
 	c.Check(waitTasks[0].ID(), Equals, factoryResetTask.ID())

@@ -9,12 +9,12 @@ plugs:
   modprobe-conf:
     interface: system-files
     write:
-      - /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/modprobe.d/my-modprobe.conf
+      - /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/modprobe.d/from-install.conf
   modules-load-conf:
     interface: system-files
     write:
-      - /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/modules-load.d/my-modules-load.conf
+      - /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/modules-load.d/from-install.conf
   udev-rules-conf:
     interface: system-files
     write:
-      - /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/udev/rules.d/09-my-custom-udev.rules
+      - /run/mnt/ubuntu-data/system-data/_writable_defaults/etc/udev/rules.d/from-factory-reset.conf

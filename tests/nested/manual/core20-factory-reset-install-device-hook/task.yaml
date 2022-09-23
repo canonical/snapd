@@ -135,47 +135,47 @@ execute: |
     fi
 
     # wait for the initialize device task to be done
-    retry -n 200 --wait 3 sh -c "tests.nested exec snap changes | MATCH 'Done.*Initialize device'"
+    retry -n 200 --wait 3 sh -c "remote.exec snap changes | MATCH 'Done.*Initialize device'"
 
     VERSION="$(tests.nested show version)"
     BOOT_ID="$(tests.nested boot-id)"
 
     echo "Check we have the right model from snap model"
-    tests.nested exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-secured-core-$VERSION-amd64"
-    tests.nested exec "sudo snap model --verbose" | MATCH "grade:\s+secured"
-    tests.nested exec "sudo snap model --verbose --serial" | MATCH "serial:\s+7777"
+    remote.exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-secured-core-$VERSION-amd64"
+    remote.exec "sudo snap model --verbose" | MATCH "grade:\s+secured"
+    remote.exec "sudo snap model --verbose --serial" | MATCH "serial:\s+7777"
 
     echo "Check that the system-files interface is connected for the pc snap"
-    tests.nested exec "snap connections pc" | MATCH 'system-files\s+pc:modprobe-conf\s+:system-files'
-    tests.nested exec "snap connections pc" | MATCH 'system-files\s+pc:modules-load-conf\s+:system-files'
-    tests.nested exec "snap connections pc" | MATCH 'system-files\s+pc:udev-rules-conf\s+:system-files'
+    remote.exec "snap connections pc" | MATCH 'system-files\s+pc:modprobe-conf\s+:system-files'
+    remote.exec "snap connections pc" | MATCH 'system-files\s+pc:modules-load-conf\s+:system-files'
+    remote.exec "snap connections pc" | MATCH 'system-files\s+pc:udev-rules-conf\s+:system-files'
 
     echo "Check that the directories have the right permissions"
-    tests.nested exec "stat /etc/modprobe.d/ -c %a" | MATCH 755
-    tests.nested exec "stat /etc/modules-load.d/ -c %a" | MATCH 755
-    tests.nested exec "stat /etc/udev/rules.d/ -c %a" | MATCH 755
+    remote.exec "stat /etc/modprobe.d/ -c %a" | MATCH 755
+    remote.exec "stat /etc/modules-load.d/ -c %a" | MATCH 755
+    remote.exec "stat /etc/udev/rules.d/ -c %a" | MATCH 755
 
     echo "Check that the files from install-device were installed (install)"
-    tests.nested exec "cat /etc/modprobe.d/my-modprobe.conf" | MATCH '# this modprobe conf should only appear after install mode'
-    tests.nested exec "cat /etc/modules-load.d/my-modules-load.conf" | MATCH '# this module load conf should only appear after install mode'
-    not tests.nested exec "stat /etc/udev/rules.d/09-my-custom-udev.rules"
+    remote.exec "cat /etc/modprobe.d/from-install.conf" | MATCH '# this modprobe conf should only appear after install mode'
+    remote.exec "cat /etc/modules-load.d/from-install.conf" | MATCH '# this module load conf should only appear after install mode'
+    not remote.exec "stat /etc/udev/rules.d/from-factory-reset.conf"
 
     # add || true in case the SSH connection is broken while executing this
     # since this command causes an immediate reboot
-    tests.nested exec "sudo snap reboot --factory-reset" || true
+    remote.exec "sudo snap reboot --factory-reset" || true
     tests.nested wait-for reboot "${BOOT_ID}"
 
     # wait for the system to get setup and finish seeding
     tests.nested wait-for snap-command
-    retry -n 10 --wait 2 tests.nested exec "sudo snap wait system seed.loaded"
+    retry -n 10 --wait 2 remote.exec "sudo snap wait system seed.loaded"
 
     # wait up to two minutes for serial registration
-    retry -n 60 --wait 2 tests.nested exec snap model --serial
+    retry -n 60 --wait 2 remote.exec snap model --serial
 
     # check that we are back in run mode
-    tests.nested exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
+    remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
 
     echo "Check that the files from install-device are installed (factory-reset)"
-    not tests.nested exec "stat /etc/modprobe.d/my-modprobe.conf"
-    not tests.nested exec "stat /etc/modules-load.d/my-modules-load.conf"
-    tests.nested exec "cat /etc/udev/rules.d/09-my-custom-udev.rules" | MATCH  '# this udev rule should only appear after factory-reset mode'
+    not remote.exec "stat /etc/modprobe.d/from-install.conf"
+    not remote.exec "stat /etc/modules-load.d/from-install.conf"
+    remote.exec "cat /etc/udev/rules.d/from-factory-reset.conf" | MATCH  '# this udev rule should only appear after factory-reset mode'
