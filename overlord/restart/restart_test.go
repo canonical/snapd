@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -59,6 +59,17 @@ func (h *testHandler) RebootDidNotHappen(*state.State) error {
 	return nil
 }
 
+func (s *restartSuite) TestManager(c *C) {
+	st := state.New(nil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	mgr, err := restart.Manager(st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+	c.Check(mgr, FitsTypeOf, &restart.RestartManager{})
+}
+
 func (s *restartSuite) TestRequestRestartDaemon(c *C) {
 	st := state.New(nil)
 
@@ -72,7 +83,7 @@ func (s *restartSuite) TestRequestRestartDaemon(c *C) {
 
 	h := &testHandler{}
 
-	err := restart.Init(st, "boot-id-1", h)
+	_, err := restart.Manager(st, "boot-id-1", h)
 	c.Assert(err, IsNil)
 	c.Check(h.rebootAsExpected, Equals, true)
 
@@ -95,7 +106,7 @@ func (s *restartSuite) TestRequestRestartDaemonNoHandler(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	err := restart.Init(st, "boot-id-1", nil)
+	_, err := restart.Manager(st, "boot-id-1", nil)
 	c.Assert(err, IsNil)
 
 	restart.Request(st, restart.RestartDaemon, nil)
@@ -111,7 +122,7 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	defer st.Unlock()
 
 	h := &testHandler{}
-	err := restart.Init(st, "boot-id-1", h)
+	_, err := restart.Manager(st, "boot-id-1", h)
 	c.Assert(err, IsNil)
 	c.Check(h.rebootAsExpected, Equals, true)
 
@@ -132,7 +143,7 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	c.Check(fromBootID, Equals, "boot-id-1")
 
 	h1 := &testHandler{}
-	err = restart.Init(st, "boot-id-1", h1)
+	_, err = restart.Manager(st, "boot-id-1", h1)
 	c.Assert(err, IsNil)
 	c.Check(h1.rebootAsExpected, Equals, false)
 	c.Check(h1.rebootDidNotHappen, Equals, true)
@@ -141,7 +152,7 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	c.Check(fromBootID, Equals, "boot-id-1")
 
 	h2 := &testHandler{}
-	err = restart.Init(st, "boot-id-2", h2)
+	_, err = restart.Manager(st, "boot-id-2", h2)
 	c.Assert(err, IsNil)
 	c.Check(h2.rebootAsExpected, Equals, true)
 	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), testutil.ErrorIs, state.ErrNoState)
@@ -153,7 +164,7 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	defer st.Unlock()
 
 	h := &testHandler{}
-	err := restart.Init(st, "boot-id-1", h)
+	_, err := restart.Manager(st, "boot-id-1", h)
 	c.Assert(err, IsNil)
 	c.Check(h.rebootAsExpected, Equals, true)
 
@@ -178,7 +189,7 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	c.Check(fromBootID, Equals, "boot-id-1")
 
 	h1 := &testHandler{}
-	err = restart.Init(st, "boot-id-1", h1)
+	_, err = restart.Manager(st, "boot-id-1", h1)
 	c.Assert(err, IsNil)
 	c.Check(h1.rebootAsExpected, Equals, false)
 	c.Check(h1.rebootDidNotHappen, Equals, true)
@@ -187,7 +198,7 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	c.Check(fromBootID, Equals, "boot-id-1")
 
 	h2 := &testHandler{}
-	err = restart.Init(st, "boot-id-2", h2)
+	_, err = restart.Manager(st, "boot-id-2", h2)
 	c.Assert(err, IsNil)
 	c.Check(h2.rebootAsExpected, Equals, true)
 	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), testutil.ErrorIs, state.ErrNoState)

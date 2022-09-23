@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -202,17 +203,13 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	t.SetStatus(state.DoneStatus)
-
 	if err := os.RemoveAll(snapRollbackDir); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("failed to remove gadget update rollback directory %q: %v", snapRollbackDir, err)
 	}
 
 	// TODO: consider having the option to do this early via recovery in
 	// core20, have fallback code as well there
-	snapstate.RestartSystem(t, nil)
-
-	return nil
+	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, nil)
 }
 
 func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, isUndo bool) (updated bool, err error) {
@@ -278,15 +275,12 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 	}
 	t.Logf("Updated kernel command line")
 
-	t.SetStatus(state.DoneStatus)
-
 	// TODO: consider optimization to avoid double reboot when the gadget
 	// snap carries an update to the gadget assets and a change in the
 	// kernel command line
 
 	// kernel command line was updated, request a reboot to make it effective
-	snapstate.RestartSystem(t, nil)
-	return nil
+	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, nil)
 }
 
 func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) error {
@@ -319,9 +313,6 @@ func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb)
 	}
 	t.Logf("Reverted kernel command line change")
 
-	t.SetStatus(state.UndoneStatus)
-
 	// kernel command line was updated, request a reboot to make it effective
-	snapstate.RestartSystem(t, nil)
-	return nil
+	return snapstate.FinishTaskWithRestart(t, state.UndoneStatus, restart.RestartSystem, nil)
 }
