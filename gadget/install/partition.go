@@ -60,7 +60,9 @@ type CreateOptions struct {
 	// The gadget root dir
 	GadgetRootDir string
 
-	// Allow creating all partitions not just role-* ones
+	// Create all missing partitions. If unset only
+	// role-{data,boot,save} partitions will get created and it's
+	// an error other partition is missing.
 	AllPartitions bool
 }
 

@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/kernel"
 )
 
-// LayoutOptions defines the options to layout a given volume
+// LayoutOptions defines the options to layout a given volume.
 type LayoutOptions struct {
 	GadgetRootDir string
 	KernelRootDir string
@@ -46,8 +46,10 @@ type LayoutConstraints struct {
 	// and `$kernel:` style references
 	SkipResolveContent bool
 
-	// SkipLayoutStructureContent will skipp laying out
-	// content structure data
+	// SkipLayoutStructureContent will skip laying out
+	// content structure data to the volume. This is used when
+	// only the partitions need to get created and content gets
+	// written later.
 	SkipLayoutStructureContent bool
 }
 
@@ -253,13 +255,10 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions, constraints LayoutConstra
 			farthestEnd = end
 		}
 
-		// lay out raw content
-
-		// We need a way to layout volumes
-		// without looking at the content for the installer code.
-		// This needs to at least very that all content using layouts
-		// have a size defined and that it's not implicit from the
-		// size of the content binary (if this is a thing?).
+		// Lay out raw content. This can be skipped when only partition
+		// creation is needed and is safe because each volume structure
+		// has a size so even without the structure content the layout
+		// can be calculated.
 		if !constraints.SkipLayoutStructureContent {
 			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx], byName)
 			if err != nil {
