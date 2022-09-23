@@ -1,6 +1,8 @@
 package snapstate
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/state"
@@ -30,4 +32,24 @@ func inUseFor(deviceCtx DeviceContext) func(snap.Type) (boot.InUseFunc, error) {
 	return func(typ snap.Type) (boot.InUseFunc, error) {
 		return boot.InUse(typ, deviceCtx)
 	}
+}
+
+func isCoreBootDevice(st *state.State) (bool, error) {
+	// TODO: turn this into a function that takes a DeviceContext
+	// that can be nil (TransitionCore case)
+
+	// Use device context just to find out if this is a core boot device.
+	// state.ErrNoState is returned if we cannot find the model,
+	// which can happen on classic when upgrading from ubuntu-core
+	// to core snap (model is set later).
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		if !errors.Is(err, state.ErrNoState) {
+			return false, err
+		}
+		return false, nil
+	} else {
+		return deviceCtx.IsCoreBoot(), nil
+	}
+
 }
