@@ -49,9 +49,9 @@ var (
 	Stderr io.Writer = os.Stderr
 )
 
-// CorePreseedOpts provides required and optional
+//  CorePreseedOptions provides required and optional
 // options for core preseeding
-type CorePreseedOpts struct {
+type CorePreseedOptions struct {
 	// prepare image directory
 	PrepareImageDir string
 	// key to sign preseeded data with
@@ -62,8 +62,10 @@ type CorePreseedOpts struct {
 	SysfsOverlay string
 }
 
-// preseedOpts holds internal preseeding options
-type preseedOpts struct {
+// preseedOptions holds internal preseeding options
+type preseedOptions struct {
+	// base preseeding options
+	PreseedOpts CorePreseedOptions
 	// chroot directory to run chroot from
 	PreseedChrootDir string
 	// stystem label of system to be seededs
@@ -71,9 +73,9 @@ type preseedOpts struct {
 	// writable directory
 	WritableDir string
 	// snapd mount point
-	snapdSnapPath string
+	SnapdSnapPath string
 	// base snap mount point
-	baseSnapPath string
+	BaseSnapPath string
 }
 
 type targetSnapdInfo struct {
@@ -95,13 +97,13 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-func writePreseedAssertion(artifactDigest []byte, opts *CorePreseedOpts, popts *preseedOpts) error {
+func writePreseedAssertion(artifactDigest []byte, opts *preseedOptions) error {
 	keypairMgr, err := getKeypairManager()
 	if err != nil {
 		return err
 	}
 
-	key := opts.PreseedSignKey
+	key := opts.PreseedOpts.PreseedSignKey
 	if key == "" {
 		key = `default`
 	}
@@ -111,8 +113,8 @@ func writePreseedAssertion(artifactDigest []byte, opts *CorePreseedOpts, popts *
 		return fmt.Errorf(i18n.G("cannot use %q key: %v"), key, err)
 	}
 
-	sysDir := filepath.Join(opts.PrepareImageDir, "system-seed")
-	sd, err := seedOpen(sysDir, popts.SystemLabel)
+	sysDir := filepath.Join(opts.PreseedOpts.PrepareImageDir, "system-seed")
+	sd, err := seedOpen(sysDir, opts.SystemLabel)
 	if err != nil {
 		return err
 	}
@@ -177,7 +179,7 @@ func writePreseedAssertion(artifactDigest []byte, opts *CorePreseedOpts, popts *
 		"series":            "16",
 		"brand-id":          model.BrandID(),
 		"model":             model.Model(),
-		"system-label":      popts.SystemLabel,
+		"system-label":      opts.SystemLabel,
 		"artifact-sha3-384": base64Digest,
 		"timestamp":         time.Now().UTC().Format(time.RFC3339),
 		"snaps":             snaps,
@@ -201,7 +203,7 @@ func writePreseedAssertion(artifactDigest []byte, opts *CorePreseedOpts, popts *
 		return fmt.Errorf("cannot fetch assertion: %v", err)
 	}
 
-	serialized, err := os.OpenFile(filepath.Join(sysDir, "systems", popts.SystemLabel, "preseed"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	serialized, err := os.OpenFile(filepath.Join(sysDir, "systems", opts.SystemLabel, "preseed"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		return err
 	}

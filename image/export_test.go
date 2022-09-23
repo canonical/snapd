@@ -54,7 +54,7 @@ func MockNewToolingStoreFromModel(f func(model *asserts.Model, fallbackArchitect
 	}
 }
 
-func MockPreseedCore20(f func(opts *preseed.CorePreseedOpts) error) (restore func()) {
+func MockPreseedCore20(f func(opts *preseed.CorePreseedOptions) error) (restore func()) {
 	r := testutil.Backup(&preseedCore20)
 	preseedCore20 = f
 	return r

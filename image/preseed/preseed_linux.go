@@ -141,13 +141,13 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 		required = "core"
 	}
 
-	var systemSnapPath, baseSnapPath string
+	var systemSnapPath, BaseSnapPath string
 	for _, ess := range seed.EssentialSnaps() {
 		if ess.SnapName() == required {
 			systemSnapPath = ess.Path
 		}
 		if ess.EssentialType == "base" {
-			baseSnapPath = ess.Path
+			BaseSnapPath = ess.Path
 		}
 	}
 
@@ -155,7 +155,7 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 		return "", "", fmt.Errorf("%s snap not found", required)
 	}
 
-	return systemSnapPath, baseSnapPath, nil
+	return systemSnapPath, BaseSnapPath, nil
 }
 
 const snapdPreseedSupportVer = `2.43.3+`
@@ -210,16 +210,16 @@ func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 	return &targetSnapdInfo{path: snapdPath, version: whichVer}, nil
 }
 
-func prepareCore20Mountpoints(opts *CorePreseedOpts, popts *preseedOpts) (cleanupMounts func(), err error) {
+func prepareCore20Mountpoints(opts *preseedOptions) (cleanupMounts func(), err error) {
 	underPreseed := func(path string) string {
-		return filepath.Join(popts.PreseedChrootDir, path)
+		return filepath.Join(opts.PreseedChrootDir, path)
 	}
 
 	underOverlay := func(path string) string {
-		return filepath.Join(opts.SysfsOverlay, path)
+		return filepath.Join(opts.PreseedOpts.SysfsOverlay, path)
 	}
 
-	if err := os.MkdirAll(filepath.Join(popts.WritableDir, "system-data", "etc"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(opts.WritableDir, "system-data", "etc"), 0755); err != nil {
 		return nil, err
 	}
 	where := filepath.Join(snapdMountPath)
@@ -251,7 +251,7 @@ func prepareCore20Mountpoints(opts *CorePreseedOpts, popts *preseedOpts) (cleanu
 		}
 		// cleanup after handle-writable-paths
 		for _, ent := range entries {
-			if ent.MountDir != popts.PreseedChrootDir && strings.HasPrefix(ent.MountDir, popts.PreseedChrootDir) {
+			if ent.MountDir != opts.PreseedChrootDir && strings.HasPrefix(ent.MountDir, opts.PreseedChrootDir) {
 				doUnmount(ent.MountDir)
 			}
 		}
@@ -274,8 +274,8 @@ func prepareCore20Mountpoints(opts *CorePreseedOpts, popts *preseedOpts) (cleanu
 	defer cleanupOnError()
 
 	mounts := [][]string{
-		{"-o", "loop", popts.baseSnapPath, popts.PreseedChrootDir},
-		{"-o", "loop", popts.snapdSnapPath, snapdMountPath},
+		{"-o", "loop", opts.BaseSnapPath, opts.PreseedChrootDir},
+		{"-o", "loop", opts.SnapdSnapPath, snapdMountPath},
 		{"-t", "tmpfs", "tmpfs", underPreseed("run")},
 		{"-t", "tmpfs", "tmpfs", underPreseed("var/tmp")},
 		{"--bind", underPreseed("var/tmp"), underPreseed("tmp")},
@@ -283,10 +283,10 @@ func prepareCore20Mountpoints(opts *CorePreseedOpts, popts *preseedOpts) (cleanu
 		{"-t", "sysfs", "sysfs", underPreseed("sys")},
 		{"-t", "devtmpfs", "udev", underPreseed("dev")},
 		{"-t", "securityfs", "securityfs", underPreseed("sys/kernel/security")},
-		{"--bind", popts.WritableDir, underPreseed("writable")},
+		{"--bind", opts.WritableDir, underPreseed("writable")},
 	}
 
-	if opts.SysfsOverlay != "" {
+	if opts.PreseedOpts.SysfsOverlay != "" {
 		// bind mount only permitted directories under sys/class and sys/devices
 		for _, dir := range permitedSysfsOverlays {
 			info, err := os.Stat(underOverlay(dir))
@@ -310,7 +310,7 @@ func prepareCore20Mountpoints(opts *CorePreseedOpts, popts *preseedOpts) (cleanu
 		mounted = append(mounted, mountArgs[len(mountArgs)-1])
 	}
 
-	cmd := exec.Command(underPreseed("/usr/lib/core/handle-writable-paths"), popts.PreseedChrootDir)
+	cmd := exec.Command(underPreseed("/usr/lib/core/handle-writable-paths"), opts.PreseedChrootDir)
 	if out, err = cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("handle-writable-paths failed with: %v\n%s", err, out)
 	}
@@ -320,13 +320,13 @@ func prepareCore20Mountpoints(opts *CorePreseedOpts, popts *preseedOpts) (cleanu
 		"var/lib/snapd/seed", "var/cache/snapd", "var/cache/apparmor",
 		"var/snap", "snap", "var/lib/extrausers",
 	} {
-		if err = os.MkdirAll(filepath.Join(popts.WritableDir, dir), 0755); err != nil {
+		if err = os.MkdirAll(filepath.Join(opts.WritableDir, dir), 0755); err != nil {
 			return nil, err
 		}
 	}
 
 	underWritable := func(path string) string {
-		return filepath.Join(popts.WritableDir, path)
+		return filepath.Join(opts.WritableDir, path)
 	}
 	mounts = [][]string{
 		{"--bind", underWritable("system-data/var/lib/snapd"), underPreseed("var/lib/snapd")},
@@ -339,11 +339,11 @@ func prepareCore20Mountpoints(opts *CorePreseedOpts, popts *preseedOpts) (cleanu
 		{"--bind", underWritable("system-data/etc/udev/rules.d"), underPreseed("etc/udev/rules.d")},
 		{"--bind", underWritable("system-data/var/lib/extrausers"), underPreseed("var/lib/extrausers")},
 		{"--bind", filepath.Join(snapdMountPath, "/usr/lib/snapd"), underPreseed("/usr/lib/snapd")},
-		{"--bind", filepath.Join(opts.PrepareImageDir, "system-seed"), underPreseed("var/lib/snapd/seed")},
+		{"--bind", filepath.Join(opts.PreseedOpts.PrepareImageDir, "system-seed"), underPreseed("var/lib/snapd/seed")},
 	}
 
-	if opts.AppArmorKernelFeaturesDir != "" {
-		mounts = append(mounts, []string{"--bind", opts.AppArmorKernelFeaturesDir, underPreseed("sys/kernel/security/apparmor/features")})
+	if opts.PreseedOpts.AppArmorKernelFeaturesDir != "" {
+		mounts = append(mounts, []string{"--bind", opts.PreseedOpts.AppArmorKernelFeaturesDir, underPreseed("sys/kernel/security/apparmor/features")})
 	}
 
 	for _, mountArgs := range mounts {
@@ -376,22 +376,24 @@ var makeWritableTempDir = func() (string, error) {
 	return ioutil.TempDir("", "writable-")
 }
 
-func prepareCore20Chroot(opts *CorePreseedOpts) (popts *preseedOpts, cleanup func(), err error) {
-	popts = &preseedOpts{}
+func prepareCore20Chroot(opts *CorePreseedOptions) (popts *preseedOptions, cleanup func(), err error) {
+	popts = &preseedOptions{
+		PreseedOpts: *opts,
+	}
 	sysDir := filepath.Join(opts.PrepareImageDir, "system-seed")
 	popts.SystemLabel, err = systemForPreseeding(sysDir)
 	if err != nil {
 		return nil, nil, err
 	}
-	popts.snapdSnapPath, popts.baseSnapPath, err = systemSnapFromSeed(sysDir, popts.SystemLabel)
+	popts.SnapdSnapPath, popts.BaseSnapPath, err = systemSnapFromSeed(sysDir, popts.SystemLabel)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if popts.snapdSnapPath == "" {
+	if popts.SnapdSnapPath == "" {
 		return nil, nil, fmt.Errorf("snapd snap not found")
 	}
-	if popts.baseSnapPath == "" {
+	if popts.BaseSnapPath == "" {
 		return nil, nil, fmt.Errorf("base snap not found")
 	}
 
@@ -404,7 +406,7 @@ func prepareCore20Chroot(opts *CorePreseedOpts) (popts *preseedOpts, cleanup fun
 		return nil, nil, fmt.Errorf("cannot prepare uc20 chroot: %v", err)
 	}
 
-	cleanupMounts, err := prepareCore20Mountpoints(opts, popts)
+	cleanupMounts, err := prepareCore20Mountpoints(popts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot prepare uc20 mountpoints: %v", err)
 	}
@@ -489,11 +491,11 @@ type preseedFilePatterns struct {
 	Include []string `json:"include"`
 }
 
-func createPreseedArtifact(opts *CorePreseedOpts, popts *preseedOpts) (digest []byte, err error) {
-	artifactPath := filepath.Join(opts.PrepareImageDir, "system-seed", "systems", popts.SystemLabel, "preseed.tgz")
-	systemData := filepath.Join(popts.WritableDir, "system-data")
+func createPreseedArtifact(opts *preseedOptions) (digest []byte, err error) {
+	artifactPath := filepath.Join(opts.PreseedOpts.PrepareImageDir, "system-seed", "systems", opts.SystemLabel, "preseed.tgz")
+	systemData := filepath.Join(opts.WritableDir, "system-data")
 
-	patternsFile := filepath.Join(popts.PreseedChrootDir, "usr/lib/snapd/preseed.json")
+	patternsFile := filepath.Join(opts.PreseedChrootDir, "usr/lib/snapd/preseed.json")
 	pf, err := os.Open(patternsFile)
 	if err != nil {
 		return nil, err
@@ -554,13 +556,13 @@ func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo) error {
 	return nil
 }
 
-func runUC20PreseedMode(opts *CorePreseedOpts, popts *preseedOpts) error {
-	cmd := exec.Command("chroot", popts.PreseedChrootDir, "/usr/lib/snapd/snapd")
+func runUC20PreseedMode(opts *preseedOptions) error {
+	cmd := exec.Command("chroot", opts.PreseedChrootDir, "/usr/lib/snapd/snapd")
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
 	cmd.Stderr = Stderr
 	cmd.Stdout = Stdout
-	fmt.Fprintf(Stdout, "starting to preseed UC20+ system: %s\n", popts.PreseedChrootDir)
+	fmt.Fprintf(Stdout, "starting to preseed UC20+ system: %s\n", opts.PreseedChrootDir)
 
 	if err := cmd.Run(); err != nil {
 		var errno syscall.Errno
@@ -571,12 +573,12 @@ func runUC20PreseedMode(opts *CorePreseedOpts, popts *preseedOpts) error {
 		return fmt.Errorf("error running snapd in preseed mode: %v\n", err)
 	}
 
-	digest, err := createPreseedArtifact(opts, popts)
+	digest, err := createPreseedArtifact(opts)
 	if err != nil {
 		return fmt.Errorf("cannot create preseed.tgz: %v", err)
 	}
 
-	if err := writePreseedAssertion(digest, opts, popts); err != nil {
+	if err := writePreseedAssertion(digest, opts); err != nil {
 		return fmt.Errorf("cannot create preseed assertion: %v", err)
 	}
 
@@ -585,7 +587,7 @@ func runUC20PreseedMode(opts *CorePreseedOpts, popts *preseedOpts) error {
 
 // Core20 runs preseeding of UC20 system prepared by prepare-image in prepareImageDir
 // and stores the resulting preseed preseed.tgz file in system-seed/systems/<systemlabel>/preseed.tgz.
-func Core20(opts *CorePreseedOpts) error {
+func Core20(opts *CorePreseedOptions) error {
 	var err error
 	opts.PrepareImageDir, err = filepath.Abs(opts.PrepareImageDir)
 	if err != nil {
@@ -598,7 +600,7 @@ func Core20(opts *CorePreseedOpts) error {
 	}
 	defer cleanup()
 
-	return runUC20PreseedMode(opts, popts)
+	return runUC20PreseedMode(popts)
 }
 
 // Classic runs preseeding of a classic ubuntu system pointed by chrootDir.

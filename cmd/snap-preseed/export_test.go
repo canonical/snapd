@@ -28,7 +28,7 @@ var (
 	Run = run
 )
 
-type PreseedCoreOptions = preseed.CorePreseedOpts
+type PreseedCoreOptions = preseed.CorePreseedOptions
 
 func MockOsGetuid(f func() int) (restore func()) {
 	r := testutil.Backup(&osGetuid)
