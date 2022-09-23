@@ -25,11 +25,34 @@ import (
 	"os"
 	"time"
 
+	"github.com/godbus/dbus"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
+	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/usersession/client"
 )
+
+func tryNotifyRefreshToSnapDesktopIntegration(snapName string) (bool, error) {
+	// Check if Snapd-Desktop-Integration is available
+	conn, err := dbusutil.SessionBus()
+	if err != nil {
+		logger.Noticef("unable to connect dbus session: %v", err)
+		return false, nil
+	}
+	obj := conn.Object("io.snapcraft.SnapDesktopIntegration", "/io/snapcraft/SnapDesktopIntegration")
+	extraParams := make(map[string]dbus.Variant)
+	err = obj.Call("io.snapcraft.SnapDesktopIntegration.ApplicationIsBeingRefreshed", 0, snapName, runinhibit.HintFile(snapName), extraParams).Store()
+	if err != nil {
+		logger.Noticef("unable to successfully call io.snapcraft.SnapDesktopIntegration.ApplicationIsBeingRefreshed: %v", err)
+		return false, nil
+	}
+	if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited); err != nil {
+		return false, err
+	}
+	return true, nil
+}
 
 func waitWhileInhibited(snapName string) error {
 	hint, err := runinhibit.IsLocked(snapName)
@@ -54,6 +77,13 @@ func waitWhileInhibited(snapName string) error {
 	}
 
 	if isGraphicalSession() {
+		sentDesktopIntegration, err := tryNotifyRefreshToSnapDesktopIntegration(snapName)
+		if err != nil {
+			return err
+		}
+		if sentDesktopIntegration {
+			return nil
+		}
 		return graphicalSessionFlow(snapName, hint)
 	}
 	// terminal and headless

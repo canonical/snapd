@@ -33,8 +33,11 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/godbus/dbus"
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
+	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
@@ -2063,4 +2066,73 @@ func (s *RunSuite) TestRunDebugLog(c *check.C) {
 	c.Check(os.Getenv("SNAPD_DEBUG"), check.Equals, "1")
 	// and we've let the user know that logging was enabled
 	c.Check(logBuf.String(), testutil.Contains, "DEBUG: enabled debug logging of early snap startup")
+}
+
+func (s *RunSuite) TestDesktopIntegrationNoDBus(c *check.C) {
+	sent, err := snaprun.TryNotifyRefreshToSnapDesktopIntegration("Test")
+	c.Assert(sent, check.Equals, false)
+	c.Assert(err, check.IsNil)
+}
+
+func makeDBusMethodNotAvailableMessage(c *check.C, msg *dbus.Message) *dbus.Message {
+	return &dbus.Message{
+		Type: dbus.TypeError,
+		Headers: map[dbus.HeaderField]dbus.Variant{
+			dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
+			dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
+			// dbus.FieldDestination is provided automatically by DBus test helper.
+			dbus.FieldErrorName: dbus.MakeVariant("org.freedesktop.DBus.Error.UnknownMethod"),
+		},
+	}
+}
+
+func (s *RunSuite) TestDesktopIntegrationDBusAvailableNoMethod(c *check.C) {
+	conn, _, err := dbustest.InjectableConnection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		return []*dbus.Message{makeDBusMethodNotAvailableMessage(c, msg)}, nil
+	})
+	c.Assert(err, check.IsNil)
+
+	restore := dbusutil.MockOnlySessionBusAvailable(conn)
+	defer restore()
+
+	sent, err := snaprun.TryNotifyRefreshToSnapDesktopIntegration("SnapTest")
+	c.Assert(sent, check.Equals, false)
+	c.Assert(err, check.IsNil)
+}
+
+func makeDBusMethodAvailableMessage(c *check.C, msg *dbus.Message) *dbus.Message {
+	c.Assert(msg.Type, check.Equals, dbus.TypeMethodCall)
+	c.Check(msg.Flags, check.Equals, dbus.Flags(0))
+
+	c.Check(msg.Headers, check.DeepEquals, map[dbus.HeaderField]dbus.Variant{
+		dbus.FieldDestination: dbus.MakeVariant("io.snapcraft.SnapDesktopIntegration"),
+		dbus.FieldPath:        dbus.MakeVariant(dbus.ObjectPath("/io/snapcraft/SnapDesktopIntegration")),
+		dbus.FieldInterface:   dbus.MakeVariant("io.snapcraft.SnapDesktopIntegration"),
+		dbus.FieldMember:      dbus.MakeVariant("ApplicationIsBeingRefreshed"),
+		dbus.FieldSignature:   dbus.MakeVariant(dbus.SignatureOf("", "", make(map[string]dbus.Variant))),
+	})
+	c.Check(msg.Body[0], check.Equals, "SnapTest")
+	param2 := fmt.Sprintf("%s", msg.Body[1])
+	c.Check(strings.HasSuffix(param2, "/var/lib/snapd/inhibit/SnapTest.lock"), check.Equals, true)
+	return &dbus.Message{
+		Type: dbus.TypeMethodReply,
+		Headers: map[dbus.HeaderField]dbus.Variant{
+			dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
+			dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
+		},
+	}
+}
+
+func (s *RunSuite) TestDesktopIntegrationDBusAvailableMethodWorks(c *check.C) {
+	conn, _, err := dbustest.InjectableConnection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		return []*dbus.Message{makeDBusMethodAvailableMessage(c, msg)}, nil
+	})
+	c.Assert(err, check.IsNil)
+
+	restore := dbusutil.MockOnlySessionBusAvailable(conn)
+	defer restore()
+
+	sent, err := snaprun.TryNotifyRefreshToSnapDesktopIntegration("SnapTest")
+	c.Assert(sent, check.Equals, true)
+	c.Assert(err, check.IsNil)
 }
