@@ -552,7 +552,7 @@ func (s *assertMgrSuite) TestDoFetch(c *C) {
 		PrimaryKey: []string{digests[10]},
 	}
 
-	err := assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, func(f asserts.Fetcher) error {
+	err := assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, func(f asserts.Fetcher) error {
 		return f.Fetch(ref)
 	})
 	c.Assert(err, IsNil)
@@ -576,7 +576,7 @@ func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
 		return f.Fetch(ref)
 	}
 
-	err := assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, fetching)
+	err := assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, fetching)
 	c.Assert(err, IsNil)
 
 	ref = &asserts.Ref{
@@ -584,7 +584,7 @@ func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
 		PrimaryKey: []string{digests[11]},
 	}
 
-	err = assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, fetching)
+	err = assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, fetching)
 	c.Assert(err, IsNil)
 
 	snapRev, err := ref.Resolve(assertstate.DB(s.state).Find)
@@ -639,7 +639,7 @@ func (s *assertMgrSuite) TestFetchUnsupportedUpdateIgnored(c *C) {
 	}
 
 	s.fakeStore.(*fakeStore).maxDeclSupportedFormat = 999
-	err = assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, fetching)
+	err = assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, fetching)
 	// no error and the old one was kept
 	c.Assert(err, IsNil)
 	snapDecl, err := ref.Resolve(assertstate.DB(s.state).Find)
@@ -680,7 +680,7 @@ func (s *assertMgrSuite) TestFetchUnsupportedError(c *C) {
 	}
 
 	s.fakeStore.(*fakeStore).maxDeclSupportedFormat = 999
-	err := assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, fetching)
+	err := assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, fetching)
 	c.Check(err, ErrorMatches, `(?s).*proposed "snap-declaration" assertion has format 999 but 111 is latest supported.*`)
 }
 
@@ -4527,6 +4527,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithMismatchedPinnedSeq(c *C) 
 
 	// nothing in the DB; only in the store
 	snapstate.ReplaceStore(st, s.fakeStore)
+	s.setupModelAndStore(c)
 
 	vs := s.validationSetAssertForSnaps(c, "foo", "1", "1", []interface{}{
 		map[string]interface{}{

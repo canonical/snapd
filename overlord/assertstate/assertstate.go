@@ -118,7 +118,7 @@ func RefreshSnapDeclarations(s *state.State, userID int, opts *RefreshAssertions
 
 		return nil
 	}
-	return doFetch(s, userID, deviceCtx, fetching)
+	return doFetch(s, userID, deviceCtx, nil, fetching)
 }
 
 type refreshControlError struct {
@@ -214,7 +214,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 			}
 			return nil
 		}
-		err := doFetch(s, userID, deviceCtx, fetching)
+		err := doFetch(s, userID, deviceCtx, nil, fetching)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: %v", candInfo.InstanceName(), candInfo.Revision, err))
 			continue
@@ -893,20 +893,15 @@ func TryEnforceValidationSets(st *state.State, validationSets []string, userID i
 
 // EnforceValidationSets takes a map from validation set specifiers in the
 // foo/bar=N syntax to ValidationSet assertions and enforces the sets, if possible.
-// It doesn't fetch any validation sets.
+// It fetches any pre-requisites necessary.
 func EnforceValidationSets(st *state.State, vsMap map[string]*asserts.ValidationSet, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool, userID int) error {
-	user, err := userFromUserID(st, userID)
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
 		return err
 	}
 
-	sto := snapstate.Store(st, nil)
-	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
-	}
-
 	db := cachedDB(st)
-	batch := asserts.NewBatch(nil)
+	batch := asserts.NewBatch(handleUnsupported(db))
 
 	extraVs := make([]*asserts.ValidationSet, 0, len(vsMap))
 	newTracking := make([]*ValidationSetTracking, 0, len(vsMap))
@@ -934,24 +929,18 @@ func EnforceValidationSets(st *state.State, vsMap map[string]*asserts.Validation
 		newTracking = append(newTracking, tr)
 		extraVs = append(extraVs, vs)
 
-		for _, prereq := range vs.Prerequisites() {
-			fetching := func(f asserts.Fetcher) error {
-				if err := f.Fetch(prereq); err != nil {
-					return fmt.Errorf("cannot find prerequisite for validation set %s: %v", vsStr, err)
-				}
+	}
 
-				return nil
-			}
-
-			st.Unlock()
-			err = batch.Fetch(db, retrieve, fetching)
-			st.Lock()
-			if err != nil {
-				return err
+	err = doFetch(st, userID, deviceCtx, batch, func(f asserts.Fetcher) error {
+		for vsStr, vs := range vsMap {
+			if err := f.Save(vs); err != nil {
+				return fmt.Errorf("cannot save assertion %s to batch: %v", vsStr, err)
 			}
 		}
-
-		batch.Add(vs)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	valsets, err := EnforcedValidationSets(st, extraVs...)
