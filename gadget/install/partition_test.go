@@ -69,7 +69,8 @@ func (s *partitionTestSuite) SetUpTest(c *C) {
 }
 
 const (
-	scriptPartitionsBios = iota
+	scriptPartitionsNone = iota
+	scriptPartitionsBios
 	scriptPartitionsBiosSeed
 	scriptPartitionsBiosSeedData
 )
@@ -317,6 +318,52 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	c.Assert(cmdUdevadm.Calls(), DeepEquals, [][]string{
 		{"udevadm", "settle", "--timeout=180"},
 	})
+}
+
+func (s *partitionTestSuite) TestCreatePartitionsNonRolePartitions(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", "")
+	defer cmdSfdisk.Restore()
+
+	m := map[string]*disks.MockDiskMapping{
+		"/dev/node": makeMockDiskMappingIncludingPartitions(scriptPartitionsNone),
+	}
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
+
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer cmdUdevadm.Restore()
+
+	calls := 0
+	restore = install.MockEnsureNodesExist(func(ds []gadget.OnDiskStructure, timeout time.Duration) error {
+		calls++
+		c.Assert(ds, HasLen, 3)
+		// Ensure all partitions are created as asked for via
+		// the install.CreateOptions
+		c.Assert(ds[0].Node, Equals, "/dev/node1")
+		c.Assert(ds[0].Name, Equals, "BIOS Boot")
+		c.Assert(ds[1].Node, Equals, "/dev/node2")
+		c.Assert(ds[1].Name, Equals, "Recovery")
+		c.Assert(ds[2].Node, Equals, "/dev/node3")
+		c.Assert(ds[2].Name, Equals, "Writable")
+		return nil
+	})
+	defer restore()
+
+	err := makeMockGadget(s.gadgetRoot, gadgetContent)
+	c.Assert(err, IsNil)
+	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
+	c.Assert(err, IsNil)
+
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, IsNil)
+	opts := &install.CreateOptions{
+		GadgetRootDir: s.gadgetRoot,
+		AllPartitions: true,
+	}
+	created, err := install.CreateMissingPartitions(dl, pv, opts)
+	c.Assert(err, IsNil)
+	c.Assert(created, HasLen, 3)
+	c.Assert(calls, Equals, 1)
 }
 
 func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
