@@ -306,6 +306,46 @@ volumes:
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img":.*no such file or directory`)
 }
 
+func (p *layoutTestSuite) TestLayoutVolumeContentCanSkipLayoutStructureContent(c *C) {
+	gadgetYaml := `
+volumes:
+  first:
+    schema: gpt
+    bootloader: grub
+    structure:
+        - type: 00000000-0000-0000-0000-dd00deadbeef
+          size: 400M
+          offset: 800M
+          content:
+              - image: foo.img
+`
+	vol := mustParseVolume(c, gadgetYaml, "first")
+	opts := &gadget.LayoutOptions{
+		GadgetRootDir: p.dir,
+	}
+	constraints := defaultConstraints
+	// LayoutVolume fails with default constraints because the foo.img
+	// file is missing
+	_, err := gadget.LayoutVolume(vol, constraints, opts)
+	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img":.*no such file or directory`)
+
+	// But LayoutVolume works with the SkipLayoutStructureContent works
+	constraints.SkipLayoutStructureContent = true
+	v, err := gadget.LayoutVolume(vol, constraints, opts)
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
+		Volume:  vol,
+		Size:    1200 * quantity.SizeMiB,
+		RootDir: p.dir,
+		LaidOutStructure: []gadget.LaidOutStructure{
+			{
+				StartOffset:     800 * quantity.OffsetMiB,
+				VolumeStructure: &vol.Structure[0],
+			},
+		},
+	})
+}
+
 func makeSizedFile(c *C, path string, size quantity.Size, content []byte) {
 	err := os.MkdirAll(filepath.Dir(path), 0755)
 	c.Assert(err, IsNil)
