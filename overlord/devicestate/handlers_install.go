@@ -533,11 +533,11 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		return fmt.Errorf("missing modeenv, cannot proceed")
 	}
 
-	// XXX: is there a better way
-	model, err := findModel(st)
+	deviceCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot get device context: %v", err)
 	}
+	model := deviceCtx.Model()
 
 	preseeded, err := maybeApplyPreseededData(st, boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, boot.InstallHostWritableDir(model))
 	if err != nil {
