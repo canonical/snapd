@@ -306,7 +306,7 @@ volumes:
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img":.*no such file or directory`)
 }
 
-func (p *layoutTestSuite) TestLayoutVolumeContentCanSkipLayoutStructureContent(c *C) {
+func (p *layoutTestSuite) TestLayoutVolumeContentCanIgnoreContent(c *C) {
 	gadgetYaml := `
 volumes:
   first:
@@ -329,8 +329,8 @@ volumes:
 	_, err := gadget.LayoutVolume(vol, constraints, opts)
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img":.*no such file or directory`)
 
-	// But LayoutVolume works with the SkipLayoutStructureContent works
-	constraints.SkipLayoutStructureContent = true
+	// But LayoutVolume works with the IgnoreContent works
+	constraints.IgnoreContent = true
 	v, err := gadget.LayoutVolume(vol, constraints, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
@@ -1195,6 +1195,32 @@ func (p *layoutTestSuite) TestResolveContentPathsNotInWantedAssets(c *C) {
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
 	_, err := gadget.LayoutVolume(vol, defaultConstraints, opts)
 	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 at index 0: cannot find "dtbs" in kernel info from "/.*"`)
+}
+
+func (p *layoutTestSuite) TestResolveContentPathsSkipResolveContent(c *C) {
+	vol := mustParseVolume(c, gadgetYamlWithKernelRef, "pi")
+	c.Assert(vol.Structure, HasLen, 1)
+
+	kernelSnapDir := c.MkDir()
+	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
+	_, err := gadget.LayoutVolume(vol, defaultConstraints, opts)
+	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 at index 0: cannot find "dtbs" in kernel info from "/.*"`)
+
+	// SkipResolveContent  will all to layout the volume even if
+	// files are missing
+	constraints := defaultConstraints
+	constraints.SkipResolveContent = true
+	v, err := gadget.LayoutVolume(vol, constraints, opts)
+	c.Assert(err, IsNil)
+	c.Assert(v.Structure, HasLen, 1)
+
+	// As does IgnoreContent  will all to layout the volume even if
+	// files are missing
+	constraints = defaultConstraints
+	constraints.IgnoreContent = true
+	v, err = gadget.LayoutVolume(vol, constraints, opts)
+	c.Assert(err, IsNil)
+	c.Assert(v.Structure, HasLen, 1)
 }
 
 func (p *layoutTestSuite) TestResolveContentPathsErrorInKernelRef(c *C) {

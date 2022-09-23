@@ -42,15 +42,16 @@ type LayoutConstraints struct {
 	// NonMBRStartOffset is the default start offset of non-MBR structure in
 	// the volume.
 	NonMBRStartOffset quantity.Offset
+
 	// SkipResolveContent will skip resolving content paths
 	// and `$kernel:` style references
 	SkipResolveContent bool
 
-	// SkipLayoutStructureContent will skip laying out
-	// content structure data to the volume. This is used when
-	// only the partitions need to get created and content gets
-	// written later.
-	SkipLayoutStructureContent bool
+	// Content will skip laying out content structure data to the
+	// volume. Settings this implies "SkipResolveContent".  This
+	// is used when only the partitions need to get
+	// created and content gets written later.
+	IgnoreContent bool
 }
 
 // LaidOutVolume defines the size of a volume and arrangement of all the
@@ -225,7 +226,7 @@ func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOpt
 	}
 
 	var kernelInfo *kernel.Info
-	if !constraints.SkipResolveContent {
+	if !constraints.IgnoreContent && !constraints.SkipResolveContent {
 		// TODO:UC20: check and error if kernelRootDir == "" here
 		// This needs the upper layer of gadget updates to be
 		// updated to pass the kernel root first.
@@ -259,7 +260,7 @@ func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOpt
 		// creation is needed and is safe because each volume structure
 		// has a size so even without the structure content the layout
 		// can be calculated.
-		if !constraints.SkipLayoutStructureContent {
+		if !constraints.IgnoreContent {
 			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx], byName)
 			if err != nil {
 				return nil, err
@@ -273,7 +274,7 @@ func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOpt
 		}
 
 		// resolve filesystem content
-		if !constraints.SkipResolveContent {
+		if !constraints.IgnoreContent && !constraints.SkipResolveContent {
 			resolvedContent, err := resolveVolumeContent(opts.GadgetRootDir, opts.KernelRootDir, kernelInfo, &structures[idx], nil)
 			if err != nil {
 				return nil, err
