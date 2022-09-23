@@ -297,6 +297,8 @@ func setNextBootFlags(dev snap.Device, rootDir string, flags []string) error {
 // ubuntu-data in an untrusted manner, but for the purposes of this function
 // that is ignored.
 // This is primarily meant to be consumed by "snap{,ctl} system-mode".
+//
+// TODO: pass a "snap.Device" here and add "SystemMode() string" to that
 func HostUbuntuDataForMode(mode string, mod gadget.Model) ([]string, error) {
 	var runDataRootfsMountLocations []string
 	switch mode {
