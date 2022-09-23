@@ -1303,7 +1303,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	mntPtForType[snap.TypeKernel] = mountpoints[1]
 
 	// TODO useEncryption equals true case
-	useEncryption := false
+	useEncryption := true
 	installObserver, trustedInstallObserver, err := buildInstallObservers(sys.Model, mntPtForType[snap.TypeGadget], useEncryption)
 	if err != nil {
 		return err
