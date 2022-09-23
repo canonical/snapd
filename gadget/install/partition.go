@@ -62,11 +62,11 @@ type CreateOptions struct {
 
 	// Create all missing partitions. If unset only
 	// role-{data,boot,save} partitions will get created and it's
-	// an error other partition is missing.
+	// an error if other partition are missing.
 	CreateAllMissingPartitions bool
 }
 
-// createMissingPartitions creates the partitions listed in the laid out volume
+// CreateMissingPartitions creates the partitions listed in the laid out volume
 // pv that are missing from the existing device layout, returning a list of
 // structures that have been created.
 func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts *CreateOptions) ([]gadget.OnDiskStructure, error) {

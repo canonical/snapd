@@ -47,7 +47,7 @@ type LayoutConstraints struct {
 	// and `$kernel:` style references
 	SkipResolveContent bool
 
-	// Content will skip laying out content structure data to the
+	// IgnoreContent will skip laying out content structure data to the
 	// volume. Settings this implies "SkipResolveContent".  This
 	// is used when only the partitions need to get
 	// created and content gets written later.
@@ -224,9 +224,10 @@ func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOpt
 	if opts == nil {
 		opts = &LayoutOptions{}
 	}
+	doResolveContent := !(constraints.IgnoreContent || constraints.SkipResolveContent)
 
 	var kernelInfo *kernel.Info
-	if !constraints.IgnoreContent && !constraints.SkipResolveContent {
+	if doResolveContent {
 		// TODO:UC20: check and error if kernelRootDir == "" here
 		// This needs the upper layer of gadget updates to be
 		// updated to pass the kernel root first.
@@ -274,7 +275,7 @@ func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOpt
 		}
 
 		// resolve filesystem content
-		if !constraints.IgnoreContent && !constraints.SkipResolveContent {
+		if doResolveContent {
 			resolvedContent, err := resolveVolumeContent(opts.GadgetRootDir, opts.KernelRootDir, kernelInfo, &structures[idx], nil)
 			if err != nil {
 				return nil, err

@@ -1206,7 +1206,7 @@ func (p *layoutTestSuite) TestResolveContentPathsSkipResolveContent(c *C) {
 	_, err := gadget.LayoutVolume(vol, defaultConstraints, opts)
 	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 at index 0: cannot find "dtbs" in kernel info from "/.*"`)
 
-	// SkipResolveContent  will all to layout the volume even if
+	// SkipResolveContent will allow to layout the volume even if
 	// files are missing
 	constraints := defaultConstraints
 	constraints.SkipResolveContent = true
@@ -1214,7 +1214,7 @@ func (p *layoutTestSuite) TestResolveContentPathsSkipResolveContent(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(v.Structure, HasLen, 1)
 
-	// As does IgnoreContent  will all to layout the volume even if
+	// As does IgnoreContent will allow to layout the volume even if
 	// files are missing
 	constraints = defaultConstraints
 	constraints.IgnoreContent = true
