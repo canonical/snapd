@@ -63,7 +63,7 @@ type CreateOptions struct {
 	// Create all missing partitions. If unset only
 	// role-{data,boot,save} partitions will get created and it's
 	// an error other partition is missing.
-	AllPartitions bool
+	CreateAllMissingPartitions bool
 }
 
 // createMissingPartitions creates the partitions listed in the laid out volume
@@ -164,7 +164,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts 
 		}
 
 		// Only allow creating certain partitions, namely the ubuntu-* roles
-		if !opts.AllPartitions && !gadget.IsCreatableAtInstall(p.VolumeStructure) {
+		if !opts.CreateAllMissingPartitions && !gadget.IsCreatableAtInstall(p.VolumeStructure) {
 			return nil, nil, fmt.Errorf("cannot create partition %s", p)
 		}
 

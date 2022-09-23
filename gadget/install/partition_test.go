@@ -357,8 +357,8 @@ func (s *partitionTestSuite) TestCreatePartitionsNonRolePartitions(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 	opts := &install.CreateOptions{
-		GadgetRootDir: s.gadgetRoot,
-		AllPartitions: true,
+		GadgetRootDir:              s.gadgetRoot,
+		CreateAllMissingPartitions: true,
 	}
 	created, err := install.CreateMissingPartitions(dl, pv, opts)
 	c.Assert(err, IsNil)
