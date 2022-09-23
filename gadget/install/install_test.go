@@ -459,7 +459,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	}
 
 	// check the disk-mapping.json that was written as well
-	mappingOnData, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir))
+	mappingOnData, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))
 	c.Assert(err, IsNil)
 	expMapping := gadgettest.ExpectedRaspiDiskVolumeDeviceTraits
 	if opts.encryption {
@@ -470,7 +470,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	})
 
 	// we get the same thing on ubuntu-save
-	dataFile := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "disk-mapping.json")
+	dataFile := filepath.Join(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "disk-mapping.json")
 	saveFile := filepath.Join(boot.InstallHostDeviceSaveDir, "disk-mapping.json")
 	c.Assert(dataFile, testutil.FileEquals, testutil.FileContentRef(saveFile))
 
@@ -485,7 +485,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	err = ioutil.WriteFile(dataFile, jsonBytes, 0644)
 	c.Assert(err, IsNil)
 
-	mapping2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir))
+	mapping2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))
 	c.Assert(err, IsNil)
 
 	c.Assert(mapping2, DeepEquals, mappingOnData)
@@ -897,14 +897,14 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	c.Assert(umountCall, Equals, 2)
 
 	// check the disk-mapping.json that was written as well
-	mappingOnData, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir))
+	mappingOnData, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))
 	c.Assert(err, IsNil)
 	c.Assert(mappingOnData, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
 		"pi": opts.traits,
 	})
 
 	// we get the same thing on ubuntu-save
-	dataFile := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "disk-mapping.json")
+	dataFile := filepath.Join(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "disk-mapping.json")
 	if !opts.noSave {
 		saveFile := filepath.Join(boot.InstallHostDeviceSaveDir, "disk-mapping.json")
 		c.Assert(dataFile, testutil.FileEquals, testutil.FileContentRef(saveFile))
@@ -917,7 +917,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	err = ioutil.WriteFile(dataFile, jsonBytes, 0644)
 	c.Assert(err, IsNil)
 
-	mapping2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir))
+	mapping2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))
 	c.Assert(err, IsNil)
 
 	c.Assert(mapping2, DeepEquals, mappingOnData)

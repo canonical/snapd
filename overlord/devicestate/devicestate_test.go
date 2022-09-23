@@ -1386,7 +1386,7 @@ func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC20Install(c *C) {
 	// no flags
 	c.Assert(boot.InitramfsExposeBootFlagsForSystem(nil), IsNil)
 	// data present
-	ubuntuData := filepath.Dir(boot.InstallHostWritableDir)
+	ubuntuData := filepath.Dir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"))
 	c.Assert(os.MkdirAll(ubuntuData, 0755), IsNil)
 
 	smi, err := mgr.SystemModeInfo()
