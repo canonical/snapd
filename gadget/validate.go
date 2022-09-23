@@ -390,7 +390,7 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 			GadgetRootDir: gadgetSnapRootDir,
 			KernelRootDir: kernelSnapRootDir,
 		}
-		lv, err := LayoutVolume(vol, opts, constraints)
+		lv, err := LayoutVolume(vol, constraints, opts)
 		if err != nil {
 			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
 		}

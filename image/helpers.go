@@ -90,7 +90,7 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 		KernelRootDir: kernelUnpackDir,
 	}
 	for volName, vol := range info.Volumes {
-		pvol, err := gadget.LayoutVolume(vol, opts, gadget.DefaultConstraints)
+		pvol, err := gadget.LayoutVolume(vol, gadget.DefaultConstraints, opts)
 		if err != nil {
 			return err
 		}

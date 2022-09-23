@@ -218,7 +218,7 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 
 // LayoutVolume attempts to completely lay out the volume, that is the
 // structures and their content, using provided constraints
-func LayoutVolume(volume *Volume, opts *LayoutOptions, constraints LayoutConstraints) (*LaidOutVolume, error) {
+func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOptions) (*LaidOutVolume, error) {
 	var err error
 	if opts == nil {
 		opts = &LayoutOptions{}

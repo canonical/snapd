@@ -1263,7 +1263,7 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 			GadgetRootDir: new.RootDir,
 			KernelRootDir: new.KernelRootDir,
 		}
-		pNew, err := LayoutVolume(newVol, opts, constraints)
+		pNew, err := LayoutVolume(newVol, constraints, opts)
 		if err != nil {
 			return fmt.Errorf("cannot lay out the new volume %s: %v", volName, err)
 		}

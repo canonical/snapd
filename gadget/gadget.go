@@ -1226,7 +1226,7 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model) (syste
 			GadgetRootDir: gadgetRoot,
 			KernelRootDir: kernelRoot,
 		}
-		lvol, err := LayoutVolume(vol, opts, constraints)
+		lvol, err := LayoutVolume(vol, constraints, opts)
 		if err != nil {
 			return nil, nil, err
 		}
