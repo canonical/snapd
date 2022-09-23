@@ -24,18 +24,18 @@ prepare: |
 execute: |
   # build fakeinstaller and put in place
   go build -o fakeinstaller "$TESTSLIB"/fakeinstaller/main.go
-  tests.nested copy fakeinstaller
+  remote.push fakeinstaller
   # create fake disk for the installer to work on
-  tests.nested exec "truncate --size=4G fake-disk.img"
-  loop_device=$(tests.nested exec "sudo losetup --show -f ./fake-disk.img")
-  tests.nested exec "echo 'label: gpt\nwrite' | sudo sfdisk $loop_device"
+  remote.exec "truncate --size=4G fake-disk.img"
+  loop_device=$(remote.exec "sudo losetup --show -f ./fake-disk.img")
+  remote.exec "echo 'label: gpt\nwrite' | sudo sfdisk $loop_device"
   # get the seed label
-  seed_label=$(tests.nested exec "ls /var/lib/snapd/seed/systems/")
+  seed_label=$(remote.exec "ls /var/lib/snapd/seed/systems/")
   # and "install" the current seed to the fake disk
-  tests.nested exec "sudo ./fakeinstaller $seed_label $loop_device"
+  remote.exec "sudo ./fakeinstaller $seed_label $loop_device"
 
   # validate that the fake installer created the expected partitions
-  tests.nested exec "sudo fdisk -x $loop_device" > fdisk_output
+  remote.exec "sudo fdisk -x $loop_device" > fdisk_output
   MATCH "${loop_device}p1 .* BIOS Boot"   < fdisk_output
   # TODO: the real MVP hybrid device will not contain a ubuntu-seed
   #       partition
