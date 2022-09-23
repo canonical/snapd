@@ -725,9 +725,9 @@ version: 5.0
 	c.Check(mockBootGrubCfg, testutil.FileEquals, string(grubCfgAsset))
 
 	// ensure base/gadget/kernel got copied to /var/lib/snapd/snaps
-	core20Snap := filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "core20_3.snap")
-	gadgetSnap := filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "pc_4.snap")
-	pcKernelSnap := filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "pc-kernel_5.snap")
+	core20Snap := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "core20_3.snap")
+	gadgetSnap := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "pc_4.snap")
+	pcKernelSnap := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "pc-kernel_5.snap")
 	c.Check(core20Snap, testutil.FilePresent)
 	c.Check(gadgetSnap, testutil.FilePresent)
 	c.Check(pcKernelSnap, testutil.FilePresent)
@@ -774,23 +774,23 @@ current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0
 current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"]
 `)
 	copiedGrubBin := filepath.Join(
-		dirs.SnapBootAssetsDirUnder(boot.InstallHostWritableDir),
+		dirs.SnapBootAssetsDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")),
 		"grub",
 		"grubx64.efi-5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d",
 	)
 	copiedRecoveryGrubBin := filepath.Join(
-		dirs.SnapBootAssetsDirUnder(boot.InstallHostWritableDir),
+		dirs.SnapBootAssetsDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")),
 		"grub",
 		"grubx64.efi-aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5",
 	)
 	copiedRecoveryShimBin := filepath.Join(
-		dirs.SnapBootAssetsDirUnder(boot.InstallHostWritableDir),
+		dirs.SnapBootAssetsDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")),
 		"grub",
 		"bootx64.efi-39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37",
 	)
 
 	// only one file in the cache under new root
-	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDirUnder(boot.InstallHostWritableDir), "grub", "*"), []string{
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "grub", "*"), []string{
 		copiedRecoveryShimBin,
 		copiedGrubBin,
 		copiedRecoveryGrubBin,
@@ -814,10 +814,10 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 	}
 
 	// make sure the marker file for sealed key was created
-	c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys"), testutil.FilePresent)
 
 	// make sure we wrote the boot chains data file
-	c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "boot-chains"), testutil.FilePresent)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20Install(c *C) {
@@ -1318,10 +1318,10 @@ current_kernel_command_lines=["%v"]
 	c.Check(sealKeysCalls, Equals, 2)
 
 	// make sure the marker file for sealed key was created
-	c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys"), testutil.FilePresent)
 
 	// make sure we wrote the boot chains data file
-	c.Check(filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "boot-chains"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "boot-chains"), testutil.FilePresent)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelExtraArgs(c *C) {
@@ -1649,8 +1649,8 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// ensure base/kernel got copied to /var/lib/snapd/snaps
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "core20_3.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "arm-kernel_5.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "core20_3.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "arm-kernel_5.snap"), testutil.FilePresent)
 
 	// ensure the bootvars on ubuntu-seed got updated the right way
 	mockSeedUbootenv := filepath.Join(boot.InitramfsUbuntuSeedDir, "uboot/ubuntu/boot.sel")
