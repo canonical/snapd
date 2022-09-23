@@ -104,6 +104,9 @@ func init() {
 	// when applying so there is no validation handler, see LP:1952740
 	addFSOnlyHandler(nil, handleHostnameConfiguration, coreOnly)
 
+	// home directory configuration
+	addFSOnlyHandler(validateHomedirsConfiguration, handleHomedirsConfiguration, nil)
+
 	// tmpfs.size
 	addFSOnlyHandler(validateTmpfsSettings, handleTmpfsConfiguration, coreOnly)
 
