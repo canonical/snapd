@@ -349,7 +349,7 @@ func HostUbuntuDataForMode(mode string, mod gadget.Model) ([]string, error) {
 		// as we recreate the ubuntu-data partition. Make similar assumptions
 		// and checks like ModeInstall. Take into account ubuntu-data might not
 		// be mounted when this check is called.
-		factoryResetModeLocation := filepath.Dir(InstallHostWritableDir)
+		factoryResetModeLocation := filepath.Dir(InstallHostWritableDir(mod))
 		if exists, _, _ := osutil.DirExists(factoryResetModeLocation); exists {
 			runDataRootfsMountLocations = []string{factoryResetModeLocation}
 		}

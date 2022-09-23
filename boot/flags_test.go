@@ -135,7 +135,7 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20FactoryResetModeHappy(c
 
 	setupRealGrub(c, blDir, "EFI/ubuntu", &bootloader.Options{Role: bootloader.RoleRecovery})
 
-	flags, err := boot.InitramfsActiveBootFlags(boot.ModeFactoryReset, boot.InitramfsWritableDir)
+	flags, err := boot.InitramfsActiveBootFlags(boot.ModeFactoryReset, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 	c.Assert(flags, HasLen, 0)
 
@@ -145,7 +145,7 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20FactoryResetModeHappy(c
 	err = boot.SetBootFlagsInBootloader([]string{"factory"}, blDir)
 	c.Assert(err, IsNil)
 
-	flags, err = boot.InitramfsActiveBootFlags(boot.ModeFactoryReset, boot.InitramfsWritableDir)
+	flags, err = boot.InitramfsActiveBootFlags(boot.ModeFactoryReset, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 	c.Assert(flags, DeepEquals, []string{"factory"})
 }
