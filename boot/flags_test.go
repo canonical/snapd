@@ -122,6 +122,34 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20InstallModeHappy(c *C) 
 	c.Assert(flags, DeepEquals, []string{"factory"})
 }
 
+func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20FactoryResetModeHappy(c *C) {
+	// FactoryReset and Install run identical code, as their condition match pretty closely
+	// so this unit test is to reconfirm that we expect same behavior as we see in the unit
+	// test for install mode.
+	dir := c.MkDir()
+
+	dirs.SetRootDir(dir)
+	defer func() { dirs.SetRootDir("") }()
+
+	blDir := boot.InitramfsUbuntuSeedDir
+
+	setupRealGrub(c, blDir, "EFI/ubuntu", &bootloader.Options{Role: bootloader.RoleRecovery})
+
+	flags, err := boot.InitramfsActiveBootFlags(boot.ModeFactoryReset, boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+	c.Assert(flags, HasLen, 0)
+
+	// if we set some flags via ubuntu-image customizations then we get them
+	// back
+
+	err = boot.SetBootFlagsInBootloader([]string{"factory"}, blDir)
+	c.Assert(err, IsNil)
+
+	flags, err = boot.InitramfsActiveBootFlags(boot.ModeFactoryReset, boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+	c.Assert(flags, DeepEquals, []string{"factory"})
+}
+
 func (s *bootFlagsSuite) TestSetImageBootFlagsVerification(c *C) {
 	longVal := "longer-than-256-char-value"
 	for i := 0; i < 256; i++ {
@@ -358,10 +386,20 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 			comment: "install mode before partition creation",
 		},
 		{
+			mode:    boot.ModeFactoryReset,
+			comment: "factory-reset mode before partition is recreated",
+		},
+		{
 			mode:          boot.ModeInstall,
 			expDirs:       []string{"/run/mnt/ubuntu-data"},
 			createExpDirs: true,
 			comment:       "install mode after partition creation",
+		},
+		{
+			mode:          boot.ModeFactoryReset,
+			expDirs:       []string{"/run/mnt/ubuntu-data"},
+			createExpDirs: true,
+			comment:       "factory-reset mode after partition creation",
 		},
 		{
 			mode: boot.ModeRecover,
