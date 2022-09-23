@@ -25,6 +25,7 @@ execute: |
   # build fakeinstaller and put in place
   go build -o fakeinstaller "$TESTSLIB"/fakeinstaller/main.go
   remote.push fakeinstaller
+  remote.push "$TESTSLIB"/fakeinstaller/mk-classic-rootfs.sh
   # create fake disk for the installer to work on
   remote.exec "truncate --size=4G fake-disk.img"
   loop_device=$(remote.exec "sudo losetup --show -f ./fake-disk.img")
@@ -32,7 +33,7 @@ execute: |
   # get the seed label
   seed_label=$(remote.exec "ls /var/lib/snapd/seed/systems/")
   # and "install" the current seed to the fake disk
-  remote.exec "sudo ./fakeinstaller $seed_label $loop_device"
+  remote.exec "sudo ./fakeinstaller $seed_label $loop_device ./mk-classic-rootfs.sh"
 
   # validate that the fake installer created the expected partitions
   remote.exec "sudo fdisk -x $loop_device" > fdisk_output
