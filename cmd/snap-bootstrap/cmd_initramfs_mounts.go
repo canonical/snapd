@@ -1558,7 +1558,6 @@ func generateMountsModeRunCVM(mst *initramfsMountsState) (gadget.Model, error) {
 		return nil, err
 	}
 
-	// XXX: or could we use "return mst.UnverifiedBootModel()" here?
 	return &genericCVMModel{}, nil
 }
 
