@@ -18,5 +18,5 @@ func init() {
 func main() {
 	snapdtool.ExecInSnapdOrCoreSnap()
 	// This point is only reached if reexec did not happen
-	fmt.Fprintln(os.Stderr, "Prompt listener not implemented")
+	fmt.Fprintln(os.Stderr, "AA Prompt listener not implemented")
 }
