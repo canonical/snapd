@@ -26,6 +26,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord"
@@ -214,10 +215,12 @@ func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.
 	}
 }
 
-func MockSnapstateEnforceSnaps(f func(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) ([]*state.TaskSet, []string, error)) func() {
-	r := testutil.Backup(&assertstateTryEnforceValidationSets)
-	snapstateEnforceSnaps = f
-	return r
+func MockSnapstateResolveValSetEnforcementError(f func(context.Context, *state.State, *snapasserts.ValidationSetsValidationError, map[string]*asserts.ValidationSet, int) ([]*state.TaskSet, []string, error)) func() {
+	old := snapstateResolveValSetEnforcementError
+	snapstateResolveValSetEnforcementError = f
+	return func() {
+		snapstateResolveValSetEnforcementError = old
+	}
 }
 
 func MockSnapstateMigrate(mock func(*state.State, []string) ([]*state.TaskSet, error)) (restore func()) {

@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
@@ -684,18 +685,19 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 		return nil, err
 	}
 
-	var validationErr *snapasserts.ValidationSetsValidationError
+	var tss []*state.TaskSet
+	var affected []string
 	err = assertstateTryEnforceValidationSets(st, inst.ValidationSets, inst.userID, snaps, ignoreValidationSnaps)
 	if err != nil {
-		var ok bool
-		validationErr, ok = err.(*snapasserts.ValidationSetsValidationError)
+		vErr, ok := err.(*snapasserts.ValidationSetsValidationError)
 		if !ok {
 			return nil, err
 		}
-	}
-	tss, affected, err := snapstateEnforceSnaps(context.TODO(), st, inst.ValidationSets, validationErr, inst.userID)
-	if err != nil {
-		return nil, err
+
+		tss, affected, err = meetSnapConstraintsForEnforce(inst, st, vErr)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &snapInstructionResult{
@@ -703,6 +705,28 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 		Affected: affected,
 		Tasksets: tss,
 	}, nil
+}
+
+func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr *snapasserts.ValidationSetsValidationError) ([]*state.TaskSet, []string, error) {
+	// keep the assertion used so that we use the same sequence/revision when
+	// enforcing after resolving the constraints. Also keep the request string
+	// because it holds pinning information which we need when enforcing.
+	vsMap := make(map[string]*asserts.ValidationSet, len(inst.ValidationSets))
+	for _, vsStr := range inst.ValidationSets {
+		account, name, _, err := snapasserts.ParseValidationSet(vsStr)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, vs := range vErr.ExtraSets {
+			if vs.AccountID() == account && vs.Name() == name {
+				vsMap[vsStr] = vs
+				break
+			}
+		}
+	}
+
+	return snapstateResolveValSetEnforcementError(context.TODO(), st, vErr, vsMap, inst.userID)
 }
 
 func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {

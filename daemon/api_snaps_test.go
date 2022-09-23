@@ -36,6 +36,8 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
@@ -50,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -2373,25 +2376,60 @@ func (s *snapsSuite) TestPostSnapWrongTransaction(c *check.C) {
 }
 
 func (s *snapsSuite) TestRefreshEnforce(c *check.C) {
-	var refreshSnapAssertions bool
+	installValset := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "baz",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "install-snap",
+				"id":       "mysnapdddddddddddddddddddddddddd",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+	updateValset := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "update-snap",
+				"id":       "mysnapcccccccccccccccccccccccccc",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
 
-	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
-		refreshSnapAssertions = true
-		c.Check(opts, check.IsNil)
-		return nil
-	})()
+	restore := daemon.MockAssertstateTryEnforceValidationSets(func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+		return &snapasserts.ValidationSetsValidationError{
+			WrongRevisionSnaps: map[string]map[snap.Revision][]string{
+				"update-snap": {snap.R(2): []string{"foo/baz"}},
+			},
+			MissingSnaps: map[string]map[snap.Revision][]string{
+				"install-snap": {snap.R(1): []string{"foo/bar=2"}},
+			},
+			ExtraSets: []*asserts.ValidationSet{installValset, updateValset},
+		}
+	})
+	defer restore()
 
-	var tryEnforceValidationSets bool
-	defer daemon.MockAssertstateTryEnforceValidationSets(func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
-		tryEnforceValidationSets = true
-		return nil
-	})()
+	restore = daemon.MockSnapstateResolveValSetEnforcementError(func(_ context.Context, st *state.State, validErr *snapasserts.ValidationSetsValidationError, validationSets map[string]*asserts.ValidationSet, _ int) ([]*state.TaskSet, []string, error) {
+		c.Assert(validationSets, check.DeepEquals, map[string]*asserts.ValidationSet{
+			"foo/bar=2": updateValset,
+			"foo/baz":   installValset,
+		})
 
-	defer daemon.MockSnapstateEnforceSnaps(func(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) ([]*state.TaskSet, []string, error) {
-		c.Check(validationSets, check.DeepEquals, []string{"foo/bar=2", "foo/baz"})
 		t := st.NewTask("fake-enforce-snaps", "...")
-		return []*state.TaskSet{state.NewTaskSet(t)}, []string{"some-snap", "other-snap"}, nil
-	})()
+		return []*state.TaskSet{state.NewTaskSet(t)}, []string{"install-snap", "update-snap"}, nil
+	})
+	defer restore()
 
 	d := s.daemon(c)
 	inst := &daemon.SnapInstruction{Action: "refresh", ValidationSets: []string{"foo/bar=2", "foo/baz"}}
@@ -2403,9 +2441,7 @@ func (s *snapsSuite) TestRefreshEnforce(c *check.C) {
 	res, err := inst.DispatchForMany()(inst, st)
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Enforced validation sets: "foo/bar=2", "foo/baz"`)
-	c.Check(res.Affected, check.DeepEquals, []string{"some-snap", "other-snap"})
-	c.Check(refreshSnapAssertions, check.Equals, true)
-	c.Check(tryEnforceValidationSets, check.Equals, true)
+	c.Check(res.Affected, check.DeepEquals, []string{"install-snap", "update-snap"})
 }
 
 func (s *snapsSuite) TestRefreshEnforceTryEnforceValidationSetsError(c *check.C) {
@@ -2422,7 +2458,7 @@ func (s *snapsSuite) TestRefreshEnforceTryEnforceValidationSetsError(c *check.C)
 	})()
 
 	var snapstateEnforceSnaps int
-	defer daemon.MockSnapstateEnforceSnaps(func(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) ([]*state.TaskSet, []string, error) {
+	defer daemon.MockSnapstateResolveValSetEnforcementError(func(_ context.Context, _ *state.State, validErr *snapasserts.ValidationSetsValidationError, _ map[string]*asserts.ValidationSet, _ int) ([]*state.TaskSet, []string, error) {
 		snapstateEnforceSnaps++
 		c.Check(validErr, check.NotNil)
 		return nil, nil, nil
@@ -2464,7 +2500,7 @@ func (s *snapsSuite) TestRefreshEnforceWithSnapsIsAnError(c *check.C) {
 	})()
 
 	var snapstateEnforceSnaps bool
-	defer daemon.MockSnapstateEnforceSnaps(func(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) ([]*state.TaskSet, []string, error) {
+	defer daemon.MockSnapstateResolveValSetEnforcementError(func(context.Context, *state.State, *snapasserts.ValidationSetsValidationError, map[string]*asserts.ValidationSet, int) ([]*state.TaskSet, []string, error) {
 		snapstateEnforceSnaps = true
 		return nil, nil, fmt.Errorf("unexpected")
 	})()
@@ -2481,4 +2517,32 @@ func (s *snapsSuite) TestRefreshEnforceWithSnapsIsAnError(c *check.C) {
 	c.Check(refreshSnapAssertions, check.Equals, false)
 	c.Check(tryEnforceValidationSets, check.Equals, false)
 	c.Check(snapstateEnforceSnaps, check.Equals, false)
+}
+
+func (s *snapsSuite) TestRefreshEnforceSetsNoUnmetConstraints(c *check.C) {
+	restore := daemon.MockAssertstateTryEnforceValidationSets(func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+		return nil
+	})
+	defer restore()
+
+	restore = daemon.MockSnapstateResolveValSetEnforcementError(func(context.Context, *state.State, *snapasserts.ValidationSetsValidationError, map[string]*asserts.ValidationSet, int) ([]*state.TaskSet, []string, error) {
+		err := errors.New("unexpected call to snapstate.EnforceSnaps")
+		c.Error(err)
+		return nil, nil, err
+	})
+	defer restore()
+
+	d := s.daemon(c)
+	valsets := []string{"foo/baz", "foo/bar"}
+	inst := &daemon.SnapInstruction{Action: "refresh", ValidationSets: valsets}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	resp, err := inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.IsNil)
+	c.Check(resp.Affected, check.IsNil)
+	c.Check(resp.Tasksets, check.IsNil)
+	c.Check(resp.Summary, check.Equals, fmt.Sprintf("Enforced validation sets: %s", strutil.Quoted(valsets)))
 }
