@@ -1,10 +1,10 @@
-summary: Verify that ubuntu-save is available during install-device hook with specific device
+summary: Verifies that we run the install-device hook in factory reset mode
 
 details: |
-    This test checks that the workaround put in place for a specific device
-    continues to work. This specific device needs to install configuration files
-    onto the run system ubuntu-data on UC20 during install mode to avoid an
-    additional reboot during the first boot process.
+    This test checks that the install-device hook is executed in factory-reset
+    mode. It also checks that it is possible to differentiate between the two
+    conditions (whether the hook is executed in install mode, or factory-reset
+    mode ).
 
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
@@ -135,7 +135,7 @@ execute: |
     fi
 
     # wait for the initialize device task to be done
-    retry -n 200 --wait 1 sh -c "tests.nested exec snap changes | MATCH 'Done.*Initialize device'"
+    retry -n 200 --wait 3 sh -c "tests.nested exec snap changes | MATCH 'Done.*Initialize device'"
 
     VERSION="$(tests.nested show version)"
     BOOT_ID="$(tests.nested boot-id)"
@@ -156,8 +156,8 @@ execute: |
     tests.nested exec "stat /etc/udev/rules.d/ -c %a" | MATCH 755
 
     echo "Check that the files from install-device were installed (install)"
-    tests.nested exec "cat /etc/modprobe.d/my-modprobe.conf" | MATCH '# configure modprobe here'
-    tests.nested exec "cat /etc/modules-load.d/my-modules-load.conf" | MATCH '# load modules here'
+    tests.nested exec "cat /etc/modprobe.d/my-modprobe.conf" | MATCH '# this modprobe conf should only appear after install mode'
+    tests.nested exec "cat /etc/modules-load.d/my-modules-load.conf" | MATCH '# this module load conf should only appear after install mode'
     not tests.nested exec "stat /etc/udev/rules.d/09-my-custom-udev.rules"
 
     # add || true in case the SSH connection is broken while executing this
@@ -176,6 +176,6 @@ execute: |
     tests.nested exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
 
     echo "Check that the files from install-device are installed (factory-reset)"
-    not tests.nested exec "cat /etc/modprobe.d/my-modprobe.conf"
-    not tests.nested exec "cat /etc/modules-load.d/my-modules-load.conf"
-    tests.nested exec "cat /etc/udev/rules.d/09-my-custom-udev.rules" | MATCH  '# do udev rules things here'
+    not tests.nested exec "stat /etc/modprobe.d/my-modprobe.conf"
+    not tests.nested exec "stat /etc/modules-load.d/my-modules-load.conf"
+    tests.nested exec "cat /etc/udev/rules.d/09-my-custom-udev.rules" | MATCH  '# this udev rule should only appear after factory-reset mode'
