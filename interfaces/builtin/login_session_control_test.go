@@ -78,7 +78,31 @@ func (s *loginSessionControlSuite) TestConnectedPlugSnippet(c *C) {
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `Can setup login session & seat.`)
+	snippet := apparmorSpec.SnippetForTag("snap.other.app")
+	c.Assert(snippet, testutil.Contains, `Can setup login session & seat.`)
+
+	c.Assert(snippet, testutil.Contains, `dbus (send,receive)
+    bus=system
+    path=/org/freedesktop/login1/{seat,session}/**
+    interface=org.freedesktop.DBus.Properties
+    member={GetAll,PropertiesChanged,Get}
+    peer=(label=unconfined),`)
+	c.Assert(snippet, testutil.Contains, `dbus (send,receive)
+    bus=system
+    path=/org/freedesktop/login1/seat/**
+    interface=org.freedesktop.login1.Seat
+    peer=(label=unconfined),`)
+	c.Assert(snippet, testutil.Contains, `dbus (send,receive)
+    bus=system
+    path=/org/freedesktop/login1/session/**
+    interface=org.freedesktop.login1.Session
+    peer=(label=unconfined),`)
+	c.Assert(snippet, testutil.Contains, `dbus (send,receive)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member={ActivateSession,GetSession,GetSeat,KillSession,ListSessions,LockSession,TerminateSession,UnlockSession}
+    peer=(label=unconfined),`)
 }
 
 func (s *loginSessionControlSuite) TestInterfaces(c *C) {

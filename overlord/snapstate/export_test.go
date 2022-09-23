@@ -269,8 +269,12 @@ var (
 	MissingDisabledServices = missingDisabledServices
 )
 
-func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) error {
-	return m.maybeUndoRemodelBootChanges(t)
+func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) (restartRequested, rebootRequired bool, err error) {
+	restartPoss, err := m.maybeUndoRemodelBootChanges(t)
+	if restartPoss != nil {
+		return true, restartPoss.RebootRequired, nil
+	}
+	return false, false, err
 }
 
 func MockPidsOfSnap(f func(instanceName string) (map[string][]int, error)) func() {

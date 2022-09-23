@@ -117,7 +117,7 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 	}
 
 	if model.Classic() {
-		fmt.Fprintf(Stdout, "ubuntu classic preseeding")
+		fmt.Fprintf(Stdout, "ubuntu classic preseeding\n")
 	} else {
 		if model.Base() == "core20" {
 			fmt.Fprintf(Stdout, "UC20+ preseeding\n")
