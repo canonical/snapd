@@ -380,17 +380,16 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 	// the gadget uses and as such there cannot be more than one
 	// such bootloader
 	for name, vol := range info.Volumes {
-		constraints := DefaultConstraints
-		// At this point we may not know what kernel will be used
-		// with the gadget yet. Skip this check in this case.
-		if kernelSnapRootDir == "" {
-			constraints.SkipResolveContent = true
-		}
 		opts := &LayoutOptions{
 			GadgetRootDir: gadgetSnapRootDir,
 			KernelRootDir: kernelSnapRootDir,
 		}
-		lv, err := LayoutVolume(vol, constraints, opts)
+		// At this point we may not know what kernel will be used
+		// with the gadget yet. Skip this check in this case.
+		if kernelSnapRootDir == "" {
+			opts.SkipResolveContent = true
+		}
+		lv, err := LayoutVolume(vol, DefaultConstraints, opts)
 		if err != nil {
 			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
 		}

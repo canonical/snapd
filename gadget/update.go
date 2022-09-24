@@ -1257,13 +1257,12 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 		}
 
 		// Layout new volume, delay resolving of filesystem content
-		constraints := DefaultConstraints
-		constraints.SkipResolveContent = true
 		opts := &LayoutOptions{
-			GadgetRootDir: new.RootDir,
-			KernelRootDir: new.KernelRootDir,
+			SkipResolveContent: true,
+			GadgetRootDir:      new.RootDir,
+			KernelRootDir:      new.KernelRootDir,
 		}
-		pNew, err := LayoutVolume(newVol, constraints, opts)
+		pNew, err := LayoutVolume(newVol, DefaultConstraints, opts)
 		if err != nil {
 			return fmt.Errorf("cannot lay out the new volume %s: %v", volName, err)
 		}

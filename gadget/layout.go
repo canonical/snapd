@@ -32,6 +32,16 @@ import (
 
 // LayoutOptions defines the options to layout a given volume.
 type LayoutOptions struct {
+	// SkipResolveContent will skip resolving content paths
+	// and `$kernel:` style references
+	SkipResolveContent bool
+
+	// IgnoreContent will skip laying out content structure data to the
+	// volume. Settings this implies "SkipResolveContent".  This
+	// is used when only the partitions need to get
+	// created and content gets written later.
+	IgnoreContent bool
+
 	GadgetRootDir string
 	KernelRootDir string
 }
@@ -42,16 +52,6 @@ type LayoutConstraints struct {
 	// NonMBRStartOffset is the default start offset of non-MBR structure in
 	// the volume.
 	NonMBRStartOffset quantity.Offset
-
-	// SkipResolveContent will skip resolving content paths
-	// and `$kernel:` style references
-	SkipResolveContent bool
-
-	// IgnoreContent will skip laying out content structure data to the
-	// volume. Settings this implies "SkipResolveContent".  This
-	// is used when only the partitions need to get
-	// created and content gets written later.
-	IgnoreContent bool
 }
 
 // LaidOutVolume defines the size of a volume and arrangement of all the
@@ -224,7 +224,7 @@ func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOpt
 	if opts == nil {
 		opts = &LayoutOptions{}
 	}
-	doResolveContent := !(constraints.IgnoreContent || constraints.SkipResolveContent)
+	doResolveContent := !(opts.IgnoreContent || opts.SkipResolveContent)
 
 	var kernelInfo *kernel.Info
 	if doResolveContent {
@@ -261,7 +261,7 @@ func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOpt
 		// creation is needed and is safe because each volume structure
 		// has a size so even without the structure content the layout
 		// can be calculated.
-		if !constraints.IgnoreContent {
+		if !opts.IgnoreContent {
 			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx], byName)
 			if err != nil {
 				return nil, err

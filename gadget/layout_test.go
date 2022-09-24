@@ -323,15 +323,14 @@ volumes:
 	opts := &gadget.LayoutOptions{
 		GadgetRootDir: p.dir,
 	}
-	constraints := defaultConstraints
 	// LayoutVolume fails with default constraints because the foo.img
 	// file is missing
-	_, err := gadget.LayoutVolume(vol, constraints, opts)
+	_, err := gadget.LayoutVolume(vol, defaultConstraints, opts)
 	c.Assert(err, ErrorMatches, `cannot lay out structure #0: content "foo.img":.*no such file or directory`)
 
 	// But LayoutVolume works with the IgnoreContent works
-	constraints.IgnoreContent = true
-	v, err := gadget.LayoutVolume(vol, constraints, opts)
+	opts.IgnoreContent = true
+	v, err := gadget.LayoutVolume(vol, gadget.DefaultConstraints, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume:  vol,
@@ -1202,23 +1201,25 @@ func (p *layoutTestSuite) TestResolveContentPathsSkipResolveContent(c *C) {
 	c.Assert(vol.Structure, HasLen, 1)
 
 	kernelSnapDir := c.MkDir()
-	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
+	defaultOpts := &gadget.LayoutOptions{GadgetRootDir: p.dir, KernelRootDir: kernelSnapDir}
+
+	opts := defaultOpts
 	_, err := gadget.LayoutVolume(vol, defaultConstraints, opts)
 	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 at index 0: cannot find "dtbs" in kernel info from "/.*"`)
 
 	// SkipResolveContent will allow to layout the volume even if
 	// files are missing
-	constraints := defaultConstraints
-	constraints.SkipResolveContent = true
-	v, err := gadget.LayoutVolume(vol, constraints, opts)
+	opts = defaultOpts
+	opts.SkipResolveContent = true
+	v, err := gadget.LayoutVolume(vol, gadget.DefaultConstraints, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v.Structure, HasLen, 1)
 
 	// As does IgnoreContent will allow to layout the volume even if
 	// files are missing
-	constraints = defaultConstraints
-	constraints.IgnoreContent = true
-	v, err = gadget.LayoutVolume(vol, constraints, opts)
+	opts = defaultOpts
+	opts.IgnoreContent = true
+	v, err = gadget.LayoutVolume(vol, gadget.DefaultConstraints, opts)
 	c.Assert(err, IsNil)
 	c.Assert(v.Structure, HasLen, 1)
 }
