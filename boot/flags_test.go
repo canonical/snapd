@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -366,9 +367,11 @@ func (s *bootFlagsSuite) TestUserspaceBootFlagsUC20(c *C) {
 
 func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 	uc20Dev := boottest.MockUC20Device("run", nil)
+	classicModesDev := boottest.MockClassicWithModesDevice("run", nil)
 
 	tt := []struct {
 		mode               string
+		dev                snap.Device
 		createExpDirs      bool
 		expDirs            []string
 		noExpDirRootPrefix bool
@@ -378,31 +381,67 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 	}{
 		{
 			mode:    boot.ModeRun,
+			dev:     uc20Dev,
 			expDirs: []string{"/run/mnt/data", ""},
 			comment: "run mode",
 		},
 		{
+			mode:    boot.ModeRun,
+			dev:     classicModesDev,
+			expDirs: []string{"/run/mnt/data", ""},
+			comment: "run mode (classic)",
+		},
+		{
 			mode:    boot.ModeInstall,
+			dev:     uc20Dev,
 			comment: "install mode before partition creation",
 		},
 		{
+			mode:    boot.ModeInstall,
+			dev:     classicModesDev,
+			comment: "install mode before partition creation (classic)",
+		},
+		{
 			mode:    boot.ModeFactoryReset,
+			dev:     uc20Dev,
 			comment: "factory-reset mode before partition is recreated",
 		},
 		{
+			mode:    boot.ModeFactoryReset,
+			dev:     uc20Dev,
+			comment: "factory-reset mode before partition is recreated (classic)",
+		},
+		{
 			mode:          boot.ModeInstall,
+			dev:           uc20Dev,
 			expDirs:       []string{"/run/mnt/ubuntu-data"},
 			createExpDirs: true,
 			comment:       "install mode after partition creation",
 		},
 		{
+			mode:          boot.ModeInstall,
+			dev:           classicModesDev,
+			expDirs:       []string{"/run/mnt/ubuntu-data"},
+			createExpDirs: true,
+			comment:       "install mode after partition creation (classic)",
+		},
+		{
 			mode:          boot.ModeFactoryReset,
+			dev:           uc20Dev,
 			expDirs:       []string{"/run/mnt/ubuntu-data"},
 			createExpDirs: true,
 			comment:       "factory-reset mode after partition creation",
 		},
 		{
+			mode:          boot.ModeFactoryReset,
+			dev:           classicModesDev,
+			expDirs:       []string{"/run/mnt/ubuntu-data"},
+			createExpDirs: true,
+			comment:       "factory-reset mode after partition creation (classic)",
+		},
+		{
 			mode: boot.ModeRecover,
+			dev:  uc20Dev,
 			degradedJSON: `
 			{
 				"ubuntu-data": {
@@ -417,6 +456,7 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 		},
 		{
 			mode: boot.ModeRecover,
+			dev:  uc20Dev,
 			degradedJSON: `
 			{
 				"ubuntu-data": {
@@ -431,6 +471,7 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 		},
 		{
 			mode: boot.ModeRecover,
+			dev:  uc20Dev,
 			degradedJSON: `
 			{
 				"ubuntu-data": {
@@ -442,6 +483,7 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 		},
 		{
 			mode: boot.ModeRecover,
+			dev:  uc20Dev,
 			degradedJSON: `
 			{
 				"ubuntu-data": {
@@ -453,6 +495,7 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 		},
 		{
 			mode: boot.ModeRecover,
+			dev:  uc20Dev,
 			degradedJSON: `
 			{
 				"ubuntu-data": {
@@ -464,6 +507,7 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 		},
 		{
 			mode: boot.ModeRecover,
+			dev:  uc20Dev,
 			degradedJSON: `
 			{
 				"ubuntu-data": {
@@ -475,6 +519,7 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 		},
 		{
 			mode:    "",
+			dev:     uc20Dev,
 			err:     "system mode is unsupported",
 			comment: "unsupported system mode",
 		},
@@ -501,7 +546,7 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 			}
 		}
 
-		dataMountDirs, err := boot.HostUbuntuDataForMode(t.mode, uc20Dev.Model())
+		dataMountDirs, err := boot.HostUbuntuDataForMode(t.mode, t.dev.Model())
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, comment)
 			c.Assert(dataMountDirs, IsNil)

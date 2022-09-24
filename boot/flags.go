@@ -336,12 +336,19 @@ func HostUbuntuDataForMode(mode string, mod gadget.Model) ([]string, error) {
 		// otherwise leave it empty
 
 	case ModeInstall:
-		// the var we have is for /run/mnt/ubuntu-data/writable, but the caller
-		// probably wants /run/mnt/ubuntu-data
+		// On *Core* the var we have is
+		// /run/mnt/ubuntu-data/writable, but the caller
+		// probably wants /run/mnt/ubuntu-data there. For classic
+		// the dir is /run/mnt/ubuntu-data already
 
 		// note that we may be running in install mode before this directory is
 		// actually created so check if it exists first
-		installModeLocation := filepath.Dir(InstallHostWritableDir(mod))
+		var installModeLocation string
+		if mod.Classic() {
+			installModeLocation = InstallHostWritableDir(mod)
+		} else {
+			installModeLocation = filepath.Dir(InstallHostWritableDir(mod))
+		}
 		if exists, _, _ := osutil.DirExists(installModeLocation); exists {
 			runDataRootfsMountLocations = []string{installModeLocation}
 		}
@@ -351,7 +358,12 @@ func HostUbuntuDataForMode(mode string, mod gadget.Model) ([]string, error) {
 		// as we recreate the ubuntu-data partition. Make similar assumptions
 		// and checks like ModeInstall. Take into account ubuntu-data might not
 		// be mounted when this check is called.
-		factoryResetModeLocation := filepath.Dir(InstallHostWritableDir(mod))
+		var factoryResetModeLocation string
+		if mod.Classic() {
+			factoryResetModeLocation = InstallHostWritableDir(mod)
+		} else {
+			factoryResetModeLocation = filepath.Dir(InstallHostWritableDir(mod))
+		}
 		if exists, _, _ := osutil.DirExists(factoryResetModeLocation); exists {
 			runDataRootfsMountLocations = []string{factoryResetModeLocation}
 		}
