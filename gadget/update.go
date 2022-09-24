@@ -1240,6 +1240,13 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 
 	atLeastOneKernelAssetConsumed := false
 
+	// Layout new volume, delay resolving of filesystem content
+	opts := &LayoutOptions{
+		SkipResolveContent: true,
+		GadgetRootDir:      new.RootDir,
+		KernelRootDir:      new.KernelRootDir,
+	}
+
 	allUpdates := []updatePair{}
 	laidOutVols := map[string]*LaidOutVolume{}
 	for volName, oldVol := range old.Info.Volumes {
@@ -1256,12 +1263,6 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 			return fmt.Errorf("cannot lay out the old volume %s: %v", volName, err)
 		}
 
-		// Layout new volume, delay resolving of filesystem content
-		opts := &LayoutOptions{
-			SkipResolveContent: true,
-			GadgetRootDir:      new.RootDir,
-			KernelRootDir:      new.KernelRootDir,
-		}
 		pNew, err := LayoutVolume(newVol, DefaultConstraints, opts)
 		if err != nil {
 			return fmt.Errorf("cannot lay out the new volume %s: %v", volName, err)

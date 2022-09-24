@@ -1217,15 +1217,15 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model) (syste
 	constraints := LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 	}
+	// layout all volumes saving them
+	opts := &LayoutOptions{
+		GadgetRootDir: gadgetRoot,
+		KernelRootDir: kernelRoot,
+	}
 
 	// find the volume with the system-boot role on it, we already validated
 	// that the system-* roles are all on the same volume
 	for name, vol := range info.Volumes {
-		// layout all volumes saving them
-		opts := &LayoutOptions{
-			GadgetRootDir: gadgetRoot,
-			KernelRootDir: kernelRoot,
-		}
 		lvol, err := LayoutVolume(vol, constraints, opts)
 		if err != nil {
 			return nil, nil, err
