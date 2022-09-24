@@ -6051,7 +6051,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeMeasure(c *C) {
 	s.testInitramfsMountsInstallRecoverModeMeasure(c, "recover")
 }
 
-func (s *initramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, triedSystem bool) (err error) {
+func (s *baseInitramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, triedSystem bool) (err error) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover  snapd_recovery_system="+s.sysLabel)
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
@@ -6108,7 +6108,7 @@ func (s *initramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, tr
 	return err
 }
 
-func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryHappy(c *C, happyStatus string) {
+func (s *baseInitramfsMountsSuite) testInitramfsMountsTryRecoveryHappy(c *C, happyStatus string) {
 	rebootCalls := 0
 	restore := boot.MockInitramfsReboot(func() error {
 		rebootCalls++
@@ -6125,7 +6125,12 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryHappy(c *C, happySt
 	defer bootloader.Force(nil)
 
 	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
-	mockedState := filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
+	var mockedState string
+	if s.isClassic {
+		mockedState = filepath.Join(hostUbuntuData, "var/lib/snapd/state.json")
+	} else {
+		mockedState = filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
+	}
 	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0750), IsNil)
 	c.Assert(ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
 
@@ -6136,7 +6141,12 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryHappy(c *C, happySt
 	c.Assert(err, ErrorMatches, `finalize try recovery system did not reboot, last error: <nil>`)
 
 	// modeenv is not written as reboot happens before that
-	modeEnv := dirs.SnapModeenvFileUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
+	var modeEnv string
+	if s.isClassic {
+		modeEnv = dirs.SnapModeenvFileUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"))
+	} else {
+		modeEnv = dirs.SnapModeenvFileUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
+	}
 	c.Check(modeEnv, testutil.FileAbsent)
 	c.Check(bl.BootVars, DeepEquals, map[string]string{
 		"recovery_system_status": "tried",
@@ -7616,4 +7626,12 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHap
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "run-model-measured"), testutil.FilePresent)
+}
+
+func (s *initramfsClassicMountsSuite) TestInitramfsMountsTryRecoveryHappyTry(c *C) {
+	s.testInitramfsMountsTryRecoveryHappy(c, "try")
+}
+
+func (s *initramfsClassicMountsSuite) TestInitramfsMountsTryRecoveryHappyTried(c *C) {
+	s.testInitramfsMountsTryRecoveryHappy(c, "tried")
 }
