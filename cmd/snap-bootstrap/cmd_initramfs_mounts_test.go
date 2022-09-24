@@ -458,7 +458,7 @@ func notFoundPart() secboot.UnlockResult {
 func (s *baseInitramfsMountsSuite) makeSnapFilesOnEarlyBootUbuntuData(c *C, snaps ...snap.PlaceInfo) {
 	snapDir := dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	if s.isClassic {
-		snapDir = dirs.SnapBlobDirUnder(boot.InitramfsDataDir)
+		snapDir = dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"))
 	}
 	err := os.MkdirAll(snapDir, 0755)
 	c.Assert(err, IsNil)
@@ -612,7 +612,7 @@ func (s *baseInitramfsMountsSuite) makeRunSnapSystemdMount(typ snap.Type, sn sna
 
 	snapDir := filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")
 	if s.isClassic {
-		snapDir = boot.InitramfsDataDir
+		snapDir = filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/")
 	}
 	mnt.what = filepath.Join(dirs.SnapBlobDirUnder(snapDir), sn.Filename())
 	mnt.where = filepath.Join(boot.InitramfsRunMntDir, dir)
