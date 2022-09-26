@@ -466,13 +466,19 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = unlink
 	}
 
-	if !release.OnClassic && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
+	// find out whether this is a core boot device
+	isCoreBoot, err := isCoreBootDevice(st)
+	if err != nil {
+		return nil, err
+	}
+
+	if isCoreBoot && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
 		// XXX: gadget update currently for core systems only
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q%s"), snapsup.Type, snapsup.InstanceName(), revisionStr))
 		addTask(gadgetUpdate)
 		prev = gadgetUpdate
 	}
-	if !release.OnClassic && snapsup.Type == snap.TypeGadget {
+	if isCoreBoot && snapsup.Type == snap.TypeGadget {
 		// kernel command line from gadget is for core systems only
 		gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from gadget %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(gadgetCmdline)
@@ -510,7 +516,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
-	if !release.OnClassic && snapsup.Type == snap.TypeSnapd {
+	if isCoreBoot && snapsup.Type == snap.TypeSnapd {
 		// only run for core devices and the snapd snap, run late enough
 		// so that the task is executed by the new snapd
 		bootConfigUpdate := st.NewTask("update-managed-boot-config", fmt.Sprintf(i18n.G("Update managed boot config assets from %q%s"), snapsup.InstanceName(), revisionStr))
@@ -753,13 +759,17 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	// - bootable base snap (new core18 world, system-reboot)
 	// - kernel
 	//
-	// On classic and in ephemeral run modes (like install, recover)
+	// If no mode and in ephemeral run modes (like install, recover)
 	// there can never be a rollback so we can skip the check there.
+	// For bases we do not reboot in classic.
 	//
 	// TODO: Detect "snapd" snap daemon-restarts here that
 	//       fallback into the old version (once we have
 	//       better snapd rollback support in core18).
-	if deviceCtx.RunMode() && !release.OnClassic {
+	//
+	// Applies only to core-like boot, except if classic with modes for
+	// base/core updates.
+	if deviceCtx.RunMode() && boot.SnapTypeParticipatesInBoot(snapsup.Type, deviceCtx) {
 		// get the name of the name relevant for booting
 		// based on the given type
 		model := deviceCtx.Model()
@@ -792,6 +802,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		if err != nil {
 			return err
 		}
+
 		if snapsup.InstanceName() != current.SnapName() || snapsup.SideInfo.Revision != current.SnapRevision() {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes

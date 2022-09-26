@@ -107,7 +107,7 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20InstallModeHappy(c *C) 
 
 	setupRealGrub(c, blDir, "EFI/ubuntu", &bootloader.Options{Role: bootloader.RoleRecovery})
 
-	flags, err := boot.InitramfsActiveBootFlags(boot.ModeInstall, boot.InitramfsWritableDir)
+	flags, err := boot.InitramfsActiveBootFlags(boot.ModeInstall, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 	c.Assert(flags, HasLen, 0)
 
@@ -117,7 +117,7 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20InstallModeHappy(c *C) 
 	err = boot.SetBootFlagsInBootloader([]string{"factory"}, blDir)
 	c.Assert(err, IsNil)
 
-	flags, err = boot.InitramfsActiveBootFlags(boot.ModeInstall, boot.InitramfsWritableDir)
+	flags, err = boot.InitramfsActiveBootFlags(boot.ModeInstall, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 	c.Assert(flags, DeepEquals, []string{"factory"})
 }
@@ -185,13 +185,13 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RecoverModeNoop(c *C) {
 		BootFlags: []string{},
 	}
 
-	err := os.MkdirAll(boot.InitramfsWritableDir, 0755)
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), 0755)
 	c.Assert(err, IsNil)
 
-	err = m.WriteTo(boot.InitramfsWritableDir)
+	err = m.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
-	flags, err := boot.InitramfsActiveBootFlags(boot.ModeRecover, boot.InitramfsWritableDir)
+	flags, err := boot.InitramfsActiveBootFlags(boot.ModeRecover, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 	c.Assert(flags, HasLen, 0)
 
@@ -199,11 +199,11 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RecoverModeNoop(c *C) {
 	c.Assert(err, IsNil)
 
 	m.BootFlags = []string{"modeenv-boot-flag"}
-	err = m.WriteTo(boot.InitramfsWritableDir)
+	err = m.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	// still no flags since we are in recovery mode
-	flags, err = boot.InitramfsActiveBootFlags(boot.ModeRecover, boot.InitramfsWritableDir)
+	flags, err = boot.InitramfsActiveBootFlags(boot.ModeRecover, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 	c.Assert(flags, HasLen, 0)
 }
@@ -241,7 +241,7 @@ func (s *bootFlagsSuite) testInitramfsActiveBootFlagsUC20RRunModeHappy(c *C, fla
 }
 
 func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RRunModeHappy(c *C) {
-	s.testInitramfsActiveBootFlagsUC20RRunModeHappy(c, boot.InitramfsWritableDir)
+	s.testInitramfsActiveBootFlagsUC20RRunModeHappy(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	s.testInitramfsActiveBootFlagsUC20RRunModeHappy(c, c.MkDir())
 }
 
