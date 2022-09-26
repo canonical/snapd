@@ -237,12 +237,14 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	}
 
 	// If there exists a "refresh-available" hook, call it instead of showing a notification
-	if refreshInfo.HooksDirectory != "" {
-		hookPath := path.Join(refreshInfo.HooksDirectory, "refresh-available")
+	if refreshInfo.UserHooksDirectory != "" {
+		hookPath := path.Join(refreshInfo.UserHooksDirectory, "refresh-available")
 		_, err := os.Stat(hookPath)
 		if !errors.Is(err, os.ErrNotExist) {
-			cmd := exec.Command(hookPath)
-			if cmd.Run() == nil {
+			command := fmt.Sprintf("%s.userhook-refresh-available", refreshInfo.InstanceName)
+			cmd := exec.Command("snap", "run", command)
+			retval := cmd.Run()
+			if retval == nil {
 				return SyncResponse(nil)
 			}
 		}

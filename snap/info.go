@@ -66,6 +66,9 @@ type PlaceInfo interface {
 	// HooksDir returns the directory containing the snap's hooks.
 	HooksDir() string
 
+	// UserHooksDir returns the directory containing the snap's userhooks.
+	UserHooksDir() string
+
 	// DataDir returns the data directory of the snap.
 	DataDir() string
 
@@ -209,6 +212,12 @@ func CommonDataDir(name string) string {
 // name. The name can be either a snap name or snap instance name.
 func HooksDir(name string, revision Revision) string {
 	return filepath.Join(MountDir(name, revision), "meta", "hooks")
+}
+
+// UserHooksDir returns the directory containing the snap's userhooks for given snap
+// name. The name can be either a snap name or snap instance name.
+func UserHooksDir(name string, revision Revision) string {
+	return filepath.Join(MountDir(name, revision), "meta", "userhooks")
 }
 
 func snapDataDir(opts *dirs.SnapDirOptions) string {
@@ -576,6 +585,11 @@ func (s *Info) MountFile() string {
 // HooksDir returns the directory containing the snap's hooks.
 func (s *Info) HooksDir() string {
 	return HooksDir(s.InstanceName(), s.Revision)
+}
+
+// UserHooksDir returns the directory containing the snap's userhooks.
+func (s *Info) UserHooksDir() string {
+	return UserHooksDir(s.InstanceName(), s.Revision)
 }
 
 // DataDir returns the data directory of the snap.

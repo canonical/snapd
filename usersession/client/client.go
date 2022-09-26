@@ -313,7 +313,7 @@ type PendingSnapRefreshInfo struct {
 	TimeRemaining       time.Duration `json:"time-remaining,omitempty"`
 	BusyAppName         string        `json:"busy-app-name,omitempty"`
 	BusyAppDesktopEntry string        `json:"busy-app-desktop-entry,omitempty"`
-	HooksDirectory      string        `json:"busy-app-hooks-directory,omitempty"`
+	UserHooksDirectory  string        `json:"busy-app-user-hooks-directory,omitempty"`
 }
 
 // PendingRefreshNotification broadcasts information about a refresh.
