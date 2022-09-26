@@ -1877,6 +1877,9 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 // including the model assertion, gadget details and encryption info
 // for the given system label.
 func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel string) (*System, *gadget.Info, *EncryptionSupportInfo, error) {
+	// TODO check that the system is not a classic boot one when the
+	// installer is not anymore.
+
 	// System information
 	sys, snapInfos, seedSnaps, err := m.loadSystemAndEssentialSnaps(wantedSystemLabel, []snap.Type{snap.TypeKernel, snap.TypeGadget})
 	if err != nil {
@@ -1937,8 +1940,8 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 	//
 	snapInfos := make(map[snap.Type]*snap.Info)
 	seedSnaps := make(map[snap.Type]*seed.Snap)
-	for i, typ := range types {
-		seedSnap := s.EssentialSnaps()[i]
+	for _, seedSnap := range s.EssentialSnaps() {
+		typ := seedSnap.EssentialType
 		if seedSnap.Path == "" {
 			return nil, nil, nil, fmt.Errorf("internal error: cannot get snap path for %s", typ)
 		}
@@ -1955,6 +1958,9 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 		}
 		seedSnaps[typ] = seedSnap
 		snapInfos[typ] = snapInfo
+	}
+	if len(snapInfos) != len(types) {
+		return nil, nil, nil, fmt.Errorf("internal error: retrieved snap infos (%d) does not match number of types (%d)", len(snapInfos), len(types))
 	}
 
 	return sys, snapInfos, seedSnaps, nil
