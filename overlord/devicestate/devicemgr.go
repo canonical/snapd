@@ -1797,7 +1797,7 @@ func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
 		}
 		smi.BootFlags = bootFlags
 
-		hostDataLocs, err := boot.HostUbuntuDataForMode(mode)
+		hostDataLocs, err := boot.HostUbuntuDataForMode(mode, deviceCtx.Model())
 		if err != nil {
 			return nil, err
 		}
@@ -2282,13 +2282,20 @@ var (
 // older systems might return both a recovery key for ubuntu-data and a
 // reinstall key for ubuntu-save.
 func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse, error) {
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	model := deviceCtx.Model()
+
 	fdeDir := dirs.SnapFDEDir
 	mode := m.SystemMode(SysAny)
 	if mode == "install" {
-		fdeDir = boot.InstallHostFDEDataDir
+		fdeDir = boot.InstallHostFDEDataDir(model)
 	} else if mode != "run" {
 		return nil, fmt.Errorf("cannot ensure recovery keys from system mode %q", mode)
 	}
+
 	sysKeys := &client.SystemRecoveryKeysResponse{}
 	// backward compatibility
 	reinstallKeyFile := filepath.Join(fdeDir, "reinstall.key")
@@ -2309,7 +2316,7 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 	if !device.HasEncryptedMarkerUnder(fdeDir) {
 		return nil, fmt.Errorf("system does not use disk encryption")
 	}
-	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv), model)
 	if err != nil {
 		return nil, fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
 	}
@@ -2345,7 +2352,13 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	if !device.HasEncryptedMarkerUnder(dirs.SnapFDEDir) {
 		return fmt.Errorf("system does not use disk encryption")
 	}
-	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return err
+	}
+	model := deviceCtx.Model()
+
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv), model)
 	if err != nil {
 		return fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
 	}

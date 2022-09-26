@@ -109,7 +109,7 @@ func sealKeyToModeenv(key, saveKey keys.EncryptionKey, model *asserts.Model, mod
 	for _, p := range []string{
 		InitramfsSeedEncryptionKeyDir,
 		InitramfsBootEncryptionKeyDir,
-		InstallHostFDEDataDir,
+		InstallHostFDEDataDir(model),
 		InstallHostFDESaveDir,
 	} {
 		// XXX: should that be 0700 ?
@@ -123,10 +123,10 @@ func sealKeyToModeenv(key, saveKey keys.EncryptionKey, model *asserts.Model, mod
 		return fmt.Errorf("cannot check for fde-setup hook %v", err)
 	}
 	if hasHook {
-		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, modeenv, flags)
+		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, model, modeenv, flags)
 	}
 
-	return sealKeyToModeenvUsingSecboot(key, saveKey, modeenv, flags)
+	return sealKeyToModeenvUsingSecboot(key, saveKey, model, modeenv, flags)
 }
 
 func runKeySealRequests(key keys.EncryptionKey) []secboot.SealKeyRequest {
@@ -162,7 +162,7 @@ func fallbackKeySealRequests(key, saveKey keys.EncryptionKey, factoryReset bool)
 	}
 }
 
-func sealKeyToModeenvUsingFDESetupHook(key, saveKey keys.EncryptionKey, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
+func sealKeyToModeenvUsingFDESetupHook(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
 	// XXX: Move the auxKey creation to a more generic place, see
 	// PR#10123 for a possible way of doing this. However given
 	// that the equivalent key for the TPM case is also created in
@@ -184,14 +184,14 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey keys.EncryptionKey, modeenv 
 		return err
 	}
 
-	if err := device.StampSealedKeys(InstallHostWritableDir, "fde-setup-hook"); err != nil {
+	if err := device.StampSealedKeys(InstallHostWritableDir(model), "fde-setup-hook"); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
+func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,
@@ -304,16 +304,16 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Mode
 		return err
 	}
 
-	if err := device.StampSealedKeys(InstallHostWritableDir, device.SealingMethodTPM); err != nil {
+	if err := device.StampSealedKeys(InstallHostWritableDir(model), device.SealingMethodTPM); err != nil {
 		return err
 	}
 
-	installBootChainsPath := bootChainsFileUnder(InstallHostWritableDir)
+	installBootChainsPath := bootChainsFileUnder(InstallHostWritableDir(model))
 	if err := writeBootChains(pbc, installBootChainsPath, 0); err != nil {
 		return err
 	}
 
-	installRecoveryBootChainsPath := recoveryBootChainsFileUnder(InstallHostWritableDir)
+	installRecoveryBootChainsPath := recoveryBootChainsFileUnder(InstallHostWritableDir(model))
 	if err := writeBootChains(rpbc, installRecoveryBootChainsPath, 0); err != nil {
 		return err
 	}
