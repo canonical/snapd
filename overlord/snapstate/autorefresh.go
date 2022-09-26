@@ -615,6 +615,8 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 		}
 	}
 
+	refreshInfo.HooksDirectory = info.HooksDir()
+
 	// Decide on what to do depending on the state of the snap and the remaining
 	// inhibition time.
 	now := time.Now()

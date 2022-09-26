@@ -21,9 +21,13 @@ package agent
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mime"
 	"net/http"
+	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -230,6 +234,18 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	var refreshInfo client.PendingSnapRefreshInfo
 	if err := decoder.Decode(&refreshInfo); err != nil {
 		return BadRequest("cannot decode request body into pending snap refresh info: %v", err)
+	}
+
+	// If there exists a "refresh-available" hook, call it instead of showing a notification
+	if refreshInfo.HooksDirectory != "" {
+		hookPath := path.Join(refreshInfo.HooksDirectory, "refresh-available")
+		_, err := os.Stat(hookPath)
+		if !errors.Is(err, os.ErrNotExist) {
+			cmd := exec.Command(hookPath)
+			if cmd.Run() == nil {
+				return SyncResponse(nil)
+			}
+		}
 	}
 
 	// Note that since the connection is shared, we are not closing it.
