@@ -1235,13 +1235,12 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	// add the install-device hook before ensure-next-boot-to-run-mode if it
 	// exists in the snap
-	var installDevice *state.Task
 	if hasInstallDeviceHook {
 		// add the task that ensures ubuntu-save is available after the system
 		// setup to the install-device hook
 		addTask(m.state.NewTask("setup-ubuntu-save", i18n.G("Setup ubuntu-save snap folders")))
 
-		installDevice = m.installDeviceHookTask(model)
+		installDevice := m.installDeviceHookTask(model)
 
 		// reference used by snapctl reboot
 		installDevice.Set("restart-task", restartSystem.ID())
