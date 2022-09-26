@@ -670,7 +670,7 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 	// in them from being available to abuse for fixed vulnerabilies that are
 	// not exploitable in the current versions of snapd/core snaps.
 	var alreadyRemoved bool
-	key := fmt.Sprintf("%s-snap-cve-2021-44731-vuln-removed", name)
+	key := fmt.Sprintf("%s-snap-cve-2022-3328-vuln-removed", name)
 	if err := m.state.Get(key, &alreadyRemoved); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -697,8 +697,8 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 		if err != nil {
 			return err
 		}
-		// res is < 0 if "ver" is lower than "2.54.3"
-		res, err := strutil.VersionCompare(ver, "2.54.3")
+		// res is < 0 if "ver" is lower than "2.57.6"
+		res, err := strutil.VersionCompare(ver, "2.57.6")
 		if err != nil {
 			return err
 		}
@@ -773,7 +773,7 @@ func (m *SnapManager) ensureVulnerableSnapConfineVersionsRemovedOnClassic() erro
 
 	// we have to remove vulnerable versions of both the core and snapd snaps
 	// only when we now have fixed versions installed / active
-	// the fixed version is 2.54.3, so if the version of the current core/snapd
+	// the fixed version is 2.57.6, so if the version of the current core/snapd
 	// snap is that or higher, then we proceed (if we didn't already do this)
 
 	if err := m.ensureVulnerableSnapRemoved("snapd"); err != nil {
