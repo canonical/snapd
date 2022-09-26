@@ -48,8 +48,6 @@ func isCoreBootDevice(st *state.State) (bool, error) {
 			return false, err
 		}
 		return false, nil
-	} else {
-		return deviceCtx.IsCoreBoot(), nil
 	}
-
+	return deviceCtx.IsCoreBoot(), nil
 }
