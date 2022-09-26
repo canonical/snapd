@@ -88,38 +88,6 @@ nested_check_unit_stays_active() {
     done
 }
 
-nested_check_boot_errors() {
-    local cursor=$1
-    # Check if the service started and it is running without errors
-    if nested_is_core_20_system && ! nested_check_unit_stays_active "$NESTED_VM" 15 1; then
-        # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
-        # It is reproducible on an Intel machine without unrestricted mode support, the failure is most likely due to the guest entering an invalid state for Intel VT
-        # The workaround is to restart the vm and check that qemu doesn't go into this bad state again
-        if "$TESTSTOOLS"/journal-state get-log-from-cursor "$cursor" -u "$NESTED_VM" | MATCH "cpu_asidx_from_attrs: Assertion.*failed"; then
-            return 1
-        fi
-    fi
-}
-
-nested_retry_start_with_boot_errors() {
-    local retry=3
-    local cursor
-    cursor="$("$TESTSTOOLS"/journal-state get-test-cursor)"
-    while [ "$retry" -ge 0 ]; do
-        retry=$(( retry - 1 ))
-        if ! nested_check_boot_errors "$cursor"; then
-            cursor="$("$TESTSTOOLS"/journal-state get-last-cursor)"
-            nested_force_restart_vm
-            sleep 3
-        else
-            return 0
-        fi
-    done
-
-    echo "VM failing to boot, aborting!"
-    return 1
-}
-
 nested_get_boot_id() {
     remote.exec "cat /proc/sys/kernel/random/boot_id"
 }
@@ -651,6 +619,13 @@ defaults:
     journal:
       persistent: true
 EOF
+            if [ "$NESTED_SNAPD_DEBUG_TO_SERIAL" = "true" ]; then
+                # add snapd debug and log to serial console for extra
+                # visibility what happens when a machine fails to boot
+                echo 'console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1 ' > pc-gadget/cmdline.extra
+            fi
+
+            # pack it
             snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
             gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
@@ -1058,6 +1033,7 @@ nested_start_core_vm_unit() {
     PARAM_ASSERTIONS=""
     PARAM_BIOS=""
     PARAM_TPM=""
+    PARAM_REEXEC_ON_FAILURE=""
     if [ "$NESTED_USE_CLOUD_INIT" != "true" ]; then
         # TODO: fix using the old way of an ext4 formatted drive w/o partitions
         #       as this used to work but has since regressed
@@ -1114,6 +1090,14 @@ nested_start_core_vm_unit() {
     fi
     PARAM_IMAGE="$PARAM_IMAGE,${PARAM_PHYS_BLOCK_SIZE},${PARAM_LOGI_BLOCK_SIZE}"
 
+    if nested_is_core_20_system; then
+        # This is to deal with the following qemu error which occurs using q35 machines in focal
+        # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
+        # It is reproducible on an Intel machine without unrestricted mode support, the failure is most likely due to the guest entering an invalid state for Intel VT
+        # The workaround is to restart the vm and check that qemu doesn't go into this bad state again
+        PARAM_REEXEC_ON_FAILURE="[Service]\nRestart=on-failure\nRestartSec=5s"
+    fi
+
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
     # make sure we start with clean log file
@@ -1137,13 +1121,10 @@ nested_start_core_vm_unit() {
         ${PARAM_SERIAL} \
         ${PARAM_MONITOR} \
         ${PARAM_USB} \
-        ${PARAM_CD} "
+        ${PARAM_CD} " "${PARAM_REEXEC_ON_FAILURE}"
 
     # wait for the $NESTED_VM service to appear active
     wait_for_service "$NESTED_VM"
-
-    # make sure the service started and it is running
-    nested_retry_start_with_boot_errors
 
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}

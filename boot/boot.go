@@ -141,8 +141,25 @@ func Kernel(s snap.PlaceInfo, t snap.Type, dev snap.Device) BootKernel {
 	return trivial{}
 }
 
+// SnapTypeParticipatesInBoot returns whether a snap type participates in the
+// boot for a given device.
+func SnapTypeParticipatesInBoot(t snap.Type, dev snap.Device) bool {
+	if dev.IsClassicBoot() {
+		return false
+	}
+	switch t {
+	case snap.TypeBase, snap.TypeOS:
+		// Bases are not boot participants for classic with modes
+		return !dev.Classic()
+	case snap.TypeKernel, snap.TypeGadget:
+		return true
+	}
+
+	return false
+}
+
 func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
-	if dev.Classic() {
+	if !SnapTypeParticipatesInBoot(t, dev) {
 		return false
 	}
 	// In ephemeral modes we never need to care about updating the boot

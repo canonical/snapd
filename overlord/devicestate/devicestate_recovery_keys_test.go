@@ -119,14 +119,14 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
 	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
 	c.Assert(err, IsNil)
 	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, rkeyDevs []secboot.RecoveryKeyDevice) (keys.RecoveryKey, error) {
-		c.Check(keyFile, Equals, filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"))
+		c.Check(keyFile, Equals, filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "recovery.key"))
 		c.Check(rkeyDevs, DeepEquals, []secboot.RecoveryKeyDevice{
 			{
-				Mountpoint: filepath.Dir(boot.InstallHostWritableDir),
+				Mountpoint: filepath.Dir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")),
 			},
 			{
 				Mountpoint:         boot.InitramfsUbuntuSaveDir,
-				AuthorizingKeyFile: filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key"),
+				AuthorizingKeyFile: filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"),
 			},
 		})
 
@@ -135,7 +135,7 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
 		return rkey, nil
 	})()
 
-	p := filepath.Join(boot.InstallHostFDEDataDir, "marker")
+	p := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker")
 	err = os.MkdirAll(filepath.Dir(p), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(p, nil, 0644)
