@@ -1094,23 +1094,20 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 // hasInstallDeviceHook returns whether the gadget has an install-device hook.
 // It can return an error if the device has no gadget snap
 func (m *DeviceManager) hasInstallDeviceHook(model *asserts.Model) (bool, error) {
-	var hasInstallDeviceHook bool
-
 	gadgetInfo, err := snapstate.CurrentInfo(m.state, model.Gadget())
 	if err != nil {
 		return false, fmt.Errorf("device is seeded in install mode but has no gadget snap: %v", err)
 	}
-	hasInstallDeviceHook = (gadgetInfo.Hooks["install-device"] != nil)
+	hasInstallDeviceHook := (gadgetInfo.Hooks["install-device"] != nil)
 	return hasInstallDeviceHook, nil
 }
 
 func (m *DeviceManager) installDeviceHookTask(model *asserts.Model) *state.Task {
 	summary := i18n.G("Run install-device hook")
 	hooksup := &hookstate.HookSetup{
-		// TODO: what's a reasonable timeout for the install-device hook?
-		Snap:       model.Gadget(),
-		Hook:       "install-device",
-		TrackError: true,
+		// TODO: add a reasonable timeout for the install-device hook
+		Snap: model.Gadget(),
+		Hook: "install-device",
 	}
 	return hookstate.HookTask(m.state, summary, hooksup, nil)
 }
@@ -1143,11 +1140,11 @@ func (m *DeviceManager) ensureInstalled() error {
 	perfTimings := timings.New(map[string]string{"ensure": "install-system"})
 
 	model, err := m.Model()
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
 	if err != nil {
-		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
+		if errors.Is(err, state.ErrNoState) {
+			return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
+		}
+		return err
 	}
 
 	// check if the gadget has an install-device hook, do this before
@@ -1166,14 +1163,13 @@ func (m *DeviceManager) ensureInstalled() error {
 	setupRunSystem := m.state.NewTask("setup-run-system", i18n.G("Setup system for run mode"))
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 
-	var prev *state.Task
+	prev := setupRunSystem
 	tasks := []*state.Task{setupRunSystem}
 	addTask := func(t *state.Task) {
 		t.WaitFor(prev)
 		tasks = append(tasks, t)
 		prev = t
 	}
-	prev = setupRunSystem
 
 	// add the install-device hook before ensure-next-boot-to-run-mode if it
 	// exists in the snap
@@ -1225,11 +1221,11 @@ func (m *DeviceManager) ensureFactoryReset() error {
 	perfTimings := timings.New(map[string]string{"ensure": "factory-reset"})
 
 	model, err := m.Model()
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
 	if err != nil {
-		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
+		if errors.Is(err, state.ErrNoState) {
+			return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
+		}
+		return err
 	}
 
 	// We perform this check before setting ensureFactoryResetRan in
@@ -1248,14 +1244,13 @@ func (m *DeviceManager) ensureFactoryReset() error {
 	factoryReset := m.state.NewTask("factory-reset-run-system", i18n.G("Perform factory reset of the system"))
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 
-	var prev *state.Task
+	prev := factoryReset
 	tasks := []*state.Task{factoryReset}
 	addTask := func(t *state.Task) {
 		t.WaitFor(prev)
 		tasks = append(tasks, t)
 		prev = t
 	}
-	prev = factoryReset
 
 	if hasInstallDeviceHook {
 		installDevice := m.installDeviceHookTask(model)
