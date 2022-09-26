@@ -343,8 +343,8 @@ func (v *ValidationSets) Add(valset *asserts.ValidationSet) error {
 	return nil
 }
 
-// SetExtra marks the specified validation sets as extra.
-func (v *ValidationSets) SetExtra(extraVss []*asserts.ValidationSet) {
+// SetExtraSets marks the specified validation sets as extra.
+func (v *ValidationSets) SetExtraSets(extraVss []*asserts.ValidationSet) {
 	v.extraSets = extraVss
 }
 

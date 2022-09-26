@@ -165,7 +165,7 @@ func EnforcedValidationSets(st *state.State, extraVss ...*asserts.ValidationSet)
 		skip[fmt.Sprintf("%s:%s", extraVs.AccountID(), extraVs.Name())] = true
 	}
 
-	sets.SetExtra(extraVss)
+	sets.SetExtraSets(extraVss)
 
 	for _, vs := range valsets {
 		if vs.Mode != Enforce {
