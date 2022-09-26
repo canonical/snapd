@@ -689,7 +689,7 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 	var affected []string
 	err = assertstateTryEnforceValidationSets(st, inst.ValidationSets, inst.userID, snaps, ignoreValidationSnaps)
 	if err != nil {
-		vErr, ok := err.(*snapasserts.ValidationSetsValidationError)
+		vErr, ok := err.(*assertstate.ValidationNewSetsError)
 		if !ok {
 			return nil, err
 		}
@@ -707,7 +707,7 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 	}, nil
 }
 
-func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr *snapasserts.ValidationSetsValidationError) ([]*state.TaskSet, []string, error) {
+func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr *assertstate.ValidationNewSetsError) ([]*state.TaskSet, []string, error) {
 	// keep the assertion used so that we use the same sequence/revision when
 	// enforcing after resolving the constraints. Also keep the request string
 	// because it holds pinning information which we need when enforcing.
@@ -718,7 +718,7 @@ func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr 
 			return nil, nil, err
 		}
 
-		for _, vs := range vErr.ExtraSets {
+		for _, vs := range vErr.NewSets {
 			if vs.AccountID() == account && vs.Name() == name {
 				vsMap[vsStr] = vs
 				break

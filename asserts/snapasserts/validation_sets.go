@@ -75,9 +75,6 @@ type ValidationSetsValidationError struct {
 	// Sets maps validation set keys referenced by above maps to actual
 	// validation sets.
 	Sets map[string]*asserts.ValidationSet
-	// ExtraSets holds the sets added to the assertions set as extras. It's a subset
-	// of Sets.
-	ExtraSets []*asserts.ValidationSet
 }
 
 // ValidationSetKey is a string-backed primary key for a validation set assertion.
@@ -190,9 +187,6 @@ type ValidationSets struct {
 	sets map[string]*asserts.ValidationSet
 	// snaps maps snap-ids to snap constraints
 	snaps map[string]*snapContraints
-	// extraSets contains the "new" validation sets used in the conflict check
-	// that aren't tracked. It's a subset of the values of the 'sets' field.
-	extraSets []*asserts.ValidationSet
 }
 
 const presConflict asserts.Presence = "conflict"
@@ -341,11 +335,6 @@ func (v *ValidationSets) Add(valset *asserts.ValidationSet) error {
 		v.addSnap(sn, k)
 	}
 	return nil
-}
-
-// SetExtraSets marks the specified validation sets as extra.
-func (v *ValidationSets) SetExtraSets(extraVss []*asserts.ValidationSet) {
-	v.extraSets = extraVss
 }
 
 func (v *ValidationSets) addSnap(sn *asserts.ValidationSetSnap, validationSetKey string) {
@@ -512,7 +501,6 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValid
 		verr := &ValidationSetsValidationError{
 			InvalidSnaps: setsToLists(invalid),
 			Sets:         sets,
-			ExtraSets:    v.extraSets,
 		}
 		if len(missing) > 0 {
 			verr.MissingSnaps = make(map[string]map[snap.Revision][]string)

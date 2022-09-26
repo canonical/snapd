@@ -3945,7 +3945,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 		snapasserts.NewInstalledSnap("invalid-snap", "cccchntON3vR7kwEbVPsILm7bUViPDcc", snap.Revision{N: 1}),
 	}
 	err := assertstate.TryEnforceValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
-	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
+	verr, ok := err.(*assertstate.ValidationNewSetsError)
 	c.Assert(ok, Equals, true)
 	c.Check(verr.WrongRevisionSnaps, DeepEquals, map[string]map[snap.Revision][]string{
 		"some-snap": {
