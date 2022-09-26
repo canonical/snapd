@@ -735,6 +735,31 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 	}
 }
 
+func (s *Store) buildLocationString() (string, error) {
+	if s.dauthCtx == nil {
+		return "", nil
+	}
+
+	cloudInfo, err := s.dauthCtx.CloudInfo()
+	if err != nil {
+		return "", err
+	}
+
+	if cloudInfo != nil {
+		cdnParams := []string{fmt.Sprintf("cloud-name=%q", cloudInfo.Name)}
+		if cloudInfo.Region != "" {
+			cdnParams = append(cdnParams, fmt.Sprintf("region=%q", cloudInfo.Region))
+		}
+		if cloudInfo.AvailabilityZone != "" {
+			cdnParams = append(cdnParams, fmt.Sprintf("availability-zone=%q", cloudInfo.AvailabilityZone))
+		}
+
+		return strings.Join(cdnParams, " "), nil
+	}
+
+	return "", nil
+}
+
 // build a new http.Request with headers for the store
 func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user *auth.UserState) (*http.Request, error) {
 	var body io.Reader
@@ -770,6 +795,13 @@ func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user
 	req.Header.Set(hdrSnapDeviceSeries[reqOptions.APILevel], s.series)
 	req.Header.Set(hdrSnapClassic[reqOptions.APILevel], strconv.FormatBool(release.OnClassic))
 	req.Header.Set("Snap-Device-Capabilities", "default-tracks")
+	locationHeader, err := s.buildLocationString()
+	if err != nil {
+		return nil, err
+	}
+	if locationHeader != "" {
+		req.Header.Set("Snap-Device-Location", locationHeader)
+	}
 	if cua := ClientUserAgent(ctx); cua != "" {
 		req.Header.Set("Snap-Client-User-Agent", cua)
 	}
