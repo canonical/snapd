@@ -167,7 +167,7 @@ func generateInitramfsMounts() (err error) {
 	}
 	model := mst.verifiedModel
 	if model == nil {
-		return fmt.Errorf("internal error: no validated model set")
+		return fmt.Errorf("internal error: no verified model set")
 	}
 
 	isRunMode := (mode == "run")
@@ -1378,7 +1378,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 	if err != nil {
 		return nil, nil, err
 	}
-	// model is now measured
+	// verified model from the seed is now measured
 	mst.SetVerifiedBootModel(model)
 
 	// at this point on a system with TPM-based encryption
