@@ -23,6 +23,7 @@ volumes:
         filesystem: vfat
         # UEFI will boot the ESP partition by default first
         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        # TODO make this realistically smaller?
         size: 99M
         update:
           edition: 2
@@ -45,6 +46,8 @@ volumes:
           - source: shim.efi.signed
             target: EFI/boot/bootx64.efi
       - name: ubuntu-save
+        # XXX this makes snap pack unhappy ATM!
+        # role: system-save
         filesystem: ext4
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         size: 16M

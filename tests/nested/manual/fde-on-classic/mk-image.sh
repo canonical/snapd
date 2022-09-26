@@ -145,6 +145,7 @@ EOF
     sudo cp modeenv "$DESTDIR"/var/lib/snapd/
     # needed from the beginning in ubuntu-data as these are mounted by snap-bootstrap
     # (UC also has base here, but we do not mount it from initramfs in classic)
+    # TODO use prepare-image --classic for this
     sudo mkdir -p "$DESTDIR"/var/lib/snapd/snaps/
     sudo cp "${SNAP_P[kernel]}" "${SNAP_P[gadget]}" \
          "$DESTDIR"/var/lib/snapd/snaps/
