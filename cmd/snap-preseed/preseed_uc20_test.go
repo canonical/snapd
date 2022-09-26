@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snap-preseed"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/image/preseed"
 )
 
 func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
@@ -45,7 +46,7 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
 	var called bool
-	restorePreseed := main.MockPreseedCore20(func(opts *main.PreseedCoreOptions) error {
+	restorePreseed := main.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
 		c.Check(opts.PrepareImageDir, Equals, tmpDir)
 		c.Check(opts.PreseedSignKey, Equals, "key")
 		c.Check(opts.AppArmorKernelFeaturesDir, Equals, "/custom/aa/features")
@@ -74,7 +75,7 @@ func (s *startPreseedSuite) TestRunPreseedUC20HappyNoArgs(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
 	var called bool
-	restorePreseed := main.MockPreseedCore20(func(opts *main.PreseedCoreOptions) error {
+	restorePreseed := main.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
 		c.Check(opts.PrepareImageDir, Equals, tmpDir)
 		c.Check(opts.PreseedSignKey, Equals, "")
 		c.Check(opts.AppArmorKernelFeaturesDir, Equals, "")

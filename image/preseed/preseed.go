@@ -49,9 +49,9 @@ var (
 	Stderr io.Writer = os.Stderr
 )
 
-//  CorePreseedOptions provides required and optional
-// options for core preseeding
-type CorePreseedOptions struct {
+//  CoreOptions provides required and optional options for core
+// preseeding.
+type CoreOptions struct {
 	// prepare image directory
 	PrepareImageDir string
 	// key to sign preseeded data with
@@ -62,10 +62,10 @@ type CorePreseedOptions struct {
 	SysfsOverlay string
 }
 
-// preseedOptions holds internal preseeding options
-type preseedOptions struct {
-	// base preseeding options
-	PreseedOpts CorePreseedOptions
+// preseedCoreOptions holds internal preseeding options for the core case
+type preseedCoreOptions struct {
+	// input options
+	CoreOptions
 	// chroot directory to run chroot from
 	PreseedChrootDir string
 	// stystem label of system to be seededs
@@ -97,13 +97,13 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-func writePreseedAssertion(artifactDigest []byte, opts *preseedOptions) error {
+func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) error {
 	keypairMgr, err := getKeypairManager()
 	if err != nil {
 		return err
 	}
 
-	key := opts.PreseedOpts.PreseedSignKey
+	key := opts.PreseedSignKey
 	if key == "" {
 		key = `default`
 	}
@@ -113,7 +113,7 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedOptions) error {
 		return fmt.Errorf(i18n.G("cannot use %q key: %v"), key, err)
 	}
 
-	sysDir := filepath.Join(opts.PreseedOpts.PrepareImageDir, "system-seed")
+	sysDir := filepath.Join(opts.PrepareImageDir, "system-seed")
 	sd, err := seedOpen(sysDir, opts.SystemLabel)
 	if err != nil {
 		return err

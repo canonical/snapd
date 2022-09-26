@@ -329,11 +329,11 @@ func (s *preseedSuite) TestCreatePreseedArtifact(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "/usr/lib/snapd/preseed.json"), []byte(exportFileContents), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(prepareDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
-	opts := &preseed.CorePreseedOptions{
+	opts := &preseed.CoreOptions{
 		PrepareImageDir: prepareDir,
 	}
-	popts := &preseed.PreseedOpts{
-		PreseedOpts:      *opts,
+	popts := &preseed.PreseedCoreOptions{
+		CoreOptions:      *opts,
 		PreseedChrootDir: tmpDir,
 		SystemLabel:      "20220203",
 		WritableDir:      writableDir,

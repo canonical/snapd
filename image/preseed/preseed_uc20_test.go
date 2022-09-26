@@ -214,7 +214,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), []byte(`hello world`), 0644), IsNil)
 
-	opts := &preseed.CorePreseedOptions{
+	opts := &preseed.CoreOptions{
 		PrepareImageDir:           tmpDir,
 		PreseedSignKey:            "",
 		AppArmorKernelFeaturesDir: customAppArmorFeaturesDir,
@@ -419,11 +419,11 @@ func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
 	err := ioutil.WriteFile(mockChrootCmd.Exe(), []byte("invalid-exe"), 0755)
 	c.Check(err, IsNil)
 
-	opts := &preseed.CorePreseedOptions{
+	opts := &preseed.CoreOptions{
 		PrepareImageDir: tmpdir,
 	}
-	popts := &preseed.PreseedOpts{
-		PreseedOpts:      *opts,
+	popts := &preseed.PreseedCoreOptions{
+		CoreOptions:      *opts,
 		PreseedChrootDir: tmpdir,
 	}
 
