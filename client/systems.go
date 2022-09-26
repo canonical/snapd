@@ -140,6 +140,37 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 	return nil
 }
 
+type StorageEncryptionSupport string
+
+const (
+	// forcefull disabled by the device
+	StorageEncryptionSupportDisabled = "disabled"
+	// encryption available and usable
+	StorageEncryptionSupportAvailable = "available"
+	// encryption unavailable but not required
+	StorageEncryptionSupportUnavailable = "unavailable"
+	// encryption unavailable and required, this is an error
+	StorageEncryptionSupportDefective = "defective"
+)
+
+type StorageEncryption struct {
+	// Support describes the level of hardware support available.
+	Support StorageEncryptionSupport `json:"support"`
+
+	// StorageSafety can have values of asserts.StorageSafety
+	StorageSafety string `json:"storage-safety,omitempty"`
+
+	// Type has values of secboot.Type: "", "cryptsetup",
+	// "device-setup-hook"
+	Type string `json:"encryption-type,omitempty"`
+
+	// UnavailableReason describes why the encryption is not
+	// available in a human readable form. Depending on if
+	// encryption is required or not this should be presented to
+	// the user as either an error or as information.
+	UnavailableReason string `json:"unavailable-reason,omitempty"`
+}
+
 type SystemDetails struct {
 	// First part is designed to look like `client.System` - the
 	// only difference is how the model is represented
@@ -152,14 +183,14 @@ type SystemDetails struct {
 	// Volumes contains the volumes defined from the gadget snap
 	Volumes map[string]*gadget.Volume `json:"volumes,omitempty"`
 
-	// TODO: add EncryptionSupportInfo here too
+	StorageEncryption *StorageEncryption `json:"storage-encryption,omitempty"`
 }
 
-func (client *Client) SystemDetails(seedLabel string) (*SystemDetails, error) {
+func (client *Client) SystemDetails(systemLabel string) (*SystemDetails, error) {
 	var rsp SystemDetails
 
-	if _, err := client.doSync("GET", "/v2/systems/"+seedLabel, nil, nil, nil, &rsp); err != nil {
-		return nil, xerrors.Errorf("cannot get details for system %q: %v", seedLabel, err)
+	if _, err := client.doSync("GET", "/v2/systems/"+systemLabel, nil, nil, nil, &rsp); err != nil {
+		return nil, xerrors.Errorf("cannot get details for system %q: %v", systemLabel, err)
 	}
 	return &rsp, nil
 }
@@ -179,20 +210,6 @@ const (
 	InstallStepFinish InstallStep = "finish"
 )
 
-type InstallVolumeStructure struct {
-	*gadget.VolumeStructure
-
-	// The installer need to set those as needed depending on step.
-	Device            string `json:"device,omitempty"`
-	UnencryptedDevice string `json:"unencrypted-device,omitempty"`
-}
-
-type InstallVolume struct {
-	*gadget.Volume
-
-	Structure []InstallVolumeStructure `json:"structure"`
-}
-
 type InstallSystemOptions struct {
 	// Step is the install step, either "setup-storage-encryption"
 	// or "finish".
@@ -200,7 +217,7 @@ type InstallSystemOptions struct {
 
 	// OnVolumes is the volume description of the volumes that the
 	// given step should operate on.
-	OnVolumes map[string]*InstallVolume `json:"on-volumes,omitempty"`
+	OnVolumes map[string]*gadget.Volume `json:"on-volumes,omitempty"`
 }
 
 // InstallSystem will perform the given install step for the given volumes

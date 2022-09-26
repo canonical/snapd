@@ -184,8 +184,15 @@ func generateJournaldConfFile(grp *quota.Group) []byte {
 
 	sizeOptions := formatJournalSizeConf(grp)
 	rateOptions := formatJournalRateConf(grp)
+	// Set Storage=auto for all journal namespaces we create. This is
+	// the setting for the default namespace, and 'persistent' is the default
+	// setting for all namespaces. However we want namespaces to honor the
+	// journal.persistent setting, and this only works if Storage is set
+	// to 'auto'.
+	// See https://www.freedesktop.org/software/systemd/man/journald.conf.html#Storage=
 	template := `# Journald configuration for snap quota group %[1]s
 [Journal]
+Storage=auto
 `
 	buf := bytes.Buffer{}
 	fmt.Fprintf(&buf, template, grp.Name)

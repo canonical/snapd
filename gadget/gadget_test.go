@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -651,8 +652,8 @@ var (
 		IsClassic: false,
 	}
 	uc20Mod = &gadgettest.ModelCharacteristics{
-		IsClassic:  false,
-		SystemSeed: true,
+		IsClassic: false,
+		HasModes:  true,
 	}
 )
 
@@ -946,8 +947,8 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 
 var classicModelCharacteristics = []gadget.Model{
 	nil,
-	&gadgettest.ModelCharacteristics{IsClassic: false, SystemSeed: false},
-	&gadgettest.ModelCharacteristics{IsClassic: true, SystemSeed: false},
+	&gadgettest.ModelCharacteristics{IsClassic: false, HasModes: false},
+	&gadgettest.ModelCharacteristics{IsClassic: true, HasModes: false},
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlPCHappy(c *C) {
@@ -985,8 +986,8 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkUC20Happy(c *C) {
 	c.Assert(err, IsNil)
 
 	uc20Model := &gadgettest.ModelCharacteristics{
-		SystemSeed: true,
-		IsClassic:  false,
+		HasModes:  true,
+		IsClassic: false,
 	}
 
 	_, err = gadget.ReadInfo(s.dir, uc20Model)
@@ -1705,7 +1706,7 @@ volumes:
 	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(bloader), 0644)
 	c.Assert(err, IsNil)
 	mod := &gadgettest.ModelCharacteristics{
-		SystemSeed: true,
+		HasModes: true,
 	}
 
 	_, err = gadget.ReadInfoAndValidate(s.dir, mod, nil)
@@ -2235,7 +2236,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileNoVolumesSystemSeed(
 	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfoFromSnapFile(snapf, &gadgettest.ModelCharacteristics{SystemSeed: true})
+	_, err = gadget.ReadInfoFromSnapFile(snapf, &gadgettest.ModelCharacteristics{HasModes: true})
 	c.Check(err, ErrorMatches, "model requires system-seed partition, but no system-seed or system-data partition found")
 }
 
@@ -3526,7 +3527,7 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsMultipleGPTVolumes(c 
 	defer restore()
 
 	mod := &gadgettest.ModelCharacteristics{
-		SystemSeed: true,
+		HasModes: true,
 	}
 	vols, err := gadgettest.LayoutMultiVolumeFromYaml(
 		c.MkDir(),
@@ -3614,7 +3615,7 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
 		return s.PkgPath == ""
 	}
 
-	tagsValid := func(c *C, i interface{}) {
+	tagsValid := func(c *C, i interface{}, noYaml []string) {
 		st := reflect.TypeOf(i).Elem()
 		num := st.NumField()
 		for i := 0; i < num; i++ {
@@ -3624,7 +3625,13 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
 			if tagJSON == "-" {
 				continue
 			}
-			c.Check(tagYaml, Equals, tagJSON)
+			if strutil.ListContains(noYaml, st.Field(i).Name) {
+				c.Check(tagYaml, Equals, "-")
+				c.Check(tagJSON, Not(Equals), "")
+				c.Check(tagJSON, Not(Equals), "-")
+			} else {
+				c.Check(tagYaml, Equals, tagJSON)
+			}
 
 			// ensure we don't accidentally export fields
 			// without tags
@@ -3634,11 +3641,14 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoHasSameYamlAndJsonTags(c *C) {
 		}
 	}
 
-	tagsValid(c, &gadget.Volume{})
-	tagsValid(c, &gadget.VolumeStructure{})
-	tagsValid(c, &gadget.VolumeContent{})
-	tagsValid(c, &gadget.RelativeOffset{})
-	tagsValid(c, &gadget.VolumeUpdate{})
+	tagsValid(c, &gadget.Volume{}, nil)
+	// gadget.VolumeStructure.{Unencrypted,}Device is never part of
+	// Yaml so the test checks that the yaml tag is "-"
+	noYaml := []string{"Device", "UnencryptedDevice"}
+	tagsValid(c, &gadget.VolumeStructure{}, noYaml)
+	tagsValid(c, &gadget.VolumeContent{}, nil)
+	tagsValid(c, &gadget.RelativeOffset{}, nil)
+	tagsValid(c, &gadget.VolumeUpdate{}, nil)
 }
 
 func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeInternalFieldsNoJSON(c *C) {

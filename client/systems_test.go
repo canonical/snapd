@@ -254,6 +254,11 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
                     {"title": "recover", "mode": "recover"},
                     {"title": "reinstall", "mode": "install"}
                 ],
+                "storage-encryption": {
+                    "support":"available",
+                    "storage-safety":"prefer-encrypted",
+                    "encryption-type":"cryptsetup"
+                },
                 "volumes": {
                     "pc": {
                         "schema":"gpt",
@@ -284,6 +289,11 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
 		Actions: []client.SystemAction{
 			{Title: "recover", Mode: "recover"},
 			{Title: "reinstall", Mode: "install"},
+		},
+		StorageEncryption: &client.StorageEncryption{
+			Support:       "available",
+			StorageSafety: "prefer-encrypted",
+			Type:          "cryptsetup",
 		},
 		Volumes: map[string]*gadget.Volume{
 			"pc": {
@@ -331,39 +341,26 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 		"status-code": 202,
 		"change": "42"
 	}`
-	vols := map[string]*client.InstallVolume{
+	vols := map[string]*gadget.Volume{
 		"pc": {
-			Volume: &gadget.Volume{
-				Schema:     "dos",
-				Bootloader: "mbr",
-				ID:         "id",
-				// Note that name is not exported as json
-				Name: "pc",
-				// Note that this will be "shadowed"
-				// and not actually be visible, as it
-				// is more nested, see
-				// https://pkg.go.dev/encoding/json#Marshal
-				Structure: []gadget.VolumeStructure{
-					{
-						Name:  "we-do-not-not-see-this-name",
-						Label: "we-do-not-see-this-label",
-					},
-				},
-			},
-			Structure: []client.InstallVolumeStructure{
+			Schema:     "dos",
+			Bootloader: "mbr",
+			ID:         "id",
+			// Note that name is not exported as json
+			Name: "pc",
+			Structure: []gadget.VolumeStructure{
 				{
 					Device: "/dev/sda1",
-					VolumeStructure: &gadget.VolumeStructure{
-						Label:      "label",
-						Name:       "vol-name",
-						ID:         "id",
-						Size:       1234,
-						Type:       "type",
-						Filesystem: "fs",
-						Role:       "system-boot",
-						// not exported to json
-						VolumeName: "vol-name",
-					},
+
+					Label:      "label",
+					Name:       "vol-name",
+					ID:         "id",
+					Size:       1234,
+					Type:       "type",
+					Filesystem: "fs",
+					Role:       "system-boot",
+					// not exported to json
+					VolumeName: "vol-name",
 				},
 			},
 		},

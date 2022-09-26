@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,9 @@
  *
  */
 
-// Package restart implements requesting restarts from any part of the code that has access to state.
+// Package restart implements requesting restarts from any part of the
+// code that has access to state. It also implements a mimimal manager
+// to take care of restart state.
 package restart
 
 import (
@@ -57,31 +59,51 @@ type Handler interface {
 	RebootDidNotHappen(st *state.State) error
 }
 
-// Init initializes the support for restarts requests.
-// It takes the current boot id to track and verify reboots and a
-// Handler that handles the actual requests and reacts to reboot
-// happening.
-// It must be called with the state lock held.
-func Init(st *state.State, curBootID string, h Handler) error {
-	rs := &restartState{
+type restartManagerKey struct{}
+
+// RestartManager takes care of restart-related state.
+type RestartManager struct {
+	state      *state.State
+	restarting RestartType
+	h          Handler
+	bootID     string
+}
+
+// Manager returns a new restart manager and initializes the support
+// for restarts requests. It takes the current boot id to track and
+// verify reboots and a Handler that handles the actual requests and
+// reacts to reboot happening. It must be called with the state lock
+// held.
+func Manager(st *state.State, curBootID string, h Handler) (*RestartManager, error) {
+	rm := &RestartManager{
+		state:  st,
 		h:      h,
 		bootID: curBootID,
 	}
 	var fromBootID string
 	err := st.Get("system-restart-from-boot-id", &fromBootID)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
+		return nil, err
 	}
-	st.Cache(restartStateKey{}, rs)
+	st.Cache(restartManagerKey{}, rm)
+	if err := rm.init(fromBootID, curBootID); err != nil {
+		return nil, err
+	}
+	return rm, nil
+}
+
+func (rm *RestartManager) init(fromBootID, curBootID string) error {
 	if fromBootID == "" {
-		return rs.rebootAsExpected(st)
+		// We didn't need a reboot, it might have happened or
+		// not but things are fine in either case.
+		return rm.rebootAsExpected()
 	}
 	if fromBootID == curBootID {
-		return rs.rebootDidNotHappen(st)
+		return rm.rebootDidNotHappen()
 	}
 	// we rebooted alright
-	ClearReboot(st)
-	return rs.rebootAsExpected(st)
+	ClearReboot(rm.state)
+	return rm.rebootAsExpected()
 }
 
 // ClearReboot clears state information about tracking requested reboots.
@@ -89,76 +111,70 @@ func ClearReboot(st *state.State) {
 	st.Set("system-restart-from-boot-id", nil)
 }
 
-type restartStateKey struct{}
-
-type restartState struct {
-	restarting RestartType
-	h          Handler
-	bootID     string
+// Ensure implements StateManager.Ensure. Required by StateEngine, we
+// actually do nothing here.
+func (m *RestartManager) Ensure() error {
+	return nil
 }
 
-func (rs *restartState) handleRestart(t RestartType, rebootInfo *boot.RebootInfo) {
-	if rs.h != nil {
-		rs.h.HandleRestart(t, rebootInfo)
+func (rm *RestartManager) handleRestart(t RestartType, rebootInfo *boot.RebootInfo) {
+	if rm.h != nil {
+		rm.h.HandleRestart(t, rebootInfo)
 	}
 }
 
-func (rs *restartState) rebootAsExpected(st *state.State) error {
-	if rs.h != nil {
-		return rs.h.RebootAsExpected(st)
+func (rm *RestartManager) rebootAsExpected() error {
+	if rm.h != nil {
+		return rm.h.RebootAsExpected(rm.state)
 	}
 	return nil
 }
 
-func (rs *restartState) rebootDidNotHappen(st *state.State) error {
-	if rs.h != nil {
-		return rs.h.RebootDidNotHappen(st)
+func (rm *RestartManager) rebootDidNotHappen() error {
+	if rm.h != nil {
+		return rm.h.RebootDidNotHappen(rm.state)
 	}
 	return nil
+}
+
+func restartManager(st *state.State, errMsg string) *RestartManager {
+	cached := st.Cached(restartManagerKey{})
+	if cached == nil {
+		panic(errMsg)
+	}
+	return cached.(*RestartManager)
 }
 
 // Request asks for a restart of the managing process.
 // The state needs to be locked to request a restart.
 func Request(st *state.State, t RestartType, rebootInfo *boot.RebootInfo) {
-	cached := st.Cached(restartStateKey{})
-	if cached == nil {
-		panic("internal error: cannot request a restart before restart.Init")
-	}
-	rs := cached.(*restartState)
+	rm := restartManager(st, "internal error: cannot request a restart before RestartManager initialization")
 	switch t {
 	case RestartSystem, RestartSystemNow, RestartSystemHaltNow, RestartSystemPoweroffNow:
-		st.Set("system-restart-from-boot-id", rs.bootID)
+		st.Set("system-restart-from-boot-id", rm.bootID)
 	}
-	rs.restarting = t
-	rs.handleRestart(t, rebootInfo)
+	rm.restarting = t
+	rm.handleRestart(t, rebootInfo)
 }
 
 // Pending returns whether a restart was requested with Request and of which type.
 func Pending(st *state.State) (bool, RestartType) {
-	cached := st.Cached(restartStateKey{})
+	cached := st.Cached(restartManagerKey{})
 	if cached == nil {
 		return false, RestartUnset
 	}
-	rs := cached.(*restartState)
-	return rs.restarting != RestartUnset, rs.restarting
+	rm := cached.(*RestartManager)
+	return rm.restarting != RestartUnset, rm.restarting
 }
 
 func MockPending(st *state.State, restarting RestartType) RestartType {
-	cached := st.Cached(restartStateKey{})
-	if cached == nil {
-		panic("internal error: cannot mock a restart request before restart.Init")
-	}
-	rs := cached.(*restartState)
-	old := rs.restarting
-	rs.restarting = restarting
+	rm := restartManager(st, "internal error: cannot mock a restart request before RestartManager initialization")
+	old := rm.restarting
+	rm.restarting = restarting
 	return old
 }
 
 func ReplaceBootID(st *state.State, bootID string) {
-	cached := st.Cached(restartStateKey{})
-	if cached == nil {
-		panic("internal error: cannot mock a restart request before restart.Init")
-	}
-	rs := cached.(*restartState)
-	rs.bootID = bootID
+	rm := restartManager(st, "internal error: cannot mock a restart request before RestartManager initialization")
+	rm.bootID = bootID
 }

@@ -979,10 +979,12 @@ suites:
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
+            # Add snapd debug and log to serial console
+            NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
             # Generic imane name which has to be overwritten in the test
             NESTED_IMAGE_ID: "unset"
             # Configuration file used for remote tools
-            REMOTE_CFG_FILE: "$SPREAD_PATH/remote.setup.cfg"
+            REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
@@ -1035,7 +1037,7 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
             # Configuration file used for remote tools
-            REMOTE_CFG_FILE: "$SPREAD_PATH/remote.setup.cfg"
+            REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -1086,8 +1088,10 @@ suites:
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
+            # Add snapd debug and log to serial console
+            NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
             # Configuration file used for remote tools
-            REMOTE_CFG_FILE: "$SPREAD_PATH/remote.setup.cfg"
+            REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh

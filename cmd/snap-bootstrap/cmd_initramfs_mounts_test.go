@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -455,9 +456,9 @@ func notFoundPart() secboot.UnlockResult {
 // makeSnapFilesOnEarlyBootUbuntuData creates the snap files on ubuntu-data as
 // we
 func (s *baseInitramfsMountsSuite) makeSnapFilesOnEarlyBootUbuntuData(c *C, snaps ...snap.PlaceInfo) {
-	snapDir := dirs.SnapBlobDirUnder(boot.InitramfsWritableDir)
+	snapDir := dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	if s.isClassic {
-		snapDir = dirs.SnapBlobDirUnder(boot.InitramfsDataDir)
+		snapDir = dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"))
 	}
 	err := os.MkdirAll(snapDir, 0755)
 	c.Assert(err, IsNil)
@@ -609,9 +610,9 @@ func (s *baseInitramfsMountsSuite) makeRunSnapSystemdMount(typ snap.Type, sn sna
 		dir = "kernel"
 	}
 
-	snapDir := boot.InitramfsWritableDir
+	snapDir := filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")
 	if s.isClassic {
-		snapDir = boot.InitramfsDataDir
+		snapDir = filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/")
 	}
 	mnt.what = filepath.Join(dirs.SnapBlobDirUnder(snapDir), sn.Filename())
 	mnt.where = filepath.Join(boot.InitramfsRunMntDir, dir)
@@ -672,7 +673,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
+	modeEnv := dirs.SnapModeenvFileUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
 base=core20_1.snap
@@ -680,7 +681,7 @@ gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
-	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	cloudInitDisable := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(cloudInitDisable, testutil.FilePresent)
 
 	c.Check(sealedKeysLocked, Equals, true)
@@ -809,7 +810,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
 			CurrentKernels: []string{s.kernel.Filename()},
 			BootFlags:      t.bootFlags,
 		}
-		err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+		err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 		c.Assert(err, IsNil)
 
 		_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -923,7 +924,7 @@ defaults:
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
+	modeEnv := dirs.SnapModeenvFileUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
 base=core20_1.snap
@@ -932,17 +933,17 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	cloudInitDisable := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(cloudInitDisable, testutil.FilePresent)
 
 	// check that everything from the gadget defaults was setup
-	c.Assert(osutil.FileExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/var/lib/console-conf/complete")), Equals, true)
-	exists, _, _ := osutil.DirExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/var/log/journal"))
+	c.Assert(osutil.FileExists(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/var/lib/console-conf/complete")), Equals, true)
+	exists, _, _ := osutil.DirExists(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/var/log/journal"))
 	c.Assert(exists, Equals, true)
 
 	// systemctl was called the way we expect
-	c.Assert(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(boot.InitramfsWritableDir, "_writable_defaults"), "mask", "rsyslog.service"}})
+	c.Assert(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults"), "mask", "rsyslog.service"}})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartitionUUIDHappy(c *C) {
@@ -974,7 +975,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 
-	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
+	modeEnv := dirs.SnapModeenvFileUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
 base=core20_1.snap
@@ -982,7 +983,7 @@ gadget=pc_1.snap
 model=my-brand/my-model
 grade=signed
 `)
-	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	cloudInitDisable := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(cloudInitDisable, testutil.FilePresent)
 }
 
@@ -1027,7 +1028,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHapp
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
-	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -1074,7 +1075,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMount(c *C
 		Base:           s.core20.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
-	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -1165,7 +1166,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 				modeEnv.RecoverySystem = "20191118"
 			}
 
-			err = modeEnv.WriteTo(boot.InitramfsWritableDir)
+			err = modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 			c.Assert(err, IsNil, comment)
 
 			_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -1226,7 +1227,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeNoSaveUnencrypted(c *C)
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
-	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -1363,7 +1364,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 		Base:           s.core20.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
-	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -1543,7 +1544,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 		Base:           s.core20.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
-	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	s.testRecoverModeHappy(c)
@@ -1709,7 +1710,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSy
 		Base:           s.core20.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
-	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	s.testRecoverModeHappy(c)
@@ -1901,7 +1902,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
-	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -1962,7 +1963,7 @@ Wants=%[1]s
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
-			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.core20.Filename()),
+			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.core20.Filename()),
 			baseMnt,
 			"--no-pager",
 			"--no-ask-password",
@@ -1971,7 +1972,7 @@ Wants=%[1]s
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
-			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.gadget.Filename()),
+			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.gadget.Filename()),
 			gadgetMnt,
 			"--no-pager",
 			"--no-ask-password",
@@ -1980,7 +1981,7 @@ Wants=%[1]s
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
-			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.kernel.Filename()),
+			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.kernel.Filename()),
 			kernelMnt,
 			"--no-pager",
 			"--no-ask-password",
@@ -2037,7 +2038,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystem
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
-	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -2106,7 +2107,7 @@ Wants=%[1]s
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
-			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.core20.Filename()),
+			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.core20.Filename()),
 			baseMnt,
 			"--no-pager",
 			"--no-ask-password",
@@ -2115,7 +2116,7 @@ Wants=%[1]s
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
-			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.gadget.Filename()),
+			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.gadget.Filename()),
 			gadgetMnt,
 			"--no-pager",
 			"--no-ask-password",
@@ -2124,7 +2125,7 @@ Wants=%[1]s
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
-			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.kernel.Filename()),
+			filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")), s.kernel.Filename()),
 			kernelMnt,
 			"--no-pager",
 			"--no-ask-password",
@@ -2179,7 +2180,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
-	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -2236,7 +2237,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
-	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -2308,7 +2309,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsWritableDir, "foo", "marker")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "foo", "marker")
 	s.mockUbuntuSaveMarker(c, boot.InitramfsUbuntuSaveDir, "marker")
 
 	saveActivated := false
@@ -2359,7 +2360,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
-	err = modeEnv.WriteTo(boot.InitramfsWritableDir)
+	err = modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -2560,7 +2561,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 		Base:           s.core20.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
-	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -2607,7 +2608,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnl
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsWritableDir, "foo", "")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "foo", "")
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		c.Check(dataActivated, Equals, true, Commentf("ubuntu-data not yet activated"))
 		return foundEncrypted("ubuntu-save"), fmt.Errorf("ubuntu-save unlock fail")
@@ -2638,7 +2639,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnl
 		Base:           s.core20.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
-	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -3048,7 +3049,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		c.Assert(err, IsNil, comment)
 
 		// write the initial modeenv
-		err = t.modeenv.WriteTo(boot.InitramfsWritableDir)
+		err = t.modeenv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 		c.Assert(err, IsNil, comment)
 
 		// make the snap files - no restore needed because we use a unique root
@@ -3067,7 +3068,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 
 				// check the resultant modeenv
 				// if the expModeenv is nil, we just compare to the start
-				newModeenv, err := boot.ReadModeenv(boot.InitramfsWritableDir)
+				newModeenv, err := boot.ReadModeenv(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 				c.Assert(err, IsNil, comment)
 				m := t.modeenv
 				if t.expModeenv != nil {
@@ -3130,7 +3131,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeUpdateBootloaderVars(
 		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename(), s.kernelr2.Filename()},
 	}
-	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -3500,16 +3501,16 @@ defaults:
 	// we should not have written a degraded.json
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
 
-	c.Assert(osutil.FileExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/etc/cloud/cloud-init.disabled")), Equals, true)
 
 	// check that everything from the gadget defaults was setup
-	c.Assert(osutil.FileExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
-	c.Assert(osutil.FileExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/var/lib/console-conf/complete")), Equals, true)
-	exists, _, _ := osutil.DirExists(filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/var/log/journal"))
+	c.Assert(osutil.FileExists(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
+	c.Assert(osutil.FileExists(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/var/lib/console-conf/complete")), Equals, true)
+	exists, _, _ := osutil.DirExists(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults/var/log/journal"))
 	c.Assert(exists, Equals, true)
 
 	// systemctl was called the way we expect
-	c.Assert(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(boot.InitramfsWritableDir, "_writable_defaults"), "mask", "rsyslog.service"}})
+	c.Assert(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "_writable_defaults"), "mask", "rsyslog.service"}})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPartitionUUID(c *C) {
@@ -3623,7 +3624,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "marker")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "marker")
 	s.mockUbuntuSaveMarker(c, boot.InitramfsUbuntuSaveDir, "marker")
 
 	saveActivated := false
@@ -3783,7 +3784,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "marker")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "marker")
 	s.mockUbuntuSaveMarker(c, boot.InitramfsUbuntuSaveDir, "marker")
 
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
@@ -3961,7 +3962,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "marker")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "marker")
 	s.mockUbuntuSaveMarker(c, boot.InitramfsUbuntuSaveDir, "marker")
 
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
@@ -4132,7 +4133,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "marker")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "marker")
 	s.mockUbuntuSaveMarker(c, boot.InitramfsUbuntuSaveDir, "marker")
 
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
@@ -4295,7 +4296,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "marker")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "marker")
 	s.mockUbuntuSaveMarker(c, boot.InitramfsUbuntuSaveDir, "marker")
 
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
@@ -4468,7 +4469,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "")
 
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		// nothing can call this function in the tested scenario
@@ -4538,7 +4539,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 	// we always need to lock access to sealed keys
 	c.Check(sealedKeysLocked, Equals, true)
 
-	modeEnv := filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/modeenv")
+	modeEnv := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
 base=core20_1.snap
@@ -4658,7 +4659,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataU
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "")
 
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		// nothing can call this function in the tested scenario
@@ -4728,7 +4729,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataU
 	// we always need to lock access to sealed keys
 	c.Check(sealedKeysLocked, Equals, true)
 
-	modeEnv := filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/modeenv")
+	modeEnv := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
 base=core20_1.snap
@@ -4849,7 +4850,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "")
 
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		// nothing can call this function in the tested scenario
@@ -4995,7 +4996,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "")
 
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		// nothing can call this function in the tested scenario
@@ -5119,7 +5120,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnen
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "")
 
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		// nothing can call this function in the tested scenario
@@ -5258,7 +5259,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "")
 
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		// nothing can call this function in the tested scenario
@@ -5328,7 +5329,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 	// we always need to lock access to sealed keys
 	c.Check(sealedKeysLocked, Equals, true)
 
-	modeEnv := filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/modeenv")
+	modeEnv := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
 base=core20_1.snap
@@ -5464,7 +5465,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "")
 
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
 		// nothing can call this function in the tested scenario
@@ -5627,7 +5628,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "other-marker")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "other-marker")
 	s.mockUbuntuSaveMarker(c, boot.InitramfsUbuntuSaveDir, "marker")
 
 	saveActivated := false
@@ -5709,7 +5710,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 	// we always need to lock access to sealed keys
 	c.Check(sealedKeysLocked, Equals, true)
 
-	modeEnv := filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/modeenv")
+	modeEnv := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"), "var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
 base=core20_1.snap
@@ -5842,7 +5843,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 	})
 	defer restore()
 
-	s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "marker")
+	s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "marker")
 	s.mockUbuntuSaveMarker(c, boot.InitramfsUbuntuSaveDir, "marker")
 
 	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
@@ -6050,7 +6051,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeMeasure(c *C) {
 	s.testInitramfsMountsInstallRecoverModeMeasure(c, "recover")
 }
 
-func (s *initramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, triedSystem bool) (err error) {
+func (s *baseInitramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, triedSystem bool) (err error) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover  snapd_recovery_system="+s.sysLabel)
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
@@ -6107,7 +6108,7 @@ func (s *initramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, tr
 	return err
 }
 
-func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryHappy(c *C, happyStatus string) {
+func (s *baseInitramfsMountsSuite) testInitramfsMountsTryRecoveryHappy(c *C, happyStatus string) {
 	rebootCalls := 0
 	restore := boot.MockInitramfsReboot(func() error {
 		rebootCalls++
@@ -6124,7 +6125,12 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryHappy(c *C, happySt
 	defer bootloader.Force(nil)
 
 	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
-	mockedState := filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
+	var mockedState string
+	if s.isClassic {
+		mockedState = filepath.Join(hostUbuntuData, "var/lib/snapd/state.json")
+	} else {
+		mockedState = filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
+	}
 	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0750), IsNil)
 	c.Assert(ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
 
@@ -6135,7 +6141,12 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryHappy(c *C, happySt
 	c.Assert(err, ErrorMatches, `finalize try recovery system did not reboot, last error: <nil>`)
 
 	// modeenv is not written as reboot happens before that
-	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
+	var modeEnv string
+	if s.isClassic {
+		modeEnv = dirs.SnapModeenvFileUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"))
+	} else {
+		modeEnv = dirs.SnapModeenvFileUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
+	}
 	c.Check(modeEnv, testutil.FileAbsent)
 	c.Check(bl.BootVars, DeepEquals, map[string]string{
 		"recovery_system_status": "tried",
@@ -6278,7 +6289,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDifferentSystem(c *
 	c.Assert(err, IsNil)
 
 	// modeenv is written as we will seed the recovery system
-	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
+	modeEnv := dirs.SnapModeenvFileUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
 base=core20_1.snap
@@ -6358,7 +6369,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expe
 		})
 	}
 	if !missingSaveKey {
-		s.mockUbuntuSaveKeyAndMarker(c, boot.InitramfsHostWritableDir, "foo", "marker")
+		s.mockUbuntuSaveKeyAndMarker(c, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"), "foo", "marker")
 	}
 
 	restore = disks.MockMountPointDisksToPartitionMapping(mountMappings)
@@ -6532,7 +6543,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHealthCheckFails(c 
 	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0750), IsNil)
 	c.Assert(ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
 
-	restore = main.MockTryRecoverySystemHealthCheck(func() error {
+	restore = main.MockTryRecoverySystemHealthCheck(func(gadget.Model) error {
 		return fmt.Errorf("mock failure")
 	})
 	defer restore()
@@ -7615,4 +7626,12 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHap
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "run-model-measured"), testutil.FilePresent)
+}
+
+func (s *initramfsClassicMountsSuite) TestInitramfsMountsTryRecoveryHappyTry(c *C) {
+	s.testInitramfsMountsTryRecoveryHappy(c, "try")
+}
+
+func (s *initramfsClassicMountsSuite) TestInitramfsMountsTryRecoveryHappyTried(c *C) {
+	s.testInitramfsMountsTryRecoveryHappy(c, "tried")
 }
