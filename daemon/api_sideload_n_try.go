@@ -154,6 +154,13 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 		return trySnap(c.d.overlord.State(), form.Values["snap-path"][0], flags)
 	}
 
+	if len(form.Values["quota-group"]) > 0 {
+		if len(form.Values["quota-group"]) != 1 {
+			return BadRequest("too many names provided for 'quota-group' option")
+		}
+		flags.QuotaGroupName = form.Values["quota-group"][0]
+	}
+
 	flags.RemoveSnapPath = true
 	flags.Unaliased = isTrue(form, "unaliased")
 	flags.IgnoreRunning = isTrue(form, "ignore-running")

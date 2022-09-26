@@ -987,10 +987,6 @@ slots:
 	expectedMnt := []osutil.MountEntry{{
 		Name:    "/var/snap/producer/2/directory",
 		Dir:     "/var/snap/consumer/common/import/directory",
-		Options: []string{"bind", "ro"},
-	}, {
-		Name:    "/var/snap/producer/2/directory",
-		Dir:     "/var/snap/consumer/common/import/directory-2",
 		Options: []string{"bind"},
 	}}
 	c.Assert(mountSpec.MountEntries(), DeepEquals, expectedMnt)

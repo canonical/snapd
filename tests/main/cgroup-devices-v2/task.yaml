@@ -8,9 +8,7 @@ systems:
   - -ubuntu-16.04-*
   - -ubuntu-18.04-*
   - -ubuntu-20.04-*
-  - -ubuntu-21.04-*
   - -ubuntu-core-*
-  - -debian-9-*
   - -debian-10-*
   - -centos-7-*
   - -centos-8-*
@@ -27,9 +25,27 @@ prepare: |
     fi
 
 restore: |
+    systemctl stop snap.test-snapd-service.test-snapd-service.service
+    rm -f /sys/fs/bpf/snap/snap_test-snapd-service_sh
     tests.session -u test restore
     if test -f enforcing.mode; then
         setenforce "$(cat enforcing.mode)"
+    fi
+
+debug: |
+    if test -f "cgroup_device.progs-1" -a -f "cgroup_device.progs-2"; then
+        echo "cgroup devices before:"
+        cat "cgroup_device.progs-1"
+        echo "cgroup devices after installation:"
+        cat "cgroup_device.progs-2"
+    fi
+    if test -f "cgroup_device.progs-3"; then
+        echo "cgroup devices after connecting the interface:"
+        cat "cgroup_device.progs-3"
+    fi
+    if test -f "cgroup_device.progs-4"; then
+        echo "cgroup devices after restarting the service:"
+        cat "cgroup_device.progs-4"
     fi
 
 execute: |

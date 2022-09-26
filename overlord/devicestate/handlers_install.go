@@ -250,6 +250,10 @@ func writeTimings(st *state.State, rootdir, fromMode string) error {
 	return nil
 }
 
+func (m *DeviceManager) doSetupUbuntuSave(t *state.Task, _ *tomb.Tomb) error {
+	return m.setupUbuntuSave()
+}
+
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -373,6 +377,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
+
 	return nil
 }
 
@@ -503,72 +508,6 @@ func saveKeys(keyForRole map[string]keys.EncryptionKey) error {
 		return fmt.Errorf("cannot store system save key: %v", err)
 	}
 	return nil
-}
-
-var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
-
-// checkEncryption verifies whether encryption should be used based on the
-// model grade and the availability of a TPM device or a fde-setup hook
-// in the kernel.
-func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res secboot.EncryptionType, err error) {
-	model := deviceCtx.Model()
-	secured := model.Grade() == asserts.ModelSecured
-	dangerous := model.Grade() == asserts.ModelDangerous
-	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
-
-	// check if we should disable encryption non-secured devices
-	// TODO:UC20: this is not the final mechanism to bypass encryption
-	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
-		return res, nil
-	}
-
-	// check if the model prefers to be unencrypted
-	// TODO: provide way to select via install chooser menu
-	//       if the install is unencrypted or encrypted
-	if model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
-		logger.Noticef(`installing system unencrypted to comply with prefer-unencrypted storage-safety model option`)
-		return res, nil
-	}
-
-	// check if encryption is available
-	var (
-		hasFDESetupHook    bool
-		checkEncryptionErr error
-	)
-	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
-		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
-			res, checkEncryptionErr = m.checkFDEFeatures()
-		}
-	}
-	// Note that having a fde-setup hook will disable the build-in
-	// secboot encryption
-	if !hasFDESetupHook {
-		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
-		if checkEncryptionErr == nil {
-			res = secboot.EncryptionTypeLUKS
-		}
-	}
-
-	// check if encryption is required
-	if checkEncryptionErr != nil {
-		if secured {
-			return res, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
-		}
-		if encrypted {
-			return res, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
-		}
-
-		if hasFDESetupHook {
-			logger.Noticef("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
-		} else {
-			logger.Noticef("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
-		}
-
-		// not required, go without
-		return res, nil
-	}
-
-	return res, nil
 }
 
 // RebootOptions can be attached to restart-system-to-run-mode tasks to control
@@ -1241,4 +1180,47 @@ func rotateEncryptionKeys() error {
 		return fmt.Errorf("cannot transition the encryption key: %v", err)
 	}
 	return nil
+}
+
+func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var systemLabel string
+	if err := t.Get("system-label", &systemLabel); err != nil {
+		return err
+	}
+	var onVolumes map[string]*gadget.Volume
+	if err := t.Get("on-volumes", &onVolumes); err != nil {
+		return err
+	}
+	logger.Debugf("install-finish for %q on %v", systemLabel, onVolumes)
+	// TODO: use the seed to get gadget/kernel
+	// - install missing volumes structure content
+	// - install gadget assets
+	// - install kenrel
+	// - make system bootable (include writing modeenv)
+
+	return fmt.Errorf("finish install step not implemented yet")
+}
+
+func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var systemLabel string
+	if err := t.Get("system-label", &systemLabel); err != nil {
+		return err
+	}
+	var onVolumes map[string]*gadget.Volume
+	if err := t.Get("on-volumes", &onVolumes); err != nil {
+		return err
+	}
+	logger.Debugf("install-setup-storage-encyption for %q on %v", systemLabel, onVolumes)
+	// TODO: find device with role system-{data,seed} and setup
+	// storage encryption
+
+	return fmt.Errorf("setup storage encryption step not implemented yet")
 }

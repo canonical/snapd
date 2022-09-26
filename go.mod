@@ -2,6 +2,9 @@ module github.com/snapcore/snapd
 
 go 1.13
 
+// maze.io/x/crypto/afis imported by github.com/snapcore/secboot/tpm2
+replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066
+
 require (
 	github.com/canonical/go-efilib v0.0.0-20210909101908-41435fa545d4 // indirect
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
@@ -20,17 +23,18 @@ require (
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
 	github.com/snapcore/bolt v1.3.2-0.20210908134111-63c8bfcf7af8
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
-	github.com/snapcore/secboot v0.0.0-20211018143212-802bb19ca263
-	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/sys v0.0.0-20210908233432-aa78b53d3365
-	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
+	github.com/snapcore/secboot v0.0.0-20220905094328-6a625ee231d3
+	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
+	golang.org/x/net v0.0.0-20220826154423-83b083e8dc8b // indirect
+	golang.org/x/sys v0.0.0-20220829200755-d48e67d00261
+	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/macaroon.v1 v1.0.0-20150121114231-ab3940c6c165
 	gopkg.in/mgo.v2 v2.0.0-20180704144907-a7e2c1d573e1
 	gopkg.in/retry.v1 v1.0.3
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 	gopkg.in/tylerb/graceful.v1 v1.2.15
-	gopkg.in/yaml.v2 v2.3.0
+	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 // indirect
 )

@@ -50,11 +50,11 @@ func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, model *assert
 	}
 
 	// cross checks
-	signedProv, err := snapasserts.CrossCheck(info.InstanceName(), sha3_384, expectedProv, size, &info.SideInfo, model, db)
+	verifiedRev, err := snapasserts.CrossCheck(info.InstanceName(), sha3_384, expectedProv, size, &info.SideInfo, model, db)
 	if err != nil {
 		return nil, err
 	}
-	if err := snapasserts.CheckProvenance(snapPath, signedProv); err != nil {
+	if err := snapasserts.CheckProvenanceWithVerifiedRevision(snapPath, verifiedRev); err != nil {
 		return nil, err
 	}
 
@@ -85,8 +85,12 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 	}
 	targetDir := filepath.Join(fullPrepareDir, "resolved-content")
 
+	opts := &gadget.LayoutOptions{
+		GadgetRootDir: gadgetUnpackDir,
+		KernelRootDir: kernelUnpackDir,
+	}
 	for volName, vol := range info.Volumes {
-		pvol, err := gadget.LayoutVolume(gadgetUnpackDir, kernelUnpackDir, vol, gadget.DefaultConstraints)
+		pvol, err := gadget.LayoutVolume(vol, gadget.DefaultConstraints, opts)
 		if err != nil {
 			return err
 		}

@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -211,10 +210,9 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 	return total, nil
 }
 
-func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valsets []string, requiredRevision snap.Revision) {
+func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valsets []snapasserts.ValidationSetKey, requiredRevision snap.Revision) {
 	for _, vs := range valsets {
-		keyParts := strings.Split(vs, "/")
-		action.ValidationSets = append(action.ValidationSets, keyParts)
+		action.ValidationSets = append(action.ValidationSets, vs)
 	}
 	if !requiredRevision.Unset() {
 		action.Revision = requiredRevision
@@ -250,7 +248,7 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 	}
 
 	var requiredRevision snap.Revision
-	var requiredValSets []string
+	var requiredValSets []snapasserts.ValidationSetKey
 
 	if !flags.IgnoreValidation {
 		if len(revOpts.ValidationSets) > 0 {
@@ -271,7 +269,7 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 					} // else presence is optional or required, carry on
 				}
 				if len(invalidForValSets) > 0 {
-					return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, strings.Join(invalidForValSets, ","))
+					return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, snapasserts.ValidationSetKeySlice(invalidForValSets).CommaSeparated())
 				}
 				requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
 				if err != nil {
@@ -282,7 +280,7 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 			// check if desired revision matches the revision required by validation sets
 			if !requiredRevision.Unset() && !revOpts.Revision.Unset() && revOpts.Revision.N != requiredRevision.N {
 				return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q at requested revision %s without --ignore-validation, revision %s required by validation sets: %s",
-					name, revOpts.Revision, requiredRevision, strings.Join(requiredValSets, ","))
+					name, revOpts.Revision, requiredRevision, snapasserts.ValidationSetKeySlice(requiredValSets).CommaSeparated())
 			}
 		}
 	}
@@ -352,7 +350,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 	}
 
 	var requiredRevision snap.Revision
-	var requiredValsets []string
+	var requiredValsets []snapasserts.ValidationSetKey
 
 	if !flags.IgnoreValidation {
 		enforcedSets, err := EnforcedValidationSets(st)
@@ -366,7 +364,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 			}
 			if !requiredRevision.Unset() && snapst.Current == requiredRevision {
 				logger.Debugf("snap %q is already at the revision %s required by validation sets: %s, skipping",
-					curInfo.InstanceName(), snapst.Current, strings.Join(requiredValsets, ","))
+					curInfo.InstanceName(), snapst.Current, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
 				return nil, store.ErrNoUpdateAvailable
 			}
 			if len(requiredValsets) > 0 {
@@ -483,7 +481,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revOpts *RevisionO
 	}
 
 	var requiredRevision snap.Revision
-	var requiredValsets []string
+	var requiredValsets []snapasserts.ValidationSetKey
 
 	var storeFlags store.SnapActionFlags
 	if !flags.IgnoreValidation {
@@ -503,7 +501,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revOpts *RevisionO
 				if !requiredRevision.Unset() {
 					if revOpts.Revision != requiredRevision {
 						return nil, fmt.Errorf("cannot update snap %q to revision %s without --ignore-validation, revision %s is required by validation sets: %s",
-							curInfo.InstanceName(), revOpts.Revision, requiredRevision, strings.Join(requiredValsets, ","))
+							curInfo.InstanceName(), revOpts.Revision, requiredRevision, snapasserts.ValidationSetKeySlice(requiredValsets).CommaSeparated())
 					}
 					// note, not checking if required revision matches snapst.Current because
 					// this is already indirectly prevented by infoForUpdate().
@@ -596,7 +594,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 	return curSnaps, nil
 }
 
-func refreshCandidates(ctx context.Context, st *state.State, names []string, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
+func refreshCandidates(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
 	snapStates, err := All(st)
 	if err != nil {
 		return nil, nil, nil, err
@@ -629,9 +627,21 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	ignoreValidationByInstanceName := make(map[string]bool)
 	nCands := 0
 
-	enforcedSets, err := EnforcedValidationSets(st)
-	if err != nil {
-		return nil, nil, nil, err
+	var enforcedSets *snapasserts.ValidationSets
+	var revOptsByName map[string]*RevisionOptions
+
+	// if refreshing to specific revision to enforce a new validation set, we've
+	// already checked against other enforced sets
+	if revOpts == nil {
+		enforcedSets, err = EnforcedValidationSets(st)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	} else {
+		revOptsByName = make(map[string]*RevisionOptions, len(revOpts))
+		for i, opts := range revOpts {
+			revOptsByName[names[i]] = opts
+		}
 	}
 
 	addCand := func(installed *store.CurrentSnap, snapst *SnapState) error {
@@ -657,8 +667,14 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		}
 
 		if !snapst.IgnoreValidation {
-			if enforcedSets != nil {
-				requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(installed.InstanceName))
+			var requiredValsets []snapasserts.ValidationSetKey
+			var requiredRevision snap.Revision
+
+			if revOpts != nil {
+				opts := revOptsByName[installed.InstanceName]
+				requiredValsets, requiredRevision = opts.ValidationSets, opts.Revision
+			} else if enforcedSets != nil {
+				requiredValsets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(installed.InstanceName))
 				// note, this errors out the entire refresh
 				if err != nil {
 					return err
@@ -668,9 +684,10 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 				if !requiredRevision.Unset() && installed.Revision == requiredRevision {
 					return nil
 				}
-				if len(requiredValsets) > 0 {
-					setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
-				}
+			}
+
+			if len(requiredValsets) > 0 {
+				setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
 			}
 		}
 
@@ -756,7 +773,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	return updates, stateByInstanceName, ignoreValidationByInstanceName, nil
 }
 
-func installCandidates(st *state.State, names []string, channel string, user *auth.UserState) ([]store.SnapActionResult, error) {
+func installCandidates(st *state.State, names []string, revOpts []*RevisionOptions, channel string, user *auth.UserState) ([]store.SnapActionResult, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return nil, err
@@ -767,9 +784,14 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 		return nil, err
 	}
 
-	enforcedSets, err := EnforcedValidationSets(st)
-	if err != nil {
-		return nil, err
+	// if installing a specific revision, we may be trying to enforce a validation
+	// set so don't check against current ones.
+	var enforcedSets *snapasserts.ValidationSets
+	if revOpts == nil {
+		enforcedSets, err = EnforcedValidationSets(st)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	actions := make([]*store.SnapAction, len(names))
@@ -781,7 +803,13 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 			Channel: channel,
 		}
 
-		if enforcedSets != nil {
+		var requiredValSets []snapasserts.ValidationSetKey
+		var requiredRevision snap.Revision
+
+		if revOpts != nil {
+			requiredValSets = revOpts[i].ValidationSets
+			requiredRevision = revOpts[i].Revision
+		} else if enforcedSets != nil {
 			// check for invalid presence first to have a list of sets where it's invalid
 			invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
 			if err != nil {
@@ -789,17 +817,20 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 					return nil, err
 				} // else presence is optional or required, carry on
 			}
+
 			if len(invalidForValSets) > 0 {
-				return nil, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, strings.Join(invalidForValSets, ","))
+				return nil, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, snapasserts.ValidationSetKeySlice(invalidForValSets).CommaSeparated())
 			}
-			requiredValSets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(name))
+			requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
 			if err != nil {
 				return nil, err
 			}
-			if len(requiredValSets) > 0 {
-				setActionValidationSetsAndRequiredRevision(action, requiredValSets, requiredRevision)
-			}
 		}
+
+		if len(requiredValSets) > 0 {
+			setActionValidationSetsAndRequiredRevision(action, requiredValSets, requiredRevision)
+		}
+
 		actions[i] = action
 	}
 

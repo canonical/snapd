@@ -41,7 +41,7 @@ import (
 
 var (
 	uc16Model = &gadgettest.ModelCharacteristics{}
-	uc20Model = &gadgettest.ModelCharacteristics{SystemSeed: true}
+	uc20Model = &gadgettest.ModelCharacteristics{HasModes: true}
 )
 
 type updateTestSuite struct {
@@ -4306,8 +4306,9 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMul
 
 	allLaidOutVolumes := map[string]*gadget.LaidOutVolume{}
 
+	opts := &gadget.LayoutOptions{GadgetRootDir: gadgetRoot}
 	for volName, vol := range info.Volumes {
-		lvol, err := gadget.LayoutVolume(gadgetRoot, "", vol, constraints)
+		lvol, err := gadget.LayoutVolume(vol, constraints, opts)
 		c.Assert(err, IsNil)
 		allLaidOutVolumes[volName] = lvol
 	}

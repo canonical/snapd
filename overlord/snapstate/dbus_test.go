@@ -280,7 +280,7 @@ func (s *snapmgrTestSuite) TestInstallManyDBusActivationConflicts(c *C) {
 	tr.Commit()
 
 	snapNames := []string{"some-snap", "other-snap"}
-	_, tss, err := snapstate.InstallMany(s.state, snapNames, s.user.ID, nil)
+	_, tss, err := snapstate.InstallMany(s.state, snapNames, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("install", "install two snaps")

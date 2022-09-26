@@ -657,7 +657,7 @@ func (s *appsSuite) TestLogs(c *check.C) {
 	c.Check(s.jctlNamespaces, check.DeepEquals, []bool{false})
 
 	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json-seq")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json-seq")
 	c.Check(rec.Body.String(), check.Equals, `
 {"timestamp":"1970-01-01T00:00:00.000042Z","message":"hello1","sid":"xyzzy","pid":"42"}
 {"timestamp":"1970-01-01T00:00:00.000044Z","message":"hello2","sid":"xyzzy","pid":"42"}

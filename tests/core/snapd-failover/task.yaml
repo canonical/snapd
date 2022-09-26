@@ -30,16 +30,16 @@ restore: |
 
 debug: |
     # dump failure data
-    journalctl -u snapd.failure.service
-    journalctl -u snapd.socket || true
+    "$TESTSTOOLS"/journal-state get-log -u snapd.failure.service
+    "$TESTSTOOLS"/journal-state get-log -u snapd.socket
     if os.query is-core16; then
         # might be useful to know what's up with the core snap too on uc16
-        ls -l /snap/core/
+        ls -l /snap/core/ || true
     fi
-    ls -l /snap/snapd/
+    ls -l /snap/snapd/ || true
 
-    cat /etc/systemd/system/snapd.service
-    cat /etc/systemd/system/usr-lib-snapd.mount
+    cat /etc/systemd/system/snapd.service || true
+    cat /etc/systemd/system/usr-lib-snapd.mount || true
     /snap/snapd/x1/usr/bin/snap debug state /var/lib/snapd/state.json || true
     /snap/snapd/x1/usr/bin/snap debug state --change="$(/snap/snapd/x1/usr/bin/snap debug state /var/lib/snapd/state.json|tail -n1|awk '{print $1}')" /var/lib/snapd/state.json || true
 

@@ -17,21 +17,21 @@ execute: |
     fi
 
     echo "Install test snap"
-    tests.nested exec "sudo snap install test-snapd-sh"
+    remote.exec "sudo snap install test-snapd-sh"
 
     echo "Ensure we have a good starting place"
-    tests.nested exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
+    remote.exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
 
     echo "Go to known good starting place"
-    tests.nested exec "snap download core --${NESTED_CORE_CHANNEL}"
-    tests.nested exec "sudo snap ack core_*.assert"
-    tests.nested exec "sudo snap install core_*.snap"
+    remote.exec "snap download core --${NESTED_CORE_CHANNEL}"
+    remote.exec "sudo snap ack core_*.assert"
+    remote.exec "sudo snap install core_*.snap"
 
     echo "Check the initial core is installed and snaps can be executed"
     test "$(tests.nested snap-rev core)" = "${INITIAL_REV}"
 
     echo "Ensure test-snapd-sh works"
-    tests.nested exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
+    remote.exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
 
     echo "Refresh core snap to $NESTED_CORE_REFRESH_CHANNEL"
     refresh_to_new_core "$NESTED_CORE_REFRESH_CHANNEL"
@@ -40,10 +40,10 @@ execute: |
     test "$(tests.nested snap-rev core)" = "${NEW_REV}"
 
     echo "Ensure test-snapd-sh works"
-    tests.nested exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
+    remote.exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
 
     echo "Revert core"
-    tests.nested exec "sudo snap revert core" || true
+    remote.exec "sudo snap revert core" || true
     tests.nested wait-for no-ssh
     nested_tests.nested wait-for ssh
 
@@ -51,4 +51,4 @@ execute: |
     test "$(tests.nested snap-rev core)" = "${INITIAL_REV}"
 
     echo "Ensure test-snapd-sh works"
-    tests.nested exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
+    remote.exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello

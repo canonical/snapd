@@ -26,7 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
-	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 
 	// to set ApplyFilesystemOnlyDefaults hook
@@ -113,8 +113,8 @@ defaults:
 	})
 	defer systemctlRestorer()
 
-	journalPath := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/var/log/journal")
-	sshDontRunFile := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")
+	journalPath := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/var/log/journal")
+	sshDontRunFile := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/etc/ssh/sshd_not_to_be_run")
 
 	// validity
 	c.Check(osutil.FileExists(sshDontRunFile), Equals, false)
@@ -122,7 +122,7 @@ defaults:
 	c.Check(exists, Equals, false)
 
 	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
-		TargetRootDir: boot.InstallHostWritableDir,
+		TargetRootDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 		GadgetDir:     snapInfo.MountDir(),
 	})
 	c.Assert(err, IsNil)
@@ -131,7 +131,7 @@ defaults:
 	exists, _, _ = osutil.DirExists(journalPath)
 	c.Check(exists, Equals, true)
 
-	c.Check(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(boot.InstallHostWritableDir, "_writable_defaults"), "mask", "rsyslog.service"}})
+	c.Check(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults"), "mask", "rsyslog.service"}})
 }
 
 func (s *sysconfigSuite) TestInstallModeEarlyDefaultsFromGadgetInvalid(c *C) {
@@ -152,7 +152,7 @@ defaults:
 	})
 
 	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
-		TargetRootDir: boot.InstallHostWritableDir,
+		TargetRootDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 		GadgetDir:     snapInfo.MountDir(),
 	})
 	c.Check(err, ErrorMatches, `option "service.rsyslog.disable" has invalid value "foo"`)
@@ -180,8 +180,8 @@ defaults:
 	})
 	defer systemctlRestorer()
 
-	journalPath := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/var/log/journal")
-	sshDontRunFile := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")
+	journalPath := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/var/log/journal")
+	sshDontRunFile := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults/etc/ssh/sshd_not_to_be_run")
 
 	// validity
 	c.Check(osutil.FileExists(sshDontRunFile), Equals, false)
@@ -189,7 +189,7 @@ defaults:
 	c.Check(exists, Equals, false)
 
 	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
-		TargetRootDir: boot.InstallHostWritableDir,
+		TargetRootDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 		GadgetSnap:    snapContainer,
 	})
 	c.Assert(err, IsNil)
@@ -198,5 +198,5 @@ defaults:
 	exists, _, _ = osutil.DirExists(journalPath)
 	c.Check(exists, Equals, true)
 
-	c.Check(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(boot.InstallHostWritableDir, "_writable_defaults"), "mask", "rsyslog.service"}})
+	c.Check(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "_writable_defaults"), "mask", "rsyslog.service"}})
 }

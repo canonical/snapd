@@ -89,6 +89,9 @@ type DeviceManager struct {
 	// save as rw vs ro, or mount/umount it fully on demand
 	saveAvailable bool
 
+	// isClassicBoot is true if classic system with classic initramfs
+	isClassicBoot bool
+
 	state   *state.State
 	hookMgr *hookstate.HookManager
 
@@ -139,12 +142,15 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	}
 
 	if !m.preseed {
-		modeEnv, err := maybeReadModeenv()
+		modeenv, err := maybeReadModeenv()
 		if err != nil {
 			return nil, err
 		}
-		if modeEnv != nil {
-			m.sysMode = modeEnv.Mode
+		if modeenv != nil {
+			logger.Debugf("modeenv for model %q found", modeenv.Model)
+			m.sysMode = modeenv.Mode
+		} else if release.OnClassic {
+			m.isClassicBoot = true
 		}
 	} else {
 		// cache system label for preseeding of core20; note, this will fail on
@@ -175,6 +181,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
+	runner.AddHandler("setup-ubuntu-save", m.doSetupUbuntuSave, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
 	runner.AddHandler("factory-reset-run-system", m.doFactoryResetRunSystem, nil)
 	runner.AddHandler("restart-system-to-run-mode", m.doRestartSystemToRunMode, nil)
@@ -199,6 +206,11 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("create-recovery-system", m.doCreateRecoverySystem, m.undoCreateRecoverySystem)
 	runner.AddHandler("finalize-recovery-system", m.doFinalizeTriedRecoverySystem, m.undoFinalizeTriedRecoverySystem)
 	runner.AddCleanup("finalize-recovery-system", m.cleanupRecoverySystem)
+
+	// used from the install API
+	// TODO: use better task names that are close to our usual pattern
+	runner.AddHandler("install-finish", m.doInstallFinish, nil)
+	runner.AddHandler("install-setup-storage-encryption", m.doInstallSetupStorageEncryption, nil)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 
@@ -235,22 +247,22 @@ func newBasicHookStateHandler(context *hookstate.Context) hookstate.Handler {
 }
 
 func maybeReadModeenv() (*boot.Modeenv, error) {
-	modeEnv, err := boot.ReadModeenv("")
+	modeenv, err := boot.ReadModeenv("")
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("cannot read modeenv: %v", err)
 	}
-	return modeEnv, nil
+	return modeenv, nil
 }
 
 // ReloadModeenv is only useful for integration testing
 func (m *DeviceManager) ReloadModeenv() error {
 	osutil.MustBeTestBinary("ReloadModeenv can only be called from tests")
-	modeEnv, err := maybeReadModeenv()
+	modeenv, err := maybeReadModeenv()
 	if err != nil {
 		return err
 	}
-	if modeEnv != nil {
-		m.sysMode = modeEnv.Mode
+	if modeenv != nil {
+		m.sysMode = modeenv.Mode
 	}
 	return nil
 }
@@ -283,10 +295,8 @@ func (m *DeviceManager) SystemMode(sysExpect SysExpectation) string {
 
 // StartUp implements StateStarterUp.Startup.
 func (m *DeviceManager) StartUp() error {
-	// TODO:UC20: ubuntu-save needs to be mounted for recover too
-	if !release.OnClassic && m.SystemMode(SysHasModeenv) == "run" {
-		// UC20 and run mode => setup /var/lib/snapd/save
-		if err := m.maybeSetupUbuntuSave(); err != nil {
+	if m.shouldMountUbuntuSave() {
+		if err := m.setupUbuntuSave(); err != nil {
 			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
 		}
 	}
@@ -303,16 +313,21 @@ func (m *DeviceManager) StartUp() error {
 	return EarlyConfig(m.state, m.preloadGadget)
 }
 
-func (m *DeviceManager) maybeSetupUbuntuSave() error {
-	// only called for UC20
+func (m *DeviceManager) shouldMountUbuntuSave() bool {
+	if release.OnClassic {
+		return false
+	}
+	// TODO:UC20+: ubuntu-save needs to be mounted for recover too
+	return m.SystemMode(SysHasModeenv) == "run"
+}
 
+func (m *DeviceManager) ensureUbuntuSaveIsMounted() error {
 	saveMounted, err := osutil.IsMounted(dirs.SnapSaveDir)
 	if err != nil {
 		return err
 	}
 	if saveMounted {
 		logger.Noticef("save already mounted under %v", dirs.SnapSaveDir)
-		m.saveAvailable = true
 		return nil
 	}
 
@@ -323,20 +338,78 @@ func (m *DeviceManager) maybeSetupUbuntuSave() error {
 	if !runMntSaveMounted {
 		// we don't have ubuntu-save, save will be used directly
 		logger.Noticef("no ubuntu-save mount")
-		m.saveAvailable = true
 		return nil
 	}
 
-	logger.Noticef("bind-mounting ubuntu-save under %v", dirs.SnapSaveDir)
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
 
-	err = systemd.New(systemd.SystemMode, progress.Null).Mount(boot.InitramfsUbuntuSaveDir,
-		dirs.SnapSaveDir, "-o", "bind")
+	// In newer core20/core22 we have a mount unit for ubuntu-save, which we
+	// will try to start first. Invoking systemd-mount in this case would fail.
+	err = sysd.Start([]string{"var-lib-snapd-save.mount"})
+	if err == nil {
+		logger.Noticef("mount unit for ubuntu-save was started")
+		return nil
+	} else {
+		// We only fall through and mount directly if the failure was because of a missing
+		// mount file, which possible does not exist. Any other failure we treat as an actual
+		// error.
+		// XXX: systemd ideally should start returning some kind UnitNotFound errors in this situation
+		if !strings.Contains(err.Error(), "Unit var-lib-snapd-save.mount not found.") {
+			return err
+		}
+	}
+
+	// Otherwise try to directly mount the partition with systemd-mount.
+	logger.Noticef("bind-mounting ubuntu-save under %v", dirs.SnapSaveDir)
+	err = sysd.Mount(boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, "-o", "bind")
 	if err != nil {
 		logger.Noticef("bind-mounting ubuntu-save failed %v", err)
 		return fmt.Errorf("cannot bind mount %v under %v: %v", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, err)
 	}
-	m.saveAvailable = true
 	return nil
+}
+
+// ensureUbuntuSaveSnapFolders creates the necessary folder structure for
+// /var/lib/snapd/save/snap/<snap>. This is normally done during installation
+// of a snap, but there are two cases where this can be insufficient.
+//
+// 1. When migrating to a newer snapd, folders are not automatically created for
+//    snaps that are already installed. They will only be created during a refresh of
+//    the snap itself, whereas we want to cover all the cases.
+// 2. During install mode for the gadget/kernel/etc, the folders are not created.
+//    So this function can be invoked as a part of system-setup.
+func (m *DeviceManager) ensureUbuntuSaveSnapFolders() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	snaps, err := snapstate.All(m.state)
+	if err != nil {
+		return err
+	}
+
+	for _, s := range snaps {
+		saveDir := snap.CommonDataSaveDir(s.InstanceName())
+		if err := os.MkdirAll(saveDir, 0755); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// setupUbuntuSave sets up ubuntu-save partition. It makes sure
+// to mount ubuntu-save (if feasible), and ensures the correct snap
+// folders are present according to currently installed snaps.
+func (m *DeviceManager) setupUbuntuSave() error {
+	if err := m.ensureUbuntuSaveIsMounted(); err != nil {
+		return err
+	}
+
+	// At this point ubuntu-save should be available under the
+	// /var/lib/snapd/save path, so we mark the partition as such.
+	// The last step is to ensure needed folder structure is present
+	// for the per-snap folder storage.
+	m.saveAvailable = true
+	return m.ensureUbuntuSaveSnapFolders()
 }
 
 type deviceMgrKey struct{}
@@ -726,12 +799,12 @@ func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) 
 	}
 
 	if !m.preseed {
-		modeEnv, err := maybeReadModeenv()
+		modeenv, err := maybeReadModeenv()
 		if err != nil {
 			return nil, nil, err
 		}
-		if modeEnv != nil {
-			sysLabel = modeEnv.RecoverySystem
+		if modeenv != nil {
+			sysLabel = modeenv.RecoverySystem
 		}
 	}
 
@@ -835,14 +908,16 @@ func (m *DeviceManager) ensureSeeded() error {
 			opts.Label = m.systemForPreseeding()
 		}
 	} else {
-		modeEnv, err := maybeReadModeenv()
+		modeenv, err := maybeReadModeenv()
 		if err != nil {
 			return err
 		}
-		if modeEnv != nil {
+		if modeenv != nil {
+			logger.Debugf("modeenv read, mode %q label %q",
+				modeenv.Mode, modeenv.RecoverySystem)
 			opts = &populateStateFromSeedOptions{
-				Mode:  modeEnv.Mode,
-				Label: modeEnv.RecoverySystem,
+				Mode:  modeenv.Mode,
+				Label: modeenv.RecoverySystem,
 			}
 		}
 	}
@@ -873,7 +948,7 @@ func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if release.OnClassic {
+	if m.isClassicBoot {
 		return nil
 	}
 
@@ -1139,6 +1214,10 @@ func (m *DeviceManager) ensureInstalled() error {
 	// exists in the snap
 	var installDevice *state.Task
 	if hasInstallDeviceHook {
+		// add the task that ensures ubuntu-save is available after the system
+		// setup to the install-device hook
+		addTask(m.state.NewTask("setup-ubuntu-save", i18n.G("Setup ubuntu-save snap folders")))
+
 		summary := i18n.G("Run install-device hook")
 		hooksup := &hookstate.HookSetup{
 			// TODO: what's a reasonable timeout for the install-device hook?
@@ -1794,6 +1873,80 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 	return systems, nil
 }
 
+// SystemAndGadgetAndEncryptionInfo return the system details
+// including the model assertion, gadget details and encryption info
+// for the given system label.
+func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel string) (*System, *gadget.Info, *EncryptionSupportInfo, error) {
+	if m.isClassicBoot {
+		return nil, nil, nil, fmt.Errorf("cannot get model and gadget information on a classic boot system")
+	}
+	// get current system as input for loadSeedAndSystem()
+	systemMode := m.SystemMode(SysAny)
+	currentSys, _ := currentSystemForMode(m.state, systemMode)
+
+	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// 2. get the gadget volumes for the given system-label
+	perf := &timings.Timings{}
+	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeKernel, snap.TypeGadget}, perf); err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
+	}
+	// EssentialSnaps is always ordered, see asserts.Model.EssentialSnaps:
+	// "snapd, kernel, boot base, gadget." and snaps not loaded above
+	// like "snapd" will be skipped and not part of the EssentialSnaps list
+	//
+	// kernel info needed to check encryptionSupport
+	kernelSnap := s.EssentialSnaps()[0]
+	if kernelSnap.Path == "" {
+		return nil, nil, nil, fmt.Errorf("internal error: cannot get kernel snap path")
+	}
+	snapf, err := snapfile.Open(kernelSnap.Path)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot open kernel snap: %v", err)
+	}
+	kernelInfo, err := snap.ReadInfoFromSnapFile(snapf, kernelSnap.SideInfo)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if kernelInfo.SnapType != snap.TypeKernel {
+		return nil, nil, nil, fmt.Errorf("cannot use kernel info, expected kernel but got: %v", kernelInfo.SnapType)
+	}
+
+	// gadget info needed to check encryptionSupport and gadget contraints
+	gadgetSnap := s.EssentialSnaps()[1]
+	if gadgetSnap.Path == "" {
+		return nil, nil, nil, fmt.Errorf("internal error: cannot get gadget snap path")
+	}
+	snapf, err = snapfile.Open(gadgetSnap.Path)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	gadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot read gadget.yaml: %v", err)
+	}
+	gadgetInfo, err := gadget.InfoFromGadgetYaml(gadgetYaml, sys.Model)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
+	}
+
+	encInfo, err := m.encryptionSupportInfo(sys.Model, kernelInfo, gadgetInfo)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	opts := &gadget.ValidationConstraints{
+		EncryptedData: encInfo.StorageSafety == asserts.StorageSafetyEncrypted,
+	}
+	if err := gadget.Validate(gadgetInfo, sys.Model, opts); err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
+	}
+
+	return sys, gadgetInfo, &encInfo, nil
+}
+
 var ErrUnsupportedAction = errors.New("unsupported action")
 
 // Reboot triggers a reboot into the given systemLabel and mode.
@@ -2213,4 +2366,139 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	}] = reinstallKeyFile
 
 	return secbootRemoveRecoveryKeys(recoveryKeyDevices)
+}
+
+// EncryptionSupportInfo describes what encryption is available and needed
+// for the current device.
+type EncryptionSupportInfo struct {
+	// Disabled is set if to true encryption was forcefully
+	// disabled (e.g. via the seed partition), if set the rest
+	// of the struct content is not relevant.
+	Disabled bool
+
+	// StorageSafety describes the level safety properties
+	// requested by the model
+	StorageSafety asserts.StorageSafety
+	// Available is set to true if encryption is available on this device
+	// with the used gadget.
+	Available bool
+
+	// Type is set to the EncryptionType that can be used if
+	// Available is true.
+	Type secboot.EncryptionType
+
+	// UnvailableErr is set if the encryption support availability of
+	// the this device and used gadget do not match the
+	// storage safety requirements.
+	UnavailableErr error
+	// UnavailbleWarning describes why encryption support is not
+	// available in case it is optional.
+	UnavailableWarning string
+}
+
+var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
+
+// checkEncryption verifies whether encryption should be used based on the
+// model grade and the availability of a TPM device or a fde-setup hook
+// in the kernel.
+func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (secboot.EncryptionType, error) {
+	model := deviceCtx.Model()
+
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return "", fmt.Errorf("cannot check encryption support: %v", err)
+	}
+	gadgetSnapInfo, err := snapstate.GadgetInfo(st, deviceCtx)
+	if err != nil {
+		return "", err
+	}
+	gadgetInfo, err := gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
+	if err != nil {
+		return "", err
+	}
+
+	res, err := m.encryptionSupportInfo(model, kernelInfo, gadgetInfo)
+	if err != nil {
+		return "", err
+	}
+	if res.UnavailableWarning != "" {
+		logger.Noticef("%s", res.UnavailableWarning)
+	}
+	// encryption disabled or preferred unencrypted: follow the model preferences here even if encryption would be available
+	if res.Disabled || res.StorageSafety == asserts.StorageSafetyPreferUnencrypted {
+		res.Type = secboot.EncryptionTypeNone
+	}
+
+	return res.Type, res.UnavailableErr
+}
+
+func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
+	secured := model.Grade() == asserts.ModelSecured
+	dangerous := model.Grade() == asserts.ModelDangerous
+	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
+
+	res := EncryptionSupportInfo{
+		StorageSafety: model.StorageSafety(),
+	}
+
+	// check if we should disable encryption non-secured devices
+	// TODO:UC20: this is not the final mechanism to bypass encryption
+	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
+		res.Disabled = true
+		return res, nil
+	}
+
+	// check encryption: this can either be provided by the fde-setup
+	// hook mechanism or by the built-in secboot based encryption
+	checkFDESetupHookEncryption := hasFDESetupHookInKernel(kernelInfo)
+	// Note that having a fde-setup hook will disable the internal
+	// secboot based encryption
+	checkSecbootEncryption := !checkFDESetupHookEncryption
+	var checkEncryptionErr error
+	switch {
+	case checkFDESetupHookEncryption:
+		res.Type, checkEncryptionErr = m.checkFDEFeatures()
+	case checkSecbootEncryption:
+		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
+		if checkEncryptionErr == nil {
+			res.Type = secboot.EncryptionTypeLUKS
+		}
+	default:
+		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
+	}
+	res.Available = (checkEncryptionErr == nil)
+
+	if checkEncryptionErr != nil {
+		switch {
+		case secured:
+			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
+		case encrypted:
+			res.UnavailableErr = fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
+		case checkFDESetupHookEncryption:
+			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
+		case checkSecbootEncryption:
+			res.UnavailableWarning = fmt.Sprintf("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
+		default:
+			return res, fmt.Errorf("internal error: checkEncryptionErr is set but not handled by the code")
+		}
+	}
+
+	// If encryption is available check if the gadget is
+	// compatible with encryption.
+	if res.Available {
+		opts := &gadget.ValidationConstraints{
+			EncryptedData: true,
+		}
+		if err := gadget.Validate(gadgetInfo, model, opts); err != nil {
+			if secured || encrypted {
+				res.UnavailableErr = fmt.Errorf("cannot use encryption with the gadget: %v", err)
+			} else {
+				res.UnavailableWarning = fmt.Sprintf("cannot use encryption with the gadget, disabling encryption: %v", err)
+			}
+			res.Available = false
+			res.Type = secboot.EncryptionTypeNone
+		}
+	}
+
+	return res, nil
 }

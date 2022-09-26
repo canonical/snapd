@@ -138,6 +138,7 @@ func Prepare(opts *Options) error {
 	if err != nil {
 		return err
 	}
+	tsto.Stdout = Stdout
 
 	// FIXME: limitation until we can pass series parametrized much more
 	if model.Series() != release.Series {
@@ -512,17 +513,24 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
+	// TODO: There will be classic UC20+ model based systems
+	//       that will have a bootable  ubuntu-seed partition.
+	//       This will need to be handled here eventually too.
 	if opts.Classic {
-		// TODO:UC20: consider Core 20 extended models vs classic
-		seedFn := filepath.Join(seedDir, "seed.yaml")
+		var fpath string
+		if core20 {
+			fpath = filepath.Join(seedDir, "systems")
+		} else {
+			fpath = filepath.Join(seedDir, "seed.yaml")
+		}
 		// warn about ownership if not root:root
-		fi, err := os.Stat(seedFn)
+		fi, err := os.Stat(fpath)
 		if err != nil {
-			return fmt.Errorf("cannot stat seed.yaml: %s", err)
+			return fmt.Errorf("cannot stat %q: %s", fpath, err)
 		}
 		if st, ok := fi.Sys().(*syscall.Stat_t); ok {
 			if st.Uid != 0 || st.Gid != 0 {
-				fmt.Fprintf(Stderr, "WARNING: ensure that the contents under %s are owned by root:root in the (final) image", seedDir)
+				fmt.Fprintf(Stderr, "WARNING: ensure that the contents under %s are owned by root:root in the (final) image\n", seedDir)
 			}
 		}
 		// done already
