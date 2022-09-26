@@ -1681,9 +1681,10 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// at this point data was opened so we can consider the model okay
 	mst.SetVerifiedBootModel(model)
+	rootfsDir := boot.InitramfsWritableDir(model, isRunMode)
 
 	// 3.2. mount ubuntu-save (if present)
-	haveSave, err := maybeMountSave(disk, boot.InitramfsWritableDir(model, isRunMode), isEncryptedDev, systemdOpts)
+	haveSave, err := maybeMountSave(disk, rootfsDir, isEncryptedDev, systemdOpts)
 	if err != nil {
 		return err
 	}
@@ -1724,7 +1725,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 			// be locked.
 			// for symmetry with recover code and extra paranoia
 			// though also check that the markers match.
-			paired, err := checkDataAndSavePairing(boot.InitramfsWritableDir(model, isRunMode))
+			paired, err := checkDataAndSavePairing(rootfsDir)
 			if err != nil {
 				return err
 			}
@@ -1735,7 +1736,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	}
 
 	// 4.2. read modeenv
-	modeEnv, err := boot.ReadModeenv(boot.InitramfsWritableDir(model, isRunMode))
+	modeEnv, err := boot.ReadModeenv(rootfsDir)
 	if err != nil {
 		return err
 	}
@@ -1748,7 +1749,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// 4.2 choose base, gadget and kernel snaps (this includes updating
 	//     modeenv if needed to try the base snap)
-	mounts, err := boot.InitramfsRunModeSelectSnapsToMount(typs, modeEnv, boot.InitramfsWritableDir(model, isRunMode))
+	mounts, err := boot.InitramfsRunModeSelectSnapsToMount(typs, modeEnv, rootfsDir)
 	if err != nil {
 		return err
 	}
@@ -1762,7 +1763,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	for _, typ := range typs {
 		if sn, ok := mounts[typ]; ok {
 			dir := snapTypeToMountDir[typ]
-			snapPath := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir(model, isRunMode)), sn.Filename())
+			snapPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), sn.Filename())
 			if err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
 				return err
 			}
