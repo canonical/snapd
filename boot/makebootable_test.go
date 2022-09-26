@@ -124,7 +124,7 @@ version: 4.0
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
 
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, nil)
 	c.Assert(err, IsNil)
 
 	// check the bootloader config
@@ -237,7 +237,7 @@ version: 5.0
 		Recovery:            true,
 	}
 
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, nil)
 	c.Assert(err, IsNil)
 
 	// ensure only a single file got copied (the grub.cfg)
@@ -256,6 +256,7 @@ version: 5.0
 	seedGenv := grubenv.NewEnv(filepath.Join(s.rootdir, "EFI/ubuntu/grubenv"))
 	c.Assert(seedGenv.Load(), IsNil)
 	c.Check(seedGenv.Get("snapd_recovery_system"), Equals, label)
+	c.Check(seedGenv.Get("snapd_recovery_mode"), Equals, boot.ModeInstall)
 
 	systemGenv := grubenv.NewEnv(filepath.Join(s.rootdir, recoverySystemDir, "grubenv"))
 	c.Assert(systemGenv.Load(), IsNil)
@@ -314,13 +315,14 @@ version: 5.0
 	}
 	bootFlags := []string{"factory"}
 
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, bootFlags)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, bootFlags)
 	c.Assert(err, IsNil)
 
 	// ensure the correct recovery system configuration was set
 	seedGenv := grubenv.NewEnv(filepath.Join(s.rootdir, "EFI/ubuntu/grubenv"))
 	c.Assert(seedGenv.Load(), IsNil)
 	c.Check(seedGenv.Get("snapd_recovery_system"), Equals, label)
+	c.Check(seedGenv.Get("snapd_recovery_mode"), Equals, boot.ModeInstall)
 	c.Check(seedGenv.Get("snapd_boot_flags"), Equals, "factory")
 
 	systemGenv := grubenv.NewEnv(filepath.Join(s.rootdir, recoverySystemDir, "grubenv"))
@@ -376,7 +378,7 @@ version: 5.0
 		Recovery:            true,
 	}
 
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, nil)
 	if errMsg != "" {
 		c.Assert(err, ErrorMatches, errMsg)
 		return
@@ -391,6 +393,7 @@ version: 5.0
 	systemGenv := grubenv.NewEnv(filepath.Join(s.rootdir, recoverySystemDir, "grubenv"))
 	c.Assert(systemGenv.Load(), IsNil)
 	c.Check(systemGenv.Get("snapd_recovery_kernel"), Equals, "/snaps/pc-kernel_5.snap")
+	c.Check(seedGenv.Get("snapd_recovery_mode"), Equals, boot.ModeInstall)
 	switch whichFile {
 	case "cmdline.extra":
 		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, content)
@@ -433,7 +436,7 @@ func (s *makeBootable20Suite) TestMakeBootableImage20UnsetRecoverySystemLabelErr
 		Recovery:          true,
 	}
 
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, nil)
 	c.Assert(err, ErrorMatches, "internal error: recovery system label unset")
 }
 
@@ -446,7 +449,7 @@ func (s *makeBootable20Suite) TestMakeBootableImage20MultipleRecoverySystemsErro
 	err = os.MkdirAll(filepath.Join(s.rootdir, "systems/20191205"), 0755)
 	c.Assert(err, IsNil)
 
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, nil)
 	c.Assert(err, ErrorMatches, "cannot make multiple recovery systems bootable yet")
 }
 
@@ -1500,7 +1503,7 @@ version: 5.0
 	}
 
 	// TODO:UC20: enable this use case
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, nil)
 	c.Assert(err, ErrorMatches, `non-empty uboot.env not supported on UC20\+ yet`)
 }
 
@@ -1550,7 +1553,7 @@ version: 5.0
 		Recovery:            true,
 	}
 
-	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, boot.ModeInstall, nil)
 	c.Assert(err, IsNil)
 
 	// since uboot.conf was absent, we won't have installed the uboot.env, as
