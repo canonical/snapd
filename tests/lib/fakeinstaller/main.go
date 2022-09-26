@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
-	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -58,27 +57,19 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]g
 		return nil, fmt.Errorf("cannot yet install on a disk that has partitions")
 	}
 
-	constraints := gadget.LayoutConstraints{
-		// XXX: cargo-culted
-		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		// at this point we only care about creating partitions
-		SkipResolveContent:         true,
-		SkipLayoutStructureContent: true,
+	layoutOpts := &gadget.LayoutOptions{
+		IgnoreContent: true,
 	}
-
-	// FIXME: refactor gadget/install code to not take these dirs
-	gadgetRoot := ""
-	kernelRoot := ""
 
 	// TODO: support multiple volumes, see gadget/install/install.go
 	vol := firstVol(volumes)
-	lvol, err := gadget.LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
+	lvol, err := gadget.LayoutVolume(vol, gadget.DefaultConstraints, layoutOpts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volume: %v", err)
 	}
 
-	iconst := &install.Constraints{AllPartitions: true}
-	created, err := install.CreateMissingPartitions(gadgetRoot, diskLayout, lvol, iconst)
+	iconst := &install.CreateOptions{CreateAllMissingPartitions: true}
+	created, err := install.CreateMissingPartitions(diskLayout, lvol, iconst)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create parititons: %v", err)
 	}
