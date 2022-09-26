@@ -263,7 +263,14 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 
 	// this is /v2/create-user, meaning we want the
 	// backwards-compatible wackiness
-	createData.singleUserResultCompat = true
+	// Request singleUserResultCompat only if the request
+	// was *not* to create all known system users.
+	// Automatic implies known, which means we have
+	// to take that into account as well
+	known := createData.Known || createData.Automatic
+	if !known || createData.Email != "" {
+		createData.singleUserResultCompat = true
+	}
 
 	return createUser(c, createData)
 }
@@ -321,9 +328,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		return InternalError(err.Error())
 	}
 
-	// We only handle singleUserResultCompat if the request
-	// was *not* to create all known system users.
-	if (!createData.Known || createData.Email != "") && createData.singleUserResultCompat {
+	if createData.singleUserResultCompat {
 		return SyncResponse(&userResponseData{
 			Username: createdUsers[0].Username,
 			SSHKeys:  createdUsers[0].SSHKeys,

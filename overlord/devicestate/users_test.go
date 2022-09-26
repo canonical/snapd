@@ -128,7 +128,7 @@ func (s *usersSuite) TestCreateUserNoSSHKeys(c *check.C) {
 	s.state.Unlock()
 
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
+	c.Check(err.Error(), check.Matches, `cannot create user "popper@lse.ac.uk": no ssh keys found`)
 	c.Check(s.errorIsInternal(err), check.Equals, false)
 	c.Check(createdUser, check.IsNil)
 }
@@ -670,7 +670,7 @@ func (s *usersSuite) TestCreateUserFromAssertionNoModel(c *check.C) {
 	s.state.Unlock()
 
 	c.Check(userErr, check.NotNil)
-	c.Check(userErr.Error(), check.Matches, `cannot add system-user "serial@bar.com": bound to serial assertion but device not yet registered`)
+	c.Check(userErr.Error(), check.Matches, `cannot create user "serial@bar.com": bound to serial assertion but device not yet registered`)
 	c.Check(s.errorIsInternal(userErr), check.Equals, false)
 	c.Assert(createdUsers, check.IsNil)
 }

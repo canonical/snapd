@@ -53,8 +53,7 @@ func (e *UserError) Error() string {
 	return e.Err.Error()
 }
 
-// CreatedUser is the returned result which wraps resulting data
-// from a create user operation.
+// CreatedUser holds the results from a create user operation.
 type CreatedUser struct {
 	Username string
 	SSHKeys  []string
@@ -71,7 +70,7 @@ func CreateUser(st *state.State, sudoer bool, email string) (*CreatedUser, error
 	storeService := snapstate.Store(st, nil)
 	username, opts, err := getUserDetailsFromStore(st, storeService, email)
 	if err != nil {
-		return nil, &UserError{Err: err}
+		return nil, &UserError{Err: fmt.Errorf("cannot create user %q: %s", email, err)}
 	}
 
 	opts.Sudoer = sudoer
@@ -100,7 +99,7 @@ func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]*CreatedUse
 
 	username, opts, err := getUserDetailsFromAssertion(db, model, serial, email)
 	if err != nil {
-		return nil, &UserError{Err: err}
+		return nil, &UserError{Err: fmt.Errorf("cannot create user %q: %v", email, err)}
 	}
 
 	opts.Sudoer = sudoer
@@ -122,10 +121,10 @@ func RemoveUser(st *state.State, username string) (*auth.UserState, error) {
 
 	// check the user is known to snapd
 	_, err := auth.UserByUsername(st, username)
-	if err == auth.ErrInvalidUser {
-		return nil, &UserError{Err: fmt.Errorf("user %q is not known", username)}
-	}
 	if err != nil {
+		if errors.Is(err, auth.ErrInvalidUser) {
+			return nil, &UserError{Err: fmt.Errorf("user %q is not known", username)}
+		}
 		return nil, err
 	}
 
@@ -149,10 +148,10 @@ func getUserDetailsFromStore(st *state.State, theStore snapstate.StoreService, e
 
 	v, err := theStore.UserInfo(email)
 	if err != nil {
-		return "", nil, fmt.Errorf("cannot create user %q: %s", email, err)
+		return "", nil, err
 	}
 	if len(v.SSHKeys) == 0 {
-		return "", nil, fmt.Errorf("cannot create user for %q: no ssh keys found", email)
+		return "", nil, fmt.Errorf("no ssh keys found")
 	}
 
 	// Amend information where the key came from to ensure it can
@@ -214,8 +213,6 @@ func createAllKnownSystemUsers(state *state.State, assertDb asserts.RODatabase, 
 }
 
 func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.Model, serialAs *asserts.Serial, email string) (string, *osutil.AddUserOptions, error) {
-	errorPrefix := fmt.Sprintf("cannot add system-user %q: ", email)
-
 	brandID := modelAs.BrandID()
 	series := modelAs.Series()
 	model := modelAs.Model()
@@ -225,36 +222,35 @@ func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.M
 		"email":    email,
 	})
 	if err != nil {
-		return "", nil, fmt.Errorf(errorPrefix+"%v", err)
+		return "", nil, err
 	}
 	// the asserts package guarantees that this cast will work
 	su := a.(*asserts.SystemUser)
 
-	// cross check that the assertion is valid for the given series/model
-
 	// check that the signer of the assertion is one of the accepted ones
 	sysUserAuths := modelAs.SystemUserAuthority()
 	if len(sysUserAuths) > 0 && !strutil.ListContains(sysUserAuths, su.AuthorityID()) {
-		return "", nil, fmt.Errorf(errorPrefix+"%q not in accepted authorities %q", email, su.AuthorityID(), sysUserAuths)
+		return "", nil, fmt.Errorf("%q not in accepted authorities %q", su.AuthorityID(), sysUserAuths)
 	}
+	// cross check that the assertion is valid for the given series/model
 	if len(su.Series()) > 0 && !strutil.ListContains(su.Series(), series) {
-		return "", nil, fmt.Errorf(errorPrefix+"%q not in series %q", email, series, su.Series())
+		return "", nil, fmt.Errorf("%q not in series %q", series, su.Series())
 	}
 	if len(su.Models()) > 0 && !strutil.ListContains(su.Models(), model) {
-		return "", nil, fmt.Errorf(errorPrefix+"%q not in models %q", model, su.Models())
+		return "", nil, fmt.Errorf("%q not in models %q", model, su.Models())
 	}
 	if len(su.Serials()) > 0 {
 		if serialAs == nil {
-			return "", nil, fmt.Errorf(errorPrefix + "bound to serial assertion but device not yet registered")
+			return "", nil, fmt.Errorf("bound to serial assertion but device not yet registered")
 		}
 		serial := serialAs.Serial()
 		if !strutil.ListContains(su.Serials(), serial) {
-			return "", nil, fmt.Errorf(errorPrefix+"%q not in serials %q", serial, su.Serials())
+			return "", nil, fmt.Errorf("%q not in serials %q", serial, su.Serials())
 		}
 	}
 
 	if !su.ValidAt(time.Now()) {
-		return "", nil, fmt.Errorf(errorPrefix + "assertion not valid anymore")
+		return "", nil, fmt.Errorf("assertion not valid anymore")
 	}
 
 	gecos := fmt.Sprintf("%s,%s", email, su.Name())
