@@ -141,6 +141,6 @@ fmts=$(cd "$GO_GENERATE_BUILDDIR" ; go run $MOD ./asserts/info)
 
 cat <<EOF > "$PKG_BUILDDIR/data/info"
 VERSION=$v
-SNAPD_APPARMOR_REEXEC=0
+SNAPD_APPARMOR_REEXEC=1
 ${fmts}
 EOF

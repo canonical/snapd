@@ -73,7 +73,7 @@ var getQuotaUsage = func(grp *quota.Group) (*client.QuotaValues, error) {
 		currentUsage.Memory = mem
 	}
 
-	if grp.TaskLimit != 0 {
+	if grp.ThreadLimit != 0 {
 		threads, err := grp.CurrentTaskUsage()
 		if err != nil {
 			return nil, err
@@ -87,7 +87,7 @@ var getQuotaUsage = func(grp *quota.Group) (*client.QuotaValues, error) {
 func createQuotaValues(grp *quota.Group) *client.QuotaValues {
 	var constraints client.QuotaValues
 	constraints.Memory = grp.MemoryLimit
-	constraints.Threads = grp.TaskLimit
+	constraints.Threads = grp.ThreadLimit
 
 	if grp.CPULimit != nil {
 		constraints.CPU = &client.QuotaCPUValues{
@@ -95,7 +95,7 @@ func createQuotaValues(grp *quota.Group) *client.QuotaValues {
 			Percentage: grp.CPULimit.Percentage,
 		}
 		constraints.CPUSet = &client.QuotaCPUSetValues{
-			CPUs: grp.CPULimit.AllowedCPUs,
+			CPUs: grp.CPULimit.CPUSet,
 		}
 	}
 	if grp.JournalLimit != nil {
@@ -198,7 +198,7 @@ func quotaValuesToResources(values client.QuotaValues) quota.Resources {
 		}
 	}
 	if values.CPUSet != nil && len(values.CPUSet.CPUs) != 0 {
-		resourcesBuilder.WithAllowedCPUs(values.CPUSet.CPUs)
+		resourcesBuilder.WithCPUSet(values.CPUSet.CPUs)
 	}
 	if values.Threads != 0 {
 		resourcesBuilder.WithThreadLimit(values.Threads)

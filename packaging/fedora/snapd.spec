@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.57.1
+Version:        2.57.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -981,6 +981,35 @@ fi
 
 
 %changelog
+* Thu Sep 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.57.3
+ - wrappers: journal namespaces did not honor journal.persistent
+ - snap/quota,wrappers: allow using 0 values for the journal rate to
+   override the system default values
+ - multiple: clear up naming convention for cpu-set quota
+ - i/b/mount-control: allow custom filesystem types
+ - i/b/system-observe: allow reading processes security label
+ - sandbox/cgroup: don't check V1 cgroup if V2 is active
+ - asserts,boot,secboot: switch to a secboot version measuring
+   classic
+
+* Fri Sep 02 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.57.2
+ - store/tooling,tests: support UBUNTU_STORE_URL override env var
+ - packaging/*/tests/integrationtests: reload ssh.service, not
+   sshd.service
+ - tests: check snap download with snapcraft v7+ export-login auth
+   data
+ - store/tooling: support using snapcraft v7+ base64-encoded auth
+   data
+ - many: progress bars should use the overridable stdouts
+ - many: refactor store code to be able to use simpler form of auth
+   creds
+ - snap,store: drop support/consideration for anonymous download urls
+ - data: include snapd/mounts in preseeded blob
+ - many: Set SNAPD_APPARMOR_REEXEC=1
+ - overlord: track security profiles for non-active snaps
+
 * Wed Aug 10 2022 Alberto Mardegan <alberto.mardegan@canonical.com>
 - New upstream release 2.57.1
  - cmd/snap-update-ns: handle mountpoint removal failures with EBUSY

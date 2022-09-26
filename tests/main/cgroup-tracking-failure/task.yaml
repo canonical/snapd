@@ -36,13 +36,11 @@ restore: |
     systemctl --user stop dbus.service || true
 
 debug: |
-    set +e  # any of the files below may not exist and this causes the command to be indicated as failure
-    test -e scenario.txt && cat scenario.txt
-    test -e run.txt && cat run.txt
-    test -e debug.txt && head -n 10 debug.txt
-    test -e cgroup.txt && cat cgroup.txt
-    test -e ps.txt && cat ps.txt
-    set -e
+    cat scenario.txt || true
+    cat run.txt || true
+    head -n 10 debug.txt || true
+    cat cgroup.txt || true
+    cat ps.txt || true
 
 execute: |
     #shellcheck source=tests/lib/systems.sh

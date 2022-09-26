@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -108,6 +109,38 @@ func (s *toolingSuite) MakeAssertedSnap(c *C, snapYaml string, files [][]string,
 
 func (s *toolingSuite) setupSnaps(c *C, publishers map[string]string, defaultsYaml string) {
 	s.MakeAssertedSnap(c, packageCore, nil, snap.R(3), "canonical")
+}
+
+func (s *toolingSuite) TestNewToolingStore(c *C) {
+	// default
+	u, err := url.Parse("https://api.snapcraft.io/")
+	c.Assert(err, IsNil)
+
+	tsto, err := tooling.NewToolingStore()
+	c.Assert(err, IsNil)
+
+	c.Check(tsto.StoreURL(), DeepEquals, u)
+}
+
+func (s *toolingSuite) TestNewToolingStoreUbuntuStoreURL(c *C) {
+	u, err := url.Parse("https://api.other")
+	c.Assert(err, IsNil)
+
+	os.Setenv("UBUNTU_STORE_URL", "https://api.other")
+	defer os.Unsetenv("UBUNTU_STORE_URL")
+
+	tsto, err := tooling.NewToolingStore()
+	c.Assert(err, IsNil)
+
+	c.Check(tsto.StoreURL(), DeepEquals, u)
+}
+
+func (s *toolingSuite) TestNewToolingStoreInvalidUbuntuStoreURL(c *C) {
+	os.Setenv("UBUNTU_STORE_URL", ":/what")
+	defer os.Unsetenv("UBUNTU_STORE_URL")
+
+	_, err := tooling.NewToolingStore()
+	c.Assert(err, ErrorMatches, `invalid UBUNTU_STORE_URL: .*`)
 }
 
 func (s *toolingSuite) TestNewToolingStoreWithAuthFile(c *C) {

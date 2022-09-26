@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -81,6 +81,7 @@ type ModelForSealing interface {
 	Series() string
 	BrandID() string
 	Model() string
+	Classic() bool
 	Grade() asserts.ModelGrade
 	SignKeyID() string
 }

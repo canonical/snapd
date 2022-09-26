@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -121,8 +121,9 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.state.Lock()
-	restart.Init(s.state, "boot-id-0", nil)
+	_, err := restart.Manager(s.state, "boot-id-0", nil)
 	s.state.Unlock()
+	c.Assert(err, IsNil)
 
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
@@ -162,7 +163,6 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 
-	var err error
 	s.snapmgr, err = snapstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 
@@ -198,7 +198,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	})
 
 	s.BaseTest.AddCleanup(snapstate.MockReRefreshRetryTimeout(time.Second / 200))
-	s.BaseTest.AddCleanup(snapstate.MockReRefreshUpdateMany(func(context.Context, *state.State, []string, int, snapstate.UpdateFilter, *snapstate.Flags, string) ([]string, []*state.TaskSet, error) {
+	s.BaseTest.AddCleanup(snapstate.MockReRefreshUpdateMany(func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, snapstate.UpdateFilter, *snapstate.Flags, string) ([]string, []*state.TaskSet, error) {
 		return nil, nil, nil
 	}))
 
@@ -270,7 +270,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	// commonly used revisions in tests
 	defaultInfoFile := `
 VERSION=2.54.3+git1.g479e745-dirty
-SNAPD_APPARMOR_REEXEC=0
+SNAPD_APPARMOR_REEXEC=1
 `
 	for _, snapName := range []string{"snapd", "core"} {
 		for _, rev := range []string{"1", "11"} {
@@ -3463,11 +3463,11 @@ func (s *snapmgrTestSuite) testEnsureRemovesVulnerableSnap(c *C, snapName string
 	// vulnerable
 	fixedInfoFile := `
 VERSION=2.54.3+git1.g479e745-dirty
-SNAPD_APPARMOR_REEXEC=0
+SNAPD_APPARMOR_REEXEC=1
 `
 	vulnInfoFile := `
 VERSION=2.54.2+git1.g479e745-dirty
-SNAPD_APPARMOR_REEXEC=0
+SNAPD_APPARMOR_REEXEC=1
 `
 
 	// revision 1 vulnerable
@@ -5903,6 +5903,9 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// setup a classic model so the device context says we are on classic
+	defer snapstatetest.MockDeviceModel(ClassicModel())()
+
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "edge"}},
@@ -7687,6 +7690,9 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 		Current:  snap.R(1),
 		SnapType: "snapd",
 	})
+
+	// setup a classic model so the device context says we are on classic
+	defer snapstatetest.MockDeviceModel(ClassicModel())()
 
 	chg := s.state.NewChange("snapd-refresh", "refresh snapd")
 	ts, err := snapstate.Update(s.state, "snapd", nil, 0, snapstate.Flags{})

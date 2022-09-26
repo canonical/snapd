@@ -15,6 +15,7 @@ _load_config() {
         echo "remote.exec: config file \"$CFG_FILE\" not found, please run remote.setup command first"
         return 1
     fi
+    # shellcheck disable=SC1090
     . "$CFG_FILE"
 }
 
@@ -76,6 +77,7 @@ remote_exec() {
     SSH_PASS="$(_get_pass)"
     SSH_CERT="$(_get_cert)"
 
+    # shellcheck disable=SC2153,SC2086
     $SSH_PASS ssh $SSH_CERT -p "$TESTS_REMOTE_PORT" -o LogLevel=ERROR -o ConnectTimeout="$timeout" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST" "$@"
 }
 

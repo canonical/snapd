@@ -12,9 +12,7 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 debug: |
-    if [ -f stderr ]; then
-        cat stderr
-    fi
+    cat stderr || true
 
 execute: |
     echo "Running a trivial command causes no DENIED messages"

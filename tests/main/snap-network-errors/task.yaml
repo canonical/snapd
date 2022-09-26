@@ -9,7 +9,7 @@ restore: |
 
 debug: |
     echo "iptables rules:"
-    iptables -L -n -v
+    iptables -L -n -v || true
 
 execute: |
     # Do a store op to avoid an unexpected device auth refresh on snap find
