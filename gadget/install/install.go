@@ -289,7 +289,7 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 // filesystems, and finally writes content on them.
 func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
 	// Step 1: create partitions
-	bootVolGadgetName, created, allLaidOutVols, sectorSize, err :=
+	bootVolGadgetName, created, allLaidOutVols, bootVolSectorSize, err :=
 		createPartitions(model, gadgetRoot, kernelRoot, bootDevice, options, perfTimings)
 	if err != nil {
 		return nil, err
@@ -328,7 +328,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 		// for encrypted device the filesystem device it will point to
 		// the mapper device otherwise it's the raw device node
 		fsDevice, encryptionKey, err := installOnePartition(&part, options.EncryptionType,
-			sectorSize, observer, perfTimings)
+			bootVolSectorSize, observer, perfTimings)
 		if err != nil {
 			return nil, err
 		}
