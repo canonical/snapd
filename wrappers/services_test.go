@@ -563,6 +563,13 @@ WantedBy=multi-user.target
 Storage=auto
 `
 
+	jSvcTempl := `[Unit]
+Description=Journal Service for Namespace %s
+
+[Service]
+LogsDirectory=
+`
+
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
@@ -580,6 +587,7 @@ TasksAccounting=true
 `
 
 	jconfContent := fmt.Sprintf(jconfTempl, grp.Name)
+	jSvcContent := fmt.Sprintf(jSvcTempl, grp.Name)
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name)
 
 	exp := []changesObservation{
@@ -587,6 +595,13 @@ TasksAccounting=true
 			grp:      grp,
 			unitType: "journald",
 			new:      jconfContent,
+			old:      "",
+			name:     "foogroup",
+		},
+		{
+			grp:      grp,
+			unitType: "service",
+			new:      jSvcContent,
 			old:      "",
 			name:     "foogroup",
 		},
@@ -671,6 +686,13 @@ RateLimitIntervalSec=5000000us
 RateLimitBurst=15
 `
 
+	jSvcTempl := `[Unit]
+Description=Journal Service for Namespace %s
+
+[Service]
+LogsDirectory=
+`
+
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
@@ -688,6 +710,7 @@ TasksAccounting=true
 `
 
 	jconfContent := fmt.Sprintf(jconfTempl, grp.Name)
+	jSvcContent := fmt.Sprintf(jSvcTempl, grp.Name)
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name)
 
 	exp := []changesObservation{
@@ -695,6 +718,13 @@ TasksAccounting=true
 			grp:      grp,
 			unitType: "journald",
 			new:      jconfContent,
+			old:      "",
+			name:     "foogroup",
+		},
+		{
+			grp:      grp,
+			unitType: "service",
+			new:      jSvcContent,
 			old:      "",
 			name:     "foogroup",
 		},
@@ -776,6 +806,13 @@ RateLimitIntervalSec=0us
 RateLimitBurst=0
 `
 
+	jSvcTempl := `[Unit]
+Description=Journal Service for Namespace %s
+
+[Service]
+LogsDirectory=
+`
+
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
@@ -793,6 +830,7 @@ TasksAccounting=true
 `
 
 	jconfContent := fmt.Sprintf(jconfTempl, grp.Name)
+	jSvcContent := fmt.Sprintf(jSvcTempl, grp.Name)
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name)
 
 	exp := []changesObservation{
@@ -800,6 +838,13 @@ TasksAccounting=true
 			grp:      grp,
 			unitType: "journald",
 			new:      jconfContent,
+			old:      "",
+			name:     "foogroup",
+		},
+		{
+			grp:      grp,
+			unitType: "service",
+			new:      jSvcContent,
 			old:      "",
 			name:     "foogroup",
 		},
