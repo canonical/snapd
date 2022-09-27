@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -425,4 +426,129 @@ snaps:
 	var seeded bool
 	err = diskState.Get("seeded", &seeded)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+}
+
+func (s *firstbootPreseedingClassic16Suite) TestPopulatePreseedWithConnections(c *C) {
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
+
+	// precondition
+	c.Assert(release.OnClassic, Equals, true)
+
+	hooksCalled := []*hookstate.Context{}
+	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		ctx.Lock()
+		defer ctx.Unlock()
+
+		hooksCalled = append(hooksCalled, ctx)
+		return nil, nil
+	})
+	defer restore()
+
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
+	snapFilesWithHook := [][]string{
+		{"bin/bar", ``},
+		{"meta/hooks/connect-plug-network", ``},
+	}
+
+	// put a firstboot snap into the SnapBlobDir
+	snapYaml := `name: foo
+version: 1.0
+plugs:
+ shared-data-plug:
+  interface: content
+  target: import
+  content: mylib
+apps:
+ bar:
+  command: bin/bar
+  plugs: [network]
+`
+	fooFname, fooDecl, fooRev := s.MakeAssertedSnap(c, snapYaml, snapFilesWithHook, snap.R(128), "developerid")
+	s.WriteAssertions("foo.asserts", s.devAcct, fooRev, fooDecl)
+
+	// put a 2nd firstboot snap into the SnapBlobDir
+	snapYaml = `name: bar
+version: 1.0
+slots:
+ shared-data-slot:
+  interface: content
+  content: mylib
+  read:
+   - /
+apps:
+ bar:
+  command: bin/bar
+`
+	snapFiles := [][]string{
+		{"bin/bar", ``},
+	}
+	barFname, barDecl, barRev := s.MakeAssertedSnap(c, snapYaml, snapFiles, snap.R(65), "developerid")
+	s.WriteAssertions("bar.asserts", s.devAcct, barDecl, barRev)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
+	s.WriteAssertions("model.asserts", assertsChain...)
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: core
+   file: %s
+ - name: pc-kernel
+   file: %s
+ - name: pc
+   file: %s
+ - name: foo
+   file: %s
+ - name: bar
+   file: %s
+`, coreFname, kernelFname, gadgetFname, fooFname, barFname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	s.startOverlord(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true}
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
+	c.Assert(err, IsNil)
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+
+	// avoid device reg
+	chg1 := st.NewChange("become-operational", "init device")
+	chg1.SetStatus(state.DoingStatus)
+
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(err, IsNil)
+
+	c.Assert(hooksCalled, HasLen, 1)
+	c.Assert(hooksCalled[0].HookName(), Equals, "connect-plug-network")
+
+	// Visualize the task and their dependencies for debugging purposes
+	// tasks := chg.Tasks()
+	// for _, tsk := range tasks {
+	// 	log.Printf("%s: task %s", tsk.ID(), tsk.Kind())
+	// 	if len(tsk.WaitTasks()) > 0 {
+	// 		var ids []string
+	// 		for _, wtsk := range tsk.WaitTasks() {
+	// 			ids = append(ids, wtsk.ID())
+	// 		}
+	// 		log.Printf("waiting for %s", strings.Join(ids, ","))
+	// 	}
+	// 	if len(tsk.Log()) > 0 {
+	// 		log.Printf("logs: %v", tsk.Log())
+	// 	}
+	// }
 }

@@ -2090,9 +2090,20 @@ func (s *firstBoot16Suite) TestPopulateFromSeedWithConnections(c *C) {
 	// restore := interfaces.MockSystemKey(`{"core": "123"}`)
 	// defer restore()
 
+	hooksCalled := []*hookstate.Context{}
+	restore := hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		ctx.Lock()
+		defer ctx.Unlock()
+
+		hooksCalled = append(hooksCalled, ctx)
+		return nil, nil
+	})
+	defer restore()
+
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
-	snapFiles := [][]string{
+	snapFilesWithHook := [][]string{
 		{"bin/bar", ``},
+		{"meta/hooks/connect-plug-network", ``},
 	}
 
 	// put a firstboot snap into the SnapBlobDir
@@ -2108,7 +2119,7 @@ apps:
   command: bin/bar
   plugs: [network]
 `
-	fooFname, fooDecl, fooRev := s.MakeAssertedSnap(c, snapYaml, snapFiles, snap.R(128), "developerid")
+	fooFname, fooDecl, fooRev := s.MakeAssertedSnap(c, snapYaml, snapFilesWithHook, snap.R(128), "developerid")
 	s.WriteAssertions("foo.asserts", s.devAcct, fooRev, fooDecl)
 
 	// put a 2nd firstboot snap into the SnapBlobDir
@@ -2124,6 +2135,9 @@ apps:
  bar:
   command: bin/bar
 `
+	snapFiles := [][]string{
+		{"bin/bar", ``},
+	}
 	barFname, barDecl, barRev := s.MakeAssertedSnap(c, snapYaml, snapFiles, snap.R(65), "developerid")
 	s.WriteAssertions("bar.asserts", s.devAcct, barDecl, barRev)
 
@@ -2173,159 +2187,22 @@ snaps:
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(err, IsNil)
 
-	// Visualize the task and their dependencies for debugging purposes
-	// 2: task prerequisites
-	// 3: task prepare-snap
-	// waiting for 2
-	// 4: task mount-snap
-	// waiting for 3
-	// 5: task copy-snap-data
-	// waiting for 4
-	// 6: task setup-profiles
-	// waiting for 5
-	// 7: task link-snap
-	// waiting for 6
-	// 8: task auto-connect
-	// waiting for 7
-	// 9: task set-auto-aliases
-	// waiting for 8
-	// 10: task setup-aliases
-	// waiting for 9
-	// 11: task run-hook
-	// waiting for 10
-	// 12: task start-snap-services
-	// waiting for 11
-	// 13: task prerequisites
-	// waiting for 2,3,4,5,6,7,8,9,10,11,12
-	// 14: task prepare-snap
-	// waiting for 13,2,3,4,5,6,7,8,9,10,11,12
-	// 15: task mount-snap
-	// waiting for 14,2,3,4,5,6,7,8,9,10,11,12
-	// 16: task update-gadget-assets
-	// waiting for 15,2,3,4,5,6,7,8,9,10,11,12
-	// 17: task copy-snap-data
-	// waiting for 16,2,3,4,5,6,7,8,9,10,11,12
-	// 18: task setup-profiles
-	// waiting for 17,2,3,4,5,6,7,8,9,10,11,12
-	// 19: task link-snap
-	// waiting for 18,2,3,4,5,6,7,8,9,10,11,12
-	// 20: task auto-connect
-	// waiting for 19,2,3,4,5,6,7,8,9,10,11,12
-	// 21: task set-auto-aliases
-	// waiting for 20,2,3,4,5,6,7,8,9,10,11,12
-	// 22: task setup-aliases
-	// waiting for 21,2,3,4,5,6,7,8,9,10,11,12
-	// 23: task run-hook
-	// waiting for 22,2,3,4,5,6,7,8,9,10,11,12
-	// 24: task start-snap-services
-	// waiting for 23,2,3,4,5,6,7,8,9,10,11,12
-	// 26: task prerequisites
-	// waiting for 13,14,15,16,17,18,19,20,21,22,23,24
-	// 27: task prepare-snap
-	// waiting for 26,13,14,15,16,17,18,19,20,21,22,23,24
-	// 28: task mount-snap
-	// waiting for 27,13,14,15,16,17,18,19,20,21,22,23,24
-	// 29: task update-gadget-assets
-	// waiting for 28,13,14,15,16,17,18,19,20,21,22,23,24
-	// 30: task update-gadget-cmdline
-	// waiting for 29,13,14,15,16,17,18,19,20,21,22,23,24
-	// 31: task copy-snap-data
-	// waiting for 30,13,14,15,16,17,18,19,20,21,22,23,24
-	// 32: task setup-profiles
-	// waiting for 31,13,14,15,16,17,18,19,20,21,22,23,24
-	// 33: task link-snap
-	// waiting for 32,13,14,15,16,17,18,19,20,21,22,23,24
-	// 34: task auto-connect
-	// waiting for 33,13,14,15,16,17,18,19,20,21,22,23,24
-	// 35: task set-auto-aliases
-	// waiting for 34,13,14,15,16,17,18,19,20,21,22,23,24
-	// 36: task setup-aliases
-	// waiting for 35,13,14,15,16,17,18,19,20,21,22,23,24
-	// 37: task run-hook
-	// waiting for 36,13,14,15,16,17,18,19,20,21,22,23,24
-	// 38: task start-snap-services
-	// waiting for 37,13,14,15,16,17,18,19,20,21,22,23,24
-	// 1: task run-hook
-	// waiting for 26,27,28,29,30,31,32,33,34,35,36,37,38
-	// 25: task run-hook
-	// waiting for 1
-	// 39: task run-hook
-	// waiting for 25
-	// 40: task prerequisites
-	// waiting for 39
-	// 41: task prepare-snap
-	// waiting for 40,39
-	// 42: task mount-snap
-	// waiting for 41,39
-	// 43: task copy-snap-data
-	// waiting for 42,39
-	// 44: task setup-profiles
-	// waiting for 43,39
-	// 45: task link-snap
-	// waiting for 44,39
-	// 46: task auto-connect
-	// waiting for 45,39
-	// 47: task set-auto-aliases
-	// waiting for 46,39,68,67
-	// 48: task setup-aliases
-	// waiting for 47,39
-	// 49: task run-hook
-	// waiting for 48,39
-	// 50: task start-snap-services
-	// waiting for 49,39
-	// 51: task run-hook
-	// waiting for 40,41,42,43,44,45,46,47,48,49,50,39,68,67
-	// 52: task run-hook
-	// waiting for 40,41,42,43,44,45,46,47,48,49,50,51,39,68,67
-	// 53: task prerequisites
-	// waiting for 40,41,42,43,44,45,46,47,48,49,50,51,52,68,67
-	// 54: task prepare-snap
-	// waiting for 53,40,41,42,43,44,45,46,47,48,49,50,51,52,68,67
-	// 55: task mount-snap
-	// waiting for 54,40,41,42,43,44,45,46,47,48,49,50,51,52,68,67
-	// 56: task copy-snap-data
-	// waiting for 55,40,41,42,43,44,45,46,47,48,49,50,51,52,68,67
-	// 57: task setup-profiles
-	// waiting for 56,40,41,42,43,44,45,46,47,48,49,50,51,52,68,67
-	// 58: task link-snap
-	// waiting for 57,40,41,42,43,44,45,46,47,48,49,50,51,52,68,67
-	// 59: task auto-connect
-	// waiting for 58,40,41,42,43,44,45,46,47,48,49,50,51,52,68,67
-	// 60: task set-auto-aliases
-	// waiting for 59,40,41,42,43,44,45,46,47,48,49,50,51,52,68,67,70,69
-	// 61: task setup-aliases
-	// waiting for 60,40,41,42,43,44,45,46,47,48,49,50,51,52,68,67
-	// 62: task run-hook
-	// waiting for 61,40,41,42,43,44,45,46,47,48,49,50,51,52,68,67
-	// 63: task start-snap-services
-	// waiting for 62,40,41,42,43,44,45,46,47,48,49,50,51,52,68,67
-	// 64: task run-hook
-	// waiting for 53,54,55,56,57,58,59,60,61,62,63,40,41,42,43,44,45,46,47,48,49,50,51,52,68,67,70,69
-	// 65: task run-hook
-	// waiting for 53,54,55,56,57,58,59,60,61,62,63,64,40,41,42,43,44,45,46,47,48,49,50,51,52,68,67,70,69
-	// 66: task mark-seeded
-	// waiting for 53,54,55,56,57,58,59,60,61,62,63,64,65,70,69
-	// 68: task connect
-	// waiting for 46
-	// 67: task setup-profiles
-	// waiting for 68,46
-	// 70: task connect
-	// waiting for 59
-	// 69: task setup-profiles
-	// waiting for 70,59
+	c.Assert(hooksCalled, HasLen, 1)
+	c.Assert(hooksCalled[0].HookName(), Equals, "connect-plug-network")
 
-	//tasks := chg.Tasks()
-	//for _, tsk := range tasks {
-	//	log.Printf("%s: task %s", tsk.ID(), tsk.Kind())
-	//	if len(tsk.WaitTasks()) > 0 {
-	//		var ids []string
-	//		for _, wtsk := range tsk.WaitTasks() {
-	//			ids = append(ids, wtsk.ID())
-	//		}
-	//		log.Printf("waiting for %s", strings.Join(ids, ","))
-	//	}
-	//	if len(tsk.Log()) > 0 {
-	//		log.Printf("logs: %v", tsk.Log())
-	//	}
-	//}
+	// Visualize the task and their dependencies for debugging purposes
+	// tasks := chg.Tasks()
+	// for _, tsk := range tasks {
+	// 	log.Printf("%s: task %s", tsk.ID(), tsk.Kind())
+	// 	if len(tsk.WaitTasks()) > 0 {
+	// 		var ids []string
+	// 		for _, wtsk := range tsk.WaitTasks() {
+	// 			ids = append(ids, wtsk.ID())
+	// 		}
+	// 		log.Printf("waiting for %s", strings.Join(ids, ","))
+	// 	}
+	// 	if len(tsk.Log()) > 0 {
+	// 		log.Printf("logs: %v", tsk.Log())
+	// 	}
+	// }
 }
