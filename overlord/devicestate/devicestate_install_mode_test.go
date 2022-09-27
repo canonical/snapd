@@ -3069,7 +3069,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 	defer restore()
 
 	restore = devicestate.MockInstallFactoryReset(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, obs gadget.ContentObserver, pertTimings timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), 0755), IsNil)
+		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir(mod)), 0755), IsNil)
 		return &install.InstalledSystemSideData{
 			DeviceForRole: map[string]string{
 				"ubuntu-save": "/dev/foo",
