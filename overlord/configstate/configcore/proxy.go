@@ -128,40 +128,42 @@ func validateProxyStore(tr config.Conf) error {
 }
 
 func handleProxyStore(tr config.Conf, opts *fsOnlyContext) error {
+	// is proxy.store being modififed?
+	proxyStoreInChanges := false
 	for _, name := range tr.Changes() {
-		if !strings.HasPrefix(name, "core.proxy.store") {
-			continue
+		if name == "core.proxy.store" {
+			proxyStoreInChanges = true
+			break
 		}
-		proxyStore, err := coreCfg(tr, "proxy.store")
-		if err != nil {
+	}
+	if !proxyStoreInChanges {
+		return nil
+	}
+
+	proxyStore, err := coreCfg(tr, "proxy.store")
+	if err != nil {
+		return err
+	}
+	var prevProxyStore string
+	if err := tr.GetPristine("core", "proxy.store", &prevProxyStore); err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if proxyStore != prevProxyStore {
+		// XXX ideally we should do this only when committing but we
+		// don't have infrastructure for that ATM, it just means the
+		// store will have to recreate the session.
+		// XXX the store code doesn't acquire the store ids and the
+		// session together atomically, this can be fixed only in a
+		// larger cleanup of how store.DeviceAndAuthContext
+		// operates. Hopefully it is atypical to set proxy.store while
+		// non-automatic store operations are happening, this approach
+		// is a best-effort for now.
+		state := tr.State()
+		state.Lock()
+		defer state.Unlock()
+		if err := devicestateResetSession(state); err != nil {
 			return err
 		}
-		var prevProxyStore string
-		if err := tr.GetPristine("core", "proxy.store", &prevProxyStore); err != nil && !config.IsNoOption(err) {
-			return err
-		}
-		if proxyStore != prevProxyStore {
-			// XXX ideally we should do this only when
-			// committing but we don't have infrastructure
-			// for that ATM, it just means the store will
-			// have to recreate the session.
-			// XXX the store code doesn't acquire the
-			// store ids and the session together
-			// atomically, this can be fixed only in a
-			// larger cleanup of how
-			// store.DeviceAndAuthContext operates.
-			// Hopefully it is atypical to set proxy.store
-			// while non-automatic store operations are
-			// happening, this approach is a best-effort
-			// for now.
-			state := tr.State()
-			state.Lock()
-			defer state.Unlock()
-			if err := devicestateResetSession(state); err != nil {
-				return err
-			}
-		}
-		break
 	}
 	return nil
 }
