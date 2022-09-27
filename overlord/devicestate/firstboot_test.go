@@ -2086,10 +2086,6 @@ func (s *firstBoot16Suite) TestPopulateFromSeedWithConnections(c *C) {
 	bloader.SetBootKernel("pc-kernel_1.snap")
 	bloader.SetBootBase("core_1.snap")
 
-	// needed for preseed
-	// restore := interfaces.MockSystemKey(`{"core": "123"}`)
-	// defer restore()
-
 	hooksCalled := []*hookstate.Context{}
 	restore := hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		ctx.Lock()
