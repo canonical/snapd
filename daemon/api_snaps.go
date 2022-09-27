@@ -28,7 +28,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
@@ -689,7 +688,7 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 	var affected []string
 	err = assertstateTryEnforceValidationSets(st, inst.ValidationSets, inst.userID, snaps, ignoreValidationSnaps)
 	if err != nil {
-		vErr, ok := err.(*assertstate.ValidationNewSetsError)
+		vErr, ok := err.(*snapasserts.ValidationSetsValidationError)
 		if !ok {
 			return nil, err
 		}
@@ -707,26 +706,23 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 	}, nil
 }
 
-func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr *assertstate.ValidationNewSetsError) ([]*state.TaskSet, []string, error) {
-	// keep the assertion used so that we use the same sequence/revision when
-	// enforcing after resolving the constraints. Also keep the request string
-	// because it holds pinning information which we need when enforcing.
-	vsMap := make(map[string]*asserts.ValidationSet, len(inst.ValidationSets))
+func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr *snapasserts.ValidationSetsValidationError) ([]*state.TaskSet, []string, error) {
+	// Save the sequence numbers so we can pin them later when enforcing the sets again
+	pinnedSeqs := make(map[string]int, len(inst.ValidationSets))
 	for _, vsStr := range inst.ValidationSets {
-		account, name, _, err := snapasserts.ParseValidationSet(vsStr)
+		account, name, sequence, err := snapasserts.ParseValidationSet(vsStr)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		for _, vs := range vErr.NewSets {
-			if vs.AccountID() == account && vs.Name() == name {
-				vsMap[vsStr] = vs
-				break
-			}
+		if sequence == 0 {
+			continue
 		}
+
+		pinnedSeqs[fmt.Sprintf("%s/%s", account, name)] = sequence
 	}
 
-	return snapstateResolveValSetEnforcementError(context.TODO(), st, vErr, vsMap, inst.userID)
+	return snapstateResolveValSetEnforcementError(context.TODO(), st, vErr, pinnedSeqs, inst.userID)
 }
 
 func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {

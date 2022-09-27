@@ -2408,24 +2408,21 @@ func (s *snapsSuite) TestRefreshEnforce(c *check.C) {
 	}).(*asserts.ValidationSet)
 
 	restore := daemon.MockAssertstateTryEnforceValidationSets(func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
-		return &assertstate.ValidationNewSetsError{
-			ValidationSetsValidationError: &snapasserts.ValidationSetsValidationError{
-				WrongRevisionSnaps: map[string]map[snap.Revision][]string{
-					"update-snap": {snap.R(2): []string{"foo/baz"}},
-				},
-				MissingSnaps: map[string]map[snap.Revision][]string{
-					"install-snap": {snap.R(1): []string{"foo/bar=2"}},
-				},
+		return &snapasserts.ValidationSetsValidationError{
+			WrongRevisionSnaps: map[string]map[snap.Revision][]string{
+				"update-snap": {snap.R(2): []string{"foo/baz"}},
 			},
-			NewSets: []*asserts.ValidationSet{installValset, updateValset},
+			MissingSnaps: map[string]map[snap.Revision][]string{
+				"install-snap": {snap.R(1): []string{"foo/bar=2"}},
+			},
+			Sets: map[string]*asserts.ValidationSet{"foo/baz": installValset, "foo/bar": updateValset},
 		}
 	})
 	defer restore()
 
-	restore = daemon.MockSnapstateResolveValSetEnforcementError(func(_ context.Context, st *state.State, validErr *assertstate.ValidationNewSetsError, validationSets map[string]*asserts.ValidationSet, _ int) ([]*state.TaskSet, []string, error) {
-		c.Assert(validationSets, check.DeepEquals, map[string]*asserts.ValidationSet{
-			"foo/bar=2": updateValset,
-			"foo/baz":   installValset,
+	restore = daemon.MockSnapstateResolveValSetEnforcementError(func(_ context.Context, st *state.State, validErr *snapasserts.ValidationSetsValidationError, validationSets map[string]int, _ int) ([]*state.TaskSet, []string, error) {
+		c.Assert(validationSets, check.DeepEquals, map[string]int{
+			"foo/bar": 2,
 		})
 
 		t := st.NewTask("fake-enforce-snaps", "...")
@@ -2460,7 +2457,7 @@ func (s *snapsSuite) TestRefreshEnforceTryEnforceValidationSetsError(c *check.C)
 	})()
 
 	var snapstateEnforceSnaps int
-	defer daemon.MockSnapstateResolveValSetEnforcementError(func(_ context.Context, _ *state.State, validErr *assertstate.ValidationNewSetsError, _ map[string]*asserts.ValidationSet, _ int) ([]*state.TaskSet, []string, error) {
+	defer daemon.MockSnapstateResolveValSetEnforcementError(func(_ context.Context, _ *state.State, validErr *snapasserts.ValidationSetsValidationError, _ map[string]int, _ int) ([]*state.TaskSet, []string, error) {
 		snapstateEnforceSnaps++
 		c.Check(validErr, check.NotNil)
 		return nil, nil, nil
@@ -2478,8 +2475,8 @@ func (s *snapsSuite) TestRefreshEnforceTryEnforceValidationSetsError(c *check.C)
 	c.Check(refreshSnapAssertions, check.Equals, 1)
 	c.Check(snapstateEnforceSnaps, check.Equals, 0)
 
-	// ValidationNewSetsError is expected and fine
-	tryEnforceErr = &assertstate.ValidationNewSetsError{}
+	// ValidationSetsValidationError is expected and fine
+	tryEnforceErr = &snapasserts.ValidationSetsValidationError{}
 
 	_, err = inst.DispatchForMany()(inst, st)
 	c.Assert(err, check.IsNil)
@@ -2502,7 +2499,7 @@ func (s *snapsSuite) TestRefreshEnforceWithSnapsIsAnError(c *check.C) {
 	})()
 
 	var snapstateEnforceSnaps bool
-	defer daemon.MockSnapstateResolveValSetEnforcementError(func(context.Context, *state.State, *assertstate.ValidationNewSetsError, map[string]*asserts.ValidationSet, int) ([]*state.TaskSet, []string, error) {
+	defer daemon.MockSnapstateResolveValSetEnforcementError(func(context.Context, *state.State, *snapasserts.ValidationSetsValidationError, map[string]int, int) ([]*state.TaskSet, []string, error) {
 		snapstateEnforceSnaps = true
 		return nil, nil, fmt.Errorf("unexpected")
 	})()
@@ -2527,7 +2524,7 @@ func (s *snapsSuite) TestRefreshEnforceSetsNoUnmetConstraints(c *check.C) {
 	})
 	defer restore()
 
-	restore = daemon.MockSnapstateResolveValSetEnforcementError(func(context.Context, *state.State, *assertstate.ValidationNewSetsError, map[string]*asserts.ValidationSet, int) ([]*state.TaskSet, []string, error) {
+	restore = daemon.MockSnapstateResolveValSetEnforcementError(func(context.Context, *state.State, *snapasserts.ValidationSetsValidationError, map[string]int, int) ([]*state.TaskSet, []string, error) {
 		err := errors.New("unexpected call to snapstate.EnforceSnaps")
 		c.Error(err)
 		return nil, nil, err

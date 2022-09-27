@@ -29,7 +29,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -143,7 +143,7 @@ var (
 	snapstateUpdateMany                    = snapstate.UpdateMany
 	snapstateInstallMany                   = snapstate.InstallMany
 	snapstateRemoveMany                    = snapstate.RemoveMany
-	snapstateResolveValSetEnforcementError = func(context.Context, *state.State, *assertstate.ValidationNewSetsError, map[string]*asserts.ValidationSet, int) ([]*state.TaskSet, []string, error) {
+	snapstateResolveValSetEnforcementError = func(context.Context, *state.State, *snapasserts.ValidationSetsValidationError, map[string]int, int) ([]*state.TaskSet, []string, error) {
 		return nil, nil, errors.New("not implemented")
 	}
 	snapstateRevert           = snapstate.Revert

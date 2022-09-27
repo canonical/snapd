@@ -763,18 +763,11 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 	return vs, latest, err
 }
 
-// ValidationNewSetsError wraps ValidationSetsValidationError to contain a list
-// of "new" validation sets that were fetched before the validation.
-type ValidationNewSetsError struct {
-	*snapasserts.ValidationSetsValidationError
-	NewSets []*asserts.ValidationSet
-}
-
-// TryEnforceValidationSets tries to fetch the given validation sets and enforce
-// them (together with currently tracked validation sets) against installed snaps,
-// but doesn't update tracking information in case of an error. It may return
-// ValidationNewSetsError which can be used to install/remove snaps as required
-// to satisfy validation sets constraints.
+// TryEnforceValidationSets tries to fetch the given validation sets and
+// enforce them (together with currently tracked validation sets) against
+// installed snaps, but doesn't update tracking information in case of an error.
+// It may return snapasserts.ValidationSetsValidationError which can be used to
+// install/remove snaps as required to satisfy validation sets constraints.
 func TryEnforceValidationSets(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
@@ -864,13 +857,6 @@ func TryEnforceValidationSets(st *state.State, validationSets []string, userID i
 		if err := valsets.CheckInstalledSnaps(snaps, ignoreValidation); err != nil {
 			// the returned error may be ValidationSetsValidationError which is normal and means we cannot enforce
 			// the new validation sets - the caller should resolve the error and retry.
-			if vErr, ok := err.(*snapasserts.ValidationSetsValidationError); ok {
-				return &ValidationNewSetsError{
-					ValidationSetsValidationError: vErr,
-					NewSets:                       extraVs,
-				}
-			}
-
 			return err
 		}
 

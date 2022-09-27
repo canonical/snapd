@@ -72,8 +72,8 @@ type ValidationSetsValidationError struct {
 	// WronRevisionSnaps maps snap names to the expected revisions and respective
 	// validation sets that require them.
 	WrongRevisionSnaps map[string]map[snap.Revision][]string
-	// Sets maps validation set keys referenced by above maps to actual
-	// validation sets.
+	// Sets maps validation set keys to validation sets for all assertions used in
+	// the failed check.
 	Sets map[string]*asserts.ValidationSet
 }
 
@@ -428,7 +428,6 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValid
 	invalid := make(map[string]map[string]bool)
 	missing := make(map[string]map[snap.Revision]map[string]bool)
 	wrongrev := make(map[string]map[snap.Revision]map[string]bool)
-	sets := make(map[string]*asserts.ValidationSet)
 
 	for _, cstrs := range v.snaps {
 		for rev, revCstr := range cstrs.revisions {
@@ -449,7 +448,6 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValid
 						invalid[rc.Name] = make(map[string]bool)
 					}
 					invalid[rc.Name][rc.validationSetKey] = true
-					sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 				case isInstalled:
 					// presence is either optional or required
 					if rev != unspecifiedRevision && rev != sn.(*InstalledSnap).Revision {
@@ -461,7 +459,6 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValid
 							wrongrev[rc.Name][rev] = make(map[string]bool)
 						}
 						wrongrev[rc.Name][rev][rc.validationSetKey] = true
-						sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 					}
 				default:
 					// not installed but required.
@@ -476,7 +473,6 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValid
 						missing[rc.Name][rev] = make(map[string]bool)
 					}
 					missing[rc.Name][rev][rc.validationSetKey] = true
-					sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 				}
 			}
 		}
@@ -500,7 +496,7 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValid
 	if len(invalid) > 0 || len(missing) > 0 || len(wrongrev) > 0 {
 		verr := &ValidationSetsValidationError{
 			InvalidSnaps: setsToLists(invalid),
-			Sets:         sets,
+			Sets:         v.sets,
 		}
 		if len(missing) > 0 {
 			verr.MissingSnaps = make(map[string]map[snap.Revision][]string)
