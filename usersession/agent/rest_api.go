@@ -26,11 +26,11 @@ import (
 	"mime"
 	"net/http"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/mvo5/goconfigparser"
@@ -242,11 +242,9 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		_, err := os.Stat(hookPath)
 		if !errors.Is(err, os.ErrNotExist) {
 			command := fmt.Sprintf("%s.userhook-refresh-available", refreshInfo.InstanceName)
-			cmd := exec.Command("snap", "run", command)
-			retval := cmd.Run()
-			if retval == nil {
-				return SyncResponse(nil)
-			}
+			argv := []string{"snap", "run", command}
+			syscall.Exec("/proc/self/exe", argv, os.Environ())
+			return SyncResponse(nil)
 		}
 	}
 
