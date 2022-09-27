@@ -1889,15 +1889,11 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	// Gadget information
 	snapf, err := snapfile.Open(seedSnaps[snap.TypeGadget].Path)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot open gadget.yaml: %v", err)
+		return nil, nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
 	}
-	gadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
+	gadgetInfo, err := gadget.ReadInfoFromSnapFileNoValidate(snapf, sys.Model)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot read gadget.yaml: %v", err)
-	}
-	gadgetInfo, err := gadget.InfoFromGadgetYaml(gadgetYaml, sys.Model)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
+		return nil, nil, nil, fmt.Errorf("reading gadget information: %v", err)
 	}
 
 	// Encryption details

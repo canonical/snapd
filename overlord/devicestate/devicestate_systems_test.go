@@ -2424,7 +2424,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidGadgetYaml(
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", "", isClassic)
 
 	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
-	c.Assert(err, ErrorMatches, "cannot parse gadget.yaml: bootloader not declared in any volume")
+	c.Assert(err, ErrorMatches, "reading gadget information: bootloader not declared in any volume")
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeed(c *C) {
