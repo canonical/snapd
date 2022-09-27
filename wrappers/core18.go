@@ -617,6 +617,7 @@ func undoSnapdDbusConfigOnCore() error {
 
 var dbusSessionServices = []string{
 	"io.snapcraft.Launcher.service",
+	"io.snapcraft.Prompt.service",
 	"io.snapcraft.Settings.service",
 	"io.snapcraft.SessionAgent.service",
 }
