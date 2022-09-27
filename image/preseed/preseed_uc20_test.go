@@ -419,11 +419,10 @@ func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
 	err := ioutil.WriteFile(mockChrootCmd.Exe(), []byte("invalid-exe"), 0755)
 	c.Check(err, IsNil)
 
-	opts := &preseed.CoreOptions{
-		PrepareImageDir: tmpdir,
-	}
 	popts := &preseed.PreseedCoreOptions{
-		CoreOptions:      *opts,
+		CoreOptions:      preseed.CoreOptions{
+			PrepareImageDir: tmpdir,
+		},
 		PreseedChrootDir: tmpdir,
 	}
 
