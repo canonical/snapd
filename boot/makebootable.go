@@ -312,6 +312,25 @@ type makeRunnableOptions struct {
 	AfterDataReset bool
 }
 
+func copyNoSymLink(orig, dst string) error {
+	// if the source path is a symlink, don't copy the symlink, copy the
+	// target file instead of copying the symlink, as the initramfs won't
+	// follow the symlink when it goes to mount the base and kernel snaps by
+	// design as the initramfs should only be using trusted things from
+	// ubuntu-data to boot in run mode
+	if osutil.IsSymlink(orig) {
+		link, err := os.Readlink(orig)
+		if err != nil {
+			return err
+		}
+		orig = link
+	}
+	if err := osutil.CopyFile(orig, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+		return err
+	}
+	return nil
+}
+
 func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver, makeOpts makeRunnableOptions) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: cannot make pre-UC20 system runnable")
@@ -327,21 +346,14 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
-	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath, bootWith.GadgetPath} {
-		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
-		// if the source filename is a symlink, don't copy the symlink, copy the
-		// target file instead of copying the symlink, as the initramfs won't
-		// follow the symlink when it goes to mount the base and kernel snaps by
-		// design as the initramfs should only be using trusted things from
-		// ubuntu-data to boot in run mode
-		if osutil.IsSymlink(fn) {
-			link, err := os.Readlink(fn)
-			if err != nil {
-				return err
-			}
-			fn = link
-		}
-		if err := osutil.CopyFile(fn, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+	// note that we need to use the "Filename()" here because unasserted
+	// snaps will have names like pc-kernel_5.19.4.snap but snapd expects
+	// "pc-kernel_x1.snap"
+	for _, origDestfn := range []struct{ orig, destFn string }{
+		{orig: bootWith.BasePath, destFn: bootWith.Base.Filename()},
+		{orig: bootWith.KernelPath, destFn: bootWith.Kernel.Filename()},
+		{orig: bootWith.GadgetPath, destFn: bootWith.Gadget.Filename()}} {
+		if err := copyNoSymLink(origDestfn.orig, filepath.Join(snapBlobDir, origDestfn.destFn)); err != nil {
 			return err
 		}
 	}
