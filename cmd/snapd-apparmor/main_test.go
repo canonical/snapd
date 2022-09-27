@@ -161,6 +161,8 @@ func (s *mainSuite) TestIsContainer(c *C) {
 		{"systemd-detect-virt", "--quiet", "--container"}})
 
 	// Test WSL2 with custom kernel
+	// systemd-detect-virt may return a non-zero exit code as it fails to recognize it as WSL
+	// This will happen when the kernel name includes neither "WSL" not "Microsoft"
 	detectCmd = testutil.MockCommand(c, "systemd-detect-virt", "echo none; exit 1")
 	defer mockWSL(true)()
 	c.Check(snapd_apparmor.IsContainer(), Equals, true)
