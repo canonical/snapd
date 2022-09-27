@@ -76,6 +76,7 @@ func (*apparmorSuite) TestAppArmorParser(c *C) {
 func (*apparmorSuite) TestAppArmorInternalAppArmorParser(c *C) {
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
+	defer dirs.SetRootDir("")
 	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
 	c.Assert(os.MkdirAll(d, 0755), IsNil)
 	p := filepath.Join(d, "apparmor_parser")
@@ -468,6 +469,9 @@ func (s *apparmorSuite) TestUpdateHomedirsTunableWriteFail(c *C) {
 }
 
 func (s *apparmorSuite) TestUpdateHomedirsTunableHappy(c *C) {
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+	defer dirs.SetRootDir("")
 	err := apparmor.UpdateHomedirsTunable([]string{"/home/a", "/dir2"})
 	c.Assert(err, IsNil)
 	configFile := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/tunables/home.d/snapd")
