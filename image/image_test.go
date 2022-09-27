@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
@@ -2381,6 +2382,10 @@ func (s *imageSuite) TestSetupSeedBaseNone(c *C) {
 }
 
 func (s *imageSuite) TestSetupSeedCore18GadgetDefaults(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+	defer dirs.SetRootDir("")
+
 	systemctlMock := testutil.MockCommand(c, "systemctl", "")
 	defer systemctlMock.Restore()
 

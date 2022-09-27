@@ -78,13 +78,13 @@ func roleNeedsEncryption(role string) bool {
 	return role == gadget.SystemData || role == gadget.SystemSave
 }
 
-func saveStorageTraits(allLaidOutVols map[string]*gadget.LaidOutVolume, optsPerVol map[string]*gadget.DiskVolumeValidationOptions, hasSavePartition bool) error {
+func saveStorageTraits(mod gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, optsPerVol map[string]*gadget.DiskVolumeValidationOptions, hasSavePartition bool) error {
 	allVolTraits, err := gadget.AllDiskVolumeDeviceTraits(allLaidOutVols, optsPerVol)
 	if err != nil {
 		return err
 	}
 	// save the traits to ubuntu-data host
-	if err := gadget.SaveDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), allVolTraits); err != nil {
+	if err := gadget.SaveDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir(mod)), allVolTraits); err != nil {
 		return fmt.Errorf("cannot save disk to volume device traits: %v", err)
 	}
 	// and also to ubuntu-save if it exists
@@ -233,7 +233,10 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 
 	var created []gadget.OnDiskStructure
 	timings.Run(perfTimings, "create-partitions", "Create partitions", func(timings.Measurer) {
-		created, err = createMissingPartitions(gadgetRoot, diskLayout, laidOutBootVol)
+		opts := &CreateOptions{
+			GadgetRootDir: gadgetRoot,
+		}
+		created, err = CreateMissingPartitions(diskLayout, laidOutBootVol, opts)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot create the partitions: %v", err)
@@ -309,7 +312,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 		},
 	}
 	// save the traits to ubuntu-data host and optionally to ubuntu-save if it exists
-	if err := saveStorageTraits(allLaidOutVols, optsPerVol, hasSavePartition); err != nil {
+	if err := saveStorageTraits(model, allLaidOutVols, optsPerVol, hasSavePartition); err != nil {
 		return nil, err
 	}
 
@@ -425,7 +428,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		},
 	}
 	// save the traits to ubuntu-data host and optionally to ubuntu-save if it exists
-	if err := saveStorageTraits(allLaidOutVols, optsPerVol, hasSavePartition); err != nil {
+	if err := saveStorageTraits(model, allLaidOutVols, optsPerVol, hasSavePartition); err != nil {
 		return nil, err
 	}
 

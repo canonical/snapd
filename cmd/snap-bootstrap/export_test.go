@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 )
@@ -164,7 +165,7 @@ func MockPartitionUUIDForBootedKernelDisk(uuid string) (restore func()) {
 	}
 }
 
-func MockTryRecoverySystemHealthCheck(mock func() error) (restore func()) {
+func MockTryRecoverySystemHealthCheck(mock func(gadget.Model) error) (restore func()) {
 	old := tryRecoverySystemHealthCheck
 	tryRecoverySystemHealthCheck = mock
 	return func() {

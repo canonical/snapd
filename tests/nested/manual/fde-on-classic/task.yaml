@@ -1,0 +1,85 @@
+summary: Check that a FDE based classic image can be booted
+
+details: |
+  This test creates a classic image that looks like what the installer
+  would create and we boot into it.
+
+systems: [ubuntu-22.04-64]
+
+environment:
+  NESTED_ENABLE_SECURE_BOOT: false
+  NESTED_USE_CLOUD_INIT: true
+  CACHE_D: ./cache
+
+prepare: |
+  # build gadget snap with gadget.yaml matching disk structure of the image
+  VERSION="$(tests.nested show version)"
+  snap download --basename=pc --channel="$VERSION/edge" pc
+  unsquashfs -d pc-gadget pc.snap
+  cp gadget.yaml pc-gadget/meta/
+  snap pack --filename=pc_x1.snap pc-gadget
+
+  # create an image that looks like a classic image
+  # Note that "mk-image" is left as a script so that it can also be
+  # run outside of spread easily for quick interactive testing
+  ./mk-image.sh ./boot.img "$CACHE_D" "./mnt" ./pc_x1.snap
+  # replaces snap-bootstrap in initramfs and snapd in rootfs
+  # TODO chroot install of deb? /home/gopath/src/github.com/snapcore/snapd_*_amd64.deb
+  ./replace-image-files.sh ./boot.img "$CACHE_D"
+  # We will need yq
+  snap install yq
+
+execute: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+  # run built image
+  nested_start_core_vm_unit "$PWD"/boot.img
+  # modify&repack snaps that we will refresh in the image
+  # These are all EFI images that will contain the DOS string in the first bytes
+  for f in "$CACHE_D"/snap-pc-kernel/kernel.efi pc-gadget/grubx64.efi pc-gadget/shim.efi.signed; do
+      sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' "$f"
+  done
+  # Bump edition of ubuntu-boot content
+  gadget_p=pc-gadget/meta/gadget.yaml
+  yq -i '(.volumes.pc.structure | with_entries(select(.value.name == "ubuntu-boot")) | .[].update.edition) |= . + 1' "$gadget_p"
+  # Re-pack snaps we want to update
+  snap pack --filename=pc-new.snap pc-gadget
+  snap pack --filename=pc-kernel-new.snap "$CACHE_D"/snap-pc-kernel
+
+  # validate that the image boots and seeds
+  remote.exec "sudo snap wait system seed.loaded"
+
+  remote.exec 'cat /etc/os-release | MATCH VERSION_ID=\"22.04\"'
+  remote.exec "snap list pc-kernel"
+  remote.exec "snap list pc"
+  remote.exec "snap list core22"
+  remote.exec "snap list snapd"
+
+  # XXX CLASSIC-NO-REBOOT
+  exit 0
+
+  # refresh kernel snap
+  refresh_snap_and_reboot()
+  {
+      local snap_filename=$1
+      printf "Test installing snap from file %s\n" "$snap_filename"
+      tests.nested copy "$snap_filename"
+      boot_id=$(tests.nested boot-id)
+      REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous "$snap_filename" --no-wait)
+      # Wait until we stall in the connection of interface as we wait for a reboot
+      retry --wait 1 -n 60 sh -c "remote.exec \"snap change $REMOTE_CHG_ID | grep -E 'Doing .*Automatically connect eligible plugs and slots of snap'\""
+      # Check that no reboot has been scheduled, then force a reboot
+      not test -f /run/systemd/shutdown/scheduled
+      remote.exec sudo reboot || true
+      tests.nested wait-for reboot "$boot_id"
+      remote.exec sudo snap watch "$REMOTE_CHG_ID"
+  }
+
+  refresh_snap_and_reboot pc-kernel-new.snap
+  refresh_snap_and_reboot pc-new.snap
+
+  for f in /boot/grub/kernel.efi /run/mnt/ubuntu-boot/EFI/boot/bootx64.efi /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi; do
+      remote.exec sudo grep -q -a '"This program cannot be run in XXX mode"' "$f"
+  done
+
+  rm -rf "$CACHE_D"

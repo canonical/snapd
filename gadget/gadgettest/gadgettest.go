@@ -91,10 +91,13 @@ func MustLayOutSingleVolumeFromGadget(gadgetRoot, kernelRoot string, model gadge
 	constraints := gadget.LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 	}
-
+	opts := &gadget.LayoutOptions{
+		GadgetRootDir: gadgetRoot,
+		KernelRootDir: kernelRoot,
+	}
 	for _, vol := range info.Volumes {
 		// we know info.Volumes map has size 1 so we can return here
-		return gadget.LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
+		return gadget.LayoutVolume(vol, constraints, opts)
 	}
 
 	// this is impossible to reach, we already checked that info.Volumes has a

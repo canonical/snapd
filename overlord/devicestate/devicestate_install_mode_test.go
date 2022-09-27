@@ -1106,22 +1106,29 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	c.Check(installSystem.Err(), IsNil)
 
 	tasks := installSystem.Tasks()
-	c.Assert(tasks, HasLen, 3)
+	c.Assert(tasks, HasLen, 4)
 	setupRunSystemTask := tasks[0]
-	installDevice := tasks[1]
-	restartSystemToRunModeTask := tasks[2]
+	setupUbuntuSave := tasks[1]
+	installDevice := tasks[2]
+	restartSystemToRunModeTask := tasks[3]
 
 	c.Assert(setupRunSystemTask.Kind(), Equals, "setup-run-system")
+	c.Assert(setupUbuntuSave.Kind(), Equals, "setup-ubuntu-save")
 	c.Assert(restartSystemToRunModeTask.Kind(), Equals, "restart-system-to-run-mode")
 	c.Assert(installDevice.Kind(), Equals, "run-hook")
 
 	// setup-run-system has no pre-reqs
 	c.Assert(setupRunSystemTask.WaitTasks(), HasLen, 0)
 
-	// install-device has a pre-req of setup-run-system
-	waitTasks := installDevice.WaitTasks()
+	// prepare-ubuntu-save has a pre-req of setup-run-system
+	waitTasks := setupUbuntuSave.WaitTasks()
 	c.Assert(waitTasks, HasLen, 1)
-	c.Assert(waitTasks[0].ID(), Equals, setupRunSystemTask.ID())
+	c.Check(waitTasks[0].ID(), Equals, setupRunSystemTask.ID())
+
+	// install-device has a pre-req of prepare-ubuntu-save
+	waitTasks = installDevice.WaitTasks()
+	c.Assert(waitTasks, HasLen, 1)
+	c.Check(waitTasks[0].ID(), Equals, setupUbuntuSave.ID())
 
 	// install-device restart-task references to restart-system-to-run-mode
 	var restartTask string
@@ -1132,7 +1139,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	// restart-system-to-run-mode has a pre-req of install-device
 	waitTasks = restartSystemToRunModeTask.WaitTasks()
 	c.Assert(waitTasks, HasLen, 1)
-	c.Assert(waitTasks[0].ID(), Equals, installDevice.ID())
+	c.Check(waitTasks[0].ID(), Equals, installDevice.ID())
 
 	// we did request a restart through restartSystemToRunModeTask
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
@@ -1228,12 +1235,14 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithBrokenInstallDeviceHookUnhapp
 - Run install-device hook \(run hook \"install-device\": hook exited broken\)`)
 
 	tasks := installSystem.Tasks()
-	c.Assert(tasks, HasLen, 3)
+	c.Assert(tasks, HasLen, 4)
 	setupRunSystemTask := tasks[0]
-	installDevice := tasks[1]
-	restartSystemToRunModeTask := tasks[2]
+	setupUbuntuSave := tasks[1]
+	installDevice := tasks[2]
+	restartSystemToRunModeTask := tasks[3]
 
 	c.Assert(setupRunSystemTask.Kind(), Equals, "setup-run-system")
+	c.Assert(setupUbuntuSave.Kind(), Equals, "setup-ubuntu-save")
 	c.Assert(installDevice.Kind(), Equals, "run-hook")
 	c.Assert(restartSystemToRunModeTask.Kind(), Equals, "restart-system-to-run-mode")
 
@@ -1425,8 +1434,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
 	})
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
-	marker, err := ioutil.ReadFile(filepath.Join(boot.InstallHostFDEDataDir, "marker"))
+	c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
+	marker, err := ioutil.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
 	c.Assert(err, IsNil)
 	c.Check(marker, HasLen, 32)
 	c.Check(filepath.Join(boot.InstallHostFDESaveDir, "marker"), testutil.FileEquals, marker)
@@ -1584,14 +1593,14 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit: true,
-			TargetRootDir:  boot.InstallHostWritableDir,
+			TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
 		},
 	})
 
 	// and the special dirs in _writable_defaults were created
 	for _, dir := range []string{"/etc/udev/rules.d/", "/etc/modules-load.d/", "/etc/modprobe.d/"} {
-		fullDir := filepath.Join(sysconfig.WritableDefaultsDir(boot.InstallHostWritableDir), dir)
+		fullDir := filepath.Join(sysconfig.WritableDefaultsDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), dir)
 		c.Assert(fullDir, testutil.FilePresent)
 	}
 }
@@ -1611,7 +1620,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit: true,
-			TargetRootDir:  boot.InstallHostWritableDir,
+			TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
 		},
 	})
@@ -1634,7 +1643,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(
 		{
 			AllowCloudInit:  true,
 			CloudInitSrcDir: filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
-			TargetRootDir:   boot.InstallHostWritableDir,
+			TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
 		},
 	})
@@ -1663,7 +1672,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitGadgetAndSee
 	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit:  true,
-			TargetRootDir:   boot.InstallHostWritableDir,
+			TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
 			CloudInitSrcDir: cloudCfg,
 		},
@@ -1694,7 +1703,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitBothGadgetAn
 		{
 			AllowCloudInit:  true,
 			CloudInitSrcDir: filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
-			TargetRootDir:   boot.InstallHostWritableDir,
+			TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
 		},
 	})
@@ -1709,7 +1718,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSignedNoUbuntuSeedCloudInit(c
 	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit: true,
-			TargetRootDir:  boot.InstallHostWritableDir,
+			TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
 		},
 	})
@@ -1731,7 +1740,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSecuredGadgetCloudConfCloudIn
 	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit: true,
-			TargetRootDir:  boot.InstallHostWritableDir,
+			TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
 		},
 	})
@@ -1758,7 +1767,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSecuredNoUbuntuSeedCloudInit(
 	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit:  false,
-			TargetRootDir:   boot.InstallHostWritableDir,
+			TargetRootDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
 			CloudInitSrcDir: cloudCfg,
 		},
@@ -2286,7 +2295,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockHappy(c *
 	c.Check(installSystem.Err(), IsNil)
 	c.Check(installSystem.Status(), Equals, state.DoneStatus)
 
-	clockTsInDst := filepath.Join(boot.InstallHostWritableDir, "/var/lib/systemd/timesync/clock")
+	clockTsInDst := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "/var/lib/systemd/timesync/clock")
 	fi, err := os.Stat(clockTsInDst)
 	c.Assert(err, IsNil)
 	c.Check(fi.ModTime().Round(time.Second), Equals, now.Round(time.Second))
@@ -2306,7 +2315,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockErr(c *C)
 	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
 
-	timesyncDirInDst := filepath.Join(boot.InstallHostWritableDir, "/var/lib/systemd/timesync/")
+	timesyncDirInDst := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "/var/lib/systemd/timesync/")
 	c.Assert(os.MkdirAll(timesyncDirInDst, 0755), IsNil)
 	c.Assert(os.Chmod(timesyncDirInDst, 0000), IsNil)
 	defer os.Chmod(timesyncDirInDst, 0755)
@@ -2368,7 +2377,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		if tc.encrypt {
 			devForRole[gadget.SystemSave] = "/dev/foo-save"
 		}
-		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), 0755), IsNil)
+		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), 0755), IsNil)
 		return &install.InstalledSystemSideData{
 			KeyForRole:    keyForRole,
 			DeviceForRole: devForRole,
@@ -2423,7 +2432,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		if tc.encrypt {
 			recoveryKeyRemoved = true
 			c.Check(r2k, DeepEquals, map[secboot.RecoveryKeyDevice]string{
-				{Mountpoint: boot.InitramfsUbuntuSaveDir}: filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"),
+				{Mountpoint: boot.InitramfsUbuntuSaveDir}: filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "recovery.key"),
 			})
 			return nil
 		}
@@ -2537,15 +2546,15 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	if tc.encrypt {
 		c.Assert(saveKey, NotNil)
 		c.Check(recoveryKeyRemoved, Equals, true)
-		c.Check(filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
+		c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
 		c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"), testutil.FileEquals, "new-data")
 		// sha3-384 of the mocked ubuntu-save sealed key
-		c.Check(filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "factory-reset"),
+		c.Check(filepath.Join(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "factory-reset"),
 			testutil.FileEquals,
 			`{"fallback-save-key-sha3-384":"d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b"}
 `)
 	} else {
-		c.Check(filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "factory-reset"),
+		c.Check(filepath.Join(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "factory-reset"),
 			testutil.FileEquals, "{}\n")
 	}
 
@@ -2615,7 +2624,7 @@ echo "mock output of: $(basename "$0") $*"
 	c.Assert(err, IsNil)
 
 	// verify that the serial assertion has been restored
-	assertsInResetSystem := filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions")
+	assertsInResetSystem := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "var/lib/snapd/assertions")
 	bs, err := asserts.OpenFSBackstore(assertsInResetSystem)
 	c.Assert(err, IsNil)
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -2697,7 +2706,7 @@ echo "mock output of: $(basename "$0") $*"
 	c.Assert(err, IsNil)
 
 	// verify that the serial assertion has been restored
-	assertsInResetSystem := filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions")
+	assertsInResetSystem := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "var/lib/snapd/assertions")
 	bs, err := asserts.OpenFSBackstore(assertsInResetSystem)
 	c.Assert(err, IsNil)
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -2761,7 +2770,7 @@ echo "mock output of: $(basename "$0") $*"
 	c.Assert(err, IsNil)
 
 	// verify that the serial assertion has been restored
-	assertsInResetSystem := filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions")
+	assertsInResetSystem := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "var/lib/snapd/assertions")
 	bs, err := asserts.OpenFSBackstore(assertsInResetSystem)
 	c.Assert(err, IsNil)
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -2816,7 +2825,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialsWithoutKey(c *C) {
 	c.Assert(err, IsNil)
 
 	// nothing has been restored in the assertions dir
-	matches, err := filepath.Glob(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions/*/*"))
+	matches, err := filepath.Glob(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "var/lib/snapd/assertions/*/*"))
 	c.Assert(err, IsNil)
 	c.Assert(matches, HasLen, 0)
 }
@@ -2841,7 +2850,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetNoSerials(c *C) {
 	c.Assert(err, IsNil)
 
 	// nothing has been restored in the assertions dir
-	matches, err := filepath.Glob(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions/*/*"))
+	matches, err := filepath.Glob(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "var/lib/snapd/assertions/*/*"))
 	c.Assert(err, IsNil)
 	c.Assert(matches, HasLen, 0)
 }
@@ -2866,7 +2875,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetNoSave(c *C) {
 
 	// nothing has been restored in the assertions dir as nothing was there
 	// to begin with
-	matches, err := filepath.Glob(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions/*/*"))
+	matches, err := filepath.Glob(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "var/lib/snapd/assertions/*/*"))
 	c.Assert(err, IsNil)
 	c.Assert(matches, HasLen, 0)
 
@@ -2950,7 +2959,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialManyOneValid(c *C) {
 	c.Assert(err, IsNil)
 
 	// verify that only one serial assertion has been restored
-	assertsInResetSystem := filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions")
+	assertsInResetSystem := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "var/lib/snapd/assertions")
 	bs, err := asserts.OpenFSBackstore(assertsInResetSystem)
 	c.Assert(err, IsNil)
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -2990,7 +2999,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 	defer restore()
 
 	restore = devicestate.MockInstallFactoryReset(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, obs gadget.ContentObserver, pertTimings timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), 0755), IsNil)
+		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), 0755), IsNil)
 		return &install.InstalledSystemSideData{
 			DeviceForRole: map[string]string{
 				"ubuntu-save": "/dev/foo",
@@ -3062,14 +3071,14 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetRunSysconfig(c *C) {
 	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit: true,
-			TargetRootDir:  boot.InstallHostWritableDir,
+			TargetRootDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"),
 			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
 		},
 	})
 
 	// and the special dirs in _writable_defaults were created
 	for _, dir := range []string{"/etc/udev/rules.d/", "/etc/modules-load.d/", "/etc/modprobe.d/"} {
-		fullDir := filepath.Join(sysconfig.WritableDefaultsDir(boot.InstallHostWritableDir), dir)
+		fullDir := filepath.Join(sysconfig.WritableDefaultsDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), dir)
 		c.Assert(fullDir, testutil.FilePresent)
 	}
 }
@@ -3105,7 +3114,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetWritesTimesyncdClock(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	clockTsInDst := filepath.Join(boot.InstallHostWritableDir, "/var/lib/systemd/timesync/clock")
+	clockTsInDst := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "/var/lib/systemd/timesync/clock")
 	fi, err := os.Stat(clockTsInDst)
 	c.Assert(err, IsNil)
 	c.Check(fi.ModTime().Round(time.Second), Equals, now.Round(time.Second))
@@ -3661,6 +3670,75 @@ func (s *deviceMgrInstallModeSuite) TestEncryptionSupportInfoWithFdeHook(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallWithUbuntuSaveSnapFoldersHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	hooksCalled := []*hookstate.Context{}
+	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		ctx.Lock()
+		defer ctx.Unlock()
+
+		hooksCalled = append(hooksCalled, ctx)
+		return nil, nil
+	})
+	defer restore()
+
+	// For the snap folders to be created we must have two things in order
+	// 1. The path /var/lib/snapd/save must exists
+	// 2. It must be a mount point
+	// We do this as this is the easiest way for us to trigger the conditions
+	// where it creates the per-snap folders
+	snapSaveDir := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/save")
+	err := os.MkdirAll(snapSaveDir, 0755)
+	c.Assert(err, IsNil)
+
+	restore = osutil.MockMountInfo(fmt.Sprintf(mountSnapSaveFmt, dirs.GlobalRootDir))
+	defer restore()
+
+	err = ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+		[]byte("mode=install\n"), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	s.makeMockInstallModel(c, "dangerous")
+	// set a install-device hook, otherwise the setup-ubuntu-save task won't
+	// be triggered
+	s.makeMockInstalledPcKernelAndGadget(c, "install-device-hook-content", "")
+	devicestate.SetSystemMode(s.mgr, "install")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(s.restartRequests, HasLen, 1)
+	tasks := installSystem.Tasks()
+	c.Check(tasks, HasLen, 4)
+
+	c.Assert(hooksCalled, HasLen, 1)
+	c.Assert(hooksCalled[0].HookName(), Equals, "install-device")
+
+	snapFolderDir := filepath.Join(snapSaveDir, "snap")
+	ucSnapFolderExists := func(snapName string) bool {
+		exists, isDir, err := osutil.DirExists(filepath.Join(snapFolderDir, snapName))
+		return err == nil && exists && isDir
+	}
+
+	// verify that a folder is created for pc-kernel and core20
+	// (the two snaps mocked by makeMockInstalledPcKernelAndGadget)
+	c.Check(ucSnapFolderExists("pc-kernel"), Equals, true)
+	c.Check(ucSnapFolderExists("core20"), Equals, true)
 }
 
 type installStepSuite struct {

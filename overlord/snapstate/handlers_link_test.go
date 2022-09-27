@@ -60,10 +60,11 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 	s.baseHandlerSuite.SetUpTest(c)
 
 	s.state.Lock()
-	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
 		s.restartRequested = append(s.restartRequested, t)
 	}))
 	s.state.Unlock()
+	c.Assert(err, IsNil)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 
@@ -859,6 +860,52 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBase(c *C) {
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
 	c.Assert(t.Log(), HasLen, 1)
 	c.Check(t.Log()[0], Matches, `.*INFO Requested system restart.*`)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	r := snapstatetest.MockDeviceModel(MakeModelClassicWithModes("pc", nil))
+	defer r()
+
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name, Equals, "kernel")
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeKernel}
+		return info, nil
+	})
+
+	s.fakeBackend.linkSnapMaybeReboot = true
+	s.fakeBackend.linkSnapRebootFor = map[string]bool{
+		"kernel": true,
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "kernel",
+		SnapID:   "pclinuxdidididididididididididid",
+		Revision: snap.R(22),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeKernel,
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	// XXX CLASSIC-NO-REBOOT
+	c.Check(s.restartRequested, HasLen, 1)
+	// c.Assert(t.Log(), HasLen, 1)
+	// c.Check(t.Log()[0], Matches, `.*INFO Not restarting as this is a classic device.`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmediate(c *C) {
@@ -2015,6 +2062,7 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 		},
 		Type: "kernel",
 	})
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	// now we simulate that the new kernel is getting undone
 	restartRequested, rebootRequired, err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
