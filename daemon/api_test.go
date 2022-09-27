@@ -98,7 +98,12 @@ func (s *apiSuite) TestUserFromRequestHeaderCorrectMissingUser(c *check.C) {
 
 func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 	s.st.Lock()
-	expectedUser, err := auth.NewUser(s.st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	expectedUser, err := auth.NewUser(s.st, auth.NewUserData{
+		Username:   "username",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
 	s.st.Unlock()
 	c.Check(err, check.IsNil)
 

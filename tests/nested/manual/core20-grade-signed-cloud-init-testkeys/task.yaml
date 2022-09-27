@@ -22,9 +22,7 @@ environment:
   # use the testrootorg auto-import assertion
   # TODO: commit the Go code used to create this assertion from the json file
   NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-{VERSION}-auto-import.assert
-
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-signed.model
-  NESTED_IMAGE_ID: cloud-init-signed-testkeys
 
   # for the fake store
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
@@ -126,24 +124,24 @@ execute: |
   fi
 
   # wait for the initialize device task to be done
-  retry -n 200 --wait 1 sh -c "tests.nested exec snap changes | MATCH 'Done.*Initialize device'"
+  retry -n 200 --wait 1 sh -c "remote.exec snap changes | MATCH 'Done.*Initialize device'"
 
   echo "The initial cloud-init user was created"
-  tests.nested exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
+  remote.exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
 
   echo "And we can run things as the normal user"
-  tests.nested exec --user normal-user --pwd ubuntu "sudo true"
+  remote.exec --user normal-user --pass ubuntu "sudo true"
 
   echo "And we got a serial assertion from the fakestore"
-  tests.nested exec "sudo snap model --verbose --serial" | MATCH "serial:\s+7777"
+  remote.exec "sudo snap model --verbose --serial" | MATCH "serial:\s+7777"
 
   echo "Waiting for snapd to react to cloud-init"
-  retry --wait 1 -n 60 sh -c 'tests.nested exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'
+  retry --wait 1 -n 60 sh -c 'remote.exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'
 
   echo "Ensuring that cloud-init got disabled after running"
-  tests.nested exec "cloud-init status" | MATCH "status: disabled"
-  tests.nested exec "test -f /etc/cloud/cloud-init.disabled"
-  tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+  remote.exec "cloud-init status" | MATCH "status: disabled"
+  remote.exec "test -f /etc/cloud/cloud-init.disabled"
+  remote.exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
 
   # gracefully shutdown so that we don't have file corruption
   echo "Gracefully shutting down the nested VM to prepare a simulated attack"
@@ -158,9 +156,9 @@ execute: |
   tests.nested wait-for reboot "${boot_id}"
 
   echo "The cloud-init attacker user was not created"
-  tests.nested exec "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
+  remote.exec "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
 
   echo "cloud-init is still disabled"
-  tests.nested exec "cloud-init status" | MATCH "status: disabled"
-  tests.nested exec "test -f /etc/cloud/cloud-init.disabled"
-  tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+  remote.exec "cloud-init status" | MATCH "status: disabled"
+  remote.exec "test -f /etc/cloud/cloud-init.disabled"
+  remote.exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"

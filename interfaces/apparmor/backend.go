@@ -182,22 +182,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// Reload the apparmor profile of snap-confine. This points to the main
 	// file in /etc/apparmor.d/ as that file contains include statements that
 	// load any of the files placed in /var/lib/snapd/apparmor/snap-confine/.
-	// For historical reasons we may have a filename that ends with .real or
-	// not.  If we do then we prefer the file ending with the name .real as
-	// that is the more recent name we use.
-	var profilePath string
-	// TODO: fix for distros using /usr/libexec/snapd
-	for _, profileFname := range []string{"usr.lib.snapd.snap-confine.real", "usr.lib.snapd.snap-confine"} {
-		maybeProfilePath := filepath.Join(apparmor_sandbox.ConfDir, profileFname)
-		if _, err := os.Stat(maybeProfilePath); err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return err
-		}
-		profilePath = maybeProfilePath
-		break
-	}
+	profilePath := apparmor_sandbox.SnapConfineDistroProfilePath()
 	if profilePath == "" {
 		// XXX: is profile mandatory on some distros?
 

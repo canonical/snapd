@@ -167,8 +167,8 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 		snapType = snap.TypeGadget
 		getName = (*asserts.Model).Gadget
 	case snap.TypeKernel:
-		if release.OnClassic {
-			return fmt.Errorf("cannot install a kernel snap on classic")
+		if deviceCtx.IsClassicBoot() {
+			return fmt.Errorf("cannot install a kernel snap if classic boot")
 		}
 
 		kind = "kernel"
@@ -931,7 +931,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		}
 		// ensure a new session accounting for the new brand store
 		st.Unlock()
-		_, err := sto.EnsureDeviceSession()
+		err := sto.EnsureDeviceSession()
 		st.Lock()
 		if err != nil {
 			return nil, fmt.Errorf("cannot get a store session based on the new model assertion: %v", err)
@@ -1073,5 +1073,45 @@ func CreateRecoverySystem(st *state.State, label string) (*state.Change, error) 
 		return nil, err
 	}
 	chg.AddAll(ts)
+	return chg, nil
+}
+
+// InstallFinish creates a change that will finish the install for the given
+// label and volumes. This includes writing missing volume content, seting
+// up the bootloader and installing the kernel.
+func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error) {
+	if label == "" {
+		return nil, fmt.Errorf("cannot finish install with an empty system label")
+	}
+	if onVolumes == nil {
+		return nil, fmt.Errorf("cannot finish install without volumes data")
+	}
+
+	chg := st.NewChange("install-step-finish", fmt.Sprintf("Finish setup of run system for %q", label))
+	finishTask := st.NewTask("install-finish", fmt.Sprintf("Finish setup of run system for %q", label))
+	finishTask.Set("system-label", label)
+	finishTask.Set("on-volumes", onVolumes)
+	chg.AddTask(finishTask)
+
+	return chg, nil
+}
+
+// InstallSetupStorageEncryption creates a change that will setup the
+// storage encryption for the install of the given label and
+// volumes.
+func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[string]*gadget.Volume) (*state.Change, error) {
+	if label == "" {
+		return nil, fmt.Errorf("cannot setup storage encryption with an empty system label")
+	}
+	if onVolumes == nil {
+		return nil, fmt.Errorf("cannot setup storage encryption without volumes data")
+	}
+
+	chg := st.NewChange("install-step-setup-storage-encryption", fmt.Sprintf("Setup storage encryption for installing system %q", label))
+	setupStorageEncryptionTask := st.NewTask("install-setup-storage-encryption", fmt.Sprintf("Setup storage encryption for installing system %q", label))
+	setupStorageEncryptionTask.Set("system-label", label)
+	setupStorageEncryptionTask.Set("on-volumes", onVolumes)
+	chg.AddTask(setupStorageEncryptionTask)
+
 	return chg, nil
 }

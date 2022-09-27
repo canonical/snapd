@@ -182,7 +182,7 @@ func MockSnapstateRevertToRevision(mock func(*state.State, string, snap.Revision
 	}
 }
 
-func MockSnapstateInstallMany(mock func(*state.State, []string, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallMany(mock func(*state.State, []string, []*snapstate.RevisionOptions, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
 	oldSnapstateInstallMany := snapstateInstallMany
 	snapstateInstallMany = mock
 	return func() {
@@ -190,7 +190,7 @@ func MockSnapstateInstallMany(mock func(*state.State, []string, int, *snapstate.
 	}
 }
 
-func MockSnapstateUpdateMany(mock func(context.Context, *state.State, []string, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
+func MockSnapstateUpdateMany(mock func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
 	oldSnapstateUpdateMany := snapstateUpdateMany
 	snapstateUpdateMany = mock
 	return func() {
@@ -198,7 +198,7 @@ func MockSnapstateUpdateMany(mock func(context.Context, *state.State, []string, 
 	}
 }
 
-func MockSnapstateRemoveMany(mock func(*state.State, []string) ([]string, []*state.TaskSet, error)) (restore func()) {
+func MockSnapstateRemoveMany(mock func(*state.State, []string, *snapstate.RemoveFlags) ([]string, []*state.TaskSet, error)) (restore func()) {
 	oldSnapstateRemoveMany := snapstateRemoveMany
 	snapstateRemoveMany = mock
 	return func() {

@@ -134,12 +134,16 @@ backends:
             - ubuntu-22.04-64:
                   storage: 12G
                   workers: 8
+            - ubuntu-22.10-64:
+                  storage: 12G
+                  workers: 8
 
             - debian-10-64:
                   workers: 6
             - debian-11-64:
                   workers: 6
             - debian-sid-64:
+                  storage: 12G
                   workers: 6
 
             - fedora-35-64:
@@ -175,6 +179,22 @@ backends:
                   workers: 6
                   manual: true
 
+    google-arm:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-central1-a
+        plan: t2a-standard-1
+        halt-timeout: 2h
+        systems:
+            - ubuntu-20.04-arm-64:
+                  image: ubuntu-os-cloud/ubuntu-2004-lts-arm64
+                  workers: 8
+                  storage: 12G
+            - ubuntu-22.04-arm-64:
+                  image: ubuntu-os-cloud/ubuntu-2204-lts-arm64
+                  workers: 8
+                  storage: 12G
+
     google-sru:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
@@ -207,11 +227,11 @@ backends:
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
-                  workers: 7
+                  workers: 8
             - ubuntu-22.04-64:
                   image: ubuntu-2204-64-virt-enabled
                   storage: 20G
-                  workers: 6
+                  workers: 8
 
     qemu-nested:
         memory: 4G
@@ -482,7 +502,7 @@ debug-each: |
         # add another echo in case the serial log is missing a newline
         echo
 
-        tests.nested exec "sudo journalctl --no-pager -u snapd" || true
+        remote.exec "sudo journalctl --no-pager -u snapd" || true
     fi
 
     echo "# definition of snapd.service"
@@ -726,11 +746,6 @@ prepare: |
         rmdir "$DELTA_PREFIX"
     fi
 
-    # TODO: drop once 21.10 images are fixed
-    if [[ "$SPREAD_SYSTEM" == ubuntu-21.10-* ]] && [[ -e /home/ubuntu/.ssh ]]; then
-        chown -R ubuntu:ubuntu /home/ubuntu/.ssh
-    fi
-
     # Take the MATCH and REBOOT functions from spread and allow our shell
     # scripts to use them as shell commands. The replacements are real
     # executables in tests/lib/bin (which is on PATH) but they source
@@ -748,6 +763,7 @@ prepare: |
     # Copy external tools from the subtree to the "$TESTSLIB"/tools directory
     # The idea is to have a single directory with all the testing tools
     cp -f "$TESTSLIB"/external/snapd-testing-tools/tools/* "$TESTSTOOLS"
+    cp -f "$TESTSLIB"/external/snapd-testing-tools/remote/* "$TESTSTOOLS"
 
     # ensure there are no broken snaps or the invariant test will fail later
     if command -v snap; then
@@ -964,8 +980,12 @@ suites:
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
+            # Add snapd debug and log to serial console
+            NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
             # Generic imane name which has to be overwritten in the test
             NESTED_IMAGE_ID: "unset"
+            # Configuration file used for remote tools
+            REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
@@ -986,6 +1006,9 @@ suites:
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+
+            # Configure the ssh connection to the test vm
+            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested prepare
@@ -1014,6 +1037,8 @@ suites:
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
+            # Configuration file used for remote tools
+            REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -1032,6 +1057,9 @@ suites:
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+
+            # Configure the ssh connection to the test vm
+            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
 
             tests.nested prepare
             tests.nested build-image classic
@@ -1061,6 +1089,10 @@ suites:
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
+            # Add snapd debug and log to serial console
+            NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
+            # Configuration file used for remote tools
+            REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -1079,6 +1111,9 @@ suites:
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+
+            # Configure the ssh connection to the test vm
+            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
 
             tests.nested prepare
             tests.nested build-image core

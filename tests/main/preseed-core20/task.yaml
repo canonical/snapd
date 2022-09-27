@@ -6,7 +6,9 @@ details: |
 
 # TODO: test on 21.10 / 22.04; they fail because new build of snapd cannot
 # be run in core20-based chroot due to old libc.
-systems: [ubuntu-20.04*]
+# This test cannot be executed in arm architecture because the model
+# assertion is made for amd64
+systems: [ubuntu-20.04-64]
 
 environment:
   PREPARE_IMAGE_DIR: uc20image

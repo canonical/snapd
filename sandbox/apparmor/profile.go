@@ -28,6 +28,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -76,7 +77,7 @@ func numberOfJobsParam() string {
 //
 // If no such profiles were previously loaded then they are simply added to the kernel.
 // If there were some profiles with the same name before, those profiles are replaced.
-func LoadProfiles(fnames []string, cacheDir string, flags AaParserFlags) error {
+var LoadProfiles = func(fnames []string, cacheDir string, flags AaParserFlags) error {
 	if len(fnames) == 0 {
 		return nil
 	}
@@ -164,6 +165,36 @@ func UnloadProfiles(names []string, cacheDir string) error {
 	return nil
 }
 
+// ReloadAllSnapProfiles reload the AppArmor profiles of all installed snaps,
+// as well as that of snap-confine.
+// This method is meant to be called when some rules have been changed in
+// AppArmor include files (like in the tunable files for HOMEDIRS or other
+// variables) which are bound to affect most snaps.
+func ReloadAllSnapProfiles() error {
+	profiles, err := filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
+	if err != nil {
+		// This only happens if the pattern is malformed
+		return err
+	}
+
+	// We also need to reload the profile of snap-confine; it could come from
+	// the core snap, in which case the glob above will already include it, or
+	// from the distribution package, in which case it's under
+	// /etc/apparmor.d/.
+	if snapConfineProfile := SnapConfineDistroProfilePath(); snapConfineProfile != "" {
+		profiles = append(profiles, snapConfineProfile)
+	}
+
+	// We want to reload the profiles no matter what, so don't even bother
+	// checking if the cached profile is newer
+	aaFlags := SkipReadCache
+	if err := LoadProfiles(profiles, SystemCacheDir, aaFlags); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // profilesPath contains information about the currently loaded apparmor profiles.
 const realProfilesPath = "/sys/kernel/security/apparmor/profiles"
 
@@ -197,4 +228,26 @@ func LoadedProfiles() ([]string, error) {
 		}
 	}
 	return profiles, nil
+}
+
+// SnapConfineDistroProfilePath returns the path to the AppArmor profile of the
+// snap-confine binary shipped by the distribution package.
+// If such a profile is not found (for instance, because we are running Ubuntu
+// Core) return an empty string
+var SnapConfineDistroProfilePath = func() string {
+	// For historical reasons we may have a filename that ends with .real or
+	// not.  If we do then we prefer the file ending with the name .real as
+	// that is the more recent name we use.
+	for _, profileName := range []string{
+		"usr.lib.snapd.snap-confine.real",
+		"usr.lib.snapd.snap-confine",
+		"usr.libexec.snapd.snap-confine",
+	} {
+		maybeProfilePath := filepath.Join(ConfDir, profileName)
+		if osutil.FileExists(maybeProfilePath) {
+			return maybeProfilePath
+		}
+	}
+
+	return ""
 }

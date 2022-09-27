@@ -4,11 +4,8 @@ systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
   VARIANT/nogadget: "no-gadget"
-  NESTED_IMAGE_ID/nogadget: core20-kernel-commandline-bootconfig-no-gadget
   VARIANT/gadgetextra: "gadget-extra"
-  NESTED_IMAGE_ID/gadgetextra: core20-kernel-commandline-bootconfig-gadget-extra
   VARIANT/gadgetfull: "gadget-full"
-  NESTED_IMAGE_ID/gadgetfull: core20-kernel-commandline-bootconfig-gadget-full
 
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
   NESTED_ENABLE_TPM: true
@@ -64,7 +61,7 @@ prepare: |
   tests.nested build-image core
   tests.nested create-vm core
 
-  tests.nested copy snapd-boot-config-update.snap
+  remote.push snapd-boot-config-update.snap
 
 debug: |
   cat boot-chains-before.json || true
@@ -76,8 +73,8 @@ execute: |
       exit
   fi
 
-  tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
-  SEALED_KEY_MTIME_1="$(tests.nested exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
+  SEALED_KEY_MTIME_1="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
   RESEAL_COUNT_1="$(jq -r '.["reseal-count"]' < boot-chains-before.json )"
   jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | NOMATCH ' bootassetstesting'
   case "$VARIANT" in
@@ -94,8 +91,8 @@ execute: |
 
   echo "Install new (unasserted) snapd and wait for reboot/change finishing"
   boot_id="$( tests.nested boot-id )"
-  REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous snapd-boot-config-update.snap --no-wait)
-  tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
+  REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous snapd-boot-config-update.snap --no-wait)
+  remote.exec sudo snap watch "${REMOTE_CHG_ID}"
   if [ "$VARIANT" != "gadget-full" ]; then
     # reboot is automatically requested by snapd only if part of the command
     # line is changed, in case of gadget overriding the command line fully
@@ -105,10 +102,10 @@ execute: |
   fi
   
   echo "check boot assets have been updated"
-  tests.nested exec "sudo cat /boot/grub/grub.cfg" | MATCH "Snapd-Boot-Config-Edition: 4"
-  tests.nested exec "sudo cat /boot/grub/grub.cfg" | MATCH "set snapd_static_cmdline_args='.*bootassetstesting'"
+  remote.exec "sudo cat /boot/grub/grub.cfg" | MATCH "Snapd-Boot-Config-Edition: 4"
+  remote.exec "sudo cat /boot/grub/grub.cfg" | MATCH "set snapd_static_cmdline_args='.*bootassetstesting'"
 
-  tests.nested exec "cat /proc/cmdline" > system.cmdline
+  remote.exec "cat /proc/cmdline" > system.cmdline
 
   case "$VARIANT" in
     no-gadget)
@@ -128,7 +125,7 @@ execute: |
   esac
 
   echo "Check ubuntu-data.sealed-key mtime is newer or not depending on test variant"
-  SEALED_KEY_MTIME_2="$(tests.nested exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  SEALED_KEY_MTIME_2="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
   case "$VARIANT" in
     no-gadget|gadget-extra)
       test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
@@ -138,7 +135,7 @@ execute: |
       ;;
   esac
 
-  tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-after.json
+  remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-after.json
   RESEAL_COUNT_2="$(jq -r '.["reseal-count"]' < boot-chains-after.json )"
   case "$VARIANT" in
     no-gadget|gadget-extra)

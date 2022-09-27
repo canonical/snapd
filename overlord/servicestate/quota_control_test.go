@@ -1078,3 +1078,43 @@ func (s *quotaControlSuite) TestUpdateQuotaModifyExistingMixable(c *C) {
 	})
 	c.Assert(err, ErrorMatches, `quota group "mixed-grp" has mixed snaps and sub-groups, which is no longer supported; removal and re-creation is necessary to modify it`)
 }
+
+func (s *quotaControlSuite) TestAddSnapToQuotaGroup(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	t, err := servicestate.AddSnapToQuotaGroup(st, "test-snap", "foo")
+	c.Assert(err, IsNil)
+	c.Assert(t.Kind(), Equals, "quota-add-snap")
+	c.Assert(t.Summary(), Equals, "Add snap \"test-snap\" to quota group \"foo\"")
+}
+
+func (s *quotaControlSuite) TestAddSnapToQuotaGroupQuotaConflict(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()
+	ts, err := servicestate.CreateQuota(st, "foo", "", []string{"test-snap"}, quotaConstraits)
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("quota-control", "...")
+	chg1.AddAll(ts)
+
+	_, err = servicestate.AddSnapToQuotaGroup(st, "test-snap2", "foo")
+	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
+}

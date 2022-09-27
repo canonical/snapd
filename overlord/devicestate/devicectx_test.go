@@ -20,8 +20,6 @@
 package devicestate_test
 
 import (
-	"testing"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot/boottest"
@@ -30,8 +28,6 @@ import (
 	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
-
-func TestBoot(t *testing.T) { TestingT(t) }
 
 type deviceCtxSuite struct {
 	testutil.BaseTest

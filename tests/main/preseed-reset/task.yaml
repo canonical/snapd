@@ -10,9 +10,12 @@ environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
 
 prepare: |
-  # the get_image_url_for_nested_vm is a convenient helper that returns
+  # shellcheck source=tests/lib/image.sh
+  . "$TESTSLIB"/image.sh
+
+  # the get_image_url_for_vm is a convenient helper that returns
   # a cloud image url matching current $SPREAD_SYSTEM.
-  wget --quiet "$(tests.nested download image-url)" -O cloudimg.img
+  wget --quiet "$(get_image_url_for_vm)" -O cloudimg.img
   mkdir -p "$IMAGE_MOUNTPOINT"
 
   #shellcheck source=tests/lib/preseed.sh

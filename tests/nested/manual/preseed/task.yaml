@@ -83,8 +83,8 @@ execute: |
   tests.nested create-vm classic
 
   echo "Waiting for firstboot seeding to finish"
-  tests.nested exec "sudo snap wait system seed.loaded"
-  tests.nested exec "snap changes" | MATCH "Done .+ Initialize system state"
+  remote.exec "sudo snap wait system seed.loaded"
+  remote.exec "snap changes" | MATCH "Done .+ Initialize system state"
 
   echo "Checking that the system-key after first boot is the same as that from preseeding"
 
@@ -97,41 +97,41 @@ execute: |
     # the test is run against a vm image with ubuntu release matching that from spread host;
     # system-key check can fail if the nested vm image differs too much from the spread host system,
     # e.g. when the list of apparmor features differs due to significant kernel update.
-    tests.nested exec "cat /var/lib/snapd/system-key" > system-key.real
+    remote.exec "cat /var/lib/snapd/system-key" > system-key.real
     diff -u -w system-key.real system-key.preseeded
 
     # also check the system-key diff using snap debug seeding
 
     # we should not have had any system-key difference as per above, so we 
     # shouldn't output the preseed system-key or the seed-restart-system-key
-    tests.nested exec "snap debug seeding" | NOMATCH "preseed-system-key:"
-    tests.nested exec "snap debug seeding" | NOMATCH "seed-restart-system-key:"
+    remote.exec "snap debug seeding" | NOMATCH "preseed-system-key:"
+    remote.exec "snap debug seeding" | NOMATCH "seed-restart-system-key:"
   fi
 
-  tests.nested exec "snap debug seeding" | MATCH "preseeded:\s+true"
-  tests.nested exec "snap debug seeding" | MATCH "seeded:\s+true"
+  remote.exec "snap debug seeding" | MATCH "preseeded:\s+true"
+  remote.exec "snap debug seeding" | MATCH "seeded:\s+true"
   # FIXME: this just checks that the time is of the form "xxx.xxxs", which could
   # break if the preseeding takes more than 60s and golang formats the 
   # time.Duration as "1m2.03s", etc. but for now this should be good enough
-  tests.nested exec "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
-  tests.nested exec "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
+  remote.exec "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
+  remote.exec "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
 
   echo "Checking that lxd snap is operational"
-  tests.nested exec "snap list" | NOMATCH "broken"
-  tests.nested exec "snap services" | MATCH "lxd.activate +enabled +inactive"
-  tests.nested exec "snap services" | MATCH "lxd.daemon +enabled +inactive +socket-activated"
-  tests.nested exec "sudo lxd init --auto"
-  tests.nested exec "snap services" | MATCH "+lxd.daemon +enabled +active +socket-activated"
+  remote.exec "snap list" | NOMATCH "broken"
+  remote.exec "snap services" | MATCH "lxd.activate +enabled +inactive"
+  remote.exec "snap services" | MATCH "lxd.daemon +enabled +inactive +socket-activated"
+  remote.exec "sudo lxd init --auto"
+  remote.exec "snap services" | MATCH "+lxd.daemon +enabled +active +socket-activated"
 
   echo "Checking that the test-postgres-system-usernames snap is operational"
-  tests.nested exec "sudo snap start --enable test-postgres-system-usernames.postgres"
+  remote.exec "sudo snap start --enable test-postgres-system-usernames.postgres"
   # wait for postgres to come online
   sleep 10
-  tests.nested exec "snap services" | MATCH "+test-postgres-system-usernames.postgres +enabled +active"
+  remote.exec "snap services" | MATCH "+test-postgres-system-usernames.postgres +enabled +active"
 
   echo "Checking that mark-seeded task was executed last"
   # snap debug timings are sorts by read-time, mark-seeded should be last
-  tests.nested exec "sudo snap debug timings 1" | tail -2 | MATCH "Mark system seeded"
+  remote.exec "sudo snap debug timings 1" | tail -2 | MATCH "Mark system seeded"
   # no task should have ready time after mark-seeded
   # shellcheck disable=SC2046
   MARK_SEEDED_TIME=$(date -d $(snap change 1 --abs-time | grep "Mark system seeded" | awk '{print $3}') "+%s")

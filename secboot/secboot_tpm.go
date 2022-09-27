@@ -26,9 +26,12 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/canonical/go-tpm2"
+	"github.com/canonical/go-tpm2/mu"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
@@ -64,9 +67,10 @@ var (
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
-	isTPMEnabled           = (*sb_tpm2.Connection).IsEnabled
-	sbTPMEnsureProvisioned = (*sb_tpm2.Connection).EnsureProvisioned
-	tpmReleaseResources    = tpmReleaseResourcesImpl
+	isTPMEnabled                        = (*sb_tpm2.Connection).IsEnabled
+	sbTPMEnsureProvisioned              = (*sb_tpm2.Connection).EnsureProvisioned
+	sbTPMEnsureProvisionedWithCustomSRK = (*sb_tpm2.Connection).EnsureProvisionedWithCustomSRK
+	tpmReleaseResources                 = tpmReleaseResourcesImpl
 
 	sbTPMDictionaryAttackLockReset = (*sb_tpm2.Connection).DictionaryAttackLockReset
 
@@ -299,6 +303,56 @@ func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
 	if err := tpmProvision(tpm, mode, lockoutAuthFile); err != nil {
 		return err
 	}
+	return nil
+}
+
+// ProvisionForCVM provisions the default TPM using a custom SRK
+// template that is created by the encrypt tool prior to first boot of
+// Azure CVM instances. It takes UbuntuSeedDir (ESP) and expects
+// "tpm2-srk.tmpl" there which is deleted after successful provision.
+//
+// Key differences with ProvisionTPM()
+// - lack of TPM or if TPM is disabled is ignored.
+// - it is fatal if TPM Provisioning requires a Lockout file
+// - Custom SRK file is required in InitramfsUbuntuSeedDir
+func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
+	tpm, err := insecureConnectToTPM()
+	if err != nil {
+		if xerrors.Is(err, sb_tpm2.ErrNoTPM2Device) {
+			return nil
+		}
+		return fmt.Errorf("cannot open TPM connection: %v", err)
+	}
+	defer tpm.Close()
+
+	if !isTPMEnabled(tpm) {
+		return nil
+	}
+
+	srkTmplPath := filepath.Join(initramfsUbuntuSeedDir, "tpm2-srk.tmpl")
+	f, err := os.Open(srkTmplPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("cannot open SRK template file: %v", err)
+	}
+	defer f.Close()
+
+	var srkTmpl *tpm2.Public
+	if _, err := mu.UnmarshalFromReader(f, mu.Sized(&srkTmpl)); err != nil {
+		return fmt.Errorf("cannot read SRK template: %v", err)
+	}
+
+	err = sbTPMEnsureProvisionedWithCustomSRK(tpm, sb_tpm2.ProvisionModeWithoutLockout, nil, srkTmpl)
+	if err != nil && err != sb_tpm2.ErrTPMProvisioningRequiresLockout {
+		return fmt.Errorf("cannot prepare TPM: %v", err)
+	}
+
+	if err := os.Remove(srkTmplPath); err != nil {
+		return fmt.Errorf("cannot remove SRK template file: %v", err)
+	}
+
 	return nil
 }
 

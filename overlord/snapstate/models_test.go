@@ -85,6 +85,33 @@ func MakeModel20(gadgetName string, override map[string]interface{}) *asserts.Mo
 	return assertstest.FakeAssertion(model, override).(*asserts.Model)
 }
 
+func MakeModelClassicWithModes(gadgetName string, override map[string]interface{}) *asserts.Model {
+	model := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "brand",
+		"series":       "16",
+		"brand-id":     "brand",
+		"model":        "baz-3000",
+		"architecture": "amd64",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"base":         "core22",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name": "kernel",
+				"id":   "pclinuxdidididididididididididid",
+				"type": "kernel",
+			},
+			map[string]interface{}{
+				"name": gadgetName,
+				"id":   "pcididididididididididididididid",
+				"type": "gadget",
+			},
+		},
+	}
+	return assertstest.FakeAssertion(model, override).(*asserts.Model)
+}
+
 func ClassicModel() *asserts.Model {
 	headers := map[string]interface{}{
 		"type":         "model",

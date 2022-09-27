@@ -32,8 +32,8 @@ restore: |
     snap remove core --revision=x3
 
 debug: |
-    snap list
-    "$TESTSTOOLS"/boot-state bootenv show
+    snap list || true
+    "$TESTSTOOLS"/boot-state bootenv show || true
     cat /proc/cmdline
 
 execute: |

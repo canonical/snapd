@@ -20,11 +20,11 @@
 package apparmor_test
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -33,10 +33,6 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/testutil"
 )
-
-func Test(t *testing.T) {
-	TestingT(t)
-}
 
 type appArmorSuite struct {
 	testutil.BaseTest
@@ -189,6 +185,80 @@ func (s *appArmorSuite) TestUnloadRemovesCachedProfileInForest(c *C) {
 	c.Check(osutil.FileExists(features), Equals, true)
 }
 
+func (s *appArmorSuite) TestReloadAllSnapProfilesFailure(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// Create a couple of empty profiles
+	err := os.MkdirAll(dirs.SnapAppArmorDir, 0755)
+	defer func() {
+		os.RemoveAll(dirs.SnapAppArmorDir)
+	}()
+	c.Assert(err, IsNil)
+	var profiles []string
+	for _, profile := range []string{"app1", "second_app"} {
+		path := filepath.Join(dirs.SnapAppArmorDir, profile)
+		f, err := os.Create(path)
+		f.Close()
+		c.Assert(err, IsNil)
+		profiles = append(profiles, path)
+	}
+
+	var passedProfiles []string
+	restore := apparmor.MockLoadProfiles(func(paths []string, cacheDir string, flags apparmor.AaParserFlags) error {
+		passedProfiles = paths
+		return errors.New("reload error")
+	})
+	defer restore()
+	err = apparmor.ReloadAllSnapProfiles()
+	c.Check(passedProfiles, DeepEquals, profiles)
+	c.Assert(err, ErrorMatches, "reload error")
+}
+
+func (s *appArmorSuite) TestReloadAllSnapProfilesHappy(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// Create a couple of empty profiles
+	err := os.MkdirAll(dirs.SnapAppArmorDir, 0755)
+	defer func() {
+		os.RemoveAll(dirs.SnapAppArmorDir)
+	}()
+	c.Assert(err, IsNil)
+	var profiles []string
+	for _, profile := range []string{"first", "second", "third"} {
+		path := filepath.Join(dirs.SnapAppArmorDir, profile)
+		f, err := os.Create(path)
+		f.Close()
+		c.Assert(err, IsNil)
+		profiles = append(profiles, path)
+	}
+
+	const snapConfineProfile = "/etc/apparmor.d/some.where.snap-confine"
+	restore := apparmor.MockSnapConfineDistroProfilePath(func() string {
+		return snapConfineProfile
+	})
+	defer restore()
+	profiles = append(profiles, snapConfineProfile)
+
+	var passedProfiles []string
+	var passedCacheDir string
+	var passedFlags apparmor.AaParserFlags
+	restore = apparmor.MockLoadProfiles(func(paths []string, cacheDir string, flags apparmor.AaParserFlags) error {
+		passedProfiles = paths
+		passedCacheDir = cacheDir
+		passedFlags = flags
+		return nil
+	})
+	defer restore()
+
+	err = apparmor.ReloadAllSnapProfiles()
+	c.Check(passedProfiles, DeepEquals, profiles)
+	c.Check(passedCacheDir, Equals, filepath.Join(dirs.GlobalRootDir, "/var/cache/apparmor"))
+	c.Check(passedFlags, Equals, apparmor.SkipReadCache)
+	c.Assert(err, IsNil)
+}
+
 // Tests for LoadedProfiles()
 
 func (s *appArmorSuite) TestLoadedApparmorProfilesReturnsErrorOnMissingFile(c *C) {
@@ -261,4 +331,44 @@ func (s *appArmorSuite) TestMaybeSetNumberOfJobs(c *C) {
 
 	cpus = 1
 	c.Check(apparmor.NumberOfJobsParam(), Equals, "-j1")
+}
+
+func (s *appArmorSuite) TestSnapConfineDistroProfilePath(c *C) {
+	baseDir := c.MkDir()
+	restore := testutil.Backup(&apparmor.ConfDir)
+	apparmor.ConfDir = filepath.Join(baseDir, "/a/b/c")
+	defer restore()
+
+	for _, testData := range []struct {
+		existingFiles []string
+		expectedPath  string
+	}{
+		{[]string{}, ""},
+		{[]string{"/a/b/c/usr.lib.snapd.snap-confine.real"}, "/a/b/c/usr.lib.snapd.snap-confine.real"},
+		{[]string{"/a/b/c/usr.lib.snapd.snap-confine"}, "/a/b/c/usr.lib.snapd.snap-confine"},
+		{[]string{"/a/b/c/usr.libexec.snapd.snap-confine"}, "/a/b/c/usr.libexec.snapd.snap-confine"},
+		{
+			[]string{"/a/b/c/usr.lib.snapd.snap-confine.real", "/a/b/c/usr.lib.snapd.snap-confine"},
+			"/a/b/c/usr.lib.snapd.snap-confine.real",
+		},
+	} {
+		// Remove leftovers from the previous iteration
+		err := os.RemoveAll(baseDir)
+		c.Assert(err, IsNil)
+
+		existingFiles := testData.existingFiles
+		for _, path := range existingFiles {
+			fullPath := filepath.Join(baseDir, path)
+			err := os.MkdirAll(filepath.Dir(fullPath), 0755)
+			c.Assert(err, IsNil)
+			err = ioutil.WriteFile(fullPath, []byte("I'm an ELF binary"), 0755)
+			c.Assert(err, IsNil)
+		}
+		var expectedPath string
+		if testData.expectedPath != "" {
+			expectedPath = filepath.Join(baseDir, testData.expectedPath)
+		}
+		path := apparmor.SnapConfineDistroProfilePath()
+		c.Check(path, Equals, expectedPath, Commentf("Existing: %q", existingFiles))
+	}
 }

@@ -300,13 +300,14 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: cannot make pre-UC20 system runnable")
 	}
+
 	// TODO:UC20:
 	// - figure out what to do for uboot gadgets, currently we require them to
 	//   install the boot.sel onto ubuntu-boot directly, but the file should be
 	//   managed by snapd instead
 
 	// copy kernel/base/gadget into the ubuntu-data partition
-	snapBlobDir := dirs.SnapBlobDirUnder(InstallHostWritableDir)
+	snapBlobDir := dirs.SnapBlobDirUnder(InstallHostWritableDir(model))
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
@@ -330,7 +331,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	}
 
 	// replicate the boot assets cache in host's writable
-	if err := CopyBootAssetsCacheToRoot(InstallHostWritableDir); err != nil {
+	if err := CopyBootAssetsCacheToRoot(InstallHostWritableDir(model)); err != nil {
 		return fmt.Errorf("cannot replicate boot assets cache: %v", err)
 	}
 
@@ -360,6 +361,8 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 		BrandID:        model.BrandID(),
 		Model:          model.Model(),
+		// TODO: test this
+		Classic:        model.Classic(),
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
 	}
@@ -450,7 +453,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 
 	// all fields that needed to be set in the modeenv must have been set by
 	// now, write modeenv to disk
-	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
+	if err := modeenv.WriteTo(InstallHostWritableDir(model)); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 

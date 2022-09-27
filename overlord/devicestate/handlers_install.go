@@ -250,6 +250,10 @@ func writeTimings(st *state.State, rootdir, fromMode string) error {
 	return nil
 }
 
+func (m *DeviceManager) doSetupUbuntuSave(t *state.Task, _ *tomb.Tomb) error {
+	return m.setupUbuntuSave()
+}
+
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -340,7 +344,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if trustedInstallObserver != nil {
-		if err := prepareEncryptedSystemData(installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		if err := prepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -373,10 +377,11 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
+
 	return nil
 }
 
-func prepareEncryptedSystemData(keyForRole map[string]keys.EncryptionKey, trustedInstallObserver *boot.TrustedAssetsInstallObserver) error {
+func prepareEncryptedSystemData(model *asserts.Model, keyForRole map[string]keys.EncryptionKey, trustedInstallObserver *boot.TrustedAssetsInstallObserver) error {
 	// validity check
 	if len(keyForRole) == 0 || keyForRole[gadget.SystemData] == nil || keyForRole[gadget.SystemSave] == nil {
 		return fmt.Errorf("internal error: system encryption keys are unset")
@@ -391,11 +396,11 @@ func prepareEncryptedSystemData(keyForRole map[string]keys.EncryptionKey, truste
 	if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
 		return fmt.Errorf("cannot observe existing trusted recovery assets: err")
 	}
-	if err := saveKeys(keyForRole); err != nil {
+	if err := saveKeys(model, keyForRole); err != nil {
 		return err
 	}
 	// write markers containing a secret to pair data and save
-	if err := writeMarkers(); err != nil {
+	if err := writeMarkers(model); err != nil {
 		return err
 	}
 	return nil
@@ -414,12 +419,12 @@ func prepareRunSystemData(model *asserts.Model, gadgetDir string, perfTimings ti
 
 	// preserve systemd-timesyncd clock timestamp, so that RTC-less devices
 	// can start with a more recent time on the next boot
-	if err := writeTimesyncdClock(dirs.GlobalRootDir, boot.InstallHostWritableDir); err != nil {
+	if err := writeTimesyncdClock(dirs.GlobalRootDir, boot.InstallHostWritableDir(model)); err != nil {
 		return fmt.Errorf("cannot seed timesyncd clock: %v", err)
 	}
 
 	// configure the run system
-	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
+	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir(model), GadgetDir: gadgetDir}
 	// configure cloud init
 	setSysconfigCloudOptions(opts, gadgetDir, model)
 	timings.Run(perfTimings, "sysconfig-configure-target-system", "Configure target system", func(timings.Measurer) {
@@ -438,7 +443,7 @@ func prepareRunSystemData(model *asserts.Model, gadgetDir string, perfTimings ti
 	// some files there, this eventually will go away when we introduce a proper
 	// mechanism not using system-files to install files onto the root
 	// filesystem from the install-device hook
-	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir); err != nil {
+	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir(model)); err != nil {
 		return err
 	}
 	return nil
@@ -471,9 +476,9 @@ func fixupWritableDefaultDirs(systemDataDir string) error {
 }
 
 // writeMarkers writes markers containing the same secret to pair data and save.
-func writeMarkers() error {
+func writeMarkers(model *asserts.Model) error {
 	// ensure directory for markers exists
-	if err := os.MkdirAll(boot.InstallHostFDEDataDir, 0755); err != nil {
+	if err := os.MkdirAll(boot.InstallHostFDEDataDir(model), 0755); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(boot.InstallHostFDESaveDir, 0755); err != nil {
@@ -486,89 +491,23 @@ func writeMarkers() error {
 		return fmt.Errorf("cannot create ubuntu-data/save marker secret: %v", err)
 	}
 
-	return device.WriteEncryptionMarkers(boot.InstallHostFDEDataDir, boot.InstallHostFDESaveDir, markerSecret)
+	return device.WriteEncryptionMarkers(boot.InstallHostFDEDataDir(model), boot.InstallHostFDESaveDir, markerSecret)
 }
 
-func saveKeys(keyForRole map[string]keys.EncryptionKey) error {
+func saveKeys(model *asserts.Model, keyForRole map[string]keys.EncryptionKey) error {
 	saveEncryptionKey := keyForRole[gadget.SystemSave]
 	if saveEncryptionKey == nil {
 		// no system-save support
 		return nil
 	}
 	// ensure directory for keys exists
-	if err := os.MkdirAll(boot.InstallHostFDEDataDir, 0755); err != nil {
+	if err := os.MkdirAll(boot.InstallHostFDEDataDir(model), 0755); err != nil {
 		return err
 	}
-	if err := saveEncryptionKey.Save(device.SaveKeyUnder(boot.InstallHostFDEDataDir)); err != nil {
+	if err := saveEncryptionKey.Save(device.SaveKeyUnder(boot.InstallHostFDEDataDir(model))); err != nil {
 		return fmt.Errorf("cannot store system save key: %v", err)
 	}
 	return nil
-}
-
-var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
-
-// checkEncryption verifies whether encryption should be used based on the
-// model grade and the availability of a TPM device or a fde-setup hook
-// in the kernel.
-func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res secboot.EncryptionType, err error) {
-	model := deviceCtx.Model()
-	secured := model.Grade() == asserts.ModelSecured
-	dangerous := model.Grade() == asserts.ModelDangerous
-	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
-
-	// check if we should disable encryption non-secured devices
-	// TODO:UC20: this is not the final mechanism to bypass encryption
-	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
-		return res, nil
-	}
-
-	// check if the model prefers to be unencrypted
-	// TODO: provide way to select via install chooser menu
-	//       if the install is unencrypted or encrypted
-	if model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
-		logger.Noticef(`installing system unencrypted to comply with prefer-unencrypted storage-safety model option`)
-		return res, nil
-	}
-
-	// check if encryption is available
-	var (
-		hasFDESetupHook    bool
-		checkEncryptionErr error
-	)
-	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
-		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
-			res, checkEncryptionErr = m.checkFDEFeatures()
-		}
-	}
-	// Note that having a fde-setup hook will disable the build-in
-	// secboot encryption
-	if !hasFDESetupHook {
-		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
-		if checkEncryptionErr == nil {
-			res = secboot.EncryptionTypeLUKS
-		}
-	}
-
-	// check if encryption is required
-	if checkEncryptionErr != nil {
-		if secured {
-			return res, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
-		}
-		if encrypted {
-			return res, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
-		}
-
-		if hasFDESetupHook {
-			logger.Noticef("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
-		} else {
-			logger.Noticef("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
-		}
-
-		// not required, go without
-		return res, nil
-	}
-
-	return res, nil
 }
 
 // RebootOptions can be attached to restart-system-to-run-mode tasks to control
@@ -599,7 +538,13 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		return fmt.Errorf("missing modeenv, cannot proceed")
 	}
 
-	preseeded, err := maybeApplyPreseededData(st, boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, boot.InstallHostWritableDir)
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+	model := deviceCtx.Model()
+
+	preseeded, err := maybeApplyPreseededData(st, boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, boot.InstallHostWritableDir(model))
 	if err != nil {
 		logger.Noticef("failed to apply preseed data: %v", err)
 		return err
@@ -622,11 +567,11 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	}
 
 	// write timing information
-	if err := writeTimings(st, boot.InstallHostWritableDir, modeEnv.Mode); err != nil {
+	if err := writeTimings(st, boot.InstallHostWritableDir(model), modeEnv.Mode); err != nil {
 		logger.Noticef("cannot write timings: %v", err)
 	}
 	// store install-mode log into ubuntu-data partition
-	if err := writeLogs(boot.InstallHostWritableDir, modeEnv.Mode); err != nil {
+	if err := writeLogs(boot.InstallHostWritableDir(model), modeEnv.Mode); err != nil {
 		logger.Noticef("cannot write installation log: %v", err)
 	}
 
@@ -981,7 +926,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		// ubuntu-save was opened during boot, so the removal operation
 		// can be authorized with a key from the keyring
 		err = secbootRemoveRecoveryKeys(map[secboot.RecoveryKeyDevice]string{
-			{Mountpoint: boot.InitramfsUbuntuSaveDir}: device.RecoveryKeyUnder(boot.InstallHostFDEDataDir),
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: device.RecoveryKeyUnder(boot.InstallHostFDEDataDir(model)),
 		})
 		if err != nil {
 			return fmt.Errorf("cannot remove recovery key: %v", err)
@@ -1004,7 +949,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		// keep track of the new ubuntu-save encryption key
 		installedSystem.KeyForRole[gadget.SystemSave] = saveEncryptionKey
 
-		if err := prepareEncryptedSystemData(installedSystem.KeyForRole, trustedInstallObserver); err != nil {
+		if err := prepareEncryptedSystemData(model, installedSystem.KeyForRole, trustedInstallObserver); err != nil {
 			return err
 		}
 	}
@@ -1042,7 +987,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	}
 
 	// leave a marker that factory reset was performed
-	factoryResetMarker := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "factory-reset")
+	factoryResetMarker := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir(model)), "factory-reset")
 	if err := writeFactoryResetMarker(factoryResetMarker, useEncryption); err != nil {
 		return fmt.Errorf("cannot write the marker file: %v", err)
 	}
@@ -1130,7 +1075,7 @@ func restoreDeviceSerialFromSave(model *asserts.Model) error {
 	logger.Debugf("found a serial assertion for %v/%v, with serial %v",
 		model.BrandID(), model.Model(), serialAs.Serial())
 
-	toDB, err := sysdb.OpenAt(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions"))
+	toDB, err := sysdb.OpenAt(filepath.Join(boot.InstallHostWritableDir(model), "var/lib/snapd/assertions"))
 	if err != nil {
 		return err
 	}
@@ -1241,4 +1186,47 @@ func rotateEncryptionKeys() error {
 		return fmt.Errorf("cannot transition the encryption key: %v", err)
 	}
 	return nil
+}
+
+func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var systemLabel string
+	if err := t.Get("system-label", &systemLabel); err != nil {
+		return err
+	}
+	var onVolumes map[string]*gadget.Volume
+	if err := t.Get("on-volumes", &onVolumes); err != nil {
+		return err
+	}
+	logger.Debugf("install-finish for %q on %v", systemLabel, onVolumes)
+	// TODO: use the seed to get gadget/kernel
+	// - install missing volumes structure content
+	// - install gadget assets
+	// - install kenrel
+	// - make system bootable (include writing modeenv)
+
+	return fmt.Errorf("finish install step not implemented yet")
+}
+
+func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var systemLabel string
+	if err := t.Get("system-label", &systemLabel); err != nil {
+		return err
+	}
+	var onVolumes map[string]*gadget.Volume
+	if err := t.Get("on-volumes", &onVolumes); err != nil {
+		return err
+	}
+	logger.Debugf("install-setup-storage-encyption for %q on %v", systemLabel, onVolumes)
+	// TODO: find device with role system-{data,seed} and setup
+	// storage encryption
+
+	return fmt.Errorf("setup storage encryption step not implemented yet")
 }

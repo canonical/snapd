@@ -26,6 +26,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -137,4 +138,110 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 		return xerrors.Errorf("cannot request system reboot: %v", err)
 	}
 	return nil
+}
+
+type StorageEncryptionSupport string
+
+const (
+	// forcefull disabled by the device
+	StorageEncryptionSupportDisabled = "disabled"
+	// encryption available and usable
+	StorageEncryptionSupportAvailable = "available"
+	// encryption unavailable but not required
+	StorageEncryptionSupportUnavailable = "unavailable"
+	// encryption unavailable and required, this is an error
+	StorageEncryptionSupportDefective = "defective"
+)
+
+type StorageEncryption struct {
+	// Support describes the level of hardware support available.
+	Support StorageEncryptionSupport `json:"support"`
+
+	// StorageSafety can have values of asserts.StorageSafety
+	StorageSafety string `json:"storage-safety,omitempty"`
+
+	// Type has values of secboot.Type: "", "cryptsetup",
+	// "device-setup-hook"
+	Type string `json:"encryption-type,omitempty"`
+
+	// UnavailableReason describes why the encryption is not
+	// available in a human readable form. Depending on if
+	// encryption is required or not this should be presented to
+	// the user as either an error or as information.
+	UnavailableReason string `json:"unavailable-reason,omitempty"`
+}
+
+type SystemDetails struct {
+	// First part is designed to look like `client.System` - the
+	// only difference is how the model is represented
+	Current bool                   `json:"current,omitempty"`
+	Label   string                 `json:"label,omitempty"`
+	Model   map[string]interface{} `json:"model,omitempty"`
+	Brand   snap.StoreAccount      `json:"brand,omitempty"`
+	Actions []SystemAction         `json:"actions,omitempty"`
+
+	// Volumes contains the volumes defined from the gadget snap
+	Volumes map[string]*gadget.Volume `json:"volumes,omitempty"`
+
+	StorageEncryption *StorageEncryption `json:"storage-encryption,omitempty"`
+}
+
+func (client *Client) SystemDetails(systemLabel string) (*SystemDetails, error) {
+	var rsp SystemDetails
+
+	if _, err := client.doSync("GET", "/v2/systems/"+systemLabel, nil, nil, nil, &rsp); err != nil {
+		return nil, xerrors.Errorf("cannot get details for system %q: %v", systemLabel, err)
+	}
+	return &rsp, nil
+}
+
+type InstallStep string
+
+const (
+	// Creates a change to setup encryption for the partitions
+	// with system-{data,save} roles. The successful change has a
+	// created device mapper devices ready to use.
+	InstallStepSetupStorageEncryption InstallStep = "setup-storage-encryption"
+
+	// Creates a change to finish the installation. The change
+	// ensures all volume structure content is written to disk, it
+	// sets up boot, kernel etc and when finished the installed
+	// system is ready for reboot.
+	InstallStepFinish InstallStep = "finish"
+)
+
+type InstallSystemOptions struct {
+	// Step is the install step, either "setup-storage-encryption"
+	// or "finish".
+	Step InstallStep `json:"step,omitempty"`
+
+	// OnVolumes is the volume description of the volumes that the
+	// given step should operate on.
+	OnVolumes map[string]*gadget.Volume `json:"on-volumes,omitempty"`
+}
+
+// InstallSystem will perform the given install step for the given volumes
+func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptions) (changeID string, err error) {
+	if systemLabel == "" {
+		return "", fmt.Errorf("cannot install with an empty system label")
+	}
+
+	// verification is done by the backend
+	req := struct {
+		Action string `json:"action"`
+		*InstallSystemOptions
+	}{
+		Action:               "install",
+		InstallSystemOptions: opts,
+	}
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(&req); err != nil {
+		return "", err
+	}
+	chgID, err := client.doAsync("POST", "/v2/systems/"+systemLabel, nil, nil, &body)
+	if err != nil {
+		return "", xerrors.Errorf("cannot request system install for %q: %v", systemLabel, err)
+	}
+	return chgID, nil
 }

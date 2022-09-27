@@ -11,7 +11,6 @@ manual: true
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-{VERSION}.model
-  NESTED_IMAGE_ID: uc22-remodel-testing
   # TODO: disable TPM for now and investigate why the system cannot be booted
   # after remodel completes
   NESTED_ENABLE_TPM: false
@@ -31,58 +30,58 @@ execute: |
     . "$TESTSLIB/nested.sh"
 
     boot_id="$(tests.nested boot-id)"
-    tests.nested exec snap model |MATCH 'model +my-model$'
+    remote.exec snap model |MATCH 'model +my-model$'
 
     # XXX: recovery system label is based on a date; we may end up with a
     # different label if the remodel runs around midnight; the label will
     # conflict with an existing system label
-    label_base=$(tests.nested exec "date '+%Y%m%d'")
+    label_base=$(remote.exec "date '+%Y%m%d'")
     label="${label_base}-1"
 
     # wait until device is initialized and has a serial
     tests.nested wait-for device-initialized
 
     echo "Remodel to UC22"
-    tests.nested copy "$TESTSLIB/assertions/valid-for-testing-pc-22-from-20.model"
-    REMOTE_CHG_ID="$(tests.nested exec sudo snap remodel --no-wait valid-for-testing-pc-22-from-20.model)"
+    remote.push "$TESTSLIB/assertions/valid-for-testing-pc-22-from-20.model"
+    REMOTE_CHG_ID="$(remote.exec sudo snap remodel --no-wait valid-for-testing-pc-22-from-20.model)"
     test -n "$REMOTE_CHG_ID"
     # very long retry wait for the change to be in stable state, once it's
     # stable it does not mean that the change was successful yet
-    retry -n 100 --wait 5 sh -c "tests.nested exec sudo snap changes | grep -E '^${REMOTE_CHG_ID}\s+(Done|Undone|Error)'"
+    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | grep -E '^${REMOTE_CHG_ID}\s+(Done|Undone|Error)'"
     # check that now
-    tests.nested exec sudo snap changes | grep -E "^${REMOTE_CHG_ID}\s+Done"
+    remote.exec sudo snap changes | grep -E "^${REMOTE_CHG_ID}\s+Done"
 
     # we should have rebooted a couple of times (at least twice for the recovery
     # system and the base), so boot-id should be different
     current_boot_id="$(tests.nested boot-id)"
     test "$boot_id" != "$current_boot_id"
 
-    tests.nested exec sudo snap list pc | MATCH " 22/edge "
-    tests.nested exec sudo snap list pc-kernel | MATCH " 22/edge "
-    tests.nested exec sudo snap list core22 | MATCH "core22 "
+    remote.exec sudo snap list pc | MATCH " 22/edge "
+    remote.exec sudo snap list pc-kernel | MATCH " 22/edge "
+    remote.exec sudo snap list core22 | MATCH "core22 "
 
     echo "Verify seed system with label $label"
-    tests.nested exec "sudo cat /run/mnt/ubuntu-seed/systems/${label}/model" > model-from-seed.model
+    remote.exec "sudo cat /run/mnt/ubuntu-seed/systems/${label}/model" > model-from-seed.model
     MATCH core22 < model-from-seed.model
     NOMATCH core20 < model-from-seed.model
 
     echo "Verify that UC22 recover system is usable"
     boot_id="$(tests.nested boot-id)"
-    tests.nested exec sudo snap reboot --recover "${label}" | MATCH 'Reboot into ".*" "recover" mode'
+    remote.exec sudo snap reboot --recover "${label}" | MATCH 'Reboot into ".*" "recover" mode'
     tests.nested wait-for reboot "${boot_id}"
     # Verify we are in recover mode with the expected system label
-    tests.nested exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=recover snapd_recovery_system=${label} "
+    remote.exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=recover snapd_recovery_system=${label} "
 
     # we are in recover mode, so tools need to be set up again
     nested_prepare_tools
 
     tests.nested wait-for snap-command
     # there should be no core20 since the seed is UC22
-    tests.nested exec sudo snap list | NOMATCH core20
+    remote.exec sudo snap list | NOMATCH core20
 
     boot_id="$(tests.nested boot-id)"
     echo "And back to run mode"
-    tests.nested exec "sudo snap wait system seed.loaded"
-    tests.nested exec sudo snap reboot --run | MATCH 'Reboot into "run" mode.'
+    remote.exec "sudo snap wait system seed.loaded"
+    remote.exec sudo snap reboot --run | MATCH 'Reboot into "run" mode.'
     tests.nested wait-for reboot "${boot_id}"
-    tests.nested exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=run "
+    remote.exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=run "
