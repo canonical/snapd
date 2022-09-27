@@ -217,7 +217,7 @@ func installOnePartition(part *gadget.OnDiskStructure, encryptionType secboot.En
 // structures after that, the laidout volumes, and the disk sector
 // size.
 func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options,
-	perfTimings timings.Measurer) (bootVolGadgetName string, created []gadget.OnDiskStructure, allLaidOutVols map[string]*gadget.LaidOutVolume, sectorSize quantity.Size, err error) {
+	perfTimings timings.Measurer) (bootVolGadgetName string, created []gadget.OnDiskStructure, allLaidOutVols map[string]*gadget.LaidOutVolume, bootVolSectorSize quantity.Size, err error) {
 
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
@@ -281,8 +281,8 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 	}
 
 	bootVolGadgetName = laidOutBootVol.Name
-	sectorSize = diskLayout.SectorSize
-	return bootVolGadgetName, created, allLaidOutVols, sectorSize, nil
+	bootVolSectorSize = diskLayout.SectorSize
+	return bootVolGadgetName, created, allLaidOutVols, bootVolSectorSize, nil
 }
 
 // Run creates partitions, encrypts them when expected, creates
