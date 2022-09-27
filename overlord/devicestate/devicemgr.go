@@ -1078,6 +1078,27 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 	return nil
 }
 
+// hasInstallDeviceHook returns whether the gadget has an install-device hook.
+// It can return an error if the device has no gadget snap
+func (m *DeviceManager) hasInstallDeviceHook(model *asserts.Model) (bool, error) {
+	gadgetInfo, err := snapstate.CurrentInfo(m.state, model.Gadget())
+	if err != nil {
+		return false, fmt.Errorf("device is seeded in install mode but has no gadget snap: %v", err)
+	}
+	hasInstallDeviceHook := (gadgetInfo.Hooks["install-device"] != nil)
+	return hasInstallDeviceHook, nil
+}
+
+func (m *DeviceManager) installDeviceHookTask(model *asserts.Model) *state.Task {
+	summary := i18n.G("Run install-device hook")
+	hooksup := &hookstate.HookSetup{
+		// TODO: add a reasonable timeout for the install-device hook
+		Snap: model.Gadget(),
+		Hook: "install-device",
+	}
+	return hookstate.HookTask(m.state, summary, hooksup, nil)
+}
+
 func (m *DeviceManager) ensureInstalled() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1106,56 +1127,52 @@ func (m *DeviceManager) ensureInstalled() error {
 	perfTimings := timings.New(map[string]string{"ensure": "install-system"})
 
 	model, err := m.Model()
-	if err != nil && !errors.Is(err, state.ErrNoState) {
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
+		}
 		return err
 	}
-	if err != nil {
-		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
-	}
 
-	// check if the gadget has an install-device hook
-	var hasInstallDeviceHook bool
-
-	gadgetInfo, err := snapstate.CurrentInfo(m.state, model.Gadget())
+	// check if the gadget has an install-device hook, do this before
+	// we mark ensureInstalledRan as true, as this can fail if no gadget
+	// snap is present
+	hasInstallDeviceHook, err := m.hasInstallDeviceHook(model)
 	if err != nil {
-		return fmt.Errorf("internal error: device is seeded in install mode but has no gadget snap: %v", err)
+		return fmt.Errorf("internal error: %v", err)
 	}
-	hasInstallDeviceHook = (gadgetInfo.Hooks["install-device"] != nil)
 
 	m.ensureInstalledRan = true
 
-	var prev *state.Task
+	// Create both setup-run-system and restart-system-to-run-mode tasks as they
+	// will run unconditionally. They will be chained together with optionally the
+	// install-device hook task.
 	setupRunSystem := m.state.NewTask("setup-run-system", i18n.G("Setup system for run mode"))
+	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 
+	prev := setupRunSystem
 	tasks := []*state.Task{setupRunSystem}
 	addTask := func(t *state.Task) {
 		t.WaitFor(prev)
 		tasks = append(tasks, t)
 		prev = t
 	}
-	prev = setupRunSystem
 
 	// add the install-device hook before ensure-next-boot-to-run-mode if it
 	// exists in the snap
-	var installDevice *state.Task
 	if hasInstallDeviceHook {
-		summary := i18n.G("Run install-device hook")
-		hooksup := &hookstate.HookSetup{
-			// TODO: what's a reasonable timeout for the install-device hook?
-			Snap: model.Gadget(),
-			Hook: "install-device",
-		}
-		installDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
+		// add the task that ensures ubuntu-save is available after the system
+		// setup to the install-device hook
+		addTask(m.state.NewTask("setup-ubuntu-save", i18n.G("Setup ubuntu-save snap folders")))
+
+		installDevice := m.installDeviceHookTask(model)
+
+		// reference used by snapctl reboot
+		installDevice.Set("restart-task", restartSystem.ID())
 		addTask(installDevice)
 	}
 
-	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 	addTask(restartSystem)
-
-	if installDevice != nil {
-		// reference used by snapctl reboot
-		installDevice.Set("restart-task", restartSystem.ID())
-	}
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
@@ -1193,16 +1210,50 @@ func (m *DeviceManager) ensureFactoryReset() error {
 
 	perfTimings := timings.New(map[string]string{"ensure": "factory-reset"})
 
+	model, err := m.Model()
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
+		}
+		return err
+	}
+
+	// We perform this check before setting ensureFactoryResetRan in
+	// case this should fail. This should in theory not be possible as
+	// the same type of check is made during install-mode.
+	hasInstallDeviceHook, err := m.hasInstallDeviceHook(model)
+	if err != nil {
+		return fmt.Errorf("internal error: %v", err)
+	}
+
 	m.ensureFactoryResetRan = true
 
+	// Create both factory-reset-run-system and restart-system-to-run-mode tasks as they
+	// will run unconditionally. They will be chained together with optionally the
+	// install-device hook task.
 	factoryReset := m.state.NewTask("factory-reset-run-system", i18n.G("Perform factory reset of the system"))
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
-	restartSystem.WaitFor(factoryReset)
 
-	// TODO: add factory-reset hooks?
+	prev := factoryReset
+	tasks := []*state.Task{factoryReset}
+	addTask := func(t *state.Task) {
+		t.WaitFor(prev)
+		tasks = append(tasks, t)
+		prev = t
+	}
+
+	if hasInstallDeviceHook {
+		installDevice := m.installDeviceHookTask(model)
+
+		// reference used by snapctl reboot
+		installDevice.Set("restart-task", restartSystem.ID())
+		addTask(installDevice)
+	}
+
+	addTask(restartSystem)
 
 	chg := m.state.NewChange("factory-reset", i18n.G("Perform factory reset"))
-	chg.AddAll(state.NewTaskSet(factoryReset, restartSystem))
+	chg.AddAll(state.NewTaskSet(tasks...))
 
 	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
