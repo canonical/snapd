@@ -2439,7 +2439,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeed(c *C) {
 	c.Assert(err, ErrorMatches, `cannot load assertions for label "some-label": no seed assertions`)
 }
 
-func (s *modelAndGadgetInfoSuite) TestLoadLabelInformationBadClassicGadget(c *C) {
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoBadClassicGadget(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 	isClassic := true

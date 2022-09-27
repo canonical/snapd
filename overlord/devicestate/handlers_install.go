@@ -250,9 +250,11 @@ func writeTimings(st *state.State, rootdir, fromMode string) error {
 	return nil
 }
 
-// buildInstallObservers will create observers for the gadget assets used
-// while assets are being installed.
-func buildInstallObservers(model *asserts.Model, gadgetDir string, useEncryption bool) (
+// buildInstallObserver creates an observer for gadget assets if
+// applicable, otherwise the returned gadget.ContentObserver is nil.
+// The observer if any is also returned as non-nil trustedObserver if
+// encryption is in use.
+func buildInstallObserver(model *asserts.Model, gadgetDir string, useEncryption bool) (
 	observer gadget.ContentObserver, trustedObserver *boot.TrustedAssetsInstallObserver, err error) {
 
 	// observer will be a nil interface by default
@@ -337,7 +339,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
-	installObserver, trustedInstallObserver, err := buildInstallObservers(model, gadgetDir, useEncryption)
+	installObserver, trustedInstallObserver, err := buildInstallObserver(model, gadgetDir, useEncryption)
 	if err != nil {
 		return err
 	}
