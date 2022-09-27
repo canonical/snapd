@@ -1293,6 +1293,15 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		}()
 	}
 
+	// unset revision means the snap will be local, we do something
+	// similar in the seedwriter
+	// XXX: is this the right place?
+	// TODO: also do this for gadget
+	kernelInfo := snapInfos[snap.TypeKernel]
+	if kernelInfo.Revision.Unset() {
+		kernelInfo.Revision = snap.R(-1)
+	}
+
 	// TODO useEncryption equals true case
 	useEncryption := false
 	installObserver, trustedInstallObserver, err := buildInstallObservers(sys.Model, mntPtForType[snap.TypeGadget], useEncryption)
