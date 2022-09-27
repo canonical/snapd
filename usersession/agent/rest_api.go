@@ -21,12 +21,10 @@ package agent
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"mime"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -236,16 +234,11 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		return BadRequest("cannot decode request body into pending snap refresh info: %v", err)
 	}
 
-	// If there exists a "refresh-available" hook, call it instead of showing a notification
-	if refreshInfo.UserHooksDirectory != "" {
-		hookPath := path.Join(refreshInfo.UserHooksDirectory, "refresh-available")
-		_, err := os.Stat(hookPath)
-		if !errors.Is(err, os.ErrNotExist) {
-			command := fmt.Sprintf("%s.userhook-refresh-available", refreshInfo.InstanceName)
-			argv := []string{"snap", "run", command}
-			syscall.Exec("/proc/self/exe", argv, os.Environ())
-			return SyncResponse(nil)
-		}
+	// If there exists a "refresh-available" userhook, call it instead of showing a notification
+	if command := refreshInfo.UserHooks["refresh-available"]; command != "" {
+		argv := []string{"snap", "run", command}
+		syscall.Exec("/proc/self/exe", argv, os.Environ())
+		return SyncResponse(nil)
 	}
 
 	// Note that since the connection is shared, we are not closing it.

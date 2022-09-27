@@ -309,11 +309,11 @@ func (client *Client) ServicesStop(ctx context.Context, services []string) (stop
 
 // PendingSnapRefreshInfo holds information about pending snap refresh provided to userd.
 type PendingSnapRefreshInfo struct {
-	InstanceName        string        `json:"instance-name"`
-	TimeRemaining       time.Duration `json:"time-remaining,omitempty"`
-	BusyAppName         string        `json:"busy-app-name,omitempty"`
-	BusyAppDesktopEntry string        `json:"busy-app-desktop-entry,omitempty"`
-	UserHooksDirectory  string        `json:"busy-app-user-hooks-directory,omitempty"`
+	InstanceName        string            `json:"instance-name"`
+	TimeRemaining       time.Duration     `json:"time-remaining,omitempty"`
+	BusyAppName         string            `json:"busy-app-name,omitempty"`
+	BusyAppDesktopEntry string            `json:"busy-app-desktop-entry,omitempty"`
+	UserHooks           map[string]string `json:"busy-app-user-hooks,omitempty"`
 }
 
 // PendingRefreshNotification broadcasts information about a refresh.
