@@ -181,6 +181,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
+	runner.AddHandler("setup-ubuntu-save", m.doSetupUbuntuSave, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
 	runner.AddHandler("factory-reset-run-system", m.doFactoryResetRunSystem, nil)
 	runner.AddHandler("restart-system-to-run-mode", m.doRestartSystemToRunMode, nil)
@@ -294,10 +295,8 @@ func (m *DeviceManager) SystemMode(sysExpect SysExpectation) string {
 
 // StartUp implements StateStarterUp.Startup.
 func (m *DeviceManager) StartUp() error {
-	// TODO:UC20: ubuntu-save needs to be mounted for recover too
-	if !release.OnClassic && m.SystemMode(SysHasModeenv) == "run" {
-		// UC20 and run mode => setup /var/lib/snapd/save
-		if err := m.maybeSetupUbuntuSave(); err != nil {
+	if m.shouldMountUbuntuSave() {
+		if err := m.setupUbuntuSave(); err != nil {
 			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
 		}
 	}
@@ -314,16 +313,21 @@ func (m *DeviceManager) StartUp() error {
 	return EarlyConfig(m.state, m.preloadGadget)
 }
 
-func (m *DeviceManager) maybeSetupUbuntuSave() error {
-	// only called for UC20
+func (m *DeviceManager) shouldMountUbuntuSave() bool {
+	if release.OnClassic {
+		return false
+	}
+	// TODO:UC20+: ubuntu-save needs to be mounted for recover too
+	return m.SystemMode(SysHasModeenv) == "run"
+}
 
+func (m *DeviceManager) ensureUbuntuSaveIsMounted() error {
 	saveMounted, err := osutil.IsMounted(dirs.SnapSaveDir)
 	if err != nil {
 		return err
 	}
 	if saveMounted {
 		logger.Noticef("save already mounted under %v", dirs.SnapSaveDir)
-		m.saveAvailable = true
 		return nil
 	}
 
@@ -334,20 +338,78 @@ func (m *DeviceManager) maybeSetupUbuntuSave() error {
 	if !runMntSaveMounted {
 		// we don't have ubuntu-save, save will be used directly
 		logger.Noticef("no ubuntu-save mount")
-		m.saveAvailable = true
 		return nil
 	}
 
-	logger.Noticef("bind-mounting ubuntu-save under %v", dirs.SnapSaveDir)
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
 
-	err = systemd.New(systemd.SystemMode, progress.Null).Mount(boot.InitramfsUbuntuSaveDir,
-		dirs.SnapSaveDir, "-o", "bind")
+	// In newer core20/core22 we have a mount unit for ubuntu-save, which we
+	// will try to start first. Invoking systemd-mount in this case would fail.
+	err = sysd.Start([]string{"var-lib-snapd-save.mount"})
+	if err == nil {
+		logger.Noticef("mount unit for ubuntu-save was started")
+		return nil
+	} else {
+		// We only fall through and mount directly if the failure was because of a missing
+		// mount file, which possible does not exist. Any other failure we treat as an actual
+		// error.
+		// XXX: systemd ideally should start returning some kind UnitNotFound errors in this situation
+		if !strings.Contains(err.Error(), "Unit var-lib-snapd-save.mount not found.") {
+			return err
+		}
+	}
+
+	// Otherwise try to directly mount the partition with systemd-mount.
+	logger.Noticef("bind-mounting ubuntu-save under %v", dirs.SnapSaveDir)
+	err = sysd.Mount(boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, "-o", "bind")
 	if err != nil {
 		logger.Noticef("bind-mounting ubuntu-save failed %v", err)
 		return fmt.Errorf("cannot bind mount %v under %v: %v", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, err)
 	}
-	m.saveAvailable = true
 	return nil
+}
+
+// ensureUbuntuSaveSnapFolders creates the necessary folder structure for
+// /var/lib/snapd/save/snap/<snap>. This is normally done during installation
+// of a snap, but there are two cases where this can be insufficient.
+//
+// 1. When migrating to a newer snapd, folders are not automatically created for
+//    snaps that are already installed. They will only be created during a refresh of
+//    the snap itself, whereas we want to cover all the cases.
+// 2. During install mode for the gadget/kernel/etc, the folders are not created.
+//    So this function can be invoked as a part of system-setup.
+func (m *DeviceManager) ensureUbuntuSaveSnapFolders() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	snaps, err := snapstate.All(m.state)
+	if err != nil {
+		return err
+	}
+
+	for _, s := range snaps {
+		saveDir := snap.CommonDataSaveDir(s.InstanceName())
+		if err := os.MkdirAll(saveDir, 0755); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// setupUbuntuSave sets up ubuntu-save partition. It makes sure
+// to mount ubuntu-save (if feasible), and ensures the correct snap
+// folders are present according to currently installed snaps.
+func (m *DeviceManager) setupUbuntuSave() error {
+	if err := m.ensureUbuntuSaveIsMounted(); err != nil {
+		return err
+	}
+
+	// At this point ubuntu-save should be available under the
+	// /var/lib/snapd/save path, so we mark the partition as such.
+	// The last step is to ensure needed folder structure is present
+	// for the per-snap folder storage.
+	m.saveAvailable = true
+	return m.ensureUbuntuSaveSnapFolders()
 }
 
 type deviceMgrKey struct{}
@@ -1152,6 +1214,10 @@ func (m *DeviceManager) ensureInstalled() error {
 	// exists in the snap
 	var installDevice *state.Task
 	if hasInstallDeviceHook {
+		// add the task that ensures ubuntu-save is available after the system
+		// setup to the install-device hook
+		addTask(m.state.NewTask("setup-ubuntu-save", i18n.G("Setup ubuntu-save snap folders")))
+
 		summary := i18n.G("Run install-device hook")
 		hooksup := &hookstate.HookSetup{
 			// TODO: what's a reasonable timeout for the install-device hook?
@@ -1731,7 +1797,7 @@ func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
 		}
 		smi.BootFlags = bootFlags
 
-		hostDataLocs, err := boot.HostUbuntuDataForMode(mode)
+		hostDataLocs, err := boot.HostUbuntuDataForMode(mode, deviceCtx.Model())
 		if err != nil {
 			return nil, err
 		}
@@ -2216,13 +2282,20 @@ var (
 // older systems might return both a recovery key for ubuntu-data and a
 // reinstall key for ubuntu-save.
 func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse, error) {
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	model := deviceCtx.Model()
+
 	fdeDir := dirs.SnapFDEDir
 	mode := m.SystemMode(SysAny)
 	if mode == "install" {
-		fdeDir = boot.InstallHostFDEDataDir
+		fdeDir = boot.InstallHostFDEDataDir(model)
 	} else if mode != "run" {
 		return nil, fmt.Errorf("cannot ensure recovery keys from system mode %q", mode)
 	}
+
 	sysKeys := &client.SystemRecoveryKeysResponse{}
 	// backward compatibility
 	reinstallKeyFile := filepath.Join(fdeDir, "reinstall.key")
@@ -2243,7 +2316,7 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 	if !device.HasEncryptedMarkerUnder(fdeDir) {
 		return nil, fmt.Errorf("system does not use disk encryption")
 	}
-	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv), model)
 	if err != nil {
 		return nil, fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
 	}
@@ -2279,7 +2352,13 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	if !device.HasEncryptedMarkerUnder(dirs.SnapFDEDir) {
 		return fmt.Errorf("system does not use disk encryption")
 	}
-	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return err
+	}
+	model := deviceCtx.Model()
+
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv), model)
 	if err != nil {
 		return fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
 	}

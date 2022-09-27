@@ -47,6 +47,7 @@ func (s *deviceMgrRecoveryKeysSuite) SetUpTest(c *C) {
 		c.Skip("needs working secboot recovery key")
 	}
 	s.deviceMgrBaseSuite.setupBaseTest(c, false)
+	s.setUC20PCModelInState(c)
 
 	devicestate.SetSystemMode(s.mgr, "run")
 }
@@ -72,6 +73,9 @@ func mockSystemRecoveryKeys(c *C, alsoReinstall bool) {
 }
 
 func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeysBackwardCompat(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	mockSystemRecoveryKeys(c, true)
 
 	keys, err := s.mgr.EnsureRecoveryKeys()
@@ -84,6 +88,9 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeysBackwardCompat(c *C) 
 }
 
 func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	_, err := s.mgr.EnsureRecoveryKeys()
 	c.Check(err, ErrorMatches, `system does not use disk encryption`)
 
@@ -114,6 +121,9 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
 }
 
 func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	devicestate.SetSystemMode(s.mgr, "install")
 
 	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
@@ -150,6 +160,9 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
 }
 
 func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyRecoverMode(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	devicestate.SetSystemMode(s.mgr, "recover")
 
 	_, err := s.mgr.EnsureRecoveryKeys()
@@ -157,6 +170,9 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyRecoverMode(c *C) {
 }
 
 func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	err := s.mgr.RemoveRecoveryKeys()
 	c.Check(err, ErrorMatches, `system does not use disk encryption`)
 
@@ -181,6 +197,9 @@ func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
 }
 
 func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeysBackwardCompat(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	called := false
 	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
 	defer devicestate.MockSecbootRemoveRecoveryKeys(func(r2k map[secboot.RecoveryKeyDevice]string) error {

@@ -140,6 +140,8 @@ var (
 func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.BaseTest.SetUpTest(c)
 
+	s.AddCleanup(release.MockOnClassic(classic))
+
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
@@ -157,8 +159,6 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(s.bootloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
-
-	s.AddCleanup(release.MockOnClassic(classic))
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.restartObserve = nil
@@ -287,6 +287,37 @@ func (s *deviceMgrBaseSuite) setPCModelInState(c *C) {
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
+		Serial: "serialserialserial",
+	})
+}
+
+func (s *deviceMgrBaseSuite) setUC20PCModelInState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		// UC20
+		"grade": "dangerous",
+		"base":  "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-20",
 		Serial: "serialserialserial",
 	})
 }
@@ -1351,35 +1382,10 @@ func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC20Install(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
 	c.Assert(err, IsNil)
 
+	s.setUC20PCModelInState(c)
+
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// have a model
-	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
-		"architecture": "amd64",
-		// UC20
-		"grade": "dangerous",
-		"base":  "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name":            "pc-kernel",
-				"id":              snaptest.AssertedSnapID("pc-kernel"),
-				"type":            "kernel",
-				"default-channel": "20",
-			},
-			map[string]interface{}{
-				"name":            "pc",
-				"id":              snaptest.AssertedSnapID("pc"),
-				"type":            "gadget",
-				"default-channel": "20",
-			},
-		},
-	})
-
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-20",
-	})
 
 	// seeded
 	s.state.Set("seeded", true)
@@ -1421,35 +1427,10 @@ func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC20Run(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
 	c.Assert(err, IsNil)
 
+	s.setUC20PCModelInState(c)
+
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// have a model
-	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
-		"architecture": "amd64",
-		// UC20
-		"grade": "dangerous",
-		"base":  "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name":            "pc-kernel",
-				"id":              snaptest.AssertedSnapID("pc-kernel"),
-				"type":            "kernel",
-				"default-channel": "20",
-			},
-			map[string]interface{}{
-				"name":            "pc",
-				"id":              snaptest.AssertedSnapID("pc"),
-				"type":            "gadget",
-				"default-channel": "20",
-			},
-		},
-	})
-
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-20",
-	})
 
 	// not seeded
 	// no flags
@@ -1482,7 +1463,7 @@ const (
 	mountSnapSaveFmt         = `26 27 8:3 / %s/var/lib/snapd/save rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
 )
 
-func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveFullHappy(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveRunModeHappy(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1490,22 +1471,92 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveFullHappy(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
-	cmd := testutil.MockCommand(c, "systemd-mount", "")
-	defer cmd.Restore()
+	// make this one fail so we test both are invoked
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "echo 'Failed to start var-lib-snapd-save.mount: Unit var-lib-snapd-save.mount not found.'; exit 1")
+	defer sysctlCmd.Restore()
+
+	mountCmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer mountCmd.Restore()
 
 	// ubuntu-save not mounted
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), HasLen, 0)
+	c.Check(sysctlCmd.Calls(), HasLen, 0)
+	c.Check(mountCmd.Calls(), HasLen, 0)
 
 	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir))
 	defer restore()
 
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
+	c.Check(sysctlCmd.Calls(), DeepEquals, [][]string{
+		{"systemctl", "start", "var-lib-snapd-save.mount"},
+	})
+	c.Check(mountCmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "-o", "bind", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir},
 	})
+
+	// known as available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveSystemCtlFails(c *C) {
+	modeEnv := &boot.Modeenv{Mode: "run"}
+	err := modeEnv.WriteTo("")
+	c.Assert(err, IsNil)
+	// create a new manager so that the modeenv we mocked in read
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	// this one now fails without a known reason, systemd-mount should not
+	// be invoked, and we should receive an error
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "echo failed; exit 1")
+	defer sysctlCmd.Restore()
+
+	mountCmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer mountCmd.Restore()
+
+	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir))
+	defer restore()
+
+	err = mgr.StartUp()
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "cannot set up ubuntu-save: systemctl command [start var-lib-snapd-save.mount] failed with exit status 1: failed\n")
+	c.Check(sysctlCmd.Calls(), DeepEquals, [][]string{
+		{"systemctl", "start", "var-lib-snapd-save.mount"},
+	})
+	c.Check(mountCmd.Calls(), HasLen, 0)
+
+	// since the systemctl fails, and it was not due to the missing mount
+	// unit, then we should get an error, and ubuntu save should not bge available
+	c.Check(devicestate.SaveAvailable(mgr), Equals, false)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveMountUnitExists(c *C) {
+	modeEnv := &boot.Modeenv{Mode: "run"}
+	err := modeEnv.WriteTo("")
+	c.Assert(err, IsNil)
+	// create a new manager so that the modeenv we mocked in read
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	// this one now succeeds, which means systemd-mount should not
+	// be invoked
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "")
+	defer sysctlCmd.Restore()
+
+	mountCmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer mountCmd.Restore()
+
+	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir))
+	defer restore()
+
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+	c.Check(sysctlCmd.Calls(), DeepEquals, [][]string{
+		{"systemctl", "start", "var-lib-snapd-save.mount"},
+	})
+	c.Check(mountCmd.Calls(), HasLen, 0)
 
 	// known as available
 	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
@@ -1519,8 +1570,11 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveAlreadyMounted(c 
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
-	cmd := testutil.MockCommand(c, "systemd-mount", "")
-	defer cmd.Restore()
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "")
+	defer sysctlCmd.Restore()
+
+	mountCmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer mountCmd.Restore()
 
 	// already mounted
 	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir) + "\n" +
@@ -1529,7 +1583,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveAlreadyMounted(c 
 
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), HasLen, 0)
+	c.Check(sysctlCmd.Calls(), HasLen, 0)
+	c.Check(mountCmd.Calls(), HasLen, 0)
 
 	// known as available
 	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
@@ -1563,15 +1618,21 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveErr(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
-	cmd := testutil.MockCommand(c, "systemd-mount", "echo failed; exit 1")
-	defer cmd.Restore()
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "echo 'Failed to start var-lib-snapd-save.mount: Unit var-lib-snapd-save.mount not found.'; exit 1")
+	defer sysctlCmd.Restore()
+
+	mountCmd := testutil.MockCommand(c, "systemd-mount", "echo failed; exit 1")
+	defer mountCmd.Restore()
 
 	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir))
 	defer restore()
 
 	err = mgr.StartUp()
 	c.Assert(err, ErrorMatches, "cannot set up ubuntu-save: cannot bind mount .*/run/mnt/ubuntu-save under .*/var/lib/snapd/save: failed")
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
+	c.Check(sysctlCmd.Calls(), DeepEquals, [][]string{
+		{"systemctl", "start", "var-lib-snapd-save.mount"},
+	})
+	c.Check(mountCmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "-o", "bind", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir},
 	})
 
@@ -1586,13 +1647,17 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupNonUC20NoUbuntuSave(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
-	cmd := testutil.MockCommand(c, "systemd-mount", "")
-	defer cmd.Restore()
+	sysctlCmd := testutil.MockCommand(c, "systemctl", "")
+	defer sysctlCmd.Restore()
+
+	mountCmd := testutil.MockCommand(c, "systemd-mount", "")
+	defer mountCmd.Restore()
 
 	// ubuntu-save not mounted
 	err = mgr.StartUp()
 	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), HasLen, 0)
+	c.Check(sysctlCmd.Calls(), HasLen, 0)
+	c.Check(mountCmd.Calls(), HasLen, 0)
 
 	// known as not available
 	c.Check(devicestate.SaveAvailable(mgr), Equals, false)

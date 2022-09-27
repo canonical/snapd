@@ -30,15 +30,28 @@ import (
 	"github.com/snapcore/snapd/kernel"
 )
 
+// LayoutOptions defines the options to layout a given volume.
+type LayoutOptions struct {
+	// SkipResolveContent will skip resolving content paths
+	// and `$kernel:` style references
+	SkipResolveContent bool
+
+	// IgnoreContent will skip laying out content structure data to the
+	// volume. Settings this implies "SkipResolveContent".  This
+	// is used when only the partitions need to get
+	// created and content gets written later.
+	IgnoreContent bool
+
+	GadgetRootDir string
+	KernelRootDir string
+}
+
 // LayoutConstraints defines the constraints for arranging structures within a
 // volume
 type LayoutConstraints struct {
 	// NonMBRStartOffset is the default start offset of non-MBR structure in
 	// the volume.
 	NonMBRStartOffset quantity.Offset
-	// SkipResolveContent will skip resolving content paths
-	// and `$kernel:` style references
-	SkipResolveContent bool
 }
 
 // LaidOutVolume defines the size of a volume and arrangement of all the
@@ -206,11 +219,15 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 
 // LayoutVolume attempts to completely lay out the volume, that is the
 // structures and their content, using provided constraints
-func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constraints LayoutConstraints) (*LaidOutVolume, error) {
+func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOptions) (*LaidOutVolume, error) {
 	var err error
+	if opts == nil {
+		opts = &LayoutOptions{}
+	}
+	doResolveContent := !(opts.IgnoreContent || opts.SkipResolveContent)
 
 	var kernelInfo *kernel.Info
-	if !constraints.SkipResolveContent {
+	if doResolveContent {
 		// TODO:UC20: check and error if kernelRootDir == "" here
 		// This needs the upper layer of gadget updates to be
 		// updated to pass the kernel root first.
@@ -218,7 +235,7 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 		// Note that the kernelRootDir may reference the running
 		// kernel if there is a gadget update or the new kernel if
 		// there is a kernel update.
-		kernelInfo, err = kernel.ReadInfo(kernelRootDir)
+		kernelInfo, err = kernel.ReadInfo(opts.KernelRootDir)
 		if err != nil {
 			return nil, err
 		}
@@ -240,23 +257,26 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 			farthestEnd = end
 		}
 
-		// lay out raw content
-		content, err := layOutStructureContent(gadgetRootDir, &structures[idx], byName)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, c := range content {
-			if c.AbsoluteOffsetWrite != nil && *c.AbsoluteOffsetWrite > fartherstOffsetWrite {
-				fartherstOffsetWrite = *c.AbsoluteOffsetWrite
+		// Lay out raw content. This can be skipped when only partition
+		// creation is needed and is safe because each volume structure
+		// has a size so even without the structure content the layout
+		// can be calculated.
+		if !opts.IgnoreContent {
+			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx], byName)
+			if err != nil {
+				return nil, err
 			}
+			for _, c := range content {
+				if c.AbsoluteOffsetWrite != nil && *c.AbsoluteOffsetWrite > fartherstOffsetWrite {
+					fartherstOffsetWrite = *c.AbsoluteOffsetWrite
+				}
+			}
+			structures[idx].LaidOutContent = content
 		}
-
-		structures[idx].LaidOutContent = content
 
 		// resolve filesystem content
-		if !constraints.SkipResolveContent {
-			resolvedContent, err := resolveVolumeContent(gadgetRootDir, kernelRootDir, kernelInfo, &structures[idx], nil)
+		if doResolveContent {
+			resolvedContent, err := resolveVolumeContent(opts.GadgetRootDir, opts.KernelRootDir, kernelInfo, &structures[idx], nil)
 			if err != nil {
 				return nil, err
 			}
@@ -273,7 +293,7 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 		Volume:           volume,
 		Size:             volumeSize,
 		LaidOutStructure: structures,
-		RootDir:          gadgetRootDir,
+		RootDir:          opts.GadgetRootDir,
 	}
 	return vol, nil
 }

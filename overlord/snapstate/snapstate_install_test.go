@@ -257,6 +257,9 @@ func (s *snapmgrTestSuite) TestInstallSnapdSnapTypeOnClassic(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// setup a classic model so the device context says we are on classic
+	defer snapstatetest.MockDeviceModel(ClassicModel())()
+
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
 	ts, err := snapstate.Install(context.Background(), s.state, "snapd", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
