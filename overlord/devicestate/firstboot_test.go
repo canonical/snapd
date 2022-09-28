@@ -85,7 +85,6 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755), IsNil)
 	t.AddCleanup(func() { dirs.SetRootDir("/") })
 
 	t.AddCleanup(release.MockOnClassic(false))
