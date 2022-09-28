@@ -266,6 +266,9 @@ apps:
   media-hub:
     command: bin/run
     plugs: [ media-hub ]
+  microceph:
+    command: bin/run
+    plugs: [ microceph ]
   microstack-support:
     command: bin/run
     plugs: [ microstack-support ]
