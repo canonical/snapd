@@ -79,6 +79,7 @@ execute: |
     snap set core proxy.store=
     snap refresh --list | not grep -Pzq "$expected"
 
+    echo "Ensure changing the proxy.store will clear out the session-macaroon"
     jq '.data.auth.device."session-macaroon"' /var/lib/snapd/state.json|NOMATCH  fake-session
 
     echo "Configure back to use fakestore"
