@@ -136,7 +136,7 @@ func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
 
 	setupHooks(manager)
 
-	snapstate.AddAffectedSnapsByAttr("hook-setup", manager.hookAffectedSnaps)
+	snapstate.RegisterAffectedSnapsByAttr("hook-setup", manager.hookAffectedSnaps)
 
 	return manager, nil
 }
