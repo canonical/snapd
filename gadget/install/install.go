@@ -25,8 +25,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
-	"unicode"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -378,40 +376,22 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 	}, nil
 }
 
-// partIndexFromPartName returns the partition index from a partition
-// device name like sda1 or nvme0n1p2.
-func partIndexFromPartName(part string) (uint64, error) {
-	partRunes := []rune(part)
-	i := len(partRunes)
-	for ; i > 0; i-- {
-		if !unicode.IsDigit(partRunes[i-1]) {
-			break
-		}
-	}
-
-	partIdxStr := string(partRunes[i:])
-	if partIdxStr == "" {
-		return 0, fmt.Errorf("partition index not found in %q", part)
-	}
-
-	return strconv.ParseUint(partIdxStr, 10, 64)
-}
-
-// structureFromIndex returns the OnDiskStructure for an index from
-// the disk volume.
-func structureFromIndex(diskVol *gadget.OnDiskVolume, idx uint64) (*gadget.OnDiskStructure, error) {
+// structureFromPartDevice returns the OnDiskStructure for a partition
+// device.
+func structureFromPartDevice(diskVol *gadget.OnDiskVolume, partDevice string) (*gadget.OnDiskStructure, error) {
 	for _, p := range diskVol.Structure {
-		if uint64(p.DiskIndex) == idx {
+		// We remove /dev from p.Node here
+		if filepath.Base(p.Node) == partDevice {
 			return &p, nil
 		}
 	}
 
-	return nil, fmt.Errorf("cannot find partition index %d", idx)
+	return nil, fmt.Errorf("cannot find partition %q", partDevice)
 }
 
-// laidOutStructForDiskStruct searches for the laid out structure that
+// laidOutStructureForDiskStructure searches for the laid out structure that
 // matches a given OnDiskStructure.
-func laidOutStructForDiskStruct(laidVols map[string]*gadget.LaidOutVolume, gadgetVolName string, onDiskStruct *gadget.OnDiskStructure) (
+func laidOutStructureForDiskStructure(laidVols map[string]*gadget.LaidOutVolume, gadgetVolName string, onDiskStruct *gadget.OnDiskStructure) (
 	*gadget.LaidOutStructure, error) {
 
 	for _, laidVol := range laidVols {
@@ -435,8 +415,8 @@ func sysfsPathForBlockDevice(device string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Remove initial ../../ and make path absolute
-	return filepath.Join("/sys", partPath[6:]), nil
+	// Remove initial ../../ from partPath, and make path absolute
+	return filepath.Join("/sys/class/block", partPath), nil
 }
 
 // onDiskVolumeFromPartitionSysfsPath creates an OnDiskVolume that
@@ -456,25 +436,21 @@ func onDiskVolumeFromPartitionSysfsPath(partPath string) (*gadget.OnDiskVolume, 
 	return onDiskVol, nil
 }
 
-// buildOnDiskStruct obtains the current on disk structure from a
-// sysfs partition path string. Also, we take the laid out information
-// from laidOutVols and insert it in the disk structure.
-func buildOnDiskStruct(onDiskVol *gadget.OnDiskVolume, partPath string, laidOutVols map[string]*gadget.LaidOutVolume, gadgetVolName string) (*gadget.OnDiskStructure, error) {
-	partName := filepath.Base(partPath)
-	partIdx, err := partIndexFromPartName(partName)
-	if err != nil {
-		return nil, fmt.Errorf("cannot find partition index in %q: %v", partPath, err)
-	}
-	onDiskStruct, err := structureFromIndex(onDiskVol, partIdx)
+// applyLayoutToOnDiskStructure finds the on disk structure from a
+// sysfs partition path string and takes the laid out information from
+// laidOutVols and inserts it there.
+func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partPath string, laidOutVols map[string]*gadget.LaidOutVolume, gadgetVolName string) (*gadget.OnDiskStructure, error) {
+	partDevice := filepath.Base(partPath)
+	onDiskStruct, err := structureFromPartDevice(onDiskVol, partDevice)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find partition %q: %v", partPath, err)
 	}
 
-	laidOutStruct, err := laidOutStructForDiskStruct(laidOutVols, gadgetVolName, onDiskStruct)
+	laidOutStruct, err := laidOutStructureForDiskStructure(laidOutVols, gadgetVolName, onDiskStruct)
 	if err != nil {
 		return nil, err
 	}
-	// Fill ResolvedContent
+	// This fills LaidOutStructure, including (importantly) the ResolvedContent field
 	onDiskStruct.LaidOutStructure = *laidOutStruct
 
 	return onDiskStruct, nil
@@ -499,10 +475,13 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 				continue
 			}
 			// TODO write raw content?
-			if volStruct.Role == "" {
+			if volStruct.Filesystem == "" {
 				continue
 			}
 
+			// TODO maybe some changes will be needed when we have
+			// encrypted partitions, as the device won't be directly
+			// associated with a disk.
 			device := filepath.Base(volStruct.Device)
 			partPath, err := sysfsPathForBlockDevice(device)
 			if err != nil {
@@ -517,7 +496,7 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 				onDiskVols = append(onDiskVols, onDiskVol)
 			}
 			// Obtain partition data and link with laid out information
-			onDiskStruct, err := buildOnDiskStruct(onDiskVol, partPath, allLaidOutVols, volName)
+			onDiskStruct, err := applyLayoutToOnDiskStructure(onDiskVol, partPath, allLaidOutVols, volName)
 			if err != nil {
 				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", device, err)
 			}

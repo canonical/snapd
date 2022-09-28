@@ -38,8 +38,6 @@ var (
 	EnsureNodesExist        = ensureNodesExist
 
 	CreatedDuringInstall = createdDuringInstall
-
-	PartIndexFromPartName = partIndexFromPartName
 )
 
 func MockSysMount(f func(source, target, fstype string, flags uintptr, data string) error) (restore func()) {
