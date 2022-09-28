@@ -215,10 +215,10 @@ func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.
 }
 
 func MockSnapstateResolveValSetEnforcementError(f func(context.Context, *state.State, *snapasserts.ValidationSetsValidationError, map[string]int, int) ([]*state.TaskSet, []string, error)) func() {
-	old := snapstateResolveValSetEnforcementError
-	snapstateResolveValSetEnforcementError = f
+	old := snapstateResolveValSetsEnforcementError
+	snapstateResolveValSetsEnforcementError = f
 	return func() {
-		snapstateResolveValSetEnforcementError = old
+		snapstateResolveValSetsEnforcementError = old
 	}
 }
 

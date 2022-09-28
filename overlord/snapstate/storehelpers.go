@@ -43,6 +43,10 @@ var currentSnaps = currentSnapsImpl
 // assertstate.
 var EnforcedValidationSets func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error)
 
+// EnforceValidationSets allows to hook enforcing validation sets without
+// fetching them. It's hooked from assertstate.
+var EnforceValidationSets func(*state.State, map[string]*asserts.ValidationSet, map[string]int, []*snapasserts.InstalledSnap, map[string]bool, int) error
+
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
 	_, err := auth.User(st, userID)

@@ -373,6 +373,8 @@ func delayedCrossMgrInit() {
 	snapstate.AddCurrentTrackingToValidationSetsStack = addCurrentTrackingToValidationSetsHistory
 	// hook the helper for restoring validation sets tracking from the stack
 	snapstate.RestoreValidationSetsTracking = RestoreValidationSetsTracking
+	// hook helper for enforcing validation sets without fetching them
+	snapstate.EnforceValidationSets = EnforceValidationSets
 }
 
 // AutoRefreshAssertions tries to refresh all assertions

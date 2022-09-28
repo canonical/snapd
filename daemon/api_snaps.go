@@ -727,7 +727,7 @@ func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr 
 		pinnedSeqs[fmt.Sprintf("%s/%s", account, name)] = sequence
 	}
 
-	return snapstateResolveValSetEnforcementError(context.TODO(), st, vErr, pinnedSeqs, inst.userID)
+	return snapstateResolveValSetsEnforcementError(context.TODO(), st, vErr, pinnedSeqs, inst.userID)
 }
 
 func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {

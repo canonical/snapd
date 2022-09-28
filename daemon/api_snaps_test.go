@@ -495,7 +495,7 @@ func (s *snapsSuite) TestPostSnapsOpSystemRestartImmediate(c *check.C) {
 
 func (s *snapsSuite) testPostSnapsOp(c *check.C, extraJSON, contentType string) (systemRestartImmediate bool) {
 	defer daemon.MockAssertstateRefreshSnapAssertions(func(*state.State, int, *assertstate.RefreshAssertionsOptions) error { return nil })()
-	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, _ int, _ *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
 		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil

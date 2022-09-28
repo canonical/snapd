@@ -1407,13 +1407,85 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []
 	return updateManyFiltered(ctx, st, names, revOpts, userID, nil, flags, "")
 }
 
-// EnforceSnaps installs/updates/removes snaps reported by validationErrorToSolve.
-// validationSets is the list of sets passed by the user and it's used in the
-// final stage to update validation-sets tracking in the state.
-// userID is used for store auth.
-func EnforceSnaps(ctx context.Context, st *state.State, validationSets []string, validationErrorToSolve *snapasserts.ValidationSetsValidationError, userID int) (tasksets []*state.TaskSet, names []string, err error) {
-	// TODO
-	return nil, nil, fmt.Errorf("not implemented")
+// ResolveValidationSetsEnforcementError installs and updates snaps reported by validationErrorToSolve.
+func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State, valErr *snapasserts.ValidationSetsValidationError, pinnedSeqs map[string]int, userID int) ([]*state.TaskSet, []string, error) {
+	if len(valErr.InvalidSnaps) != 0 {
+		invSnaps := make([]string, 0, len(valErr.InvalidSnaps))
+		for invSnap := range valErr.InvalidSnaps {
+			invSnaps = append(invSnaps, invSnap)
+		}
+		return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints that require removing snaps: %s", strutil.Quoted(invSnaps))
+	}
+
+	affected := make([]string, 0, len(valErr.MissingSnaps)+len(valErr.WrongRevisionSnaps))
+	var tasksets []*state.TaskSet
+	// use the same lane for installing and refreshing so everything is reversed
+	lane := st.NewLane()
+
+	collectRevOpts := func(snapToRevToVss map[string]map[snap.Revision][]string) ([]string, []*RevisionOptions) {
+		var names []string
+		var revOpts []*RevisionOptions
+
+		for snapName, revAndVs := range snapToRevToVss {
+			for rev, valsets := range revAndVs {
+				vsKeys := make([]snapasserts.ValidationSetKey, 0, len(valsets))
+				for _, vs := range valsets {
+					vsKey := snapasserts.NewValidationSetKey(valErr.Sets[vs])
+					vsKeys = append(vsKeys, vsKey)
+				}
+
+				revOpts = append(revOpts, &RevisionOptions{Revision: rev, ValidationSets: vsKeys})
+			}
+			names = append(names, snapName)
+		}
+
+		return names, revOpts
+	}
+
+	if len(valErr.WrongRevisionSnaps) > 0 {
+		names, revOpts := collectRevOpts(valErr.WrongRevisionSnaps)
+		flags := &Flags{Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true}
+
+		updated, tss, err := UpdateMany(ctx, st, names, revOpts, userID, flags)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %v", err)
+		}
+
+		tasksets = append(tasksets, tss...)
+		affected = append(affected, updated...)
+	}
+
+	if len(valErr.MissingSnaps) > 0 {
+		names, revOpts := collectRevOpts(valErr.MissingSnaps)
+		flags := &Flags{Transaction: client.TransactionAllSnaps, Lane: lane}
+
+		installed, tss, err := InstallMany(st, names, revOpts, userID, flags)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %v", err)
+		}
+
+		tasksets = append(tasksets, tss...)
+		affected = append(affected, installed...)
+	}
+
+	encodedAsserts := make(map[string][]byte, len(valErr.Sets))
+	for vsStr, vs := range valErr.Sets {
+		encodedAsserts[vsStr] = asserts.Encode(vs)
+	}
+
+	enforceTask := st.NewTask("enforce-validation-sets", "Enforce validation sets")
+	enforceTask.Set("validation-sets", encodedAsserts)
+	enforceTask.Set("pinned-sequence-numbers", pinnedSeqs)
+	enforceTask.Set("userID", userID)
+
+	for _, ts := range tasksets {
+		enforceTask.WaitAll(ts)
+	}
+	ts := state.NewTaskSet(enforceTask)
+	ts.JoinLane(lane)
+	tasksets = append(tasksets, ts)
+
+	return tasksets, affected, nil
 }
 
 // updateFilter is the type of function that can be passed to
@@ -3803,5 +3875,14 @@ func MockEnforceSingleRebootForBaseKernelGadget(val bool) (restore func()) {
 	return func() {
 		enforcedSingleRebootForGadgetKernelBase = old
 	}
+}
 
+func MockEnforceValidationSets(f func(*state.State, map[string]*asserts.ValidationSet, map[string]int, []*snapasserts.InstalledSnap, map[string]bool, int) error) func() {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	old := EnforceValidationSets
+	EnforceValidationSets = f
+	return func() {
+		EnforceValidationSets = old
+	}
 }
