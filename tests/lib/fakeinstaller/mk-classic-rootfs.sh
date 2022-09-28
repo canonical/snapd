@@ -62,6 +62,15 @@ EOF
         sudo chroot "$DESTDIR" /usr/bin/sh -c \
              "DEBIAN_FRONTEND=noninteractive apt install -y /var/cache/apt/archives/$(basename "$package")"
     fi
+
+    # ensure that we have a mount point for the bind mount below
+    sudo mkdir -p "$DESTDIR"/boot/grub
+    # TODO: find out what is doing this on UC20+ systems
+    #       (snap-initramfs-mounts?)
+    # TODO2: use LABEL= here=
+    sudo tee -a "$DESTDIR/etc/fstab" <<'EOF'
+/run/mnt/ubuntu-boot/EFI/ubuntu /boot/grub none bind
+EOF
 }
 
 # get target dir from user
