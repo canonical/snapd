@@ -51,12 +51,6 @@ type BootableSet struct {
 
 	// Recover is set when making the recovery partition bootable.
 	Recovery bool
-
-	// XXX:
-	// InstallHostWritableDir is different on
-	// classic /run/mnt/ubuntu-data vs
-	// core    /run/mnt/ubuntu-data/system-data
-	InstallHostWritableDir string
 }
 
 // MakeBootableImage sets up the given bootable set and target filesystem
