@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"unicode"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -218,7 +220,6 @@ func installOnePartition(part *gadget.OnDiskStructure, encryptionType secboot.En
 // size.
 func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options,
 	perfTimings timings.Measurer) (bootVolGadgetName string, created []gadget.OnDiskStructure, allLaidOutVols map[string]*gadget.LaidOutVolume, bootVolSectorSize quantity.Size, err error) {
-
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
 	logger.Noticef("        encryption: %v", options.EncryptionType)
@@ -375,6 +376,160 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 		KeyForRole:    keyForRole,
 		DeviceForRole: devicesForRoles,
 	}, nil
+}
+
+// partIndexFromPartName returns the partition index from a partition
+// device name like sda1 or nvme0n1p2.
+func partIndexFromPartName(part string) (uint64, error) {
+	partRunes := []rune(part)
+	i := len(partRunes)
+	for ; i > 0; i-- {
+		if !unicode.IsDigit(partRunes[i-1]) {
+			break
+		}
+	}
+
+	partIdxStr := string(partRunes[i:])
+	if partIdxStr == "" {
+		return 0, fmt.Errorf("partition index not found in %q", part)
+	}
+
+	return strconv.ParseUint(partIdxStr, 10, 64)
+}
+
+// structureFromIndex returns the OnDiskStructure for an index from
+// the disk volume.
+func structureFromIndex(diskVol *gadget.OnDiskVolume, idx uint64) (*gadget.OnDiskStructure, error) {
+	for _, p := range diskVol.Structure {
+		if uint64(p.DiskIndex) == idx {
+			return &p, nil
+		}
+	}
+
+	return nil, fmt.Errorf("cannot find partition index %d", idx)
+}
+
+// laidOutStructForDiskStruct searches for the laid out structure that
+// matches a given OnDiskStructure.
+func laidOutStructForDiskStruct(laidVols map[string]*gadget.LaidOutVolume, gadgetVolName string, onDiskStruct *gadget.OnDiskStructure) (
+	*gadget.LaidOutStructure, error) {
+
+	for _, laidVol := range laidVols {
+		// Check that this is the right volume
+		if laidVol.Name != gadgetVolName {
+			continue
+		}
+		for _, laidStruct := range laidVol.LaidOutStructure {
+			if onDiskStruct.Name == laidStruct.Name {
+				return &laidStruct, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("cannot find laid out structure for %q", onDiskStruct.Name)
+}
+
+// sysfsPathForBlockDevice returns the sysfs path for a block device.
+func sysfsPathForBlockDevice(device string) (string, error) {
+	partPath, err := os.Readlink(filepath.Join("/sys/class/block", device))
+	if err != nil {
+		return "", err
+	}
+	// Remove initial ../../ and make path absolute
+	return filepath.Join("/sys", partPath[6:]), nil
+}
+
+// onDiskVolumeFromPartitionSysfsPath creates an OnDiskVolume that
+// matches the disk that contains the given partition sysfs path
+func onDiskVolumeFromPartitionSysfsPath(partPath string) (*gadget.OnDiskVolume, error) {
+	// Removing the last component will give us the disk path
+	diskPath := filepath.Dir(partPath)
+	disk, err := disks.DiskFromDevicePath(diskPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot retrieve disk information for %q: %v", partPath, err)
+	}
+	onDiskVol, err := gadget.OnDiskVolumeFromDisk(disk)
+	if err != nil {
+		return nil, fmt.Errorf("cannot retrieve on disk volume for %q: %v", partPath, err)
+	}
+
+	return onDiskVol, nil
+}
+
+// buildOnDiskStruct obtains the current on disk structure from a
+// sysfs partition path string. Also, we take the laid out information
+// from laidOutVols and insert it in the disk structure.
+func buildOnDiskStruct(onDiskVol *gadget.OnDiskVolume, partPath string, laidOutVols map[string]*gadget.LaidOutVolume, gadgetVolName string) (*gadget.OnDiskStructure, error) {
+	partName := filepath.Base(partPath)
+	partIdx, err := partIndexFromPartName(partName)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find partition index in %q: %v", partPath, err)
+	}
+	onDiskStruct, err := structureFromIndex(onDiskVol, partIdx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find partition %q: %v", partPath, err)
+	}
+
+	laidOutStruct, err := laidOutStructForDiskStruct(laidOutVols, gadgetVolName, onDiskStruct)
+	if err != nil {
+		return nil, err
+	}
+	// Fill ResolvedContent
+	onDiskStruct.LaidOutStructure = *laidOutStruct
+
+	return onDiskStruct, nil
+}
+
+// WriteContent writes gadget content to the devices specified in
+// onVolumes. It returns the resolved on disk volumes.
+func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentObserver,
+	gadgetRoot, kernelRoot string, model *asserts.Model, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
+
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
+	if err != nil {
+		return nil, fmt.Errorf("when writing content: cannot layout volumes: %v", err)
+	}
+
+	var onDiskVols []*gadget.OnDiskVolume
+	for volName, vol := range onVolumes {
+		var onDiskVol *gadget.OnDiskVolume
+		for _, volStruct := range vol.Structure {
+			// TODO fixme
+			if volStruct.Role == "mbr" {
+				continue
+			}
+			// TODO write raw content?
+			if volStruct.Role == "" {
+				continue
+			}
+
+			device := filepath.Base(volStruct.Device)
+			partPath, err := sysfsPathForBlockDevice(device)
+			if err != nil {
+				return nil, err
+			}
+			// Volume needs to be resolved only once inside the loop
+			if onDiskVol == nil {
+				onDiskVol, err = onDiskVolumeFromPartitionSysfsPath(partPath)
+				if err != nil {
+					return nil, err
+				}
+				onDiskVols = append(onDiskVols, onDiskVol)
+			}
+			// Obtain partition data and link with laid out information
+			onDiskStruct, err := buildOnDiskStruct(onDiskVol, partPath, allLaidOutVols, volName)
+			if err != nil {
+				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", device, err)
+			}
+
+			logger.Debugf("writing content on partition %s", partPath)
+			if err := writePartitionContent(onDiskStruct, volStruct.Device, observer, perfTimings); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return onDiskVols, nil
 }
 
 func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {

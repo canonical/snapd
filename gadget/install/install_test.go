@@ -959,3 +959,24 @@ func (s *installSuite) TestFactoryResetHappyEncrypted(c *C) {
 		traits:     gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
 	})
 }
+
+func (s *installSuite) TestDiskPathParsing(c *C) {
+	for i, tc := range []struct {
+		// Input
+		devPath string
+		// Expected returns
+		partIdx uint64
+		err     error
+	}{
+		{"/sys/devices/pci0000:00/nvme/nvme0/nvme0n1/nvme0n1p3", 3, nil},
+		{"/sys/devices/pci0000:00/0000:00:04.0/virtio1/block/vda/vda14", 14, nil},
+		{"/sys/device/bus/block/dev", 0,
+			fmt.Errorf(`partition index not found in "/sys/device/bus/block/dev"`)},
+		{"", 0,
+			fmt.Errorf(`partition index not found in ""`)},
+	} {
+		idx, err := install.PartIndexFromPartName(tc.devPath)
+		c.Check(err, DeepEquals, tc.err, Commentf("input %d: %v", i, tc))
+		c.Check(idx, Equals, tc.partIdx, Commentf("input %d: %v", i, tc))
+	}
+}
