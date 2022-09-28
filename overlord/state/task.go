@@ -338,7 +338,7 @@ func (t *Task) addLog(kind, format string, args []interface{}) {
 	}
 
 	tstr := timeNow().Format(time.RFC3339)
-	msg := fmt.Sprintf(tstr+" "+kind+" "+format, args...)
+	msg := tstr + " " + kind + " " + fmt.Sprintf(format, args...)
 	t.log = append(t.log, msg)
 	logger.Debugf(msg)
 }
