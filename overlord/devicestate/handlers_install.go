@@ -56,7 +56,6 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
@@ -1203,26 +1202,6 @@ func rotateEncryptionKeys() error {
 		return fmt.Errorf("cannot transition the encryption key: %v", err)
 	}
 	return nil
-}
-
-// XXX: we probably have this already
-func mountSnap(snapPath, mountDir string) error {
-	if err := os.MkdirAll(mountDir, 0755); err != nil {
-		return err
-	}
-	if output, err := exec.Command("mount", snapPath, mountDir).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
-	}
-
-	return nil
-}
-
-func snapInfoFrom(seedInfo *seed.Snap) (*snap.Info, error) {
-	snapf, err := snapfile.Open(seedInfo.Path)
-	if err != nil {
-		return nil, err
-	}
-	return snap.ReadInfoFromSnapFile(snapf, seedInfo.SideInfo)
 }
 
 func mountSeedSnap(seedSn *seed.Snap) (mountpoint string, restore func() error, err error) {
