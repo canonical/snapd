@@ -1,6 +1,7 @@
 #!/bin/bash -exu
 
 replace_initramfs_bits() {
+    # TODO is there code to share with uc20_build_initramfs_kernel_snap in prepare.sh?
     KERNEL_EFI_ORIG="$CACHE_DIR"/snap-pc-kernel/kernel.efi
     if [ ! -d initrd ]; then
         objcopy -O binary -j .initrd "$KERNEL_EFI_ORIG" initrd.img
@@ -57,6 +58,7 @@ main() {
 
     # copy kernel.efi with modified initramfs
     subpath=$(readlink "$MNT"/ubuntu-boot/EFI/ubuntu/kernel.efi)
+    # TODO we should also repack kernel snap and replace the one in the rootfs too, and also re-sign
     cp -a "$CACHE_DIR"/snap-pc-kernel/kernel.efi "$MNT"/ubuntu-boot/EFI/ubuntu/"$subpath"
 
     # replace snapd in data partition with the one compiled in the test

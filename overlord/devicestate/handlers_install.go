@@ -250,6 +250,30 @@ func writeTimings(st *state.State, rootdir, fromMode string) error {
 	return nil
 }
 
+// buildInstallObserver creates an observer for gadget assets if
+// applicable, otherwise the returned gadget.ContentObserver is nil.
+// The observer if any is also returned as non-nil trustedObserver if
+// encryption is in use.
+func buildInstallObserver(model *asserts.Model, gadgetDir string, useEncryption bool) (
+	observer gadget.ContentObserver, trustedObserver *boot.TrustedAssetsInstallObserver, err error) {
+
+	// observer will be a nil interface by default
+	trustedObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption)
+	if err != nil && err != boot.ErrObserverNotApplicable {
+		return nil, nil, fmt.Errorf("cannot setup asset install observer: %v", err)
+	}
+	if err == nil {
+		observer = trustedObserver
+		if !useEncryption {
+			// there will be no key sealing, so past the
+			// installation pass no other methods need to be called
+			trustedObserver = nil
+		}
+	}
+
+	return observer, trustedObserver, nil
+}
+
 func (m *DeviceManager) doSetupUbuntuSave(t *state.Task, _ *tomb.Tomb) error {
 	return m.setupUbuntuSave()
 }
@@ -315,20 +339,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
-	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
-	// get a nice nil interface by default
-	var installObserver gadget.ContentObserver
-	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption)
-	if err != nil && err != boot.ErrObserverNotApplicable {
-		return fmt.Errorf("cannot setup asset install observer: %v", err)
-	}
-	if err == nil {
-		installObserver = trustedInstallObserver
-		if !useEncryption {
-			// there will be no key sealing, so past the
-			// installation pass no other methods need to be called
-			trustedInstallObserver = nil
-		}
+	installObserver, trustedInstallObserver, err := buildInstallObserver(model, gadgetDir, useEncryption)
+	if err != nil {
+		return err
 	}
 
 	var installedSystem *install.InstalledSystemSideData
