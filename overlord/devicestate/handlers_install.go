@@ -1292,6 +1292,17 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+
+	// HACK: an unset revision means the snap will be local
+	// TODO: also do this for gadget
+	// TODO2: this also means we will leave pc-kernel snaps around
+	//        like /var/lib/snapd/snaps/pc-kernel_5.1.1.snap
+	//        because they will be unaccounted for(?)
+	kernelInfo := snapInfos[snap.TypeKernel]
+	if kernelInfo.Revision.Unset() {
+		kernelInfo.Revision = snap.R(-1)
+	}
+
 	// Mount gadget and kernel
 	mntPtForType := make(map[snap.Type]string)
 	mountpoints, rest, err := mountSeedSnaps(snapSeeds[snap.TypeGadget], snapSeeds[snap.TypeKernel])
@@ -1411,6 +1422,16 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	st.Lock()
 	if err != nil {
 		return err
+	}
+
+	// HACK: an unset revision means the snap will be local
+	// TODO: also do this for gadget
+	// TODO2: this also means we will leave pc-kernel snaps around
+	//        like /var/lib/snapd/snaps/pc-kernel_5.1.1.snap
+	//        because they will be unaccounted for(?)
+	kernelInfo := snapInfos[snap.TypeKernel]
+	if kernelInfo.Revision.Unset() {
+		kernelInfo.Revision = snap.R(-1)
 	}
 
 	// Mount gadget and kernel
