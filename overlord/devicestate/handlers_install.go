@@ -1292,7 +1292,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	timings.Run(perfTimings, "install-finish", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		err = installWriteContent(onVolumes, installObserver,
+		_, err = installWriteContent(onVolumes, installObserver,
 			mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, perfTimings)
 	})
 	if err != nil {
@@ -1318,6 +1318,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		// TODO: important but a bit unclear why needed
 		RecoverySystemDir: systemLabel,
 
+		// TODO should be false
 		Recovery: true,
 
 		// XXX: rename to something more neutral like "TargetDir" ?
