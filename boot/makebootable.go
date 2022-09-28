@@ -302,21 +302,20 @@ type makeRunnableOptions struct {
 	AfterDataReset bool
 }
 
-// XXX: better name
-func copyTo(fn, dst string) error {
-	// if the source filename is a symlink, don't copy the symlink, copy the
+func copyNoSymLink(orig, dst string) error {
+	// if the source path is a symlink, don't copy the symlink, copy the
 	// target file instead of copying the symlink, as the initramfs won't
 	// follow the symlink when it goes to mount the base and kernel snaps by
 	// design as the initramfs should only be using trusted things from
 	// ubuntu-data to boot in run mode
-	if osutil.IsSymlink(fn) {
-		link, err := os.Readlink(fn)
+	if osutil.IsSymlink(orig) {
+		link, err := os.Readlink(orig)
 		if err != nil {
 			return err
 		}
-		fn = link
+		orig = link
 	}
-	if err := osutil.CopyFile(fn, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+	if err := osutil.CopyFile(orig, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
 		return err
 	}
 	return nil
@@ -340,18 +339,13 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	// note that we need to use the "Filename()" here because unasserted
 	// snaps will have names like pc-kernel_5.19.4.snap but snapd expects
 	// "pc-kernel_x1.snap"
-
-	// base
-	if err := copyTo(bootWith.BasePath, filepath.Join(snapBlobDir, bootWith.Base.Filename())); err != nil {
-		return err
-	}
-	// kernel
-	if err := copyTo(bootWith.KernelPath, filepath.Join(snapBlobDir, bootWith.Kernel.Filename())); err != nil {
-		return err
-	}
-	// gagdet
-	if err := copyTo(bootWith.GadgetPath, filepath.Join(snapBlobDir, bootWith.Gadget.Filename())); err != nil {
-		return err
+	for _, origDestfn := range []struct{ orig, destFn string }{
+		{orig: bootWith.BasePath, destFn: bootWith.Base.Filename()},
+		{orig: bootWith.KernelPath, destFn: bootWith.Kernel.Filename()},
+		{orig: bootWith.GadgetPath, destFn: bootWith.Gadget.Filename()}} {
+		if err := copyNoSymLink(origDestfn.orig, filepath.Join(snapBlobDir, origDestfn.destFn)); err != nil {
+			return err
+		}
 	}
 
 	// replicate the boot assets cache in host's writable
