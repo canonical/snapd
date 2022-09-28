@@ -33,6 +33,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 
 	_ "golang.org/x/crypto/sha3"
 	"gopkg.in/tomb.v2"
@@ -1266,7 +1267,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		}
 		defer func() {
 			errRest := rest()
-			if errRest != nil {
+			if err == nil {
 				err = errRest
 			}
 		}()
@@ -1297,6 +1298,28 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	})
 	if err != nil {
 		return fmt.Errorf("cannot write content: %v", err)
+	}
+
+	// Mount the partitions
+	for _, vol := range onVolumes {
+		for _, part := range vol.Structure {
+			if part.Filesystem == "" {
+				continue
+			}
+			mntPt := filepath.Join("/run/mnt", part.Name)
+			if err := syscall.Mount(part.Device, mntPt, part.Filesystem, 0, ""); err != nil {
+				return fmt.Errorf("cannot mount %q at %q: %v", part.Device, mntPt, err)
+			}
+			defer func() {
+				errUnmount := syscall.Unmount(mntPt, 0)
+				if errUnmount != nil {
+					logger.Noticef("cannot unmount %q: %v", mntPt, errUnmount)
+				}
+				if err == nil {
+					err = errUnmount
+				}
+			}()
+		}
 	}
 
 	recovBootWith := &boot.RecoverySystemBootableSet{
