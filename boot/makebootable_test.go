@@ -561,7 +561,7 @@ version: 5.0
 		GadgetPath:        gadgetInSeed,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
-		Recovery:          false,
+		Recovery:          !classic,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
 
@@ -758,7 +758,9 @@ version: 5.0
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
 	c.Assert(mockSeedGrubenv, testutil.FilePresent)
 	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_recovery_mode=run")
-	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_good_recovery_systems=20191216")
+	if bootWith.Recovery {
+		c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_good_recovery_systems=20191216")
+	}
 	mockBootGrubenv := filepath.Join(mockBootGrubDir, "grubenv")
 	c.Check(mockBootGrubenv, testutil.FilePresent)
 
@@ -1235,7 +1237,7 @@ version: 5.0
 		GadgetPath:        gadgetInSeed,
 		KernelPath:        kernelInSeed,
 		Kernel:            kernelInfo,
-		Recovery:          false,
+		Recovery:          true,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
 
@@ -1476,7 +1478,7 @@ version: 5.0
 		Kernel:            kernelInfo,
 		Gadget:            gadgetInfo,
 		GadgetPath:        gadgetInSeed,
-		Recovery:          false,
+		Recovery:          true,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
 
