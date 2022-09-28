@@ -619,4 +619,25 @@ snaps:
 	err = st.Get("seed-time", &seedTime)
 	c.Assert(err, IsNil)
 	c.Check(seedTime.IsZero(), Equals, false)
+
+	// verify that connections was made
+	var conns map[string]interface{}
+	c.Assert(st.Get("conns", &conns), IsNil)
+	c.Assert(conns, HasLen, 2)
+
+	repo := o.InterfaceManager().Repository()
+	cn, err := repo.Connected("foo", "shared-data-plug")
+	c.Assert(err, IsNil)
+	c.Assert(cn, HasLen, 1)
+	c.Assert(cn, DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "foo", Name: "shared-data-plug"},
+		SlotRef: interfaces.SlotRef{Snap: "bar", Name: "shared-data-slot"},
+	}})
+	cn, err = repo.Connected("foo", "network")
+	c.Assert(err, IsNil)
+	c.Assert(cn, HasLen, 1)
+	c.Assert(cn, DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "foo", Name: "network"},
+		SlotRef: interfaces.SlotRef{Snap: "snapd", Name: "network"},
+	}})
 }

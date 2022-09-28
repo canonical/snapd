@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -2193,4 +2194,25 @@ snaps:
 
 	c.Assert(hooksCalled, HasLen, 1)
 	c.Check(hooksCalled[0].HookName(), Equals, "connect-plug-network")
+
+	// verify that connections was made
+	var conns map[string]interface{}
+	c.Assert(st.Get("conns", &conns), IsNil)
+	c.Assert(conns, HasLen, 2)
+
+	repo := s.overlord.InterfaceManager().Repository()
+	cn, err := repo.Connected("foo", "shared-data-plug")
+	c.Assert(err, IsNil)
+	c.Assert(cn, HasLen, 1)
+	c.Assert(cn, DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "foo", Name: "shared-data-plug"},
+		SlotRef: interfaces.SlotRef{Snap: "bar", Name: "shared-data-slot"},
+	}})
+	cn, err = repo.Connected("foo", "network")
+	c.Assert(err, IsNil)
+	c.Assert(cn, HasLen, 1)
+	c.Assert(cn, DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "foo", Name: "network"},
+		SlotRef: interfaces.SlotRef{Snap: "snapd", Name: "network"},
+	}})
 }
