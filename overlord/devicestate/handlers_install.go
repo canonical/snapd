@@ -1271,8 +1271,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	// - make system bootable (include writing modeenv)
 
 	st.Unlock()
-	sys, _, snapInfos, snapSeeds, _, err :=
-		m.LoadLabelInformation(systemLabel)
+	sys, snapInfos, snapSeeds, err := m.loadSystemAndEssentialSnaps(systemLabel,
+		[]snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget})
 	st.Lock()
 	if err != nil {
 		return err
@@ -1304,7 +1304,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	// TODO useEncryption equals true case
 	useEncryption := false
-	installObserver, trustedInstallObserver, err := buildInstallObservers(sys.Model, mntPtForType[snap.TypeGadget], useEncryption)
+	installObserver, trustedInstallObserver, err := buildInstallObserver(sys.Model, mntPtForType[snap.TypeGadget], useEncryption)
 	if err != nil {
 		return err
 	}

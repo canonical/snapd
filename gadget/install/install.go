@@ -496,7 +496,7 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 				return fmt.Errorf("cannot retrieve on disk info for %q: %v", device, err)
 			}
 
-			if err := writePartitionContent(onDiskStruct, perfTimings, observer, volStruct.Device); err != nil {
+			if err := writePartitionContent(onDiskStruct, volStruct.Device, observer, perfTimings); err != nil {
 				return err
 			}
 		}

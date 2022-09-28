@@ -1972,7 +1972,7 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 
 	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// 2. get the gadget volumes for the given system-label

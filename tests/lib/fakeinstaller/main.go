@@ -245,9 +245,9 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err := createAndMountFilesystems(bootDevice, details.Volumes); err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
-	if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
-		return fmt.Errorf("cannot create classic rootfs: %v", err)
-	}
+	// if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
+	// 	return fmt.Errorf("cannot create classic rootfs: %v", err)
+	// }
 	if err := createSeedOnTarget(bootDevice, seedLabel); err != nil {
 		return fmt.Errorf("cannot create seed on target: %v", err)
 	}
