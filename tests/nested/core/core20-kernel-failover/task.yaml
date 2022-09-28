@@ -47,17 +47,17 @@ prepare: |
 
 execute: |
   echo "Copy the broken initramfs kernel snap to the UC20 VM"
-  tests.nested copy panicking-initramfs-kernel.snap
+  remote.push panicking-initramfs-kernel.snap
 
   echo "Wait for snapd to be available"
   tests.nested wait-for snap-command
 
   echo "Wait for snapd to be seeded"
-  tests.nested exec sudo snap wait system seed.loaded
+  remote.exec sudo snap wait system seed.loaded
 
   # Get the current revision of the kernel snap
   # TODO:UC20: enable for pi-kernel, etc. when used with external systems
-  startRevision=$(tests.nested exec sudo snap list pc-kernel | grep pc-kernel | awk '{print $3}')
+  startRevision=$(remote.exec sudo snap list pc-kernel | grep pc-kernel | awk '{print $3}')
   if [ -z "${startRevision}" ]; then
     echo "missing pc-kernel revision"
     exit 1
@@ -66,9 +66,9 @@ execute: |
   boot_id="$( tests.nested boot-id )"
 
   echo "Install it and get the ID for the change"
-  REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous panicking-initramfs-kernel.snap --no-wait)
+  REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous panicking-initramfs-kernel.snap --no-wait)
   if [ "$PROBLEM_TYPE" = "nolink" ]; then
-      tests.nested exec "retry --wait 1 -n 50 sh -c 'sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi'"
+      remote.exec "retry --wait 1 -n 50 sh -c 'sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi'"
   fi
 
   # wait for a reboot. Note that failure is immediate for kernel.efi
@@ -81,39 +81,39 @@ execute: |
 
   # Wait for the change to finish - note it will exit with non-zero since the 
   # change will fail, so don't let that kill the test here
-  if tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"; then 
+  if remote.exec sudo snap watch "${REMOTE_CHG_ID}"; then 
     echo "remote snap change ${REMOTE_CHG_ID} for broken kernel snap refresh should have failed!"
     exit 1
   fi
 
   echo "Check that the refresh failed"
-  tests.nested exec sudo snap changes | grep "${REMOTE_CHG_ID}" | MATCH Error
+  remote.exec sudo snap changes | grep "${REMOTE_CHG_ID}" | MATCH Error
   case "$PROBLEM_TYPE" in
       empty|zeros)
-          tests.nested exec sudo snap tasks "${REMOTE_CHG_ID}" | MATCH "cannot set next boot: cannot reseal the encryption key:"
+          remote.exec sudo snap tasks "${REMOTE_CHG_ID}" | MATCH "cannot set next boot: cannot reseal the encryption key:"
           ;;
       *)
-          tests.nested exec sudo snap tasks "${REMOTE_CHG_ID}" | MATCH "cannot finish .* installation, there was a rollback across reboot"
+          remote.exec sudo snap tasks "${REMOTE_CHG_ID}" | MATCH "cannot finish .* installation, there was a rollback across reboot"
           ;;
   esac
 
   echo "Check We should be on the same revision of the kernel snap"
-  if [ "$(tests.nested exec sudo snap list pc-kernel | grep pc-kernel | awk '{print $3}')" != "${startRevision}" ]; then
+  if [ "$(remote.exec sudo snap list pc-kernel | grep pc-kernel | awk '{print $3}')" != "${startRevision}" ]; then
     echo "pc-kernel is on the wrong revision"
     exit 1
   fi
 
   echo "Check we don't have leftover bootenv"
-  tests.nested exec sudo snap debug boot-vars --uc20 | MATCH '^kernel_status=$'
+  remote.exec sudo snap debug boot-vars --uc20 | MATCH '^kernel_status=$'
 
   echo "Check that we don't have extra assets in the ubuntu-boot dir and that the currently enabled kernel is the original kernel"
 
   # kernel.efi symlink should point to the original kernel
-  tests.nested exec readlink /run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi | MATCH "pc-kernel_${startRevision}.snap/kernel.efi"
+  remote.exec readlink /run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi | MATCH "pc-kernel_${startRevision}.snap/kernel.efi"
   # should still have pc-kernel_$rev.snap dir
-  tests.nested exec test -d "/run/mnt/ubuntu-boot/EFI/ubuntu/pc-kernel_${startRevision}.snap"
-  if [ "$(tests.nested exec ls /run/mnt/ubuntu-boot/EFI/ubuntu/pc-kernel_*.snap | wc -l)" != 1 ]; then
+  remote.exec test -d "/run/mnt/ubuntu-boot/EFI/ubuntu/pc-kernel_${startRevision}.snap"
+  if [ "$(remote.exec ls /run/mnt/ubuntu-boot/EFI/ubuntu/pc-kernel_*.snap | wc -l)" != 1 ]; then
     echo "Extra leftover pc-kernel assets in ubuntu-boot:"
-    tests.nested exec ls /run/mnt/ubuntu-boot/EFI/ubuntu/pc-kernel_*.snap
+    remote.exec ls /run/mnt/ubuntu-boot/EFI/ubuntu/pc-kernel_*.snap
     exit 1
   fi

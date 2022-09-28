@@ -47,9 +47,8 @@ func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 		{quota.NewResourcesBuilder().Build(), `quota group must have at least one resource limit set`},
 		{quota.NewResourcesBuilder().WithCPUCount(1).Build(), `invalid cpu quota with count of >0 and percentage of 0`},
 		{quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(100).WithCPUSet([]int{0}).Build(), `cpu usage 200% is larger than the maximum allowed for provided set \[0\] of 100%`},
-		{quota.NewResourcesBuilder().WithJournalRate(0, 1).Build(), `journal quota must have a rate count larger than zero and period at least 1 microsecond \(minimum resolution\)`},
-		{quota.NewResourcesBuilder().WithJournalRate(1, 0).Build(), `journal quota must have a rate count larger than zero and period at least 1 microsecond \(minimum resolution\)`},
-		{quota.NewResourcesBuilder().WithJournalRate(1, time.Nanosecond).Build(), `journal quota must have a rate count larger than zero and period at least 1 microsecond \(minimum resolution\)`},
+		{quota.NewResourcesBuilder().WithJournalRate(0, 1).Build(), `journal quota must have a period of at least 1 microsecond \(minimum resolution\)`},
+		{quota.NewResourcesBuilder().WithJournalRate(1, time.Nanosecond).Build(), `journal quota must have a period of at least 1 microsecond \(minimum resolution\)`},
 		{quota.NewResourcesBuilder().WithJournalSize(0).Build(), `journal size quota must have a limit set`},
 	}
 
@@ -188,13 +187,8 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 		},
 		{
 			quota.NewResourcesBuilder().WithJournalRate(1, 1).Build(),
-			quota.NewResourcesBuilder().WithJournalRate(0, 0).Build(),
-			`cannot remove journal rate limit from quota group`,
-		},
-		{
-			quota.NewResourcesBuilder().WithJournalRate(1, 1).Build(),
 			quota.NewResourcesBuilder().WithJournalRate(-2, 0).Build(),
-			`journal quota must have a rate count larger than zero and period at least 1 microsecond \(minimum resolution\)`,
+			`journal quota must have a rate count equal to or larger than zero`,
 		},
 		{
 			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).Build(),
@@ -288,6 +282,11 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationPasses(c *C) {
 			quota.NewResourcesBuilder().WithJournalRate(15, 5*time.Second).Build(),
 			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).Build(),
 			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).WithJournalRate(15, 5*time.Second).Build(),
+		},
+		{
+			quota.NewResourcesBuilder().WithJournalRate(0, 0).Build(),
+			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).Build(),
+			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).WithJournalRate(0, 0).Build(),
 		},
 		{
 			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).Build(),

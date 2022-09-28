@@ -45,7 +45,7 @@ restore: |
 
 debug: |
   # show if anything went wrong during seeding
-  tests.nested exec "snap change 1" || true
+  remote.exec "snap change 1" || true
   echo "gpg key id:$NESTED_UBUNTU_IMAGE_PRESEED_KEY"
 
 execute: |
@@ -57,12 +57,12 @@ execute: |
   tests.nested create-vm core
 
   echo "Wait for snap seeding to be done"
-  tests.nested exec "sudo snap wait system seed.loaded"
+  remote.exec "sudo snap wait system seed.loaded"
 
   echo "Verify that the image was preseeded"
-  tests.nested exec "snap debug seeding" | MATCH "^preseeded: +true"
+  remote.exec "snap debug seeding" | MATCH "^preseeded: +true"
 
   echo "Check that no snaps are broken"
-  tests.nested exec "snap list" | NOMATCH "broken"
-  tests.nested exec "snap list" | MATCH "core20"
-  tests.nested exec "snap list" | MATCH "snapd"
+  remote.exec "snap list" | NOMATCH "broken"
+  remote.exec "snap list" | MATCH "core20"
+  remote.exec "snap list" | MATCH "snapd"

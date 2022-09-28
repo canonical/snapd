@@ -99,6 +99,33 @@ func (s *deviceMgrBootconfigSuite) setupUC20Model(c *C) *asserts.Model {
 	return s.makeModelAssertionInState(c, "canonical", "pc-model-20", mockCore20ModelHeaders)
 }
 
+func (s *deviceMgrBootconfigSuite) setupClassicWithModesModel(c *C) *asserts.Model {
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "classic-with-modes",
+		Serial: "didididi",
+	})
+	return s.makeModelAssertionInState(c, "canonical", "classic-with-modes",
+		map[string]interface{}{
+			"architecture": "amd64",
+			"classic":      "true",
+			"distribution": "ubuntu",
+			"base":         "core22",
+			"snaps": []interface{}{
+				map[string]interface{}{
+					"name": "pc-linux",
+					"id":   "pclinuxdidididididididididididid",
+					"type": "kernel",
+				},
+				map[string]interface{}{
+					"name": "pc",
+					"id":   "pcididididididididididididididid",
+					"type": "gadget",
+				},
+			},
+		})
+}
+
 func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, updateAttempted, applied bool, errMatch string) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -141,6 +168,47 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, updateAttempted
 	}
 }
 
+func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, updateAttempted, applied bool, errMatch string) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(tsk)
+	chg.Set("system-restart-immediate", true)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.IsReady(), Equals, true)
+	if errMatch == "" {
+		c.Check(chg.Err(), IsNil)
+		c.Check(tsk.Status(), Equals, state.DoneStatus)
+	} else {
+		c.Check(chg.Err(), ErrorMatches, errMatch)
+		c.Check(tsk.Status(), Equals, state.ErrorStatus)
+	}
+	if updateAttempted {
+		c.Assert(s.managedbl.UpdateCalls, Equals, 1)
+		if errMatch == "" && applied {
+			// we log on success
+			log := tsk.Log()
+			c.Assert(log, HasLen, 1)
+			c.Check(log[0], Matches, ".* updated boot config assets")
+			// XXX CLASSIC-NO-REBOOT c.Check(log[1], Matches, ".* Not restarting as this is a classic device.")
+		}
+		// There must be no restart request
+		// XXXX CLASSIC-NO-REBOOT
+		c.Check(s.restartRequests, HasLen, 1)
+	} else {
+		c.Assert(s.managedbl.UpdateCalls, Equals, 0)
+	}
+}
+
 func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccess(c *C) {
 	s.state.Lock()
 	s.setupUC20Model(c)
@@ -151,6 +219,25 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccess(c *C) {
 	updateAttempted := true
 	updateApplied := true
 	s.testBootConfigUpdateRun(c, updateAttempted, updateApplied, "")
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate",
+	})
+}
+
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassic(c *C) {
+	s.state.Lock()
+	s.setupClassicWithModesModel(c)
+	s.state.Unlock()
+
+	s.managedbl.Updated = true
+
+	updateAttempted := true
+	updateApplied := true
+	s.testBootConfigUpdateRunClassic(c, updateAttempted, updateApplied, "")
 
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)

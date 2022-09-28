@@ -8,41 +8,41 @@ environment:
 execute: |
   # wait for the system to be seeded first
   tests.nested wait-for snap-command
-  tests.nested exec "sudo snap wait system seed.loaded"
+  remote.exec "sudo snap wait system seed.loaded"
 
   echo "Install jq in the host environment"
   snap install jq
   tests.cleanup defer snap remove jq
 
   echo "Move the run key for ubuntu-save out of the way so we use the fallback key to unlock ubuntu-save"
-  tests.nested exec "sudo mv /run/mnt/data/system-data/var/lib/snapd/device/fde/ubuntu-save.key /run/mnt/data/system-data/var/lib/snapd/device/fde/ubuntu-save.key.bk"
+  remote.exec "sudo mv /run/mnt/data/system-data/var/lib/snapd/device/fde/ubuntu-save.key /run/mnt/data/system-data/var/lib/snapd/device/fde/ubuntu-save.key.bk"
 
-  recoverySystem=$(tests.nested exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
+  recoverySystem=$(remote.exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
 
   echo "Transition to recover mode"
   tests.nested transition "$recoverySystem" recover
 
   tests.nested wait-for snap-command
-  tests.nested exec "sudo snap wait system seed.loaded"
+  remote.exec "sudo snap wait system seed.loaded"
 
   echo "Check degraded.json exists and has the unlock-key for ubuntu-save as the fallback key"
-  tests.nested exec "test -f $DEGRADED_JSON"
-  test "$(tests.nested exec "cat $DEGRADED_JSON" | jq -r '."ubuntu-save" | ."unlock-key"')" = fallback
+  remote.exec "test -f $DEGRADED_JSON"
+  test "$(remote.exec "cat $DEGRADED_JSON" | jq -r '."ubuntu-save" | ."unlock-key"')" = fallback
 
   echo "Move the run object key for ubuntu-save back and go back to run mode"
-  tests.nested exec "sudo mv /run/mnt/host/ubuntu-data/system-data/var/lib/snapd/device/fde/ubuntu-save.key.bk /run/mnt/host/ubuntu-data/system-data/var/lib/snapd/device/fde/ubuntu-save.key"
+  remote.exec "sudo mv /run/mnt/host/ubuntu-data/system-data/var/lib/snapd/device/fde/ubuntu-save.key.bk /run/mnt/host/ubuntu-data/system-data/var/lib/snapd/device/fde/ubuntu-save.key"
   tests.nested transition "$recoverySystem" run
 
   tests.nested wait-for snap-command
-  tests.nested exec "sudo snap wait system seed.loaded"
+  remote.exec "sudo snap wait system seed.loaded"
 
   echo "Now move the run object key on ubuntu-boot out of the way so we use the fallback key to unlock ubuntu-data"
-  tests.nested exec "sudo mv /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key.bk"
+  remote.exec "sudo mv /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key.bk"
   tests.nested transition "$recoverySystem" recover
 
   tests.nested wait-for snap-command
-  tests.nested exec "sudo snap wait system seed.loaded"
+  remote.exec "sudo snap wait system seed.loaded"
 
   echo "Check degraded.json exists and has the unlock-key for ubuntu-data as the fallback key"
-  tests.nested exec "test -f $DEGRADED_JSON"
-  test "$(tests.nested exec "cat $DEGRADED_JSON" | jq -r '."ubuntu-data" | ."unlock-key"')" = fallback
+  remote.exec "test -f $DEGRADED_JSON"
+  test "$(remote.exec "cat $DEGRADED_JSON" | jq -r '."ubuntu-data" | ."unlock-key"')" = fallback

@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -158,28 +159,35 @@ func InitramfsActiveBootFlags(mode string, rootfsDir string) ([]string, error) {
 		// to reduce the number of times we read the modeenv ?
 		return modeenv.BootFlags, nil
 
+	case ModeFactoryReset:
+		// Reuse the code from ModeInstall as we have a lot of
+		// identical conditions.
+		fallthrough
 	case ModeInstall:
 		// boot flags always come from the bootenv of the recovery bootloader
 		// in install mode
-
-		opts := &bootloader.Options{
-			Role: bootloader.RoleRecovery,
-		}
-		bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
-		if err != nil {
-			return nil, err
-		}
-
-		m, err := bl.GetBootVars("snapd_boot_flags")
-		if err != nil {
-			return nil, err
-		}
-
-		return splitBootFlagString(m["snapd_boot_flags"]), nil
+		return readBootFlagsFromRecoveryBootloader()
 
 	default:
 		return nil, fmt.Errorf("internal error: unsupported mode %q", mode)
 	}
+}
+
+func readBootFlagsFromRecoveryBootloader() ([]string, error) {
+	opts := &bootloader.Options{
+		Role: bootloader.RoleRecovery,
+	}
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	m, err := bl.GetBootVars("snapd_boot_flags")
+	if err != nil {
+		return nil, err
+	}
+
+	return splitBootFlagString(m["snapd_boot_flags"]), nil
 }
 
 // InitramfsExposeBootFlagsForSystem sets the boot flags for the current boot in
@@ -281,6 +289,7 @@ func setNextBootFlags(dev snap.Device, rootDir string, flags []string) error {
 // mode root filesystem is mounted for the given mode.
 // For run mode, it's "/run/mnt/data" and "/".
 // For install mode it's "/run/mnt/ubuntu-data".
+// For factory-reset mode it's "/run/mnt/ubuntu-data"
 // For recover mode it's either "/host/ubuntu-data" or nil if that is not
 // mounted. Note that, for recover mode, this function only returns a non-empty
 // return value if the partition is mounted and trusted, there are certain
@@ -288,7 +297,9 @@ func setNextBootFlags(dev snap.Device, rootDir string, flags []string) error {
 // ubuntu-data in an untrusted manner, but for the purposes of this function
 // that is ignored.
 // This is primarily meant to be consumed by "snap{,ctl} system-mode".
-func HostUbuntuDataForMode(mode string) ([]string, error) {
+//
+// TODO: pass a "snap.Device" here and add "SystemMode() string" to that
+func HostUbuntuDataForMode(mode string, mod gadget.Model) ([]string, error) {
 	var runDataRootfsMountLocations []string
 	switch mode {
 	case ModeRun:
@@ -325,14 +336,36 @@ func HostUbuntuDataForMode(mode string) ([]string, error) {
 		// otherwise leave it empty
 
 	case ModeInstall:
-		// the var we have is for /run/mnt/ubuntu-data/writable, but the caller
-		// probably wants /run/mnt/ubuntu-data
+		// On *Core* the var we have is
+		// /run/mnt/ubuntu-data/writable, but the caller
+		// probably wants /run/mnt/ubuntu-data there. For classic
+		// the dir is /run/mnt/ubuntu-data already
 
 		// note that we may be running in install mode before this directory is
 		// actually created so check if it exists first
-		installModeLocation := filepath.Dir(InstallHostWritableDir)
+		var installModeLocation string
+		if mod.Classic() {
+			installModeLocation = InstallHostWritableDir(mod)
+		} else {
+			installModeLocation = filepath.Dir(InstallHostWritableDir(mod))
+		}
 		if exists, _, _ := osutil.DirExists(installModeLocation); exists {
 			runDataRootfsMountLocations = []string{installModeLocation}
+		}
+
+	case ModeFactoryReset:
+		// In factory reset, our conditions are a lot similar to install mode,
+		// as we recreate the ubuntu-data partition. Make similar assumptions
+		// and checks like ModeInstall. Take into account ubuntu-data might not
+		// be mounted when this check is called.
+		var factoryResetModeLocation string
+		if mod.Classic() {
+			factoryResetModeLocation = InstallHostWritableDir(mod)
+		} else {
+			factoryResetModeLocation = filepath.Dir(InstallHostWritableDir(mod))
+		}
+		if exists, _, _ := osutil.DirExists(factoryResetModeLocation); exists {
+			runDataRootfsMountLocations = []string{factoryResetModeLocation}
 		}
 	default:
 		return nil, ErrUnsupportedSystemMode

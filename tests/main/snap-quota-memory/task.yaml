@@ -8,12 +8,15 @@ details: |
 # we do have a check to do for these systems, but that is just to ensure that
 # we don't allow using quota groups, and that check is done in the snap-quota
 # spread instead
+# In arm devices using ubuntu core, memory quota cannot be used because
+# memory cgroup is disabled
 systems:
   - -ubuntu-14.04-*
   - -centos-7-*
   - -amazon-linux-2-*
   - -ubuntu-16.04-*
   - -ubuntu-core-16-*
+  - -ubuntu-core-*-arm-*
 
 prepare: |
   snap install go-example-webserver jq remarshal hello-world

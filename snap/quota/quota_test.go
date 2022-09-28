@@ -1114,7 +1114,7 @@ func (ts *quotaTestSuite) TestChangingParentCpuSetLimits(c *C) {
 	c.Check(err, ErrorMatches, `group cpu-set \[0\] is not a superset of current subgroup usage of \[0 1\]`)
 }
 
-func (ts *quotaTestSuite) TestChangingParentTaskLimits(c *C) {
+func (ts *quotaTestSuite) TestChangingParentThreadLimits(c *C) {
 	// The purpose here is to make sure we can't change the limits of the parent group
 	// that would otherwise conflict with the current usage of limits by children of the
 	// parent.
