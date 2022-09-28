@@ -1003,20 +1003,9 @@ func checkAutoconnectConflicts(st *state.State, autoconnectTask *state.Task, plu
 			}
 
 			// setup-profiles will be scheduled when we schedule the connect hooks during pre-seed, and they are postponed until
-			// after pre-seeding. They will still cause a conflict here, so take that into account. We only allow it in the case
-			// that setup-profiles is reliant on "mark-preseeded"
-			if k == "setup-profiles" && autoconnectTask.Change() != nil {
-				tasks := autoconnectTask.Change().Tasks()
-				var preseedTask *state.Task
-				for _, task := range tasks {
-					if task.Kind() == "mark-preseeded" {
-						preseedTask = task
-						break
-					}
-				}
-				if preseedTask != nil && inSameChangeWaitChain(preseedTask, task) {
-					continue
-				}
+			// after pre-seeding. They will still cause a conflict here, so take that into account.
+			if k == "setup-profiles" && inSameChangeWaitChain(autoconnectTask, task) {
+				continue
 			}
 
 			// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op

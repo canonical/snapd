@@ -24,13 +24,17 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -434,7 +438,15 @@ func (s *firstbootPreseedingClassic16Suite) TestPopulatePreseedWithConnections(c
 	// precondition
 	c.Assert(release.OnClassic, Equals, true)
 
-	// logger.SimpleSetup()
+	hooksCalled := []*hookstate.Context{}
+	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		ctx.Lock()
+		defer ctx.Unlock()
+
+		hooksCalled = append(hooksCalled, ctx)
+		return nil, nil
+	})
+	defer restore()
 
 	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{
 		classic: true,
@@ -526,29 +538,11 @@ snaps:
 	c.Assert(chg.Err(), IsNil)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 
-	// Visualize the task and their dependencies for debugging purposes
-	// tasks := chg.Tasks()
-	// for _, tsk := range tasks {
-	// 	log.Printf("%s: task %s (%s)", tsk.ID(), tsk.Kind(), tsk.Status())
-	// 	if len(tsk.WaitTasks()) > 0 {
-	// 		var ids []string
-	// 		for _, wtsk := range tsk.WaitTasks() {
-	// 			ids = append(ids, wtsk.ID())
-	// 		}
-	// 		log.Printf("waiting for %s", strings.Join(ids, ","))
-	// 	}
-	// 	if len(tsk.Log()) > 0 {
-	// 		log.Printf("logs: %v", tsk.Log())
-	// 	}
-	// }
+	// we are done with this instance of the overlord, stop it here. Otherwise
+	// it will interfere with our second overlord instance
+	c.Assert(s.overlord.Stop(), IsNil)
 
-	// Find a way to better check against this as we have both setup-profile calls
-	// and connect calls that are in both Do and Done state as they rely on mark-preseeded
-	// to be in Done, which it will not be.
-	//checkPreseedTaskStates(c, st)
-	c.Check(chg.Status(), Equals, state.DoingStatus)
-
-	// verify
+	// Verify state between the two change runs
 	r, err := os.Open(dirs.SnapStateFile)
 	c.Assert(err, IsNil)
 	diskState, err := state.ReadState(nil, r)
@@ -571,4 +565,58 @@ snaps:
 	var seeded bool
 	err = diskState.Get("seeded", &seeded)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+
+	// For the next step of the test, we want to turn off pre-seeding so
+	// we can run the change all the way through, and also see the hooks go
+	// off.
+	restore = snapdenv.MockPreseeding(false)
+	defer restore()
+
+	// Create a new overlord after turning pre-seeding off. We don't want to
+	// overwrite the old s.overlord variable as this will interfere with the
+	// deferred cleanup, so we do it ourselves here and keep it separate.
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+	o.StartUp()
+
+	st = o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// avoid device reg
+	chg1 := st.NewChange("become-operational", "init device")
+	chg1.SetStatus(state.DoingStatus)
+
+	st.Unlock()
+	err = o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	restart.MockPending(st, restart.RestartUnset)
+	st.Unlock()
+	err = o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(o.Stop(), IsNil)
+	c.Assert(err, IsNil)
+
+	// Update the change pointer to the change in the new state
+	// otherwise we will be referring to the old one.
+	chg = st.Changes()[0]
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	c.Assert(hooksCalled, HasLen, 1)
+	c.Check(hooksCalled[0].HookName(), Equals, "connect-plug-network")
+
+	// and ensure state is now considered seeded
+	err = st.Get("seeded", &seeded)
+	c.Assert(err, IsNil)
+	c.Check(seeded, Equals, true)
+
+	// check we set seed-time
+	var seedTime time.Time
+	err = st.Get("seed-time", &seedTime)
+	c.Assert(err, IsNil)
+	c.Check(seedTime.IsZero(), Equals, false)
 }
