@@ -96,7 +96,7 @@ type HookSetup struct {
 func Manager(s *state.State, runner *state.TaskRunner) (*HookManager, error) {
 	// Make sure we only run 1 hook task for given snap at a time
 	runner.AddBlocked(func(thisTask *state.Task, running []*state.Task) bool {
-		// check if we're a hook task, probably not needed but let's take extra care
+		// check if we're a hook task
 		if thisTask.Kind() != "run-hook" {
 			return false
 		}
