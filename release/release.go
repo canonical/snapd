@@ -21,6 +21,9 @@ package release
 
 import (
 	"bufio"
+	"bytes"
+	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
 	"unicode"
@@ -113,6 +116,25 @@ func isWSL() bool {
 	return fileExists("/proc/sys/fs/binfmt_misc/WSLInterop")
 }
 
+var ioutilReadFile = ioutil.ReadFile
+
+// WSL 1 /proc/version: Linux version [kernel]-Microsoft (Microsoft@Microsoft.com) ([gcc version] ) #[build]-Microsoft [timestamp]
+// WS2 2 /proc/version: Linux version [kernel]-microsoft-standard-WSL2 (oe-user@oe-host) ([gcc version], [ld version]) #1 [timestamp]
+//                                             ^ We use Microsoft (upper case M) to distinguish them
+//
+// Note that WS2's kernel can be customized by the user, so there is no guarantee on the
+// contents of that string. Hence why we search in WSL1's kernel name instead of WSL2's
+func getWSLVersion() (int, error) {
+	if !isWSL() {
+		return 0, fmt.Errorf("cannot get WSL version while not running WSL.")
+	}
+	kernel, err := ioutilReadFile("/proc/version")
+	if err == nil && bytes.Contains(kernel, []byte("Microsoft")) {
+		return 1, nil
+	}
+	return 2, nil
+}
+
 // SystemctlSupportsUserUnits returns true if the systemctl utility
 // supports user units.
 func SystemctlSupportsUserUnits() bool {
@@ -130,6 +152,10 @@ var OnClassic bool
 // Subsystem for Linux
 var OnWSL bool
 
+// If the previous is true, WSLVersion states whether the process is running inside WSL1 or WSL2
+// Otherwise it is set to 0
+var WSLVersion int
+
 // ReleaseInfo contains data loaded from /etc/os-release on startup.
 var ReleaseInfo OS
 
@@ -139,6 +165,7 @@ func init() {
 	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
 
 	OnWSL = isWSL()
+	WSLVersion, _ = getWSLVersion()
 }
 
 // MockOnClassic forces the process to appear inside a classic

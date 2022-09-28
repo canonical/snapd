@@ -43,6 +43,15 @@ func MockFileExists(mockFileExists func(string) bool) (restorer func()) {
 	}
 }
 
+func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func()) {
+	old := ioutilReadFile
+	ioutilReadFile = newReadfile
+	return func() {
+		ioutilReadFile = old
+	}
+}
+
 var (
-	IsWSL = isWSL
+	IsWSL         = isWSL
+	GetWSLVersion = getWSLVersion
 )
