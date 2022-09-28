@@ -3015,7 +3015,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 
 	s.state.Lock()
 	s.makeMockInstallModel(c, "dangerous")
-	s.makeMockInstalledPcKernelAndGadget(c, "install-device-hook-content", "")
+	s.makeMockInstalledPcGadget(c, "install-device-hook-content", "")
 	devicestate.SetSystemMode(s.mgr, "factory-reset")
 	s.state.Unlock()
 
