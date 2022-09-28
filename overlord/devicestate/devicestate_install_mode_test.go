@@ -3049,6 +3049,91 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 }
 
+func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error {
+		return fmt.Errorf("TPM not available")
+	})
+	defer restore()
+
+	hooksCalled := []*hookstate.Context{}
+	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		ctx.Lock()
+		defer ctx.Unlock()
+
+		hooksCalled = append(hooksCalled, ctx)
+		return nil, nil
+	})
+	defer restore()
+
+	restore = devicestate.MockInstallFactoryReset(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, obs gadget.ContentObserver, pertTimings timings.Measurer) (*install.InstalledSystemSideData, error) {
+		c.Assert(os.MkdirAll(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir(mod)), 0755), IsNil)
+		return &install.InstalledSystemSideData{
+			DeviceForRole: map[string]string{
+				"ubuntu-save": "/dev/foo",
+			},
+		}, nil
+	})
+	defer restore()
+
+	m := boot.Modeenv{
+		Mode:           "factory-reset",
+		RecoverySystem: "1234",
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	s.state.Lock()
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcKernelAndGadget(c, "install-device-hook-content", "")
+	devicestate.SetSystemMode(s.mgr, "factory-reset")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	factoryReset := s.findFactoryReset()
+	c.Check(factoryReset.Err(), IsNil)
+
+	tasks := factoryReset.Tasks()
+	c.Assert(tasks, HasLen, 3)
+	factoryResetTask := tasks[0]
+	installDeviceTask := tasks[1]
+	restartSystemTask := tasks[2]
+
+	c.Assert(factoryResetTask.Kind(), Equals, "factory-reset-run-system")
+	c.Assert(installDeviceTask.Kind(), Equals, "run-hook")
+	c.Assert(restartSystemTask.Kind(), Equals, "restart-system-to-run-mode")
+
+	// factory-reset-run-system has no pre-reqs
+	c.Assert(factoryResetTask.WaitTasks(), HasLen, 0)
+
+	// install-device has a pre-req of factory-reset-run-system
+	waitTasks := installDeviceTask.WaitTasks()
+	c.Assert(waitTasks, HasLen, 1)
+	c.Check(waitTasks[0].ID(), Equals, factoryResetTask.ID())
+
+	// install-device restart-task references to restart-system-to-run-mode
+	var restartTask string
+	err := installDeviceTask.Get("restart-task", &restartTask)
+	c.Assert(err, IsNil)
+	c.Check(restartTask, Equals, restartSystemTask.ID())
+
+	// restart-system-to-run-mode has a pre-req of install-device
+	waitTasks = restartSystemTask.WaitTasks()
+	c.Assert(waitTasks, HasLen, 1)
+	c.Check(waitTasks[0].ID(), Equals, installDeviceTask.ID())
+
+	// we did request a restart through restartSystemToRunModeTask
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+
+	c.Assert(hooksCalled, HasLen, 1)
+	c.Assert(hooksCalled[0].HookName(), Equals, "install-device")
+}
+
 func (s *deviceMgrInstallModeSuite) TestFactoryResetRunSysconfig(c *C) {
 	s.state.Lock()
 	model := s.makeMockInstallModel(c, "dangerous")
