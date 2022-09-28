@@ -31,7 +31,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -431,7 +430,7 @@ snaps:
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
-func (s *firstbootPreseedingClassic16Suite) TestPopulatePreseedWithConnections(c *C) {
+func (s *firstbootPreseedingClassic16Suite) TestPopulatePreseedWithConnectHook(c *C) {
 	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
@@ -572,14 +571,11 @@ snaps:
 	restore = snapdenv.MockPreseeding(false)
 	defer restore()
 
-	// Create a new overlord after turning pre-seeding off. We don't want to
-	// overwrite the old s.overlord variable as this will interfere with the
-	// deferred cleanup, so we do it ourselves here and keep it separate.
-	o, err := overlord.New(nil)
-	c.Assert(err, IsNil)
-	o.StartUp()
-
-	st = o.State()
+	// Create a new overlord after turning pre-seeding off to run the
+	// change fully through, which we cannot do in pre-seed mode. To actually
+	// invoke the hooks we have to restart the overlord.
+	s.startOverlord(c)
+	st = s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
@@ -588,16 +584,16 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	err = o.Settle(settleTimeout)
+	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
 	restart.MockPending(st, restart.RestartUnset)
 	st.Unlock()
-	err = o.Settle(settleTimeout)
+	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-	c.Assert(o.Stop(), IsNil)
+	c.Assert(s.overlord.Stop(), IsNil)
 	c.Assert(err, IsNil)
 
 	// Update the change pointer to the change in the new state
@@ -624,20 +620,20 @@ snaps:
 	var conns map[string]interface{}
 	c.Assert(st.Get("conns", &conns), IsNil)
 	c.Assert(conns, HasLen, 2)
-
-	repo := o.InterfaceManager().Repository()
-	cn, err := repo.Connected("foo", "shared-data-plug")
-	c.Assert(err, IsNil)
-	c.Assert(cn, HasLen, 1)
-	c.Assert(cn, DeepEquals, []*interfaces.ConnRef{{
-		PlugRef: interfaces.PlugRef{Snap: "foo", Name: "shared-data-plug"},
-		SlotRef: interfaces.SlotRef{Snap: "bar", Name: "shared-data-slot"},
-	}})
-	cn, err = repo.Connected("foo", "network")
-	c.Assert(err, IsNil)
-	c.Assert(cn, HasLen, 1)
-	c.Assert(cn, DeepEquals, []*interfaces.ConnRef{{
-		PlugRef: interfaces.PlugRef{Snap: "foo", Name: "network"},
-		SlotRef: interfaces.SlotRef{Snap: "snapd", Name: "network"},
-	}})
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"foo:network core:network": map[string]interface{}{
+			"auto": true, "interface": "network"},
+		"foo:shared-data-plug bar:shared-data-slot": map[string]interface{}{
+			"auto": true, "interface": "content",
+			"plug-static": map[string]interface{}{
+				"content": "mylib", "target": "import",
+			},
+			"slot-static": map[string]interface{}{
+				"content": "mylib",
+				"read": []interface{}{
+					"/",
+				},
+			},
+		},
+	})
 }

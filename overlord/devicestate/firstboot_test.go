@@ -40,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -143,6 +142,9 @@ func (t *firstBootBaseTest) startOverlord(c *C) {
 	t.overlord = ovld
 	t.AddCleanup(func() {
 		devicestate.EarlyConfig = nil
+		if t.overlord == nil {
+			return
+		}
 		t.overlord.Stop()
 		t.overlord = nil
 	})
@@ -2080,7 +2082,7 @@ func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseedMissing(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (s *firstBoot16Suite) TestPopulateFromSeedWithConnections(c *C) {
+func (s *firstBoot16Suite) TestPopulateFromSeedWithConnectHook(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -2199,20 +2201,20 @@ snaps:
 	var conns map[string]interface{}
 	c.Assert(st.Get("conns", &conns), IsNil)
 	c.Assert(conns, HasLen, 2)
-
-	repo := s.overlord.InterfaceManager().Repository()
-	cn, err := repo.Connected("foo", "shared-data-plug")
-	c.Assert(err, IsNil)
-	c.Assert(cn, HasLen, 1)
-	c.Assert(cn, DeepEquals, []*interfaces.ConnRef{{
-		PlugRef: interfaces.PlugRef{Snap: "foo", Name: "shared-data-plug"},
-		SlotRef: interfaces.SlotRef{Snap: "bar", Name: "shared-data-slot"},
-	}})
-	cn, err = repo.Connected("foo", "network")
-	c.Assert(err, IsNil)
-	c.Assert(cn, HasLen, 1)
-	c.Assert(cn, DeepEquals, []*interfaces.ConnRef{{
-		PlugRef: interfaces.PlugRef{Snap: "foo", Name: "network"},
-		SlotRef: interfaces.SlotRef{Snap: "snapd", Name: "network"},
-	}})
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"foo:network snapd:network": map[string]interface{}{
+			"auto": true, "interface": "network"},
+		"foo:shared-data-plug bar:shared-data-slot": map[string]interface{}{
+			"auto": true, "interface": "content",
+			"plug-static": map[string]interface{}{
+				"content": "mylib", "target": "import",
+			},
+			"slot-static": map[string]interface{}{
+				"content": "mylib",
+				"read": []interface{}{
+					"/",
+				},
+			},
+		},
+	})
 }
