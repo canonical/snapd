@@ -322,6 +322,24 @@ func (ts *quotaTestSuite) TestJournalConfFileName(c *C) {
 	c.Check(grp.JournalConfFileName(), Equals, "journald@snap-foo.conf")
 }
 
+func (ts *quotaTestSuite) TestJournalServiceName(c *C) {
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalServiceName(), Equals, "systemd-journald@snap-foo.service")
+}
+
+func (ts *quotaTestSuite) TestJournalServiceDropInDir(c *C) {
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalServiceDropInDir(), Equals, "/etc/systemd/system/systemd-journald@snap-foo.service.d")
+}
+
+func (ts *quotaTestSuite) TestJournalServiceDropInFile(c *C) {
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalServiceDropInFile(), Equals, "/etc/systemd/system/systemd-journald@snap-foo.service.d/00-snap.conf")
+}
+
 func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
 	tt := []struct {
 		grps    map[string]*quota.Group
