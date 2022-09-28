@@ -144,20 +144,21 @@ func postSystemsInstallFinish(cli *client.Client,
 	return waitChange(chgId)
 }
 
-// XXX: pass in created partitions instead?
-// XXX2: should we mount or will snapd mount?
-func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Volume) error {
+// createAndMountFilesystems creates and mounts filesystems. It returns
+// an slice with the paths where the filesystems have been mounted to.
+func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Volume) ([]string, error) {
 	// only support a single volume for now
 	if len(volumes) != 1 {
-		return fmt.Errorf("got unexpected number of volumes %v", len(volumes))
+		return nil, fmt.Errorf("got unexpected number of volumes %v", len(volumes))
 	}
 
 	disk, err := disks.DiskFromDeviceName(bootDevice)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	vol := firstVol(volumes)
 
+	var mountPoints []string
 	for _, stru := range vol.Structure {
 		if stru.Label == "" || stru.Filesystem == "" {
 			continue
@@ -165,22 +166,33 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 
 		part, err := disk.FindMatchingPartitionWithPartLabel(stru.Label)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		// XXX: reuse
 		// gadget/install/content.go:mountFilesystem() instead
 		// (it will also call udevadm)
 		if err := mkfs.Make(stru.Filesystem, part.KernelDeviceNode, stru.Label, 0, 0); err != nil {
-			return err
+			return nil, err
 		}
 
 		// mount
 		mountPoint := runMntFor(stru.Label)
 		if err := os.MkdirAll(mountPoint, 0755); err != nil {
-			return err
+			return nil, err
 		}
 		// XXX: is there a better way?
 		if output, err := exec.Command("mount", part.KernelDeviceNode, mountPoint).CombinedOutput(); err != nil {
+			return nil, osutil.OutputErr(output, err)
+		}
+		mountPoints = append(mountPoints, mountPoint)
+	}
+
+	return mountPoints, nil
+}
+
+func unmountFilesystems(mntPts []string) error {
+	for _, mntPt := range mntPts {
+		if output, err := exec.Command("umount", mntPt).CombinedOutput(); err != nil {
 			return osutil.OutputErr(output, err)
 		}
 	}
@@ -242,7 +254,8 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err := postSystemsInstallSetupStorageEncryption(details); err != nil {
 		return fmt.Errorf("cannot setup storage encryption: %v", err)
 	}
-	if err := createAndMountFilesystems(bootDevice, details.Volumes); err != nil {
+	mntPts, err := createAndMountFilesystems(bootDevice, details.Volumes)
+	if err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
 	if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
@@ -254,6 +267,10 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	// XXX: or will POST {"action":"install","step":"finalize"} do that?
 	if err := writeModeenvOnTarget(seedLabel); err != nil {
 		return fmt.Errorf("cannot write modeenv on target: %v", err)
+	}
+	// Unmount filesystems
+	if err := unmountFilesystems(mntPts); err != nil {
+		return fmt.Errorf("cannot unmount filesystems: %v", err)
 	}
 	//XXX: will the POST below trigger a reboot on the snapd side? if
 	//     not we need to reboot here
