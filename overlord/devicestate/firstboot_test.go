@@ -2199,7 +2199,6 @@ snaps:
 	// verify that connections was made
 	var conns map[string]interface{}
 	c.Assert(st.Get("conns", &conns), IsNil)
-	c.Assert(conns, HasLen, 2)
 	c.Assert(conns, DeepEquals, map[string]interface{}{
 		"foo:network snapd:network": map[string]interface{}{
 			"auto": true, "interface": "network"},

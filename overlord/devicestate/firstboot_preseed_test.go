@@ -598,7 +598,14 @@ snaps:
 
 	// Update the change pointer to the change in the new state
 	// otherwise we will be referring to the old one.
-	chg = st.Changes()[0]
+	chg = nil
+	for _, c := range st.Changes() {
+		if c.Kind() == "seed" {
+			chg = c
+			break
+		}
+	}
+	c.Assert(chg, NotNil)
 	c.Assert(chg.Err(), IsNil)
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 
@@ -619,7 +626,6 @@ snaps:
 	// verify that connections was made
 	var conns map[string]interface{}
 	c.Assert(st.Get("conns", &conns), IsNil)
-	c.Assert(conns, HasLen, 2)
 	c.Assert(conns, DeepEquals, map[string]interface{}{
 		"foo:network core:network": map[string]interface{}{
 			"auto": true, "interface": "network"},
