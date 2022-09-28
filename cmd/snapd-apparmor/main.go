@@ -69,7 +69,7 @@ import (
 // unsupported configuration that cannot be properly handled by this function.
 //
 func isContainerWithInternalPolicy() bool {
-	if release.OnWSL {
+	if release.OnWSL && release.WSLVersion == 1 {
 		return true
 	}
 
