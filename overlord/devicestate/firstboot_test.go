@@ -2080,14 +2080,11 @@ func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseedMissing(c *C) {
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedWithConnections(c *C) {
-	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
-	bootloader.Force(bloader)
-	defer bootloader.Force(nil)
-	bloader.SetBootKernel("pc-kernel_1.snap")
-	bloader.SetBootBase("core_1.snap")
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	hooksCalled := []*hookstate.Context{}
-	restore := hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		ctx.Lock()
 		defer ctx.Unlock()
 
@@ -2096,7 +2093,10 @@ func (s *firstBoot16Suite) TestPopulateFromSeedWithConnections(c *C) {
 	})
 	defer restore()
 
-	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
+	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{
+		classic: true,
+	})
+
 	snapFilesWithHook := [][]string{
 		{"bin/bar", ``},
 		{"meta/hooks/connect-plug-network", ``},
@@ -2104,6 +2104,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedWithConnections(c *C) {
 
 	// put a firstboot snap into the SnapBlobDir
 	snapYaml := `name: foo
+base: core18
 version: 1.0
 plugs:
  shared-data-plug:
@@ -2120,6 +2121,7 @@ apps:
 
 	// put a 2nd firstboot snap into the SnapBlobDir
 	snapYaml = `name: bar
+base: core18
 version: 1.0
 slots:
  shared-data-slot:
@@ -2138,23 +2140,21 @@ apps:
 	s.WriteAssertions("bar.asserts", s.devAcct, barDecl, barRev)
 
 	// add a model assertion and its chain
-	assertsChain := s.makeModelAssertionChain(c, "my-model", nil)
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
 	s.WriteAssertions("model.asserts", assertsChain...)
 
 	// create a seed.yaml
 	content := []byte(fmt.Sprintf(`
 snaps:
- - name: core
+ - name: snapd
    file: %s
- - name: pc-kernel
-   file: %s
- - name: pc
+ - name: core18
    file: %s
  - name: foo
    file: %s
  - name: bar
    file: %s
-`, coreFname, kernelFname, gadgetFname, fooFname, barFname))
+`, snapdFname, core18Fname, fooFname, barFname))
 	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
@@ -2173,32 +2173,24 @@ snaps:
 	}
 	c.Assert(st.Changes(), HasLen, 1)
 
-	// avoid device reg
-	chg1 := st.NewChange("become-operational", "init device")
-	chg1.SetStatus(state.DoingStatus)
+	checkOrder(c, tsAll, "snapd", "core18", "foo", "bar")
 
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
-	c.Assert(chg.Err(), IsNil)
+	c.Check(err, IsNil)
+	c.Check(chg.Err(), IsNil)
+
+	// at this point the system is "restarting", pretend the restart has
+	// happened
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	restart.MockPending(st, restart.RestartUnset)
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
 	c.Assert(err, IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%s", chg.Err()))
 
 	c.Assert(hooksCalled, HasLen, 1)
-	c.Assert(hooksCalled[0].HookName(), Equals, "connect-plug-network")
-
-	// Visualize the task and their dependencies for debugging purposes
-	// tasks := chg.Tasks()
-	// for _, tsk := range tasks {
-	// 	log.Printf("%s: task %s", tsk.ID(), tsk.Kind())
-	// 	if len(tsk.WaitTasks()) > 0 {
-	// 		var ids []string
-	// 		for _, wtsk := range tsk.WaitTasks() {
-	// 			ids = append(ids, wtsk.ID())
-	// 		}
-	// 		log.Printf("waiting for %s", strings.Join(ids, ","))
-	// 	}
-	// 	if len(tsk.Log()) > 0 {
-	// 		log.Printf("logs: %v", tsk.Log())
-	// 	}
-	// }
+	c.Check(hooksCalled[0].HookName(), Equals, "connect-plug-network")
 }

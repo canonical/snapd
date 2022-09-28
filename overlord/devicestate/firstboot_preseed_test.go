@@ -445,14 +445,18 @@ func (s *firstbootPreseedingClassic16Suite) TestPopulatePreseedWithConnections(c
 	})
 	defer restore()
 
-	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
+	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{
+		classic: true,
+	})
+
 	snapFilesWithHook := [][]string{
 		{"bin/bar", ``},
 		{"meta/hooks/connect-plug-network", ``},
 	}
 
 	// put a firstboot snap into the SnapBlobDir
-	snapYaml := `name: foo
+	snapYaml = `name: foo
+base: core18
 version: 1.0
 plugs:
  shared-data-plug:
@@ -469,6 +473,7 @@ apps:
 
 	// put a 2nd firstboot snap into the SnapBlobDir
 	snapYaml = `name: bar
+base: core18
 version: 1.0
 slots:
  shared-data-slot:
@@ -493,17 +498,15 @@ apps:
 	// create a seed.yaml
 	content := []byte(fmt.Sprintf(`
 snaps:
- - name: core
+ - name: snapd
    file: %s
- - name: pc-kernel
-   file: %s
- - name: pc
+ - name: core18
    file: %s
  - name: foo
    file: %s
  - name: bar
    file: %s
-`, coreFname, kernelFname, gadgetFname, fooFname, barFname))
+`, snapdFname, core18Fname, fooFname, barFname))
 	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
@@ -523,15 +526,16 @@ snaps:
 	}
 	c.Assert(st.Changes(), HasLen, 1)
 
-	// avoid device reg
-	chg1 := st.NewChange("become-operational", "init device")
-	chg1.SetStatus(state.DoingStatus)
+	checkPreseedOrder(c, tsAll, "snapd", "core18", "foo", "bar")
 
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
-	c.Assert(chg.Err(), IsNil)
 	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+
+	checkPreseedTaskStates(c, st)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
 
 	c.Assert(hooksCalled, HasLen, 1)
 	c.Assert(hooksCalled[0].HookName(), Equals, "connect-plug-network")
