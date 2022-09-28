@@ -1,16 +1,14 @@
-summary: Verify that install-device with system-files works with specific device
+summary: Verifies that we run the install-device hook in factory reset mode
 
 details: |
-    This test checks that the workaround put in place for a specific device
-    continues to work. This specific device needs to install configuration files
-    onto the run system ubuntu-data on UC20 during install mode to avoid an
-    additional reboot during the first boot process.
+    This test checks that the install-device hook is executed in factory-reset
+    mode. It also checks that it is possible to differentiate between the two
+    conditions (whether the hook is executed in install mode, or factory-reset
+    mode ).
 
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
-    NESTED_IMAGE_ID: core20-install-device-system-files-hack
-
     # use snapd from the spread run so that we have testkeys trusted in the
     # snapd run
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -26,7 +24,6 @@ environment:
     NESTED_SIGN_SNAPS_FAKESTORE: true
 
     # use the testrootorg auto-import assertion
-    # TODO: commit the Go code used to create this assertion from the json file
     NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-{VERSION}-auto-import.assert
     NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-secured.model
 
@@ -52,11 +49,11 @@ prepare: |
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
 
-    # setup the fakestore, but don't use it for our snapd here on the host VM, so
-    # tear down the staging_store immediately afterwards so that only the SAS is 
-    # running and our snapd is not pointed at it, ubuntu-image is the only thing 
-    # that actually needs to use the fakestore, and we will manually point it at
-    # the fakestore below using NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL
+    # Setup the fake-store for ubuntu-image to use when creating our core image.
+    # We immediately tear down the staging store, to make sure snapd is not pointed
+    # towards this once we invoke ubuntu-image. 
+    # We also need to point NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL towards the newly
+    # setup fake-store to actually have it use it.
     setup_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
     teardown_staging_store
 
@@ -138,26 +135,47 @@ execute: |
     fi
 
     # wait for the initialize device task to be done
-    retry -n 200 --wait 3 sh -c "tests.nested exec snap changes | MATCH 'Done.*Initialize device'"
+    retry -n 200 --wait 3 sh -c "remote.exec snap changes | MATCH 'Done.*Initialize device'"
 
     VERSION="$(tests.nested show version)"
+    BOOT_ID="$(tests.nested boot-id)"
 
     echo "Check we have the right model from snap model"
-    tests.nested exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-secured-core-$VERSION-amd64"
-    tests.nested exec "sudo snap model --verbose" | MATCH "grade:\s+secured"
-    tests.nested exec "sudo snap model --verbose --serial" | MATCH "serial:\s+7777"
+    remote.exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-secured-core-$VERSION-amd64"
+    remote.exec "sudo snap model --verbose" | MATCH "grade:\s+secured"
+    remote.exec "sudo snap model --verbose --serial" | MATCH "serial:\s+7777"
 
     echo "Check that the system-files interface is connected for the pc snap"
-    tests.nested exec "snap connections pc" | MATCH 'system-files\s+pc:modprobe-conf\s+:system-files'
-    tests.nested exec "snap connections pc" | MATCH 'system-files\s+pc:modules-load-conf\s+:system-files'
-    tests.nested exec "snap connections pc" | MATCH 'system-files\s+pc:udev-rules-conf\s+:system-files'
+    remote.exec "snap connections pc" | MATCH 'system-files\s+pc:modprobe-conf\s+:system-files'
+    remote.exec "snap connections pc" | MATCH 'system-files\s+pc:modules-load-conf\s+:system-files'
+    remote.exec "snap connections pc" | MATCH 'system-files\s+pc:udev-rules-conf\s+:system-files'
 
     echo "Check that the directories have the right permissions"
-    tests.nested exec "stat /etc/modprobe.d/ -c %a" | MATCH 755
-    tests.nested exec "stat /etc/modules-load.d/ -c %a" | MATCH 755
-    tests.nested exec "stat /etc/udev/rules.d/ -c %a" | MATCH 755
+    remote.exec "stat /etc/modprobe.d/ -c %a" | MATCH 755
+    remote.exec "stat /etc/modules-load.d/ -c %a" | MATCH 755
+    remote.exec "stat /etc/udev/rules.d/ -c %a" | MATCH 755
 
-    echo "Check that the files from install-device were installed"
-    tests.nested exec "cat /etc/modprobe.d/my-modprobe.conf" | MATCH '# configure modprobe here'
-    tests.nested exec "cat /etc/modules-load.d/my-modules-load.conf" | MATCH '# load modules here'
-    tests.nested exec "cat /etc/udev/rules.d/09-my-custom-udev.rules" | MATCH  '# do udev rules things here'
+    echo "Check that the files from install-device were installed (install)"
+    remote.exec "cat /etc/modprobe.d/from-install.conf" | MATCH '# this modprobe conf should only appear after install mode'
+    remote.exec "cat /etc/modules-load.d/from-install.conf" | MATCH '# this module load conf should only appear after install mode'
+    not remote.exec "stat /etc/udev/rules.d/from-factory-reset.conf"
+
+    # add || true in case the SSH connection is broken while executing this
+    # since this command causes an immediate reboot
+    remote.exec "sudo snap reboot --factory-reset" || true
+    tests.nested wait-for reboot "${BOOT_ID}"
+
+    # wait for the system to get setup and finish seeding
+    tests.nested wait-for snap-command
+    retry -n 10 --wait 2 remote.exec "sudo snap wait system seed.loaded"
+
+    # wait up to two minutes for serial registration
+    retry -n 60 --wait 2 remote.exec snap model --serial
+
+    # check that we are back in run mode
+    remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
+
+    echo "Check that the files from install-device are installed (factory-reset)"
+    not remote.exec "stat /etc/modprobe.d/from-install.conf"
+    not remote.exec "stat /etc/modules-load.d/from-install.conf"
+    remote.exec "cat /etc/udev/rules.d/from-factory-reset.conf" | MATCH  '# this udev rule should only appear after factory-reset mode'
