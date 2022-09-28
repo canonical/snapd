@@ -66,4 +66,4 @@ execute: |
 
   # Verify the path was not recreated, this should have happened
   # immediately, so no need for retries here
-  not test -e /var/log/journal/$MACHINE_ID.snap-group-one
+  not test -e /var/log/journal/"$MACHINE_ID".snap-group-one
