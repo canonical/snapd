@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
-	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -435,15 +434,7 @@ func (s *firstbootPreseedingClassic16Suite) TestPopulatePreseedWithConnections(c
 	// precondition
 	c.Assert(release.OnClassic, Equals, true)
 
-	hooksCalled := []*hookstate.Context{}
-	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
-		ctx.Lock()
-		defer ctx.Unlock()
-
-		hooksCalled = append(hooksCalled, ctx)
-		return nil, nil
-	})
-	defer restore()
+	// logger.SimpleSetup()
 
 	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{
 		classic: true,
@@ -533,17 +524,12 @@ snaps:
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
-
-	checkPreseedTaskStates(c, st)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
-
-	c.Assert(hooksCalled, HasLen, 1)
-	c.Assert(hooksCalled[0].HookName(), Equals, "connect-plug-network")
 
 	// Visualize the task and their dependencies for debugging purposes
 	// tasks := chg.Tasks()
 	// for _, tsk := range tasks {
-	// 	log.Printf("%s: task %s", tsk.ID(), tsk.Kind())
+	// 	log.Printf("%s: task %s (%s)", tsk.ID(), tsk.Kind(), tsk.Status())
 	// 	if len(tsk.WaitTasks()) > 0 {
 	// 		var ids []string
 	// 		for _, wtsk := range tsk.WaitTasks() {
@@ -555,4 +541,34 @@ snaps:
 	// 		log.Printf("logs: %v", tsk.Log())
 	// 	}
 	// }
+
+	// Find a way to better check against this as we have both setup-profile calls
+	// and connect calls that are in both Do and Done state as they rely on mark-preseeded
+	// to be in Done, which it will not be.
+	//checkPreseedTaskStates(c, st)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+
+	// verify
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	diskState, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	diskState.Lock()
+	defer diskState.Unlock()
+
+	// seeded snaps are installed
+	_, err = snapstate.CurrentInfo(diskState, "snapd")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(diskState, "core18")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(diskState, "foo")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(diskState, "bar")
+	c.Check(err, IsNil)
+
+	// but we're not considered seeded
+	var seeded bool
+	err = diskState.Get("seeded", &seeded)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
