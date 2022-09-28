@@ -72,8 +72,8 @@ type ValidationSetsValidationError struct {
 	// WronRevisionSnaps maps snap names to the expected revisions and respective
 	// validation sets that require them.
 	WrongRevisionSnaps map[string]map[snap.Revision][]string
-	// Sets maps validation set keys to validation sets for all assertions used in
-	// the failed check.
+	// Sets maps validation set keys to all validation sets assertions considered
+	// in the failed check.
 	Sets map[string]*asserts.ValidationSet
 }
 

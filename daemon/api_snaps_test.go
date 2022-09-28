@@ -2420,10 +2420,9 @@ func (s *snapsSuite) TestRefreshEnforce(c *check.C) {
 	})
 	defer restore()
 
-	restore = daemon.MockSnapstateResolveValSetEnforcementError(func(_ context.Context, st *state.State, validErr *snapasserts.ValidationSetsValidationError, validationSets map[string]int, _ int) ([]*state.TaskSet, []string, error) {
-		c.Assert(validationSets, check.DeepEquals, map[string]int{
-			"foo/bar": 2,
-		})
+	restore = daemon.MockSnapstateResolveValSetEnforcementError(func(_ context.Context, st *state.State, validErr *snapasserts.ValidationSetsValidationError, pinnedSeqs map[string]int, _ int) ([]*state.TaskSet, []string, error) {
+		c.Assert(pinnedSeqs, check.DeepEquals, map[string]int{"foo/bar": 2})
+		c.Assert(validErr, check.Not(check.IsNil))
 
 		t := st.NewTask("fake-enforce-snaps", "...")
 		return []*state.TaskSet{state.NewTaskSet(t)}, []string{"install-snap", "update-snap"}, nil
@@ -2439,7 +2438,7 @@ func (s *snapsSuite) TestRefreshEnforce(c *check.C) {
 
 	res, err := inst.DispatchForMany()(inst, st)
 	c.Assert(err, check.IsNil)
-	c.Check(res.Summary, check.Equals, `Enforced validation sets: "foo/bar=2", "foo/baz"`)
+	c.Check(res.Summary, check.Equals, `Enforce validation sets "foo/bar=2", "foo/baz" for snaps "install-snap", "update-snap"`)
 	c.Check(res.Affected, check.DeepEquals, []string{"install-snap", "update-snap"})
 }
 
@@ -2543,5 +2542,5 @@ func (s *snapsSuite) TestRefreshEnforceSetsNoUnmetConstraints(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(resp.Affected, check.IsNil)
 	c.Check(resp.Tasksets, check.IsNil)
-	c.Check(resp.Summary, check.Equals, fmt.Sprintf("Enforced validation sets: %s", strutil.Quoted(valsets)))
+	c.Check(resp.Summary, check.Equals, fmt.Sprintf("Enforce validation sets %s", strutil.Quoted(valsets)))
 }

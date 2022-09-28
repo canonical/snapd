@@ -699,8 +699,13 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 		}
 	}
 
+	summary := fmt.Sprintf("Enforce validation sets %s", strutil.Quoted(inst.ValidationSets))
+	if len(affected) != 0 {
+		summary = fmt.Sprintf("%s for snaps %s", summary, strutil.Quoted(affected))
+	}
+
 	return &snapInstructionResult{
-		Summary:  fmt.Sprintf("Enforced validation sets: %s", strutil.Quoted(inst.ValidationSets)),
+		Summary:  summary,
 		Affected: affected,
 		Tasksets: tss,
 	}, nil
