@@ -141,6 +141,9 @@ func (t *firstBootBaseTest) startOverlord(c *C) {
 	t.overlord = ovld
 	t.AddCleanup(func() {
 		devicestate.EarlyConfig = nil
+		if t.overlord == nil {
+			return
+		}
 		t.overlord.Stop()
 		t.overlord = nil
 	})
@@ -2030,4 +2033,140 @@ func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseedMissing(c *C) {
 	ts.MarkEdge(t3, snapstate.HooksEdge)
 	_, _, _, err = devicestate.CriticalTaskEdges(ts)
 	c.Assert(err, NotNil)
+}
+
+func (s *firstBoot16Suite) TestPopulateFromSeedWithConnectHook(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	hooksCalled := []*hookstate.Context{}
+	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		ctx.Lock()
+		defer ctx.Unlock()
+
+		hooksCalled = append(hooksCalled, ctx)
+		return nil, nil
+	})
+	defer restore()
+
+	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{
+		classic: true,
+	})
+
+	snapFilesWithHook := [][]string{
+		{"bin/bar", ``},
+		{"meta/hooks/connect-plug-network", ``},
+	}
+
+	// put a firstboot snap into the SnapBlobDir
+	snapYaml := `name: foo
+base: core18
+version: 1.0
+plugs:
+ shared-data-plug:
+  interface: content
+  target: import
+  content: mylib
+apps:
+ bar:
+  command: bin/bar
+  plugs: [network]
+`
+	fooFname, fooDecl, fooRev := s.MakeAssertedSnap(c, snapYaml, snapFilesWithHook, snap.R(128), "developerid")
+	s.WriteAssertions("foo.asserts", s.devAcct, fooRev, fooDecl)
+
+	// put a 2nd firstboot snap into the SnapBlobDir
+	snapYaml = `name: bar
+base: core18
+version: 1.0
+slots:
+ shared-data-slot:
+  interface: content
+  content: mylib
+  read:
+   - /
+apps:
+ bar:
+  command: bin/bar
+`
+	snapFiles := [][]string{
+		{"bin/bar", ``},
+	}
+	barFname, barDecl, barRev := s.MakeAssertedSnap(c, snapYaml, snapFiles, snap.R(65), "developerid")
+	s.WriteAssertions("bar.asserts", s.devAcct, barDecl, barRev)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
+	s.WriteAssertions("model.asserts", assertsChain...)
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: core18
+   file: %s
+ - name: foo
+   file: %s
+ - name: bar
+   file: %s
+`, snapdFname, core18Fname, fooFname, barFname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	s.startOverlord(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	c.Assert(err, IsNil)
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+
+	checkOrder(c, tsAll, "snapd", "core18", "foo", "bar")
+
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Check(err, IsNil)
+	c.Check(chg.Err(), IsNil)
+
+	// at this point the system is "restarting", pretend the restart has
+	// happened
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	restart.MockPending(st, restart.RestartUnset)
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%s", chg.Err()))
+
+	c.Assert(hooksCalled, HasLen, 1)
+	c.Check(hooksCalled[0].HookName(), Equals, "connect-plug-network")
+
+	// verify that connections was made
+	var conns map[string]interface{}
+	c.Assert(st.Get("conns", &conns), IsNil)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"foo:network snapd:network": map[string]interface{}{
+			"auto": true, "interface": "network"},
+		"foo:shared-data-plug bar:shared-data-slot": map[string]interface{}{
+			"auto": true, "interface": "content",
+			"plug-static": map[string]interface{}{
+				"content": "mylib", "target": "import",
+			},
+			"slot-static": map[string]interface{}{
+				"content": "mylib",
+				"read": []interface{}{
+					"/",
+				},
+			},
+		},
+	})
 }
