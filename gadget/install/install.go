@@ -377,16 +377,16 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 }
 
 // structureFromPartDevice returns the OnDiskStructure for a partition
-// device.
-func structureFromPartDevice(diskVol *gadget.OnDiskVolume, partDevice string) (*gadget.OnDiskStructure, error) {
+// node.
+func structureFromPartDevice(diskVol *gadget.OnDiskVolume, partNode string) (*gadget.OnDiskStructure, error) {
 	for _, p := range diskVol.Structure {
 		// We remove /dev from p.Node here
-		if filepath.Base(p.Node) == partDevice {
+		if p.Node == partNode {
 			return &p, nil
 		}
 	}
 
-	return nil, fmt.Errorf("cannot find partition %q", partDevice)
+	return nil, fmt.Errorf("cannot find partition %q", partNode)
 }
 
 // laidOutStructureForDiskStructure searches for the laid out structure that
@@ -411,9 +411,10 @@ func laidOutStructureForDiskStructure(laidVols map[string]*gadget.LaidOutVolume,
 
 // sysfsPathForBlockDevice returns the sysfs path for a block device.
 func sysfsPathForBlockDevice(device string) (string, error) {
-	partPath, err := os.Readlink(filepath.Join("/sys/class/block", device))
+	syfsLink := filepath.Join("/sys/class/block", filepath.Base(device))
+	partPath, err := os.Readlink(syfsLink)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("cannot read link %q: %v", syfsLink, err)
 	}
 	// Remove initial ../../ from partPath, and make path absolute
 	return filepath.Join("/sys/class/block", partPath), nil
@@ -437,13 +438,12 @@ func onDiskVolumeFromPartitionSysfsPath(partPath string) (*gadget.OnDiskVolume, 
 }
 
 // applyLayoutToOnDiskStructure finds the on disk structure from a
-// sysfs partition path string and takes the laid out information from
-// laidOutVols and inserts it there.
-func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partPath string, laidOutVols map[string]*gadget.LaidOutVolume, gadgetVolName string) (*gadget.OnDiskStructure, error) {
-	partDevice := filepath.Base(partPath)
-	onDiskStruct, err := structureFromPartDevice(onDiskVol, partDevice)
+// partition node and takes the laid out information from laidOutVols
+// and inserts it there.
+func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partNode string, laidOutVols map[string]*gadget.LaidOutVolume, gadgetVolName string) (*gadget.OnDiskStructure, error) {
+	onDiskStruct, err := structureFromPartDevice(onDiskVol, partNode)
 	if err != nil {
-		return nil, fmt.Errorf("cannot find partition %q: %v", partPath, err)
+		return nil, fmt.Errorf("cannot find partition %q: %v", partNode, err)
 	}
 
 	laidOutStruct, err := laidOutStructureForDiskStructure(laidOutVols, gadgetVolName, onDiskStruct)
@@ -482,26 +482,25 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 			// TODO maybe some changes will be needed when we have
 			// encrypted partitions, as the device won't be directly
 			// associated with a disk.
-			device := filepath.Base(volStruct.Device)
-			partPath, err := sysfsPathForBlockDevice(device)
+			partSysfsPath, err := sysfsPathForBlockDevice(volStruct.Device)
 			if err != nil {
 				return nil, err
 			}
 			// Volume needs to be resolved only once inside the loop
 			if onDiskVol == nil {
-				onDiskVol, err = onDiskVolumeFromPartitionSysfsPath(partPath)
+				onDiskVol, err = onDiskVolumeFromPartitionSysfsPath(partSysfsPath)
 				if err != nil {
 					return nil, err
 				}
 				onDiskVols = append(onDiskVols, onDiskVol)
 			}
 			// Obtain partition data and link with laid out information
-			onDiskStruct, err := applyLayoutToOnDiskStructure(onDiskVol, partPath, allLaidOutVols, volName)
+			onDiskStruct, err := applyLayoutToOnDiskStructure(onDiskVol, volStruct.Device, allLaidOutVols, volName)
 			if err != nil {
-				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", device, err)
+				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", volStruct.Device, err)
 			}
 
-			logger.Debugf("writing content on partition %s", partPath)
+			logger.Debugf("writing content on partition %s", volStruct.Device)
 			if err := writePartitionContent(onDiskStruct, volStruct.Device, observer, perfTimings); err != nil {
 				return nil, err
 			}
