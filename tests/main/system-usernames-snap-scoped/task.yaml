@@ -15,6 +15,9 @@ environment:
     APPROVED_SNAP_ID/azureiotedge: 8neFt3wtSaWGgIbEepgIJcEZ3fnz7Lwt
     APPROVED_SNAP_NAME/azureiotedge: azure-iot-edge
     TESTED_USERS/azureiotedge: snap_aziotedge
+    APPROVED_SNAP_ID/azuredeviceupdate: KzF67Mv8CeQBdUdrGaKU2sZVEiICWBg1
+    APPROVED_SNAP_NAME/azuredeviceupdate: deviceupdate-agent
+    TESTED_USERS/azuredeviceupdate: snap_aziotdu
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

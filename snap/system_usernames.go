@@ -158,4 +158,7 @@ var SupportedSystemUsernames = map[string]systemUsername{
 	"snap_aziotedge": {Id: 584790, AllowedSnapIds: []string{
 		"8neFt3wtSaWGgIbEepgIJcEZ3fnz7Lwt", // azure-iot-edge
 	}},
+	"snap_aziotdu": {Id: 584791, AllowedSnapIds: []string{
+		"KzF67Mv8CeQBdUdrGaKU2sZVEiICWBg1", // deviceupdate-agent
+	}},
 }
