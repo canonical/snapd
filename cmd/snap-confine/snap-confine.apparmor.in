@@ -161,8 +161,6 @@
     # For mounting individual files
     mount options=(rw bind) {/var/lib/snapd,}/snap/core** -> /tmp/snap.rootfs_**,
     mount options=(rw rslave) -> /tmp/snap.rootfs_**/,
-    # For mounting a specific base snap
-    mount options=(rw rbind) @SNAP_MOUNT_DIR@/*/*/*/ -> /tmp/snap.rootfs_*/*/,
     # Allow mounting dirs from /
     mount options=(rw rbind) /*/ -> /tmp/snap.rootfs_**/,
 
