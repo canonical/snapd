@@ -380,7 +380,6 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 // node.
 func structureFromPartDevice(diskVol *gadget.OnDiskVolume, partNode string) (*gadget.OnDiskStructure, error) {
 	for _, p := range diskVol.Structure {
-		// We remove /dev from p.Node here
 		if p.Node == partNode {
 			return &p, nil
 		}
@@ -391,8 +390,7 @@ func structureFromPartDevice(diskVol *gadget.OnDiskVolume, partNode string) (*ga
 
 // laidOutStructureForDiskStructure searches for the laid out structure that
 // matches a given OnDiskStructure.
-func laidOutStructureForDiskStructure(laidVols map[string]*gadget.LaidOutVolume, gadgetVolName string, onDiskStruct *gadget.OnDiskStructure) (
-	*gadget.LaidOutStructure, error) {
+func laidOutStructureForDiskStructure(laidVols map[string]*gadget.LaidOutVolume, gadgetVolName string, onDiskStruct *gadget.OnDiskStructure) (*gadget.LaidOutStructure, error) {
 
 	for _, laidVol := range laidVols {
 		// Check that this is the right volume
@@ -458,6 +456,7 @@ func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partNode strin
 
 // WriteContent writes gadget content to the devices specified in
 // onVolumes. It returns the resolved on disk volumes.
+// TODO this needs unit tests
 func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentObserver,
 	gadgetRoot, kernelRoot string, model *asserts.Model, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
 
@@ -470,7 +469,7 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 	for volName, vol := range onVolumes {
 		var onDiskVol *gadget.OnDiskVolume
 		for _, volStruct := range vol.Structure {
-			// TODO fixme
+			// TODO write mbr?
 			if volStruct.Role == "mbr" {
 				continue
 			}
