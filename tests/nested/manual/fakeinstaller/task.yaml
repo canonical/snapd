@@ -115,11 +115,17 @@ execute: |
   MATCH "${loop_device}p3 .* ubuntu-boot" < fdisk_output
   MATCH "${loop_device}p4 .* ubuntu-save" < fdisk_output
   MATCH "${loop_device}p5 .* ubuntu-data" < fdisk_output
-  # image partitions are mounted by the installer (should they be?)
+
+  # image partitions are not mounted anymore
   for d in ubuntu-seed ubuntu-boot ubuntu-data ubuntu-save; do
       test -d /run/mnt/"$d"
-      mountpoint /run/mnt/"$d"
+      not mountpoint /run/mnt/"$d"
   done
+
+  # mount image to inspect data
+  mount -o ro "${loop_device}"p3 /run/mnt/ubuntu-boot
+  mount -o ro "${loop_device}"p5 /run/mnt/ubuntu-data
+
   # seed is populated
   test -d /run/mnt/ubuntu-data/var/lib/snapd/seed/systems/"$LABEL"
   # rootfs is there
@@ -137,14 +143,13 @@ execute: |
   MATCH "mode=run" < /run/mnt/ubuntu-data/var/lib/snapd/modeenv
   MATCH "recovery_system=$LABEL" < /run/mnt/ubuntu-data/var/lib/snapd/modeenv
   MATCH "classic=true" < /run/mnt/ubuntu-data/var/lib/snapd/modeenv
+  umount /run/mnt/ubuntu-{boot,data}
 
   # HACK: better to change nested_start_vm() to take an image name
   # Note that use "core" here as the boot is so close to core that classic
   # does not work
   IMAGE_NAME="$(nested_get_image_name core)"
   mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-  sync
-  umount /run/mnt/ubuntu-*
 
   # boot into the created image
   # Note that use "core" here as the boot is so close to core that classic
