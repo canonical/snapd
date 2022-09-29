@@ -75,7 +75,7 @@ func (dc *TrivialDeviceContext) HasModeenv() bool {
 }
 
 func (d *TrivialDeviceContext) IsCoreBoot() bool {
-	return d.HasModeenv() || !d.Classic()
+	return d.Model().Kernel() != ""
 }
 
 func (d *TrivialDeviceContext) IsClassicBoot() bool {

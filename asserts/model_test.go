@@ -1012,8 +1012,7 @@ func (mods *modelSuite) testWithSnapsDecodeInvalid(c *C, modelRaw string, isClas
 		{"type: gadget\n", "type: gadget\n    modes:\n      - run\n", `essential snaps are always available, cannot specify modes or presence for snap "brand-gadget"`},
 		{"type: kernel\n", "type: kernel\n    presence: required\n", `essential snaps are always available, cannot specify modes or presence for snap "baz-linux"`},
 		{"OTHER", "  -\n    name: core20\n    id: core20ididididididididididididid\n    type: base\n    presence: optional\n", `essential snaps are always available, cannot specify modes or presence for snap "core20"`},
-		{"type: gadget\n", "type: app\n", `one "snaps" header entry must specify the model gadget`},
-		{"type: kernel\n", "type: app\n", `one "snaps" header entry must specify the model kernel`},
+		// XXX
 		{"OTHER", "  -\n    name: core20\n    id: core20ididididididididididididid\n    type: app\n", `boot base "core20" must specify type "base", not "app"`},
 		{"OTHER", "kernel: foo\n", `cannot specify separate "kernel" header once using the extended snaps header`},
 		{"OTHER", "gadget: foo\n", `cannot specify separate "gadget" header once using the extended snaps header`},
@@ -1027,11 +1026,14 @@ func (mods *modelSuite) testWithSnapsDecodeInvalid(c *C, modelRaw string, isClas
 			{"distribution: ubuntu\n", "", `"distribution" header is mandatory, see distribution ID in os-release spec`},
 			{"distribution: ubuntu\n", "distribution: Ubuntu\n", `"distribution" header contains invalid characters: "Ubuntu", see distribution ID in os-release spec`},
 			{"distribution: ubuntu\n", "distribution: *buntu\n", `"distribution" header contains invalid characters: "\*buntu", see distribution ID in os-release spec`},
+			{"type: gadget\n", "type: app\n", `cannot specify a kernel in an extended classic model without a model gadget`},
 		}
 		invalidTests = append(invalidTests, classicInvalid...)
 	} else {
 		coreInvalid := []struct{ original, invalid, expectedErr string }{
 			{"OTHER", "distribution: ubuntu\n", `cannot specify distribution for model unless it is classic and has an extended snaps header`},
+			{"type: gadget\n", "type: app\n", `one "snaps" header entry must specify the model gadget`},
+			{"type: kernel\n", "type: app\n", `one "snaps" header entry must specify the model kernel`},
 		}
 		invalidTests = append(invalidTests, coreInvalid...)
 	}
@@ -1040,5 +1042,136 @@ func (mods *modelSuite) testWithSnapsDecodeInvalid(c *C, modelRaw string, isClas
 		invalid = strings.Replace(invalid, "OTHER", "", 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, modelErrPrefix+test.expectedErr)
+	}
+}
+
+func (mods *modelSuite) TestClassicWithSnapsMinimalDecodeOK(c *C) {
+	// XXX support also omitting the base?
+	encoded := strings.Replace(classicModelWithSnapsExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	tests := []struct {
+		originalFrag string
+		changedFrag  string
+		hasGadget    bool
+	}{
+		// no kernel and no gadget
+		{`
+  -
+    name: baz-linux
+    id: bazlinuxidididididididididididid
+    type: kernel
+    default-channel: 20
+  -
+    name: brand-gadget
+    id: brandgadgetdidididididididididid
+    type: gadget`, "", false},
+		// no kernel but a gadget
+		{`
+  -
+    name: baz-linux
+    id: bazlinuxidididididididididididid
+    type: kernel
+    default-channel: 20`, "", true},
+	}
+
+	for _, t := range tests {
+		minimal := strings.Replace(encoded, t.originalFrag, t.changedFrag, 1)
+		a, err := asserts.Decode([]byte(minimal))
+		c.Assert(err, IsNil)
+		c.Check(a.Type(), Equals, asserts.ModelType)
+		model := a.(*asserts.Model)
+		c.Check(model.Architecture(), Equals, "amd64")
+		c.Check(model.Classic(), Equals, true)
+		c.Check(model.Distribution(), Equals, "ubuntu")
+		c.Check(model.Base(), Equals, "core20")
+		// no kernel
+		c.Check(model.KernelSnap(), IsNil)
+		c.Check(model.Kernel(), Equals, "")
+		c.Check(model.KernelTrack(), Equals, "")
+		c.Check(model.BaseSnap(), DeepEquals, &asserts.ModelSnap{
+			Name:           "core20",
+			SnapID:         naming.WellKnownSnapID("core20"),
+			SnapType:       "base",
+			Modes:          []string{"run", "ephemeral"},
+			DefaultChannel: "latest/stable",
+			Presence:       "required",
+		})
+		expectedEssSnap := []*asserts.ModelSnap{
+			model.BaseSnap(),
+		}
+		if t.hasGadget {
+			c.Check(model.GadgetSnap(), DeepEquals, &asserts.ModelSnap{
+				Name:           "brand-gadget",
+				SnapID:         "brandgadgetdidididididididididid",
+				SnapType:       "gadget",
+				Modes:          []string{"run", "ephemeral"},
+				DefaultChannel: "latest/stable",
+				Presence:       "required",
+			})
+			c.Check(model.Gadget(), Equals, "brand-gadget")
+			c.Check(model.GadgetTrack(), Equals, "")
+			expectedEssSnap = append(expectedEssSnap, model.GadgetSnap())
+		} else {
+			c.Check(model.GadgetSnap(), IsNil)
+			c.Check(model.Gadget(), Equals, "")
+			c.Check(model.GadgetTrack(), Equals, "")
+		}
+		c.Check(model.Grade(), Equals, asserts.ModelSecured)
+		c.Check(model.StorageSafety(), Equals, asserts.StorageSafetyEncrypted)
+		essentialSnaps := model.EssentialSnaps()
+		c.Check(essentialSnaps, DeepEquals, expectedEssSnap)
+		snaps := model.SnapsWithoutEssential()
+		c.Check(snaps, DeepEquals, []*asserts.ModelSnap{
+			{
+				Name:           "other-base",
+				SnapID:         "otherbasedididididididididididid",
+				SnapType:       "base",
+				Modes:          []string{"run"},
+				DefaultChannel: "latest/stable",
+				Presence:       "required",
+			},
+			{
+				Name:           "nm",
+				SnapID:         "nmididididididididididididididid",
+				SnapType:       "app",
+				Modes:          []string{"ephemeral", "run"},
+				DefaultChannel: "1.0",
+				Presence:       "required",
+			},
+			{
+				Name:           "myapp",
+				SnapID:         "myappdididididididididididididid",
+				SnapType:       "app",
+				Modes:          []string{"run"},
+				DefaultChannel: "2.0",
+				Presence:       "required",
+			},
+			{
+				Name:           "myappopt",
+				SnapID:         "myappoptidididididididididididid",
+				SnapType:       "app",
+				Modes:          []string{"run"},
+				DefaultChannel: "latest/stable",
+				Presence:       "optional",
+			},
+		})
+		// essential snaps included
+		reqSnaps := naming.NewSnapSet(model.RequiredWithEssentialSnaps())
+		for _, e := range essentialSnaps {
+			c.Check(reqSnaps.Contains(e), Equals, true)
+		}
+		for _, s := range snaps {
+			c.Check(reqSnaps.Contains(s), Equals, s.Presence == "required")
+		}
+		c.Check(reqSnaps.Size(), Equals, len(essentialSnaps)+len(snaps)-1)
+		// essential snaps excluded
+		noEssential := naming.NewSnapSet(model.RequiredNoEssentialSnaps())
+		for _, e := range essentialSnaps {
+			c.Check(noEssential.Contains(e), Equals, false)
+		}
+		for _, s := range snaps {
+			c.Check(noEssential.Contains(s), Equals, s.Presence == "required")
+		}
+		c.Check(noEssential.Size(), Equals, len(snaps)-1)
 	}
 }
