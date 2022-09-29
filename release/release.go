@@ -21,8 +21,6 @@ package release
 
 import (
 	"bufio"
-	"bytes"
-	"io/ioutil"
 	"os"
 	"strings"
 	"unicode"
@@ -105,15 +103,14 @@ func readOSRelease() OS {
 	return osRelease
 }
 
-var ioutilReadFile = ioutil.ReadFile
+// Note that osutil.FileExists cannot be used here as an osutil import will create a cyclic import
+var fileExists = func(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
 
 func isWSL() bool {
-	version, err := ioutilReadFile("/proc/version")
-	if err == nil && bytes.Contains(version, []byte("Microsoft")) {
-		return true
-	}
-
-	return false
+	return fileExists("/proc/sys/fs/binfmt_misc/WSLInterop")
 }
 
 // SystemctlSupportsUserUnits returns true if the systemctl utility

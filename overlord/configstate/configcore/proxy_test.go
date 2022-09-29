@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -125,8 +126,31 @@ no_proxy=example.com,bar.com`)
 }
 
 func (s *proxySuite) TestConfigureProxyStore(c *C) {
-	// set to ""
+	sessionResets := 0
+	defer configcore.MockDevicestateResetSession(func(s *state.State) error {
+		s.Unlock()
+		defer s.Lock()
+		sessionResets++
+		return nil
+	})()
+
+	// no change
 	err := configcore.Run(classicDev, &mockConf{
+		state: s.state,
+	})
+	c.Check(err, IsNil)
+
+	// no related change
+	err = configcore.Run(classicDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"refresh.rate-limit": "1MB",
+		},
+	})
+	c.Check(err, IsNil)
+
+	// set to ""
+	err = configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"proxy.store": "",
@@ -137,13 +161,15 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 	// no assertion
 	conf := &mockConf{
 		state: s.state,
-		conf: map[string]interface{}{
+		changes: map[string]interface{}{
 			"proxy.store": "foo",
 		},
 	}
 
 	err = configcore.Run(classicDev, conf)
 	c.Check(err, ErrorMatches, `cannot set proxy.store to "foo" without a matching store assertion`)
+
+	c.Check(sessionResets, Equals, 0)
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
 	// have a store assertion
@@ -162,6 +188,24 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 
 	err = configcore.Run(classicDev, conf)
 	c.Check(err, IsNil)
+
+	c.Check(sessionResets, Equals, 1)
+
+	// no value change
+	conf = &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"proxy.store": "foo",
+		},
+		changes: map[string]interface{}{
+			"proxy.store": "foo",
+		},
+	}
+
+	err = configcore.Run(classicDev, conf)
+	c.Check(err, IsNil)
+
+	c.Check(sessionResets, Equals, 1)
 }
 
 func (s *proxySuite) TestConfigureProxyStoreNoURL(c *C) {

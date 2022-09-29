@@ -56,7 +56,7 @@ execute: |
     find /run/user/0 >run.txt
     case "$SPREAD_SYSTEM" in
         ubuntu-1[68].04-*)
-            systemctl --user stop dbus.{socket,service}
+            systemctl --user stop dbus.{socket,service} || true
             systemctl --user mask dbus.socket
             SNAPD_DEBUG=1 snap run test-snapd-sh.sh -c 'exec cat /proc/self/cgroup' >cgroup.txt 2>debug.txt
             systemctl --user unmask dbus.socket || true

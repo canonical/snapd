@@ -136,7 +136,7 @@ execute: |
     fi
 
     # wait for the initialize device task to be done
-    retry -n 200 --wait 1 sh -c "remote.exec snap changes | MATCH 'Done.*Initialize device'"
+    retry -n 200 --wait 3 sh -c "remote.exec snap changes | MATCH 'Done.*Initialize device'"
 
     VERSION="$(tests.nested show version)"
 

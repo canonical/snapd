@@ -1919,6 +1919,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationUC20Happy(c *C) {
 	r2 := devicestate.MockBaseStoreURL(mockServer.URL)
 	defer r2()
 
+	s.setUC20PCModelInState(c)
+
 	// setup state as will be done by first-boot
 	s.state.Lock()
 	defer s.state.Unlock()
