@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -104,6 +104,10 @@ volumes:
           role: system-seed
           type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
           size: 1G
+        - name: ubuntu-boot
+          role: system-boot
+          type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+          size: 100M
         - name: ubuntu-data
           role: system-data
           type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
@@ -116,6 +120,9 @@ volumes:
 		var files [][]string
 		if yamlKey == "pc=20" {
 			files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
+		} else if yamlKey == "snapd" {
+			// XXX make SnapManager.ensureVulnerableSnapConfineVersionsRemovedOnClassic happy
+			files = append(files, []string{"/usr/lib/snapd/info", "VERSION=2.55"})
 		}
 		s.MakeAssertedSnap(c, s.snapYaml(yamlKey), files, snap.R(1), "canonical", s.StoreSigning.Database)
 	}
@@ -157,6 +164,11 @@ volumes:
 				"type": "base",
 			},
 		},
+	}
+
+	if release.OnClassic {
+		model["classic"] = "true"
+		model["distribution"] = "ubuntu"
 	}
 
 	for _, sn := range extraSnaps {
@@ -357,7 +369,11 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	}
 
 	// the right systemd commands were run
-	c.Check(sysdLog, testutil.DeepContains, []string{"start", "usr-lib-snapd.mount"})
+	sysdLogChecker := testutil.DeepContains
+	if release.OnClassic {
+		sysdLogChecker = Not(testutil.DeepContains)
+	}
+	c.Check(sysdLog, sysdLogChecker, []string{"start", "usr-lib-snapd.mount"})
 
 	// and ensure state is now considered seeded
 	var seeded bool
@@ -601,4 +617,18 @@ defaults:
 	err = tr.Get("core", "users.create.automatic", &enabled)
 	c.Assert(err, IsNil)
 	c.Check(enabled, Equals, false)
+}
+
+func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunMode(c *C) {
+	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "20.04"})()
+	// XXX this shouldn't be needed
+	defer release.MockOnClassic(true)()
+	c.Assert(release.OnClassic, Equals, true)
+
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+	}
+	s.testPopulateFromSeedCore20Happy(c, &m, asserts.ModelSigned)
 }
