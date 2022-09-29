@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -269,6 +269,12 @@ func (e *NoStateError) Is(err error) bool {
 func (s *State) Get(key string, value interface{}) error {
 	s.reading()
 	return s.data.get(key, value)
+}
+
+// Has returns whether the provided key has an associated value.
+func (s *State) Has(key string) bool {
+	s.reading()
+	return s.data.has(key)
 }
 
 // Set associates value with key for future consulting by managers.
