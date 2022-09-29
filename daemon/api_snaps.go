@@ -684,25 +684,50 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 		return nil, err
 	}
 
-	var validationErr *snapasserts.ValidationSetsValidationError
+	var tss []*state.TaskSet
+	var affected []string
 	err = assertstateTryEnforceValidationSets(st, inst.ValidationSets, inst.userID, snaps, ignoreValidationSnaps)
 	if err != nil {
-		var ok bool
-		validationErr, ok = err.(*snapasserts.ValidationSetsValidationError)
+		vErr, ok := err.(*snapasserts.ValidationSetsValidationError)
 		if !ok {
 			return nil, err
 		}
+
+		tss, affected, err = meetSnapConstraintsForEnforce(inst, st, vErr)
+		if err != nil {
+			return nil, err
+		}
 	}
-	tss, affected, err := snapstateEnforceSnaps(context.TODO(), st, inst.ValidationSets, validationErr, inst.userID)
-	if err != nil {
-		return nil, err
+
+	summary := fmt.Sprintf("Enforce validation sets %s", strutil.Quoted(inst.ValidationSets))
+	if len(affected) != 0 {
+		summary = fmt.Sprintf("%s for snaps %s", summary, strutil.Quoted(affected))
 	}
 
 	return &snapInstructionResult{
-		Summary:  fmt.Sprintf("Enforced validation sets: %s", strutil.Quoted(inst.ValidationSets)),
+		Summary:  summary,
 		Affected: affected,
 		Tasksets: tss,
 	}, nil
+}
+
+func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr *snapasserts.ValidationSetsValidationError) ([]*state.TaskSet, []string, error) {
+	// Save the sequence numbers so we can pin them later when enforcing the sets again
+	pinnedSeqs := make(map[string]int, len(inst.ValidationSets))
+	for _, vsStr := range inst.ValidationSets {
+		account, name, sequence, err := snapasserts.ParseValidationSet(vsStr)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if sequence == 0 {
+			continue
+		}
+
+		pinnedSeqs[fmt.Sprintf("%s/%s", account, name)] = sequence
+	}
+
+	return snapstateResolveValSetEnforcementError(context.TODO(), st, vErr, pinnedSeqs, inst.userID)
 }
 
 func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
