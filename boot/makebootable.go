@@ -365,7 +365,11 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		currentTrustedBootAssets = sealer.currentTrustedBootAssetsMap()
 		currentTrustedRecoveryBootAssets = sealer.currentTrustedRecoveryBootAssetsMap()
 	}
-	recoverySystemLabel := filepath.Base(bootWith.RecoverySystemDir)
+	// filepath.Base("") returns ".", so we need to be a bit careful here
+	recoverySystemLabel := ""
+	if bootWith.RecoverySystemDir != "" {
+		recoverySystemLabel = filepath.Base(bootWith.RecoverySystemDir)
+	}
 	// write modeenv on the ubuntu-data partition
 	modeenv := &Modeenv{
 		Mode:           "run",
