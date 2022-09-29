@@ -78,6 +78,19 @@ func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableS
 	return makeBootable20(rootdir, bootWith, bootFlags)
 }
 
+// MakeBootableOnTarget configures a partition mounted on rootdir
+// using information from bootWith and bootFlags. Contrarily to
+// MakeBootableImage this happens in a live system.
+func MakeBootableOnTarget(rootdir string, bootWith *BootableSet, bootFlags []string) error {
+	opts := &bootloader.Options{
+		PrepareImageTime: true,
+		// we are configuring a ESP/recovery partition
+		Role: bootloader.RoleRecovery,
+	}
+
+	return configureBootloader(rootdir, bootWith, opts, bootFlags)
+}
+
 // makeBootable16 setups the image filesystem for boot with UC16
 // and UC18 models. This entails:
 //  - installing the bootloader configuration from the gadget
@@ -155,6 +168,45 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	return nil
 }
 
+func configureBootloader(rootdir string, bootWith *BootableSet, opts *bootloader.Options, bootFlags []string) error {
+	blVars := make(map[string]string, 3)
+	if len(bootFlags) != 0 {
+		if err := setImageBootFlags(bootFlags, blVars); err != nil {
+			return err
+		}
+	}
+
+	// install the bootloader configuration from the gadget
+	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
+		return err
+	}
+
+	// now install the recovery system specific boot config
+	bl, err := bootloader.Find(rootdir, opts)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
+	}
+
+	if bootWith.Recovery {
+		// record which recovery system is to be used on the bootloader, note
+		// that this goes on the main bootloader environment, and not on the
+		// recovery system bootloader environment, for example for grub
+		// bootloader, this env var is set on the ubuntu-seed root grubenv, and
+		// not on the recovery system grubenv in the systems/20200314/ subdir on
+		// ubuntu-seed
+		blVars["snapd_recovery_system"] = bootWith.RecoverySystemLabel
+		blVars["snapd_recovery_mode"] = ModeInstall
+	} else {
+		blVars["snapd_recovery_mode"] = ModeRun
+	}
+
+	if err := bl.SetBootVars(blVars); err != nil {
+		return fmt.Errorf("cannot set recovery environment: %v", err)
+	}
+
+	return nil
+}
+
 func makeBootable20(rootdir string, bootWith *BootableSet, bootFlags []string) error {
 	// we can only make a single recovery system bootable right now
 	recoverySystems, err := filepath.Glob(filepath.Join(rootdir, "systems/*"))
@@ -169,41 +221,13 @@ func makeBootable20(rootdir string, bootWith *BootableSet, bootFlags []string) e
 		return fmt.Errorf("internal error: recovery system label unset")
 	}
 
-	blVars := make(map[string]string, 3)
-	if len(bootFlags) != 0 {
-		if err := setImageBootFlags(bootFlags, blVars); err != nil {
-			return err
-		}
-	}
-
 	opts := &bootloader.Options{
 		PrepareImageTime: true,
 		// setup the recovery bootloader
 		Role: bootloader.RoleRecovery,
 	}
-
-	// install the bootloader configuration from the gadget
-	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
-		return err
-	}
-
-	// now install the recovery system specific boot config
-	bl, err := bootloader.Find(rootdir, opts)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
-	}
-
-	// record which recovery system is to be used on the bootloader, note
-	// that this goes on the main bootloader environment, and not on the
-	// recovery system bootloader environment, for example for grub
-	// bootloader, this env var is set on the ubuntu-seed root grubenv, and
-	// not on the recovery system grubenv in the systems/20200314/ subdir on
-	// ubuntu-seed
-	blVars["snapd_recovery_system"] = bootWith.RecoverySystemLabel
-	// always set the mode as install
-	blVars["snapd_recovery_mode"] = ModeInstall
-	if err := bl.SetBootVars(blVars); err != nil {
-		return fmt.Errorf("cannot set recovery environment: %v", err)
+	if err := configureBootloader(rootdir, bootWith, opts, bootFlags); err != nil {
+		return fmt.Errorf("cannot install bootloader: %v", err)
 	}
 
 	return MakeRecoverySystemBootable(rootdir, bootWith.RecoverySystemDir, &RecoverySystemBootableSet{
