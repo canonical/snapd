@@ -32,9 +32,9 @@ var (
 	affectedQuotasByKind = make(map[string]AffectedQuotasFunc)
 )
 
-// AddAffectedQuotasByKind registers an AffectedQuotasFunc for returning the affected quotas
+// RegisterAffectedQuotasByKind registers an AffectedQuotasFunc for returning the affected quotas
 // for tasks of the given kind, to use in conflicts detection.
-func AddAffectedQuotasByKind(kind string, f AffectedQuotasFunc) {
+func RegisterAffectedQuotasByKind(kind string, f AffectedQuotasFunc) {
 	affectedQuotasByKind[kind] = f
 }
 

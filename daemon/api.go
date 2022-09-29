@@ -20,6 +20,8 @@
 package daemon
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -27,6 +29,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -131,19 +134,21 @@ func storeFrom(d *Daemon) snapstate.StoreService {
 }
 
 var (
-	snapstateInstall           = snapstate.Install
-	snapstateInstallPath       = snapstate.InstallPath
-	snapstateInstallPathMany   = snapstate.InstallPathMany
-	snapstateRefreshCandidates = snapstate.RefreshCandidates
-	snapstateTryPath           = snapstate.TryPath
-	snapstateUpdate            = snapstate.Update
-	snapstateUpdateMany        = snapstate.UpdateMany
-	snapstateInstallMany       = snapstate.InstallMany
-	snapstateRemoveMany        = snapstate.RemoveMany
-	snapstateEnforceSnaps      = snapstate.EnforceSnaps
-	snapstateRevert            = snapstate.Revert
-	snapstateRevertToRevision  = snapstate.RevertToRevision
-	snapstateSwitch            = snapstate.Switch
+	snapstateInstall                       = snapstate.Install
+	snapstateInstallPath                   = snapstate.InstallPath
+	snapstateInstallPathMany               = snapstate.InstallPathMany
+	snapstateRefreshCandidates             = snapstate.RefreshCandidates
+	snapstateTryPath                       = snapstate.TryPath
+	snapstateUpdate                        = snapstate.Update
+	snapstateUpdateMany                    = snapstate.UpdateMany
+	snapstateInstallMany                   = snapstate.InstallMany
+	snapstateRemoveMany                    = snapstate.RemoveMany
+	snapstateResolveValSetEnforcementError = func(context.Context, *state.State, *snapasserts.ValidationSetsValidationError, map[string]int, int) ([]*state.TaskSet, []string, error) {
+		return nil, nil, errors.New("not implemented")
+	}
+	snapstateRevert           = snapstate.Revert
+	snapstateRevertToRevision = snapstate.RevertToRevision
+	snapstateSwitch           = snapstate.Switch
 
 	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
