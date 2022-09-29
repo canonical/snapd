@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -75,6 +75,20 @@ func (ss *stateSuite) TestGetAndSet(c *C) {
 	err = st.Get("mgr2", &mSt2B)
 	c.Assert(err, IsNil)
 	c.Check(&mSt2B, DeepEquals, mSt2)
+}
+
+func (ss *stateSuite) TestHas(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(st.Has("a"), Equals, false)
+
+	st.Set("a", 1)
+	c.Check(st.Has("a"), Equals, true)
+
+	st.Set("a", nil)
+	c.Check(st.Has("a"), Equals, false)
 }
 
 func (ss *stateSuite) TestStrayTaskWithNoChange(c *C) {

@@ -45,21 +45,19 @@ dbus (send,receive)
     bus=system
     path=/org/freedesktop/login1/seat/**
     interface=org.freedesktop.login1.Seat
-    member={ActiveSession,SwitchTo}
     peer=(label=unconfined),
 
 dbus (send,receive)
     bus=system
     path=/org/freedesktop/login1/session/**
     interface=org.freedesktop.login1.Session
-    member={TakeControl,TakeDevice,PauseDevice,PauseDeviceComplete,ResumeDevice,ReleaseDevice,Active,State,Lock,Unlock,Activate,ReleaseControl}
     peer=(label=unconfined),
 
 dbus (send,receive)
     bus=system
     path=/org/freedesktop/login1
     interface=org.freedesktop.login1.Manager
-    member={GetSession,GetSeat}
+    member={ActivateSession,GetSession,GetSeat,KillSession,ListSessions,LockSession,TerminateSession,UnlockSession}
     peer=(label=unconfined),
 `
 

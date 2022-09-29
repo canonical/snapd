@@ -167,8 +167,8 @@ func (s *assertsSuite) TestAssertsFindManyAll(c *check.C) {
 	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion; bundle=y")
-	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "4")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion; bundle=y")
+	c.Check(rec.Header().Get("X-Ubuntu-Assertions-Count"), check.Equals, "4")
 	dec := asserts.NewDecoder(rec.Body)
 	a1, err := dec.Decode()
 	c.Assert(err, check.IsNil)
@@ -204,7 +204,7 @@ func (s *assertsSuite) TestAssertsFindManyFilter(c *check.C) {
 	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "1")
+	c.Check(rec.Header().Get("X-Ubuntu-Assertions-Count"), check.Equals, "1")
 	dec := asserts.NewDecoder(rec.Body)
 	a1, err := dec.Decode()
 	c.Assert(err, check.IsNil)
@@ -228,7 +228,7 @@ func (s *assertsSuite) TestAssertsFindManyNoResults(c *check.C) {
 	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "0")
+	c.Check(rec.Header().Get("X-Ubuntu-Assertions-Count"), check.Equals, "0")
 	dec := asserts.NewDecoder(rec.Body)
 	_, err = dec.Decode()
 	c.Check(err, check.Equals, io.EOF)
@@ -269,7 +269,7 @@ func (s *assertsSuite) testAssertsFindManyJSONFilter(c *check.C, urlPath string)
 	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -294,7 +294,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONNoResults(c *check.C) {
 	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -315,7 +315,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONWithBody(c *check.C) {
 	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
 	var got []string
 	var body map[string]interface{}
@@ -346,7 +346,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONHeadersOnly(c *check.C) {
 	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
 	var got []string
 	var body map[string]interface{}
@@ -376,7 +376,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONInvalidParam(c *check.C) {
 	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 400, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 
 	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -400,7 +400,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONNopFilter(c *check.C) {
 	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "1")
+	c.Check(rec.Header().Get("X-Ubuntu-Assertions-Count"), check.Equals, "1")
 	dec := asserts.NewDecoder(rec.Body)
 	a1, err := dec.Decode()
 	c.Assert(err, check.IsNil)
@@ -421,7 +421,7 @@ func (s *assertsSuite) TestAssertsFindManyRemoteInvalidParam(c *check.C) {
 	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 400, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/json")
 	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 400)
@@ -457,7 +457,7 @@ func (s *assertsSuite) TestAssertsFindManyRemote(c *check.C) {
 	// Verify
 	c.Check(assertFnCalled, check.Equals, 1)
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion; bundle=y")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion; bundle=y")
 
 	data := rec.Body.Bytes()
 	c.Check(string(data), check.Matches, `(?ms)type: account

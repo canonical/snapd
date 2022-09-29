@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -548,7 +548,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
 
-	AddAffectedSnapsByKind("conditional-auto-refresh", conditionalAutoRefreshAffectedSnaps)
+	RegisterAffectedSnapsByKind("conditional-auto-refresh", conditionalAutoRefreshAffectedSnaps)
 
 	return m, nil
 }
@@ -615,8 +615,7 @@ func (m *SnapManager) NextRefresh() time.Time {
 }
 
 // EffectiveRefreshHold returns the time until to which refreshes are
-// held if refresh.hold configuration is set and accounting for the
-// max postponement since the last refresh.
+// held if refresh.hold configuration is set.
 // The caller should be holding the state lock.
 func (m *SnapManager) EffectiveRefreshHold() (time.Time, error) {
 	return m.autoRefresh.EffectiveRefreshHold()

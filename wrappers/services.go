@@ -132,8 +132,8 @@ TasksAccounting=true
 `
 	buf := bytes.NewBufferString(header)
 
-	if grp.TaskLimit != 0 {
-		fmt.Fprintf(buf, "TasksMax=%d\n", grp.TaskLimit)
+	if grp.ThreadLimit != 0 {
+		fmt.Fprintf(buf, "TasksMax=%d\n", grp.ThreadLimit)
 	}
 	return buf.String()
 }

@@ -3,7 +3,6 @@ summary: verify a simple UC2* scenario with 4k sector size
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
-  NESTED_IMAGE_ID: core20-4k-sector-size
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -22,37 +21,37 @@ debug: |
 
 execute: |
     echo "Wait for the system to be seeded first"
-    tests.nested exec "sudo snap wait system seed.loaded"
+    remote.exec "sudo snap wait system seed.loaded"
 
     echo "Ensure 'snap install' works"
-    tests.nested exec "sudo snap install test-snapd-sh"
+    remote.exec "sudo snap install test-snapd-sh"
 
     echo "Ensure 'snap list' works and test-snapd-sh snap is installed"
-    tests.nested exec "snap list" | MATCH test-snapd-sh
+    remote.exec "snap list" | MATCH test-snapd-sh
 
     echo "Ensure 'snap find' works"
-    tests.nested exec "snap find test-snapd-sh" | MATCH ^test-snapd-sh
+    remote.exec "snap find test-snapd-sh" | MATCH ^test-snapd-sh
 
     echo "Ensure 'snap info' works"
-    tests.nested exec "snap info test-snapd-sh" | MATCH '^name:\ +test-snapd-sh'
+    remote.exec "snap info test-snapd-sh" | MATCH '^name:\ +test-snapd-sh'
 
     echo "Ensure 'snap remove' works"
-    tests.nested exec "sudo snap remove test-snapd-sh"
+    remote.exec "sudo snap remove test-snapd-sh"
 
     echo "Ensure 'snap list' works and test-snapd-sh snap is removed"
-    tests.nested exec "! snap list test-snapd-sh"
+    remote.exec "! snap list test-snapd-sh"
 
     echo "Verifying tpm working on the nested vm"
-    tests.nested exec "sudo dmesg | grep -i tpm" | MATCH "efi: +SMBIOS=.* +TPMFinalLog=.*"
-    tests.nested exec "test -e /sys/kernel/security/tpm0/binary_bios_measurements"
+    remote.exec "sudo dmesg | grep -i tpm" | MATCH "efi: +SMBIOS=.* +TPMFinalLog=.*"
+    remote.exec "test -e /sys/kernel/security/tpm0/binary_bios_measurements"
 
     echo "and secure boot is enabled on the nested vm"
-    tests.nested exec "xxd /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c" | MATCH "00000000: 0600 0000 01\s+....."
+    remote.exec "xxd /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c" | MATCH "00000000: 0600 0000 01\s+....."
 
     echo "Ensure 'snap recovery show-keys' works as root"
-    tests.nested exec "sudo snap recovery --show-keys" | MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}'
+    remote.exec "sudo snap recovery --show-keys" | MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}'
     echo "But not as user (normal file permissions prevent this)"
-    if tests.nested exec "snap recovery --show-keys"; then
+    if remote.exec "snap recovery --show-keys"; then
         echo "snap recovery --show-key should not work as a user"
         exit 1
     fi

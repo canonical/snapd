@@ -1,5 +1,7 @@
 summary: smoke test for the remote.setup tool
 
+backends: [google]
+
 restore: |
     rm -f remote.setup.cfg my-key my-key-2
 
@@ -18,7 +20,18 @@ execute: |
     test -z "$TESTS_REMOTE_CERT"
 
     # Check get-config-path subcommand
-    remote.setup get-config-path | MATCH "remote.setup.cfg"
+    remote.setup get-config-path | MATCH "$(pwd)/remote.setup.cfg"
+
+    # check using another config file
+    REMOTE_CFG_FILE="$(pwd)/remote.newsetup.cfg"
+    export REMOTE_CFG_FILE
+    remote.setup config --host localhost --port 22 --user tools-user-1 --pass tools-pass-1
+    remote.setup get-config-path | MATCH "$(pwd)/remote.newsetup.cfg"
+
+    # check using the default config file again
+    unset REMOTE_CFG_FILE
+    remote.setup config --host localhost --port 22 --user tools-user-1 --pass tools-pass-1
+    remote.setup get-config-path | MATCH "$(pwd)/remote.setup.cfg"
 
     # Check the certificate
     touch my-key

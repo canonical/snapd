@@ -3,6 +3,10 @@ summary: Basic test for quota-related snap commands.
 details: |
   Basic test for snap quota, remove-quota and quotas commands.
 
+# In arm devices using ubuntu core, memory quota cannot be used because
+# memory cgroup is disabled
+systems: [ -ubuntu-core-*-arm-* ]
+
 prepare: |
   snap install hello-world go-example-webserver test-snapd-tools
   snap set system experimental.quota-groups=true

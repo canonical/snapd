@@ -81,9 +81,6 @@ restore: |
 debug: |
     echo "Status of the test service"
     systemctl status snap.test-snapd-simple-service.test-snapd-simple-service.service || true
-    echo "Apparmor denials"
-    dmesg | grep DENIED || true
-
 
 execute: |
     # When snap-update-ns is artificially slowed down so that snap-confine

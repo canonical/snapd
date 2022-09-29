@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -74,6 +75,45 @@ type ValidationSetsValidationError struct {
 	// Sets maps validation set keys referenced by above maps to actual
 	// validation sets.
 	Sets map[string]*asserts.ValidationSet
+}
+
+// ValidationSetKey is a string-backed primary key for a validation set assertion.
+type ValidationSetKey string
+
+// NewValidationSetKey returns a validation set key for a validation set.
+func NewValidationSetKey(vs *asserts.ValidationSet) ValidationSetKey {
+	return ValidationSetKey(strings.Join(vs.Ref().PrimaryKey, "/"))
+}
+
+func (k ValidationSetKey) String() string {
+	return string(k)
+}
+
+// Components returns the components of the validation set's primary key (see
+// assertion types in asserts/asserts.go).
+func (k ValidationSetKey) Components() []string {
+	return strings.Split(k.String(), "/")
+}
+
+// ValidationSetKeySlice can be used to sort slices of ValidationSetKey.
+type ValidationSetKeySlice []ValidationSetKey
+
+func (s ValidationSetKeySlice) Len() int           { return len(s) }
+func (s ValidationSetKeySlice) Less(i, j int) bool { return s[i] < s[j] }
+func (s ValidationSetKeySlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+// CommaSeparated returns the validation set keys separated by commas.
+func (s ValidationSetKeySlice) CommaSeparated() string {
+	var sb strings.Builder
+
+	for i, vsKey := range s {
+		sb.WriteString(vsKey.String())
+		if i < len(s)-1 {
+			sb.WriteRune(',')
+		}
+	}
+
+	return sb.String()
 }
 
 type byRevision []snap.Revision
@@ -520,7 +560,7 @@ func (v *ValidationSets) constraintsForSnap(snapRef naming.SnapRef) *snapContrai
 // snap.R(0) if no specific revision is required). PresenceConstraintError is
 // returned if presence of the snap is "invalid".
 // The method assumes that validation sets are not in conflict.
-func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]string, snap.Revision, error) {
+func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]ValidationSetKey, snap.Revision, error) {
 	cstrs := v.constraintsForSnap(snapRef)
 	if cstrs == nil {
 		return nil, unspecifiedRevision, nil
@@ -533,14 +573,14 @@ func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]string
 	}
 
 	snapRev := unspecifiedRevision
-	var keys []string
+	var keys []ValidationSetKey
 	for rev, revCstr := range cstrs.revisions {
 		for _, rc := range revCstr {
 			vs := v.sets[rc.validationSetKey]
 			if vs == nil {
 				return nil, unspecifiedRevision, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
 			}
-			keys = append(keys, strings.Join(vs.Ref().PrimaryKey, "/"))
+			keys = append(keys, NewValidationSetKey(vs))
 			// there may be constraints without revision; only set snapRev if
 			// it wasn't already determined. Note that if revisions are set,
 			// then they are the same, otherwise validation sets would be in
@@ -552,7 +592,7 @@ func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]string
 		}
 	}
 
-	sort.Strings(keys)
+	sort.Sort(ValidationSetKeySlice(keys))
 	return keys, snapRev, nil
 }
 
@@ -560,7 +600,7 @@ func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]string
 // presence of the given snap as invalid. PresenceConstraintError is returned if
 // presence of the snap is "optional" or "required".
 // The method assumes that validation sets are not in conflict.
-func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]string, error) {
+func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]ValidationSetKey, error) {
 	cstrs := v.constraintsForSnap(snapRef)
 	if cstrs == nil {
 		return nil, nil
@@ -568,7 +608,7 @@ func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]string,
 	if cstrs.presence != asserts.PresenceInvalid {
 		return nil, &PresenceConstraintError{snapRef.SnapName(), cstrs.presence}
 	}
-	var keys []string
+	var keys []ValidationSetKey
 	for _, revCstr := range cstrs.revisions {
 		for _, rc := range revCstr {
 			if rc.Presence == asserts.PresenceInvalid {
@@ -576,11 +616,45 @@ func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]string,
 				if vs == nil {
 					return nil, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
 				}
-				keys = append(keys, strings.Join(vs.Ref().PrimaryKey, "/"))
+				keys = append(keys, NewValidationSetKey(vs))
 			}
 		}
 	}
 
-	sort.Strings(keys)
+	sort.Sort(ValidationSetKeySlice(keys))
 	return keys, nil
+}
+
+// ParseValidationSet parses a validation set string (account/name or account/name=sequence)
+// and returns its individual components, or an error.
+func ParseValidationSet(arg string) (account, name string, seq int, err error) {
+	errPrefix := func() string {
+		return fmt.Sprintf("cannot parse validation set %q", arg)
+	}
+	parts := strings.Split(arg, "=")
+	if len(parts) > 2 {
+		return "", "", 0, fmt.Errorf("%s: expected account/name=seq", errPrefix())
+	}
+	if len(parts) == 2 {
+		seq, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return "", "", 0, fmt.Errorf("%s: invalid sequence: %v", errPrefix(), err)
+		}
+	}
+
+	parts = strings.Split(parts[0], "/")
+	if len(parts) != 2 {
+		return "", "", 0, fmt.Errorf("%s: expected a single account/name", errPrefix())
+	}
+
+	account = parts[0]
+	name = parts[1]
+	if !asserts.IsValidAccountID(account) {
+		return "", "", 0, fmt.Errorf("%s: invalid account ID %q", errPrefix(), account)
+	}
+	if !asserts.IsValidValidationSetName(name) {
+		return "", "", 0, fmt.Errorf("%s: invalid validation set name %q", errPrefix(), name)
+	}
+
+	return account, name, seq, nil
 }

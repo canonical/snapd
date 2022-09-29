@@ -18,7 +18,7 @@ restore: |
     fi
 
 debug: |
-    cat ./*-vars.txt
+    find . -name '*-vars.txt' -exec cat {} \;
 
 execute: |
     echo "Collect SNAP and XDG environment variables"

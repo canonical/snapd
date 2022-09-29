@@ -32,6 +32,8 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
@@ -161,7 +163,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1},
 			expected:    map[snap.Type]snap.PlaceInfo{baseT: base1},
-			rootfsDir:   boot.InitramfsWritableDir,
+			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "default base path",
 		},
 		// gadget base path
@@ -170,7 +172,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			typs:        []snap.Type{gadgetT},
 			snapsToMake: []snap.PlaceInfo{gadget},
 			expected:    map[snap.Type]snap.PlaceInfo{gadgetT: gadget},
-			rootfsDir:   boot.InitramfsWritableDir,
+			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "default gadget path",
 		},
 		// gadget base path, but not in modeenv, so it is not selected
@@ -179,7 +181,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			typs:        []snap.Type{gadgetT},
 			snapsToMake: []snap.PlaceInfo{gadget},
 			expected:    map[snap.Type]snap.PlaceInfo{},
-			rootfsDir:   boot.InitramfsWritableDir,
+			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "default gadget path",
 		},
 		// default kernel path
@@ -189,7 +191,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			typs:        []snap.Type{kernelT},
 			snapsToMake: []snap.PlaceInfo{kernel1},
 			expected:    map[snap.Type]snap.PlaceInfo{kernelT: kernel1},
-			rootfsDir:   boot.InitramfsWritableDir,
+			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "default kernel path",
 		},
 		// gadget base path for classic with modes
@@ -225,7 +227,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			blvars:      map[string]string{"kernel_status": boot.TryingStatus},
 			snapsToMake: []snap.PlaceInfo{kernel1, kernel2},
 			expected:    map[snap.Type]snap.PlaceInfo{kernelT: kernel2},
-			rootfsDir:   boot.InitramfsWritableDir,
+			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "successful kernel upgrade path",
 		},
 		// extraneous kernel extracted/set, but kernel_status is default,
@@ -243,7 +245,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			blvars:      map[string]string{"kernel_status": boot.DefaultStatus},
 			snapsToMake: []snap.PlaceInfo{kernel1, kernel2},
 			expected:    map[snap.Type]snap.PlaceInfo{kernelT: kernel1},
-			rootfsDir:   boot.InitramfsWritableDir,
+			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "fallback kernel upgrade path, due to kernel_status empty (default)",
 		},
 
@@ -260,7 +262,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			blvars:         map[string]string{"kernel_status": boot.TryingStatus},
 			snapsToMake:    []snap.PlaceInfo{kernel1, kernel2},
 			expRebootPanic: "reboot due to modeenv untrusted try kernel",
-			rootfsDir:      boot.InitramfsWritableDir,
+			rootfsDir:      filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:        "fallback kernel upgrade path, due to modeenv untrusted try kernel",
 		},
 		// kernel upgrade path, but reboots to fallback due to try kernel file not existing
@@ -272,7 +274,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			blvars:         map[string]string{"kernel_status": boot.TryingStatus},
 			snapsToMake:    []snap.PlaceInfo{kernel1},
 			expRebootPanic: "reboot due to try kernel file not existing",
-			rootfsDir:      boot.InitramfsWritableDir,
+			rootfsDir:      filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:        "fallback kernel upgrade path, due to try kernel file not existing",
 		},
 		// kernel upgrade path, but reboots to fallback due to invalid kernel_status
@@ -284,7 +286,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			blvars:         map[string]string{"kernel_status": boot.TryStatus},
 			snapsToMake:    []snap.PlaceInfo{kernel1, kernel2},
 			expRebootPanic: "reboot due to kernel_status wrong",
-			rootfsDir:      boot.InitramfsWritableDir,
+			rootfsDir:      filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:        "fallback kernel upgrade path, due to kernel_status wrong",
 		},
 
@@ -299,7 +301,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			typs:        []snap.Type{kernelT},
 			snapsToMake: []snap.PlaceInfo{kernel1},
 			errPattern:  fmt.Sprintf("fallback kernel snap %q is not trusted in the modeenv", kernel1.Filename()),
-			rootfsDir:   boot.InitramfsWritableDir,
+			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "fallback kernel not trusted in modeenv",
 		},
 		// fallback kernel file doesn't exist
@@ -308,7 +310,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			kernel:     kernel1,
 			typs:       []snap.Type{kernelT},
 			errPattern: fmt.Sprintf("kernel snap %q does not exist on ubuntu-data", kernel1.Filename()),
-			rootfsDir:  boot.InitramfsWritableDir,
+			rootfsDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:    "fallback kernel file doesn't exist",
 		},
 
@@ -333,7 +335,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1, base2},
 			expected:    map[snap.Type]snap.PlaceInfo{baseT: base2},
-			rootfsDir:   boot.InitramfsWritableDir,
+			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "successful base upgrade path",
 		},
 		// base upgrade path, but uses fallback due to try base file not existing
@@ -353,7 +355,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1},
 			expected:    map[snap.Type]snap.PlaceInfo{baseT: base1},
-			rootfsDir:   boot.InitramfsWritableDir,
+			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "fallback base upgrade path, due to missing try base file",
 		},
 		// base upgrade path, but uses fallback due to base_status trying
@@ -373,7 +375,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1, base2},
 			expected:    map[snap.Type]snap.PlaceInfo{baseT: base1},
-			rootfsDir:   boot.InitramfsWritableDir,
+			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "fallback base upgrade path, due to base_status trying",
 		},
 		// base upgrade path, but uses fallback due to base_status default
@@ -393,7 +395,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1, base2},
 			expected:    map[snap.Type]snap.PlaceInfo{baseT: base1},
-			rootfsDir:   boot.InitramfsWritableDir,
+			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "fallback base upgrade path, due to missing base_status",
 		},
 
@@ -407,7 +409,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1},
 			errPattern:  "fallback base snap unusable: cannot get snap revision: modeenv base boot variable is empty",
-			rootfsDir:   boot.InitramfsWritableDir,
+			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "base snap unset in modeenv",
 		},
 		// base snap file doesn't exist
@@ -415,7 +417,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			m:          &boot.Modeenv{Mode: "run", Base: base1.Filename()},
 			typs:       []snap.Type{baseT},
 			errPattern: fmt.Sprintf("base snap %q does not exist on ubuntu-data", base1.Filename()),
-			rootfsDir:  boot.InitramfsWritableDir,
+			rootfsDir:  filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:    "base snap unset in modeenv",
 		},
 		// unhappy, but silent path with fallback, due to invalid try base snap name
@@ -429,7 +431,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1},
 			expected:    map[snap.Type]snap.PlaceInfo{baseT: base1},
-			rootfsDir:   boot.InitramfsWritableDir,
+			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "corrupted base snap name",
 		},
 
@@ -456,7 +458,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				baseT:   base1,
 				kernelT: kernel1,
 			},
-			rootfsDir: boot.InitramfsWritableDir,
+			rootfsDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:   "default combined kernel + base",
 		},
 		// combined, upgrade only the kernel
@@ -480,7 +482,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				baseT:   base1,
 				kernelT: kernel2,
 			},
-			rootfsDir: boot.InitramfsWritableDir,
+			rootfsDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:   "combined kernel + base, successful kernel upgrade",
 		},
 		// combined, upgrade only the base
@@ -506,7 +508,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				baseT:   base2,
 				kernelT: kernel1,
 			},
-			rootfsDir: boot.InitramfsWritableDir,
+			rootfsDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:   "combined kernel + base, successful base upgrade",
 		},
 		// bonus points: combined upgrade kernel and base
@@ -534,7 +536,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				baseT:   base2,
 				kernelT: kernel2,
 			},
-			rootfsDir: boot.InitramfsWritableDir,
+			rootfsDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:   "combined kernel + base, successful base + kernel upgrade",
 		},
 		// combined, fallback upgrade on kernel
@@ -558,7 +560,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				baseT:   base1,
 				kernelT: kernel1,
 			},
-			rootfsDir: boot.InitramfsWritableDir,
+			rootfsDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:   "combined kernel + base, fallback kernel upgrade, due to missing boot var",
 		},
 		// combined, fallback upgrade on base
@@ -584,7 +586,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 				baseT:   base1,
 				kernelT: kernel1,
 			},
-			rootfsDir: boot.InitramfsWritableDir,
+			rootfsDir: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:   "combined kernel + base, fallback base upgrade, due to base_status trying",
 		},
 	}
@@ -810,4 +812,39 @@ func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsErrNoCmdline(c 
 func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsNoBootloaderHappy(c *C) {
 	err := boot.InitramfsRunModeUpdateBootloaderVars()
 	c.Assert(err, IsNil)
+}
+
+var classicModel = &gadgettest.ModelCharacteristics{
+	IsClassic: true,
+	HasModes:  true,
+}
+
+var coreModel = &gadgettest.ModelCharacteristics{
+	IsClassic: false,
+	HasModes:  true,
+}
+
+func (s *initramfsSuite) TestInstallHostWritableDir(c *C) {
+	c.Check(boot.InstallHostWritableDir(classicModel), Equals, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data"))
+	c.Check(boot.InstallHostWritableDir(coreModel), Equals, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"))
+}
+
+func (s *initramfsSuite) TestInitramfsHostWritableDir(c *C) {
+	c.Check(boot.InitramfsHostWritableDir(classicModel), Equals, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data"))
+	c.Check(boot.InitramfsHostWritableDir(coreModel), Equals, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"))
+}
+
+func (s *initramfsSuite) TestInitramfsWritableDir(c *C) {
+	for _, tc := range []struct {
+		model       gadget.Model
+		runMode     bool
+		expectedDir string
+	}{
+		{classicModel, true, "/run/mnt/data"},
+		{classicModel, false, "/run/mnt/data/system-data"},
+		{coreModel, true, "/run/mnt/data/system-data"},
+		{coreModel, false, "/run/mnt/data/system-data"},
+	} {
+		c.Check(boot.InitramfsWritableDir(tc.model, tc.runMode), Equals, filepath.Join(dirs.GlobalRootDir, tc.expectedDir))
+	}
 }

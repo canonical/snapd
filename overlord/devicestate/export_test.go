@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -398,6 +399,10 @@ func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx
 	return mgr.checkEncryption(st, deviceCtx)
 }
 
+func DeviceManagerEncryptionSupportInfo(mgr *DeviceManager, model *asserts.Model, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
+	return mgr.encryptionSupportInfo(model, kernelInfo, gadgetInfo)
+}
+
 func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) (secboot.EncryptionType, error) {
 	return mgr.checkFDEFeatures()
 }
@@ -444,4 +449,8 @@ func MockSecbootMarkSuccessful(f func() error) (restore func()) {
 	r := testutil.Backup(&secbootMarkSuccessful)
 	secbootMarkSuccessful = f
 	return r
+}
+
+func BuildGroundDeviceContext(model *asserts.Model, mode string) snapstate.DeviceContext {
+	return &groundDeviceContext{model: model, systemMode: mode}
 }

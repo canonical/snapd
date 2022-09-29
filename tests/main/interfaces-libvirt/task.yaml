@@ -15,6 +15,11 @@ details: |
 systems: [ubuntu-2*]
 
 prepare: |
+    if not os.query is-pc-amd64; then
+        echo "The snap test-snapd-libvirt-consumer is just available for amd64"
+        exit
+    fi
+
     # Given test user is added to the libvirt group
     adduser test libvirt
 
@@ -35,12 +40,22 @@ prepare: |
     ip link set dev tap100 up
 
 restore: |
+    if not os.query is-pc-amd64; then
+        echo "The snap test-snapd-libvirt-consumer is just available for amd64"
+        exit
+    fi
+
     ip link delete tap100
 
     # remove test user from the libvirt group
     deluser test libvirt
 
 execute: |
+    if not os.query is-pc-amd64; then
+        echo "The snap test-snapd-libvirt-consumer is just available for amd64"
+        exit
+    fi
+
     echo "The interface is not connected by default"
     snap interfaces -i libvirt | MATCH '^- +test-snapd-libvirt-consumer:libvirt'
 

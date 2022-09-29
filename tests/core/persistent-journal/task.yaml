@@ -9,11 +9,11 @@ restore: |
     systemctl kill --signal=SIGUSR1 systemd-journald
 
 debug: |
-    journalctl -u snapd
+    "$TESTSTOOLS"/journal-state get-log -u snapd
     echo "snapd status before the test:"
-    cat before.txt
+    cat before.txt || true
     echo "snapd status after the test:"
-    systemctl status snapd
+    systemctl status snapd || true
 
 execute: |
     echo "Wait for first boot to be done"

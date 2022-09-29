@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -36,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -43,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -703,7 +706,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeBroken(c *C) {
 	c.Assert(err, IsNil)
 
 	err = s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
-	c.Assert(err, ErrorMatches, "cannot load seed system: cannot load assertions: .*")
+	c.Assert(err, ErrorMatches, `cannot load seed system: cannot load assertions for label "20191119": .*`)
 	c.Check(s.restartRequests, HasLen, 0)
 	c.Check(s.logbuf.String(), Equals, "")
 }
@@ -2243,4 +2246,205 @@ func (s *systemSnapTrackingSuite) TestSnapFilePurgeWhenNoLog(c *C) {
 	// purge is still happy even if log file does not exist
 	err := devicestate.PurgeNewSystemSnapFiles(flog)
 	c.Assert(err, IsNil)
+}
+
+type modelAndGadgetInfoSuite struct {
+	deviceMgrSystemsBaseSuite
+}
+
+var _ = Suite(&modelAndGadgetInfoSuite{})
+
+func (s *modelAndGadgetInfoSuite) SetUpTest(c *C) {
+	classic := false
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
+}
+
+var mockGadgetUCYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    schema: gpt
+    structure:
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 750M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-boot
+      - name: ubuntu-save
+        size: 16M
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-save
+      - name: ubuntu-data
+        filesystem: ext4
+        size: 1G
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+`
+
+var mockGadgetUCYamlNoBootRole = `
+volumes:
+  pc:
+    bootloader: grub
+    schema: gpt
+    structure:
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 750M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      - name: ubuntu-save
+        size: 16M
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-save
+      - name: ubuntu-data
+        filesystem: ext4
+        size: 1G
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+`
+
+func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithGadgetYaml(c *C, label, gadgetYaml string, isClassic bool) *asserts.Model {
+	seed20 := &seedtest.TestingSeed20{
+		SeedSnaps: seedtest.SeedSnaps{
+			StoreSigning: s.storeSigning,
+			Brands:       s.brands,
+		},
+		SeedDir: dirs.SnapSeedDir,
+	}
+	restore := seed.MockTrusted(seed20.StoreSigning.Trusted)
+	s.AddCleanup(restore)
+
+	assertstest.AddMany(s.storeSigning.Database, s.brands.AccountsAndKeys("my-brand")...)
+
+	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "my-brand", s.storeSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "my-brand", s.storeSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "my-brand", s.storeSigning.Database)
+	gadgetFiles := [][]string{
+		{"meta/gadget.yaml", string(gadgetYaml)},
+	}
+	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", gadgetFiles, snap.R(1), "my-brand", s.storeSigning.Database)
+
+	headers := map[string]interface{}{
+		"display-name": "my fancy model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              seed20.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              seed20.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}
+	if isClassic {
+		headers["classic"] = "true"
+		headers["distribution"] = "ubuntu"
+	}
+	return seed20.MakeSeed(c, label, "my-brand", "my-model", headers, nil)
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C) {
+	isClassic := false
+	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic)
+	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
+	c.Assert(err, IsNil)
+
+	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return fmt.Errorf("really no tpm") })
+	defer restore()
+
+	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	c.Assert(err, IsNil)
+	c.Check(system, DeepEquals, &devicestate.System{
+		Label: "some-label",
+		Model: fakeModel,
+		Brand: s.brands.Account("my-brand"),
+		Actions: []devicestate.SystemAction{
+			{Title: "Install", Mode: "install"},
+		},
+	})
+	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
+	c.Check(encInfo, DeepEquals, &devicestate.EncryptionSupportInfo{
+		Available:          false,
+		StorageSafety:      asserts.StorageSafetyPreferEncrypted,
+		UnavailableWarning: "not encrypting device storage as checking TPM gave: really no tpm",
+	})
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidLabel(c *C) {
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("invalid/label")
+	c.Assert(err, ErrorMatches, `cannot open: invalid seed system label: "invalid/label"`)
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeedDir(c *C) {
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("no-such-seed")
+	c.Assert(err, ErrorMatches, `cannot load assertions for label "no-such-seed": no seed assertions`)
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoGadget(c *C) {
+	isClassic := false
+	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic)
+	// break the seed by removing the gadget
+	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"))
+	c.Assert(err, IsNil)
+
+	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	c.Assert(err, ErrorMatches, "cannot load essential snaps metadata: cannot stat snap:.*: no such file or directory")
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorWrongGadget(c *C) {
+	isClassic := false
+	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic)
+	// break the seed by changing things
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0644)
+	c.Assert(err, IsNil)
+
+	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	c.Assert(err, ErrorMatches, `cannot load essential snaps metadata: cannot validate "/.*/pc_1.snap".* wrong size`)
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorInvalidGadgetYaml(c *C) {
+	isClassic := false
+	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", "", isClassic)
+
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	c.Assert(err, ErrorMatches, "reading gadget information: bootloader not declared in any volume")
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorNoSeed(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// create a new manager as the "isClassicBoot" information is cached
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), nil)
+	c.Assert(err, IsNil)
+
+	_, _, _, err = mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	c.Assert(err, ErrorMatches, `cannot load assertions for label "some-label": no seed assertions`)
+}
+
+func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoBadClassicGadget(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+	isClassic := true
+	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYamlNoBootRole, isClassic)
+
+	_, _, _, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
+	c.Assert(err, ErrorMatches, `cannot validate gadget.yaml: system-boot and system-data roles are needed on classic`)
 }

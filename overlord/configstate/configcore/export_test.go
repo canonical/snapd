@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,9 +22,11 @@ package configcore
 import (
 	"time"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -56,6 +58,30 @@ func MockChownPath(f func(string, sys.UserID, sys.GroupID) error) func() {
 	}
 }
 
+func MockEnsureFileState(f func(string, osutil.FileState) error) func() {
+	r := testutil.Backup(&osutilEnsureFileState)
+	osutilEnsureFileState = f
+	return r
+}
+
+func MockDirExists(f func(string) (bool, bool, error)) func() {
+	r := testutil.Backup(&osutilDirExists)
+	osutilDirExists = f
+	return r
+}
+
+func MockApparmorUpdateHomedirsTunable(f func([]string) error) func() {
+	r := testutil.Backup(&apparmorUpdateHomedirsTunable)
+	apparmorUpdateHomedirsTunable = f
+	return r
+}
+
+func MockApparmorReloadAllSnapProfiles(f func() error) func() {
+	r := testutil.Backup(&apparmorReloadAllSnapProfiles)
+	apparmorReloadAllSnapProfiles = f
+	return r
+}
+
 type ConnectivityCheckStore = connectivityCheckStore
 
 func MockSnapstateStore(f func(st *state.State, deviceCtx snapstate.DeviceContext) ConnectivityCheckStore) func() {
@@ -72,4 +98,10 @@ func MockStoreReachableRetryWait(d time.Duration) func() {
 	return func() {
 		storeReachableRetryWait = old
 	}
+}
+
+func MockDevicestateResetSession(f func(*state.State) error) (restore func()) {
+	restore = testutil.Backup(&devicestateResetSession)
+	devicestateResetSession = f
+	return restore
 }

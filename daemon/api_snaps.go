@@ -203,6 +203,7 @@ type snapInstruction struct {
 	Snaps                  []string               `json:"snaps"`
 	Users                  []string               `json:"users"`
 	ValidationSets         []string               `json:"validation-sets"`
+	QuotaGroupName         string                 `json:"quota-group"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -236,6 +237,7 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	if inst.IgnoreValidation {
 		flags.IgnoreValidation = true
 	}
+	flags.QuotaGroupName = inst.QuotaGroupName
 
 	return flags, nil
 }
@@ -268,6 +270,9 @@ func (inst *snapInstruction) validate() error {
 		}
 	default:
 		return fmt.Errorf("invalid value for transaction type: %s", inst.Transaction)
+	}
+	if inst.QuotaGroupName != "" && inst.Action != "install" {
+		return fmt.Errorf("quota-group can only be specified on install")
 	}
 
 	return inst.snapRevisionOptions.validate()
@@ -585,7 +590,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 		}
 	}
 	transaction := inst.Transaction
-	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID, &snapstate.Flags{Transaction: transaction})
+	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, nil, inst.userID, &snapstate.Flags{Transaction: transaction})
 	if err != nil {
 		return nil, err
 	}
@@ -623,7 +628,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 
 	transaction := inst.Transaction
 	// TODO: use a per-request context
-	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID, &snapstate.Flags{
+	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, nil, inst.userID, &snapstate.Flags{
 		IgnoreRunning: inst.IgnoreRunning,
 		Transaction:   transaction,
 	})
@@ -701,7 +706,8 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 }
 
 func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	removed, tasksets, err := snapstateRemoveMany(st, inst.Snaps)
+	flags := &snapstate.RemoveFlags{Purge: inst.Purge}
+	removed, tasksets, err := snapstateRemoveMany(st, inst.Snaps, flags)
 	if err != nil {
 		return nil, err
 	}

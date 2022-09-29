@@ -170,7 +170,12 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		user.Email = loginData.Email
 		err = auth.UpdateUser(st, user)
 	} else {
-		user, err = auth.NewUser(st, loginData.Username, loginData.Email, macaroon, []string{discharge})
+		user, err = auth.NewUser(st, auth.NewUserData{
+			Username:   loginData.Username,
+			Email:      loginData.Email,
+			Macaroon:   macaroon,
+			Discharges: []string{discharge},
+		})
 	}
 	st.Unlock()
 	if err != nil {
@@ -486,7 +491,7 @@ func getUserDetailsFromAssertion(st *state.State, modelAs *asserts.Model, serial
 		"email":    email,
 	})
 	if err != nil {
-		return "", nil, fmt.Errorf(errorPrefix+"%v", err)
+		return "", nil, fmt.Errorf("%s%v", errorPrefix, err)
 	}
 	// the asserts package guarantees that this cast will work
 	su := a.(*asserts.SystemUser)
@@ -496,26 +501,26 @@ func getUserDetailsFromAssertion(st *state.State, modelAs *asserts.Model, serial
 	// check that the signer of the assertion is one of the accepted ones
 	sysUserAuths := modelAs.SystemUserAuthority()
 	if len(sysUserAuths) > 0 && !strutil.ListContains(sysUserAuths, su.AuthorityID()) {
-		return "", nil, fmt.Errorf(errorPrefix+"%q not in accepted authorities %q", email, su.AuthorityID(), sysUserAuths)
+		return "", nil, fmt.Errorf("%s%q not in accepted authorities %q", errorPrefix, su.AuthorityID(), sysUserAuths)
 	}
 	if len(su.Series()) > 0 && !strutil.ListContains(su.Series(), series) {
-		return "", nil, fmt.Errorf(errorPrefix+"%q not in series %q", email, series, su.Series())
+		return "", nil, fmt.Errorf("%s%q not in series %q", errorPrefix, series, su.Series())
 	}
 	if len(su.Models()) > 0 && !strutil.ListContains(su.Models(), model) {
-		return "", nil, fmt.Errorf(errorPrefix+"%q not in models %q", model, su.Models())
+		return "", nil, fmt.Errorf("%s%q not in models %q", errorPrefix, model, su.Models())
 	}
 	if len(su.Serials()) > 0 {
 		if serialAs == nil {
-			return "", nil, fmt.Errorf(errorPrefix + "bound to serial assertion but device not yet registered")
+			return "", nil, errors.New(errorPrefix + "bound to serial assertion but device not yet registered")
 		}
 		serial := serialAs.Serial()
 		if !strutil.ListContains(su.Serials(), serial) {
-			return "", nil, fmt.Errorf(errorPrefix+"%q not in serials %q", serial, su.Serials())
+			return "", nil, fmt.Errorf("%s%q not in serials %q", errorPrefix, serial, su.Serials())
 		}
 	}
 
 	if !su.ValidAt(time.Now()) {
-		return "", nil, fmt.Errorf(errorPrefix + "assertion not valid anymore")
+		return "", nil, errors.New(errorPrefix + "assertion not valid anymore")
 	}
 
 	gecos := fmt.Sprintf("%s,%s", email, su.Name())
@@ -569,7 +574,12 @@ func setupLocalUser(st *state.State, username, email string) error {
 
 	// setup new user, local-only
 	st.Lock()
-	authUser, err := auth.NewUser(st, username, email, "", nil)
+	authUser, err := auth.NewUser(st, auth.NewUserData{
+		Username:   username,
+		Email:      email,
+		Macaroon:   "",
+		Discharges: nil,
+	})
 	st.Unlock()
 	if err != nil {
 		return fmt.Errorf("cannot persist authentication details: %v", err)

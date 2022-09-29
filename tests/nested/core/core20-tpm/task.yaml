@@ -11,39 +11,39 @@ debug: |
 
 execute: |
     echo "Verifying tpm working on the nested vm"
-    tests.nested exec "dmesg | grep -i tpm" | MATCH "efi: +SMBIOS=.* +TPMFinalLog=.*"
-    tests.nested exec "test -e /sys/kernel/security/tpm0/binary_bios_measurements"
+    remote.exec "dmesg | grep -i tpm" | MATCH "efi: +SMBIOS=.* +TPMFinalLog=.*"
+    remote.exec "test -e /sys/kernel/security/tpm0/binary_bios_measurements"
 
     echo "and secure boot is enabled on the nested vm"
-    tests.nested exec "xxd /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c" | MATCH "00000000: 0600 0000 01\s+....."
+    remote.exec "xxd /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c" | MATCH "00000000: 0600 0000 01\s+....."
 
     echo "and the recovery key is unavailable"
-    tests.nested exec "test ! -e /var/lib/snapd/device/fde/recovery.key"
+    remote.exec "test ! -e /var/lib/snapd/device/fde/recovery.key"
     # the first request to show the keys will create them
-    tests.nested exec "sudo snap recovery --show-keys"
+    remote.exec "sudo snap recovery --show-keys"
     echo "the recovery key is available now"
-    tests.nested exec "test -e /var/lib/snapd/device/fde/recovery.key"
+    remote.exec "test -e /var/lib/snapd/device/fde/recovery.key"
     echo "and has the expected size"
-    tests.nested exec "stat --printf=%s /var/lib/snapd/device/fde/recovery.key" | MATCH '^16$'
+    remote.exec "stat --printf=%s /var/lib/snapd/device/fde/recovery.key" | MATCH '^16$'
     echo "and has the expected owner and permissions"
-    tests.nested exec "stat --printf='%u:%g %a' /var/lib/snapd/device/fde/recovery.key" | MATCH '^0:0 600$'
+    remote.exec "stat --printf='%u:%g %a' /var/lib/snapd/device/fde/recovery.key" | MATCH '^0:0 600$'
 
     echo "verify that recovery key can be removed"
-    tests.nested exec "sudo snap install --devmode --edge test-snapd-curl"
-    tests.nested exec "sudo test-snapd-curl.curl --unix-socket /run/snapd.socket -D- -d '{\"action\":\"remove\"}' http://localhost/v2/system-recovery-keys"
+    remote.exec "sudo snap install --devmode --edge test-snapd-curl"
+    remote.exec "sudo test-snapd-curl.curl --unix-socket /run/snapd.socket -D- -d '{\"action\":\"remove\"}' http://localhost/v2/system-recovery-keys"
     echo "and the key is no longer available"
-    tests.nested exec "test ! -e /var/lib/snapd/device/fde/recovery.key"
+    remote.exec "test ! -e /var/lib/snapd/device/fde/recovery.key"
 
 
     echo "and the tpm-{policy-auth-key,lockout-auth} files are in ubuntu-save"
-    tests.nested exec "test -e /var/lib/snapd/save/device/fde/tpm-policy-auth-key"
-    tests.nested exec "test -e /var/lib/snapd/save/device/fde/tpm-lockout-auth"
+    remote.exec "test -e /var/lib/snapd/save/device/fde/tpm-policy-auth-key"
+    remote.exec "test -e /var/lib/snapd/save/device/fde/tpm-lockout-auth"
 
     echo "Grab modeenv content and checksums"
-    tests.nested exec "cat /var/lib/snapd/modeenv" > modeenv
-    boot_grub_sha3="$(tests.nested exec "cat /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
-    seed_grub_sha3="$(tests.nested exec "cat /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
-    seed_shim_sha3="$(tests.nested exec "cat /run/mnt/ubuntu-seed/EFI/boot/bootx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+    remote.exec "cat /var/lib/snapd/modeenv" > modeenv
+    boot_grub_sha3="$(remote.exec "cat /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+    seed_grub_sha3="$(remote.exec "cat /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi" | "$TESTSLIB"/tools/sha3-384)"
+    seed_shim_sha3="$(remote.exec "cat /run/mnt/ubuntu-seed/EFI/boot/bootx64.efi" | "$TESTSLIB"/tools/sha3-384)"
 
     # modeenv entries look like this:
     # current_trusted_boot_assets={"grubx64.efi":["2e03571ce08de6cdde8a0ad80db8777c411af66073b795e514ad365da842920c9d50eaa0c3b45e878b9c8723cb22e0df"]}
@@ -55,19 +55,19 @@ execute: |
     grep current_trusted_recovery_boot_assets= < modeenv  | MATCH "\"bootx64.efi\":\[\"$seed_shim_sha3\"\]"
 
     echo "Check that files exist too"
-    tests.nested exec "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${boot_grub_sha3}" | \
+    remote.exec "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${boot_grub_sha3}" | \
         "$TESTSLIB"/tools/sha3-384 | MATCH "^$boot_grub_sha3\$"
-    tests.nested exec "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${seed_grub_sha3}" | \
+    remote.exec "cat /var/lib/snapd/boot-assets/grub/grubx64.efi-${seed_grub_sha3}" | \
         "$TESTSLIB"/tools/sha3-384 | MATCH "^$seed_grub_sha3\$"
-    tests.nested exec "cat /var/lib/snapd/boot-assets/grub/bootx64.efi-${seed_shim_sha3}" | \
+    remote.exec "cat /var/lib/snapd/boot-assets/grub/bootx64.efi-${seed_shim_sha3}" | \
         "$TESTSLIB"/tools/sha3-384 | MATCH "^$seed_shim_sha3\$"
 
     echo "Check for sealed keys marker"
-    tests.nested exec "test -f /var/lib/snapd/device/fde/sealed-keys"
+    remote.exec "test -f /var/lib/snapd/device/fde/sealed-keys"
 
     echo "Check that kernel command line is properly recorded"
     cmdline_modeenv="$(grep current_kernel_command_lines= < modeenv  | sed -e 's/current_kernel_command_lines=//' | jq -r '.[0]')"
-    cmdline="$(tests.nested exec "cat /proc/cmdline")"
+    cmdline="$(remote.exec "cat /proc/cmdline")"
     test "$cmdline" = "$cmdline_modeenv"
     echo "$cmdline" | MATCH "snapd_recovery_mode=run "
 
@@ -79,16 +79,16 @@ execute: |
 
     echo "Check compatibility scenarios:"
     echo "1. that kernel command lines is restored when booted successfully"
-    tests.nested exec "sudo sed -i -e 's/current_kernel_command_lines=.*/current_kernel_command_lines=/' /var/lib/snapd/modeenv"
+    remote.exec "sudo sed -i -e 's/current_kernel_command_lines=.*/current_kernel_command_lines=/' /var/lib/snapd/modeenv"
     echo "2. good recovery systems is populated with current systems"
-    tests.nested exec "sudo sed -i -e 's/good_recovery_systems=.*/good_recovery_systems=/' /var/lib/snapd/modeenv"
+    remote.exec "sudo sed -i -e 's/good_recovery_systems=.*/good_recovery_systems=/' /var/lib/snapd/modeenv"
 
     boot_id="$( tests.nested boot-id )"
-    tests.nested exec "sudo reboot" || true
+    remote.exec "sudo reboot" || true
     tests.nested wait-for reboot "${boot_id}"
     echo "Check the test will race with snapd updating the modeenv, wait for the modenv to have a good state"
-    tests.nested exec "retry --wait 5 -n 10 sh -c 'MATCH current_kernel_command_lines=.*snapd_recovery_mode=run < /var/lib/snapd/modeenv'"
-    tests.nested exec "cat /var/lib/snapd/modeenv" > modeenv.after-reboot
+    remote.exec "retry --wait 5 -n 10 sh -c 'MATCH current_kernel_command_lines=.*snapd_recovery_mode=run < /var/lib/snapd/modeenv'"
+    remote.exec "cat /var/lib/snapd/modeenv" > modeenv.after-reboot
     echo "Check the kernel command line is restored"
     cmdline_modeenv_restored="$(grep current_kernel_command_lines= < modeenv.after-reboot  | sed -e 's/current_kernel_command_lines=//' | jq -r '.[0]')"
     test "$cmdline_modeenv_restored" = "$cmdline_modeenv"

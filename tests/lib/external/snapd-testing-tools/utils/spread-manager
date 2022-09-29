@@ -25,6 +25,7 @@ _check_project_path() {
 }
 
 _check_test_paths() {
+    # shellcheck disable=SC2124
     local test_paths="$@"
     if [ -z "$test_paths" ]; then
         echo "spread-manager: test path cannot be empty"
@@ -66,10 +67,11 @@ _set_manual_value() {
 set_manual() {
     local project_path="$1"
     shift
+    # shellcheck disable=SC2124
     local test_paths="$@"
 
     _check_project_path "$project_path"
-    test_paths="$(echo $test_paths | tr ',' ' ')"
+    test_paths="$(echo "$test_paths" | tr ',' ' ')"
     _check_test_paths "$test_paths"
 
     for test_path in $test_paths; do
@@ -78,17 +80,18 @@ set_manual() {
 
         # Backup the task
         cp "$task_path" "$task_path.back"
-        _set_manual_value $task_path true
+        _set_manual_value "$task_path" true
     done
 }
 
 unset_manual() {
     local project_path="$1"
     shift
+    # shellcheck disable=SC2124
     local test_paths="$@"
 
     _check_project_path "$project_path"
-    test_paths="$(echo $test_paths | tr ',' ' ')"
+    test_paths="$(echo "$test_paths" | tr ',' ' ')"
     _check_test_paths "$test_paths"
 
     for test_path in $test_paths; do
@@ -97,17 +100,18 @@ unset_manual() {
 
         # Backup the task
         cp "$task_path" "$task_path.back"
-        _set_manual_value $task_path false
+        _set_manual_value "$task_path" false
     done
 }
 
 reset_manual() {
     local project_path="$1"
     shift
+    # shellcheck disable=SC2124
     local test_paths="$@"
 
     _check_project_path "$project_path"
-    test_paths="$(echo $test_paths | tr ',' ' ')"
+    test_paths="$(echo "$test_paths" | tr ',' ' ')"
     _check_test_paths "$test_paths"
 
     for test_path in $test_paths; do
@@ -147,12 +151,14 @@ main() {
                 else
                     params="$(pwd)"
                 fi
+                # shellcheck disable=SC2124
                 params="$params $@"
                 break
                 ;;
             *)
                 action=$(echo "$subcommand" | tr '-' '_')
                 shift
+                # shellcheck disable=SC2124
                 params="$@"
                 break
                 ;;
@@ -164,7 +170,7 @@ main() {
         show_help
         exit 1
     fi
-    "$action" $params
+    "$action" "$params"
     
 }
 

@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 )
 
 var (
@@ -38,10 +39,6 @@ var (
 	// during the initramfs, typically used in recover mode.
 	InitramfsHostUbuntuDataDir string
 
-	// InitramfsHostWritableDir is the location of the host writable
-	// partition during the initramfs, typically used in recover mode.
-	InitramfsHostWritableDir string
-
 	// InitramfsUbuntuBootDir is the location of ubuntu-boot during the
 	// initramfs.
 	InitramfsUbuntuBootDir string
@@ -53,19 +50,6 @@ var (
 	// InitramfsUbuntuSaveDir is the location of ubuntu-save during the
 	// initramfs.
 	InitramfsUbuntuSaveDir string
-
-	// InitramfsWritableDir is the location of the writable partition during the
-	// initramfs. Note that this may refer to a temporary filesystem or a
-	// physical partition depending on what system mode the system is in.
-	InitramfsWritableDir string
-
-	// InstallHostWritableDir is the location of the writable partition of the
-	// installed host during install mode. This should always be on a physical
-	// partition.
-	InstallHostWritableDir string
-
-	// InstallHostFDEDataDir is the location of the FDE data during install mode.
-	InstallHostFDEDataDir string
 
 	// InstallHostFDESaveDir is the directory of the FDE data on the
 	// ubuntu-save partition during install mode. For other modes,
@@ -89,19 +73,56 @@ var (
 	snapBootFlagsFile string
 )
 
+// InstallHostWritableDir is the location of the writable partition of the
+// installed host during install mode. This should always be on a physical
+// partition.
+func InstallHostWritableDir(mod gadget.Model) string {
+	if mod.Classic() {
+		return filepath.Join(InitramfsRunMntDir, "ubuntu-data")
+	}
+	return filepath.Join(InitramfsRunMntDir, "ubuntu-data", "system-data")
+}
+
+// InitramfsHostWritableDir is the location of the host writable
+// partition during the initramfs, typically used in recover mode.
+func InitramfsHostWritableDir(mod gadget.Model) string {
+	if mod.Classic() {
+		return InitramfsHostUbuntuDataDir
+	}
+	return filepath.Join(InitramfsHostUbuntuDataDir, "system-data")
+}
+
+// InitramfsWritableDir is the location of the writable partition during the
+// initramfs. Note that this may refer to a temporary filesystem or a
+// physical partition depending on what system mode the system is in.
+//
+// This needs the "isRunMode" in the future for when we implement a
+// recovery system on "classic+modes". In this scenario in "run" mode
+// we have the debian based rootfs in /run/mnt/ubuntu-data *but* in
+// "recover" mode the rootfs comes from a base snap like "core22" so
+// we need to generate "ubuntu-core" like paths.
+func InitramfsWritableDir(mod gadget.Model, isRunMode bool) string {
+	if mod.Classic() && isRunMode {
+		return InitramfsDataDir
+	}
+	return filepath.Join(InitramfsDataDir, "system-data")
+}
+
+// InstallHostFDEDataDir is the location of the FDE data during install mode.
+func InstallHostFDEDataDir(mod gadget.Model) string {
+	return dirs.SnapFDEDirUnder(InstallHostWritableDir(mod))
+}
+
 func setInitramfsDirVars(rootdir string) {
 	InitramfsRunMntDir = filepath.Join(rootdir, "run/mnt")
 	InitramfsDataDir = filepath.Join(InitramfsRunMntDir, "data")
 	InitramfsHostUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "host", "ubuntu-data")
-	InitramfsHostWritableDir = filepath.Join(InitramfsHostUbuntuDataDir, "system-data")
 	InitramfsUbuntuBootDir = filepath.Join(InitramfsRunMntDir, "ubuntu-boot")
 	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
 	InitramfsUbuntuSaveDir = filepath.Join(InitramfsRunMntDir, "ubuntu-save")
-	InstallHostWritableDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data", "system-data")
+
 	InstallHostDeviceSaveDir = filepath.Join(InitramfsUbuntuSaveDir, "device")
-	InstallHostFDEDataDir = dirs.SnapFDEDirUnder(InstallHostWritableDir)
 	InstallHostFDESaveDir = filepath.Join(InstallHostDeviceSaveDir, "fde")
-	InitramfsWritableDir = filepath.Join(InitramfsDataDir, "system-data")
 	InitramfsSeedEncryptionKeyDir = filepath.Join(InitramfsUbuntuSeedDir, "device/fde")
 	InitramfsBootEncryptionKeyDir = filepath.Join(InitramfsUbuntuBootDir, "device/fde")
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -106,7 +106,7 @@ var (
 	CanRemove              = canRemove
 	CanDisable             = canDisable
 	CachedStore            = cachedStore
-	DefaultRefreshSchedule = defaultRefreshSchedule
+	DefaultRefreshSchedule = defaultRefreshScheduleStr
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags
@@ -238,7 +238,7 @@ var (
 
 type UpdateFilter = updateFilter
 
-func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, int, UpdateFilter, *Flags, string) ([]string, []*state.TaskSet, error)) (restore func()) {
+func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, []*RevisionOptions, int, UpdateFilter, *Flags, string) ([]string, []*state.TaskSet, error)) (restore func()) {
 	old := reRefreshUpdateMany
 	reRefreshUpdateMany = f
 	return func() {
@@ -269,8 +269,12 @@ var (
 	MissingDisabledServices = missingDisabledServices
 )
 
-func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) error {
-	return m.maybeUndoRemodelBootChanges(t)
+func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) (restartRequested, rebootRequired bool, err error) {
+	restartPoss, err := m.maybeUndoRemodelBootChanges(t)
+	if restartPoss != nil {
+		return true, restartPoss.RebootRequired, nil
+	}
+	return false, false, err
 }
 
 func MockPidsOfSnap(f func(instanceName string) (map[string][]int, error)) func() {
@@ -313,6 +317,7 @@ var (
 var (
 	InhibitRefresh = inhibitRefresh
 	MaxInhibition  = maxInhibition
+	MaxDuration    = maxDuration
 )
 
 type RefreshCandidate = refreshCandidate
@@ -349,7 +354,6 @@ type HoldState = holdState
 var (
 	HoldDurationLeft           = holdDurationLeft
 	LastRefreshed              = lastRefreshed
-	HeldSnaps                  = heldSnaps
 	PruneRefreshCandidates     = pruneRefreshCandidates
 	ResetGatingForRefreshed    = resetGatingForRefreshed
 	PruneGating                = pruneGating
