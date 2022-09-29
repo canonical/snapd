@@ -738,12 +738,12 @@ func (es *ensureSnapServicesContext) ensureSnapSlices(quotaGroups *quota.QuotaGr
 
 func (es *ensureSnapServicesContext) ensureSnapJournaldUnits(quotaGroups *quota.QuotaGroupSet) error {
 	handleJournalModification := func(grp *quota.Group, path string, content []byte) error {
-		old, modifiedFile, err := tryFileUpdate(path, content)
+		old, fileModified, err := tryFileUpdate(path, content)
 		if err != nil {
 			return err
 		}
 
-		if !modifiedFile {
+		if !fileModified {
 			return nil
 		}
 
@@ -781,12 +781,12 @@ func (es *ensureSnapServicesContext) ensureSnapJournaldUnits(quotaGroups *quota.
 // ensureJournalQuotaServiceUnits takes care of writing service drop-in files for all journal namespaces.
 func (es *ensureSnapServicesContext) ensureJournalQuotaServiceUnits(quotaGroups *quota.QuotaGroupSet) error {
 	handleFileModification := func(grp *quota.Group, path string, content []byte) error {
-		old, modifiedFile, err := tryFileUpdate(path, content)
+		old, fileModified, err := tryFileUpdate(path, content)
 		if err != nil {
 			return err
 		}
 
-		if modifiedFile {
+		if fileModified {
 			if es.observeChange != nil {
 				var oldContent []byte
 				if old != nil {
