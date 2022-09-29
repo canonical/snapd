@@ -52,10 +52,19 @@ const fwupdPermanentSlotAppArmor = `
 # access to the system.
 
   # Allow read/write access for old efivars sysfs interface
+  # Also NVME_IOCTL_ADMIN_CMD (NVME plugin)
   capability sys_admin,
   # Allow libfwup to access efivarfs with immutable flag
   capability linux_immutable,
 
+  # SIOCETHTOOL (BCM57xx)
+  capability net_admin,
+
+  # SG_IO
+  # MMC_IOC_CMD, MMC_IOC_MULTI_CMD (eMMC plugin)
+  capability sys_rawio,
+
+  capability sys_nice,
   capability dac_read_search,
   capability dac_override,
   capability sys_rawio,
@@ -97,6 +106,16 @@ const fwupdPermanentSlotAppArmor = `
   /dev/nvme[0-9]* rw,
   /dev/gpiochip[0-9]* rw,
   /dev/drm_dp_aux[0-9]* rw,
+  # Dell plugin
+  /dev/wmi/dell-smbios rw,
+  # MTD plugin
+  /dev/mtd[0-9]* rw,
+  # Realtek MST plugin
+  /dev/i2c-[0-9]* rw,
+
+  # MMC boot partitions
+  /dev/mmcblk[0-9]{,[0-9],[0-9][0-9]}boot[0-9]* rwk,
+  /sys/devices/**/mmcblk[0-9]{,[0-9],[0-9][0-9]}boot[0-9]*/force_ro rw,
 
   # Allow write access for efi firmware updater
   /boot/efi/{,**/} r,
