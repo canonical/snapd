@@ -24,13 +24,16 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -425,4 +428,218 @@ snaps:
 	var seeded bool
 	err = diskState.Get("seeded", &seeded)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+}
+
+func (s *firstbootPreseedingClassic16Suite) TestPopulatePreseedWithConnectHook(c *C) {
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
+
+	// precondition
+	c.Assert(release.OnClassic, Equals, true)
+
+	hooksCalled := []*hookstate.Context{}
+	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		ctx.Lock()
+		defer ctx.Unlock()
+
+		hooksCalled = append(hooksCalled, ctx)
+		return nil, nil
+	})
+	defer restore()
+
+	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{
+		classic: true,
+	})
+
+	snapFilesWithHook := [][]string{
+		{"bin/bar", ``},
+		{"meta/hooks/connect-plug-network", ``},
+	}
+
+	// put a firstboot snap into the SnapBlobDir
+	snapYaml = `name: foo
+base: core18
+version: 1.0
+plugs:
+ shared-data-plug:
+  interface: content
+  target: import
+  content: mylib
+apps:
+ bar:
+  command: bin/bar
+  plugs: [network]
+`
+	fooFname, fooDecl, fooRev := s.MakeAssertedSnap(c, snapYaml, snapFilesWithHook, snap.R(128), "developerid")
+	s.WriteAssertions("foo.asserts", s.devAcct, fooRev, fooDecl)
+
+	// put a 2nd firstboot snap into the SnapBlobDir
+	snapYaml = `name: bar
+base: core18
+version: 1.0
+slots:
+ shared-data-slot:
+  interface: content
+  content: mylib
+  read:
+   - /
+apps:
+ bar:
+  command: bin/bar
+`
+	snapFiles := [][]string{
+		{"bin/bar", ``},
+	}
+	barFname, barDecl, barRev := s.MakeAssertedSnap(c, snapYaml, snapFiles, snap.R(65), "developerid")
+	s.WriteAssertions("bar.asserts", s.devAcct, barDecl, barRev)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
+	s.WriteAssertions("model.asserts", assertsChain...)
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: core18
+   file: %s
+ - name: foo
+   file: %s
+ - name: bar
+   file: %s
+`, snapdFname, core18Fname, fooFname, barFname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	s.startOverlord(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true}
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
+	c.Assert(err, IsNil)
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+
+	checkPreseedOrder(c, tsAll, "snapd", "core18", "foo", "bar")
+
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+
+	// we are done with this instance of the overlord, stop it here. Otherwise
+	// it will interfere with our second overlord instance
+	c.Assert(s.overlord.Stop(), IsNil)
+
+	// Verify state between the two change runs
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	diskState, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	diskState.Lock()
+	defer diskState.Unlock()
+
+	// seeded snaps are installed
+	_, err = snapstate.CurrentInfo(diskState, "snapd")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(diskState, "core18")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(diskState, "foo")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(diskState, "bar")
+	c.Check(err, IsNil)
+
+	// but we're not considered seeded
+	var seeded bool
+	err = diskState.Get("seeded", &seeded)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+
+	// For the next step of the test, we want to turn off pre-seeding so
+	// we can run the change all the way through, and also see the hooks go
+	// off.
+	restore = snapdenv.MockPreseeding(false)
+	defer restore()
+
+	// Create a new overlord after turning pre-seeding off to run the
+	// change fully through, which we cannot do in pre-seed mode. To actually
+	// invoke the hooks we have to restart the overlord.
+	s.startOverlord(c)
+	st = s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// avoid device reg
+	chg1 := st.NewChange("become-operational", "init device")
+	chg1.SetStatus(state.DoingStatus)
+
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	restart.MockPending(st, restart.RestartUnset)
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(s.overlord.Stop(), IsNil)
+	c.Assert(err, IsNil)
+
+	// Update the change pointer to the change in the new state
+	// otherwise we will be referring to the old one.
+	chg = nil
+	for _, c := range st.Changes() {
+		if c.Kind() == "seed" {
+			chg = c
+			break
+		}
+	}
+	c.Assert(chg, NotNil)
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	c.Assert(hooksCalled, HasLen, 1)
+	c.Check(hooksCalled[0].HookName(), Equals, "connect-plug-network")
+
+	// and ensure state is now considered seeded
+	err = st.Get("seeded", &seeded)
+	c.Assert(err, IsNil)
+	c.Check(seeded, Equals, true)
+
+	// check we set seed-time
+	var seedTime time.Time
+	err = st.Get("seed-time", &seedTime)
+	c.Assert(err, IsNil)
+	c.Check(seedTime.IsZero(), Equals, false)
+
+	// verify that connections was made
+	var conns map[string]interface{}
+	c.Assert(st.Get("conns", &conns), IsNil)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"foo:network core:network": map[string]interface{}{
+			"auto": true, "interface": "network"},
+		"foo:shared-data-plug bar:shared-data-slot": map[string]interface{}{
+			"auto": true, "interface": "content",
+			"plug-static": map[string]interface{}{
+				"content": "mylib", "target": "import",
+			},
+			"slot-static": map[string]interface{}{
+				"content": "mylib",
+				"read": []interface{}{
+					"/",
+				},
+			},
+		},
+	})
 }

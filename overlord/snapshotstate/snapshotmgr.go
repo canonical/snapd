@@ -78,7 +78,7 @@ func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
 	manager := &SnapshotManager{
 		state: st,
 	}
-	snapstate.AddAffectedSnapsByAttr("snapshot-setup", manager.affectedSnaps)
+	snapstate.RegisterAffectedSnapsByAttr("snapshot-setup", manager.affectedSnaps)
 
 	return manager
 }

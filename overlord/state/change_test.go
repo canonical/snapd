@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -87,6 +87,21 @@ func (cs *changeSuite) TestGetSet(c *C) {
 	err := chg.Get("a", &v)
 	c.Assert(err, IsNil)
 	c.Check(v, Equals, 1)
+}
+
+func (cs *changeSuite) TestHas(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+	c.Check(chg.Has("a"), Equals, false)
+
+	chg.Set("a", 1)
+	c.Check(chg.Has("a"), Equals, true)
+
+	chg.Set("a", nil)
+	c.Check(chg.Has("a"), Equals, false)
 }
 
 // TODO Better testing of full change roundtripping via JSON.
