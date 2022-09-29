@@ -2358,7 +2358,11 @@ func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo
 	prevCurrentSvcs := map[string]bool{}
 	if psi := snapst.previousSideInfo(); psi != nil {
 		var prevCurrentInfo *snap.Info
-		if prevCurrentInfo, err = Info(st, snapst.InstanceName(), psi.Revision); prevCurrentInfo != nil {
+		prevCurrentInfo, err = Info(st, snapst.InstanceName(), psi.Revision)
+		if err != nil {
+			return nil, err
+		}
+		if prevCurrentInfo != nil {
 			for _, prevSvc := range prevCurrentInfo.Services() {
 				prevCurrentSvcs[prevSvc.Name] = true
 			}

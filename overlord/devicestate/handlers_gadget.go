@@ -232,6 +232,9 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 	if !isUndo {
 		// when updating, command line comes from the new gadget
 		gadgetData, err = pendingGadgetInfo(snapsup, devCtx)
+		if err != nil {
+			return false, err
+		}
 	} else {
 		// but when undoing, we use the current gadget which should have
 		// been restored
