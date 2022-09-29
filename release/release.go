@@ -21,10 +21,10 @@ package release
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strings"
 	"unicode"
 
@@ -120,16 +120,18 @@ var ioutilReadFile = ioutil.ReadFile
 
 // WSL 1 /proc/version: Linux version [kernel]-Microsoft (Microsoft@Microsoft.com) ([gcc version] ) #[build]-Microsoft [timestamp]
 // WS2 2 /proc/version: Linux version [kernel]-microsoft-standard-WSL2 (oe-user@oe-host) ([gcc version], [ld version]) #1 [timestamp]
-//                                             ^ We use Microsoft (upper case M) to distinguish them
 //
 // Note that WS2's kernel can be customized by the user, so there is no guarantee on the
 // contents of that string. Hence why we search in WSL1's kernel name instead of WSL2's
+var kernelWSL1 = regexp.MustCompile(`^Linux version [0-9.-]+Microsoft \(Microsoft@Microsoft.com\)`)
+
 func getWSLVersion() (int, error) {
 	if !isWSL() {
 		return 0, fmt.Errorf("cannot get WSL version while not running WSL.")
 	}
 	kernel, err := ioutilReadFile("/proc/version")
-	if err == nil && bytes.Contains(kernel, []byte("Microsoft")) {
+	if err != nil || kernelWSL1.MatchString(string(kernel[:])) {
+		// In case of error, we default to WSL1 because it is the most feature-restricted version
 		return 1, nil
 	}
 	return 2, nil
