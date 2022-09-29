@@ -563,10 +563,7 @@ WantedBy=multi-user.target
 Storage=auto
 `
 
-	jSvcTempl := `[Unit]
-Description=Journal Service for Namespace %s
-
-[Service]
+	jSvcContent := `[Service]
 LogsDirectory=
 `
 
@@ -587,7 +584,6 @@ TasksAccounting=true
 `
 
 	jconfContent := fmt.Sprintf(jconfTempl, grp.Name)
-	jSvcContent := fmt.Sprintf(jSvcTempl, grp.Name)
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name)
 
 	exp := []changesObservation{
@@ -686,10 +682,7 @@ RateLimitIntervalSec=5000000us
 RateLimitBurst=15
 `
 
-	jSvcTempl := `[Unit]
-Description=Journal Service for Namespace %s
-
-[Service]
+	jSvcContent := `[Service]
 LogsDirectory=
 `
 
@@ -710,7 +703,6 @@ TasksAccounting=true
 `
 
 	jconfContent := fmt.Sprintf(jconfTempl, grp.Name)
-	jSvcContent := fmt.Sprintf(jSvcTempl, grp.Name)
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name)
 
 	exp := []changesObservation{
@@ -806,10 +798,7 @@ RateLimitIntervalSec=0us
 RateLimitBurst=0
 `
 
-	jSvcTempl := `[Unit]
-Description=Journal Service for Namespace %s
-
-[Service]
+	jSvcContent := `[Service]
 LogsDirectory=
 `
 
@@ -830,7 +819,6 @@ TasksAccounting=true
 `
 
 	jconfContent := fmt.Sprintf(jconfTempl, grp.Name)
-	jSvcContent := fmt.Sprintf(jSvcTempl, grp.Name)
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name)
 
 	exp := []changesObservation{
