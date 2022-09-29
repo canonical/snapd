@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -44,6 +44,17 @@ type Retry struct {
 
 func (r *Retry) Error() string {
 	return "task should be retried"
+}
+
+// Hold is returned from a handler to signal that the task cannot
+// proceed at the moment maybe because some manual action from the
+// user required at this point or because of errors.
+type Hold struct {
+	Reason string
+}
+
+func (r *Hold) Error() string {
+	return "task held, manual action required"
 }
 
 type blockedFunc func(t *Task, running []*Task) bool
@@ -222,7 +233,7 @@ func (r *TaskRunner) run(t *Task) {
 		switch err.(type) {
 		case nil:
 			// we are ok
-		case *Retry:
+		case *Retry, *Hold:
 			// preserve
 		default:
 			if r.stopped {
@@ -242,6 +253,8 @@ func (r *TaskRunner) run(t *Task) {
 			} else if x.After != 0 {
 				t.At(timeNow().Add(x.After))
 			}
+		case *Hold:
+			t.SetStatus(HoldStatus)
 		case nil:
 			var next []*Task
 			switch t.Status() {
