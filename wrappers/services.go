@@ -800,6 +800,10 @@ func (es *ensureSnapServicesContext) ensureJournalQuotaServiceUnits(quotaGroups 
 	}
 
 	for _, grp := range quotaGroups.AllQuotaGroups() {
+		if grp.JournalLimit == nil {
+			continue
+		}
+
 		if err := os.MkdirAll(grp.JournalServiceDropInDir(), 0755); err != nil {
 			return err
 		}
@@ -1456,14 +1460,10 @@ WantedBy={{.SocketsTarget}}
 
 func genJournalServiceFile(grp *quota.Group) []byte {
 	buf := bytes.Buffer{}
-	template := `[Unit]
-Description=Journal Service for Namespace %s
-
-[Service]
+	template := `[Service]
 LogsDirectory=
 `
-
-	fmt.Fprintf(&buf, template, grp.Name)
+	fmt.Fprint(&buf, template)
 	return buf.Bytes()
 }
 
