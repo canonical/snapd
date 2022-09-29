@@ -57,8 +57,7 @@ execute: |
   
   # Verify the contents of /etc/systemd/system/systemd-journald@snap-group-one.service.d/00-snap.conf
   echo "Verifying the systemd-journald@snap-group-one config contents"
-  MATCH "^Description=Journal Service for Namespace group-one" < /etc/systemd/system/systemd-journald@snap-group-one.service.d/00-snap.conf
-  MATCH "^LogsDirectory=$"                                     < /etc/systemd/system/systemd-journald@snap-group-one.service.d/00-snap.conf
+  MATCH "^LogsDirectory=$" < /etc/systemd/system/systemd-journald@snap-group-one.service.d/00-snap.conf
   
   # Now ask for the namespace logs and lets see if we can see messages from 'LogDaemon'
   retry -n 5 sh -c "$TESTSTOOLS/journal-state get-log --namespace snap-group-one | MATCH LogDaemon"
