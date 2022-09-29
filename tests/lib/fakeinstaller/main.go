@@ -53,6 +53,7 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]g
 	if err != nil {
 		return nil, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
+	// TODO: support multiple volumes, see gadget/install/install.go
 	if len(diskLayout.Structure) > 0 {
 		return nil, fmt.Errorf("cannot yet install on a disk that has partitions")
 	}
@@ -61,7 +62,6 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]g
 		IgnoreContent: true,
 	}
 
-	// TODO: support multiple volumes, see gadget/install/install.go
 	vol := firstVol(volumes)
 	lvol, err := gadget.LayoutVolume(vol, gadget.DefaultConstraints, layoutOpts)
 	if err != nil {
@@ -79,6 +79,8 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]g
 }
 
 func runMntFor(label string) string {
+	// TODO: use a different location than snapd here but right now
+	//       snapd expects things to be mounted in the "finish" step
 	return filepath.Join(dirs.GlobalRootDir, "/run/mnt/", label)
 }
 
@@ -224,12 +226,6 @@ func createSeedOnTarget(bootDevice, seedLabel string) error {
 	return nil
 }
 
-// XXX: or will POST {"action":"install","step":"finalize"} do that?
-func writeModeenvOnTarget(seedLabel string) error {
-	// TODO: write modeenv
-	return nil
-}
-
 func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if len(os.Args) != 4 {
 		// xxx: allow installing real UC without a classic-rootfs later
@@ -264,19 +260,14 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err := createSeedOnTarget(bootDevice, seedLabel); err != nil {
 		return fmt.Errorf("cannot create seed on target: %v", err)
 	}
-	// XXX: or will POST {"action":"install","step":"finalize"} do that?
-	if err := writeModeenvOnTarget(seedLabel); err != nil {
-		return fmt.Errorf("cannot write modeenv on target: %v", err)
-	}
 	// Unmount filesystems
 	if err := unmountFilesystems(mntPts); err != nil {
 		return fmt.Errorf("cannot unmount filesystems: %v", err)
 	}
-	//XXX: will the POST below trigger a reboot on the snapd side? if
-	//     not we need to reboot here
 	if err := postSystemsInstallFinish(cli, details, bootDevice, laidoutStructs); err != nil {
 		return fmt.Errorf("cannot finalize install: %v", err)
 	}
+	// TODO: reboot here automatically (optional)
 
 	return nil
 }
@@ -290,4 +281,5 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
+	fmt.Println("install done, please reboot")
 }
