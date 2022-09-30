@@ -1012,7 +1012,6 @@ func (mods *modelSuite) testWithSnapsDecodeInvalid(c *C, modelRaw string, isClas
 		{"type: gadget\n", "type: gadget\n    modes:\n      - run\n", `essential snaps are always available, cannot specify modes or presence for snap "brand-gadget"`},
 		{"type: kernel\n", "type: kernel\n    presence: required\n", `essential snaps are always available, cannot specify modes or presence for snap "baz-linux"`},
 		{"OTHER", "  -\n    name: core20\n    id: core20ididididididididididididid\n    type: base\n    presence: optional\n", `essential snaps are always available, cannot specify modes or presence for snap "core20"`},
-		// XXX
 		{"OTHER", "  -\n    name: core20\n    id: core20ididididididididididididid\n    type: app\n", `boot base "core20" must specify type "base", not "app"`},
 		{"OTHER", "kernel: foo\n", `cannot specify separate "kernel" header once using the extended snaps header`},
 		{"OTHER", "gadget: foo\n", `cannot specify separate "gadget" header once using the extended snaps header`},

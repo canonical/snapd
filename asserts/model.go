@@ -781,19 +781,18 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		if err != nil {
 			return nil, err
 		}
+		hasKernel := modSnaps.kernel != nil
+		hasGadget := modSnaps.gadget != nil
 		if !classic {
-			if modSnaps.gadget == nil {
+			if !hasGadget {
 				return nil, fmt.Errorf(`one "snaps" header entry must specify the model gadget`)
 			}
-			if modSnaps.kernel == nil {
+			if !hasKernel {
 				return nil, fmt.Errorf(`one "snaps" header entry must specify the model kernel`)
 			}
 		} else {
-			hasKernel := modSnaps.kernel != nil
-			if modSnaps.gadget == nil {
-				if hasKernel {
-					return nil, fmt.Errorf("cannot specify a kernel in an extended classic model without a model gadget")
-				}
+			if hasKernel && !hasGadget {
+				return nil, fmt.Errorf("cannot specify a kernel in an extended classic model without a model gadget")
 			}
 		}
 

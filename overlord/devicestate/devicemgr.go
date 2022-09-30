@@ -943,10 +943,6 @@ func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	/*if m.isClassicBoot {
-		return nil
-	}*/
-
 	// boot-ok/update-boot-revision is only relevant in run-mode
 	if m.SystemMode(SysAny) != "run" {
 		return nil
