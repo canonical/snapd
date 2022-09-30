@@ -1261,8 +1261,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	// Unset revision means the snap will be local, assign a local
-	// revision so we can seed/install the snap.
+	// Unset revision here actually means that the snap is local.
+	// Assign then a local revision as seeding/installing the snap would do.
 	for _, typ := range essentialTypes {
 		snInfo := snapInfos[typ]
 		if snInfo.Revision.Unset() {
