@@ -132,7 +132,7 @@ execute: |
   test -x /run/mnt/ubuntu-data/usr/lib/systemd/systemd
   # ensure not "ubuntu-data/system-data" is generated, this is a dir only
   # used on core and should not be there on classic
-  #not test -d /run/mnt/ubuntu-data/system-data
+  not test -d /run/mnt/ubuntu-data/system-data
   # TODO: ensure we don't have this
   #not test -d /run/mnt/ubuntu-data/_writable_defaults
   # and the boot assets are in the right place
