@@ -33,8 +33,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
-	"syscall"
 
 	_ "golang.org/x/crypto/sha3"
 	"gopkg.in/tomb.v2"
@@ -72,6 +70,7 @@ var (
 	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
 	installRun                           = install.Run
 	installFactoryReset                  = install.FactoryReset
+	installMountVolumes                  = install.MountVolumes
 	installWriteContent                  = install.WriteContent
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
@@ -1306,36 +1305,11 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// Mount the partitions and find ESP partition
-	espMntDir := ""
-	numEsp := 0
-	for _, vol := range onVolumes {
-		for _, part := range vol.Structure {
-			if part.Filesystem == "" {
-				continue
-			}
-			mntPt := filepath.Join("/run/mnt", part.Name)
-			if err := syscall.Mount(part.Device, mntPt, part.Filesystem, 0, ""); err != nil {
-				return fmt.Errorf("cannot mount %q at %q: %v", part.Device, mntPt, err)
-			}
-			defer func() {
-				errUnmount := syscall.Unmount(mntPt, 0)
-				if errUnmount != nil {
-					logger.Noticef("cannot unmount %q: %v", mntPt, errUnmount)
-				}
-				// Do not clobber previous errors
-				if err == nil {
-					err = errUnmount
-				}
-			}()
-			if strings.Contains(strings.ToUpper(part.Type), "C12A7328-F81F-11D2-BA4B-00A0C93EC93B") {
-				espMntDir = mntPt
-				numEsp++
-			}
-		}
+	espMntDir, unmount, err := installMountVolumes(onVolumes)
+	if err != nil {
+		return fmt.Errorf("cannot mount partitions for installation: %v", err)
 	}
-	if numEsp != 1 {
-		return fmt.Errorf("there are %d ESP partitions, expected one", numEsp)
-	}
+	defer unmount()
 
 	bootWith := &boot.BootableSet{
 		Base:       snapInfos[snap.TypeBase],

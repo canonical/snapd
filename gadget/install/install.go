@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -623,4 +624,49 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		KeyForRole:    keyForRole,
 		DeviceForRole: deviceForRole,
 	}, nil
+}
+
+// MountVolumes mounts partitions for the volumes specified by
+// onVolumes. It returns the ESP partition and a restore function.
+func MountVolumes(onVolumes map[string]*gadget.Volume) (espMntDir string, unmount func() error, err error) {
+	var mountPoints []string
+	numEsp := 0
+	unmount = func() (err error) {
+		for _, mntPt := range mountPoints {
+			errUnmount := sysUnmount(mntPt, 0)
+			if errUnmount != nil {
+				logger.Noticef("cannot unmount %q: %v", mntPt, errUnmount)
+			}
+			// Make sure we do not set err to nil if it had already an error
+			if errUnmount != nil {
+				err = errUnmount
+			}
+		}
+		return err
+	}
+	for _, vol := range onVolumes {
+		for _, part := range vol.Structure {
+			if part.Filesystem == "" {
+				continue
+			}
+			// TODO /run/mnt?
+			mntPt := filepath.Join("/run/mnt", part.Name)
+			if err := sysMount(part.Device, mntPt, part.Filesystem, 0, ""); err != nil {
+				defer unmount()
+				return "", nil, fmt.Errorf("cannot mount %q at %q: %v", part.Device, mntPt, err)
+			}
+			mountPoints = append(mountPoints, mntPt)
+
+			if strings.Contains(strings.ToUpper(part.Type), "C12A7328-F81F-11D2-BA4B-00A0C93EC93B") {
+				espMntDir = mntPt
+				numEsp++
+			}
+		}
+	}
+	if numEsp != 1 {
+		defer unmount()
+		return "", nil, fmt.Errorf("there are %d ESP partitions, expected one", numEsp)
+	}
+
+	return espMntDir, unmount, nil
 }
