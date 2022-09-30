@@ -1897,3 +1897,87 @@ version: 5.0
 	c.Check(seedGenv.Get("snapd_recovery_mode"), Equals, boot.ModeRun)
 	c.Check(seedGenv.Get("snapd_good_recovery_systems"), Equals, "")
 }
+
+func (s *makeBootable20Suite) TestMakeRunnableSystemNoGoodRecoverySystems(c *C) {
+	bootloader.Force(nil)
+	model := boottest.MakeMockUC20Model()
+	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
+	err := os.MkdirAll(seedSnapsDirs, 0755)
+	c.Assert(err, IsNil)
+
+	// grub on ubuntu-seed
+	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
+	mockSeedGrubCfg := filepath.Join(mockSeedGrubDir, "grub.cfg")
+	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+	c.Assert(err, IsNil)
+	genv := grubenv.NewEnv(filepath.Join(mockSeedGrubDir, "grubenv"))
+	c.Assert(genv.Save(), IsNil)
+
+	// mock grub so it is detected as the current bootloader
+	unpackedGadgetDir := c.MkDir()
+	grubRecoveryCfg := []byte("#grub-recovery cfg")
+	grubRecoveryCfgAsset := []byte("#grub-recovery cfg from assets")
+	grubCfg := []byte("#grub cfg")
+	grubCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub cfg from assets")
+	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
+		{"grub-recovery.conf", string(grubRecoveryCfg)},
+		{"grub.conf", string(grubCfg)},
+		{"bootx64.efi", "shim content"},
+		{"grubx64.efi", "grub content"},
+		{"meta/snap.yaml", gadgetSnapYaml},
+	})
+	restore := assets.MockInternal("grub-recovery.cfg", grubRecoveryCfgAsset)
+	defer restore()
+	restore = assets.MockInternal("grub.cfg", grubCfgAsset)
+	defer restore()
+
+	// make the snaps symlinks so that we can ensure that makebootable follows
+	// the symlinks and copies the files and not the symlinks
+	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
+type: base
+version: 5.0
+`, snap.R(3))
+	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
+	err = os.Symlink(baseFn, baseInSeed)
+	c.Assert(err, IsNil)
+	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
+type: kernel
+version: 5.0
+`, snap.R(5),
+		[][]string{
+			{"kernel.efi", "I'm a kernel.efi"},
+		},
+	)
+	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
+	err = os.Symlink(kernelFn, kernelInSeed)
+	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
+
+	bootWith := &boot.BootableSet{
+		RecoverySystemDir: "",
+		BasePath:          baseInSeed,
+		Base:              baseInfo,
+		KernelPath:        kernelInSeed,
+		Kernel:            kernelInfo,
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInSeed,
+		Recovery:          false,
+		UnpackedGadgetDir: unpackedGadgetDir,
+	}
+
+	err = boot.MakeRunnableSystem(model, bootWith, nil)
+	c.Assert(err, IsNil)
+
+	// ensure that there are no good recovery systems as RecoverySystemDir was empty
+	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
+	c.Assert(mockSeedGrubenv, testutil.FilePresent)
+	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_good_recovery_systems=")
+}
