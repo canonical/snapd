@@ -1209,7 +1209,7 @@ func rotateEncryptionKeys() error {
 	return nil
 }
 
-func mountSeedSnap(seedSn *seed.Snap) (mountpoint string, restore func() error, err error) {
+func mountSeedSnap(seedSn *seed.Snap) (mountpoint string, unmount func() error, err error) {
 	mountpoint = filepath.Join(dirs.SnapRunDir, "snap-content", string(seedSn.EssentialType))
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
 		return "", nil, err
@@ -1234,6 +1234,7 @@ func mountSeedSnap(seedSn *seed.Snap) (mountpoint string, restore func() error, 
 // - install gadget assets
 // - install kernel.efi
 // - make system bootable (including writing modeenv)
+// TODO this needs unit tests
 func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	var err error
 	st := t.State()
@@ -1260,25 +1261,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	// Mount gadget and kernel
-	mntPtForType := make(map[snap.Type]string)
-	for _, seedSn := range []*seed.Snap{snapSeeds[snap.TypeGadget], snapSeeds[snap.TypeKernel]} {
-		mntPt, rest, err := mountSeedSnap(seedSn)
-		mntPtForType[seedSn.EssentialType] = mntPt
-		if err != nil {
-			return err
-		}
-		defer func() {
-			errRest := rest()
-			if err == nil {
-				err = errRest
-			}
-		}()
-	}
-
-	// Unset revision means the snap will be local, we do something
-	// similar in the seedwriter.
-	// XXX: is this the right place?
+	// Unset revision means the snap will be local, assign a local
+	// revision so we can seed/install the snap.
 	for _, typ := range essentialTypes {
 		snInfo := snapInfos[typ]
 		if snInfo.Revision.Unset() {
@@ -1286,7 +1270,26 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	// Mount gadget and kernel
+	mntPtForType := make(map[snap.Type]string)
+	for _, seedSn := range []*seed.Snap{snapSeeds[snap.TypeGadget], snapSeeds[snap.TypeKernel]} {
+		mntPt, unmountSnap, err := mountSeedSnap(seedSn)
+		if err != nil {
+			return err
+		}
+		mntPtForType[seedSn.EssentialType] = mntPt
+		defer func() {
+			errRest := unmountSnap()
+			if err == nil {
+				err = errRest
+			}
+		}()
+	}
+
+	// TODO validation of onVolumes versus gadget.yaml
+
 	// TODO useEncryption always false until setup encryption is implemented
+	// TODO we probably want to pass a different location for the assets cache
 	useEncryption := false
 	installObserver, trustedInstallObserver, err := buildInstallObserver(sys.Model, mntPtForType[snap.TypeGadget], useEncryption)
 	if err != nil {
@@ -1330,7 +1333,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		// as we will chainload to grub in the boot partition.
 		Role: bootloader.RoleRecovery,
 	}
-	if err := bootMakeBootablePartition(espMntDir, bootWith, boot.ModeRun, opts, []string{}); err != nil {
+	if err := bootMakeBootablePartition(espMntDir, opts, bootWith, boot.ModeRun, []string{}); err != nil {
 		return err
 	}
 

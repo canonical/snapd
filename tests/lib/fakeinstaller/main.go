@@ -79,7 +79,7 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]g
 }
 
 func runMntFor(label string) string {
-	return filepath.Join(dirs.GlobalRootDir, "/run/installer-mnt/", label)
+	return filepath.Join(dirs.GlobalRootDir, "/run/fakeinstaller-mnt/", label)
 }
 
 func postSystemsInstallSetupStorageEncryption(details *client.SystemDetails) error {
@@ -251,9 +251,9 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
-	if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
-		return fmt.Errorf("cannot create classic rootfs: %v", err)
-	}
+	// if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
+	// 	return fmt.Errorf("cannot create classic rootfs: %v", err)
+	// }
 	if err := createSeedOnTarget(bootDevice, seedLabel); err != nil {
 		return fmt.Errorf("cannot create seed on target: %v", err)
 	}

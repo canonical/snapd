@@ -351,7 +351,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 			}
 		}
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
-			if err := mountFilesystem(fsDevice, part.Filesystem, part.Label, boot.InitramfsRunMntDir); err != nil {
+			if err := mountFilesystem(fsDevice, part.Filesystem, filepath.Join(boot.InitramfsRunMntDir, part.Label)); err != nil {
 				return nil, err
 			}
 		}
@@ -600,7 +600,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 			keyForRole[part.Role] = encryptionKey
 		}
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
-			if err := mountFilesystem(fsDevice, part.Filesystem, part.Label, boot.InitramfsRunMntDir); err != nil {
+			if err := mountFilesystem(fsDevice, part.Filesystem, filepath.Join(boot.InitramfsRunMntDir, part.Label)); err != nil {
 				return nil, err
 			}
 		}
@@ -627,7 +627,8 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 }
 
 // MountVolumes mounts partitions for the volumes specified by
-// onVolumes. It returns the ESP partition and a restore function.
+// onVolumes. It returns the ESP partition and a function that needs
+// to be called for unmounting them.
 func MountVolumes(onVolumes map[string]*gadget.Volume) (espMntDir string, unmount func() error, err error) {
 	var mountPoints []string
 	numEsp := 0
@@ -649,9 +650,8 @@ func MountVolumes(onVolumes map[string]*gadget.Volume) (espMntDir string, unmoun
 			if part.Filesystem == "" {
 				continue
 			}
-			// TODO /run/mnt?
-			mntPt := filepath.Join("/run/mnt", part.Name)
-			if err := sysMount(part.Device, mntPt, part.Filesystem, 0, ""); err != nil {
+			mntPt := filepath.Join(boot.InitramfsRunMntDir, part.Name)
+			if err := mountFilesystem(part.Device, part.Filesystem, mntPt); err != nil {
 				defer unmount()
 				return "", nil, fmt.Errorf("cannot mount %q at %q: %v", part.Device, mntPt, err)
 			}

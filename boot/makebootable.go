@@ -81,7 +81,7 @@ func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableS
 // MakeBootablePartition configures a partition mounted on rootdir
 // using information from bootWith and bootFlags. Contrarily to
 // MakeBootableImage this happens in a live system.
-func MakeBootablePartition(partDir string, bootWith *BootableSet, bootMode string, opts *bootloader.Options, bootFlags []string) error {
+func MakeBootablePartition(partDir string, opts *bootloader.Options, bootWith *BootableSet, bootMode string, bootFlags []string) error {
 	return configureBootloader(partDir, bootWith, bootMode, opts, bootFlags)
 }
 

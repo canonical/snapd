@@ -1805,3 +1805,95 @@ version: 5.0
 	c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
 	c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, "args from gadget rev 5")
 }
+
+func (s *makeBootable20Suite) TestMakeBootablePartition(c *C) {
+	bootloader.Force(nil)
+
+	unpackedGadgetDir := c.MkDir()
+	grubRecoveryCfg := "#grub-recovery cfg"
+	grubRecoveryCfgAsset := "#grub-recovery cfg from assets"
+	grubCfg := "#grub cfg"
+	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
+		{"grub-recovery.conf", grubRecoveryCfg},
+		{"grub.conf", grubCfg},
+		{"meta/snap.yaml", gadgetSnapYaml},
+	})
+	restore := assets.MockInternal("grub-recovery.cfg", []byte(grubRecoveryCfgAsset))
+	defer restore()
+
+	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
+	err := os.MkdirAll(seedSnapsDirs, 0755)
+	c.Assert(err, IsNil)
+
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 5.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
+
+	baseFn, baseInfo := makeSnap(c, "core22", `name: core22
+type: base
+version: 5.0
+`, snap.R(3))
+	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
+	err = os.Rename(baseFn, baseInSeed)
+	c.Assert(err, IsNil)
+	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
+type: kernel
+version: 5.0
+`, snap.R(5), [][]string{
+		{"kernel.efi", "I'm a kernel.efi"},
+	})
+	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
+	err = os.Rename(kernelFn, kernelInSeed)
+	c.Assert(err, IsNil)
+
+	bootWith := &boot.BootableSet{
+		Base:                baseInfo,
+		BasePath:            baseInSeed,
+		Kernel:              kernelInfo,
+		KernelPath:          kernelInSeed,
+		Gadget:              gadgetInfo,
+		GadgetPath:          gadgetInSeed,
+		RecoverySystemDir:   "",
+		RecoverySystemLabel: "",
+		UnpackedGadgetDir:   unpackedGadgetDir,
+		Recovery:            false,
+	}
+
+	opts := &bootloader.Options{
+		PrepareImageTime: false,
+		// We need the same configuration that a recovery partition,
+		// as we will chainload to grub in the boot partition.
+		Role: bootloader.RoleRecovery,
+	}
+	partMntDir := filepath.Join(s.rootdir, "/partition")
+	err = os.MkdirAll(partMntDir, 0755)
+	c.Assert(err, IsNil)
+	err = boot.MakeBootablePartition(partMntDir, opts, bootWith, boot.ModeRun, []string{})
+	c.Assert(err, IsNil)
+
+	// ensure we have only grub.cfg and grubenv
+	files, err := filepath.Glob(filepath.Join(partMntDir, "EFI/ubuntu/*"))
+	c.Assert(err, IsNil)
+	c.Check(files, HasLen, 2)
+	// and nothing else
+	files, err = filepath.Glob(filepath.Join(partMntDir, "EFI/*"))
+	c.Assert(err, IsNil)
+	c.Check(files, HasLen, 1)
+	files, err = filepath.Glob(filepath.Join(partMntDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(files, HasLen, 1)
+	// check that the recovery bootloader configuration was installed with
+	// the correct content
+	c.Check(filepath.Join(partMntDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, grubRecoveryCfgAsset)
+
+	// ensure the correct recovery system configuration was set
+	seedGenv := grubenv.NewEnv(filepath.Join(partMntDir, "EFI/ubuntu/grubenv"))
+	c.Assert(seedGenv.Load(), IsNil)
+	c.Check(seedGenv.Get("snapd_recovery_system"), Equals, "")
+	c.Check(seedGenv.Get("snapd_recovery_mode"), Equals, boot.ModeRun)
+	c.Check(seedGenv.Get("snapd_good_recovery_systems"), Equals, "")
+}
