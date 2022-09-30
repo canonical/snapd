@@ -563,6 +563,10 @@ WantedBy=multi-user.target
 Storage=auto
 `
 
+	jSvcContent := `[Service]
+LogsDirectory=
+`
+
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
@@ -587,6 +591,13 @@ TasksAccounting=true
 			grp:      grp,
 			unitType: "journald",
 			new:      jconfContent,
+			old:      "",
+			name:     "foogroup",
+		},
+		{
+			grp:      grp,
+			unitType: "service",
+			new:      jSvcContent,
 			old:      "",
 			name:     "foogroup",
 		},
@@ -671,6 +682,10 @@ RateLimitIntervalSec=5000000us
 RateLimitBurst=15
 `
 
+	jSvcContent := `[Service]
+LogsDirectory=
+`
+
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
@@ -695,6 +710,13 @@ TasksAccounting=true
 			grp:      grp,
 			unitType: "journald",
 			new:      jconfContent,
+			old:      "",
+			name:     "foogroup",
+		},
+		{
+			grp:      grp,
+			unitType: "service",
+			new:      jSvcContent,
 			old:      "",
 			name:     "foogroup",
 		},
@@ -776,6 +798,10 @@ RateLimitIntervalSec=0us
 RateLimitBurst=0
 `
 
+	jSvcContent := `[Service]
+LogsDirectory=
+`
+
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
@@ -800,6 +826,13 @@ TasksAccounting=true
 			grp:      grp,
 			unitType: "journald",
 			new:      jconfContent,
+			old:      "",
+			name:     "foogroup",
+		},
+		{
+			grp:      grp,
+			unitType: "service",
+			new:      jSvcContent,
 			old:      "",
 			name:     "foogroup",
 		},
