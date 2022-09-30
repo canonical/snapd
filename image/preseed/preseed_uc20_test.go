@@ -420,7 +420,7 @@ func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
 	c.Check(err, IsNil)
 
 	popts := &preseed.PreseedCoreOptions{
-		CoreOptions:      preseed.CoreOptions{
+		CoreOptions: preseed.CoreOptions{
 			PrepareImageDir: tmpdir,
 		},
 		PreseedChrootDir: tmpdir,
