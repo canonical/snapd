@@ -1448,7 +1448,7 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 
 		updated, tss, err := UpdateMany(ctx, st, names, revOpts, userID, flags)
 		if err != nil {
-			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %v", err)
+			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
 		}
 
 		tasksets = append(tasksets, tss...)
@@ -1461,7 +1461,7 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 
 		installed, tss, err := InstallMany(st, names, revOpts, userID, flags)
 		if err != nil {
-			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %v", err)
+			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
 		}
 
 		tasksets = append(tasksets, tss...)

@@ -2544,3 +2544,32 @@ func (s *snapsSuite) TestRefreshEnforceSetsNoUnmetConstraints(c *check.C) {
 	c.Check(resp.Tasksets, check.IsNil)
 	c.Check(resp.Summary, check.Equals, fmt.Sprintf("Enforce validation sets %s", strutil.Quoted(valsets)))
 }
+
+func (s *snapsSuite) TestRefreshEnforceResolveErrorChangeConflictError(c *check.C) {
+	restore := daemon.MockAssertstateTryEnforceValidationSets(func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+		return &snapasserts.ValidationSetsValidationError{}
+	})
+	defer restore()
+
+	restore = daemon.MockSnapstateResolveValSetEnforcementError(func(_ context.Context, st *state.State, validErr *snapasserts.ValidationSetsValidationError, pinnedSeqs map[string]int, _ int) ([]*state.TaskSet, []string, error) {
+		return nil, nil, fmt.Errorf("wrapped error: %w", &snapstate.ChangeConflictError{
+			Snap:       "some-snap",
+			ChangeID:   "12",
+			ChangeKind: "a-thing",
+			Message:    "conflict with a thing",
+		})
+	})
+	defer restore()
+
+	s.daemon(c)
+
+	buf := strings.NewReader(`{"action": "refresh", "validation-sets": ["foo/bar"]}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 409)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindSnapChangeConflict)
+	c.Check(rspe.Message, check.Equals, "conflict with a thing")
+}
