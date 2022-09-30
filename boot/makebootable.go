@@ -49,7 +49,7 @@ type BootableSet struct {
 
 	UnpackedGadgetDir string
 
-	// Recover is set when making the recovery partition bootable.
+	// Recovery is set when making the recovery partition bootable.
 	Recovery bool
 }
 
@@ -78,17 +78,11 @@ func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableS
 	return makeBootable20(rootdir, bootWith, bootFlags)
 }
 
-// MakeBootableOnTarget configures a partition mounted on rootdir
+// MakeBootablePartition configures a partition mounted on rootdir
 // using information from bootWith and bootFlags. Contrarily to
 // MakeBootableImage this happens in a live system.
-func MakeBootableOnTarget(rootdir string, bootWith *BootableSet, bootFlags []string) error {
-	opts := &bootloader.Options{
-		PrepareImageTime: true,
-		// we are configuring a ESP/recovery partition
-		Role: bootloader.RoleRecovery,
-	}
-
-	return configureBootloader(rootdir, bootWith, opts, bootFlags)
+func MakeBootablePartition(partDir string, bootWith *BootableSet, bootMode string, opts *bootloader.Options, bootFlags []string) error {
+	return configureBootloader(partDir, bootWith, bootMode, opts, bootFlags)
 }
 
 // makeBootable16 setups the image filesystem for boot with UC16
@@ -168,7 +162,7 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	return nil
 }
 
-func configureBootloader(rootdir string, bootWith *BootableSet, opts *bootloader.Options, bootFlags []string) error {
+func configureBootloader(rootdir string, bootWith *BootableSet, bootMode string, opts *bootloader.Options, bootFlags []string) error {
 	blVars := make(map[string]string, 3)
 	if len(bootFlags) != 0 {
 		if err := setImageBootFlags(bootFlags, blVars); err != nil {
@@ -187,7 +181,8 @@ func configureBootloader(rootdir string, bootWith *BootableSet, opts *bootloader
 		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
 	}
 
-	if bootWith.Recovery {
+	blVars["snapd_recovery_mode"] = bootMode
+	if bootWith.RecoverySystemLabel != "" {
 		// record which recovery system is to be used on the bootloader, note
 		// that this goes on the main bootloader environment, and not on the
 		// recovery system bootloader environment, for example for grub
@@ -195,9 +190,6 @@ func configureBootloader(rootdir string, bootWith *BootableSet, opts *bootloader
 		// not on the recovery system grubenv in the systems/20200314/ subdir on
 		// ubuntu-seed
 		blVars["snapd_recovery_system"] = bootWith.RecoverySystemLabel
-		blVars["snapd_recovery_mode"] = ModeInstall
-	} else {
-		blVars["snapd_recovery_mode"] = ModeRun
 	}
 
 	if err := bl.SetBootVars(blVars); err != nil {
@@ -226,7 +218,7 @@ func makeBootable20(rootdir string, bootWith *BootableSet, bootFlags []string) e
 		// setup the recovery bootloader
 		Role: bootloader.RoleRecovery,
 	}
-	if err := configureBootloader(rootdir, bootWith, opts, bootFlags); err != nil {
+	if err := configureBootloader(rootdir, bootWith, ModeInstall, opts, bootFlags); err != nil {
 		return fmt.Errorf("cannot install bootloader: %v", err)
 	}
 

@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
@@ -65,6 +66,7 @@ import (
 )
 
 var (
+	bootMakeBootablePartition            = boot.MakeBootablePartition
 	bootMakeRunnable                     = boot.MakeRunnableSystem
 	bootMakeRunnableAfterDataReset       = boot.MakeRunnableSystemAfterDataReset
 	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
@@ -1344,16 +1346,17 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		GadgetPath: snapSeeds[snap.TypeGadget].Path,
 
 		UnpackedGadgetDir: mntPtForType[snap.TypeGadget],
-
-		RecoverySystemLabel: systemLabel,
-
-		// Mode will not be recovery
-		Recovery: false,
 	}
 
 	// installs in ESP: grub.cfg, grubenv
 	logger.Debugf("making the ESP partition bootable, mount dir is %q", espMntDir)
-	if err := boot.MakeBootableOnTarget(espMntDir, bootWith, []string{}); err != nil {
+	opts := &bootloader.Options{
+		PrepareImageTime: false,
+		// We need the same configuration that a recovery partition,
+		// as we will chainload to grub in the boot partition.
+		Role: bootloader.RoleRecovery,
+	}
+	if err := bootMakeBootablePartition(espMntDir, bootWith, boot.ModeRun, opts, []string{}); err != nil {
 		return err
 	}
 
