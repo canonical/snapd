@@ -8450,7 +8450,7 @@ func (s *snapmgrTestSuite) TestExcludeFromRefreshAppAwareness(c *C) {
 	c.Check(snapstate.ExcludeFromRefreshAppAwareness(snap.TypeOS), Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestEnforceSnaps(c *C) {
+func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -8538,7 +8538,7 @@ func (s *snapmgrTestSuite) TestEnforceSnaps(c *C) {
 	c.Assert(calledEnforce, Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestEnforceSnapsTransactionalReverse(c *C) {
+func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorReverse(c *C) {
 	// fail to enforce the validation set at the end to trigger an undo
 	expectedErr := errors.New("expected")
 	restore := snapstate.MockEnforceValidationSets(func(*state.State, map[string]*asserts.ValidationSet, map[string]int, []*snapasserts.InstalledSnap, map[string]bool, int) error {
@@ -8618,7 +8618,7 @@ func (s *snapmgrTestSuite) TestEnforceSnapsTransactionalReverse(c *C) {
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
-func (s *snapmgrTestSuite) TestEnforceSnapsFailsWithInvalidSnaps(c *C) {
+func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorWithInvalidSnaps(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -8629,5 +8629,5 @@ func (s *snapmgrTestSuite) TestEnforceSnapsFailsWithInvalidSnaps(c *C) {
 	}
 
 	_, _, err := snapstate.ResolveValidationSetsEnforcementError(context.TODO(), s.state, valErr, nil, s.user.ID)
-	c.Assert(err, ErrorMatches, "cannot auto-resolve enforcement constraints that require removing snaps: \"snap-a\"")
+	c.Assert(err, ErrorMatches, "cannot auto-resolve validation set constraints that require removing snaps: \"snap-a\"")
 }

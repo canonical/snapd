@@ -3803,7 +3803,7 @@ func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error
 	}
 
 	if err := EnforceValidationSets(st, decodedAsserts, pinnedSeqs, snaps, ignoreValidation, userID); err != nil {
-		return fmt.Errorf("internal error: cannot enforce validation sets: %v", err)
+		return fmt.Errorf("cannot enforce validation sets: %v", err)
 	}
 
 	return nil

@@ -1407,14 +1407,15 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []
 	return updateManyFiltered(ctx, st, names, revOpts, userID, nil, flags, "")
 }
 
-// ResolveValidationSetsEnforcementError installs and updates snaps reported by validationErrorToSolve.
+// ResolveValidationSetsEnforcementError installs and updates snaps in order to
+// meet the validation set constraints reported in the ValidationSetsValidationError..
 func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State, valErr *snapasserts.ValidationSetsValidationError, pinnedSeqs map[string]int, userID int) ([]*state.TaskSet, []string, error) {
 	if len(valErr.InvalidSnaps) != 0 {
 		invSnaps := make([]string, 0, len(valErr.InvalidSnaps))
 		for invSnap := range valErr.InvalidSnaps {
 			invSnaps = append(invSnaps, invSnap)
 		}
-		return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints that require removing snaps: %s", strutil.Quoted(invSnaps))
+		return nil, nil, fmt.Errorf("cannot auto-resolve validation set constraints that require removing snaps: %s", strutil.Quoted(invSnaps))
 	}
 
 	affected := make([]string, 0, len(valErr.MissingSnaps)+len(valErr.WrongRevisionSnaps))
@@ -1444,6 +1445,8 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 
 	if len(valErr.WrongRevisionSnaps) > 0 {
 		names, revOpts := collectRevOpts(valErr.WrongRevisionSnaps)
+		// we're targeting precise revisions so re-refreshes don't make sense. Refreshes
+		// between epochs should managed by through  the validation sets
 		flags := &Flags{Transaction: client.TransactionAllSnaps, Lane: lane, NoReRefresh: true}
 
 		updated, tss, err := UpdateMany(ctx, st, names, revOpts, userID, flags)
@@ -1464,6 +1467,12 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 			return nil, nil, fmt.Errorf("cannot auto-resolve enforcement constraints: %w", err)
 		}
 
+		// updates should be done before the installs
+		for _, ts := range tss {
+			for _, prevTs := range tasksets {
+				ts.WaitAll(prevTs)
+			}
+		}
 		tasksets = append(tasksets, tss...)
 		affected = append(affected, installed...)
 	}
@@ -3854,16 +3863,6 @@ func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (res
 	return func() { osutilCheckFreeSpace = old }
 }
 
-func MockEnforcedValidationSets(f func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error)) func() {
-	osutil.MustBeTestBinary("mocking can be done only in tests")
-
-	old := EnforcedValidationSets
-	EnforcedValidationSets = f
-	return func() {
-		EnforcedValidationSets = old
-	}
-}
-
 // only useful for procuring a buggy behavior in the tests
 var enforcedSingleRebootForGadgetKernelBase = false
 
@@ -3874,15 +3873,5 @@ func MockEnforceSingleRebootForBaseKernelGadget(val bool) (restore func()) {
 	enforcedSingleRebootForGadgetKernelBase = val
 	return func() {
 		enforcedSingleRebootForGadgetKernelBase = old
-	}
-}
-
-func MockEnforceValidationSets(f func(*state.State, map[string]*asserts.ValidationSet, map[string]int, []*snapasserts.InstalledSnap, map[string]bool, int) error) func() {
-	osutil.MustBeTestBinary("mocking can be done only in tests")
-
-	old := EnforceValidationSets
-	EnforceValidationSets = f
-	return func() {
-		EnforceValidationSets = old
 	}
 }

@@ -4550,3 +4550,50 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithMismatchedPinnedSeq(c *C) 
 	err := assertstate.EnforceValidationSets(st, valSets, pinnedSeqs, nil, nil, 0)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("internal error: trying to enforce validation set %q with sequence point 1 different than pinned 2", vsKey))
 }
+
+func (s *assertMgrSuite) TestEnforceValidationSetsWithUnmetConstraints(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	snapstate.ReplaceStore(st, s.fakeStore)
+	storeAs := s.setupModelAndStore(c)
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
+
+	snaps := []interface{}{
+		map[string]interface{}{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "some-snap",
+			"presence": "required",
+			"revision": "1",
+		}}
+
+	vs := s.validationSetAssertForSnaps(c, "foo", "1", "1", snaps)
+	c.Assert(s.storeSigning.Add(vs), IsNil)
+
+	valSets := map[string]*asserts.ValidationSet{
+		fmt.Sprintf("%s/foo", s.dev1Acct.AccountID()): vs,
+	}
+
+	installedSnaps := []*snapasserts.InstalledSnap{
+		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 2}),
+	}
+
+	err := assertstate.EnforceValidationSets(st, valSets, nil, installedSnaps, nil, 0)
+	c.Assert(err, FitsTypeOf, &snapasserts.ValidationSetsValidationError{})
+
+	_, err = assertstate.DB(s.state).FindSequence(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "foo",
+	}, -1, -1)
+	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
+
+	_, err = assertstate.DB(s.state).Find(asserts.AccountKeyType, map[string]string{
+		"public-key-sha3-384": vs.SignKeyID(),
+	})
+	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
+
+	err = assertstate.GetValidationSet(st, s.dev1Acct.AccountID(), "foo", &assertstate.ValidationSetTracking{})
+	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
+}
