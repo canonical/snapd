@@ -45,6 +45,7 @@ func firstVol(volumes map[string]*gadget.Volume) *gadget.Volume {
 }
 
 func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]gadget.OnDiskStructure, error) {
+	// TODO: support multiple volumes, see gadget/install/install.go
 	if len(volumes) != 1 {
 		return nil, fmt.Errorf("got unexpected number of volumes %v", len(volumes))
 	}
@@ -53,7 +54,6 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]g
 	if err != nil {
 		return nil, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
-	// TODO: support multiple volumes, see gadget/install/install.go
 	if len(diskLayout.Structure) > 0 {
 		return nil, fmt.Errorf("cannot yet install on a disk that has partitions")
 	}
@@ -79,9 +79,7 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]g
 }
 
 func runMntFor(label string) string {
-	// TODO: use a different location than snapd here but right now
-	//       snapd expects things to be mounted in the "finish" step
-	return filepath.Join(dirs.GlobalRootDir, "/run/mnt/", label)
+	return filepath.Join(dirs.GlobalRootDir, "/run/installer-mnt/", label)
 }
 
 func postSystemsInstallSetupStorageEncryption(details *client.SystemDetails) error {
@@ -246,7 +244,6 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err != nil {
 		return fmt.Errorf("cannot setup partitions: %v", err)
 	}
-	fmt.Println("laidoutStructs len:", len(laidoutStructs))
 	if err := postSystemsInstallSetupStorageEncryption(details); err != nil {
 		return fmt.Errorf("cannot setup storage encryption: %v", err)
 	}
@@ -281,5 +278,5 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
-	fmt.Println("install done, please reboot")
+	logger.Noticef("install done, please reboot")
 }
