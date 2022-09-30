@@ -97,6 +97,9 @@ func runFDEinitramfsHelper(name string, stdin []byte) (output []byte, err error)
 		// making sure that people using the hook know that we do not
 		// want them to mess around outside of just providing unseal.
 		"--property=SystemCallFilter=~@mount",
+		// We do not need any systemd unit dependencies for this
+		// call.
+		"--property=DefaultDependencies=no",
 		// WORKAROUNDS
 		// workaround the lack of "--pipe"
 		fmt.Sprintf("--property=StandardInput=file:%s/%s.stdin", runDir, name),

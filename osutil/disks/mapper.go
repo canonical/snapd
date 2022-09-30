@@ -41,13 +41,13 @@ func CreateLinearMapperDevice(device, name, uuid string, offset, size uint64) (s
 	errPrefix := fmt.Sprintf("cannot create mapper %q on %v: ", name, device)
 
 	if offset%dmSetupSectorSize != 0 {
-		return "", fmt.Errorf(errPrefix+"offset %v must be aligned to %v bytes", offset, dmSetupSectorSize)
+		return "", fmt.Errorf("%soffset %v must be aligned to %v bytes", errPrefix, offset, dmSetupSectorSize)
 	}
 	if size%dmSetupSectorSize != 0 {
-		return "", fmt.Errorf(errPrefix+"size %v must be aligned to %v bytes", size, dmSetupSectorSize)
+		return "", fmt.Errorf("%ssize %v must be aligned to %v bytes", errPrefix, size, dmSetupSectorSize)
 	}
 	if size <= offset {
-		return "", fmt.Errorf(errPrefix+"size %v must be larger than the offset %v", size, offset)
+		return "", fmt.Errorf("%ssize %v must be larger than the offset %v", errPrefix, size, offset)
 	}
 
 	offsetInBlocks := offset / uint64(dmSetupSectorSize)
@@ -59,7 +59,7 @@ func CreateLinearMapperDevice(device, name, uuid string, offset, size uint64) (s
 	}
 	cmd.Args = append(cmd.Args, []string{"--table", dmTable}...)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf(errPrefix+"%v", osutil.OutputErr(output, err))
+		return "", fmt.Errorf("%s%v", errPrefix, osutil.OutputErr(output, err))
 	}
 
 	return fmt.Sprintf("/dev/mapper/%s", name), nil

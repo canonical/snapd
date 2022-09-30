@@ -149,18 +149,18 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestNonWSL(c *C) {
-	defer release.MockIoutilReadfile(func(s string) ([]byte, error) {
-		c.Check(s, Equals, "/proc/version")
-		return []byte("Linux version 2.2.19 (herbert@gondolin) (gcc version 2.7.2.3) #1 Wed Mar 20 19:41:41 EST 2002"), nil
+	defer release.MockFileExists(func(s string) bool {
+		c.Check(s, Equals, "/proc/sys/fs/binfmt_misc/WSLInterop")
+		return false
 	})()
 
 	c.Check(release.IsWSL(), Equals, false)
 }
 
 func (s *ReleaseTestSuite) TestWSL(c *C) {
-	defer release.MockIoutilReadfile(func(s string) ([]byte, error) {
-		c.Check(s, Equals, "/proc/version")
-		return []byte("Linux version 3.4.0-Microsoft (Microsoft@Microsoft.com) (gcc version 4.7 (GCC) ) #1 SMP PREEMPT Wed Dec 31 14:42:53 PST 2014"), nil
+	defer release.MockFileExists(func(s string) bool {
+		c.Check(s, Equals, "/proc/sys/fs/binfmt_misc/WSLInterop")
+		return true
 	})()
 
 	c.Check(release.IsWSL(), Equals, true)

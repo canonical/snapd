@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
@@ -457,10 +458,22 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
-func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, factoryReset bool) {
+func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, factoryReset, classic bool) {
+	restore := release.MockOnClassic(classic)
+	defer restore()
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
 	bootloader.Force(nil)
 
-	model := boottest.MakeMockUC20Model()
+	var model *asserts.Model
+	if classic {
+		model = boottest.MakeMockUC20Model(map[string]interface{}{
+			"classic":      "true",
+			"distribution": "ubuntu",
+		})
+	} else {
+		model = boottest.MakeMockUC20Model()
+	}
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
 	err := os.MkdirAll(seedSnapsDirs, 0755)
 	c.Assert(err, IsNil)
@@ -507,7 +520,7 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, factoryReset bool) 
 		{"grubx64.efi", "grub content"},
 		{"meta/snap.yaml", gadgetSnapYaml},
 	})
-	restore := assets.MockInternal("grub-recovery.cfg", grubRecoveryCfgAsset)
+	restore = assets.MockInternal("grub-recovery.cfg", grubRecoveryCfgAsset)
 	defer restore()
 	restore = assets.MockInternal("grub.cfg", grubCfgAsset)
 	defer restore()
@@ -724,10 +737,17 @@ version: 5.0
 	// ensure grub.cfg in boot was installed from internal assets
 	c.Check(mockBootGrubCfg, testutil.FileEquals, string(grubCfgAsset))
 
+	var installHostWritableDir string
+	if classic {
+		installHostWritableDir = filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data")
+	} else {
+		installHostWritableDir = filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")
+	}
+
 	// ensure base/gadget/kernel got copied to /var/lib/snapd/snaps
-	core20Snap := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "core20_3.snap")
-	gadgetSnap := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "pc_4.snap")
-	pcKernelSnap := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "pc-kernel_5.snap")
+	core20Snap := filepath.Join(dirs.SnapBlobDirUnder(installHostWritableDir), "core20_3.snap")
+	gadgetSnap := filepath.Join(dirs.SnapBlobDirUnder(installHostWritableDir), "pc_4.snap")
+	pcKernelSnap := filepath.Join(dirs.SnapBlobDirUnder(installHostWritableDir), "pc-kernel_5.snap")
 	c.Check(core20Snap, testutil.FilePresent)
 	c.Check(gadgetSnap, testutil.FilePresent)
 	c.Check(pcKernelSnap, testutil.FilePresent)
@@ -758,39 +778,46 @@ version: 5.0
 	c.Check(extractedKernelSymlink, testutil.FilePresent)
 
 	// ensure modeenv looks correct
-	ubuntuDataModeEnvPath := filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
-	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, `mode=run
+	var ubuntuDataModeEnvPath, classicLine string
+	if classic {
+		ubuntuDataModeEnvPath = filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/var/lib/snapd/modeenv")
+		classicLine = "\nclassic=true"
+	} else {
+		ubuntuDataModeEnvPath = filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
+	}
+	expectedModeenv := fmt.Sprintf(`mode=run
 recovery_system=20191216
 current_recovery_systems=20191216
 good_recovery_systems=20191216
 base=core20_3.snap
 gadget=pc_4.snap
 current_kernels=pc-kernel_5.snap
-model=my-brand/my-model-uc20
+model=my-brand/my-model-uc20%s
 grade=dangerous
 model_sign_key_id=Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 current_trusted_boot_assets={"grubx64.efi":["5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"]}
 current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"],"grubx64.efi":["aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"]}
 current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"]
-`)
+`, classicLine)
+	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, expectedModeenv)
 	copiedGrubBin := filepath.Join(
-		dirs.SnapBootAssetsDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")),
+		dirs.SnapBootAssetsDirUnder(installHostWritableDir),
 		"grub",
 		"grubx64.efi-5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d",
 	)
 	copiedRecoveryGrubBin := filepath.Join(
-		dirs.SnapBootAssetsDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")),
+		dirs.SnapBootAssetsDirUnder(installHostWritableDir),
 		"grub",
 		"grubx64.efi-aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5",
 	)
 	copiedRecoveryShimBin := filepath.Join(
-		dirs.SnapBootAssetsDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")),
+		dirs.SnapBootAssetsDirUnder(installHostWritableDir),
 		"grub",
 		"bootx64.efi-39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37",
 	)
 
 	// only one file in the cache under new root
-	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "grub", "*"), []string{
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDirUnder(installHostWritableDir), "grub", "*"), []string{
 		copiedRecoveryShimBin,
 		copiedGrubBin,
 		copiedRecoveryGrubBin,
@@ -814,20 +841,34 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 	}
 
 	// make sure the marker file for sealed key was created
-	c.Check(filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys"), testutil.FilePresent)
+	c.Check(filepath.Join(installHostWritableDir, "/var/lib/snapd/device/fde/sealed-keys"), testutil.FilePresent)
 
 	// make sure we wrote the boot chains data file
-	c.Check(filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "boot-chains"), testutil.FilePresent)
+	c.Check(filepath.Join(installHostWritableDir, "/var/lib/snapd/device/fde/boot-chains"), testutil.FilePresent)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20Install(c *C) {
 	const factoryReset = false
-	s.testMakeSystemRunnable20(c, factoryReset)
+	const classic = false
+	s.testMakeSystemRunnable20(c, factoryReset, classic)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOnClassic(c *C) {
+	const factoryReset = false
+	const classic = true
+	s.testMakeSystemRunnable20(c, factoryReset, classic)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryReset(c *C) {
 	const factoryReset = true
-	s.testMakeSystemRunnable20(c, factoryReset)
+	const classic = false
+	s.testMakeSystemRunnable20(c, factoryReset, classic)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryResetOnClassic(c *C) {
+	const factoryReset = true
+	const classic = true
+	s.testMakeSystemRunnable20(c, factoryReset, classic)
 }
 
 func (s *makeBootable20Suite) TestMakeRunnableSystem20ModeInstallBootConfigErr(c *C) {
