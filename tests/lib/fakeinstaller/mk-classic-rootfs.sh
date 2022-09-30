@@ -65,9 +65,9 @@ EOF
 
     # ensure that we have a mount point for the bind mount below
     sudo mkdir -p "$DESTDIR"/boot/grub
-    # TODO: find out what is doing this on UC20+ systems
-    #       (snap-initramfs-mounts?)
-    # TODO2: use LABEL= here=
+    # This is done by the the-modeenv script that is called by the
+    # populate-writable service from initramfs on UC20+, but we don't
+    # run it on classic.
     sudo tee -a "$DESTDIR/etc/fstab" <<'EOF'
 /run/mnt/ubuntu-boot/EFI/ubuntu /boot/grub none bind
 EOF
@@ -81,7 +81,7 @@ if [ ! -d "$DST" ]; then
 fi
 
 # get the base
-wget -c http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04-base-amd64.tar.gz
+wget -c http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.1-base-amd64.tar.gz
 
 # create minitmal rootfs
 create_classic_rootfs "$DST" "ubuntu-base-22.04-base-amd64.tar.gz"
