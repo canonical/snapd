@@ -20,6 +20,7 @@
 package devicestate_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -512,6 +514,14 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverMode(c *C) {
 }
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
+	var calledcreateAllUsers = false
+	r := devicestate.MockCreateAllSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
+		calledcreateAllUsers = true
+		var createdUsers []*devicestate.CreatedUser
+		return createdUsers, nil
+	})
+	defer r()
+
 	m := boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
@@ -533,6 +543,8 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
 	c.Check(deviceSeed.Model().BrandID(), Equals, "my-brand")
 	c.Check(deviceSeed.Model().Model(), Equals, "my-model")
 	c.Check(deviceSeed.Model().Base(), Equals, "core20")
+	c.Check(deviceSeed.Model().Grade(), Equals, asserts.ModelSigned)
+	c.Check(calledcreateAllUsers, Equals, false)
 
 	// verify that the model was added
 	db := assertstate.DB(st)
@@ -547,6 +559,85 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
 	// inconsistent seed request
 	_, err = devicestate.LoadDeviceSeed(st, "20210201")
 	c.Assert(err, ErrorMatches, `internal error: requested inconsistent device seed: 20210201 \(was 20191018\)`)
+}
+
+func (s *firstBoot20Suite) setupSeed20DangerousGrade(c *C, withAutoImportAssertion bool) string {
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+	}
+
+	s.earlySetup(c, &m, "dangerous", "")
+
+	if withAutoImportAssertion {
+		seedtest.WriteValidAutoImportAssertion(c, s.Brands, s.SeedDir, m.RecoverySystem, 0644)
+	}
+
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+	st := o.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	deviceSeed, err := devicestate.LoadDeviceSeed(st, m.RecoverySystem)
+	c.Assert(err, IsNil)
+
+	c.Check(deviceSeed.Model().BrandID(), Equals, "my-brand")
+	c.Check(deviceSeed.Model().Model(), Equals, "my-model")
+	c.Check(deviceSeed.Model().Base(), Equals, "core20")
+	c.Check(deviceSeed.Model().Grade(), Equals, asserts.ModelDangerous)
+
+	return logbuf.String()
+}
+
+func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousNoAutoImport(c *C) {
+	var calledcreateAllUsers = false
+	r := devicestate.MockCreateAllSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
+		calledcreateAllUsers = true
+		var createdUsers []*devicestate.CreatedUser
+		return createdUsers, nil
+	})
+	defer r()
+
+	logs := s.setupSeed20DangerousGrade(c, false)
+
+	c.Check(calledcreateAllUsers, Equals, false)
+	c.Check(logs, testutil.Contains, `failed to load auto import assertions:`)
+}
+
+func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImportUserCreateFail(c *C) {
+	var calledcreateAllUsers = false
+	r := devicestate.MockCreateAllSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
+		calledcreateAllUsers = true
+		return nil, errors.New("User already exists")
+	})
+	defer r()
+
+	logs := s.setupSeed20DangerousGrade(c, true)
+
+	c.Check(calledcreateAllUsers, Equals, true)
+	c.Check(logs, testutil.Contains, "failed to create known users:")
+	c.Check(logs, testutil.Contains, "User already exists")
+}
+
+func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImport(c *C) {
+	var calledcreateAllUsers = false
+	r := devicestate.MockCreateAllSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
+		calledcreateAllUsers = true
+		var createdUsers []*devicestate.CreatedUser
+		return createdUsers, nil
+	})
+	defer r()
+
+	logs := s.setupSeed20DangerousGrade(c, true)
+
+	c.Check(calledcreateAllUsers, Equals, true)
+	c.Assert(logs, Equals, "")
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunModeUserServiceTasks(c *C) {

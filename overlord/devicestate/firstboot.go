@@ -43,6 +43,8 @@ var errNothingToDo = errors.New("nothing to do")
 
 var runtimeNumCPU = runtime.NumCPU
 
+var createAllSystemUsers = createAllKnownSystemUsers
+
 func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
 	if sn.Required {
 		flags.Required = true
