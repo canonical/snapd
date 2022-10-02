@@ -467,13 +467,27 @@ func (m *InterfaceManager) initUDevMonitor() error {
 	return nil
 }
 
+var securityBackendsOverride []interfaces.SecurityBackend
+
+// allSecurityBackends returns a set of the available security backends or the mocked ones, ready to be initialized.
+func allSecurityBackends() []interfaces.SecurityBackend {
+	if securityBackendsOverride != nil {
+		return securityBackendsOverride
+	}
+	return backends.All()
+}
+
 // MockSecurityBackends mocks the list of security backends that are used for setting up security.
 //
 // This function is public because it is referenced in the daemon
 func MockSecurityBackends(be []interfaces.SecurityBackend) func() {
-	old := backends.All
-	backends.All = be
-	return func() { backends.All = old }
+	if be == nil {
+		// nil is a marker, use an empty slice instead
+		be = []interfaces.SecurityBackend{}
+	}
+	old := securityBackendsOverride
+	securityBackendsOverride = be
+	return func() { securityBackendsOverride = old }
 }
 
 // MockObservedDevicePath adds the given device to the map of observed devices.
