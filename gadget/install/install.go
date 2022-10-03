@@ -657,7 +657,7 @@ func MountVolumes(onVolumes map[string]*gadget.Volume) (espMntDir string, unmoun
 			}
 			mountPoints = append(mountPoints, mntPt)
 
-			if strings.Contains(strings.ToUpper(part.Type), "C12A7328-F81F-11D2-BA4B-00A0C93EC93B") {
+			if strings.Contains(strings.ToUpper(part.Type), gadget.GPTPartitionGUIDESP) {
 				espMntDir = mntPt
 				numEsp++
 			}
