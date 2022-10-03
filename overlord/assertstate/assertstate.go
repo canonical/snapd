@@ -903,8 +903,8 @@ func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.Va
 	db := cachedDB(st)
 	batch := asserts.NewBatch(handleUnsupported(db))
 
-	vss := make([]*asserts.ValidationSet, 0, len(valsets))
-	valsetTracking := make([]*ValidationSetTracking, 0, len(valsets))
+	valsetsSlice := make([]*asserts.ValidationSet, 0, len(valsets))
+	valsetsTracking := make([]*ValidationSetTracking, 0, len(valsets))
 
 	for vsKey, vs := range valsets {
 		pinnedSeq := pinnedSeqs[vsKey]
@@ -923,8 +923,8 @@ func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.Va
 			PinnedAt: pinnedSeq,
 		}
 
-		valsetTracking = append(valsetTracking, tr)
-		vss = append(vss, vs)
+		valsetsTracking = append(valsetsTracking, tr)
+		valsetsSlice = append(valsetsSlice, vs)
 	}
 
 	err = doFetch(st, userID, deviceCtx, batch, func(f asserts.Fetcher) error {
@@ -939,7 +939,7 @@ func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.Va
 		return err
 	}
 
-	valsetGroup, err := TrackedEnforcedValidationSets(st, vss...)
+	valsetGroup, err := TrackedEnforcedValidationSets(st, valsetsSlice...)
 	if err != nil {
 		return err
 	}
@@ -956,7 +956,7 @@ func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.Va
 		return err
 	}
 
-	for _, tr := range valsetTracking {
+	for _, tr := range valsetsTracking {
 		UpdateValidationSet(st, tr)
 	}
 
