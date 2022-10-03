@@ -1039,7 +1039,7 @@ func (ss *stateSuite) TestPruneHonorsStartOperationTime(c *C) {
 	c.Check(chg.Status(), Equals, state.HoldStatus)
 }
 
-func (ss *stateSuite) TestReadStateInitsCache(c *C) {
+func (ss *stateSuite) TestReadStateInitsTransientMapFields(c *C) {
 	st, err := state.ReadState(nil, bytes.NewBufferString("{}"))
 	c.Assert(err, IsNil)
 	st.Lock()
@@ -1047,6 +1047,7 @@ func (ss *stateSuite) TestReadStateInitsCache(c *C) {
 
 	st.Cache("key", "value")
 	c.Assert(st.Cached("key"), Equals, "value")
+	st.RegisterPendingChangeByAttr("attr", func(*state.Change) bool { return false })
 }
 
 func (ss *stateSuite) TestTimingsSupport(c *C) {
