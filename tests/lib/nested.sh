@@ -251,6 +251,7 @@ nested_qemu_name() {
         ;;
     arm64)
         command -v qemu-system-arm
+        ;;
     *)
         echo "unsupported architecture"
         exit 1
@@ -712,6 +713,15 @@ nested_create_core_vm() {
             if os.query is-xenial; then
                 # ubuntu-image on 16.04 needs to be installed from a snap
                 UBUNTU_IMAGE=/snap/bin/ubuntu-image
+            fi
+            if os.query is-arm; then
+                snap install ubuntu-image --classic || true
+                export UBUNTU_IMAGE=/snap/bin/ubuntu-image
+                export NESTED_BUILD_SNAPD_FROM_CURRENT=true
+                export NESTED_REPACK_KERNEL_SNAP=false
+                export NESTED_REPACK_GADGET_SNAP=false
+                export NESTED_REPACK_BASE_SNAP=false
+
             fi
 
             if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then

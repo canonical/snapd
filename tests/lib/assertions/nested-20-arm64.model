@@ -10,9 +10,9 @@ serial-authority:
   - generic
 snaps:
   -
-    default-channel: 20/edge
-    id: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
-    name: pc
+    default-channel: latest/edge
+    id: RQBRc1HkOwpH5DCwagfqShqQ7eJ2Yl9i
+    name: test-snapd-arm64-gadget
     type: gadget
   -
     default-channel: latest/edge
@@ -29,16 +29,16 @@ snaps:
     id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
     name: snapd
     type: snapd
-timestamp: 2022-10-29T15:30:00Z
+timestamp: 2022-09-29T15:30:00Z
 sign-key-sha3-384: V414fsCB9X2YOxd9aESpCOq4u9yZufjjIA2pCqPVeX_w-f_g_Dc0KF9GwxfwgpMK
 
-AcLBcwQAAQoAHRYhBDiVJpd70BfvApKUHyjFylG0jRnSBQJjNySfAAoJECjFylG0jRnSmx8P/3i8
-IiZPmAhUhs2pJjwyZsKg6u78gbYj7TuFP9PniDTODaF6DNRzdjLICmsPQtKnt29fhS59IQeyvc3q
-mqzspvDN5wtHrYE3I4BEoGGGr9hKxtu3zrAjcGTSbFgz0osZNHP5xxlrp3G8Bt2MTV3tvzfcBytt
-BAO01MyrnFTXphkwPmaHtmchCUD04lLmhrsxSRaCnuybMvaI77b8ZsFbMoxaHHmYTJpGhr+Fl3S3
-DzaBskXNP34tDi1K8uhiQ2A8TYjjulgEhsUIopATvDBN/CHlUCmydAxMtUVItCXsHwKskX9Za/fA
-MsraHHa1vZHk6jh6894mt3OWj+ofo4FZiyYZ7dDaZmalcXsWQ3LJE/hISOuaTKz/1EoYz5N9nmlu
-Y5nRnvLZ1VAzGoP6gsFljPgZSBE2LhR03ScbfGQyZTZXCwtr5/8rhAp7/EZ4SdpAQ4fOPiy1RpM0
-ff8p5VAk++eZMItq2KoVlPpV1gbvGJ9F2ipx29YTpQzOC5Gts19yRAsQ9mWMFf94hvRCZAsAynEu
-QlkJKYlqoFgR2i17CocOKesPzvvqXes2V+4R6whK2nOutioQgQDlZTsgh6/q4DvWQNOxnLzGQIL0
-Dnh6/Yn/mJk7YsjQVbNfNxh+Ub3jox4Ejootea+mMYUjXS+B7GWnVT83Ks4h5cZzDgPyKrbx
+AcLBcwQAAQoAHRYhBDiVJpd70BfvApKUHyjFylG0jRnSBQJjOzH7AAoJECjFylG0jRnSuVcQAJW2
+h+CJbbr/lbpdjrTtBkyNBNoYJzUum/JJaAZ1YtDLRbnjkFAVD5a5/5PmEsYAfsuMeuFkQa7AIrhN
+tnsPJeDmuRalFPEhUJwzkKEqQKEZdWeVrBbDTNF4R6Nn4dMB91A+6jdt/4CKwXad45lkXRGhch9O
+2c6YBXwKXyoMqingSMj1DK4iUupd+UX5EzAI9i6YAsGIR9MDWRspErmQN2sAUClLJLqzTTOAR/rj
+twrhNcu7OwamdiHJcHeMGo05cNFlU72m4u52F+Kk7VGmtZeivZZbkdII+trIWmxZcfQcioqGyME7
+5QTBzcexe7cZdml85/h8xu1CnuCu1TaD32dKIlDDGtnkhLoSxW2UQijvALTj9WBE3f2oo+WVBvJv
+SwuNQIIewC+Uh8yGVBwQZXFzMe8Y1yvapuTJMHYGUgjUMwlVUwYRkaDRnp0lPKTIXFc81u88MtR0
+/2lm34lHSMfiZO00blH2dauSC1pMrP5TNJ3jIva7xKS3fxvCuwZSu8YQXUPFAe5vUrGkYQCmYcdy
+/k4bj+BUBkeka1BYv118Y4GhgK3DOpgNVIWMQs7R5MPDREVDrBmwL4dmHAGTafy9RMZKscMuWnCn
+iLVgYVtJBi/ZzoDPorQXd/d81MSMbtIiwUYu+CZEapQwV8On6lZspwn0Ig4XZ6+j26tB2rfG
