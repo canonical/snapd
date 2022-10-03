@@ -1553,28 +1553,12 @@ func (m *DeviceManager) hasUserExpired(user *auth.UserState) bool {
 	return user.Expiration.Before(time.Now())
 }
 
-func (m *DeviceManager) removeExpiredUser(st *state.State, user *auth.UserState) error {
-	// Remove the user from the system first
-	if err := osutilDelUser(user.Username, &osutil.DelUserOptions{ExtraUsers: !release.OnClassic}); err != nil {
-		return err
-	}
-
-	// And then we remove it from the auth state
-	_, err := auth.RemoveUserByUsername(st, user.Username)
-	return err
-}
-
 // ensureExpiredUsersRemoved is periodically called as a part of Ensure()
 // to remove expired users from the system.
 func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 	st := m.state
 	st.Lock()
 	defer st.Unlock()
-
-	// XXX: Only on ubuntu core systems?
-	if release.OnClassic {
-		return nil
-	}
 
 	// XXX: Only in run mode?
 	mode := m.SystemMode(SysHasModeenv)
@@ -1600,7 +1584,7 @@ func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 		if !m.hasUserExpired(user) {
 			continue
 		}
-		if err := m.removeExpiredUser(st, user); err != nil {
+		if _, err := RemoveUser(st, user.Username); err != nil {
 			return err
 		}
 	}
