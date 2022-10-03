@@ -629,8 +629,12 @@ func writeSnapdDbusActivationOnCore(s *snap.Info) error {
 
 	content := make(map[string]osutil.FileState, len(dbusSessionServices)+1)
 	for _, service := range dbusSessionServices {
+		filePathInSnap := filepath.Join(s.MountDir(), "usr/share/dbus-1/services", service)
+		if !osutil.FileExists(filePathInSnap) {
+			continue
+		}
 		content[service] = &osutil.FileReference{
-			Path: filepath.Join(s.MountDir(), "usr/share/dbus-1/services", service),
+			Path: filePathInSnap,
 		}
 	}
 
