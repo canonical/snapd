@@ -40,7 +40,8 @@ const (
 
 	// HoldStatus means the task should not run for the moment, perhaps as a
 	// consequence of an error on another task or because an external action
-	// is needed.
+	// is needed (e.g. on classic we require the user to reboot after a
+	// kernel snap update).
 	HoldStatus Status = 1
 
 	// DoStatus means the change or task is ready to start.

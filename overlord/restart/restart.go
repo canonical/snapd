@@ -26,7 +26,9 @@ import (
 	"errors"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 )
 
 type RestartType int
@@ -89,6 +91,9 @@ func Manager(st *state.State, curBootID string, h Handler) (*RestartManager, err
 	if err := rm.init(fromBootID, curBootID); err != nil {
 		return nil, err
 	}
+
+	st.RegisterPendingChangeByAttr("held-for-system-restart", rm.PendingForSystemRestart)
+
 	return rm, nil
 }
 
@@ -117,6 +122,57 @@ func (m *RestartManager) Ensure() error {
 	return nil
 }
 
+// StartUp implements StateStarterUp.Startup.
+func (m *RestartManager) StartUp() error {
+	s := m.state
+	s.Lock()
+	defer s.Unlock()
+
+	// mark as done tasks that were waiting for an external reboot
+	for _, chg := range s.Changes() {
+		if chg.IsReady() {
+			continue
+		}
+		heldCount, err := changeHeldForSystemRestart(chg)
+		if err != nil {
+			return err
+		}
+		if heldCount == 0 {
+			continue
+		}
+		for _, t := range chg.Tasks() {
+			if t.Status() != state.HoldStatus {
+				continue
+			}
+
+			var holdBootId string
+			if err := t.Get("held-for-system-restart-from-boot-id", &holdBootId); err != nil {
+				if errors.Is(err, state.ErrNoState) {
+					continue
+				}
+				return err
+			}
+
+			if m.bootID == holdBootId {
+				// no boot has intervened yet
+				continue
+			}
+
+			heldCount--
+			logger.Debugf("system restart happened, mark as done task %q for change %s", t.Summary(), chg.ID())
+			t.SetStatus(state.DoneStatus)
+			t.Set("held-for-system-restart-from-boot-id", nil)
+		}
+		if heldCount <= 0 {
+			chg.Set("held-for-system-restart", nil)
+		} else {
+			chg.Set("held-for-system-restart", heldCount)
+		}
+	}
+
+	return nil
+}
+
 func (rm *RestartManager) handleRestart(t RestartType, rebootInfo *boot.RebootInfo) {
 	if rm.h != nil {
 		rm.h.HandleRestart(t, rebootInfo)
@@ -137,6 +193,47 @@ func (rm *RestartManager) rebootDidNotHappen() error {
 	return nil
 }
 
+// PendingForSystemRestart returns true if the change has tasks that are held
+// pending a manual system restart. It is registered with the prune logic.
+func (rm *RestartManager) PendingForSystemRestart(chg *state.Change) bool {
+	if chg.IsReady() {
+		return false
+	}
+	heldCount, err := changeHeldForSystemRestart(chg)
+	if err != nil {
+		logger.Noticef("internal error: cannot retrieve change state: %v", err)
+		return false
+	}
+	if heldCount == 0 {
+		return false
+	}
+	for _, t := range chg.Tasks() {
+		if t.Status() != state.HoldStatus {
+			continue
+		}
+
+		var holdBootId string
+		if err := t.Get("held-for-system-restart-from-boot-id", &holdBootId); err != nil {
+			if errors.Is(err, state.ErrNoState) {
+				continue
+			}
+			logger.Noticef("internal error: cannot retrieve task state: %v", err)
+			continue
+		}
+
+		if rm.bootID == holdBootId {
+			// no boot has intervened yet
+			continue
+		}
+		for _, dep := range t.HaltTasks() {
+			if dep.Status() == state.DoStatus {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func restartManager(st *state.State, errMsg string) *RestartManager {
 	cached := st.Cached(restartManagerKey{})
 	if cached == nil {
@@ -155,6 +252,67 @@ func Request(st *state.State, t RestartType, rebootInfo *boot.RebootInfo) {
 	}
 	rm.restarting = t
 	rm.handleRestart(t, rebootInfo)
+}
+
+func changeHeldForSystemRestart(chg *state.Change) (int, error) {
+	var count int
+	err := chg.Get("held-for-system-restart", &count)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return 0, err
+	}
+	return count, nil
+}
+
+func incrementHeldForSystemRestart(chg *state.Change) error {
+	if chg == nil {
+		// nothing to do
+		return nil
+	}
+	count, err := changeHeldForSystemRestart(chg)
+	if err != nil {
+		return err
+	}
+	chg.Set("held-for-system-restart", count+1)
+	return nil
+}
+
+// FinishTaskWithRestart will finish a task that needs a restart, by
+// setting its status and requesting a restart.
+// It should usually be invoked returning its result immediately
+// from the caller.
+// In some situations (classic) it might return state.Hold instead
+// to held progress until a non-automatic system restart occurs.
+// The restart manager itself will take of tracking that.
+func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType, rebootInfo *boot.RebootInfo) error {
+	// if a system restart is requested on classic hold the task instead
+	// or just log the request if we are on the undo path
+	switch rt {
+	case RestartSystem, RestartSystemNow:
+		if release.OnClassic {
+			if status == state.DoneStatus {
+				rm := restartManager(task.State(), "internal error: cannot request a restart before RestartManager initialization")
+				// TODO notify the system
+				// store current boot id to be able to check
+				// later if we have rebooted or not
+				task.Set("held-for-system-restart-from-boot-id", rm.bootID)
+				if err := incrementHeldForSystemRestart(task.Change()); err != nil {
+					return err
+				}
+				// TODO should we not do this if the task has
+				// no dependent tasks?
+				task.SetStatus(state.HoldStatus)
+				task.Logf("Task held until a manual system restart allows to continue")
+				return &state.Hold{Reason: "waiting for manual system restart"}
+			} else {
+				task.SetStatus(status)
+				task.Logf("Skipped automatic system restart on classic system when undoing changes back to previous state")
+				return nil
+			}
+		}
+	}
+	task.SetStatus(status)
+	Request(task.State(), rt, rebootInfo)
+	return nil
 }
 
 // Pending returns whether a restart was requested with Request and of which type.
