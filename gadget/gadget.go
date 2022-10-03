@@ -118,6 +118,8 @@ type Volume struct {
 	Name string `json:"-"`
 }
 
+const GPTPartitionGUIDESP = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
+
 // VolumeStructure describes a single structure inside a volume. A structure can
 // represent a partition, Master Boot Record, or any other contiguous range
 // within the volume.

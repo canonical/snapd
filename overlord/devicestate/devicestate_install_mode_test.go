@@ -3898,7 +3898,8 @@ func (s *installStepSuite) TestDeviceManagerInstallFinishRunthrough(c *C) {
 
 	c.Check(chg.IsReady(), Equals, true)
 	// TODO: update once the change actually does something
-	c.Check(chg.Err(), ErrorMatches, `(?ms).*finish install step not implemented yet.*`)
+	c.Check(chg.Err().Error(), Equals, `cannot perform the following tasks:
+- Finish setup of run system for "1234" (cannot load assertions for label "1234": no seed assertions)`)
 }
 
 func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionEmptyLabelError(c *C) {

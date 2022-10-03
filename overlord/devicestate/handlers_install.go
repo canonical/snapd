@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
@@ -50,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -57,15 +59,19 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
 
 var (
+	bootMakeBootablePartition            = boot.MakeBootablePartition
 	bootMakeRunnable                     = boot.MakeRunnableSystem
 	bootMakeRunnableAfterDataReset       = boot.MakeRunnableSystemAfterDataReset
 	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
 	installRun                           = install.Run
 	installFactoryReset                  = install.FactoryReset
+	installMountVolumes                  = install.MountVolumes
+	installWriteContent                  = install.WriteContent
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
@@ -449,16 +455,18 @@ func prepareRunSystemData(model *asserts.Model, gadgetDir string, perfTimings ti
 
 	// TODO: FIXME: this should go away after we have time to design a proper
 	//              solution
-	// TODO: only run on specific models?
 
-	// on some specific devices, we need to create these directories in
-	// _writable_defaults in order to allow the install-device hook to install
-	// some files there, this eventually will go away when we introduce a proper
-	// mechanism not using system-files to install files onto the root
-	// filesystem from the install-device hook
-	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir(model)); err != nil {
-		return err
+	if !model.Classic() {
+		// on some specific devices, we need to create these directories in
+		// _writable_defaults in order to allow the install-device hook to install
+		// some files there, this eventually will go away when we introduce a proper
+		// mechanism not using system-files to install files onto the root
+		// filesystem from the install-device hook
+		if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir(model)); err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -1201,10 +1209,40 @@ func rotateEncryptionKeys() error {
 	return nil
 }
 
+func mountSeedSnap(seedSn *seed.Snap) (mountpoint string, unmount func() error, err error) {
+	mountpoint = filepath.Join(dirs.SnapRunDir, "snap-content", string(seedSn.EssentialType))
+	if err := os.MkdirAll(mountpoint, 0755); err != nil {
+		return "", nil, err
+	}
+
+	// temporarily mount the filesystem
+	logger.Debugf("mounting %q in %q", seedSn.Path, mountpoint)
+	sd := systemd.New(systemd.SystemMode, progress.Null)
+	if err := sd.Mount(seedSn.Path, mountpoint); err != nil {
+		return "", nil, fmt.Errorf("cannot mount %q at %q: %v", seedSn.Path, mountpoint, err)
+	}
+	return mountpoint,
+		func() error {
+			logger.Debugf("Unmounting %q", mountpoint)
+			return sd.Umount(mountpoint)
+		},
+		nil
+}
+
+// doInstallFinish performs the finish step of the install. It will
+// - install missing volumes structure content
+// - install gadget assets
+// - install kernel.efi
+// - make system bootable (including writing modeenv)
+// TODO this needs unit tests
 func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
+	var err error
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
 
 	var systemLabel string
 	if err := t.Get("system-label", &systemLabel); err != nil {
@@ -1214,14 +1252,101 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("on-volumes", &onVolumes); err != nil {
 		return err
 	}
-	logger.Debugf("install-finish for %q on %v", systemLabel, onVolumes)
-	// TODO: use the seed to get gadget/kernel
-	// - install missing volumes structure content
-	// - install gadget assets
-	// - install kenrel
-	// - make system bootable (include writing modeenv)
+	logger.Debugf("starting install-finish for %q systemd on %v", systemLabel, onVolumes)
 
-	return fmt.Errorf("finish install step not implemented yet")
+	essentialTypes := []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget}
+	st.Unlock()
+	sys, snapInfos, snapSeeds, err := m.loadSystemAndEssentialSnaps(systemLabel, essentialTypes)
+	st.Lock()
+	if err != nil {
+		return err
+	}
+	// Unset revision here actually means that the snap is local.
+	// Assign then a local revision as seeding/installing the snap would do.
+	for _, typ := range essentialTypes {
+		snInfo := snapInfos[typ]
+		if snInfo.Revision.Unset() {
+			snInfo.Revision = snap.R(-1)
+		}
+	}
+
+	// Mount gadget and kernel
+	mntPtForType := make(map[snap.Type]string)
+	for _, seedSn := range []*seed.Snap{snapSeeds[snap.TypeGadget], snapSeeds[snap.TypeKernel]} {
+		mntPt, unmountSnap, err := mountSeedSnap(seedSn)
+		if err != nil {
+			return err
+		}
+		mntPtForType[seedSn.EssentialType] = mntPt
+		defer func() {
+			errRest := unmountSnap()
+			if err == nil {
+				err = errRest
+			}
+		}()
+	}
+
+	// TODO validation of onVolumes versus gadget.yaml
+
+	// TODO useEncryption always false until setup encryption is implemented
+	// TODO we probably want to pass a different location for the assets cache
+	useEncryption := false
+	installObserver, trustedInstallObserver, err := buildInstallObserver(sys.Model, mntPtForType[snap.TypeGadget], useEncryption)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("writing content to partitions")
+	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
+		st.Unlock()
+		defer st.Lock()
+		_, err = installWriteContent(onVolumes, installObserver, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, perfTimings)
+	})
+	if err != nil {
+		return fmt.Errorf("cannot write content: %v", err)
+	}
+
+	// Mount the partitions and find ESP partition
+	espMntDir, unmount, err := installMountVolumes(onVolumes)
+	if err != nil {
+		return fmt.Errorf("cannot mount partitions for installation: %v", err)
+	}
+	defer unmount()
+
+	bootWith := &boot.BootableSet{
+		Base:       snapInfos[snap.TypeBase],
+		BasePath:   snapSeeds[snap.TypeBase].Path,
+		Kernel:     snapInfos[snap.TypeKernel],
+		KernelPath: snapSeeds[snap.TypeKernel].Path,
+		Gadget:     snapInfos[snap.TypeGadget],
+		GadgetPath: snapSeeds[snap.TypeGadget].Path,
+
+		UnpackedGadgetDir: mntPtForType[snap.TypeGadget],
+	}
+
+	// installs in ESP: grub.cfg, grubenv
+	logger.Debugf("making the ESP partition bootable, mount dir is %q", espMntDir)
+	opts := &bootloader.Options{
+		PrepareImageTime: false,
+		// We need the same configuration that a recovery partition,
+		// as we will chainload to grub in the boot partition.
+		Role: bootloader.RoleRecovery,
+	}
+	if err := bootMakeBootablePartition(espMntDir, opts, bootWith, boot.ModeRun, nil); err != nil {
+		return err
+	}
+
+	// writes the model
+	if err := prepareRunSystemData(sys.Model, bootWith.UnpackedGadgetDir, perfTimings); err != nil {
+		return err
+	}
+
+	logger.Debugf("making the installed system runnable for systemLabel %s", systemLabel)
+	if err := bootMakeRunnable(sys.Model, bootWith, trustedInstallObserver); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.Tomb) error {
