@@ -249,6 +249,8 @@ nested_qemu_name() {
     i386)
         command -v qemu-system-i386
         ;;
+    arm64)
+        command -v qemu-system-arm
     *)
         echo "unsupported architecture"
         exit 1
