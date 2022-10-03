@@ -23,7 +23,7 @@ func (*aspectSuite) TestAspectDirectory(c *C) {
 			{"name": "ssid", "path": "wifi.ssid"},
 			{"name": "top-level", "path": "top-level"},
 		},
-	}, aspects.NewStorage(), aspects.NewJSONSchema())
+	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
 
 	wsAspect := aspectDir.Aspect("wifi-setup")

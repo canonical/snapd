@@ -33,7 +33,8 @@ type DataBag interface {
 	Data() ([]byte, error)
 }
 
-// Schema takes in data from the DataBag and validates that it's valid.
+// Schema takes in data from the DataBag and validates that it's valid and could
+// be committed.
 type Schema interface {
 	Validate(data []byte) error
 }
@@ -154,26 +155,26 @@ type accessPattern struct {
 	access string
 }
 
-// JSONStorage is a simple DataBag implementation that keeps JSON in-memory.
-type JSONStorage map[string]json.RawMessage
+// JSONDataBag is a simple DataBag implementation that keeps JSON in-memory.
+type JSONDataBag map[string]json.RawMessage
 
-func NewStorage() JSONStorage {
+func NewJSONDataBag() JSONDataBag {
 	storage := make(map[string]json.RawMessage)
 	return storage
 }
 
-func (s JSONStorage) Get(path string, value interface{}) error {
+func (s JSONDataBag) Get(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
 	return get(subKeys, s, value)
 }
 
-func (s JSONStorage) Set(path string, value interface{}) error {
+func (s JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
 	_, err := set(subKeys, s, value)
 	return err
 }
 
-func (s JSONStorage) Data() ([]byte, error) {
+func (s JSONDataBag) Data() ([]byte, error) {
 	return json.Marshal(s)
 }
 
