@@ -21,7 +21,6 @@ package release
 
 import (
 	"bufio"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"regexp"
@@ -112,10 +111,6 @@ var fileExists = func(path string) bool {
 	return err == nil
 }
 
-func isWSL() bool {
-	return fileExists("/proc/sys/fs/binfmt_misc/WSLInterop")
-}
-
 var ioutilReadFile = ioutil.ReadFile
 
 // WSL 1 /proc/version: Linux version [kernel]-Microsoft (Microsoft@Microsoft.com) ([gcc version] ) #[build]-Microsoft [timestamp]
@@ -125,16 +120,16 @@ var ioutilReadFile = ioutil.ReadFile
 // contents of that string. Hence why we search in WSL1's kernel name instead of WSL2's
 var kernelWSL1 = regexp.MustCompile(`^Linux version [0-9.-]+Microsoft \(Microsoft@Microsoft.com\)`)
 
-func getWSLVersion() (int, error) {
-	if !isWSL() {
-		return 0, fmt.Errorf("cannot get WSL version while not running WSL.")
+func getWSLVersion() int {
+	if !fileExists("/proc/sys/fs/binfmt_misc/WSLInterop") {
+		return 0
 	}
 	kernel, err := ioutilReadFile("/proc/version")
 	if err != nil || kernelWSL1.MatchString(string(kernel[:])) {
 		// In case of error, we default to WSL1 because it is the most feature-restricted version
-		return 1, nil
+		return 1
 	}
-	return 2, nil
+	return 2
 }
 
 // SystemctlSupportsUserUnits returns true if the systemctl utility
@@ -166,8 +161,8 @@ func init() {
 
 	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
 
-	OnWSL = isWSL()
-	WSLVersion, _ = getWSLVersion()
+	WSLVersion = getWSLVersion()
+	OnWSL = WSLVersion != 0
 }
 
 // MockOnClassic forces the process to appear inside a classic

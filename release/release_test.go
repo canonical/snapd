@@ -159,10 +159,8 @@ func (s *ReleaseTestSuite) TestNonWSL(c *C) {
 		return []byte("Linux version 2.2.19 (herbert@gondolin) (gcc version 2.7.2.3) #1 Wed Mar 20 19:41:41 EST 2002"), nil
 	})()
 
-	c.Check(release.IsWSL(), Equals, false)
-	v, err := release.GetWSLVersion()
+	v := release.GetWSLVersion()
 	c.Check(v, Equals, 0)
-	c.Check(err, ErrorMatches, "cannot get WSL version while not running WSL.")
 }
 
 func (s *ReleaseTestSuite) TestWSL1(c *C) {
@@ -176,11 +174,8 @@ func (s *ReleaseTestSuite) TestWSL1(c *C) {
 		return []byte("Linux version 4.4.0-22000-Microsoft (Microsoft@Microsoft.com) (gcc version 5.4.0 (GCC) ) #653-Microsoft Wed Apr 27 16:06:00 PST 2022"), nil
 	})()
 
-	v, err := release.GetWSLVersion()
-
-	c.Check(release.IsWSL(), Equals, true)
+	v := release.GetWSLVersion()
 	c.Check(v, Equals, 1)
-	c.Check(err, IsNil)
 }
 
 func (s *ReleaseTestSuite) TestWSL2(c *C) {
@@ -194,11 +189,8 @@ func (s *ReleaseTestSuite) TestWSL2(c *C) {
 		return []byte("Linux version 5.15.57.1-microsoft-standard-WSL2 (oe-user@oe-host) (x86_64-msft-linux-gcc (GCC) 9.3.0, GNU ld (GNU Binutils) 2.34.0.20200220) #1 SMP Wed Jul 27 02:20:31 UTC 2022"), nil
 	})()
 
-	v, err := release.GetWSLVersion()
-
-	c.Check(release.IsWSL(), Equals, true)
+	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
-	c.Check(err, IsNil)
 }
 
 func (s *ReleaseTestSuite) TestWSL2Custom(c *C) {
@@ -212,11 +204,8 @@ func (s *ReleaseTestSuite) TestWSL2Custom(c *C) {
 		return []byte("Linux version 3.14.15.92-look-mum-i-compiled-the-linux-kernel"), nil
 	})()
 
-	v, err := release.GetWSLVersion()
-
-	c.Check(release.IsWSL(), Equals, true)
+	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
-	c.Check(err, IsNil)
 }
 
 func (s *ReleaseTestSuite) TestSystemctlSupportsUserUnits(c *C) {

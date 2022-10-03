@@ -52,6 +52,5 @@ func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func
 }
 
 var (
-	IsWSL         = isWSL
 	GetWSLVersion = getWSLVersion
 )
