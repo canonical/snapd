@@ -686,7 +686,7 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 
 	var tss []*state.TaskSet
 	var affected []string
-	err = assertstateTryApplyEnforcedValidationSets(st, inst.ValidationSets, inst.userID, snaps, ignoreValidationSnaps)
+	err = assertstateTryEnforcedValidationSets(st, inst.ValidationSets, inst.userID, snaps, ignoreValidationSnaps)
 	if err != nil {
 		vErr, ok := err.(*snapasserts.ValidationSetsValidationError)
 		if !ok {

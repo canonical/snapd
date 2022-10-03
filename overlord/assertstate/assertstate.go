@@ -765,12 +765,12 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 	return vs, latest, err
 }
 
-// TryApplyEnforcedValidationSets tries to fetch the given validation sets and
+// TryEnforcedValidationSets tries to fetch the given validation sets and
 // enforce them (together with currently tracked validation sets) against
 // installed snaps, but doesn't update tracking information in case of an error.
 // It may return snapasserts.ValidationSetsValidationError which can be used to
 // install/remove snaps as required to satisfy validation sets constraints.
-func TryApplyEnforcedValidationSets(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+func TryEnforcedValidationSets(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
 		return err
