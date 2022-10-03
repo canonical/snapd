@@ -70,10 +70,13 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return nil, nil
+	old := snapstate.EnforcedValidationSets
+	s.AddCleanup(func() {
+		snapstate.EnforcedValidationSets = old
 	})
-	s.AddCleanup(restore)
+	snapstate.EnforcedValidationSets = func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	}
 }
 
 func (s *snapshotSuite) TearDownTest(c *check.C) {

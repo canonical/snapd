@@ -23,6 +23,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -431,5 +433,21 @@ func MockGetHiddenDirOptions(f func(*state.State, *SnapState, *SnapSetup) (*dirM
 	getDirMigrationOpts = f
 	return func() {
 		getDirMigrationOpts = old
+	}
+}
+
+func MockEnforcedValidationSets(f func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error)) func() {
+	old := EnforcedValidationSets
+	EnforcedValidationSets = f
+	return func() {
+		EnforcedValidationSets = old
+	}
+}
+
+func MockEnforceValidationSets(f func(*state.State, map[string]*asserts.ValidationSet, map[string]int, []*snapasserts.InstalledSnap, map[string]bool, int) error) func() {
+	old := EnforceValidationSets
+	EnforceValidationSets = f
+	return func() {
+		EnforceValidationSets = old
 	}
 }

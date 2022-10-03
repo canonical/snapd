@@ -36,6 +36,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -61,6 +62,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
@@ -107,7 +109,10 @@ func (s *snapmgrBaseTest) logTasks(c *C) {
 		c.Logf("\nChange %q (%s):", chg.Summary(), chg.Status())
 
 		for _, t := range chg.Tasks() {
-			c.Logf("\t%s - %s", t.Summary(), t.Status())
+			c.Logf("  %s - %s", t.Summary(), t.Status())
+			if t.Status() == state.ErrorStatus {
+				c.Logf("    %s", strings.Join(t.Log(), "    \n"))
+			}
 		}
 	}
 }
@@ -347,7 +352,6 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	runner.AddHandler("configure-snapd", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
-
 }
 
 type snapmgrTestSuite struct {
@@ -8444,4 +8448,186 @@ func (s *snapmgrTestSuite) TestExcludeFromRefreshAppAwareness(c *C) {
 	c.Check(snapstate.ExcludeFromRefreshAppAwareness(snap.TypeGadget), Equals, false)
 	c.Check(snapstate.ExcludeFromRefreshAppAwareness(snap.TypeSnapd), Equals, true)
 	c.Check(snapstate.ExcludeFromRefreshAppAwareness(snap.TypeOS), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   "some-other-snap-id",
+		RealName: "some-other-snap",
+	}
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{info},
+		Current:  info.Revision,
+		Active:   true,
+	})
+
+	headers := map[string]interface{}{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "some-snap",
+				"id":       "mysnapdddddddddddddddddddddddddd",
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "some-other-snap",
+				"id":       "mysnapcccccccccccccccccccccccccc",
+				"presence": "required",
+				"revision": "2",
+			},
+		},
+	}
+
+	storeSigning := assertstest.NewStoreStack("can0nical", nil)
+	a, err := storeSigning.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	valErr := &snapasserts.ValidationSetsValidationError{
+		MissingSnaps:       map[string]map[snap.Revision][]string{"some-snap": {snap.R(1): {"foo/bar"}}},
+		WrongRevisionSnaps: map[string]map[snap.Revision][]string{"some-other-snap": {snap.R(2): {"foo/bar"}}},
+		Sets:               map[string]*asserts.ValidationSet{"foo/bar": vs},
+	}
+	pinnedSeqs := map[string]int{"foo/bar": 3}
+
+	var calledEnforce bool
+	restore := snapstate.MockEnforceValidationSets(func(_ *state.State, usrKeysToVss map[string]*asserts.ValidationSet, pinned map[string]int, snaps []*snapasserts.InstalledSnap, snapsToIgnore map[string]bool, _ int) error {
+		calledEnforce = true
+		c.Check(pinned, DeepEquals, pinnedSeqs)
+		c.Check(snaps, testutil.DeepUnsortedMatches, []*snapasserts.InstalledSnap{
+			{SnapRef: naming.NewSnapRef("core", ""), Revision: snap.R(1)},
+			{SnapRef: naming.NewSnapRef("some-other-snap", "some-other-snap-id"), Revision: snap.R(2)},
+			{SnapRef: naming.NewSnapRef("some-snap", "some-snap-id"), Revision: snap.R(1)}})
+		c.Check(snapsToIgnore, HasLen, 0)
+		return nil
+	})
+	defer restore()
+
+	tss, affected, err := snapstate.ResolveValidationSetsEnforcementError(context.Background(), s.state, valErr, pinnedSeqs, s.user.ID)
+	c.Assert(err, IsNil)
+	c.Assert(affected, DeepEquals, []string{"some-other-snap", "some-snap"})
+
+	chg := s.state.NewChange("refresh-to-enforce", "")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+	c.Assert(chg.Err(), IsNil)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-other-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Current, Equals, snap.R(2))
+
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Current, Equals, snap.R(1))
+
+	c.Assert(calledEnforce, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorReverse(c *C) {
+	// fail to enforce the validation set at the end to trigger an undo
+	expectedErr := errors.New("expected")
+	restore := snapstate.MockEnforceValidationSets(func(*state.State, map[string]*asserts.ValidationSet, map[string]int, []*snapasserts.InstalledSnap, map[string]bool, int) error {
+		return expectedErr
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   "some-other-snap-id",
+		RealName: "some-other-snap",
+	}
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{info},
+		Current:  info.Revision,
+		Active:   true,
+	})
+
+	headers := map[string]interface{}{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "3",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "some-snap",
+				"id":       "mysnapdddddddddddddddddddddddddd",
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "some-other-snap",
+				"id":       "mysnapcccccccccccccccccccccccccc",
+				"presence": "required",
+				"revision": "2",
+			},
+		},
+	}
+
+	storeSigning := assertstest.NewStoreStack("can0nical", nil)
+	a, err := storeSigning.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vs := a.(*asserts.ValidationSet)
+
+	valErr := &snapasserts.ValidationSetsValidationError{
+		MissingSnaps:       map[string]map[snap.Revision][]string{"some-snap": {snap.R(1): {"foo/bar"}}},
+		WrongRevisionSnaps: map[string]map[snap.Revision][]string{"some-other-snap": {snap.R(2): {"foo/bar"}}},
+		Sets:               map[string]*asserts.ValidationSet{"foo/bar": vs},
+	}
+	pinnedSeqs := map[string]int{"foo/bar": 3}
+
+	tss, affected, err := snapstate.ResolveValidationSetsEnforcementError(context.TODO(), s.state, valErr, pinnedSeqs, s.user.ID)
+	c.Assert(err, IsNil)
+	c.Assert(affected, DeepEquals, []string{"some-other-snap", "some-snap"})
+
+	chg := s.state.NewChange("refresh-to-enforce", "")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+	c.Assert(chg.Err(), ErrorMatches, fmt.Sprintf(`(.|\s)*%s\)?`, expectedErr))
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-other-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Current, Equals, snap.R(1))
+
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+}
+
+func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorWithInvalidSnaps(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	valErr := &snapasserts.ValidationSetsValidationError{
+		InvalidSnaps:       map[string][]string{"snap-a": {"foo/bar"}},
+		MissingSnaps:       map[string]map[snap.Revision][]string{"snap-b": {snap.R(1): []string{"foo/bar"}}},
+		WrongRevisionSnaps: map[string]map[snap.Revision][]string{"snap-c": {snap.R(2): []string{"foo/bar"}}},
+	}
+
+	_, _, err := snapstate.ResolveValidationSetsEnforcementError(context.TODO(), s.state, valErr, nil, s.user.ID)
+	c.Assert(err, ErrorMatches, "cannot auto-resolve validation set constraints that require removing snaps: \"snap-a\"")
 }
