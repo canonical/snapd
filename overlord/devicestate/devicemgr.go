@@ -309,6 +309,7 @@ func (m *DeviceManager) StartUp() error {
 }
 
 func (m *DeviceManager) shouldMountUbuntuSave() bool {
+	// TODO: this should check DeviceCtx.IsClassicBoot() instead
 	if release.OnClassic {
 		return false
 	}
