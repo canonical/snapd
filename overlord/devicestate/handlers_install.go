@@ -1300,8 +1300,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	timings.Run(perfTimings, "install-finish", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		_, err = installWriteContent(onVolumes, installObserver,
-			mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, perfTimings)
+		_, err = installWriteContent(onVolumes, installObserver, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, perfTimings)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot write content: %v", err)
@@ -1333,7 +1332,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		// as we will chainload to grub in the boot partition.
 		Role: bootloader.RoleRecovery,
 	}
-	if err := bootMakeBootablePartition(espMntDir, opts, bootWith, boot.ModeRun, []string{}); err != nil {
+	if err := bootMakeBootablePartition(espMntDir, opts, bootWith, boot.ModeRun, nil); err != nil {
 		return err
 	}
 

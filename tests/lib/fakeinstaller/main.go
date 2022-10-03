@@ -68,8 +68,8 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]g
 		return nil, fmt.Errorf("cannot layout volume: %v", err)
 	}
 
-	iconst := &install.CreateOptions{CreateAllMissingPartitions: true}
-	created, err := install.CreateMissingPartitions(diskLayout, lvol, iconst)
+	opts := &install.CreateOptions{CreateAllMissingPartitions: true}
+	created, err := install.CreateMissingPartitions(diskLayout, lvol, opts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create parititons: %v", err)
 	}
@@ -110,9 +110,8 @@ func waitChange(chgId string) error {
 
 // TODO laidoutStructs is used to get the devices, when encryption is
 // happening maybe we need to find the information differently.
-func postSystemsInstallFinish(cli *client.Client,
-	details *client.SystemDetails, bootDevice string,
-	laidoutStructs []gadget.OnDiskStructure) error {
+func postSystemsInstallFinish(cli *client.Client, details *client.SystemDetails,
+	bootDevice string, laidoutStructs []gadget.OnDiskStructure) error {
 
 	vols := make(map[string]*gadget.Volume)
 	for volName, gadgetVol := range details.Volumes {
@@ -168,14 +167,13 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 		if err != nil {
 			return nil, err
 		}
-		// XXX: reuse
-		// gadget/install/content.go:mountFilesystem() instead
-		// (it will also call udevadm)
 		if err := mkfs.Make(stru.Filesystem, part.KernelDeviceNode, stru.Label, 0, 0); err != nil {
 			return nil, err
 		}
 
-		// mount
+		// Mount filesystem
+		// XXX: reuse gadget/install/content.go:mountFilesystem()
+		// instead (it will also call udevadm)
 		mountPoint := runMntFor(stru.Label)
 		if err := os.MkdirAll(mountPoint, 0755); err != nil {
 			return nil, err
@@ -190,13 +188,17 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 	return mountPoints, nil
 }
 
-func unmountFilesystems(mntPts []string) error {
+func unmountFilesystems(mntPts []string) (err error) {
 	for _, mntPt := range mntPts {
-		if output, err := exec.Command("umount", mntPt).CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
+		// We try to unmount all mount points, and return the
+		// last error if any.
+		if output, errUmnt := exec.Command("umount", mntPt).CombinedOutput(); err != nil {
+			errUmnt = osutil.OutputErr(output, errUmnt)
+			logger.Noticef("error: cannot unmount %q: %v", mntPt, errUmnt)
+			err = errUmnt
 		}
 	}
-	return nil
+	return err
 }
 
 func createClassicRootfsIfNeeded(rootfsCreator string) error {
@@ -257,7 +259,6 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err := createSeedOnTarget(bootDevice, seedLabel); err != nil {
 		return fmt.Errorf("cannot create seed on target: %v", err)
 	}
-	// Unmount filesystems
 	if err := unmountFilesystems(mntPts); err != nil {
 		return fmt.Errorf("cannot unmount filesystems: %v", err)
 	}
