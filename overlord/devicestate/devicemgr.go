@@ -1560,13 +1560,14 @@ func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 	st.Lock()
 	defer st.Unlock()
 
-	// XXX: Only in run mode?
+	// So far this is only set to be done in run mode, it might not
+	// make any sense to do in it any other mode.
 	mode := m.SystemMode(SysHasModeenv)
 	if mode != "run" {
 		return nil
 	}
 
-	// XXX: Only when seeded?
+	// Expect the system to be seeded, otherwise we ignore this.
 	var seeded bool
 	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
