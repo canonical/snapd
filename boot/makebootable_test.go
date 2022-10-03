@@ -1978,6 +1978,8 @@ version: 5.0
 
 	// ensure that there are no good recovery systems as RecoverySystemDir was empty
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
-	c.Assert(mockSeedGrubenv, testutil.FilePresent)
-	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_good_recovery_systems=")
+	c.Check(mockSeedGrubenv, testutil.FilePresent)
+	systemGenv := grubenv.NewEnv(mockSeedGrubenv)
+	c.Assert(systemGenv.Load(), IsNil)
+	c.Check(systemGenv.Get("snapd_good_recovery_systems"), Equals, "")
 }

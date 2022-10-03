@@ -1297,7 +1297,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	logger.Debugf("writing content to partitions")
-	timings.Run(perfTimings, "install-finish", "Writing content to partitions", func(tm timings.Measurer) {
+	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
 		_, err = installWriteContent(onVolumes, installObserver, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, perfTimings)

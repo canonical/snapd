@@ -82,7 +82,7 @@ func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableS
 // using information from bootWith and bootFlags. Contrarily to
 // MakeBootableImage this happens in a live system.
 func MakeBootablePartition(partDir string, opts *bootloader.Options, bootWith *BootableSet, bootMode string, bootFlags []string) error {
-	return configureBootloader(partDir, bootWith, bootMode, opts, bootFlags)
+	return configureBootloader(partDir, opts, bootWith, bootMode, bootFlags)
 }
 
 // makeBootable16 setups the image filesystem for boot with UC16
@@ -162,7 +162,7 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	return nil
 }
 
-func configureBootloader(rootdir string, bootWith *BootableSet, bootMode string, opts *bootloader.Options, bootFlags []string) error {
+func configureBootloader(rootdir string, opts *bootloader.Options, bootWith *BootableSet, bootMode string, bootFlags []string) error {
 	blVars := make(map[string]string, 3)
 	if len(bootFlags) != 0 {
 		if err := setImageBootFlags(bootFlags, blVars); err != nil {
@@ -218,7 +218,7 @@ func makeBootable20(rootdir string, bootWith *BootableSet, bootFlags []string) e
 		// setup the recovery bootloader
 		Role: bootloader.RoleRecovery,
 	}
-	if err := configureBootloader(rootdir, bootWith, ModeInstall, opts, bootFlags); err != nil {
+	if err := configureBootloader(rootdir, opts, bootWith, ModeInstall, bootFlags); err != nil {
 		return fmt.Errorf("cannot install bootloader: %v", err)
 	}
 
