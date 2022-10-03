@@ -81,7 +81,7 @@ if [ ! -d "$DST" ]; then
 fi
 
 # get the base
-wget -c http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.1-base-amd64.tar.gz
+wget -c http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.1-base-amd64.tar.gz -O ubuntu-base.tar.gz
 
-# create minitmal rootfs
-create_classic_rootfs "$DST" "ubuntu-base-22.04-base-amd64.tar.gz"
+# create minimal rootfs
+create_classic_rootfs "$DST" ubuntu-base.tar.gz
