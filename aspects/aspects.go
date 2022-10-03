@@ -42,15 +42,9 @@ type Directory struct {
 
 // NewAspectDirectory returns a new aspect directory for the following aspects
 // and access patterns.
-func NewAspectDirectory(name string, mapping map[string]interface{}, schema Schema) (*Directory, error) {
-	a, ok := mapping["aspects"]
-	if !ok {
-		return nil, errors.New("cannot create aspects directory without aspects map")
-	}
-
-	aspects, ok := a.(map[string]interface{})
-	if !ok {
-		return nil, errors.New(`cannot create aspects directory: "aspects" key should map to an aspects map`)
+func NewAspectDirectory(name string, aspects map[string]interface{}, schema Schema) (*Directory, error) {
+	if len(aspects) == 0 {
+		return nil, errors.New(`cannot create aspects directory: no aspects in map`)
 	}
 
 	aspectDir := Directory{

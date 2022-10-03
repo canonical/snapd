@@ -18,11 +18,9 @@ var _ = Suite(&aspectSuite{})
 func (*aspectSuite) TestAspectDirectory(c *C) {
 	storage := aspects.NewStorage()
 	aspectDir, err := aspects.NewAspectDirectory("system/network", map[string]interface{}{
-		"aspects": map[string]interface{}{
-			"wifi-setup": []map[string]string{
-				{"name": "ssids", "path": "wifi.ssids"},
-				{"name": "ssid", "path": "wifi.ssid"},
-			},
+		"wifi-setup": []map[string]string{
+			{"name": "ssids", "path": "wifi.ssids"},
+			{"name": "ssid", "path": "wifi.ssid"},
 		},
 	}, storage)
 	c.Assert(err, IsNil)
