@@ -481,6 +481,9 @@ nested_get_model() {
         ubuntu-20.04-64)
             echo "$TESTSLIB/assertions/nested-20-amd64.model"
             ;;
+        ubuntu-20.04-arm-64)
+            echo "$TESTSLIB/assertions/nested-20-arm64.model"
+            ;;
         ubuntu-22.04-64)
             echo "$TESTSLIB/assertions/nested-22-amd64.model"
             ;;
