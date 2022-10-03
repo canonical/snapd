@@ -157,9 +157,8 @@ execute: |
   # TODO: this prevents "nested_prepare_ssh" inside nested_start_core_vm
   #       from running, we already have a user so this is not needed
   touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
-  # TODO: disabled until https://github.com/mvo5/snappy/commit/71e39c73f7662c386eaf86f021ec443d7fa380c0 lands
-  #nested_start_core_vm
-  #
-  #remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
-  #remote.exec "snap changes" | MATCH "Done.* Initialize system state"
-  #remote.exec "snap list" | MATCH pc-kernel
+  nested_start_core_vm
+
+  remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
+  remote.exec "snap changes" | MATCH "Done.* Initialize system state"
+  remote.exec "snap list" | MATCH pc-kernel
