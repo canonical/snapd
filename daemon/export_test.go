@@ -121,8 +121,8 @@ func MockAssertstateRefreshSnapAssertions(mock func(*state.State, int, *assertst
 }
 
 func MockAssertstateTryEnforceValidationSets(f func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error) (restore func()) {
-	r := testutil.Backup(&assertstateTryEnforceValidationSets)
-	assertstateTryEnforceValidationSets = f
+	r := testutil.Backup(&assertstateTryApplyEnforcedValidationSets)
+	assertstateTryApplyEnforcedValidationSets = f
 	return r
 }
 

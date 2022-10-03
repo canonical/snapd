@@ -368,13 +368,13 @@ func delayedCrossMgrInit() {
 	// hook retrieving auto-aliases into snapstate logic
 	snapstate.AutoAliases = AutoAliases
 	// hook the helper for getting enforced validation sets
-	snapstate.EnforcedValidationSets = EnforcedValidationSets
+	snapstate.EnforcedValidationSets = TrackedEnforcedValidationSets
 	// hook the helper for saving current validation sets to the stack
 	snapstate.AddCurrentTrackingToValidationSetsStack = addCurrentTrackingToValidationSetsHistory
 	// hook the helper for restoring validation sets tracking from the stack
 	snapstate.RestoreValidationSetsTracking = RestoreValidationSetsTracking
 	// hook helper for enforcing validation sets without fetching them
-	snapstate.EnforceValidationSets = EnforceValidationSets
+	snapstate.EnforceValidationSets = ApplyEnforcedValidationSets
 }
 
 // AutoRefreshAssertions tries to refresh all assertions
@@ -671,7 +671,7 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 	vs, err = getSpecificSequenceOrLatest(db, headers)
 
 	checkForConflicts := func() error {
-		valsets, err := EnforcedValidationSets(st, vs)
+		valsets, err := TrackedEnforcedValidationSets(st, vs)
 		if err != nil {
 			return err
 		}
@@ -765,12 +765,12 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 	return vs, latest, err
 }
 
-// TryEnforceValidationSets tries to fetch the given validation sets and
+// TryApplyEnforcedValidationSets tries to fetch the given validation sets and
 // enforce them (together with currently tracked validation sets) against
 // installed snaps, but doesn't update tracking information in case of an error.
 // It may return snapasserts.ValidationSetsValidationError which can be used to
 // install/remove snaps as required to satisfy validation sets constraints.
-func TryEnforceValidationSets(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+func TryApplyEnforcedValidationSets(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
 		return err
@@ -849,7 +849,7 @@ func TryEnforceValidationSets(st *state.State, validationSets []string, userID i
 			extraVs = append(extraVs, vs)
 		}
 
-		valsets, err := EnforcedValidationSets(st, extraVs...)
+		valsets, err := TrackedEnforcedValidationSets(st, extraVs...)
 		if err != nil {
 			return err
 		}
@@ -891,10 +891,10 @@ func TryEnforceValidationSets(st *state.State, validationSets []string, userID i
 	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
-// EnforceValidationSets enforces the supplied validation sets. It takes a map
+// ApplyEnforcedValidationSets enforces the supplied validation sets. It takes a map
 // of validation set keys to validation sets, pinned sequence numbers (if any),
 // installed snaps and ignored snaps. It fetches any pre-requisites necessary.
-func EnforceValidationSets(st *state.State, valsets map[string]*asserts.ValidationSet, pinnedSeqs map[string]int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool, userID int) error {
+func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.ValidationSet, pinnedSeqs map[string]int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool, userID int) error {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
 		return err
@@ -939,7 +939,7 @@ func EnforceValidationSets(st *state.State, valsets map[string]*asserts.Validati
 		return err
 	}
 
-	valsetGroup, err := EnforcedValidationSets(st, vss...)
+	valsetGroup, err := TrackedEnforcedValidationSets(st, vss...)
 	if err != nil {
 		return err
 	}
@@ -963,10 +963,10 @@ func EnforceValidationSets(st *state.State, valsets map[string]*asserts.Validati
 	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
-// FetchAndEnforceValidationSet tries to fetch the given validation set and enforce it.
+// FetchAndApplyEnforcedValidationSet tries to fetch the given validation set and enforce it.
 // If all validation sets constrains are satisfied, the current validation sets
 // tracking state is saved in validation sets history.
-func FetchAndEnforceValidationSet(st *state.State, accountID, name string, sequence, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*ValidationSetTracking, error) {
+func FetchAndApplyEnforcedValidationSet(st *state.State, accountID, name string, sequence, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*ValidationSetTracking, error) {
 	_, current, err := validationSetAssertionForEnforce(st, accountID, name, sequence, userID, snaps, ignoreValidation)
 	if err != nil {
 		return nil, err

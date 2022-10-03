@@ -3592,7 +3592,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertion(c *C) {
 	}
 
 	sequence := 2
-	tracking, err := assertstate.FetchAndEnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	tracking, err := assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 
 	// and it has been committed
@@ -3653,7 +3653,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionUpdate(c *C) {
 	}
 
 	sequence := 2
-	tracking, err := assertstate.FetchAndEnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	tracking, err := assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 
 	// and it has been committed
@@ -3692,7 +3692,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionUpdate(c *C) {
 
 	// not pinned
 	sequence = 0
-	tracking, err = assertstate.FetchAndEnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	tracking, err = assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
@@ -3730,7 +3730,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionPinToOlderSequence(c *
 	}
 
 	sequence := 2
-	tracking, err := assertstate.FetchAndEnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	tracking, err := assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 
 	// and it has been committed
@@ -3756,7 +3756,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionPinToOlderSequence(c *
 
 	// pin to older
 	sequence = 1
-	tracking, err = assertstate.FetchAndEnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	tracking, err = assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
@@ -3805,7 +3805,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionAfterMonitor(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	sequence := 2
-	tracking, err := assertstate.FetchAndEnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	tracking, err := assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 
 	// and it has been committed
@@ -3854,13 +3854,13 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionIgnoreValidation(c *C)
 
 	sequence := 2
 	ignoreValidation := map[string]bool{}
-	_, err := assertstate.FetchAndEnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, ignoreValidation)
+	_, err := assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, ignoreValidation)
 	wrongRevErr, ok := err.(*snapasserts.ValidationSetsValidationError)
 	c.Assert(ok, Equals, true)
 	c.Check(wrongRevErr.WrongRevisionSnaps["foo"], NotNil)
 
 	ignoreValidation["foo"] = true
-	tracking, err := assertstate.FetchAndEnforceValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, ignoreValidation)
+	tracking, err := assertstate.FetchAndApplyEnforcedValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, ignoreValidation)
 	c.Assert(err, IsNil)
 
 	// and it has been committed
@@ -3944,7 +3944,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
 		snapasserts.NewInstalledSnap("invalid-snap", "cccchntON3vR7kwEbVPsILm7bUViPDcc", snap.Revision{N: 1}),
 	}
-	err := assertstate.TryEnforceValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
+	err := assertstate.TryApplyEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
 	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
 	c.Assert(ok, Equals, true)
 	c.Check(verr.WrongRevisionSnaps, DeepEquals, map[string]map[snap.Revision][]string{
@@ -4027,7 +4027,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsOK(c *C) {
 	installedSnaps := []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}),
 	}
-	err := assertstate.TryEnforceValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz=1", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
+	err := assertstate.TryApplyEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID()), fmt.Sprintf("%s/baz=1", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
 	c.Assert(err, IsNil)
 
 	// new assertions were committed
@@ -4136,7 +4136,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsAlreadyTrackedUpd
 	installedSnaps := []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 3}),
 	}
-	err := assertstate.TryEnforceValidationSets(st, []string{fmt.Sprintf("%s/foo", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
+	err := assertstate.TryApplyEnforcedValidationSets(st, []string{fmt.Sprintf("%s/foo", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
 	c.Assert(err, IsNil)
 
 	// new assertion was committed
@@ -4217,7 +4217,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsConflictError(c *
 	installedSnaps := []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
 	}
-	err := assertstate.TryEnforceValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
+	err := assertstate.TryApplyEnforcedValidationSets(st, []string{fmt.Sprintf("%s/bar", s.dev1Acct.AccountID())}, 0, installedSnaps, nil)
 	_, ok := err.(*snapasserts.ValidationSetsConflictError)
 	c.Assert(ok, Equals, true)
 	c.Assert(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "some-snap" as both invalid \(.*/bar\) and required at any revision \(.*/foo\).*`)
@@ -4428,7 +4428,7 @@ func (s *assertMgrSuite) testEnforceValidationSets(c *C, pinnedSeq int) {
 	installedSnaps := []*snapasserts.InstalledSnap{
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
 	}
-	err := assertstate.EnforceValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil, 0)
+	err := assertstate.ApplyEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil, 0)
 	c.Assert(err, IsNil)
 
 	// the updated assertion wasn't fetched
@@ -4492,7 +4492,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithNoLocalAssertions(c *C) {
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}),
 	}
 
-	err := assertstate.EnforceValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil, 0)
+	err := assertstate.ApplyEnforcedValidationSets(st, valSets, pinnedSeqs, installedSnaps, nil, 0)
 	c.Assert(err, IsNil)
 
 	// the old assertion is in the state
@@ -4547,7 +4547,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithMismatchedPinnedSeq(c *C) 
 	}
 	pinnedSeqs := map[string]int{vsKey: 2}
 
-	err := assertstate.EnforceValidationSets(st, valSets, pinnedSeqs, nil, nil, 0)
+	err := assertstate.ApplyEnforcedValidationSets(st, valSets, pinnedSeqs, nil, nil, 0)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("internal error: trying to enforce validation set %q with sequence point 1 different than pinned 2", vsKey))
 }
 
@@ -4579,7 +4579,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithUnmetConstraints(c *C) {
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 2}),
 	}
 
-	err := assertstate.EnforceValidationSets(st, valSets, nil, installedSnaps, nil, 0)
+	err := assertstate.ApplyEnforcedValidationSets(st, valSets, nil, installedSnaps, nil, 0)
 	c.Assert(err, FitsTypeOf, &snapasserts.ValidationSetsValidationError{})
 
 	_, err = assertstate.DB(s.state).FindSequence(asserts.ValidationSetType, map[string]string{

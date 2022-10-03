@@ -271,8 +271,8 @@ func applyValidationSet(c *Command, r *http.Request, user *auth.UserState) Respo
 }
 
 var assertstateMonitorValidationSet = assertstate.MonitorValidationSet
-var assertstateFetchEnforceValidationSet = assertstate.FetchAndEnforceValidationSet
-var assertstateTryEnforceValidationSets = assertstate.TryEnforceValidationSets
+var assertstateFetchApplyEnforcedValidationSet = assertstate.FetchAndApplyEnforcedValidationSet
+var assertstateTryApplyEnforcedValidationSets = assertstate.TryApplyEnforcedValidationSets
 
 // updateValidationSet handles snap validate --monitor and --enforce accountId/name[=sequence].
 func updateValidationSet(st *state.State, accountID, name string, reqMode string, sequence int, user *auth.UserState) Response {
@@ -412,7 +412,7 @@ func enforceValidationSet(st *state.State, accountID, name string, sequence, use
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	tr, err := assertstateFetchEnforceValidationSet(st, accountID, name, sequence, userID, snaps, ignoreValidation)
+	tr, err := assertstateFetchApplyEnforcedValidationSet(st, accountID, name, sequence, userID, snaps, ignoreValidation)
 	if err != nil {
 		// XXX: provide more specific error kinds? This would probably require
 		// assertstate.ValidationSetAssertionForEnforce tuning too.
