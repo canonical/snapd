@@ -17,14 +17,13 @@ func Test(t *testing.T) { TestingT(t) }
 var _ = Suite(&aspectSuite{})
 
 func (*aspectSuite) TestAspectDirectory(c *C) {
-	storage := aspects.NewStorage()
 	aspectDir, err := aspects.NewAspectDirectory("system/network", map[string]interface{}{
 		"wifi-setup": []map[string]string{
 			{"name": "ssids", "path": "wifi.ssids"},
 			{"name": "ssid", "path": "wifi.ssid"},
 			{"name": "top-level", "path": "top-level"},
 		},
-	}, storage)
+	}, aspects.NewStorage(), aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
 
 	wsAspect := aspectDir.Aspect("wifi-setup")

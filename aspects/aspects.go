@@ -33,16 +33,22 @@ type DataBag interface {
 	Data() ([]byte, error)
 }
 
+// Schema takes in data from the DataBag and validates that it's valid.
+type Schema interface {
+	Validate(data []byte) error
+}
+
 // Directory holds a series of related aspects.
 type Directory struct {
 	Name    string
 	dataBag DataBag
+	schema  Schema
 	aspects map[string]*Aspect
 }
 
 // NewAspectDirectory returns a new aspect directory for the following aspects
 // and access patterns.
-func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag DataBag) (*Directory, error) {
+func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag DataBag, schema Schema) (*Directory, error) {
 	if len(aspects) == 0 {
 		return nil, errors.New(`cannot create aspects directory: no aspects in map`)
 	}
@@ -50,6 +56,7 @@ func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag Dat
 	aspectDir := Directory{
 		Name:    name,
 		dataBag: dataBag,
+		schema:  schema,
 		aspects: make(map[string]*Aspect, len(aspects)),
 	}
 
@@ -111,10 +118,18 @@ type Aspect struct {
 
 func (a *Aspect) Set(name string, value interface{}) error {
 	// TODO: add access control; name validation
-
 	for _, p := range a.accessPatterns {
 		if p.name == name {
-			return a.directory.dataBag.Set(p.path, value)
+			if err := a.directory.dataBag.Set(p.path, value); err != nil {
+				return err
+			}
+
+			data, err := a.directory.dataBag.Data()
+			if err != nil {
+				return err
+			}
+
+			return a.directory.schema.Validate(data)
 		}
 	}
 
@@ -123,7 +138,6 @@ func (a *Aspect) Set(name string, value interface{}) error {
 
 func (a *Aspect) Get(name string, value interface{}) error {
 	// TODO: add access control; name validation
-
 	for _, p := range a.accessPatterns {
 		if p.name == name {
 			return a.directory.dataBag.Get(p.path, value)
@@ -140,15 +154,13 @@ type accessPattern struct {
 	access string
 }
 
-// JSONStorage is a simple Schema implementation that keeps JSON in-memory.
+// JSONStorage is a simple DataBag implementation that keeps JSON in-memory.
 type JSONStorage map[string]json.RawMessage
 
 func NewStorage() JSONStorage {
 	storage := make(map[string]json.RawMessage)
 	return storage
 }
-
-func (s JSONStorage) Validate(string) error { return nil }
 
 func (s JSONStorage) Get(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
@@ -163,6 +175,18 @@ func (s JSONStorage) Set(path string, value interface{}) error {
 
 func (s JSONStorage) Data() ([]byte, error) {
 	return json.Marshal(s)
+}
+
+type JSONSchema struct{}
+
+func NewJSONSchema() *JSONSchema {
+	return &JSONSchema{}
+}
+
+func (s *JSONSchema) Validate(jsonData []byte) error {
+	// the top-level is always an object
+	var data map[string]json.RawMessage
+	return json.Unmarshal(jsonData, &data)
 }
 
 func get(subKeys []string, root map[string]json.RawMessage, result interface{}) error {
