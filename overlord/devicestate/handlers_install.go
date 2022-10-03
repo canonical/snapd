@@ -1321,6 +1321,12 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		Gadget:     snapInfos[snap.TypeGadget],
 		GadgetPath: snapSeeds[snap.TypeGadget].Path,
 
+		// modeenv:recovery_system will be set based on
+		// RecoverySystemDir and seeding reads this var
+		// from modeenv to know what it's seeding from
+		RecoverySystemDir:   systemLabel,
+		RecoverySystemLabel: systemLabel,
+
 		UnpackedGadgetDir: mntPtForType[snap.TypeGadget],
 	}
 
