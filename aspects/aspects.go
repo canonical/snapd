@@ -41,7 +41,7 @@ type Directory struct {
 }
 
 // NewAspectDirectory returns a new aspect directory for the following aspects
-// and views.
+// and access patterns.
 func NewAspectDirectory(name string, mapping map[string]interface{}, schema Schema) (*Directory, error) {
 	a, ok := mapping["aspects"]
 	if !ok {
@@ -62,15 +62,15 @@ func NewAspectDirectory(name string, mapping map[string]interface{}, schema Sche
 	for name, v := range aspects {
 		aspectViews, ok := v.([]map[string]string)
 		if !ok {
-			return nil, errors.New("cannot create aspect: aspect views should be a list of maps")
+			return nil, errors.New("cannot create aspect: access patterns should be a list of maps")
 		} else if len(aspectViews) == 0 {
-			return nil, errors.New("cannot create aspect without views")
+			return nil, errors.New("cannot create aspect without access patterns")
 		}
 
 		aspect := &Aspect{
-			Name:      name,
-			views:     make([]*view, 0, len(aspectViews)),
-			directory: aspectDir,
+			Name:           name,
+			accessPatterns: make([]*accessPattern, 0, len(aspectViews)),
+			directory:      aspectDir,
 		}
 
 		for _, aspectView := range aspectViews {
@@ -90,7 +90,7 @@ func NewAspectDirectory(name string, mapping map[string]interface{}, schema Sche
 					strutil.Quoted(validAccessValues), access)
 			}
 
-			aspect.views = append(aspect.views, &view{
+			aspect.accessPatterns = append(aspect.accessPatterns, &accessPattern{
 				name:   name,
 				path:   path,
 				access: access,
@@ -108,45 +108,39 @@ func (d *Directory) Aspect(aspect string) *Aspect {
 	return d.aspects[aspect]
 }
 
-// Aspect is a group of aspect views.
+// Aspect is a group of access patterns under a directory.
 type Aspect struct {
-	Name      string
-	views     []*view
-	directory Directory
+	Name           string
+	accessPatterns []*accessPattern
+	directory      Directory
 }
 
-func (a *Aspect) Set(view string, value interface{}) error {
-	if err := a.directory.schema.Validate(view); err != nil {
-		return err
-	}
+func (a *Aspect) Set(name string, value interface{}) error {
 	// TODO: add access control
 
-	for _, v := range a.views {
-		if v.name == view {
-			return a.directory.schema.Set(v.path, value)
+	for _, p := range a.accessPatterns {
+		if p.name == name {
+			return a.directory.schema.Set(p.path, value)
 		}
 	}
 
-	return &ErrNotFound{fmt.Sprintf("cannot set view %q: not found", view)}
+	return &ErrNotFound{fmt.Sprintf("cannot set name %q in aspect %q: access pattern not found", name, a.Name)}
 }
 
-func (a *Aspect) Get(view string, value interface{}) error {
-	if err := a.directory.schema.Validate(view); err != nil {
-		return err
-	}
+func (a *Aspect) Get(name string, value interface{}) error {
 	// TODO: add access control
 
-	for _, v := range a.views {
-		if v.name == view {
-			return a.directory.schema.Get(v.path, value)
+	for _, p := range a.accessPatterns {
+		if p.name == name {
+			return a.directory.schema.Get(p.path, value)
 		}
 	}
 
-	return &ErrNotFound{fmt.Sprintf("cannot get view %q: not found", view)}
+	return &ErrNotFound{fmt.Sprintf("cannot get name %q in aspect %q: access pattern not found", name, a.Name)}
 }
 
-// view is an aspect view that holds information about a view.
-type view struct {
+// accessPattern is an aspect accessPattern that holds information about a accessPattern.
+type accessPattern struct {
 	name   string
 	path   string
 	access string
