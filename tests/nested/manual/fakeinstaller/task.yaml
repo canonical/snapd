@@ -141,7 +141,6 @@ execute: |
   test -e /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
   # and we have a modenv in the image
   MATCH "mode=run" < /run/mnt/ubuntu-data/var/lib/snapd/modeenv
-  MATCH "recovery_system=$LABEL" < /run/mnt/ubuntu-data/var/lib/snapd/modeenv
   MATCH "classic=true" < /run/mnt/ubuntu-data/var/lib/snapd/modeenv
   umount /run/mnt/ubuntu-{boot,data}
 
