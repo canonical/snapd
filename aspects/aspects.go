@@ -26,30 +26,30 @@ func (e *ErrNotFound) Is(err error) bool {
 
 var validAccessValues = []string{"read", "write", "read-write"}
 
-// Schema maps dotted paths to underlying storage mechanism.
-type Schema interface {
+// DataBag controls access to a storage the data that the aspects access.
+type DataBag interface {
 	Get(path string, value interface{}) error
 	Set(path string, value interface{}) error
-	Validate(name string) error
+	Data() ([]byte, error)
 }
 
 // Directory holds a series of related aspects.
 type Directory struct {
 	Name    string
-	schema  Schema
+	dataBag DataBag
 	aspects map[string]*Aspect
 }
 
 // NewAspectDirectory returns a new aspect directory for the following aspects
 // and access patterns.
-func NewAspectDirectory(name string, aspects map[string]interface{}, schema Schema) (*Directory, error) {
+func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag DataBag) (*Directory, error) {
 	if len(aspects) == 0 {
 		return nil, errors.New(`cannot create aspects directory: no aspects in map`)
 	}
 
 	aspectDir := Directory{
 		Name:    name,
-		schema:  schema,
+		dataBag: dataBag,
 		aspects: make(map[string]*Aspect, len(aspects)),
 	}
 
@@ -110,11 +110,11 @@ type Aspect struct {
 }
 
 func (a *Aspect) Set(name string, value interface{}) error {
-	// TODO: add access control
+	// TODO: add access control; name validation
 
 	for _, p := range a.accessPatterns {
 		if p.name == name {
-			return a.directory.schema.Set(p.path, value)
+			return a.directory.dataBag.Set(p.path, value)
 		}
 	}
 
@@ -122,11 +122,11 @@ func (a *Aspect) Set(name string, value interface{}) error {
 }
 
 func (a *Aspect) Get(name string, value interface{}) error {
-	// TODO: add access control
+	// TODO: add access control; name validation
 
 	for _, p := range a.accessPatterns {
 		if p.name == name {
-			return a.directory.schema.Get(p.path, value)
+			return a.directory.dataBag.Get(p.path, value)
 		}
 	}
 
@@ -141,11 +141,10 @@ type accessPattern struct {
 }
 
 // JSONStorage is a simple Schema implementation that keeps JSON in-memory.
-type JSONStorage map[string][]byte
+type JSONStorage map[string]json.RawMessage
 
 func NewStorage() JSONStorage {
-	storage := make(map[string][]byte)
-	storage["aspects"] = []byte("{}")
+	storage := make(map[string]json.RawMessage)
 	return storage
 }
 
@@ -153,17 +152,22 @@ func (s JSONStorage) Validate(string) error { return nil }
 
 func (s JSONStorage) Get(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
-	return s.get(subKeys, s["aspects"], value)
+	return get(subKeys, s, value)
 }
 
-func (s *JSONStorage) get(subKeys []string, root []byte, result interface{}) error {
-	var curMap map[string][]byte
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(root), &curMap); err != nil {
-		return err
-	}
+func (s JSONStorage) Set(path string, value interface{}) error {
+	subKeys := strings.Split(path, ".")
+	_, err := set(subKeys, s, value)
+	return err
+}
 
+func (s JSONStorage) Data() ([]byte, error) {
+	return json.Marshal(s)
+}
+
+func get(subKeys []string, root map[string]json.RawMessage, result interface{}) error {
 	key := subKeys[0]
-	value, ok := curMap[key]
+	value, ok := root[key]
 	if !ok {
 		return &ErrNotFound{"key not found"}
 	}
@@ -172,34 +176,25 @@ func (s *JSONStorage) get(subKeys []string, root []byte, result interface{}) err
 		return json.Unmarshal(value, result)
 	}
 
-	return s.get(subKeys[1:], value, result)
-}
-
-func (s JSONStorage) Set(path string, value interface{}) error {
-	subKeys := strings.Split(path, ".")
-	aspectsData, err := s.set(subKeys, s["aspects"], value)
-	if err != nil {
+	var nextLevel map[string]json.RawMessage
+	if err := jsonutil.DecodeWithNumber(bytes.NewReader(value), &nextLevel); err != nil {
 		return err
 	}
 
-	s["aspects"] = aspectsData
-	return nil
+	return get(subKeys[1:], nextLevel, result)
 }
 
-func (s *JSONStorage) set(subKeys []string, raw []byte, value interface{}) ([]byte, error) {
+func set(subKeys []string, root map[string]json.RawMessage, result interface{}) (json.RawMessage, error) {
+	key := subKeys[0]
+
 	if len(subKeys) == 1 {
-		data, err := json.Marshal(value)
+		data, err := json.Marshal(result)
 		if err != nil {
 			return nil, err
 		}
 
-		var curMap map[string][]byte
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(raw), &curMap); err != nil {
-			return nil, err
-		}
-
-		curMap[subKeys[0]] = data
-		newData, err := json.Marshal(curMap)
+		root[key] = data
+		newData, err := json.Marshal(root)
 		if err != nil {
 			return nil, err
 		}
@@ -207,21 +202,21 @@ func (s *JSONStorage) set(subKeys []string, raw []byte, value interface{}) ([]by
 		return newData, nil
 	}
 
-	var curMap map[string][]byte
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(raw), &curMap); err != nil {
+	value, ok := root[key]
+	if !ok {
+		value = []byte("{}")
+	}
+
+	var nextLevel map[string]json.RawMessage
+	if err := jsonutil.DecodeWithNumber(bytes.NewReader(value), &nextLevel); err != nil {
 		return nil, err
 	}
 
-	nextLevel, ok := curMap[subKeys[0]]
-	if !ok {
-		nextLevel = []byte("{}")
-	}
-
-	nextLevel, err := s.set(subKeys[1:], nextLevel, value)
+	value, err := set(subKeys[1:], nextLevel, result)
 	if err != nil {
 		return nil, err
 	}
 
-	curMap[subKeys[0]] = nextLevel
-	return json.Marshal(curMap)
+	root[key] = value
+	return json.Marshal(root)
 }
