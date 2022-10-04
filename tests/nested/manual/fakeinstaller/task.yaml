@@ -107,14 +107,14 @@ execute: |
   # and "install" the current seed to the fake disk
   ./fakeinstaller "$LABEL" "$loop_device" "$TESTSLIB"/fakeinstaller/mk-classic-rootfs.sh
   # validate that the fake installer created the expected partitions
-  fdisk -x "$loop_device" > fdisk_output
-  MATCH "${loop_device}p1 .* BIOS Boot"   < fdisk_output
+  sfdisk -d "$loop_device" > fdisk_output
+  MATCH "${loop_device}p1 .* name=\"BIOS Boot\""   < fdisk_output
   # TODO: the real MVP hybrid device will not contain a ubuntu-seed
   #       partition (needs a different gadget)
-  MATCH "${loop_device}p2 .* ubuntu-seed" < fdisk_output
-  MATCH "${loop_device}p3 .* ubuntu-boot" < fdisk_output
-  MATCH "${loop_device}p4 .* ubuntu-save" < fdisk_output
-  MATCH "${loop_device}p5 .* ubuntu-data" < fdisk_output
+  MATCH "${loop_device}p2 .* name=\"ubuntu-seed\"" < fdisk_output
+  MATCH "${loop_device}p3 .* name=\"ubuntu-boot\"" < fdisk_output
+  MATCH "${loop_device}p4 .* name=\"ubuntu-save\"" < fdisk_output
+  MATCH "${loop_device}p5 .* name=\"ubuntu-data\"" < fdisk_output
 
   # image partitions are not mounted anymore
   for d in ubuntu-seed ubuntu-boot ubuntu-data ubuntu-save; do
