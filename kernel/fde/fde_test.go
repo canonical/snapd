@@ -516,6 +516,7 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 			"systemd-run", "--collect", "--service-type=exec", "--quiet",
 			"--property=RuntimeMaxSec=2m0s",
 			"--property=SystemCallFilter=~@mount",
+			"--property=DefaultDependencies=no",
 			fmt.Sprintf("--property=StandardInput=file:%s/run/fde-reveal-key/fde-reveal-key.stdin", root),
 			fmt.Sprintf("--property=StandardOutput=file:%s/run/fde-reveal-key/fde-reveal-key.stdout", root),
 			fmt.Sprintf("--property=StandardError=file:%s/run/fde-reveal-key/fde-reveal-key.stderr", root),

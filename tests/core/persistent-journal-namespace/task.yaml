@@ -13,8 +13,8 @@ prepare: |
 
 restore: |
   # Stop test service and cleanup
-  snap stop test-snapd-journal-quota.logger
-  snap remove-quota group-one
+  snap stop test-snapd-journal-quota.logger || true
+  snap remove-quota group-one || true
 
   # disable persistent journal and reload the journal
   rm -rf /var/log/journal
@@ -58,3 +58,12 @@ execute: |
     echo "Journal path was recreated, it shouldn't have happened"
     exit 1
   fi
+
+  # Restart the journal namespace service to make sure that the
+  # folder is not recreated once systemd starts it. See LP1912173
+  # for details.
+  systemctl restart systemd-journald@snap-group-one.service
+
+  # Verify the path was not recreated, this should have happened
+  # immediately, so no need for retries here
+  not test -e /var/log/journal/"$MACHINE_ID".snap-group-one

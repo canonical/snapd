@@ -198,18 +198,18 @@ func ParseByteSize(inp string) (int64, error) {
 
 	val, unit, err := SplitUnit(inp)
 	if err != nil {
-		return 0, fmt.Errorf(errPrefix+"%s", err)
+		return 0, fmt.Errorf("%s%s", errPrefix, err)
 	}
 	if unit == "" {
-		return 0, fmt.Errorf(errPrefix + "need a number with a unit as input")
+		return 0, fmt.Errorf("%sneed a number with a unit as input", errPrefix)
 	}
 	if val < 0 {
-		return 0, fmt.Errorf(errPrefix + "size cannot be negative")
+		return 0, fmt.Errorf("%ssize cannot be negative", errPrefix)
 	}
 
 	mul, ok := unitMultiplier[strings.ToUpper(unit)]
 	if !ok {
-		return 0, fmt.Errorf(errPrefix + "try 'kB' or 'MB'")
+		return 0, fmt.Errorf("%stry 'kB' or 'MB'", errPrefix)
 	}
 
 	return val * mul, nil

@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -58,10 +59,13 @@ type baseBootenvSuite struct {
 func (s *baseBootenvSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
+	restore := release.MockOnClassic(false)
+	s.AddCleanup(restore)
+
 	s.rootdir = c.MkDir()
 	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
-	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	restore = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	s.AddCleanup(restore)
 
 	s.bootdir = filepath.Join(s.rootdir, "boot")

@@ -39,6 +39,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -201,6 +202,18 @@ func (dbs *databaseSuite) TestPublicKeyNotFound(c *C) {
 
 	_, err = dbs.db.PublicKey("ff" + keyID)
 	c.Check(err, ErrorMatches, "cannot find key pair")
+}
+
+func (dbs *databaseSuite) TestNotFoundErrorIs(c *C) {
+	this := &asserts.NotFoundError{
+		Headers: map[string]string{"a": "a"},
+		Type:    asserts.ValidationSetType,
+	}
+	that := &asserts.NotFoundError{
+		Headers: map[string]string{"b": "b"},
+		Type:    asserts.RepairType,
+	}
+	c.Check(this, testutil.ErrorIs, that)
 }
 
 type checkSuite struct {

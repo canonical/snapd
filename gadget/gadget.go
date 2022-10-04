@@ -118,6 +118,8 @@ type Volume struct {
 	Name string `json:"-"`
 }
 
+const GPTPartitionGUIDESP = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
+
 // VolumeStructure describes a single structure inside a volume. A structure can
 // represent a partition, Master Boot Record, or any other contiguous range
 // within the volume.
@@ -1217,12 +1219,16 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model) (syste
 	constraints := LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 	}
+	// layout all volumes saving them
+	opts := &LayoutOptions{
+		GadgetRootDir: gadgetRoot,
+		KernelRootDir: kernelRoot,
+	}
 
 	// find the volume with the system-boot role on it, we already validated
 	// that the system-* roles are all on the same volume
 	for name, vol := range info.Volumes {
-		// layout all volumes saving them
-		lvol, err := LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
+		lvol, err := LayoutVolume(vol, constraints, opts)
 		if err != nil {
 			return nil, nil, err
 		}

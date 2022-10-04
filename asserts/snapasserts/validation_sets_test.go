@@ -667,6 +667,11 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 		}
 	}
 
+	expectedSets := make(map[string]*asserts.ValidationSet, 7)
+	for _, vs := range []*asserts.ValidationSet{vs1, vs2, vs3, vs4, vs5, vs6, vs7} {
+		expectedSets[fmt.Sprintf("%s/%s", vs.AccountID(), vs.Name())] = vs
+	}
+
 	for i, tc := range tests {
 		err := valsets.CheckInstalledSnaps(tc.snaps, nil)
 		if err == nil {
@@ -680,6 +685,7 @@ func (s *validationSetsSuite) TestCheckInstalledSnaps(c *C) {
 		c.Assert(verr.InvalidSnaps, DeepEquals, tc.expectedInvalid, Commentf("#%d", i))
 		c.Assert(verr.MissingSnaps, DeepEquals, tc.expectedMissing, Commentf("#%d", i))
 		c.Assert(verr.WrongRevisionSnaps, DeepEquals, tc.expectedWrongRev, Commentf("#%d", i))
+		c.Assert(verr.Sets, DeepEquals, expectedSets)
 		checkSets(verr.InvalidSnaps, verr.Sets)
 	}
 }

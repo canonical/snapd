@@ -34,6 +34,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
@@ -2379,7 +2380,11 @@ func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo
 	prevCurrentSvcs := map[string]bool{}
 	if psi := snapst.previousSideInfo(); psi != nil {
 		var prevCurrentInfo *snap.Info
-		if prevCurrentInfo, err = Info(st, snapst.InstanceName(), psi.Revision); prevCurrentInfo != nil {
+		prevCurrentInfo, err = Info(st, snapst.InstanceName(), psi.Revision)
+		if err != nil {
+			return nil, err
+		}
+		if prevCurrentInfo != nil {
 			for _, prevSvc := range prevCurrentInfo.Services() {
 				prevCurrentSvcs[prevSvc.Name] = true
 			}
@@ -3760,6 +3765,52 @@ func (m *SnapManager) undoMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error 
 	st.Lock()
 	defer st.Unlock()
 	return writeMigrationStatus(t, snapst, snapsup)
+}
+
+func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var userID int
+	if err := t.Get("userID", &userID); err != nil {
+		return err
+	}
+
+	encodedAsserts := make(map[string][]byte)
+	if err := t.Get("validation-sets", &encodedAsserts); err != nil {
+		return err
+	}
+
+	decodedAsserts := make(map[string]*asserts.ValidationSet, len(encodedAsserts))
+	for vsStr, encAssert := range encodedAsserts {
+		decAssert, err := asserts.Decode(encAssert)
+		if err != nil {
+			return err
+		}
+
+		vsAssert, ok := decAssert.(*asserts.ValidationSet)
+		if !ok {
+			return errors.New("expected encoded assertion to be of type ValidationSet")
+		}
+		decodedAsserts[vsStr] = vsAssert
+	}
+
+	var pinnedSeqs map[string]int
+	if err := t.Get("pinned-sequence-numbers", &pinnedSeqs); err != nil {
+		return err
+	}
+
+	snaps, ignoreValidation, err := InstalledSnaps(st)
+	if err != nil {
+		return err
+	}
+
+	if err := EnforceValidationSets(st, decodedAsserts, pinnedSeqs, snaps, ignoreValidation, userID); err != nil {
+		return fmt.Errorf("cannot enforce validation sets: %v", err)
+	}
+
+	return nil
 }
 
 // maybeRestoreValidationSetsAndRevertSnaps restores validation-sets to their

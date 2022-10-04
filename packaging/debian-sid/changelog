@@ -1,3 +1,24 @@
+snapd (2.57.4-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1983035
+    - release, snapd-apparmor: fixed outdated WSL detection
+    - overlord/ifacestate: fix conflict detection of auto-connection
+    - overlord: run install-device hook during factory reset
+    - image/preseed/preseed_linux: add missing new line
+    - boot: add factory-reset cases for boot-flags.
+    - interfaces: added read/write access to /proc/self/coredump_filter
+      for process-control
+    - interfaces: add read access to /proc/cgroups and
+      /proc/sys/vm/swappiness to system-observe
+    - fde: run fde-reveal-key with `DefaultDependencies=no`
+    - snapdenv: added wsl to userAgent
+    - tests: fix restore section for persistent-journal-namespace
+    - i/b/mount-control: add optional `/` to umount rules
+    - cmd/snap-bootstrap: changes to be able to boot classic rootfs
+    - cmd/snap-bootstrap: add CVM mode
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 29 Sep 2022 09:54:21 +0200
+
 snapd (2.57.3-1) unstable; urgency=medium
 
   * New upstream release, LP: #1983035

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,8 +17,31 @@
  *
  */
 
-package backends
+package snapstate_test
 
-var (
-	Backends = backends
+import (
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/testutil"
 )
+
+type conflictSuite struct{}
+
+var _ = Suite(&conflictSuite{})
+
+func (s *conflictSuite) TestChangeConflictErrorIs(c *C) {
+	this := &snapstate.ChangeConflictError{
+		Snap:       "a",
+		ChangeKind: "a",
+		Message:    "a",
+		ChangeID:   "a",
+	}
+	that := &snapstate.ChangeConflictError{
+		Snap:       "b",
+		ChangeKind: "b",
+		Message:    "b",
+		ChangeID:   "b",
+	}
+	c.Check(this, testutil.ErrorIs, that)
+}

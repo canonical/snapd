@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -38,7 +38,9 @@ const (
 	// to an aggregation of its tasks' statuses. See Change.Status for details.
 	DefaultStatus Status = 0
 
-	// HoldStatus means the task should not run, perhaps as a consequence of an error on another task.
+	// HoldStatus means the task should not run for the moment, perhaps as a
+	// consequence of an error on another task or because an external action
+	// is needed.
 	HoldStatus Status = 1
 
 	// DoStatus means the change or task is ready to start.
@@ -246,6 +248,12 @@ func (c *Change) Set(key string, value interface{}) {
 func (c *Change) Get(key string, value interface{}) error {
 	c.state.reading()
 	return c.data.get(key, value)
+}
+
+// Has returns whether the provided key has an associated value.
+func (c *Change) Has(key string) bool {
+	c.state.reading()
+	return c.data.has(key)
 }
 
 var statusOrder = []Status{

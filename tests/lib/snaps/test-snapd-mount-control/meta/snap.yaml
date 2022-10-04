@@ -7,11 +7,8 @@ plugs:
     mntctl:
         interface: mount-control
         mount:
-            - what: /usr/**
-              where: $SNAP_COMMON/**
-              options: [rw, bind]
             - what: /var/tmp/**
-              where: $SNAP_COMMON/target
+              where: $SNAP_COMMON/target1
               options: [rw, bind]
               persistent: true
             - what: /dev/sd*
@@ -19,6 +16,9 @@ plugs:
               type: [ext2, ext3, ext4]
               options: [rw, sync]
             - what: none
-              where: $SNAP_COMMON/**
+              where: $SNAP_COMMON/target2/*
               type: [tmpfs]
               options: [rw]
+            - what: /usr/**
+              where: $SNAP_COMMON/target3/**
+              options: [rw, bind]
