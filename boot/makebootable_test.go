@@ -1981,3 +1981,94 @@ version: 5.0
 	c.Assert(systemGenv.Load(), IsNil)
 	c.Check(systemGenv.Get("snapd_good_recovery_systems"), Equals, "")
 }
+
+func (s *makeBootable20Suite) TestMakeRunnableSystemStandaloneSnapsCopy(c *C) {
+	bootloader.Force(nil)
+	model := boottest.MakeMockUC20Model()
+	snapsDirs := filepath.Join(s.rootdir, "/somewhere")
+	err := os.MkdirAll(snapsDirs, 0755)
+	c.Assert(err, IsNil)
+
+	// grub on ubuntu-seed
+	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
+	mockSeedGrubCfg := filepath.Join(mockSeedGrubDir, "grub.cfg")
+	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+	c.Assert(err, IsNil)
+	genv := grubenv.NewEnv(filepath.Join(mockSeedGrubDir, "grubenv"))
+	c.Assert(genv.Save(), IsNil)
+
+	// mock grub so it is detected as the current bootloader
+	unpackedGadgetDir := c.MkDir()
+	grubRecoveryCfg := []byte("#grub-recovery cfg")
+	grubRecoveryCfgAsset := []byte("#grub-recovery cfg from assets")
+	grubCfg := []byte("#grub cfg")
+	grubCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub cfg from assets")
+	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
+		{"grub-recovery.conf", string(grubRecoveryCfg)},
+		{"grub.conf", string(grubCfg)},
+		{"bootx64.efi", "shim content"},
+		{"grubx64.efi", "grub content"},
+		{"meta/snap.yaml", gadgetSnapYaml},
+	})
+	restore := assets.MockInternal("grub-recovery.cfg", grubRecoveryCfgAsset)
+	defer restore()
+	restore = assets.MockInternal("grub.cfg", grubCfgAsset)
+	defer restore()
+
+	// make the snaps symlinks so that we can ensure that makebootable follows
+	// the symlinks and copies the files and not the symlinks
+	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
+type: base
+version: 5.0
+`, snap.R(3))
+	baseInSeed := filepath.Join(snapsDirs, baseInfo.Filename())
+	err = os.Symlink(baseFn, baseInSeed)
+	c.Assert(err, IsNil)
+	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
+type: kernel
+version: 4.1
+`, snap.R(5),
+		[][]string{
+			{"kernel.efi", "I'm a kernel.efi"},
+		},
+	)
+	kernelInSeed := filepath.Join(snapsDirs, "pc-kernel_4.1.snap")
+	err = os.Symlink(kernelFn, kernelInSeed)
+	c.Assert(err, IsNil)
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 3.0
+`, snap.R(4))
+	gadgetInSeed := filepath.Join(snapsDirs, "pc_3.0.snap")
+	err = os.Symlink(gadgetFn, gadgetInSeed)
+	c.Assert(err, IsNil)
+
+	bootWith := &boot.BootableSet{
+		RecoverySystemLabel: "20221004",
+		BasePath:            baseInSeed,
+		Base:                baseInfo,
+		KernelPath:          kernelInSeed,
+		Kernel:              kernelInfo,
+		Gadget:              gadgetInfo,
+		GadgetPath:          gadgetInSeed,
+		Recovery:            false,
+		UnpackedGadgetDir:   unpackedGadgetDir,
+	}
+
+	err = boot.MakeRunnableSystem(model, bootWith, nil)
+	c.Assert(err, IsNil)
+
+	installHostWritableDir := filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")
+	// ensure base/gadget/kernel got copied to /var/lib/snapd/snaps
+	core20Snap := filepath.Join(dirs.SnapBlobDirUnder(installHostWritableDir), "core20_3.snap")
+	gadgetSnap := filepath.Join(dirs.SnapBlobDirUnder(installHostWritableDir), "pc_4.snap")
+	pcKernelSnap := filepath.Join(dirs.SnapBlobDirUnder(installHostWritableDir), "pc-kernel_5.snap")
+	c.Check(core20Snap, testutil.FilePresent)
+	c.Check(gadgetSnap, testutil.FilePresent)
+	c.Check(pcKernelSnap, testutil.FilePresent)
+	c.Check(osutil.IsSymlink(core20Snap), Equals, false)
+	c.Check(osutil.IsSymlink(pcKernelSnap), Equals, false)
+	c.Check(osutil.IsSymlink(gadgetSnap), Equals, false)
+}

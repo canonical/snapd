@@ -315,7 +315,7 @@ type makeRunnableOptions struct {
 	AfterDataReset bool
 }
 
-func copyNoSymLink(orig, dst string) error {
+func copyBootSnap(orig string, dstInfo *snap.Info, dstSnapBlobDir string) error {
 	// if the source path is a symlink, don't copy the symlink, copy the
 	// target file instead of copying the symlink, as the initramfs won't
 	// follow the symlink when it goes to mount the base and kernel snaps by
@@ -328,6 +328,10 @@ func copyNoSymLink(orig, dst string) error {
 		}
 		orig = link
 	}
+	// note that we need to use the "Filename()" here because unasserted
+	// snaps will have names like pc-kernel_5.19.4.snap but snapd expects
+	// "pc-kernel_x1.snap"
+	dst := filepath.Join(dstSnapBlobDir, dstInfo.Filename())
 	if err := osutil.CopyFile(orig, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
 		return err
 	}
@@ -352,14 +356,14 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
-	// note that we need to use the "Filename()" here because unasserted
-	// snaps will have names like pc-kernel_5.19.4.snap but snapd expects
-	// "pc-kernel_x1.snap"
-	for _, origDestfn := range []struct{ orig, destFn string }{
-		{orig: bootWith.BasePath, destFn: bootWith.Base.Filename()},
-		{orig: bootWith.KernelPath, destFn: bootWith.Kernel.Filename()},
-		{orig: bootWith.GadgetPath, destFn: bootWith.Gadget.Filename()}} {
-		if err := copyNoSymLink(origDestfn.orig, filepath.Join(snapBlobDir, origDestfn.destFn)); err != nil {
+	for _, origDest := range []struct {
+		orig     string
+		destInfo *snap.Info
+	}{
+		{orig: bootWith.BasePath, destInfo: bootWith.Base},
+		{orig: bootWith.KernelPath, destInfo: bootWith.Kernel},
+		{orig: bootWith.GadgetPath, destInfo: bootWith.Gadget}} {
+		if err := copyBootSnap(origDest.orig, origDest.destInfo, snapBlobDir); err != nil {
 			return err
 		}
 	}
