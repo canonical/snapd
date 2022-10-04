@@ -310,6 +310,8 @@ func (m *DeviceManager) StartUp() error {
 
 func (m *DeviceManager) shouldMountUbuntuSave() bool {
 	// TODO: this should check DeviceCtx.IsClassicBoot() instead
+	// but we should not create per-snap save directories on classic
+	// for now except for maybe gadget and snapd...
 	if release.OnClassic {
 		return false
 	}
