@@ -1016,6 +1016,12 @@ suites:
                get_ubuntu_image
             fi
 
+            if os.query is-arm; then
+                export NESTED_ARCHITECTURE=arm64
+            else
+                export NESTED_ARCHITECTURE=amd64
+            fi
+
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
@@ -1065,6 +1071,12 @@ suites:
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 get_ubuntu_image
+            fi
+
+            if os.query is-arm; then
+                export NESTED_ARCHITECTURE=arm64
+            else
+                export NESTED_ARCHITECTURE=amd64
             fi
 
             # Install the snapd built
@@ -1119,6 +1131,12 @@ suites:
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 get_ubuntu_image
+            fi
+
+            if os.query is-arm; then
+                export NESTED_ARCHITECTURE=arm64
+            else
+                export NESTED_ARCHITECTURE=amd64
             fi
 
             # Install the snapd built

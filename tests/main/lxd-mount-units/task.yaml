@@ -32,6 +32,7 @@ execute: |
 
     # There isn't an official image for kinetic yet, let's use the community one
     if os.query is-ubuntu 22.10; then
+        core_snap=core22
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" ubuntu
     else
@@ -54,6 +55,8 @@ execute: |
 
     DEB=$(basename "$GOHOME"/snapd_*.deb)
     lxd.lxc exec ubuntu -- apt update
+    lxd.lxc exec ubuntu -- apt install -y snapd
+    lxd.lxc exec ubuntu -- snap install core22
     lxd.lxc exec ubuntu -- apt install -y /root/"$DEB"
     lxd.lxc restart ubuntu
 

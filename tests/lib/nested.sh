@@ -581,6 +581,9 @@ nested_prepare_gadget() {
             local snap_id version gadget_snap
             version="$(nested_get_version)"
             snap_id="UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+            if os.query is-arm; then
+                snap_id="RQBRc1HkOwpH5DCwagfqShqQ7eJ2Yl9i"
+            fi
 
             existing_snap=$(find "$(nested_get_extra_snaps_path)" -name 'pc_*.snap')
             if [ -n "$existing_snap" ]; then
@@ -717,11 +720,9 @@ nested_create_core_vm() {
             if os.query is-arm; then
                 snap install ubuntu-image --classic || true
                 export UBUNTU_IMAGE=/snap/bin/ubuntu-image
-                export NESTED_BUILD_SNAPD_FROM_CURRENT=true
                 export NESTED_REPACK_KERNEL_SNAP=false
                 export NESTED_REPACK_GADGET_SNAP=false
-                export NESTED_REPACK_BASE_SNAP=false
-
+                export NESTED_USE_CLOUD_INIT=false
             fi
 
             if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
@@ -975,7 +976,7 @@ nested_start_core_vm_unit() {
     # use only 2G of RAM for qemu-nested
     # the caller can override PARAM_MEM
     local PARAM_MEM PARAM_SMP
-    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+    if [ "$SPREAD_BACKEND" = "google-nested" ] || [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
         PARAM_SMP="-smp 2"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
@@ -1027,7 +1028,7 @@ nested_start_core_vm_unit() {
     fi
 
     local PARAM_MACHINE
-    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+    if [ "$SPREAD_BACKEND" = "google-nested" ] || [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
         PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         # check if we have nested kvm
@@ -1293,7 +1294,7 @@ nested_start_classic_vm() {
     local PARAM_SMP PARAM_MEM
     PARAM_SMP="-smp 1"
     # use only 2G of RAM for qemu-nested
-    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+    if [ "$SPREAD_BACKEND" = "google-nested" ] || [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
