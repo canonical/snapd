@@ -554,15 +554,15 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
-		RecoverySystemDir: "20191216",
-		BasePath:          baseInSeed,
-		Base:              baseInfo,
-		Gadget:            gadgetInfo,
-		GadgetPath:        gadgetInSeed,
-		KernelPath:        kernelInSeed,
-		Kernel:            kernelInfo,
-		Recovery:          false,
-		UnpackedGadgetDir: unpackedGadgetDir,
+		RecoverySystemLabel: "20191216",
+		BasePath:            baseInSeed,
+		Base:                baseInfo,
+		Gadget:              gadgetInfo,
+		GadgetPath:          gadgetInSeed,
+		KernelPath:          kernelInSeed,
+		Kernel:              kernelInfo,
+		Recovery:            false,
+		UnpackedGadgetDir:   unpackedGadgetDir,
 	}
 
 	// set up observer state
@@ -924,15 +924,15 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
-		RecoverySystemDir: "20191216",
-		BasePath:          baseInSeed,
-		Base:              baseInfo,
-		KernelPath:        kernelInSeed,
-		Kernel:            kernelInfo,
-		Gadget:            gadgetInfo,
-		GadgetPath:        gadgetInSeed,
-		Recovery:          false,
-		UnpackedGadgetDir: unpackedGadgetDir,
+		RecoverySystemLabel: "20191216",
+		BasePath:            baseInSeed,
+		Base:                baseInfo,
+		KernelPath:          kernelInSeed,
+		Kernel:              kernelInfo,
+		Gadget:              gadgetInfo,
+		GadgetPath:          gadgetInSeed,
+		Recovery:            false,
+		UnpackedGadgetDir:   unpackedGadgetDir,
 	}
 
 	// no grub marker in gadget directory raises an error
@@ -1033,15 +1033,15 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
-		RecoverySystemDir: "20191216",
-		BasePath:          baseInSeed,
-		Base:              baseInfo,
-		KernelPath:        kernelInSeed,
-		Kernel:            kernelInfo,
-		Gadget:            gadgetInfo,
-		GadgetPath:        gadgetInSeed,
-		Recovery:          false,
-		UnpackedGadgetDir: unpackedGadgetDir,
+		RecoverySystemLabel: "20191216",
+		BasePath:            baseInSeed,
+		Base:                baseInfo,
+		KernelPath:          kernelInSeed,
+		Kernel:              kernelInfo,
+		Gadget:              gadgetInfo,
+		GadgetPath:          gadgetInSeed,
+		Recovery:            false,
+		UnpackedGadgetDir:   unpackedGadgetDir,
 	}
 
 	// set up observer state
@@ -1228,15 +1228,15 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
-		RecoverySystemDir: "20191216",
-		BasePath:          baseInSeed,
-		Base:              baseInfo,
-		Gadget:            gadgetInfo,
-		GadgetPath:        gadgetInSeed,
-		KernelPath:        kernelInSeed,
-		Kernel:            kernelInfo,
-		Recovery:          false,
-		UnpackedGadgetDir: unpackedGadgetDir,
+		RecoverySystemLabel: "20191216",
+		BasePath:            baseInSeed,
+		Base:                baseInfo,
+		Gadget:              gadgetInfo,
+		GadgetPath:          gadgetInSeed,
+		KernelPath:          kernelInSeed,
+		Kernel:              kernelInfo,
+		Recovery:            false,
+		UnpackedGadgetDir:   unpackedGadgetDir,
 	}
 
 	// set up observer state
@@ -1469,15 +1469,15 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
-		RecoverySystemDir: "20191216",
-		BasePath:          baseInSeed,
-		Base:              baseInfo,
-		KernelPath:        kernelInSeed,
-		Kernel:            kernelInfo,
-		Gadget:            gadgetInfo,
-		GadgetPath:        gadgetInSeed,
-		Recovery:          false,
-		UnpackedGadgetDir: unpackedGadgetDir,
+		RecoverySystemLabel: "20191216",
+		BasePath:            baseInSeed,
+		Base:                baseInfo,
+		KernelPath:          kernelInSeed,
+		Kernel:              kernelInfo,
+		Gadget:              gadgetInfo,
+		GadgetPath:          gadgetInSeed,
+		Recovery:            false,
+		UnpackedGadgetDir:   unpackedGadgetDir,
 	}
 
 	// set a mock recovery kernel
@@ -1671,15 +1671,15 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
-		RecoverySystemDir: "20191216",
-		BasePath:          baseInSeed,
-		Base:              baseInfo,
-		Gadget:            gadgetInfo,
-		GadgetPath:        gadgetInSeed,
-		KernelPath:        kernelInSeed,
-		Kernel:            kernelInfo,
-		Recovery:          false,
-		UnpackedGadgetDir: unpackedGadgetDir,
+		RecoverySystemLabel: "20191216",
+		BasePath:            baseInSeed,
+		Base:                baseInfo,
+		Gadget:              gadgetInfo,
+		GadgetPath:          gadgetInSeed,
+		KernelPath:          kernelInSeed,
+		Kernel:              kernelInfo,
+		Recovery:            false,
+		UnpackedGadgetDir:   unpackedGadgetDir,
 	}
 	err = boot.MakeRunnableSystem(model, bootWith, nil)
 	c.Assert(err, IsNil)
@@ -1857,7 +1857,6 @@ version: 5.0
 		KernelPath:          kernelInSeed,
 		Gadget:              gadgetInfo,
 		GadgetPath:          gadgetInSeed,
-		RecoverySystemDir:   "",
 		RecoverySystemLabel: "",
 		UnpackedGadgetDir:   unpackedGadgetDir,
 		Recovery:            false,
@@ -1962,7 +1961,6 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
-		RecoverySystemDir: "",
 		BasePath:          baseInSeed,
 		Base:              baseInfo,
 		KernelPath:        kernelInSeed,
@@ -1976,7 +1974,7 @@ version: 5.0
 	err = boot.MakeRunnableSystem(model, bootWith, nil)
 	c.Assert(err, IsNil)
 
-	// ensure that there are no good recovery systems as RecoverySystemDir was empty
+	// ensure that there are no good recovery systems as RecoverySystemLabel was empty
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
 	c.Check(mockSeedGrubenv, testutil.FilePresent)
 	systemGenv := grubenv.NewEnv(mockSeedGrubenv)

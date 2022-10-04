@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -379,7 +379,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
 	}
-	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{
 		Base:              bootBaseInfo,
 		BasePath:          bootBaseInfo.MountFile(),
@@ -387,8 +386,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		GadgetPath:        gadgetInfo.MountFile(),
 		Kernel:            kernelInfo,
 		KernelPath:        kernelInfo.MountFile(),
-		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
+
+		RecoverySystemLabel: modeEnv.RecoverySystem,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
 		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
@@ -989,7 +989,6 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
 	}
-	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{
 		Base:              bootBaseInfo,
 		BasePath:          bootBaseInfo.MountFile(),
@@ -997,8 +996,9 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		GadgetPath:        gadgetInfo.MountFile(),
 		Kernel:            kernelInfo,
 		KernelPath:        kernelInfo.MountFile(),
-		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
+
+		RecoverySystemLabel: modeEnv.RecoverySystem,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
 		err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith, trustedInstallObserver)
@@ -1314,20 +1314,15 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	defer unmount()
 
 	bootWith := &boot.BootableSet{
-		Base:       snapInfos[snap.TypeBase],
-		BasePath:   snapSeeds[snap.TypeBase].Path,
-		Kernel:     snapInfos[snap.TypeKernel],
-		KernelPath: snapSeeds[snap.TypeKernel].Path,
-		Gadget:     snapInfos[snap.TypeGadget],
-		GadgetPath: snapSeeds[snap.TypeGadget].Path,
-
-		// modeenv:recovery_system will be set based on
-		// RecoverySystemDir and seeding reads this var
-		// from modeenv to know what it's seeding from
-		RecoverySystemDir:   systemLabel,
-		RecoverySystemLabel: systemLabel,
-
+		Base:              snapInfos[snap.TypeBase],
+		BasePath:          snapSeeds[snap.TypeBase].Path,
+		Kernel:            snapInfos[snap.TypeKernel],
+		KernelPath:        snapSeeds[snap.TypeKernel].Path,
+		Gadget:            snapInfos[snap.TypeGadget],
+		GadgetPath:        snapSeeds[snap.TypeGadget].Path,
 		UnpackedGadgetDir: mntPtForType[snap.TypeGadget],
+
+		RecoverySystemLabel: systemLabel,
 	}
 
 	// installs in ESP: grub.cfg, grubenv

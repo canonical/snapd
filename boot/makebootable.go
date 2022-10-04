@@ -82,6 +82,9 @@ func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableS
 // using information from bootWith and bootFlags. Contrarily to
 // MakeBootableImage this happens in a live system.
 func MakeBootablePartition(partDir string, opts *bootloader.Options, bootWith *BootableSet, bootMode string, bootFlags []string) error {
+	if bootWith.RecoverySystemDir != "" {
+		return fmt.Errorf("internal error: RecoverySystemDir unexpectedly set for MakeBootablePartition")
+	}
 	return configureBootloader(partDir, opts, bootWith, bootMode, bootFlags)
 }
 
@@ -335,6 +338,9 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: cannot make pre-UC20 system runnable")
 	}
+	if bootWith.RecoverySystemDir != "" {
+		return fmt.Errorf("internal error: RecoverySystemDir unexpectedly set for MakeRunnableSystem")
+	}
 
 	// TODO:UC20:
 	// - figure out what to do for uboot gadgets, currently we require them to
@@ -369,11 +375,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		currentTrustedBootAssets = sealer.currentTrustedBootAssetsMap()
 		currentTrustedRecoveryBootAssets = sealer.currentTrustedRecoveryBootAssetsMap()
 	}
-	// filepath.Base("") returns ".", so we need to be a bit careful here
-	recoverySystemLabel := ""
-	if bootWith.RecoverySystemDir != "" {
-		recoverySystemLabel = filepath.Base(bootWith.RecoverySystemDir)
-	}
+	recoverySystemLabel := bootWith.RecoverySystemLabel
 	// write modeenv on the ubuntu-data partition
 	modeenv := &Modeenv{
 		Mode:           "run",

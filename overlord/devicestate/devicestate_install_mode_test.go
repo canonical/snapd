@@ -296,7 +296,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		c.Check(model, DeepEquals, mockModel)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
-		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
+		c.Check(bootWith.RecoverySystemLabel, Equals, "20191218")
+		c.Check(bootWith.RecoverySystemDir, Equals, "")
 		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
 		if tc.encrypt {
 			c.Check(seal, NotNil)
@@ -2445,7 +2446,8 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		c.Check(makeRunnableModel, DeepEquals, model)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
-		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
+		c.Check(bootWith.RecoverySystemLabel, Equals, "20191218")
+		c.Check(bootWith.RecoverySystemDir, Equals, "")
 		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
 		if tc.encrypt {
 			c.Check(seal, NotNil)
