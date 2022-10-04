@@ -120,7 +120,7 @@ func sealKeyToModeenv(key, saveKey keys.EncryptionKey, model *asserts.Model, mod
 
 	hasHook, err := HasFDESetupHook()
 	if err != nil {
-		return fmt.Errorf("cannot check for fde-setup hook %v", err)
+		return fmt.Errorf("cannot check for fde-setup hook: %v", err)
 	}
 	if hasHook {
 		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, model, modeenv, flags)
