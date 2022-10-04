@@ -6,8 +6,8 @@ systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 environment:
     # nested test so that we can test encryted installs eventually
     # TODO enable tpm variant too for testing of encryption installs
-    NESTED_ENABLE_TPM: false
-    NESTED_ENABLE_SECURE_BOOT: false
+    NESTED_ENABLE_TPM: true
+    NESTED_ENABLE_SECURE_BOOT: true
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
     NESTED_ENABLE_OVMF: true
     NESTED_REPACK_KERNEL_SNAP: true
