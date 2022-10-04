@@ -2233,7 +2233,10 @@ func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 
 	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
 	if err != nil {
-		return false, fmt.Errorf("cannot get kernel info: %v", err)
+		// XXX need to pass kernel info to HasFDESetupHook as it looks
+		// into snapstate
+		logger.Noticef("no KernelInfo, cannot check for fde-setup hook: %v", err)
+		return false, nil
 	}
 	return hasFDESetupHookInKernel(kernelInfo), nil
 }
