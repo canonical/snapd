@@ -237,7 +237,7 @@ backends:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: snapd-spread/us-central1-a
-        plan: t2a-standard-1
+        plan: t2a-standard-2
         halt-timeout: 2h
         cpu-family: "Intel Cascade Lake"
         systems:
@@ -312,6 +312,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.10-64:
                   username: ubuntu
                   password: ubuntu
             - debian-10-64:
@@ -1131,12 +1134,6 @@ suites:
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 get_ubuntu_image
-            fi
-
-            if os.query is-arm; then
-                export NESTED_ARCHITECTURE=arm64
-            else
-                export NESTED_ARCHITECTURE=amd64
             fi
 
             # Install the snapd built

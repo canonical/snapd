@@ -242,21 +242,13 @@ nested_create_assertions_disk() {
 }
 
 nested_qemu_name() {
-    case "${NESTED_ARCHITECTURE:-amd64}" in
-    amd64)
-        command -v qemu-system-x86_64
-        ;;
-    i386)
+    if os.query is-arm; then
+        command -v qemu-system-aarch64
+    elif [ "$NESTED_ARCHITECTURE" = "i386" ]; then
         command -v qemu-system-i386
-        ;;
-    arm64)
-        command -v qemu-system-arm
-        ;;
-    *)
-        echo "unsupported architecture"
-        exit 1
-        ;;
-    esac
+    else
+        command -v qemu-system-x86_64
+    fi
 }
 
 nested_get_snap_rev_for_channel() {
@@ -1028,8 +1020,11 @@ nested_start_core_vm_unit() {
     fi
 
     local PARAM_MACHINE
-    if [ "$SPREAD_BACKEND" = "google-nested" ] || [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
+    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
+    elif [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
+        PARAM_MACHINE="-machine virt --accel tcg,thread=multi"
+        PARAM_CPU="-cpu cortex-a57"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         # check if we have nested kvm
         if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
@@ -1063,7 +1058,11 @@ nested_start_core_vm_unit() {
     fi
     if nested_is_core_20_system || nested_is_core_22_system; then
         # use a bundle EFI bios by default
-        PARAM_BIOS="-bios /usr/share/ovmf/OVMF.fd"
+        if os.query is-arm; then
+            PARAM_BIOS="-bios /usr/share/AAVMF/AAVMF_CODE.fd"
+        else
+            PARAM_BIOS="-bios /usr/share/ovmf/OVMF.fd"
+        fi
         local OVMF_CODE OVMF_VARS
         OVMF_CODE="secboot"
         OVMF_VARS="ms"
@@ -1080,12 +1079,23 @@ nested_start_core_vm_unit() {
         fi
 
         if [ "${NESTED_ENABLE_OVMF:-}" = "true" ]; then
-            PARAM_BIOS="-bios /usr/share/OVMF/OVMF_CODE.fd"
+            if os.query is-arm; then
+                PARAM_BIOS="-bios /usr/share/AAVMF/AAVMF_CODE.fd"
+            else
+                PARAM_BIOS="-bios /usr/share/OVMF/OVMF_CODE.fd"
+            fi
         fi
         if nested_is_secure_boot_enabled; then
-            cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd"
-            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
-            PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
+            if os.query is-arm; then
+                cp -f "/usr/share/AAVMF/AAVMF_VARS.fd" "$NESTED_ASSETS_DIR/AAVMF_VARS.fd"
+                PARAM_BIOS="-drive file=/usr/share/AAVMF/AAVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/AAVMF_VARS.fd,if=pflash,format=raw"
+                PARAM_MACHINE="-machine virt --accel tcg,thread=multi"
+                PARAM_CPU="-cpu cortex-a57"
+            else
+                cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd"
+                PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
+                PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"            
+            fi
         fi
 
         if nested_is_tpm_enabled; then
