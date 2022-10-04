@@ -60,7 +60,7 @@ func (s *storeCtxSuite) SetUpTest(c *C) {
 
 func (s *storeCtxSuite) TestUpdateUserAuth(c *C) {
 	s.state.Lock()
-	user, _ := auth.NewUser(s.state, auth.NewUserData{
+	user, _ := auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -85,7 +85,7 @@ func (s *storeCtxSuite) TestUpdateUserAuth(c *C) {
 
 func (s *storeCtxSuite) TestUpdateUserAuthOtherUpdate(c *C) {
 	s.state.Lock()
-	user, _ := auth.NewUser(s.state, auth.NewUserData{
+	user, _ := auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -123,7 +123,7 @@ func (s *storeCtxSuite) TestUpdateUserAuthOtherUpdate(c *C) {
 
 func (s *storeCtxSuite) TestUpdateUserAuthInvalid(c *C) {
 	s.state.Lock()
-	_, _ = auth.NewUser(s.state, auth.NewUserData{
+	_, _ = auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",

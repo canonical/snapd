@@ -134,7 +134,7 @@ func newUserMacaroon(macaroonKey []byte, userID int) (string, error) {
 
 // TODO: possibly move users' related functions to a userstate package
 
-type NewUserData struct {
+type NewUserParams struct {
 	// Username is the name of the user on the system
 	Username string
 	// Email is the email associated with the user
@@ -146,7 +146,7 @@ type NewUserData struct {
 }
 
 // NewUser tracks a new authenticated user and saves its details in the state
-func NewUser(st *state.State, userData NewUserData) (*UserState, error) {
+func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
@@ -170,15 +170,15 @@ func NewUser(st *state.State, userData NewUserData) (*UserState, error) {
 		return nil, err
 	}
 
-	sort.Strings(userData.Discharges)
+	sort.Strings(userParams.Discharges)
 	authenticatedUser := UserState{
 		ID:              authStateData.LastID,
-		Username:        userData.Username,
-		Email:           userData.Email,
+		Username:        userParams.Username,
+		Email:           userParams.Email,
 		Macaroon:        localMacaroon,
 		Discharges:      nil,
-		StoreMacaroon:   userData.Macaroon,
-		StoreDischarges: userData.Discharges,
+		StoreMacaroon:   userParams.Macaroon,
+		StoreDischarges: userParams.Discharges,
 	}
 	authStateData.Users = append(authStateData.Users, authenticatedUser)
 

@@ -319,7 +319,7 @@ func (s *snapsSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 
 	state := d.Overlord().State()
 	state.Lock()
-	user, err := auth.NewUser(state, auth.NewUserData{
+	user, err := auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -1475,7 +1475,7 @@ func (s *snapsSuite) TestPostSnapSetsUser(c *check.C) {
 
 	state := d.Overlord().State()
 	state.Lock()
-	user, err := auth.NewUser(state, auth.NewUserData{
+	user, err := auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",

@@ -161,7 +161,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		user.Email = loginData.Email
 		err = auth.UpdateUser(st, user)
 	} else {
-		user, err = auth.NewUser(st, auth.NewUserData{
+		user, err = auth.NewUser(st, auth.NewUserParams{
 			Username:   loginData.Username,
 			Email:      loginData.Email,
 			Macaroon:   macaroon,
