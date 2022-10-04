@@ -39,6 +39,24 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+// partEncryptionData contains meta-data for an encrypted partition.
+type partEncryptionData struct {
+	volName             string
+	fsDevice            string
+	encryptionKey       keys.EncryptionKey
+	encryptedSectorSize quantity.Size
+	encryptionParams    gadget.StructureEncryptionParameters
+	onDiskStruct        *gadget.OnDiskStructure
+}
+
+// EncryptionSetupData stores information needed across install
+// API calls.
+type EncryptionSetupData struct {
+	// maps from partition label to data
+	laidOutVols map[string]*gadget.LaidOutVolume
+	parts       map[string]partEncryptionData
+}
+
 // diskWithSystemSeed will locate a disk that has the partition corresponding
 // to a structure with SystemSeed role of the specified gadget volume and return
 // the device node.
@@ -285,6 +303,21 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 	return bootVolGadgetName, created, allLaidOutVols, bootVolSectorSize, nil
 }
 
+func createEncryptionParams(encTyp secboot.EncryptionType) gadget.StructureEncryptionParameters {
+	switch encTyp {
+	case secboot.EncryptionTypeLUKS:
+		return gadget.StructureEncryptionParameters{
+			Method: gadget.EncryptionLUKS,
+		}
+	case secboot.EncryptionTypeDeviceSetupHook:
+		return gadget.StructureEncryptionParameters{
+			Method: gadget.EncryptionICE,
+		}
+	}
+	logger.Noticef("internal error: unknown encryption parameter %q", encTyp)
+	return gadget.StructureEncryptionParameters{}
+}
+
 // Run creates partitions, encrypts them when expected, creates
 // filesystems, and finally writes content on them.
 func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
@@ -338,17 +371,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 				keyForRole = map[string]keys.EncryptionKey{}
 			}
 			keyForRole[part.Role] = encryptionKey
-
-			switch options.EncryptionType {
-			case secboot.EncryptionTypeLUKS:
-				partsEncrypted[part.Name] = gadget.StructureEncryptionParameters{
-					Method: gadget.EncryptionLUKS,
-				}
-			case secboot.EncryptionTypeDeviceSetupHook:
-				partsEncrypted[part.Name] = gadget.StructureEncryptionParameters{
-					Method: gadget.EncryptionICE,
-				}
-			}
+			partsEncrypted[part.Name] = createEncryptionParams(options.EncryptionType)
 		}
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
 			if err := mountFilesystem(fsDevice, part.Filesystem, filepath.Join(boot.InitramfsRunMntDir, part.Label)); err != nil {
@@ -392,7 +415,6 @@ func structureFromPartDevice(diskVol *gadget.OnDiskVolume, partNode string) (*ga
 // laidOutStructureForDiskStructure searches for the laid out structure that
 // matches a given OnDiskStructure.
 func laidOutStructureForDiskStructure(laidVols map[string]*gadget.LaidOutVolume, gadgetVolName string, onDiskStruct *gadget.OnDiskStructure) (*gadget.LaidOutStructure, error) {
-
 	for _, laidVol := range laidVols {
 		// Check that this is the right volume
 		if laidVol.Name != gadgetVolName {
@@ -410,7 +432,17 @@ func laidOutStructureForDiskStructure(laidVols map[string]*gadget.LaidOutVolume,
 
 // sysfsPathForBlockDevice returns the sysfs path for a block device.
 func sysfsPathForBlockDevice(device string) (string, error) {
-	syfsLink := filepath.Join("/sys/class/block", filepath.Base(device))
+	// Remove /dev/ part
+	devName := filepath.Base(device)
+	if strings.HasPrefix(device, "/dev/mapper") {
+		dmLink, err := os.Readlink(device)
+		if err != nil {
+			return "", err
+		}
+		// dmLink is ../dm-[0-9]*
+		devName = filepath.Base(dmLink)
+	}
+	syfsLink := filepath.Join("/sys/class/block", devName)
 	partPath, err := os.Readlink(syfsLink)
 	if err != nil {
 		return "", fmt.Errorf("cannot read link %q: %v", syfsLink, err)
@@ -422,8 +454,13 @@ func sysfsPathForBlockDevice(device string) (string, error) {
 // onDiskVolumeFromPartitionSysfsPath creates an OnDiskVolume that
 // matches the disk that contains the given partition sysfs path
 func onDiskVolumeFromPartitionSysfsPath(partPath string) (*gadget.OnDiskVolume, error) {
-	// Removing the last component will give us the disk path
+	// Removing the last component will give us the disk path, unless
+	// there are no partitions on the device so the partition and the
+	// disk paths are actually the same.
 	diskPath := filepath.Dir(partPath)
+	if strings.HasSuffix(diskPath, "/block") {
+		diskPath = partPath
+	}
 	disk, err := disks.DiskFromDevicePath(diskPath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot retrieve disk information for %q: %v", partPath, err)
@@ -495,7 +532,11 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 				onDiskVols = append(onDiskVols, onDiskVol)
 			}
 			// Obtain partition data and link with laid out information
-			onDiskStruct, err := applyLayoutToOnDiskStructure(onDiskVol, volStruct.Device, allLaidOutVols, volName)
+			unencryptedDevice := volStruct.Device
+			if volStruct.UnencryptedDevice != "" {
+				unencryptedDevice = volStruct.UnencryptedDevice
+			}
+			onDiskStruct, err := applyLayoutToOnDiskStructure(onDiskVol, unencryptedDevice, allLaidOutVols, volName)
 			if err != nil {
 				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", volStruct.Device, err)
 			}
@@ -508,6 +549,96 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 	}
 
 	return onDiskVols, nil
+}
+
+func FinishEncryption(model gadget.Model, setupData *EncryptionSetupData) error {
+	// Save storage traits to save/data partitions
+	encryptionParams := map[string]gadget.StructureEncryptionParameters{}
+	var volName string
+	for name, p := range setupData.parts {
+		encryptionParams[name] = p.encryptionParams
+		volName = p.volName
+	}
+	optsPerVol := map[string]*gadget.DiskVolumeValidationOptions{
+		// this assumes that the encrypted partitions above are always only on the
+		// system-boot volume, this assumption may change
+		volName: {
+			ExpectedStructureEncryption: encryptionParams,
+		},
+	}
+	// save the traits to ubuntu-data host and optionally to ubuntu-save if it exists
+	// FIXME ubuntu-save forced to true
+	if err := saveStorageTraits(model, setupData.laidOutVols, optsPerVol, true); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
+	keyForRole := make(map[string]keys.EncryptionKey)
+	for _, p := range setupData.parts {
+		keyForRole[p.onDiskStruct.Role] = p.encryptionKey
+	}
+	return keyForRole
+}
+
+func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRoot string,
+	model *asserts.Model, encryptionType secboot.EncryptionType, perfTimings timings.Measurer) (*EncryptionSetupData, error) {
+
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
+	if err != nil {
+		return nil, fmt.Errorf("when encrypting partitions: cannot layout volumes: %v", err)
+	}
+
+	setupData := &EncryptionSetupData{
+		laidOutVols: allLaidOutVols,
+		parts:       make(map[string]partEncryptionData),
+	}
+	for volName, vol := range onVolumes {
+		var onDiskVol *gadget.OnDiskVolume
+		for _, volStruct := range vol.Structure {
+			if volStruct.UnencryptedDevice == "" {
+				continue
+			}
+			device := volStruct.UnencryptedDevice
+
+			partSysfsPath, err := sysfsPathForBlockDevice(device)
+			if err != nil {
+				return nil, err
+			}
+			// Volume needs to be resolved only once inside the loop
+			if onDiskVol == nil {
+				onDiskVol, err = onDiskVolumeFromPartitionSysfsPath(partSysfsPath)
+				if err != nil {
+					return nil, err
+				}
+			}
+			// Obtain partition data and link with laid out information
+			onDiskStruct, err := applyLayoutToOnDiskStructure(onDiskVol, device, allLaidOutVols, volName)
+			if err != nil {
+				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", device, err)
+			}
+
+			logger.Debugf("encrypting partition %s", device)
+
+			fsParams, encryptionKey, err :=
+				maybeEncryptPartition(onDiskStruct, encryptionType, onDiskVol.SectorSize, perfTimings)
+			if err != nil {
+				return nil, fmt.Errorf("cannot encrypt %q: %v", device, err)
+			}
+			setupData.parts[onDiskStruct.Name] = partEncryptionData{
+				volName: volName,
+				// fsDevice will be /dev/mapper/ubuntu-data, etc.
+				fsDevice:            fsParams.Device,
+				encryptionKey:       encryptionKey,
+				encryptedSectorSize: fsParams.SectorSize,
+				encryptionParams:    createEncryptionParams(encryptionType),
+				onDiskStruct:        onDiskStruct}
+		}
+	}
+
+	return setupData, nil
 }
 
 func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
