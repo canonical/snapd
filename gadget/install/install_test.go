@@ -308,7 +308,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	var saveEncryptionKey, dataEncryptionKey keys.EncryptionKey
 
 	secbootFormatEncryptedDeviceCall := 0
-	restore = install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string) error {
+	restore = install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string, ice bool) error {
 		if !opts.encryption {
 			c.Error("unexpected call to secboot.FormatEncryptedDevice when encryption is off")
 			return fmt.Errorf("no encryption functions should be called")
@@ -694,7 +694,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 
 	var dataPrimaryKey keys.EncryptionKey
 	secbootFormatEncryptedDeviceCall := 0
-	restore = install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string) error {
+	restore = install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string, ice bool) error {
 		if !opts.encryption {
 			c.Error("unexpected call to secboot.FormatEncryptedDevice")
 			return fmt.Errorf("unexpected call")

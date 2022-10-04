@@ -73,7 +73,7 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 		})
 		defer restore()
 
-		err := secboot.FormatEncryptedDevice(myKey, "my label", "/dev/node")
+		err := secboot.FormatEncryptedDevice(myKey, "my label", "/dev/node", false)
 		c.Assert(calls, Equals, 1)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
