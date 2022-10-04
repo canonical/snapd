@@ -82,11 +82,39 @@ func runMntFor(label string) string {
 	return filepath.Join(dirs.GlobalRootDir, "/run/fakeinstaller-mnt/", label)
 }
 
-func postSystemsInstallSetupStorageEncryption(details *client.SystemDetails) error {
-	// TODO: check details.StorageEncryption and call POST
-	// /systems/<seed-label> with "action":"install" and
-	// "step":"setup-storage-encryption"
-	return nil
+func postSystemsInstallSetupStorageEncryption(cli *client.Client,
+	details *client.SystemDetails, bootDevice string,
+	onDiskParts []gadget.OnDiskStructure) error {
+
+	// We are modifiying the details struct here
+	for _, gadgetVol := range details.Volumes {
+		for i := range gadgetVol.Structure {
+			switch gadgetVol.Structure[i].Role {
+			case "system-save", "system-data":
+				// only roles for which we will want encryption
+			default:
+				continue
+			}
+			for _, part := range onDiskParts {
+				if part.Name == gadgetVol.Structure[i].Name {
+					gadgetVol.Structure[i].UnencryptedDevice = part.Node
+					break
+				}
+			}
+		}
+	}
+
+	// Storage encryption makes specified partitions encrypted
+	opts := &client.InstallSystemOptions{
+		Step:      client.InstallStepSetupStorageEncryption,
+		OnVolumes: details.Volumes,
+	}
+	chgId, err := cli.InstallSystem(details.Label, opts)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Change %s created\n", chgId)
+	return waitChange(chgId)
 }
 
 // XXX: reuse/extract cmd/snap/wait.go:waitMixin()
@@ -110,22 +138,29 @@ func waitChange(chgId string) error {
 
 // TODO laidoutStructs is used to get the devices, when encryption is
 // happening maybe we need to find the information differently.
-func postSystemsInstallFinish(cli *client.Client, details *client.SystemDetails,
-	bootDevice string, laidoutStructs []gadget.OnDiskStructure) error {
+func postSystemsInstallFinish(cli *client.Client,
+	details *client.SystemDetails, bootDevice string,
+	onDiskParts []gadget.OnDiskStructure) error {
 
 	vols := make(map[string]*gadget.Volume)
 	for volName, gadgetVol := range details.Volumes {
-		laidIdx := 0
 		for i := range gadgetVol.Structure {
 			// TODO mbr is special, what is the device for that?
-			var device string
 			if gadgetVol.Structure[i].Role == "mbr" {
-				device = bootDevice
-			} else {
-				device = laidoutStructs[laidIdx].Node
-				laidIdx++
+				gadgetVol.Structure[i].Device = bootDevice
+				continue
 			}
-			gadgetVol.Structure[i].Device = device
+			for _, part := range onDiskParts {
+				// Same partition label
+				if part.Name == gadgetVol.Structure[i].Name {
+					node := part.Node
+					if gadgetVol.Structure[i].UnencryptedDevice != "" {
+						node = filepath.Join("/dev/mapper", part.Name)
+					}
+					gadgetVol.Structure[i].Device = node
+					break
+				}
+			}
 		}
 		vols[volName] = gadgetVol
 	}
@@ -163,11 +198,18 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 			continue
 		}
 
-		part, err := disk.FindMatchingPartitionWithPartLabel(stru.Label)
-		if err != nil {
-			return nil, err
+		var partNode string
+		if stru.UnencryptedDevice != "" {
+			// XXX Assuming here that the encryption was successful
+			partNode = filepath.Join("/dev/mapper", stru.Label)
+		} else {
+			part, err := disk.FindMatchingPartitionWithPartLabel(stru.Label)
+			if err != nil {
+				return nil, err
+			}
+			partNode = part.KernelDeviceNode
 		}
-		if err := mkfs.Make(stru.Filesystem, part.KernelDeviceNode, stru.Label, 0, 0); err != nil {
+		if err := mkfs.Make(stru.Filesystem, partNode, stru.Label, 0, 0); err != nil {
 			return nil, err
 		}
 
@@ -179,7 +221,7 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 			return nil, err
 		}
 		// XXX: is there a better way?
-		if output, err := exec.Command("mount", part.KernelDeviceNode, mountPoint).CombinedOutput(); err != nil {
+		if output, err := exec.Command("mount", partNode, mountPoint).CombinedOutput(); err != nil {
 			return nil, osutil.OutputErr(output, err)
 		}
 		mountPoints = append(mountPoints, mountPoint)
@@ -246,7 +288,7 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err != nil {
 		return fmt.Errorf("cannot setup partitions: %v", err)
 	}
-	if err := postSystemsInstallSetupStorageEncryption(details); err != nil {
+	if err := postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, laidoutStructs); err != nil {
 		return fmt.Errorf("cannot setup storage encryption: %v", err)
 	}
 	mntPts, err := createAndMountFilesystems(bootDevice, details.Volumes)
