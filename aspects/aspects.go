@@ -62,33 +62,33 @@ func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag Dat
 	}
 
 	for name, v := range aspects {
-		aspectViews, ok := v.([]map[string]string)
+		aspectPatterns, ok := v.([]map[string]string)
 		if !ok {
 			return nil, errors.New("cannot create aspect: access patterns should be a list of maps")
-		} else if len(aspectViews) == 0 {
+		} else if len(aspectPatterns) == 0 {
 			return nil, errors.New("cannot create aspect without access patterns")
 		}
 
 		aspect := &Aspect{
 			Name:           name,
-			accessPatterns: make([]*accessPattern, 0, len(aspectViews)),
+			accessPatterns: make([]*accessPattern, 0, len(aspectPatterns)),
 			directory:      aspectDir,
 		}
 
-		for _, aspectView := range aspectViews {
-			name, ok := aspectView["name"]
+		for _, aspectPattern := range aspectPatterns {
+			name, ok := aspectPattern["name"]
 			if !ok || name == "" {
-				return nil, errors.New(`cannot create aspect view without a "name"`)
+				return nil, errors.New(`cannot create aspect pattern without a "name"`)
 			}
 
-			path, ok := aspectView["path"]
+			path, ok := aspectPattern["path"]
 			if !ok || path == "" {
-				return nil, errors.New(`cannot create aspect view without a "path"`)
+				return nil, errors.New(`cannot create aspect pattern without a "path"`)
 			}
 
-			access := aspectView["access"]
+			access := aspectPattern["access"]
 			if access != "" && strutil.ListContains(validAccessValues, access) {
-				return nil, fmt.Errorf("cannot create aspect view: expected \"access\" to be one of %s instead of %q",
+				return nil, fmt.Errorf("cannot create aspect pattern: expected \"access\" to be one of %s instead of %q",
 					strutil.Quoted(validAccessValues), access)
 			}
 
@@ -190,36 +190,36 @@ func (s *JSONSchema) Validate(jsonData []byte) error {
 	return json.Unmarshal(jsonData, &data)
 }
 
-func get(subKeys []string, root map[string]json.RawMessage, result interface{}) error {
+func get(subKeys []string, node map[string]json.RawMessage, result interface{}) error {
 	key := subKeys[0]
-	value, ok := root[key]
+	rawLevel, ok := node[key]
 	if !ok {
 		return &ErrNotFound{"key not found"}
 	}
 
 	if len(subKeys) == 1 {
-		return json.Unmarshal(value, result)
+		return json.Unmarshal(rawLevel, result)
 	}
 
-	var nextLevel map[string]json.RawMessage
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(value), &nextLevel); err != nil {
+	var level map[string]json.RawMessage
+	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
 		return err
 	}
 
-	return get(subKeys[1:], nextLevel, result)
+	return get(subKeys[1:], level, result)
 }
 
-func set(subKeys []string, root map[string]json.RawMessage, result interface{}) (json.RawMessage, error) {
+func set(subKeys []string, node map[string]json.RawMessage, value interface{}) (json.RawMessage, error) {
 	key := subKeys[0]
 
 	if len(subKeys) == 1 {
-		data, err := json.Marshal(result)
+		data, err := json.Marshal(value)
 		if err != nil {
 			return nil, err
 		}
 
-		root[key] = data
-		newData, err := json.Marshal(root)
+		node[key] = data
+		newData, err := json.Marshal(node)
 		if err != nil {
 			return nil, err
 		}
@@ -227,21 +227,21 @@ func set(subKeys []string, root map[string]json.RawMessage, result interface{}) 
 		return newData, nil
 	}
 
-	value, ok := root[key]
+	rawLevel, ok := node[key]
 	if !ok {
-		value = []byte("{}")
+		rawLevel = []byte("{}")
 	}
 
-	var nextLevel map[string]json.RawMessage
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(value), &nextLevel); err != nil {
+	var level map[string]json.RawMessage
+	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
 		return nil, err
 	}
 
-	value, err := set(subKeys[1:], nextLevel, result)
+	rawLevel, err := set(subKeys[1:], level, value)
 	if err != nil {
 		return nil, err
 	}
 
-	root[key] = value
-	return json.Marshal(root)
+	node[key] = rawLevel
+	return json.Marshal(node)
 }
