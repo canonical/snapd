@@ -99,7 +99,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		s.AddCleanup(s.mockCryptsetup.Restore)
 
 		calls := 0
-		restore := install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string) error {
+		restore := install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string, ice bool) error {
 			calls++
 			c.Assert(key, DeepEquals, s.mockedEncryptionKey)
 			c.Assert(label, Equals, "some-label-enc")
@@ -108,7 +108,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		})
 		defer restore()
 
-		dev, err := install.NewEncryptedDeviceLUKS(&mockDeviceStructure, s.mockedEncryptionKey, "some-label-enc", "some-label")
+		dev, err := install.NewEncryptedDeviceLUKS(&mockDeviceStructure, s.mockedEncryptionKey, false, "some-label-enc", "some-label")
 		c.Assert(calls, Equals, 1)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)

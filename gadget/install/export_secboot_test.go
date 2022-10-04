@@ -34,7 +34,7 @@ var (
 	CreateEncryptedDeviceWithSetupHook = createEncryptedDeviceWithSetupHook
 )
 
-func MockSecbootFormatEncryptedDevice(f func(key keys.EncryptionKey, label, node string) error) (restore func()) {
+func MockSecbootFormatEncryptedDevice(f func(key keys.EncryptionKey, label, node string, ice bool) error) (restore func()) {
 	r := testutil.Backup(&secbootFormatEncryptedDevice)
 	secbootFormatEncryptedDevice = f
 	return r
