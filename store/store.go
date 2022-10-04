@@ -745,19 +745,19 @@ func (s *Store) buildLocationString() (string, error) {
 		return "", err
 	}
 
-	if cloudInfo != nil {
-		cdnParams := []string{fmt.Sprintf("cloud-name=%q", cloudInfo.Name)}
-		if cloudInfo.Region != "" {
-			cdnParams = append(cdnParams, fmt.Sprintf("region=%q", cloudInfo.Region))
-		}
-		if cloudInfo.AvailabilityZone != "" {
-			cdnParams = append(cdnParams, fmt.Sprintf("availability-zone=%q", cloudInfo.AvailabilityZone))
-		}
-
-		return strings.Join(cdnParams, " "), nil
+	if cloudInfo == nil {
+		return "", nil
 	}
 
-	return "", nil
+	cdnParams := []string{fmt.Sprintf("cloud-name=%q", cloudInfo.Name)}
+	if cloudInfo.Region != "" {
+		cdnParams = append(cdnParams, fmt.Sprintf("region=%q", cloudInfo.Region))
+	}
+	if cloudInfo.AvailabilityZone != "" {
+		cdnParams = append(cdnParams, fmt.Sprintf("availability-zone=%q", cloudInfo.AvailabilityZone))
+	}
+
+	return strings.Join(cdnParams, " "), nil
 }
 
 // build a new http.Request with headers for the store
