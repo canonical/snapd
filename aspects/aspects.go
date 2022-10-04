@@ -165,7 +165,12 @@ func NewJSONDataBag() JSONDataBag {
 
 func (s JSONDataBag) Get(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
-	return get(subKeys, s, value)
+	err := get(subKeys, s, value)
+	if uErr, ok := err.(*json.UnmarshalTypeError); ok {
+		return fmt.Errorf("cannot read %q into variable of type \"%T\" because it maps to JSON %s", path, value, uErr.Value)
+	}
+
+	return err
 }
 
 func (s JSONDataBag) Set(path string, value interface{}) error {

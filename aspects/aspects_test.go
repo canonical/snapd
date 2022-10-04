@@ -22,6 +22,7 @@ func (*aspectSuite) TestAspectDirectory(c *C) {
 			{"name": "ssids", "path": "wifi.ssids"},
 			{"name": "ssid", "path": "wifi.ssid"},
 			{"name": "top-level", "path": "top-level"},
+			{"name": "wifi", "path": "wifi"},
 		},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
@@ -53,4 +54,7 @@ func (*aspectSuite) TestAspectDirectory(c *C) {
 	err = wsAspect.Get("top-level", &topLevel)
 	c.Assert(err, IsNil)
 	c.Check(topLevel, Equals, "randomValue")
+
+	err = wsAspect.Get("wifi", &topLevel)
+	c.Assert(err, ErrorMatches, `cannot read "wifi" into variable of type "\*string" because it maps to JSON object`)
 }
