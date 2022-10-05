@@ -691,6 +691,14 @@ nested_create_core_vm() {
     IMAGE_NAME="$(nested_get_image_name core)"
     mkdir -p "$NESTED_IMAGES_DIR"
 
+    if os.query is-arm; then
+        snap install ubuntu-image --classic || true
+        export UBUNTU_IMAGE=/snap/bin/ubuntu-image
+        export NESTED_REPACK_KERNEL_SNAP=false
+        export NESTED_REPACK_GADGET_SNAP=false
+        export NESTED_USE_CLOUD_INIT=false
+    fi
+
     if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" ]; then
         cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
         if [ ! "$NESTED_USE_CLOUD_INIT" = "true" ]; then
@@ -703,18 +711,11 @@ nested_create_core_vm() {
             # download the ubuntu-core image from $CUSTOM_IMAGE_URL
             nested_download_image "$NESTED_CUSTOM_IMAGE_URL" "$IMAGE_NAME"
         else
-            # create the ubuntu-core image
+            # create the ubuntu-core image            
             local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
-            if os.query is-xenial; then
+            if os.query is-xenial || os.query is-arm; then
                 # ubuntu-image on 16.04 needs to be installed from a snap
                 UBUNTU_IMAGE=/snap/bin/ubuntu-image
-            fi
-            if os.query is-arm; then
-                snap install ubuntu-image --classic || true
-                export UBUNTU_IMAGE=/snap/bin/ubuntu-image
-                export NESTED_REPACK_KERNEL_SNAP=false
-                export NESTED_REPACK_GADGET_SNAP=false
-                export NESTED_USE_CLOUD_INIT=false
             fi
 
             if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then

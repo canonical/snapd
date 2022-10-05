@@ -38,6 +38,10 @@ execute: |
     remote.exec "test ! -f /var/lib/snapd/device/fde/recovery.key"
     remote.exec "test ! -f /var/lib/snapd/device/fde/reinstall.key"
 
+    if os.query is-arm; then
+        exit 0
+    fi
+
     # single key for ubuntu-data and ubuntu-save
     test "$(remote.exec "sudo cryptsetup luksDump /dev/vda4 |grep Key:" | wc -l)" = "1"
     test "$(remote.exec "sudo cryptsetup luksDump /dev/vda5 |grep Key:" | wc -l)" = "1"
