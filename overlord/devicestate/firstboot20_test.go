@@ -603,7 +603,7 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousNoAutoImport(c *C) {
 
 	logs := s.setupSeed20DangerousGrade(c, false)
 
-	c.Check(logs, testutil.Contains, `failed to load auto import assertions:`)
+	c.Check(logs, testutil.Contains, `failed to auto-import assertions:`)
 }
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImportUserCreateFail(c *C) {
