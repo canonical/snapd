@@ -82,6 +82,9 @@ func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableS
 // using information from bootWith and bootFlags. Contrarily to
 // MakeBootableImage this happens in a live system.
 func MakeBootablePartition(partDir string, opts *bootloader.Options, bootWith *BootableSet, bootMode string, bootFlags []string) error {
+	if bootWith.RecoverySystemDir != "" {
+		return fmt.Errorf("internal error: RecoverySystemDir unexpectedly set for MakeBootablePartition")
+	}
 	return configureBootloader(partDir, opts, bootWith, bootMode, bootFlags)
 }
 
@@ -312,9 +315,35 @@ type makeRunnableOptions struct {
 	AfterDataReset bool
 }
 
+func copyBootSnap(orig string, dstInfo *snap.Info, dstSnapBlobDir string) error {
+	// if the source path is a symlink, don't copy the symlink, copy the
+	// target file instead of copying the symlink, as the initramfs won't
+	// follow the symlink when it goes to mount the base and kernel snaps by
+	// design as the initramfs should only be using trusted things from
+	// ubuntu-data to boot in run mode
+	if osutil.IsSymlink(orig) {
+		link, err := os.Readlink(orig)
+		if err != nil {
+			return err
+		}
+		orig = link
+	}
+	// note that we need to use the "Filename()" here because unasserted
+	// snaps will have names like pc-kernel_5.19.4.snap but snapd expects
+	// "pc-kernel_x1.snap"
+	dst := filepath.Join(dstSnapBlobDir, dstInfo.Filename())
+	if err := osutil.CopyFile(orig, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+		return err
+	}
+	return nil
+}
+
 func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver, makeOpts makeRunnableOptions) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: cannot make pre-UC20 system runnable")
+	}
+	if bootWith.RecoverySystemDir != "" {
+		return fmt.Errorf("internal error: RecoverySystemDir unexpectedly set for MakeRunnableSystem")
 	}
 
 	// TODO:UC20:
@@ -327,21 +356,14 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
-	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath, bootWith.GadgetPath} {
-		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
-		// if the source filename is a symlink, don't copy the symlink, copy the
-		// target file instead of copying the symlink, as the initramfs won't
-		// follow the symlink when it goes to mount the base and kernel snaps by
-		// design as the initramfs should only be using trusted things from
-		// ubuntu-data to boot in run mode
-		if osutil.IsSymlink(fn) {
-			link, err := os.Readlink(fn)
-			if err != nil {
-				return err
-			}
-			fn = link
-		}
-		if err := osutil.CopyFile(fn, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+	for _, origDest := range []struct {
+		orig     string
+		destInfo *snap.Info
+	}{
+		{orig: bootWith.BasePath, destInfo: bootWith.Base},
+		{orig: bootWith.KernelPath, destInfo: bootWith.Kernel},
+		{orig: bootWith.GadgetPath, destInfo: bootWith.Gadget}} {
+		if err := copyBootSnap(origDest.orig, origDest.destInfo, snapBlobDir); err != nil {
 			return err
 		}
 	}
@@ -357,11 +379,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		currentTrustedBootAssets = sealer.currentTrustedBootAssetsMap()
 		currentTrustedRecoveryBootAssets = sealer.currentTrustedRecoveryBootAssetsMap()
 	}
-	// filepath.Base("") returns ".", so we need to be a bit careful here
-	recoverySystemLabel := ""
-	if bootWith.RecoverySystemDir != "" {
-		recoverySystemLabel = filepath.Base(bootWith.RecoverySystemDir)
-	}
+	recoverySystemLabel := bootWith.RecoverySystemLabel
 	// write modeenv on the ubuntu-data partition
 	modeenv := &Modeenv{
 		Mode:           "run",
