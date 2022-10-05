@@ -540,6 +540,7 @@ jobs:
         - ubuntu-16.04-64
         - ubuntu-18.04-64
         - ubuntu-20.04-64
+        - ubuntu-20.04-arm-64
         - ubuntu-22.04-64
     steps:
     - name: Cleanup job workspace
@@ -593,39 +594,23 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
           export NESTED_BUILD_SNAPD_FROM_CURRENT=true
           export NESTED_ENABLE_KVM=true
-          RUN_TESTS="google-nested:${{ matrix.system }}:tests/nested/..."
-          if [ -n "$FAILED_TESTS" ]; then
-              RUN_TESTS="$FAILED_TESTS"
-          fi
-          # Run spread tests
-          # "pipefail" ensures that a non-zero status from the spread is
-          # propagated; and we use a subshell as this option could trigger
-          # undesired changes elsewhere
-          (set -o pipefail; spread -abend $RUN_TESTS | tee spread.log)
 
-    - name: Run spread tests in arm
-      # run if the commit is pushed to the release/* branch or there is a 'Run
-      # nested' label set on the PR
-      if: "contains(github.event.pull_request.labels.*.name, 'Run nested') || contains(github.ref, 'refs/heads/release/')"
-      env:
-          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: |
-          # Register a problem matcher to highlight spread failures
-          echo "::add-matcher::.github/spread-problem-matcher.json"
-          export NESTED_BUILD_SNAPD_FROM_CURRENT=true
-          export NESTED_ENABLE_KVM=true
-          export NESTED_USE_CLOUD_INIT=false
-          export NESTED_ENABLE_SECURE_BOOT=false
-          export NESTED_ENABLE_TPM=false
-          RUN_TESTS="google-nested-arm:ubuntu-20.04-arm-64:tests/nested/core/core20-basic"
-          if [ -n "$FAILED_TESTS" ]; then
-              RUN_TESTS="$FAILED_TESTS"
+          if [[ "${{ matrix.system }}" =~ -arm- ]]; then
+              export NESTED_USE_CLOUD_INIT=false
+              export NESTED_ENABLE_SECURE_BOOT=false
+              export NESTED_ENABLE_TPM=false
+              RUN_TESTS="google-nested-arm:ubuntu-20.04-arm-64:tests/nested/core/core20-basic"
+              if [ -n "$FAILED_TESTS" ]; then
+                  RUN_TESTS="$FAILED_TESTS"
+              fi
+              (set -o pipefail; spread-debug -abend $RUN_TESTS | tee spread.log)
+          else
+              RUN_TESTS="google-nested:${{ matrix.system }}:tests/nested/..."
+              if [ -n "$FAILED_TESTS" ]; then
+                  RUN_TESTS="$FAILED_TESTS"
+              fi
+              (set -o pipefail; spread -abend $RUN_TESTS | tee spread.log)
           fi
-          # Run spread tests
-          # "pipefail" ensures that a non-zero status from the spread is
-          # propagated; and we use a subshell as this option could trigger
-          # undesired changes elsewhere
-          (set -o pipefail; spread-debug -abend $RUN_TESTS | tee spread-arm.log)
 
     - name: Discard spread workers
       if: always()
