@@ -84,6 +84,17 @@ func (u *UserState) HasStoreAuth() bool {
 	return u.StoreMacaroon != ""
 }
 
+// HasExpired returns true if the user has an expiration set and
+// the expiration date is past the current time.
+func (u *UserState) HasExpired() bool {
+	// If the user has no expiration date, then Expiration should not
+	// be set, and contain the default value.
+	if u.Expiration.IsZero() {
+		return false
+	}
+	return u.Expiration.Before(time.Now())
+}
+
 // MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
 func MacaroonSerialize(m *macaroon.Macaroon) (string, error) {
 	marshalled, err := m.MarshalBinary()

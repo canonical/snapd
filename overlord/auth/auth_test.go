@@ -22,6 +22,7 @@ package auth_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
@@ -521,12 +522,21 @@ func (as *authSuite) TestUsers(c *C) {
 		Email:      "email1@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
+		// Provide expiration as UTC to ignore the monotonic clock which
+		// is included in golang timestamps. This unfortunately messes up
+		// the DeepEquals if not removed, as the monotonic clock timestamp
+		// is not marshalled/unmarshalled, which means it gets lost during
+		// this, but golang still checks against it when using DeepEquals. The
+		// monotonic clock is not used when comparing timestamps normally.
+		Expiration: time.Now().Add(time.Hour).UTC(),
 	})
 	user2, err2 := auth.NewUser(as.state, auth.NewUserData{
 		Username:   "user2",
 		Email:      "email2@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
+		// Same here
+		Expiration: time.Now().Add(time.Hour).UTC(),
 	})
 	as.state.Unlock()
 	c.Check(err1, IsNil)
@@ -549,4 +559,45 @@ func (as *authSuite) TestEnsureContexts(c *C) {
 	c.Check(auth.IsEnsureContext(ctx2), Equals, true)
 
 	c.Check(auth.IsEnsureContext(context.TODO()), Equals, false)
+}
+
+func (as *authSuite) TestHasExpiredTrue(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "user1",
+		Email:      "email1@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+		Expiration: time.Now().Add(-(time.Minute * 5)),
+	})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(user.HasExpired(), Equals, true)
+}
+
+func (as *authSuite) TestHasExpiredFalse(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "user1",
+		Email:      "email1@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+		Expiration: time.Now().Add(time.Minute * 5),
+	})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(user.HasExpired(), Equals, false)
+}
+
+func (as *authSuite) TestHasExpiredNoExpirationSetIsFalse(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserData{
+		Username:   "user1",
+		Email:      "email1@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(user.HasExpired(), Equals, false)
 }
