@@ -378,6 +378,32 @@ func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool)
 	return deviceSeed, nil
 }
 
+// processAutoImportAssertions checks model grade
+// if model grade is dangerous, it attempts to load
+// auto import assertions and create all knows system users.
+// Processing of the auto-import assertion is opportunistic and should not fail
+func processAutoImportAssertions(st *state.State, deviceSeed seed.Seed, db asserts.RODatabase, commitTo func(batch *asserts.Batch) error) {
+	// if model is dangerous, check if there is auto-import.assert and import it
+	if deviceSeed.Model().Grade() != asserts.ModelDangerous {
+		return
+	}
+	seed20AssertionsLoader, ok := deviceSeed.(seed.AutoImportAssertionsLoaderSeed)
+	if !ok {
+		logger.Noticef("failed to auto-import assertions, invalid loader")
+		return
+	}
+	err := seed20AssertionsLoader.LoadAutoImportAssertions(commitTo)
+	if err != nil {
+		logger.Noticef("failed to auto-import assertions: %v", err)
+		return
+	}
+	serial, _ := findSerial(st, nil)
+	_, err = createAllSystemUsers(st, db, deviceSeed.Model(), serial, true)
+	if err != nil {
+		logger.Noticef("failed to create known users: %v", err)
+	}
+}
+
 // loadDeviceSeed loads and caches the device seed based on sysLabel,
 // it is meant to be used before and during seeding.
 // It is an error to call it with different sysLabel values once one
@@ -423,24 +449,7 @@ var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.See
 		return nil, err
 	}
 
-	// if model is dangerous, check if there is auto-import.assert and import it
-	if deviceSeed.Model().Grade() == asserts.ModelDangerous {
-		seed20AssertionsLoader, ok := deviceSeed.(seed.AutoImportAssertionsLoaderSeed)
-		if !ok {
-			logger.Noticef("failed to cast seed20 assertion loader")
-			return deviceSeed, nil
-		}
-		err = seed20AssertionsLoader.LoadAutoImportAssertions(commitTo)
-		if err != nil {
-			logger.Noticef("failed to load auto import assertions: %v", err)
-			return deviceSeed, nil
-		}
-		serial, _ := findSerial(st, nil)
-		_, userError := createAllSystemUsers(st, db, deviceSeed.Model(), serial, true)
-		if userError != nil {
-			logger.Noticef("failed to create known users: %v", userError.Error())
-		}
-	}
+	processAutoImportAssertions(st, deviceSeed, db, commitTo)
 
 	return deviceSeed, nil
 }
