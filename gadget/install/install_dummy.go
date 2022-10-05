@@ -24,6 +24,7 @@ package install
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/timings"
 )
@@ -33,5 +34,13 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 }
 
 func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, device string, options Options, _ gadget.ContentObserver, _ timings.Measurer) (*InstalledSystemSideData, error) {
+	return nil, fmt.Errorf("build without secboot support")
+}
+
+func MountVolumes(onVolumes map[string]*gadget.Volume) (espMntDir string, unmount func() error, err error) {
+	return "", nil, fmt.Errorf("build without secboot support")
+}
+
+func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentObserver, gadgetRoot, kernelRoot string, model *asserts.Model, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
 	return nil, fmt.Errorf("build without secboot support")
 }

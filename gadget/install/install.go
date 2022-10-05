@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -350,7 +351,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 			}
 		}
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
-			if err := mountFilesystem(fsDevice, part.Filesystem, part.Label, boot.InitramfsRunMntDir); err != nil {
+			if err := mountFilesystem(fsDevice, part.Filesystem, filepath.Join(boot.InitramfsRunMntDir, part.Label)); err != nil {
 				return nil, err
 			}
 		}
@@ -599,7 +600,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 			keyForRole[part.Role] = encryptionKey
 		}
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
-			if err := mountFilesystem(fsDevice, part.Filesystem, part.Label, boot.InitramfsRunMntDir); err != nil {
+			if err := mountFilesystem(fsDevice, part.Filesystem, filepath.Join(boot.InitramfsRunMntDir, part.Label)); err != nil {
 				return nil, err
 			}
 		}
@@ -623,4 +624,49 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		KeyForRole:    keyForRole,
 		DeviceForRole: deviceForRole,
 	}, nil
+}
+
+// MountVolumes mounts partitions for the volumes specified by
+// onVolumes. It returns the ESP partition and a function that needs
+// to be called for unmounting them.
+func MountVolumes(onVolumes map[string]*gadget.Volume) (espMntDir string, unmount func() error, err error) {
+	var mountPoints []string
+	numEsp := 0
+	unmount = func() (err error) {
+		for _, mntPt := range mountPoints {
+			errUnmount := sysUnmount(mntPt, 0)
+			if errUnmount != nil {
+				logger.Noticef("cannot unmount %q: %v", mntPt, errUnmount)
+			}
+			// Make sure we do not set err to nil if it had already an error
+			if errUnmount != nil {
+				err = errUnmount
+			}
+		}
+		return err
+	}
+	for _, vol := range onVolumes {
+		for _, part := range vol.Structure {
+			if part.Filesystem == "" {
+				continue
+			}
+			mntPt := filepath.Join(boot.InitramfsRunMntDir, part.Name)
+			if err := mountFilesystem(part.Device, part.Filesystem, mntPt); err != nil {
+				defer unmount()
+				return "", nil, fmt.Errorf("cannot mount %q at %q: %v", part.Device, mntPt, err)
+			}
+			mountPoints = append(mountPoints, mntPt)
+
+			if strings.Contains(strings.ToUpper(part.Type), gadget.GPTPartitionGUIDESP) {
+				espMntDir = mntPt
+				numEsp++
+			}
+		}
+	}
+	if numEsp != 1 {
+		defer unmount()
+		return "", nil, fmt.Errorf("there are %d ESP partitions, expected one", numEsp)
+	}
+
+	return espMntDir, unmount, nil
 }

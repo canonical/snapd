@@ -107,11 +107,16 @@ func snapAndMode(str string) (snap, mode string, uc20 bool) {
 	return parts[0], parts[1], true
 }
 
-func (d *mockDevice) Kernel() string      { return d.bootSnap }
-func (d *mockDevice) Classic() bool       { return d.isClassic }
-func (d *mockDevice) RunMode() bool       { return d.mode == "run" }
-func (d *mockDevice) HasModeenv() bool    { return d.hasModes }
-func (d *mockDevice) IsCoreBoot() bool    { return d.hasModes || !d.isClassic }
+func (d *mockDevice) Kernel() string   { return d.bootSnap }
+func (d *mockDevice) Classic() bool    { return d.isClassic }
+func (d *mockDevice) RunMode() bool    { return d.mode == "run" }
+func (d *mockDevice) HasModeenv() bool { return d.hasModes }
+func (d *mockDevice) IsCoreBoot() bool {
+	if d.model != nil {
+		return d.model.Kernel() != ""
+	}
+	return d.hasModes || !d.isClassic
+}
 func (d *mockDevice) IsClassicBoot() bool { return !d.IsCoreBoot() }
 func (d *mockDevice) Base() string {
 	if d.model != nil {

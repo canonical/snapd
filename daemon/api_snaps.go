@@ -686,7 +686,7 @@ func snapEnforceValidationSets(inst *snapInstruction, st *state.State) (*snapIns
 
 	var tss []*state.TaskSet
 	var affected []string
-	err = assertstateTryEnforceValidationSets(st, inst.ValidationSets, inst.userID, snaps, ignoreValidationSnaps)
+	err = assertstateTryEnforcedValidationSets(st, inst.ValidationSets, inst.userID, snaps, ignoreValidationSnaps)
 	if err != nil {
 		vErr, ok := err.(*snapasserts.ValidationSetsValidationError)
 		if !ok {
@@ -727,7 +727,7 @@ func meetSnapConstraintsForEnforce(inst *snapInstruction, st *state.State, vErr 
 		pinnedSeqs[fmt.Sprintf("%s/%s", account, name)] = sequence
 	}
 
-	return snapstateResolveValSetEnforcementError(context.TODO(), st, vErr, pinnedSeqs, inst.userID)
+	return snapstateResolveValSetsEnforcementError(context.TODO(), st, vErr, pinnedSeqs, inst.userID)
 }
 
 func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {

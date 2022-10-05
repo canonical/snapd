@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -89,9 +89,6 @@ type DeviceManager struct {
 	// save as rw vs ro, or mount/umount it fully on demand
 	saveAvailable bool
 
-	// isClassicBoot is true if classic system with classic initramfs
-	isClassicBoot bool
-
 	state   *state.State
 	hookMgr *hookstate.HookManager
 
@@ -149,8 +146,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		if modeenv != nil {
 			logger.Debugf("modeenv for model %q found", modeenv.Model)
 			m.sysMode = modeenv.Mode
-		} else if release.OnClassic {
-			m.isClassicBoot = true
 		}
 	} else {
 		// cache system label for preseeding of core20; note, this will fail on
@@ -948,10 +943,6 @@ func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.isClassicBoot {
-		return nil
-	}
-
 	// boot-ok/update-boot-revision is only relevant in run-mode
 	if m.SystemMode(SysAny) != "run" {
 		return nil
@@ -962,13 +953,13 @@ func (m *DeviceManager) ensureBootOk() error {
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
-		if err == nil {
+		if err == nil && deviceCtx.Model().KernelSnap() != nil {
 			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
 				return err
 			}
-		}
-		if err := secbootMarkSuccessful(); err != nil {
-			return err
+			if err := secbootMarkSuccessful(); err != nil {
+				return err
+			}
 		}
 
 		m.bootOkRan = true
