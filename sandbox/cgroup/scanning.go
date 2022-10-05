@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ package cgroup
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -67,6 +68,100 @@ func securityTagFromCgroupPath(path string) naming.SecurityTag {
 	return nil
 }
 
+type InstancePathsFlags uint32
+
+const (
+	InstancePathsFlagsOnlyPaths InstancePathsFlags = 1 << iota
+)
+
+// InstancePathsOfSnap returns the list of active cgroup paths for a given snap
+//
+// The return value is a snapshot of the cgroup paths
+
+func InstancePathsOfSnap(snapInstanceName string, flags InstancePathsFlags) ([]string, error) {
+	var cgroupPathToScan string
+	var pathList []string
+
+	ver, err := Version()
+	if err != nil {
+		return nil, err
+	}
+
+	if ver == V2 {
+		// In v2 mode scan all of /sys/fs/cgroup as there is no specialization
+		// anymore (each directory represents a hierarchy with equal
+		// capabilities and old split into controllers is gone).
+		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint)
+	} else {
+		// In v1 mode scan just /sys/fs/cgroup/systemd as that is sufficient
+		// for finding snap-specific cgroup names. Systemd uses this for
+		// tracking and scopes and services are represented there.
+		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint, "systemd")
+	}
+
+	// Walk the cgroup tree and look for "cgroup.procs" files. Having found one
+	// we try to derive the snap security tag from it. If successful and the
+	// tag matches the snap we are interested in, we harvest the snapshot of
+	// PIDs that belong to the cgroup and put them into a bucket associated
+	// with the security tag.
+	walkFunc := func(basepath string, fileInfo os.FileInfo, err error) error {
+		if err != nil {
+			// See the documentation of path/filepath.Walk. The error we get is
+			// the error that was encountered while walking. We just surface
+			// that error quickly.
+			return err
+		}
+
+		// ignore snaps inside containers
+		for _, slice := range []string{"lxc.payload", "machine.slice", "docker"} {
+			if strings.HasPrefix(basepath, filepath.Join(cgroupPathToScan, slice)) {
+				return filepath.SkipDir
+			}
+		}
+
+		if fileInfo.IsDir() {
+			// We don't care about directories.
+			return nil
+		}
+		if filepath.Base(basepath) != "cgroup.procs" {
+			// We are looking for "cgroup.procs" files. Those contain the set
+			// of processes that momentarily inhabit a cgroup.
+			return nil
+		}
+		// Now that we are confident that the file we're looking at is
+		// interesting, extract the security tag from the cgroup path and check
+		// if the security tag belongs to the snap we are interested in. Since
+		// not all cgroups are related to snaps it is not an error if the
+		// cgroup path does not denote a snap.
+		cgroupPath := filepath.Dir(basepath)
+		parsedTag := securityTagFromCgroupPath(cgroupPath)
+		if parsedTag == nil {
+			return nil
+		}
+		if parsedTag.InstanceName() != snapInstanceName {
+			return nil
+		}
+		if flags&InstancePathsFlagsOnlyPaths == 0 {
+			pathList = append(pathList, basepath)
+		} else {
+			pathList = append(pathList, path.Dir(basepath))
+		}
+		// Since we've found the file we are looking for (cgroup.procs) we no
+		// longer need to scan the remaining files of this directory.
+		return filepath.SkipDir
+	}
+
+	// NOTE: Walk is internally performed in lexical order so the output is
+	// deterministic and we don't need to sort the returned aggregated PIDs.
+	if err := filepath.Walk(cgroupPathToScan, walkFunc); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return pathList, nil
+}
+
 // PidsOfSnap returns the association of security tags to PIDs.
 //
 // NOTE: This function returns a reliable result only if the refresh-app-awareness
@@ -88,84 +183,20 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 	// pidsByTag maps security tag to a list of pids.
 	pidsByTag := make(map[string][]int)
 
-	ver, err := Version()
+	paths, err := InstancePathsOfSnap(snapInstanceName, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	var cgroupPathToScan string
-	if ver == V2 {
-		// In v2 mode scan all of /sys/fs/cgroup as there is no specialization
-		// anymore (each directory represents a hierarchy with equal
-		// capabilities and old split into controllers is gone).
-		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint)
-	} else {
-		// In v1 mode scan just /sys/fs/cgroup/systemd as that is sufficient
-		// for finding snap-specific cgroup names. Systemd uses this for
-		// tracking and scopes and services are represented there.
-		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint, "systemd")
-	}
-
-	// Walk the cgroup tree and look for "cgroup.procs" files. Having found one
-	// we try to derive the snap security tag from it. If successful and the
-	// tag matches the snap we are interested in, we harvest the snapshot of
-	// PIDs that belong to the cgroup and put them into a bucket associated
-	// with the security tag.
-	walkFunc := func(path string, fileInfo os.FileInfo, err error) error {
-		if err != nil {
-			// See the documentation of path/filepath.Walk. The error we get is
-			// the error that was encountered while walking. We just surface
-			// that error quickly.
-			return err
-		}
-
-		// ignore snaps inside containers
-		for _, slice := range []string{"lxc.payload", "machine.slice", "docker"} {
-			if strings.HasPrefix(path, filepath.Join(cgroupPathToScan, slice)) {
-				return filepath.SkipDir
-			}
-		}
-
-		if fileInfo.IsDir() {
-			// We don't care about directories.
-			return nil
-		}
-		if filepath.Base(path) != "cgroup.procs" {
-			// We are looking for "cgroup.procs" files. Those contain the set
-			// of processes that momentarily inhabit a cgroup.
-			return nil
-		}
-		// Now that we are confident that the file we're looking at is
-		// interesting, extract the security tag from the cgroup path and check
-		// if the security tag belongs to the snap we are interested in. Since
-		// not all cgroups are related to snaps it is not an error if the
-		// cgroup path does not denote a snap.
-		cgroupPath := filepath.Dir(path)
-		parsedTag := securityTagFromCgroupPath(cgroupPath)
-		if parsedTag == nil {
-			return nil
-		}
-		if parsedTag.InstanceName() != snapInstanceName {
-			return nil
-		}
+	for _, path := range paths {
 		pids, err := pidsInFile(path)
 		if err != nil {
-			return err
+			continue
 		}
+		cgroupPath := filepath.Dir(path)
+		parsedTag := securityTagFromCgroupPath(cgroupPath)
 		tag := parsedTag.String()
 		pidsByTag[tag] = append(pidsByTag[tag], pids...)
-		// Since we've found the file we are looking for (cgroup.procs) we no
-		// longer need to scan the remaining files of this directory.
-		return filepath.SkipDir
-	}
-
-	// NOTE: Walk is internally performed in lexical order so the output is
-	// deterministic and we don't need to sort the returned aggregated PIDs.
-	if err := filepath.Walk(cgroupPathToScan, walkFunc); err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
 	}
 
 	return pidsByTag, nil
