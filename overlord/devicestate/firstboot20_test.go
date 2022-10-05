@@ -514,11 +514,10 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverMode(c *C) {
 }
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
-	var calledcreateAllUsers = false
 	r := devicestate.MockCreateAllSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
-		calledcreateAllUsers = true
-		var createdUsers []*devicestate.CreatedUser
-		return createdUsers, nil
+		err := errors.New("unexpected call to CreateAllSystemUsers")
+		c.Error(err)
+		return nil, err
 	})
 	defer r()
 
@@ -544,7 +543,6 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
 	c.Check(deviceSeed.Model().Model(), Equals, "my-model")
 	c.Check(deviceSeed.Model().Base(), Equals, "core20")
 	c.Check(deviceSeed.Model().Grade(), Equals, asserts.ModelSigned)
-	c.Check(calledcreateAllUsers, Equals, false)
 
 	// verify that the model was added
 	db := assertstate.DB(st)
@@ -596,17 +594,15 @@ func (s *firstBoot20Suite) setupSeed20DangerousGrade(c *C, withAutoImportAsserti
 }
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousNoAutoImport(c *C) {
-	var calledcreateAllUsers = false
 	r := devicestate.MockCreateAllSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
-		calledcreateAllUsers = true
-		var createdUsers []*devicestate.CreatedUser
-		return createdUsers, nil
+		err := errors.New("unexpected call to CreateAllSystemUsers")
+		c.Error(err)
+		return nil, err
 	})
 	defer r()
 
 	logs := s.setupSeed20DangerousGrade(c, false)
 
-	c.Check(calledcreateAllUsers, Equals, false)
 	c.Check(logs, testutil.Contains, `failed to load auto import assertions:`)
 }
 
