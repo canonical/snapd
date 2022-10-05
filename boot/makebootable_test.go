@@ -642,6 +642,14 @@ version: 5.0
 	})
 	defer restore()
 
+	hasFDESetupHoolCalled := false
+	restore = boot.MockHasFDESetupHook(func(kernel *snap.Info) (bool, error) {
+		c.Check(kernel, Equals, kernelInfo)
+		hasFDESetupHoolCalled = true
+		return false, nil
+	})
+	defer restore()
+
 	// set mock key sealing
 	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
@@ -839,6 +847,8 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 	c.Check(copiedRecoveryGrubBin, testutil.FileEquals, "recovery grub content")
 	c.Check(copiedRecoveryShimBin, testutil.FileEquals, "recovery shim content")
 
+	// we checked for fde-setup-hook
+	c.Check(hasFDESetupHoolCalled, Equals, true)
 	// make sure TPM was provisioned
 	c.Check(provisionCalls, Equals, 1)
 	// make sure SealKey was called for the run object and the fallback object

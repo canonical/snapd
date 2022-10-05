@@ -2222,7 +2222,7 @@ func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool 
 	return m.ntpSyncedOrTimedOut
 }
 
-func (m *DeviceManager) hasFDESetupHook() (bool, error) {
+func (m *DeviceManager) hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
 	// state must be locked
 	st := m.state
 
@@ -2231,9 +2231,12 @@ func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 		return false, fmt.Errorf("cannot get device context: %v", err)
 	}
 
-	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
-	if err != nil {
-		return false, fmt.Errorf("cannot get kernel info: %v", err)
+	if kernelInfo == nil {
+		var err error
+		kernelInfo, err = snapstate.KernelInfo(st, deviceCtx)
+		if err != nil {
+			return false, fmt.Errorf("cannot get kernel info: %v", err)
+		}
 	}
 	return hasFDESetupHookInKernel(kernelInfo), nil
 }
