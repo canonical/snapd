@@ -278,7 +278,7 @@ func setupLocalUser(state *state.State, username, email string) error {
 	}
 
 	// setup new user, local-only
-	authUser, err := auth.NewUser(state, auth.NewUserData{
+	authUser, err := auth.NewUser(state, auth.NewUserParams{
 		Username:   username,
 		Email:      email,
 		Macaroon:   "",

@@ -346,7 +346,7 @@ func (s *apiBaseSuite) asUserAuth(c *check.C, req *http.Request) {
 	if s.authUser == nil {
 		st := s.d.Overlord().State()
 		st.Lock()
-		u, err := auth.NewUser(st, auth.NewUserData{
+		u, err := auth.NewUser(st, auth.NewUserParams{
 			Username:   "username",
 			Email:      "email@test.com",
 			Macaroon:   "macaroon",
