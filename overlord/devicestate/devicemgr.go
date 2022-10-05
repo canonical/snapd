@@ -1543,16 +1543,6 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 	return os.Remove(factoryResetMarker)
 }
 
-func (m *DeviceManager) hasUserExpired(user *auth.UserState) bool {
-	// If the user has no expiration date, then Expiration should not
-	// be set, and contain the default value.
-	if user.Expiration.IsZero() {
-		return false
-	}
-
-	return user.Expiration.Before(time.Now())
-}
-
 // ensureExpiredUsersRemoved is periodically called as a part of Ensure()
 // to remove expired users from the system.
 func (m *DeviceManager) ensureExpiredUsersRemoved() error {
@@ -1562,7 +1552,7 @@ func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 
 	// So far this is only set to be done in run mode, it might not
 	// make any sense to do in it any other mode.
-	mode := m.SystemMode(SysHasModeenv)
+	mode := m.SystemMode(SysAny)
 	if mode != "run" {
 		return nil
 	}
@@ -1582,14 +1572,13 @@ func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 	}
 
 	for _, user := range users {
-		if !m.hasUserExpired(user) {
+		if !user.HasExpired() {
 			continue
 		}
 		if _, err := RemoveUser(st, user.Username); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
