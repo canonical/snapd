@@ -1,0 +1,11 @@
+name: test-snapd-arm64-gadget
+version: 20-0.4
+summary: PC gadget for generic arm devices
+description: |
+  This gadget enables generic arm64 devices to work with Ubuntu Core
+architectures:
+- arm64
+base: core20
+confinement: devmode
+grade: stable
+type: gadget

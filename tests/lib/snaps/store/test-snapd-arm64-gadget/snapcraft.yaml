@@ -1,0 +1,43 @@
+name: test-snapd-arm64-gadget
+version: '20-0.4'
+type: gadget
+base: core20
+summary: Arm64 gadget for generic devices
+description: |
+    This gadget enables generic arm64 devices to work with Ubuntu Core
+confinement: devmode
+grade: stable
+icon: icon.png
+
+package-repositories:
+ - type: apt
+   ppa: ucdev/uc-staging-ppa
+
+parts:
+  grub:
+    plugin: nil
+    source: .
+    build-packages:
+      - ubuntu-dev-tools
+      - grub-efi-arm64-bin
+      - grub-common
+      - sbsigntool
+    stage-packages:
+      - grub-efi-arm64-signed
+      - shim-signed
+    override-build: |
+      set -x
+      # Make sure we have signatures from the UC certificates
+      sbverify --list "$SNAPCRAFT_PART_INSTALL"/usr/lib/shim/shimaa64.efi.dualsigned |
+          grep -E 'Canonical Ltd. Secure Boot Signing \(Ubuntu Core'
+      sbverify --list "$SNAPCRAFT_PART_INSTALL"/usr/lib/grub/arm64-efi-signed/grubaa64.efi.signed |
+          grep -E 'Canonical Ltd. Secure Boot Signing \(Ubuntu Core'
+      install -m 644 /dev/null "$SNAPCRAFT_PART_INSTALL"/grub.conf
+
+    organize:
+      usr/lib/shim/shimaa64.efi.dualsigned: shim.efi.signed
+      usr/lib/grub/arm64-efi-signed/grubaa64.efi.signed: grubaa64.efi
+    prime:
+      - shim.efi.signed
+      - grubaa64.efi
+      - grub.conf
