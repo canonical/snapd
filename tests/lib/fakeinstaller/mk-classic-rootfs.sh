@@ -79,11 +79,11 @@ fi
 
 # extract the base
 if [ -f /cdrom/casper/base.squashfs ]; then
-    sudo unsquashfs -d "$DESTDIR" /cdrom/casper/base.squashfs
+    sudo unsquashfs -d "$DST" /cdrom/casper/base.squashfs
 else
     BASETAR=ubuntu-base.tar.gz
     wget -c http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.1-base-amd64.tar.gz -O "$BASETAR"
-    sudo tar -C "$DESTDIR" -xf "$BASETAR"
+    sudo tar -C "$DST" -xf "$BASETAR"
 fi
 
 # create minimal rootfs
