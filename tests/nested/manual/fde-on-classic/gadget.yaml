@@ -50,7 +50,7 @@ volumes:
         role: system-save
         filesystem: ext4
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
-        size: 16M
+        size: 32M
       - name: ubuntu-data
         role: system-data
         filesystem: ext4
