@@ -2230,7 +2230,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C
 }
 
 func (s *deviceMgrSuite) mockSystemUser(c *C, username string, expiration time.Time) {
-	_, err := auth.NewUser(s.state, auth.NewUserData{
+	_, err := auth.NewUser(s.state, auth.NewUserParams{
 		Username:   username,
 		Email:      "email1@test.com",
 		Macaroon:   "macaroon",

@@ -563,7 +563,7 @@ func (as *authSuite) TestEnsureContexts(c *C) {
 
 func (as *authSuite) TestHasExpiredTrue(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, auth.NewUserData{
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
 		Username:   "user1",
 		Email:      "email1@test.com",
 		Macaroon:   "macaroon",
@@ -577,7 +577,7 @@ func (as *authSuite) TestHasExpiredTrue(c *C) {
 
 func (as *authSuite) TestHasExpiredFalse(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, auth.NewUserData{
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
 		Username:   "user1",
 		Email:      "email1@test.com",
 		Macaroon:   "macaroon",
@@ -591,7 +591,7 @@ func (as *authSuite) TestHasExpiredFalse(c *C) {
 
 func (as *authSuite) TestHasExpiredNoExpirationSetIsFalse(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, auth.NewUserData{
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
 		Username:   "user1",
 		Email:      "email1@test.com",
 		Macaroon:   "macaroon",
