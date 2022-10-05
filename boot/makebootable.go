@@ -312,6 +312,7 @@ func MakeRecoverySystemBootable(rootdir string, relativeRecoverySystemDir string
 }
 
 type makeRunnableOptions struct {
+	Standalone     bool
 	AfterDataReset bool
 }
 
@@ -499,6 +500,9 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		flags := sealKeyToModeenvFlags{
 			FactoryReset: makeOpts.AfterDataReset,
 		}
+		if makeOpts.Standalone {
+			flags.SnapsDir = snapBlobDir
+		}
 		// seal the encryption key to the parameters specified in modeenv
 		if err := sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, model, modeenv, flags); err != nil {
 			return err
@@ -524,6 +528,17 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 // running in between.
 func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{})
+}
+
+// MakeRunnableStandaloneSystem operates like MakeRunnableSystem but does
+// assume that the run system being set up is related to the current
+// system. This is appropriate e.g when installing from a classic installer.
+func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+	// TODO consider merging this back into MakeRunnableSystem but need
+	// to consider the properties of the different input used for sealing
+	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
+		Standalone: true,
+	})
 }
 
 // MakeRunnableSystemAfterDataReset sets up the system to be able to boot, but it is
