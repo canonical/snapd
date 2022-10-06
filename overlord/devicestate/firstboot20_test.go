@@ -819,7 +819,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 	}})
 }
 
-func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c *C, modelGrade asserts.ModelGrade) {
+func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c *C, modelGrade asserts.ModelGrade, expectedErr string) {
 	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "20.04"})()
 	// XXX this shouldn't be needed
 	defer release.MockOnClassic(true)()
@@ -871,7 +871,12 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
-	c.Assert(err, IsNil)
+	if expectedErr != "" {
+		c.Check(err, ErrorMatches, expectedErr)
+		return
+	} else {
+		c.Assert(err, IsNil)
+	}
 
 	snaps := []string{"snapd", "core20", "classic-installer"}
 	checkOrder(c, tsAll, snaps...)
@@ -992,7 +997,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesDangerousRunModeN
 		"modes": []interface{}{"run"},
 	}
 
-	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelDangerous)
+	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelDangerous, "")
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKernelAndGadgetClassicSnap(c *C) {
@@ -1001,5 +1006,13 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKe
 		"modes":   []interface{}{"run"},
 	}
 
-	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelSigned)
+	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelSigned, "")
+}
+
+func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKernelAndGadgetClassicSnapImplicitFails(c *C) {
+	s.extraSnapModelDetails["classic-installer"] = map[string]interface{}{
+		"modes": []interface{}{"run"},
+	}
+
+	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelSigned, `snap "classic-installer" requires classic confinement`)
 }
