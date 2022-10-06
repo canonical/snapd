@@ -162,3 +162,11 @@ execute: |
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
   remote.exec "snap changes" | MATCH "Done.* Initialize system state"
   remote.exec "snap list" | MATCH pc-kernel
+
+  # Check disk traits
+  DISK_MAPPINGS=(/run/mnt/ubuntu-save/device/disk-mapping.json
+                 /run/mnt/data/var/lib/snapd/device/disk-mapping.json)
+  for DM in "${DISK_MAPPINGS[@]}"; do
+      remote.exec "jq '.pc.\"structure-encryption\".\"ubuntu-save\".method' $DM" | MATCH '"LUKS"'
+      remote.exec "jq '.pc.\"structure-encryption\".\"ubuntu-data\".method' $DM" | MATCH '"LUKS"'
+  done
