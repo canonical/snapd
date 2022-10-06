@@ -126,6 +126,11 @@ remount options=(bind, silent, nosuid, ro, nodev, noexec, relatime, nodiratime) 
 
 /newroot/** rwkl,
 /bindfile* rw,
+mount options=(rw, rbind) /oldroot/home/ -> /newroot/home/,
+mount options=(rw, rbind) /oldroot/opt/ -> /newroot/opt/,
+mount options=(rw, rbind) /oldroot/srv/ -> /newroot/srv/,
+mount options=(rw, rbind) /oldroot/tmp/.X11-unix/X0 -> /newroot/tmp/.X11-unix/X0,
+mount options=(rw, rbind) /oldroot/run/udev/ -> /newroot/run/udev/,
 mount options=(rw, rbind) /oldroot/home/** -> /newroot/home/**,
 mount options=(rw, rbind) /oldroot/snap/** -> /newroot/snap/**,
 mount options=(rw, rbind) /oldroot/home/**/usr/ -> /newroot/usr/,
