@@ -819,7 +819,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 	}})
 }
 
-func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c *C) {
+func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c *C, modelGrade asserts.ModelGrade) {
 	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "20.04"})()
 	// XXX this shouldn't be needed
 	defer release.MockOnClassic(true)()
@@ -831,7 +831,6 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 		Base:           "core20_1.snap",
 		Classic:        true,
 	}
-	modelGrade := asserts.ModelDangerous
 
 	var sysdLog [][]string
 	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
@@ -853,9 +852,7 @@ apps:
   inst:
     daemon: simple
 `
-	s.extraSnapModelDetails["classic-installer"] = map[string]interface{}{
-		"modes": []interface{}{"run"},
-	}
+
 	sysLabel := m.RecoverySystem
 	kernelAndGadget := false
 	model := s.setupCore20LikeSeed(c, sysLabel, modelGrade, kernelAndGadget, "", "classic-installer")
@@ -988,4 +985,21 @@ apps:
 		Timestamp: model.Timestamp(),
 		SeedTime:  seedTime,
 	}})
+}
+
+func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesDangerousRunModeNoKernelAndGadgetClassicSnap(c *C) {
+	s.extraSnapModelDetails["classic-installer"] = map[string]interface{}{
+		"modes": []interface{}{"run"},
+	}
+
+	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelDangerous)
+}
+
+func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKernelAndGadgetClassicSnap(c *C) {
+	s.extraSnapModelDetails["classic-installer"] = map[string]interface{}{
+		"classic": "true",
+		"modes":   []interface{}{"run"},
+	}
+
+	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelSigned)
 }
