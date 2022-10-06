@@ -62,7 +62,7 @@ install_data_partition() {
     local DESTDIR=$1
     local CACHE=$2
     local SEED_LABEL
-    SEED_LABEL="$(date +%Y%m%d)"
+    SEED_LABEL="classic"
 
     snap_idx=(kernel gadget base snapd)
     declare -A SNAP_NAME SNAP_F SNAP_P
@@ -155,7 +155,9 @@ EOF
          --snap "${SNAP_P[snapd]}" \
          classic-model.assert \
          ./classic-seed
-    # put the seed in place
+    # rename seed-label
+    mv ./classic-seed/system-seed/systems/"$(date +%Y%m%d)" ./classic-seed/system-seed/systems/"$SEED_LABEL"
+    # and put the seed in place
     mkdir -p "$DESTDIR"/var/lib/snapd/
     mv ./classic-seed "$DESTDIR"/var/lib/snapd/seed
 }
