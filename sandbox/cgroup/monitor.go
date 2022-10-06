@@ -148,7 +148,7 @@ func (this CGroupMonitor) MonitorSnap(snapName string, channel chan string) {
 	this.channel <- data
 }
 
-// This method is currently used for testing. It allows to monitor a group of files/folders
+// MonitorFiles is currently used for testing. It allows to monitor a group of files/folders
 // and, when all of them have been deleted, emits the specified name through the channel.
 func (this CGroupMonitor) MonitorFiles(name string, folders []string, channel chan string) {
 	data := appData{
