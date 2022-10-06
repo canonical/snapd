@@ -160,7 +160,7 @@ func (this CGroupMonitor) MonitorFiles(name string, folders []string, channel ch
 	this.channel <- data
 }
 
-// This method is currently used for testing. It returns the number of folders being
+// NumberOfWaitingMonitors is currently used for testing. It returns the number of folders being
 // watched. This may not match the number of paths passed in MonitorFiles, because
 // the main loop monitors the parent folder, so if several monitored files/folders
 // are in the same parent folder, they will count as only one for this method.
