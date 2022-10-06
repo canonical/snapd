@@ -60,7 +60,7 @@ var (
 var (
 	// HasFDESetupHook purpose is to detect if the target kernel has a
 	// fde-setup-hook. If kernelInfo is nil the current kernel is checked
-	// assuming it is representive of the target one.
+	// assuming it is representative` of the target one.
 	HasFDESetupHook = func(kernelInfo *snap.Info) (bool, error) {
 		return false, nil
 	}
