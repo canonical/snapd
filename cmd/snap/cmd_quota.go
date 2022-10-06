@@ -261,6 +261,7 @@ func (x *cmdSetQuota) parseQuotas() (*client.QuotaValues, error) {
 			}
 			quotaValues.Journal.RateCount = count
 			quotaValues.Journal.RatePeriod = period
+			quotaValues.Journal.RateValid = true
 		}
 	}
 
