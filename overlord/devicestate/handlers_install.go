@@ -1334,12 +1334,18 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// TODO for partial gadgets we should also use the data from onVolumes instead of
+	// using only what comes from gadget.yaml.
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model)
+	if err != nil {
+		return fmt.Errorf("on finish install: cannot layout volumes: %v", err)
+	}
+
 	logger.Debugf("writing content to partitions")
 	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		_, err = installWriteContent(onVolumes, installObserver,
-			mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, encryptSetupData, perfTimings)
+		_, err = installWriteContent(onVolumes, installObserver, allLaidOutVols, encryptSetupData, perfTimings)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot write content: %v", err)
@@ -1353,7 +1359,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	defer unmountParts()
 
 	if useEncryption {
-		if err := install.FinishEncryption(sys.Model, encryptSetupData); err != nil {
+		if err := install.SaveStorageTraits(sys.Model, allLaidOutVols, encryptSetupData); err != nil {
 			return fmt.Errorf("cannot finish encryption: %v", err)
 		}
 		if trustedInstallObserver != nil {

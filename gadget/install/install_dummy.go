@@ -53,7 +53,7 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRo
 	return nil, fmt.Errorf("build without secboot support")
 }
 
-func FinishEncryption(model gadget.Model, setupData *EncryptionSetupData) error {
+func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *EncryptionSetupData) error {
 	return fmt.Errorf("build without secboot support")
 }
 

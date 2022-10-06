@@ -463,14 +463,7 @@ func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partNode strin
 // onVolumes. It returns the resolved on disk volumes.
 // TODO this needs unit tests
 func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentObserver,
-	gadgetRoot, kernelRoot string, model *asserts.Model, encSetupData *EncryptionSetupData, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
-
-	// TODO for partial gadgets we should also use the data from onVolumes instead of
-	// using only what comes from gadget.yaml.
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
-	if err != nil {
-		return nil, fmt.Errorf("when writing content: cannot layout volumes: %v", err)
-	}
+	allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *EncryptionSetupData, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
 
 	var onDiskVols []*gadget.OnDiskVolume
 	for volName, vol := range onVolumes {
@@ -524,24 +517,28 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 	return onDiskVols, nil
 }
 
-func FinishEncryption(model gadget.Model, setupData *EncryptionSetupData) error {
-	// Save storage traits to save/data partitions
-	encryptionParams := map[string]gadget.StructureEncryptionParameters{}
-	var volName string
-	for name, p := range setupData.Parts {
-		encryptionParams[name] = p.encryptionParams
-		volName = p.volName
+func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *EncryptionSetupData) error {
+	// Volume to map of part label to encryption parameters
+	volToParts := make(map[string]map[string]gadget.StructureEncryptionParameters)
+
+	if encryptSetupData != nil {
+		for name, p := range encryptSetupData.Parts {
+			if volToParts[p.volName] == nil {
+				volToParts[p.volName] = make(map[string]gadget.StructureEncryptionParameters)
+			}
+			volToParts[p.volName][name] = p.encryptionParams
+		}
 	}
-	optsPerVol := map[string]*gadget.DiskVolumeValidationOptions{
-		// this assumes that the encrypted partitions above are always only on the
-		// system-boot volume, this assumption may change
-		volName: {
-			ExpectedStructureEncryption: encryptionParams,
-		},
+
+	optsPerVol := map[string]*gadget.DiskVolumeValidationOptions{}
+	for volName, partEncParams := range volToParts {
+		optsPerVol[volName] = &gadget.DiskVolumeValidationOptions{
+			ExpectedStructureEncryption: partEncParams,
+		}
 	}
-	// save the traits to ubuntu-data host and optionally to ubuntu-save if it exists
-	// FIXME ubuntu-save forced to true
-	if err := saveStorageTraits(model, setupData.laidOutVols, optsPerVol, true); err != nil {
+
+	// save the traits to ubuntu-data and ubuntu-save partitions
+	if err := saveStorageTraits(model, allLaidOutVols, optsPerVol, true); err != nil {
 		return err
 	}
 
