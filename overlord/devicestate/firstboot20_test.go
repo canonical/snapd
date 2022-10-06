@@ -53,7 +53,8 @@ import (
 type firstBoot20Suite struct {
 	firstBootBaseTest
 
-	extraSnapYaml map[string]string
+	extraSnapYaml         map[string]string
+	extraSnapModelDetails map[string]map[string]interface{}
 
 	// TestingSeed20 helps populating seeds (it provides
 	// MakeAssertedSnap, MakeSeed) for tests.
@@ -70,6 +71,7 @@ var _ = Suite(&firstBoot20Suite{})
 
 func (s *firstBoot20Suite) SetUpTest(c *C) {
 	s.extraSnapYaml = make(map[string]string)
+	s.extraSnapModelDetails = make(map[string]map[string]interface{})
 
 	s.TestingSeed20 = &seedtest.TestingSeed20{}
 
@@ -192,12 +194,16 @@ volumes:
 
 	for _, sn := range extraSnaps {
 		name, channel := splitSnapNameWithChannel(sn)
-		model["snaps"] = append(model["snaps"].([]interface{}), map[string]interface{}{
+		snapEntry := map[string]interface{}{
 			"name":            name,
 			"type":            "app",
 			"id":              s.AssertedSnapID(name),
 			"default-channel": channel,
-		})
+		}
+		for h, v := range s.extraSnapModelDetails[name] {
+			snapEntry[h] = v
+		}
+		model["snaps"] = append(model["snaps"].([]interface{}), snapEntry)
 	}
 
 	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, nil)
@@ -802,17 +808,184 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 
 	var whatseeded []devicestate.SeededSystem
 	err = state.Get("seeded-systems", &whatseeded)
-	if m.Mode == "run" {
-		c.Assert(err, IsNil)
-		c.Assert(whatseeded, DeepEquals, []devicestate.SeededSystem{{
-			System:    m.RecoverySystem,
-			Model:     "my-model",
-			BrandID:   "my-brand",
-			Revision:  model.Revision(),
-			Timestamp: model.Timestamp(),
-			SeedTime:  seedTime,
-		}})
-	} else {
-		c.Assert(err, NotNil)
+	c.Assert(err, IsNil)
+	c.Assert(whatseeded, DeepEquals, []devicestate.SeededSystem{{
+		System:    m.RecoverySystem,
+		Model:     "my-model",
+		BrandID:   "my-brand",
+		Revision:  model.Revision(),
+		Timestamp: model.Timestamp(),
+		SeedTime:  seedTime,
+	}})
+}
+
+func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c *C) {
+	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "20.04"})()
+	// XXX this shouldn't be needed
+	defer release.MockOnClassic(true)()
+	c.Assert(release.OnClassic, Equals, true)
+
+	m := &boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+		Classic:        true,
 	}
+	modelGrade := asserts.ModelDangerous
+
+	var sysdLog [][]string
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
+
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	s.extraSnapYaml["classic-installer"] = `name: classic-installer
+version: 1.0
+type: app
+base: core20
+confinement: classic
+
+apps:
+  inst:
+    daemon: simple
+`
+	s.extraSnapModelDetails["classic-installer"] = map[string]interface{}{
+		"modes": []interface{}{"run"},
+	}
+	sysLabel := m.RecoverySystem
+	kernelAndGadget := false
+	model := s.setupCore20LikeSeed(c, sysLabel, modelGrade, kernelAndGadget, "", "classic-installer")
+	// validity check that our returned model has the expected grade
+	c.Assert(model.Grade(), Equals, modelGrade)
+
+	s.startOverlord(c)
+
+	opts := devicestate.PopulateStateFromSeedOptions{
+		Label: m.RecoverySystem,
+		Mode:  m.Mode,
+	}
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	snaps := []string{"snapd", "core20", "classic-installer"}
+	checkOrder(c, tsAll, snaps...)
+
+	// now run the change and check the result
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+
+	c.Assert(chg.Err(), IsNil)
+
+	// avoid device reg
+	chg1 := st.NewChange("become-operational", "init device")
+	chg1.SetStatus(state.DoingStatus)
+
+	// run change until it wants to restart
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// at this point the system is "restarting", pretend the restart has
+	// happened
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	restart.MockPending(st, restart.RestartUnset)
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%s", chg.Err()))
+
+	// verify
+	f, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	state, err := state.ReadState(nil, f)
+	c.Assert(err, IsNil)
+
+	state.Lock()
+	defer state.Unlock()
+	// check snapd, core20, kernel, gadget
+	_, err = snapstate.CurrentInfo(state, "snapd")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(state, "core20")
+	c.Check(err, IsNil)
+
+	// ensure required flag is set on all essential snaps
+	var snapst snapstate.SnapState
+	for _, reqName := range []string{"snapd", "core20"} {
+		err = snapstate.Get(state, reqName, &snapst)
+		c.Assert(err, IsNil)
+		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
+
+		if m.Mode == "run" {
+			// also ensure that in run mode none of the snaps are installed as
+			// symlinks, they must be copied onto ubuntu-data
+			files, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, reqName+"_*.snap"))
+			c.Assert(err, IsNil)
+			c.Assert(files, HasLen, 1)
+			c.Assert(osutil.IsSymlink(files[0]), Equals, false)
+		}
+	}
+
+	// the right systemd commands were run
+	c.Check(sysdLog, Not(testutil.DeepContains), []string{"start", "usr-lib-snapd.mount"})
+
+	// and ensure state is now considered seeded
+	var seeded bool
+	err = state.Get("seeded", &seeded)
+	c.Assert(err, IsNil)
+	c.Check(seeded, Equals, true)
+
+	// check we set seed-time
+	var seedTime time.Time
+	err = state.Get("seed-time", &seedTime)
+	c.Assert(err, IsNil)
+	c.Check(seedTime.IsZero(), Equals, false)
+
+	// check that we removed recovery_system from modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	if m.Mode == "run" {
+		// recovery system is cleared in run mode
+		c.Assert(m2.RecoverySystem, Equals, "")
+	} else {
+		// but kept intact in other modes
+		c.Assert(m2.RecoverySystem, Equals, m.RecoverySystem)
+	}
+	c.Assert(m2.Base, Equals, m.Base)
+	c.Assert(m2.Mode, Equals, m.Mode)
+	// Note that we don't check CurrentKernels in the modeenv, even though in a
+	// real first boot that would also be set here, because setting that is done
+	// in the snapstate manager, not the devicestate manager
+
+	// check that the default device ctx has a Modeenv
+	dev, err := devicestate.DeviceCtx(s.overlord.State(), nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(dev.HasModeenv(), Equals, true)
+	c.Assert(dev.IsCoreBoot(), Equals, false)
+
+	var whatseeded []devicestate.SeededSystem
+	err = state.Get("seeded-systems", &whatseeded)
+	c.Assert(err, IsNil)
+	c.Assert(whatseeded, DeepEquals, []devicestate.SeededSystem{{
+		System:    m.RecoverySystem,
+		Model:     "my-model",
+		BrandID:   "my-brand",
+		Revision:  model.Revision(),
+		Timestamp: model.Timestamp(),
+		SeedTime:  seedTime,
+	}})
 }
