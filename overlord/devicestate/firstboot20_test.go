@@ -993,6 +993,8 @@ apps:
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesDangerousRunModeNoKernelAndGadgetClassicSnap(c *C) {
+	// classic snaps are implicitly allowed and seeded for dangerous
+	// classic models
 	s.extraSnapModelDetails["classic-installer"] = map[string]interface{}{
 		"modes": []interface{}{"run"},
 	}
@@ -1001,6 +1003,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesDangerousRunModeN
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKernelAndGadgetClassicSnap(c *C) {
+	// classic snaps must be declared explicitly for non-dangerous models
 	s.extraSnapModelDetails["classic-installer"] = map[string]interface{}{
 		"classic": "true",
 		"modes":   []interface{}{"run"},
@@ -1010,6 +1013,8 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKe
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKernelAndGadgetClassicSnapImplicitFails(c *C) {
+	// classic snaps must be declared explicitly for non-dangerous models,
+	// not doing so results in a seeding error
 	s.extraSnapModelDetails["classic-installer"] = map[string]interface{}{
 		"modes": []interface{}{"run"},
 	}
