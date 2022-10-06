@@ -335,14 +335,32 @@ func pruneGating(st *state.State, candidates map[string]*refreshCandidate) error
 	for affectingSnap := range gating {
 		if candidates[affectingSnap] == nil {
 			// the snap doesn't have an update anymore, forget it
-			delete(gating, affectingSnap)
-			changed = true
+			// unless there is a user/system hold
+			changed = pruneHoldStatesForSnap(gating, affectingSnap)
 		}
 	}
 	if changed {
 		st.Set("snaps-hold", gating)
 	}
 	return nil
+}
+
+// pruneHoldStatesForSnap prunes hold state for the snap for any holding
+// by another snaps, but preserve user/system holding.
+func pruneHoldStatesForSnap(gating map[string]map[string]*holdState, snapName string) (changed bool) {
+	holdingSnaps := gating[snapName]
+	for holdingSnap := range holdingSnaps {
+		if holdingSnap == "system" {
+			continue
+		}
+		delete(holdingSnaps, holdingSnap)
+		changed = true
+	}
+	if len(holdingSnaps) == 0 {
+		delete(gating, snapName)
+		changed = true
+	}
+	return changed
 }
 
 // resetGatingForRefreshed resets gating information by removing refreshedSnaps
@@ -359,10 +377,9 @@ func resetGatingForRefreshed(st *state.State, refreshedSnaps ...string) error {
 
 	var changed bool
 	for _, snapName := range refreshedSnaps {
-		// holds placed by the user remain after a refresh
-		if _, ok := gating[snapName]; ok && snapName != "system" {
-			delete(gating, snapName)
-			changed = true
+		if _, ok := gating[snapName]; ok {
+			// holds placed by the user remain after a refresh
+			changed = pruneHoldStatesForSnap(gating, snapName)
 		}
 	}
 
