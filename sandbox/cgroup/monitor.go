@@ -132,7 +132,7 @@ func GetDefaultCGroupMonitor() *CGroupMonitor {
 	return &currentCGroupMonitor
 }
 
-// This is the method to call to monitor the running instances of an specific Snap.
+// MonitorSnap is the method to call to monitor the running instances of an specific Snap.
 // It receives the name of the snap to monitor (for example, "firefox" or "steam")
 // and a channel. The caller can wait on the channel, and when all the instances of
 // the specific snap have ended, the name of the snap will be sent through the channel.
