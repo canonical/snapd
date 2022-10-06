@@ -53,7 +53,7 @@ var currentCGroupMonitor = CGroupMonitor{
 	watched: make(map[string][]*appMonitorData),
 }
 
-func deletedFile(filename string) {
+func onFilesDeleted(filename string) {
 	basePath := path.Dir(filename)
 	entry := currentCGroupMonitor.watched[basePath]
 	var newList []*appMonitorData
@@ -78,7 +78,7 @@ func deletedFile(filename string) {
 	}
 }
 
-func addFiles(newApp *appMonitorData) {
+func onFilesAdded(newApp *appMonitorData) {
 	if newApp.npaths == 0 {
 		newApp.channel <- newApp.name
 	} else {
@@ -113,10 +113,10 @@ func monitorMainLoop() {
 		select {
 		case event := <-currentCGroupMonitor.watcher.Event:
 			if event.Mask&inotify.InDelete != 0 {
-				deletedFile(event.Name)
+				onFilesDeleted(event.Name)
 			}
 		case newApp := <-currentCGroupMonitor.channel:
-			addFiles(&newApp)
+			onFilesAdded(&newApp)
 		}
 	}
 }
