@@ -119,7 +119,6 @@ func monitorMainLoop() {
 }
 
 // GetDefaultCGroupMonitor launches the main loop and returns the CGroup singleton
-
 func GetDefaultCGroupMonitor() *CGroupMonitor {
 	if currentCGroupMonitor.watcher == nil {
 		wd, err := inotify.NewWatcher()
