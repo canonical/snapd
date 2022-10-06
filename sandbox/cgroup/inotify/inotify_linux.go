@@ -141,9 +141,11 @@ func (w *Watcher) readEvents() {
 	var buf [syscall.SizeofInotifyEvent * 4096]byte
 
 	for {
+		// wait until there are events from the kernel
 		n, err := syscall.Read(w.fd, buf[:])
+
 		// See if there is a message on the "done" channel
-		var done bool
+		done := false
 		select {
 		case done = <-w.done:
 		default:
@@ -180,10 +182,11 @@ func (w *Watcher) readEvents() {
 			event.Mask = uint32(raw.Mask)
 			event.Cookie = uint32(raw.Cookie)
 			nameLen := uint32(raw.Len)
-			// If the event happened to the watched directory or the watched file, the kernel
-			// doesn't append the filename to the event, but we would like to always fill the
-			// the "Name" field with a valid filename. We retrieve the path of the watch from
-			// the "paths" map.
+			// The raw event received from the kernel contains only the file/folder name, but
+			// not the full path. To fix this, and fill the Event.Name field with the complete
+			// path of the file/folder, we retrieve it from the "paths" map using the Watch
+			// Descriptor (which is the one returned by InotifyAddWatch when we added the
+			// file/folder to being monitored).
 			w.mu.Lock()
 			name, ok := w.paths[int(raw.Wd)]
 			w.mu.Unlock()
