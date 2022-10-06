@@ -67,9 +67,7 @@ func deletedFile(filename string) {
 			// all the folders have disappeared, so notify that this app has no more instances running
 			app.channel <- app.name
 		} else {
-			if app.npaths > 0 {
-				newList = append(newList, app)
-			}
+			newList = append(newList, app)
 		}
 	}
 	if len(newList) != 0 {
