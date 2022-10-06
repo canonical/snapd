@@ -28,8 +28,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type aspectSuite struct {
-}
+type aspectSuite struct{}
 
 func Test(t *testing.T) { TestingT(t) }
 
@@ -76,4 +75,58 @@ func (*aspectSuite) TestAspectDirectory(c *C) {
 
 	err = wsAspect.Get("wifi", &topLevel)
 	c.Assert(err, ErrorMatches, `cannot read "wifi" into variable of type "\*string" because it maps to JSON object`)
+}
+
+func (s *aspectSuite) TestAspectsWithAccess(c *C) {
+	aspectDir, err := aspects.NewAspectDirectory("dir", map[string]interface{}{
+		"foo": []map[string]string{
+			{"name": "default", "path": "path.default"},
+			{"name": "read-write", "path": "path.read-write", "access": "read-write"},
+			{"name": "read-only", "path": "path.read-only", "access": "read"},
+			{"name": "write-only", "path": "path.write-only", "access": "write"},
+		},
+	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	aspect := aspectDir.Aspect("foo")
+
+	for _, t := range []struct {
+		name   string
+		getErr string
+		setErr string
+	}{
+		{
+			name: "read-write",
+		},
+		{
+			// defaults to "read-write"
+			name: "default",
+		},
+		{
+			name: "read-only",
+			// unrelated error
+			getErr: `sub-key "read-only" not found`,
+			setErr: `cannot set "read-only": path is not writeable`,
+		},
+		{
+			name:   "write-only",
+			getErr: `cannot get "write-only": path is not readable`,
+		},
+	} {
+		cmt := Commentf("sub-test %q failed", t.name)
+		err := aspect.Set(t.name, "thing")
+		if t.setErr != "" {
+			c.Assert(err.Error(), Equals, t.setErr, cmt)
+		} else {
+			c.Assert(err, IsNil, cmt)
+		}
+
+		var value string
+		err = aspect.Get(t.name, &value)
+		if t.getErr != "" {
+			c.Assert(err.Error(), Equals, t.getErr, cmt)
+		} else {
+			c.Assert(err, IsNil, cmt)
+		}
+	}
 }

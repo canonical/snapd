@@ -30,6 +30,35 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+type accessType int
+
+const (
+	readWrite accessType = iota
+	read
+	write
+)
+
+var accessTypeStrings = []string{"read-write", "read", "write"}
+
+func (t accessType) String() string {
+	return accessTypeStrings[t]
+}
+
+func newAccessType(access string) (accessType, error) {
+	// default to read-write access
+	if access == "" {
+		access = "read-write"
+	}
+
+	for i, accessStr := range accessTypeStrings {
+		if accessStr == access {
+			return accessType(i), nil
+		}
+	}
+
+	return readWrite, fmt.Errorf("cannot create accessType: expected 'access' to be one of %s but was %q", strutil.Quoted(accessTypeStrings), access)
+}
+
 type ErrNotFound struct {
 	Err string
 }
@@ -42,8 +71,6 @@ func (e *ErrNotFound) Is(err error) bool {
 	_, ok := err.(*ErrNotFound)
 	return ok
 }
-
-var validAccessValues = []string{"read", "write", "read-write"}
 
 // DataBag controls access to a storage the data that the aspects access.
 type DataBag interface {
@@ -100,15 +127,16 @@ func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag Dat
 				return nil, errors.New(`cannot create aspect pattern without a "name"`)
 			}
 
+			// TODO: validate that a path isn't a subset of another. Otherwise,
+			// we can write a user value in a subkey of a path (that should be a map).
 			path, ok := aspectPattern["path"]
 			if !ok || path == "" {
 				return nil, errors.New(`cannot create aspect pattern without a "path"`)
 			}
 
-			access := aspectPattern["access"]
-			if access != "" && strutil.ListContains(validAccessValues, access) {
-				return nil, fmt.Errorf("cannot create aspect pattern: expected \"access\" to be one of %s instead of %q",
-					strutil.Quoted(validAccessValues), access)
+			access, err := newAccessType(aspectPattern["access"])
+			if err != nil {
+				return nil, fmt.Errorf("cannot create aspect pattern: %w", err)
 			}
 
 			aspect.accessPatterns = append(aspect.accessPatterns, &accessPattern{
@@ -137,41 +165,60 @@ type Aspect struct {
 }
 
 func (a *Aspect) Set(name string, value interface{}) error {
-	// TODO: add access control; name validation
 	for _, p := range a.accessPatterns {
-		if p.name == name {
-			if err := a.directory.dataBag.Set(p.path, value); err != nil {
-				return err
-			}
-
-			data, err := a.directory.dataBag.Data()
-			if err != nil {
-				return err
-			}
-
-			return a.directory.schema.Validate(data)
+		if p.name != name {
+			continue
 		}
+
+		if !p.isWriteable() {
+			return fmt.Errorf("cannot set %q: path is not writeable", name)
+		}
+
+		if err := a.directory.dataBag.Set(p.path, value); err != nil {
+			return err
+		}
+
+		data, err := a.directory.dataBag.Data()
+		if err != nil {
+			return err
+		}
+
+		return a.directory.schema.Validate(data)
+
 	}
 
-	return &ErrNotFound{fmt.Sprintf("cannot set name %q in aspect %q: access pattern not found", name, a.Name)}
+	return &ErrNotFound{fmt.Sprintf("cannot set %q in aspect %q: name not found", name, a.Name)}
 }
 
 func (a *Aspect) Get(name string, value interface{}) error {
-	// TODO: add access control; name validation
 	for _, p := range a.accessPatterns {
-		if p.name == name {
-			return a.directory.dataBag.Get(p.path, value)
+		if p.name != name {
+			continue
 		}
+
+		if !p.isReadable() {
+			return fmt.Errorf("cannot get %q: path is not readable", name)
+		}
+
+		return a.directory.dataBag.Get(p.path, value)
 	}
 
-	return &ErrNotFound{fmt.Sprintf("cannot get name %q in aspect %q: access pattern not found", name, a.Name)}
+	return &ErrNotFound{fmt.Sprintf("cannot get %q in aspect %q: name not found", name, a.Name)}
 }
 
 // accessPattern is an aspect accessPattern that holds information about a accessPattern.
 type accessPattern struct {
 	name   string
 	path   string
-	access string
+	access accessType
+}
+
+func (p accessPattern) isReadable() bool {
+	return p.access == readWrite || p.access == read
+}
+
+func (p accessPattern) isWriteable() bool {
+	return p.access == readWrite || p.access == write
 }
 
 // JSONDataBag is a simple DataBag implementation that keeps JSON in-memory.
@@ -218,7 +265,7 @@ func get(subKeys []string, node map[string]json.RawMessage, result interface{}) 
 	key := subKeys[0]
 	rawLevel, ok := node[key]
 	if !ok {
-		return &ErrNotFound{"key not found"}
+		return &ErrNotFound{fmt.Sprintf("sub-key %q not found", key)}
 	}
 
 	if len(subKeys) == 1 {
