@@ -58,6 +58,7 @@ type QuotaJournalValues struct {
 	Size       quantity.Size `json:"size,omitempty"`
 	RateCount  int           `json:"rate-count,omitempty"`
 	RatePeriod time.Duration `json:"rate-period,omitempty"`
+	RateValid  bool          `json:"rate-valid,omitempty"`
 }
 
 type QuotaValues struct {

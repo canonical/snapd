@@ -220,9 +220,10 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 		{cpuSet: "1,3", quotas: `{"cpu-set":{"cpus":[1,3]}}`},
 		{threadsMax: "2", quotas: `{"threads":2}`},
 		{journalSizeMax: "16MB", quotas: `{"journal":{"size":16000000}}`},
-		{journalRateLimit: "10/15s", quotas: `{"journal":{"rate-count":10,"rate-period":15000000000}}`},
-		{journalRateLimit: "1500/15ms", quotas: `{"journal":{"rate-count":1500,"rate-period":15000000}}`},
-		{journalRateLimit: "1/15us", quotas: `{"journal":{"rate-count":1,"rate-period":15000}}`},
+		{journalRateLimit: "10/15s", quotas: `{"journal":{"rate-count":10,"rate-period":15000000000,"rate-valid":true}}`},
+		{journalRateLimit: "1500/15ms", quotas: `{"journal":{"rate-count":1500,"rate-period":15000000,"rate-valid":true}}`},
+		{journalRateLimit: "1/15us", quotas: `{"journal":{"rate-count":1,"rate-period":15000,"rate-valid":true}}`},
+		{journalRateLimit: "0/0s", quotas: `{"journal":{"rate-valid":true}}`},
 
 		// Error cases
 		{cpuMax: "ASD", err: `cannot parse cpu quota string "ASD"`},

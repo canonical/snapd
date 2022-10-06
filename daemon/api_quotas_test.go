@@ -259,6 +259,42 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 	c.Assert(createCalled, check.Equals, 2)
 }
 
+func (s *apiQuotaSuite) TestPostEnsureQuotaCreateJournalRateZeroHappy(c *check.C) {
+	var createCalled int
+	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, resourceLimits quota.Resources) (*state.TaskSet, error) {
+		createCalled++
+		c.Check(name, check.Equals, "booze")
+		c.Check(parentName, check.Equals, "foo")
+		c.Check(snaps, check.DeepEquals, []string{"some-snap"})
+		c.Check(resourceLimits, check.DeepEquals, quota.NewResourcesBuilder().WithJournalRate(0, 0).Build())
+		ts := state.NewTaskSet(st.NewTask("foo-quota", "..."))
+		return ts, nil
+	})
+	defer r()
+
+	data, err := json.Marshal(daemon.PostQuotaGroupData{
+		Action:    "ensure",
+		GroupName: "booze",
+		Parent:    "foo",
+		Snaps:     []string{"some-snap"},
+		Constraints: client.QuotaValues{
+			Journal: &client.QuotaJournalValues{
+				RateCount:  0,
+				RatePeriod: 0,
+				RateValid:  true,
+			},
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	c.Assert(err, check.IsNil)
+	rsp := s.asyncReq(c, req, nil)
+	c.Assert(rsp.Status, check.Equals, 202)
+	c.Assert(createCalled, check.Equals, 1)
+	c.Assert(s.ensureSoonCalled, check.Equals, 1)
+}
+
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpuHappy(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
