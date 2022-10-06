@@ -1303,13 +1303,12 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	cached := st.Cached(encryptionSetupDataKey{systemLabel})
 	if cached != nil {
 		var ok bool
+		// TODO check that encryptSetupData is not out of sync with the onVolumes we get
 		encryptSetupData, ok = cached.(*install.EncryptionSetupData)
 		if !ok {
 			return fmt.Errorf("internal error: wrong data type under encryptionSetupDataKey")
 		}
 	}
-	useEncryption := encryptSetupData != nil
-	logger.Debugf("starting install-finish for %q (using encryption: %t) on %v", systemLabel, useEncryption, onVolumes)
 
 	st.Unlock()
 	sys, snapInfos, snapSeeds, mntPtForType, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel)
@@ -1321,6 +1320,14 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	// TODO validation of onVolumes versus gadget.yaml
 
+	// Check if encryption is mandatory
+	if sys.Model.Grade() != asserts.ModelDangerous && encryptSetupData == nil {
+		return fmt.Errorf("grade is %s but encryption has not been set-up", sys.Model.Grade())
+	}
+	useEncryption := encryptSetupData != nil
+
+	logger.Debugf("starting install-finish for %q (using encryption: %t) on %v", systemLabel, useEncryption, onVolumes)
+
 	// TODO we probably want to pass a different location for the assets cache
 	installObserver, trustedInstallObserver, err := buildInstallObserver(sys.Model, mntPtForType[snap.TypeGadget], useEncryption)
 	if err != nil {
@@ -1331,14 +1338,15 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		_, err = installWriteContent(onVolumes, installObserver, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, perfTimings)
+		_, err = installWriteContent(onVolumes, installObserver,
+			mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, encryptSetupData, perfTimings)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot write content: %v", err)
 	}
 
 	// Mount the partitions and find ESP partition
-	espMntDir, unmountParts, err := installMountVolumes(onVolumes)
+	espMntDir, unmountParts, err := installMountVolumes(onVolumes, encryptSetupData)
 	if err != nil {
 		return fmt.Errorf("cannot mount partitions for installation: %v", err)
 	}
@@ -1442,6 +1450,15 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	if err != nil {
 		return err
 	}
+
+	// Store created devices in the change so they can be accessed from the installer
+	apiData := make(map[string]interface{})
+	ch := t.Change()
+	for _, p := range encryptionSetupData.Parts {
+		// key: partition role, value: mapper device
+		apiData[p.Role] = p.EncryptedDevice
+	}
+	ch.Set("api-data", apiData)
 
 	st.Cache(encryptionSetupDataKey{systemLabel}, encryptionSetupData)
 

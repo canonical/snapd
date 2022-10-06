@@ -84,7 +84,7 @@ func runMntFor(label string) string {
 
 func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
-	onDiskParts []gadget.OnDiskStructure) error {
+	onDiskParts []gadget.OnDiskStructure) (*client.Change, error) {
 
 	// We are modifiying the details struct here
 	for _, gadgetVol := range details.Volumes {
@@ -111,10 +111,19 @@ func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 	}
 	chgId, err := cli.InstallSystem(details.Label, opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	fmt.Printf("Change %s created\n", chgId)
-	return waitChange(chgId)
+	if err := waitChange(chgId); err != nil {
+		return nil, err
+	}
+
+	chg, err := cli.Change(chgId)
+	if err != nil {
+		return nil, err
+	}
+
+	return chg, nil
 }
 
 // XXX: reuse/extract cmd/snap/wait.go:waitMixin()
@@ -140,7 +149,7 @@ func waitChange(chgId string) error {
 // happening maybe we need to find the information differently.
 func postSystemsInstallFinish(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
-	onDiskParts []gadget.OnDiskStructure) error {
+	onDiskParts []gadget.OnDiskStructure, encryptionChange *client.Change) error {
 
 	vols := make(map[string]*gadget.Volume)
 	for volName, gadgetVol := range details.Volumes {
@@ -154,9 +163,7 @@ func postSystemsInstallFinish(cli *client.Client,
 				// Same partition label
 				if part.Name == gadgetVol.Structure[i].Name {
 					node := part.Node
-					if gadgetVol.Structure[i].UnencryptedDevice != "" {
-						node = filepath.Join("/dev/mapper", part.Name)
-					}
+					logger.Debugf("partition to install: %q", node)
 					gadgetVol.Structure[i].Device = node
 					break
 				}
@@ -180,7 +187,7 @@ func postSystemsInstallFinish(cli *client.Client,
 
 // createAndMountFilesystems creates and mounts filesystems. It returns
 // an slice with the paths where the filesystems have been mounted to.
-func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Volume) ([]string, error) {
+func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Volume, encryptionChange *client.Change) ([]string, error) {
 	// only support a single volume for now
 	if len(volumes) != 1 {
 		return nil, fmt.Errorf("got unexpected number of volumes %v", len(volumes))
@@ -193,30 +200,38 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 	vol := firstVol(volumes)
 
 	var mountPoints []string
-	for _, stru := range vol.Structure {
-		if stru.Label == "" || stru.Filesystem == "" {
+	for _, volStruct := range vol.Structure {
+		if volStruct.Label == "" || volStruct.Filesystem == "" {
 			continue
 		}
 
 		var partNode string
-		if stru.UnencryptedDevice != "" {
-			// XXX Assuming here that the encryption was successful
-			partNode = filepath.Join("/dev/mapper", stru.Label)
+		if encryptionChange != nil && (volStruct.Role == gadget.SystemSave || volStruct.Role == gadget.SystemData) {
+			var encryptedDevice string
+			if err := encryptionChange.Get(volStruct.Role, &encryptedDevice); err != nil {
+				return nil, err
+			}
+			if encryptedDevice == "" {
+				return nil, fmt.Errorf("no encrypted device found for %s role", volStruct.Role)
+			}
+			partNode = encryptedDevice
 		} else {
-			part, err := disk.FindMatchingPartitionWithPartLabel(stru.Label)
+			part, err := disk.FindMatchingPartitionWithPartLabel(volStruct.Label)
 			if err != nil {
 				return nil, err
 			}
 			partNode = part.KernelDeviceNode
 		}
-		if err := mkfs.Make(stru.Filesystem, partNode, stru.Label, 0, 0); err != nil {
+
+		logger.Debugf("making filesystem in %q", partNode)
+		if err := mkfs.Make(volStruct.Filesystem, partNode, volStruct.Label, 0, 0); err != nil {
 			return nil, err
 		}
 
 		// Mount filesystem
 		// XXX: reuse gadget/install/content.go:mountFilesystem()
 		// instead (it will also call udevadm)
-		mountPoint := runMntFor(stru.Label)
+		mountPoint := runMntFor(volStruct.Label)
 		if err := os.MkdirAll(mountPoint, 0755); err != nil {
 			return nil, err
 		}
@@ -288,10 +303,11 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err != nil {
 		return fmt.Errorf("cannot setup partitions: %v", err)
 	}
-	if err := postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, laidoutStructs); err != nil {
+	encryptChg, err := postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, laidoutStructs)
+	if err != nil {
 		return fmt.Errorf("cannot setup storage encryption: %v", err)
 	}
-	mntPts, err := createAndMountFilesystems(bootDevice, details.Volumes)
+	mntPts, err := createAndMountFilesystems(bootDevice, details.Volumes, encryptChg)
 	if err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
@@ -304,7 +320,7 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err := unmountFilesystems(mntPts); err != nil {
 		return fmt.Errorf("cannot unmount filesystems: %v", err)
 	}
-	if err := postSystemsInstallFinish(cli, details, bootDevice, laidoutStructs); err != nil {
+	if err := postSystemsInstallFinish(cli, details, bootDevice, laidoutStructs, encryptChg); err != nil {
 		return fmt.Errorf("cannot finalize install: %v", err)
 	}
 	// TODO: reboot here automatically (optional)

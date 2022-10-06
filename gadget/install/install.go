@@ -41,12 +41,14 @@ import (
 
 // partEncryptionData contains meta-data for an encrypted partition.
 type partEncryptionData struct {
+	Device          string
+	Role            string
+	EncryptedDevice string
+
 	volName             string
-	fsDevice            string
 	encryptionKey       keys.EncryptionKey
 	encryptedSectorSize quantity.Size
 	encryptionParams    gadget.StructureEncryptionParameters
-	onDiskStruct        *gadget.OnDiskStructure
 }
 
 // EncryptionSetupData stores information needed across install
@@ -54,7 +56,7 @@ type partEncryptionData struct {
 type EncryptionSetupData struct {
 	// maps from partition label to data
 	laidOutVols map[string]*gadget.LaidOutVolume
-	parts       map[string]partEncryptionData
+	Parts       map[string]partEncryptionData
 }
 
 // diskWithSystemSeed will locate a disk that has the partition corresponding
@@ -432,17 +434,7 @@ func laidOutStructureForDiskStructure(laidVols map[string]*gadget.LaidOutVolume,
 
 // sysfsPathForBlockDevice returns the sysfs path for a block device.
 func sysfsPathForBlockDevice(device string) (string, error) {
-	// Remove /dev/ part
-	devName := filepath.Base(device)
-	if strings.HasPrefix(device, "/dev/mapper") {
-		dmLink, err := os.Readlink(device)
-		if err != nil {
-			return "", err
-		}
-		// dmLink is ../dm-[0-9]*
-		devName = filepath.Base(dmLink)
-	}
-	syfsLink := filepath.Join("/sys/class/block", devName)
+	syfsLink := filepath.Join("/sys/class/block", filepath.Base(device))
 	partPath, err := os.Readlink(syfsLink)
 	if err != nil {
 		return "", fmt.Errorf("cannot read link %q: %v", syfsLink, err)
@@ -454,13 +446,8 @@ func sysfsPathForBlockDevice(device string) (string, error) {
 // onDiskVolumeFromPartitionSysfsPath creates an OnDiskVolume that
 // matches the disk that contains the given partition sysfs path
 func onDiskVolumeFromPartitionSysfsPath(partPath string) (*gadget.OnDiskVolume, error) {
-	// Removing the last component will give us the disk path, unless
-	// there are no partitions on the device so the partition and the
-	// disk paths are actually the same.
+	// Removing the last component will give us the disk path
 	diskPath := filepath.Dir(partPath)
-	if strings.HasSuffix(diskPath, "/block") {
-		diskPath = partPath
-	}
 	disk, err := disks.DiskFromDevicePath(diskPath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot retrieve disk information for %q: %v", partPath, err)
@@ -496,8 +483,10 @@ func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partNode strin
 // onVolumes. It returns the resolved on disk volumes.
 // TODO this needs unit tests
 func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentObserver,
-	gadgetRoot, kernelRoot string, model *asserts.Model, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
+	gadgetRoot, kernelRoot string, model *asserts.Model, encSetupData *EncryptionSetupData, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
 
+	// TODO for partial gadgets we should also use the data from onVolumes instead of
+	// using only what comes from gadget.yaml.
 	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
 	if err != nil {
 		return nil, fmt.Errorf("when writing content: cannot layout volumes: %v", err)
@@ -531,18 +520,22 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 				}
 				onDiskVols = append(onDiskVols, onDiskVol)
 			}
+			logger.Debugf("finding layout for %q", volStruct.Device)
 			// Obtain partition data and link with laid out information
-			unencryptedDevice := volStruct.Device
-			if volStruct.UnencryptedDevice != "" {
-				unencryptedDevice = volStruct.UnencryptedDevice
-			}
-			onDiskStruct, err := applyLayoutToOnDiskStructure(onDiskVol, unencryptedDevice, allLaidOutVols, volName)
+			onDiskStruct, err := applyLayoutToOnDiskStructure(onDiskVol, volStruct.Device, allLaidOutVols, volName)
 			if err != nil {
 				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", volStruct.Device, err)
 			}
 
-			logger.Debugf("writing content on partition %s", volStruct.Device)
-			if err := writePartitionContent(onDiskStruct, volStruct.Device, observer, perfTimings); err != nil {
+			device := volStruct.Device
+			// Device might have been encrypted
+			if encSetupData != nil {
+				if encryptDataPart, ok := encSetupData.Parts[volStruct.Name]; ok {
+					device = encryptDataPart.EncryptedDevice
+				}
+			}
+			logger.Debugf("writing content on partition %s", device)
+			if err := writePartitionContent(onDiskStruct, device, observer, perfTimings); err != nil {
 				return nil, err
 			}
 		}
@@ -555,7 +548,7 @@ func FinishEncryption(model gadget.Model, setupData *EncryptionSetupData) error 
 	// Save storage traits to save/data partitions
 	encryptionParams := map[string]gadget.StructureEncryptionParameters{}
 	var volName string
-	for name, p := range setupData.parts {
+	for name, p := range setupData.Parts {
 		encryptionParams[name] = p.encryptionParams
 		volName = p.volName
 	}
@@ -577,8 +570,8 @@ func FinishEncryption(model gadget.Model, setupData *EncryptionSetupData) error 
 
 func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
 	keyForRole := make(map[string]keys.EncryptionKey)
-	for _, p := range setupData.parts {
-		keyForRole[p.onDiskStruct.Role] = p.encryptionKey
+	for _, p := range setupData.Parts {
+		keyForRole[p.Role] = p.encryptionKey
 	}
 	return keyForRole
 }
@@ -586,6 +579,8 @@ func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
 func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRoot string,
 	model *asserts.Model, encryptionType secboot.EncryptionType, perfTimings timings.Measurer) (*EncryptionSetupData, error) {
 
+	// TODO for partial gadgets we should use the data from onVolumes instead of
+	// what using only what comes from gadget.yaml.
 	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
 	if err != nil {
 		return nil, fmt.Errorf("when encrypting partitions: cannot layout volumes: %v", err)
@@ -593,11 +588,15 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRo
 
 	setupData := &EncryptionSetupData{
 		laidOutVols: allLaidOutVols,
-		parts:       make(map[string]partEncryptionData),
+		Parts:       make(map[string]partEncryptionData),
 	}
 	for volName, vol := range onVolumes {
 		var onDiskVol *gadget.OnDiskVolume
 		for _, volStruct := range vol.Structure {
+			// We will only encrypt save or data roles
+			if volStruct.Role != gadget.SystemSave && volStruct.Role != gadget.SystemData {
+				continue
+			}
 			if volStruct.UnencryptedDevice == "" {
 				continue
 			}
@@ -627,14 +626,16 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRo
 			if err != nil {
 				return nil, fmt.Errorf("cannot encrypt %q: %v", device, err)
 			}
-			setupData.parts[onDiskStruct.Name] = partEncryptionData{
-				volName: volName,
-				// fsDevice will be /dev/mapper/ubuntu-data, etc.
-				fsDevice:            fsParams.Device,
+			setupData.Parts[onDiskStruct.Name] = partEncryptionData{
+				Device: device,
+				Role:   volStruct.Role,
+				// EncryptedDevice will be /dev/mapper/ubuntu-data, etc.
+				EncryptedDevice:     fsParams.Device,
+				volName:             volName,
 				encryptionKey:       encryptionKey,
 				encryptedSectorSize: fsParams.SectorSize,
 				encryptionParams:    createEncryptionParams(encryptionType),
-				onDiskStruct:        onDiskStruct}
+			}
 		}
 	}
 
@@ -760,7 +761,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 // MountVolumes mounts partitions for the volumes specified by
 // onVolumes. It returns the ESP partition and a function that needs
 // to be called for unmounting them.
-func MountVolumes(onVolumes map[string]*gadget.Volume) (espMntDir string, unmount func() error, err error) {
+func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionSetupData) (espMntDir string, unmount func() error, err error) {
 	var mountPoints []string
 	numEsp := 0
 	unmount = func() (err error) {
@@ -782,9 +783,17 @@ func MountVolumes(onVolumes map[string]*gadget.Volume) (espMntDir string, unmoun
 				continue
 			}
 			mntPt := filepath.Join(boot.InitramfsRunMntDir, part.Name)
-			if err := mountFilesystem(part.Device, part.Filesystem, mntPt); err != nil {
+			// Device might have been encrypted
+			device := part.Device
+			if encSetupData != nil {
+				if encryptDataPart, ok := encSetupData.Parts[part.Name]; ok {
+					device = encryptDataPart.EncryptedDevice
+				}
+			}
+
+			if err := mountFilesystem(device, part.Filesystem, mntPt); err != nil {
 				defer unmount()
-				return "", nil, fmt.Errorf("cannot mount %q at %q: %v", part.Device, mntPt, err)
+				return "", nil, fmt.Errorf("cannot mount %q at %q: %v", device, mntPt, err)
 			}
 			mountPoints = append(mountPoints, mntPt)
 

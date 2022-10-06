@@ -3944,6 +3944,7 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionTasksAn
 	c.Assert(onVols, DeepEquals, mockOnVolumes)
 }
 
+// TODO make this test a happy one
 func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionRunthrough(c *C) {
 	st := s.state
 	st.Lock()
@@ -3959,5 +3960,6 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionRunthro
 
 	c.Check(chg.IsReady(), Equals, true)
 	// TODO: update once the change actually does something
-	c.Check(chg.Err(), ErrorMatches, `(?ms).*setup storage encryption step not implemented yet.*`)
+	c.Check(chg.Err().Error(), testutil.Contains, `cannot perform the following tasks:
+- Setup storage encryption for installing system "1234" (cannot load assertions for label "1234": no seed assertions)`)
 }
