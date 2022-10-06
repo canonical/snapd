@@ -27,32 +27,36 @@ import (
 	"github.com/snapcore/snapd/sandbox/cgroup/inotify"
 )
 
-type appData struct {
+// appMonitorData contains all the data to monitor an specific Snap:
+// its name, the list of paths to monitor, and the channel to send
+// the notification when all the paths have been deleted.
+type appMonitorData struct {
 	name        string
 	cgroupPaths []string
 	npaths      int
 	channel     chan string
 }
 
-// This class allows to monitor a CGroup and detect when all the running
-// instances have been closed
-
+// CGroupMonitor allows to monitor several CGroups, detect when all
+// the running instances of each one have been closed, and notify
+// them separately. It should be considered a singleton, and
+// obtained using GetDefaultCGroupMonitor().
 type CGroupMonitor struct {
-	watched map[string][]*appData
+	watched map[string][]*appMonitorData
 	watcher *inotify.Watcher
-	channel chan appData
+	channel chan appMonitorData
 }
 
 var currentCGroupMonitor = CGroupMonitor{
 	watcher: nil,
-	channel: make(chan appData),
-	watched: make(map[string][]*appData),
+	channel: make(chan appMonitorData),
+	watched: make(map[string][]*appMonitorData),
 }
 
 func deletedFile(filename string) {
 	basePath := path.Dir(filename)
 	entry := currentCGroupMonitor.watched[basePath]
-	var newList []*appData
+	var newList []*appMonitorData
 	for _, app := range entry {
 		for _, folder := range app.cgroupPaths {
 			if folder == filename {
@@ -76,7 +80,7 @@ func deletedFile(filename string) {
 	}
 }
 
-func addFiles(newApp *appData) {
+func addFiles(newApp *appMonitorData) {
 	if newApp.npaths == 0 {
 		newApp.channel <- newApp.name
 	} else {
@@ -138,7 +142,7 @@ func GetDefaultCGroupMonitor() *CGroupMonitor {
 // This allows to use the same channel to monitor several snaps
 func (this CGroupMonitor) MonitorSnap(snapName string, channel chan string) {
 	paths, _ := InstancePathsOfSnap(snapName, InstancePathsFlagsOnlyPaths)
-	data := appData{
+	data := appMonitorData{
 		name:        snapName,
 		cgroupPaths: paths,
 		channel:     channel,
@@ -150,7 +154,7 @@ func (this CGroupMonitor) MonitorSnap(snapName string, channel chan string) {
 // MonitorFiles is currently used for testing. It allows to monitor a group of files/folders
 // and, when all of them have been deleted, emits the specified name through the channel.
 func (this CGroupMonitor) MonitorFiles(name string, folders []string, channel chan string) {
-	data := appData{
+	data := appMonitorData{
 		name:        name,
 		cgroupPaths: folders,
 		channel:     channel,
