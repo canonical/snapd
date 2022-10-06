@@ -66,6 +66,7 @@ import (
 var (
 	bootMakeBootablePartition            = boot.MakeBootablePartition
 	bootMakeRunnable                     = boot.MakeRunnableSystem
+	bootMakeRunnableStandalone           = boot.MakeRunnableStandaloneSystem
 	bootMakeRunnableAfterDataReset       = boot.MakeRunnableSystemAfterDataReset
 	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
 	installRun                           = install.Run
@@ -1343,7 +1344,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	logger.Debugf("making the installed system runnable for systemLabel %s", systemLabel)
-	if err := bootMakeRunnable(sys.Model, bootWith, trustedInstallObserver); err != nil {
+	if err := bootMakeRunnableStandalone(sys.Model, bootWith, trustedInstallObserver); err != nil {
 		return err
 	}
 

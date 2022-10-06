@@ -99,6 +99,9 @@ type sealKeyToModeenvFlags struct {
 	// FactoryReset indicates that the sealing is happening during factory
 	// reset.
 	FactoryReset bool
+	// SnapsDir is set to provide a non-default directory to find
+	// run mode snaps in.
+	SnapsDir string
 }
 
 // sealKeyToModeenv seals the supplied keys to the parameters specified
@@ -228,7 +231,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, model *assert
 
 	// kernel command lines are filled during install
 	cmdlines := modeenv.CurrentKernelCommandLines
-	runModeBootChains, err := runModeBootChains(rbl, bl, modeenv, cmdlines)
+	runModeBootChains, err := runModeBootChains(rbl, bl, modeenv, cmdlines, flags.SnapsDir)
 	if err != nil {
 		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
@@ -490,7 +493,7 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bo
 	if err != nil {
 		return err
 	}
-	runModeBootChains, err := runModeBootChains(rbl, bl, modeenv, cmdlines)
+	runModeBootChains, err := runModeBootChains(rbl, bl, modeenv, cmdlines, "")
 	if err != nil {
 		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
@@ -719,7 +722,7 @@ func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][
 	return chains, nil
 }
 
-func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines []string) ([]bootChain, error) {
+func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines []string, runSnapsDir string) ([]bootChain, error) {
 	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
 		return nil, fmt.Errorf("recovery bootloader doesn't support trusted assets")
@@ -732,7 +735,13 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines
 			if err != nil {
 				return err
 			}
-			runModeBootChain, err := tbl.BootChain(bl, info.MountFile())
+			var kernelPath string
+			if runSnapsDir == "" {
+				kernelPath = info.MountFile()
+			} else {
+				kernelPath = filepath.Join(runSnapsDir, info.Filename())
+			}
+			runModeBootChain, err := tbl.BootChain(bl, kernelPath)
 			if err != nil {
 				return err
 			}
