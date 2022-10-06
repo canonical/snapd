@@ -39,26 +39,6 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-// partEncryptionData contains meta-data for an encrypted partition.
-type partEncryptionData struct {
-	Device          string
-	Role            string
-	EncryptedDevice string
-
-	volName             string
-	encryptionKey       keys.EncryptionKey
-	encryptedSectorSize quantity.Size
-	encryptionParams    gadget.StructureEncryptionParameters
-}
-
-// EncryptionSetupData stores information needed across install
-// API calls.
-type EncryptionSetupData struct {
-	// maps from partition label to data
-	laidOutVols map[string]*gadget.LaidOutVolume
-	Parts       map[string]partEncryptionData
-}
-
 // diskWithSystemSeed will locate a disk that has the partition corresponding
 // to a structure with SystemSeed role of the specified gadget volume and return
 // the device node.

@@ -20,6 +20,8 @@
 package install
 
 import (
+	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 )
@@ -40,4 +42,24 @@ type InstalledSystemSideData struct {
 	// structures with roles that require data to be encrypted, the device
 	// is the raw encrypted device node (eg. /dev/mmcblk0p1).
 	DeviceForRole map[string]string
+}
+
+// partEncryptionData contains meta-data for an encrypted partition.
+type partEncryptionData struct {
+	Device          string
+	Role            string
+	EncryptedDevice string
+
+	volName             string
+	encryptionKey       keys.EncryptionKey
+	encryptedSectorSize quantity.Size
+	encryptionParams    gadget.StructureEncryptionParameters
+}
+
+// EncryptionSetupData stores information needed across install
+// API calls.
+type EncryptionSetupData struct {
+	// maps from partition label to data
+	laidOutVols map[string]*gadget.LaidOutVolume
+	Parts       map[string]partEncryptionData
 }
