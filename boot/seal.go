@@ -58,7 +58,10 @@ var (
 // disk encryption implementations. The state must be locked when these
 // functions are called.
 var (
-	HasFDESetupHook = func() (bool, error) {
+	// HasFDESetupHook purpose is to detect if the target kernel has a
+	// fde-setup-hook. If kernelInfo is nil the current kernel is checked
+	// assuming it is representative` of the target one.
+	HasFDESetupHook = func(kernelInfo *snap.Info) (bool, error) {
 		return false, nil
 	}
 	RunFDESetupHook fde.RunSetupHookFunc = func(req *fde.SetupRequest) ([]byte, error) {
@@ -96,6 +99,8 @@ func recoveryBootChainsFileUnder(rootdir string) string {
 }
 
 type sealKeyToModeenvFlags struct {
+	// HasFDESetupHook is true if the kernel has a fde-setup hook to use
+	HasFDESetupHook bool
 	// FactoryReset indicates that the sealing is happening during factory
 	// reset.
 	FactoryReset bool
@@ -121,11 +126,7 @@ func sealKeyToModeenv(key, saveKey keys.EncryptionKey, model *asserts.Model, mod
 		}
 	}
 
-	hasHook, err := HasFDESetupHook()
-	if err != nil {
-		return fmt.Errorf("cannot check for fde-setup hook %v", err)
-	}
-	if hasHook {
+	if flags.HasFDESetupHook {
 		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, model, modeenv, flags)
 	}
 
@@ -891,7 +892,7 @@ func postFactoryResetCleanupSecboot() error {
 }
 
 func postFactoryResetCleanup() error {
-	hasHook, err := HasFDESetupHook()
+	hasHook, err := HasFDESetupHook(nil)
 	if err != nil {
 		return fmt.Errorf("cannot check for fde-setup hook %v", err)
 	}

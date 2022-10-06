@@ -497,8 +497,14 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	}
 
 	if sealer != nil {
+		hasHook, err := HasFDESetupHook(bootWith.Kernel)
+		if err != nil {
+			return fmt.Errorf("cannot check for fde-setup hook: %v", err)
+		}
+
 		flags := sealKeyToModeenvFlags{
-			FactoryReset: makeOpts.AfterDataReset,
+			HasFDESetupHook: hasHook,
+			FactoryReset:    makeOpts.AfterDataReset,
 		}
 		if makeOpts.Standalone {
 			flags.SnapsDir = snapBlobDir
