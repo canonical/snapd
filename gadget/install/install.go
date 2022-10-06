@@ -461,6 +461,9 @@ func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partNode strin
 func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentObserver,
 	gadgetRoot, kernelRoot string, model *asserts.Model, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
 
+	// TODO this needs to consider onVolumes as well, especially in a world
+	// with "partial" but content in onVolumes needs to be ignored
+	// and come from the original gadget
 	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
 	if err != nil {
 		return nil, fmt.Errorf("when writing content: cannot layout volumes: %v", err)

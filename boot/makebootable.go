@@ -395,8 +395,8 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		// installed
 		CurrentKernelCommandLines: nil,
 		// keep this comment to make gofmt 1.9 happy
-		Base:           filepath.Base(bootWith.BasePath),
-		Gadget:         filepath.Base(bootWith.GadgetPath),
+		Base:           bootWith.Base.Filename(),
+		Gadget:         bootWith.Gadget.Filename(),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 		BrandID:        model.BrandID(),
 		Model:          model.Model(),

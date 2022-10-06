@@ -2039,7 +2039,7 @@ func (s *makeBootable20Suite) TestMakeRunnableSystemStandaloneSnapsCopy(c *C) {
 type: base
 version: 5.0
 `, snap.R(3))
-	baseInSeed := filepath.Join(snapsDirs, baseInfo.Filename())
+	baseInSeed := filepath.Join(snapsDirs, "core20")
 	err = os.Symlink(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
 	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
@@ -2087,6 +2087,22 @@ version: 3.0
 	c.Check(osutil.IsSymlink(core20Snap), Equals, false)
 	c.Check(osutil.IsSymlink(pcKernelSnap), Equals, false)
 	c.Check(osutil.IsSymlink(gadgetSnap), Equals, false)
+
+	// check modeenv
+	ubuntuDataModeEnvPath := filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
+	expectedModeenv := `mode=run
+recovery_system=20221004
+current_recovery_systems=20221004
+good_recovery_systems=20221004
+base=core20_3.snap
+gadget=pc_4.snap
+current_kernels=pc-kernel_5.snap
+model=my-brand/my-model-uc20
+grade=dangerous
+model_sign_key_id=Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"]
+`
+	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, expectedModeenv)
 }
 
 func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20Install(c *C) {
