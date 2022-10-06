@@ -642,10 +642,10 @@ version: 5.0
 	})
 	defer restore()
 
-	hasFDESetupHoolCalled := false
+	hasFDESetupHookCalled := false
 	restore = boot.MockHasFDESetupHook(func(kernel *snap.Info) (bool, error) {
 		c.Check(kernel, Equals, kernelInfo)
-		hasFDESetupHoolCalled = true
+		hasFDESetupHookCalled = true
 		return false, nil
 	})
 	defer restore()
@@ -848,7 +848,7 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 	c.Check(copiedRecoveryShimBin, testutil.FileEquals, "recovery shim content")
 
 	// we checked for fde-setup-hook
-	c.Check(hasFDESetupHoolCalled, Equals, true)
+	c.Check(hasFDESetupHookCalled, Equals, true)
 	// make sure TPM was provisioned
 	c.Check(provisionCalls, Equals, 1)
 	// make sure SealKey was called for the run object and the fallback object
