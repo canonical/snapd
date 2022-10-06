@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -802,4 +802,37 @@ func (cs *clientSuite) TestClientOpDownloadResume(c *check.C) {
 	c.Check(string(content), check.Equals, cs.rsp)
 	// and we can close it
 	c.Check(rc.Close(), check.IsNil)
+}
+
+func (cs *clientSuite) TestClientRefreshWithValidationSets(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "12",
+		"status-code": 202,
+		"type": "async"
+	}`
+
+	sets := []string{"foo/bar=2", "foo/baz"}
+	chgID, err := cs.cli.RefreshMany(nil, &client.SnapOptions{
+		ValidationSets: sets,
+	})
+	c.Assert(err, check.IsNil)
+	c.Check(chgID, check.Equals, "12")
+
+	type req struct {
+		ValidationSets []string `json:"validation-sets"`
+		Action         string   `json:"action"`
+	}
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	var decodedBody req
+	err = json.Unmarshal(body, &decodedBody)
+	c.Assert(err, check.IsNil)
+
+	c.Check(decodedBody, check.DeepEquals, req{
+		ValidationSets: sets,
+		Action:         "refresh",
+	})
+	c.Check(cs.req.Header["Content-Type"], check.DeepEquals, []string{"application/json"})
 }
