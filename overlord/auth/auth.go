@@ -85,7 +85,7 @@ func (u *UserState) HasStoreAuth() bool {
 }
 
 // HasExpired returns true if the user has an expiration set and
-// the expiration date is past the current time.
+// current time is past the expiration date.
 func (u *UserState) HasExpired() bool {
 	// If the user has no expiration date, then Expiration should not
 	// be set, and contain the default value.

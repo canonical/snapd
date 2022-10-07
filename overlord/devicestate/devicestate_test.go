@@ -2247,7 +2247,7 @@ func (s *deviceMgrSuite) mockSystemMode(c *C, mode string) {
 	devicestate.SetSystemMode(s.mgr, mode)
 }
 
-func (s *deviceMgrSuite) ensureExpiredUserRemoved(c *C, userToRemove string, extraUsers bool) {
+func (s *deviceMgrSuite) testExpiredUserRemoved(c *C, userToRemove string, extraUsers bool) {
 	// Mock the delete user callback to verify it's correctly called. On ubuntu core
 	// systems ExtraUsers should be set, where on classic systems ExtraUsers should not
 	// be set
@@ -2267,7 +2267,7 @@ func (s *deviceMgrSuite) ensureExpiredUserRemoved(c *C, userToRemove string, ext
 	c.Assert(delUserCalled, Equals, true)
 }
 
-func (s *deviceMgrSuite) ensureExpiredUserNotRemoved(c *C) {
+func (s *deviceMgrSuite) testExpiredUserNotRemoved(c *C) {
 	// Mock the delete user callback to verify it's correctly called. On ubuntu core
 	// systems ExtraUsers should be set, where on classic systems ExtraUsers should not
 	// be set
@@ -2299,7 +2299,7 @@ func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedOnCore(c *C) {
 	s.mockSystemUser(c, "user1", time.Time{})
 	s.mockSystemUser(c, "expires-soon", time.Now().Add(time.Minute*5))
 	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
-	s.ensureExpiredUserRemoved(c, "remove-me", true)
+	s.testExpiredUserRemoved(c, "remove-me", true)
 }
 
 func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedOnClassic(c *C) {
@@ -2320,7 +2320,7 @@ func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedOnClassic(c *C) {
 	s.mockSystemUser(c, "user1", time.Time{})
 	s.mockSystemUser(c, "expires-soon", time.Now().Add(time.Minute*5))
 	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
-	s.ensureExpiredUserRemoved(c, "remove-me", false)
+	s.testExpiredUserRemoved(c, "remove-me", false)
 }
 
 func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedNotRecoverMode(c *C) {
@@ -2336,7 +2336,7 @@ func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedNotRecoverMode(c *C) {
 
 	// Mock a user that would be expired
 	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
-	s.ensureExpiredUserNotRemoved(c)
+	s.testExpiredUserNotRemoved(c)
 }
 
 func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedNotInstallMode(c *C) {
@@ -2352,7 +2352,7 @@ func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedNotInstallMode(c *C) {
 
 	// Mock a user that would be expired, but expect it not to be removed
 	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
-	s.ensureExpiredUserNotRemoved(c)
+	s.testExpiredUserNotRemoved(c)
 }
 
 func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedNotUnseeded(c *C) {
@@ -2365,5 +2365,5 @@ func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedNotUnseeded(c *C) {
 
 	// Mock a user that would be expired, but expect it not to be removed
 	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
-	s.ensureExpiredUserNotRemoved(c)
+	s.testExpiredUserNotRemoved(c)
 }
