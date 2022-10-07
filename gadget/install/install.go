@@ -582,8 +582,8 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRo
 			if volStruct.Role != gadget.SystemSave && volStruct.Role != gadget.SystemData {
 				continue
 			}
-			if volStruct.UnencryptedDevice == "" {
-				continue
+			if volStruct.Device == "" {
+				return nil, fmt.Errorf("device field for volume struct %v cannot be empty", volStruct)
 			}
 			device := volStruct.UnencryptedDevice
 
