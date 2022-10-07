@@ -1257,8 +1257,7 @@ func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (
 	mntPtForType := make(map[snap.Type]string)
 	unmount := func() {
 		for _, unmountF := range unmountFuncs {
-			errUnmount := unmountF()
-			if errUnmount != nil {
+			if errUnmount := unmountF(); errUnmount != nil {
 				logger.Noticef("error unmounting: %v", errUnmount)
 			}
 		}
