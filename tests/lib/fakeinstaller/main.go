@@ -97,7 +97,7 @@ func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 			}
 			for _, part := range onDiskParts {
 				if part.Name == gadgetVol.Structure[i].Name {
-					gadgetVol.Structure[i].UnencryptedDevice = part.Node
+					gadgetVol.Structure[i].Device = part.Node
 					break
 				}
 			}
