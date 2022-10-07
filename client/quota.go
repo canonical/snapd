@@ -54,11 +54,14 @@ type QuotaCPUSetValues struct {
 	CPUs []int `json:"cpus,omitempty"`
 }
 
+type QuotaJournalRate struct {
+	RateCount  int           `json:"rate-count"`
+	RatePeriod time.Duration `json:"rate-period"`
+}
+
 type QuotaJournalValues struct {
-	Size       quantity.Size `json:"size,omitempty"`
-	RateCount  int           `json:"rate-count,omitempty"`
-	RatePeriod time.Duration `json:"rate-period,omitempty"`
-	RateValid  bool          `json:"rate-valid,omitempty"`
+	Size quantity.Size `json:"size,omitempty"`
+	*QuotaJournalRate
 }
 
 type QuotaValues struct {

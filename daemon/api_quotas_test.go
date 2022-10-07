@@ -116,9 +116,11 @@ func (s *apiQuotaSuite) TestCreateQuotaValues(c *check.C) {
 		CPUs: []int{0, 1},
 	})
 	c.Check(quotaValues.Journal, check.DeepEquals, &client.QuotaJournalValues{
-		Size:       quantity.SizeMiB,
-		RateCount:  150,
-		RatePeriod: time.Second,
+		Size: quantity.SizeMiB,
+		QuotaJournalRate: &client.QuotaJournalRate{
+			RateCount:  150,
+			RatePeriod: time.Second,
+		},
 	})
 }
 
@@ -279,9 +281,10 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateJournalRateZeroHappy(c *check.C
 		Snaps:     []string{"some-snap"},
 		Constraints: client.QuotaValues{
 			Journal: &client.QuotaJournalValues{
-				RateCount:  0,
-				RatePeriod: 0,
-				RateValid:  true,
+				QuotaJournalRate: &client.QuotaJournalRate{
+					RateCount:  0,
+					RatePeriod: 0,
+				},
 			},
 		},
 	})
