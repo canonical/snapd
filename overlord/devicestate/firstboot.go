@@ -230,7 +230,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		configTss = chainTs(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
 	}
 
-	dangerousModel := model.Grade() == asserts.ModelDangerous
+	modelIsDangerous := model.Grade() == asserts.ModelDangerous
 	for _, seedSnap := range essentialSeedSnaps {
 		flags := snapstate.Flags{
 			SkipConfigure: true,
@@ -241,7 +241,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 			// XXX: eventually we may need to allow specific snaps to be devmode for
 			// non-dangerous models, we can do that here since that information will
 			// probably be in the model assertion which we have here
-			ApplySnapDevMode: dangerousModel,
+			ApplySnapDevMode: modelIsDangerous,
 		}
 
 		ts, info, err := installSeedSnap(st, seedSnap, flags)
@@ -279,10 +279,10 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 			// XXX: eventually we may need to allow specific snaps to be devmode for
 			// non-dangerous models, we can do that here since that information will
 			// probably be in the model assertion which we have here
-			ApplySnapDevMode: dangerousModel,
+			ApplySnapDevMode: modelIsDangerous,
 			// for non-dangerous models snaps need to opt-in explicitly
 			// Classic is simply ignored for non-classic snaps, so we do not need to check further
-			Classic: release.OnClassic && dangerousModel,
+			Classic: release.OnClassic && modelIsDangerous,
 		}
 
 		ts, info, err := installSeedSnap(st, seedSnap, flags)

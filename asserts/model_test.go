@@ -1032,10 +1032,10 @@ func (mods *modelSuite) testWithSnapsDecodeInvalid(c *C, modelRaw string, isClas
 			{"OTHER", `    modes:
       - ephemeral
       - run
-`, `classic snap "myappopt" now allowed outside of run mode: \[ephemeral run\]`},
+`, `classic snap "myappopt" not allowed outside of run mode: \[ephemeral run\]`},
 			{"OTHER", `    modes:
       - install
-`, `classic snap "myappopt" now allowed outside of run mode: \[install\]`},
+`, `classic snap "myappopt" not allowed outside of run mode: \[install\]`},
 			{`    type: app
     presence: optional
 `, `    type: base

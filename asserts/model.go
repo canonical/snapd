@@ -51,7 +51,7 @@ type ModelSnap struct {
 	PinnedTrack string
 	// Presence is one of: required|optional
 	Presence string
-	// Classic indicates that this classic snap is intenionally
+	// Classic indicates that this classic snap is intentionally
 	// included in a classic model
 	Classic bool
 }
@@ -101,7 +101,7 @@ var (
 	defaultModes       = []string{"run"}
 )
 
-func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade, classic bool) (*modelSnaps, error) {
+func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade, modelIsClassic bool) (*modelSnaps, error) {
 	const wrongHeaderType = `"snaps" header must be a list of maps`
 
 	entries, ok := extendedSnaps.([]interface{})
@@ -118,7 +118,7 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 		if !ok {
 			return nil, fmt.Errorf(wrongHeaderType)
 		}
-		modelSnap, err := checkModelSnap(snap, grade, classic)
+		modelSnap, err := checkModelSnap(snap, grade, modelIsClassic)
 		if err != nil {
 			return nil, err
 		}
@@ -176,7 +176,7 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 			modelSnap.Modes = defaultModes
 		}
 		if modelSnap.Classic && (len(modelSnap.Modes) != 1 || modelSnap.Modes[0] != "run") {
-			return nil, fmt.Errorf("classic snap %q now allowed outside of run mode: %v", modelSnap.Name, modelSnap.Modes)
+			return nil, fmt.Errorf("classic snap %q not allowed outside of run mode: %v", modelSnap.Name, modelSnap.Modes)
 		}
 
 		if modelSnap.Presence == "" {
@@ -197,7 +197,7 @@ var (
 	validSnapPresences = []string{"required", "optional"}
 )
 
-func checkModelSnap(snap map[string]interface{}, grade ModelGrade, classic bool) (*ModelSnap, error) {
+func checkModelSnap(snap map[string]interface{}, grade ModelGrade, modelIsClassic bool) (*ModelSnap, error) {
 	name, err := checkNotEmptyStringWhat(snap, "name", "of snap")
 	if err != nil {
 		return nil, err
@@ -267,7 +267,7 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade, classic bool)
 	if err != nil {
 		return nil, err
 	}
-	if isClassic && !classic {
+	if isClassic && !modelIsClassic {
 		return nil, fmt.Errorf("snap %q cannot be classic in non-classic model", name)
 	}
 	if isClassic && typ != "app" {
