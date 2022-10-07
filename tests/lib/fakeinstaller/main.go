@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/mkfs"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 func firstVol(volumes map[string]*gadget.Volume) *gadget.Volume {
@@ -84,7 +85,7 @@ func runMntFor(label string) string {
 
 func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
-	onDiskParts []gadget.OnDiskStructure) (*client.Change, error) {
+	onDiskParts []gadget.OnDiskStructure) (map[string]string, error) {
 
 	// We are modifiying the details struct here
 	for _, gadgetVol := range details.Volumes {
@@ -123,7 +124,12 @@ func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 		return nil, err
 	}
 
-	return chg, nil
+	var encryptedDevices = make(map[string]string)
+	if err := chg.Get("encrypted-devices", &encryptedDevices); err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, fmt.Errorf("cannot get encrypted-devices from change: %v", err)
+	}
+
+	return encryptedDevices, nil
 }
 
 // XXX: reuse/extract cmd/snap/wait.go:waitMixin()
@@ -187,7 +193,7 @@ func postSystemsInstallFinish(cli *client.Client,
 
 // createAndMountFilesystems creates and mounts filesystems. It returns
 // an slice with the paths where the filesystems have been mounted to.
-func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Volume, encryptionChange *client.Change) ([]string, error) {
+func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Volume, encryptedDevices map[string]string) ([]string, error) {
 	// only support a single volume for now
 	if len(volumes) != 1 {
 		return nil, fmt.Errorf("got unexpected number of volumes %v", len(volumes))
@@ -206,11 +212,8 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 		}
 
 		var partNode string
-		if encryptionChange != nil && (volStruct.Role == gadget.SystemSave || volStruct.Role == gadget.SystemData) {
-			var encryptedDevice string
-			if err := encryptionChange.Get(volStruct.Role, &encryptedDevice); err != nil {
-				return nil, err
-			}
+		if volStruct.Role == gadget.SystemSave || volStruct.Role == gadget.SystemData {
+			encryptedDevice := encryptedDevices[volStruct.Role]
 			if encryptedDevice == "" {
 				return nil, fmt.Errorf("no encrypted device found for %s role", volStruct.Role)
 			}
@@ -303,11 +306,11 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err != nil {
 		return fmt.Errorf("cannot setup partitions: %v", err)
 	}
-	encryptChg, err := postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, laidoutStructs)
+	encryptedDevices, err := postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, laidoutStructs)
 	if err != nil {
 		return fmt.Errorf("cannot setup storage encryption: %v", err)
 	}
-	mntPts, err := createAndMountFilesystems(bootDevice, details.Volumes, encryptChg)
+	mntPts, err := createAndMountFilesystems(bootDevice, details.Volumes, encryptedDevices)
 	if err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
