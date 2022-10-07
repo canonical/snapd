@@ -81,30 +81,30 @@ func onFilesDeleted(filename string) {
 func onFilesAdded(newApp *appMonitorData) {
 	if newApp.npaths == 0 {
 		newApp.channel <- newApp.name
-	} else {
-		addedPaths := false
-		for _, fullPath := range newApp.cgroupPaths {
-			basePath := path.Dir(fullPath) // Monitor the path containing this folder
-			_, exists := currentCGroupMonitor.watched[basePath]
-			if exists {
-				continue
-			}
-			err := currentCGroupMonitor.watcher.AddWatch(basePath, inotify.InDelete)
-			if err != nil {
-				continue
-			}
-			if _, err := os.Stat(fullPath); errors.Is(err, os.ErrNotExist) {
-				// if the file/folder to monitor doesn't exist after the parent being added, remove it
-				currentCGroupMonitor.watcher.RemoveWatch(basePath)
-				continue
-			}
-			currentCGroupMonitor.watched[basePath] = append(currentCGroupMonitor.watched[basePath], newApp)
-			addedPaths = true
+		return
+	}
+	addedPaths := false
+	for _, fullPath := range newApp.cgroupPaths {
+		basePath := path.Dir(fullPath) // Monitor the path containing this folder
+		_, exists := currentCGroupMonitor.watched[basePath]
+		if exists {
+			continue
 		}
-		if !addedPaths {
-			// if the files/folders to monitor don't exist, send the notification now
-			newApp.channel <- newApp.name
+		err := currentCGroupMonitor.watcher.AddWatch(basePath, inotify.InDelete)
+		if err != nil {
+			continue
 		}
+		if _, err := os.Stat(fullPath); errors.Is(err, os.ErrNotExist) {
+			// if the file/folder to monitor doesn't exist after the parent being added, remove it
+			currentCGroupMonitor.watcher.RemoveWatch(basePath)
+			continue
+		}
+		currentCGroupMonitor.watched[basePath] = append(currentCGroupMonitor.watched[basePath], newApp)
+		addedPaths = true
+	}
+	if !addedPaths {
+		// if the files/folders to monitor don't exist, send the notification now
+		newApp.channel <- newApp.name
 	}
 }
 
