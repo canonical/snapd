@@ -404,7 +404,7 @@ static void sc_replicate_base_rootfs(const char *scratch_dir,
 			}
 			// Also skip the /snap directory, as we'll mount it later
 			if (sc_streq(path_in_rootfs, "/snap")) {
-				skip_dir = true;
+				continue;
 			}
 
 			char src_path[PATH_MAX];
