@@ -45,7 +45,7 @@ func (s *monitorSuite) SetUpTest(c *C) {
 	c.Assert(s.monitor, NotNil)
 }
 
-func (s *monitorSuite) TestMonitorSnap1(c *C) {
+func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	tmpfile, err := ioutil.TempFile("", "prefix")
 	c.Assert(err, IsNil)
 
@@ -72,7 +72,7 @@ func (s *monitorSuite) TestMonitorSnap1(c *C) {
 	c.Assert(s.monitor.NumberOfWaitingMonitors(), Equals, 0)
 }
 
-func (s *monitorSuite) TestMonitorSnap2(c *C) {
+func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	tmpfile1, err := ioutil.TempFile("", "prefix")
 	c.Assert(err, IsNil)
 	tmpfile2, err := ioutil.TempFile("", "prefix")
@@ -110,7 +110,7 @@ func (s *monitorSuite) TestMonitorSnap2(c *C) {
 	c.Assert(s.monitor.NumberOfWaitingMonitors(), Equals, 0)
 }
 
-func (s *monitorSuite) TestMonitorSnap3(c *C) {
+func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 	filename := fmt.Sprintf("aFileNameThatDoesntExist%s", uuid.New().String())
 	var filelist []string
 	filelist = append(filelist, filename)
