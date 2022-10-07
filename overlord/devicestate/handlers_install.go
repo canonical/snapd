@@ -1447,7 +1447,13 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return err
 	}
 	if encryptInfo.Disabled || !encryptInfo.Available {
-		return fmt.Errorf("encryption unavailable on this device")
+		var whyStr string
+		if encryptInfo.UnavailableErr != nil {
+			whyStr = encryptInfo.UnavailableErr.Error()
+		} else {
+			whyStr = encryptInfo.UnavailableWarning
+		}
+		return fmt.Errorf("encryption unavailable on this device: %v", whyStr)
 	}
 
 	// FIXME this is fixed to LUKS at the moment
