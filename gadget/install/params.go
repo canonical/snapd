@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -60,6 +60,5 @@ type partEncryptionData struct {
 // API calls.
 type EncryptionSetupData struct {
 	// maps from partition label to data
-	laidOutVols map[string]*gadget.LaidOutVolume
-	Parts       map[string]partEncryptionData
+	Parts map[string]partEncryptionData
 }

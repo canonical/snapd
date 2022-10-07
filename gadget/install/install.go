@@ -572,8 +572,7 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRo
 	}
 
 	setupData := &EncryptionSetupData{
-		laidOutVols: allLaidOutVols,
-		Parts:       make(map[string]partEncryptionData),
+		Parts: make(map[string]partEncryptionData),
 	}
 	for volName, vol := range onVolumes {
 		var onDiskVol *gadget.OnDiskVolume
