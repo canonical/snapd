@@ -1358,10 +1358,11 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 	defer unmountParts()
 
+	if err := install.SaveStorageTraits(sys.Model, allLaidOutVols, encryptSetupData); err != nil {
+		return fmt.Errorf("cannot finish encryption: %v", err)
+	}
+
 	if useEncryption {
-		if err := install.SaveStorageTraits(sys.Model, allLaidOutVols, encryptSetupData); err != nil {
-			return fmt.Errorf("cannot finish encryption: %v", err)
-		}
 		if trustedInstallObserver != nil {
 			if err := prepareEncryptedSystemData(sys.Model, install.KeysForRole(encryptSetupData), trustedInstallObserver); err != nil {
 				return err
