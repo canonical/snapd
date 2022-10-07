@@ -87,7 +87,7 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 	restore()
 
 	restore = mockWSL(2)
-	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
+	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
 	restore()
 
 	// simulate being inside a container environment
