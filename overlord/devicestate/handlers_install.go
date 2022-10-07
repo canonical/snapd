@@ -1446,7 +1446,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	if err != nil {
 		return err
 	}
-	if encryptInfo.Type == secboot.EncryptionTypeNone {
+	if encryptInfo.Disabled || !encryptInfo.Available {
 		return fmt.Errorf("encryption unavailable on this device")
 	}
 
