@@ -495,6 +495,9 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 			}
 			logger.Debugf("finding layout for %q", volStruct.Device)
 			// Obtain partition data and link with laid out information
+			// TODO: do we need to consider different
+			// sector sizes for the encrypted/unencrypted
+			// cases here?
 			onDiskStruct, err := applyLayoutToOnDiskStructure(onDiskVol, volStruct.Device, allLaidOutVols, volName)
 			if err != nil {
 				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", volStruct.Device, err)
