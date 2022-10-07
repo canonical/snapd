@@ -100,9 +100,13 @@ func createQuotaValues(grp *quota.Group) *client.QuotaValues {
 	}
 	if grp.JournalLimit != nil {
 		constraints.Journal = &client.QuotaJournalValues{
-			Size:       grp.JournalLimit.Size,
-			RateCount:  grp.JournalLimit.RateCount,
-			RatePeriod: grp.JournalLimit.RatePeriod,
+			Size: grp.JournalLimit.Size,
+		}
+		if grp.JournalLimit.RateEnabled {
+			constraints.Journal.QuotaJournalRate = &client.QuotaJournalRate{
+				RateCount:  grp.JournalLimit.RateCount,
+				RatePeriod: grp.JournalLimit.RatePeriod,
+			}
 		}
 	}
 	return &constraints
@@ -208,7 +212,7 @@ func quotaValuesToResources(values client.QuotaValues) quota.Resources {
 		if values.Journal.Size != 0 {
 			resourcesBuilder.WithJournalSize(values.Journal.Size)
 		}
-		if values.Journal.RateCount != 0 && values.Journal.RatePeriod != 0 {
+		if values.Journal.QuotaJournalRate != nil {
 			resourcesBuilder.WithJournalRate(values.Journal.RateCount, values.Journal.RatePeriod)
 		}
 	}
