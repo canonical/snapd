@@ -928,39 +928,6 @@ void sc_store_ns_info(const sc_invocation * inv)
 	debug("saved mount namespace meta-data to %s", info_path);
 }
 
-void sc_store_ns_fstab(const sc_invocation *inv)
-{
-	FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
-	char info_path[PATH_MAX] = { 0 };
-	sc_must_snprintf(info_path, sizeof info_path,
-			 "/run/snapd/ns/snap.%s.fstab", inv->snap_instance);
-	int fd = -1;
-	fd = open(info_path,
-		  O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0644);
-	if (fd < 0) {
-		die("cannot open %s", info_path);
-	}
-	if (fchown(fd, 0, 0) < 0) {
-		die("cannot chown %s to root.root", info_path);
-	}
-	// The stream now owns the file descriptor.
-	stream = fdopen(fd, "w");
-	if (stream == NULL) {
-		die("cannot get stream from file descriptor");
-	}
-	// We need to store an entry for the root directory, so that snap-update-ns
-	// will know that it's a tmpfs created by us. It's not going to remount it,
-	// so there's no need to be precise with the mount flags.
-	fprintf(stream, "tmpfs / tmpfs x-snapd.origin=rootfs 0 0\n");
-	if (ferror(stream) != 0) {
-		die("I/O error when writing to %s", info_path);
-	}
-	if (fflush(stream) == EOF) {
-		die("cannot flush %s", info_path);
-	}
-	debug("saved rootfs fstab entry to %s", info_path);
-}
-
 bool sc_is_mount_ns_in_use(const char *snap_instance)
 {
 	// perform an indirect check of whether the mount namespace is occupied,

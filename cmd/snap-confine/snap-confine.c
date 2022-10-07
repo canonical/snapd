@@ -693,7 +693,6 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		if (unshare(CLONE_NEWNS) < 0) {
 			die("cannot unshare the mount namespace");
 		}
-		sc_store_ns_fstab(inv);
 		sc_populate_mount_ns(aa, snap_update_ns_fd, inv, real_gid,
 				     saved_gid);
 		sc_store_ns_info(inv);

@@ -206,6 +206,7 @@ struct sc_mount_config {
 	sc_distro distro;
 	bool normal_mode;
 	const char *base_snap_name;
+	const char *snap_instance;
 };
 
 /**
@@ -280,6 +281,46 @@ static void sc_do_mounts(const char *scratch_dir,
 }
 
 /**
+ * Create the /run/snapd/ns/snap.<snap-name>.fstab file.
+ *
+ * Initially, this will just contain the entry for the snap root filesystem (a
+ * tmpfs), so that snap-update-ns will know about it and won't try to unmount
+ * it.
+ */
+static void sc_initialize_ns_fstab(const char *snap_instance_name)
+{
+	FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
+	char info_path[PATH_MAX] = { 0 };
+	sc_must_snprintf(info_path, sizeof info_path,
+			 "/run/snapd/ns/snap.%s.fstab", snap_instance_name);
+	int fd = -1;
+	fd = open(info_path,
+		  O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0644);
+	if (fd < 0) {
+		die("cannot open %s", info_path);
+	}
+	if (fchown(fd, 0, 0) < 0) {
+		die("cannot chown %s to root.root", info_path);
+	}
+	// The stream now owns the file descriptor.
+	stream = fdopen(fd, "w");
+	if (stream == NULL) {
+		die("cannot get stream from file descriptor");
+	}
+	// We need to store an entry for the root directory, so that snap-update-ns
+	// will know that it's a tmpfs created by us. It's not going to remount it,
+	// so there's no need to be precise with the mount flags.
+	fprintf(stream, "tmpfs / tmpfs x-snapd.origin=rootfs 0 0\n");
+	if (ferror(stream) != 0) {
+		die("I/O error when writing to %s", info_path);
+	}
+	if (fflush(stream) == EOF) {
+		die("cannot flush %s", info_path);
+	}
+	debug("saved rootfs fstab entry to %s", info_path);
+}
+
+/**
  * Create root mountpoints and symbolic links.
  *
  * Enumerate the root entries in the filesystem provided by the provided
@@ -290,9 +331,9 @@ static void sc_do_mounts(const char *scratch_dir,
  * later directly from the "/" directory of the system, so this function will
  * not touch them.
  */
-static void sc_replicate_rootfs(const char *scratch_dir,
-                                const char *rootfs_dir,
-                                const struct sc_mount *root_mounts)
+static void sc_replicate_base_rootfs(const char *scratch_dir,
+                                     const char *rootfs_dir,
+                                     const struct sc_mount *root_mounts)
 {
 	// First of all, fix the root filesystem:
 	// - remove write permissions for group and others
@@ -469,10 +510,11 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// guarantees that this directory will not be replicated anywhere.
 	sc_do_mount("none", scratch_dir, NULL, MS_UNBINDABLE, NULL);
 	if (config->normal_mode) {
+		sc_initialize_ns_fstab(config->snap_instance);
 		// Create a tmpfs on scratch_dir; we'll them mount all the root
 		// directories of the base snap onto it.
 		sc_do_mount("none", scratch_dir, "tmpfs", 0, NULL);
-		sc_replicate_rootfs(scratch_dir, config->rootfs_dir, config->mounts);
+		sc_replicate_base_rootfs(scratch_dir, config->rootfs_dir, config->mounts);
 	} else {
 		// Recursively bind mount desired root filesystem directory over the
 		// scratch directory. This puts the initial content into the scratch
@@ -878,6 +920,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			.distro = distro,
 			.normal_mode = true,
 			.base_snap_name = inv->base_snap_name,
+			.snap_instance = inv->snap_instance,
 		};
 		sc_bootstrap_mount_namespace(&normal_config);
 	} else {
