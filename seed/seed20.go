@@ -406,6 +406,7 @@ func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler SnapHandler, tm ti
 	var essential bool
 	var essType snap.Type
 	var required bool
+	var classic bool
 	if sntoc.modelSnap != nil {
 		snapRef = sntoc.modelSnap
 		essential = sntoc.essential
@@ -414,6 +415,7 @@ func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler SnapHandler, tm ti
 		}
 		required = essential || sntoc.modelSnap.Presence == "required"
 		channel = sntoc.modelSnap.DefaultChannel
+		classic = sntoc.modelSnap.Classic
 		snapsDir = "../../snaps"
 	} else {
 		snapRef = sntoc.optSnap
@@ -430,6 +432,7 @@ func (s *seed20) doLoadMetaOne(sntoc *snapToConsider, handler SnapHandler, tm ti
 	}
 	seedSnap.Essential = essential
 	seedSnap.Required = required
+	seedSnap.Classic = classic
 	if essential {
 		if sntoc.modelSnap.SnapType == "gadget" {
 			// validity
