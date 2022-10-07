@@ -68,7 +68,7 @@ func (e *NotFoundError) Is(err error) bool {
 	return ok
 }
 
-// DataBag controls access to a storage the data that the aspects access.
+// DataBag controls access to the aspect data storage.
 type DataBag interface {
 	Get(path string, value interface{}) error
 	Set(path string, value interface{}) error
@@ -148,7 +148,7 @@ func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag Dat
 	return &aspectDir, nil
 }
 
-// Aspect return an aspect from the aspect directory.
+// Aspect returns an aspect from the aspect directory.
 func (d *Directory) Aspect(aspect string) *Aspect {
 	return d.aspects[aspect]
 }
@@ -160,6 +160,7 @@ type Aspect struct {
 	directory      Directory
 }
 
+// Set sets the named aspect to a specified value.
 func (a *Aspect) Set(name string, value interface{}) error {
 	for _, p := range a.accessPatterns {
 		if p.name != name {
@@ -186,6 +187,8 @@ func (a *Aspect) Set(name string, value interface{}) error {
 	return &NotFoundError{fmt.Sprintf("cannot set %q: name not found", name)}
 }
 
+// Get returns the aspect value identified by the name. If either the named aspect
+// or the corresponding value can't be found, a NotFoundError is returned.
 func (a *Aspect) Get(name string, value interface{}) error {
 	for _, p := range a.accessPatterns {
 		if p.name != name {
@@ -209,7 +212,7 @@ func (a *Aspect) Get(name string, value interface{}) error {
 	return &NotFoundError{fmt.Sprintf("cannot get %q: name not found", name)}
 }
 
-// accessPattern is an aspect accessPattern that holds information about a accessPattern.
+// accessPattern holds information on how to access an aspect.
 type accessPattern struct {
 	name   string
 	path   string
@@ -227,11 +230,16 @@ func (p accessPattern) isWriteable() bool {
 // JSONDataBag is a simple DataBag implementation that keeps JSON in-memory.
 type JSONDataBag map[string]json.RawMessage
 
+// NewJSONDataBag returns a DataBag implementation that stores data in JSON.
+// The top-level of the JSON structure is always a map.
 func NewJSONDataBag() JSONDataBag {
 	storage := make(map[string]json.RawMessage)
 	return storage
 }
 
+// Get takes a path and a pointer to a variable into which the value referenced
+// by the path is written. The path can be dotted. For each dot a JSON object
+// is expected to exist (e.g., "a.b" is mapped to {"a": {"b": <value>}}).
 func (s JSONDataBag) Get(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
 	return get(subKeys, 0, s, value)
@@ -269,6 +277,8 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 	return get(subKeys, index+1, level, result)
 }
 
+// Set takes a path to which the value will be written. The path can be dotted,
+// in which case, a nested JSON object is created for each sub-key found after a dot.
 func (s JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
 	_, err := set(subKeys, 0, s, value)
@@ -311,16 +321,21 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 	return json.Marshal(node)
 }
 
+// Data returns all of the bag's data encoded in JSON.
 func (s JSONDataBag) Data() ([]byte, error) {
 	return json.Marshal(s)
 }
 
+// JSONSchema is the Schema implementation corresponding to JSONDataBag and it's
+// able to validate its data.
 type JSONSchema struct{}
 
+// NewJSONSchema returns a Schema able to validate a JSONDataBag's data.
 func NewJSONSchema() *JSONSchema {
 	return &JSONSchema{}
 }
 
+// Validate validates that the specified data can be encoded into JSON.
 func (s *JSONSchema) Validate(jsonData []byte) error {
 	// the top-level is always an object
 	var data map[string]json.RawMessage
