@@ -1159,6 +1159,76 @@ func (s *linkSnapSuite) TestDoLinkSnapdSnapCleanupOnErrorNthInstall(c *C) {
 	c.Check(lp.instanceNames, DeepEquals, []string{"snapd"})
 }
 
+func (s *linkSnapSuite) TestDoLinkSnapdDiscardsNsOnDowngrade(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lp := &testLinkParticipant{}
+	restore := snapstate.MockLinkSnapParticipants([]snapstate.LinkSnapParticipant{lp, snapstate.LinkSnapParticipantFunc(ifacestate.OnSnapLinkageChanged)})
+	defer restore()
+
+	// pretend we have an installed snapd
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Check(name, Equals, "snapd")
+		info := &snap.Info{Version: "2.56", SideInfo: *si, SnapType: snap.TypeSnapd}
+		return info, nil
+	})
+	siSnapd := &snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
+		Revision: snap.R(42),
+	}
+	// Create a downgrade
+	si := &snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
+		Revision: snap.R(41),
+	}
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{siSnapd, si},
+		Current:         siSnapd.Revision,
+		TrackingChannel: "latest/stable",
+		SnapType:        "snapd",
+	})
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Channel:  "beta",
+	})
+
+	s.state.NewChange("sample", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+
+	// tried to cleanup
+	expected := fakeOps{
+		{
+			op:    "candidate",
+			sinfo: *si,
+		},
+		{
+			op:   "discard-namespace",
+			name: "snapd",
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "snapd/41"),
+		},
+	}
+
+	// start with an easier-to-read error if this fails:
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// link snap participant was invoked
+	c.Check(lp.instanceNames, DeepEquals, []string{"snapd"})
+}
+
 func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceDidNotHaveCandidate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
