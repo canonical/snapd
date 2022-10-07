@@ -478,6 +478,8 @@ func MockUserLookup(lookup func(username string) (*user.User, error)) (restore f
 	return restore
 }
 
+var ProcessAutoImportAssertions = processAutoImportAssertions
+
 func MockCreateAllSystemUsers(createAllUsers func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*CreatedUser, error)) (restore func()) {
 	restore = testutil.Backup(&createAllSystemUsers)
 	createAllSystemUsers = createAllUsers

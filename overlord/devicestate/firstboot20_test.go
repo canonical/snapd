@@ -590,6 +590,11 @@ func (s *firstBoot20Suite) setupSeed20DangerousGrade(c *C, withAutoImportAsserti
 	c.Check(deviceSeed.Model().Base(), Equals, "core20")
 	c.Check(deviceSeed.Model().Grade(), Equals, asserts.ModelDangerous)
 
+	commitTo := func(batch *asserts.Batch) error {
+		return assertstate.AddBatch(st, batch, nil)
+	}
+	db := assertstate.DB(st)
+	devicestate.ProcessAutoImportAssertions(st, deviceSeed, db, commitTo)
 	return logbuf.String()
 }
 

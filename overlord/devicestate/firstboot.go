@@ -134,6 +134,12 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return trivialSeeding(st), nil
 	}
 
+	commitTo := func(batch *asserts.Batch) error {
+		return assertstate.AddBatch(st, batch, nil)
+	}
+	db := assertstate.DB(st)
+	processAutoImportAssertions(st, deviceSeed, db, commitTo)
+
 	timings.Run(tm, "load-verified-snap-metadata", "load verified snap metadata from seed", func(nested timings.Measurer) {
 		err = deviceSeed.LoadMeta(mode, nil, nested)
 	})
@@ -448,8 +454,6 @@ var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.See
 	if err := deviceSeed.LoadAssertions(db, commitTo); err != nil {
 		return nil, err
 	}
-
-	processAutoImportAssertions(st, deviceSeed, db, commitTo)
 
 	return deviceSeed, nil
 }
