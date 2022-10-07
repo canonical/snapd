@@ -52,7 +52,9 @@ EOF
 
     # install the current in-development version of snapd when available,
     # this will give us seeding support
-    GOPATH="${GOPATH:-./}"
+    #
+    # TODO: find a better way to do this?
+    GOPATH="${GOPATH:-/var/lib/snapd}"
     package=$(find "$GOPATH" -maxdepth 1 -name "snapd_*.deb")
     if [ -e "$package"  ]; then
         cp "$package" "$DESTDIR"/var/cache/apt/archives
@@ -78,11 +80,16 @@ if [ ! -d "$DST" ]; then
 fi
 
 # extract the base
+# get/extract the base
+# XXX: example of the livefs from liveinstaller
+#wget -q https://launchpad.net/~mwhudson/+livefs/ubuntu/jammy/test/+build/377517/+files/livecd.ubuntu.base.squashfs
+#sudo unsquashfs -f -d "$DST" livecd.ubuntu.base.squashfs
 if [ -f /cdrom/casper/base.squashfs ]; then
-    sudo unsquashfs -d "$DST" /cdrom/casper/base.squashfs
+    sudo unsquashfs -f -d "$DST" /cdrom/casper/base.squashfs
 else
     BASETAR=ubuntu-base.tar.gz
-    wget -c http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.1-base-amd64.tar.gz -O "$BASETAR"
+    # important to use "-q" to avoid journalctl suppressing  log output
+    wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.1-base-amd64.tar.gz -O "$BASETAR"
     sudo tar -C "$DST" -xf "$BASETAR"
 fi
 
