@@ -129,7 +129,6 @@ remount options=(bind, silent, nosuid, ro, nodev, noexec, relatime, nodiratime) 
 mount options=(rw, rbind) /oldroot/home/ -> /newroot/home/,
 mount options=(rw, rbind) /oldroot/opt/ -> /newroot/opt/,
 mount options=(rw, rbind) /oldroot/srv/ -> /newroot/srv/,
-mount options=(rw, rbind) /oldroot/tmp/.X11-unix/X0 -> /newroot/tmp/.X11-unix/X0,
 mount options=(rw, rbind) /oldroot/run/udev/ -> /newroot/run/udev/,
 mount options=(rw, rbind) /oldroot/home/** -> /newroot/home/**,
 mount options=(rw, rbind) /oldroot/snap/** -> /newroot/snap/**,
@@ -161,7 +160,7 @@ mount options=(rw, rbind) /oldroot/usr/share/icons/ -> /newroot/run/host/share/i
 mount options=(rw, rbind) /oldroot/home/**/.local/share/icons/ -> /newroot/run/host/user-share/icons/,
 
 mount options=(rw, rbind) /oldroot/run/user/[0-9]*/wayland-* -> /newroot/run/pressure-vessel/wayland-*,
-mount options=(rw, rbind) /oldroot/tmp/.X11-unix/X* -> /newroot/tmp/.X11-unix/X99,
+mount options=(rw, rbind) /oldroot/tmp/.X11-unix/X* -> /newroot/tmp/.X11-unix/X*,
 mount options=(rw, rbind) /bindfile* -> /newroot/run/pressure-vessel/Xauthority,
 
 mount options=(rw, rbind) /bindfile* -> /newroot/run/pressure-vessel/pulse/config,
