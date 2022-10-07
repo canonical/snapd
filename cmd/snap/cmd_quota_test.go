@@ -220,10 +220,10 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 		{cpuSet: "1,3", quotas: `{"cpu-set":{"cpus":[1,3]}}`},
 		{threadsMax: "2", quotas: `{"threads":2}`},
 		{journalSizeMax: "16MB", quotas: `{"journal":{"size":16000000}}`},
-		{journalRateLimit: "10/15s", quotas: `{"journal":{"rate-count":10,"rate-period":15000000000,"rate-valid":true}}`},
-		{journalRateLimit: "1500/15ms", quotas: `{"journal":{"rate-count":1500,"rate-period":15000000,"rate-valid":true}}`},
-		{journalRateLimit: "1/15us", quotas: `{"journal":{"rate-count":1,"rate-period":15000,"rate-valid":true}}`},
-		{journalRateLimit: "0/0s", quotas: `{"journal":{"rate-valid":true}}`},
+		{journalRateLimit: "10/15s", quotas: `{"journal":{"rate-count":10,"rate-period":15000000000}}`},
+		{journalRateLimit: "1500/15ms", quotas: `{"journal":{"rate-count":1500,"rate-period":15000000}}`},
+		{journalRateLimit: "1/15us", quotas: `{"journal":{"rate-count":1,"rate-period":15000}}`},
+		{journalRateLimit: "0/0s", quotas: `{"journal":{"rate-count":0,"rate-period":0}}`},
 
 		// Error cases
 		{cpuMax: "ASD", err: `cannot parse cpu quota string "ASD"`},
@@ -661,11 +661,12 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 			{"group-name":"fff","parent":"aaa","constraints":{"memory":1000},"current":{"memory":0}},
 			{"group-name":"xxx","constraints":{"memory":9900},"current":{"memory":10000}},
 			{"group-name":"cp0","constraints":{"memory":9900, "cpu":{"percentage":90}},"current":{"memory":10000}},
-			{"group-name":"cp1","subgroups":["cps0","js0"],"constraints":{"cpu":{"count":2, "percentage":90}}},
+			{"group-name":"cp1","subgroups":["cps0","js0","js1"],"constraints":{"cpu":{"count":2, "percentage":90}}},
 			{"group-name":"cps0","parent":"cp1","constraints":{"cpu":{"percentage":40}}},
 			{"group-name":"cp2","subgroups":["cps1"],"constraints":{"cpu":{"count":2,"percentage":100},"cpu-set":{"cpus":[0,1]}}},
 			{"group-name":"cps1","parent":"cp2","constraints":{"memory":9900,"cpu":{"percentage":50},"cpu-set":{"cpus":[1]}},"current":{"memory":10000}},
-			{"group-name":"js0","parent":"cp1","constraints":{"journal":{"size":1048576,"rate-count":50,"rate-period":60000000000}}}
+			{"group-name":"js0","parent":"cp1","constraints":{"journal":{"size":1048576,"rate-count":50,"rate-period":60000000000}}},
+			{"group-name":"js1","parent":"cp1","constraints":{"journal":{"rate-count":0,"rate-period":0}}}
 			]}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
@@ -678,6 +679,7 @@ cp0              memory=9.9kB,cpu=90%                      memory=10.0kB
 cp1              cpu=2x90%                                 
 cps0     cp1     cpu=40%                                   
 js0      cp1     journal-size=1.05MB,journal-rate=50/1m0s  
+js1      cp1     journal-rate=0/0s                         
 cp2              cpu=2x100%,cpu-set=0,1                    
 cps1     cp2     memory=9.9kB,cpu=50%,cpu-set=1            memory=10.0kB
 ggg              memory=1000B,threads=100                  memory=3000B
