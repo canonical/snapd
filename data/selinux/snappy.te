@@ -661,7 +661,7 @@ dev_getattr_all(snappy_confine_t)
 fs_getattr_cgroup(snappy_confine_t)
 fs_getattr_hugetlbfs(snappy_confine_t)
 fs_getattr_tmpfs(snappy_confine_t)
-# some locations that snap-confine unmounts, eg. /dev, are actually tmpfs
+# some locations that snap-confine mounts, eg. /, are actually tmpfs
 fs_mount_tmpfs(snappy_confine_t)
 fs_unmount_tmpfs(snappy_confine_t)
 fs_getattr_xattr_fs(snappy_confine_t)
