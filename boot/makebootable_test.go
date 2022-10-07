@@ -458,7 +458,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
-func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, factoryReset, classic bool) {
+func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, standalone, factoryReset, classic bool) {
 	restore := release.MockOnClassic(classic)
 	defer restore()
 	dirs.SetRootDir(dirs.GlobalRootDir)
@@ -642,6 +642,14 @@ version: 5.0
 	})
 	defer restore()
 
+	hasFDESetupHookCalled := false
+	restore = boot.MockHasFDESetupHook(func(kernel *snap.Info) (bool, error) {
+		c.Check(kernel, Equals, kernelInfo)
+		hasFDESetupHookCalled = true
+		return false, nil
+	})
+	defer restore()
+
 	// set mock key sealing
 	sealKeysCalls := 0
 	restore = boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
@@ -692,8 +700,17 @@ version: 5.0
 			"var/lib/snapd/boot-assets/grub/grubx64.efi-5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"),
 			bootloader.RoleRunMode)
 		kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
-		runKernel := bootloader.NewBootFile(filepath.Join(s.rootdir, "var/lib/snapd/snaps/pc-kernel_5.snap"), "kernel.efi", bootloader.RoleRunMode)
-
+		var runKernelPath string
+		var runKernel bootloader.BootFile
+		switch {
+		case !standalone:
+			runKernelPath = "/var/lib/snapd/snaps/pc-kernel_5.snap"
+		case classic:
+			runKernelPath = "/run/mnt/ubuntu-data/var/lib/snapd/snaps/pc-kernel_5.snap"
+		case !classic:
+			runKernelPath = "/run/mnt/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_5.snap"
+		}
+		runKernel = bootloader.NewBootFile(filepath.Join(s.rootdir, runKernelPath), "kernel.efi", bootloader.RoleRunMode)
 		switch sealKeysCalls {
 		case 1:
 			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
@@ -723,10 +740,13 @@ version: 5.0
 	})
 	defer restore()
 
-	if !factoryReset {
-		err = boot.MakeRunnableSystem(model, bootWith, obs)
-	} else {
+	switch {
+	case standalone:
+		err = boot.MakeRunnableStandaloneSystem(model, bootWith, obs)
+	case factoryReset:
 		err = boot.MakeRunnableSystemAfterDataReset(model, bootWith, obs)
+	default:
+		err = boot.MakeRunnableSystem(model, bootWith, obs)
 	}
 	c.Assert(err, IsNil)
 
@@ -827,6 +847,8 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 	c.Check(copiedRecoveryGrubBin, testutil.FileEquals, "recovery grub content")
 	c.Check(copiedRecoveryShimBin, testutil.FileEquals, "recovery shim content")
 
+	// we checked for fde-setup-hook
+	c.Check(hasFDESetupHookCalled, Equals, true)
 	// make sure TPM was provisioned
 	c.Check(provisionCalls, Equals, 1)
 	// make sure SealKey was called for the run object and the fallback object
@@ -848,27 +870,31 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20Install(c *C) {
+	const standalone = false
 	const factoryReset = false
 	const classic = false
-	s.testMakeSystemRunnable20(c, factoryReset, classic)
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOnClassic(c *C) {
+	const standalone = false
 	const factoryReset = false
 	const classic = true
-	s.testMakeSystemRunnable20(c, factoryReset, classic)
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryReset(c *C) {
+	const standalone = false
 	const factoryReset = true
 	const classic = false
-	s.testMakeSystemRunnable20(c, factoryReset, classic)
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryResetOnClassic(c *C) {
+	const standalone = false
 	const factoryReset = true
 	const classic = true
-	s.testMakeSystemRunnable20(c, factoryReset, classic)
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic)
 }
 
 func (s *makeBootable20Suite) TestMakeRunnableSystem20ModeInstallBootConfigErr(c *C) {
@@ -2023,7 +2049,7 @@ func (s *makeBootable20Suite) TestMakeRunnableSystemStandaloneSnapsCopy(c *C) {
 type: base
 version: 5.0
 `, snap.R(3))
-	baseInSeed := filepath.Join(snapsDirs, baseInfo.Filename())
+	baseInSeed := filepath.Join(snapsDirs, "core20")
 	err = os.Symlink(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
 	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
@@ -2071,4 +2097,34 @@ version: 3.0
 	c.Check(osutil.IsSymlink(core20Snap), Equals, false)
 	c.Check(osutil.IsSymlink(pcKernelSnap), Equals, false)
 	c.Check(osutil.IsSymlink(gadgetSnap), Equals, false)
+
+	// check modeenv
+	ubuntuDataModeEnvPath := filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
+	expectedModeenv := `mode=run
+recovery_system=20221004
+current_recovery_systems=20221004
+good_recovery_systems=20221004
+base=core20_3.snap
+gadget=pc_4.snap
+current_kernels=pc-kernel_5.snap
+model=my-brand/my-model-uc20
+grade=dangerous
+model_sign_key_id=Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"]
+`
+	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, expectedModeenv)
+}
+
+func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20Install(c *C) {
+	const standalone = true
+	const factoryReset = false
+	const classic = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic)
+}
+
+func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20InstallOnClassic(c *C) {
+	const standalone = true
+	const factoryReset = false
+	const classic = true
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic)
 }
