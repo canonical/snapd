@@ -117,6 +117,7 @@ network ipx,
 network packet,
 network pppox,
 network sna,
+network xdp,
 
 @{PROC}/@{pid}/net/ r,
 @{PROC}/@{pid}/net/** r,
@@ -319,6 +320,11 @@ socket AF_NETLINK - NETLINK_GENERIC
 
 # for receiving kobject_uevent() net messages from the kernel
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+
+# For XDP:
+bpf
+# TODO: figure out why socket AF_XDP is not enough
+socket
 `
 
 /* https://www.kernel.org/doc/Documentation/networking/tuntap.txt
