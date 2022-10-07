@@ -7,8 +7,10 @@ systems: [ubuntu-22.04-64]
 environment:
     # nested test so that we can test encryted installs eventually
     # TODO enable tpm variant too for testing of encryption installs
-    NESTED_ENABLE_TPM: true
-    NESTED_ENABLE_SECURE_BOOT: true
+    #      this will probably require fixes in nested.sh as the classic VM
+    #      does not (yet) support tpm/secureboot(?)
+    NESTED_ENABLE_TPM: false
+    NESTED_ENABLE_SECURE_BOOT: false
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
     NESTED_ENABLE_OVMF: true
     NESTED_REPACK_KERNEL_SNAP: true
@@ -165,9 +167,10 @@ execute: |
   remote.exec "snap list" | MATCH pc-kernel
 
   # Check disk traits
-  DISK_MAPPINGS=(/run/mnt/ubuntu-save/device/disk-mapping.json
-                 /run/mnt/data/var/lib/snapd/device/disk-mapping.json)
-  for DM in "${DISK_MAPPINGS[@]}"; do
-      remote.exec "jq '.pc.\"structure-encryption\".\"ubuntu-save\".method' $DM" | MATCH '"LUKS"'
-      remote.exec "jq '.pc.\"structure-encryption\".\"ubuntu-data\".method' $DM" | MATCH '"LUKS"'
-  done
+  # TODO: enable for the encrypted cases
+  #DISK_MAPPINGS=(/run/mnt/ubuntu-save/device/disk-mapping.json
+  #               /run/mnt/data/var/lib/snapd/device/disk-mapping.json)
+  #for DM in "${DISK_MAPPINGS[@]}"; do
+  #    remote.exec "jq '.pc.\"structure-encryption\".\"ubuntu-save\".method' $DM" | MATCH '"LUKS"'
+  #    remote.exec "jq '.pc.\"structure-encryption\".\"ubuntu-data\".method' $DM" | MATCH '"LUKS"'
+  #done
