@@ -1456,7 +1456,6 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		return fmt.Errorf("encryption unavailable on this device: %v", whyStr)
 	}
 
-	// FIXME this is fixed to LUKS at the moment
 	encryptionSetupData, err := installEncryptPartitions(onVolumes, mntPtForType[snap.TypeGadget],
 		mntPtForType[snap.TypeKernel], sys.Model, secboot.EncryptionTypeLUKS, perfTimings)
 	if err != nil {
