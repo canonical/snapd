@@ -1763,6 +1763,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}()
 
+	if err := m.maybeDiscardNamespacesOnSnapdDowngrade(st, newInfo); err != nil {
+		return fmt.Errorf("cannot discard preserved namespaces: %v", err)
+	}
+
 	rebootInfo, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
@@ -1789,10 +1793,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	}()
 	if err != nil {
 		return err
-	}
-
-	if err := m.maybeDiscardNamespacesOnSnapdDowngrade(st, newInfo); err != nil {
-		return fmt.Errorf("cannot discard preserved namespaces: %v", err)
 	}
 
 	// Restore configuration of the target revision (if available) on revert
@@ -2032,7 +2032,11 @@ func (m *SnapManager) maybeDiscardNamespacesOnSnapdDowngrade(st *state.State, sn
 		}
 		for _, snap := range allSnaps {
 			logger.Debugf("Discarding namespace for snap %q", snap.InstanceName())
-			m.backend.DiscardSnapNamespace(snap.InstanceName())
+			if err := m.backend.DiscardSnapNamespace(snap.InstanceName()); err != nil {
+				// We don't propagate the error as we don't want to block the
+				// downgrade for this. Let's just log it down.
+				logger.Noticef("WARNING: discarding namespace of snap %q failed, snap might be unusable until next reboot", snap.InstanceName())
+			}
 		}
 	}
 	return nil
