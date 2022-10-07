@@ -149,7 +149,7 @@ func waitChange(chgId string) error {
 // happening maybe we need to find the information differently.
 func postSystemsInstallFinish(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
-	onDiskParts []gadget.OnDiskStructure, encryptionChange *client.Change) error {
+	onDiskParts []gadget.OnDiskStructure) error {
 
 	vols := make(map[string]*gadget.Volume)
 	for volName, gadgetVol := range details.Volumes {
@@ -320,7 +320,7 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err := unmountFilesystems(mntPts); err != nil {
 		return fmt.Errorf("cannot unmount filesystems: %v", err)
 	}
-	if err := postSystemsInstallFinish(cli, details, bootDevice, laidoutStructs, encryptChg); err != nil {
+	if err := postSystemsInstallFinish(cli, details, bootDevice, laidoutStructs); err != nil {
 		return fmt.Errorf("cannot finalize install: %v", err)
 	}
 	// TODO: reboot here automatically (optional)
