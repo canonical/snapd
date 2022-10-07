@@ -1464,14 +1464,10 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	}
 
 	// Store created devices in the change so they can be accessed from the installer
-	apiData := map[string]map[string]interface{}{
-		"encrypted-devices": make(map[string]interface{}),
+	apiData := map[string]interface{}{
+		"encrypted-devices": encryptionSetupData.EncryptedDevices(),
 	}
 	chg := t.Change()
-	for _, p := range encryptionSetupData.Parts {
-		// key: partition role, value: mapper device
-		apiData["encrypted-devices"][p.Role] = p.EncryptedDevice
-	}
 	chg.Set("api-data", apiData)
 
 	st.Cache(encryptionSetupDataKey{systemLabel}, encryptionSetupData)

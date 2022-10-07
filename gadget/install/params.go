@@ -46,9 +46,9 @@ type InstalledSystemSideData struct {
 
 // partEncryptionData contains meta-data for an encrypted partition.
 type partEncryptionData struct {
-	Device          string
-	Role            string
-	EncryptedDevice string
+	role            string
+	device          string
+	encryptedDevice string
 
 	volName             string
 	encryptionKey       keys.EncryptionKey
@@ -60,5 +60,14 @@ type partEncryptionData struct {
 // API calls.
 type EncryptionSetupData struct {
 	// maps from partition label to data
-	Parts map[string]partEncryptionData
+	parts map[string]partEncryptionData
+}
+
+// EncryptedDevices returns a map partition role -> LUKS mapper device.
+func (esd *EncryptionSetupData) EncryptedDevices() map[string]string {
+	m := make(map[string]string, len(esd.parts))
+	for _, p := range esd.parts {
+		m[p.role] = p.encryptedDevice
+	}
+	return m
 }

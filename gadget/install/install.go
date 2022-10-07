@@ -463,8 +463,8 @@ func deviceForMaybeEncryptedVolume(volStruct *gadget.VolumeStructure, encSetupDa
 	device := volStruct.Device
 	// Device might have been encrypted
 	if encSetupData != nil {
-		if encryptDataPart, ok := encSetupData.Parts[volStruct.Name]; ok {
-			device = encryptDataPart.EncryptedDevice
+		if encryptDataPart, ok := encSetupData.parts[volStruct.Name]; ok {
+			device = encryptDataPart.encryptedDevice
 		}
 	}
 	return device
@@ -530,7 +530,7 @@ func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.Lai
 	volToParts := make(map[string]map[string]gadget.StructureEncryptionParameters)
 
 	if encryptSetupData != nil {
-		for name, p := range encryptSetupData.Parts {
+		for name, p := range encryptSetupData.parts {
 			if volToParts[p.volName] == nil {
 				volToParts[p.volName] = make(map[string]gadget.StructureEncryptionParameters)
 			}
@@ -555,8 +555,8 @@ func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.Lai
 
 func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
 	keyForRole := make(map[string]keys.EncryptionKey)
-	for _, p := range setupData.Parts {
-		keyForRole[p.Role] = p.encryptionKey
+	for _, p := range setupData.parts {
+		keyForRole[p.role] = p.encryptionKey
 	}
 	return keyForRole
 }
@@ -572,7 +572,7 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRo
 	}
 
 	setupData := &EncryptionSetupData{
-		Parts: make(map[string]partEncryptionData),
+		parts: make(map[string]partEncryptionData),
 	}
 	for volName, vol := range onVolumes {
 		var onDiskVol *gadget.OnDiskVolume
@@ -610,11 +610,11 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRo
 			if err != nil {
 				return nil, fmt.Errorf("cannot encrypt %q: %v", device, err)
 			}
-			setupData.Parts[onDiskStruct.Name] = partEncryptionData{
-				Device: device,
-				Role:   volStruct.Role,
+			setupData.parts[onDiskStruct.Name] = partEncryptionData{
+				role:   volStruct.Role,
+				device: device,
 				// EncryptedDevice will be /dev/mapper/ubuntu-data, etc.
-				EncryptedDevice:     fsParams.Device,
+				encryptedDevice:     fsParams.Device,
 				volName:             volName,
 				encryptionKey:       encryptionKey,
 				encryptedSectorSize: fsParams.SectorSize,
