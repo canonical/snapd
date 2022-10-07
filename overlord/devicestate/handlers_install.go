@@ -1321,7 +1321,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	// TODO validation of onVolumes versus gadget.yaml
 
 	// Check if encryption is mandatory
-	if sys.Model.Grade() == asserts.ModelSecured && encryptSetupData == nil {
+	if sys.Model.StorageSafety() == asserts.StorageSafetyEncrypted && encryptSetupData == nil {
 		return fmt.Errorf("grade is %s but encryption has not been set-up", sys.Model.Grade())
 	}
 	useEncryption := encryptSetupData != nil
