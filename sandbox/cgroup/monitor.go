@@ -55,9 +55,9 @@ var currentCGroupMonitor = CGroupMonitor{
 
 func onFilesDeleted(filename string) {
 	basePath := path.Dir(filename)
-	entry := currentCGroupMonitor.watched[basePath]
+	appWatchers := currentCGroupMonitor.watched[basePath]
 	var newList []*appMonitorData
-	for _, app := range entry {
+	for _, app := range appWatchers {
 		for _, folder := range app.cgroupPaths {
 			if folder == filename {
 				app.npaths--
