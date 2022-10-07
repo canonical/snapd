@@ -716,6 +716,68 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 	c.Check(s.ensureSoonCalled, check.Equals, 0)
 }
 
+func (s *apiQuotaSuite) TestListJournalQuotas(c *check.C) {
+	st := s.d.Overlord().State()
+	st.Lock()
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, quota.NewResourcesBuilder().WithJournalSize(64*quantity.SizeMiB).Build())
+	c.Assert(err, check.IsNil)
+	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, quota.NewResourcesBuilder().WithJournalRate(100, time.Hour).Build())
+	c.Assert(err, check.IsNil)
+	err = servicestatetest.MockQuotaInState(st, "baz", "foo", nil, quota.NewResourcesBuilder().WithJournalRate(0, 0).Build())
+	c.Assert(err, check.IsNil)
+	st.Unlock()
+
+	calls := 0
+	r := daemon.MockGetQuotaUsage(func(grp *quota.Group) (*client.QuotaValues, error) {
+		calls++
+		return &client.QuotaValues{}, nil
+	})
+	defer r()
+	defer func() {
+		c.Assert(calls, check.Equals, 3)
+	}()
+
+	req, err := http.NewRequest("GET", "/v2/quotas", nil)
+	c.Assert(err, check.IsNil)
+	rsp := s.syncReq(c, req, nil)
+	c.Assert(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Result, check.FitsTypeOf, []client.QuotaGroupResult{})
+	res := rsp.Result.([]client.QuotaGroupResult)
+	c.Check(res, check.DeepEquals, []client.QuotaGroupResult{
+		{
+			GroupName: "bar",
+			Parent:    "foo",
+			Constraints: &client.QuotaValues{Journal: &client.QuotaJournalValues{
+				QuotaJournalRate: &client.QuotaJournalRate{
+					RateCount:  100,
+					RatePeriod: time.Hour,
+				},
+			}},
+			Current: &client.QuotaValues{},
+		},
+		{
+			GroupName: "baz",
+			Parent:    "foo",
+			Constraints: &client.QuotaValues{Journal: &client.QuotaJournalValues{
+				QuotaJournalRate: &client.QuotaJournalRate{
+					RateCount:  0,
+					RatePeriod: 0,
+				},
+			}},
+			Current: &client.QuotaValues{},
+		},
+		{
+			GroupName: "foo",
+			Subgroups: []string{"bar", "baz"},
+			Constraints: &client.QuotaValues{Journal: &client.QuotaJournalValues{
+				Size: 64 * quantity.SizeMiB,
+			}},
+			Current: &client.QuotaValues{},
+		},
+	})
+	c.Check(s.ensureSoonCalled, check.Equals, 0)
+}
+
 func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()

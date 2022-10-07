@@ -62,13 +62,22 @@ execute: |
   # Now ask for the namespace logs and lets see if we can see messages from 'LogDaemon'
   retry -n 5 sh -c "$TESTSTOOLS/journal-state get-log --namespace snap-group-one | MATCH LogDaemon"
 
-  # Change the size and ensure that the journal is restarted
+  # Change the size and set rate to zero and ensure that the journal is restarted, and that the changes
+  # are correctly reflected in the journal config. We try to set the rate to zero to verify we allow zero
+  # values. This was originally a bug reported (LP1912173).
   echo "Updating size of journal to ensure size changes"
-  snap set-quota group-one --journal-size=64MB
+  snap set-quota group-one --journal-size=64MB --journal-rate-limit=0/0s
 
   echo "And the service is still active"
   retry -n 3 sh -c "snap services test-snapd-journal-quota.logger | MATCH 'test-snapd-journal-quota.logger\s+enabled\s+active'"
 
+  # Verify the new contents of /etc/systemd/journald@snap-group-one.conf
+  echo "Verifying the new journal config contents"
+  MATCH "^SystemMaxUse=64000000"    < /etc/systemd/journald@snap-group-one.conf
+  MATCH "^RuntimeMaxUse=64000000"   < /etc/systemd/journald@snap-group-one.conf
+  MATCH "^RateLimitIntervalSec=0us" < /etc/systemd/journald@snap-group-one.conf
+  MATCH "^RateLimitBurst=0"         < /etc/systemd/journald@snap-group-one.conf
+  
   # Ensure that the new size is printed in the journal logs. We requested 64MB but
   # this will most likely print out as 61.0M, so lets be a bit flexible
   "$TESTSTOOLS"/journal-state get-log --namespace snap-group-one | MATCH "max 6[0-9].[0-9]M,"
