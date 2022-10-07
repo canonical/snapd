@@ -584,7 +584,7 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRo
 			if volStruct.Device == "" {
 				return nil, fmt.Errorf("device field for volume struct %v cannot be empty", volStruct)
 			}
-			device := volStruct.UnencryptedDevice
+			device := volStruct.Device
 
 			partSysfsPath, err := sysfsPathForBlockDevice(device)
 			if err != nil {
