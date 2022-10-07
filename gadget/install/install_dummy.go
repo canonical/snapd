@@ -43,8 +43,7 @@ func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionS
 	return "", nil, fmt.Errorf("build without secboot support")
 }
 
-func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentObserver,
-	gadgetRoot, kernelRoot string, model *asserts.Model, encSetupData *EncryptionSetupData, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
+func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentObserver, allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *EncryptionSetupData, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
 	return nil, fmt.Errorf("build without secboot support")
 }
 
