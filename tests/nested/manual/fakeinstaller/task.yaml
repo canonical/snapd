@@ -100,6 +100,10 @@ execute: |
       --snap ./pc-new.snap \
       my.model \
       ./classic-seed
+  # make the seed label more predictable for fake-installer auto-mode
+  NEW_LABEL=classic
+  mv ./classic-seed/system-seed/systems/"$LABEL" ./classic-seed/system-seed/systems/"$NEW_LABEL"
+  LABEL="$NEW_LABEL"
   cp -a ./classic-seed/system-seed/ /var/lib/snapd/seed
 
   # do some light checking that the system is valid
@@ -114,7 +118,7 @@ execute: |
   truncate --size=4G fake-disk.img
   loop_device=$(losetup --show -f ./fake-disk.img)
   # and "install" the current seed to the fake disk
-  ./fakeinstaller "$LABEL" "$loop_device" "$TESTSLIB"/fakeinstaller/mk-classic-rootfs.sh
+  ./fakeinstaller "$LABEL" "$TESTSLIB"/fakeinstaller/mk-classic-rootfs.sh "$loop_device"
   # validate that the fake installer created the expected partitions
   sfdisk -d "$loop_device" > fdisk_output
   MATCH "${loop_device}p1 .* name=\"BIOS Boot\""   < fdisk_output

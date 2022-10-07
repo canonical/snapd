@@ -53,12 +53,17 @@ PermitRootLogin yes
 PasswordAuthentication yes
 EOF
 
-        # install the current in-development version of snapd
-        GOPATH="${GOPATH:-./}"
-        package=$(find "$GOPATH" -maxdepth 1 -name "snapd_*.deb")
-        cp "$package" "$DESTDIR"/var/cache/apt/archives
-        sudo chroot "$DESTDIR" /usr/bin/sh -c \
-             "DEBIAN_FRONTEND=noninteractive apt install -y /var/cache/apt/archives/$(basename "$package")"
+	# install the current in-development version of snapd when available,
+	# this will give us seeding support
+	#
+	# TODO: find a better way to do this?
+	GOPATH="${GOPATH:-/var/lib/snapd}"
+	package=$(find "$GOPATH" -maxdepth 1 -name "snapd_*.deb")
+	if [ -e "$package"  ]; then
+            cp "$package" "$DESTDIR"/var/cache/apt/archives
+            sudo chroot "$DESTDIR" /usr/bin/sh -c \
+		 "DEBIAN_FRONTEND=noninteractive apt install -y /var/cache/apt/archives/$(basename "$package")"
+	fi
     fi
         
     # ensure we can login
@@ -96,7 +101,8 @@ if [ -f /cdrom/casper/base.squashfs ]; then
     ROLE=installer
 else
     BASETAR=ubuntu-base.tar.gz
-    wget -c http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.1-base-amd64.tar.gz -O "$BASETAR"
+    # important to use "-q" to avoid journalctl suppressing  log output
+    wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.1-base-amd64.tar.gz -O "$BASETAR"
     sudo tar -C "$DST" -xf "$BASETAR"
     ROLE=spread
 fi
