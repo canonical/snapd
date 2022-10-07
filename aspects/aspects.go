@@ -40,10 +40,6 @@ const (
 
 var accessTypeStrings = []string{"read-write", "read", "write"}
 
-func (t accessType) String() string {
-	return accessTypeStrings[t]
-}
-
 func newAccessType(access string) (accessType, error) {
 	// default to read-write access
 	if access == "" {
@@ -56,19 +52,19 @@ func newAccessType(access string) (accessType, error) {
 		}
 	}
 
-	return readWrite, fmt.Errorf("cannot create accessType: expected 'access' to be one of %s but was %q", strutil.Quoted(accessTypeStrings), access)
+	return readWrite, fmt.Errorf("expected 'access' to be one of %s but was %q", strutil.Quoted(accessTypeStrings), access)
 }
 
-type ErrNotFound struct {
+type NotFoundError struct {
 	Err string
 }
 
-func (e *ErrNotFound) Error() string {
+func (e *NotFoundError) Error() string {
 	return e.Err
 }
 
-func (e *ErrNotFound) Is(err error) bool {
-	_, ok := err.(*ErrNotFound)
+func (e *NotFoundError) Is(err error) bool {
+	_, ok := err.(*NotFoundError)
 	return ok
 }
 
@@ -97,7 +93,7 @@ type Directory struct {
 // and access patterns.
 func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag DataBag, schema Schema) (*Directory, error) {
 	if len(aspects) == 0 {
-		return nil, errors.New(`cannot create aspects directory: no aspects in map`)
+		return nil, errors.New(`cannot create aspects directory: no aspects`)
 	}
 
 	aspectDir := Directory{
@@ -124,14 +120,14 @@ func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag Dat
 		for _, aspectPattern := range aspectPatterns {
 			name, ok := aspectPattern["name"]
 			if !ok || name == "" {
-				return nil, errors.New(`cannot create aspect pattern without a "name"`)
+				return nil, errors.New(`cannot create aspect pattern without a "name" field`)
 			}
 
-			// TODO: validate that a path isn't a subset of another. Otherwise,
-			// we can write a user value in a subkey of a path (that should be a map).
+			// TODO: validate that a path isn't a subset of another (possibly somewhere else).
+			// Otherwise,  we can write a user value in a subkey of a path (that should be a map).
 			path, ok := aspectPattern["path"]
 			if !ok || path == "" {
-				return nil, errors.New(`cannot create aspect pattern without a "path"`)
+				return nil, errors.New(`cannot create aspect pattern without a "path" field`)
 			}
 
 			access, err := newAccessType(aspectPattern["access"])
@@ -187,7 +183,7 @@ func (a *Aspect) Set(name string, value interface{}) error {
 
 	}
 
-	return &ErrNotFound{fmt.Sprintf("cannot set %q in aspect %q: name not found", name, a.Name)}
+	return &NotFoundError{fmt.Sprintf("cannot set %q: name not found", name)}
 }
 
 func (a *Aspect) Get(name string, value interface{}) error {
@@ -200,10 +196,17 @@ func (a *Aspect) Get(name string, value interface{}) error {
 			return fmt.Errorf("cannot get %q: path is not readable", name)
 		}
 
-		return a.directory.dataBag.Get(p.path, value)
+		if err := a.directory.dataBag.Get(p.path, value); err != nil {
+			if errors.Is(err, &NotFoundError{}) {
+				return &NotFoundError{fmt.Sprintf("cannot get %q: %v", name, err)}
+			}
+
+			return err
+		}
+		return nil
 	}
 
-	return &ErrNotFound{fmt.Sprintf("cannot get %q in aspect %q: name not found", name, a.Name)}
+	return &NotFoundError{fmt.Sprintf("cannot get %q: name not found", name)}
 }
 
 // accessPattern is an aspect accessPattern that holds information about a accessPattern.
@@ -231,59 +234,50 @@ func NewJSONDataBag() JSONDataBag {
 
 func (s JSONDataBag) Get(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
-	err := get(subKeys, s, value)
-	if uErr, ok := err.(*json.UnmarshalTypeError); ok {
-		return fmt.Errorf("cannot read %q into variable of type \"%T\" because it maps to JSON %s", path, value, uErr.Value)
+	return get(subKeys, 0, s, value)
+}
+
+func get(subKeys []string, index int, node map[string]json.RawMessage, result interface{}) error {
+	key := subKeys[index]
+	rawLevel, ok := node[key]
+	if !ok {
+		pathPrefix := strings.Join(subKeys[:index+1], ".")
+		return &NotFoundError{fmt.Sprintf("value of key path %q not found", pathPrefix)}
 	}
 
-	return err
+	// read the final value
+	if index == len(subKeys)-1 {
+		err := json.Unmarshal(rawLevel, result)
+		if uErr, ok := err.(*json.UnmarshalTypeError); ok {
+			path := strings.Join(subKeys, ".")
+			return fmt.Errorf("cannot read value of %q into %T: maps to %s", path, result, uErr.Value)
+		}
+
+		return err
+	}
+
+	// decode the next map level
+	var level map[string]json.RawMessage
+	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
+		if uErr, ok := err.(*json.UnmarshalTypeError); ok {
+			pathPrefix := strings.Join(subKeys[:index+1], ".")
+			return fmt.Errorf("cannot read path prefix %q: prefix maps to %s", pathPrefix, uErr.Value)
+		}
+		return err
+	}
+
+	return get(subKeys, index+1, level, result)
 }
 
 func (s JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
-	_, err := set(subKeys, s, value)
+	_, err := set(subKeys, 0, s, value)
 	return err
 }
 
-func (s JSONDataBag) Data() ([]byte, error) {
-	return json.Marshal(s)
-}
-
-type JSONSchema struct{}
-
-func NewJSONSchema() *JSONSchema {
-	return &JSONSchema{}
-}
-
-func (s *JSONSchema) Validate(jsonData []byte) error {
-	// the top-level is always an object
-	var data map[string]json.RawMessage
-	return json.Unmarshal(jsonData, &data)
-}
-
-func get(subKeys []string, node map[string]json.RawMessage, result interface{}) error {
-	key := subKeys[0]
-	rawLevel, ok := node[key]
-	if !ok {
-		return &ErrNotFound{fmt.Sprintf("sub-key %q not found", key)}
-	}
-
-	if len(subKeys) == 1 {
-		return json.Unmarshal(rawLevel, result)
-	}
-
-	var level map[string]json.RawMessage
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
-		return err
-	}
-
-	return get(subKeys[1:], level, result)
-}
-
-func set(subKeys []string, node map[string]json.RawMessage, value interface{}) (json.RawMessage, error) {
-	key := subKeys[0]
-
-	if len(subKeys) == 1 {
+func set(subKeys []string, index int, node map[string]json.RawMessage, value interface{}) (json.RawMessage, error) {
+	key := subKeys[index]
+	if index == len(subKeys)-1 {
 		data, err := json.Marshal(value)
 		if err != nil {
 			return nil, err
@@ -308,11 +302,27 @@ func set(subKeys []string, node map[string]json.RawMessage, value interface{}) (
 		return nil, err
 	}
 
-	rawLevel, err := set(subKeys[1:], level, value)
+	rawLevel, err := set(subKeys, index+1, level, value)
 	if err != nil {
 		return nil, err
 	}
 
 	node[key] = rawLevel
 	return json.Marshal(node)
+}
+
+func (s JSONDataBag) Data() ([]byte, error) {
+	return json.Marshal(s)
+}
+
+type JSONSchema struct{}
+
+func NewJSONSchema() *JSONSchema {
+	return &JSONSchema{}
+}
+
+func (s *JSONSchema) Validate(jsonData []byte) error {
+	// the top-level is always an object
+	var data map[string]json.RawMessage
+	return json.Unmarshal(jsonData, &data)
 }
