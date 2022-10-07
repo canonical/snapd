@@ -459,6 +459,17 @@ func applyLayoutToOnDiskStructure(onDiskVol *gadget.OnDiskVolume, partNode strin
 	return onDiskStruct, nil
 }
 
+func deviceForMaybeEncryptedVolume(volStruct *gadget.VolumeStructure, encSetupData *EncryptionSetupData) string {
+	device := volStruct.Device
+	// Device might have been encrypted
+	if encSetupData != nil {
+		if encryptDataPart, ok := encSetupData.Parts[volStruct.Name]; ok {
+			device = encryptDataPart.EncryptedDevice
+		}
+	}
+	return device
+}
+
 // WriteContent writes gadget content to the devices specified in
 // onVolumes. It returns the resolved on disk volumes.
 // TODO this needs unit tests
@@ -503,13 +514,7 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 				return nil, fmt.Errorf("cannot retrieve on disk info for %q: %v", volStruct.Device, err)
 			}
 
-			device := volStruct.Device
-			// Device might have been encrypted
-			if encSetupData != nil {
-				if encryptDataPart, ok := encSetupData.Parts[volStruct.Name]; ok {
-					device = encryptDataPart.EncryptedDevice
-				}
-			}
+			device := deviceForMaybeEncryptedVolume(&volStruct, encSetupData)
 			logger.Debugf("writing content on partition %s", device)
 			if err := writePartitionContent(onDiskStruct, device, observer, perfTimings); err != nil {
 				return nil, err
@@ -764,12 +769,7 @@ func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionS
 			}
 			mntPt := filepath.Join(boot.InitramfsRunMntDir, part.Name)
 			// Device might have been encrypted
-			device := part.Device
-			if encSetupData != nil {
-				if encryptDataPart, ok := encSetupData.Parts[part.Name]; ok {
-					device = encryptDataPart.EncryptedDevice
-				}
-			}
+			device := deviceForMaybeEncryptedVolume(&part, encSetupData)
 
 			if err := mountFilesystem(device, part.Filesystem, mntPt); err != nil {
 				defer unmount()
