@@ -168,6 +168,9 @@ execute: |
 
   # Check disk traits
   # TODO: enable for the encrypted cases
+  # TODO: this should grow extensive check like
+  #   tests/main/uc20-create-partitions/task.yaml
+  #   tests/main/uc20-create-partitions-encrypt/task.yaml
   #DISK_MAPPINGS=(/run/mnt/ubuntu-save/device/disk-mapping.json
   #               /run/mnt/data/var/lib/snapd/device/disk-mapping.json)
   #for DM in "${DISK_MAPPINGS[@]}"; do
