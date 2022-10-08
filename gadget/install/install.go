@@ -526,22 +526,14 @@ func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentOb
 }
 
 func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *EncryptionSetupData) error {
-	// Volume to map of part label to encryption parameters
-	volToParts := make(map[string]map[string]gadget.StructureEncryptionParameters)
-
+	optsPerVol := map[string]*gadget.DiskVolumeValidationOptions{}
 	if encryptSetupData != nil {
 		for name, p := range encryptSetupData.parts {
-			if volToParts[p.volName] == nil {
-				volToParts[p.volName] = make(map[string]gadget.StructureEncryptionParameters)
+			if optsPerVol[p.volName] == nil {
+				optsPerVol[p.volName] = &gadget.DiskVolumeValidationOptions{
+					ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{}}
 			}
-			volToParts[p.volName][name] = p.encryptionParams
-		}
-	}
-
-	optsPerVol := map[string]*gadget.DiskVolumeValidationOptions{}
-	for volName, partEncParams := range volToParts {
-		optsPerVol[volName] = &gadget.DiskVolumeValidationOptions{
-			ExpectedStructureEncryption: partEncParams,
+			optsPerVol[p.volName].ExpectedStructureEncryption[name] = p.encryptionParams
 		}
 	}
 
