@@ -198,6 +198,8 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 	if len(volumes) != 1 {
 		return nil, fmt.Errorf("got unexpected number of volumes %v", len(volumes))
 	}
+	// XXX: make this more elegant
+	shouldEncrypt := len(encryptedDevices) > 0
 
 	disk, err := disks.DiskFromDeviceName(bootDevice)
 	if err != nil {
@@ -212,7 +214,7 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 		}
 
 		var partNode string
-		if volStruct.Role == gadget.SystemSave || volStruct.Role == gadget.SystemData {
+		if shouldEncrypt && (volStruct.Role == gadget.SystemSave || volStruct.Role == gadget.SystemData) {
 			encryptedDevice := encryptedDevices[volStruct.Role]
 			if encryptedDevice == "" {
 				return nil, fmt.Errorf("no encrypted device found for %s role", volStruct.Role)
@@ -286,6 +288,19 @@ func createSeedOnTarget(bootDevice, seedLabel string) error {
 	return nil
 }
 
+func detectStorageEncryption(seedLabel string) (bool, error) {
+	cli := client.New(nil)
+	details, err := cli.SystemDetails(seedLabel)
+	if err != nil {
+		return false, err
+	}
+	logger.Noticef("detect encryption: %v", details)
+	if details.StorageEncryption.Support == client.StorageEncryptionSupportDefective {
+		return false, errors.New(details.StorageEncryption.UnavailableReason)
+	}
+	return details.StorageEncryption.Support == client.StorageEncryptionSupportAvailable, nil
+}
+
 func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if len(os.Args) != 4 {
 		// xxx: allow installing real UC without a classic-rootfs later
@@ -306,9 +321,16 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err != nil {
 		return fmt.Errorf("cannot setup partitions: %v", err)
 	}
-	encryptedDevices, err := postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, laidoutStructs)
+	shouldEncrypt, err := detectStorageEncryption(seedLabel)
 	if err != nil {
-		return fmt.Errorf("cannot setup storage encryption: %v", err)
+		return err
+	}
+	var encryptedDevices = make(map[string]string)
+	if shouldEncrypt {
+		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, laidoutStructs)
+		if err != nil {
+			return fmt.Errorf("cannot setup storage encryption: %v", err)
+		}
 	}
 	mntPts, err := createAndMountFilesystems(bootDevice, details.Volumes, encryptedDevices)
 	if err != nil {
