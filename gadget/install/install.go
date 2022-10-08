@@ -473,8 +473,9 @@ func deviceForMaybeEncryptedVolume(volStruct *gadget.VolumeStructure, encSetupDa
 // WriteContent writes gadget content to the devices specified in
 // onVolumes. It returns the resolved on disk volumes.
 // TODO this needs unit tests
-func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentObserver,
-	allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *EncryptionSetupData, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
+func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *EncryptionSetupData, observer gadget.ContentObserver, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
+	// TODO this taking onVolumes and allLaidOutVols is odd,
+	// we should try to avoid this when we have partial
 
 	var onDiskVols []*gadget.OnDiskVolume
 	for volName, vol := range onVolumes {
@@ -553,11 +554,11 @@ func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
 	return keyForRole
 }
 
-func EncryptPartitions(onVolumes map[string]*gadget.Volume, gadgetRoot, kernelRoot string,
-	model *asserts.Model, encryptionType secboot.EncryptionType, perfTimings timings.Measurer) (*EncryptionSetupData, error) {
+func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secboot.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*EncryptionSetupData, error) {
 
 	// TODO for partial gadgets we should use the data from onVolumes instead of
 	// what using only what comes from gadget.yaml.
+	// we might not want to take onVolumes as such as input at that point
 	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
 	if err != nil {
 		return nil, fmt.Errorf("when encrypting partitions: cannot layout volumes: %v", err)
