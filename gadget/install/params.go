@@ -50,8 +50,9 @@ type partEncryptionData struct {
 	device          string
 	encryptedDevice string
 
-	volName             string
-	encryptionKey       keys.EncryptionKey
+	volName       string
+	encryptionKey keys.EncryptionKey
+	// TODO: this is currently not used
 	encryptedSectorSize quantity.Size
 	encryptionParams    gadget.StructureEncryptionParameters
 }
