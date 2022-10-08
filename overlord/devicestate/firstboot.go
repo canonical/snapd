@@ -43,7 +43,7 @@ var errNothingToDo = errors.New("nothing to do")
 
 var runtimeNumCPU = runtime.NumCPU
 
-var createAllSystemUsers = createAllKnownSystemUsers
+var createKnownUsers = createAllKnownSystemUsers
 
 func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
 	if sn.Required {
@@ -404,7 +404,7 @@ func processAutoImportAssertions(st *state.State, deviceSeed seed.Seed, db asser
 		return
 	}
 	serial, _ := findSerial(st, nil)
-	_, err = createAllSystemUsers(st, db, deviceSeed.Model(), serial, true)
+	_, err = createKnownUsers(st, db, deviceSeed.Model(), serial, true)
 	if err != nil {
 		logger.Noticef("failed to create known users: %v", err)
 	}
