@@ -384,7 +384,9 @@ func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool)
 	return deviceSeed, nil
 }
 
-// processAutoImportAssertions checks model grade
+// processAutoImportAssertions attempts to load the auto import assertions 
+// and create all knows system users, if and only if the model grade is dangerous.
+// Processing of the auto-import assertion is opportunistic and should not fail
 // if model grade is dangerous, it attempts to load
 // auto import assertions and create all knows system users.
 // Processing of the auto-import assertion is opportunistic and should not fail
