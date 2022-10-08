@@ -527,7 +527,8 @@ debug-each: |
     if tests.nested is-nested; then
         echo '# nested VM status'
         tests.nested vm status
-        tests.nested get serial-log
+        # filter out ^[ to ensure that the debug output gets not messed up
+        tests.nested get serial-log | sed 's/\x1b//g'
         # add another echo in case the serial log is missing a newline
         echo
 
