@@ -526,6 +526,54 @@ func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string
 	return onDiskVols, nil
 }
 
+// MountVolumes mounts partitions for the volumes specified by
+// onVolumes. It returns the ESP partition and a function that needs
+// to be called for unmounting them.
+func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionSetupData) (espMntDir string, unmount func() error, err error) {
+	var mountPoints []string
+	numEsp := 0
+	unmount = func() (err error) {
+		for _, mntPt := range mountPoints {
+			errUnmount := sysUnmount(mntPt, 0)
+			if errUnmount != nil {
+				logger.Noticef("cannot unmount %q: %v", mntPt, errUnmount)
+			}
+			// Make sure we do not set err to nil if it had already an error
+			if errUnmount != nil {
+				err = errUnmount
+			}
+		}
+		return err
+	}
+	for _, vol := range onVolumes {
+		for _, part := range vol.Structure {
+			if part.Filesystem == "" {
+				continue
+			}
+			mntPt := filepath.Join(boot.InitramfsRunMntDir, part.Name)
+			// Device might have been encrypted
+			device := deviceForMaybeEncryptedVolume(&part, encSetupData)
+
+			if err := mountFilesystem(device, part.Filesystem, mntPt); err != nil {
+				defer unmount()
+				return "", nil, fmt.Errorf("cannot mount %q at %q: %v", device, mntPt, err)
+			}
+			mountPoints = append(mountPoints, mntPt)
+
+			if strings.Contains(strings.ToUpper(part.Type), gadget.GPTPartitionGUIDESP) {
+				espMntDir = mntPt
+				numEsp++
+			}
+		}
+	}
+	if numEsp != 1 {
+		defer unmount()
+		return "", nil, fmt.Errorf("there are %d ESP partitions, expected one", numEsp)
+	}
+
+	return espMntDir, unmount, nil
+}
+
 func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *EncryptionSetupData) error {
 	optsPerVol := map[string]*gadget.DiskVolumeValidationOptions{}
 	if encryptSetupData != nil {
@@ -544,14 +592,6 @@ func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.Lai
 	}
 
 	return nil
-}
-
-func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
-	keyForRole := make(map[string]keys.EncryptionKey)
-	for _, p := range setupData.parts {
-		keyForRole[p.role] = p.encryptionKey
-	}
-	return keyForRole
 }
 
 func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secboot.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*EncryptionSetupData, error) {
@@ -617,6 +657,14 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 	}
 
 	return setupData, nil
+}
+
+func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
+	keyForRole := make(map[string]keys.EncryptionKey)
+	for _, p := range setupData.parts {
+		keyForRole[p.role] = p.encryptionKey
+	}
+	return keyForRole
 }
 
 func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
@@ -733,52 +781,4 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		KeyForRole:    keyForRole,
 		DeviceForRole: deviceForRole,
 	}, nil
-}
-
-// MountVolumes mounts partitions for the volumes specified by
-// onVolumes. It returns the ESP partition and a function that needs
-// to be called for unmounting them.
-func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionSetupData) (espMntDir string, unmount func() error, err error) {
-	var mountPoints []string
-	numEsp := 0
-	unmount = func() (err error) {
-		for _, mntPt := range mountPoints {
-			errUnmount := sysUnmount(mntPt, 0)
-			if errUnmount != nil {
-				logger.Noticef("cannot unmount %q: %v", mntPt, errUnmount)
-			}
-			// Make sure we do not set err to nil if it had already an error
-			if errUnmount != nil {
-				err = errUnmount
-			}
-		}
-		return err
-	}
-	for _, vol := range onVolumes {
-		for _, part := range vol.Structure {
-			if part.Filesystem == "" {
-				continue
-			}
-			mntPt := filepath.Join(boot.InitramfsRunMntDir, part.Name)
-			// Device might have been encrypted
-			device := deviceForMaybeEncryptedVolume(&part, encSetupData)
-
-			if err := mountFilesystem(device, part.Filesystem, mntPt); err != nil {
-				defer unmount()
-				return "", nil, fmt.Errorf("cannot mount %q at %q: %v", device, mntPt, err)
-			}
-			mountPoints = append(mountPoints, mntPt)
-
-			if strings.Contains(strings.ToUpper(part.Type), gadget.GPTPartitionGUIDESP) {
-				espMntDir = mntPt
-				numEsp++
-			}
-		}
-	}
-	if numEsp != 1 {
-		defer unmount()
-		return "", nil, fmt.Errorf("there are %d ESP partitions, expected one", numEsp)
-	}
-
-	return espMntDir, unmount, nil
 }
