@@ -1322,7 +1322,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	// Check if encryption is mandatory
 	if sys.Model.StorageSafety() == asserts.StorageSafetyEncrypted && encryptSetupData == nil {
-		return fmt.Errorf("grade is %s but encryption has not been set-up", sys.Model.Grade())
+		return fmt.Errorf("storage encryption required by model but has not been set up")
 	}
 	useEncryption := encryptSetupData != nil
 
@@ -1359,7 +1359,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	defer unmountParts()
 
 	if err := install.SaveStorageTraits(sys.Model, allLaidOutVols, encryptSetupData); err != nil {
-		return fmt.Errorf("cannot finish encryption: %v", err)
+		return err
 	}
 
 	if useEncryption {
@@ -1447,7 +1447,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	if err != nil {
 		return err
 	}
-	if encryptInfo.Disabled || !encryptInfo.Available {
+	if !encryptInfo.Available {
 		var whyStr string
 		if encryptInfo.UnavailableErr != nil {
 			whyStr = encryptInfo.UnavailableErr.Error()
