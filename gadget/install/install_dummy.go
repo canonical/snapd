@@ -26,6 +26,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -37,10 +39,23 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, device string, opt
 	return nil, fmt.Errorf("build without secboot support")
 }
 
-func MountVolumes(onVolumes map[string]*gadget.Volume) (espMntDir string, unmount func() error, err error) {
+func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *EncryptionSetupData, observer gadget.ContentObserver, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
+	return nil, fmt.Errorf("build without secboot support")
+}
+
+func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionSetupData) (espMntDir string, unmount func() error, err error) {
 	return "", nil, fmt.Errorf("build without secboot support")
 }
 
-func WriteContent(onVolumes map[string]*gadget.Volume, observer gadget.ContentObserver, gadgetRoot, kernelRoot string, model *asserts.Model, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
+func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *EncryptionSetupData) error {
+	return fmt.Errorf("build without secboot support")
+}
+
+func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secboot.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string,
+	perfTimings timings.Measurer) (*EncryptionSetupData, error) {
 	return nil, fmt.Errorf("build without secboot support")
+}
+
+func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
+	return nil
 }

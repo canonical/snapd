@@ -7,6 +7,8 @@ systems: [ubuntu-22.04-64]
 environment:
     # nested test so that we can test encryted installs eventually
     # TODO enable tpm variant too for testing of encryption installs
+    #      this will probably require fixes in nested.sh as the classic VM
+    #      does not (yet) support tpm/secureboot(?)
     NESTED_ENABLE_TPM: false
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -163,3 +165,15 @@ execute: |
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
   remote.exec "snap changes" | MATCH "Done.* Initialize system state"
   remote.exec "snap list" | MATCH pc-kernel
+
+  # Check disk traits
+  # TODO: enable for the encrypted cases
+  # TODO: this should grow extensive check like
+  #   tests/main/uc20-create-partitions/task.yaml
+  #   tests/main/uc20-create-partitions-encrypt/task.yaml
+  #DISK_MAPPINGS=(/run/mnt/ubuntu-save/device/disk-mapping.json
+  #               /run/mnt/data/var/lib/snapd/device/disk-mapping.json)
+  #for DM in "${DISK_MAPPINGS[@]}"; do
+  #    remote.exec "jq '.pc.\"structure-encryption\".\"ubuntu-save\".method' $DM" | MATCH '"LUKS"'
+  #    remote.exec "jq '.pc.\"structure-encryption\".\"ubuntu-data\".method' $DM" | MATCH '"LUKS"'
+  #done

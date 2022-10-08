@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/mkfs"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 func firstVol(volumes map[string]*gadget.Volume) *gadget.Volume {
@@ -82,11 +83,53 @@ func runMntFor(label string) string {
 	return filepath.Join(dirs.GlobalRootDir, "/run/fakeinstaller-mnt/", label)
 }
 
-func postSystemsInstallSetupStorageEncryption(details *client.SystemDetails) error {
-	// TODO: check details.StorageEncryption and call POST
-	// /systems/<seed-label> with "action":"install" and
-	// "step":"setup-storage-encryption"
-	return nil
+func postSystemsInstallSetupStorageEncryption(cli *client.Client,
+	details *client.SystemDetails, bootDevice string,
+	onDiskParts []gadget.OnDiskStructure) (map[string]string, error) {
+
+	// We are modifiying the details struct here
+	for _, gadgetVol := range details.Volumes {
+		for i := range gadgetVol.Structure {
+			switch gadgetVol.Structure[i].Role {
+			case "system-save", "system-data":
+				// only roles for which we will want encryption
+			default:
+				continue
+			}
+			for _, part := range onDiskParts {
+				if part.Name == gadgetVol.Structure[i].Name {
+					gadgetVol.Structure[i].Device = part.Node
+					break
+				}
+			}
+		}
+	}
+
+	// Storage encryption makes specified partitions encrypted
+	opts := &client.InstallSystemOptions{
+		Step:      client.InstallStepSetupStorageEncryption,
+		OnVolumes: details.Volumes,
+	}
+	chgId, err := cli.InstallSystem(details.Label, opts)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("Change %s created\n", chgId)
+	if err := waitChange(chgId); err != nil {
+		return nil, err
+	}
+
+	chg, err := cli.Change(chgId)
+	if err != nil {
+		return nil, err
+	}
+
+	var encryptedDevices = make(map[string]string)
+	if err := chg.Get("encrypted-devices", &encryptedDevices); err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, fmt.Errorf("cannot get encrypted-devices from change: %v", err)
+	}
+
+	return encryptedDevices, nil
 }
 
 // XXX: reuse/extract cmd/snap/wait.go:waitMixin()
@@ -110,22 +153,27 @@ func waitChange(chgId string) error {
 
 // TODO laidoutStructs is used to get the devices, when encryption is
 // happening maybe we need to find the information differently.
-func postSystemsInstallFinish(cli *client.Client, details *client.SystemDetails,
-	bootDevice string, laidoutStructs []gadget.OnDiskStructure) error {
+func postSystemsInstallFinish(cli *client.Client,
+	details *client.SystemDetails, bootDevice string,
+	onDiskParts []gadget.OnDiskStructure) error {
 
 	vols := make(map[string]*gadget.Volume)
 	for volName, gadgetVol := range details.Volumes {
-		laidIdx := 0
 		for i := range gadgetVol.Structure {
 			// TODO mbr is special, what is the device for that?
-			var device string
 			if gadgetVol.Structure[i].Role == "mbr" {
-				device = bootDevice
-			} else {
-				device = laidoutStructs[laidIdx].Node
-				laidIdx++
+				gadgetVol.Structure[i].Device = bootDevice
+				continue
 			}
-			gadgetVol.Structure[i].Device = device
+			for _, part := range onDiskParts {
+				// Same partition label
+				if part.Name == gadgetVol.Structure[i].Name {
+					node := part.Node
+					logger.Debugf("partition to install: %q", node)
+					gadgetVol.Structure[i].Device = node
+					break
+				}
+			}
 		}
 		vols[volName] = gadgetVol
 	}
@@ -145,11 +193,13 @@ func postSystemsInstallFinish(cli *client.Client, details *client.SystemDetails,
 
 // createAndMountFilesystems creates and mounts filesystems. It returns
 // an slice with the paths where the filesystems have been mounted to.
-func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Volume) ([]string, error) {
+func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Volume, encryptedDevices map[string]string) ([]string, error) {
 	// only support a single volume for now
 	if len(volumes) != 1 {
 		return nil, fmt.Errorf("got unexpected number of volumes %v", len(volumes))
 	}
+	// XXX: make this more elegant
+	shouldEncrypt := len(encryptedDevices) > 0
 
 	disk, err := disks.DiskFromDeviceName(bootDevice)
 	if err != nil {
@@ -158,28 +208,40 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 	vol := firstVol(volumes)
 
 	var mountPoints []string
-	for _, stru := range vol.Structure {
-		if stru.Label == "" || stru.Filesystem == "" {
+	for _, volStruct := range vol.Structure {
+		if volStruct.Label == "" || volStruct.Filesystem == "" {
 			continue
 		}
 
-		part, err := disk.FindMatchingPartitionWithPartLabel(stru.Label)
-		if err != nil {
-			return nil, err
+		var partNode string
+		if shouldEncrypt && (volStruct.Role == gadget.SystemSave || volStruct.Role == gadget.SystemData) {
+			encryptedDevice := encryptedDevices[volStruct.Role]
+			if encryptedDevice == "" {
+				return nil, fmt.Errorf("no encrypted device found for %s role", volStruct.Role)
+			}
+			partNode = encryptedDevice
+		} else {
+			part, err := disk.FindMatchingPartitionWithPartLabel(volStruct.Label)
+			if err != nil {
+				return nil, err
+			}
+			partNode = part.KernelDeviceNode
 		}
-		if err := mkfs.Make(stru.Filesystem, part.KernelDeviceNode, stru.Label, 0, 0); err != nil {
+
+		logger.Debugf("making filesystem in %q", partNode)
+		if err := mkfs.Make(volStruct.Filesystem, partNode, volStruct.Label, 0, 0); err != nil {
 			return nil, err
 		}
 
 		// Mount filesystem
 		// XXX: reuse gadget/install/content.go:mountFilesystem()
 		// instead (it will also call udevadm)
-		mountPoint := runMntFor(stru.Label)
+		mountPoint := runMntFor(volStruct.Label)
 		if err := os.MkdirAll(mountPoint, 0755); err != nil {
 			return nil, err
 		}
 		// XXX: is there a better way?
-		if output, err := exec.Command("mount", part.KernelDeviceNode, mountPoint).CombinedOutput(); err != nil {
+		if output, err := exec.Command("mount", partNode, mountPoint).CombinedOutput(); err != nil {
 			return nil, osutil.OutputErr(output, err)
 		}
 		mountPoints = append(mountPoints, mountPoint)
@@ -226,6 +288,19 @@ func createSeedOnTarget(bootDevice, seedLabel string) error {
 	return nil
 }
 
+func detectStorageEncryption(seedLabel string) (bool, error) {
+	cli := client.New(nil)
+	details, err := cli.SystemDetails(seedLabel)
+	if err != nil {
+		return false, err
+	}
+	logger.Noticef("detect encryption: %v", details)
+	if details.StorageEncryption.Support == client.StorageEncryptionSupportDefective {
+		return false, errors.New(details.StorageEncryption.UnavailableReason)
+	}
+	return details.StorageEncryption.Support == client.StorageEncryptionSupportAvailable, nil
+}
+
 func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if len(os.Args) != 4 {
 		// xxx: allow installing real UC without a classic-rootfs later
@@ -246,10 +321,18 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err != nil {
 		return fmt.Errorf("cannot setup partitions: %v", err)
 	}
-	if err := postSystemsInstallSetupStorageEncryption(details); err != nil {
-		return fmt.Errorf("cannot setup storage encryption: %v", err)
+	shouldEncrypt, err := detectStorageEncryption(seedLabel)
+	if err != nil {
+		return err
 	}
-	mntPts, err := createAndMountFilesystems(bootDevice, details.Volumes)
+	var encryptedDevices = make(map[string]string)
+	if shouldEncrypt {
+		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, laidoutStructs)
+		if err != nil {
+			return fmt.Errorf("cannot setup storage encryption: %v", err)
+		}
+	}
+	mntPts, err := createAndMountFilesystems(bootDevice, details.Volumes, encryptedDevices)
 	if err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
