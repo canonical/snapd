@@ -1535,6 +1535,45 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 	return os.Remove(factoryResetMarker)
 }
 
+// ensureExpiredUsersRemoved is periodically called as a part of Ensure()
+// to remove expired users from the system.
+func (m *DeviceManager) ensureExpiredUsersRemoved() error {
+	st := m.state
+	st.Lock()
+	defer st.Unlock()
+
+	// So far this is only set to be done in run mode, it might not
+	// make any sense to do in it any other mode.
+	mode := m.SystemMode(SysAny)
+	if mode != "run" {
+		return nil
+	}
+
+	// Expect the system to be seeded, otherwise we ignore this.
+	var seeded bool
+	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	users, err := auth.Users(st)
+	if err != nil {
+		return err
+	}
+
+	for _, user := range users {
+		if !user.HasExpired() {
+			continue
+		}
+		if _, err := RemoveUser(st, user.Username); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -1594,6 +1633,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensurePostFactoryReset(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureExpiredUsersRemoved(); err != nil {
 			errs = append(errs, err)
 		}
 	}

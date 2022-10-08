@@ -259,8 +259,10 @@ func (x *cmdSetQuota) parseQuotas() (*client.QuotaValues, error) {
 			if err != nil {
 				return nil, fmt.Errorf("cannot parse journal rate limit %q: %v", x.JournalRateLimit, err)
 			}
-			quotaValues.Journal.RateCount = count
-			quotaValues.Journal.RatePeriod = period
+			quotaValues.Journal.QuotaJournalRate = &client.QuotaJournalRate{
+				RateCount:  count,
+				RatePeriod: period,
+			}
 		}
 	}
 
@@ -411,8 +413,10 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 			val := strings.TrimSpace(fmtSize(int64(group.Constraints.Journal.Size)))
 			fmt.Fprintf(w, "  journal-size:\t%s\n", val)
 		}
-		if group.Constraints.Journal.RateCount != 0 && group.Constraints.Journal.RatePeriod != 0 {
-			fmt.Fprintf(w, "  journal-rate:\t%d/%s\n", group.Constraints.Journal.RateCount, group.Constraints.Journal.RatePeriod)
+		if group.Constraints.Journal.QuotaJournalRate != nil {
+			fmt.Fprintf(w, "  journal-rate:\t%d/%s\n",
+				group.Constraints.Journal.RateCount,
+				group.Constraints.Journal.RatePeriod)
 		}
 	}
 
@@ -523,8 +527,11 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 			if q.Constraints.Journal.Size != 0 {
 				grpConstraints = append(grpConstraints, "journal-size="+strings.TrimSpace(fmtSize(int64(q.Constraints.Journal.Size))))
 			}
-			if q.Constraints.Journal.RateCount != 0 && q.Constraints.Journal.RatePeriod != 0 {
-				grpConstraints = append(grpConstraints, fmt.Sprintf("journal-rate=%d/%s", q.Constraints.Journal.RateCount, q.Constraints.Journal.RatePeriod))
+
+			if q.Constraints.Journal.QuotaJournalRate != nil {
+				grpConstraints = append(grpConstraints,
+					fmt.Sprintf("journal-rate=%d/%s",
+						q.Constraints.Journal.RateCount, q.Constraints.Journal.RatePeriod))
 			}
 		}
 

@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"time"
 
 	"gopkg.in/macaroon.v1"
 
@@ -55,13 +56,14 @@ type DeviceState struct {
 
 // UserState represents an authenticated user
 type UserState struct {
-	ID              int      `json:"id"`
-	Username        string   `json:"username,omitempty"`
-	Email           string   `json:"email,omitempty"`
-	Macaroon        string   `json:"macaroon,omitempty"`
-	Discharges      []string `json:"discharges,omitempty"`
-	StoreMacaroon   string   `json:"store-macaroon,omitempty"`
-	StoreDischarges []string `json:"store-discharges,omitempty"`
+	ID              int       `json:"id"`
+	Username        string    `json:"username,omitempty"`
+	Email           string    `json:"email,omitempty"`
+	Macaroon        string    `json:"macaroon,omitempty"`
+	Discharges      []string  `json:"discharges,omitempty"`
+	StoreMacaroon   string    `json:"store-macaroon,omitempty"`
+	StoreDischarges []string  `json:"store-discharges,omitempty"`
+	Expiration      time.Time `json:"expiration,omitempty"`
 }
 
 // identificationOnly returns a *UserState with only the
@@ -80,6 +82,17 @@ func (u *UserState) HasStoreAuth() bool {
 		return false
 	}
 	return u.StoreMacaroon != ""
+}
+
+// HasExpired returns true if the user has an expiration set and
+// current time is past the expiration date.
+func (u *UserState) HasExpired() bool {
+	// If the user has no expiration date, then Expiration should not
+	// be set, and contain the default value.
+	if u.Expiration.IsZero() {
+		return false
+	}
+	return u.Expiration.Before(time.Now())
 }
 
 // MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
@@ -143,6 +156,9 @@ type NewUserParams struct {
 	Macaroon string
 	// Discharges contains discharged store auth caveats.
 	Discharges []string
+	// Expiration informs the devicestate that the user should be removed
+	// when passing the expiration time. This is an optional setting.
+	Expiration time.Time
 }
 
 // NewUser tracks a new authenticated user and saves its details in the state
@@ -179,6 +195,7 @@ func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 		Discharges:      nil,
 		StoreMacaroon:   userParams.Macaroon,
 		StoreDischarges: userParams.Discharges,
+		Expiration:      userParams.Expiration,
 	}
 	authStateData.Users = append(authStateData.Users, authenticatedUser)
 
