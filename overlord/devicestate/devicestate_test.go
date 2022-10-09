@@ -1484,6 +1484,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveRunModeHappy(c *C
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
@@ -1521,6 +1523,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveSystemCtlFails(c 
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
@@ -1553,6 +1557,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveMountUnitExists(c
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
@@ -1583,6 +1589,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveAlreadyMounted(c 
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
@@ -1611,6 +1619,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20NoUbuntuSave(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
@@ -1631,6 +1641,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveErr(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)

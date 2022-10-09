@@ -383,6 +383,11 @@ func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool)
 // it is meant to be used before and during seeding.
 // It is an error to call it with different sysLabel values once one
 // seed has been loaded and cached.
+//
+// TODO consider making this into a method of DeviceManager to simplify caching
+// and unifying it partly with seedStart and earlyLoadDeviceSeed Mocking will
+// be a bit more cumbersome as other things will need to move there as well,
+// but the baroque cache logic is not great either.
 var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.Seed, err error) {
 	cached := st.Cached(loadedDeviceSeedKey{})
 	if cached != nil {

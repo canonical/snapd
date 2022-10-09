@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2021 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -251,15 +251,15 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
+	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "assertions"))
+	c.Assert(err, IsNil)
+
 	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "assertions"))
-	c.Assert(err, IsNil)
-
-	_, _, err = devicestate.PreloadGadget(s.overlord.DeviceManager())
+	_, _, err = devicestate.EarlyPreloadGadget(s.overlord.DeviceManager())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
@@ -301,7 +301,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, _, err = devicestate.PreloadGadget(ovld.DeviceManager())
+	_, _, err = devicestate.EarlyPreloadGadget(ovld.DeviceManager())
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
@@ -346,12 +346,12 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInsta
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	s.startOverlord(c)
-	st := s.overlord.State()
-
 	// add the model assertion and its chain
 	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
 	s.WriteAssertions("model.asserts", assertsChain...)
+
+	s.startOverlord(c)
+	st := s.overlord.State()
 
 	// write cloud instance data
 	const instData = `{
@@ -555,6 +555,11 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
+	if st == nil {
+		s.startOverlord(c)
+		st = s.overlord.State()
+	}
+
 	st.Lock()
 	defer st.Unlock()
 
@@ -586,12 +591,11 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 	bloader.SetBootKernel("pc-kernel_1.snap")
 	bloader.SetBootBase("core_1.snap")
 
-	s.startOverlord(c)
-	st := s.overlord.State()
-	chg, model := s.makeSeedChange(c, st, nil, checkSeedTasks, checkOrder)
+	chg, model := s.makeSeedChange(c, nil, nil, checkSeedTasks, checkOrder)
 	err := s.overlord.Settle(settleTimeout)
 	c.Assert(err, IsNil)
 
+	st := chg.State()
 	st.Lock()
 	defer st.Unlock()
 
@@ -877,7 +881,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	dev, gi, err := devicestate.PreloadGadget(s.overlord.DeviceManager())
+	dev, gi, err := devicestate.EarlyPreloadGadget(s.overlord.DeviceManager())
 	c.Assert(err, IsNil)
 	c.Check(gi.Defaults, HasLen, 4)
 	c.Check(dev.RunMode(), Equals, true)
@@ -1303,11 +1307,6 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedHappy(c *C) {
 }
 
 func (s *firstBoot16Suite) TestImportAssertionsFromSeedMissingSig(c *C) {
-	s.startOverlord(c)
-	st := s.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
 	// write out only the model assertion
 	assertsChain := s.makeModelAssertionChain(c, "my-model", nil)
 	for _, as := range assertsChain {
@@ -1317,6 +1316,11 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedMissingSig(c *C) {
 		}
 	}
 
+	s.startOverlord(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
 	// try import and verify that its rejects because other assertions are
 	// missing
 	isCoreBoot := true
@@ -1325,17 +1329,17 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedMissingSig(c *C) {
 }
 
 func (s *firstBoot16Suite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
-	s.startOverlord(c)
-	st := s.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
 	// write out two model assertions
 	model := s.Brands.Model("my-brand", "my-model", modelHeaders("my-model"))
 	s.WriteAssertions("model", model)
 
 	model2 := s.Brands.Model("my-brand", "my-second-model", modelHeaders("my-second-model"))
 	s.WriteAssertions("model2", model2)
+
+	s.startOverlord(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
 	// try import and verify that its rejects because other assertions are
 	// missing
