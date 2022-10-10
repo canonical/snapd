@@ -33,7 +33,6 @@
 +0:-2 /snapd/ns /run/snapd/ns rw,nosuid,noexec,relatime - tmpfs tmpfs rw,size=VARIABLE,mode=755
 +0:+3 / /run/user/0 rw,nosuid,nodev,relatime master:15 - tmpfs tmpfs rw,size=VARIABLE,mode=700
 +1:-12 /sbin /sbin ro,nodev,relatime master:+1 - squashfs /dev/loop0 ro
-+0:+0 /snap /snap ro,nodev,relatime master:+0 - squashfs /dev/loop0 ro
 -2:+0 /snap /snap rw,relatime master:-15 - ext4 /dev/sda1 rw
 +2:+0 / /snap/core/1 ro,nodev,relatime master:+15 - squashfs /dev/loop0 ro
 +0:+1 / /snap/core18/1 ro,nodev,relatime master:+1 - squashfs /dev/loop1 ro
