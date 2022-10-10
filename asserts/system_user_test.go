@@ -302,7 +302,7 @@ func (s *systemUserSuite) TestUserValidForDuration(c *C) {
 func (s *systemUserSuite) TestUserValidForInvalidValue(c *C) {
 	s.systemUserStr = strings.Replace(s.systemUserStr, s.userValidForLine, "user-valid-for: tomorrow\n", 1)
 	_, err := asserts.Decode([]byte(s.systemUserStr))
-	c.Assert(err, ErrorMatches, `assertion system-user: cannot parse value 'user-valid-for': "tomorrow" is invalid`)
+	c.Assert(err, ErrorMatches, `assertion system-user: cannot parse 'user-valid-for': "tomorrow" is invalid`)
 }
 
 func (s *systemUserSuite) TestUserValidForMissing(c *C) {

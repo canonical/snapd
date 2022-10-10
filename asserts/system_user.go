@@ -115,8 +115,9 @@ func (su *SystemUser) Until() time.Time {
 // returned.
 //
 // If a duration is provided, then the timestamp returned will be the absolute
-// time as a result of from + duration.  It's possible to provide the start
-// point in time for easier testing, and is only needed when a duration was provided.
+// time as a result of from + duration.
+// It is necessary to provide the time of user creation as the assertion has
+// no concept of when the assertion is actually used.
 func (su *SystemUser) Expiration(from time.Time) time.Time {
 	// In this function we can make the following assumption;
 	// su.expiration is either empty, 'until-expiration' or a valid
@@ -128,7 +129,8 @@ func (su *SystemUser) Expiration(from time.Time) time.Time {
 		return su.until
 	}
 	if d, err := time.ParseDuration(su.expiration); err == nil {
-		// err being non-nil should not happen
+		// an error should not happen, at this point the
+		// duration in su.expiration have already been verified.
 		return from.Add(d)
 	}
 	return time.Time{}
@@ -252,7 +254,7 @@ func parseSystemUserExpiration(headers map[string]interface{}, until time.Time) 
 
 	str, ok := value.(string)
 	if !ok {
-		return "", fmt.Errorf("cannot parse value 'user-valid-for': not a string")
+		return "", fmt.Errorf("cannot parse 'user-valid-for': not a string")
 	}
 
 	if strings.ToLower(str) == "until-expiration" {
@@ -263,7 +265,7 @@ func parseSystemUserExpiration(headers map[string]interface{}, until time.Time) 
 	// be a duration.
 	_, err := checkDuration(headers, "user-valid-for")
 	if err != nil {
-		return "", fmt.Errorf("cannot parse value 'user-valid-for': %q is invalid", str)
+		return "", fmt.Errorf("cannot parse 'user-valid-for': %q is invalid", str)
 	}
 	return str, nil
 }
