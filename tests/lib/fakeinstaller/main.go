@@ -294,7 +294,7 @@ func detectStorageEncryption(seedLabel string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	logger.Noticef("detect encryption: %+v", details)
+	logger.Noticef("detect encryption: %+v", details.StorageEncryption)
 	if details.StorageEncryption.Support == client.StorageEncryptionSupportDefective {
 		return false, errors.New(details.StorageEncryption.UnavailableReason)
 	}
