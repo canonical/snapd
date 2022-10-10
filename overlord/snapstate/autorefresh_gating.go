@@ -465,7 +465,9 @@ Loop:
 		}
 
 		for holdingSnap, hold := range holds {
-			// hold.Level is at least level
+			// the snap is not considered held for the given
+			// level (e.g HoldGeneral) but only for lower
+			// levels (e.g. HoldAutorefresh)
 			if hold.Level < level {
 				continue
 			}
