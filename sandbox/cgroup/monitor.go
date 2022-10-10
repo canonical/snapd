@@ -139,7 +139,7 @@ func MonitorSingleton() *CGroupMonitor {
 // and a channel. The caller can wait on the channel, and when all the instances of
 // the specific snap have ended, the name of the snap will be sent through the channel.
 // This allows to use the same channel to monitor several snaps
-func (this CGroupMonitor) MonitorSnap(snapName string, channel chan string) {
+func (this *CGroupMonitor) MonitorSnap(snapName string, channel chan string) {
 	paths, _ := InstancePathsOfSnap(snapName, InstancePathsFlagsOnlyPaths)
 	data := appMonitorData{
 		name:        snapName,
@@ -152,7 +152,7 @@ func (this CGroupMonitor) MonitorSnap(snapName string, channel chan string) {
 
 // MonitorFiles is currently used for testing. It allows to monitor a group of files/folders
 // and, when all of them have been deleted, emits the specified name through the channel.
-func (this CGroupMonitor) MonitorFiles(name string, folders []string, channel chan string) {
+func (this *CGroupMonitor) MonitorFiles(name string, folders []string, channel chan string) {
 	data := appMonitorData{
 		name:        name,
 		cgroupPaths: folders,
@@ -166,6 +166,6 @@ func (this CGroupMonitor) MonitorFiles(name string, folders []string, channel ch
 // watched. This may not match the number of paths passed in MonitorFiles, because
 // the main loop monitors the parent folder, so if several monitored files/folders
 // are in the same parent folder, they will count as only one for this method.
-func (this CGroupMonitor) NumberOfWaitingMonitors() int {
+func (this *CGroupMonitor) NumberOfWaitingMonitors() int {
 	return len(this.watched)
 }
