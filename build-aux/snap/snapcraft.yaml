@@ -122,7 +122,7 @@ parts:
     stage-packages:
       - libc6
       - libc-bin
-      - libgcc1
+      - libgcc-s1
     stage:
       - lib/*
       - usr/lib/*
