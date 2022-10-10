@@ -159,7 +159,7 @@ EOF
     mv ./classic-seed/system-seed/systems/"$(date +%Y%m%d)" ./classic-seed/system-seed/systems/"$SEED_LABEL"
     # and put the seed in place
     mkdir -p "$DESTDIR"/var/lib/snapd/
-    mv ./classic-seed "$DESTDIR"/var/lib/snapd/seed
+    mv ./classic-seed/system-seed "$DESTDIR"/var/lib/snapd/seed
 }
 
 populate_image() {
