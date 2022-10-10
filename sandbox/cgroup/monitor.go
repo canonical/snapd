@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/cgroup/inotify"
 )
 
-// appMonitorData contains all the data to monitor an specific Snap:
+// appMonitorData contains all the data to monitor a specific Snap:
 // its name, the list of paths to monitor, and the channel to send
 // the notification when all the paths have been deleted.
 type appMonitorData struct {
