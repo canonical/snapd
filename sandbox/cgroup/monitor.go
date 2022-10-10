@@ -40,7 +40,7 @@ type appMonitorData struct {
 // CGroupMonitor allows to monitor several CGroups, detect when all
 // the running instances of each one have been closed, and notify
 // them separately. It should be considered a singleton, and
-// obtained using DefaultCGroupMonitor().
+// obtained using MonitorSingleton().
 type CGroupMonitor struct {
 	watched map[string][]*appMonitorData
 	watcher *inotify.Watcher
@@ -121,8 +121,8 @@ func monitorMainLoop() {
 	}
 }
 
-// DefaultCGroupMonitor launches the main loop and returns the CGroup singleton
-func DefaultCGroupMonitor() *CGroupMonitor {
+// MonitorSingleton launches the main loop and returns the CGroupMonitor singleton
+func MonitorSingleton() *CGroupMonitor {
 	if currentCGroupMonitor.watcher == nil {
 		wd, err := inotify.NewWatcher()
 		if err != nil {

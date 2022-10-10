@@ -41,7 +41,7 @@ var _ = Suite(&monitorSuite{})
 func (s *monitorSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	s.monitor = cgroup.DefaultCGroupMonitor()
+	s.monitor = cgroup.MonitorSingleton()
 	c.Assert(s.monitor, NotNil)
 }
 
