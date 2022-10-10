@@ -149,23 +149,3 @@ func (this *CGroupMonitor) MonitorSnap(snapName string, channel chan string) {
 	}
 	this.channel <- data
 }
-
-// MonitorFiles is currently used for testing. It allows to monitor a group of files/folders
-// and, when all of them have been deleted, emits the specified name through the channel.
-func (this *CGroupMonitor) MonitorFiles(name string, folders []string, channel chan string) {
-	data := appMonitorData{
-		name:        name,
-		cgroupPaths: folders,
-		channel:     channel,
-		npaths:      len(folders),
-	}
-	this.channel <- data
-}
-
-// NumberOfWaitingMonitors is currently used for testing. It returns the number of folders being
-// watched. This may not match the number of paths passed in MonitorFiles, because
-// the main loop monitors the parent folder, so if several monitored files/folders
-// are in the same parent folder, they will count as only one for this method.
-func (this *CGroupMonitor) NumberOfWaitingMonitors() int {
-	return len(this.watched)
-}
