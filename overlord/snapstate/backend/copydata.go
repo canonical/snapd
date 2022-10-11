@@ -53,7 +53,7 @@ func MockAllUsers(f func(options *dirs.SnapDirOptions) ([]*user.User, error)) fu
 }
 
 // CopySnapData makes a copy of oldSnap data for newSnap in its data directories.
-func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter, opts *dirs.SnapDirOptions) error {
+func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOptions, meter progress.Meter) error {
 	// deal with the old data or
 	// otherwise just create an empty data dir
 
@@ -82,7 +82,7 @@ func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter,
 }
 
 // UndoCopySnapData removes the copy that may have been done for newInfo snap of oldInfo snap data and also the data directories that may have been created for newInfo snap.
-func (b Backend) UndoCopySnapData(newInfo, oldInfo *snap.Info, _ progress.Meter, opts *dirs.SnapDirOptions) error {
+func (b Backend) UndoCopySnapData(newInfo, oldInfo *snap.Info, opts *dirs.SnapDirOptions, _ progress.Meter) error {
 	if oldInfo != nil && oldInfo.Revision == newInfo.Revision {
 		// nothing to do
 		return nil

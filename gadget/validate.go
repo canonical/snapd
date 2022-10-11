@@ -85,6 +85,8 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 
 	hasModes := false
 	// Classic with gadget + kernel snaps
+	// TODO: do the rules need changing now that we allow to omit
+	// gadget and kernel?
 	isClassicWithModes := false
 	if model != nil {
 		hasModes = hasGrade(model)

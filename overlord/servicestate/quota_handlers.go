@@ -646,10 +646,16 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 			}
 
 		case "service":
-			// in this case, the only way that a service could have been changed
-			// was if it was moved into or out of a slice, in both cases we need
-			// to restart the service
-			markAppForRestart(app.Snap, app)
+			// When an app has its service file changed, we should restart the app
+			// to take into account that the app might have been moved in/out of a
+			// slice, which means limits may have changed.
+			if app != nil {
+				markAppForRestart(app.Snap, app)
+			}
+
+			// If a quota group has it's service file changed, then it's due to the
+			// journal quota being set. We do not need to do any further changes here
+			// as restart of apps in the journal quota is being handled by case 'journald'
 
 			// TODO: what about sockets and timers? activation units just start
 			// the full unit, so as long as the full unit is restarted we should

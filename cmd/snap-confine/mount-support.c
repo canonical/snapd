@@ -249,6 +249,77 @@ struct sc_mount_config {
 };
 
 /**
+ * Perform all the given bind mounts
+ *
+ * `mounts` is an array of sc_mount structures, each describing a bind mount
+ * operation to be performed. An element carrying a `path` field set to NULL
+ * marks the end of the list.
+ *
+ * Preconditions:
+ *
+ * - All the target directories must exist
+ * - All the source directories must exist, unless the mount is bi-directional
+ */
+static void sc_do_mounts(const char *scratch_dir,
+                         const struct sc_mount *mounts)
+{
+	char dst[PATH_MAX] = { 0 };
+	// Bind mount certain directories from the host filesystem to the scratch
+	// directory. By default mount events will propagate in both into and out
+	// of the peer group. This way the running application can alter any global
+	// state visible on the host and in other snaps. This can be restricted by
+	// disabling the "is_bidirectional" flag as can be seen below.
+	for (const struct sc_mount * mnt = mounts; mnt->path != NULL; mnt++) {
+
+		if (mnt->is_bidirectional) {
+			sc_identity old =
+			    sc_set_effective_identity(sc_root_group_identity());
+			if (mkdir(mnt->path, 0755) < 0 && errno != EEXIST) {
+				die("cannot create %s", mnt->path);
+			}
+			(void)sc_set_effective_identity(old);
+		}
+		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
+				 mnt->path);
+		if (mnt->is_optional) {
+			bool ok = sc_do_optional_mount(mnt->path, dst, NULL,
+						       MS_REC | MS_BIND, NULL);
+			if (!ok) {
+				// If we cannot mount it, just continue.
+				continue;
+			}
+		} else {
+			sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND,
+				    NULL);
+		}
+		if (!mnt->is_bidirectional) {
+			// Mount events will only propagate inwards to the namespace. This
+			// way the running application cannot alter any global state apart
+			// from that of its own snap.
+			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
+		}
+		if (mnt->altpath == NULL) {
+			continue;
+		}
+		// An alternate path of mnt->path is provided at another location.
+		// It should behave exactly the same as the original.
+		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
+				 mnt->altpath);
+		struct stat stat_buf;
+		if (lstat(dst, &stat_buf) < 0) {
+			die("cannot lstat %s", dst);
+		}
+		if ((stat_buf.st_mode & S_IFMT) == S_IFLNK) {
+			die("cannot bind mount alternate path over a symlink: %s", dst);
+		}
+		sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL);
+		if (!mnt->is_bidirectional) {
+			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
+		}
+	}
+}
+
+/**
  * Bootstrap mount namespace.
  *
  * This is a chunk of tricky code that lets us have full control over the
@@ -323,60 +394,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// in one way, from the original namespace and coupled with pivot_root
 	// below serves as the foundation of the mount sandbox.
 	sc_do_mount("none", scratch_dir, NULL, MS_REC | MS_SLAVE, NULL);
-	// Bind mount certain directories from the host filesystem to the scratch
-	// directory. By default mount events will propagate in both into and out
-	// of the peer group. This way the running application can alter any global
-	// state visible on the host and in other snaps. This can be restricted by
-	// disabling the "is_bidirectional" flag as can be seen below.
-	for (const struct sc_mount * mnt = config->mounts; mnt->path != NULL;
-	     mnt++) {
+	sc_do_mounts(scratch_dir, config->mounts);
 
-		if (mnt->is_bidirectional) {
-			sc_identity old =
-			    sc_set_effective_identity(sc_root_group_identity());
-			if (mkdir(mnt->path, 0755) < 0 && errno != EEXIST) {
-				die("cannot create %s", mnt->path);
-			}
-			(void)sc_set_effective_identity(old);
-		}
-		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
-				 mnt->path);
-		if (mnt->is_optional) {
-			bool ok = sc_do_optional_mount(mnt->path, dst, NULL,
-						       MS_REC | MS_BIND, NULL);
-			if (!ok) {
-				// If we cannot mount it, just continue.
-				continue;
-			}
-		} else {
-			sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND,
-				    NULL);
-		}
-		if (!mnt->is_bidirectional) {
-			// Mount events will only propagate inwards to the namespace. This
-			// way the running application cannot alter any global state apart
-			// from that of its own snap.
-			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
-		}
-		if (mnt->altpath == NULL) {
-			continue;
-		}
-		// An alternate path of mnt->path is provided at another location.
-		// It should behave exactly the same as the original.
-		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
-				 mnt->altpath);
-		struct stat stat_buf;
-		if (lstat(dst, &stat_buf) < 0) {
-			die("cannot lstat %s", dst);
-		}
-		if ((stat_buf.st_mode & S_IFMT) == S_IFLNK) {
-			die("cannot bind mount alternate path over a symlink: %s", dst);
-		}
-		sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL);
-		if (!mnt->is_bidirectional) {
-			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
-		}
-	}
 	if (config->normal_mode) {
 		// Since we mounted /etc from the host filesystem to the scratch directory,
 		// we may need to put certain directories from the desired root filesystem

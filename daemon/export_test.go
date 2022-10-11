@@ -121,8 +121,8 @@ func MockAssertstateRefreshSnapAssertions(mock func(*state.State, int, *assertst
 }
 
 func MockAssertstateTryEnforceValidationSets(f func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error) (restore func()) {
-	r := testutil.Backup(&assertstateTryEnforceValidationSets)
-	assertstateTryEnforceValidationSets = f
+	r := testutil.Backup(&assertstateTryEnforcedValidationSets)
+	assertstateTryEnforcedValidationSets = f
 	return r
 }
 
@@ -214,10 +214,12 @@ func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.
 	}
 }
 
-func MockSnapstateEnforceSnaps(f func(ctx context.Context, st *state.State, validationSets []string, validErr *snapasserts.ValidationSetsValidationError, userID int) ([]*state.TaskSet, []string, error)) func() {
-	r := testutil.Backup(&assertstateTryEnforceValidationSets)
-	snapstateEnforceSnaps = f
-	return r
+func MockSnapstateResolveValSetEnforcementError(f func(context.Context, *state.State, *snapasserts.ValidationSetsValidationError, map[string]int, int) ([]*state.TaskSet, []string, error)) func() {
+	old := snapstateResolveValSetsEnforcementError
+	snapstateResolveValSetsEnforcementError = f
+	return func() {
+		snapstateResolveValSetsEnforcementError = old
+	}
 }
 
 func MockSnapstateMigrate(mock func(*state.State, []string) ([]*state.TaskSet, error)) (restore func()) {

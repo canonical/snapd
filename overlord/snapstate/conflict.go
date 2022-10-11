@@ -52,6 +52,11 @@ func (e *ChangeConflictError) Error() string {
 	return fmt.Sprintf("snap %q has changes in progress", e.Snap)
 }
 
+func (e *ChangeConflictError) Is(err error) bool {
+	_, ok := err.(*ChangeConflictError)
+	return ok
+}
+
 // An AffectedSnapsFunc returns a list of affected snap names for the given supported task.
 type AffectedSnapsFunc func(*state.Task) ([]string, error)
 
