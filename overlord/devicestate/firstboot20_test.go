@@ -559,7 +559,7 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: requested inconsistent device seed: 20210201 \(was 20191018\)`)
 }
 
-func (s *firstBoot20Suite) setupSeed20DangerousGrade(c *C, withAutoImportAssertion bool) string {
+func (s *firstBoot20Suite) testProcessAutoImportAssertions(c *C, withAutoImportAssertion bool) string {
 	m := boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
@@ -606,7 +606,7 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousNoAutoImport(c *C) {
 	})
 	defer r()
 
-	logs := s.setupSeed20DangerousGrade(c, false)
+	logs := s.testProcessAutoImportAssertions(c, false)
 
 	c.Check(logs, testutil.Contains, `failed to auto-import assertions:`)
 }
@@ -619,7 +619,7 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImportUserCreate
 	})
 	defer r()
 
-	logs := s.setupSeed20DangerousGrade(c, true)
+	logs := s.testProcessAutoImportAssertions(c, true)
 
 	c.Check(calledcreateAllUsers, Equals, true)
 	c.Check(logs, testutil.Contains, "failed to create known users:")
@@ -635,7 +635,7 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImport(c *C) {
 	})
 	defer r()
 
-	logs := s.setupSeed20DangerousGrade(c, true)
+	logs := s.testProcessAutoImportAssertions(c, true)
 
 	c.Check(calledcreateAllUsers, Equals, true)
 	c.Assert(logs, Equals, "")

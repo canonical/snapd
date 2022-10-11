@@ -43,8 +43,6 @@ var errNothingToDo = errors.New("nothing to do")
 
 var runtimeNumCPU = runtime.NumCPU
 
-var createKnownUsers = createAllKnownSystemUsers
-
 func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
 	if sn.Required {
 		flags.Required = true
@@ -384,14 +382,11 @@ func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool)
 	return deviceSeed, nil
 }
 
-// processAutoImportAssertions attempts to load the auto import assertions 
+// processAutoImportAssertions attempts to load the auto import assertions
 // and create all knows system users, if and only if the model grade is dangerous.
 // Processing of the auto-import assertion is opportunistic and should not fail
-// if model grade is dangerous, it attempts to load
-// auto import assertions and create all knows system users.
-// Processing of the auto-import assertion is opportunistic and should not fail
 func processAutoImportAssertions(st *state.State, deviceSeed seed.Seed, db asserts.RODatabase, commitTo func(batch *asserts.Batch) error) {
-	// if model is dangerous, check if there is auto-import.assert and import it
+	// only proceed for dangerous model
 	if deviceSeed.Model().Grade() != asserts.ModelDangerous {
 		return
 	}
@@ -405,8 +400,9 @@ func processAutoImportAssertions(st *state.State, deviceSeed seed.Seed, db asser
 		logger.Noticef("failed to auto-import assertions: %v", err)
 		return
 	}
-	serial, _ := findSerial(st, nil)
-	_, err = createKnownUsers(st, db, deviceSeed.Model(), serial, true)
+	// automatic user creation is meant to imply sudoers
+	const sudoer = true
+	_, err = createAllKnownSystemUsers(st, db, deviceSeed.Model(), nil, sudoer)
 	if err != nil {
 		logger.Noticef("failed to create known users: %v", err)
 	}
@@ -452,8 +448,7 @@ var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.See
 		return assertstate.AddBatch(st, batch, nil)
 	}
 
-	db := assertstate.DB(st)
-	if err := deviceSeed.LoadAssertions(db, commitTo); err != nil {
+	if err := deviceSeed.LoadAssertions(assertstate.DB(st), commitTo); err != nil {
 		return nil, err
 	}
 
