@@ -124,7 +124,7 @@ func (s *usersSuite) TestCreateUserNoSSHKeys(c *check.C) {
 
 	// create user
 	s.state.Lock()
-	createdUser, err := devicestate.CreateUser(s.state, true, "popper@lse.ac.uk")
+	createdUser, err := devicestate.CreateUser(s.state, true, "popper@lse.ac.uk", time.Time{})
 	s.state.Unlock()
 
 	c.Assert(err, check.NotNil)
@@ -158,7 +158,7 @@ func (s *usersSuite) TestCreateUser(c *check.C) {
 	// user was setup in state
 	// create user
 	s.state.Lock()
-	createdUser, userErr := devicestate.CreateUser(s.state, false, "popper@lse.ac.uk")
+	createdUser, userErr := devicestate.CreateUser(s.state, false, "popper@lse.ac.uk", time.Time{})
 	s.state.Unlock()
 
 	c.Assert(userErr, check.IsNil)
@@ -451,6 +451,34 @@ var unknownUser = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
+var expireUser = map[string]interface{}{
+	"authority-id":   "my-brand",
+	"brand-id":       "my-brand",
+	"email":          "foo@bar.com",
+	"series":         []interface{}{"16", "18"},
+	"models":         []interface{}{"my-model", "other-model"},
+	"name":           "Boring Guy",
+	"username":       "guy",
+	"password":       "$6$salt$hash",
+	"user-valid-for": "until-expiration",
+	"since":          time.Now().Format(time.RFC3339),
+	"until":          time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
+var durationUser = map[string]interface{}{
+	"authority-id":   "my-brand",
+	"brand-id":       "my-brand",
+	"email":          "foo@bar.com",
+	"series":         []interface{}{"16", "18"},
+	"models":         []interface{}{"my-model", "other-model"},
+	"name":           "Boring Guy",
+	"username":       "guy",
+	"password":       "$6$salt$hash",
+	"user-valid-for": "24h",
+	"since":          time.Now().Format(time.RFC3339),
+	"until":          time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
 func (s *usersSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
@@ -462,18 +490,47 @@ func (s *usersSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 
 	// ensure that if we query the details from the assert DB we get
 	// the expected user
-	username, opts, err := devicestate.GetUserDetailsFromAssertion(db, model, nil, "foo@bar.com")
+	username, expiration, opts, err := devicestate.GetUserDetailsFromAssertion(db, model, nil, "foo@bar.com")
+	c.Assert(err, check.IsNil)
 	c.Check(username, check.Equals, "guy")
 	c.Check(opts, check.DeepEquals, &osutil.AddUserOptions{
 		Gecos:    "foo@bar.com,Boring Guy",
 		Password: "$6$salt$hash",
 	})
-	c.Check(err, check.IsNil)
+	c.Check(expiration, check.Equals, time.Time{})
 }
 
 func (s *usersSuite) TestCreateUserFromAssertion(c *check.C) {
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 	s.createUserFromAssertion(c, false)
+}
+
+func (s *usersSuite) TestCreateUserExpireFromAssertion(c *check.C) {
+	s.makeSystemUsers(c, []map[string]interface{}{expireUser})
+	users := s.createUserFromAssertion(c, false)
+	c.Assert(len(users), check.Equals, 1)
+	until, err := time.Parse(time.RFC3339, expireUser["until"].(string))
+	c.Assert(err, check.IsNil)
+	c.Check(users[0].Expiration, check.Equals, until)
+}
+
+func (s *usersSuite) TestCreateUserDurationFromAssertion(c *check.C) {
+	// In order to do an exact calculation of the expiration date
+	// for duration values, we must mock the current time call. Strip
+	// the monotonic clock away as this will interfere with the test.
+	creationTime := time.Now().Round(0)
+
+	// No reason to validate this was called, if it isn't the expiration
+	// time will not be correct
+	restore := devicestate.MockTimeNow(func() time.Time {
+		return creationTime
+	})
+	defer restore()
+
+	s.makeSystemUsers(c, []map[string]interface{}{durationUser})
+	users := s.createUserFromAssertion(c, false)
+	c.Assert(len(users), check.Equals, 1)
+	c.Check(users[0].Expiration, check.Equals, creationTime.Add(time.Hour*24))
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionWithForcePasswordChange(c *check.C) {
@@ -487,7 +544,7 @@ func (s *usersSuite) TestCreateUserFromAssertionWithForcePasswordChange(c *check
 	s.createUserFromAssertion(c, true)
 }
 
-func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange bool) {
+func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange bool) []*auth.UserState {
 
 	// mock the calls that create the user
 	var addUserCalled bool
@@ -519,10 +576,11 @@ func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange boo
 
 	// ensure the user was added to the state
 	s.state.Lock()
-	users, userErr := auth.Users(s.state)
+	users, err := auth.Users(s.state)
 	s.state.Unlock()
-	c.Assert(userErr, check.IsNil)
+	c.Assert(err, check.IsNil)
 	c.Check(users, check.HasLen, 1)
+	return users
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionAllKnown(c *check.C) {
@@ -577,7 +635,7 @@ func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, e
 		createdUsers, err = devicestate.CreateKnownUsers(s.state, expectSudoer, "")
 	} else {
 		var createdUser *devicestate.CreatedUser
-		createdUser, err = devicestate.CreateUser(s.state, expectSudoer, "")
+		createdUser, err = devicestate.CreateUser(s.state, expectSudoer, "", time.Time{})
 		createdUsers = append(createdUsers, createdUser)
 	}
 	s.state.Unlock()
@@ -768,11 +826,11 @@ func (s *usersSuite) TestCreateUserMissingEmail(c *check.C) {
 
 	// create user
 	s.state.Lock()
-	createdUser, userErr := devicestate.CreateUser(s.state, true, "")
+	createdUser, err := devicestate.CreateUser(s.state, true, "", time.Time{})
 	s.state.Unlock()
 
-	c.Assert(userErr, check.NotNil)
-	c.Check(userErr.Error(), check.Matches, `cannot create user: 'email' field is empty`)
-	c.Check(s.errorIsInternal(userErr), check.Equals, false)
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Matches, `cannot create user: 'email' field is empty`)
+	c.Check(s.errorIsInternal(err), check.Equals, false)
 	c.Check(createdUser, check.IsNil)
 }
