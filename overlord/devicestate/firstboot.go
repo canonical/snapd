@@ -385,9 +385,11 @@ func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool)
 // seed has been loaded and cached.
 //
 // TODO consider making this into a method of DeviceManager to simplify caching
-// and unifying it partly with seedStart and earlyLoadDeviceSeed Mocking will
+// and unifying it partly with seedStart and earlyLoadDeviceSeed. Mocking will
 // be a bit more cumbersome as other things will need to move there as well,
 // but the baroque cache logic is not great either.
+// TODO the name of this doesn't make it very clear that it is committing
+// the assertions to the device database
 var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.Seed, err error) {
 	cached := st.Cached(loadedDeviceSeedKey{})
 	if cached != nil {

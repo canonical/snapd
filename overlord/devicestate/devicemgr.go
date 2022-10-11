@@ -295,15 +295,14 @@ func (m *DeviceManager) StartUp() error {
 	defer m.state.Unlock()
 	defer m.earlyCleanup()
 
-	var dev snapstate.DeviceContext
 	dev, err := m.earlyDeviceContext()
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
-	// if ErrNoState and dev is nil assume classic system here,
-	// any error will re-surface again in the main first boot code
 
-	if m.shouldMountUbuntuSave(dev) {
+	// if ErrNoState then dev is nil, we assume a classic system here,
+	// any error will re-surface again in the main first boot code
+	if dev != nil && m.shouldMountUbuntuSave(dev) {
 		if err := m.setupUbuntuSave(dev); err != nil {
 			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
 		}
@@ -320,7 +319,7 @@ func (m *DeviceManager) StartUp() error {
 }
 
 func (m *DeviceManager) shouldMountUbuntuSave(dev snap.Device) bool {
-	if dev == nil || dev.IsClassicBoot() {
+	if dev.IsClassicBoot() {
 		return false
 	}
 	// TODO:UC20+: ubuntu-save needs to be mounted for recover too
@@ -414,7 +413,7 @@ func (m *DeviceManager) setupUbuntuSave(dev snap.Device) error {
 	// The last step is to ensure needed folder structure is present
 	// for the per-snap folder storage.
 	// We support this only on Core for now.
-	if dev == nil || dev.Classic() {
+	if dev.Classic() {
 		return nil
 	}
 	return m.ensureUbuntuSaveSnapFolders()
@@ -813,7 +812,7 @@ func (m *DeviceManager) earlyDeviceContext() (snapstate.DeviceContext, error) {
 }
 
 func (m *DeviceManager) earlyCleanup() {
-	// clear thigs cached in StartUp
+	// clear things cached in StartUp
 	m.earlyDeviceCtx = nil
 	m.earlyDeviceSeed = nil
 }
