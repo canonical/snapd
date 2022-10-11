@@ -320,7 +320,7 @@ func (s *contentTestSuite) TestMountFilesystem(c *C) {
 	defer dirs.SetRootDir("")
 
 	// mount a filesystem...
-	err := install.MountFilesystem("/dev/node2", "vfat", "ubuntu-seed", boot.InitramfsRunMntDir)
+	err := install.MountFilesystem("/dev/node2", "vfat", filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
 	c.Assert(err, IsNil)
 
 	// ...and check if it was mounted at the right mount point
@@ -331,6 +331,6 @@ func (s *contentTestSuite) TestMountFilesystem(c *C) {
 
 	// try again with mocked error
 	s.mockMountErr = fmt.Errorf("mock mount error")
-	err = install.MountFilesystem("/dev/node2", "vfat", "ubuntu-seed", boot.InitramfsRunMntDir)
+	err = install.MountFilesystem("/dev/node2", "vfat", filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
 	c.Assert(err, ErrorMatches, `cannot mount filesystem "/dev/node2" at ".*/run/mnt/ubuntu-seed": mock mount error`)
 }

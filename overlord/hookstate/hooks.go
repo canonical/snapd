@@ -241,7 +241,7 @@ func (h *gateAutoRefreshHookHandler) Error(hookErr error) (ignoreHookErr bool, e
 
 	// no duration specified, use maximum allowed for this gating snap.
 	var holdDuration time.Duration
-	if _, err := snapstate.HoldRefresh(st, snapName, holdDuration, affecting...); err != nil {
+	if _, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, snapName, holdDuration, affecting...); err != nil {
 		// log the original hook error as we either ignore it or error out from
 		// this handler, in both cases hookErr won't be logged by hook manager.
 		h.context.Errorf("error: %v (while handling previous hook error: %v)", err, hookErr)

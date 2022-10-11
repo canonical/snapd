@@ -1627,17 +1627,11 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	rootdir := c.MkDir()
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
-
-	restore := boot.MockHasFDESetupHook(func() (bool, error) {
-		return true, nil
-	})
-	defer restore()
-
 	model := boottest.MakeMockUC20Model()
 
 	n := 0
 	var runFDESetupHookReqs []*fde.SetupRequest
-	restore = boot.MockRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
+	restore := boot.MockRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
 		n++
 		runFDESetupHookReqs = append(runFDESetupHookReqs, req)
 
@@ -1671,7 +1665,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	key := keys.EncryptionKey{1, 2, 3, 4}
 	saveKey := keys.EncryptionKey{5, 6, 7, 8}
 
-	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.SealKeyToModeenvFlags{})
+	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.SealKeyToModeenvFlags{HasFDESetupHook: true})
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
@@ -1699,12 +1693,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
 
-	restore := boot.MockHasFDESetupHook(func() (bool, error) {
-		return true, nil
-	})
-	defer restore()
-
-	restore = boot.MockSecbootSealKeysWithFDESetupHook(func(fde.RunSetupHookFunc, []secboot.SealKeyRequest, *secboot.SealKeysWithFDESetupHookParams) error {
+	restore := boot.MockSecbootSealKeysWithFDESetupHook(func(fde.RunSetupHookFunc, []secboot.SealKeyRequest, *secboot.SealKeysWithFDESetupHookParams) error {
 		return fmt.Errorf("hook failed")
 	})
 	defer restore()
@@ -1716,7 +1705,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	saveKey := keys.EncryptionKey{5, 6, 7, 8}
 
 	model := boottest.MakeMockUC20Model()
-	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.SealKeyToModeenvFlags{})
+	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.SealKeyToModeenvFlags{HasFDESetupHook: true})
 	c.Assert(err, ErrorMatches, "hook failed")
 	marker := filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys")
 	c.Check(marker, testutil.FileAbsent)
@@ -1737,7 +1726,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	// TODO: this simulates that the hook is not available yet
 	//       because of e.g. seeding. Longer term there will be
 	//       more, see TODO in resealKeyToModeenvUsingFDESetupHookImpl
-	restore = boot.MockHasFDESetupHook(func() (bool, error) {
+	restore = boot.MockHasFDESetupHook(func(kernel *snap.Info) (bool, error) {
 		return false, fmt.Errorf("hook not available yet because e.g. seeding")
 	})
 	defer restore()
@@ -2168,7 +2157,8 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 			}
 		}
 
-		restore := boot.MockHasFDESetupHook(func() (bool, error) {
+		restore := boot.MockHasFDESetupHook(func(kernel *snap.Info) (bool, error) {
+			c.Check(kernel, IsNil)
 			return tc.hasFDEHook, nil
 		})
 		defer restore()

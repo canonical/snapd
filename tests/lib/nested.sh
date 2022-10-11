@@ -953,8 +953,8 @@ nested_force_stop_vm() {
 nested_force_start_vm() {
     # if the $NESTED_VM is using a swtpm, we need to wait until the file exists
     # because the file disappears temporarily after qemu exits
-    if systemctl show "$NESTED_VM" -p ExecStart | grep -q test-snapd-swtpm; then
-        retry -n 10 --wait 1 test -S /var/snap/test-snapd-swtpm/current/swtpm-sock
+    if systemctl show "$NESTED_VM" -p ExecStart | grep -q swtpm-mvo; then
+        retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
     fi
     systemctl start "$NESTED_VM"
 }
@@ -1082,16 +1082,16 @@ nested_start_core_vm_unit() {
         fi
 
         if nested_is_tpm_enabled; then
-            if snap list test-snapd-swtpm >/dev/null; then
+            if snap list swtpm-mvo >/dev/null; then
                 # reset the tpm state
-                rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall
-                snap restart test-snapd-swtpm > /dev/null
+                rm /var/snap/swtpm-mvo/current/tpm2-00.permall
+                snap restart swtpm-mvo > /dev/null
             else
-                snap install test-snapd-swtpm --beta
+                snap install swtpm-mvo --edge
             fi
             # wait for the tpm sock file to exist
-            retry -n 10 --wait 1 test -S /var/snap/test-snapd-swtpm/current/swtpm-sock
-            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/test-snapd-swtpm/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
+            retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
+            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
         fi
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
     else

@@ -51,6 +51,9 @@ type ModelSnap struct {
 	PinnedTrack string
 	// Presence is one of: required|optional
 	Presence string
+	// Classic indicates that this classic snap is intentionally
+	// included in a classic model
+	Classic bool
 }
 
 // SnapName implements naming.SnapRef.
@@ -98,7 +101,7 @@ var (
 	defaultModes       = []string{"run"}
 )
 
-func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade) (*modelSnaps, error) {
+func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade, modelIsClassic bool) (*modelSnaps, error) {
 	const wrongHeaderType = `"snaps" header must be a list of maps`
 
 	entries, ok := extendedSnaps.([]interface{})
@@ -115,7 +118,7 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 		if !ok {
 			return nil, fmt.Errorf(wrongHeaderType)
 		}
-		modelSnap, err := checkModelSnap(snap, grade)
+		modelSnap, err := checkModelSnap(snap, grade, modelIsClassic)
 		if err != nil {
 			return nil, err
 		}
@@ -172,6 +175,10 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 		if len(modelSnap.Modes) == 0 {
 			modelSnap.Modes = defaultModes
 		}
+		if modelSnap.Classic && (len(modelSnap.Modes) != 1 || modelSnap.Modes[0] != "run") {
+			return nil, fmt.Errorf("classic snap %q not allowed outside of run mode: %v", modelSnap.Name, modelSnap.Modes)
+		}
+
 		if modelSnap.Presence == "" {
 			modelSnap.Presence = "required"
 		}
@@ -190,7 +197,7 @@ var (
 	validSnapPresences = []string{"required", "optional"}
 )
 
-func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, error) {
+func checkModelSnap(snap map[string]interface{}, grade ModelGrade, modelIsClassic bool) (*ModelSnap, error) {
 	name, err := checkNotEmptyStringWhat(snap, "name", "of snap")
 	if err != nil {
 		return nil, err
@@ -256,6 +263,17 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 		return nil, fmt.Errorf("presence of snap %q must be one of required|optional", name)
 	}
 
+	isClassic, err := checkOptionalBoolWhat(snap, "classic", what)
+	if err != nil {
+		return nil, err
+	}
+	if isClassic && !modelIsClassic {
+		return nil, fmt.Errorf("snap %q cannot be classic in non-classic model", name)
+	}
+	if isClassic && typ != "app" {
+		return nil, fmt.Errorf("snap %q cannot be classic with type %q instead of app", name, typ)
+	}
+
 	return &ModelSnap{
 		Name:           name,
 		SnapID:         snapID,
@@ -263,6 +281,7 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 		Modes:          modes, // can be empty
 		DefaultChannel: defaultChannel,
 		Presence:       presence, // can be empty
+		Classic:        isClassic,
 	}, nil
 }
 
@@ -777,7 +796,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 			return nil, fmt.Errorf(`secured grade model must not have storage-safety overridden, only "encrypted" is valid`)
 		}
 
-		modSnaps, err = checkExtendedSnaps(extendedSnaps, base, grade)
+		modSnaps, err = checkExtendedSnaps(extendedSnaps, base, grade, classic)
 		if err != nil {
 			return nil, err
 		}

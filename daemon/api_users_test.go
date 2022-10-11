@@ -200,7 +200,7 @@ func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
 
 	// setup local-only user
 	state.Lock()
-	localUser, err := auth.NewUser(state, auth.NewUserData{
+	localUser, err := auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "",
@@ -248,7 +248,7 @@ func (s *userSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 
 	// setup local-only user
 	state.Lock()
-	localUser, err := auth.NewUser(state, auth.NewUserData{
+	localUser, err := auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "",
@@ -296,7 +296,7 @@ func (s *userSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
 
 	// setup local-only user
 	state.Lock()
-	localUser, err := auth.NewUser(state, auth.NewUserData{
+	localUser, err := auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "",
@@ -344,7 +344,7 @@ func (s *userSuite) TestLogoutUser(c *check.C) {
 	s.expectLoginAccess()
 
 	state.Lock()
-	user, err := auth.NewUser(state, auth.NewUserData{
+	user, err := auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -631,7 +631,7 @@ func (s *userSuite) TestPostUserActionRemoveDelUserErrInternal(c *check.C) {
 func (s *userSuite) testpostUserActionRemoveDelUserErr(c *check.C, internalErr bool) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, auth.NewUserData{
+	_, err := auth.NewUser(st, auth.NewUserParams{
 		Username:   "some-user",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -867,7 +867,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *che
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, auth.NewUserData{
+	_, err := auth.NewUser(st, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -890,7 +890,7 @@ func (s *userSuite) TestPostCreateUserAutomaticManagedDoesNotActOrError(c *check
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, auth.NewUserData{
+	_, err := auth.NewUser(st, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -960,7 +960,7 @@ func (s *userSuite) TestUsersEmpty(c *check.C) {
 func (s *userSuite) TestUsersHasUser(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	u, err := auth.NewUser(st, auth.NewUserData{
+	u, err := auth.NewUser(st, auth.NewUserParams{
 		Username:   "someuser",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",

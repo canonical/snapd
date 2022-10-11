@@ -32,7 +32,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -162,10 +161,6 @@ func (s *Store) cdnHeader() (string, error) {
 		return "none", nil
 	}
 
-	if s.dauthCtx == nil {
-		return "", nil
-	}
-
 	// set Snap-CDN from cloud instance information
 	// if available
 
@@ -173,25 +168,7 @@ func (s *Store) cdnHeader() (string, error) {
 	// where we first to send this header and if the
 	// operation fails that way to even get the connection
 	// then we retry without sending this?
-
-	cloudInfo, err := s.dauthCtx.CloudInfo()
-	if err != nil {
-		return "", err
-	}
-
-	if cloudInfo != nil {
-		cdnParams := []string{fmt.Sprintf("cloud-name=%q", cloudInfo.Name)}
-		if cloudInfo.Region != "" {
-			cdnParams = append(cdnParams, fmt.Sprintf("region=%q", cloudInfo.Region))
-		}
-		if cloudInfo.AvailabilityZone != "" {
-			cdnParams = append(cdnParams, fmt.Sprintf("availability-zone=%q", cloudInfo.AvailabilityZone))
-		}
-
-		return strings.Join(cdnParams, " "), nil
-	}
-
-	return "", nil
+	return s.buildLocationString()
 }
 
 type HashError struct {

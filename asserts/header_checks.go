@@ -284,13 +284,17 @@ func checkStringMatchesWhat(headers map[string]interface{}, name, what string, p
 }
 
 func checkOptionalBool(headers map[string]interface{}, name string) (bool, error) {
+	return checkOptionalBoolWhat(headers, name, "header")
+}
+
+func checkOptionalBoolWhat(headers map[string]interface{}, name, what string) (bool, error) {
 	value, ok := headers[name]
 	if !ok {
 		return false, nil
 	}
 	s, ok := value.(string)
 	if !ok || (s != "true" && s != "false") {
-		return false, fmt.Errorf("%q header must be 'true' or 'false'", name)
+		return false, fmt.Errorf("%q %s must be 'true' or 'false'", name, what)
 	}
 	return s == "true", nil
 }
