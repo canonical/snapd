@@ -278,6 +278,11 @@ func createSeedOnTarget(bootDevice, seedLabel string) error {
 	dataMnt := runMntFor("ubuntu-data")
 	src := dirs.SnapSeedDir
 	dst := dirs.SnapSeedDirUnder(dataMnt)
+	// Remove any existing seed on the target fs and then put the
+	// selected seed in place on the target
+	if err := os.RemoveAll(dst); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 		return err
 	}
