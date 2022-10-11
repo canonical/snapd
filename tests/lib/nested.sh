@@ -1076,7 +1076,7 @@ nested_start_core_vm_unit() {
             if snap list test-snapd-swtpm >/dev/null; then
                 # reset the tpm state
                 rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall
-                snap restart test-snapd-swtpmo > /dev/null
+                snap restart test-snapd-swtpm > /dev/null
             else
                 snap install test-snapd-swtpm --edge
             fi
