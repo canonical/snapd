@@ -26,11 +26,14 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
@@ -958,4 +961,170 @@ func (s *installSuite) TestFactoryResetHappyEncrypted(c *C) {
 		traitsJSON: gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON,
 		traits:     gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
 	})
+}
+
+func (s *installSuite) TestInstallWriteContentSimpleHappy(c *C) {
+	s.testWriteContent(c, installOpts{
+		encryption: false,
+	})
+}
+
+func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
+	goff := offs
+	return &goff
+}
+
+func (s *installSuite) testWriteContent(c *C, opts installOpts) {
+	espMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/2")
+	bootMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/3")
+	saveMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/4")
+	dataMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/5")
+	mountCall := 0
+	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		mountCall++
+		switch mountCall {
+		case 1:
+			c.Assert(source, Equals, "/dev/vda2")
+			c.Assert(target, Equals, espMntPt)
+			c.Assert(fstype, Equals, "vfat")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		case 2:
+			c.Assert(source, Equals, "/dev/vda3")
+			c.Assert(target, Equals, bootMntPt)
+			c.Assert(fstype, Equals, "ext4")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		case 3:
+			if opts.encryption {
+				c.Assert(source, Equals, "/dev/mapper/ubuntu-save")
+			} else {
+				c.Assert(source, Equals, "/dev/vda4")
+			}
+			c.Assert(target, Equals, saveMntPt)
+			c.Assert(fstype, Equals, "ext4")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		case 4:
+			if opts.encryption {
+				c.Assert(source, Equals, "/dev/mapper/ubuntu-data")
+			} else {
+				c.Assert(source, Equals, "/dev/vda5")
+			}
+			c.Assert(target, Equals, dataMntPt)
+			c.Assert(fstype, Equals, "ext4")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		default:
+			c.Errorf("unexpected mount call (%d)", mountCall)
+			return fmt.Errorf("test broken")
+		}
+		return nil
+	})
+	defer restore()
+
+	umountCall := 0
+	restore = install.MockSysUnmount(func(target string, flags int) error {
+		umountCall++
+		if umountCall > 4 {
+			c.Errorf("unexpected umount call (%d)", umountCall)
+			return fmt.Errorf("test broken")
+		}
+		c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir,
+			"gadget-install/"+strconv.Itoa(umountCall+1)))
+		c.Assert(flags, Equals, 0)
+		return nil
+	})
+	defer restore()
+
+	// TODO test for UC systems too
+	model := boottest.MakeMockClassicWithModesModel()
+
+	// Create gadget with all files
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	err := makeMockGadget(gadgetRoot, gadgettest.SingleVolumeClassicWithModesGadgetYaml)
+	c.Assert(err, IsNil)
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, "", model)
+	c.Assert(err, IsNil)
+
+	ginfo, err := gadget.ReadInfo(gadgetRoot, model)
+	c.Assert(err, IsNil)
+
+	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
+	restore = install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
+		c.Assert(strings.HasPrefix(device, "/dev/vda"), Equals, true)
+		return filepath.Join(vdaSysPath, filepath.Base(device)), nil
+	})
+	defer restore()
+
+	// "Real" disk data that will be read
+	disk := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				PartitionLabel:   "BIOS\x20Boot",
+				KernelDeviceNode: "/dev/vda1",
+				DiskIndex:        1,
+			},
+			{
+				PartitionLabel:   "EFI System partition",
+				KernelDeviceNode: "/dev/vda2",
+				DiskIndex:        2,
+			},
+			{
+				PartitionLabel:   "ubuntu-boot",
+				KernelDeviceNode: "/dev/vda3",
+				DiskIndex:        3,
+			},
+			{
+				PartitionLabel:   "ubuntu-save",
+				KernelDeviceNode: "/dev/vda4",
+				DiskIndex:        4,
+			},
+			{
+				PartitionLabel:   "ubuntu-data",
+				KernelDeviceNode: "/dev/vda5",
+				DiskIndex:        5,
+			},
+		},
+		DiskHasPartitions: true,
+		DevNum:            "disk1",
+		DevNode:           "/dev/vda",
+		DevPath:           vdaSysPath,
+	}
+	diskMapping := map[string]*disks.MockDiskMapping{
+		vdaSysPath: disk,
+		// this simulates a symlink in /sys/block which points to the above path
+		"/sys/block/vda": disk,
+	}
+	restore = disks.MockDevicePathToDiskMapping(diskMapping)
+	defer restore()
+
+	// 10 million mocks later ...
+	// finally actually run WriteContent
+
+	// Fill in additional information about the target device as the installer does
+	partIdx := 1
+	for i, part := range ginfo.Volumes["pc"].Structure {
+		if part.Role == "mbr" {
+			continue
+		}
+		ginfo.Volumes["pc"].Structure[i].Device = "/dev/vda" + strconv.Itoa(partIdx)
+		partIdx++
+	}
+	onDiskVols, err := install.WriteContent(ginfo.Volumes, allLaidOutVols, nil, nil, timings.New(nil))
+	c.Assert(err, IsNil)
+	c.Assert(len(onDiskVols), Equals, 1)
+
+	c.Assert(mountCall, Equals, 4)
+	c.Assert(umountCall, Equals, 4)
+
+	var data []byte
+	for _, mntPt := range []string{espMntPt, bootMntPt} {
+		data, err = ioutil.ReadFile(filepath.Join(mntPt, "EFI/boot/bootx64.efi"))
+		c.Check(err, IsNil)
+		c.Check(string(data), Equals, "shim.efi.signed content")
+		data, err = ioutil.ReadFile(filepath.Join(mntPt, "EFI/boot/grubx64.efi"))
+		c.Check(err, IsNil)
+		c.Check(string(data), Equals, "grubx64.efi content")
+	}
 }
