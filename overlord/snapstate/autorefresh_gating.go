@@ -80,11 +80,24 @@ func lastRefreshed(st *state.State, snapName string) (time.Time, error) {
 	return fst.ModTime(), nil
 }
 
+// HoldLevel determines which refresh operations are controlled by the hold.
+// Levels are ordered and higher levels imply lower ones.
+type HoldLevel int
+
+const (
+	// HoldAutoRefresh holds snaps only in auto-refresh operations
+	HoldAutoRefresh HoldLevel = iota
+	// HoldGeneral holds snaps in general and auto-refresh operations
+	HoldGeneral
+)
+
 type holdState struct {
 	// FirstHeld keeps the time when the given snap was first held for refresh by a gating snap.
 	FirstHeld time.Time `json:"first-held"`
 	// HoldUntil stores the desired end time for holding.
 	HoldUntil time.Time `json:"hold-until"`
+	// Level of this hold.
+	Level HoldLevel `json:"level,omitempty"`
 }
 
 func refreshGating(st *state.State) (map[string]map[string]*holdState, error) {
@@ -147,7 +160,9 @@ func holdDurationLeft(now time.Time, lastRefresh, firstHeld time.Time, maxDurati
 // HoldRefreshesBySystem is used to hold snaps by the sys admin (denoted by the
 // "system" holding snap). HoldTime can be "forever" to denote an indefinite hold
 // or any RFC3339 timestamp.
-func HoldRefreshesBySystem(st *state.State, holdTime string, holdSnaps []string) error {
+// A hold level can be specified indicating which operations are affected by the
+// hold.
+func HoldRefreshesBySystem(st *state.State, level HoldLevel, holdTime string, holdSnaps []string) error {
 	snaps, err := All(st)
 	if err != nil {
 		return err
@@ -170,7 +185,7 @@ func HoldRefreshesBySystem(st *state.State, holdTime string, holdSnaps []string)
 		holdDuration = holdTime.Sub(timeNow())
 	}
 
-	_, err = HoldRefresh(st, "system", holdDuration, holdSnaps...)
+	_, err = HoldRefresh(st, level, "system", holdDuration, holdSnaps...)
 	return err
 }
 
@@ -180,7 +195,9 @@ func HoldRefreshesBySystem(st *state.State, holdTime string, holdSnaps []string)
 // and it contains the details of snaps that prevented holding. On success the
 // function returns the remaining hold time. The remaining hold time is the
 // minimum of the remaining hold time for all affecting snaps.
-func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration, affectingSnaps ...string) (time.Duration, error) {
+// A hold level can be specified indicating which operations are affected by the
+// hold.
+func HoldRefresh(st *state.State, level HoldLevel, gatingSnap string, holdDuration time.Duration, affectingSnaps ...string) (time.Duration, error) {
 	gating, err := refreshGating(st)
 	if err != nil {
 		return 0, err
@@ -201,6 +218,7 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 				FirstHeld: now,
 			}
 		}
+		hold.Level = level
 
 		if gatingSnap == "system" {
 			if holdDuration == 0 {
@@ -425,8 +443,9 @@ func pruneSnapsHold(st *state.State, snapName string) error {
 	return nil
 }
 
-// HeldSnaps returns all snaps that are gated and shouldn't be refreshed.
-func HeldSnaps(st *state.State) (map[string]bool, error) {
+// HeldSnaps returns all snaps that are held at the given level or at more
+// restricting ones and shouldn't be refreshed.
+func HeldSnaps(st *state.State, level HoldLevel) (map[string]bool, error) {
 	gating, err := refreshGating(st)
 	if err != nil {
 		return nil, err
@@ -446,6 +465,12 @@ Loop:
 		}
 
 		for holdingSnap, hold := range holds {
+			// the snap is not considered held for the given
+			// level (e.g HoldGeneral) but only for lower
+			// levels (e.g. HoldAutorefresh)
+			if hold.Level < level {
+				continue
+			}
 			// enforce the maxPostponement limit on a hold, unless it's held by the user
 			if holdingSnap != "system" && lastRefresh.Add(maxPostponement).Before(now) {
 				continue
@@ -695,7 +720,7 @@ var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
 		return nil, err
 	}
 
-	held, err := HeldSnaps(gatingTask.State())
+	held, err := HeldSnaps(gatingTask.State(), HoldAutoRefresh)
 	if err != nil {
 		return nil, err
 	}
