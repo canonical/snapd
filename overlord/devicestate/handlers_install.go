@@ -284,7 +284,16 @@ func buildInstallObserver(model *asserts.Model, gadgetDir string, useEncryption 
 }
 
 func (m *DeviceManager) doSetupUbuntuSave(t *state.Task, _ *tomb.Tomb) error {
-	return m.setupUbuntuSave()
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+
+	return m.setupUbuntuSave(deviceCtx)
 }
 
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {

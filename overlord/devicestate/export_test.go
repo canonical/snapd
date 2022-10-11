@@ -137,8 +137,10 @@ func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 	return m.setTimeOnce(name, t)
 }
 
-func PreloadGadget(m *DeviceManager) (sysconfig.Device, *gadget.Info, error) {
-	return m.preloadGadget()
+func EarlyPreloadGadget(m *DeviceManager) (sysconfig.Device, *gadget.Info, error) {
+	// let things fully run again
+	m.seedTimings = nil
+	return m.earlyPreloadGadget()
 }
 
 func MockLoadDeviceSeed(f func(st *state.State, sysLabel string) (seed.Seed, error)) func() {
