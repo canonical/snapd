@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -73,7 +73,7 @@ type managerBackend interface {
 	// install related
 	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev snap.Device, opts *backend.SetupSnapOptions, meter progress.Meter) (snap.Type, *backend.InstallRecord, error)
 	CopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOptions, meter progress.Meter) error
-	SetupSnapSaveData(info *snap.Info, meter progress.Meter) error
+	SetupSnapSaveData(info *snap.Info, dev snap.Device, meter progress.Meter) error
 	LinkSnap(info *snap.Info, dev snap.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootInfo boot.RebootInfo, err error)
 	StartServices(svcs []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error
 	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
@@ -83,7 +83,7 @@ type managerBackend interface {
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error
 	UndoCopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOptions, meter progress.Meter) error
-	UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, meter progress.Meter) error
+	UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, dev snap.Device, meter progress.Meter) error
 	// cleanup
 	ClearTrashedData(oldSnap *snap.Info)
 
@@ -93,7 +93,7 @@ type managerBackend interface {
 	RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error
 	RemoveSnapData(info *snap.Info, opts *dirs.SnapDirOptions) error
 	RemoveSnapCommonData(info *snap.Info, opts *dirs.SnapDirOptions) error
-	RemoveSnapSaveData(info *snap.Info) error
+	RemoveSnapSaveData(info *snap.Info, dev snap.Device) error
 	RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool) error
 	RemoveSnapMountUnits(s snap.PlaceInfo, meter progress.Meter) error
 	DiscardSnapNamespace(snapName string) error

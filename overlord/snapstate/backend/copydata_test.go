@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -592,37 +591,33 @@ func (s *copydataSuite) TestSetupCommonSaveDataClassic(c *C) {
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	// first install
-	err := s.be.SetupSnapSaveData(v1, progress.Null)
+	err := s.be.SetupSnapSaveData(v1, mockClassicDev, progress.Null)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(v1.CommonDataSaveDir())
 	c.Assert(err.Error(), Equals, fmt.Sprintf("stat %s/var/lib/snapd/save/snap/hello: no such file or directory", dirs.GlobalRootDir))
 }
 
 func (s *copydataSuite) TestSetupCommonSaveDataCoreNoMount(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-	restore = osutil.MockMountInfo("")
+	restore := osutil.MockMountInfo("")
 	defer restore()
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	// first install
-	err := s.be.SetupSnapSaveData(v1, progress.Null)
+	err := s.be.SetupSnapSaveData(v1, mockDev, progress.Null)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(v1.CommonDataSaveDir())
 	c.Assert(err.Error(), Equals, fmt.Sprintf("stat %s/var/lib/snapd/save/snap/hello: no such file or directory", dirs.GlobalRootDir))
 }
 
 func (s *copydataSuite) TestSetupCommonSaveDataFirstInstall(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-	restore = osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir) + "\n" +
+	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir) + "\n" +
 		fmt.Sprintf(mountSnapSaveFmt, dirs.GlobalRootDir))
 	defer restore()
 
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	// first install
-	err := s.be.SetupSnapSaveData(v1, progress.Null)
+	err := s.be.SetupSnapSaveData(v1, mockDev, progress.Null)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(v1.CommonDataSaveDir())
 	c.Assert(err, IsNil)
@@ -631,7 +626,7 @@ func (s *copydataSuite) TestSetupCommonSaveDataFirstInstall(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(v1.CommonDataSaveDir(), "canary.txt"), nil, 0644), IsNil)
 
 	// removes correctly when no previous info is present
-	err = s.be.UndoSetupSnapSaveData(v1, nil, progress.Null)
+	err = s.be.UndoSetupSnapSaveData(v1, nil, mockDev, progress.Null)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(v1.CommonDataSaveDir())
 	c.Check(os.IsNotExist(err), Equals, true)
@@ -643,9 +638,7 @@ func (s *copydataSuite) TestSetupCommonSaveDataFirstInstall(c *C) {
 }
 
 func (s *copydataSuite) TestSetupCommonSaveDataSameRevision(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-	restore = osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir) + "\n" +
+	restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir) + "\n" +
 		fmt.Sprintf(mountSnapSaveFmt, dirs.GlobalRootDir))
 	defer restore()
 
@@ -656,7 +649,7 @@ func (s *copydataSuite) TestSetupCommonSaveDataSameRevision(c *C) {
 	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
 
 	// setup snap save data works
-	err := s.be.SetupSnapSaveData(v1, progress.Null)
+	err := s.be.SetupSnapSaveData(v1, mockDev, progress.Null)
 	c.Assert(err, IsNil)
 
 	// assert data still is there
@@ -671,15 +664,13 @@ func (s *copydataSuite) TestUndoSetupCommonSaveDataClassic(c *C) {
 	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
 
 	// make sure that undo doesn't do anything on a classic system
-	err := s.be.UndoSetupSnapSaveData(v1, v1, progress.Null)
+	err := s.be.UndoSetupSnapSaveData(v1, v1, mockClassicDev, progress.Null)
 	c.Assert(err, IsNil)
 
 	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
 }
 
 func (s *copydataSuite) TestUndoSetupCommonSaveDataSameRevision(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	c.Assert(os.MkdirAll(v1.CommonDataSaveDir(), 0755), IsNil)
@@ -687,7 +678,7 @@ func (s *copydataSuite) TestUndoSetupCommonSaveDataSameRevision(c *C) {
 	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
 
 	// make sure that undo doesn't do anything with a previous version present
-	err := s.be.UndoSetupSnapSaveData(v1, v1, progress.Null)
+	err := s.be.UndoSetupSnapSaveData(v1, v1, mockDev, progress.Null)
 	c.Assert(err, IsNil)
 
 	c.Assert(osutil.FileExists(filepath.Join(v1.CommonDataSaveDir(), "canary.txt")), Equals, true)
