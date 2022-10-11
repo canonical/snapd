@@ -413,7 +413,7 @@ execute: |
         # not have credentials for esm.ubuntu.com
         if ! os.query is-trusty && ! os.query is-xenial; then
             apt install -y --allow-downgrades "snapd/$(lsb_release -sc)"
-            tests.cleanup defer apt install -y "$PROJECT_PATH/../"snapd_1337.*_amd64.deb
+            tests.cleanup defer apt install -y "$PROJECT_PATH/../"snapd_1337.*_"$(dpkg-architecture -qDEB_HOST_ARCH)".deb
 
             # check snapd.apparmor is still working after downgrade
             if ! os.query is-trusty && ! os.query is-xenial; then
