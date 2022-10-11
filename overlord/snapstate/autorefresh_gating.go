@@ -443,8 +443,8 @@ func pruneSnapsHold(st *state.State, snapName string) error {
 	return nil
 }
 
-// HeldSnaps returns all snaps that are held for at least at the given level
-// and shouldn't be refreshed.
+// HeldSnaps returns all snaps that are held at the given level or at more
+// restricting ones and shouldn't be refreshed.
 func HeldSnaps(st *state.State, level HoldLevel) (map[string]bool, error) {
 	gating, err := refreshGating(st)
 	if err != nil {
