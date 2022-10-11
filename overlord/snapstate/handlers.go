@@ -1232,7 +1232,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb, dirOpts); copyDataErr != nil {
+	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, dirOpts, pb); copyDataErr != nil {
 		if oldInfo != nil {
 			// there is another revision of the snap, cannot remove
 			// shared data directory
@@ -1414,7 +1414,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, dirOpts); err != nil {
+	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, dirOpts, pb); err != nil {
 		return err
 	}
 	if err := m.backend.UndoSetupSnapSaveData(newInfo, oldInfo, pb); err != nil {
