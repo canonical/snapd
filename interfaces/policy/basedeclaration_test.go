@@ -835,6 +835,7 @@ var (
 		"custom-device":   nil,
 		"docker":          nil,
 		"lxd":             nil,
+		"microceph":       nil,
 		"pkcs11":          nil,
 		"posix-mq":        nil,
 		"shared-memory":   nil,
@@ -889,6 +890,12 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err = ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"lxd\" slot rule of interface \"lxd\"")
+
+	// test microceph specially
+	ic = s.installSlotCand(c, "microceph", snap.TypeApp, ``)
+	err = ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"microceph\" slot rule of interface \"microceph\"")
 
 	// test shared-memory specially
 	ic = s.installSlotCand(c, "shared-memory", snap.TypeApp, ``)
@@ -995,6 +1002,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"location-observe":          true,
 		"lxd":                       true,
 		"maliit":                    true,
+		"microceph":                 true,
 		"mir":                       true,
 		"online-accounts-service":   true,
 		"posix-mq":                  true,
