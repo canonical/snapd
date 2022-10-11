@@ -39,6 +39,8 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+var SysfsPathForBlockDevice = sysfsPathForBlockDevice
+
 // diskWithSystemSeed will locate a disk that has the partition corresponding
 // to a structure with SystemSeed role of the specified gadget volume and return
 // the device node.
@@ -493,7 +495,7 @@ func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string
 			// TODO maybe some changes will be needed when we have
 			// encrypted partitions, as the device won't be directly
 			// associated with a disk.
-			partSysfsPath, err := sysfsPathForBlockDevice(volStruct.Device)
+			partSysfsPath, err := SysfsPathForBlockDevice(volStruct.Device)
 			if err != nil {
 				return nil, err
 			}
@@ -619,7 +621,7 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 			}
 			device := volStruct.Device
 
-			partSysfsPath, err := sysfsPathForBlockDevice(device)
+			partSysfsPath, err := SysfsPathForBlockDevice(device)
 			if err != nil {
 				return nil, err
 			}
