@@ -20,13 +20,16 @@
 package release_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -60,6 +63,25 @@ BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
 	c.Assert(err, IsNil)
 
 	return mockOSRelease
+}
+
+func mockWSLsetup(c *C, existsWSLinterop bool, existsRunWSL bool, fstype string) func() {
+	restoreFileExists := release.MockFileExists(func(s string) bool {
+		if s == "/proc/sys/fs/binfmt_misc/WSLInterop" {
+			return existsWSLinterop
+		}
+		if s == "/run/WSL" {
+			return existsRunWSL
+		}
+		return osutil.FileExists(s)
+	})
+	dfOutput := fmt.Sprintf("printf 'Type\n%s'", fstype)
+	restoreMockCommand := testutil.MockCommand(c, "df", dfOutput).Restore
+
+	return func() {
+		restoreFileExists()
+		restoreMockCommand()
+	}
 }
 
 func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
@@ -149,61 +171,31 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestNonWSL(c *C) {
-	defer release.MockFileExists(func(s string) bool {
-		c.Check(s, Equals, "/proc/sys/fs/binfmt_misc/WSLInterop")
-		return false
-	})()
-
-	defer release.MockIoutilReadfile(func(s string) ([]byte, error) {
-		c.Check(s, Equals, "/proc/version")
-		return []byte("Linux version 2.2.19 (herbert@gondolin) (gcc version 2.7.2.3) #1 Wed Mar 20 19:41:41 EST 2002"), nil
-	})()
-
+	defer mockWSLsetup(c, false, false, "ext4")()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 0)
 }
 
 func (s *ReleaseTestSuite) TestWSL1(c *C) {
-	defer release.MockFileExists(func(s string) bool {
-		c.Check(s, Equals, "/proc/sys/fs/binfmt_misc/WSLInterop")
-		return true
-	})()
+	defer mockWSLsetup(c, true, true, "wslfs")()
+	v := release.GetWSLVersion()
+	c.Check(v, Equals, 1)
+}
 
-	defer release.MockIoutilReadfile(func(s string) ([]byte, error) {
-		c.Check(s, Equals, "/proc/version")
-		return []byte("Linux version 4.4.0-22000-Microsoft (Microsoft@Microsoft.com) (gcc version 5.4.0 (GCC) ) #653-Microsoft Wed Apr 27 16:06:00 PST 2022"), nil
-	})()
-
+func (s *ReleaseTestSuite) TestWSL1OldFS(c *C) {
+	defer mockWSLsetup(c, true, true, "lxfs")()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 1)
 }
 
 func (s *ReleaseTestSuite) TestWSL2(c *C) {
-	defer release.MockFileExists(func(s string) bool {
-		c.Check(s, Equals, "/proc/sys/fs/binfmt_misc/WSLInterop")
-		return true
-	})()
-
-	defer release.MockIoutilReadfile(func(s string) ([]byte, error) {
-		c.Check(s, Equals, "/proc/version")
-		return []byte("Linux version 5.15.57.1-microsoft-standard-WSL2 (oe-user@oe-host) (x86_64-msft-linux-gcc (GCC) 9.3.0, GNU ld (GNU Binutils) 2.34.0.20200220) #1 SMP Wed Jul 27 02:20:31 UTC 2022"), nil
-	})()
-
+	defer mockWSLsetup(c, true, true, "ext4")()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }
 
-func (s *ReleaseTestSuite) TestWSL2Custom(c *C) {
-	defer release.MockFileExists(func(s string) bool {
-		c.Check(s, Equals, "/proc/sys/fs/binfmt_misc/WSLInterop")
-		return true
-	})()
-
-	defer release.MockIoutilReadfile(func(s string) ([]byte, error) {
-		c.Check(s, Equals, "/proc/version")
-		return []byte("Linux version 3.14.15.92-look-mum-i-compiled-the-linux-kernel"), nil
-	})()
-
+func (s *ReleaseTestSuite) TestWSL2NoInterop(c *C) {
+	defer mockWSLsetup(c, false, true, "ext4")()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }

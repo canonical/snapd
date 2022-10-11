@@ -21,9 +21,8 @@ package release
 
 import (
 	"bufio"
-	"io/ioutil"
 	"os"
-	"regexp"
+	"os/exec"
 	"strings"
 	"unicode"
 
@@ -111,22 +110,26 @@ var fileExists = func(path string) bool {
 	return err == nil
 }
 
-var ioutilReadFile = ioutil.ReadFile
-
-// WSL 1 /proc/version: Linux version [kernel]-Microsoft (Microsoft@Microsoft.com) ([gcc version] ) #[build]-Microsoft [timestamp]
-// WS2 2 /proc/version: Linux version [kernel]-microsoft-standard-WSL2 (oe-user@oe-host) ([gcc version], [ld version]) #1 [timestamp]
+// We detect WSL via the existence of /proc/sys/fs/binfmt_misc/WSLInterop
+// Under some undocumented circumstances this file may be missing. We have /run/WSL as a backup.
 //
-// Note that WS2's kernel can be customized by the user, so there is no guarantee on the
-// contents of that string. Hence why we search in WSL1's kernel name instead of WSL2's
-var kernelWSL1 = regexp.MustCompile(`^Linux version [0-9.-]+Microsoft \(Microsoft@Microsoft.com\)`)
-
+// We detect WSL1 via the root filesystem type. lxfs and wslfs belong to WSL1
+// WSL2 is more customizable and open to changes so we assign all other possibilities to it.
+// After knowing we're in WSL, if any error occurs we assume WSL1 as it is the more restrictive version
 func getWSLVersion() int {
-	if !fileExists("/proc/sys/fs/binfmt_misc/WSLInterop") {
+	if !fileExists("/proc/sys/fs/binfmt_misc/WSLInterop") && !fileExists("/run/WSL") {
 		return 0
 	}
-	kernel, err := ioutilReadFile("/proc/version")
-	if err != nil || kernelWSL1.MatchString(string(kernel[:])) {
-		// In case of error, we default to WSL1 because it is the most feature-restricted version
+	outp, err := exec.Command("df", "--output=fstype", "/").CombinedOutput()
+	if err != nil {
+		return 1
+	}
+	data := strings.Split(string(outp[:]), "\n")
+	if len(data) < 2 {
+		return 1
+	}
+	fstype := data[1]
+	if fstype == "wslfs" || fstype == "lxfs" {
 		return 1
 	}
 	return 2
