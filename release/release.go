@@ -21,9 +21,10 @@ package release
 
 import (
 	"bufio"
+	"fmt"
 	"os"
-	"os/exec"
 	"strings"
+	"syscall"
 	"unicode"
 
 	"github.com/snapcore/snapd/strutil"
@@ -110,29 +111,36 @@ var fileExists = func(path string) bool {
 	return err == nil
 }
 
+var filesystemRootType = func() (int64, error) {
+	var statfs syscall.Statfs_t
+	if err := syscall.Statfs("/", &statfs); err != nil {
+		return 0, fmt.Errorf("cannot statfs filesystem root")
+	}
+	// Type is int32 on 386, use explicit conversion to keep the code
+	// working for both
+	return int64(statfs.Type), nil
+}
+
 // We detect WSL via the existence of /proc/sys/fs/binfmt_misc/WSLInterop
 // Under some undocumented circumstances this file may be missing. We have /run/WSL as a backup.
 //
-// We detect WSL1 via the root filesystem type. lxfs and wslfs belong to WSL1
-// WSL2 is more customizable and open to changes so we assign all other possibilities to it.
+// We detect WSL1 via the root filesystem type:
+// - ext4 (Kernel magic: 0xef53) means WSL2
+// - wslfs (Kernel magic: 0x53464846) and  lxfs (Kernel magic: ?) mean WSL1
 // After knowing we're in WSL, if any error occurs we assume WSL1 as it is the more restrictive version
 func getWSLVersion() int {
 	if !fileExists("/proc/sys/fs/binfmt_misc/WSLInterop") && !fileExists("/run/WSL") {
 		return 0
 	}
-	outp, err := exec.Command("df", "--output=fstype", "/").CombinedOutput()
+	fstype, err := filesystemRootType()
 	if err != nil {
 		return 1
 	}
-	data := strings.Split(string(outp[:]), "\n")
-	if len(data) < 2 {
-		return 1
+
+	if fstype == 0xef53 { // ext
+		return 2
 	}
-	fstype := data[1]
-	if fstype == "wslfs" || fstype == "lxfs" {
-		return 1
-	}
-	return 2
+	return 1
 }
 
 // SystemctlSupportsUserUnits returns true if the systemctl utility

@@ -20,7 +20,6 @@
 package release_test
 
 import (
-	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
@@ -29,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -65,7 +63,13 @@ BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
 	return mockOSRelease
 }
 
-func mockWSLsetup(c *C, existsWSLinterop bool, existsRunWSL bool, fstype string) func() {
+// Kernel magic numbers
+const (
+	wslfs int64 = 0x53464846
+	ext4  int64 = 0xef53
+)
+
+func mockWSLsetup(c *C, existsWSLinterop bool, existsRunWSL bool, filesystemID int64) func() {
 	restoreFileExists := release.MockFileExists(func(s string) bool {
 		if s == "/proc/sys/fs/binfmt_misc/WSLInterop" {
 			return existsWSLinterop
@@ -75,12 +79,11 @@ func mockWSLsetup(c *C, existsWSLinterop bool, existsRunWSL bool, fstype string)
 		}
 		return osutil.FileExists(s)
 	})
-	dfOutput := fmt.Sprintf("printf 'Type\n%s'", fstype)
-	restoreMockCommand := testutil.MockCommand(c, "df", dfOutput).Restore
+	restoreFilesystemRootType := release.MockFilesystemRootType(filesystemID)
 
 	return func() {
 		restoreFileExists()
-		restoreMockCommand()
+		restoreFilesystemRootType()
 	}
 }
 
@@ -171,31 +174,25 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestNonWSL(c *C) {
-	defer mockWSLsetup(c, false, false, "ext4")()
+	defer mockWSLsetup(c, false, false, ext4)()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 0)
 }
 
 func (s *ReleaseTestSuite) TestWSL1(c *C) {
-	defer mockWSLsetup(c, true, true, "wslfs")()
-	v := release.GetWSLVersion()
-	c.Check(v, Equals, 1)
-}
-
-func (s *ReleaseTestSuite) TestWSL1OldFS(c *C) {
-	defer mockWSLsetup(c, true, true, "lxfs")()
+	defer mockWSLsetup(c, true, true, wslfs)()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 1)
 }
 
 func (s *ReleaseTestSuite) TestWSL2(c *C) {
-	defer mockWSLsetup(c, true, true, "ext4")()
+	defer mockWSLsetup(c, true, true, ext4)()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }
 
 func (s *ReleaseTestSuite) TestWSL2NoInterop(c *C) {
-	defer mockWSLsetup(c, false, true, "ext4")()
+	defer mockWSLsetup(c, false, true, ext4)()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }
