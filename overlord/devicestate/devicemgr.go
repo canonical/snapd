@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -85,12 +85,7 @@ type DeviceManager struct {
 	// saveAvailable keeps track whether /var/lib/snapd/save
 	// is available, i.e. exists and is mounted from ubuntu-save
 	// if the latter exists.
-	// TODO: evolve this to state to track things if we start mounting
-	// save as rw vs ro, or mount/umount it fully on demand
 	saveAvailable bool
-
-	// isClassicBoot is true if classic system with classic initramfs
-	isClassicBoot bool
 
 	state   *state.State
 	hookMgr *hookstate.HookManager
@@ -149,8 +144,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		if modeenv != nil {
 			logger.Debugf("modeenv for model %q found", modeenv.Model)
 			m.sysMode = modeenv.Mode
-		} else if release.OnClassic {
-			m.isClassicBoot = true
 		}
 	} else {
 		// cache system label for preseeding of core20; note, this will fail on
@@ -314,6 +307,9 @@ func (m *DeviceManager) StartUp() error {
 }
 
 func (m *DeviceManager) shouldMountUbuntuSave() bool {
+	// TODO: this should check DeviceCtx.IsClassicBoot() instead
+	// but we should not create per-snap save directories on classic
+	// for now except for maybe gadget and snapd...
 	if release.OnClassic {
 		return false
 	}
@@ -948,10 +944,6 @@ func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.isClassicBoot {
-		return nil
-	}
-
 	// boot-ok/update-boot-revision is only relevant in run-mode
 	if m.SystemMode(SysAny) != "run" {
 		return nil
@@ -962,13 +954,13 @@ func (m *DeviceManager) ensureBootOk() error {
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
-		if err == nil {
+		if err == nil && deviceCtx.Model().KernelSnap() != nil {
 			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
 				return err
 			}
-		}
-		if err := secbootMarkSuccessful(); err != nil {
-			return err
+			if err := secbootMarkSuccessful(); err != nil {
+				return err
+			}
 		}
 
 		m.bootOkRan = true
@@ -1153,6 +1145,27 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 	return nil
 }
 
+// hasInstallDeviceHook returns whether the gadget has an install-device hook.
+// It can return an error if the device has no gadget snap
+func (m *DeviceManager) hasInstallDeviceHook(model *asserts.Model) (bool, error) {
+	gadgetInfo, err := snapstate.CurrentInfo(m.state, model.Gadget())
+	if err != nil {
+		return false, fmt.Errorf("device is seeded in install mode but has no gadget snap: %v", err)
+	}
+	hasInstallDeviceHook := (gadgetInfo.Hooks["install-device"] != nil)
+	return hasInstallDeviceHook, nil
+}
+
+func (m *DeviceManager) installDeviceHookTask(model *asserts.Model) *state.Task {
+	summary := i18n.G("Run install-device hook")
+	hooksup := &hookstate.HookSetup{
+		// TODO: add a reasonable timeout for the install-device hook
+		Snap: model.Gadget(),
+		Hook: "install-device",
+	}
+	return hookstate.HookTask(m.state, summary, hooksup, nil)
+}
+
 func (m *DeviceManager) ensureInstalled() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1181,60 +1194,52 @@ func (m *DeviceManager) ensureInstalled() error {
 	perfTimings := timings.New(map[string]string{"ensure": "install-system"})
 
 	model, err := m.Model()
-	if err != nil && !errors.Is(err, state.ErrNoState) {
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
+		}
 		return err
 	}
-	if err != nil {
-		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
-	}
 
-	// check if the gadget has an install-device hook
-	var hasInstallDeviceHook bool
-
-	gadgetInfo, err := snapstate.CurrentInfo(m.state, model.Gadget())
+	// check if the gadget has an install-device hook, do this before
+	// we mark ensureInstalledRan as true, as this can fail if no gadget
+	// snap is present
+	hasInstallDeviceHook, err := m.hasInstallDeviceHook(model)
 	if err != nil {
-		return fmt.Errorf("internal error: device is seeded in install mode but has no gadget snap: %v", err)
+		return fmt.Errorf("internal error: %v", err)
 	}
-	hasInstallDeviceHook = (gadgetInfo.Hooks["install-device"] != nil)
 
 	m.ensureInstalledRan = true
 
-	var prev *state.Task
+	// Create both setup-run-system and restart-system-to-run-mode tasks as they
+	// will run unconditionally. They will be chained together with optionally the
+	// install-device hook task.
 	setupRunSystem := m.state.NewTask("setup-run-system", i18n.G("Setup system for run mode"))
+	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 
+	prev := setupRunSystem
 	tasks := []*state.Task{setupRunSystem}
 	addTask := func(t *state.Task) {
 		t.WaitFor(prev)
 		tasks = append(tasks, t)
 		prev = t
 	}
-	prev = setupRunSystem
 
 	// add the install-device hook before ensure-next-boot-to-run-mode if it
 	// exists in the snap
-	var installDevice *state.Task
 	if hasInstallDeviceHook {
 		// add the task that ensures ubuntu-save is available after the system
 		// setup to the install-device hook
 		addTask(m.state.NewTask("setup-ubuntu-save", i18n.G("Setup ubuntu-save snap folders")))
 
-		summary := i18n.G("Run install-device hook")
-		hooksup := &hookstate.HookSetup{
-			// TODO: what's a reasonable timeout for the install-device hook?
-			Snap: model.Gadget(),
-			Hook: "install-device",
-		}
-		installDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
+		installDevice := m.installDeviceHookTask(model)
+
+		// reference used by snapctl reboot
+		installDevice.Set("restart-task", restartSystem.ID())
 		addTask(installDevice)
 	}
 
-	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 	addTask(restartSystem)
-
-	if installDevice != nil {
-		// reference used by snapctl reboot
-		installDevice.Set("restart-task", restartSystem.ID())
-	}
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
@@ -1272,16 +1277,50 @@ func (m *DeviceManager) ensureFactoryReset() error {
 
 	perfTimings := timings.New(map[string]string{"ensure": "factory-reset"})
 
+	model, err := m.Model()
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
+		}
+		return err
+	}
+
+	// We perform this check before setting ensureFactoryResetRan in
+	// case this should fail. This should in theory not be possible as
+	// the same type of check is made during install-mode.
+	hasInstallDeviceHook, err := m.hasInstallDeviceHook(model)
+	if err != nil {
+		return fmt.Errorf("internal error: %v", err)
+	}
+
 	m.ensureFactoryResetRan = true
 
+	// Create both factory-reset-run-system and restart-system-to-run-mode tasks as they
+	// will run unconditionally. They will be chained together with optionally the
+	// install-device hook task.
 	factoryReset := m.state.NewTask("factory-reset-run-system", i18n.G("Perform factory reset of the system"))
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
-	restartSystem.WaitFor(factoryReset)
 
-	// TODO: add factory-reset hooks?
+	prev := factoryReset
+	tasks := []*state.Task{factoryReset}
+	addTask := func(t *state.Task) {
+		t.WaitFor(prev)
+		tasks = append(tasks, t)
+		prev = t
+	}
+
+	if hasInstallDeviceHook {
+		installDevice := m.installDeviceHookTask(model)
+
+		// reference used by snapctl reboot
+		installDevice.Set("restart-task", restartSystem.ID())
+		addTask(installDevice)
+	}
+
+	addTask(restartSystem)
 
 	chg := m.state.NewChange("factory-reset", i18n.G("Perform factory reset"))
-	chg.AddAll(state.NewTaskSet(factoryReset, restartSystem))
+	chg.AddAll(state.NewTaskSet(tasks...))
 
 	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
@@ -1496,6 +1535,45 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 	return os.Remove(factoryResetMarker)
 }
 
+// ensureExpiredUsersRemoved is periodically called as a part of Ensure()
+// to remove expired users from the system.
+func (m *DeviceManager) ensureExpiredUsersRemoved() error {
+	st := m.state
+	st.Lock()
+	defer st.Unlock()
+
+	// So far this is only set to be done in run mode, it might not
+	// make any sense to do in it any other mode.
+	mode := m.SystemMode(SysAny)
+	if mode != "run" {
+		return nil
+	}
+
+	// Expect the system to be seeded, otherwise we ignore this.
+	var seeded bool
+	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	users, err := auth.Users(st)
+	if err != nil {
+		return err
+	}
+
+	for _, user := range users {
+		if !user.HasExpired() {
+			continue
+		}
+		if _, err := RemoveUser(st, user.Username); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -1555,6 +1633,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensurePostFactoryReset(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureExpiredUsersRemoved(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1656,10 +1738,6 @@ func (m *DeviceManager) withKeypairMgr(f func(asserts.KeypairManager) error) err
 	}
 	return f(keypairMgr)
 }
-
-// TODO:UC20: we need proper encapsulated support to read
-// tpm-policy-auth-key from save if the latter can get unmounted on
-// demand
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	device, err := m.device()
@@ -1797,7 +1875,7 @@ func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
 		}
 		smi.BootFlags = bootFlags
 
-		hostDataLocs, err := boot.HostUbuntuDataForMode(mode)
+		hostDataLocs, err := boot.HostUbuntuDataForMode(mode, deviceCtx.Model())
 		if err != nil {
 			return nil, err
 		}
@@ -1877,9 +1955,48 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 // including the model assertion, gadget details and encryption info
 // for the given system label.
 func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel string) (*System, *gadget.Info, *EncryptionSupportInfo, error) {
-	if m.isClassicBoot {
-		return nil, nil, nil, fmt.Errorf("cannot get model and gadget information on a classic boot system")
+	// TODO check that the system is not a classic boot one when the
+	// installer is not anymore.
+
+	// System information
+	sys, snapInfos, seedSnaps, err := m.loadSystemAndEssentialSnaps(wantedSystemLabel, []snap.Type{snap.TypeKernel, snap.TypeGadget})
+	if err != nil {
+		return nil, nil, nil, err
 	}
+
+	// Gadget information
+	snapf, err := snapfile.Open(seedSnaps[snap.TypeGadget].Path)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	gadgetInfo, err := gadget.ReadInfoFromSnapFileNoValidate(snapf, sys.Model)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("reading gadget information: %v", err)
+	}
+
+	// Encryption details
+	encInfo, err := m.encryptionSupportInfo(sys.Model, snapInfos[snap.TypeKernel], gadgetInfo)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Make sure gadget is valid for model and available encryption
+	opts := &gadget.ValidationConstraints{
+		EncryptedData: encInfo.StorageSafety == asserts.StorageSafetyEncrypted,
+	}
+	if err := gadget.Validate(gadgetInfo, sys.Model, opts); err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
+	}
+
+	return sys, gadgetInfo, &encInfo, err
+}
+
+// loadSystemAndEssentialSnaps loads information for the given label, which
+// includes system, gadget information, gadget and kernel snaps info,
+// and gadget and kernel seed snap info.
+func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, types []snap.Type) (
+	*System, map[snap.Type]*snap.Info, map[snap.Type]*seed.Snap, error) {
+
 	// get current system as input for loadSeedAndSystem()
 	systemMode := m.SystemMode(SysAny)
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
@@ -1891,60 +2008,39 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 
 	// 2. get the gadget volumes for the given system-label
 	perf := &timings.Timings{}
-	if err := s.LoadEssentialMeta([]snap.Type{snap.TypeKernel, snap.TypeGadget}, perf); err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot load gadget snap metadata: %v", err)
+	if err := s.LoadEssentialMeta(types, perf); err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot load essential snaps metadata: %v", err)
 	}
 	// EssentialSnaps is always ordered, see asserts.Model.EssentialSnaps:
 	// "snapd, kernel, boot base, gadget." and snaps not loaded above
 	// like "snapd" will be skipped and not part of the EssentialSnaps list
 	//
-	// kernel info needed to check encryptionSupport
-	kernelSnap := s.EssentialSnaps()[0]
-	if kernelSnap.Path == "" {
-		return nil, nil, nil, fmt.Errorf("internal error: cannot get kernel snap path")
+	snapInfos := make(map[snap.Type]*snap.Info)
+	seedSnaps := make(map[snap.Type]*seed.Snap)
+	for _, seedSnap := range s.EssentialSnaps() {
+		typ := seedSnap.EssentialType
+		if seedSnap.Path == "" {
+			return nil, nil, nil, fmt.Errorf("internal error: cannot get snap path for %s", typ)
+		}
+		snapf, err := snapfile.Open(seedSnap.Path)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("cannot open snap from %q: %v", seedSnap.Path, err)
+		}
+		snapInfo, err := snap.ReadInfoFromSnapFile(snapf, seedSnap.SideInfo)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if snapInfo.SnapType != typ {
+			return nil, nil, nil, fmt.Errorf("cannot use snap info, expected %s but got %s", typ, snapInfo.SnapType)
+		}
+		seedSnaps[typ] = seedSnap
+		snapInfos[typ] = snapInfo
 	}
-	snapf, err := snapfile.Open(kernelSnap.Path)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot open kernel snap: %v", err)
-	}
-	kernelInfo, err := snap.ReadInfoFromSnapFile(snapf, kernelSnap.SideInfo)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	if kernelInfo.SnapType != snap.TypeKernel {
-		return nil, nil, nil, fmt.Errorf("cannot use kernel info, expected kernel but got: %v", kernelInfo.SnapType)
-	}
-
-	// gadget info needed to check encryptionSupport and gadget contraints
-	gadgetSnap := s.EssentialSnaps()[1]
-	if gadgetSnap.Path == "" {
-		return nil, nil, nil, fmt.Errorf("internal error: cannot get gadget snap path")
-	}
-	snapf, err = snapfile.Open(gadgetSnap.Path)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
-	}
-	gadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot read gadget.yaml: %v", err)
-	}
-	gadgetInfo, err := gadget.InfoFromGadgetYaml(gadgetYaml, sys.Model)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot parse gadget.yaml: %v", err)
+	if len(snapInfos) != len(types) {
+		return nil, nil, nil, fmt.Errorf("internal error: retrieved snap infos (%d) does not match number of types (%d)", len(snapInfos), len(types))
 	}
 
-	encInfo, err := m.encryptionSupportInfo(sys.Model, kernelInfo, gadgetInfo)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	opts := &gadget.ValidationConstraints{
-		EncryptedData: encInfo.StorageSafety == asserts.StorageSafetyEncrypted,
-	}
-	if err := gadget.Validate(gadgetInfo, sys.Model, opts); err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
-	}
-
-	return sys, gadgetInfo, &encInfo, nil
+	return sys, snapInfos, seedSnaps, nil
 }
 
 var ErrUnsupportedAction = errors.New("unsupported action")
@@ -2169,7 +2265,7 @@ func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool 
 	return m.ntpSyncedOrTimedOut
 }
 
-func (m *DeviceManager) hasFDESetupHook() (bool, error) {
+func (m *DeviceManager) hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
 	// state must be locked
 	st := m.state
 
@@ -2178,9 +2274,12 @@ func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 		return false, fmt.Errorf("cannot get device context: %v", err)
 	}
 
-	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
-	if err != nil {
-		return false, fmt.Errorf("cannot get kernel info: %v", err)
+	if kernelInfo == nil {
+		var err error
+		kernelInfo, err = snapstate.KernelInfo(st, deviceCtx)
+		if err != nil {
+			return false, fmt.Errorf("cannot get kernel info: %v", err)
+		}
 	}
 	return hasFDESetupHookInKernel(kernelInfo), nil
 }
@@ -2282,13 +2381,20 @@ var (
 // older systems might return both a recovery key for ubuntu-data and a
 // reinstall key for ubuntu-save.
 func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse, error) {
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	model := deviceCtx.Model()
+
 	fdeDir := dirs.SnapFDEDir
 	mode := m.SystemMode(SysAny)
 	if mode == "install" {
-		fdeDir = boot.InstallHostFDEDataDir
+		fdeDir = boot.InstallHostFDEDataDir(model)
 	} else if mode != "run" {
 		return nil, fmt.Errorf("cannot ensure recovery keys from system mode %q", mode)
 	}
+
 	sysKeys := &client.SystemRecoveryKeysResponse{}
 	// backward compatibility
 	reinstallKeyFile := filepath.Join(fdeDir, "reinstall.key")
@@ -2309,7 +2415,7 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 	if !device.HasEncryptedMarkerUnder(fdeDir) {
 		return nil, fmt.Errorf("system does not use disk encryption")
 	}
-	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv), model)
 	if err != nil {
 		return nil, fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
 	}
@@ -2345,7 +2451,13 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	if !device.HasEncryptedMarkerUnder(dirs.SnapFDEDir) {
 		return fmt.Errorf("system does not use disk encryption")
 	}
-	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return err
+	}
+	model := deviceCtx.Model()
+
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv), model)
 	if err != nil {
 		return fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
 	}

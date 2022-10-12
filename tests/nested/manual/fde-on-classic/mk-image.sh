@@ -95,7 +95,7 @@ install_data_partition() {
     echo "nameserver 8.8.8.8" | sudo tee -a "$DESTDIR"/etc/resolv.conf
     # install additional packages
     sudo chroot "$DESTDIR" /usr/bin/sh -c "DEBIAN_FRONTEND=noninteractive apt update"
-    local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init"
+    local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init jq"
     sudo chroot "$DESTDIR" /usr/bin/sh -c \
          "DEBIAN_FRONTEND=noninteractive apt install --no-install-recommends -y $pkgs"
     # netplan config
@@ -145,6 +145,7 @@ EOF
     sudo cp modeenv "$DESTDIR"/var/lib/snapd/
     # needed from the beginning in ubuntu-data as these are mounted by snap-bootstrap
     # (UC also has base here, but we do not mount it from initramfs in classic)
+    # TODO use prepare-image --classic for this
     sudo mkdir -p "$DESTDIR"/var/lib/snapd/snaps/
     sudo cp "${SNAP_P[kernel]}" "${SNAP_P[gadget]}" \
          "$DESTDIR"/var/lib/snapd/snaps/

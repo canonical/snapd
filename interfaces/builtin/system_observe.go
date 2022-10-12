@@ -62,6 +62,7 @@ const systemObserveConnectedPlugAppArmor = `
 ptrace (read),
 
 # Other miscellaneous accesses for observing the system
+@{PROC}/cgroups r,
 @{PROC}/locks r,
 @{PROC}/modules r,
 @{PROC}/stat r,
@@ -78,6 +79,7 @@ ptrace (read),
 @{PROC}/sys/kernel/sched_autogroup_enabled r,
 @{PROC}/sys/vm/max_map_count r,
 @{PROC}/sys/vm/panic_on_oom r,
+@{PROC}/sys/vm/swappiness r,
 
 # These are not process-specific (/proc/*/... and /proc/*/task/*/...)
 @{PROC}/*/{,task/,task/*/} r,

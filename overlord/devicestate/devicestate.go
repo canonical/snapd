@@ -326,6 +326,21 @@ func CanManageRefreshes(st *state.State) bool {
 	return false
 }
 
+// ResetSession clears the device store session if any.
+func ResetSession(st *state.State) error {
+	device, err := internal.Device(st)
+	if err != nil {
+		return err
+	}
+	if device.SessionMacaroon != "" {
+		device.SessionMacaroon = ""
+		if err := internal.SetDevice(st, device); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func getAllRequiredSnapsForModel(model *asserts.Model) *naming.SnapSet {
 	reqSnaps := model.RequiredWithEssentialSnaps()
 	return naming.NewSnapSet(reqSnaps)

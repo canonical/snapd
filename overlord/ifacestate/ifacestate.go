@@ -534,8 +534,8 @@ func delayedCrossMgrInit() {
 		})
 
 		// hook into conflict checks mechanisms
-		snapstate.AddAffectedSnapsByKind("connect", connectDisconnectAffectedSnaps)
-		snapstate.AddAffectedSnapsByKind("disconnect", connectDisconnectAffectedSnaps)
+		snapstate.RegisterAffectedSnapsByKind("connect", connectDisconnectAffectedSnaps)
+		snapstate.RegisterAffectedSnapsByKind("disconnect", connectDisconnectAffectedSnaps)
 
 		// hook into snap linking/unlinking and activation state changes
 		snapstate.AddLinkSnapParticipant(snapstate.LinkSnapParticipantFunc(OnSnapLinkageChanged))

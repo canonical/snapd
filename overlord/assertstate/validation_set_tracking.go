@@ -146,11 +146,11 @@ func ValidationSets(st *state.State) (map[string]*ValidationSetTracking, error) 
 	return vsmap, nil
 }
 
-// EnforcedValidationSets returns ValidationSets object with all currently tracked
+// TrackedEnforcedValidationSets returns ValidationSets object with all currently tracked
 // validation sets that are in enforcing mode. If extraVss is not nil then they are
 // added to the returned set and replaces validation sets with same account/name
 // in case they were tracked already.
-func EnforcedValidationSets(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+func TrackedEnforcedValidationSets(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 	valsets, err := ValidationSets(st)
 	if err != nil {
 		return nil, err

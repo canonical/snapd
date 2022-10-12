@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.57.3
+Version:        2.57.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -717,6 +717,11 @@ rm %{buildroot}%{_libexecdir}/snapd/system-shutdown
 rm -f %{buildroot}%{_unitdir}/snapd.apparmor.service
 rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
 
+# Remove prompt services
+rm %{buildroot}%{_unitdir}/snapd.aa-prompt-listener.service
+rm %{buildroot}%{_userunitdir}/snapd.aa-prompt-ui.service
+rm %{buildroot}%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
+
 # Install Polkit configuration
 install -m 644 -D data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
 
@@ -981,6 +986,24 @@ fi
 
 
 %changelog
+* Thu Sep 29 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.57.4
+ - release, snapd-apparmor: fixed outdated WSL detection
+ - overlord/ifacestate: fix conflict detection of auto-connection
+ - overlord: run install-device hook during factory reset
+ - image/preseed/preseed_linux: add missing new line
+ - boot: add factory-reset cases for boot-flags.
+ - interfaces: added read/write access to /proc/self/coredump_filter
+   for process-control
+ - interfaces: add read access to /proc/cgroups and
+   /proc/sys/vm/swappiness to system-observe
+ - fde: run fde-reveal-key with `DefaultDependencies=no`
+ - snapdenv: added wsl to userAgent
+ - tests: fix restore section for persistent-journal-namespace
+ - i/b/mount-control: add optional `/` to umount rules
+ - cmd/snap-bootstrap: changes to be able to boot classic rootfs
+ - cmd/snap-bootstrap: add CVM mode
+
 * Thu Sep 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.57.3
  - wrappers: journal namespaces did not honor journal.persistent

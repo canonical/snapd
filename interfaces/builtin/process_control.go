@@ -34,6 +34,8 @@ const processControlConnectedPlugAppArmor = `
 # signals, cpu affinity and nice. This is reserved because it grants privileged
 # access to all processes under root or processes running under the same UID
 # otherwise.
+# Note: Scope augmented by allowing read/write for /proc/self_pid/coredump_filter
+# (needed by opensearch)
 
 # /{,usr/}bin/nice is already in default policy
 /{,usr/}bin/renice ixr,
@@ -46,6 +48,8 @@ capability kill,
 signal (send),
 /{,usr/}bin/kill ixr,
 /{,usr/}bin/pkill ixr,
+
+@{PROC}/[0-9]*/coredump_filter wr,
 `
 
 const processControlConnectedPlugSecComp = `

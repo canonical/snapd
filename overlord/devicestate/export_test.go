@@ -22,6 +22,7 @@ package devicestate
 import (
 	"context"
 	"net/http"
+	"os/user"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -30,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -42,7 +44,10 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-var SystemForPreseeding = systemForPreseeding
+var (
+	SystemForPreseeding         = systemForPreseeding
+	GetUserDetailsFromAssertion = getUserDetailsFromAssertion
+)
 
 func MockKeyLength(n int) (restore func()) {
 	if n < 1024 {
@@ -387,8 +392,8 @@ func MockRestrictCloudInit(f func(sysconfig.CloudInitState, *sysconfig.CloudInit
 	}
 }
 
-func DeviceManagerHasFDESetupHook(mgr *DeviceManager) (bool, error) {
-	return mgr.hasFDESetupHook()
+func DeviceManagerHasFDESetupHook(mgr *DeviceManager, kernelInfo *snap.Info) (bool, error) {
+	return mgr.hasFDESetupHook(kernelInfo)
 }
 
 func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]byte, error) {
@@ -453,4 +458,26 @@ func MockSecbootMarkSuccessful(f func() error) (restore func()) {
 
 func BuildGroundDeviceContext(model *asserts.Model, mode string) snapstate.DeviceContext {
 	return &groundDeviceContext{model: model, systemMode: mode}
+}
+
+func MockOsutilAddUser(addUser func(name string, opts *osutil.AddUserOptions) error) (restore func()) {
+	restore = testutil.Backup(&osutilAddUser)
+	osutilAddUser = addUser
+	return restore
+}
+
+func MockOsutilDelUser(delUser func(name string, opts *osutil.DelUserOptions) error) (restore func()) {
+	restore = testutil.Backup(&osutilDelUser)
+	osutilDelUser = delUser
+	return restore
+}
+
+func MockUserLookup(lookup func(username string) (*user.User, error)) (restore func()) {
+	restore = testutil.Backup(&userLookup)
+	userLookup = lookup
+	return restore
+}
+
+func EnsureExpiredUsersRemoved(m *DeviceManager) error {
+	return m.ensureExpiredUsersRemoved()
 }
