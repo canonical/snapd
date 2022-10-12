@@ -617,7 +617,7 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 				continue
 			}
 			if volStruct.Device == "" {
-				return nil, fmt.Errorf("device field for volume struct %v cannot be empty", volStruct)
+				return nil, fmt.Errorf("device field for volume struct %+v cannot be empty", volStruct)
 			}
 			device := volStruct.Device
 
