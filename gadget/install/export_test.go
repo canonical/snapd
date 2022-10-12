@@ -20,6 +20,7 @@
 package install
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/snapcore/snapd/gadget"
@@ -89,4 +90,24 @@ func BuildEncryptionSetupData(labelToEncDevice map[string]string) *EncryptionSet
 		}
 	}
 	return esd
+}
+
+func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevice map[string]string) error {
+	for label, part := range encryptSetup.parts {
+		switch part.role {
+		case gadget.SystemData, gadget.SystemSave:
+			// ok
+		default:
+			return fmt.Errorf("unexpected role in %q: %q", label, part.role)
+		}
+		if part.encryptedDevice != labelToEncDevice[label] {
+			return fmt.Errorf("encrypted device in EncryptionSetupData (%q) different to expected (%q)",
+				encryptSetup.parts[label].encryptedDevice, labelToEncDevice[label])
+		}
+		if len(part.encryptionKey) == 0 {
+			return fmt.Errorf("encryption key for %q is empty", label)
+		}
+	}
+
+	return nil
 }

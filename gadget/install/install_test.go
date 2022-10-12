@@ -32,6 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
@@ -963,6 +964,89 @@ func (s *installSuite) TestFactoryResetHappyEncrypted(c *C) {
 	})
 }
 
+func mockGadgetPartitionedDisk(c *C) (*gadget.Info, map[string]*gadget.LaidOutVolume, *asserts.Model, string, func()) {
+	cleanups := []func(){}
+	addCleanup := func(r func()) { cleanups = append(cleanups, r) }
+	cleanup := func() {
+		for _, r := range cleanups {
+			r()
+		}
+	}
+
+	// TODO test for UC systems too
+	model := boottest.MakeMockClassicWithModesModel()
+
+	// Create gadget with all files
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	err := makeMockGadget(gadgetRoot, gadgettest.SingleVolumeClassicWithModesGadgetYaml)
+	c.Assert(err, IsNil)
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, "", model)
+	c.Assert(err, IsNil)
+
+	ginfo, err := gadget.ReadInfo(gadgetRoot, model)
+	c.Assert(err, IsNil)
+
+	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
+	restore := install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
+		c.Assert(strings.HasPrefix(device, "/dev/vda"), Equals, true)
+		return filepath.Join(vdaSysPath, filepath.Base(device)), nil
+	})
+	addCleanup(restore)
+
+	// "Real" disk data that will be read
+	disk := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				PartitionLabel:   "BIOS\x20Boot",
+				KernelDeviceNode: "/dev/vda1",
+				DiskIndex:        1,
+			},
+			{
+				PartitionLabel:   "EFI System partition",
+				KernelDeviceNode: "/dev/vda2",
+				DiskIndex:        2,
+			},
+			{
+				PartitionLabel:   "ubuntu-boot",
+				KernelDeviceNode: "/dev/vda3",
+				DiskIndex:        3,
+			},
+			{
+				PartitionLabel:   "ubuntu-save",
+				KernelDeviceNode: "/dev/vda4",
+				DiskIndex:        4,
+			},
+			{
+				PartitionLabel:   "ubuntu-data",
+				KernelDeviceNode: "/dev/vda5",
+				DiskIndex:        5,
+			},
+		},
+		DiskHasPartitions: true,
+		DevNum:            "disk1",
+		DevNode:           "/dev/vda",
+		DevPath:           vdaSysPath,
+	}
+	diskMapping := map[string]*disks.MockDiskMapping{
+		vdaSysPath: disk,
+		// this simulates a symlink in /sys/block which points to the above path
+		"/sys/block/vda": disk,
+	}
+	restore = disks.MockDevicePathToDiskMapping(diskMapping)
+	addCleanup(restore)
+
+	return ginfo, allLaidOutVols, model, gadgetRoot, cleanup
+}
+
+func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
+	goff := offs
+	return &goff
+}
+
+type writeContentOpts struct {
+	encryption bool
+}
+
 func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 	espMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/2")
 	bootMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/3")
@@ -1026,66 +1110,7 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 	})
 	defer restore()
 
-	// TODO test for UC systems too
-	model := boottest.MakeMockClassicWithModesModel()
-
-	// Create gadget with all files
-	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	err := makeMockGadget(gadgetRoot, gadgettest.SingleVolumeClassicWithModesGadgetYaml)
-	c.Assert(err, IsNil)
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, "", model)
-	c.Assert(err, IsNil)
-
-	ginfo, err := gadget.ReadInfo(gadgetRoot, model)
-	c.Assert(err, IsNil)
-
-	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
-	restore = install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
-		c.Assert(strings.HasPrefix(device, "/dev/vda"), Equals, true)
-		return filepath.Join(vdaSysPath, filepath.Base(device)), nil
-	})
-	defer restore()
-
-	// "Real" disk data that will be read
-	disk := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
-			{
-				PartitionLabel:   "BIOS\x20Boot",
-				KernelDeviceNode: "/dev/vda1",
-				DiskIndex:        1,
-			},
-			{
-				PartitionLabel:   "EFI System partition",
-				KernelDeviceNode: "/dev/vda2",
-				DiskIndex:        2,
-			},
-			{
-				PartitionLabel:   "ubuntu-boot",
-				KernelDeviceNode: "/dev/vda3",
-				DiskIndex:        3,
-			},
-			{
-				PartitionLabel:   "ubuntu-save",
-				KernelDeviceNode: "/dev/vda4",
-				DiskIndex:        4,
-			},
-			{
-				PartitionLabel:   "ubuntu-data",
-				KernelDeviceNode: "/dev/vda5",
-				DiskIndex:        5,
-			},
-		},
-		DiskHasPartitions: true,
-		DevNum:            "disk1",
-		DevNode:           "/dev/vda",
-		DevPath:           vdaSysPath,
-	}
-	diskMapping := map[string]*disks.MockDiskMapping{
-		vdaSysPath: disk,
-		// this simulates a symlink in /sys/block which points to the above path
-		"/sys/block/vda": disk,
-	}
-	restore = disks.MockDevicePathToDiskMapping(diskMapping)
+	ginfo, allLaidOutVols, _, _, restore := mockGadgetPartitionedDisk(c)
 	defer restore()
 
 	// 10 million mocks later ...
@@ -1127,7 +1152,19 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 	}
 }
 
-func (s *installSuite) TestInstallWriteContentError(c *C) {
+func (s *installSuite) TestInstallWriteContentSimpleHappy(c *C) {
+	s.testWriteContent(c, writeContentOpts{
+		encryption: false,
+	})
+}
+
+func (s *installSuite) TestInstallWriteContentEncryptedHappy(c *C) {
+	s.testWriteContent(c, writeContentOpts{
+		encryption: true,
+	})
+}
+
+func (s *installSuite) TestInstallWriteContentDeviceNotFound(c *C) {
 	vols := map[string]*gadget.Volume{
 		"pc": {
 			Structure: []gadget.VolumeStructure{{
@@ -1141,23 +1178,60 @@ func (s *installSuite) TestInstallWriteContentError(c *C) {
 	c.Check(onDiskVols, IsNil)
 }
 
-func (s *installSuite) TestInstallWriteContentSimpleHappy(c *C) {
-	s.testWriteContent(c, writeContentOpts{
-		encryption: false,
+type encryptPartitionsOpts struct {
+	encryptType secboot.EncryptionType
+}
+
+func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
+	ginfo, _, model, gadgetRoot, restore := mockGadgetPartitionedDisk(c)
+	defer restore()
+
+	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
+	defer mockCryptsetup.Restore()
+
+	mockBlockdev := testutil.MockCommand(c, "blockdev", "case ${1} in --getss) echo 4096; exit 0;; esac; exit 1")
+	defer mockBlockdev.Restore()
+
+	// Fill in additional information about the target device as the installer does
+	partIdx := 1
+	for i, part := range ginfo.Volumes["pc"].Structure {
+		if part.Role == "mbr" {
+			continue
+		}
+		ginfo.Volumes["pc"].Structure[i].Device = "/dev/vda" + strconv.Itoa(partIdx)
+		partIdx++
+	}
+	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, opts.encryptType, model, gadgetRoot, "", timings.New(nil))
+	c.Assert(err, IsNil)
+	c.Assert(encryptSetup, NotNil)
+	err = install.CheckEncryptionSetupData(encryptSetup, map[string]string{
+		"ubuntu-save": "/dev/mapper/ubuntu-save",
+		"ubuntu-data": "/dev/mapper/ubuntu-data",
+	})
+	c.Assert(err, IsNil)
+
+	c.Assert(mockCryptsetup.Calls(), DeepEquals, [][]string{
+		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", "aes-xts-plain64", "--key-size", "512", "--label", "ubuntu-save-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda4"},
+		{"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/vda4"},
+		{"cryptsetup", "open", "--key-file", "-", "/dev/vda4", "ubuntu-save"},
+		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", "aes-xts-plain64", "--key-size", "512", "--label", "ubuntu-data-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda5"},
+		{"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/vda5"},
+		{"cryptsetup", "open", "--key-file", "-", "/dev/vda5", "ubuntu-data"},
 	})
 }
 
-func (s *installSuite) TestInstallWriteContentEncryptedHappy(c *C) {
-	s.testWriteContent(c, writeContentOpts{
-		encryption: true,
+func (s *installSuite) TestInstallEncryptPartitionsLUKSHappy(c *C) {
+	s.testEncryptPartitions(c, encryptPartitionsOpts{
+		encryptType: secboot.EncryptionTypeLUKS,
 	})
 }
 
-func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
-	goff := offs
-	return &goff
-}
+func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
+	ginfo, _, model, gadgetRoot, restore := mockGadgetPartitionedDisk(c)
+	defer restore()
 
-type writeContentOpts struct {
-	encryption bool
+	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, secboot.EncryptionTypeLUKS, model, gadgetRoot, "", timings.New(nil))
+
+	c.Check(err, ErrorMatches, "device field for volume struct .* cannot be empty")
+	c.Check(encryptSetup, IsNil)
 }

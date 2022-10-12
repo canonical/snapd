@@ -857,8 +857,7 @@ volumes:
           - source: shim.efi.signed
             target: EFI/boot/bootx64.efi
       - name: ubuntu-save
-        # XXX this makes snap pack unhappy ATM!
-        # role: system-save
+        role: system-save
         filesystem: ext4
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         size: 16M
