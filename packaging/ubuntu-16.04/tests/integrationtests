@@ -25,9 +25,10 @@ cat /proc/meminfo
 
 # ensure we can do a connect to localhost
 echo ubuntu:ubuntu|chpasswd
-sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
 if [ -d /etc/ssh/sshd_config.d ]; then
     printf 'PermitRootLogin=yes\nPasswordAuthentication=yes' > /etc/ssh/sshd_config.d/00-spread-settings.conf
+else
+    sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
 fi
 if systemctl is-active ssh.service; then
     systemctl reload ssh.service
