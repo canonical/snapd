@@ -975,8 +975,8 @@ nested_start_core_vm_unit() {
     # the caller can override PARAM_MEM
     local PARAM_MEM PARAM_SMP
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MEM="${NESTED_PARAM_MEM:--m 8182}"
-        PARAM_SMP="-smp 4"
+        PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
+        PARAM_SMP="-smp 2"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
         PARAM_SMP="-smp 1"
