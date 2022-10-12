@@ -474,7 +474,6 @@ func deviceForMaybeEncryptedVolume(volStruct *gadget.VolumeStructure, encSetupDa
 
 // WriteContent writes gadget content to the devices specified in
 // onVolumes. It returns the resolved on disk volumes.
-// TODO this needs unit tests
 func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *EncryptionSetupData, observer gadget.ContentObserver, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
 	// TODO this taking onVolumes and allLaidOutVols is odd,
 	// we should try to avoid this when we have partial
