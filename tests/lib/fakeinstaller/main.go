@@ -91,8 +91,8 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]g
 	}
 
 	vol := firstVol(volumes)
-	// XXX: snapd does not create partition tables so we do it here
-	//      needs to happen early or gadget.OnDiskVolumeFromDevice() fails
+	// snapd does not create partition tables so we have to do it here
+	// or gadget.OnDiskVolumeFromDevice() will fail
 	if err := maybeCreatePartitionTable(bootDevice, vol.Schema); err != nil {
 		return nil, err
 	}
