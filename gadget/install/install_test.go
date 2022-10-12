@@ -1038,11 +1038,6 @@ func mockGadgetPartitionedDisk(c *C) (*gadget.Info, map[string]*gadget.LaidOutVo
 	return ginfo, allLaidOutVols, model, gadgetRoot, cleanup
 }
 
-func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
-	goff := offs
-	return &goff
-}
-
 type writeContentOpts struct {
 	encryption bool
 }
