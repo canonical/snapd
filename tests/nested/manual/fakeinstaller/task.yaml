@@ -109,8 +109,6 @@ execute: |
   # create fake disk for the installer to work on
   truncate --size=4G fake-disk.img
   loop_device=$(losetup --show -f ./fake-disk.img)
-  # TODO: fakeinstaller should work on a empty disk too
-  echo "label: gpt" | sfdisk "$loop_device"
   # and "install" the current seed to the fake disk
   ./fakeinstaller "$LABEL" "$TESTSLIB"/fakeinstaller/mk-classic-rootfs.sh "$loop_device"
   # validate that the fake installer created the expected partitions

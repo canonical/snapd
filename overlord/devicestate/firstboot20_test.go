@@ -298,6 +298,8 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	// create overlord and pick up the modeenv
 	s.startOverlord(c)
 
+	c.Check(devicestate.SaveAvailable(s.overlord.DeviceManager()), Equals, m.Mode == "run")
+
 	opts := devicestate.PopulateStateFromSeedOptions{
 		Label: m.RecoverySystem,
 		Mode:  m.Mode,

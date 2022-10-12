@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -110,10 +111,55 @@ func firstVol(volumes map[string]*gadget.Volume) *gadget.Volume {
 	return nil
 }
 
+func maybeCreatePartitionTable(bootDevice, schema string) error {
+	switch schema {
+	case "dos":
+		return fmt.Errorf("cannot use partition schema %v yet", schema)
+	case "gpt":
+		// ok
+	default:
+		return fmt.Errorf("cannot use unknown partition schema %v", schema)
+	}
+
+	// check if there is a GPT partition table already
+	output, err := exec.Command("blkid", "--probe", "--match-types", "gpt", bootDevice).CombinedOutput()
+	exitCode, err := osutil.ExitCode(err)
+	if err != nil {
+		return err
+	}
+	switch exitCode {
+	case 0:
+		// partition table already exists, nothing to do
+	case 2:
+		// no match found, create partition table
+		cmd := exec.Command("sfdisk", bootDevice)
+		cmd.Stdin = bytes.NewBufferString("label: gpt\n")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return osutil.OutputErr(output, err)
+		}
+		// ensure udev is aware of the new attributes
+		if output, err := exec.Command("udevadm", "settle").CombinedOutput(); err != nil {
+			return osutil.OutputErr(output, err)
+		}
+	default:
+		// unknown error
+		return fmt.Errorf("unexpected exit code from blkid: %v", osutil.OutputErr(output, err))
+	}
+
+	return nil
+}
+
 func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]gadget.OnDiskStructure, error) {
 	// TODO: support multiple volumes, see gadget/install/install.go
 	if len(volumes) != 1 {
 		return nil, fmt.Errorf("got unexpected number of volumes %v", len(volumes))
+	}
+
+	vol := firstVol(volumes)
+	// snapd does not create partition tables so we have to do it here
+	// or gadget.OnDiskVolumeFromDevice() will fail
+	if err := maybeCreatePartitionTable(bootDevice, vol.Schema); err != nil {
+		return nil, err
 	}
 
 	diskLayout, err := gadget.OnDiskVolumeFromDevice(bootDevice)
@@ -128,7 +174,6 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]g
 		IgnoreContent: true,
 	}
 
-	vol := firstVol(volumes)
 	lvol, err := gadget.LayoutVolume(vol, gadget.DefaultConstraints, layoutOpts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volume: %v", err)
@@ -343,6 +388,11 @@ func createSeedOnTarget(bootDevice, seedLabel string) error {
 	dataMnt := runMntFor("ubuntu-data")
 	src := dirs.SnapSeedDir
 	dst := dirs.SnapSeedDirUnder(dataMnt)
+	// Remove any existing seed on the target fs and then put the
+	// selected seed in place on the target
+	if err := os.RemoveAll(dst); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 		return err
 	}
@@ -359,7 +409,7 @@ func detectStorageEncryption(seedLabel string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	logger.Noticef("detect encryption: %v", details)
+	logger.Noticef("detect encryption: %+v", details.StorageEncryption)
 	if details.StorageEncryption.Support == client.StorageEncryptionSupportDefective {
 		return false, errors.New(details.StorageEncryption.UnavailableReason)
 	}

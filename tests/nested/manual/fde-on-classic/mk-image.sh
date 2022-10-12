@@ -61,11 +61,11 @@ install_data_partition() {
     set -x
     local DESTDIR=$1
     local CACHE=$2
-    # just some random date for the seed label
-    local SEED_LABEL=20220617
+    local SEED_LABEL
+    SEED_LABEL="classic"
 
     snap_idx=(kernel gadget base snapd)
-    declare -A SNAP_NAME SNAP_F SNAP_P IS_UNASSERTED
+    declare -A SNAP_NAME SNAP_F SNAP_P
     SNAP_NAME[kernel]=pc-kernel
     SNAP_NAME[gadget]=pc
     SNAP_NAME[base]=core22
@@ -73,11 +73,9 @@ install_data_partition() {
     for i in "${snap_idx[@]}"; do
         snap_n=${SNAP_NAME[$i]}
         if [ "${IN_SNAP_F[$snap_n]}" != "" ]; then
-            IS_UNASSERTED[$i]=true
             SNAP_F[$i]=${IN_SNAP_F[$snap_n]}
             SNAP_P[$i]=${IN_SNAP_P[$snap_n]}
         else
-            IS_UNASSERTED[$i]=false
             SNAP_F[$i]=$(find "$CACHE" -maxdepth 1 -name "${SNAP_NAME[$i]}_*.snap" -printf "%f\n")
             SNAP_P[$i]="$CACHE/${SNAP_F[$i]}"
         fi
@@ -145,40 +143,23 @@ EOF
     sudo cp modeenv "$DESTDIR"/var/lib/snapd/
     # needed from the beginning in ubuntu-data as these are mounted by snap-bootstrap
     # (UC also has base here, but we do not mount it from initramfs in classic)
-    # TODO use prepare-image --classic for this
     sudo mkdir -p "$DESTDIR"/var/lib/snapd/snaps/
     sudo cp "${SNAP_P[kernel]}" "${SNAP_P[gadget]}" \
          "$DESTDIR"/var/lib/snapd/snaps/
-    # populate seed
-    local seed_snaps_d="$DESTDIR"/var/lib/snapd/seed/snaps
-    local recsys_d="$DESTDIR"/var/lib/snapd/seed/systems/"$SEED_LABEL"
-    sudo mkdir -p "$recsys_d"/snaps "$recsys_d"/assertions "$seed_snaps_d"
-
-    for i in "${snap_idx[@]}"; do
-        if [ "${IS_UNASSERTED[$i]}" = true ]; then
-            sudo cp "${SNAP_P[$i]}" "$recsys_d"/snaps
-        else
-            sudo cp "${SNAP_P[$i]}" "$seed_snaps_d"
-        fi
-    done
-    sudo cp classic-model.assert "$recsys_d"/model
-    {
-        for assert in "$CACHE"/*.assert; do
-            cat "$assert"
-            printf "\n"
-        done
-    } > "$CACHE"/snap-asserts
-    sudo cp "$CACHE"/snap-asserts "$recsys_d"/assertions/snaps
-    sudo cp model-etc "$recsys_d"/assertions/
-
-    # write options file if we have some unasserted snap in the seed
-    if [ "${#IN_SNAP_F[@]}" -gt 0 ]; then
-        OPTIONS_DATA="snaps:\n"
-        for snap_n in "${!IN_SNAP_F[@]}"; do
-            OPTIONS_DATA="${OPTIONS_DATA}- name: $snap_n\n  unasserted: ${IN_SNAP_F[$snap_n]}\n"
-        done
-        sudo sh -c "printf %b \"$OPTIONS_DATA\" > \"$recsys_d\"/options.yaml"
-    fi
+    # create the seed
+    snap prepare-image --classic \
+         --channel=edge \
+         --snap "${SNAP_P[kernel]}" \
+         --snap "${SNAP_P[gadget]}" \
+         --snap "${SNAP_P[base]}" \
+         --snap "${SNAP_P[snapd]}" \
+         classic-model.assert \
+         ./classic-seed
+    # rename seed-label
+    mv ./classic-seed/system-seed/systems/"$(date +%Y%m%d)" ./classic-seed/system-seed/systems/"$SEED_LABEL"
+    # and put the seed in place
+    mkdir -p "$DESTDIR"/var/lib/snapd/
+    mv ./classic-seed/system-seed "$DESTDIR"/var/lib/snapd/seed
 }
 
 populate_image() {

@@ -350,7 +350,12 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
             die("cannot set root ownership on %s/snap directory", bpf_base);
         }
         if (fchmodat(bpf_fd, "snap", 0700, AT_SYMLINK_NOFOLLOW) < 0) {
-            die("cannot set 0700 permissions on %s/snap directory", bpf_base);
+            /* On Debian, this fails with "operation not supported. But it
+             * should not be a critical error, we can also leave with 0000
+             * permissions. */
+            if (errno != ENOTSUP) {
+                die("cannot set 0700 permissions on %s/snap directory", bpf_base);
+            }
         }
     } else if (errno != EEXIST) {
         die("cannot create %s/snap directory", bpf_base);
