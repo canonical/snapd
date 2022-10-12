@@ -1436,12 +1436,12 @@ func (f *snapdBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.SnapDirO
 	return f.fakeSnappyBackend.RemoveSnapCommonData(info, nil)
 }
 
-func (f *snapdBackend) RemoveSnapSaveData(info *snap.Info) error {
+func (f *snapdBackend) RemoveSnapSaveData(info *snap.Info, dev snap.Device) error {
 	dir := snap.CommonDataSaveDir(info.InstanceName())
 	if err := os.RemoveAll(dir); err != nil {
 		return fmt.Errorf("unexpected error: %v", err)
 	}
-	return f.fakeSnappyBackend.RemoveSnapSaveData(info)
+	return f.fakeSnappyBackend.RemoveSnapSaveData(info, dev)
 }
 
 func isUndone(c *C, tasks []*state.Task, kind string, numExpected int) {
