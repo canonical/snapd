@@ -79,3 +79,14 @@ func MockSysfsPathForBlockDevice(f func(device string) (string, error)) (restore
 		SysfsPathForBlockDevice = old
 	}
 }
+
+func BuildEncryptionSetupData(labelToEncDevice map[string]string) *EncryptionSetupData {
+	esd := &EncryptionSetupData{
+		parts: map[string]partEncryptionData{}}
+	for label, encryptDev := range labelToEncDevice {
+		esd.parts[label] = partEncryptionData{
+			encryptedDevice: encryptDev,
+		}
+	}
+	return esd
+}

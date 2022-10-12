@@ -963,18 +963,7 @@ func (s *installSuite) TestFactoryResetHappyEncrypted(c *C) {
 	})
 }
 
-func (s *installSuite) TestInstallWriteContentSimpleHappy(c *C) {
-	s.testWriteContent(c, installOpts{
-		encryption: false,
-	})
-}
-
-func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
-	goff := offs
-	return &goff
-}
-
-func (s *installSuite) testWriteContent(c *C, opts installOpts) {
+func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 	espMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/2")
 	bootMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/3")
 	saveMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/4")
@@ -1111,7 +1100,16 @@ func (s *installSuite) testWriteContent(c *C, opts installOpts) {
 		ginfo.Volumes["pc"].Structure[i].Device = "/dev/vda" + strconv.Itoa(partIdx)
 		partIdx++
 	}
-	onDiskVols, err := install.WriteContent(ginfo.Volumes, allLaidOutVols, nil, nil, timings.New(nil))
+	// Fill encrypted partitions if encrypting
+	var esd *install.EncryptionSetupData
+	if opts.encryption {
+		labelToEncDevice := map[string]string{
+			"ubuntu-save": "/dev/mapper/ubuntu-save",
+			"ubuntu-data": "/dev/mapper/ubuntu-data",
+		}
+		esd = install.BuildEncryptionSetupData(labelToEncDevice)
+	}
+	onDiskVols, err := install.WriteContent(ginfo.Volumes, allLaidOutVols, esd, nil, timings.New(nil))
 	c.Assert(err, IsNil)
 	c.Assert(len(onDiskVols), Equals, 1)
 
@@ -1127,4 +1125,39 @@ func (s *installSuite) testWriteContent(c *C, opts installOpts) {
 		c.Check(err, IsNil)
 		c.Check(string(data), Equals, "grubx64.efi content")
 	}
+}
+
+func (s *installSuite) TestInstallWriteContentError(c *C) {
+	vols := map[string]*gadget.Volume{
+		"pc": {
+			Structure: []gadget.VolumeStructure{{
+				Filesystem: "ext4",
+				Device:     "/dev/randomdev"},
+			},
+		},
+	}
+	onDiskVols, err := install.WriteContent(vols, nil, nil, nil, timings.New(nil))
+	c.Check(err.Error(), testutil.Contains, "readlink /sys/class/block/randomdev: no such file or directory")
+	c.Check(onDiskVols, IsNil)
+}
+
+func (s *installSuite) TestInstallWriteContentSimpleHappy(c *C) {
+	s.testWriteContent(c, writeContentOpts{
+		encryption: false,
+	})
+}
+
+func (s *installSuite) TestInstallWriteContentEncryptedHappy(c *C) {
+	s.testWriteContent(c, writeContentOpts{
+		encryption: true,
+	})
+}
+
+func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
+	goff := offs
+	return &goff
+}
+
+type writeContentOpts struct {
+	encryption bool
 }
