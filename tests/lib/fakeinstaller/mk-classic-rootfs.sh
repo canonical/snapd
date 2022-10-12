@@ -80,9 +80,8 @@ fi
 # extract the base
 if [ -f /cdrom/casper/base.squashfs ]; then
     sudo unsquashfs -f -d "$DST" /cdrom/casper/base.squashfs
-    # TODO: do more here, follow what snapd.postinst purge does
-    rm -rf "$DST"/snap/* "$DST"/var/snap/*
-    rm -f  "$DST"/var/lib/snapd/state.json
+    # TODO: find out why the squashfs is preseeded
+    /usr/lib/snapd/snap-preseed --reset "$DST"
 else
     BASETAR=ubuntu-base.tar.gz
     wget -c http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.1-base-amd64.tar.gz -O "$BASETAR"
