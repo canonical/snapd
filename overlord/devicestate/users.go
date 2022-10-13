@@ -187,7 +187,7 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 	return addUser(state, username, email, addUserOpts)
 }
 
-func createAllKnownSystemUsers(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*CreatedUser, error) {
+var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*CreatedUser, error) {
 	headers := map[string]string{
 		"brand-id": model.BrandID(),
 	}
