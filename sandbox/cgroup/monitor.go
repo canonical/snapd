@@ -28,10 +28,10 @@ import (
 	"github.com/snapcore/snapd/sandbox/cgroup/inotify"
 )
 
-// appMonitorData contains all the data to monitor a specific Snap:
+// snapAppMonitorState contains all the data to monitor a specific Snap:
 // its name, the list of paths to monitor, and the channel to send
 // the notification when all the paths have been deleted.
-type appMonitorData struct {
+type snapAppMonitorState struct {
 	name        string
 	cgroupPaths []string
 	npaths      int
@@ -43,21 +43,21 @@ type appMonitorData struct {
 // them separately. It should be considered a singleton, and
 // obtained using MonitorSingleton().
 type CGroupMonitor struct {
-	watched map[string][]*appMonitorData
+	watched map[string][]*snapAppMonitorState
 	watcher *inotify.Watcher
-	channel chan appMonitorData
+	channel chan snapAppMonitorState
 }
 
 var currentCGroupMonitor = CGroupMonitor{
 	watcher: nil,
-	channel: make(chan appMonitorData),
-	watched: make(map[string][]*appMonitorData),
+	channel: make(chan snapAppMonitorState),
+	watched: make(map[string][]*snapAppMonitorState),
 }
 
 func onFilesDeleted(filename string) {
 	basePath := path.Dir(filename)
 	appWatchers := currentCGroupMonitor.watched[basePath]
-	var newList []*appMonitorData
+	var newList []*snapAppMonitorState
 	for _, app := range appWatchers {
 		for _, folder := range app.cgroupPaths {
 			if folder == filename {
@@ -79,7 +79,7 @@ func onFilesDeleted(filename string) {
 	}
 }
 
-func onFilesAdded(newApp *appMonitorData) {
+func onFilesAdded(newApp *snapAppMonitorState) {
 	if newApp.npaths == 0 {
 		newApp.channel <- newApp.name
 		return
@@ -145,7 +145,7 @@ func MonitorFiles(name string, folders []string, channel chan string) bool {
 		go monitorMainLoop()
 	}
 
-	data := appMonitorData{
+	data := snapAppMonitorState{
 		name:        name,
 		cgroupPaths: folders,
 		channel:     channel,
