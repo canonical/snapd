@@ -21,6 +21,9 @@ execute: |
 
     # Define the core snap for the current system
     core_snap=core20
+    if os.query is-ubuntu 22.10; then
+        core_snap=core22
+    fi
 
     echo "Setting up proxy for lxc"
     if [ -n "${http_proxy:-}" ]; then
@@ -34,6 +37,7 @@ execute: |
     if os.query is-ubuntu 22.10; then
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" ubuntu
+        core_snap=core22
     else
         VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
         lxd.lxc launch --quiet "ubuntu:$VERSION_ID" ubuntu
@@ -51,9 +55,16 @@ execute: |
     retry --wait 1 -n 10 sh -c 'lxd.lxc exec ubuntu -- systemctl --wait is-system-running | grep -Eq "(running|degraded)"'
 
     lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "ubuntu/root/"
-
     DEB=$(basename "$GOHOME"/snapd_*.deb)
+    
     lxd.lxc exec ubuntu -- apt update
+    # As for ubuntu kinetic it is not using the official image, snapd is not installed by default
+    # This should be removed once the official image is released
+    if os.query is-ubuntu 22.10; then
+        lxd.lxc exec ubuntu -- apt install -y snapd
+        lxd.lxc exec ubuntu -- snap install "$core_snap"
+    fi
+
     lxd.lxc exec ubuntu -- apt install -y /root/"$DEB"
     lxd.lxc restart ubuntu
 
