@@ -592,8 +592,6 @@ nested_prepare_gadget() {
                 return
             fi
 
-            if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
-
             # XXX: deal with [ "$NESTED_ENABLE_SECURE_BOOT" != "true" ] && [ "$NESTED_ENABLE_TPM" != "true" ]
             echo "Repacking pc snap"
             # Get the snakeoil key and cert
