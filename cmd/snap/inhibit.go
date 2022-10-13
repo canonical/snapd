@@ -31,6 +31,8 @@ import (
 	"github.com/snapcore/snapd/usersession/client"
 )
 
+const timeoutValue time.Duration = 2 * time.Second
+
 func waitWhileInhibited(snapName string) error {
 	hint, err := runinhibit.IsLocked(snapName)
 	if err != nil {
@@ -45,7 +47,7 @@ func waitWhileInhibited(snapName string) error {
 	// and then either unlocks it or changes to HintInhibitedForRefresh (see
 	// gateAutoRefreshHookHandler in hooks.go).
 	// waitInhibitUnlock will return also on HintNotInhibited.
-	notInhibited, err := waitInhibitUnlock(snapName, runinhibit.HintInhibitedForRefresh, 2*time.Second)
+	notInhibited, err := waitInhibitUnlock(snapName, runinhibit.HintInhibitedForRefresh, timeoutValue)
 	if (err != nil) && (err.Error() != "Timeout") {
 		return err
 	}
