@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -986,7 +986,7 @@ func (f *fakeSnappyBackend) StoreInfo(st *state.State, name, channel string, use
 	})
 }
 
-func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress.Meter, opts *dirs.SnapDirOptions) error {
+func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, opts *dirs.SnapDirOptions, p progress.Meter) error {
 	p.Notify("copy-data")
 	op := &fakeOp{
 		op:   "copy-data",
@@ -1012,7 +1012,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) SetupSnapSaveData(info *snap.Info, meter progress.Meter) error {
+func (f *fakeSnappyBackend) SetupSnapSaveData(info *snap.Info, _ snap.Device, meter progress.Meter) error {
 	f.appendOp(&fakeOp{
 		op:   "setup-snap-save-data",
 		path: info.CommonDataSaveDir(),
@@ -1139,7 +1139,7 @@ func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, insta
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, p progress.Meter, opts *dirs.SnapDirOptions) error {
+func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, opts *dirs.SnapDirOptions, p progress.Meter) error {
 	p.Notify("undo-copy-data")
 	old := "<no-old>"
 	if oldInfo != nil {
@@ -1153,7 +1153,7 @@ func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.I
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, meter progress.Meter) error {
+func (f *fakeSnappyBackend) UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, _ snap.Device, meter progress.Meter) error {
 	old := "<no-old>"
 	if oldInfo != nil {
 		old = oldInfo.CommonDataSaveDir()
@@ -1203,7 +1203,7 @@ func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.Sna
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveSnapSaveData(info *snap.Info) error {
+func (f *fakeSnappyBackend) RemoveSnapSaveData(info *snap.Info, _ snap.Device) error {
 	f.appendOp(&fakeOp{
 		op:   "remove-snap-save-data",
 		path: snap.CommonDataSaveDir(info.InstanceName()),

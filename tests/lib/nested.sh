@@ -626,10 +626,19 @@ defaults:
     journal:
       persistent: true
 EOF
+            local GADGET_EXTRA_CMDLINE=""
             if [ "$NESTED_SNAPD_DEBUG_TO_SERIAL" = "true" ]; then
                 # add snapd debug and log to serial console for extra
                 # visibility what happens when a machine fails to boot
-                echo 'console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1 ' > pc-gadget/cmdline.extra
+                GADGET_EXTRA_CMDLINE="console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
+            fi
+            if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
+                GADGET_EXTRA_CMDLINE="$GADGET_EXTRA_CMDLINE $NESTED_EXTRA_CMDLINE"
+            fi
+
+            if [ -n "$GADGET_EXTRA_CMDLINE" ]; then
+                echo "Configuring command line parameters in the gadget snap: \"console=ttyS0 $GADGET_EXTRA_CMDLINE\""
+                echo "$GADGET_EXTRA_CMDLINE" > pc-gadget/cmdline.extra
             fi
 
             # pack it
@@ -956,8 +965,8 @@ nested_force_stop_vm() {
 nested_force_start_vm() {
     # if the $NESTED_VM is using a swtpm, we need to wait until the file exists
     # because the file disappears temporarily after qemu exits
-    if systemctl show "$NESTED_VM" -p ExecStart | grep -q swtpm-mvo; then
-        retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
+    if systemctl show "$NESTED_VM" -p ExecStart | grep -q test-snapd-swtpm; then
+        retry -n 10 --wait 1 test -S /var/snap/test-snapd-swtpm/current/swtpm-sock
     fi
     systemctl start "$NESTED_VM"
 }
@@ -1085,16 +1094,16 @@ nested_start_core_vm_unit() {
         fi
 
         if nested_is_tpm_enabled; then
-            if snap list swtpm-mvo >/dev/null; then
+            if snap list test-snapd-swtpm >/dev/null; then
                 # reset the tpm state
-                rm /var/snap/swtpm-mvo/current/tpm2-00.permall
-                snap restart swtpm-mvo > /dev/null
+                rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall
+                snap restart test-snapd-swtpm > /dev/null
             else
-                snap install swtpm-mvo --edge
+                snap install test-snapd-swtpm --edge
             fi
             # wait for the tpm sock file to exist
-            retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
-            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
+            retry -n 10 --wait 1 test -S /var/snap/test-snapd-swtpm/current/swtpm-sock
+            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/test-snapd-swtpm/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
         fi
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
     else

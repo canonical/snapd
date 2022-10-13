@@ -444,6 +444,7 @@ socket AF_LOCAL
 socket AF_INET
 socket AF_INET6
 socket AF_IPX
+socket AF_XDP
 socket AF_X25
 socket AF_AX25
 socket AF_ATMPVC
