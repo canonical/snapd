@@ -178,16 +178,16 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 
 func (s *ReleaseTestSuite) TestFilesystemRootType(c *C) {
 	reported_type, err := release.FilesystemRootType()
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 
 	// From man stat:
 	// %t   major device type in hex, for character/block device special files
 	output, err := exec.Command("stat", "-f", "-c", "%t", "/").CombinedOutput()
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 
 	outstr := strings.TrimSpace(string(output[:]))
 	statted_type, err := strconv.ParseInt(outstr, 16, 64)
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 
 	c.Check(reported_type, Equals, statted_type)
 }
