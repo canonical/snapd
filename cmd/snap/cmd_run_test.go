@@ -1874,8 +1874,7 @@ func (s *RunSuite) TestWaitWhileInhibitedNoop(c *check.C) {
 	c.Check(meter.Values, check.HasLen, 0)
 	c.Check(meter.Written, check.HasLen, 0)
 	c.Check(meter.Finishes, check.Equals, 0)
-	c.Check(len(meter.Labels), check.Equals, 1)
-	c.Check(meter.Labels[0], check.Equals, "")
+	c.Check(meter.Labels, check.HasLen, 0)
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedTextFlow(c *check.C) {
