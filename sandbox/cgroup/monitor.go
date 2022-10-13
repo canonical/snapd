@@ -32,10 +32,10 @@ import (
 // its name, the list of paths to monitor, and the channel to send
 // the notification when all the paths have been deleted.
 type snapAppMonitorState struct {
-	name        string
-	cgroupPaths []string
-	npaths      int
-	channel     chan string
+	name                          string
+	cgroupPaths                   []string
+	npaths                        int
+	allDeletedNotificationChannel chan string
 }
 
 // CGroupMonitor allows to monitor several CGroups, detect when all
@@ -47,15 +47,15 @@ type CGroupMonitor struct {
 	// using a single inotify call for 'XXXX' folder, and their respective
 	// snapAppMonitorState structs would be stored in the 'XXXX' key of this
 	// map.
-	monitored map[string][]*snapAppMonitorState
-	watcher   *inotify.Watcher
-	channel   chan snapAppMonitorState
+	monitored                map[string][]*snapAppMonitorState
+	watcher                  *inotify.Watcher
+	requestNewMonitorChannel chan snapAppMonitorState
 }
 
 var currentCGroupMonitor = CGroupMonitor{
-	watcher:   nil,
-	channel:   make(chan snapAppMonitorState),
-	monitored: make(map[string][]*snapAppMonitorState),
+	watcher:                  nil,
+	requestNewMonitorChannel: make(chan snapAppMonitorState),
+	monitored:                make(map[string][]*snapAppMonitorState),
 }
 
 func onFilesDeleted(filename string) {
@@ -70,7 +70,7 @@ func onFilesDeleted(filename string) {
 		}
 		if app.npaths == 0 {
 			// all the folders have disappeared, so notify that this app has no more instances running
-			app.channel <- app.name
+			app.allDeletedNotificationChannel <- app.name
 		} else {
 			newList = append(newList, app)
 		}
@@ -85,7 +85,7 @@ func onFilesDeleted(filename string) {
 
 func onFilesAdded(newApp *snapAppMonitorState) {
 	if newApp.npaths == 0 {
-		newApp.channel <- newApp.name
+		newApp.allDeletedNotificationChannel <- newApp.name
 		return
 	}
 	addedPaths := false
@@ -109,7 +109,7 @@ func onFilesAdded(newApp *snapAppMonitorState) {
 	}
 	if !addedPaths {
 		// if the files/folders to monitor don't exist, send the notification now
-		newApp.channel <- newApp.name
+		newApp.allDeletedNotificationChannel <- newApp.name
 	}
 }
 
@@ -120,7 +120,7 @@ func monitorMainLoop() {
 			if event.Mask&inotify.InDelete != 0 {
 				onFilesDeleted(event.Name)
 			}
-		case newApp := <-currentCGroupMonitor.channel:
+		case newApp := <-currentCGroupMonitor.requestNewMonitorChannel:
 			onFilesAdded(&newApp)
 		}
 	}
@@ -150,12 +150,12 @@ func MonitorFiles(name string, folders []string, channel chan string) bool {
 	}
 
 	data := snapAppMonitorState{
-		name:        name,
-		cgroupPaths: folders,
-		channel:     channel,
-		npaths:      len(folders),
+		name:                          name,
+		cgroupPaths:                   folders,
+		allDeletedNotificationChannel: channel,
+		npaths:                        len(folders),
 	}
-	currentCGroupMonitor.channel <- data
+	currentCGroupMonitor.requestNewMonitorChannel <- data
 	return false
 }
 
