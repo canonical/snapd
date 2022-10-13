@@ -995,7 +995,7 @@ suites:
 
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
-        backends: [google-nested, qemu-nested]
+        backends: [google-nested, google-nested-dev, qemu-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "classic"
@@ -1054,7 +1054,7 @@ suites:
 
     tests/nested/classic/:
         summary: Tests for nested images
-        backends: [google-nested, qemu-nested]
+        backends: [google-nested, google-nested-dev, qemu-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "classic"
@@ -1106,7 +1106,7 @@ suites:
 
     tests/nested/core/:
         summary: Tests for nested images
-        backends: [google-nested, qemu-nested]
+        backends: [google-nested, google-nested-dev, qemu-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "core"

@@ -984,6 +984,9 @@ nested_start_core_vm_unit() {
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
         PARAM_SMP="-smp 2"
+    elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
+        PARAM_MEM="${NESTED_PARAM_MEM:--m 8192}"
+        PARAM_SMP="-smp 4"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
         PARAM_SMP="-smp 1"
@@ -1033,7 +1036,7 @@ nested_start_core_vm_unit() {
     fi
 
     local PARAM_MACHINE
-    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+    if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
         PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         # check if we have nested kvm
@@ -1301,6 +1304,10 @@ nested_start_classic_vm() {
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
+        PARAM_SMP="-smp 2"
+    elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
+        PARAM_MEM="${NESTED_PARAM_MEM:--m 8192}"
+        PARAM_SMP="-smp 4"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
     else
@@ -1318,7 +1325,7 @@ nested_start_classic_vm() {
     PARAM_SNAPSHOT="-snapshot"
 
     local PARAM_MACHINE PARAM_IMAGE PARAM_SEED PARAM_SERIAL PARAM_BIOS PARAM_TPM
-    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+    if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
         PARAM_MACHINE="-machine ubuntu,accel=kvm"
         PARAM_CPU="-cpu host"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
