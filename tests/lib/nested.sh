@@ -619,10 +619,19 @@ defaults:
     journal:
       persistent: true
 EOF
+            local GADGET_EXTRA_CMDLINE=""
             if [ "$NESTED_SNAPD_DEBUG_TO_SERIAL" = "true" ]; then
                 # add snapd debug and log to serial console for extra
                 # visibility what happens when a machine fails to boot
-                echo 'console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1 ' > pc-gadget/cmdline.extra
+                GADGET_EXTRA_CMDLINE="console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
+            fi
+            if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
+                GADGET_EXTRA_CMDLINE="$GADGET_EXTRA_CMDLINE $NESTED_EXTRA_CMDLINE"
+            fi
+
+            if [ -n "$GADGET_EXTRA_CMDLINE" ]; then
+                echo "Configuring command line parameters in the gadget snap: \"console=ttyS0 $GADGET_EXTRA_CMDLINE\""
+                echo "$GADGET_EXTRA_CMDLINE" > pc-gadget/cmdline.extra
             fi
 
             # pack it
