@@ -58,6 +58,8 @@ execute: |
     DEB=$(basename "$GOHOME"/snapd_*.deb)
     
     lxd.lxc exec ubuntu -- apt update
+    # As for ubuntu kinetic it is not using the official image, snapd is not installed by default
+    # This should be removed once the official image is released
     if os.query is-ubuntu 22.10; then
         lxd.lxc exec ubuntu -- apt install -y snapd
         lxd.lxc exec ubuntu -- snap install "$core_snap"
