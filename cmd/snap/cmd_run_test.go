@@ -1839,6 +1839,20 @@ func (s *RunSuite) TestWaitInhibitUnlockWaitsForSpecificHint(c *check.C) {
 	c.Check(called, check.Equals, 5)
 }
 
+func (s *RunSuite) TestWaitInhibitUnlockWaitsForSpecificTimeout(c *check.C) {
+	var called int
+	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+		called++
+		return runinhibit.HintInhibitedGateRefresh, nil
+	})
+	defer restore()
+
+	notInhibited, err := snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintInhibitedForRefresh, 2*time.Second)
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Equals, "Timeout")
+	c.Check(notInhibited, check.Equals, false)
+}
+
 func (s *RunSuite) TestWaitWhileInhibitedNoop(c *check.C) {
 	var called int
 	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
