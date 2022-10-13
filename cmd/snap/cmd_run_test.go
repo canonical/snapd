@@ -1816,7 +1816,7 @@ func (s *RunSuite) TestWaitInhibitUnlock(c *check.C) {
 	})
 	defer restore()
 
-	notInhibited, err := snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintNotInhibited)
+	notInhibited, err := snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintNotInhibited, 0)
 	c.Assert(err, check.IsNil)
 	c.Check(notInhibited, check.Equals, true)
 	c.Check(called, check.Equals, 5)
@@ -1833,7 +1833,7 @@ func (s *RunSuite) TestWaitInhibitUnlockWaitsForSpecificHint(c *check.C) {
 	})
 	defer restore()
 
-	notInhibited, err := snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintInhibitedForRefresh)
+	notInhibited, err := snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintInhibitedForRefresh, 0)
 	c.Assert(err, check.IsNil)
 	c.Check(notInhibited, check.Equals, false)
 	c.Check(called, check.Equals, 5)
