@@ -21,7 +21,10 @@ package release_test
 
 import (
 	"io/ioutil"
+	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -171,6 +174,22 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 	})
 	defer reset()
 	c.Assert(release.ReleaseInfo.ID, Equals, "distro-id")
+}
+
+func (s *ReleaseTestSuite) TestFilesystemRootType(c *C) {
+	reported_type, err := release.FilesystemRootType()
+	c.Check(err, IsNil)
+
+	// From man stat:
+	// %t   major device type in hex, for character/block device special files
+	output, err := exec.Command("stat", "-f", "-c", "%t", "/").CombinedOutput()
+	c.Check(err, IsNil)
+
+	outstr := strings.TrimSpace(string(output[:]))
+	statted_type, err := strconv.ParseInt(outstr, 16, 64)
+	c.Check(err, IsNil)
+
+	c.Check(reported_type, Equals, statted_type)
 }
 
 func (s *ReleaseTestSuite) TestNonWSL(c *C) {

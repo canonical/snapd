@@ -53,5 +53,6 @@ func MockFilesystemRootType(filesystemID int64) (restorer func()) {
 }
 
 var (
-	GetWSLVersion = getWSLVersion
+	GetWSLVersion      = getWSLVersion
+	FilesystemRootType = filesystemRootType
 )
