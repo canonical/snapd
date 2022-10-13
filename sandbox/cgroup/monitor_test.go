@@ -27,23 +27,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/snapcore/snapd/sandbox/cgroup"
-	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
 
-type monitorSuite struct {
-	testutil.BaseTest
-	monitor *cgroup.CGroupMonitor
-}
+type monitorSuite struct{}
 
 var _ = Suite(&monitorSuite{})
-
-func (s *monitorSuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
-
-	s.monitor = cgroup.MonitorSingleton()
-	c.Assert(s.monitor, NotNil)
-}
 
 func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	tmpfile, err := ioutil.TempFile("", "prefix")
@@ -54,8 +43,8 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 
 	channel := make(chan string)
 
-	s.monitor.MonitorFiles("test1", filelist, channel)
-	c.Assert(s.monitor, NotNil)
+	retval := cgroup.MonitorFiles("test1", filelist, channel)
+	c.Assert(retval, Equals, false)
 
 	for i := 0; i < 2; i++ {
 		select {
@@ -69,7 +58,7 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	os.Remove(tmpfile.Name())
 	event := <-channel
 	c.Assert(event, Equals, "test1")
-	c.Assert(s.monitor.NumberOfWaitingMonitors(), Equals, 0)
+	c.Assert(cgroup.NumberOfWaitingMonitors(), Equals, 0)
 }
 
 func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
@@ -84,7 +73,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 
 	channel := make(chan string)
 
-	s.monitor.MonitorFiles("test2", filelist, channel)
+	cgroup.MonitorFiles("test2", filelist, channel)
 
 	for i := 0; i < 2; i++ {
 		select {
@@ -107,7 +96,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 
 	event := <-channel
 	c.Assert(event, Equals, "test2")
-	c.Assert(s.monitor.NumberOfWaitingMonitors(), Equals, 0)
+	c.Assert(cgroup.NumberOfWaitingMonitors(), Equals, 0)
 }
 
 func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
@@ -116,9 +105,9 @@ func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 	filelist = append(filelist, filename)
 
 	channel := make(chan string)
-	s.monitor.MonitorFiles("test3", filelist, channel)
-	c.Assert(s.monitor, NotNil)
+	retval := cgroup.MonitorFiles("test3", filelist, channel)
+	c.Assert(retval, Equals, false)
 	event := <-channel
 	c.Assert(event, Equals, "test3")
-	c.Assert(s.monitor.NumberOfWaitingMonitors(), Equals, 0)
+	c.Assert(cgroup.NumberOfWaitingMonitors(), Equals, 0)
 }

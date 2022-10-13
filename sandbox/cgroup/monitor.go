@@ -24,6 +24,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/cgroup/inotify"
 )
 
@@ -121,31 +122,43 @@ func monitorMainLoop() {
 	}
 }
 
-// MonitorSingleton launches the main loop and returns the CGroupMonitor singleton
-func MonitorSingleton() *CGroupMonitor {
-	if currentCGroupMonitor.watcher == nil {
-		wd, err := inotify.NewWatcher()
-		if err != nil {
-			return nil
-		}
-		currentCGroupMonitor.watcher = wd
-		go monitorMainLoop()
-	}
-	return &currentCGroupMonitor
-}
-
 // MonitorSnap is the method to call to monitor the running instances of an specific Snap.
 // It receives the name of the snap to monitor (for example, "firefox" or "steam")
 // and a channel. The caller can wait on the channel, and when all the instances of
 // the specific snap have ended, the name of the snap will be sent through the channel.
 // This allows to use the same channel to monitor several snaps
-func (this *CGroupMonitor) MonitorSnap(snapName string, channel chan string) {
+func MonitorSnap(snapName string, channel chan string) bool {
 	paths, _ := InstancePathsOfSnap(snapName, InstancePathsFlagsOnlyPaths)
-	data := appMonitorData{
-		name:        snapName,
-		cgroupPaths: paths,
-		channel:     channel,
-		npaths:      len(paths),
+	return MonitorFiles(snapName, paths, channel)
+}
+
+// MonitorFiles allows to monitor a group of files/folders
+// and, when all of them have been deleted, emits the specified name through the channel.
+func MonitorFiles(name string, folders []string, channel chan string) bool {
+	if currentCGroupMonitor.watcher == nil {
+		wd, err := inotify.NewWatcher()
+		if err != nil {
+			logger.Noticef("Failed to open file watcher")
+			return true
+		}
+		currentCGroupMonitor.watcher = wd
+		go monitorMainLoop()
 	}
-	this.channel <- data
+
+	data := appMonitorData{
+		name:        name,
+		cgroupPaths: folders,
+		channel:     channel,
+		npaths:      len(folders),
+	}
+	currentCGroupMonitor.channel <- data
+	return false
+}
+
+// NumberOfWaitingMonitors is currently used for testing. It returns the number of folders being
+// watched. This may not match the number of paths passed in MonitorFiles, because
+// the main loop monitors the parent folder, so if several monitored files/folders
+// are in the same parent folder, they will count as only one for this method.
+func NumberOfWaitingMonitors() int {
+	return len(currentCGroupMonitor.watched)
 }
