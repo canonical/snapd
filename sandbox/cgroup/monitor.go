@@ -43,20 +43,20 @@ type snapAppMonitorState struct {
 // them separately. It should be considered a singleton, and
 // obtained using MonitorSingleton().
 type CGroupMonitor struct {
-	watched map[string][]*snapAppMonitorState
-	watcher *inotify.Watcher
-	channel chan snapAppMonitorState
+	monitored map[string][]*snapAppMonitorState
+	watcher   *inotify.Watcher
+	channel   chan snapAppMonitorState
 }
 
 var currentCGroupMonitor = CGroupMonitor{
-	watcher: nil,
-	channel: make(chan snapAppMonitorState),
-	watched: make(map[string][]*snapAppMonitorState),
+	watcher:   nil,
+	channel:   make(chan snapAppMonitorState),
+	monitored: make(map[string][]*snapAppMonitorState),
 }
 
 func onFilesDeleted(filename string) {
 	basePath := path.Dir(filename)
-	appWatchers := currentCGroupMonitor.watched[basePath]
+	appWatchers := currentCGroupMonitor.monitored[basePath]
 	var newList []*snapAppMonitorState
 	for _, app := range appWatchers {
 		for _, folder := range app.cgroupPaths {
@@ -72,9 +72,9 @@ func onFilesDeleted(filename string) {
 		}
 	}
 	if len(newList) != 0 {
-		currentCGroupMonitor.watched[basePath] = newList
+		currentCGroupMonitor.monitored[basePath] = newList
 	} else {
-		delete(currentCGroupMonitor.watched, basePath)
+		delete(currentCGroupMonitor.monitored, basePath)
 		currentCGroupMonitor.watcher.RemoveWatch(basePath)
 	}
 }
@@ -87,7 +87,7 @@ func onFilesAdded(newApp *snapAppMonitorState) {
 	addedPaths := false
 	for _, fullPath := range newApp.cgroupPaths {
 		basePath := path.Dir(fullPath) // Monitor the path containing this folder
-		_, exists := currentCGroupMonitor.watched[basePath]
+		_, exists := currentCGroupMonitor.monitored[basePath]
 		if exists {
 			continue
 		}
@@ -100,7 +100,7 @@ func onFilesAdded(newApp *snapAppMonitorState) {
 			currentCGroupMonitor.watcher.RemoveWatch(basePath)
 			continue
 		}
-		currentCGroupMonitor.watched[basePath] = append(currentCGroupMonitor.watched[basePath], newApp)
+		currentCGroupMonitor.monitored[basePath] = append(currentCGroupMonitor.monitored[basePath], newApp)
 		addedPaths = true
 	}
 	if !addedPaths {
@@ -156,9 +156,9 @@ func MonitorFiles(name string, folders []string, channel chan string) bool {
 }
 
 // NumberOfWaitingMonitors is currently used for testing. It returns the number of folders being
-// watched. This may not match the number of paths passed in MonitorFiles, because
+// monitored. This may not match the number of paths passed in MonitorFiles, because
 // the main loop monitors the parent folder, so if several monitored files/folders
 // are in the same parent folder, they will count as only one for this method.
 func NumberOfWaitingMonitors() int {
-	return len(currentCGroupMonitor.watched)
+	return len(currentCGroupMonitor.monitored)
 }
