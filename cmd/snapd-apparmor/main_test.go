@@ -53,10 +53,21 @@ func (s *mainSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func mockWSL(onWSL bool) (restorer func()) {
-	restorer = testutil.Backup(&release.OnWSL)
-	release.OnWSL = onWSL
-	return
+// Mocks WSL check. Values:
+// - 0 to mock not being on WSL.
+// - 1 to mock being on WSL 1.
+// - 2 to mock being on WSL 2.
+func mockWSL(version int) (restore func()) {
+	restoreOnWSL := testutil.Backup(&release.OnWSL)
+	restoreWSLVersion := testutil.Backup(&release.WSLVersion)
+
+	release.OnWSL = version != 0
+	release.WSLVersion = version
+
+	return func() {
+		restoreOnWSL()
+		restoreWSLVersion()
+	}
 }
 
 func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
@@ -71,7 +82,11 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
 	// simulate being inside WSL
-	restore := mockWSL(true)
+	restore := mockWSL(1)
+	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
+	restore()
+
+	restore = mockWSL(2)
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
 	restore()
 
@@ -164,7 +179,7 @@ func (s *mainSuite) TestIsContainer(c *C) {
 	// systemd-detect-virt may return a non-zero exit code as it fails to recognize it as WSL
 	// This will happen when the kernel name includes neither "WSL" not "Microsoft"
 	detectCmd = testutil.MockCommand(c, "systemd-detect-virt", "echo none; exit 1")
-	defer mockWSL(true)()
+	defer mockWSL(2)()
 	c.Check(snapd_apparmor.IsContainer(), Equals, true)
 	c.Assert(detectCmd.Calls(), DeepEquals, [][]string(nil))
 }
@@ -237,7 +252,7 @@ func (s *integrationSuite) TestRunInContainerSkipsLoading(c *C) {
 }
 
 func (s *integrationSuite) TestRunInContainerWithInternalPolicyLoadsProfiles(c *C) {
-	defer mockWSL(true)()
+	defer mockWSL(1)()
 	err := snapd_apparmor.Run()
 	c.Assert(err, IsNil)
 	c.Check(s.logBuf.String(), testutil.Contains, "DEBUG: inside container environment")
