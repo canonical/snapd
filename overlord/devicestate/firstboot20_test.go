@@ -514,7 +514,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverMode(c *C) {
 }
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
-	r := devicestate.MockCreateAllSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
+	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
 		err := errors.New("unexpected call to CreateAllSystemUsers")
 		c.Error(err)
 		return nil, err
@@ -599,7 +599,7 @@ func (s *firstBoot20Suite) testProcessAutoImportAssertions(c *C, withAutoImportA
 }
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousNoAutoImport(c *C) {
-	r := devicestate.MockCreateAllSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
+	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
 		err := errors.New("unexpected call to CreateAllSystemUsers")
 		c.Error(err)
 		return nil, err
@@ -613,7 +613,7 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousNoAutoImport(c *C) {
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImportUserCreateFail(c *C) {
 	var calledcreateAllUsers = false
-	r := devicestate.MockCreateAllSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
+	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
 		calledcreateAllUsers = true
 		return nil, errors.New("User already exists")
 	})
@@ -628,7 +628,7 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImportUserCreate
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImport(c *C) {
 	var calledcreateAllUsers = false
-	r := devicestate.MockCreateAllSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
+	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
 		calledcreateAllUsers = true
 		var createdUsers []*devicestate.CreatedUser
 		return createdUsers, nil
