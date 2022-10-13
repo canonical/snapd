@@ -133,7 +133,7 @@ func (this *CGroupMonitor) monitorMainLoop() {
 // This allows to use the same channel to monitor several snaps
 func MonitorSnap(snapName string, channel chan string) bool {
 	options := InstancePathsOptions{
-		returnCGroupPath: true,
+		ReturnCGroupPath: true,
 	}
 	paths, _ := InstancePathsOfSnap(snapName, options)
 	return MonitorFiles(snapName, paths, channel)

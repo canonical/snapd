@@ -68,7 +68,7 @@ func securityTagFromCgroupPath(path string) naming.SecurityTag {
 }
 
 type InstancePathsOptions struct {
-	returnCGroupPath bool
+	ReturnCGroupPath bool
 }
 
 // InstancePathsOfSnap returns the list of active cgroup paths for a given snap
@@ -140,7 +140,7 @@ func InstancePathsOfSnap(snapInstanceName string, options InstancePathsOptions) 
 		if parsedTag.InstanceName() != snapInstanceName {
 			return nil
 		}
-		if options.returnCGroupPath {
+		if options.ReturnCGroupPath {
 			pathList = append(pathList, cgroupPath)
 		} else {
 			pathList = append(pathList, path)
@@ -180,7 +180,7 @@ func InstancePathsOfSnap(snapInstanceName string, options InstancePathsOptions) 
 // classes, based on the nature of the security tags encountered.
 func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 	options := InstancePathsOptions{
-		returnCGroupPath: false,
+		ReturnCGroupPath: false,
 	}
 	paths, err := InstancePathsOfSnap(snapInstanceName, options)
 	if err != nil {
