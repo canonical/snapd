@@ -243,7 +243,7 @@ func (s *RunSuite) TestSnapRunAppRunsChecksInhibitionLock(c *check.C) {
 
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
 	c.Assert(err, check.IsNil)
-	c.Check(called, check.Equals, 2)
+	c.Check(called, check.Equals, 1)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
@@ -1859,9 +1859,8 @@ func (s *RunSuite) TestWaitWhileInhibitedNoop(c *check.C) {
 
 	c.Check(meter.Values, check.HasLen, 0)
 	c.Check(meter.Written, check.HasLen, 0)
-	c.Check(meter.Finishes, check.Equals, 0)
-	c.Check(meter.Labels, check.HasLen, 0)
-	c.Check(meter.Labels, check.HasLen, 0)
+	c.Check(meter.Finishes, check.Equals, 1)
+	c.Check(meter.Labels, check.Equals, "please wait...")
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedTextFlow(c *check.C) {
