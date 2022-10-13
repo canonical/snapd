@@ -180,7 +180,6 @@ func InstancePathsOfSnap(snapInstanceName string, flags InstancePathsFlags) ([]s
 // This can be used to classify the activity of a given snap into activity
 // classes, based on the nature of the security tags encountered.
 func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
-
 	paths, err := InstancePathsOfSnap(snapInstanceName, 0)
 	if err != nil {
 		return nil, err
