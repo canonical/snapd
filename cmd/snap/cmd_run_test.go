@@ -235,7 +235,7 @@ func (s *RunSuite) TestSnapRunAppRunsChecksInhibitionLock(c *check.C) {
 	c.Assert(ioutil.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	var called int
-	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint) (bool, error) {
+	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, timeout time.Duration) (bool, error) {
 		called++
 		return false, nil
 	})
@@ -274,7 +274,7 @@ func (s *RunSuite) TestSnapRunHookNoRuninhibit(c *check.C) {
 	defer restorer()
 
 	var called bool
-	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint) (bool, error) {
+	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, timeout time.Duration) (bool, error) {
 		called = true
 		c.Errorf("WaitInhibitUnlock should not have been called")
 		return false, nil
@@ -318,7 +318,7 @@ func (s *RunSuite) TestSnapRunAppRuninhibitSkipsServices(c *check.C) {
 	c.Assert(ioutil.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	var called bool
-	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint) (bool, error) {
+	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, timeout time.Duration) (bool, error) {
 		called = true
 		c.Errorf("WaitInhibitUnlock should not have been called")
 		return false, nil
