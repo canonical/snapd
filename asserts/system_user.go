@@ -107,31 +107,20 @@ func (su *SystemUser) Until() time.Time {
 	return su.until
 }
 
-// Expiration returns the expiration or validity duration of the user created.
+// UserExpiration returns the expiration or validity duration of the user created.
 //
 // If no expiration was specified, this will return an empty time.Time structure.
 //
 // If expiration was set to 'until-expiration' then the .Until() time will be
 // returned.
-//
-// If a duration is provided, then the timestamp returned will be the absolute
-// time as a result of from + duration.
-// It is necessary to provide the time of user creation as the assertion has
-// no concept of when the assertion is actually used.
-func (su *SystemUser) Expiration(from time.Time) time.Time {
+func (su *SystemUser) UserExpiration() time.Time {
 	// In this function we can make the following assumption;
-	// su.expiration is either empty, 'until-expiration' or a valid
-	// duration string.
+	// su.expiration is either empty or set to'until-expiration'
 	if su.expiration == "" {
 		return time.Time{}
 	}
-	if strings.ToLower(su.expiration) == "until-expiration" {
+	if su.expiration == "until-expiration" {
 		return su.until
-	}
-	if d, err := time.ParseDuration(su.expiration); err == nil {
-		// an error should not happen, at this point the
-		// duration in su.expiration have already been verified.
-		return from.Add(d)
 	}
 	return time.Time{}
 }
@@ -246,28 +235,16 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 	return pw, nil
 }
 
-func parseSystemUserExpiration(headers map[string]interface{}, until time.Time) (string, error) {
-	value, ok := headers["user-valid-for"]
-	if !ok {
-		return "", nil
+func checkSystemUserExpiration(headers map[string]interface{}) (string, error) {
+	str, err := checkOptionalString(headers, "user-valid-for")
+	if err != nil {
+		return "", err
 	}
 
-	str, ok := value.(string)
-	if !ok {
-		return "", fmt.Errorf("cannot parse 'user-valid-for': not a string")
-	}
-
-	if strings.ToLower(str) == "until-expiration" {
+	if str == "until-expiration" {
 		return str, nil
 	}
-
-	// If the value wasn't 'until-expiration' then the value must
-	// be a duration.
-	_, err := checkDuration(headers, "user-valid-for")
-	if err != nil {
-		return "", fmt.Errorf("cannot parse 'user-valid-for': %q is invalid", str)
-	}
-	return str, nil
+	return "", fmt.Errorf("cannot parse 'user-valid-for': %q is invalid", str)
 }
 
 func assembleSystemUser(assert assertionBase) (Assertion, error) {
@@ -334,7 +311,7 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	if until.Before(since) {
 		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
 	}
-	expiration, err := parseSystemUserExpiration(assert.headers, until)
+	expiration, err := checkSystemUserExpiration(assert.headers)
 	if err != nil {
 		return nil, err
 	}

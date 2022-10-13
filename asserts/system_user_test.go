@@ -195,6 +195,9 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{s.modelsLine, s.modelsLine + "serials: \n", `"serials" header must be a list of strings`},
 		{s.modelsLine, s.modelsLine + "serials: something\n", `"serials" header must be a list of strings`},
 		{s.modelsLine, s.modelsLine + "serials:\n  - 7c7f435d-ed28-4281-bd77-e271e0846904\n", `the "serials" header is only supported for format 1 or greater`},
+		{s.userValidForLine, "user-valid-for: tomorrow\n", `cannot parse 'user-valid-for': "tomorrow" is invalid`},
+		{s.userValidForLine, "user-valid-for: 9:00\n", `cannot parse 'user-valid-for': "9:00" is invalid`},
+		{s.userValidForLine, "user-valid-for: \n", `cannot parse 'user-valid-for': "" is invalid`},
 	}
 
 	for _, test := range invalidTests {
@@ -272,44 +275,10 @@ func (s *systemUserSuite) TestSuggestedFormat(c *C) {
 	c.Check(fmtnum, Equals, 1)
 }
 
-func (s *systemUserSuite) TestNoUserValidFor(c *C) {
-	s.systemUserStr = strings.Replace(s.systemUserStr, s.userValidForLine, "", 1)
-	a, err := asserts.Decode([]byte(s.systemUserStr))
-	c.Assert(err, IsNil)
-	c.Check(a.Type(), Equals, asserts.SystemUserType)
-	su := a.(*asserts.SystemUser)
-	c.Check(su.Expiration(time.Now()), Equals, time.Time{})
-}
-
 func (s *systemUserSuite) TestUserValidForExpiration(c *C) {
 	a, err := asserts.Decode([]byte(s.systemUserStr))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.SystemUserType)
 	su := a.(*asserts.SystemUser)
-	c.Check(su.Expiration(time.Now()), Equals, s.until)
-}
-
-func (s *systemUserSuite) TestUserValidForDuration(c *C) {
-	s.systemUserStr = strings.Replace(s.systemUserStr, s.userValidForLine, "user-valid-for: 24h\n", 1)
-	a, err := asserts.Decode([]byte(s.systemUserStr))
-	c.Assert(err, IsNil)
-	c.Check(a.Type(), Equals, asserts.SystemUserType)
-	su := a.(*asserts.SystemUser)
-	now := time.Now()
-	c.Check(su.Expiration(now), Equals, now.Add(24*time.Hour))
-}
-
-func (s *systemUserSuite) TestUserValidForInvalidValue(c *C) {
-	s.systemUserStr = strings.Replace(s.systemUserStr, s.userValidForLine, "user-valid-for: tomorrow\n", 1)
-	_, err := asserts.Decode([]byte(s.systemUserStr))
-	c.Assert(err, ErrorMatches, `assertion system-user: cannot parse 'user-valid-for': "tomorrow" is invalid`)
-}
-
-func (s *systemUserSuite) TestUserValidForMissing(c *C) {
-	s.systemUserStr = strings.Replace(s.systemUserStr, s.userValidForLine, "", 1)
-	a, err := asserts.Decode([]byte(s.systemUserStr))
-	c.Assert(err, IsNil)
-	c.Check(a.Type(), Equals, asserts.SystemUserType)
-	su := a.(*asserts.SystemUser)
-	c.Check(su.Expiration(time.Now()), Equals, time.Time{})
+	c.Check(su.UserExpiration(), Equals, s.until)
 }

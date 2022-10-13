@@ -314,19 +314,3 @@ func checkMapWhat(m map[string]interface{}, name, what string) (map[string]inter
 	}
 	return mv, nil
 }
-
-func checkDuration(headers map[string]interface{}, name string) (time.Duration, error) {
-	return checkDurationWhat(headers, name, "header")
-}
-
-func checkDurationWhat(m map[string]interface{}, name, what string) (time.Duration, error) {
-	value, ok := m[name]
-	if !ok {
-		return 0, nil
-	}
-	mv, ok := value.(string)
-	if !ok {
-		return 0, fmt.Errorf("%q %s must be a string", name, what)
-	}
-	return time.ParseDuration(mv)
-}
