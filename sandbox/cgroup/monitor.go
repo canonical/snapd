@@ -58,9 +58,9 @@ var currentCGroupMonitor = CGroupMonitor{
 	monitored:                make(map[string][]*snapAppMonitorState),
 }
 
-func onFilesDeleted(filename string) {
+func (this *CGroupMonitor) onFilesDeleted(filename string) {
 	basePath := path.Dir(filename)
-	appWatchers := currentCGroupMonitor.monitored[basePath]
+	appWatchers := this.monitored[basePath]
 	var newList []*snapAppMonitorState
 	for _, app := range appWatchers {
 		for _, folder := range app.cgroupPaths {
@@ -76,14 +76,14 @@ func onFilesDeleted(filename string) {
 		}
 	}
 	if len(newList) != 0 {
-		currentCGroupMonitor.monitored[basePath] = newList
+		this.monitored[basePath] = newList
 	} else {
-		delete(currentCGroupMonitor.monitored, basePath)
-		currentCGroupMonitor.watcher.RemoveWatch(basePath)
+		delete(this.monitored, basePath)
+		this.watcher.RemoveWatch(basePath)
 	}
 }
 
-func onFilesAdded(newApp *snapAppMonitorState) {
+func (this *CGroupMonitor) onFilesAdded(newApp *snapAppMonitorState) {
 	if newApp.npaths == 0 {
 		newApp.allDeletedNotificationChannel <- newApp.name
 		return
@@ -91,20 +91,20 @@ func onFilesAdded(newApp *snapAppMonitorState) {
 	addedPaths := false
 	for _, fullPath := range newApp.cgroupPaths {
 		basePath := path.Dir(fullPath) // Monitor the path containing this folder
-		_, exists := currentCGroupMonitor.monitored[basePath]
+		_, exists := this.monitored[basePath]
 		if exists {
 			continue
 		}
-		err := currentCGroupMonitor.watcher.AddWatch(basePath, inotify.InDelete)
+		err := this.watcher.AddWatch(basePath, inotify.InDelete)
 		if err != nil {
 			continue
 		}
 		if _, err := os.Stat(fullPath); errors.Is(err, os.ErrNotExist) {
 			// if the file/folder to monitor doesn't exist after the parent being added, remove it
-			currentCGroupMonitor.watcher.RemoveWatch(basePath)
+			this.watcher.RemoveWatch(basePath)
 			continue
 		}
-		currentCGroupMonitor.monitored[basePath] = append(currentCGroupMonitor.monitored[basePath], newApp)
+		this.monitored[basePath] = append(this.monitored[basePath], newApp)
 		addedPaths = true
 	}
 	if !addedPaths {
@@ -113,15 +113,15 @@ func onFilesAdded(newApp *snapAppMonitorState) {
 	}
 }
 
-func monitorMainLoop() {
+func (this *CGroupMonitor) monitorMainLoop() {
 	for {
 		select {
-		case event := <-currentCGroupMonitor.watcher.Event:
+		case event := <-this.watcher.Event:
 			if event.Mask&inotify.InDelete != 0 {
-				onFilesDeleted(event.Name)
+				this.onFilesDeleted(event.Name)
 			}
-		case newApp := <-currentCGroupMonitor.requestNewMonitorChannel:
-			onFilesAdded(&newApp)
+		case newApp := <-this.requestNewMonitorChannel:
+			this.onFilesAdded(&newApp)
 		}
 	}
 }
@@ -146,7 +146,7 @@ func MonitorFiles(name string, folders []string, channel chan string) bool {
 			return true
 		}
 		currentCGroupMonitor.watcher = wd
-		go monitorMainLoop()
+		go currentCGroupMonitor.monitorMainLoop()
 	}
 
 	data := snapAppMonitorState{
