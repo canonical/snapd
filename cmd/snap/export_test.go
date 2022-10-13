@@ -408,7 +408,7 @@ func MockOsChmod(f func(string, os.FileMode) error) (restore func()) {
 	}
 }
 
-func MockWaitInhibitUnlock(f func(snapName string, waitFor runinhibit.Hint) (bool, error)) (restore func()) {
+func MockWaitInhibitUnlock(f func(snapName string, waitFor runinhibit.Hint, timeout time.Duration) (bool, error)) (restore func()) {
 	old := waitInhibitUnlock
 	waitInhibitUnlock = f
 	return func() {
