@@ -40,9 +40,13 @@ type snapAppMonitorState struct {
 
 // CGroupMonitor allows to monitor several CGroups, detect when all
 // the running instances of each one have been closed, and notify
-// them separately. It should be considered a singleton, and
-// obtained using MonitorSingleton().
+// them separately.
 type CGroupMonitor struct {
+	// The key is the base path of all the files/folders being monitored
+	// this way, paths 'XXXX/folder1' and 'XXXX/file2' would be monitored
+	// using a single inotify call for 'XXXX' folder, and their respective
+	// snapAppMonitorState structs would be stored in the 'XXXX' key of this
+	// map.
 	monitored map[string][]*snapAppMonitorState
 	watcher   *inotify.Watcher
 	channel   chan snapAppMonitorState
