@@ -74,6 +74,11 @@ package main
 //#define PF_QIPCRTR AF_QIPCRTR
 //#endif				// AF_QIPCRTR
 //
+//#ifndef AF_XDP
+//#define AF_XDP 42
+//#define PF_XDP AF_XDP
+//#endif				// AF_XDP
+//
 // // https://github.com/sctplab/usrsctp/blob/master/usrsctplib/usrsctp.h
 //#ifndef AF_CONN
 //#define AF_CONN 123
@@ -286,6 +291,8 @@ var seccompResolver = map[string]uint64{
 	"PF_CONN":    C.PF_CONN,
 	"AF_QIPCRTR": C.AF_QIPCRTR, // 42
 	"PF_QIPCRTR": C.PF_QIPCRTR,
+	"AF_XDP":     C.AF_XDP, // 44
+	"PF_XDP":     C.PF_XDP,
 
 	// man 2 socket - type
 	"SOCK_STREAM":    syscall.SOCK_STREAM,

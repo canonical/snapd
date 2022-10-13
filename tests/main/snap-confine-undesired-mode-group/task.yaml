@@ -32,7 +32,15 @@ execute: |
         # ignore errors of the kind where readdir and stat race with a
         # concurrent mutator.
         find "$dname" -ignore_readdir_race -user test ! -path '*/user@12345.service*' ! -path '*/user-12345.slice*' >> wrong-user.txt
-        find "$dname" -ignore_readdir_race -group test ! -path '*/user@12345.service*' ! -path '*/user-12345.slice*' >> wrong-group.txt
+        # Filter out the following elements:
+        # - regular files found under the cgroup tree which are not writable to
+        #   the group, because even if the group is wrong we don't care as long
+        #   as the file is read-only for the group
+        # - the file cgroup.event_control which is ugo+w for some reason
+        find "$dname" -ignore_readdir_race -group test ! -path '*/user@12345.service*' ! -path '*/user-12345.slice*' \
+            ! \( -path '/sys/fs/cgroup/*' -type f ! -perm /g+w \) \
+            ! -name cgroup.event_control \
+            >> wrong-group.txt
         # Filter out the following elements:
         # - sockets, we don't create any and there are some that are 777
         # - symbolic links, those are always 777

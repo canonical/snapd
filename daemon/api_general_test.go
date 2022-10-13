@@ -317,7 +317,7 @@ func (s *generalSuite) TestSysInfoIsManaged(c *check.C) {
 
 	st := d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, auth.NewUserData{
+	_, err := auth.NewUser(st, auth.NewUserParams{
 		Username:   "someuser",
 		Email:      "mymail@test.com",
 		Macaroon:   "macaroon",

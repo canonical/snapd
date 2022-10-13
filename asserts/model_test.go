@@ -186,6 +186,7 @@ snaps:
     id: myappoptidididididididididididid
     type: app
     presence: optional
+    classic: true
 OTHERgrade: secured
 storage-safety: encrypted
 ` + "TSLINE" +
@@ -783,6 +784,7 @@ func (mods *modelSuite) testWithSnapsDecodeOK(c *C, modelRaw string, isClassic b
 			Modes:          []string{"run"},
 			DefaultChannel: "latest/stable",
 			Presence:       "optional",
+			Classic:        isClassic,
 		},
 	})
 	// essential snaps included
@@ -1026,6 +1028,20 @@ func (mods *modelSuite) testWithSnapsDecodeInvalid(c *C, modelRaw string, isClas
 			{"distribution: ubuntu\n", "distribution: Ubuntu\n", `"distribution" header contains invalid characters: "Ubuntu", see distribution ID in os-release spec`},
 			{"distribution: ubuntu\n", "distribution: *buntu\n", `"distribution" header contains invalid characters: "\*buntu", see distribution ID in os-release spec`},
 			{"type: gadget\n", "type: app\n", `cannot specify a kernel in an extended classic model without a model gadget`},
+			{"  classic: true\n", "  classic: what", `"classic" of snap "myappopt" must be 'true' or 'false'`},
+			{"OTHER", `    modes:
+      - ephemeral
+      - run
+`, `classic snap "myappopt" not allowed outside of run mode: \[ephemeral run\]`},
+			{"OTHER", `    modes:
+      - install
+`, `classic snap "myappopt" not allowed outside of run mode: \[install\]`},
+			{`    type: app
+    presence: optional
+`, `    type: base
+    presence: optional
+`, `snap "myappopt" cannot be classic with type "base" instead of app`},
+			{"\nclassic: true\ndistribution: ubuntu\n", "\nclassic: false\n", `snap "myappopt" cannot be classic in non-classic model`},
 		}
 		invalidTests = append(invalidTests, classicInvalid...)
 	} else {
@@ -1152,6 +1168,7 @@ func (mods *modelSuite) TestClassicWithSnapsMinimalDecodeOK(c *C) {
 				Modes:          []string{"run"},
 				DefaultChannel: "latest/stable",
 				Presence:       "optional",
+				Classic:        true,
 			},
 		})
 		// essential snaps included

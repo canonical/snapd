@@ -1716,6 +1716,33 @@ func (s *storeTestSuite) TestStoreIDFromAuthContext(c *C) {
 	c.Check(result.InstanceName(), Equals, "hello-world")
 }
 
+func (s *storeTestSuite) TestLocation(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", infoPathPattern)
+		storeID := r.Header.Get("Snap-Device-Location")
+		c.Check(storeID, Equals, `cloud-name="gcp" region="us-west1" availability-zone="us-west1-b"`)
+
+		w.WriteHeader(200)
+		io.WriteString(w, mockInfoJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.DefaultConfig()
+	cfg.StoreBaseURL = mockServerURL
+	sto := store.New(cfg, &testDauthContext{c: c, device: s.device, cloudInfo: &auth.CloudInfo{Name: "gcp", Region: "us-west1", AvailabilityZone: "us-west1-b"}})
+
+	// the actual test
+	spec := store.SnapSpec{
+		Name: "hello-world",
+	}
+	result, err := sto.SnapInfo(s.ctx, spec, nil)
+	c.Assert(err, IsNil)
+	c.Check(result.InstanceName(), Equals, "hello-world")
+}
+
 func (s *storeTestSuite) TestProxyStoreFromAuthContext(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", infoPathPattern)

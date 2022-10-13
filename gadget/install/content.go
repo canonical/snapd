@@ -54,10 +54,9 @@ func makeFilesystem(params mkfsParams) error {
 	return udevTrigger(params.Device)
 }
 
-// mountFilesystem mounts the filesystem on a given device under the given base
-// directory, under the provided mount point name.
-func mountFilesystem(fsDevice, fs, mntPointName, baseMntPoint string) error {
-	mountpoint := filepath.Join(baseMntPoint, mntPointName)
+// mountFilesystem mounts the filesystem on a given device with
+// filesystem type fs under the provided mount point directory.
+func mountFilesystem(fsDevice, fs, mountpoint string) error {
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
 		return fmt.Errorf("cannot create mountpoint: %v", err)
 	}

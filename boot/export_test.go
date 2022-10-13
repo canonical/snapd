@@ -226,7 +226,7 @@ func MockRebootArgsPath(argsPath string) (restore func()) {
 	return func() { rebootArgsPath = oldRebootArgsPath }
 }
 
-func MockHasFDESetupHook(f func() (bool, error)) (restore func()) {
+func MockHasFDESetupHook(f func(*snap.Info) (bool, error)) (restore func()) {
 	oldHasFDESetupHook := HasFDESetupHook
 	HasFDESetupHook = f
 	return func() {

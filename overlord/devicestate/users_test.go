@@ -187,7 +187,7 @@ func (s *usersSuite) TestCreateUser(c *check.C) {
 
 func (s *usersSuite) TestUserActionRemoveDelUserErr(c *check.C) {
 	s.state.Lock()
-	_, err := auth.NewUser(s.state, auth.NewUserData{
+	_, err := auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "some-user",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -256,7 +256,7 @@ func (s *usersSuite) TestUserActionRemoveNoUserInState(c *check.C) {
 
 func (s *usersSuite) TestUserActionRemove(c *check.C) {
 	s.state.Lock()
-	user, err := auth.NewUser(s.state, auth.NewUserData{
+	user, err := auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "some-user",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -679,7 +679,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
 	s.state.Lock()
-	_, err := auth.NewUser(s.state, auth.NewUserData{
+	_, err := auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -728,7 +728,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButSkipExists(c *check.C
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
 	s.state.Lock()
-	_, err := auth.NewUser(s.state, auth.NewUserData{
+	_, err := auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",

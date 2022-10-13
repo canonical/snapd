@@ -56,9 +56,11 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 		},
 		Threads: 32,
 		Journal: &client.QuotaJournalValues{
-			Size:       quantity.SizeMiB,
-			RateCount:  150,
-			RatePeriod: time.Minute,
+			Size: quantity.SizeMiB,
+			QuotaJournalRate: &client.QuotaJournalRate{
+				RateCount:  150,
+				RatePeriod: time.Minute,
+			},
 		},
 	}
 
