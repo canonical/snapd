@@ -21,7 +21,6 @@ package cgroup
 
 import (
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -68,17 +67,17 @@ func securityTagFromCgroupPath(path string) naming.SecurityTag {
 	return nil
 }
 
-type InstancePathsFlags uint32
-
-const (
-	InstancePathsFlagsOnlyPaths InstancePathsFlags = 1 << iota
-)
+type InstancePathsOptions struct {
+	returnCGroupPath bool
+}
 
 // InstancePathsOfSnap returns the list of active cgroup paths for a given snap
+// If options.returnCGroupPath is TRUE, it will return the path of the CGroup itself;
+// but if it is FALSE, it will return the path of the file with the PIDs of the running snap
 //
 // The return value is a snapshot of the cgroup paths
 
-func InstancePathsOfSnap(snapInstanceName string, flags InstancePathsFlags) ([]string, error) {
+func InstancePathsOfSnap(snapInstanceName string, options InstancePathsOptions) ([]string, error) {
 	var cgroupPathToScan string
 	var pathList []string
 
@@ -104,7 +103,7 @@ func InstancePathsOfSnap(snapInstanceName string, flags InstancePathsFlags) ([]s
 	// tag matches the snap we are interested in, we harvest the snapshot of
 	// PIDs that belong to the cgroup and put them into a bucket associated
 	// with the security tag.
-	walkFunc := func(basepath string, fileInfo os.FileInfo, err error) error {
+	walkFunc := func(path string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			// See the documentation of path/filepath.Walk. The error we get is
 			// the error that was encountered while walking. We just surface
@@ -114,7 +113,7 @@ func InstancePathsOfSnap(snapInstanceName string, flags InstancePathsFlags) ([]s
 
 		// ignore snaps inside containers
 		for _, slice := range []string{"lxc.payload", "machine.slice", "docker"} {
-			if strings.HasPrefix(basepath, filepath.Join(cgroupPathToScan, slice)) {
+			if strings.HasPrefix(path, filepath.Join(cgroupPathToScan, slice)) {
 				return filepath.SkipDir
 			}
 		}
@@ -123,7 +122,7 @@ func InstancePathsOfSnap(snapInstanceName string, flags InstancePathsFlags) ([]s
 			// We don't care about directories.
 			return nil
 		}
-		if filepath.Base(basepath) != "cgroup.procs" {
+		if filepath.Base(path) != "cgroup.procs" {
 			// We are looking for "cgroup.procs" files. Those contain the set
 			// of processes that momentarily inhabit a cgroup.
 			return nil
@@ -133,7 +132,7 @@ func InstancePathsOfSnap(snapInstanceName string, flags InstancePathsFlags) ([]s
 		// if the security tag belongs to the snap we are interested in. Since
 		// not all cgroups are related to snaps it is not an error if the
 		// cgroup path does not denote a snap.
-		cgroupPath := filepath.Dir(basepath)
+		cgroupPath := filepath.Dir(path)
 		parsedTag := securityTagFromCgroupPath(cgroupPath)
 		if parsedTag == nil {
 			return nil
@@ -141,10 +140,10 @@ func InstancePathsOfSnap(snapInstanceName string, flags InstancePathsFlags) ([]s
 		if parsedTag.InstanceName() != snapInstanceName {
 			return nil
 		}
-		if flags&InstancePathsFlagsOnlyPaths == 0 {
-			pathList = append(pathList, basepath)
+		if options.returnCGroupPath {
+			pathList = append(pathList, cgroupPath)
 		} else {
-			pathList = append(pathList, path.Dir(basepath))
+			pathList = append(pathList, path)
 		}
 		// Since we've found the file we are looking for (cgroup.procs) we no
 		// longer need to scan the remaining files of this directory.
@@ -180,7 +179,10 @@ func InstancePathsOfSnap(snapInstanceName string, flags InstancePathsFlags) ([]s
 // This can be used to classify the activity of a given snap into activity
 // classes, based on the nature of the security tags encountered.
 func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
-	paths, err := InstancePathsOfSnap(snapInstanceName, 0)
+	options := InstancePathsOptions{
+		returnCGroupPath: false,
+	}
+	paths, err := InstancePathsOfSnap(snapInstanceName, options)
 	if err != nil {
 		return nil, err
 	}
