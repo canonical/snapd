@@ -40,6 +40,19 @@ func waitWhileInhibited(snapName string) error {
 		return nil
 	}
 
+	// wait for HintInhibitedForRefresh set by gate-auto-refresh hook handler
+	// when it has finished; the hook starts with HintInhibitedGateRefresh lock
+	// and then either unlocks it or changes to HintInhibitedForRefresh (see
+	// gateAutoRefreshHookHandler in hooks.go).
+	// waitInhibitUnlock will return also on HintNotInhibited.
+	notInhibited, err := waitInhibitUnlock(snapName, runinhibit.HintInhibitedForRefresh, 2*time.Second)
+	if (err != nil) && (err.Error() != "Timeout") {
+		return err
+	}
+	if notInhibited {
+		return nil
+	}
+
 	if isGraphicalSession() {
 		return graphicalSessionFlow(snapName, hint)
 	}
@@ -87,7 +100,7 @@ func graphicalSessionFlow(snapName string, hint runinhibit.Hint) error {
 	if err := pendingRefreshNotification(&refreshInfo); err != nil {
 		return err
 	}
-	if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited); err != nil {
+	if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited, 0); err != nil {
 		return err
 	}
 
@@ -99,7 +112,7 @@ func textFlow(snapName string, hint runinhibit.Hint) error {
 	fmt.Fprintf(Stdout, "%s\n", inhibitMessage(snapName, hint))
 	pb := progress.MakeProgressBar(Stdout)
 	pb.Spin(i18n.G("please wait..."))
-	_, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited)
+	_, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited, 0)
 	pb.Finished()
 	return err
 }
@@ -108,9 +121,12 @@ var isLocked = runinhibit.IsLocked
 
 // waitInhibitUnlock waits until the runinhibit lock hint has a specific waitFor value
 // or isn't inhibited anymore.
-var waitInhibitUnlock = func(snapName string, waitFor runinhibit.Hint) (notInhibited bool, err error) {
+// If timeout is bigger than 0, it will wait up to that time;
+// if it is 0, it will wait until it has the specific value.
+var waitInhibitUnlock = func(snapName string, waitFor runinhibit.Hint, timeout time.Duration) (notInhibited bool, err error) {
 	// Every 0.5s check if the inhibition file is still present.
-	ticker := time.NewTicker(500 * time.Millisecond)
+	period := 500 * time.Millisecond
+	ticker := time.NewTicker(period)
 	defer ticker.Stop()
 	for {
 		select {
@@ -125,6 +141,12 @@ var waitInhibitUnlock = func(snapName string, waitFor runinhibit.Hint) (notInhib
 			}
 			if hint == waitFor {
 				return false, nil
+			}
+			if timeout > 0 {
+				timeout -= period
+				if timeout <= 0 {
+					return false, fmt.Errorf("Timeout")
+				}
 			}
 		}
 	}
