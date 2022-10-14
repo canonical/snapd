@@ -86,6 +86,8 @@ fi
 #sudo unsquashfs -f -d "$DST" livecd.ubuntu.base.squashfs
 if [ -f /cdrom/casper/base.squashfs ]; then
     sudo unsquashfs -f -d "$DST" /cdrom/casper/base.squashfs
+    # TODO: find out why the squashfs is preseeded
+    /usr/lib/snapd/snap-preseed --reset "$DST"
 else
     BASETAR=ubuntu-base.tar.gz
     # important to use "-q" to avoid journalctl suppressing  log output

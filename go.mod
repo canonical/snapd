@@ -6,7 +6,7 @@ go 1.13
 replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066
 
 require (
-	github.com/canonical/go-efilib v0.0.0-20210909101908-41435fa545d4 // indirect
+	github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93 // indirect
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v0.0.0-20210827151749-f80ff5afff61
 	github.com/canonical/tcglog-parser v0.0.0-20210824131805-69fa1e9f0ad2 // indirect
@@ -14,7 +14,7 @@ require (
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2
 	github.com/gorilla/mux v1.7.4-0.20190701202633-d83b6ffe499a
 	github.com/gvalkov/golang-evdev v0.0.0-20191114124502-287e62b94bcb
-	github.com/jessevdk/go-flags v1.4.1-0.20180927143258-7309ec74f752
+	github.com/jessevdk/go-flags v1.5.1-0.20210607101731-3927b71304df
 	github.com/juju/ratelimit v1.0.1
 	github.com/kr/pretty v0.2.2-0.20200810074440-814ac30b4b18 // indirect
 	github.com/mvo5/goconfigparser v0.0.0-20200803085309-72e476556adb
@@ -23,7 +23,7 @@ require (
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
 	github.com/snapcore/bolt v1.3.2-0.20210908134111-63c8bfcf7af8
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
-	github.com/snapcore/secboot v0.0.0-20220905094328-6a625ee231d3
+	github.com/snapcore/secboot v0.0.0-20220922155412-5d2b29ff0ee2
 	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
 	golang.org/x/net v0.0.0-20220826154423-83b083e8dc8b // indirect
 	golang.org/x/sys v0.0.0-20220829200755-d48e67d00261

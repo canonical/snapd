@@ -483,3 +483,11 @@ func MockUserLookup(lookup func(username string) (*user.User, error)) (restore f
 func EnsureExpiredUsersRemoved(m *DeviceManager) error {
 	return m.ensureExpiredUsersRemoved()
 }
+
+var ProcessAutoImportAssertions = processAutoImportAssertions
+
+func MockCreateAllKnownSystemUsers(createAllUsers func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*CreatedUser, error)) (restore func()) {
+	restore = testutil.Backup(&createAllKnownSystemUsers)
+	createAllKnownSystemUsers = createAllUsers
+	return restore
+}
