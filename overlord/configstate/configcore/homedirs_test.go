@@ -87,7 +87,6 @@ func (s *homedirsSuite) TestValidationUnhappy(c *C) {
 		{"./here", `path "\./here" is not absolute`},
 		// empty path in list
 		{",/home", `path "" is not absolute`},
-		{"/somewhere/else", `path "/somewhere/else/" unsupported: must start with one of: /home/`},
 		{"/home/foo[12]", `home path invalid: "/home/foo\[12\]" contains a reserved apparmor char.*`},
 		{"/lib/homes", `path "/lib/homes/" uses reserved root directory "/lib/"`},
 		{"/home/error", `cannot get directory info for "/home/error/".*`},

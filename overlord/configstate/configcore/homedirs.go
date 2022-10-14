@@ -59,14 +59,6 @@ var (
 		"/sys/",
 		"/tmp/",
 	}
-
-	// TODO: remove this once we mount the root FS of a snap as tmpfs and
-	// become able to create any mount points. But for the time being, let's
-	// allow only those locations that can be supported without creating a
-	// mimic of "/".
-	validPrefixes = []string{
-		"/home/",
-	}
 )
 
 func init() {
@@ -180,19 +172,6 @@ func validateHomedirsConfiguration(tr ConfGetter) error {
 			if strings.HasPrefix(dir, prefix) {
 				return fmt.Errorf("path %q uses reserved root directory %q", dir, prefix)
 			}
-		}
-
-		// Temporary: see the comment on validPrefixes
-		isValid := false
-		for _, prefix := range validPrefixes {
-			if strings.HasPrefix(dir, prefix) {
-				isValid = true
-				break
-			}
-		}
-		if !isValid {
-			formattedList := strings.Join(validPrefixes, ", ")
-			return fmt.Errorf("path %q unsupported: must start with one of: %s", dir, formattedList)
 		}
 
 		exists, isDir, err := osutilDirExists(dir)
