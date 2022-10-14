@@ -350,3 +350,28 @@ func RemoveSnapConfineSnippets() error {
 	_, _, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, "*", nil)
 	return err
 }
+
+// Reload the profile of snap-confine. This function must be called when the
+// AppArmor profile snippets for snap-confine have been changed. Note that
+// there might be more than one of them in the system, because besides the one
+// coming with the system installation, also the snapd and core snaps ship a
+// snap-confine binary. Of course, only one of these binaries will be used by
+// snapd, but in this context we don't want to deal with this logic, so let's
+// just reload all of them.
+var ReloadSnapConfineProfile = func() error {
+	profiles, err := filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.*"))
+	if err != nil {
+		// This only happens if the pattern is malformed
+		return err
+	}
+
+	// Add the snap-confine from the distribution
+	if snapConfineProfile := SnapConfineDistroProfilePath(); snapConfineProfile != "" {
+		profiles = append(profiles, snapConfineProfile)
+	}
+
+	// We want to reload the profiles no matter what, so don't even bother
+	// checking if the cached profile is newer
+	aaFlags := SkipReadCache
+	return LoadProfiles(profiles, SystemCacheDir, aaFlags)
+}
