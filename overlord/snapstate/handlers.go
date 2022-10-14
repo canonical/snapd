@@ -34,6 +34,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
@@ -1223,6 +1224,13 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 
 	st.Lock()
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
 	opts, err := getDirMigrationOpts(st, snapst, snapsup)
 	st.Unlock()
 	if err != nil {
@@ -1231,7 +1239,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb, dirOpts); copyDataErr != nil {
+	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, dirOpts, pb); copyDataErr != nil {
 		if oldInfo != nil {
 			// there is another revision of the snap, cannot remove
 			// shared data directory
@@ -1255,7 +1263,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		return copyDataErr
 	}
 
-	if err := m.backend.SetupSnapSaveData(newInfo, pb); err != nil {
+	if err := m.backend.SetupSnapSaveData(newInfo, deviceCtx, pb); err != nil {
 		return err
 	}
 
@@ -1359,6 +1367,13 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	st.Lock()
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
 	// undo migration actions performed in doCopySnapData and set SnapSetup flags
 	// accordingly (they're used in undoUnlinkCurrentSnap to set SnapState)
 	if snapsup.MigratedToExposedHome || snapsup.MigratedHidden || snapsup.UndidHiddenMigration {
@@ -1413,10 +1428,10 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, dirOpts); err != nil {
+	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, dirOpts, pb); err != nil {
 		return err
 	}
-	if err := m.backend.UndoSetupSnapSaveData(newInfo, oldInfo, pb); err != nil {
+	if err := m.backend.UndoSetupSnapSaveData(newInfo, oldInfo, deviceCtx, pb); err != nil {
 		return err
 	}
 
@@ -2379,7 +2394,11 @@ func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo
 	prevCurrentSvcs := map[string]bool{}
 	if psi := snapst.previousSideInfo(); psi != nil {
 		var prevCurrentInfo *snap.Info
-		if prevCurrentInfo, err = Info(st, snapst.InstanceName(), psi.Revision); prevCurrentInfo != nil {
+		prevCurrentInfo, err = Info(st, snapst.InstanceName(), psi.Revision)
+		if err != nil {
+			return nil, err
+		}
+		if prevCurrentInfo != nil {
 			for _, prevSvc := range prevCurrentInfo.Services() {
 				prevCurrentSvcs[prevSvc.Name] = true
 			}
@@ -2776,7 +2795,6 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	opts, err := getDirMigrationOpts(st, snapst, snapsup)
 	st.Unlock()
-
 	if err != nil {
 		return err
 	}
@@ -2794,7 +2812,13 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 
 		// Same for the common snap save data directory, we only remove it if this
 		// is the last version.
-		if err = m.backend.RemoveSnapSaveData(info); err != nil {
+		st.Lock()
+		deviceCtx, err := DeviceCtx(t.State(), t, nil)
+		st.Unlock()
+		if err != nil {
+			return err
+		}
+		if err = m.backend.RemoveSnapSaveData(info, deviceCtx); err != nil {
 			return err
 		}
 
@@ -3760,6 +3784,52 @@ func (m *SnapManager) undoMigrateSnapHome(t *state.Task, tomb *tomb.Tomb) error 
 	st.Lock()
 	defer st.Unlock()
 	return writeMigrationStatus(t, snapst, snapsup)
+}
+
+func (m *SnapManager) doEnforceValidationSets(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var userID int
+	if err := t.Get("userID", &userID); err != nil {
+		return err
+	}
+
+	encodedAsserts := make(map[string][]byte)
+	if err := t.Get("validation-sets", &encodedAsserts); err != nil {
+		return err
+	}
+
+	decodedAsserts := make(map[string]*asserts.ValidationSet, len(encodedAsserts))
+	for vsStr, encAssert := range encodedAsserts {
+		decAssert, err := asserts.Decode(encAssert)
+		if err != nil {
+			return err
+		}
+
+		vsAssert, ok := decAssert.(*asserts.ValidationSet)
+		if !ok {
+			return errors.New("expected encoded assertion to be of type ValidationSet")
+		}
+		decodedAsserts[vsStr] = vsAssert
+	}
+
+	var pinnedSeqs map[string]int
+	if err := t.Get("pinned-sequence-numbers", &pinnedSeqs); err != nil {
+		return err
+	}
+
+	snaps, ignoreValidation, err := InstalledSnaps(st)
+	if err != nil {
+		return err
+	}
+
+	if err := EnforceValidationSets(st, decodedAsserts, pinnedSeqs, snaps, ignoreValidation, userID); err != nil {
+		return fmt.Errorf("cannot enforce validation sets: %v", err)
+	}
+
+	return nil
 }
 
 // maybeRestoreValidationSetsAndRevertSnaps restores validation-sets to their

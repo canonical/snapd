@@ -58,6 +58,7 @@ type SnapOptions struct {
 	Amend            bool            `json:"amend,omitempty"`
 	Transaction      TransactionType `json:"transaction,omitempty"`
 	QuotaGroupName   string          `json:"quota-group,omitempty"`
+	ValidationSets   []string        `json:"validation-sets,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -120,12 +121,13 @@ type actionData struct {
 }
 
 type multiActionData struct {
-	Action        string          `json:"action"`
-	Snaps         []string        `json:"snaps,omitempty"`
-	Users         []string        `json:"users,omitempty"`
-	Transaction   TransactionType `json:"transaction,omitempty"`
-	IgnoreRunning bool            `json:"ignore-running,omitempty"`
-	Purge         bool            `json:"purge,omitempty"`
+	Action         string          `json:"action"`
+	Snaps          []string        `json:"snaps,omitempty"`
+	Users          []string        `json:"users,omitempty"`
+	Transaction    TransactionType `json:"transaction,omitempty"`
+	IgnoreRunning  bool            `json:"ignore-running,omitempty"`
+	Purge          bool            `json:"purge,omitempty"`
+	ValidationSets []string        `json:"validation-sets,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -233,6 +235,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		action.Transaction = options.Transaction
 		action.IgnoreRunning = options.IgnoreRunning
 		action.Purge = options.Purge
+		action.ValidationSets = options.ValidationSets
 	}
 
 	data, err := json.Marshal(&action)

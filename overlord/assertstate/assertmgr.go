@@ -104,7 +104,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	modelAs := deviceCtx.Model()
 	expectedProv := snapsup.ExpectedProvenance
 
-	err = doFetch(st, snapsup.UserID, deviceCtx, func(f asserts.Fetcher) error {
+	err = doFetch(st, snapsup.UserID, deviceCtx, nil, func(f asserts.Fetcher) error {
 		if err := snapasserts.FetchSnapAssertions(f, sha3_384, expectedProv); err != nil {
 			return err
 		}

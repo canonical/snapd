@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -140,6 +140,8 @@ var (
 func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.BaseTest.SetUpTest(c)
 
+	s.AddCleanup(release.MockOnClassic(classic))
+
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
@@ -157,8 +159,6 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(s.bootloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
-
-	s.AddCleanup(release.MockOnClassic(classic))
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.restartObserve = nil
@@ -287,6 +287,37 @@ func (s *deviceMgrBaseSuite) setPCModelInState(c *C) {
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc",
+		Serial: "serialserialserial",
+	})
+}
+
+func (s *deviceMgrBaseSuite) setUC20PCModelInState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		// UC20
+		"grade": "dangerous",
+		"base":  "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-20",
 		Serial: "serialserialserial",
 	})
 }
@@ -1170,6 +1201,23 @@ func (s *deviceMgrSuite) TestCanManageRefreshesNoRefreshScheduleManaged(c *C) {
 	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
 }
 
+func (s *deviceMgrSuite) TestResetSession(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(devicestate.ResetSession(st), IsNil)
+
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		SessionMacaroon: "session",
+	})
+	c.Assert(devicestate.ResetSession(st), IsNil)
+
+	device, err := devicestatetest.Device(st)
+	c.Assert(err, IsNil)
+	c.Check(device.SessionMacaroon, Equals, "")
+}
+
 func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	st := state.New(nil)
 
@@ -1351,35 +1399,10 @@ func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC20Install(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
 	c.Assert(err, IsNil)
 
+	s.setUC20PCModelInState(c)
+
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// have a model
-	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
-		"architecture": "amd64",
-		// UC20
-		"grade": "dangerous",
-		"base":  "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name":            "pc-kernel",
-				"id":              snaptest.AssertedSnapID("pc-kernel"),
-				"type":            "kernel",
-				"default-channel": "20",
-			},
-			map[string]interface{}{
-				"name":            "pc",
-				"id":              snaptest.AssertedSnapID("pc"),
-				"type":            "gadget",
-				"default-channel": "20",
-			},
-		},
-	})
-
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-20",
-	})
 
 	// seeded
 	s.state.Set("seeded", true)
@@ -1421,35 +1444,10 @@ func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC20Run(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
 	c.Assert(err, IsNil)
 
+	s.setUC20PCModelInState(c)
+
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// have a model
-	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
-		"architecture": "amd64",
-		// UC20
-		"grade": "dangerous",
-		"base":  "core20",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name":            "pc-kernel",
-				"id":              snaptest.AssertedSnapID("pc-kernel"),
-				"type":            "kernel",
-				"default-channel": "20",
-			},
-			map[string]interface{}{
-				"name":            "pc",
-				"id":              snaptest.AssertedSnapID("pc"),
-				"type":            "gadget",
-				"default-channel": "20",
-			},
-		},
-	})
-
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-20",
-	})
 
 	// not seeded
 	// no flags
@@ -1486,6 +1484,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveRunModeHappy(c *C
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
@@ -1523,6 +1523,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveSystemCtlFails(c 
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
@@ -1555,6 +1557,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveMountUnitExists(c
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
@@ -1585,6 +1589,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveAlreadyMounted(c 
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
@@ -1613,6 +1619,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20NoUbuntuSave(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
@@ -1633,6 +1641,8 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveErr(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "run"}
 	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
+	s.setUC20PCModelInState(c)
+
 	// create a new manager so that the modeenv we mocked in read
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
@@ -1718,10 +1728,38 @@ func (s *deviceMgrSuite) TestHasFdeSetupHook(c *C) {
 	} {
 		makeInstalledMockKernelSnap(c, st, tc.kernelYaml)
 
-		hasHook, err := devicestate.DeviceManagerHasFDESetupHook(s.mgr)
+		hasHook, err := devicestate.DeviceManagerHasFDESetupHook(s.mgr, nil)
 		c.Assert(err, IsNil)
 		c.Check(hasHook, Equals, tc.hasFdeSetupHook)
 	}
+}
+
+func (s *deviceMgrSuite) TestHasFdeSetupHookOtherKernel(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	otherSI := &snap.SideInfo{RealName: "pc-kernel", Revision: snap.R(1), SnapID: "pc-kernel-id"}
+	_, otherInfo := snaptest.MakeTestSnapInfoWithFiles(c, kernelYamlWithFdeSetup, nil, otherSI)
+	makeInstalledMockKernelSnap(c, st, kernelYamlNoFdeSetup)
+
+	hasHook, err := devicestate.DeviceManagerHasFDESetupHook(s.mgr, nil)
+	c.Assert(err, IsNil)
+	c.Check(hasHook, Equals, false)
+
+	hasHook, err = devicestate.DeviceManagerHasFDESetupHook(s.mgr, otherInfo)
+	c.Assert(err, IsNil)
+	c.Check(hasHook, Equals, true)
 }
 
 func (s *deviceMgrSuite) TestRunFDESetupHookHappy(c *C) {
@@ -2229,4 +2267,143 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C
 	c.Assert(err, IsNil)
 	// nothing was called
 	c.Check(completeCalls, Equals, 1)
+}
+
+func (s *deviceMgrSuite) mockSystemUser(c *C, username string, expiration time.Time) {
+	_, err := auth.NewUser(s.state, auth.NewUserParams{
+		Username:   username,
+		Email:      "email1@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+		Expiration: expiration,
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) mockSystemMode(c *C, mode string) {
+	modeEnv := &boot.Modeenv{Mode: mode}
+	err := modeEnv.WriteTo("")
+	c.Assert(err, IsNil)
+	devicestate.SetSystemMode(s.mgr, mode)
+}
+
+func (s *deviceMgrSuite) testExpiredUserRemoved(c *C, userToRemove string, extraUsers bool) {
+	// Mock the delete user callback to verify it's correctly called. On ubuntu core
+	// systems ExtraUsers should be set, where on classic systems ExtraUsers should not
+	// be set
+	var delUserCalled bool
+	r := devicestate.MockOsutilDelUser(func(name string, opts *osutil.DelUserOptions) error {
+		delUserCalled = true
+		c.Check(name, Equals, userToRemove)
+		c.Check(opts, NotNil)
+		c.Check(opts.ExtraUsers, Equals, extraUsers)
+		return nil
+	})
+	defer r()
+
+	s.state.Unlock()
+	err := devicestate.EnsureExpiredUsersRemoved(s.mgr)
+	c.Assert(err, IsNil)
+	c.Assert(delUserCalled, Equals, true)
+}
+
+func (s *deviceMgrSuite) testExpiredUserNotRemoved(c *C) {
+	// Mock the delete user callback to verify it's correctly called. On ubuntu core
+	// systems ExtraUsers should be set, where on classic systems ExtraUsers should not
+	// be set
+	var delUserCalled bool
+	r := devicestate.MockOsutilDelUser(func(name string, opts *osutil.DelUserOptions) error {
+		delUserCalled = true
+		return nil
+	})
+	defer r()
+
+	s.state.Unlock()
+	err := devicestate.EnsureExpiredUsersRemoved(s.mgr)
+	c.Assert(err, IsNil)
+	c.Assert(delUserCalled, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedOnCore(c *C) {
+	s.mockSystemMode(c, "run")
+	s.state.Lock()
+
+	// Set seeded otherwise we won't get very far in this test, as we don't
+	// remove users when not seeded.
+	s.state.Set("seeded", true)
+
+	// We mock a few users, with one of them having expired. We then run
+	// the code to see that it correctly removes it from the system. Important
+	// to also test with a user that has no expiration to make sure the previous
+	// users are unaffected.
+	s.mockSystemUser(c, "user1", time.Time{})
+	s.mockSystemUser(c, "expires-soon", time.Now().Add(time.Minute*5))
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+	s.testExpiredUserRemoved(c, "remove-me", true)
+}
+
+func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedOnClassic(c *C) {
+	// Mock being on classic, then the EnsureExpiredUsersRemoved should be a no-op
+	r := release.MockOnClassic(true)
+	defer r()
+	s.state.Lock()
+
+	// It's not really needed to set seeded here as the check comes after
+	// we check for classic - however in the future, if someone were to reorder
+	// checks this would still pass if we didn't set this
+	s.state.Set("seeded", true)
+
+	// We mock a few users, with one of them having expired. We then run
+	// the code to see that it correctly removes it from the system. Important
+	// to also test with a user that has no expiration to make sure the previous
+	// users are unaffected.
+	s.mockSystemUser(c, "user1", time.Time{})
+	s.mockSystemUser(c, "expires-soon", time.Now().Add(time.Minute*5))
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+	s.testExpiredUserRemoved(c, "remove-me", false)
+}
+
+func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedNotRecoverMode(c *C) {
+	// mock recovery mode
+	s.mockSystemMode(c, "recover")
+
+	s.state.Lock()
+
+	// It's not really needed to set seeded here as the check comes after
+	// we check for classic - however in the future, if someone were to reorder
+	// checks this would still pass if we didn't set this
+	s.state.Set("seeded", true)
+
+	// Mock a user that would be expired
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+	s.testExpiredUserNotRemoved(c)
+}
+
+func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedNotInstallMode(c *C) {
+	// mock install mode
+	s.mockSystemMode(c, "install")
+
+	s.state.Lock()
+
+	// It's not really needed to set seeded here as the check comes after
+	// we check for classic - however in the future, if someone were to reorder
+	// checks this would still pass if we didn't set this
+	s.state.Set("seeded", true)
+
+	// Mock a user that would be expired, but expect it not to be removed
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+	s.testExpiredUserNotRemoved(c)
+}
+
+func (s *deviceMgrSuite) TestEnsureExpiredUsersRemovedNotUnseeded(c *C) {
+	s.mockSystemMode(c, "run")
+	s.state.Lock()
+
+	// The default seems to be false, but lets be explicit about setting
+	// this to false.
+	s.state.Set("seeded", false)
+
+	// Mock a user that would be expired, but expect it not to be removed
+	s.mockSystemUser(c, "remove-me", time.Now().Add(-(time.Minute * 5)))
+	s.testExpiredUserNotRemoved(c)
 }

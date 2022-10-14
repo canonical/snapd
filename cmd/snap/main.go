@@ -384,8 +384,8 @@ func mkClient() *client.Client {
 
 	cli := client.New(cfg)
 	goos := runtime.GOOS
-	if release.OnWSL {
-		goos = "Windows Subsystem for Linux"
+	if release.WSLVersion == 1 {
+		goos = "Windows Subsystem for Linux 1"
 	}
 	if goos != "linux" {
 		cli.Hijack(func(*http.Request) (*http.Response, error) {

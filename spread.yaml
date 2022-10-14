@@ -981,6 +981,8 @@ suites:
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
             # Add snapd debug and log to serial console
             NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
+            # Add any extra cmd line parameter to the nested vm
+            NESTED_EXTRA_CMDLINE:  '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
             # Generic imane name which has to be overwritten in the test
             NESTED_IMAGE_ID: "unset"
             # Configuration file used for remote tools
@@ -1090,6 +1092,8 @@ suites:
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
             # Add snapd debug and log to serial console
             NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
+            # Add any extra cmd line parameter to the nested vm
+            NESTED_EXTRA_CMDLINE:  '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
         manual: true

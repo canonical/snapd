@@ -20,47 +20,36 @@
 package daemon
 
 import (
-	"os/user"
-
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func MockHasUserAdmin(mockHasUserAdmin bool) (restore func()) {
-	oldHasUserAdmin := hasUserAdmin
+	restore = testutil.Backup(&hasUserAdmin)
 	hasUserAdmin = mockHasUserAdmin
-	return func() {
-		hasUserAdmin = oldHasUserAdmin
-	}
+	return restore
 }
 
-func MockUserLookup(lookup func(username string) (*user.User, error)) (restore func()) {
-	oldLookup := userLookup
-	userLookup = lookup
-	return func() {
-		userLookup = oldLookup
-	}
+func MockDeviceStateCreateUser(createUser func(st *state.State, sudoer bool, email string) (*devicestate.CreatedUser, error)) (restore func()) {
+	restore = testutil.Backup(&deviceStateCreateUser)
+	deviceStateCreateUser = createUser
+	return restore
 }
 
-func MockOsutilAddUser(addUser func(name string, opts *osutil.AddUserOptions) error) (restore func()) {
-	oldAddUser := osutilAddUser
-	osutilAddUser = addUser
-	return func() {
-		osutilAddUser = oldAddUser
-	}
+func MockDeviceStateCreateKnownUsers(createKnownUser func(st *state.State, sudoer bool, email string) ([]*devicestate.CreatedUser, error)) (restore func()) {
+	restore = testutil.Backup(&deviceStateCreateUser)
+	deviceStateCreateKnownUsers = createKnownUser
+	return restore
 }
 
-func MockOsutilDelUser(delUser func(name string, opts *osutil.DelUserOptions) error) (restore func()) {
-	oldDelUser := osutilDelUser
-	osutilDelUser = delUser
-	return func() {
-		osutilDelUser = oldDelUser
-	}
+func MockDeviceStateRemoveUser(removeUser func(st *state.State, username string) (*auth.UserState, error)) (restore func()) {
+	restore = testutil.Backup(&deviceStateRemoveUser)
+	deviceStateRemoveUser = removeUser
+	return restore
 }
 
 type (
 	UserResponseData = userResponseData
-)
-
-var (
-	GetUserDetailsFromAssertion = getUserDetailsFromAssertion
 )

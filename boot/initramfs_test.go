@@ -32,6 +32,8 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
@@ -810,4 +812,39 @@ func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsErrNoCmdline(c 
 func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsNoBootloaderHappy(c *C) {
 	err := boot.InitramfsRunModeUpdateBootloaderVars()
 	c.Assert(err, IsNil)
+}
+
+var classicModel = &gadgettest.ModelCharacteristics{
+	IsClassic: true,
+	HasModes:  true,
+}
+
+var coreModel = &gadgettest.ModelCharacteristics{
+	IsClassic: false,
+	HasModes:  true,
+}
+
+func (s *initramfsSuite) TestInstallHostWritableDir(c *C) {
+	c.Check(boot.InstallHostWritableDir(classicModel), Equals, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data"))
+	c.Check(boot.InstallHostWritableDir(coreModel), Equals, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"))
+}
+
+func (s *initramfsSuite) TestInitramfsHostWritableDir(c *C) {
+	c.Check(boot.InitramfsHostWritableDir(classicModel), Equals, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data"))
+	c.Check(boot.InitramfsHostWritableDir(coreModel), Equals, filepath.Join(dirs.GlobalRootDir, "/run/mnt/host/ubuntu-data/system-data"))
+}
+
+func (s *initramfsSuite) TestInitramfsWritableDir(c *C) {
+	for _, tc := range []struct {
+		model       gadget.Model
+		runMode     bool
+		expectedDir string
+	}{
+		{classicModel, true, "/run/mnt/data"},
+		{classicModel, false, "/run/mnt/data/system-data"},
+		{coreModel, true, "/run/mnt/data/system-data"},
+		{coreModel, false, "/run/mnt/data/system-data"},
+	} {
+		c.Check(boot.InitramfsWritableDir(tc.model, tc.runMode), Equals, filepath.Join(dirs.GlobalRootDir, tc.expectedDir))
+	}
 }

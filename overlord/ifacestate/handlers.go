@@ -948,6 +948,12 @@ func checkAutoconnectConflicts(st *state.State, autoconnectTask *state.Task, plu
 
 		k := task.Kind()
 		if k == "connect" || k == "disconnect" {
+			// if the task depends on the auto-connect in some way, then we assume that it is safe to go ahead
+			// as it was scheduled by that exact task, and we should not block for that.
+			if inSameChangeWaitChain(autoconnectTask, task) {
+				continue
+			}
+
 			// retry if we found another connect/disconnect affecting same snap; note we can only encounter
 			// connects/disconnects created by doAutoDisconnect / doAutoConnect here as manual interface ops
 			// are rejected by conflict check logic in snapstate.
@@ -995,6 +1001,13 @@ func checkAutoconnectConflicts(st *state.State, autoconnectTask *state.Task, plu
 			if k == "discard-snap" && autoconnectTask.Change() != nil && autoconnectTask.Change().ID() == task.Change().ID() {
 				continue
 			}
+
+			// setup-profiles will be scheduled when we schedule the connect hooks during pre-seed, and they are postponed until
+			// after pre-seeding. They will still cause a conflict here, so take that into account.
+			if k == "setup-profiles" && inSameChangeWaitChain(autoconnectTask, task) {
+				continue
+			}
+
 			// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
 			// if snap is getting installed/refreshed - temporary conflict, retry later
 			return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting snap %s with task %q", otherSnapName, k)}

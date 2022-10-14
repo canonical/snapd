@@ -363,7 +363,7 @@ func (s *findSuite) TestFindOneWithAuth(c *check.C) {
 
 	state := d.Overlord().State()
 	state.Lock()
-	user, err := auth.NewUser(state, auth.NewUserData{
+	user, err := auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",

@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
@@ -45,6 +46,8 @@ var (
 type initramfsMountsState struct {
 	mode           string
 	recoverySystem string
+
+	verifiedModel gadget.Model
 }
 
 var errRunModeNoImpliedRecoverySystem = errors.New("internal error: no implied recovery system in run mode")
@@ -92,6 +95,14 @@ func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialT
 	}
 
 	return model, snaps, nil
+}
+
+// SetVerifiedBootModel sets the "verifiedModel" field. It should only
+// be called after the model is verified. Either via a successful unlock
+// of the encrypted data or after validating the seed in install/recover
+// mode.
+func (mst *initramfsMountsState) SetVerifiedBootModel(m gadget.Model) {
+	mst.verifiedModel = m
 }
 
 // UnverifiedBootModel returns the unverified model from the

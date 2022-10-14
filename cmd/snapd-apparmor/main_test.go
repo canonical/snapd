@@ -32,6 +32,7 @@ import (
 	snapd_apparmor "github.com/snapcore/snapd/cmd/snapd-apparmor"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -52,6 +53,23 @@ func (s *mainSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
+// Mocks WSL check. Values:
+// - 0 to mock not being on WSL.
+// - 1 to mock being on WSL 1.
+// - 2 to mock being on WSL 2.
+func mockWSL(version int) (restore func()) {
+	restoreOnWSL := testutil.Backup(&release.OnWSL)
+	restoreWSLVersion := testutil.Backup(&release.WSLVersion)
+
+	release.OnWSL = version != 0
+	release.WSLVersion = version
+
+	return func() {
+		restoreOnWSL()
+		restoreWSLVersion()
+	}
+}
+
 func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 	// since "apparmorfs" is not present within our test root dir setup
 	// we expect this to return false
@@ -64,8 +82,13 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
 	// simulate being inside WSL
-	testutil.MockCommand(c, "systemd-detect-virt", "echo wsl")
+	restore := mockWSL(1)
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
+	restore()
+
+	restore = mockWSL(2)
+	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
+	restore()
 
 	// simulate being inside a container environment
 	testutil.MockCommand(c, "systemd-detect-virt", "echo lxc")
@@ -151,6 +174,14 @@ func (s *mainSuite) TestIsContainer(c *C) {
 	c.Check(snapd_apparmor.IsContainer(), Equals, false)
 	c.Assert(detectCmd.Calls(), DeepEquals, [][]string{
 		{"systemd-detect-virt", "--quiet", "--container"}})
+
+	// Test WSL2 with custom kernel
+	// systemd-detect-virt may return a non-zero exit code as it fails to recognize it as WSL
+	// This will happen when the kernel name includes neither "WSL" not "Microsoft"
+	detectCmd = testutil.MockCommand(c, "systemd-detect-virt", "echo none; exit 1")
+	defer mockWSL(2)()
+	c.Check(snapd_apparmor.IsContainer(), Equals, true)
+	c.Assert(detectCmd.Calls(), DeepEquals, [][]string(nil))
 }
 
 func (s *mainSuite) TestValidateArgs(c *C) {
@@ -221,8 +252,7 @@ func (s *integrationSuite) TestRunInContainerSkipsLoading(c *C) {
 }
 
 func (s *integrationSuite) TestRunInContainerWithInternalPolicyLoadsProfiles(c *C) {
-	testutil.MockCommand(c, "systemd-detect-virt", "echo wsl")
-
+	defer mockWSL(1)()
 	err := snapd_apparmor.Run()
 	c.Assert(err, IsNil)
 	c.Check(s.logBuf.String(), testutil.Contains, "DEBUG: inside container environment")

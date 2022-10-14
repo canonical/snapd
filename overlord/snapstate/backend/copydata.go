@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -53,7 +52,7 @@ func MockAllUsers(f func(options *dirs.SnapDirOptions) ([]*user.User, error)) fu
 }
 
 // CopySnapData makes a copy of oldSnap data for newSnap in its data directories.
-func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter, opts *dirs.SnapDirOptions) error {
+func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOptions, meter progress.Meter) error {
 	// deal with the old data or
 	// otherwise just create an empty data dir
 
@@ -82,7 +81,7 @@ func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter,
 }
 
 // UndoCopySnapData removes the copy that may have been done for newInfo snap of oldInfo snap data and also the data directories that may have been created for newInfo snap.
-func (b Backend) UndoCopySnapData(newInfo, oldInfo *snap.Info, _ progress.Meter, opts *dirs.SnapDirOptions) error {
+func (b Backend) UndoCopySnapData(newInfo, oldInfo *snap.Info, opts *dirs.SnapDirOptions, _ progress.Meter) error {
 	if oldInfo != nil && oldInfo.Revision == newInfo.Revision {
 		// nothing to do
 		return nil
@@ -109,9 +108,9 @@ func (b Backend) UndoCopySnapData(newInfo, oldInfo *snap.Info, _ progress.Meter,
 	return firstErr(err1, err2)
 }
 
-func (b Backend) SetupSnapSaveData(info *snap.Info, meter progress.Meter) error {
-	// ubuntu-save is only present on core images
-	if release.OnClassic {
+func (b Backend) SetupSnapSaveData(info *snap.Info, dev snap.Device, meter progress.Meter) error {
+	// ubuntu-save per-snap directories are only created on core systems
+	if dev.Classic() {
 		return nil
 	}
 
@@ -128,15 +127,15 @@ func (b Backend) SetupSnapSaveData(info *snap.Info, meter progress.Meter) error 
 	return os.MkdirAll(saveDir, 0755)
 }
 
-func (b Backend) UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, meter progress.Meter) error {
-	// ubuntu-save is only present on core images
-	if release.OnClassic {
+func (b Backend) UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, dev snap.Device, meter progress.Meter) error {
+	// ubuntu-save per-snap directories are only created on core systems
+	if dev.Classic() {
 		return nil
 	}
 
 	if oldInfo == nil {
 		// Clear out snap save data when removing totally
-		if err := b.RemoveSnapSaveData(newInfo); err != nil {
+		if err := b.RemoveSnapSaveData(newInfo, dev); err != nil {
 			return fmt.Errorf("cannot remove save data directories for %q: %v", newInfo.InstanceName(), err)
 		}
 	}

@@ -131,19 +131,19 @@ func storeFrom(d *Daemon) snapstate.StoreService {
 }
 
 var (
-	snapstateInstall           = snapstate.Install
-	snapstateInstallPath       = snapstate.InstallPath
-	snapstateInstallPathMany   = snapstate.InstallPathMany
-	snapstateRefreshCandidates = snapstate.RefreshCandidates
-	snapstateTryPath           = snapstate.TryPath
-	snapstateUpdate            = snapstate.Update
-	snapstateUpdateMany        = snapstate.UpdateMany
-	snapstateInstallMany       = snapstate.InstallMany
-	snapstateRemoveMany        = snapstate.RemoveMany
-	snapstateEnforceSnaps      = snapstate.EnforceSnaps
-	snapstateRevert            = snapstate.Revert
-	snapstateRevertToRevision  = snapstate.RevertToRevision
-	snapstateSwitch            = snapstate.Switch
+	snapstateInstall                        = snapstate.Install
+	snapstateInstallPath                    = snapstate.InstallPath
+	snapstateInstallPathMany                = snapstate.InstallPathMany
+	snapstateRefreshCandidates              = snapstate.RefreshCandidates
+	snapstateTryPath                        = snapstate.TryPath
+	snapstateUpdate                         = snapstate.Update
+	snapstateUpdateMany                     = snapstate.UpdateMany
+	snapstateInstallMany                    = snapstate.InstallMany
+	snapstateRemoveMany                     = snapstate.RemoveMany
+	snapstateResolveValSetsEnforcementError = snapstate.ResolveValidationSetsEnforcementError
+	snapstateRevert                         = snapstate.Revert
+	snapstateRevertToRevision               = snapstate.RevertToRevision
+	snapstateSwitch                         = snapstate.Switch
 
 	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
 	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking

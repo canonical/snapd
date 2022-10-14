@@ -1191,10 +1191,10 @@ func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 	tr.Commit()
 
 	// pretend that the snap was held during last auto-refresh
-	_, err := snapstate.HoldRefresh(s.state, "gating-snap", 0, "some-snap", "other-snap")
+	_, err := snapstate.HoldRefresh(s.state, snapstate.HoldAutoRefresh, "gating-snap", 0, "some-snap", "other-snap")
 	c.Assert(err, IsNil)
 	// validity check
-	held, err := snapstate.HeldSnaps(s.state)
+	held, err := snapstate.HeldSnaps(s.state, snapstate.HoldAutoRefresh)
 	c.Assert(err, IsNil)
 	c.Check(held, DeepEquals, map[string]bool{
 		"some-snap":  true,
@@ -1205,7 +1205,7 @@ func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 	c.Assert(err, IsNil)
 
 	// and it is not held anymore (but other-snap still is)
-	held, err = snapstate.HeldSnaps(s.state)
+	held, err = snapstate.HeldSnaps(s.state, snapstate.HoldAutoRefresh)
 	c.Assert(err, IsNil)
 	c.Check(held, DeepEquals, map[string]bool{
 		"other-snap": true,
@@ -8858,7 +8858,7 @@ func (s *snapmgrTestSuite) TestGeneralRefreshSkipsGatedSnaps(c *C) {
 		})
 	}
 
-	err := snapstate.HoldRefreshesBySystem(s.state, "forever", []string{"some-snap"})
+	err := snapstate.HoldRefreshesBySystem(s.state, snapstate.HoldGeneral, "forever", []string{"some-snap"})
 	c.Assert(err, IsNil)
 
 	// advance time by a year (the last refreshed is determined by the snap file's
