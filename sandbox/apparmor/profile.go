@@ -265,6 +265,15 @@ func LoadedProfiles() ([]string, error) {
 	return profiles, nil
 }
 
+func snapConfineHomedirsSnippet(homedirs []string) string {
+	var builder strings.Builder
+	for _, homedir := range homedirs {
+		builder.WriteString(fmt.Sprintf("\"%s**\" rw,", homedir))
+	}
+
+	return builder.String()
+}
+
 // SnapConfineDistroProfilePath returns the path to the AppArmor profile of the
 // snap-confine binary shipped by the distribution package.
 // If such a profile is not found (for instance, because we are running Ubuntu
