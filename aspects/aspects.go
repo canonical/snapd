@@ -56,11 +56,11 @@ func newAccessType(access string) (accessType, error) {
 }
 
 type NotFoundError struct {
-	Err string
+	Message string
 }
 
 func (e *NotFoundError) Error() string {
-	return e.Err
+	return e.Message
 }
 
 func (e *NotFoundError) Is(err error) bool {
