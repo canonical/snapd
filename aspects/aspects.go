@@ -123,8 +123,17 @@ func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag Dat
 				return nil, errors.New(`cannot create aspect pattern without a "name" field`)
 			}
 
-			// TODO: validate that a path isn't a subset of another (possibly somewhere else).
-			// Otherwise,  we can write a user value in a subkey of a path (that should be a map).
+			// TODO: either
+			// * Validate that a path isn't a subset of another
+			//   (possibly somewhere else).  Otherwise, we can
+			//   write a user value in a subkey of a path (that
+			//   should be map).
+			// * Our schema should be able to provide
+			//   allowed/expected types given a path; these should
+			//   guide and take precedence resolving conflicts
+			//   between data in the data bags or written E.g
+			//   possibly return null or empty object if at a path
+			//   were the schema expects an object there is scalar?
 			path, ok := aspectPattern["path"]
 			if !ok || path == "" {
 				return nil, errors.New(`cannot create aspect pattern without a "path" field`)
@@ -267,6 +276,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 	// decode the next map level
 	var level map[string]json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
+		// TODO see TODO in NewAspectDirectory
 		if uErr, ok := err.(*json.UnmarshalTypeError); ok {
 			pathPrefix := strings.Join(subKeys[:index+1], ".")
 			return fmt.Errorf("cannot read path prefix %q: prefix maps to %s", pathPrefix, uErr.Value)
@@ -307,6 +317,8 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 		rawLevel = []byte("{}")
 	}
 
+	// TODO this will error ungraciously if there is not an object
+	// at this level, see the TODO in NewAspectDirectory
 	var level map[string]json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
 		return nil, err
