@@ -38,8 +38,9 @@ var (
 	osutilEnsureFileState = osutil.EnsureFileState
 	osutilDirExists       = osutil.DirExists
 
-	apparmorUpdateHomedirsTunable = apparmor.UpdateHomedirsTunable
-	apparmorReloadAllSnapProfiles = apparmor.ReloadAllSnapProfiles
+	apparmorUpdateHomedirsTunable    = apparmor.UpdateHomedirsTunable
+	apparmorSetupSnapConfineSnippets = apparmor.SetupSnapConfineSnippets
+	apparmorReloadAllSnapProfiles    = apparmor.ReloadAllSnapProfiles
 )
 
 var (
