@@ -198,6 +198,7 @@ execute: |
   # push the fakeinstaller
   remote.push "$FAKEINSTALLER_SNAP"
   remote.exec "sudo snap install --classic --dangerous $(basename "$FAKEINSTALLER_SNAP")"
+  remote.exec "sudo snap enable muinstaller.muinstaller"
 
   # TODO: use retry
   while true; do

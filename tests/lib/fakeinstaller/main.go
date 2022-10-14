@@ -462,17 +462,24 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 }
 
 func main() {
-	if len(os.Args) != 4 {
-		// XXX: allow installing real UC without a classic-rootfs later
-		fmt.Fprintf(os.Stderr, "need seed-label, target-device and classic-rootfs as argument\n")
-		os.Exit(1)
-	}
 	os.Setenv("SNAPD_DEBUG", "1")
 	logger.SimpleSetup()
 
-	seedLabel := os.Args[1]
-	rootfsCreator := os.Args[2]
-	bootDevice := os.Args[3]
+	// poor mans arg handling
+	seedLabel := "classic"
+	rootfsCreator := os.ExpandEnv("$SNAP/bin/mk-classic-rootfs.sh")
+	bootDevice := "auto"
+	switch len(os.Args) {
+	case 4:
+		bootDevice = os.Args[3]
+		fallthrough
+	case 3:
+		rootfsCreator = os.Args[2]
+		fallthrough
+	case 2:
+		seedLabel = os.Args[1]
+	}
+
 	if bootDevice == "auto" {
 		bootDevice = waitForDevice()
 	}

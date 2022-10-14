@@ -11,6 +11,9 @@ apps:
   muinstaller:
     command: bin/muinstaller classic $SNAP/bin/mk-classic-rootfs.sh auto
     daemon: simple
+    # this means "snap enable muinstaller.muinstaller" needs to run
+    # after boot to get it run automatically
+    install-mode: disable
   cli:
     command: bin/muinstaller
 
