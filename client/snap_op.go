@@ -60,6 +60,7 @@ type SnapOptions struct {
 	QuotaGroupName   string          `json:"quota-group,omitempty"`
 	ValidationSets   []string        `json:"validation-sets,omitempty"`
 	Time             string          `json:"time,omitempty"`
+	HoldLevel        string          `json:"hold-level,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -130,6 +131,7 @@ type multiActionData struct {
 	Purge          bool            `json:"purge,omitempty"`
 	ValidationSets []string        `json:"validation-sets,omitempty"`
 	Time           string          `json:"time,omitempty"`
+	HoldLevel      string          `json:"hold-level,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -255,6 +257,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		action.Purge = options.Purge
 		action.ValidationSets = options.ValidationSets
 		action.Time = options.Time
+		action.HoldLevel = options.HoldLevel
 	}
 
 	data, err := json.Marshal(&action)
