@@ -108,7 +108,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		return fmt.Errorf("cannot read %s: %s", procSelfExe, err)
 	}
 
-	if _, err := apparmor_sandbox.SetupSnapConfineSnippets(); err != nil {
+	if _, err := apparmor_sandbox.SetupSnapConfineSnippets([]string{}); err != nil {
 		return err
 	}
 

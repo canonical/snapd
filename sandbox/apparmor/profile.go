@@ -268,7 +268,12 @@ func LoadedProfiles() ([]string, error) {
 func snapConfineHomedirsSnippet(homedirs []string) string {
 	var builder strings.Builder
 	for _, homedir := range homedirs {
-		builder.WriteString(fmt.Sprintf("\"%s**\" rw,", homedir))
+		// We must give snap-confine permissions to create all components of
+		// each homedir, since it will need to create them as a mountpoint
+		for path := strings.TrimRight(homedir, "/"); path != "/"; path = filepath.Dir(path) {
+			builder.WriteString(fmt.Sprintf("\"%s/\" rw,\n", path))
+		}
+		builder.WriteString(fmt.Sprintf("mount options=(rw rbind) \"%[1]s/\" -> \"/tmp/snap.rootfs_*/%[1]s/\",\n\n", homedir))
 	}
 
 	return builder.String()
@@ -343,6 +348,11 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 			Content: []byte(capabilityBPFSnippet),
 			Mode:    0644,
 		}
+	}
+
+	policy["homedirs"] = &osutil.MemoryFileState{
+		Content: []byte(snapConfineHomedirsSnippet(homedirs)),
+		Mode:    0644,
 	}
 
 	// Ensure that generated policy is what we computed above.
