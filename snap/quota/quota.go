@@ -24,11 +24,13 @@ package quota
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"time"
 
 	// TODO: move this to snap/quantity? or similar
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap/naming"
@@ -266,11 +268,28 @@ func (grp *Group) JournalNamespaceName() string {
 	return fmt.Sprintf("snap-%s", grp.Name)
 }
 
-// JournalFileName returns the name of the journal configuration file that should
+// JournalConfFileName returns the name of the journal configuration file that should
 // be used for this quota group. As an example, a group named "foo" will return a name
 // of journald@snap-foo.conf
-func (grp *Group) JournalFileName() string {
+func (grp *Group) JournalConfFileName() string {
 	return fmt.Sprintf("journald@%s.conf", grp.JournalNamespaceName())
+}
+
+// JournalServiceName returns the systemd service name for the quota group.
+func (grp *Group) JournalServiceName() string {
+	return fmt.Sprintf("systemd-journald@%s.service", grp.JournalNamespaceName())
+}
+
+// JournalServiceFile returns the directory specific to this quota group for
+// its journal service unit drop-in.
+func (grp *Group) JournalServiceDropInDir() string {
+	return filepath.Join(dirs.SnapServicesDir, grp.JournalServiceName()+".d")
+}
+
+// JournalServiceDropInFile returns the full path to the journal service unit drop-in
+// file for the quota group.
+func (grp *Group) JournalServiceDropInFile() string {
+	return filepath.Join(grp.JournalServiceDropInDir(), "00-snap.conf")
 }
 
 // groupQuotaAllocations contains information about current quotas of a group
