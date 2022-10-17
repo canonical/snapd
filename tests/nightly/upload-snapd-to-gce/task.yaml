@@ -47,7 +47,7 @@ execute: |
             ;;
     esac
     
-    ( cd "$PACKAGES_DIR" && tar -cvf "$PACKAGES_FILE" * )
+    ( cd "$PACKAGES_DIR" && tar -cvf "$PACKAGES_FILE" ./* )
     # Clean the packages for the system and upload the new ones
     if gsutil ls "$BUCKET_FILE"; then
         gsutil rm "$BUCKET_FILE"
