@@ -210,6 +210,7 @@ type snapInstruction struct {
 	ValidationSets         []string               `json:"validation-sets"`
 	QuotaGroupName         string                 `json:"quota-group"`
 	Time                   string                 `json:"time"`
+	HoldLevel              string                 `json:"hold-level"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -246,6 +247,17 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	flags.QuotaGroupName = inst.QuotaGroupName
 
 	return flags, nil
+}
+
+func (inst *snapInstruction) holdLevel() snapstate.HoldLevel {
+	switch inst.HoldLevel {
+	case "auto-refresh":
+		return snapstate.HoldAutoRefresh
+	case "general":
+		return snapstate.HoldGeneral
+	default:
+		panic("not validated hold level")
+	}
 }
 
 func (inst *snapInstruction) validate() error {
@@ -290,10 +302,20 @@ func (inst *snapInstruction) validate() error {
 				return fmt.Errorf(`hold action requires time to be "forever" or in RFC3339 format: %v`, err)
 			}
 		}
+		if inst.HoldLevel == "" {
+			return errors.New("hold action requires a non-empty hold-level value")
+		} else if !(inst.HoldLevel == "auto-refresh" || inst.HoldLevel == "general") {
+			return errors.New(`hold action requires hold-level to be either "auto-refresh" or "general"`)
+		}
 	}
 
-	if inst.Action != "hold" && inst.Time != "" {
-		return errors.New(`time can only be specified for the "hold" action`)
+	if inst.Action != "hold" {
+		if inst.Time != "" {
+			return errors.New(`time can only be specified for the "hold" action`)
+		}
+		if inst.HoldLevel != "" {
+			return errors.New(`hold-level can only be specified for the "hold" action`)
+		}
 	}
 
 	return inst.snapRevisionOptions.validate()
@@ -892,6 +914,9 @@ func snapHoldMany(inst *snapInstruction, st *state.State) (res *snapInstructionR
 	var msg string
 	var tss []*state.TaskSet
 	if len(inst.Snaps) == 0 {
+		if inst.holdLevel() == snapstate.HoldGeneral {
+			return nil, errors.New("holding general refreshes for all snaps is not supported")
+		}
 		patchValues := map[string]interface{}{"refresh.hold": inst.Time}
 		ts, err := configstateConfigureInstalled(st, "core", patchValues, 0)
 		if err != nil {
@@ -901,12 +926,15 @@ func snapHoldMany(inst *snapInstruction, st *state.State) (res *snapInstructionR
 		tss = []*state.TaskSet{ts}
 		msg = i18n.G("Hold auto-refreshes for all snaps.")
 	} else {
-		// XXX take level from request
-		if err := snapstateHoldRefreshesBySystem(st, snapstate.HoldGeneral, inst.Time, inst.Snaps); err != nil {
+		holdLevel := inst.holdLevel()
+		if err := snapstateHoldRefreshesBySystem(st, holdLevel, inst.Time, inst.Snaps); err != nil {
 			return nil, err
 		}
-
-		msg = fmt.Sprintf(i18n.G("Hold general refreshes for %s."), strutil.Quoted(inst.Snaps))
+		msgFmt := i18n.G("Hold general refreshes for %s.")
+		if holdLevel == snapstate.HoldAutoRefresh {
+			msgFmt = i18n.G("Hold auto-refreshes for %s.")
+		}
+		msg = fmt.Sprintf(msgFmt, strutil.Quoted(inst.Snaps))
 	}
 
 	return &snapInstructionResult{
@@ -934,7 +962,7 @@ func snapUnholdMany(inst *snapInstruction, st *state.State) (res *snapInstructio
 			return nil, err
 		}
 
-		msg = fmt.Sprintf(i18n.G("Remove hold on general refreshes of %s."), strutil.Quoted(inst.Snaps))
+		msg = fmt.Sprintf(i18n.G("Remove hold on refreshes of %s."), strutil.Quoted(inst.Snaps))
 	}
 
 	return &snapInstructionResult{
