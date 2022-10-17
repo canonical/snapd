@@ -95,10 +95,17 @@ store's collaboration feature, and to be logged in (see 'snap help login').
 
 Note a later refresh will typically undo a revision override.
 
-Holds (--hold) specified for snaps are only applied to general refreshes ('snap 
-refresh' without specifying snaps and auto-refreshes), but snaps can still be
-refreshed in specific refreshes (i.e, 'snap refresh snap-a snap-b'). Using
---hold without specifying any snaps will only hold auto-refreshes for all snaps.
+Hold (--hold) is used to postpone snap refresh updates for all snaps when no
+snaps are specified, or for the specified snaps.
+
+When no snaps are specified --hold is only effective on auto-refreshes and will
+not block either general refresh requests from 'snap refresh' or specific snap
+requests from 'snap refresh target-snap'.
+
+When specific snaps are mentioned --hold is effective on their auto-refreshes
+and will also silently block general refresh requests from 'snap refresh' of
+those snaps while explicit targeted 'snap refresh target-snap' will not be
+blocked.
 `)
 
 var longTryHelp = i18n.G(`
@@ -911,6 +918,10 @@ func (x *cmdRefresh) holdRefreshes() (err error) {
 
 	names := installedSnapNames(x.Positional.Snaps)
 	var changeID string
+	opts.HoldLevel = "general"
+	if len(names) == 0 {
+		opts.HoldLevel = "auto-refresh"
+	}
 	if len(names) == 1 {
 		changeID, err = x.client.HoldRefreshes(names[0], &opts)
 	} else {
@@ -930,9 +941,9 @@ func (x *cmdRefresh) holdRefreshes() (err error) {
 	}
 
 	if len(names) == 0 {
-		fmt.Fprintf(Stdout, i18n.G("Held auto-refreshes of all snaps until %s\n"), opts.Time)
+		fmt.Fprintf(Stdout, i18n.G("Auto-refresh of all snaps held until %s\n"), opts.Time)
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Held general refreshes of %s until %s\n"), strutil.Quoted(names), opts.Time)
+		fmt.Fprintf(Stdout, i18n.G("General refreshes of %s held until %s\n"), strutil.Quoted(names), opts.Time)
 	}
 
 	return nil
@@ -960,9 +971,9 @@ func (x *cmdRefresh) unholdRefreshes() (err error) {
 	}
 
 	if len(names) == 0 {
-		fmt.Fprintf(Stdout, i18n.G("Removed hold on auto-refreshes of all snaps\n"))
+		fmt.Fprintf(Stdout, i18n.G("Removed auto-refresh hold on all snaps\n"))
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Removed hold on general refreshes of %s\n"), strutil.Quoted(names))
+		fmt.Fprintf(Stdout, i18n.G("Removed general refresh hold of %s\n"), strutil.Quoted(names))
 	}
 
 	return nil
@@ -1277,9 +1288,9 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"hold": i18n.G("Hold refreshes for a specified duration (or indefinitely, if none is specified"),
+			"hold": i18n.G("Hold refreshes for a specified duration (or indefinitely, if none is specified)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"unhold": i18n.G("Remove hold on refreshes"),
+			"unhold": i18n.G("Remove refresh hold"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, waitDescs, nil)

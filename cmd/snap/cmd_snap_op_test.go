@@ -1411,8 +1411,9 @@ func (s *SnapSuite) TestRefreshHoldAllForever(c *check.C) {
 			c.Check(r.Method, check.Equals, "POST")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-				"action": "hold",
-				"time":   "forever",
+				"action":     "hold",
+				"time":       "forever",
+				"hold-level": "auto-refresh",
 			})
 			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type": "async", "change": "42", "status-code": 202}`)
@@ -1434,7 +1435,7 @@ func (s *SnapSuite) TestRefreshHoldAllForever(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--hold"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "Held auto-refreshes of all snaps until forever\n")
+	c.Check(s.Stdout(), check.Equals, "Auto-refresh of all snaps held until forever\n")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
@@ -1453,9 +1454,10 @@ func (s *SnapSuite) TestRefreshHoldManySpecificTime(c *check.C) {
 			c.Check(r.Method, check.Equals, "POST")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-				"action": "hold",
-				"time":   "3000-01-01T07:00:00Z",
-				"snaps":  []interface{}{"foo", "bar"},
+				"action":     "hold",
+				"time":       "3000-01-01T07:00:00Z",
+				"hold-level": "general",
+				"snaps":      []interface{}{"foo", "bar"},
 			})
 			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type": "async", "change": "42", "status-code": 202}`)
@@ -1477,7 +1479,7 @@ func (s *SnapSuite) TestRefreshHoldManySpecificTime(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--hold=7h", "foo", "bar"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "Held general refreshes of \"foo\", \"bar\" until 3000-01-01T07:00:00Z\n")
+	c.Check(s.Stdout(), check.Equals, "General refreshes of \"foo\", \"bar\" held until 3000-01-01T07:00:00Z\n")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
@@ -1496,8 +1498,9 @@ func (s *SnapSuite) TestRefreshHoldSnapUntilSpecificTime(c *check.C) {
 			c.Check(r.Method, check.Equals, "POST")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-				"action": "hold",
-				"time":   "3000-01-01T07:00:00Z",
+				"action":     "hold",
+				"hold-level": "general",
+				"time":       "3000-01-01T07:00:00Z",
 			})
 			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type": "async", "change": "42", "status-code": 202}`)
@@ -1519,7 +1522,7 @@ func (s *SnapSuite) TestRefreshHoldSnapUntilSpecificTime(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--hold=7h", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "Held general refreshes of \"foo\" until 3000-01-01T07:00:00Z\n")
+	c.Check(s.Stdout(), check.Equals, "General refreshes of \"foo\" held until 3000-01-01T07:00:00Z\n")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
@@ -1531,8 +1534,9 @@ func (s *SnapSuite) TestRefreshHoldSnapForever(c *check.C) {
 			c.Check(r.Method, check.Equals, "POST")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-				"action": "hold",
-				"time":   "forever",
+				"action":     "hold",
+				"time":       "forever",
+				"hold-level": "general",
 			})
 			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type": "async", "change": "42", "status-code": 202}`)
@@ -1554,7 +1558,7 @@ func (s *SnapSuite) TestRefreshHoldSnapForever(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--hold", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "Held general refreshes of \"foo\" until forever\n")
+	c.Check(s.Stdout(), check.Equals, "General refreshes of \"foo\" held until forever\n")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
@@ -1588,7 +1592,7 @@ func (s *SnapSuite) TestRefreshUnholdAllSnaps(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--unhold"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "Removed hold on auto-refreshes of all snaps\n")
+	c.Check(s.Stdout(), check.Equals, "Removed auto-refresh hold on all snaps\n")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
@@ -1622,7 +1626,7 @@ func (s *SnapSuite) TestRefreshUnholdOneSnap(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--unhold", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "Removed hold on general refreshes of \"foo\"\n")
+	c.Check(s.Stdout(), check.Equals, "Removed general refresh hold of \"foo\"\n")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
@@ -1657,7 +1661,7 @@ func (s *SnapSuite) TestRefreshUnholdManySnaps(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--unhold", "foo", "bar"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "Removed hold on general refreshes of \"foo\", \"bar\"\n")
+	c.Check(s.Stdout(), check.Equals, "Removed general refresh hold of \"foo\", \"bar\"\n")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 

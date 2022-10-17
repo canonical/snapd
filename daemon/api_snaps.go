@@ -924,15 +924,15 @@ func snapHoldMany(inst *snapInstruction, st *state.State) (res *snapInstructionR
 		}
 
 		tss = []*state.TaskSet{ts}
-		msg = i18n.G("Hold auto-refreshes for all snaps.")
+		msg = i18n.G("Hold auto-refreshes for all snaps")
 	} else {
 		holdLevel := inst.holdLevel()
 		if err := snapstateHoldRefreshesBySystem(st, holdLevel, inst.Time, inst.Snaps); err != nil {
 			return nil, err
 		}
-		msgFmt := i18n.G("Hold general refreshes for %s.")
+		msgFmt := i18n.G("Hold general refreshes for %s")
 		if holdLevel == snapstate.HoldAutoRefresh {
-			msgFmt = i18n.G("Hold auto-refreshes for %s.")
+			msgFmt = i18n.G("Hold auto-refreshes for %s")
 		}
 		msg = fmt.Sprintf(msgFmt, strutil.Quoted(inst.Snaps))
 	}
@@ -956,13 +956,13 @@ func snapUnholdMany(inst *snapInstruction, st *state.State) (res *snapInstructio
 		}
 
 		tss = []*state.TaskSet{ts}
-		msg = i18n.G("Remove hold on auto-refreshes of all snaps.")
+		msg = i18n.G("Remove auto-refresh hold on all snaps")
 	} else {
 		if err := snapstateProceedWithRefresh(st, "system", inst.Snaps); err != nil {
 			return nil, err
 		}
 
-		msg = fmt.Sprintf(i18n.G("Remove hold on refreshes of %s."), strutil.Quoted(inst.Snaps))
+		msg = fmt.Sprintf(i18n.G("Remove refresh hold on %s"), strutil.Quoted(inst.Snaps))
 	}
 
 	return &snapInstructionResult{

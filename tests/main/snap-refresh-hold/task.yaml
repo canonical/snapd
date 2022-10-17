@@ -49,7 +49,7 @@ execute: |
 
   echo "Snaps auto-refresh without holds"
   reset
-  CHANGE_ID=$(snap changes | tail -2 | grep "Done.*Remove hold on refreshes of all snaps" | awk '{print $1}')
+  CHANGE_ID=$(snap changes | tail -2 | grep "Done.*Remove auto-refresh hold on all snaps" | awk '{print $1}')
 
   systemctl stop snapd.{service,socket}
   "$TESTSTOOLS"/snapd-state change-snap-channel test-snapd-tools edge
