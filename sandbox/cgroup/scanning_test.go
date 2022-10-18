@@ -72,6 +72,7 @@ func (s *scanningSuite) TestSecurityTagFromCgroupPath(c *C) {
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service/"), DeepEquals, mustParseTag("snap.foo.foo"))
 }
 
+// Returns the number of ocurrencies of 'needle' in the array 'arr'
 func arrayContainsString(arr []string, needle string) int {
 	counter := 0
 	for _, v := range arr {
