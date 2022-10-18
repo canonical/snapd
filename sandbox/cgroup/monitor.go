@@ -26,16 +26,8 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/cgroup/inotify"
+	"github.com/snapcore/snapd/strutil"
 )
-
-func arrayContains(data string, array []string) bool {
-	for _, element := range array {
-		if element == data {
-			return true
-		}
-	}
-	return false
-}
 
 // MonitorFiles allows to monitor a group of files/folders
 // and, when all of them have been deleted, emits the specified name through the channel.
@@ -51,7 +43,7 @@ func MonitorFiles(name string, folders []string, channel chan string) bool {
 
 	for _, fullPath := range folders {
 		basePath := path.Dir(fullPath)
-		if !arrayContains(basePath, toMonitor) {
+		if !strutil.ListContains(toMonitor, basePath) {
 			err := wd.AddWatch(basePath, inotify.InDelete)
 			if err != nil {
 				logger.Noticef("Failed to add a watcher for folder %s", basePath)
