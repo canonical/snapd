@@ -24,14 +24,13 @@ import (
 	"os"
 	"path"
 
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/cgroup/inotify"
 	"github.com/snapcore/snapd/strutil"
 )
 
-// MonitorFiles allows to monitor a group of files/folders
+// MonitorFullDelete allows to monitor a group of files/folders
 // and, when all of them have been deleted, emits the specified name through the channel.
-func MonitorFiles(name string, folders []string, channel chan string) error {
+func MonitorFullDelete(name string, folders []string, channel chan string) error {
 	wd, err := inotify.NewWatcher()
 	if err != nil {
 		return err
@@ -45,8 +44,8 @@ func MonitorFiles(name string, folders []string, channel chan string) error {
 		if !strutil.ListContains(toMonitor, basePath) {
 			err := wd.AddWatch(basePath, inotify.InDelete)
 			if err != nil {
-				logger.Noticef("Failed to add a watcher for folder %s", basePath)
-				continue
+				wd.Close()
+				return err
 			}
 			toMonitor = append(toMonitor, basePath)
 		}
@@ -82,15 +81,15 @@ func MonitorFiles(name string, folders []string, channel chan string) error {
 	return nil
 }
 
-// MonitorSnap is the method to call to monitor the running instances of an specific Snap.
+// MonitorSnapEnded is the method to call to monitor the running instances of an specific Snap.
 // It receives the name of the snap to monitor (for example, "firefox" or "steam")
 // and a channel. The caller can wait on the channel, and when all the instances of
 // the specific snap have ended, the name of the snap will be sent through the channel.
 // This allows to use the same channel to monitor several snaps
-func MonitorSnap(snapName string, channel chan string) error {
+func MonitorSnapEnded(snapName string, channel chan string) error {
 	options := InstancePathsOptions{
 		ReturnCGroupPath: true,
 	}
 	paths, _ := InstancePathsOfSnap(snapName, options)
-	return MonitorFiles(snapName, paths, channel)
+	return MonitorFullDelete(snapName, paths, channel)
 }
