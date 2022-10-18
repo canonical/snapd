@@ -73,7 +73,7 @@ func (s *scanningSuite) TestSecurityTagFromCgroupPath(c *C) {
 }
 
 // Returns the number of ocurrencies of 'needle' in the array 'arr'
-func arrayContainsString(arr []string, needle string) int {
+func matchesInArray(arr []string, needle string) int {
 	counter := 0
 	for _, v := range arr {
 		if v == needle {
@@ -209,8 +209,8 @@ func (s *scanningSuite) TestPathsOfSnapWithSecurityTags(c *C) {
 		paths, err := cgroup.InstancePathsOfSnap("pkg", options)
 		c.Assert(err, IsNil, comment)
 		c.Check(paths, HasLen, 2)
-		c.Check(arrayContainsString(paths, filepath.Dir(path1)), Equals, 1)
-		c.Check(arrayContainsString(paths, filepath.Dir(path2)), Equals, 1)
+		c.Check(matchesInArray(paths, filepath.Dir(path1)), Equals, 1)
+		c.Check(matchesInArray(paths, filepath.Dir(path2)), Equals, 1)
 	}
 }
 
@@ -322,10 +322,10 @@ func (s *scanningSuite) TestPathsOfAggregation(c *C) {
 		paths, err := cgroup.InstancePathsOfSnap("pkg", options)
 		c.Assert(err, IsNil, comment)
 		c.Check(paths, HasLen, 4)
-		c.Check(arrayContainsString(paths, filepath.Dir(path1)), Equals, 1)
-		c.Check(arrayContainsString(paths, filepath.Dir(path2)), Equals, 1)
-		c.Check(arrayContainsString(paths, filepath.Dir(path3)), Equals, 1)
-		c.Check(arrayContainsString(paths, filepath.Dir(path4)), Equals, 1)
+		c.Check(matchesInArray(paths, filepath.Dir(path1)), Equals, 1)
+		c.Check(matchesInArray(paths, filepath.Dir(path2)), Equals, 1)
+		c.Check(matchesInArray(paths, filepath.Dir(path3)), Equals, 1)
+		c.Check(matchesInArray(paths, filepath.Dir(path4)), Equals, 1)
 	}
 }
 
@@ -381,10 +381,10 @@ func (s *scanningSuite) TestPathsOfSnapUnrelated(c *C) {
 		paths, err := cgroup.InstancePathsOfSnap("pkg", options)
 		c.Assert(err, IsNil, comment)
 		c.Check(paths, HasLen, 1)
-		c.Check(arrayContainsString(paths, filepath.Dir(path1)), Equals, 1)
-		c.Check(arrayContainsString(paths, filepath.Dir(path2)), Equals, 0)
-		c.Check(arrayContainsString(paths, filepath.Dir(path3)), Equals, 0)
-		c.Check(arrayContainsString(paths, filepath.Dir(path4)), Equals, 0)
+		c.Check(matchesInArray(paths, filepath.Dir(path1)), Equals, 1)
+		c.Check(matchesInArray(paths, filepath.Dir(path2)), Equals, 0)
+		c.Check(matchesInArray(paths, filepath.Dir(path3)), Equals, 0)
+		c.Check(matchesInArray(paths, filepath.Dir(path4)), Equals, 0)
 	}
 }
 
@@ -425,10 +425,10 @@ func (s *scanningSuite) TestContainerPathsAreIgnored(c *C) {
 		paths, err := cgroup.InstancePathsOfSnap("foo", options)
 		c.Assert(err, IsNil, comment)
 		c.Check(paths, HasLen, 2, comment)
-		c.Check(arrayContainsString(paths, filepath.Dir(path1)), Equals, 1)
-		c.Check(arrayContainsString(paths, filepath.Dir(path2)), Equals, 1)
-		c.Check(arrayContainsString(paths, filepath.Dir(path3)), Equals, 0)
-		c.Check(arrayContainsString(paths, filepath.Dir(path4)), Equals, 0)
-		c.Check(arrayContainsString(paths, filepath.Dir(path5)), Equals, 0)
+		c.Check(matchesInArray(paths, filepath.Dir(path1)), Equals, 1)
+		c.Check(matchesInArray(paths, filepath.Dir(path2)), Equals, 1)
+		c.Check(matchesInArray(paths, filepath.Dir(path3)), Equals, 0)
+		c.Check(matchesInArray(paths, filepath.Dir(path4)), Equals, 0)
+		c.Check(matchesInArray(paths, filepath.Dir(path5)), Equals, 0)
 	}
 }
