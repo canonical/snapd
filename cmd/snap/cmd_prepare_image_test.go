@@ -174,6 +174,35 @@ func (s *SnapPrepareImageSuite) TestPrepareImageCustomize(c *C) {
 	})
 }
 
+func (s *SnapPrepareImageSuite) TestReadSeedManifest(c *C) {
+	var opts *image.Options
+	prep := func(o *image.Options) error {
+		opts = o
+		return nil
+	}
+	r := snap.MockImagePrepare(prep)
+	defer r()
+
+	var readManifestCalled bool
+	r = snap.MockReadSeedManifest(func(manifestFile string) (map[string]int, error) {
+		readManifestCalled = true
+		c.Check(manifestFile, Equals, "seed.manifest")
+		return map[string]int{"snapd": 100}, nil
+	})
+	defer r()
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "model", "prepare-dir", "--revisions", "seed.manifest"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+
+	c.Check(readManifestCalled, Equals, true)
+	c.Check(opts, DeepEquals, &image.Options{
+		ModelFile:  "model",
+		PrepareDir: "prepare-dir",
+		Revisions:  map[string]int{"snapd": 100},
+	})
+}
+
 func (s *SnapPrepareImageSuite) TestPrepareImagePreseedArgError(c *C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "--preseed-sign-key", "key", "model", "prepare-dir"})
 	c.Assert(err, ErrorMatches, `--preseed-sign-key cannot be used without --preseed`)

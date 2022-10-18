@@ -45,6 +45,7 @@ type Options struct {
 	// TODO: use OptionsSnap directly here?
 	Snaps        []string
 	SnapChannels map[string]string
+	Revisions    map[string]int
 
 	// WideCohortKey can be used to supply a cohort covering all
 	// the snaps in the image, there is no generally suppported API

@@ -1,0 +1,104 @@
+summary: Check that prepare-image works for uboot-systems
+
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
+
+environment:
+    ROOT: /home/test/tmp/
+    IMAGE: /home/test/tmp/image
+    GADGET: /home/test/tmp/gadget
+    STORE_DIR: $(pwd)/fake-store-blobdir
+    STORE_ADDR: localhost:11028
+
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    mkdir -p "$ROOT"
+    chown test:test "$ROOT"
+
+restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    teardown_fake_store "$STORE_DIR"
+    
+    rm -rf "$ROOT"
+
+execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    function install_snap_to_fakestore() {
+        SNAP_NAME="$1"
+        SNAP_REVISION="$2"
+        SNAP_PATH=$("$TESTSTOOLS"/snaps-state pack-local "$SNAP_NAME")
+        make_snap_installable "$STORE_DIR" "$SNAP_PATH"
+        cat > snap-"$SNAP_NAME"-decl.json <<EOF
+    {
+        "format": "1",
+        "revision": "$SNAP_REVISION",
+        "snap-name": "$SNAP_NAME",
+        "snap-id": "$SNAP_NAME-id",
+        "plugs": {
+            "snapd-control": {
+            "allow-installation": "true",
+            "allow-auto-connection": "true"
+            }
+        }
+    }
+    EOF
+        fakestore new-snap-declaration --dir "${STORE_DIR}" --snap-decl-json snap-"$SNAP_NAME"-decl.json
+    }
+    
+    # Ensure that "core" is installed as it is a pre-requisite of the base but
+    # cannot be fetched from the fake store.
+    snap install core
+    
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+
+    echo "Configure daemon to point to the fake store"
+    setup_fake_store "$STORE_DIR"
+
+    echo Expose the needed assertions through the fakestore
+    cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+
+    snap ack "$STORE_DIR/asserts/testrootorg-store.account-key"
+    snap ack "$STORE_DIR/asserts/developer1.account"
+    snap ack "$STORE_DIR/asserts/developer1.account-key"
+    
+    echo "Adding snaps to the fake store"
+    install_snap_to_fakestore test-snapd-sh 23
+
+    # Write the lists of revisions we want to get from the fake-store. We have purposely
+    # only put these revisions into the store.
+    cat > "$ROOT/seed.manifest" <<EOF
+    test-snapd-sh 23.snap
+    EOF
+
+    # have snap use the fakestore for assertions (but nothing else)
+    export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+    echo Running prepare-image
+    snap prepare-image --channel edge --snap test-snapd-sh --revisions $ROOT/seed.manifest $TESTSLIB/assertions/developer1-pc.model $ROOT
+    
+    echo Verifying the correct revisions were used
+    test -e "$IMAGE/var/lib/snapd/seed/snaps/test-snapd-sh_23.snap"
+
+    echo Verifying the result
+    ls -lR "$IMAGE"
+    for f in pc pc-kernel core test-snapd-sh; do
+        ls "$IMAGE/var/lib/snapd/seed/snaps/${f}"*.snap
+    done
+
