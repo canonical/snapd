@@ -3963,3 +3963,97 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionRunthro
 	c.Check(chg.Err().Error(), testutil.Contains, `cannot perform the following tasks:
 - Setup storage encryption for installing system "1234" (cannot load assertions for label "1234": no seed assertions)`)
 }
+
+func buildVolumeMap() map[string]*gadget.Volume {
+	var offset quantity.Offset
+	pcSeedContent := []gadget.VolumeContent{
+		{
+			UnresolvedSource: "grubx64.efi",
+			Target:           "EFI/boot/grubx64.efi",
+		},
+	}
+	pcStructs := []gadget.VolumeStructure{
+		{
+			VolumeName:  "pc",
+			Name:        "ubuntu-seed",
+			Label:       "ubuntu-seed",
+			Offset:      &offset,
+			OffsetWrite: &gadget.RelativeOffset{},
+			Size:        10 * quantity.SizeMiB,
+			Type:        "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			Role:        "system-seed",
+			Filesystem:  "vfat",
+			Content:     pcSeedContent,
+		},
+	}
+	pc := &gadget.Volume{
+		Schema:     "gpt",
+		Bootloader: "grub",
+		ID:         "",
+		Structure:  pcStructs,
+		Name:       "pc",
+	}
+	vols := make(map[string]*gadget.Volume)
+	vols["pc"] = pc
+
+	return vols
+}
+
+func (s *deviceMgrInstallModeSuite) TestValidateOnVolumes(c *C) {
+	var onVolumes, gadgetVols map[string]*gadget.Volume
+
+	onVolumes = buildVolumeMap()
+	gadgetVols = buildVolumeMap()
+	c.Check(devicestate.ValidateOnVolumes(gadgetVols, onVolumes), IsNil)
+
+	onVolumes = buildVolumeMap()
+	gadgetVols = buildVolumeMap()
+	onVolumes["pc"].Schema = "random"
+	c.Check(devicestate.ValidateOnVolumes(gadgetVols, onVolumes), ErrorMatches, `schema "random" does not match "gpt" from gadget.yaml`)
+
+	onVolumes = buildVolumeMap()
+	gadgetVols = buildVolumeMap()
+	onVolumes["pc"].Bootloader = "random"
+	c.Check(devicestate.ValidateOnVolumes(gadgetVols, onVolumes), ErrorMatches, `bootloader "random" does not match "grub" from gadget.yaml`)
+
+	onVolumes = buildVolumeMap()
+	gadgetVols = buildVolumeMap()
+	onVolumes["pc"].Structure = []gadget.VolumeStructure{{Name: "unexpected"}}
+	c.Check(devicestate.ValidateOnVolumes(gadgetVols, onVolumes), ErrorMatches, `structure "unexpected" not found in gadget.yaml`)
+
+	onVolumes = buildVolumeMap()
+	gadgetVols = buildVolumeMap()
+	onVolumes["pc"].Structure[0].Label = "unexpected"
+	c.Check(devicestate.ValidateOnVolumes(gadgetVols, onVolumes), ErrorMatches, `label "unexpected" does not match "ubuntu-seed" from gadget.yaml`)
+
+	onVolumes = buildVolumeMap()
+	gadgetVols = buildVolumeMap()
+	offset := quantity.Offset(100)
+	onVolumes["pc"].Structure[0].Offset = &offset
+	c.Check(devicestate.ValidateOnVolumes(gadgetVols, onVolumes), ErrorMatches, `for structure ubuntu-seed: offset 100 does not match 0 from gadget.yaml`)
+
+	onVolumes = buildVolumeMap()
+	gadgetVols = buildVolumeMap()
+	onVolumes["pc"].Structure[0].Content[0].UnresolvedSource = "grubaarch64.efi"
+	c.Check(devicestate.ValidateOnVolumes(gadgetVols, onVolumes), ErrorMatches, `error comparing content: content "grubaarch64.efi" not found`)
+
+	onVolumes = buildVolumeMap()
+	gadgetVols = buildVolumeMap()
+	onVolumes["pc"].Structure[0].Content[0].UnresolvedSource = ""
+	gadgetVols["pc"].Structure[0].Content[0].UnresolvedSource = ""
+	onVolumes["pc"].Structure[0].Content[0].Image = "pc.bin"
+	c.Check(devicestate.ValidateOnVolumes(gadgetVols, onVolumes), ErrorMatches, `error comparing content: content "pc.bin" not found`)
+
+	onVolumes = buildVolumeMap()
+	gadgetVols = buildVolumeMap()
+	onVolumes["pc"].Structure[0].Content[0].OffsetWrite = &gadget.RelativeOffset{RelativeTo: "random"}
+	c.Check(devicestate.ValidateOnVolumes(gadgetVols, onVolumes), ErrorMatches, `error comparing content: for content grubx64.efi: cannot compare write offset, one is nil`)
+	gadgetVols["pc"].Structure[0].Content[0].OffsetWrite = &gadget.RelativeOffset{RelativeTo: "modnar"}
+	c.Check(devicestate.ValidateOnVolumes(gadgetVols, onVolumes), ErrorMatches, `error comparing content: for content grubx64.efi: write offset {random 0} does not match {modnar 0} from gadget.yaml`)
+
+	onVolumes = buildVolumeMap()
+	gadgetVols = buildVolumeMap()
+	onVolumes["pc"].Structure[0].Content = nil
+	gadgetVols["pc"].Structure[0].Content = nil
+	c.Check(devicestate.ValidateOnVolumes(gadgetVols, onVolumes), IsNil)
+}

@@ -491,3 +491,7 @@ func MockCreateAllKnownSystemUsers(createAllUsers func(state *state.State, asser
 	createAllKnownSystemUsers = createAllUsers
 	return restore
 }
+
+func ValidateOnVolumes(gadgetVols, onVolumes map[string]*gadget.Volume) error {
+	return validateOnVolumes(gadgetVols, onVolumes)
+}
