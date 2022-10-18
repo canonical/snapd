@@ -31,9 +31,7 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-var SysfsPathForBlockDevice = sysfsPathForBlockDevice
-
-func sysfsPathForBlockDevice(device string) (string, error) {
+var sysfsPathForBlockDevice = func(device string) (string, error) {
 	return "", fmt.Errorf("build without secboot support")
 }
 

@@ -74,10 +74,10 @@ func MockMkfsMake(f func(typ, img, label string, devSize, sectorSize quantity.Si
 }
 
 func MockSysfsPathForBlockDevice(f func(device string) (string, error)) (restore func()) {
-	old := SysfsPathForBlockDevice
-	SysfsPathForBlockDevice = f
+	old := sysfsPathForBlockDevice
+	sysfsPathForBlockDevice = f
 	return func() {
-		SysfsPathForBlockDevice = old
+		sysfsPathForBlockDevice = old
 	}
 }
 
