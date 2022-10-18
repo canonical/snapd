@@ -46,6 +46,8 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	retval := cgroup.MonitorFullDelete("test1", filelist, channel)
 	c.Assert(retval, Equals, nil)
 
+	// Wait for two seconds to ensure that nothing spurious
+	// is received from the channel
 	for i := 0; i < 2; i++ {
 		select {
 		case <-channel:
@@ -75,6 +77,8 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	retval := cgroup.MonitorFullDelete("test2", filelist, channel)
 	c.Assert(retval, Equals, nil)
 
+	// Wait for two seconds to ensure that nothing spurious
+	// is received from the channel
 	for i := 0; i < 2; i++ {
 		select {
 		case <-channel:
@@ -84,6 +88,9 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 		}
 	}
 	os.Remove(tmpfile1.Name())
+	// Only one file has been removed, so wait two seconds
+	// two ensure that nothing spurious is received from
+	// the channel
 	for i := 0; i < 2; i++ {
 		select {
 		case <-channel:
@@ -94,6 +101,8 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	}
 	os.Remove(tmpfile2.Name())
 
+	// All files have been deleted, so NOW we must receive
+	// something from the channel
 	event := <-channel
 	c.Assert(event, Equals, "test2")
 }
