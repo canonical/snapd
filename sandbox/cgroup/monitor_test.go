@@ -25,7 +25,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	. "gopkg.in/check.v1"
 )
@@ -108,7 +108,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 }
 
 func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
-	filename := fmt.Sprintf("aFileNameThatDoesntExist%s", uuid.New().String())
+	filename := fmt.Sprintf("aFileNameThatDoesntExist%s", randutil.RandomString())
 
 	filelist := []string{filename}
 
