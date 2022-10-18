@@ -114,11 +114,6 @@ func (su *SystemUser) Until() time.Time {
 // If expiration was set to 'until-expiration' then the .Until() time will be
 // returned.
 func (su *SystemUser) UserExpiration() time.Time {
-	// In this function we can make the following assumption;
-	// su.expiration is either empty or set to'until-expiration'
-	if su.expiration == "" {
-		return time.Time{}
-	}
 	if su.expiration == "until-expiration" {
 		return su.until
 	}
@@ -236,15 +231,15 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 }
 
 func checkSystemUserExpiration(headers map[string]interface{}) (string, error) {
-	str, err := checkOptionalString(headers, "user-valid-for")
-	if err != nil {
+	str, err := checkOptionalString(headers, "user-presence")
+	if err != nil || str == "" {
 		return "", err
 	}
 
 	if str == "until-expiration" {
 		return str, nil
 	}
-	return "", fmt.Errorf("cannot parse 'user-valid-for': %q is invalid", str)
+	return "", fmt.Errorf("cannot parse 'user-presence': %q is invalid", str)
 }
 
 func assembleSystemUser(assert assertionBase) (Assertion, error) {

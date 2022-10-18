@@ -74,7 +74,7 @@ func (s *systemUserSuite) SetUpTest(c *C) {
 	s.untilLine = fmt.Sprintf("until: %s\n", s.until.Format(time.RFC3339))
 	s.modelsLine = "models:\n  - frobinator\n"
 	s.formatLine = "format: 0\n"
-	s.userValidForLine = "user-valid-for: until-expiration\n"
+	s.userValidForLine = "user-presence: until-expiration\n"
 	s.systemUserStr = strings.Replace(systemUserExample, "UNTILLINE\n", s.untilLine, 1)
 	s.systemUserStr = strings.Replace(s.systemUserStr, "SINCELINE\n", s.sinceLine, 1)
 	s.systemUserStr = strings.Replace(s.systemUserStr, "MODELSLINE\n", s.modelsLine, 1)
@@ -196,9 +196,8 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{s.modelsLine, s.modelsLine + "serials: \n", `"serials" header must be a list of strings`},
 		{s.modelsLine, s.modelsLine + "serials: something\n", `"serials" header must be a list of strings`},
 		{s.modelsLine, s.modelsLine + "serials:\n  - 7c7f435d-ed28-4281-bd77-e271e0846904\n", `the "serials" header is only supported for format 1 or greater`},
-		{s.userValidForLine, "user-valid-for: tomorrow\n", `cannot parse 'user-valid-for': "tomorrow" is invalid`},
-		{s.userValidForLine, "user-valid-for: 9:00\n", `cannot parse 'user-valid-for': "9:00" is invalid`},
-		{s.userValidForLine, "user-valid-for: \n", `cannot parse 'user-valid-for': "" is invalid`},
+		{s.userValidForLine, "user-presence: tomorrow\n", `cannot parse 'user-presence': "tomorrow" is invalid`},
+		{s.userValidForLine, "user-presence: 9:00\n", `cannot parse 'user-presence': "9:00" is invalid`},
 	}
 
 	for _, test := range invalidTests {
@@ -274,4 +273,13 @@ func (s *systemUserSuite) TestSuggestedFormat(c *C) {
 	fmtnum, err = asserts.SuggestFormat(asserts.SystemUserType, headers, nil)
 	c.Assert(err, IsNil)
 	c.Check(fmtnum, Equals, 1)
+}
+
+func (s *systemUserSuite) TestUserValidForPresenceNotSet(c *C) {
+	s.systemUserStr = strings.Replace(s.systemUserStr, s.userValidForLine, "", 1)
+	a, err := asserts.Decode([]byte(s.systemUserStr))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SystemUserType)
+	su := a.(*asserts.SystemUser)
+	c.Check(su.UserExpiration().IsZero(), Equals, true)
 }
