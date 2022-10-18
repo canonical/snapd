@@ -12,7 +12,6 @@ require (
 	github.com/canonical/tcglog-parser v0.0.0-20210824131805-69fa1e9f0ad2 // indirect
 	github.com/coreos/go-systemd v0.0.0-20180511133405-39ca1b05acc7
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2
-	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.7.4-0.20190701202633-d83b6ffe499a
 	github.com/gvalkov/golang-evdev v0.0.0-20191114124502-287e62b94bcb
 	github.com/jessevdk/go-flags v1.5.1-0.20210607101731-3927b71304df
