@@ -108,7 +108,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 }
 
 func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
-	filename := fmt.Sprintf("aFileNameThatDoesntExist%s", randutil.RandomString())
+	filename := fmt.Sprintf("aFileNameThatDoesntExist%s", randutil.RandomString(10))
 
 	filelist := []string{filename}
 
