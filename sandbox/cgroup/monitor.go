@@ -20,10 +20,9 @@
 package cgroup
 
 import (
-	"errors"
-	"os"
 	"path"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/cgroup/inotify"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -52,7 +51,7 @@ func MonitorFullDelete(name string, folders []string, channel chan string) error
 		// add first the parent folder to the monitor, and only then check if the
 		// child file/folder does exist. This ensures that there is no race
 		// condition if the file/folder is removed between both steps.
-		if _, err := os.Stat(fullPath); errors.Is(err, os.ErrNotExist) {
+		if !osutil.FileExists(fullPath) {
 			continue
 		}
 		tmpFolders = append(tmpFolders, fullPath)
