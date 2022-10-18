@@ -58,7 +58,6 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	os.Remove(tmpfile.Name())
 	event := <-channel
 	c.Assert(event, Equals, "test1")
-	c.Assert(cgroup.NumberOfWaitingMonitors(), Equals, 0)
 }
 
 func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
@@ -96,7 +95,6 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 
 	event := <-channel
 	c.Assert(event, Equals, "test2")
-	c.Assert(cgroup.NumberOfWaitingMonitors(), Equals, 0)
 }
 
 func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
@@ -109,5 +107,4 @@ func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 	c.Assert(retval, Equals, false)
 	event := <-channel
 	c.Assert(event, Equals, "test3")
-	c.Assert(cgroup.NumberOfWaitingMonitors(), Equals, 0)
 }
