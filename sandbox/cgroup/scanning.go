@@ -193,7 +193,10 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 	for _, path := range paths {
 		pids, err := pidsInFile(path)
 		if err != nil {
-			continue
+			if os.IsNotExist(err) {
+				return nil, nil
+			}
+			return nil, err
 		}
 		cgroupPath := filepath.Dir(path)
 		parsedTag := securityTagFromCgroupPath(cgroupPath)
