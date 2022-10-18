@@ -271,6 +271,35 @@ func makeLabel(now time.Time) string {
 	return now.UTC().Format("20060102")
 }
 
+func specifiedSnapRevision(snapName string, opts *Options) int {
+	if len(opts.Revisions) == 0 {
+		return 0
+	}
+	revision, ok := opts.Revisions[snapName]
+	if !ok {
+		return 0
+	}
+	return revision
+}
+
+func optionSnaps(opts *Options) []*seedwriter.OptionsSnap {
+	optSnaps := make([]*seedwriter.OptionsSnap, 0, len(opts.Snaps))
+	for _, snapName := range opts.Snaps {
+		var optSnap seedwriter.OptionsSnap
+		if strings.HasSuffix(snapName, ".snap") {
+			// local, we postpone the revision check here until
+			// we can load the snap info from the file. If the revision
+			// of a local snap is not matching, then we error on it
+			optSnap.Path = snapName
+		} else {
+			optSnap.Name = snapName
+		}
+		optSnap.Channel = opts.SnapChannels[snapName]
+		optSnaps = append(optSnaps, &optSnap)
+	}
+	return optSnaps
+}
+
 var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
@@ -335,19 +364,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
-	optSnaps := make([]*seedwriter.OptionsSnap, 0, len(opts.Snaps))
-	for _, snapName := range opts.Snaps {
-		var optSnap seedwriter.OptionsSnap
-		if strings.HasSuffix(snapName, ".snap") {
-			// local
-			optSnap.Path = snapName
-		} else {
-			optSnap.Name = snapName
-		}
-		optSnap.Channel = opts.SnapChannels[snapName]
-		optSnaps = append(optSnaps, &optSnap)
-	}
-
+	optSnaps := optionSnaps(opts)
 	if err := w.SetOptionsSnaps(optSnaps); err != nil {
 		return err
 	}
@@ -400,6 +417,15 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			return err
 		}
 
+		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
+		// available, unless we switch and download the revision provided by the seed.manifest. However
+		// we should not alter the expected outcome, instead lets fail and inform the user.
+		specifiedRevision := specifiedSnapRevision(info.SnapName(), opts)
+		if specifiedRevision != 0 && specifiedRevision != info.Revision.N {
+			return fmt.Errorf("cannot use snap %s for image, revision (%d) does not match the allowed value (%d)",
+				sn.Path, info.Revision.N, specifiedRevision)
+		}
+
 		if err := w.SetInfo(sn, info); err != nil {
 			return err
 		}
@@ -431,7 +457,12 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			if sn == nil {
 				return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 			}
-			fmt.Fprintf(Stdout, "Fetching %s\n", sn.SnapName())
+			rev := specifiedSnapRevision(sn.SnapName(), opts)
+			if rev != 0 {
+				fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), rev)
+			} else {
+				fmt.Fprintf(Stdout, "Fetching %s\n", sn.SnapName())
+			}
 			if err := w.SetInfo(sn, info); err != nil {
 				return "", err
 			}
@@ -442,6 +473,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			byName[sn.SnapName()] = sn
 			snapToDownloadOptions[i].Snap = sn
 			snapToDownloadOptions[i].Channel = sn.Channel
+			snapToDownloadOptions[i].Revision = snap.Revision{N: specifiedSnapRevision(sn.SnapName(), opts)}
 			snapToDownloadOptions[i].CohortKey = opts.WideCohortKey
 		}
 		downloadedSnaps, err := tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{

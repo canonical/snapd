@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/tooling"
+	"github.com/snapcore/snapd/testutil"
 	usersessionclient "github.com/snapcore/snapd/usersession/client"
 )
 
@@ -469,4 +470,10 @@ func ParseQuotaValues(maxMemory, cpuMax, cpuSet, threadsMax, journalSizeMax, jou
 	quotas.JournalRateLimit = journalRateLimit
 
 	return quotas.parseQuotas()
+}
+
+func MockReadSeedManifest(f func(manifestFile string) (map[string]int, error)) (restore func()) {
+	restore = testutil.Backup(&readSeedManifest)
+	readSeedManifest = f
+	return restore
 }
