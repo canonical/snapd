@@ -31,11 +31,10 @@ import (
 
 // MonitorFiles allows to monitor a group of files/folders
 // and, when all of them have been deleted, emits the specified name through the channel.
-func MonitorFiles(name string, folders []string, channel chan string) bool {
+func MonitorFiles(name string, folders []string, channel chan string) error {
 	wd, err := inotify.NewWatcher()
 	if err != nil {
-		logger.Noticef("Failed to open file watcher")
-		return true
+		return err
 	}
 
 	var toMonitor []string
@@ -80,7 +79,7 @@ func MonitorFiles(name string, folders []string, channel chan string) bool {
 		}
 		channel <- name
 	}()
-	return false
+	return nil
 }
 
 // MonitorSnap is the method to call to monitor the running instances of an specific Snap.
@@ -88,7 +87,7 @@ func MonitorFiles(name string, folders []string, channel chan string) bool {
 // and a channel. The caller can wait on the channel, and when all the instances of
 // the specific snap have ended, the name of the snap will be sent through the channel.
 // This allows to use the same channel to monitor several snaps
-func MonitorSnap(snapName string, channel chan string) bool {
+func MonitorSnap(snapName string, channel chan string) error {
 	options := InstancePathsOptions{
 		ReturnCGroupPath: true,
 	}

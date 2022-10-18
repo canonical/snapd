@@ -44,7 +44,7 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	channel := make(chan string)
 
 	retval := cgroup.MonitorFiles("test1", filelist, channel)
-	c.Assert(retval, Equals, false)
+	c.Assert(retval, Equals, nil)
 
 	for i := 0; i < 2; i++ {
 		select {
@@ -72,7 +72,8 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 
 	channel := make(chan string)
 
-	cgroup.MonitorFiles("test2", filelist, channel)
+	retval := cgroup.MonitorFiles("test2", filelist, channel)
+	c.Assert(retval, Equals, nil)
 
 	for i := 0; i < 2; i++ {
 		select {
@@ -104,7 +105,7 @@ func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 
 	channel := make(chan string)
 	retval := cgroup.MonitorFiles("test3", filelist, channel)
-	c.Assert(retval, Equals, false)
+	c.Assert(retval, Equals, nil)
 	event := <-channel
 	c.Assert(event, Equals, "test3")
 }
