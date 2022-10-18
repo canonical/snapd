@@ -33,6 +33,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	_ "golang.org/x/crypto/sha3"
 	"gopkg.in/tomb.v2"
@@ -45,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -1284,6 +1286,174 @@ func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (
 	return sys, snapInfos, snapSeeds, mntPtForType, unmount, nil
 }
 
+func structureFromName(name string, Structures []gadget.VolumeStructure) (*gadget.VolumeStructure, error) {
+	var foundStruct *gadget.VolumeStructure
+	for _, structure := range Structures {
+		// Future go versions will have per-iter variables... but not 1.13
+		structure := structure
+		if structure.Name == name {
+			if foundStruct != nil {
+				return nil, fmt.Errorf("duplicated structure with name %q", name)
+			}
+			foundStruct = &structure
+		}
+	}
+
+	if foundStruct == nil {
+		return nil, fmt.Errorf("structure with name %q not found", name)
+	}
+
+	return foundStruct, nil
+}
+
+func compareOffsets(offset1, offset2 *quantity.Offset) error {
+	if (offset1 == nil && offset2 != nil) || (offset1 != nil && offset2 == nil) {
+		return fmt.Errorf("cannot compare offsets, one is nil")
+	}
+	if offset1 != nil && offset2 != nil {
+		if *offset1 != *offset2 {
+			return fmt.Errorf("offset %d does not match %d from gadget.yaml", *offset1, *offset2)
+		}
+	}
+
+	return nil
+}
+
+func compareOffsetWrite(offset1, offset2 *gadget.RelativeOffset) error {
+	if (offset1 == nil && offset2 != nil) || (offset1 != nil && offset2 == nil) {
+		return fmt.Errorf("cannot compare write offset, one is nil")
+	}
+	if offset1 != nil && offset2 != nil {
+		if *offset1 != *offset2 {
+			return fmt.Errorf("write offset %v does not match %v from gadget.yaml", *offset1, *offset2)
+		}
+	}
+
+	return nil
+}
+
+func validateOnVolumesContent(content *gadget.VolumeContent, gadgetContents []gadget.VolumeContent) error {
+	contentPath := content.UnresolvedSource
+	isFile := true
+	if contentPath == "" {
+		contentPath = content.Image
+		isFile = false
+	}
+
+	var foundCont *gadget.VolumeContent
+	for _, gadgetCont := range gadgetContents {
+		// Future go versions will have per-iter variables... but not 1.13
+		gadgetCont := gadgetCont
+		if (isFile && contentPath == gadgetCont.UnresolvedSource) ||
+			(!isFile && contentPath == gadgetCont.Image) {
+			if foundCont != nil {
+				return fmt.Errorf("duplicated content %q", contentPath)
+			}
+			foundCont = &gadgetCont
+		}
+	}
+	if foundCont == nil {
+		return fmt.Errorf("content %q not found", contentPath)
+	}
+
+	if isFile {
+		if content.Target != foundCont.Target {
+			return fmt.Errorf("target %s does not match %s from gadget.yaml", content.Target, foundCont.Target)
+		}
+	}
+	if err := compareOffsets(content.Offset, foundCont.Offset); err != nil {
+		return fmt.Errorf("for content %s: %v", contentPath, err)
+	}
+	if err := compareOffsetWrite(content.OffsetWrite, foundCont.OffsetWrite); err != nil {
+		return fmt.Errorf("for content %s: %v", contentPath, err)
+	}
+	if content.Size != foundCont.Size {
+		return fmt.Errorf("size %d does not match %d from gadget.yaml", content.Size, foundCont.Size)
+	}
+	if content.Unpack != foundCont.Unpack {
+		return fmt.Errorf("unpack %t does not match %t from gadget.yaml", content.Unpack, foundCont.Unpack)
+	}
+
+	return nil
+}
+
+func validateOnVolumes(gadgetVols, onVolumes map[string]*gadget.Volume) error {
+	if len(onVolumes) != len(gadgetVols) {
+		return fmt.Errorf("different number of volumes (%d) than in gadget.yaml (%d)", len(onVolumes), len(gadgetVols))
+	}
+
+	for volName, vol := range onVolumes {
+		gadgetVol, ok := gadgetVols[volName]
+		if !ok {
+			return fmt.Errorf("volume %q not found in gadget.yaml", volName)
+		}
+		if vol.Schema != gadgetVol.Schema {
+			return fmt.Errorf("schema %q does not match %q from gadget.yaml", vol.Schema, gadgetVol.Schema)
+		}
+		if vol.Bootloader != gadgetVol.Bootloader {
+			return fmt.Errorf("bootloader %q does not match %q from gadget.yaml", vol.Bootloader, gadgetVol.Bootloader)
+		}
+		if len(vol.Structure) != len(gadgetVol.Structure) {
+			return fmt.Errorf("different number of structures (%d) than in gadget.yaml (%d)", len(vol.Structure), len(gadgetVol.Structure))
+		}
+		for _, structure := range vol.Structure {
+			gadgetStruct, err := structureFromName(structure.Name, gadgetVol.Structure)
+			if err != nil {
+				return fmt.Errorf("structure %q not found in gadget.yaml", structure.Name)
+			}
+			if structure.Label != gadgetStruct.Label {
+				return fmt.Errorf("label %q does not match %q from gadget.yaml", structure.Label, gadgetStruct.Label)
+			}
+			if err := compareOffsets(structure.Offset, gadgetStruct.Offset); err != nil {
+				return fmt.Errorf("for structure %s: %v", structure.Name, err)
+			}
+			if err := compareOffsetWrite(structure.OffsetWrite, gadgetStruct.OffsetWrite); err != nil {
+				return fmt.Errorf("for structure %s: %v", structure.Name, err)
+			}
+			// TODO have a look at size when implementing partial
+			if structure.Type != gadgetStruct.Type {
+				return fmt.Errorf("type %q does not match %q from gadget.yaml", structure.Type, gadgetStruct.Type)
+			}
+			if structure.Role != gadgetStruct.Role {
+				return fmt.Errorf("role %q does not match %q from gadget.yaml", structure.Role, gadgetStruct.Role)
+			}
+			if strings.ToUpper(structure.ID) != strings.ToUpper(gadgetStruct.ID) {
+				return fmt.Errorf("ID %q does not match %q from gadget.yaml", structure.ID, gadgetStruct.ID)
+			}
+			if structure.Filesystem != gadgetStruct.Filesystem {
+				return fmt.Errorf("filesystem %q does not match %q from gadget.yaml", structure.Filesystem, gadgetStruct.Filesystem)
+			}
+			if len(structure.Content) != len(gadgetStruct.Content) {
+				return fmt.Errorf("different number of contents (%d) than in gadget.yaml (%d)", len(structure.Content), len(gadgetStruct.Content))
+			}
+			for _, content := range structure.Content {
+				if err := validateOnVolumesContent(&content, gadgetStruct.Content); err != nil {
+					return fmt.Errorf("error comparing content: %v", err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func validatedGadgetInfo(gadgetPath string, model gadget.Model, onVolumes map[string]*gadget.Volume) (*gadget.Info, error) {
+	snapf, err := snapfile.Open(gadgetPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	gadgetInfo, err := gadget.ReadInfoFromSnapFileNoValidate(snapf, model)
+	if err != nil {
+		return nil, fmt.Errorf("reading gadget information: %v", err)
+	}
+	// Now validate onVolumes against gadget.yaml
+	if err := validateOnVolumes(gadgetInfo.Volumes, onVolumes); err != nil {
+		return nil, fmt.Errorf("while validating provided volumes against gadget: %v", err)
+	}
+
+	return gadgetInfo, nil
+}
+
 // doInstallFinish performs the finish step of the install. It will
 // - install missing volumes structure content
 // - install gadget assets
@@ -1327,7 +1497,10 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 	defer unmount()
 
-	// TODO validation of onVolumes versus gadget.yaml
+	// Validate onVolumes
+	if _, err := validatedGadgetInfo(snapSeeds[snap.TypeGadget].Path, sys.Model, onVolumes); err != nil {
+		return fmt.Errorf("reading gadget information: %v", err)
+	}
 
 	// Check if encryption is mandatory
 	if sys.Model.StorageSafety() == asserts.StorageSafetyEncrypted && encryptSetupData == nil {
@@ -1442,12 +1615,8 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	}
 	defer unmount()
 
-	// Gadget information
-	snapf, err := snapfile.Open(snapSeeds[snap.TypeGadget].Path)
-	if err != nil {
-		return fmt.Errorf("cannot open gadget snap: %v", err)
-	}
-	gadgetInfo, err := gadget.ReadInfoFromSnapFileNoValidate(snapf, sys.Model)
+	// Retrieve (validated against provided volumes) gadget information
+	gadgetInfo, err := validatedGadgetInfo(snapSeeds[snap.TypeGadget].Path, sys.Model, onVolumes)
 	if err != nil {
 		return fmt.Errorf("reading gadget information: %v", err)
 	}
