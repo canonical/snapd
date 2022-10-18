@@ -60,9 +60,6 @@ func MonitorFullDelete(name string, folders []string, channel chan string) error
 	folders = tmpFolders
 
 	go func() {
-		defer func() {
-			wd.Close()
-		}()
 		for len(folders) != 0 {
 			event := <-wd.Event
 			if event.Mask&inotify.InDelete == 0 {
@@ -77,6 +74,7 @@ func MonitorFullDelete(name string, folders []string, channel chan string) error
 			folders = tmpFolders
 		}
 		channel <- name
+		wd.Close()
 	}()
 	return nil
 }
