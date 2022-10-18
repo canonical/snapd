@@ -1,0 +1,12 @@
+[Unit]
+Description=Bind %I to loop device
+StopWhenUnneeded=yes
+RefuseManualStart=yes
+DefaultDependencies=no
+After=snapd.mounts-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@LOSETUP_PATH@ -r -f --direct-io=on /%I
+ExecStop=@LOSETUP_PATH@ -d /dev/disk/by-backing-file/%i

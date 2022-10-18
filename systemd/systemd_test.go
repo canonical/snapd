@@ -1169,9 +1169,11 @@ Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
 Before=local-fs.target
+Wants=snapd.loop-setup@%[1]s.service
+After=snapd.loop-setup@%[1]s.service
 
 [Mount]
-What=%s
+What=/dev/disk/by-backing-file/%[1]s
 Where=/snap/snapname/123
 Type=squashfs
 Options=nodev,ro,x-gdu.hide,x-gvfs-hide
@@ -1180,7 +1182,7 @@ LazyUnmount=yes
 [Install]
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
-`[1:], mockSnapPath))
+`[1:], EscapeUnitNamePath(mockSnapPath)))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
@@ -1253,9 +1255,11 @@ Description=Mount unit for foo via bar
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
 Before=local-fs.target
+Wants=snapd.loop-setup@%[1]s.service
+After=snapd.loop-setup@%[1]s.service
 
 [Mount]
-What=%s
+What=/dev/disk/by-backing-file/%[1]s
 Where=/snap/snapname/345
 Type=squashfs
 Options=remount,ro
@@ -1265,7 +1269,7 @@ LazyUnmount=yes
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 X-SnapdOrigin=bar
-`[1:], mockSnapPath))
+`[1:], EscapeUnitNamePath(mockSnapPath)))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
@@ -1298,9 +1302,11 @@ Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
 Before=local-fs.target
+Wants=snapd.loop-setup@%[1]s.service
+After=snapd.loop-setup@%[1]s.service
 
 [Mount]
-What=%s
+What=/dev/disk/by-backing-file/%[1]s
 Where=/snap/snapname/123
 Type=squashfs
 Options=nodev,context=system_u:object_r:snappy_snap_t:s0,ro,x-gdu.hide,x-gvfs-hide
@@ -1309,7 +1315,7 @@ LazyUnmount=yes
 [Install]
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
-`[1:], mockSnapPath))
+`[1:], EscapeUnitNamePath(mockSnapPath)))
 }
 
 func (s *SystemdTestSuite) TestFuseInContainer(c *C) {
@@ -1344,9 +1350,11 @@ Description=Mount unit for foo, revision x1
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
 Before=local-fs.target
+Wants=snapd.loop-setup@%[1]s.service
+After=snapd.loop-setup@%[1]s.service
 
 [Mount]
-What=%s
+What=/dev/disk/by-backing-file/%[1]s
 Where=/snap/snapname/123
 Type=fuse.squashfuse
 Options=nodev,ro,x-gdu.hide,x-gvfs-hide,allow_other
@@ -1355,7 +1363,7 @@ LazyUnmount=yes
 [Install]
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
-`[1:], mockSnapPath))
+`[1:], EscapeUnitNamePath(mockSnapPath)))
 }
 
 func (s *SystemdTestSuite) TestFuseOutsideContainer(c *C) {
@@ -1386,9 +1394,11 @@ Description=Mount unit for foo, revision x1
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
 Before=local-fs.target
+Wants=snapd.loop-setup@%[1]s.service
+After=snapd.loop-setup@%[1]s.service
 
 [Mount]
-What=%s
+What=/dev/disk/by-backing-file/%[1]s
 Where=/snap/snapname/123
 Type=squashfs
 Options=nodev,ro,x-gdu.hide,x-gvfs-hide
@@ -1397,7 +1407,7 @@ LazyUnmount=yes
 [Install]
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
-`[1:], mockSnapPath))
+`[1:], EscapeUnitNamePath(mockSnapPath)))
 }
 
 func (s *SystemdTestSuite) TestJctl(c *C) {
@@ -1652,12 +1662,14 @@ Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
 Before=local-fs.target
+Wants=snapd.loop-setup@%[1]s.service
+After=snapd.loop-setup@%[1]s.service
 
 [Mount]
-What=%s
+What=/dev/disk/by-backing-file/%[1]s
 Where=/snap/snapname/123
-Type=%s
-Options=%s
+Type=%[2]s
+Options=%[3]s
 LazyUnmount=yes
 
 [Install]
@@ -1689,7 +1701,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants", mountUnitName)), Equals, true)
 	// This is only to handle older version of snapd
 	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)), Equals, true)
-	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], EscapeUnitNamePath(mockSnapPath), "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
 }
 
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
@@ -1709,7 +1721,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 	defer os.Remove(mountUnitName)
 
 	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "fuse.squashfuse", mockSnapPath, "/snap/snapname/123", "-o", "nodev,a,b,c"})
-	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], EscapeUnitNamePath(mockSnapPath), "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
 }
 
 func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {

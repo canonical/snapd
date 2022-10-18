@@ -46,10 +46,15 @@ install: $(SYSTEMD_UNITS)
 clean:
 	rm -f $(SYSTEMD_UNITS_GENERATED:.in=)
 
+LOSETUP_PATH:=$(shell command -v losetup)
+
+SED_SCRIPT:=$\
+	s:@libexecdir@:$(LIBEXECDIR):g;$\
+	s:@SNAPD_ENVIRONMENT_FILE@:$(SNAPD_ENVIRONMENT_FILE):g;$\
+	s:@bindir@:$(BINDIR):g;$\
+	s:@SNAP_MOUNT_DIR@:$(SNAP_MOUNT_DIR):g;$\
+	s:@LOSETUP_PATH@:$(LOSETUP_PATH):g
+
 %: %.in
-	cat $< | \
-		sed s:@libexecdir@:$(LIBEXECDIR):g | \
-		sed s:@SNAPD_ENVIRONMENT_FILE@:$(SNAPD_ENVIRONMENT_FILE):g | \
-		sed s:@bindir@:$(BINDIR):g | \
-		sed s:@SNAP_MOUNT_DIR@:$(SNAP_MOUNT_DIR):g  | \
-		cat > $@
+	sed '$(SED_SCRIPT)' $< >$@.tmp
+	mv $@.tmp $@

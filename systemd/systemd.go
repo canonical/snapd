@@ -312,6 +312,7 @@ type MountUnitOptions struct {
 	Fstype   string
 	Options  []string
 	Origin   string
+	LoopName string
 }
 
 // Backend identifies the implementation backend in use by a Systemd instance.
@@ -1369,9 +1370,17 @@ Description=Mount unit for {{.SnapName}}
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
 Before=local-fs.target
+{{- with .LoopName}}
+Wants=snapd.loop-setup@{{.}}.service
+After=snapd.loop-setup@{{.}}.service
+{{- end}}
 
 [Mount]
+{{- with .LoopName}}
+What=/dev/disk/by-backing-file/{{.}}
+{{- else}}
 What={{.What}}
+{{- end}}
 Where={{.Where}}
 Type={{.Fstype}}
 Options={{join .Options ","}}
@@ -1395,6 +1404,11 @@ const (
 func writeMountUnitFile(u *MountUnitOptions) (mountUnitName string, err error) {
 	if u == nil {
 		return "", errors.New("writeMountUnitFile() expects valid mount options")
+	}
+
+	whatStat, err := os.Stat(u.What)
+	if err == nil && whatStat.Mode().IsRegular() {
+		u.LoopName = EscapeUnitNamePath(u.What)
 	}
 
 	mu := MountUnitPathWithLifetime(u.Lifetime, u.Where)

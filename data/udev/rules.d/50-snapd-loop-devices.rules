@@ -1,0 +1,7 @@
+SUBSYSTEM!="block", GOTO="loop_devices_end"
+ACTION!="add|change", GOTO="loop_devices_end"
+KERNEL!="loop*", GOTO="loop_devices_end"
+
+IMPORT{program}="/bin/sh -c 'echo -n LOOP_BACK_FILE= ; losetup -O BACK-FILE -n $$0' %N"
+IMPORT{program}="/bin/sh -c 'echo -n .LOOP_BACK_FILE_ESCAPED= ; systemd-escape -p $$0' $env{LOOP_BACK_FILE}"
+SYMLINK+="disk/by-backing-file/$env{.LOOP_BACK_FILE_ESCAPED}"
