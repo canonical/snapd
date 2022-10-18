@@ -57,7 +57,8 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 		}
 	}
 
-	os.Remove(tmpfile.Name())
+	err = os.Remove(tmpfile.Name())
+	c.Assert(err, IsNil)
 	event := <-channel
 	c.Assert(event, Equals, "test1")
 }
@@ -87,7 +88,8 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 			continue
 		}
 	}
-	os.Remove(tmpfile1.Name())
+	err = os.Remove(tmpfile1.Name())
+	c.Assert(err, IsNil)
 	// Only one file has been removed, so wait two seconds
 	// two ensure that nothing spurious is received from
 	// the channel
@@ -99,7 +101,8 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 			continue
 		}
 	}
-	os.Remove(tmpfile2.Name())
+	err = os.Remove(tmpfile2.Name())
+	c.Assert(err, IsNil)
 
 	// All files have been deleted, so NOW we must receive
 	// something from the channel
