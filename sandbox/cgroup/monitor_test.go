@@ -38,8 +38,7 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	tmpfile, err := ioutil.TempFile("", "prefix")
 	c.Assert(err, IsNil)
 
-	var filelist []string
-	filelist = append(filelist, tmpfile.Name())
+	filelist := []string{tmpfile.Name()}
 
 	channel := make(chan string)
 
@@ -69,9 +68,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	tmpfile2, err := ioutil.TempFile("", "prefix")
 	c.Assert(err, IsNil)
 
-	var filelist []string
-	filelist = append(filelist, tmpfile1.Name())
-	filelist = append(filelist, tmpfile2.Name())
+	filelist := []string{tmpfile1.Name(), tmpfile2.Name()}
 
 	channel := make(chan string)
 
@@ -112,8 +109,8 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 
 func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 	filename := fmt.Sprintf("aFileNameThatDoesntExist%s", uuid.New().String())
-	var filelist []string
-	filelist = append(filelist, filename)
+
+	filelist := []string{filename}
 
 	channel := make(chan string)
 	retval := cgroup.MonitorFullDelete("test3", filelist, channel)
