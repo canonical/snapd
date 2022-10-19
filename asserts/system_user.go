@@ -109,7 +109,7 @@ func (su *SystemUser) Until() time.Time {
 
 // UserExpiration returns the expiration or validity duration of the user created.
 //
-// If no expiration was specified, this will return an empty time.Time structure.
+// If no expiration was specified, this will return an zero time.Time structure.
 //
 // If expiration was set to 'until-expiration' then the .Until() time will be
 // returned.
@@ -242,7 +242,7 @@ func checkSystemUserPresence(assert assertionBase) (string, error) {
 	if str == "until-expiration" {
 		return str, nil
 	}
-	return "", fmt.Errorf("cannot parse 'user-presence': %q is invalid", str)
+	return "", fmt.Errorf(`invalid "user-presence" header, only explicit valid value is "until-expiration": %q`, str)
 }
 
 func assembleSystemUser(assert assertionBase) (Assertion, error) {

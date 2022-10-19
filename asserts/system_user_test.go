@@ -264,8 +264,8 @@ func (s *systemUserSuite) TestDecodeInvalidFormat2UserPresence(c *C) {
 	s.systemUserStr = strings.Replace(s.systemUserStr, s.formatLine, "format: 2\n", 1)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
-		{s.userPresenceLine, "user-presence: tomorrow\n", `cannot parse 'user-presence': "tomorrow" is invalid`},
-		{s.userPresenceLine, "user-presence: 0\n", `cannot parse 'user-presence': "0" is invalid`},
+		{s.userPresenceLine, "user-presence: tomorrow\n", `invalid "user-presence" header, only explicit valid value is "until-expiration": "tomorrow"`},
+		{s.userPresenceLine, "user-presence: 0\n", `invalid "user-presence" header, only explicit valid value is "until-expiration": "0"`},
 	}
 	for _, test := range invalidTests {
 		invalid := strings.Replace(s.systemUserStr, test.original, test.invalid, 1)
