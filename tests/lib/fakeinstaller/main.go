@@ -254,7 +254,7 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 
 	var mountPoints []string
 	for _, volStruct := range vol.Structure {
-		if volStruct.Label == "" || volStruct.Filesystem == "" {
+		if volStruct.Filesystem == "" {
 			continue
 		}
 
