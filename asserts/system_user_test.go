@@ -38,7 +38,7 @@ type systemUserSuite struct {
 	untilLine        string
 	since            time.Time
 	sinceLine        string
-	userValidForLine string
+	userPresenceLine string
 
 	formatLine string
 	modelsLine string
@@ -74,12 +74,12 @@ func (s *systemUserSuite) SetUpTest(c *C) {
 	s.untilLine = fmt.Sprintf("until: %s\n", s.until.Format(time.RFC3339))
 	s.modelsLine = "models:\n  - frobinator\n"
 	s.formatLine = "format: 0\n"
-	s.userValidForLine = "user-presence: until-expiration\n"
+	s.userPresenceLine = "user-presence: \n"
 	s.systemUserStr = strings.Replace(systemUserExample, "UNTILLINE\n", s.untilLine, 1)
 	s.systemUserStr = strings.Replace(s.systemUserStr, "SINCELINE\n", s.sinceLine, 1)
 	s.systemUserStr = strings.Replace(s.systemUserStr, "MODELSLINE\n", s.modelsLine, 1)
 	s.systemUserStr = strings.Replace(s.systemUserStr, "FORMATLINE\n", s.formatLine, 1)
-	s.systemUserStr = strings.Replace(s.systemUserStr, "USERVALIDFOR\n", s.userValidForLine, 1)
+	s.systemUserStr = strings.Replace(s.systemUserStr, "USERVALIDFOR\n", s.userPresenceLine, 1)
 }
 
 func (s *systemUserSuite) TestDecodeOK(c *C) {
@@ -97,7 +97,6 @@ func (s *systemUserSuite) TestDecodeOK(c *C) {
 	c.Check(systemUser.SSHKeys(), DeepEquals, []string{"ssh-rsa AAAABcdefg"})
 	c.Check(systemUser.Since().Equal(s.since), Equals, true)
 	c.Check(systemUser.Until().Equal(s.until), Equals, true)
-	c.Check(systemUser.UserExpiration().Equal(s.until), Equals, true)
 }
 
 func (s *systemUserSuite) TestDecodePasswd(c *C) {
@@ -196,8 +195,7 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{s.modelsLine, s.modelsLine + "serials: \n", `"serials" header must be a list of strings`},
 		{s.modelsLine, s.modelsLine + "serials: something\n", `"serials" header must be a list of strings`},
 		{s.modelsLine, s.modelsLine + "serials:\n  - 7c7f435d-ed28-4281-bd77-e271e0846904\n", `the "serials" header is only supported for format 1 or greater`},
-		{s.userValidForLine, "user-presence: tomorrow\n", `cannot parse 'user-presence': "tomorrow" is invalid`},
-		{s.userValidForLine, "user-presence: 9:00\n", `cannot parse 'user-presence': "9:00" is invalid`},
+		{s.userPresenceLine, "user-presence: until-expiration\n", `the "user-presence" header is only supported for format 2 or greater`},
 	}
 
 	for _, test := range invalidTests {
@@ -262,6 +260,32 @@ func (s *systemUserSuite) TestDecodeOKFormat1Serials(c *C) {
 
 }
 
+func (s *systemUserSuite) TestDecodeInvalidFormat2UserPresence(c *C) {
+	s.systemUserStr = strings.Replace(s.systemUserStr, s.formatLine, "format: 2\n", 1)
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{s.userPresenceLine, "user-presence: tomorrow\n", `cannot parse 'user-presence': "tomorrow" is invalid`},
+		{s.userPresenceLine, "user-presence: 0\n", `cannot parse 'user-presence': "0" is invalid`},
+	}
+	for _, test := range invalidTests {
+		invalid := strings.Replace(s.systemUserStr, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, systemUserErrPrefix+test.expectedErr)
+	}
+}
+
+func (s *systemUserSuite) TestDecodeOKFormat2UserPresence(c *C) {
+	s.systemUserStr = strings.Replace(s.systemUserStr, s.formatLine, "format: 2\n", 1)
+
+	s.systemUserStr = strings.Replace(s.systemUserStr, s.userPresenceLine, "user-presence: until-expiration\n", 1)
+	a, err := asserts.Decode([]byte(s.systemUserStr))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SystemUserType)
+	systemUser := a.(*asserts.SystemUser)
+	// new in "format: 2"
+	c.Check(systemUser.UserExpiration().Equal(systemUser.Until()), Equals, true)
+}
+
 func (s *systemUserSuite) TestSuggestedFormat(c *C) {
 	fmtnum, err := asserts.SuggestFormat(asserts.SystemUserType, nil, nil)
 	c.Assert(err, IsNil)
@@ -273,13 +297,11 @@ func (s *systemUserSuite) TestSuggestedFormat(c *C) {
 	fmtnum, err = asserts.SuggestFormat(asserts.SystemUserType, headers, nil)
 	c.Assert(err, IsNil)
 	c.Check(fmtnum, Equals, 1)
-}
 
-func (s *systemUserSuite) TestUserValidForPresenceNotSet(c *C) {
-	s.systemUserStr = strings.Replace(s.systemUserStr, s.userValidForLine, "", 1)
-	a, err := asserts.Decode([]byte(s.systemUserStr))
+	headers = map[string]interface{}{
+		"user-presence": "until-expiration",
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.SystemUserType, headers, nil)
 	c.Assert(err, IsNil)
-	c.Check(a.Type(), Equals, asserts.SystemUserType)
-	su := a.(*asserts.SystemUser)
-	c.Check(su.UserExpiration().IsZero(), Equals, true)
+	c.Check(fmtnum, Equals, 2)
 }

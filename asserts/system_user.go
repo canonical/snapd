@@ -230,10 +230,13 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 	return pw, nil
 }
 
-func checkSystemUserExpiration(headers map[string]interface{}) (string, error) {
-	str, err := checkOptionalString(headers, "user-presence")
+func checkSystemUserPresence(assert assertionBase) (string, error) {
+	str, err := checkOptionalString(assert.headers, "user-presence")
 	if err != nil || str == "" {
 		return "", err
+	}
+	if assert.Format() < 2 {
+		return "", fmt.Errorf(`the "user-presence" header is only supported for format 2 or greater`)
 	}
 
 	if str == "until-expiration" {
@@ -306,7 +309,7 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	if until.Before(since) {
 		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
 	}
-	expiration, err := checkSystemUserExpiration(assert.headers)
+	expiration, err := checkSystemUserPresence(assert)
 	if err != nil {
 		return nil, err
 	}
@@ -338,6 +341,14 @@ func systemUserFormatAnalyze(headers map[string]interface{}, body []byte) (forma
 	}
 	if len(serials) > 0 {
 		formatnum = 1
+	}
+
+	presence, err := checkOptionalString(headers, "user-presence")
+	if err != nil {
+		return 0, err
+	}
+	if presence != "" {
+		formatnum = 2
 	}
 
 	return formatnum, nil
