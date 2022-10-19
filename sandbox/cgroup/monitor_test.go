@@ -51,6 +51,8 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	retval := cgroup.MonitorFullDelete("test1", filelist, channel)
 	c.Assert(retval, IsNil)
 
+	time.Sleep(1 * time.Second)
+
 	err = os.Remove(folder2)
 	c.Assert(err, IsNil)
 
@@ -82,10 +84,6 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	err = os.Mkdir(folder2, fs.FileMode(os.O_RDWR))
 	c.Assert(err, IsNil)
 
-	folder3 := path.Join(tmpcontainer, "folder3")
-	err = os.Mkdir(folder3, fs.FileMode(os.O_RDWR))
-	c.Assert(err, IsNil)
-
 	filelist := []string{folder1, folder2}
 
 	channel := make(chan string)
@@ -93,11 +91,20 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	retval := cgroup.MonitorFullDelete("test2", filelist, channel)
 	c.Assert(retval, Equals, nil)
 
+	time.Sleep(1 * time.Second)
+
+	folder3 := path.Join(tmpcontainer, "folder3")
+	err = os.Mkdir(folder3, fs.FileMode(os.O_RDWR))
+	c.Assert(err, IsNil)
+
+	time.Sleep(1 * time.Second)
+
 	err = os.Remove(folder3)
 	c.Assert(err, IsNil)
 
 	// Wait for two seconds to ensure that nothing spurious
-	// is received from the channel due to removing folder3
+	// is received from the channel due to creating or
+	// removing folder3
 	for i := 0; i < 2; i++ {
 		select {
 		case <-channel:
