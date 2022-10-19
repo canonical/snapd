@@ -239,10 +239,10 @@ func checkSystemUserPresence(assert assertionBase) (string, error) {
 		return "", fmt.Errorf(`the "user-presence" header is only supported for format 2 or greater`)
 	}
 
-	if str == "until-expiration" {
-		return str, nil
+	if str != "until-expiration" {
+		return "", fmt.Errorf(`invalid "user-presence" header, only explicit valid value is "until-expiration": %q`, str)
 	}
-	return "", fmt.Errorf(`invalid "user-presence" header, only explicit valid value is "until-expiration": %q`, str)
+	return str, nil
 }
 
 func assembleSystemUser(assert assertionBase) (Assertion, error) {
