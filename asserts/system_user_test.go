@@ -97,6 +97,7 @@ func (s *systemUserSuite) TestDecodeOK(c *C) {
 	c.Check(systemUser.SSHKeys(), DeepEquals, []string{"ssh-rsa AAAABcdefg"})
 	c.Check(systemUser.Since().Equal(s.since), Equals, true)
 	c.Check(systemUser.Until().Equal(s.until), Equals, true)
+	c.Check(systemUser.UserExpiration().IsZero(), Equals, true)
 }
 
 func (s *systemUserSuite) TestDecodePasswd(c *C) {
