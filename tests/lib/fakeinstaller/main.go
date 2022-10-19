@@ -266,7 +266,7 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 			}
 			partNode = encryptedDevice
 		} else {
-			part, err := disk.FindMatchingPartitionWithPartLabel(volStruct.Label)
+			part, err := disk.FindMatchingPartitionWithPartLabel(volStruct.Name)
 			if err != nil {
 				return nil, err
 			}
