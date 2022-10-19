@@ -20,12 +20,11 @@
 package cgroup_test
 
 import (
-	"fmt"
-	"io/ioutil"
+	"io/fs"
 	"os"
+	"path"
 	"time"
 
-	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	. "gopkg.in/check.v1"
 )
@@ -35,18 +34,28 @@ type monitorSuite struct{}
 var _ = Suite(&monitorSuite{})
 
 func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
-	tmpfile, err := ioutil.TempFile("", "prefix")
+	tmpcontainer := c.MkDir()
+
+	folder1 := path.Join(tmpcontainer, "folder1")
+	err := os.Mkdir(folder1, fs.FileMode(os.O_RDWR))
 	c.Assert(err, IsNil)
 
-	filelist := []string{tmpfile.Name()}
+	folder2 := path.Join(tmpcontainer, "folder2")
+	err = os.Mkdir(folder2, fs.FileMode(os.O_RDWR))
+	c.Assert(err, IsNil)
+
+	filelist := []string{folder1}
 
 	channel := make(chan string)
 
 	retval := cgroup.MonitorFullDelete("test1", filelist, channel)
-	c.Assert(retval, Equals, nil)
+	c.Assert(retval, IsNil)
+
+	err = os.Remove(folder2)
+	c.Assert(err, IsNil)
 
 	// Wait for two seconds to ensure that nothing spurious
-	// is received from the channel
+	// is received from the channel due to removing folder2
 	for i := 0; i < 2; i++ {
 		select {
 		case <-channel:
@@ -56,27 +65,39 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 		}
 	}
 
-	err = os.Remove(tmpfile.Name())
+	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
 	event := <-channel
 	c.Assert(event, Equals, "test1")
 }
 
 func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
-	tmpfile1, err := ioutil.TempFile("", "prefix")
-	c.Assert(err, IsNil)
-	tmpfile2, err := ioutil.TempFile("", "prefix")
+	tmpcontainer := c.MkDir()
+
+	folder1 := path.Join(tmpcontainer, "folder1")
+	err := os.Mkdir(folder1, fs.FileMode(os.O_RDWR))
 	c.Assert(err, IsNil)
 
-	filelist := []string{tmpfile1.Name(), tmpfile2.Name()}
+	folder2 := path.Join(tmpcontainer, "folder2")
+	err = os.Mkdir(folder2, fs.FileMode(os.O_RDWR))
+	c.Assert(err, IsNil)
+
+	folder3 := path.Join(tmpcontainer, "folder3")
+	err = os.Mkdir(folder3, fs.FileMode(os.O_RDWR))
+	c.Assert(err, IsNil)
+
+	filelist := []string{folder1, folder2}
 
 	channel := make(chan string)
 
 	retval := cgroup.MonitorFullDelete("test2", filelist, channel)
 	c.Assert(retval, Equals, nil)
 
+	err = os.Remove(folder3)
+	c.Assert(err, IsNil)
+
 	// Wait for two seconds to ensure that nothing spurious
-	// is received from the channel
+	// is received from the channel due to removing folder3
 	for i := 0; i < 2; i++ {
 		select {
 		case <-channel:
@@ -85,7 +106,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 			continue
 		}
 	}
-	err = os.Remove(tmpfile1.Name())
+	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
 	// Only one file has been removed, so wait two seconds
 	// two ensure that nothing spurious is received from
@@ -98,7 +119,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 			continue
 		}
 	}
-	err = os.Remove(tmpfile2.Name())
+	err = os.Remove(folder2)
 	c.Assert(err, IsNil)
 
 	// All files have been deleted, so NOW we must receive
@@ -108,9 +129,11 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 }
 
 func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
-	filename := fmt.Sprintf("aFileNameThatDoesntExist%s", randutil.RandomString(10))
+	tmpcontainer := c.MkDir()
 
-	filelist := []string{filename}
+	folder1 := path.Join(tmpcontainer, "folder1")
+
+	filelist := []string{folder1}
 
 	channel := make(chan string)
 	retval := cgroup.MonitorFullDelete("test3", filelist, channel)
