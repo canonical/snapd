@@ -92,6 +92,7 @@
 %{!?_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
 %{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
 %{!?_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
+%{!?_tmpfilesdir: %global _tmpfilesdir %{_prefix}/lib/tmpfiles.d}
 
 # Fedora selinux-policy includes 'map' permission on a 'file' class. However,
 # Amazon Linux 2 does not have the updated policy containing the fix for
@@ -619,6 +620,7 @@ install -d -p %{buildroot}%{_mandir}/man8
 install -d -p %{buildroot}%{_environmentdir}
 install -d -p %{buildroot}%{_systemdgeneratordir}
 install -d -p %{buildroot}%{_systemd_system_env_generator_dir}
+install -d -p %{buildroot}%{_tmpfilesdir}
 install -d -p %{buildroot}%{_unitdir}
 install -d -p %{buildroot}%{_userunitdir}
 install -d -p %{buildroot}%{_sysconfdir}/profile.d
@@ -824,6 +826,7 @@ popd
 %{_sysconfdir}/profile.d/snapd.sh
 %{_mandir}/man8/snapd-env-generator.8*
 %{_systemd_system_env_generator_dir}/snapd-env-generator
+%{_tmpfilesdir}/snapd.conf
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.autoimport.service
