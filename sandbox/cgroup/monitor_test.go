@@ -20,7 +20,6 @@
 package cgroup_test
 
 import (
-	"io/fs"
 	"os"
 	"path"
 	"time"
@@ -37,11 +36,11 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	tmpcontainer := c.MkDir()
 
 	folder1 := path.Join(tmpcontainer, "folder1")
-	err := os.Mkdir(folder1, fs.FileMode(os.O_RDWR))
+	err := os.Mkdir(folder1, 0755)
 	c.Assert(err, IsNil)
 
 	folder2 := path.Join(tmpcontainer, "folder2")
-	err = os.Mkdir(folder2, fs.FileMode(os.O_RDWR))
+	err = os.Mkdir(folder2, 0755)
 	c.Assert(err, IsNil)
 
 	filelist := []string{folder1}
@@ -77,11 +76,11 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	tmpcontainer := c.MkDir()
 
 	folder1 := path.Join(tmpcontainer, "folder1")
-	err := os.Mkdir(folder1, fs.FileMode(os.O_RDWR))
+	err := os.Mkdir(folder1, 0755)
 	c.Assert(err, IsNil)
 
 	folder2 := path.Join(tmpcontainer, "folder2")
-	err = os.Mkdir(folder2, fs.FileMode(os.O_RDWR))
+	err = os.Mkdir(folder2, 0755)
 	c.Assert(err, IsNil)
 
 	filelist := []string{folder1, folder2}
@@ -94,7 +93,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	time.Sleep(1 * time.Second)
 
 	folder3 := path.Join(tmpcontainer, "folder3")
-	err = os.Mkdir(folder3, fs.FileMode(os.O_RDWR))
+	err = os.Mkdir(folder3, 0755)
 	c.Assert(err, IsNil)
 
 	time.Sleep(1 * time.Second)
