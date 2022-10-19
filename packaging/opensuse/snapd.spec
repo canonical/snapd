@@ -47,6 +47,7 @@
 %{?!_systemdusergeneratordir: %global _systemdusergeneratordir %{_prefix}/lib/systemd/user-generators}
 %{?!_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
 %{?!_systemd_user_env_generator_dir: %global _systemd_user_env_generator_dir %{_prefix}/lib/systemd/user-environment-generators}
+%{!?_tmpfilesdir: %global _tmpfilesdir %{_prefix}/lib/tmpfiles.d}
 
 # This is fixed in SUSE Linux 15
 # Cf. https://build.opensuse.org/package/rdiff/Base:System/rpm?linkrev=base&rev=396
@@ -416,6 +417,7 @@ fi
 %dir %{_sharedstatedir}/snapd/sequence
 %dir %{_sharedstatedir}/snapd/snaps
 %dir %{_systemd_system_env_generator_dir}
+%dir %{_tmpfilesdir}
 %dir %{_systemdgeneratordir}
 %dir %{_userunitdir}
 %dir %{snap_mount_dir}
@@ -474,6 +476,7 @@ fi
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %{_systemd_system_env_generator_dir}/snapd-env-generator
 %{_systemdgeneratordir}/snapd-generator
+%{_tmpfilesdir}/snapd.conf
 %{_unitdir}/snapd.failure.service
 %{_unitdir}/snapd.seeded.service
 %{_unitdir}/snapd.service
