@@ -20,7 +20,7 @@
 package cgroup
 
 import (
-	"github.com/snapcore/snapd/sandbox/cgroup/inotify"
+	"github.com/snapcore/snapd/osutil/inotify"
 )
 
 type inotifyWatcher struct {

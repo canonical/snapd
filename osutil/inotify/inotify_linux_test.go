@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/snapcore/snapd/sandbox/cgroup/inotify"
+	"github.com/snapcore/snapd/osutil/inotify"
 )
 
 func TestInotifyEvents(t *testing.T) {
