@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/httputil"
@@ -33,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
@@ -57,6 +60,8 @@ const maxInhibition = 14*24*time.Hour - time.Second
 
 // maxDuration is used to represent "forever" internally (it's 290 years).
 const maxDuration = time.Duration(1<<63 - 1)
+
+var refresherMutex sync.Mutex
 
 // hooks setup by devicestate
 var (
@@ -594,6 +599,43 @@ var asyncPendingRefreshNotification = func(context context.Context, client *user
 	}()
 }
 
+// Adds a Snap to the list of snaps to monitor when all their instances
+// are closed. When that happens, the name of that snap is sent through
+// the channel.
+var MonitorSnap = func(snapName string, monitorChannel chan string) {
+	fmt.Println("Entering old function")
+	cgroup.MonitorSnapEnded(snapName, monitorChannel)
+}
+
+// Sends the 'refresh' command for a snap after StatusChecker has detected
+// that all the instances have been closed
+// When it ends, it sends the result of the command through workerChannel,
+// to notify the main thread that the operation has ended and that another
+// refresh can be launched. This allows to serialize several refreshes,
+// avoiding to launch all of them at the same time.
+var RefreshSnap = func(snapName string) {
+	cmd := exec.Command("snap", "refresh", snapName)
+	cmd.Run()
+}
+
+// Monitors an specific snap to detect when it has been closed by
+// the user, and trigger a new `refresh` operation.
+// It MUST be launched as a gorutine, because it can block
+func MonitorSnapForEnding(snapName string) {
+	fmt.Println("Entering 1")
+	monitorChannel := make(chan string)
+	MonitorSnap(snapName, monitorChannel)
+	<-monitorChannel
+	refresherMutex.Lock()
+	defer func() {
+		refresherMutex.Unlock()
+		if e := recover(); e != nil {
+			logger.Debugf("Recovered from panic while refreshing snap %s", snapName)
+		}
+	}()
+	RefreshSnap(snapName)
+}
+
 // inhibitRefresh returns an error if refresh is inhibited by running apps.
 //
 // Internally the snap state is updated to remember when the inhibition first
@@ -639,6 +681,10 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 		// now, by not setting the TimeRemaining field of the refresh
 		// notification message.
 		checkerErr = nil
+	}
+
+	if checkerErr != nil {
+		go MonitorSnapForEnding(info.InstanceName())
 	}
 
 	// Send the notification asynchronously to avoid holding the state lock.

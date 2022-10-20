@@ -91,11 +91,23 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 	return nil, nil, r.err
 }
 
+type monitorDataDbg struct {
+	command string
+	data    string
+}
+
+type statusMonitorData struct {
+	refreshChannel chan monitorDataDbg
+	monitorChannel chan monitorDataDbg
+	waitForCommand func(chan monitorDataDbg, int) *monitorDataDbg
+	sendCommand    func(chan monitorDataDbg, string, string)
+}
+
 type autoRefreshTestSuite struct {
 	testutil.BaseTest
-	state *state.State
-
-	store *autoRefreshStore
+	state     *state.State
+	stMonitor statusMonitorData
+	store     *autoRefreshStore
 }
 
 var _ = Suite(&autoRefreshTestSuite{})
@@ -110,6 +122,30 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(func() { s.store.snapActionOpsFunc = nil })
 
+	s.stMonitor.monitorChannel = make(chan monitorDataDbg)
+	s.stMonitor.refreshChannel = make(chan monitorDataDbg)
+
+	s.stMonitor.waitForCommand = func(channel chan monitorDataDbg, timeout int) *monitorDataDbg {
+		var command monitorDataDbg
+		for timeout != 0 {
+			select {
+			case command = <-channel:
+				return &command
+			default:
+				time.Sleep(time.Second)
+				timeout--
+			}
+		}
+		return nil
+	}
+
+	s.stMonitor.sendCommand = func(channel chan monitorDataDbg, command string, data string) {
+		msg := monitorDataDbg{
+			command: command,
+			data:    data,
+		}
+		channel <- msg
+	}
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.store)
@@ -1008,4 +1044,50 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(notificationCount, Equals, 1)
+}
+
+func (s autoRefreshTestSuite) TestMonitorAutoRefresh(c *C) {
+	oldMonitorSnap := snapstate.MonitorSnap
+	oldRefreshSnap := snapstate.RefreshSnap
+	defer func() {
+		snapstate.MonitorSnap = oldMonitorSnap
+		snapstate.RefreshSnap = oldRefreshSnap
+	}()
+	snapstate.MonitorSnap = func(snapName string, channel chan string) {
+		go func() {
+			// notify which snap have received
+			s.stMonitor.sendCommand(s.stMonitor.monitorChannel, "monitorSnap", snapName)
+			// and wait for the test to tell us what to send
+			cmd := s.stMonitor.waitForCommand(s.stMonitor.monitorChannel, -1)
+			channel <- cmd.data
+		}()
+	}
+	snapstate.RefreshSnap = func(snapName string) {
+		go func() {
+			// notify which snap have received
+			s.stMonitor.sendCommand(s.stMonitor.refreshChannel, "refreshSnap", snapName)
+			// and wait for the test to tell us what to send
+			s.stMonitor.waitForCommand(s.stMonitor.refreshChannel, -1)
+		}()
+	}
+
+	// monitor a snap called "testsnap"
+	go snapstate.MonitorSnapForEnding("testsnap")
+
+	// the refresh function must not be called yet
+	rsp := s.stMonitor.waitForCommand(s.stMonitor.refreshChannel, 5)
+	c.Assert(rsp, IsNil)
+
+	rsp = s.stMonitor.waitForCommand(s.stMonitor.monitorChannel, 5)
+	c.Assert(rsp, NotNil)
+	c.Assert(rsp.data, Equals, "testsnap")
+
+	// go ahead
+	s.stMonitor.sendCommand(s.stMonitor.monitorChannel, "", "testsnap")
+
+	rsp = s.stMonitor.waitForCommand(s.stMonitor.refreshChannel, 5)
+	c.Assert(rsp, NotNil)
+	c.Assert(rsp.data, Equals, "testsnap")
+	// go ahead
+	s.stMonitor.sendCommand(s.stMonitor.refreshChannel, "", "")
 }
