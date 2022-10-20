@@ -957,7 +957,7 @@ func (s *userSuite) TestPostCreateUserExpirationHappy(c *check.C) {
 	defer daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string, expiration time.Time) (*devicestate.CreatedUser, error) {
 		c.Check(email, check.Equals, expectedEmail)
 		c.Check(sudoer, check.Equals, false)
-		c.Check(expiration, check.Equals, expectedTime)
+		c.Check(expiration.Equal(expectedTime), check.Equals, true)
 		expected := &devicestate.CreatedUser{
 			Username: expectedUsername,
 			SSHKeys: []string{
