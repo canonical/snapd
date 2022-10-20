@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,18 +20,21 @@
 package configcore_test
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type faillockSuite struct {
 	configcoreSuite
+
+	markerPath string
 }
 
 var _ = Suite(&faillockSuite{})
@@ -39,7 +42,8 @@ var _ = Suite(&faillockSuite{})
 func (s *faillockSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/writable"), 0755)
+	s.markerPath = filepath.Join(dirs.GlobalRootDir, "/etc/writable/faillock.enabled")
+	err := os.MkdirAll(filepath.Dir(s.markerPath), 0755)
 	c.Assert(err, IsNil)
 }
 
@@ -49,9 +53,7 @@ func (s *faillockSuite) TestFaillockSetTrue(c *C) {
 		conf:  map[string]interface{}{"system.faillock": "true"},
 	})
 	c.Assert(err, IsNil)
-
-	marker := filepath.Join(dirs.GlobalRootDir, "/etc/writable/faillock.enabled")
-	c.Assert(osutil.FileExists(marker), Equals, true)
+	c.Check(s.markerPath, testutil.FilePresent)
 }
 
 func (s *faillockSuite) TestFaillockSetFalse(c *C) {
@@ -60,20 +62,37 @@ func (s *faillockSuite) TestFaillockSetFalse(c *C) {
 		conf:  map[string]interface{}{"system.faillock": "false"},
 	})
 	c.Assert(err, IsNil)
-
-	marker := filepath.Join(dirs.GlobalRootDir, "/etc/writable/faillock.enabled")
-	c.Assert(osutil.FileExists(marker), Equals, false)
+	c.Check(s.markerPath, testutil.FileAbsent)
 }
 
 func (s *faillockSuite) TestFaillockSetFalseReset(c *C) {
-	marker := filepath.Join(dirs.GlobalRootDir, "/etc/writable/faillock.enabled")
-	markerFd, err := os.Create(marker)
+	err := ioutil.WriteFile(s.markerPath, nil, 0644)
 	c.Assert(err, IsNil)
-	markerFd.Close()
+
 	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"system.faillock": "false"},
 	})
+	c.Assert(err, IsNil)
+	c.Check(s.markerPath, testutil.FileAbsent)
+}
 
-	c.Assert(osutil.FileExists(marker), Equals, false)
+func (s *faillockSuite) TestFaillockHandlesErrors(c *C) {
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		conf:  map[string]interface{}{"system.faillock": "invalid-value"},
+	})
+	c.Assert(err, ErrorMatches, "system.faillock can only be set to 'true' or 'false'")
+}
+
+func (s *faillockSuite) TestFaillockUnsetChangeNothing(c *C) {
+	err := ioutil.WriteFile(s.markerPath, nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		conf:  map[string]interface{}{"system.faillock": ""},
+	})
+	c.Assert(err, IsNil)
+	c.Check(s.markerPath, testutil.FilePresent)
 }

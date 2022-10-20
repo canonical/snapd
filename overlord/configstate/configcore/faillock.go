@@ -21,6 +21,7 @@ package configcore
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -37,7 +38,7 @@ func validateFaillockSettings(tr config.ConfGetter) error {
 	return validateBoolFlag(tr, "system.faillock")
 }
 
-func handleFaillockConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleFaillockConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	faillock, err := coreCfg(tr, "system.faillock")
 	if err != nil {
 		return err
@@ -47,18 +48,14 @@ func handleFaillockConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts 
 
 	switch faillock {
 	case "":
+		// nothing to do if unset
 	case "true":
-		markerFile, err := os.OpenFile(marker, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-		if err == nil {
-			markerFile.Close()
-		} else if !os.IsExist(err) {
+		if err := ioutil.WriteFile(marker, nil, 0644); err != nil {
 			return err
 		}
 	case "false":
-		if err := os.Remove(marker); err != nil {
-			if !os.IsNotExist(err) {
-				return err
-			}
+		if err := os.Remove(marker); err != nil && !os.IsNotExist(err) {
+			return err
 		}
 	default:
 		return fmt.Errorf("unsupported system.faillock value: %q", faillock)
