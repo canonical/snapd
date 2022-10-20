@@ -106,7 +106,7 @@ func watcherMainLoop() {
 
 // MonitorFullDelete allows to monitor a group of files/folders
 // and, when all of them have been deleted, emits the specified name through the channel.
-func MonitorFullDelete(name string, folders []string, channel chan string) error {
+func monitorFullDelete(name string, folders []string, channel chan string) error {
 	if currentWatcher.wd == nil {
 		wd, err := inotify.NewWatcher()
 		if err != nil {
@@ -134,5 +134,5 @@ func MonitorSnapEnded(snapName string, channel chan string) error {
 		ReturnCGroupPath: true,
 	}
 	paths, _ := InstancePathsOfSnap(snapName, options)
-	return MonitorFullDelete(snapName, paths, channel)
+	return monitorFullDelete(snapName, paths, channel)
 }
