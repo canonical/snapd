@@ -76,41 +76,6 @@ func init() {
 		}), nil)
 }
 
-func (iw *infoWriter) maybePrintHealth() {
-	if iw.localSnap == nil {
-		return
-	}
-	health := iw.localSnap.Health
-	if health == nil {
-		if !iw.verbose {
-			return
-		}
-		health = &client.SnapHealth{
-			Status:  "unknown",
-			Message: "health has not been set",
-		}
-	}
-	if health.Status == "okay" && !iw.verbose {
-		return
-	}
-
-	fmt.Fprintln(iw, "health:")
-	fmt.Fprintf(iw, "  status:\t%s\n", health.Status)
-	if health.Message != "" {
-		strutil.WordWrap(iw, quotedIfNeeded(health.Message), "  message:\t", "    ", iw.termWidth)
-	}
-	if health.Code != "" {
-		fmt.Fprintf(iw, "  code:\t%s\n", health.Code)
-	}
-	if !health.Timestamp.IsZero() {
-		fmt.Fprintf(iw, "  checked:\t%s\n", iw.fmtTime(health.Timestamp))
-	}
-	if !health.Revision.Unset() {
-		fmt.Fprintf(iw, "  revision:\t%s\n", health.Revision)
-	}
-	iw.Flush()
-}
-
 func clientSnapFromPath(path string) (*client.Snap, error) {
 	snapf, err := snapfile.Open(path)
 	if err != nil {
@@ -247,6 +212,41 @@ func (iw *infoWriter) maybePrintID() {
 	if iw.theSnap.ID != "" {
 		fmt.Fprintf(iw, "snap-id:\t%s\n", iw.theSnap.ID)
 	}
+}
+
+func (iw *infoWriter) maybePrintHealth() {
+	if iw.localSnap == nil {
+		return
+	}
+	health := iw.localSnap.Health
+	if health == nil {
+		if !iw.verbose {
+			return
+		}
+		health = &client.SnapHealth{
+			Status:  "unknown",
+			Message: "health has not been set",
+		}
+	}
+	if health.Status == "okay" && !iw.verbose {
+		return
+	}
+
+	fmt.Fprintln(iw, "health:")
+	fmt.Fprintf(iw, "  status:\t%s\n", health.Status)
+	if health.Message != "" {
+		strutil.WordWrap(iw, quotedIfNeeded(health.Message), "  message:\t", "    ", iw.termWidth)
+	}
+	if health.Code != "" {
+		fmt.Fprintf(iw, "  code:\t%s\n", health.Code)
+	}
+	if !health.Timestamp.IsZero() {
+		fmt.Fprintf(iw, "  checked:\t%s\n", iw.fmtTime(health.Timestamp))
+	}
+	if !health.Revision.Unset() {
+		fmt.Fprintf(iw, "  revision:\t%s\n", health.Revision)
+	}
+	iw.Flush()
 }
 
 func (iw *infoWriter) maybePrintTrackingChannel() {
