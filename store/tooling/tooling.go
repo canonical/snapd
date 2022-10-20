@@ -314,8 +314,8 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 
 	actions := make([]*store.SnapAction, 0, len(toDownload))
 	for _, sn := range toDownload {
-		// One cannot specify both a channel and specific revision. If a specific
-		// revision is requested then this trump's the channel.
+		// One cannot specify both a channel and specific revision. The store
+		// will return an error if do this.
 		downloadChannel := func() string {
 			if sn.Revision.N != 0 {
 				return ""
