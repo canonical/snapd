@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -77,4 +78,30 @@ func (s *manifestSuite) TestReadSeedManifestNoFile(c *C) {
 	c.Assert(err, NotNil)
 	c.Check(snapRevs, IsNil)
 	c.Check(err, ErrorMatches, `cannot read seed manifest: open noexists.manifest: no such file or directory`)
+}
+
+func (s *manifestSuite) testWriteSeedManifest(c *C, revisions map[string]int) string {
+	manifestFile := filepath.Join(s.root, "seed.manifest")
+	err := image.WriteSeedManifest(manifestFile, revisions)
+	c.Assert(err, IsNil)
+	return manifestFile
+}
+
+func (s *manifestSuite) TestWriteSeedManifestNoFile(c *C) {
+	filePath := s.testWriteSeedManifest(c, map[string]int{})
+	c.Check(osutil.FileExists(filePath), Equals, false)
+}
+
+func (s *manifestSuite) TestWriteSeedManifest(c *C) {
+	filePath := s.testWriteSeedManifest(c, map[string]int{"core": 1, "test": 14})
+	contents, err := ioutil.ReadFile(filePath)
+	c.Assert(err, IsNil)
+	c.Check(string(contents), Equals, `core 1.snap
+test 14.snap
+`)
+}
+
+func (s *manifestSuite) TestWriteSeedManifestInvalidRevision(c *C) {
+	err := image.WriteSeedManifest("", map[string]int{"core": 0})
+	c.Assert(err, ErrorMatches, `invalid revision 0 given for snap "core", revision must be a positive value`)
 }
