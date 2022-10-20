@@ -129,7 +129,7 @@ execute: |
     test -e "$IMAGE/var/lib/snapd/seed/snaps/core_1.snap"
     test -e "$IMAGE/var/lib/snapd/seed/snaps/pc_1.snap"
     test -e "$IMAGE/var/lib/snapd/seed/snaps/pc-kernel_1.snap"
-    test -e "$IMAGE/var/lib/snapd/seed/snaps/test-snapd-sh_22.snap"
+    test -e "$IMAGE/var/lib/snapd/seed/snaps/test-snapd-sh_23.snap"
     
     echo Verifying that the store acknowledged we requested the expected revisions
     journalctl -u fakestore | grep 'requested snap "core" revision 1'
