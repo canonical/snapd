@@ -62,8 +62,15 @@ func ReadSeedManifest(manifestFile string) (map[string]int, error) {
 // WriteSeedManifest generates the seed.manifest contents from the provided map of
 // snaps and their revisions, and stores in the the file path provided
 func WriteSeedManifest(filePath string, revisions map[string]int) error {
+	if len(revisions) == 0 {
+		return nil
+	}
+
 	var sb strings.Builder
 	for key, value := range revisions {
+		if value <= 0 {
+			return fmt.Errorf("invalid revision %d given for snap %q, revision must be a positive value", value, key)
+		}
 		sb.WriteString(fmt.Sprintf("%s %d.snap\n", key, value))
 	}
 	return ioutil.WriteFile(filePath, []byte(sb.String()), 0755)
