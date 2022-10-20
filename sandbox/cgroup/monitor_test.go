@@ -70,6 +70,7 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	c.Assert(err, IsNil)
 	event := <-channel
 	c.Assert(event, Equals, "test1")
+	close(channel)
 }
 
 func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
@@ -132,6 +133,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	// something from the channel
 	event := <-channel
 	c.Assert(event, Equals, "test2")
+	close(channel)
 }
 
 func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
@@ -146,6 +148,7 @@ func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 	c.Assert(retval, Equals, nil)
 	event := <-channel
 	c.Assert(event, Equals, "test3")
+	close(channel)
 }
 
 func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
@@ -226,4 +229,6 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 		}
 	}
 	c.Assert(receivedEvent, Equals, "test4b")
+	close(channel1)
+	close(channel2)
 }
