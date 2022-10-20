@@ -42,7 +42,7 @@ var _ = Suite(&faillockSuite{})
 func (s *faillockSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	s.markerPath = filepath.Join(dirs.GlobalRootDir, "/etc/writable/faillock.enabled")
+	s.markerPath = filepath.Join(dirs.GlobalRootDir, "/etc/writable/account-lockout.enabled")
 	err := os.MkdirAll(filepath.Dir(s.markerPath), 0755)
 	c.Assert(err, IsNil)
 }

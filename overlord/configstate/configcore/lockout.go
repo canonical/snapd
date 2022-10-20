@@ -44,7 +44,7 @@ func handleFaillockConfiguration(dev sysconfig.Device, tr config.ConfGetter, opt
 		return err
 	}
 
-	marker := filepath.Join(dirs.GlobalRootDir, "/etc/writable/faillock.enabled")
+	marker := filepath.Join(dirs.GlobalRootDir, "/etc/writable/account-lockout.enabled")
 
 	switch faillock {
 	case "":
