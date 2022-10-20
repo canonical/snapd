@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -364,13 +365,27 @@ func (iw *infoWriter) maybePrintBuildDate() {
 	fmt.Fprintf(iw, "build-date:\t%s\n", iw.fmtTime(buildDate))
 }
 
-func (iw *infoWriter) maybePrintContact() error {
+func (iw *infoWriter) maybePrintLinks() {
 	contact := strings.TrimPrefix(iw.theSnap.Contact, "mailto:")
-	if contact == "" {
-		return nil
+	if contact != "" {
+		fmt.Fprintf(iw, "contact:\t%s\n", contact)
 	}
-	_, err := fmt.Fprintf(iw, "contact:\t%s\n", contact)
-	return err
+	if !iw.verbose || len(iw.theSnap.Links) == 0 {
+		return
+	}
+	links := iw.theSnap.Links
+	fmt.Fprintln(iw, "links:")
+	linkKeys := make([]string, 0, len(iw.theSnap.Links))
+	for k := range links {
+		linkKeys = append(linkKeys, k)
+	}
+	sort.Strings(linkKeys)
+	for _, k := range linkKeys {
+		fmt.Fprintf(iw, "  %s:\n", k)
+		for _, v := range links[k] {
+			fmt.Fprintf(iw, "    - %s\n", v)
+		}
+	}
 }
 
 func (iw *infoWriter) printLicense() {
@@ -644,7 +659,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.maybePrintStoreURL()
 		iw.maybePrintStandaloneVersion()
 		iw.maybePrintBuildDate()
-		iw.maybePrintContact()
+		iw.maybePrintLinks()
 		iw.printLicense()
 		iw.maybePrintPrice()
 		iw.printDescr()
