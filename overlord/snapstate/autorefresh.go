@@ -603,7 +603,6 @@ var asyncPendingRefreshNotification = func(context context.Context, client *user
 // are closed. When that happens, the name of that snap is sent through
 // the channel.
 var MonitorSnap = func(snapName string, monitorChannel chan string) {
-	fmt.Println("Entering old function")
 	cgroup.MonitorSnapEnded(snapName, monitorChannel)
 }
 
@@ -622,7 +621,6 @@ var RefreshSnap = func(snapName string) {
 // the user, and trigger a new `refresh` operation.
 // It MUST be launched as a gorutine, because it can block
 func MonitorSnapForEnding(snapName string) {
-	fmt.Println("Entering 1")
 	monitorChannel := make(chan string)
 	MonitorSnap(snapName, monitorChannel)
 	<-monitorChannel
