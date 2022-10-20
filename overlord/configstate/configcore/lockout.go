@@ -31,15 +31,15 @@ import (
 )
 
 func init() {
-	supportedConfigurations["core.system.faillock"] = true
+	supportedConfigurations["core.users.lockout"] = true
 }
 
 func validateFaillockSettings(tr config.ConfGetter) error {
-	return validateBoolFlag(tr, "system.faillock")
+	return validateBoolFlag(tr, "users.lockout")
 }
 
 func handleFaillockConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
-	faillock, err := coreCfg(tr, "system.faillock")
+	faillock, err := coreCfg(tr, "users.lockout")
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func handleFaillockConfiguration(dev sysconfig.Device, tr config.ConfGetter, opt
 			return err
 		}
 	default:
-		return fmt.Errorf("unsupported system.faillock value: %q", faillock)
+		return fmt.Errorf("unsupported users.lockout value: %q", faillock)
 	}
 
 	return nil
