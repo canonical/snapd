@@ -260,7 +260,7 @@ func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.M
 		Password:            su.Password(),
 		ForcePasswordChange: su.ForcePasswordChange(),
 	}
-	return su.Username(), su.Expiration(timeNow()), opts, nil
+	return su.Username(), su.UserExpiration(), opts, nil
 }
 
 func setupLocalUser(state *state.State, username, email string, expiration time.Time) error {

@@ -452,31 +452,18 @@ var unknownUser = map[string]interface{}{
 }
 
 var expireUser = map[string]interface{}{
-	"authority-id":   "my-brand",
-	"brand-id":       "my-brand",
-	"email":          "foo@bar.com",
-	"series":         []interface{}{"16", "18"},
-	"models":         []interface{}{"my-model", "other-model"},
-	"name":           "Boring Guy",
-	"username":       "guy",
-	"password":       "$6$salt$hash",
-	"user-valid-for": "until-expiration",
-	"since":          time.Now().Format(time.RFC3339),
-	"until":          time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-}
-
-var durationUser = map[string]interface{}{
-	"authority-id":   "my-brand",
-	"brand-id":       "my-brand",
-	"email":          "foo@bar.com",
-	"series":         []interface{}{"16", "18"},
-	"models":         []interface{}{"my-model", "other-model"},
-	"name":           "Boring Guy",
-	"username":       "guy",
-	"password":       "$6$salt$hash",
-	"user-valid-for": "24h",
-	"since":          time.Now().Format(time.RFC3339),
-	"until":          time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+	"format":        "2",
+	"authority-id":  "my-brand",
+	"brand-id":      "my-brand",
+	"email":         "foo@bar.com",
+	"series":        []interface{}{"16", "18"},
+	"models":        []interface{}{"my-model", "other-model"},
+	"name":          "Boring Guy",
+	"username":      "guy",
+	"password":      "$6$salt$hash",
+	"user-presence": "until-expiration",
+	"since":         time.Now().Format(time.RFC3339),
+	"until":         time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
 func (s *usersSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
@@ -512,25 +499,6 @@ func (s *usersSuite) TestCreateUserExpireFromAssertion(c *check.C) {
 	until, err := time.Parse(time.RFC3339, expireUser["until"].(string))
 	c.Assert(err, check.IsNil)
 	c.Check(users[0].Expiration, check.Equals, until)
-}
-
-func (s *usersSuite) TestCreateUserDurationFromAssertion(c *check.C) {
-	// In order to do an exact calculation of the expiration date
-	// for duration values, we must mock the current time call. Strip
-	// the monotonic clock away as this will interfere with the test.
-	creationTime := time.Now().Round(0)
-
-	// No reason to validate this was called, if it isn't the expiration
-	// time will not be correct
-	restore := devicestate.MockTimeNow(func() time.Time {
-		return creationTime
-	})
-	defer restore()
-
-	s.makeSystemUsers(c, []map[string]interface{}{durationUser})
-	users := s.createUserFromAssertion(c, false)
-	c.Assert(len(users), check.Equals, 1)
-	c.Check(users[0].Expiration, check.Equals, creationTime.Add(time.Hour*24))
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionWithForcePasswordChange(c *check.C) {
