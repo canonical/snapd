@@ -27,7 +27,8 @@ import (
 var errNotSupported = fmt.Errorf("watch not supported on %s", runtime.GOOS)
 
 const (
-	InDelete uint32 = 0
+	InDelete     uint32 = 0
+	InDeleteSelf uint32 = 0
 )
 
 // NewWatcher creates and returns a new inotify instance using inotify_init(2)
