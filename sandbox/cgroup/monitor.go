@@ -20,9 +20,6 @@
 package cgroup
 
 import (
-	"path"
-
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/cgroup/inotify"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -39,20 +36,12 @@ func MonitorFullDelete(name string, folders []string, channel chan string) error
 	var tmpFolders []string
 
 	for _, fullPath := range folders {
-		basePath := path.Dir(fullPath)
-		if !strutil.ListContains(toMonitor, basePath) {
-			err := wd.AddWatch(basePath, inotify.InDelete)
+		if !strutil.ListContains(toMonitor, fullPath) {
+			err := wd.AddWatch(fullPath, inotify.InDeleteSelf)
 			if err != nil {
-				wd.Close()
-				return err
+				continue
 			}
-			toMonitor = append(toMonitor, basePath)
-		}
-		// add first the parent folder to the monitor, and only then check if the
-		// child file/folder does exist. This ensures that there is no race
-		// condition if the file/folder is removed between both steps.
-		if !osutil.FileExists(fullPath) {
-			continue
+			toMonitor = append(toMonitor, fullPath)
 		}
 		tmpFolders = append(tmpFolders, fullPath)
 	}
@@ -61,7 +50,7 @@ func MonitorFullDelete(name string, folders []string, channel chan string) error
 	go func() {
 		for len(folders) != 0 {
 			event := <-wd.Event
-			if event.Mask&inotify.InDelete == 0 {
+			if event.Mask&inotify.InDeleteSelf == 0 {
 				continue
 			}
 			var tmpFolders []string
