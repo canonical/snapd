@@ -102,9 +102,9 @@ execute: |
     # we give to them, as the fake store does not handle requests of specific revisions. Currently
     # the fake-store will just return whatever revision there is.
     echo "Adding snaps to the fake store"
-    make_snap_installable_with_id "$STORE_DIR" $(ls core_*.snap) 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
-    make_snap_installable_with_id "$STORE_DIR" $(ls pc_*.snap) UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
-    make_snap_installable_with_id "$STORE_DIR" $(ls pc-kernel_*.snap) pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+    make_snap_installable_with_id "$STORE_DIR" "$(ls core_*.snap)" 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+    make_snap_installable_with_id "$STORE_DIR" "$(ls pc_*.snap)" UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
+    make_snap_installable_with_id "$STORE_DIR" "$(ls pc-kernel_*.snap)" pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
     install_snap_to_fakestore test-snapd-sh 23
 
     # Write the lists of revisions we want to get from the fake-store. We have purposely
@@ -123,7 +123,7 @@ execute: |
     # verify that we are able to send a specific revision to the store.
     export SNAPPY_FORCE_API_URL=http://$STORE_ADDR
     echo Running prepare-image
-    snap prepare-image --channel edge --snap test-snapd-sh --revisions $ROOT/seed.manifest $TESTSLIB/assertions/developer1-pc.model $ROOT
+    snap prepare-image --channel edge --snap test-snapd-sh --revisions "$ROOT"/seed.manifest "$TESTSLIB"/assertions/developer1-pc.model $ROOT
     
     echo Verifying the expected revisions were retrieved
     test -e "$IMAGE/var/lib/snapd/seed/snaps/core_1.snap"
