@@ -21,49 +21,106 @@ package cgroup
 
 import (
 	"github.com/snapcore/snapd/sandbox/cgroup/inotify"
-	"github.com/snapcore/snapd/strutil"
 )
+
+type inotifyWatcher struct {
+	wd        *inotify.Watcher
+	addWatch  chan *groupToWatch
+	groupList []*groupToWatch
+	pathList  map[string]int32
+}
+
+type groupToWatch struct {
+	name    string
+	folders []string
+	channel chan string
+}
+
+var currentWatcher *inotifyWatcher = &inotifyWatcher{
+	wd:       nil,
+	pathList: make(map[string]int32),
+	addWatch: make(chan *groupToWatch),
+}
+
+func addWatch(newWatch *groupToWatch) {
+	var folderList []string
+	for _, fullPath := range newWatch.folders {
+		if _, exists := currentWatcher.pathList[fullPath]; !exists {
+			currentWatcher.pathList[fullPath] = 0
+			if err := currentWatcher.wd.AddWatch(fullPath, inotify.InDeleteSelf); err != nil {
+				delete(currentWatcher.pathList, fullPath)
+				continue
+			}
+			folderList = append(folderList, fullPath)
+		}
+		currentWatcher.pathList[fullPath]++
+	}
+	if len(folderList) == 0 {
+		newWatch.channel <- newWatch.name
+	} else {
+		newWatch.folders = folderList
+		currentWatcher.groupList = append(currentWatcher.groupList, newWatch)
+	}
+}
+
+func processEvent(watch *groupToWatch, event *inotify.Event) bool {
+	var tmpFolders []string
+	for _, fullPath := range watch.folders {
+		if fullPath != event.Name {
+			tmpFolders = append(tmpFolders, fullPath)
+		} else {
+			currentWatcher.pathList[fullPath]--
+			if currentWatcher.pathList[fullPath] == 0 {
+				currentWatcher.wd.RemoveWatch(fullPath)
+				delete(currentWatcher.pathList, fullPath)
+			}
+		}
+	}
+	watch.folders = tmpFolders
+	if len(tmpFolders) == 0 {
+		watch.channel <- watch.name
+		return false
+	}
+	return true
+}
+
+func watcherMainLoop() {
+	for {
+		select {
+		case event := <-currentWatcher.wd.Event:
+			if event.Mask&inotify.InDeleteSelf == 0 {
+				continue
+			}
+			var newGroupList []*groupToWatch
+			for _, watch := range currentWatcher.groupList {
+				if processEvent(watch, event) {
+					newGroupList = append(newGroupList, watch)
+				}
+			}
+			currentWatcher.groupList = newGroupList
+		case newWatch := <-currentWatcher.addWatch:
+			addWatch(newWatch)
+		}
+	}
+}
 
 // MonitorFullDelete allows to monitor a group of files/folders
 // and, when all of them have been deleted, emits the specified name through the channel.
 func MonitorFullDelete(name string, folders []string, channel chan string) error {
-	wd, err := inotify.NewWatcher()
-	if err != nil {
-		return err
+	if currentWatcher.wd == nil {
+		wd, err := inotify.NewWatcher()
+		if err != nil {
+			return err
+		}
+		currentWatcher.wd = wd
+		go watcherMainLoop()
 	}
 
-	var toMonitor []string
-	var tmpFolders []string
-
-	for _, fullPath := range folders {
-		if !strutil.ListContains(toMonitor, fullPath) {
-			err := wd.AddWatch(fullPath, inotify.InDeleteSelf)
-			if err != nil {
-				continue
-			}
-			toMonitor = append(toMonitor, fullPath)
-		}
-		tmpFolders = append(tmpFolders, fullPath)
+	currentWatcher.addWatch <- &groupToWatch{
+		name:    name,
+		folders: folders,
+		channel: channel,
 	}
-	folders = tmpFolders
-
-	go func() {
-		for len(folders) != 0 {
-			event := <-wd.Event
-			if event.Mask&inotify.InDeleteSelf == 0 {
-				continue
-			}
-			var tmpFolders []string
-			for _, fullPath := range folders {
-				if fullPath != event.Name {
-					tmpFolders = append(tmpFolders, fullPath)
-				}
-			}
-			folders = tmpFolders
-		}
-		channel <- name
-		wd.Close()
-	}()
 	return nil
 }
 
