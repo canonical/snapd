@@ -69,7 +69,7 @@ func (s *manifestSuite) TestReadSeedManifestInvalidRevision(c *C) {
 core22 0.snap
 `)
 	_, err := image.ReadSeedManifest(manifestFile)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `cannot use revision 0 for snap "core22": revision must be higher than 0`)
 }
 
 func (s *manifestSuite) TestReadSeedManifestNoFile(c *C) {

@@ -3575,14 +3575,12 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, revisions map
 	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
-		Channel:      stableChannel,
 		Revision:     snap.Revision{N: revisions["pc-kernel"]},
 		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc",
-		Channel:      stableChannel,
 		Revision:     snap.Revision{N: revisions["pc"]},
 		Flags:        store.SnapActionIgnoreValidation,
 	})
@@ -3706,14 +3704,12 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "snapd",
-		Channel:      stableChannel,
 		Revision:     snap.Revision{N: 133},
 		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
-		Channel:      "20",
 		Revision:     snap.Revision{N: 15},
 		Flags:        store.SnapActionIgnoreValidation,
 	})
@@ -3721,13 +3717,11 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 		Action:       "download",
 		InstanceName: "core20",
 		Revision:     snap.Revision{N: 58},
-		Channel:      stableChannel,
 		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[3], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc",
-		Channel:      "20",
 		Revision:     snap.Revision{N: 12},
 		Flags:        store.SnapActionIgnoreValidation,
 	})
@@ -3735,7 +3729,6 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 		Action:       "download",
 		InstanceName: "required20",
 		Revision:     snap.Revision{N: 59},
-		Channel:      stableChannel,
 		Flags:        store.SnapActionIgnoreValidation,
 	})
 }
