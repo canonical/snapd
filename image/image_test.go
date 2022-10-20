@@ -3588,7 +3588,7 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, revisions map
 }
 
 func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapFails(c *C) {
-	// It doesn't make sense to use a local snap when doing a reproducable build,
+	// It doesn't make sense to use a local snap when doing a reproducible build,
 	// so if a revision is provided, and we are trying to provide that snap locally,
 	// then we should return an error.
 	// Our helper creates two local snaps
