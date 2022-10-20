@@ -282,24 +282,6 @@ func specifiedSnapRevision(snapName string, opts *Options) int {
 	return revision
 }
 
-func optionSnaps(opts *Options) []*seedwriter.OptionsSnap {
-	optSnaps := make([]*seedwriter.OptionsSnap, 0, len(opts.Snaps))
-	for _, snapName := range opts.Snaps {
-		var optSnap seedwriter.OptionsSnap
-		if strings.HasSuffix(snapName, ".snap") {
-			// local, we postpone the revision check here until
-			// we can load the snap info from the file. If the revision
-			// of a local snap is not matching, then we error on it
-			optSnap.Path = snapName
-		} else {
-			optSnap.Name = snapName
-		}
-		optSnap.Channel = opts.SnapChannels[snapName]
-		optSnaps = append(optSnaps, &optSnap)
-	}
-	return optSnaps
-}
-
 var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
@@ -364,7 +346,19 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
-	optSnaps := optionSnaps(opts)
+	optSnaps := make([]*seedwriter.OptionsSnap, 0, len(opts.Snaps))
+	for _, snapName := range opts.Snaps {
+		var optSnap seedwriter.OptionsSnap
+		if strings.HasSuffix(snapName, ".snap") {
+			// local
+			optSnap.Path = snapName
+		} else {
+			optSnap.Name = snapName
+		}
+		optSnap.Channel = opts.SnapChannels[snapName]
+		optSnaps = append(optSnaps, &optSnap)
+	}
+
 	if err := w.SetOptionsSnaps(optSnaps); err != nil {
 		return err
 	}
