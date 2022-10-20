@@ -20,6 +20,9 @@
 package cgroup
 
 import (
+	"path"
+
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/inotify"
 )
 
@@ -45,15 +48,22 @@ var currentWatcher *inotifyWatcher = &inotifyWatcher{
 func addWatch(newWatch *groupToWatch) {
 	var folderList []string
 	for _, fullPath := range newWatch.folders {
-		if _, exists := currentWatcher.pathList[fullPath]; !exists {
-			currentWatcher.pathList[fullPath] = 0
-			if err := currentWatcher.wd.AddWatch(fullPath, inotify.InDeleteSelf); err != nil {
-				delete(currentWatcher.pathList, fullPath)
+		// It's not possible to use inotify.InDeleteSelf in /sys/fs because it
+		// isn't triggered, so we must monitor the parent folder and use InDelete
+		basePath := path.Dir(fullPath)
+		if _, exists := currentWatcher.pathList[basePath]; !exists {
+			currentWatcher.pathList[basePath] = 0
+			if err := currentWatcher.wd.AddWatch(basePath, inotify.InDelete); err != nil {
+				delete(currentWatcher.pathList, basePath)
 				continue
 			}
-			folderList = append(folderList, fullPath)
 		}
 		currentWatcher.pathList[fullPath]++
+		if osutil.FileExists(fullPath) {
+			folderList = append(folderList, fullPath)
+		} else {
+			removePath(fullPath)
+		}
 	}
 	if len(folderList) == 0 {
 		newWatch.channel <- newWatch.name
@@ -63,17 +73,21 @@ func addWatch(newWatch *groupToWatch) {
 	}
 }
 
+func removePath(fullPath string) {
+	currentWatcher.pathList[fullPath]--
+	if currentWatcher.pathList[fullPath] == 0 {
+		currentWatcher.wd.RemoveWatch(fullPath)
+		delete(currentWatcher.pathList, fullPath)
+	}
+}
+
 func processEvent(watch *groupToWatch, event *inotify.Event) bool {
 	var tmpFolders []string
 	for _, fullPath := range watch.folders {
 		if fullPath != event.Name {
 			tmpFolders = append(tmpFolders, fullPath)
 		} else {
-			currentWatcher.pathList[fullPath]--
-			if currentWatcher.pathList[fullPath] == 0 {
-				currentWatcher.wd.RemoveWatch(fullPath)
-				delete(currentWatcher.pathList, fullPath)
-			}
+			removePath(fullPath)
 		}
 	}
 	watch.folders = tmpFolders
@@ -88,7 +102,7 @@ func watcherMainLoop() {
 	for {
 		select {
 		case event := <-currentWatcher.wd.Event:
-			if event.Mask&inotify.InDeleteSelf == 0 {
+			if event.Mask&inotify.InDelete == 0 {
 				continue
 			}
 			var newGroupList []*groupToWatch
