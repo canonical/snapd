@@ -46,6 +46,9 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	filelist := []string{folder1}
 
 	channel := make(chan string)
+	defer func() {
+		close(channel)
+	}()
 
 	retval := cgroup.MockMonitorFullDelete("test1", filelist, channel)
 	c.Assert(retval, IsNil)
@@ -70,7 +73,6 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	c.Assert(err, IsNil)
 	event := <-channel
 	c.Assert(event, Equals, "test1")
-	close(channel)
 }
 
 func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
@@ -87,6 +89,9 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	filelist := []string{folder1, folder2}
 
 	channel := make(chan string)
+	defer func() {
+		close(channel)
+	}()
 
 	retval := cgroup.MockMonitorFullDelete("test2", filelist, channel)
 	c.Assert(retval, Equals, nil)
@@ -133,7 +138,6 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	// something from the channel
 	event := <-channel
 	c.Assert(event, Equals, "test2")
-	close(channel)
 }
 
 func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
@@ -144,11 +148,13 @@ func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 	filelist := []string{folder1}
 
 	channel := make(chan string)
+	defer func() {
+		close(channel)
+	}()
 	retval := cgroup.MockMonitorFullDelete("test3", filelist, channel)
 	c.Assert(retval, Equals, nil)
 	event := <-channel
 	c.Assert(event, Equals, "test3")
-	close(channel)
 }
 
 func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
@@ -166,7 +172,13 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	filelist2 := []string{folder2}
 
 	channel1 := make(chan string)
+	defer func() {
+		close(channel1)
+	}()
 	channel2 := make(chan string)
+	defer func() {
+		close(channel2)
+	}()
 
 	retval := cgroup.MockMonitorFullDelete("test4a", filelist1, channel1)
 	c.Assert(retval, Equals, nil)
@@ -229,6 +241,4 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 		}
 	}
 	c.Assert(receivedEvent, Equals, "test4b")
-	close(channel1)
-	close(channel2)
 }
