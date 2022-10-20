@@ -163,8 +163,9 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 		PlugsOnly:          len(update.Slots) == 0,
 		InstanceKey:        update.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
-			Website: update.Website,
-			Media:   update.Media,
+			Media: update.Media,
+			// XXX we store this for the benefit of old snapd
+			Website: update.Website(),
 		},
 		ExpectedProvenance: update.SnapProvenance,
 	}
@@ -1184,8 +1185,9 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		PlugsOnly:          len(info.Slots) == 0,
 		InstanceKey:        info.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
-			Media:   info.Media,
-			Website: info.Website,
+			Media: info.Media,
+			// XXX we store this for the benefit of old snapd
+			Website: info.Website(),
 		},
 		CohortKey:          opts.CohortKey,
 		ExpectedProvenance: info.SnapProvenance,
