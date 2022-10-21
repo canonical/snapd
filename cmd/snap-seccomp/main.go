@@ -75,7 +75,7 @@ package main
 //#endif				// AF_QIPCRTR
 //
 //#ifndef AF_XDP
-//#define AF_XDP 42
+//#define AF_XDP 44
 //#define PF_XDP AF_XDP
 //#endif				// AF_XDP
 //
