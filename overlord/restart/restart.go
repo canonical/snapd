@@ -252,13 +252,16 @@ func setHeldForSystemRestart(chg *state.Change) {
 	chg.Set("held-for-system-restart", true)
 }
 
-// FinishTaskWithRestart will finish a task that needs a restart, by
-// setting its status and requesting a restart.
-// It should usually be invoked returning its result immediately
-// from the caller.
-// In some situations (classic) it might return state.Hold instead
-// to held progress until a non-automatic system restart occurs.
-// The restart manager itself will take of tracking that.
+// FinishTaskWithRestart will finish a task that needs a restart, by setting
+// its status and requesting a restart.
+// It should usually be invoked returning its result immediately from the
+// caller.
+// In some situations it might not set the desired status directly and schedule
+// the restart. If a manual restart is preferred (like on classic, where
+// automatic restarts are undesirable) it will instead set the task to
+// HoldStatus and return a marker error of type state.Hold.
+// The restart manager itself will then make sure to set the the status as
+// requested later on system restart to allow progress again.
 func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType, rebootInfo *boot.RebootInfo) error {
 	// if a system restart is requested on classic hold the task instead
 	// or just log the request if we are on the undo path
