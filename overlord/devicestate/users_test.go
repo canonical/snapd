@@ -178,7 +178,7 @@ func (s *usersSuite) TestCreateUser(c *check.C) {
 	c.Check(user.Email, check.Equals, s.userInfoExpectedEmail)
 	c.Check(user.Macaroon, check.NotNil)
 	c.Check(addUserCalled, check.Equals, true)
-	c.Check(user.Expiration, check.Equals, expectedExpiration)
+	c.Check(user.Expiration.Equal(expectedExpiration), check.Equals, true)
 	// auth saved to user home dir
 	outfile := filepath.Join(s.mockUserHome, ".snap", "auth.json")
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
