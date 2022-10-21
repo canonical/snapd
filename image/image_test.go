@@ -3481,7 +3481,7 @@ func (s *imageSuite) TestSetupSeedCore20DelegatedSnap(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, revisions map[string]int) error {
+func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, revisions map[string]snap.Revision) error {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
@@ -3574,13 +3574,13 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, revisions map
 	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
-		Revision:     snap.Revision{N: revisions["pc-kernel"]},
+		Revision:     revisions["pc-kernel"],
 		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc",
-		Revision:     snap.Revision{N: revisions["pc"]},
+		Revision:     revisions["pc"],
 		Flags:        store.SnapActionIgnoreValidation,
 	})
 	return nil
@@ -3594,10 +3594,10 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapFails(c *C) {
 	// 1. core.
 	// 2. required-snap.
 	// So lets provide a revision for one of them and it should then fail
-	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]int{
-		"pc-kernel": 1,
-		"pc":        13,
-		"core":      5,
+	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]snap.Revision{
+		"pc-kernel": {N: 1},
+		"pc":        {N: 13},
+		"core":      {N: 5},
 	})
 	c.Check(err, ErrorMatches, `cannot use snap .*/snapsrc/core_16.04_all.snap for image, unknown/local revision does not match the value specified by revisions file \(unset != 5\)`)
 }
@@ -3605,9 +3605,9 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapFails(c *C) {
 func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapHappy(c *C) {
 	// Make sure we can still provide specific revisions for snaps that are
 	// non-local.
-	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]int{
-		"pc-kernel": 15,
-		"pc":        28,
+	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]snap.Revision{
+		"pc-kernel": {N: 15},
+		"pc":        {N: 28},
 	})
 	c.Check(err, IsNil)
 }
@@ -3643,12 +3643,12 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 			BootFlags:  []string{"factory"},
 			Validation: "ignore",
 		},
-		Revisions: map[string]int{
-			"snapd":      133,
-			"core20":     58,
-			"pc-kernel":  15,
-			"pc":         12,
-			"required20": 59,
+		Revisions: map[string]snap.Revision{
+			"snapd":      {N: 133},
+			"core20":     {N: 58},
+			"pc-kernel":  {N: 15},
+			"pc":         {N: 12},
+			"required20": {N: 59},
 		},
 	}
 
