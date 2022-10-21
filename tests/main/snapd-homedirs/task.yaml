@@ -42,3 +42,9 @@ execute: |
 
     echo "Invoke the test app again (should now work)"
     sudo -u "$USERNAME" -i test-snapd-sh.cmd echo "Hello world" | MATCH "Hello world"
+
+    echo "Ensure that the namespace is reused"
+    # Invoke the same command once more, but this time with debugging enabled,
+    # to verify that the existing namespace is not discarded
+    sudo SNAPD_DEBUG=1 -u "$USERNAME" -i test-snapd-sh.cmd echo "Hello world" 2>&1 \
+        | MATCH "preserved mount is not stale, reusing"
