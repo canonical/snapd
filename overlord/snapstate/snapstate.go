@@ -841,14 +841,14 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.Res
 	return restart.FinishTaskWithRestart(task, status, rt, rebootInfo)
 }
 
-// NoErrorOrHold returns true if err is nil or state.Hold, it is
+// IsErrAndNotHold returns true if err is not nil and neither state.Hold, it is
 // useful for code using FinishTaskWithRestart to not undo work in the presence
 // of a state.Hold return.
-func NoErrorOrHold(err error) bool {
+func IsErrAndNotHold(err error) bool {
 	if _, ok := err.(*state.Hold); err == nil || ok {
-		return true
+		return false
 	}
-	return false
+	return true
 }
 
 func contentAttr(attrer interfaces.Attrer) string {
