@@ -98,11 +98,6 @@ func (s *manifestSuite) TestWriteSeedManifestNoFile(c *C) {
 
 func (s *manifestSuite) TestWriteSeedManifest(c *C) {
 	filePath := s.testWriteSeedManifest(c, map[string]int{"core": 1, "test": 14})
-
-	// Since the output unfortunately can be randomized due to the use
-	// of a map, let's parse the written file and then utilize DeepEquals
-	// to do a correct comparison. So this actually ends up being a full round-trip
-	// test
 	contents, err := ioutil.ReadFile(filePath)
 	c.Assert(err, IsNil)
 	c.Check(string(contents), Equals, `core 1.snap
