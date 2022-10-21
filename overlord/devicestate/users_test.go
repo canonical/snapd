@@ -486,7 +486,7 @@ func (s *usersSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 		Gecos:    "foo@bar.com,Boring Guy",
 		Password: "$6$salt$hash",
 	})
-	c.Check(expiration, check.Equals, time.Time{})
+	c.Check(expiration.IsZero(), check.Equals, true)
 }
 
 func (s *usersSuite) TestCreateUserFromAssertion(c *check.C) {
@@ -500,7 +500,7 @@ func (s *usersSuite) TestCreateUserExpireFromAssertion(c *check.C) {
 	c.Assert(len(users), check.Equals, 1)
 	until, err := time.Parse(time.RFC3339, expireUser["until"].(string))
 	c.Assert(err, check.IsNil)
-	c.Check(users[0].Expiration, check.Equals, until)
+	c.Check(users[0].Expiration.Equal(until), check.Equals, true)
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionWithForcePasswordChange(c *check.C) {
@@ -694,7 +694,7 @@ func (s *usersSuite) TestCreateAllKnownUsersWithExpiration(c *check.C) {
 	// Verify expiration
 	until, err := time.Parse(time.RFC3339, expireUser["until"].(string))
 	c.Assert(err, check.IsNil)
-	c.Check(users[0].Expiration, check.Equals, until)
+	c.Check(users[0].Expiration.Equal(until), check.Equals, true)
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionAllKnownNoModelError(c *check.C) {
