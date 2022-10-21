@@ -19,6 +19,8 @@
 
 package image
 
+import "github.com/snapcore/snapd/snap"
+
 type Options struct {
 	ModelFile string
 	Classic   bool
@@ -45,7 +47,7 @@ type Options struct {
 	// TODO: use OptionsSnap directly here?
 	Snaps        []string
 	SnapChannels map[string]string
-	Revisions    map[string]int
+	Revisions    map[string]snap.Revision
 
 	// WideCohortKey can be used to supply a cohort covering all
 	// the snaps in the image, there is no generally suppported API

@@ -279,7 +279,7 @@ func specifiedSnapRevision(snapName string, opts *Options) snap.Revision {
 	if !ok {
 		return snap.Revision{}
 	}
-	return snap.Revision{N: revision}
+	return revision
 }
 
 var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) error {

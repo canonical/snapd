@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -56,25 +57,34 @@ func (s *manifestSuite) TestReadSeedManifestFull(c *C) {
 core22 275.snap
 pc 128.snap
 snapd 16681
-my-snap -1
+one-snap x6
+ignore-this -1
 skip this
 `)
 	snapRevs, err := image.ReadSeedManifest(manifestFile)
 	c.Assert(err, IsNil)
-	c.Check(snapRevs, DeepEquals, map[string]int{
-		"core22":  275,
-		"pc":      128,
-		"snapd":   16681,
-		"my-snap": -1,
+	c.Check(snapRevs, DeepEquals, map[string]snap.Revision{
+		"core22":   {N: 275},
+		"pc":       {N: 128},
+		"snapd":    {N: 16681},
+		"one-snap": {N: -6},
 	})
 }
 
-func (s *manifestSuite) TestReadSeedManifestInvalidRevision(c *C) {
-	manifestFile := s.writeSeedManifest(c, `# test line should not match
-core22 0.snap
-`)
-	_, err := image.ReadSeedManifest(manifestFile)
-	c.Assert(err, ErrorMatches, `cannot use revision 0 for snap "core22": revision must not be 0`)
+func (s *manifestSuite) TestReadSeedManifestParseFails(c *C) {
+	tests := []struct {
+		contents string
+		err      string
+	}{
+		{"my/invalid&name 33\n", `cannot read seed manifest file: invalid snap name: "my/invalid&name"`},
+		{"core 0\n", `cannot read seed manifest file: invalid snap revision: "0"`},
+	}
+
+	for _, t := range tests {
+		manifestFile := s.writeSeedManifest(c, t.contents)
+		_, err := image.ReadSeedManifest(manifestFile)
+		c.Check(err, ErrorMatches, t.err)
+	}
 }
 
 func (s *manifestSuite) TestReadSeedManifestNoFile(c *C) {
@@ -84,7 +94,7 @@ func (s *manifestSuite) TestReadSeedManifestNoFile(c *C) {
 	c.Check(err, ErrorMatches, `cannot read seed manifest: open noexists.manifest: no such file or directory`)
 }
 
-func (s *manifestSuite) testWriteSeedManifest(c *C, revisions map[string]int) string {
+func (s *manifestSuite) testWriteSeedManifest(c *C, revisions map[string]snap.Revision) string {
 	manifestFile := filepath.Join(s.root, "seed.manifest")
 	err := image.WriteSeedManifest(manifestFile, revisions)
 	c.Assert(err, IsNil)
@@ -92,20 +102,20 @@ func (s *manifestSuite) testWriteSeedManifest(c *C, revisions map[string]int) st
 }
 
 func (s *manifestSuite) TestWriteSeedManifestNoFile(c *C) {
-	filePath := s.testWriteSeedManifest(c, map[string]int{})
+	filePath := s.testWriteSeedManifest(c, map[string]snap.Revision{})
 	c.Check(osutil.FileExists(filePath), Equals, false)
 }
 
 func (s *manifestSuite) TestWriteSeedManifest(c *C) {
-	filePath := s.testWriteSeedManifest(c, map[string]int{"core": 1, "test": 14})
+	filePath := s.testWriteSeedManifest(c, map[string]snap.Revision{"core": {N: 12}, "test": {N: -4}})
 	contents, err := ioutil.ReadFile(filePath)
 	c.Assert(err, IsNil)
-	c.Check(string(contents), Equals, `core 1.snap
-test 14.snap
+	c.Check(string(contents), Equals, `core 12.snap
+test x4.snap
 `)
 }
 
 func (s *manifestSuite) TestWriteSeedManifestInvalidRevision(c *C) {
-	err := image.WriteSeedManifest("", map[string]int{"core": 0})
-	c.Assert(err, ErrorMatches, `invalid revision 0 for snap "core", revision must not be 0`)
+	err := image.WriteSeedManifest("", map[string]snap.Revision{"core": {}})
+	c.Assert(err, ErrorMatches, `cannot write seed manifest: revision must not be 0 for snap "core"`)
 }
