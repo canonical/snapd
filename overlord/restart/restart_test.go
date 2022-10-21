@@ -267,9 +267,9 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 				heldCount++
 				c.Check(err, DeepEquals, &state.Hold{Reason: "waiting for manual system restart"})
 				c.Check(holdBootID, Equals, "boot-id-1")
-				var count int
-				c.Check(chg.Get("held-for-system-restart", &count), IsNil)
-				c.Check(count, Equals, heldCount)
+				var held bool
+				c.Check(chg.Get("held-for-system-restart", &held), IsNil)
+				c.Check(held, Equals, heldCount != 0)
 			} else {
 				c.Check(err, IsNil)
 				c.Check(holdBootID, Equals, "")
@@ -327,9 +327,9 @@ func (s *restartSuite) TestStartUpHeldTasks(c *C) {
 	// old boot id in task, task marked DoneStatus
 	c.Check(t2.Status(), Equals, state.DoneStatus)
 
-	var count int
-	c.Check(chg.Get("held-for-system-restart", &count), IsNil)
-	c.Check(count, Equals, 1)
+	var held bool
+	c.Check(chg.Get("held-for-system-restart", &held), IsNil)
+	c.Check(held, Equals, true)
 
 	// another boot
 	restart.ReplaceBootID(st, "boot-id-3")

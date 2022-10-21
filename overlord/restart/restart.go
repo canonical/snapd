@@ -133,13 +133,10 @@ func (m *RestartManager) StartUp() error {
 		if chg.IsReady() {
 			continue
 		}
-		heldCount, err := changeHeldForSystemRestart(chg)
-		if err != nil {
-			return err
-		}
-		if heldCount == 0 {
+		if !chg.Has("held-for-system-restart") {
 			continue
 		}
+		stillHeld := false
 		for _, t := range chg.Tasks() {
 			if t.Status() != state.HoldStatus {
 				continue
@@ -155,18 +152,16 @@ func (m *RestartManager) StartUp() error {
 
 			if m.bootID == holdBootId {
 				// no boot has intervened yet
+				stillHeld = true
 				continue
 			}
 
-			heldCount--
 			logger.Debugf("system restart happened, mark as done task %q for change %s", t.Summary(), chg.ID())
 			t.SetStatus(state.DoneStatus)
 			t.Set("held-for-system-restart-from-boot-id", nil)
 		}
-		if heldCount <= 0 {
+		if !stillHeld {
 			chg.Set("held-for-system-restart", nil)
-		} else {
-			chg.Set("held-for-system-restart", heldCount)
 		}
 	}
 
@@ -199,12 +194,7 @@ func (rm *RestartManager) PendingForSystemRestart(chg *state.Change) bool {
 	if chg.IsReady() {
 		return false
 	}
-	heldCount, err := changeHeldForSystemRestart(chg)
-	if err != nil {
-		logger.Noticef("internal error: cannot retrieve change state: %v", err)
-		return false
-	}
-	if heldCount == 0 {
+	if !chg.Has("held-for-system-restart") {
 		return false
 	}
 	for _, t := range chg.Tasks() {
@@ -254,26 +244,12 @@ func Request(st *state.State, t RestartType, rebootInfo *boot.RebootInfo) {
 	rm.handleRestart(t, rebootInfo)
 }
 
-func changeHeldForSystemRestart(chg *state.Change) (int, error) {
-	var count int
-	err := chg.Get("held-for-system-restart", &count)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return 0, err
-	}
-	return count, nil
-}
-
-func incrementHeldForSystemRestart(chg *state.Change) error {
+func setHeldForSystemRestart(chg *state.Change) {
 	if chg == nil {
 		// nothing to do
-		return nil
+		return
 	}
-	count, err := changeHeldForSystemRestart(chg)
-	if err != nil {
-		return err
-	}
-	chg.Set("held-for-system-restart", count+1)
-	return nil
+	chg.Set("held-for-system-restart", true)
 }
 
 // FinishTaskWithRestart will finish a task that needs a restart, by
@@ -295,9 +271,7 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType
 				// store current boot id to be able to check
 				// later if we have rebooted or not
 				task.Set("held-for-system-restart-from-boot-id", rm.bootID)
-				if err := incrementHeldForSystemRestart(task.Change()); err != nil {
-					return err
-				}
+				setHeldForSystemRestart(task.Change())
 				// TODO should we not do this if the task has
 				// no dependent tasks?
 				task.SetStatus(state.HoldStatus)
