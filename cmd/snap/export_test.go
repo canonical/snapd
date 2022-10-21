@@ -472,8 +472,8 @@ func ParseQuotaValues(maxMemory, cpuMax, cpuSet, threadsMax, journalSizeMax, jou
 	return quotas.parseQuotas()
 }
 
-func MockReadSeedManifest(f func(manifestFile string) (map[string]int, error)) (restore func()) {
-	restore = testutil.Backup(&readSeedManifest)
-	readSeedManifest = f
+func MockImageReadSeedManifest(f func(manifestFile string) (map[string]int, error)) (restore func()) {
+	restore = testutil.Backup(&imageReadSeedManifest)
+	imageReadSeedManifest = f
 	return restore
 }

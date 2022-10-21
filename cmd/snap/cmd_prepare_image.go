@@ -107,7 +107,7 @@ For preparing classic images it supports a --classic mode`),
 }
 
 var imagePrepare = image.Prepare
-var readSeedManifest = image.ReadSeedManifest
+var imageReadSeedManifest = image.ReadSeedManifest
 
 func (x *cmdPrepareImage) Execute(args []string) error {
 	opts := &image.Options{
@@ -118,7 +118,7 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	}
 
 	if x.RevisionsFile != "" {
-		revisions, err := readSeedManifest(x.RevisionsFile)
+		revisions, err := imageReadSeedManifest(x.RevisionsFile)
 		if err != nil {
 			return err
 		}

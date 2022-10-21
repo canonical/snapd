@@ -50,18 +50,22 @@ func (s *manifestSuite) writeSeedManifest(c *C, contents string) string {
 }
 
 func (s *manifestSuite) TestReadSeedManifestFull(c *C) {
+	// Include two entries that end on .snap as ubuntu-image
+	// once produced entries looking like this
 	manifestFile := s.writeSeedManifest(c, `# test line should not match
 core22 275.snap
 pc 128.snap
-snapd 16681.snap
-dontmatch 99595
+snapd 16681
+my-snap -1
+skip this
 `)
 	snapRevs, err := image.ReadSeedManifest(manifestFile)
 	c.Assert(err, IsNil)
 	c.Check(snapRevs, DeepEquals, map[string]int{
-		"core22": 275,
-		"pc":     128,
-		"snapd":  16681,
+		"core22":  275,
+		"pc":      128,
+		"snapd":   16681,
+		"my-snap": -1,
 	})
 }
 
@@ -70,7 +74,7 @@ func (s *manifestSuite) TestReadSeedManifestInvalidRevision(c *C) {
 core22 0.snap
 `)
 	_, err := image.ReadSeedManifest(manifestFile)
-	c.Assert(err, ErrorMatches, `cannot use revision 0 for snap "core22": revision must be higher than 0`)
+	c.Assert(err, ErrorMatches, `cannot use revision 0 for snap "core22": revision must not be 0`)
 }
 
 func (s *manifestSuite) TestReadSeedManifestNoFile(c *C) {
@@ -99,12 +103,14 @@ func (s *manifestSuite) TestWriteSeedManifest(c *C) {
 	// of a map, let's parse the written file and then utilize DeepEquals
 	// to do a correct comparison. So this actually ends up being a full round-trip
 	// test
-	revisions, err := image.ReadSeedManifest(filePath)
+	contents, err := ioutil.ReadFile(filePath)
 	c.Assert(err, IsNil)
-	c.Check(revisions, DeepEquals, map[string]int{"core": 1, "test": 14})
+	c.Check(string(contents), Equals, `core 1.snap
+test 14.snap
+`)
 }
 
 func (s *manifestSuite) TestWriteSeedManifestInvalidRevision(c *C) {
 	err := image.WriteSeedManifest("", map[string]int{"core": 0})
-	c.Assert(err, ErrorMatches, `invalid revision 0 given for snap "core", revision must be a positive value`)
+	c.Assert(err, ErrorMatches, `invalid revision 0 for snap "core", revision must not be 0`)
 }

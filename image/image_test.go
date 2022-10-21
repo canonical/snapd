@@ -3506,8 +3506,7 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, revisions map
 		Revisions: revisions,
 	}
 
-	err := image.SetupSeed(s.tsto, s.model, opts)
-	if err != nil {
+	if err := image.SetupSeed(s.tsto, s.model, opts); err != nil {
 		// let each unit test test against this
 		return err
 	}
@@ -3600,7 +3599,7 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapFails(c *C) {
 		"pc":        13,
 		"core":      5,
 	})
-	c.Check(err, ErrorMatches, `cannot use snap .*/snapsrc/core_16.04_all.snap for image, revision \(0\) does not match the allowed value \(5\)`)
+	c.Check(err, ErrorMatches, `cannot use snap .*/snapsrc/core_16.04_all.snap for image, unknown/local revision does not match the value specified by revisions file \(unset != 5\)`)
 }
 
 func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapHappy(c *C) {
