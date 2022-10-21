@@ -953,7 +953,7 @@ func (s *userSuite) TestPostCreateUserExpirationHappy(c *check.C) {
 	// strip away subsecond values which are lost during json marshal/unmarshalling
 	expectedTime := time.Now().Add(time.Hour * 24).Round(time.Second)
 
-	var deviceStateCreateUserCalled bool
+	var deviceStateCreateUserCalls int
 	defer daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string, expiration time.Time) (*devicestate.CreatedUser, error) {
 		c.Check(email, check.Equals, expectedEmail)
 		c.Check(sudoer, check.Equals, false)
@@ -965,7 +965,7 @@ func (s *userSuite) TestPostCreateUserExpirationHappy(c *check.C) {
 				`ssh2 # snapd {"origin":"store","email":"popper@lse.ac.uk"}`,
 			},
 		}
-		deviceStateCreateUserCalled = true
+		deviceStateCreateUserCalls++
 		return expected, nil
 	})()
 
@@ -982,7 +982,7 @@ func (s *userSuite) TestPostCreateUserExpirationHappy(c *check.C) {
 			`ssh2 # snapd {"origin":"store","email":"popper@lse.ac.uk"}`,
 		},
 	})
-	c.Check(deviceStateCreateUserCalled, check.Equals, true)
+	c.Check(deviceStateCreateUserCalls, check.Equals, 1)
 }
 
 func (s *userSuite) TestPostCreateUserExpirationDateSetInPast(c *check.C) {
