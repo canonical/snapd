@@ -183,9 +183,9 @@ func (s *SnapPrepareImageSuite) TestReadSeedManifest(c *C) {
 	r := snap.MockImagePrepare(prep)
 	defer r()
 
-	var readManifestCalled bool
-	r = snap.MockReadSeedManifest(func(manifestFile string) (map[string]int, error) {
-		readManifestCalled = true
+	var readManifestCalls int
+	r = snap.MockImageReadSeedManifest(func(manifestFile string) (map[string]int, error) {
+		readManifestCalls++
 		c.Check(manifestFile, Equals, "seed.manifest")
 		return map[string]int{"snapd": 100}, nil
 	})
@@ -195,7 +195,7 @@ func (s *SnapPrepareImageSuite) TestReadSeedManifest(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 
-	c.Check(readManifestCalled, Equals, true)
+	c.Check(readManifestCalls, Equals, 1)
 	c.Check(opts, DeepEquals, &image.Options{
 		ModelFile:  "model",
 		PrepareDir: "prepare-dir",
