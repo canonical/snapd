@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -40,11 +41,14 @@ var services = []struct{ configName, systemdName string }{
 	{"systemd-resolved", "systemd-resolved.service"},
 }
 
+const sshPortOpt = "service.ssh.port"
+
 func init() {
 	for _, service := range services {
 		s := fmt.Sprintf("core.service.%s.disable", service.configName)
 		supportedConfigurations[s] = true
 	}
+	supportedConfigurations["core."+sshPortOpt] = true
 }
 
 type sysdLogger struct{}
@@ -208,7 +212,8 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 }
 
 // services that can be disabled
-func handleServiceDisableConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleServiceConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+	// deal with service disable
 	for _, service := range services {
 		optionName := fmt.Sprintf("service.%s.disable", service.configName)
 		outputStr, err := coreCfg(tr, optionName)
@@ -230,6 +235,85 @@ func handleServiceDisableConfiguration(_ sysconfig.Device, tr config.ConfGetter,
 				return err
 			}
 		}
+	}
+	// configure ssh ports
+	if err := handleNetworkConfigSSHPort(dev, tr, opts); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateServiceConfiguration(tr config.ConfGetter) error {
+	// validate the ssh port setting
+	output, err := coreCfg(tr, sshPortOpt)
+	if err != nil {
+		return err
+	}
+	if output == "" {
+		return nil
+	}
+	port, err := strconv.Atoi(output)
+	if err != nil {
+		return err
+	}
+	if port > 65535 || port < 1 {
+		return fmt.Errorf("cannot use port %v: must be in the range 1-65535", port)
+	}
+	return nil
+}
+
+func handleNetworkConfigSSHPort(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+	// see if anything needs to happen
+	var pristineSSHPort, newSSHPort interface{}
+
+	if err := tr.GetPristine("core", sshPortOpt, &pristineSSHPort); err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if err := tr.Get("core", sshPortOpt, &newSSHPort); err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if pristineSSHPort == newSSHPort {
+		return nil
+	}
+
+	// ssh.port config has changed, write new config
+	root := dirs.GlobalRootDir
+	if opts != nil {
+		root = opts.RootDir
+	}
+
+	// Note: Only UC20+ supports ussing the "sshd_config.d"
+	// dir. Supporting older systems would be hard because we
+	// would have to merge somehow the UC16 and UC18 config in a
+	// fsOnlyContext
+	if !dev.HasModeenv() {
+		return fmt.Errorf("cannot set ssh port configuration on systems older than UC20")
+	}
+	portConfPath := filepath.Join(root, "/etc/ssh/sshd_config.d/port.conf")
+	if err := os.MkdirAll(filepath.Join(root, "/etc/ssh/sshd_config.d"), 0755); err != nil {
+		return err
+	}
+	if newSSHPort == "" {
+		if err := os.Remove(portConfPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	} else {
+		configStr := fmt.Sprintf("Port %v", newSSHPort)
+		if err := ioutil.WriteFile(portConfPath, []byte(configStr), 0600); err != nil {
+			return err
+		}
+	}
+
+	var sysd systemd.Systemd
+	if opts != nil {
+		sysd = systemd.NewEmulationMode(opts.RootDir)
+	} else {
+		sysd = systemd.New(systemd.SystemMode, &sysdLogger{})
+	}
+
+	if err := sysd.ReloadOrRestart("ssh.service"); err != nil {
+		return err
 	}
 
 	return nil

@@ -337,3 +337,68 @@ func (s *servicesSuite) TestFilesystemOnlyApply(c *C) {
 		{"--root", tmpDir, "mask", "rsyslog.service"},
 	})
 }
+
+func (s *servicesSuite) TestConfigureNetworkSSHPortFailsOnNonCore20(c *C) {
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"service.ssh.port": 8022,
+		},
+	})
+	c.Assert(err, ErrorMatches, "cannot set ssh port configuration on systems older than UC20")
+}
+
+func (s *servicesSuite) TestConfigureNetworkSSHPortFailsWrongRange(c *C) {
+	for _, invalidPort := range []int{0, 65536, -1, 99999} {
+		err := configcore.Run(coreDev, &mockConf{
+			state: s.state,
+			changes: map[string]interface{}{
+				"service.ssh.port": invalidPort,
+			},
+		})
+		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot use port %v: must be in the range 1-65535", invalidPort))
+	}
+}
+
+func (s *servicesSuite) TestSamePortNoChange(c *C) {
+	err := configcore.Run(core20Dev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"service.ssh.port": 8022,
+		},
+		changes: map[string]interface{}{
+			"service.ssh.port": 8022,
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(s.systemctlArgs, HasLen, 0)
+}
+
+func (s *servicesSuite) TestConfigureNetworkIntegrationSSHPort(c *C) {
+	err := configcore.Run(core20Dev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"service.ssh.port": 8022,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	sshPortCfg := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_config.d/port.conf")
+	c.Check(sshPortCfg, testutil.FileEquals, "Port 8022")
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"reload-or-restart", "ssh.service"},
+	})
+
+	// disable port again
+	err = configcore.Run(core20Dev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"service.ssh.port": 8022,
+		},
+		changes: map[string]interface{}{
+			"service.ssh.port": "",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(sshPortCfg, testutil.FileAbsent)
+}

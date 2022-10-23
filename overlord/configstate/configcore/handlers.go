@@ -74,7 +74,7 @@ func init() {
 	addFSOnlyHandler(validateNetworkSettings, handleNetworkConfiguration, coreOnly)
 
 	// service.*.disable
-	addFSOnlyHandler(nil, handleServiceDisableConfiguration, coreOnly)
+	addFSOnlyHandler(validateServiceConfiguration, handleServiceConfiguration, coreOnly)
 
 	// system.power-key-action
 	addFSOnlyHandler(nil, handlePowerButtonConfiguration, coreOnly)
