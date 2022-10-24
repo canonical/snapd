@@ -374,8 +374,8 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 	auxInfo := s.auxInfos[sideInfo.SnapID]
 	if auxInfo != nil {
 		sideInfo.Private = auxInfo.Private
-		// TODO: consider whether to use this if we have links
-		sideInfo.EditedContact = auxInfo.Contact
+		sideInfo.EditedLinks = auxInfo.Links
+		sideInfo.LegacyEditedContact = auxInfo.Contact
 	}
 
 	return &Snap{
