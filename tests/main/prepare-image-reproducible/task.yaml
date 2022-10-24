@@ -41,7 +41,9 @@ execute: |
     install_snap_to_fakestore() {
         local SNAP_NAME="$1"
         local SNAP_REVISION="$2"
-        local SNAP_PATH=$("$TESTSTOOLS"/snaps-state pack-local "$SNAP_NAME")
+        local SNAP_PATH
+
+        SNAP_PATH=$("$TESTSTOOLS"/snaps-state pack-local "$SNAP_NAME")
         make_snap_installable "$STORE_DIR" "$SNAP_PATH"
         cat > snap-"$SNAP_NAME"-decl.json <<EOF
     {
