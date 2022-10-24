@@ -27,7 +27,7 @@ execute: |
   "$TESTSTOOLS"/snapd-state force-autorefresh
   systemctl start snapd.{socket,service}
 
-  if retry -n 5 --quiet sh -c 'snap changes | tail -2 | grep "Done.*Auto-refresh"'; then
+  if retry -n 10 --quiet sh -c 'snap changes | tail -2 | grep "Done.*Auto-refresh"'; then
     echo "expected 'snap refresh --hold' to prevent auto-refresh"
     exit 1
   fi
@@ -42,10 +42,13 @@ execute: |
   "$TESTSTOOLS"/snapd-state force-autorefresh
   systemctl start snapd.{socket,service}
 
-  if retry -n 5 --quiet sh -c 'snap changes | tail -2 | grep "Done.*Auto-refresh snap "test-snapd-tools_instance""'; then
-    echo "expected 'snap refresh --hold' to prevent auto-refresh"
+  if ! retry -n 10 --quiet sh -c 'snap changes | tail -2 | grep "Done.*Auto-refresh snap \"test-snapd-tools_instance\""'; then
+    echo 'expected "test-snapd-tools_instance" to have been auto-refreshed'
     exit 1
   fi
+
+  # check that "test-snapd-tools" wasn't auto-refreshed before "test-snapd-tools_instance"
+  snap changes | tail -3 | NOMATCH 'Auto-refresh snap "test-snapd-tools"'
 
   echo "Snaps auto-refresh without holds"
   reset
