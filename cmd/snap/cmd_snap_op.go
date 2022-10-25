@@ -102,10 +102,9 @@ When no snaps are specified --hold is only effective on auto-refreshes and will
 not block either general refresh requests from 'snap refresh' or specific snap
 requests from 'snap refresh target-snap'.
 
-When specific snaps are mentioned --hold is effective on their auto-refreshes
-and will also silently block general refresh requests from 'snap refresh' of
-those snaps while explicit targeted 'snap refresh target-snap' will not be
-blocked.
+When snaps are specified --hold is effective on both their auto-refreshes
+and general refresh requests from 'snap refresh'. However, specific snap
+requests from 'snap refresh target-snap' remain unblocked and will proceed.
 `)
 
 var longTryHelp = i18n.G(`
@@ -927,7 +926,6 @@ func (x *cmdRefresh) holdRefreshes() (err error) {
 	} else {
 		changeID, err = x.client.HoldRefreshesMany(names, &opts)
 	}
-
 	if err != nil {
 		return err
 	}
