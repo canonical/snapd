@@ -639,6 +639,14 @@ func (s *seed20Suite) TestLoadMetaWrongGadgetBase(c *C) {
 	c.Check(err, ErrorMatches, `cannot use gadget snap because its base "core18" is different from model base "core20"`)
 }
 
+func (s *seed20Suite) setSnapContact(snapName, contact string) {
+	info := s.AssertedSnapInfo(snapName)
+	info.EditedLinks = map[string][]string{
+		"contact": {contact},
+	}
+	info.LegacyEditedContact = contact
+}
+
 func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
@@ -646,7 +654,7 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 	s.makeSnap(c, "pc=20", "")
 	s.makeSnap(c, "required20", "developerid")
 
-	s.AssertedSnapInfo("required20").EditedContact = "mailto:author@example.com"
+	s.setSnapContact("required20", "mailto:author@example.com")
 
 	sysLabel := "20191018"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
@@ -752,7 +760,7 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnap(c *C) {
 	}
 	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "developerid", "my-brand", "delegated-prov", ra, s.StoreSigning.Database)
 
-	s.AssertedSnapInfo("required20").EditedContact = "mailto:author@example.com"
+	s.setSnapContact("required20", "mailto:author@example.com")
 
 	sysLabel := "20220705"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
@@ -1812,7 +1820,7 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverride(c *C) {
 	s.makeSnap(c, "pc=20", "")
 	s.makeSnap(c, "required20", "developerid")
 
-	s.AssertedSnapInfo("required20").EditedContact = "mailto:author@example.com"
+	s.setSnapContact("required20", "mailto:author@example.com")
 
 	sysLabel := "20191018"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
@@ -1907,7 +1915,7 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverrideSnapd(c *C) {
 	s.makeSnap(c, "pc=20", "")
 	s.makeSnap(c, "required20", "developerid")
 
-	s.AssertedSnapInfo("required20").EditedContact = "mailto:author@example.com"
+	s.setSnapContact("required20", "mailto:author@example.com")
 
 	sysLabel := "20191121"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{

@@ -201,7 +201,8 @@ func init() {
 	maxSupportedFormat[SnapDeclarationType.Name] = 5
 
 	// 1: support to limit to device serials
-	maxSupportedFormat[SystemUserType.Name] = 1
+	// 2: support for user-presence constraint
+	maxSupportedFormat[SystemUserType.Name] = 2
 
 	for _, at := range typeRegistry {
 		at.validate()

@@ -396,7 +396,7 @@ func Validate(info *Info) error {
 	}
 
 	// Ensure links are valid
-	if err := ValidateLinks(info.Links()); err != nil {
+	if err := ValidateLinks(info.OriginalLinks); err != nil {
 		return err
 	}
 

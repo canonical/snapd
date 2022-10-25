@@ -20,6 +20,7 @@
 package install
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/snapcore/snapd/gadget"
@@ -70,4 +71,43 @@ func MockMkfsMake(f func(typ, img, label string, devSize, sectorSize quantity.Si
 	return func() {
 		mkfsImpl = old
 	}
+}
+
+func MockSysfsPathForBlockDevice(f func(device string) (string, error)) (restore func()) {
+	old := sysfsPathForBlockDevice
+	sysfsPathForBlockDevice = f
+	return func() {
+		sysfsPathForBlockDevice = old
+	}
+}
+
+func BuildEncryptionSetupData(labelToEncDevice map[string]string) *EncryptionSetupData {
+	esd := &EncryptionSetupData{
+		parts: map[string]partEncryptionData{}}
+	for label, encryptDev := range labelToEncDevice {
+		esd.parts[label] = partEncryptionData{
+			encryptedDevice: encryptDev,
+		}
+	}
+	return esd
+}
+
+func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevice map[string]string) error {
+	for label, part := range encryptSetup.parts {
+		switch part.role {
+		case gadget.SystemData, gadget.SystemSave:
+			// ok
+		default:
+			return fmt.Errorf("unexpected role in %q: %q", label, part.role)
+		}
+		if part.encryptedDevice != labelToEncDevice[label] {
+			return fmt.Errorf("encrypted device in EncryptionSetupData (%q) different to expected (%q)",
+				encryptSetup.parts[label].encryptedDevice, labelToEncDevice[label])
+		}
+		if len(part.encryptionKey) == 0 {
+			return fmt.Errorf("encryption key for %q is empty", label)
+		}
+	}
+
+	return nil
 }

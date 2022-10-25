@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -52,7 +52,7 @@ func (s *auxInfoSuite) TestAuxStoreInfoRoundTrip(c *check.C) {
 	c.Assert(osutil.FileExists(filename), check.Equals, false)
 	c.Check(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 0)
-	c.Check(info.Website, check.Equals, "")
+	c.Check(info.Website(), check.Equals, "")
 	c.Check(info.StoreURL, check.Equals, "")
 
 	aux := &snapstate.AuxStoreInfo{
@@ -66,10 +66,24 @@ func (s *auxInfoSuite) TestAuxStoreInfoRoundTrip(c *check.C) {
 	c.Assert(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 1)
 	c.Check(info.Media, check.DeepEquals, media)
-	c.Check(info.Website, check.Equals, "http://example.com/some-snap")
+	c.Check(info.Website(), check.Equals, "http://example.com/some-snap")
 	c.Check(info.StoreURL, check.Equals, "https://snapcraft.io/some-snap")
 	info.Media = nil
-	info.Website = ""
+	info.LegacyWebsite = ""
+	info.StoreURL = ""
+
+	info.EditedLinks = map[string][]string{
+		"website": {"http://newer-website-com"},
+	}
+	c.Assert(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
+	c.Check(info.Media, check.HasLen, 1)
+	c.Check(info.Media, check.DeepEquals, media)
+	c.Check(info.Website(), check.Equals, "http://newer-website-com")
+	c.Check(info.LegacyWebsite, check.Equals, "")
+	c.Check(info.StoreURL, check.Equals, "https://snapcraft.io/some-snap")
+	info.Media = nil
+	info.EditedLinks = nil
+	info.LegacyWebsite = ""
 	info.StoreURL = ""
 
 	c.Assert(snapstate.DiscardAuxStoreInfo(info.SnapID), check.IsNil)
@@ -77,7 +91,7 @@ func (s *auxInfoSuite) TestAuxStoreInfoRoundTrip(c *check.C) {
 
 	c.Check(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 0)
-	c.Check(info.Website, check.Equals, "")
+	c.Check(info.Website(), check.Equals, "")
 	c.Check(info.StoreURL, check.Equals, "")
 
 	c.Check(snapstate.DiscardAuxStoreInfo(info.SnapID), check.IsNil)

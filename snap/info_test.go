@@ -107,7 +107,7 @@ func (s *infoSuite) TestContactFromEdited(c *C) {
 	}
 
 	info.SideInfo = snap.SideInfo{
-		EditedContact: "mailto:econtact",
+		LegacyEditedContact: "mailto:econtact",
 	}
 
 	c.Check(info.Contact(), Equals, "mailto:econtact")
@@ -153,27 +153,66 @@ func (s *infoSuite) TestLinks(c *C) {
 	info := &snap.Info{
 		OriginalLinks: map[string][]string{
 			"contact": {"ocontact"},
-			"website": {"owebsite"},
+			"website": {"http://owebsite"},
 		},
 	}
 
 	info.SideInfo = snap.SideInfo{
 		EditedLinks: map[string][]string{
-			"contact": {"econtact"},
-			"website": {"ewebsite"},
+			"contact": {"mailto:econtact"},
+			"website": {"http://ewebsite"},
 		},
 	}
 
 	c.Check(info.Links(), DeepEquals, map[string][]string{
-		"contact": {"econtact"},
-		"website": {"ewebsite"},
+		"contact": {"mailto:econtact"},
+		"website": {"http://ewebsite"},
 	})
 
 	info.EditedLinks = nil
 	c.Check(info.Links(), DeepEquals, map[string][]string{
-		"contact": {"ocontact"},
-		"website": {"owebsite"},
+		"contact": {"mailto:ocontact"},
+		"website": {"http://owebsite"},
 	})
+}
+
+func (s *infoSuite) TestNormalizeOriginalLinks(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"contact": {"ocontact", "mailto:ocontact"},
+			"website": {":", "http://owebsite", ""},
+		},
+	}
+
+	c.Check(info.Links(), DeepEquals, map[string][]string{
+		"contact": {"mailto:ocontact"},
+		"website": {"http://owebsite"},
+	})
+}
+
+func (s *infoSuite) TestWebsiteFromLegacy(c *C) {
+	info := &snap.Info{
+		OriginalLinks: nil,
+		LegacyWebsite: "http://website",
+	}
+
+	c.Check(info.Website(), Equals, "http://website")
+}
+
+func (s *infoSuite) TestNoWebsite(c *C) {
+	info := &snap.Info{}
+
+	c.Check(info.Website(), Equals, "")
+}
+
+func (s *infoSuite) TestWebsiteFromLinks(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"website": {"http://website1", "http://website2"},
+		},
+	}
+
+	c.Check(info.Website(), Equals, "http://website1")
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {

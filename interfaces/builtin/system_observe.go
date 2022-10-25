@@ -142,7 +142,7 @@ dbus (send)
     bus={session,system}
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
-    member=ListNames
+    member={ListNames,ListActivatableNames}
     peer=(label=unconfined),
 
 # Allow clients to obtain the DBus machine ID on common buses. We do not

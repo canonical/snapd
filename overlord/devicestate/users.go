@@ -62,7 +62,7 @@ type CreatedUser struct {
 // CreateUser creates a Linux user based on the specified email.
 // The username and public ssh keys for the created account are
 // determined from Ubuntu store based on the email.
-func CreateUser(st *state.State, sudoer bool, email string) (*CreatedUser, error) {
+func CreateUser(st *state.State, sudoer bool, email string, expiration time.Time) (*CreatedUser, error) {
 	if email == "" {
 		return nil, &UserError{Err: fmt.Errorf("cannot create user: 'email' field is empty")}
 	}
@@ -74,7 +74,7 @@ func CreateUser(st *state.State, sudoer bool, email string) (*CreatedUser, error
 	}
 
 	opts.Sudoer = sudoer
-	return addUser(st, username, email, opts)
+	return addUser(st, username, email, expiration, opts)
 }
 
 // CreateKnownUsers creates known users. The user details are fetched
@@ -97,13 +97,13 @@ func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]*CreatedUse
 		return createAllKnownSystemUsers(st, db, model, serial, sudoer)
 	}
 
-	username, opts, err := getUserDetailsFromAssertion(db, model, serial, email)
+	username, expiration, opts, err := getUserDetailsFromAssertion(db, model, serial, email)
 	if err != nil {
 		return nil, &UserError{Err: fmt.Errorf("cannot create user %q: %v", email, err)}
 	}
 
 	opts.Sudoer = sudoer
-	createdUser, err := addUser(st, username, email, opts)
+	createdUser, err := addUser(st, username, email, expiration, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 	email := userAssertion.Email()
 	// we need to use getUserDetailsFromAssertion as this verifies
 	// the assertion against the current brand/model/time
-	username, addUserOpts, err := getUserDetailsFromAssertion(assertDb, model, serial, email)
+	username, expiration, addUserOpts, err := getUserDetailsFromAssertion(assertDb, model, serial, email)
 	if err != nil {
 		logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
 		return nil, nil
@@ -184,7 +184,7 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 	}
 
 	addUserOpts.Sudoer = sudoer
-	return addUser(state, username, email, addUserOpts)
+	return addUser(state, username, email, expiration, addUserOpts)
 }
 
 var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*CreatedUser, error) {
@@ -212,7 +212,7 @@ var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.ROData
 	return createdUsers, nil
 }
 
-func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.Model, serialAs *asserts.Serial, email string) (string, *osutil.AddUserOptions, error) {
+func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.Model, serialAs *asserts.Serial, email string) (string, time.Time, *osutil.AddUserOptions, error) {
 	brandID := modelAs.BrandID()
 	series := modelAs.Series()
 	model := modelAs.Model()
@@ -222,7 +222,7 @@ func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.M
 		"email":    email,
 	})
 	if err != nil {
-		return "", nil, err
+		return "", time.Time{}, nil, err
 	}
 	// the asserts package guarantees that this cast will work
 	su := a.(*asserts.SystemUser)
@@ -230,27 +230,27 @@ func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.M
 	// check that the signer of the assertion is one of the accepted ones
 	sysUserAuths := modelAs.SystemUserAuthority()
 	if len(sysUserAuths) > 0 && !strutil.ListContains(sysUserAuths, su.AuthorityID()) {
-		return "", nil, fmt.Errorf("%q not in accepted authorities %q", su.AuthorityID(), sysUserAuths)
+		return "", time.Time{}, nil, fmt.Errorf("%q not in accepted authorities %q", su.AuthorityID(), sysUserAuths)
 	}
 	// cross check that the assertion is valid for the given series/model
 	if len(su.Series()) > 0 && !strutil.ListContains(su.Series(), series) {
-		return "", nil, fmt.Errorf("%q not in series %q", series, su.Series())
+		return "", time.Time{}, nil, fmt.Errorf("%q not in series %q", series, su.Series())
 	}
 	if len(su.Models()) > 0 && !strutil.ListContains(su.Models(), model) {
-		return "", nil, fmt.Errorf("%q not in models %q", model, su.Models())
+		return "", time.Time{}, nil, fmt.Errorf("%q not in models %q", model, su.Models())
 	}
 	if len(su.Serials()) > 0 {
 		if serialAs == nil {
-			return "", nil, fmt.Errorf("bound to serial assertion but device not yet registered")
+			return "", time.Time{}, nil, fmt.Errorf("bound to serial assertion but device not yet registered")
 		}
 		serial := serialAs.Serial()
 		if !strutil.ListContains(su.Serials(), serial) {
-			return "", nil, fmt.Errorf("%q not in serials %q", serial, su.Serials())
+			return "", time.Time{}, nil, fmt.Errorf("%q not in serials %q", serial, su.Serials())
 		}
 	}
 
 	if !su.ValidAt(time.Now()) {
-		return "", nil, fmt.Errorf("assertion not valid anymore")
+		return "", time.Time{}, nil, fmt.Errorf("assertion not valid anymore")
 	}
 
 	gecos := fmt.Sprintf("%s,%s", email, su.Name())
@@ -260,10 +260,10 @@ func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.M
 		Password:            su.Password(),
 		ForcePasswordChange: su.ForcePasswordChange(),
 	}
-	return su.Username(), opts, nil
+	return su.Username(), su.UserExpiration(), opts, nil
 }
 
-func setupLocalUser(state *state.State, username, email string) error {
+func setupLocalUser(state *state.State, username, email string, expiration time.Time) error {
 	user, err := userLookup(username)
 	if err != nil {
 		return fmt.Errorf("cannot lookup user %q: %s", username, err)
@@ -283,6 +283,7 @@ func setupLocalUser(state *state.State, username, email string) error {
 		Email:      email,
 		Macaroon:   "",
 		Discharges: nil,
+		Expiration: expiration,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot persist authentication details: %v", err)
@@ -310,12 +311,12 @@ func setupLocalUser(state *state.State, username, email string) error {
 	return nil
 }
 
-func addUser(state *state.State, username string, email string, opts *osutil.AddUserOptions) (*CreatedUser, error) {
+func addUser(state *state.State, username string, email string, expiration time.Time, opts *osutil.AddUserOptions) (*CreatedUser, error) {
 	opts.ExtraUsers = !release.OnClassic
 	if err := osutilAddUser(username, opts); err != nil {
 		return nil, fmt.Errorf("cannot add user %q: %s", username, err)
 	}
-	if err := setupLocalUser(state, username, email); err != nil {
+	if err := setupLocalUser(state, username, email, expiration); err != nil {
 		return nil, err
 	}
 
