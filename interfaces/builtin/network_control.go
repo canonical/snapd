@@ -323,7 +323,6 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 
 # For XDP:
 bpf
-socket AF_XDP
 `
 
 /* https://www.kernel.org/doc/Documentation/networking/tuntap.txt
