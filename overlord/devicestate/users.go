@@ -53,6 +53,10 @@ func (e *UserError) Error() string {
 	return e.Err.Error()
 }
 
+type RemoveUserOptions struct {
+	Force bool
+}
+
 // CreatedUser holds the results from a create user operation.
 type CreatedUser struct {
 	Username string
@@ -111,8 +115,11 @@ func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]*CreatedUse
 }
 
 // RemoveUser removes linux user account of passed username.
-func RemoveUser(st *state.State, username string) (*auth.UserState, error) {
+func RemoveUser(st *state.State, username string, opts *RemoveUserOptions) (*auth.UserState, error) {
 	// TODO: allow to remove user entries by email as well
+	if opts == nil {
+		opts = &RemoveUserOptions{}
+	}
 
 	// catch silly errors
 	if username == "" {
@@ -129,7 +136,11 @@ func RemoveUser(st *state.State, username string) (*auth.UserState, error) {
 	}
 
 	// first remove the system user
-	if err := osutilDelUser(username, &osutil.DelUserOptions{ExtraUsers: !release.OnClassic}); err != nil {
+	delUseropts := &osutil.DelUserOptions{
+		ExtraUsers: !release.OnClassic,
+		Force:      opts.Force,
+	}
+	if err := osutilDelUser(username, delUseropts); err != nil {
 		return nil, err
 	}
 

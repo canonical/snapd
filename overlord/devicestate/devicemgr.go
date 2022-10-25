@@ -1618,7 +1618,9 @@ func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 		if !user.HasExpired() {
 			continue
 		}
-		if _, err := RemoveUser(st, user.Username); err != nil {
+		// Force the removal of the user as it's possible to block this expiration
+		// otherwise by the user having a left a process or service running.
+		if _, err := RemoveUser(st, user.Username, &RemoveUserOptions{Force: true}); err != nil {
 			return err
 		}
 	}
