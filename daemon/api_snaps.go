@@ -297,8 +297,7 @@ func (inst *snapInstruction) validate() error {
 		if inst.Time == "" {
 			return errors.New("hold action requires a non-empty time value")
 		} else if inst.Time != "forever" {
-			_, err := time.Parse(time.RFC3339, inst.Time)
-			if err != nil {
+			if _, err := time.Parse(time.RFC3339, inst.Time); err != nil {
 				return fmt.Errorf(`hold action requires time to be "forever" or in RFC3339 format: %v`, err)
 			}
 		}
