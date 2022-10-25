@@ -4,6 +4,13 @@ summary: Verify that we are able to request specific revisions of snaps from the
 # with the distro
 backends: [-autopkgtest]
 
+# disable the following distributions
+# ubuntu-14, lack of systemd-run
+# ubuntu-20.04-arm*, because we use pc kernel and gadget.
+systems:
+- -ubuntu-14.04-*
+- -ubuntu-20.04-arm-*
+
 environment:
     ROOT: /home/test/tmp/
     IMAGE: /home/test/tmp/image
