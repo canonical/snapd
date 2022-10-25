@@ -140,4 +140,3 @@ execute: |
   # for SSH will be removed, which should result in the below error 
   # message
   retry -n 30 --wait 1 sh -c "remote.exec snap changes 2>&1 | MATCH 'Permission denied, please try again'"
-  
