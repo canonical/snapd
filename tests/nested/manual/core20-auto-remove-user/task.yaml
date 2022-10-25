@@ -1,4 +1,4 @@
-summary: Test that UC2* can use cloud-init config on ubuntu-seed with grade signed.
+summary: Verify that snapd correctly removes expired users created with assertions.
 
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
@@ -42,7 +42,7 @@ prepare: |
   # with the version we are testing
   VERSION="$(tests.nested show version)"
   EXPIRATION=$(date --rfc-3339=seconds -d "$(date) + 60 minute" | sed 's/ /T/')
-  
+
   #shellcheck disable=SC2002
   cat ./user1.json | jq --arg date "$EXPIRATION" '. + {until: $date}' > ./user1-final.json
   sed -i "s/{VERSION}/$VERSION/g" ./user1-final.json
