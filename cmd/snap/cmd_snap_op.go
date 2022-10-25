@@ -941,7 +941,13 @@ func (x *cmdRefresh) holdRefreshes() (err error) {
 	}
 
 	if len(names) == 0 {
-		fmt.Fprintf(Stdout, i18n.G("Auto-refresh of all snaps held until %s\n"), opts.Time)
+		var timeStr string
+		if opts.Time == "forever" {
+			timeStr = "indefinitely"
+		} else {
+			timeStr = fmt.Sprintf("until %s", opts.Time)
+		}
+		fmt.Fprintf(Stdout, i18n.G("Auto-refresh of all snaps held %s\n"), timeStr)
 	} else {
 		fmt.Fprintf(Stdout, i18n.G("General refreshes of %s held until %s\n"), strutil.Quoted(names), opts.Time)
 	}
