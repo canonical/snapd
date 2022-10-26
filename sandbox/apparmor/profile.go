@@ -350,9 +350,11 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 		}
 	}
 
-	policy["homedirs"] = &osutil.MemoryFileState{
-		Content: []byte(snapConfineHomedirsSnippet(homedirs)),
-		Mode:    0644,
+	if len(homedirs) > 0 {
+		policy["homedirs"] = &osutil.MemoryFileState{
+			Content: []byte(snapConfineHomedirsSnippet(homedirs)),
+			Mode:    0644,
+		}
 	}
 
 	// Ensure that generated policy is what we computed above.
