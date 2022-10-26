@@ -24,11 +24,13 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -554,10 +556,20 @@ func currentSnapsImpl(st *state.State) ([]*store.CurrentSnap, error) {
 		return nil, nil
 	}
 
-	return collectCurrentSnaps(snapStates, nil)
+	var names []string
+	for _, snapst := range snapStates {
+		names = append(names, snapst.InstanceName())
+	}
+
+	holds, err := SnapHolds(st, names)
+	if err != nil {
+		return nil, err
+	}
+
+	return collectCurrentSnaps(snapStates, holds, nil)
 }
 
-func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.CurrentSnap, *SnapState) error) (curSnaps []*store.CurrentSnap, err error) {
+func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]string, consider func(*store.CurrentSnap, *SnapState) error) (curSnaps []*store.CurrentSnap, err error) {
 	curSnaps = make([]*store.CurrentSnap, 0, len(snapStates))
 
 	for _, snapst := range snapStates {
@@ -589,6 +601,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 			IgnoreValidation: snapst.IgnoreValidation,
 			Epoch:            snapInfo.Epoch,
 			CohortKey:        snapst.CohortKey,
+			HeldBy:           holds[snapInfo.InstanceName()],
 		}
 		curSnaps = append(curSnaps, installed)
 
@@ -721,8 +734,14 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 		nCands++
 		return nil
 	}
+
+	holds, err := SnapHolds(st, names)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	// determine current snaps and collect candidates for refresh
-	curSnaps, err := collectCurrentSnaps(snapStates, addCand)
+	curSnaps, err := collectCurrentSnaps(snapStates, holds, addCand)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -779,6 +798,46 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 	}
 
 	return updates, stateByInstanceName, ignoreValidationByInstanceName, nil
+}
+
+// SnapHolds returns a map of held snaps to lists of holding snaps (including
+// "system" for user holds).
+func SnapHolds(st *state.State, snaps []string) (map[string][]string, error) {
+	var allSnapsHold string
+	tr := config.NewTransaction(st)
+	err := tr.Get("core", "refresh.hold", &allSnapsHold)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+
+	var allSnapsHoldTime time.Time
+	if allSnapsHold != "" {
+		if allSnapsHold == "forever" {
+			allSnapsHoldTime = timeNow().Add(maxDuration)
+		} else {
+			allSnapsHoldTime, err = time.Parse(time.RFC3339, allSnapsHold)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	holds, err := HeldSnaps(st, HoldGeneral)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, snap := range snaps {
+		if !strutil.ListContains(holds[snap], "system") && allSnapsHoldTime.After(timeNow()) {
+			if holds == nil {
+				holds = make(map[string][]string)
+			}
+
+			holds[snap] = append(holds[snap], "system")
+		}
+	}
+
+	return holds, nil
 }
 
 func installCandidates(st *state.State, names []string, revOpts []*RevisionOptions, channel string, user *auth.UserState) ([]store.SnapActionResult, error) {
