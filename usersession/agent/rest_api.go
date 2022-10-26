@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/usersession/client"
 )
@@ -236,6 +237,11 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	// If there exists a "refresh-available" userhook, call it instead of showing a notification
 	if command := refreshInfo.UserHooks["refresh-available"]; command != "" {
 		go func() {
+			defer func() {
+				if e := recover(); e != nil {
+					logger.Debugf("Recovered from panic while calling 'refresh-available' userhook for %s", command)
+				}
+			}()
 			cmd := exec.Command("snap", "run", command)
 			cmd.Run()
 		}()
