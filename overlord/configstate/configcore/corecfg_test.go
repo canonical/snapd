@@ -135,8 +135,6 @@ type configcoreSuite struct {
 	systemctlOutput   func(args ...string) []byte
 	systemctlArgs     [][]string
 	systemdSysctlArgs [][]string
-
-	mockMountInfoRestore func()
 }
 
 var _ = Suite(&configcoreSuite{})
