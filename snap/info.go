@@ -581,7 +581,7 @@ func (s *Info) HooksDir() string {
 // UserHooks returns a list containing the snap's userhooks.
 func (s *Info) UserHooks() map[string]string {
 	userhooks := make(map[string]string)
-	for appName, _ := range s.Apps {
+	for appName := range s.Apps {
 		if strings.HasPrefix(appName, "userhook-") {
 			userhooks[appName[9:]] = fmt.Sprintf("%s.%s", s.InstanceName(), appName)
 		}
