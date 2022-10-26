@@ -101,7 +101,9 @@ func (s *imageSuite) SetUpTest(c *C) {
 	bootloader.Force(s.bootloader)
 
 	s.BaseTest.SetUpTest(c)
-	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
+	s.AddCleanup(osutil.MockMountInfo(""))
 
 	s.stdout = &bytes.Buffer{}
 	image.Stdout = s.stdout
