@@ -59,6 +59,9 @@ type CurrentSnap struct {
 	CohortKey        string
 	// ValidationSets is an optional array of validation set primary keys.
 	ValidationSets []snapasserts.ValidationSetKey
+	// HeldBy is an optional array of snaps with holds on the current snap's
+	// refreshes. The "system" snap represents a hold placed by the user.
+	HeldBy []string
 }
 
 type AssertionQuery interface {
@@ -80,6 +83,9 @@ type currentSnapV2JSON struct {
 	CohortKey        string     `json:"cohort-key,omitempty"`
 	// ValidationSets is an optional array of validation set primary keys.
 	ValidationSets [][]string `json:"validation-sets,omitempty"`
+	// Held is an optional map that can contain a "by" key mapping to a list of
+	// snaps with holds on the current snap (see CurrentSnap#Held).
+	Held map[string][]string `json:"held,omitempty"`
 }
 
 type SnapActionFlags int
@@ -346,6 +352,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			Epoch:            curSnap.Epoch,
 			CohortKey:        curSnap.CohortKey,
 			ValidationSets:   valsetKeys,
+		}
+
+		if len(curSnap.HeldBy) > 0 {
+			curSnapJSONs[i].Held = map[string][]string{"by": curSnap.HeldBy}
 		}
 	}
 

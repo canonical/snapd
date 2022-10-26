@@ -1199,9 +1199,9 @@ func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 	// validity check
 	held, err := snapstate.HeldSnaps(s.state, snapstate.HoldAutoRefresh)
 	c.Assert(err, IsNil)
-	c.Check(held, DeepEquals, map[string]bool{
-		"some-snap":  true,
-		"other-snap": true,
+	c.Check(held, DeepEquals, map[string][]string{
+		"some-snap":  {"gating-snap"},
+		"other-snap": {"gating-snap"},
 	})
 
 	_, err = snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
@@ -1210,8 +1210,8 @@ func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 	// and it is not held anymore (but other-snap still is)
 	held, err = snapstate.HeldSnaps(s.state, snapstate.HoldAutoRefresh)
 	c.Assert(err, IsNil)
-	c.Check(held, DeepEquals, map[string]bool{
-		"other-snap": true,
+	c.Check(held, DeepEquals, map[string][]string{
+		"other-snap": {"gating-snap"},
 	})
 }
 

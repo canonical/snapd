@@ -1799,7 +1799,7 @@ func filterHeldSnaps(st *state.State, updates []minimalInstallInfo, flags *Flags
 
 	filteredUpdates := make([]minimalInstallInfo, 0, len(updates))
 	for _, update := range updates {
-		if !heldSnaps[update.InstanceName()] {
+		if _, ok := heldSnaps[update.InstanceName()]; !ok {
 			filteredUpdates = append(filteredUpdates, update)
 		}
 	}
