@@ -177,9 +177,9 @@ func NewHTTPClient(opts *ClientOptions) *http.Client {
 
 	return &http.Client{
 		Transport: &LoggedTransport{
-			Transport: transport,
-			Key:       "SNAPD_DEBUG_HTTP",
-			body:      opts.MayLogBody,
+			Transport:  transport,
+			Key:        "SNAPD_DEBUG_HTTP",
+			MayLogBody: opts.MayLogBody,
 		},
 		Timeout:       opts.Timeout,
 		CheckRedirect: checkRedirect,
