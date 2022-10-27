@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/jsonutil"
 )
 
@@ -102,7 +103,14 @@ func New(config *Config) *Client {
 
 	// By default talk over an UNIX socket.
 	if config.BaseURL == "" {
-		transport := &http.Transport{Dial: unixDialer(config.Socket), DisableKeepAlives: config.DisableKeepAlive}
+		transport := &httputil.LoggedTransport{
+			Transport: &http.Transport{
+				Dial:              unixDialer(config.Socket),
+				DisableKeepAlives: config.DisableKeepAlive,
+			},
+			Key:  "SNAP_CLIENT_DEBUG_HTTP",
+			Body: true,
+		}
 		return &Client{
 			baseURL: url.URL{
 				Scheme: "http",
@@ -120,8 +128,14 @@ func New(config *Config) *Client {
 		panic(fmt.Sprintf("cannot parse server base URL: %q (%v)", config.BaseURL, err))
 	}
 	return &Client{
-		baseURL:     *baseURL,
-		doer:        &http.Client{Transport: &http.Transport{DisableKeepAlives: config.DisableKeepAlive}},
+		baseURL: *baseURL,
+		doer: &http.Client{Transport: &httputil.LoggedTransport{
+			Transport: &http.Transport{
+				DisableKeepAlives: config.DisableKeepAlive,
+			},
+			Key:  "SNAP_CLIENT_DEBUG_HTTP",
+			Body: true,
+		}},
 		disableAuth: config.DisableAuth,
 		interactive: config.Interactive,
 		userAgent:   config.UserAgent,

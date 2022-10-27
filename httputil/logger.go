@@ -55,7 +55,7 @@ func (f debugflag) debugBody() bool {
 type LoggedTransport struct {
 	Transport http.RoundTripper
 	Key       string
-	body      bool
+	Body      bool
 }
 
 // RoundTrip is from the http.RoundTripper interface.
@@ -63,14 +63,14 @@ func (tr *LoggedTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	flags := tr.getFlags()
 
 	if flags.debugRequest() {
-		buf, _ := httputil.DumpRequestOut(req, tr.body && flags.debugBody())
+		buf, _ := httputil.DumpRequestOut(req, tr.Body && flags.debugBody())
 		logger.Debugf("> %q", buf)
 	}
 
 	rsp, err := tr.Transport.RoundTrip(req)
 
 	if err == nil && flags.debugResponse() {
-		buf, _ := httputil.DumpResponse(rsp, tr.body && flags.debugBody())
+		buf, _ := httputil.DumpResponse(rsp, tr.Body && flags.debugBody())
 		logger.Debugf("< %q", buf)
 	}
 
