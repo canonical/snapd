@@ -21,6 +21,14 @@ restore: |
     userdel -f --remove "$USERNAME"
     rm -rf /remote/users
 
+debug: |
+    # output custom snap-confine snippets
+    ls -l /var/lib/snapd/apparmor/snap-confine/
+    for f in /var/lib/snapd/apparmor/snap-confine/*; do
+        echo "$f"
+        cat "$f"
+    done
+
 execute: |
     echo "Invoke the test app without setting up homedir support"
     if sudo -u "$USERNAME" -i test-snapd-sh.cmd echo "Hello world" 2> stderr.log; then
