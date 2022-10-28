@@ -187,31 +187,31 @@ func (s *ReleaseTestSuite) TestFilesystemRootType(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestNonWSL(c *C) {
-	defer mockWSLsetup(c, false, false, Ext4)()
+	defer mockWSLsetup(c, false, false, release.Ext4)()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 0)
 }
 
 func (s *ReleaseTestSuite) TestWSL1(c *C) {
-	defer mockWSLsetup(c, true, true, Wslfs)()
+	defer mockWSLsetup(c, true, true, release.Wslfs)()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 1)
 }
 
-func (s *ReleaseTestSuite) TestWSL1(c *C) {
-	defer mockWSLsetup(c, true, true, Lxfs)()
+func (s *ReleaseTestSuite) TestWSL1Old(c *C) {
+	defer mockWSLsetup(c, true, true, release.Lxfs)()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 1)
 }
 
 func (s *ReleaseTestSuite) TestWSL2(c *C) {
-	defer mockWSLsetup(c, true, true, Ext4)()
+	defer mockWSLsetup(c, true, true, release.Ext4)()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }
 
 func (s *ReleaseTestSuite) TestWSL2NoInterop(c *C) {
-	defer mockWSLsetup(c, false, true, Ext4)()
+	defer mockWSLsetup(c, false, true, release.Ext4)()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }

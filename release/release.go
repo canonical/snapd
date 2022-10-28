@@ -143,7 +143,7 @@ func getWSLVersion() int {
 		return 1
 	}
 
-	if fstype == wslfs {
+	if fstype == wslfs || fstype == lxfs {
 		return 1
 	}
 	return 2
