@@ -66,12 +66,6 @@ BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
 	return mockOSRelease
 }
 
-// Kernel magic numbers
-const (
-	wslfs int64 = 0x53464846
-	ext4  int64 = 0xef53
-)
-
 func mockWSLsetup(c *C, existsWSLinterop bool, existsRunWSL bool, filesystemID int64) func() {
 	restoreFileExists := release.MockFileExists(func(s string) bool {
 		if s == "/proc/sys/fs/binfmt_misc/WSLInterop" {
@@ -193,25 +187,31 @@ func (s *ReleaseTestSuite) TestFilesystemRootType(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestNonWSL(c *C) {
-	defer mockWSLsetup(c, false, false, ext4)()
+	defer mockWSLsetup(c, false, false, Ext4)()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 0)
 }
 
 func (s *ReleaseTestSuite) TestWSL1(c *C) {
-	defer mockWSLsetup(c, true, true, wslfs)()
+	defer mockWSLsetup(c, true, true, Wslfs)()
+	v := release.GetWSLVersion()
+	c.Check(v, Equals, 1)
+}
+
+func (s *ReleaseTestSuite) TestWSL1(c *C) {
+	defer mockWSLsetup(c, true, true, Lxfs)()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 1)
 }
 
 func (s *ReleaseTestSuite) TestWSL2(c *C) {
-	defer mockWSLsetup(c, true, true, ext4)()
+	defer mockWSLsetup(c, true, true, Ext4)()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }
 
 func (s *ReleaseTestSuite) TestWSL2NoInterop(c *C) {
-	defer mockWSLsetup(c, false, true, ext4)()
+	defer mockWSLsetup(c, false, true, Ext4)()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }

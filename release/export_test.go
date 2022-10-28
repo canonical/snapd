@@ -56,3 +56,9 @@ var (
 	GetWSLVersion      = getWSLVersion
 	FilesystemRootType = filesystemRootType
 )
+
+const (
+	Wslfs = wslfs
+	Lxfs  = lxfs
+	Ext4  = ext4
+)

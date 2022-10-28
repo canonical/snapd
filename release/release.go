@@ -121,6 +121,12 @@ var filesystemRootType = func() (int64, error) {
 	return int64(statfs.Type), nil
 }
 
+const (
+	wslfs int64 = 0x53464846
+	lxfs  int64 = 0x0 // ??? TODO: Find out
+	ext4  int64 = 0xef53
+)
+
 // We detect WSL via the existence of /proc/sys/fs/binfmt_misc/WSLInterop
 // Under some undocumented circumstances this file may be missing. We have /run/WSL as a backup.
 //
@@ -137,10 +143,10 @@ func getWSLVersion() int {
 		return 1
 	}
 
-	if fstype == 0xef53 { // ext
-		return 2
+	if fstype == wslfs {
+		return 1
 	}
-	return 1
+	return 2
 }
 
 // SystemctlSupportsUserUnits returns true if the systemctl utility
