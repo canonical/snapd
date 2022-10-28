@@ -265,6 +265,18 @@ func (s *SnapSuite) TestUnknownCommand(c *C) {
 	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see 'snap help'.`)
 }
 
+func (s *SnapSuite) TestNoCommandWithArgs(c *C) {
+	for _, args := range [][]string{
+		{"snap", "--foo"},
+		{"snap", "--foo", "install"},
+	} {
+		restore := mockArgs(args...)
+		err := snap.RunMain()
+		c.Assert(err, ErrorMatches, "unknown flag `foo'")
+		restore()
+	}
+}
+
 func (s *SnapSuite) TestResolveApp(c *C) {
 	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
 	c.Assert(err, IsNil)
