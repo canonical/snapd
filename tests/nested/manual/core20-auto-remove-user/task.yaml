@@ -17,7 +17,7 @@ environment:
   # sign all the snaps we build for the image with fakestore
   NESTED_SIGN_SNAPS_FAKESTORE: true
 
-  NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $(pwd)/user1.assert
+  NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-{VERSION}-auto-import.assert
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-secured.model
 
   # for the fake store
@@ -41,14 +41,22 @@ prepare: |
   # set the expiration of the assert to 60 minutes, and replace the version
   # with the version we are testing
   VERSION="$(tests.nested show version)"
-  EXPIRATION=$(date --rfc-3339=seconds -d "$(date) + 60 minute" | sed 's/ /T/')
+  EXPIRATION_1HR=$(date --rfc-3339=seconds -d "$(date) + 60 minute" | sed 's/ /T/')
+  EXPIRATION_2HR=$(date --rfc-3339=seconds -d "$(date) + 120 minute" | sed 's/ /T/')
+  EXPIRATION_3HR=$(date --rfc-3339=seconds -d "$(date) + 180 minute" | sed 's/ /T/')
 
   #shellcheck disable=SC2002
-  cat ./user1.json | jq --arg date "$EXPIRATION" '. + {until: $date}' > ./user1-final.json
-  sed -i "s/{VERSION}/$VERSION/g" ./user1-final.json
+  cat ./user2.json | jq --arg date "$EXPIRATION_1HR" '. + {until: $date}' > ./user2-final.json
+  sed -i "s/{VERSION}/$VERSION/g" ./user2-final.json
+  cat ./user2-2.json | jq --arg date "$EXPIRATION_2HR" '. + {until: $date}' > ./user2-2-final.json
+  sed -i "s/{VERSION}/$VERSION/g" ./user2-2-final.json
+  cat ./user3.json | jq --arg date "$EXPIRATION_3HR" '. + {until: $date}' > ./user3-final.json
+  sed -i "s/{VERSION}/$VERSION/g" ./user3-final.json
 
-  # sign the user1.json using gendeveloper1
-  gendeveloper1 sign-model < ./user1-final.json > user1.assert
+  # sign the users using gendeveloper1
+  gendeveloper1 sign-model < ./user2-final.json > user2.assert
+  gendeveloper1 sign-model < ./user2-2-final.json > user2-2.assert
+  gendeveloper1 sign-model < ./user3-final.json > user3.assert
   
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
@@ -126,10 +134,53 @@ execute: |
   # wait until device is initialized and has a serial
   tests.nested wait-for device-initialized
 
-  # ensure we are looking at the correct user
+  setup_ramdisk() {
+    local ASSERT="$1"
+    if ! remote.exec "test -e /dev/ram0"; then
+      remote.exec "sudo mknod -m 660 /dev/ram0 b 1 0"
+      remote.exec "sudo chown root.disk /dev/ram0"
+    fi
+    remote.exec "sudo mkfs.ext3 /dev/ram0"
+    remote.exec "sudo mount /dev/ram0 /mnt"
+    remote.push "$ASSERT"
+    remote.exec "sudo cp $ASSERT /mnt/auto-import.assert"
+    remote.exec "sync"
+  }
+  teardown_ramdisk() {
+    remote.exec "sudo umount /mnt"
+  }
+
+  # Setup a ramdisk with the revision 1 of user2
+  setup_ramdisk ./user2.assert
+
+  # The system is already managed, which means we need to delete user1 from the auth
+  # state to allow auto-importing a new user. The new user has an expiration and will
+  # be removed automatically, so we only need to do this hacking once.
+  remote.exec "sudo systemctl stop snapd.socket snapd.service"
+  remote.exec "sudo cat /var/lib/snapd/state.json" > state.json
+  cat ./state.json | jq 'del(.data.auth.users)' > ./state-updated.json
+  remote.push ./state-updated.json
+  remote.exec "sudo mv ./state-updated.json /var/lib/snapd/state.json"
+  remote.exec "sudo rm -rf /var/lib/snapd/assertions/asserts-v0/system-user/developer1"
+  remote.exec "sudo systemctl start snapd.socket snapd.service"
+
+  echo "$(snap auto-import) imports assertions from the mounted ramdisk"
+  remote.exec "sudo snap auto-import"
+
+  # ensure we are looking at the correct user and revision
   remote.exec "snap known system-user" | MATCH "format: 2"
-  remote.exec "snap known system-user" | MATCH "name: user1"
+  remote.exec "snap known system-user" | MATCH "revision: 1"
+  remote.exec "snap known system-user" | MATCH "name: user2"
   remote.exec "snap known system-user" | MATCH "user-presence: until-expiration"
+
+  # create the user
+  # remote.exec "sudo snap create-user --known --force-managed"
+
+  # check the user exists in the list of users
+  remote.exec "getent passwd user2" | MATCH 'user2:'
+
+  # remove the ramdisk
+  teardown_ramdisk
 
   # lets put the system time ahead by 1h
   remote.exec "sudo timedatectl set-ntp false"
@@ -138,7 +189,49 @@ execute: |
   # run ensure state to have the user removed
   remote.exec "sudo snap debug ensure-state-soon"
 
-  # Now at some point ensure will run, and the user we've been using
-  # for SSH will be removed, which should result in the below error 
-  # message
-  retry -n 30 --wait 1 sh -c "remote.exec snap changes 2>&1 | MATCH 'Permission denied, please try again'"
+  # wait for user to get removed
+  retry -n 30 --wait 1 sh -c "getent passwd user2 | NOMATCH 'user2:'"
+
+  # next step is to verify we can reimport the user, but with a higher revision
+  # and a new expiration date.
+  setup_ramdisk ./user2-2.assert
+
+  echo "$(snap auto-import) imports assertions from the mounted ramdisk"
+  remote.exec "sudo snap auto-import"
+
+  # ensure we are looking at the correct user and revision
+  remote.exec "snap known system-user" | MATCH "format: 2"
+  remote.exec "snap known system-user" | MATCH "revision: 2"
+  remote.exec "snap known system-user" | MATCH "name: user2"
+  remote.exec "snap known system-user" | MATCH "user-presence: until-expiration"
+
+  # remove the ramdisk
+  teardown_ramdisk
+
+  # lets put the system time ahead by 1h
+  remote.exec "sudo date -s 'next hour'"
+
+  # run ensure state to have the user removed
+  remote.exec "sudo snap debug ensure-state-soon"
+
+  # wait for user to get removed
+  retry -n 30 --wait 1 sh -c "getent passwd user2 | NOMATCH 'user2:'"
+
+  # last, we want to see if we can import a new system-user assertion which
+  # has nothing to do with user2.
+  setup_ramdisk ./user3.assert
+
+  echo "$(snap auto-import) imports assertions from the mounted ramdisk"
+  remote.exec "sudo snap auto-import"
+
+  # ensure we are looking at the correct user, and we could import a new user
+  # that wasn't user2
+  remote.exec "snap known system-user" | MATCH "format: 2"
+  remote.exec "snap known system-user" | MATCH "name: user3"
+  remote.exec "snap known system-user" | MATCH "user-presence: until-expiration"
+
+  # check the user exists in the list of users
+  remote.exec "getent passwd user3" | MATCH 'user3:'
+
+  # remove the ramdisk
+  teardown_ramdisk
