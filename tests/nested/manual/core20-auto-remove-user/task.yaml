@@ -176,9 +176,6 @@ execute: |
   remote.exec "snap known system-user" | MATCH "name: user2"
   remote.exec "snap known system-user" | MATCH "user-presence: until-expiration"
 
-  # create the user
-  # remote.exec "sudo snap create-user --known --force-managed"
-
   # check the user exists in the list of users
   remote.exec "getent passwd user2" | MATCH 'user2:'
 
