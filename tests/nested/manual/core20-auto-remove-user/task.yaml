@@ -160,6 +160,7 @@ execute: |
   # be removed automatically, so we only need to do this hacking once.
   remote.exec "sudo systemctl stop snapd.socket snapd.service"
   remote.exec "sudo cat /var/lib/snapd/state.json" > state.json
+  #shellcheck disable=SC2002
   cat ./state.json | jq 'del(.data.auth.users)' > ./state-updated.json
   remote.push ./state-updated.json
   remote.exec "sudo mv ./state-updated.json /var/lib/snapd/state.json"
