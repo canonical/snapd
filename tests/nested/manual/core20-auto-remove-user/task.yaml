@@ -48,8 +48,10 @@ prepare: |
   #shellcheck disable=SC2002
   cat ./user2.json | jq --arg date "$EXPIRATION_1HR" '. + {until: $date}' > ./user2-final.json
   sed -i "s/{VERSION}/$VERSION/g" ./user2-final.json
+  #shellcheck disable=SC2002
   cat ./user2-2.json | jq --arg date "$EXPIRATION_2HR" '. + {until: $date}' > ./user2-2-final.json
   sed -i "s/{VERSION}/$VERSION/g" ./user2-2-final.json
+  #shellcheck disable=SC2002
   cat ./user3.json | jq --arg date "$EXPIRATION_3HR" '. + {until: $date}' > ./user3-final.json
   sed -i "s/{VERSION}/$VERSION/g" ./user3-final.json
 
