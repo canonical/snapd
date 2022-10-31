@@ -200,6 +200,12 @@ func (t *Task) Status() Status {
 func (t *Task) SetStatus(new Status) {
 	t.state.writing()
 	old := t.status
+	if new == DoneStatus && old == AbortStatus {
+		// if the task is in AbortStatus (because some other task ran in parallel and had an error so the change is
+		// aborted) and DoneStatus was requested (which can happen if the task handler sets its status explicitly)
+		// then keep it at aborted so it can transition to Undo.
+		return
+	}
 	t.status = new
 	if !old.Ready() && new.Ready() {
 		t.readyTime = timeNow()
@@ -332,7 +338,7 @@ func (t *Task) addLog(kind, format string, args []interface{}) {
 	}
 
 	tstr := timeNow().Format(time.RFC3339)
-	msg := fmt.Sprintf(tstr+" "+kind+" "+format, args...)
+	msg := tstr + " " + kind + " " + fmt.Sprintf(format, args...)
 	t.log = append(t.log, msg)
 	logger.Debugf(msg)
 }
@@ -484,10 +490,16 @@ func NewTaskSet(tasks ...*Task) *TaskSet {
 	return &TaskSet{tasks, nil}
 }
 
-// Edge returns the task marked with the given edge name.
+// MaybeEdge returns the task marked with the given edge name or nil if no such
+// task exists.
+func (ts TaskSet) MaybeEdge(e TaskSetEdge) *Task {
+	return ts.edges[e]
+}
+
+// Edge returns the task marked with the given edge name or an error.
 func (ts TaskSet) Edge(e TaskSetEdge) (*Task, error) {
-	t, ok := ts.edges[e]
-	if !ok {
+	t := ts.MaybeEdge(e)
+	if t == nil {
 		return nil, fmt.Errorf("internal error: missing %q edge in task set", e)
 	}
 	return t, nil

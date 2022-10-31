@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -338,7 +338,7 @@ func (s *infoSuite) TestMaybePrintSum(c *check.C) {
 	c.Check(buf.String(), check.Equals, "")
 }
 
-func (s *infoSuite) TestMaybePrintContact(c *check.C) {
+func (s *infoSuite) TestMaybePrintLinksContact(c *check.C) {
 	var buf flushBuffer
 	iw := snap.NewInfoWriter(&buf)
 
@@ -350,9 +350,37 @@ func (s *infoSuite) TestMaybePrintContact(c *check.C) {
 	} {
 		buf.Reset()
 		snap.SetupDiskSnap(iw, "", &client.Snap{Contact: contact})
-		snap.MaybePrintContact(iw)
+		snap.MaybePrintLinks(iw)
 		c.Check(buf.String(), check.Equals, expected, check.Commentf("%q", contact))
 	}
+}
+
+func (s *infoSuite) TestMaybePrintLinksVerbose(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	snap.SetVerbose(iw, true)
+
+	const contact = "mailto:joe@example.com"
+	const website1 = "http://example.com/www1"
+	const website2 = "http://example.com/www2"
+	snap.SetupDiskSnap(iw, "", &client.Snap{
+		Links: map[string][]string{
+			"contact": {contact},
+			"website": {website1, website2},
+		},
+		Contact: contact,
+		Website: website1,
+	})
+
+	snap.MaybePrintLinks(iw)
+	c.Check(buf.String(), check.Equals, "contact:\tjoe@example.com\n"+
+		`links:
+  contact:
+    - mailto:joe@example.com
+  website:
+    - http://example.com/www1
+    - http://example.com/www2
+`)
 }
 
 func (s *infoSuite) TestMaybePrintBase(c *check.C) {
@@ -399,7 +427,7 @@ func (s *infoSuite) TestMaybePrintPath(c *check.C) {
 }
 
 func (s *infoSuite) TestClientSnapFromPath(c *check.C) {
-	// minimal sanity check
+	// minimal validity check
 	fn := snaptest.MakeTestSnapWithFiles(c, `
 name: some-snap
 version: 9
@@ -418,7 +446,7 @@ func (s *infoSuite) TestInfoPricedNarrowTerminal(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
-			fmt.Fprintln(w, findPricedJSON)
+			fmt.Fprint(w, findPricedJSON)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
@@ -436,7 +464,7 @@ func (s *infoSuite) TestInfoPricedNarrowTerminal(c *check.C) {
 name:    hello
 summary: GNU Hello, the "hello world"
   snap
-publisher: Canonical*
+publisher: Canonical**
 license:   Proprietary
 price:     1.99GBP
 description: |
@@ -455,7 +483,7 @@ func (s *infoSuite) TestInfoPriced(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
-			fmt.Fprintln(w, findPricedJSON)
+			fmt.Fprint(w, findPricedJSON)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
@@ -471,7 +499,7 @@ func (s *infoSuite) TestInfoPriced(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   GNU Hello, the "hello world" snap
-publisher: Canonical*
+publisher: Canonical**
 license:   Proprietary
 price:     1.99GBP
 description: |
@@ -577,11 +605,11 @@ func (s *infoSuite) TestInfoUnquoted(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
-			fmt.Fprintln(w, mockInfoJSON)
+			fmt.Fprint(w, mockInfoJSON)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
-			fmt.Fprintln(w, "{}")
+			fmt.Fprint(w, "{}")
 		default:
 			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
 		}
@@ -593,7 +621,7 @@ func (s *infoSuite) TestInfoUnquoted(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: Canonical*
+publisher: Canonical**
 license:   MIT
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -677,11 +705,11 @@ func (s *infoSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
-			fmt.Fprintln(w, mockInfoJSON)
+			fmt.Fprint(w, mockInfoJSON)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
-			fmt.Fprintln(w, mockInfoJSONOtherLicense)
+			fmt.Fprint(w, mockInfoJSONOtherLicense)
 		default:
 			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
 		}
@@ -699,7 +727,7 @@ health:
   message:  please configure the grawflit
   checked:  2019-05-13T16:27:01+01:00
   revision: 1
-publisher: Canonical*
+publisher: Canonical**
 license:   BSD-3
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -741,11 +769,11 @@ func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
-			fmt.Fprintln(w, mockInfoJSON)
+			fmt.Fprint(w, mockInfoJSON)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
-			fmt.Fprintln(w, mockInfoJSONNoLicense)
+			fmt.Fprint(w, mockInfoJSONNoLicense)
 		default:
 			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
 		}
@@ -757,7 +785,7 @@ func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: Canonical*
+publisher: Canonical**
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -777,11 +805,11 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 		case 0, 2, 4:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
-			fmt.Fprintln(w, mockInfoJSONWithChannels)
+			fmt.Fprint(w, mockInfoJSONWithChannels)
 		case 1, 3, 5:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
-			fmt.Fprintln(w, mockInfoJSONNoLicense)
+			fmt.Fprint(w, mockInfoJSONNoLicense)
 		default:
 			c.Fatalf("expected to get 6 requests, now on %d (%v)", n+1, r)
 		}
@@ -793,7 +821,7 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: Canonical*
+publisher: Canonical**
 store-url: https://snapcraft.io/hello
 license:   unset
 description: |
@@ -820,7 +848,7 @@ installed:     2.10                      (100)  1kB disabled
 	refreshDate := isoDateTimeToLocalDate(c, "2006-01-02T22:04:07.123456789Z")
 	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(`name:      hello
 summary:   The GNU Hello snap
-publisher: Canonical*
+publisher: Canonical**
 store-url: https://snapcraft.io/hello
 license:   unset
 description: |
@@ -881,7 +909,7 @@ func (s *infoSuite) TestInfoHumanTimes(c *check.C) {
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
-			fmt.Fprintln(w, mockInfoJSONNoLicense)
+			fmt.Fprint(w, mockInfoJSONNoLicense)
 		default:
 			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
 		}
@@ -893,7 +921,7 @@ func (s *infoSuite) TestInfoHumanTimes(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
-publisher: Canonical*
+publisher: Canonical**
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -1040,20 +1068,6 @@ func (infoSuite) TestMaybePrintHealth(c *check.C) {
 	}
 }
 
-func (infoSuite) TestWrapCornerCase(c *check.C) {
-	// this particular corner case isn't currently reachable from
-	// printDescr nor printSummary, but best to have it covered
-	var buf bytes.Buffer
-	const s = "This is a paragraph indented with leading spaces that are encoded as multiple bytes. All hail EN SPACE."
-	snap.WrapFlow(&buf, []rune(s), "\u2002\u2002", 30)
-	c.Check(buf.String(), check.Equals, `
-  This is a paragraph indented
-  with leading spaces that are
-  encoded as multiple bytes.
-  All hail EN SPACE.
-`[1:])
-}
-
 func (infoSuite) TestBug1828425(c *check.C) {
 	const s = `This is a description
                                   that has
@@ -1114,11 +1128,11 @@ func (s *infoSuite) TestInfoParllelInstance(c *check.C) {
 			q := r.URL.Query()
 			// asks for the instance snap
 			c.Check(q.Get("name"), check.Equals, "hello")
-			fmt.Fprintln(w, mockInfoJSONWithChannels)
+			fmt.Fprint(w, mockInfoJSONWithChannels)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello_foo")
-			fmt.Fprintln(w, mockInfoJSONParallelInstance)
+			fmt.Fprint(w, mockInfoJSONParallelInstance)
 		default:
 			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
 		}
@@ -1132,7 +1146,7 @@ func (s *infoSuite) TestInfoParllelInstance(c *check.C) {
 	// make sure local and remote info is combined in the output
 	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(`name:      hello_foo
 summary:   The GNU Hello snap
-publisher: Canonical*
+publisher: Canonical**
 store-url: https://snapcraft.io/hello
 license:   unset
 description: |
@@ -1194,11 +1208,11 @@ func (s *infoSuite) TestInfoStoreURL(c *check.C) {
 			q := r.URL.Query()
 			// asks for the instance snap
 			c.Check(q.Get("name"), check.Equals, "hello")
-			fmt.Fprintln(w, mockInfoJSONWithChannels)
+			fmt.Fprint(w, mockInfoJSONWithChannels)
 		case 1:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
-			fmt.Fprintln(w, mockInfoJSONWithStoreURL)
+			fmt.Fprint(w, mockInfoJSONWithStoreURL)
 		default:
 			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
 		}
@@ -1212,7 +1226,7 @@ func (s *infoSuite) TestInfoStoreURL(c *check.C) {
 	// make sure local and remote info is combined in the output
 	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(`name:      hello
 summary:   The GNU Hello snap
-publisher: Canonical*
+publisher: Canonical**
 store-url: https://snapcraft.io/hello
 license:   unset
 description: |

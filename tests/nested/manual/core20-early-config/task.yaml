@@ -1,26 +1,21 @@
 summary: Test that gadget config defaults are applied early on core20.
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
-    NESTED_IMAGE_ID: core20-early-config
     NESTED_ENABLE_TPM: true
     NESTED_ENABLE_SECURE_BOOT: true
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
-    mkdir extra-snaps
-
     # Get the snakeoil key and cert
-    KEY_NAME=$(tests.nested get snakeoil-key)
+    KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
     # modify and repack gadget snap (add defaults section and install hook)
-    snap download --basename=pc --channel="20/edge" pc
+    VERSION="$(tests.nested show version)"
+    snap download --basename=pc --channel="$VERSION/edge" pc
     unsquashfs -d pc-gadget pc.snap
 
     cat defaults.yaml >> pc-gadget/meta/gadget.yaml
@@ -28,62 +23,79 @@ prepare: |
     cp install pc-gadget/meta/hooks/
 
     tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-    snap pack pc-gadget/ extra-snaps/
+    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
 
     rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
     tests.nested build-image core
     tests.nested create-vm core
 
+restore: |
+    remote.exec "sudo rm -f /etc/netplan/90-snapd-config.yaml" || true
+
+debug: |
+    # show if anything went wrong during seeding
+    remote.exec "snap change 1" || true
+
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     check_core20_early_config(){
-        # sanity - check that defaults were applied; note this doesn't guarantee
+        # precondition - check that defaults were applied; note this doesn't guarantee
         # that defaults were applied early - that is checked further down.
-        echo "Sanity check of the gadget defaults"
-        tests.nested exec "sudo snap get system service.rsyslog.disable" | MATCH "true"
-        tests.nested exec "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
-        tests.nested exec "sudo snap get system system.power-key-action" | MATCH "ignore"
-        tests.nested exec "sudo snap get system system.disable-backlight-service" | MATCH "true"
+        echo "Precondition check of the gadget defaults"
+        remote.exec "sudo snap get system service.rsyslog.disable" | MATCH "true"
+        remote.exec "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
+        remote.exec "sudo snap get system system.power-key-action" | MATCH "ignore"
+        remote.exec "sudo snap get system system.ctrl-alt-del-action" | MATCH "none"
+        remote.exec "sudo snap get system system.disable-backlight-service" | MATCH "true"
 
-        tests.nested exec "test -L /etc/systemd/system/rsyslog.service"
-        tests.nested exec "cat /etc/systemd/logind.conf.d/00-snap-core.conf" | MATCH "HandlePowerKey=ignore"
-        tests.nested exec "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=780"
-        tests.nested exec "test -L /etc/systemd/system/systemd-backlight@.service"
+        remote.exec "test -L /etc/systemd/system/rsyslog.service"
+        remote.exec "cat /etc/systemd/logind.conf.d/00-snap-core.conf" | MATCH "HandlePowerKey=ignore"
+        remote.exec "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=780"
+        remote.exec "test -L /etc/systemd/system/systemd-backlight@.service"
 
         echo "Test that defaults were applied early."
         # early config is witnessed by install hook of the pc gadget. Note we can
         # only check rsyslog/backlight symlinks as other core settings cannot be
         # inspected from install hook of the gadget.
-        tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
-        tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "backlight symlink: /dev/null"
+        remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
+        remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "backlight symlink: /dev/null"
 
         # timezone is set
-        tests.nested exec "cat /etc/timezone" | MATCH "Europe/Malta"
-        tests.nested exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
-        tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
+        remote.exec "cat /etc/timezone" | MATCH "Europe/Malta"
+        remote.exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
+        remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
 
         # check console-conf disabled
-        tests.nested exec "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"
+        remote.exec "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"
 
         # hostname is set
-        tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "hostname: foo"
-        tests.nested exec "cat /etc/hostname" | MATCH "foo"
-        tests.nested exec "hostname" | MATCH "foo"
+        remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "hostname: foo"
+        remote.exec "cat /etc/hostname" | MATCH "foo"
+        remote.exec "hostname" | MATCH "foo"
+
+        # netplan config defaults are applied
+        remote.exec "cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54
+        remote.exec "netplan get bridges.br54.dhcp4" | MATCH true
+        remote.exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH true
+        remote.exec "netplan get ethernets.ens3.dhcp4" | MATCH false
+        # and updating netplan works
+        remote.exec "sudo snap set system system.network.netplan.network.bridges.br54.dhcp4=false"
+        remote.exec "netplan get bridges.br54.dhcp4" | MATCH false
+        remote.exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH false
+        # ensure the test can be repeated
+        remote.exec "sudo rm -f /etc/netplan/90-snapd-config.yaml"
     }
 
     check_core20_early_config
 
     echo "Transition to recover mode and check it again"
-    recoverySystem=$(nested_exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
-    nested_uc20_transition_to_system_mode "$recoverySystem" recover
+    recoverySystem=$(remote.exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
+    tests.nested transition "$recoverySystem" recover
 
     echo "Wait for the snap command to be available since recover mode needs to seed itself"
     tests.nested wait-for snap-command
 
     echo "Wait for snap seeding to be done"
-    tests.nested exec "sudo snap wait system seed.loaded"
+    remote.exec "sudo snap wait system seed.loaded"
 
     check_core20_early_config

@@ -163,6 +163,7 @@ var templateCommon = `
   /run/systemd/userdb/io.systemd.DynamicUser rw,        # systemd-exec users
   /run/systemd/userdb/io.systemd.Home rw,               # systemd-home dirs
   /run/systemd/userdb/io.systemd.NameServiceSwitch rw,  # UNIX/glibc NSS
+  /run/systemd/userdb/io.systemd.Machine rw,            # systemd-machined
 
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
 
@@ -189,10 +190,12 @@ var templateCommon = `
   /usr/lib/os-release k,
 
   # systemd native journal API (see sd_journal_print(4)). This should be in
-  # AppArmor's base abstraction, but until it is, include here.
-  /run/systemd/journal/socket w,
-  /run/systemd/journal/stdout rw, # 'r' shouldn't be needed, but journald
-                                  # doesn't leak anything so allow
+  # AppArmor's base abstraction, but until it is, include here. We include
+  # the base journal path as well as the journal namespace pattern path. Each
+  # journal namespace for quota groups will be prefixed with 'snap-'.
+  /run/systemd/journal{,.snap-*}/socket w,
+  /run/systemd/journal{,.snap-*}/stdout rw, # 'r' shouldn't be needed, but journald
+                                            # doesn't leak anything so allow
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
@@ -267,6 +270,8 @@ var templateCommon = `
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/yama/ptrace_scope r,
   @{PROC}/sys/kernel/shmmax r,
+  # Allow apps to introspect the level of dbus mediation AppArmor implements.
+  /sys/kernel/security/apparmor/features/dbus/mask r,
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/fs/file-nr r,
   @{PROC}/sys/fs/inotify/max_* r,
@@ -282,6 +287,7 @@ var templateCommon = `
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /sys/fs/cgroup/memory/{,user.slice/}memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
+  /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.stat r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.shares r,
@@ -333,6 +339,15 @@ var templateCommon = `
   # bind mount *not* used here (see 'parallel installs', above)
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/                  r,
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/**                mrkix,
+
+  # Experimental snap folder changes
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/                    r,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/**                  mrkix,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/common/**           wl,
+
+  owner @{HOME}/Snap/@{SNAP_INSTANCE_NAME}/                          r,
+  owner @{HOME}/Snap/@{SNAP_INSTANCE_NAME}/**                        mrkixwl,
 
   # Writable home area for this version.
   # bind mount *not* used here (see 'parallel installs', above)
@@ -403,7 +418,7 @@ var templateCommon = `
   signal (receive) peer=unconfined,
 
   # for 'udevadm trigger --verbose --dry-run --tag-match=snappy-assign'
-  /{,s}bin/udevadm ixr,
+  /{,usr/}{,s}bin/udevadm ixr,
   /etc/udev/udev.conf r,
   /{,var/}run/udev/tags/snappy-assign/ r,
   @{PROC}/cmdline r,
@@ -455,6 +470,8 @@ var templateCommon = `
   /run/lock/ r,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
+  
+  ###DEVMODE_SNAP_CONFINE###
 `
 
 var templateFooter = `
@@ -501,6 +518,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/base64 ixr,
   /{,usr/}bin/basename ixr,
   /{,usr/}bin/bunzip2 ixr,
+  /{,usr/}bin/busctl ixr,
   /{,usr/}bin/bzcat ixr,
   /{,usr/}bin/bzdiff ixr,
   /{,usr/}bin/bzgrep ixr,
@@ -545,7 +563,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/kill ixr,
   /{,usr/}bin/ldd ixr,
   /{usr/,}lib{,32,64}/ld{,32,64}-*.so ix,
-  /{usr/,}lib/@{multiarch}/ld{,32,64}-*.so ix,
+  /{usr/,}lib/@{multiarch}/ld{,32,64}-*.so* ix,
   /{,usr/}bin/less{,file,pipe} ixr,
   /{,usr/}bin/ln ixr,
   /{,usr/}bin/line ixr,
@@ -562,6 +580,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/mv ixr,
   /{,usr/}bin/nice ixr,
   /{,usr/}bin/nohup ixr,
+  /{,usr/}bin/numfmt ixr,
   /{,usr/}bin/od ixr,
   /{,usr/}bin/openssl ixr, # may cause harmless capability block_suspend denial
   /{,usr/}bin/paste ixr,
@@ -607,7 +626,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/uptime ixr,
   /{,usr/}bin/vdir ixr,
   /{,usr/}bin/wc ixr,
-  /{,usr/}bin/which ixr,
+  /{,usr/}bin/which{,.debianutils} ixr,
   /{,usr/}bin/xargs ixr,
   /{,usr/}bin/xz ixr,
   /{,usr/}bin/yes ixr,
@@ -795,6 +814,16 @@ var privDropAndChownRules = `
   #capability kill,
 `
 
+// coreSnippet contains apparmor rules specific only for
+// snaps on native core systems.
+//
+var coreSnippet = `
+# Allow each snaps to access each their own folder on the
+# ubuntu-save partition, with write permissions.
+/var/lib/snapd/save/snap/@{SNAP_INSTANCE_NAME}/ rw,
+/var/lib/snapd/save/snap/@{SNAP_INSTANCE_NAME}/** mrwklix,
+`
+
 // classicTemplate contains apparmor template used for snaps with classic
 // confinement. This template was Designed by jdstrand:
 // https://github.com/snapcore/snapd/pull/2366#discussion_r90101320
@@ -869,6 +898,12 @@ var overlayRootSnippet = `
   "###UPPERDIR###/{,**/}" r,
 `
 
+// capabilityBPFSnippet contains extra permissions for snap-confine to execute
+// bpf() syscall and set up or modify cgroupv2 device access filtering
+var capabilityBPFSnippet = `
+capability bpf,
+`
+
 var ptraceTraceDenySnippet = `
 # While commands like 'ps', 'ip netns identify <pid>', 'ip netns pids foo', etc
 # trigger a 'ptrace (trace)' denial, they aren't actually tracing other
@@ -881,6 +916,17 @@ var ptraceTraceDenySnippet = `
 # dangerous access frivolously.
 deny ptrace (trace),
 deny capability sys_ptrace,
+`
+
+var sysModuleCapabilityDenySnippet = `
+# The rtnetlink kernel interface can trigger the loading of kernel modules,
+# first attempting to operate on a network module (this requires the net_admin
+# capability) and falling back to loading ordinary modules (and this requires
+# the sys_module capability). For reference, see the dev_load() function in:
+# https://kernel.ubuntu.com/git/ubuntu/ubuntu-focal.git/tree/net/core/dev_ioctl.c?h=v5.13#n354
+# The following rule is used to silence the denials for attempting to load
+# generic kernel modules, while still allowing the loading of network modules.
+deny capability sys_module,
 `
 
 // updateNSTemplate defines the apparmor profile for per-snap snap-update-ns.

@@ -11,20 +11,29 @@ backends: [-autopkgtest]
 
 # Ideally we would run this everywhere, but on systems with full security
 # support, it takes a while, which leads to travis timeouts. Limit to:
-# - Ubuntu Core 16 amd64
-# - Ubuntu classic 14.04 i386 VM
-# - Ubuntu classic 16.04 amd64 VM
-# - Ubuntu classic 18.04 amd64 VM
+# - Ubuntu Core
+# - Ubuntu classic
 # - All Ubuntu autopkgtests
 # - Debian sid amd64 VM
 # - TODO: All Fedora systems (for classic-only; unrelated error elsewhere)
-systems: [ubuntu-core-1*-64, ubuntu-14.04-32, ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-18.04-32, ubuntu-*-amd64, ubuntu-*-armhf, ubuntu-*-arm64, ubuntu-*-i386, ubuntu-*-ppc64el, debian-*]
+systems:
+  - ubuntu-*
+  - debian-*
 
 # Start early as it takes a long time.
 priority: 100
 
 environment:
     CONSUMER_SNAP: test-snapd-policy-app-consumer
+
+prepare: |
+    # We remove the shared-memory plug and interface in trusty because it fails with the
+    # following error since adding private /dev/shm support to shared-memory interface:
+    # shared-memory plug with "private: true" cannot be connected if "/dev/shm" is a symlink)
+    if os.query is-trusty; then
+        cp -r "$TESTSLIB/snaps/$CONSUMER_SNAP" .
+        sed -e '/shared-memory:/,+2d' -i $CONSUMER_SNAP/meta/snap.yaml
+    fi
 
 restore: |
     # Remove the snaps to avoid timeout in next test

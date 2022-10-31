@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,17 +23,35 @@ import (
 	"context"
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
-type ManagerBackend managerBackend
+type (
+	ManagerBackend managerBackend
 
-type MinimalInstallInfo = minimalInstallInfo
-type InstallSnapInfo = installSnapInfo
-type ByType = byType
+	MinimalInstallInfo  = minimalInstallInfo
+	InstallSnapInfo     = installSnapInfo
+	ByType              = byType
+	DirMigrationOptions = dirMigrationOptions
+	Migration           = migration
+)
+
+const (
+	None         = none
+	Full         = full
+	Hidden       = hidden
+	Home         = home
+	RevertHidden = revertHidden
+	DisableHome  = disableHome
+	RevertFull   = revertFull
+)
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
@@ -90,7 +108,7 @@ var (
 	CanRemove              = canRemove
 	CanDisable             = canDisable
 	CachedStore            = cachedStore
-	DefaultRefreshSchedule = defaultRefreshSchedule
+	DefaultRefreshSchedule = defaultRefreshScheduleStr
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags
@@ -98,13 +116,17 @@ var (
 
 	CurrentSnaps = currentSnaps
 
-	DefaultContentPlugProviders = defaultContentPlugProviders
+	DefaultProviderContentAttrs = defaultProviderContentAttrs
 
 	HasOtherInstances = hasOtherInstances
 
 	SafetyMarginDiskSpace = safetyMarginDiskSpace
 
 	AffectedByRefresh = affectedByRefresh
+
+	GetDirMigrationOpts = getDirMigrationOpts
+	WriteSeqFile        = writeSeqFile
+	TriggeredMigration  = triggeredMigration
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -148,6 +170,9 @@ var (
 	SoftCheckNothingRunningForRefresh     = softCheckNothingRunningForRefresh
 	HardEnsureNothingRunningDuringRefresh = hardEnsureNothingRunningDuringRefresh
 )
+
+// install
+var HasAllContentAttrs = hasAllContentAttrs
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {
 	ar.nextRefresh = when
@@ -209,11 +234,13 @@ func MockAsyncPendingRefreshNotification(fn func(context.Context, *userclient.Cl
 var (
 	RefreshedSnaps  = refreshedSnaps
 	ReRefreshFilter = reRefreshFilter
+
+	MaybeRestoreValidationSetsAndRevertSnaps = maybeRestoreValidationSetsAndRevertSnaps
 )
 
 type UpdateFilter = updateFilter
 
-func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, int, UpdateFilter, *Flags, string) ([]string, []*state.TaskSet, error)) (restore func()) {
+func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, []*RevisionOptions, int, UpdateFilter, *Flags, string) ([]string, []*state.TaskSet, error)) (restore func()) {
 	old := reRefreshUpdateMany
 	reRefreshUpdateMany = f
 	return func() {
@@ -244,8 +271,12 @@ var (
 	MissingDisabledServices = missingDisabledServices
 )
 
-func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) error {
-	return m.maybeUndoRemodelBootChanges(t)
+func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) (restartRequested, rebootRequired bool, err error) {
+	restartPoss, err := m.maybeUndoRemodelBootChanges(t)
+	if restartPoss != nil {
+		return true, restartPoss.RebootRequired, nil
+	}
+	return false, false, err
 }
 
 func MockPidsOfSnap(f func(instanceName string) (map[string][]int, error)) func() {
@@ -272,7 +303,7 @@ func MockInstallSize(f func(st *state.State, snaps []minimalInstallInfo, userID 
 	}
 }
 
-func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info) error) func() {
+func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info, opts *backend.GenerateSnapdWrappersOptions) error) func() {
 	old := generateSnapdWrappers
 	generateSnapdWrappers = f
 	return func() {
@@ -288,6 +319,7 @@ var (
 var (
 	InhibitRefresh = inhibitRefresh
 	MaxInhibition  = maxInhibition
+	MaxDuration    = maxDuration
 )
 
 type RefreshCandidate = refreshCandidate
@@ -324,13 +356,15 @@ type HoldState = holdState
 var (
 	HoldDurationLeft           = holdDurationLeft
 	LastRefreshed              = lastRefreshed
-	HeldSnaps                  = heldSnaps
 	PruneRefreshCandidates     = pruneRefreshCandidates
 	ResetGatingForRefreshed    = resetGatingForRefreshed
 	PruneGating                = pruneGating
 	PruneSnapsHold             = pruneSnapsHold
 	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
 	AutoRefreshPhase1          = autoRefreshPhase1
+	RefreshRetain              = refreshRetain
+
+	ExcludeFromRefreshAppAwareness = excludeFromRefreshAppAwareness
 )
 
 func MockTimeNow(f func() time.Time) (restore func()) {
@@ -346,9 +380,15 @@ func MockHoldState(firstHeld string, holdUntil string) *HoldState {
 	if err != nil {
 		panic(err)
 	}
-	until, err := time.Parse(time.RFC3339, holdUntil)
-	if err != nil {
-		panic(err)
+	var until time.Time
+	if holdUntil != "forever" {
+		var err error
+		until, err = time.Parse(time.RFC3339, holdUntil)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		until = first.Add(maxDuration)
 	}
 	return &holdState{
 		FirstHeld: first,
@@ -361,5 +401,59 @@ func MockSnapsToRefresh(f func(gatingTask *state.Task) ([]*refreshCandidate, err
 	snapsToRefresh = f
 	return func() {
 		snapsToRefresh = old
+	}
+}
+
+func MockExcludeFromRefreshAppAwareness(f func(t snap.Type) bool) (restore func()) {
+	r := testutil.Backup(&excludeFromRefreshAppAwareness)
+	excludeFromRefreshAppAwareness = f
+	return r
+}
+
+func MockAddCurrentTrackingToValidationSetsStack(f func(st *state.State) error) (restore func()) {
+	old := AddCurrentTrackingToValidationSetsStack
+	AddCurrentTrackingToValidationSetsStack = f
+	return func() {
+		AddCurrentTrackingToValidationSetsStack = old
+	}
+}
+
+func MockRestoreValidationSetsTracking(f func(*state.State) error) (restore func()) {
+	old := RestoreValidationSetsTracking
+	RestoreValidationSetsTracking = f
+	return func() {
+		RestoreValidationSetsTracking = old
+	}
+}
+
+func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refreshedSnaps []string, fromChange string) ([]*state.TaskSet, error)) (restore func()) {
+	old := maybeRestoreValidationSetsAndRevertSnaps
+	maybeRestoreValidationSetsAndRevertSnaps = f
+	return func() {
+		maybeRestoreValidationSetsAndRevertSnaps = old
+	}
+}
+
+func MockGetHiddenDirOptions(f func(*state.State, *SnapState, *SnapSetup) (*dirMigrationOptions, error)) (restore func()) {
+	old := getDirMigrationOpts
+	getDirMigrationOpts = f
+	return func() {
+		getDirMigrationOpts = old
+	}
+}
+
+func MockEnforcedValidationSets(f func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error)) func() {
+	old := EnforcedValidationSets
+	EnforcedValidationSets = f
+	return func() {
+		EnforcedValidationSets = old
+	}
+}
+
+func MockEnforceValidationSets(f func(*state.State, map[string]*asserts.ValidationSet, map[string]int, []*snapasserts.InstalledSnap, map[string]bool, int) error) func() {
+	old := EnforceValidationSets
+	EnforceValidationSets = f
+	return func() {
+		EnforceValidationSets = old
 	}
 }

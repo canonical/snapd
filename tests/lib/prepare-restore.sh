@@ -70,7 +70,7 @@ build_deb(){
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
 
-    if os.query is-debian-sid; then
+    if os.query is-debian sid; then
         # ensure we really build without vendored packages
         rm -rf vendor/*/*
     fi
@@ -119,7 +119,7 @@ build_rpm() {
 
     # Build our source package
     unshare -n -- \
-            rpmbuild --with testkeys -bs "$packaging_path/snapd.spec"
+            rpmbuild --with testkeys -bs "$rpm_dir/SOURCES/snapd.spec"
 
     # .. and we need all necessary build dependencies available
     deps=()
@@ -138,7 +138,7 @@ build_rpm() {
             --with testkeys \
             --nocheck \
             -ba \
-            "$packaging_path/snapd.spec"
+            "$rpm_dir/SOURCES/snapd.spec"
 
     find "$rpm_dir"/RPMS -name '*.rpm' -exec cp -v {} "${GOPATH%%:*}" \;
 }
@@ -308,7 +308,7 @@ prepare_project() {
     fi
 
     # debian-sid packaging is special
-    if os.query is-debian-sid; then
+    if os.query is-debian sid; then
         if [ ! -d packaging/debian-sid ]; then
             echo "no packaging/debian-sid/ directory "
             echo "broken test setup"
@@ -423,26 +423,11 @@ prepare_project() {
     esac
 
     restart_logind=
-    restart_networkd=
     if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -lt 246 ]; then
         restart_logind=maybe
-        restart_networkd=maybe
     fi
 
-
-    # Try installing package dependencies. Because we pull in some systemd
-    # development packages we can easily pull in a whole systemd upgrade. Most
-    # of the time that's okay but, well, not always.
-    if ! install_pkg_dependencies; then
-        # If this failed, maybe systemd-networkd got busted during the 245-246
-        # upgrade? If so we can just restart it and try again.
-        # This is related to https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=966612
-        if [ "$restart_networkd" = maybe ]; then
-            systemctl reset-failed systemd-networkd.service
-            systemctl try-restart systemd-networkd.service
-            install_pkg_dependencies
-        fi
-    fi
+    install_pkg_dependencies
 
     if [ "$restart_logind" = maybe ]; then
         if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 246 ]; then
@@ -499,10 +484,7 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             best_golang=golang-1.13
-            if [[ "$SPREAD_SYSTEM" == debian-9-* ]]; then
-                echo "debian-9 tests disabled (no golang-1.13)"
-                exit 1
-            elif [[ "$SPREAD_SYSTEM" == debian-10-* ]]; then
+            if [[ "$SPREAD_SYSTEM" == debian-10-* ]]; then
                 # debian-10 needs backports for golang-1.13
                 echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list
                 apt update
@@ -569,14 +551,17 @@ prepare_project() {
     fi
 
     # eval to prevent expansion errors on opensuse (the variable keeps quotes)
-    eval "go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
+    eval "go install $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
 
     # Build additional utilities we need for testing
-    go get ./tests/lib/fakedevicesvc
-    go get ./tests/lib/systemd-escape
+    go install ./tests/lib/fakedevicesvc
+    go install ./tests/lib/systemd-escape
 
     # Build the tool for signing model assertions
-    go get ./tests/lib/gendeveloper1model
+    go install ./tests/lib/gendeveloper1
+
+    # and the U20 create partitions wrapper
+    go install ./tests/lib/uc20-create-partitions
 
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation
@@ -618,6 +603,9 @@ prepare_suite_each() {
     touch "$RUNTIME_STATE_PATH/runs"
     touch "$RUNTIME_STATE_PATH/journalctl_cursor"
 
+    # Clean the dmesg log
+    dmesg --read-clear
+
     # Start fs monitor
     "$TESTSTOOLS"/fs-state start-monitor
 
@@ -641,15 +629,22 @@ prepare_suite_each() {
     fi
     "$TESTSTOOLS"/journal-state start-new-log
 
+    # Check if journalctl is ready to run the test
+    "$TESTSTOOLS"/journal-state check-log-started
+
+    # In case of nested tests the next checks and changes are not needed
+    if tests.nested is-nested; then
+        return 0
+    fi
+
     if [[ "$variant" = full ]]; then
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
         if os.query is-classic; then
             prepare_each_classic
         fi
+        prepare_memory_limit_override
     fi
-    # Check if journalctl is ready to run the test
-    "$TESTSTOOLS"/journal-state check-log-started
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)
@@ -678,14 +673,28 @@ restore_suite_each() {
     # Save all the installed packages and remove the new packages installed 
     if os.query is-classic; then
         tests.pkgs list-installed > installed-final.pkgs
-        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-new.pkgs
+        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-in-test.pkgs
+        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\-" | tail -n+2 | cut -c 2- > removed-in-test.pkgs
 
         # shellcheck disable=SC2002
-        packages="$(cat installed-new.pkgs | tr "\n" " ")"
+        packages="$(cat installed-in-test.pkgs | tr "\n" " ")"
         if [ -n "$packages" ]; then
             # shellcheck disable=SC2086
             tests.pkgs remove $packages
         fi
+        # shellcheck disable=SC2002
+        packages="$(cat removed-in-test.pkgs | tr "\n" " ")"
+        if [ -n "$packages" ]; then
+            # shellcheck disable=SC2086
+            tests.pkgs install $packages
+        fi
+    fi
+
+    # In case of nested tests the next checks and changes are not needed
+    # Just is needed to cleanup the snaps installed
+    if tests.nested is-nested; then
+        "$TESTSTOOLS"/snaps.cleanup
+        return 0
     fi
 
     # On Arch it seems that using sudo / su for working with the test user
@@ -763,6 +772,8 @@ restore_project_each() {
     # will most likely not function correctly anymore. It looks like this
     # happens with: https://forum.snapcraft.io/t/4101 and is a source of
     # failure in the autopkgtest environment.
+    # Also catch a scenario when snapd service hits the MemoryMax limit set while
+    # preparing the tests.
     if dmesg|grep "oom-killer"; then
         echo "oom-killer got invoked during the tests, this should not happen."
         echo "Dmesg debug output:"

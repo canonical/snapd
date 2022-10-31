@@ -19,13 +19,21 @@ prepare: |
     sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core18/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
     snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-18.snap
 
-    # use base: core20
-    sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core20/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
-    snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-20.snap
+    # Skip i386 because core20 is not available for pc-i386 architecture
+    if not os.query is-pc-i386; then
+        # use base: core20
+        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core20/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
+        snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-20.snap
+    fi
 
 execute: |
     # test all base versions of netplan on all combos of core releases
-    for rel in 16 18 20; do
+    versions="16 18 20"
+    # Skip i386 because core20 is not available for pc-i386 architecture
+    if os.query is-pc-i386; then
+        versions="16 18"
+    fi
+    for rel in $versions; do
         snap install --dangerous "netplan-snap-$rel.snap"
         echo "The interface is disconnected by default"
         snap connections netplan-snap | MATCH 'network-setup-control +netplan-snap:network-setup-control +- +-'
@@ -36,6 +44,16 @@ execute: |
             exit 1
         fi
 
+        if ! os.query is-core16 && test "$rel" -ne 16; then
+            echo "Running netplan generate without network-setup-control fails"
+            if netplan-snap.netplan generate; then
+                echo "Expected access denied error for netplan generate"
+                exit 1
+            fi
+        else
+            echo "Skipping netplan generate on UC16"
+        fi
+
         echo "Count how many network service restarts happened before calling netplan apply"
         stopped_before="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
         started_before="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
@@ -43,10 +61,22 @@ execute: |
         echo "When the interface is connected"
         snap connect netplan-snap:network-setup-control
 
+        # sometimes the systems becomes unreachable after "netplan apply"
+        # (see LP:1949708), adding --debug might give us clues why
         echo "Running netplan apply now works"
-        if ! netplan-snap.netplan apply; then
+        if ! netplan-snap.netplan --debug apply; then
             echo "Unexpected error running netplan apply"
             exit 1
+        fi
+
+        if ! os.query is-core16 && test "$rel" -ne 16; then
+            echo "Running netplan generate now works"
+            if ! netplan-snap.netplan generate; then
+                echo "Unexpected error running netplan generate"
+                exit 1
+            fi
+        else
+            echo "Skipping netplan generate on UC16"
         fi
 
         echo "Ensure that network config was stopped and restarted from netplan"

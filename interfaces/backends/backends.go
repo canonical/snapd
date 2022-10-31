@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,22 +20,21 @@
 package backends
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/logger"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 )
 
-var All []interfaces.SecurityBackend = backends()
-
-func backends() []interfaces.SecurityBackend {
+// All returns a set of all available security backends.
+func All() []interfaces.SecurityBackend {
 	all := []interfaces.SecurityBackend{
 		// Because of how the GPIO interface is implemented the systemd backend
 		// must be earlier in the sequence than the apparmor backend.
@@ -45,22 +44,18 @@ func backends() []interfaces.SecurityBackend {
 		&udev.Backend{},
 		&mount.Backend{},
 		&kmod.Backend{},
+		&polkit.Backend{},
 	}
 
 	// TODO use something like:
 	// level, summary := apparmor.ProbeResults()
 
-	// This should be logger.Noticef but due to ordering of initialization
-	// calls, the logger is not ready at this point yet and the message goes
-	// nowhere. Per advice from other snapd developers, we just print it
-	// directly.
-	//
 	// TODO: on this should become a user-visible message via the user-warning
 	// framework, so that users are aware that we have non-strict confinement.
 	// By printing this directly we ensure it will end up the journal for the
 	// snapd.service. This aspect should be retained even after the switch to
 	// user-warning.
-	fmt.Printf("AppArmor status: %s\n", apparmor_sandbox.Summary())
+	logger.Noticef("AppArmor status: %s\n", apparmor_sandbox.Summary())
 
 	// Enable apparmor backend if there is any level of apparmor support,
 	// including partial feature set. This will allow snap-confine to always

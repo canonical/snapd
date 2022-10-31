@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"time"
 
 	"gopkg.in/macaroon.v1"
 
@@ -55,13 +56,14 @@ type DeviceState struct {
 
 // UserState represents an authenticated user
 type UserState struct {
-	ID              int      `json:"id"`
-	Username        string   `json:"username,omitempty"`
-	Email           string   `json:"email,omitempty"`
-	Macaroon        string   `json:"macaroon,omitempty"`
-	Discharges      []string `json:"discharges,omitempty"`
-	StoreMacaroon   string   `json:"store-macaroon,omitempty"`
-	StoreDischarges []string `json:"store-discharges,omitempty"`
+	ID              int       `json:"id"`
+	Username        string    `json:"username,omitempty"`
+	Email           string    `json:"email,omitempty"`
+	Macaroon        string    `json:"macaroon,omitempty"`
+	Discharges      []string  `json:"discharges,omitempty"`
+	StoreMacaroon   string    `json:"store-macaroon,omitempty"`
+	StoreDischarges []string  `json:"store-discharges,omitempty"`
+	Expiration      time.Time `json:"expiration,omitempty"`
 }
 
 // identificationOnly returns a *UserState with only the
@@ -80,6 +82,17 @@ func (u *UserState) HasStoreAuth() bool {
 		return false
 	}
 	return u.StoreMacaroon != ""
+}
+
+// HasExpired returns true if the user has an expiration set and
+// current time is past the expiration date.
+func (u *UserState) HasExpired() bool {
+	// If the user has no expiration date, then Expiration should not
+	// be set, and contain the default value.
+	if u.Expiration.IsZero() {
+		return false
+	}
+	return u.Expiration.Before(time.Now())
 }
 
 // MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
@@ -134,12 +147,26 @@ func newUserMacaroon(macaroonKey []byte, userID int) (string, error) {
 
 // TODO: possibly move users' related functions to a userstate package
 
+type NewUserParams struct {
+	// Username is the name of the user on the system
+	Username string
+	// Email is the email associated with the user
+	Email string
+	// Macaroon is the store-associated authentication macaroon
+	Macaroon string
+	// Discharges contains discharged store auth caveats.
+	Discharges []string
+	// Expiration informs the devicestate that the user should be removed
+	// when passing the expiration time. This is an optional setting.
+	Expiration time.Time
+}
+
 // NewUser tracks a new authenticated user and saves its details in the state
-func NewUser(st *state.State, username, email, macaroon string, discharges []string) (*UserState, error) {
+func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		authStateData = AuthState{}
 	} else if err != nil {
 		return nil, err
@@ -159,15 +186,16 @@ func NewUser(st *state.State, username, email, macaroon string, discharges []str
 		return nil, err
 	}
 
-	sort.Strings(discharges)
+	sort.Strings(userParams.Discharges)
 	authenticatedUser := UserState{
 		ID:              authStateData.LastID,
-		Username:        username,
-		Email:           email,
+		Username:        userParams.Username,
+		Email:           userParams.Email,
 		Macaroon:        localMacaroon,
 		Discharges:      nil,
-		StoreMacaroon:   macaroon,
-		StoreDischarges: discharges,
+		StoreMacaroon:   userParams.Macaroon,
+		StoreDischarges: userParams.Discharges,
+		Expiration:      userParams.Expiration,
 	}
 	authStateData.Users = append(authStateData.Users, authenticatedUser)
 
@@ -193,7 +221,7 @@ func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, ErrInvalidUser
 	}
 	if err != nil {
@@ -221,7 +249,7 @@ func Users(st *state.State) ([]*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, nil
 	}
 	if err != nil {
@@ -250,7 +278,7 @@ func findUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, ErrInvalidUser
 	}
 	if err != nil {
@@ -271,7 +299,7 @@ func UpdateUser(st *state.State, user *UserState) error {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return ErrInvalidUser
 	}
 	if err != nil {

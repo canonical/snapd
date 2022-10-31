@@ -317,7 +317,7 @@ dbus (send)
     bus=session
     interface=org.gtk.Actions
     member=Changed
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(label=unconfined),
 
 dbus (receive)
     bus=session
@@ -335,7 +335,7 @@ dbus (send)
     bus=session
     interface=org.gtk.Menus
     member=Changed
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(label=unconfined),
 
 # Ubuntu menus
 dbus (send)
@@ -359,28 +359,28 @@ dbus (send)
 # dbusmenu
 dbus (send)
     bus=session
-    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/{menu/[0-9A-F]*,dbusmenu}}
     interface=com.canonical.dbusmenu
     member="{LayoutUpdated,ItemsPropertiesUpdated}"
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(label=unconfined),
 
 dbus (receive)
     bus=session
-    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/{menu/[0-9A-F]*,dbusmenu}}
     interface="{com.canonical.dbusmenu,org.freedesktop.DBus.Properties}"
     member=Get*
     peer=(label=unconfined),
 
 dbus (receive)
     bus=session
-    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/{menu/[0-9A-F]*,dbusmenu}}
     interface=com.canonical.dbusmenu
     member="{AboutTo*,Event*}"
     peer=(label=unconfined),
 
 dbus (receive)
     bus=session
-    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/{menu/[0-9A-F]*,dbusmenu}}
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
     peer=(label=unconfined),
@@ -430,7 +430,7 @@ dbus (send)
     path=/{StatusNotifierItem,org/ayatana/NotificationItem/*}
     interface=org.kde.StatusNotifierItem
     member="New{AttentionIcon,Icon,IconThemePath,OverlayIcon,Status,Title,ToolTip}"
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(label=unconfined),
 
 dbus (receive)
     bus=session
@@ -444,7 +444,7 @@ dbus (send)
     path=/{StatusNotifierItem/menu,org/ayatana/NotificationItem/*/Menu}
     interface=com.canonical.dbusmenu
     member="{LayoutUpdated,ItemsPropertiesUpdated}"
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(label=unconfined),
 
 dbus (receive)
     bus=session
@@ -489,7 +489,7 @@ dbus (send)
     path=/org/ayatana/NotificationItem/*
     interface=org.kde.StatusNotifierItem
     member=XAyatanaNew*
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(label=unconfined),
 
 # unity launcher
 dbus (send)
@@ -497,14 +497,14 @@ dbus (send)
     path=/com/canonical/unity/launcherentry/[0-9]*
     interface=com.canonical.Unity.LauncherEntry
     member=Update
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(label=unconfined),
 
 dbus (send)
     bus=session
     path=/com/canonical/unity/launcherentry/[0-9]*
     interface=com.canonical.dbusmenu
     member="{LayoutUpdated,ItemsPropertiesUpdated}"
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(label=unconfined),
 
 dbus (receive)
     bus=session

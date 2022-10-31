@@ -11,7 +11,7 @@ restore: |
   rm -f /var/snap/test-disconnect/common/do-not-fail
 
 execute: |
-  # sanity check, network is connected automatically
+  # precondition check, network is connected automatically
   snap connections | MATCH "test-disconnect:network .*:network"
 
   echo "Disconnect fails due to failing disconnect hook"
@@ -20,14 +20,5 @@ execute: |
   echo "And network plug remains connected"
   snap connections | MATCH "test-disconnect:network .*:network"
 
-  echo "Snap removal fails because of failing disconnect hook"
-  snap remove test-disconnect 2>&1 | MATCH "failure of disconnect hook"
-
-  echo "And the plug is still connected"
-  snap connections | MATCH "test-disconnect:network .*:network"
-
-  echo "Making disconnect hook happy"
-  touch /var/snap/test-disconnect/common/do-not-fail
-
-  echo "And removing the snap is now possible"
+  echo "Snap removal succeeds despite failing disconnect hook"
   snap remove --purge test-disconnect

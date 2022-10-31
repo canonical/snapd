@@ -67,6 +67,12 @@ func (s *gateAutoRefreshHookSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// disable refresh-app-awareness (it's enabled by default);
+	// specific tests below enable it back.
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness", false)
+	tr.Commit()
+
 	si := &snap.SideInfo{RealName: "snap-a", SnapID: "snap-a-id1", Revision: snap.R(1)}
 	snaptest.MockSnap(c, snapaYaml, si)
 	snapstate.Set(s.state, "snap-a", &snapstate.SnapState{
@@ -224,7 +230,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookHoldUnlocksRuninhibit(
 // assumes --proceed.
 func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceedUnlocksRuninhibit(c *C) {
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
-		// sanity, refresh is inhibited for snap-a.
+		// validity, refresh is inhibited for snap-a.
 		hint, err := runinhibit.IsLocked("snap-a")
 		c.Assert(err, IsNil)
 		c.Check(hint, Equals, runinhibit.HintInhibitedGateRefresh)
@@ -242,8 +248,9 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceedUnlocksRunin
 	defer st.Unlock()
 
 	// pretend that snap-a is initially held by itself.
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-a"), IsNil)
-	// sanity
+	_, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "snap-a", 0, "snap-a")
+	c.Assert(err, IsNil)
+	// validity
 	checkIsHeld(c, st, "snap-a", "snap-a")
 
 	// enable refresh-app-awareness
@@ -292,8 +299,9 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceed(c *C) {
 	defer st.Unlock()
 
 	// pretend that snap-b is initially held by snap-a.
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-b"), IsNil)
-	// sanity
+	_, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "snap-a", 0, "snap-b")
+	c.Assert(err, IsNil)
+	// validity
 	checkIsHeld(c, st, "snap-b", "snap-a")
 
 	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")

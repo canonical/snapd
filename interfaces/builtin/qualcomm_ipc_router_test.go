@@ -81,10 +81,19 @@ func (s *QrtrInterfaceSuite) TestSanitizePlugConnectionFullAppArmorSandboxFeatur
 }
 
 func (s *QrtrInterfaceSuite) TestSanitizePlugConnectionMissingAppArmorSandboxFeatures(c *C) {
-	r := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
+	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer r()
+	r = apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer r()
 	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
 	c.Assert(err, ErrorMatches, "cannot connect plug on system without qipcrtr socket support")
+}
+
+func (s *QrtrInterfaceSuite) TestSanitizePlugConnectionMissingNoAppArmor(c *C) {
+	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Unsupported)
+	defer r()
+	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
+	c.Assert(err, IsNil)
 }
 
 func (s *QrtrInterfaceSuite) TestAppArmorSpec(c *C) {

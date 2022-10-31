@@ -34,6 +34,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
@@ -90,6 +92,7 @@ func (s *storeActionSuite) TestSnapAction(c *C) {
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
 		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Location"), Equals, "")
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -754,7 +757,7 @@ func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
 }
 
 func (s *storeActionSuite) TestSnapActionInstallWithValidationSets(c *C) {
-	s.testSnapActionGet("install", "", "", [][]string{{"foo", "bar"}, {"foo", "baz"}}, c)
+	s.testSnapActionGet("install", "", "", []snapasserts.ValidationSetKey{"foo/bar", "foo/baz"}, c)
 }
 
 func (s *storeActionSuite) TestSnapActionAutoRefresh(c *C) {
@@ -917,6 +920,7 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, "21")
 		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, "archXYZ")
+		c.Check(r.Header.Get("Snap-Device-Location"), Equals, `cloud-name="gcp" region="us-west1" availability-zone="us-west1-b"`)
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "true")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -975,7 +979,7 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 	cfg.Series = "21"
 	cfg.Architecture = "archXYZ"
 	cfg.StoreID = "foo"
-	dauthCtx := &testDauthContext{c: c, device: s.device}
+	dauthCtx := &testDauthContext{c: c, device: s.device, cloudInfo: &auth.CloudInfo{Name: "gcp", Region: "us-west1", AvailabilityZone: "us-west1-b"}}
 	sto := store.New(cfg, dauthCtx)
 
 	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
@@ -1198,7 +1202,7 @@ func (s *storeActionSuite) TestSnapActionInstallRedirect(c *C) {
 func (s *storeActionSuite) TestSnapActionDownloadRedirect(c *C) {
 	s.testSnapActionGet("download", "", "2.0/candidate", nil, c)
 }
-func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel string, validationSets [][]string, c *C) {
+func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel string, validationSets []snapasserts.ValidationSetKey, c *C) {
 	// action here is one of install or download
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -1246,7 +1250,7 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 			var sets []interface{}
 			for _, vs := range validationSets {
 				var vss []interface{}
-				for _, vv := range vs {
+				for _, vv := range vs.Components() {
 					vss = append(vss, vv)
 				}
 				sets = append(sets, vss)
@@ -2234,7 +2238,7 @@ func (s *storeActionSuite) TestSnapActionRefreshesBothAuths(c *C) {
 		case authNoncesPath:
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
-			// sanity of request
+			// validity of request
 			jsonReq, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
@@ -2529,14 +2533,15 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 			"epoch":            iZeroEpoch,
-			"validation-sets":  []interface{}{[]interface{}{"foo", "bar"}, []interface{}{"foo", "baz"}},
+			"validation-sets":  []interface{}{[]interface{}{"foo", "other"}},
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":       "refresh",
-			"instance-key": helloWorldSnapID,
-			"snap-id":      helloWorldSnapID,
-			"channel":      "stable",
+			"action":          "refresh",
+			"instance-key":    helloWorldSnapID,
+			"snap-id":         helloWorldSnapID,
+			"channel":         "stable",
+			"validation-sets": []interface{}{[]interface{}{"foo", "bar"}, []interface{}{"foo", "baz"}},
 		})
 
 		io.WriteString(w, `{
@@ -2577,14 +2582,16 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
-			ValidationSets:  [][]string{{"foo", "bar"}, {"foo", "baz"}},
+			// not actually set during refresh, but supported by snapAction
+			ValidationSets: []snapasserts.ValidationSetKey{"foo/other"},
 		},
 	}, []*store.SnapAction{
 		{
-			Action:       "refresh",
-			SnapID:       helloWorldSnapID,
-			Channel:      "stable",
-			InstanceName: "hello-world",
+			Action:         "refresh",
+			SnapID:         helloWorldSnapID,
+			Channel:        "stable",
+			InstanceName:   "hello-world",
+			ValidationSets: []snapasserts.ValidationSetKey{"foo/bar", "foo/baz"},
 		},
 	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(err, IsNil)
@@ -3222,5 +3229,7 @@ func (s *storeActionSuite) TestSnapActionTimeout(c *C) {
 		},
 	}, nil, nil, nil)
 	close(quit)
-	c.Assert(err, ErrorMatches, `.*/v2/snaps/refresh"?: net/http: request canceled \(Client.Timeout exceeded while awaiting headers\).*`)
+	// go 1.17 started quoting the failing URL, also context deadline
+	// exceeded may appear in place of request being canceled
+	c.Assert(err, ErrorMatches, `.*/v2/snaps/refresh"?: (net/http: request canceled|context deadline exceeded)( \(Client.Timeout exceeded while awaiting headers\))?.*`)
 }

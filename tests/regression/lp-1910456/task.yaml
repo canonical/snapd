@@ -32,6 +32,9 @@ prepare: |
     fi
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     for confinement in classic strict; do
         echo "Check that all services exist in the $confinement snap"
 
@@ -131,13 +134,22 @@ execute: |
     # get the pid of that docker container
     containerPID=$(docker top test | grep "sleep infinity" | awk '{print $2}')
 
-    containerCgroupBefore=$(grep devices "/proc/$containerPID/cgroup")
+    if is_cgroupv2; then
+        # with cgroup everything is under one unified hierarchy
+        containerCgroupBefore=$(grep 0:: "/proc/$containerPID/cgroup")
+    else
+        containerCgroupBefore=$(grep devices "/proc/$containerPID/cgroup")
+    fi
 
     # reload systemd 
     systemctl daemon-reload
 
     # check the container cgroup again
-    containerCgroupAfter=$(grep devices "/proc/$containerPID/cgroup")
+    if is_cgroupv2; then
+        containerCgroupAfter=$(grep 0:: "/proc/$containerPID/cgroup")
+    else
+        containerCgroupAfter=$(grep devices "/proc/$containerPID/cgroup")
+    fi
 
     if [ "$containerCgroupBefore" != "$containerCgroupAfter" ]; then
         echo "test broken, container was moved from cgroup \"$containerCgroupBefore\" to \"$containerCgroupAfter\""

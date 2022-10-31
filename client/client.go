@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -175,10 +176,15 @@ func (e RequestError) Error() string {
 	return fmt.Sprintf("cannot build request: %v", e.error)
 }
 
-type AuthorizationError struct{ error }
+type AuthorizationError struct{ Err error }
 
 func (e AuthorizationError) Error() string {
-	return fmt.Sprintf("cannot add authorization: %v", e.error)
+	return fmt.Sprintf("cannot add authorization: %v", e.Err)
+}
+
+func (e AuthorizationError) Is(target error) bool {
+	_, ok := target.(AuthorizationError)
+	return ok
 }
 
 type ConnectionError struct{ Err error }
@@ -198,6 +204,17 @@ func (e ConnectionError) Error() string {
 
 func (e ConnectionError) Unwrap() error {
 	return e.Err
+}
+
+type InternalClientError struct{ Err error }
+
+func (e InternalClientError) Error() string {
+	return fmt.Sprintf("internal error: %s", e.Err.Error())
+}
+
+func (e InternalClientError) Is(target error) bool {
+	_, ok := target.(InternalClientError)
+	return ok
 }
 
 // AllowInteractionHeader is the HTTP request header used to indicate
@@ -267,7 +284,7 @@ func (client *Client) raw(ctx context.Context, method, urlpath string, query url
 func (client *Client) rawWithTimeout(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader, opts *doOptions) (*http.Response, context.CancelFunc, error) {
 	opts = ensureDoOpts(opts)
 	if opts.Timeout <= 0 {
-		return nil, nil, fmt.Errorf("internal error: timeout not set in options for rawWithTimeout")
+		return nil, nil, InternalClientError{fmt.Errorf("timeout not set in options for rawWithTimeout")}
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
@@ -349,13 +366,13 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 	client.checkMaintenanceJSON()
 
 	var rsp *http.Response
-	var ctx context.Context = context.Background()
+	ctx := context.Background()
 	if opts.Timeout <= 0 {
 		// no timeout and retries
 		rsp, err = client.raw(ctx, method, path, query, headers, body)
 	} else {
 		if opts.Retry <= 0 {
-			return 0, fmt.Errorf("internal error: retry setting %s invalid", opts.Retry)
+			return 0, InternalClientError{fmt.Errorf("retry setting %s invalid", opts.Retry)}
 		}
 		retry := time.NewTicker(opts.Retry)
 		defer retry.Stop()
@@ -371,7 +388,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 			if err == nil {
 				defer cancel()
 			}
-			if err == nil || method != "GET" {
+			if err == nil || shouldNotRetryError(err) || method != "GET" {
 				break
 			}
 			select {
@@ -394,6 +411,11 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 	}
 
 	return rsp.StatusCode, nil
+}
+
+func shouldNotRetryError(err error) bool {
+	return errors.Is(err, AuthorizationError{}) ||
+		errors.Is(err, InternalClientError{})
 }
 
 func decodeInto(reader io.Reader, v interface{}) error {
@@ -740,10 +762,25 @@ func (client *Client) DebugGet(aspect string, result interface{}, params map[str
 
 type SystemRecoveryKeysResponse struct {
 	RecoveryKey  string `json:"recovery-key"`
-	ReinstallKey string `json:"reinstall-key"`
+	ReinstallKey string `json:"reinstall-key,omitempty"`
 }
 
 func (client *Client) SystemRecoveryKeys(result interface{}) error {
 	_, err := client.doSync("GET", "/v2/system-recovery-keys", nil, nil, nil, &result)
 	return err
+}
+
+func (c *Client) MigrateSnapHome(snaps []string) (changeID string, err error) {
+	body, err := json.Marshal(struct {
+		Action string   `json:"action"`
+		Snaps  []string `json:"snaps"`
+	}{
+		Action: "migrate-home",
+		Snaps:  snaps,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return c.doAsync("POST", "/v2/debug", nil, nil, bytes.NewReader(body))
 }

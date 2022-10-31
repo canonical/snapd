@@ -8,7 +8,7 @@ while [ -n "$1" ]; do
     case "$1" in
         --preprocess)
             # preprocess is used by snapd to verify apparmor features
-            exit 0
+            break
             ;;
         --cache-loc=*)
             ;;

@@ -229,7 +229,7 @@ main() {
 
 	read -r uuid < /proc/sys/kernel/random/uuid
 	unit_name="tests.session-$uuid.service"
-	tmp_dir="/tmp/tests.session-$uuid"
+	tmp_dir="$TESTSTMP/tests.session-$uuid"
 	mkdir "$tmp_dir"
 	mkfifo -m 0666 "$tmp_dir/dbus-monitor.pipe" "$tmp_dir/ready.pipe" "$tmp_dir/result.pipe" "$tmp_dir/stdin.pipe" "$tmp_dir/stdout.pipe" "$tmp_dir/stderr.pipe"
 	trap 'rm -rf $tmp_dir' EXIT

@@ -20,11 +20,14 @@
 package snapstate
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -67,8 +70,8 @@ func (r *refreshHints) needsUpdate() (bool, error) {
 }
 
 func (r *refreshHints) refresh() error {
-	var refreshManaged bool
-	refreshManaged, _, _ = refreshScheduleManaged(r.state)
+	scheduleConf, _, _ := getRefreshScheduleConf(r.state)
+	refreshManaged := scheduleConf == "managed" && CanManageRefreshes(r.state)
 
 	var err error
 	perfTimings := timings.New(map[string]string{"ensure": "refresh-hints"})
@@ -77,7 +80,7 @@ func (r *refreshHints) refresh() error {
 	var updates []*snap.Info
 	var ignoreValidationByInstanceName map[string]bool
 	timings.Run(perfTimings, "refresh-candidates", "query store for refresh candidates", func(tm timings.Measurer) {
-		updates, _, ignoreValidationByInstanceName, err = refreshCandidates(auth.EnsureContextTODO(), r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
+		updates, _, ignoreValidationByInstanceName, err = refreshCandidates(auth.EnsureContextTODO(), r.state, nil, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
 	})
 	// TODO: we currently set last-refresh-hints even when there was an
 	// error. In the future we may retry with a backoff.
@@ -104,7 +107,7 @@ func (r *refreshHints) AtSeed() error {
 	if release.OnClassic {
 		var t1 time.Time
 		err := r.state.Get("last-refresh-hints", &t1)
-		if err != state.ErrNoState {
+		if !errors.Is(err, state.ErrNoState) {
 			// already set or other error
 			return err
 		}
@@ -165,12 +168,14 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 			continue
 		}
 
+		providerContentAttrs := defaultProviderContentAttrs(st, update)
 		snapsup := &refreshCandidate{
 			SnapSetup: SnapSetup{
-				Base:      update.Base,
-				Prereq:    defaultContentPlugProviders(st, update),
-				Channel:   snapst.TrackingChannel,
-				CohortKey: snapst.CohortKey,
+				Base:               update.Base,
+				Prereq:             getKeys(providerContentAttrs),
+				PrereqContentAttrs: providerContentAttrs,
+				Channel:            snapst.TrackingChannel,
+				CohortKey:          snapst.CohortKey,
 				// UserID not set
 				Flags:        flags.ForSnapSetup(),
 				DownloadInfo: &update.DownloadInfo,
@@ -179,8 +184,10 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 				PlugsOnly:    len(update.Slots) == 0,
 				InstanceKey:  update.InstanceKey,
 				auxStoreInfo: auxStoreInfo{
-					Website: update.Website,
-					Media:   update.Media,
+					Media: update.Media,
+					// XXX we store this for the benefit of
+					// old snapd
+					Website: update.Website(),
 				},
 			},
 			Version: update.Version,
@@ -193,11 +200,29 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 // pruneRefreshCandidates removes the given snaps from refresh-candidates map
 // in the state.
 func pruneRefreshCandidates(st *state.State, snaps ...string) error {
+	tr := config.NewTransaction(st)
+	gateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	// Remove refresh-candidates from state if gate-auto-refresh-hook feature is
+	// not enabled. This acts as a workaround for the case where a snapd from
+	// edge was used and created refresh-candidates in the old format (an array)
+	// with the feature enabled, but the feature was then disabled so the new
+	// map format will never make it into the state.
+	// When the feature is enabled then auto-refresh code will re-initialize
+	// refresh-candidates in the correct format expected here.
+	// See https://forum.snapcraft.io/t/cannot-r-emove-snap-json-cannot-unmarshal-array-into-go-value-of-type-map-string-snapstate-refreshcandidate/27276
+	if !gateAutoRefreshHook {
+		st.Set("refresh-candidates", nil)
+		return nil
+	}
+
 	var candidates map[string]*refreshCandidate
 
-	err := st.Get("refresh-candidates", &candidates)
+	err = st.Get("refresh-candidates", &candidates)
 	if err != nil {
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			return nil
 		}
 		return err

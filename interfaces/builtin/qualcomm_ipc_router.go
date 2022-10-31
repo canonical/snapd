@@ -66,6 +66,10 @@ type qualcomIPCRouterInterface struct {
 }
 
 func (iface *qualcomIPCRouterInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
+	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Unsupported {
+		// no apparmor means we don't have to deal with parser features
+		return nil
+	}
 	features, err := apparmor_sandbox.ParserFeatures()
 	if err != nil {
 		return err

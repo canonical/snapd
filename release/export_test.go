@@ -34,14 +34,25 @@ func MockOSReleasePath(filename string) (restore func()) {
 	}
 }
 
-func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func()) {
-	old := ioutilReadFile
-	ioutilReadFile = newReadfile
+func MockFileExists(mockFileExists func(string) bool) (restorer func()) {
+	// Cannot use testutil.Backup due to import loop
+	old := fileExists
+	fileExists = mockFileExists
 	return func() {
-		ioutilReadFile = old
+		fileExists = old
+	}
+}
+
+func MockFilesystemRootType(filesystemID int64) (restorer func()) {
+	// Cannot use testutil.Backup due to import loop
+	old := filesystemRootType
+	filesystemRootType = func() (int64, error) { return filesystemID, nil }
+	return func() {
+		filesystemRootType = old
 	}
 }
 
 var (
-	IsWSL = isWSL
+	GetWSLVersion      = getWSLVersion
+	FilesystemRootType = filesystemRootType
 )

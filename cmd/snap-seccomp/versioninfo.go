@@ -25,7 +25,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mvo5/libseccomp-golang"
+	"github.com/seccomp/libseccomp-golang"
 
 	"github.com/snapcore/snapd/cmd/snap-seccomp/syscalls"
 	"github.com/snapcore/snapd/osutil"

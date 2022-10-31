@@ -9,6 +9,10 @@ details: |
 
 systems: [fedora-*, centos-*]
 
+environment:
+    # OOM occasionally
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh

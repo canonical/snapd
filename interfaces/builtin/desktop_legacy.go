@@ -54,6 +54,13 @@ dbus (send)
 
 #include <abstractions/dbus-accessibility-strict>
 
+# Allow access to the non-abstract D-Bus socket used by at-spi > 2.42.0
+#   https://gitlab.gnome.org/GNOME/at-spi2-core/-/issues/43
+owner /{,var/}run/user/[0-9]*/at-spi/bus* rw,
+
+# Allow access to the socket used by speech-dispatcher
+owner /{,var/}run/user/[0-9]*/speech-dispatcher/speechd.sock rw,
+
 # Allow the accessibility services in the user session to send us any events
 dbus (receive)
     bus=accessibility

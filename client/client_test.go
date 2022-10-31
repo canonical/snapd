@@ -225,6 +225,26 @@ func (cs *clientSuite) TestClientDoRetryWorks(c *C) {
 	c.Assert(cs.doCalls < 1100, Equals, true, Commentf("got %v calls", cs.doCalls))
 }
 
+func (cs *clientSuite) TestClientOnlyRetryAppropriateErrors(c *C) {
+	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	doOpts := &client.DoOptions{
+		Retry:   time.Millisecond,
+		Timeout: 1 * time.Minute,
+	}
+
+	for _, t := range []struct{ error }{
+		{client.InternalClientError{Err: fmt.Errorf("boom")}},
+		{client.AuthorizationError{Err: fmt.Errorf("boom")}},
+	} {
+		cs.doCalls = 0
+		cs.err = t.error
+
+		_, err := cs.cli.Do("GET", "/this", nil, reqBody, nil, doOpts)
+		c.Check(err, ErrorMatches, fmt.Sprintf(".*%s", t.error.Error()))
+		c.Assert(cs.doCalls, Equals, 1)
+	}
+}
+
 func (cs *clientSuite) TestClientUnderstandsStatusCode(c *C) {
 	var v []int
 	cs.status = 202
@@ -607,6 +627,23 @@ func (cs *clientSuite) TestDebugGet(c *C) {
 	c.Check(cs.reqs[0].Method, Equals, "GET")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
 	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"aspect": []string{"do-something"}, "foo": []string{"bar"}})
+}
+
+func (cs *clientSuite) TestDebugMigrateHome(c *C) {
+	cs.status = 202
+	cs.rsp = `{"type": "async", "status-code": 202, "change": "123"}`
+
+	snaps := []string{"foo", "bar"}
+	changeID, err := cs.cli.MigrateSnapHome(snaps)
+	c.Check(err, IsNil)
+	c.Check(changeID, Equals, "123")
+
+	c.Check(cs.reqs, HasLen, 1)
+	c.Check(cs.reqs[0].Method, Equals, "POST")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
+	data, err := ioutil.ReadAll(cs.reqs[0].Body)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, `{"action":"migrate-home","snaps":["foo","bar"]}`)
 }
 
 type integrationSuite struct{}

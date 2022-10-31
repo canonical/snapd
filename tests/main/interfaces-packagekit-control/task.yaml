@@ -5,8 +5,8 @@ systems:
     - -ubuntu-core-*
     # Ubuntu 14.04 PackageKit seems to be too old
     - -ubuntu-14.04-*
-    # PackageKit is buggy https://bugzilla.redhat.com/show_bug.cgi?id=1807864
-    - -centos-8-*
+    # Arm64 is not supported
+    - -ubuntu-*-arm-64
 
 restore: |
     snap remove --purge test-snapd-packagekit

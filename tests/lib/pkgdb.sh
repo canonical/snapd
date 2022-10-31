@@ -172,16 +172,6 @@ distro_install_package() {
         ;;
     esac
 
-    # fix dependency issue where libp11-kit0 needs to be downgraded to
-    # install gnome-keyring
-    case "$SPREAD_SYSTEM" in
-        debian-9-*)
-        if [[ "$*" =~ "gnome-keyring" ]]; then
-            eatmydata apt-get remove -y libp11-kit0
-        fi
-        ;;
-    esac
-
     # shellcheck disable=SC2207
     pkg_names=($(
         for pkg in "$@" ; do
@@ -199,14 +189,17 @@ distro_install_package() {
         ubuntu-*|debian-*)
             # shellcheck disable=SC2086
             quiet eatmydata apt-get install $APT_FLAGS -y "${pkg_names[@]}"
+            retval=$?
             ;;
         amazon-*|centos-7-*)
             # shellcheck disable=SC2086
             quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
+            retval=$?
             ;;
         fedora-*|centos-*)
             # shellcheck disable=SC2086
             quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
+            retval=$?
             ;;
         opensuse-*)
             # packages may be downgraded in the repositories, which would be
@@ -219,10 +212,12 @@ distro_install_package() {
 
             # shellcheck disable=SC2086
             quiet zypper install -y --allow-downgrade --force-resolution $ZYPPER_FLAGS "${pkg_names[@]}"
+            retval=$?
             ;;
         arch-*)
             # shellcheck disable=SC2086
             pacman -Suq --needed --noconfirm "${pkg_names[@]}"
+            retval=$?
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -230,6 +225,10 @@ distro_install_package() {
             ;;
     esac
     test "$orig_xtrace" = on && set -x
+    # pass any errors up
+    if [ "$retval" != "0" ]; then
+        return $retval
+    fi
 }
 
 distro_purge_package() {
@@ -383,6 +382,14 @@ distro_install_build_snapd(){
         if os.query is-trusty && [ "$SPREAD_REBOOT" = 0 ]; then
             REBOOT
         fi
+    elif [ -n "$PPA_GPG_KEY" ] && [ -n "$PPA_SOURCE_LINE" ]; then
+        echo "$PPA_GPG_KEY" | apt-key add -
+        echo "${PPA_SOURCE_LINE//"YOUR_UBUNTU_VERSION_HERE"/"$(lsb_release -c -s)"}" >> /etc/apt/sources.list
+        apt update
+        apt install -y snapd
+
+        # Double check that it really comes from the PPA
+        apt show snapd | MATCH "APT-Sources: http.*private-ppa\.launchpad(content)?\.net"
     elif [ -n "$PPA_VALIDATION_NAME" ]; then
         apt install -y snapd
         add-apt-repository -y "$PPA_VALIDATION_NAME"
@@ -392,7 +399,7 @@ distro_install_build_snapd(){
         apt update
 
         # Double check that it really comes from the PPA
-        apt show snapd | grep "APT-Sources: http.*ppa.launchpad.net"
+        apt show snapd | MATCH "APT-Sources: http.*ppa\.launchpad(content)?\.net"
     else
         packages=
         case "$SPREAD_SYSTEM" in
@@ -462,7 +469,7 @@ distro_install_build_snapd(){
             fi
         fi
 
-        if os.query is-opensuse-tumbleweed; then
+        if os.query is-opensuse || os.query is-arch-linux; then
             # Package installation applies vendor presets only, which leaves
             # snapd.apparmor disabled.
             systemctl enable --now snapd.apparmor.service
@@ -501,6 +508,7 @@ pkg_dependencies_ubuntu_generic(){
         automake
         autotools-dev
         build-essential
+        ca-certificates
         clang
         curl
         devscripts
@@ -516,6 +524,7 @@ pkg_dependencies_ubuntu_generic(){
         libseccomp-dev
         libudev-dev
         man
+        mtools
         netcat-openbsd
         pkg-config
         python3-docutils
@@ -530,7 +539,7 @@ pkg_dependencies_ubuntu_classic(){
     echo "
         avahi-daemon
         cups
-        dbus-x11
+        fish
         fontconfig
         gnome-keyring
         jq
@@ -549,7 +558,7 @@ pkg_dependencies_ubuntu_classic(){
 
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
-                pkg_linux_image_extra
+            pkg_linux_image_extra
             ;;
         ubuntu-16.04-64)
             echo "
@@ -589,23 +598,31 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-utils
                 "
             ;;
-        ubuntu-20.04-64)
+        ubuntu-20.04-64|ubuntu-20.04-arm-64)
+            # bpftool is part of linux-tools package
             echo "
+                dbus-user-session
                 evolution-data-server
                 fwupd
                 gccgo-9
                 libvirt-daemon-system
+                linux-tools-$(uname -r)
                 packagekit
                 qemu-kvm
                 qemu-utils
                 shellcheck
                 "
             ;;
-        ubuntu-21.04-64|ubuntu-21.10-64)
+        ubuntu-22.04-64|ubuntu-22.04-arm-64|ubuntu-22.10-64)
+            # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
                 fwupd
                 golang
+                libvirt-daemon-system
+                linux-tools-$(uname -r)
+                lz4
+                qemu-kvm
                 qemu-utils
                 "
             ;;
@@ -618,7 +635,6 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 autopkgtest
                 debootstrap
-                dbus-user-session
                 eatmydata
                 evolution-data-server
                 fwupd
@@ -630,6 +646,15 @@ pkg_dependencies_ubuntu_classic(){
                 sbuild
                 schroot
                 "
+            ;;
+    esac
+    case "$SPREAD_SYSTEM" in
+        debian-11-*|debian-sid-*)
+            echo "
+                 bpftool
+                 strace
+                 systemd-timesyncd
+                 "
             ;;
     esac
 }
@@ -657,6 +682,7 @@ pkg_dependencies_ubuntu_core(){
 pkg_dependencies_fedora_centos_common(){
     echo "
         python3
+        bpftool
         clang
         curl
         dbus-x11
@@ -673,10 +699,10 @@ pkg_dependencies_fedora_centos_common(){
         nmap-ncat
         nfs-utils
         PackageKit
+        polkit
         python3-yaml
         python3-dbus
         python3-gobject
-        redhat-lsb-core
         rpm-build
         udisks2
         upower
@@ -685,6 +711,12 @@ pkg_dependencies_fedora_centos_common(){
         strace
         zsh
         "
+    if ! os.query is-centos 9; then
+        echo "
+            fish
+            redhat-lsb-core
+        "
+    fi
 }
 
 pkg_dependencies_fedora(){
@@ -699,6 +731,7 @@ pkg_dependencies_amazon(){
         curl
         dbus-x11
         expect
+        fish
         fontconfig
         fwupd
         git
@@ -728,11 +761,13 @@ pkg_dependencies_opensuse(){
         apparmor-profiles
         audit
         bash-completion
+        bpftool
         clang
         curl
         dbus-1-python3
         evolution-data-server
         expect
+        fish
         fontconfig
         fwupd
         git
@@ -756,6 +791,12 @@ pkg_dependencies_opensuse(){
         xdg-utils
         zsh
         "
+    if os.query is-opensuse tumbleweed; then
+        echo "
+            libfwupd2
+            libfwupdplugin5
+        "
+    fi
 }
 
 pkg_dependencies_arch(){
@@ -763,10 +804,12 @@ pkg_dependencies_arch(){
     apparmor
     base-devel
     bash-completion
+    bpf
     clang
     curl
     evolution-data-server
     expect
+    fish
     fontconfig
     fwupd
     git

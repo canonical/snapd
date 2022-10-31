@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -54,7 +55,7 @@ type baseServiceMgrTestSuite struct {
 	se    *overlord.StateEngine
 	state *state.State
 
-	restartRequests []state.RestartType
+	restartRequests []restart.RestartType
 	restartObserve  func()
 
 	uc18Model *asserts.Model
@@ -73,24 +74,24 @@ func (s *baseServiceMgrTestSuite) SetUpTest(c *C) {
 	s.restartRequests = nil
 
 	s.restartObserve = nil
-	s.o = overlord.MockWithStateAndRestartHandler(nil, func(req state.RestartType) {
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+	s.state.Lock()
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType) {
 		s.restartRequests = append(s.restartRequests, req)
 		if s.restartObserve != nil {
 			s.restartObserve()
 		}
-	})
-
-	s.state = s.o.State()
-	s.state.Lock()
-	s.state.VerifyReboot("boot-id-0")
+	}))
 	s.state.Unlock()
+	c.Assert(err, IsNil)
 	s.se = s.o.StateEngine()
 
 	s.mgr = servicestate.Manager(s.state, s.o.TaskRunner())
 	s.o.AddManager(s.mgr)
 	s.o.AddManager(s.o.TaskRunner())
 
-	err := s.o.StartUp()
+	err = s.o.StartUp()
 	c.Assert(err, IsNil)
 
 	// by default we are seeded
@@ -1294,6 +1295,9 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 			expArgs: []string{"stop", "snap.test-snap.svc1.service"},
 			err:     fmt.Errorf("this service is still having a bad day"),
 		},
+		{
+			expArgs: []string{"show", "--property=ActiveState", "snap.test-snap.svc1.service"},
+		},
 	})
 	defer r()
 
@@ -1309,7 +1313,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 	c.Assert(svcFile, testutil.FileEquals, content)
 
 	// we requested a restart
-	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 }
 
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndTriesRestartButFailsButThenFallsbackToReboot(c *C) {
@@ -1380,5 +1384,5 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndTri
 	c.Assert(svcFile, testutil.FileEquals, content)
 
 	// we requested a restart
-	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 }

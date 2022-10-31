@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@
 package ifacestate
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -425,14 +426,16 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 		hookName := fmt.Sprintf("disconnect-slot-%s", slotName)
 		if slotSnapInfo.Hooks[hookName] != nil {
 			disconnectSlotHookSetup := &hookstate.HookSetup{
-				Snap:     slotSnap,
-				Hook:     hookName,
-				Optional: true,
+				Snap:        slotSnap,
+				Hook:        hookName,
+				Optional:    true,
+				IgnoreError: flags.AutoDisconnect,
 			}
 			undoDisconnectSlotHookSetup := &hookstate.HookSetup{
-				Snap:     slotSnap,
-				Hook:     "connect-slot-" + slotName,
-				Optional: true,
+				Snap:        slotSnap,
+				Hook:        "connect-slot-" + slotName,
+				Optional:    true,
+				IgnoreError: flags.AutoDisconnect,
 			}
 
 			summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectSlotHookSetup.Hook, disconnectSlotHookSetup.Snap)
@@ -447,14 +450,16 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 		hookName := fmt.Sprintf("disconnect-plug-%s", plugName)
 		if plugSnapInfo.Hooks[hookName] != nil {
 			disconnectPlugHookSetup := &hookstate.HookSetup{
-				Snap:     plugSnap,
-				Hook:     hookName,
-				Optional: true,
+				Snap:        plugSnap,
+				Hook:        hookName,
+				Optional:    true,
+				IgnoreError: flags.AutoDisconnect,
 			}
 			undoDisconnectPlugHookSetup := &hookstate.HookSetup{
-				Snap:     plugSnap,
-				Hook:     "connect-plug-" + plugName,
-				Optional: true,
+				Snap:        plugSnap,
+				Hook:        "connect-plug-" + plugName,
+				Optional:    true,
+				IgnoreError: flags.AutoDisconnect,
 			}
 
 			summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectPlugHookSetup.Hook, disconnectPlugHookSetup.Snap)
@@ -529,8 +534,11 @@ func delayedCrossMgrInit() {
 		})
 
 		// hook into conflict checks mechanisms
-		snapstate.AddAffectedSnapsByKind("connect", connectDisconnectAffectedSnaps)
-		snapstate.AddAffectedSnapsByKind("disconnect", connectDisconnectAffectedSnaps)
+		snapstate.RegisterAffectedSnapsByKind("connect", connectDisconnectAffectedSnaps)
+		snapstate.RegisterAffectedSnapsByKind("disconnect", connectDisconnectAffectedSnaps)
+
+		// hook into snap linking/unlinking and activation state changes
+		snapstate.AddLinkSnapParticipant(snapstate.LinkSnapParticipantFunc(OnSnapLinkageChanged))
 	})
 }
 
@@ -538,4 +546,32 @@ func MockConnectRetryTimeout(d time.Duration) (restore func()) {
 	old := connectRetryTimeout
 	connectRetryTimeout = d
 	return func() { connectRetryTimeout = old }
+}
+
+// OnSnapLinkageChanged is used to implement
+// snapstate.LinkSnapParticipant follow activation changes for snaps
+// so that we can track revisions with security profiles on disk for
+// temporarily inactive snaps.
+func OnSnapLinkageChanged(st *state.State, instanceName string) error {
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !snapst.IsInstalled() {
+		// nothing to do
+		return nil
+	}
+
+	if snapst.Active {
+		// nothing to track
+		snapst.PendingSecurity = nil
+	} else {
+		// track the revision that was just unlinked that has
+		// still profiles
+		snapst.PendingSecurity = &snapstate.PendingSecurityState{
+			SideInfo: snapst.CurrentSideInfo(),
+		}
+	}
+	snapstate.Set(st, instanceName, &snapst)
+	return nil
 }

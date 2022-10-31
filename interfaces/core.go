@@ -295,6 +295,8 @@ const (
 	SecurityKMod SecuritySystem = "kmod"
 	// SecuritySystemd identifies the systemd services security system.
 	SecuritySystemd SecuritySystem = "systemd"
+	// SecurityPolkit identifies the polkit security system.
+	SecurityPolkit SecuritySystem = "polkit"
 )
 
 var isValidBusName = regexp.MustCompile(`^[a-zA-Z_-][a-zA-Z0-9_-]*(\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$`).MatchString

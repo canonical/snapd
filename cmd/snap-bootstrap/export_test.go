@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 )
@@ -32,6 +33,8 @@ var (
 	Parser = parser
 
 	DoSystemdMount = doSystemdMountImpl
+
+	MountNonDataPartitionMatchingKernelDisk = mountNonDataPartitionMatchingKernelDisk
 )
 
 type SystemdMountOptions = systemdMountOptions
@@ -80,7 +83,7 @@ func MockSystemdMount(f func(_, _ string, opts *SystemdMountOptions) error) (res
 	}
 }
 
-func MockTriggerwatchWait(f func(_ time.Duration) error) (restore func()) {
+func MockTriggerwatchWait(f func(_ time.Duration, _ time.Duration) error) (restore func()) {
 	oldTriggerwatchWait := triggerwatchWait
 	triggerwatchWait = f
 	return func() {
@@ -89,6 +92,7 @@ func MockTriggerwatchWait(f func(_ time.Duration) error) (restore func()) {
 }
 
 var DefaultTimeout = defaultTimeout
+var DefaultDeviceTimeout = defaultDeviceTimeout
 
 func MockDefaultMarkerFile(p string) (restore func()) {
 	old := defaultMarkerFile
@@ -111,6 +115,14 @@ func MockSecbootUnlockEncryptedVolumeUsingKey(f func(disk disks.Disk, name strin
 	secbootUnlockEncryptedVolumeUsingKey = f
 	return func() {
 		secbootUnlockEncryptedVolumeUsingKey = old
+	}
+}
+
+func MockSecbootProvisionForCVM(f func(_ string) error) (restore func()) {
+	old := secbootProvisionForCVM
+	secbootProvisionForCVM = f
+	return func() {
+		secbootProvisionForCVM = old
 	}
 }
 
@@ -153,10 +165,20 @@ func MockPartitionUUIDForBootedKernelDisk(uuid string) (restore func()) {
 	}
 }
 
-func MockTryRecoverySystemHealthCheck(mock func() error) (restore func()) {
+func MockTryRecoverySystemHealthCheck(mock func(gadget.Model) error) (restore func()) {
 	old := tryRecoverySystemHealthCheck
 	tryRecoverySystemHealthCheck = mock
 	return func() {
 		tryRecoverySystemHealthCheck = old
 	}
 }
+
+func MockWaitFile(f func(string, time.Duration, int) error) (restore func()) {
+	old := waitFile
+	waitFile = f
+	return func() {
+		waitFile = old
+	}
+}
+
+var WaitFile = waitFile

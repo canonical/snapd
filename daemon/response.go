@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -88,42 +89,42 @@ func (r *respJSON) JSON() *respJSON {
 	return r
 }
 
-func maintenanceForRestartType(rst state.RestartType) *errorResult {
+func maintenanceForRestartType(rst restart.RestartType) *errorResult {
 	e := &errorResult{}
 	switch rst {
-	case state.RestartSystem, state.RestartSystemNow:
+	case restart.RestartSystem, restart.RestartSystemNow:
 		e.Kind = client.ErrorKindSystemRestart
 		e.Message = systemRestartMsg
 		e.Value = map[string]interface{}{
 			"op": "reboot",
 		}
-	case state.RestartSystemHaltNow:
+	case restart.RestartSystemHaltNow:
 		e.Kind = client.ErrorKindSystemRestart
 		e.Message = systemHaltMsg
 		e.Value = map[string]interface{}{
 			"op": "halt",
 		}
-	case state.RestartSystemPoweroffNow:
+	case restart.RestartSystemPoweroffNow:
 		e.Kind = client.ErrorKindSystemRestart
 		e.Message = systemPoweroffMsg
 		e.Value = map[string]interface{}{
 			"op": "poweroff",
 		}
-	case state.RestartDaemon:
+	case restart.RestartDaemon:
 		e.Kind = client.ErrorKindDaemonRestart
 		e.Message = daemonRestartMsg
-	case state.RestartSocket:
+	case restart.RestartSocket:
 		e.Kind = client.ErrorKindDaemonRestart
 		e.Message = socketRestartMsg
-	case state.RestartUnset:
+	case restart.RestartUnset:
 		// shouldn't happen, maintenance for unset type should just be nil
 		panic("internal error: cannot marshal maintenance for RestartUnset")
 	}
 	return e
 }
 
-func (r *respJSON) addMaintenanceFromRestartType(rst state.RestartType) {
-	if rst == state.RestartUnset {
+func (r *respJSON) addMaintenanceFromRestartType(rst restart.RestartType) {
+	if rst == restart.RestartUnset {
 		// nothing to do
 		return
 	}

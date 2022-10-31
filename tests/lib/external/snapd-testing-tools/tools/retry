@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+from __future__ import print_function, absolute_import, unicode_literals
+
+import argparse
+import itertools
+import os
+import subprocess
+import sys
+import time
+
+
+# Define MYPY as False and use it as a conditional for typing import. Despite
+# this declaration mypy will really treat MYPY as True when type-checking.
+# This is required so that we can import typing on Python 2.x without the
+# typing module installed. For more details see:
+# https://mypy.readthedocs.io/en/latest/common_issues.html#import-cycles
+MYPY = False
+if MYPY:
+    from typing import List, Text
+
+def envpair(s):
+    # type: (str) -> str
+    if not "=" in s:
+        raise argparse.ArgumentTypeError("environment variables expected format is 'KEY=VAL' got '{}'".format(s))
+    return s
+
+def _make_parser():
+    # type: () -> argparse.ArgumentParser
+    parser = argparse.ArgumentParser(
+        description="""
+Retry executes COMMAND at most N times, waiting for SECONDS between each
+attempt. On failure the exit code from the final attempt is returned.
+"""
+    )
+    parser.add_argument(
+        "-n",
+        "--attempts",
+        metavar="N",
+        type=int,
+        default=3,
+        help="number of attempts (default %(default)s)",
+    )
+    parser.add_argument(
+        "--wait",
+        metavar="SECONDS",
+        type=float,
+        default=1,
+        help="grace period between attempts (default %(default)ss)",
+    )
+    parser.add_argument(
+        "--env",
+        type=envpair,
+        metavar='KEY=VAL',
+        action='append',
+        default=[],
+        help="environment variable to use with format KEY=VALUE (no default)",
+    )
+    parser.add_argument(
+        "--maxmins",
+        metavar="MINUTES",
+        type=float,
+        default=0,
+        help="number of minutes after which to give up (no default, if set attempts is ignored)",
+    )
+    parser.add_argument(
+        "--quiet",
+        dest="verbose",
+        action="store_false",
+        default=True,
+        help="refrain from printing any output",
+    )
+    parser.add_argument(
+        "cmd", metavar="COMMAND", nargs="...", help="command to execute"
+    )
+    return parser
+
+
+def get_env(env):
+    # type: (List[str]) -> dict[str,str]
+    new_env = os.environ.copy()
+    maxsplit=1  # no keyword support for str.split() in py2
+    for key, val in [s.split("=", maxsplit) for s in env]:
+        new_env[key] = val
+    return new_env
+
+
+def run_cmd(cmd, n, wait, maxmins, verbose, env):
+    # type: (List[Text], int, float, float, bool, List[str]) -> int
+    if maxmins != 0:
+        attempts = itertools.count(1)
+        t0 = time.time()
+        after = "{} minutes".format(maxmins)
+        of_attempts_suffix = ""
+    else:
+        attempts = range(1, n + 1)
+        after = "{} attempts".format(n)
+        of_attempts_suffix = " of {}".format(n)
+    retcode = 0
+    i = 0
+    new_env = get_env(env)
+    for i in attempts:
+        retcode = subprocess.call(cmd, env=new_env)
+        if retcode == 0:
+            return 0
+        if verbose:
+            print(
+                "retry: command {} failed with code {}".format(" ".join(cmd), retcode),
+                file=sys.stderr,
+            )
+        if maxmins != 0:
+            elapsed = (time.time()-t0)/60
+            if elapsed > maxmins:
+                break
+        if i < n or maxmins != 0:
+            if verbose:
+                print(
+                    "retry: next attempt in {} second(s) (attempt {}{})".format(
+                        wait, i, of_attempts_suffix
+                    ),
+                    file=sys.stderr,
+                )
+            time.sleep(wait)
+
+    if verbose and i > 1:
+        print(
+            "retry: command {} keeps failing after {}".format(
+                " ".join(cmd), after
+                ),
+                file=sys.stderr,
+            )
+    return retcode
+
+
+def main():
+    # type: () -> None
+    parser = _make_parser()
+    ns = parser.parse_args()
+    # The command cannot be empty but it is difficult to express in argparse itself.
+    if len(ns.cmd) == 0:
+        parser.print_usage()
+        parser.exit(0)
+    # Return the last exit code as the exit code of this process.
+    try:
+        retcode = run_cmd(ns.cmd, ns.attempts, ns.wait, ns.maxmins, ns.verbose, ns.env)
+    except OSError as exc:
+        if ns.verbose:
+            print(
+                "retry: cannot execute command {}: {}".format(" ".join(ns.cmd), exc),
+                file=sys.stderr,
+            )
+        raise SystemExit(1)
+    else:
+        raise SystemExit(retcode)
+
+
+if __name__ == "__main__":
+    main()

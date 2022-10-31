@@ -20,17 +20,21 @@
 package agent_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/desktop/notification/notificationtest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -148,6 +152,93 @@ func (s *sessionAgentSuite) TestExitOnIdle(c *C) {
 		// The idle timeout should have been extended when we
 		// issued a second request after 25ms.
 		c.Errorf("Expected ellaped time close to 175 ms, but got %v", elapsed)
+	}
+}
+
+func (s *sessionAgentSuite) TestFdoNotification(c *C) {
+	desktopFile := "[Desktop Entry]\nIcon=/path/appicon.png"
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "app.desktop"), []byte(desktopFile), 0644), IsNil)
+
+	backend, err := notificationtest.NewFdoServer()
+	c.Assert(err, IsNil)
+	defer backend.Stop()
+
+	agent, err := agent.New()
+	c.Assert(err, IsNil)
+	agent.IdleTimeout = 150 * time.Millisecond
+	agent.Start()
+	defer agent.Stop()
+
+	// simulate snap refresh message
+	makeRequest := func() {
+		data := bytes.NewBufferString(`{"instance-name":"some-snap", "busy-app-name":"App", "busy-app-desktop-entry":"app"}`)
+		response, err := s.client.Post("http://localhost/v1/notifications/pending-refresh", "application/json", data)
+		c.Assert(err, IsNil)
+		defer response.Body.Close()
+		c.Check(response.StatusCode, Equals, 200)
+	}
+	makeRequest()
+
+	// wait for a while, we want the message to trigger FDO notification
+	time.Sleep(50 * time.Millisecond)
+
+	// our fake FDO backend should receive the notification
+	fdoNotification := backend.Get(1)
+	c.Assert(fdoNotification, NotNil)
+	c.Check(fdoNotification.AppName, Equals, "App")
+	c.Check(fdoNotification.Icon, Equals, "/path/appicon.png")
+
+	// trigger notification close signal over dbus
+	c.Assert(backend.Close(1, 0), IsNil)
+
+	select {
+	case <-agent.Dying():
+	case <-time.After(2 * time.Second):
+		c.Fatal("agent did not exit after idle timeout expired")
+	}
+}
+
+func (s *sessionAgentSuite) TestGtkNotification(c *C) {
+	desktopFile := "[Desktop Entry]\nIcon=/path/appicon.png"
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "app.desktop"), []byte(desktopFile), 0644), IsNil)
+
+	backend, err := notificationtest.NewGtkServer()
+	c.Assert(err, IsNil)
+	defer backend.Stop()
+
+	agent, err := agent.New()
+	c.Assert(err, IsNil)
+	agent.IdleTimeout = 150 * time.Millisecond
+	agent.Start()
+	defer agent.Stop()
+
+	// simulate snap refresh message
+	makeRequest := func() {
+		data := bytes.NewBufferString(`{"instance-name":"some-snap", "busy-app-name":"App", "busy-app-desktop-entry":"app"}`)
+		response, err := s.client.Post("http://localhost/v1/notifications/pending-refresh", "application/json", data)
+		c.Assert(err, IsNil)
+		defer response.Body.Close()
+		c.Check(response.StatusCode, Equals, 200)
+	}
+	makeRequest()
+
+	// wait for a while, we want the message to trigger FDO notification
+	time.Sleep(50 * time.Millisecond)
+
+	// our fake FDO backend should receive the notification
+	gtkNotification := backend.Get("some-snap")
+	c.Assert(gtkNotification, NotNil)
+	c.Check(gtkNotification.DesktopID, Equals, "io.snapcraft.SessionAgent")
+
+	// trigger notification close signal over dbus
+	c.Assert(backend.Close("some-snap"), IsNil)
+
+	select {
+	case <-agent.Dying():
+	case <-time.After(2 * time.Second):
+		c.Fatal("agent did not exit after idle timeout expired")
 	}
 }
 

@@ -58,7 +58,7 @@ func (s *fdoSuite) TearDownTest(c *C) {
 }
 
 func (s *fdoSuite) TestServerInformationSuccess(c *C) {
-	srv := notification.New(s.SessionBus)
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
 	name, vendor, version, specVersion, err := srv.ServerInformation()
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "name")
@@ -69,13 +69,13 @@ func (s *fdoSuite) TestServerInformationSuccess(c *C) {
 
 func (s *fdoSuite) TestServerInformationError(c *C) {
 	s.backend.SetError(&dbus.Error{Name: "org.freedesktop.DBus.Error.Failed"})
-	srv := notification.New(s.SessionBus)
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
 	_, _, _, _, err := srv.ServerInformation()
 	c.Assert(err, ErrorMatches, "org.freedesktop.DBus.Error.Failed")
 }
 
 func (s *fdoSuite) TestServerCapabilitiesSuccess(c *C) {
-	srv := notification.New(s.SessionBus)
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
 	caps, err := srv.ServerCapabilities()
 	c.Assert(err, IsNil)
 	c.Check(caps, DeepEquals, []notification.ServerCapability{"cap-foo", "cap-bar"})
@@ -83,20 +83,20 @@ func (s *fdoSuite) TestServerCapabilitiesSuccess(c *C) {
 
 func (s *fdoSuite) TestServerCapabilitiesError(c *C) {
 	s.backend.SetError(&dbus.Error{Name: "org.freedesktop.DBus.Error.Failed"})
-	srv := notification.New(s.SessionBus)
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
 	_, err := srv.ServerCapabilities()
 	c.Assert(err, ErrorMatches, "org.freedesktop.DBus.Error.Failed")
 }
 
 func (s *fdoSuite) TestSendNotificationSuccess(c *C) {
-	srv := notification.New(s.SessionBus)
-	id, err := srv.SendNotification(&notification.Message{
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	err := srv.SendNotification("some-id", &notification.Message{
 		AppName:       "app-name",
 		Icon:          "icon",
-		Summary:       "summary",
+		Title:         "summary",
 		Body:          "body",
+		Priority:      notification.PriorityUrgent,
 		ExpireTimeout: time.Second * 1,
-		ReplacesID:    notification.ID(42),
 		Actions: []notification.Action{
 			{ActionKey: "key-1", LocalizedText: "text-1"},
 			{ActionKey: "key-2", LocalizedText: "text-2"},
@@ -108,63 +108,76 @@ func (s *fdoSuite) TestSendNotificationSuccess(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(s.backend.Get(uint32(id)), DeepEquals, &notificationtest.FdoNotification{
-		ID:      uint32(id),
+	c.Check(s.backend.Get(1), DeepEquals, &notificationtest.FdoNotification{
+		ID:      uint32(1),
 		AppName: "app-name",
 		Icon:    "icon",
 		Summary: "summary",
 		Body:    "body",
 		Actions: []string{"key-1", "text-1", "key-2", "text-2"},
 		Hints: map[string]dbus.Variant{
-			"hint-str":  dbus.MakeVariant("str"),
-			"hint-bool": dbus.MakeVariant(true),
+			"hint-str":      dbus.MakeVariant("str"),
+			"hint-bool":     dbus.MakeVariant(true),
+			"urgency":       dbus.MakeVariant(uint8(2)),
+			"desktop-entry": dbus.MakeVariant("desktop-id"),
 		},
 		Expires: 1000,
 	})
 }
 
 func (s *fdoSuite) TestSendNotificationWithServerDecidedExpireTimeout(c *C) {
-	srv := notification.New(s.SessionBus)
-	id, err := srv.SendNotification(&notification.Message{
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	err := srv.SendNotification("some-id", &notification.Message{
 		ExpireTimeout: notification.ServerSelectedExpireTimeout,
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(s.backend.Get(uint32(id)), DeepEquals, &notificationtest.FdoNotification{
-		ID:      uint32(id),
+	c.Check(s.backend.Get(uint32(1)), DeepEquals, &notificationtest.FdoNotification{
+		ID:      uint32(1),
 		Actions: []string{},
-		Hints:   map[string]dbus.Variant{},
+		Hints: map[string]dbus.Variant{
+			"urgency":       dbus.MakeVariant(uint8(1)),
+			"desktop-entry": dbus.MakeVariant("desktop-id"),
+		},
 		Expires: -1,
 	})
 }
 
 func (s *fdoSuite) TestSendNotificationError(c *C) {
 	s.backend.SetError(&dbus.Error{Name: "org.freedesktop.DBus.Error.Failed"})
-	srv := notification.New(s.SessionBus)
-	_, err := srv.SendNotification(&notification.Message{})
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id")
+	err := srv.SendNotification("some-id", &notification.Message{})
 	c.Assert(err, ErrorMatches, "org.freedesktop.DBus.Error.Failed")
 }
 
 func (s *fdoSuite) TestCloseNotificationSuccess(c *C) {
-	srv := notification.New(s.SessionBus)
-	id, err := srv.SendNotification(&notification.Message{})
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	err := srv.SendNotification("some-id", &notification.Message{})
 	c.Assert(err, IsNil)
 
-	err = srv.CloseNotification(id)
+	err = srv.CloseNotification("some-id")
 	c.Assert(err, IsNil)
-	c.Check(s.backend.Get(uint32(id)), IsNil)
+	c.Check(s.backend.GetAll(), HasLen, 0)
 }
 
 func (s *fdoSuite) TestCloseNotificationError(c *C) {
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	err := srv.SendNotification("some-id", &notification.Message{})
+	c.Assert(err, IsNil)
 	s.backend.SetError(&dbus.Error{Name: "org.freedesktop.DBus.Error.Failed"})
-	srv := notification.New(s.SessionBus)
-	err := srv.CloseNotification(notification.ID(42))
+	err = srv.CloseNotification("some-id")
 	c.Assert(err, ErrorMatches, "org.freedesktop.DBus.Error.Failed")
+}
+
+func (s *fdoSuite) TestCloseNotificationUnknownNotification(c *C) {
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id")
+	err := srv.CloseNotification("some-id")
+	c.Assert(err, ErrorMatches, `unknown notification with id "some-id"`)
 }
 
 type testObserver struct {
 	notificationClosed func(notification.ID, notification.CloseReason) error
-	actionInvoked      func(notification.ID, string) error
+	actionInvoked      func(uint32, string) error
 }
 
 func (o *testObserver) NotificationClosed(id notification.ID, reason notification.CloseReason) error {
@@ -174,7 +187,7 @@ func (o *testObserver) NotificationClosed(id notification.ID, reason notificatio
 	return nil
 }
 
-func (o *testObserver) ActionInvoked(id notification.ID, actionKey string) error {
+func (o *testObserver) ActionInvoked(id uint32, actionKey string) error {
 	if o.actionInvoked != nil {
 		return o.actionInvoked(id, actionKey)
 	}
@@ -182,7 +195,7 @@ func (o *testObserver) ActionInvoked(id notification.ID, actionKey string) error
 }
 
 func (s *fdoSuite) TestObserveNotificationsContextAndSignalWatch(c *C) {
-	srv := notification.New(s.SessionBus)
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
 
 	ctx, cancel := context.WithCancel(context.TODO())
 	signalDelivered := make(chan struct{}, 1)
@@ -191,7 +204,7 @@ func (s *fdoSuite) TestObserveNotificationsContextAndSignalWatch(c *C) {
 	wg.Add(1)
 	go func() {
 		err := srv.ObserveNotifications(ctx, &testObserver{
-			actionInvoked: func(id notification.ID, actionKey string) error {
+			actionInvoked: func(id uint32, actionKey string) error {
 				select {
 				case signalDelivered <- struct{}{}:
 				default:
@@ -218,17 +231,16 @@ func (s *fdoSuite) TestObserveNotificationsContextAndSignalWatch(c *C) {
 }
 
 func (s *fdoSuite) TestObserveNotificationsProcessingError(c *C) {
-	srv := notification.New(s.SessionBus)
-
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
 	signalDelivered := make(chan struct{}, 1)
 	defer close(signalDelivered)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		err := srv.ObserveNotifications(context.TODO(), &testObserver{
-			actionInvoked: func(id notification.ID, actionKey string) error {
+			actionInvoked: func(id uint32, actionKey string) error {
 				signalDelivered <- struct{}{}
-				c.Check(id, Equals, notification.ID(42))
+				c.Check(id, Equals, uint32(42))
 				c.Check(actionKey, Equals, "action-key")
 				return fmt.Errorf("boom")
 			},
@@ -251,16 +263,33 @@ func (s *fdoSuite) TestObserveNotificationsProcessingError(c *C) {
 	wg.Wait()
 }
 
+func (s *fdoSuite) TestProcessNotificationClosedUnknownNotificationNoError(c *C) {
+	var called bool
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	err := srv.ProcessSignal(&dbus.Signal{
+		Name: "org.freedesktop.Notifications.NotificationClosed",
+		Body: []interface{}{uint32(1), uint32(2)},
+	}, &testObserver{
+		notificationClosed: func(id notification.ID, reason notification.CloseReason) error {
+			called = true
+			return fmt.Errorf("this shouldn't get called")
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, false)
+}
+
 func (s *fdoSuite) TestProcessActionInvokedSignalSuccess(c *C) {
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
 	called := false
-	err := notification.ProcessSignal(&dbus.Signal{
+	err := srv.ProcessSignal(&dbus.Signal{
 		// Sender and Path are not used
 		Name: "org.freedesktop.Notifications.ActionInvoked",
 		Body: []interface{}{uint32(42), "action-key"},
 	}, &testObserver{
-		actionInvoked: func(id notification.ID, actionKey string) error {
+		actionInvoked: func(id uint32, actionKey string) error {
 			called = true
-			c.Check(id, Equals, notification.ID(42))
+			c.Check(id, Equals, uint32(42))
 			c.Check(actionKey, Equals, "action-key")
 			return nil
 		},
@@ -270,11 +299,12 @@ func (s *fdoSuite) TestProcessActionInvokedSignalSuccess(c *C) {
 }
 
 func (s *fdoSuite) TestProcessActionInvokedSignalError(c *C) {
-	err := notification.ProcessSignal(&dbus.Signal{
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	err := srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.ActionInvoked",
 		Body: []interface{}{uint32(42), "action-key"},
 	}, &testObserver{
-		actionInvoked: func(id notification.ID, actionKey string) error {
+		actionInvoked: func(id uint32, actionKey string) error {
 			return fmt.Errorf("boom")
 		},
 	})
@@ -282,25 +312,26 @@ func (s *fdoSuite) TestProcessActionInvokedSignalError(c *C) {
 }
 
 func (s *fdoSuite) TestProcessActionInvokedSignalBodyParseErrors(c *C) {
-	err := notification.ProcessSignal(&dbus.Signal{
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	err := srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.ActionInvoked",
 		Body: []interface{}{uint32(42), "action-key", "unexpected"},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process ActionInvoked signal: unexpected number of body elements: 3")
 
-	err = notification.ProcessSignal(&dbus.Signal{
+	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.ActionInvoked",
 		Body: []interface{}{uint32(42)},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process ActionInvoked signal: unexpected number of body elements: 1")
 
-	err = notification.ProcessSignal(&dbus.Signal{
+	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.ActionInvoked",
 		Body: []interface{}{uint32(42), true},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process ActionInvoked signal: expected second body element to be string, got bool")
 
-	err = notification.ProcessSignal(&dbus.Signal{
+	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.ActionInvoked",
 		Body: []interface{}{true, "action-key"},
 	}, &testObserver{})
@@ -308,14 +339,18 @@ func (s *fdoSuite) TestProcessActionInvokedSignalBodyParseErrors(c *C) {
 }
 
 func (s *fdoSuite) TestProcessNotificationClosedSignalSuccess(c *C) {
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	// send a notification first
+	err := srv.SendNotification("some-id", &notification.Message{})
+	c.Assert(err, IsNil)
 	called := false
-	err := notification.ProcessSignal(&dbus.Signal{
+	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.NotificationClosed",
-		Body: []interface{}{uint32(42), uint32(2)},
+		Body: []interface{}{uint32(1), uint32(2)},
 	}, &testObserver{
 		notificationClosed: func(id notification.ID, reason notification.CloseReason) error {
 			called = true
-			c.Check(id, Equals, notification.ID(42))
+			c.Check(id, Equals, notification.ID("some-id"))
 			c.Check(reason, Equals, notification.CloseReason(2))
 			return nil
 		},
@@ -325,9 +360,13 @@ func (s *fdoSuite) TestProcessNotificationClosedSignalSuccess(c *C) {
 }
 
 func (s *fdoSuite) TestProcessNotificationClosedSignalError(c *C) {
-	err := notification.ProcessSignal(&dbus.Signal{
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	// send a notification first
+	err := srv.SendNotification("some-id", &notification.Message{})
+	c.Assert(err, IsNil)
+	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.NotificationClosed",
-		Body: []interface{}{uint32(42), uint32(2)},
+		Body: []interface{}{uint32(1), uint32(2)},
 	}, &testObserver{
 		notificationClosed: func(id notification.ID, reason notification.CloseReason) error {
 			return fmt.Errorf("boom")
@@ -337,25 +376,26 @@ func (s *fdoSuite) TestProcessNotificationClosedSignalError(c *C) {
 }
 
 func (s *fdoSuite) TestProcessNotificationClosedSignalBodyParseErrors(c *C) {
-	err := notification.ProcessSignal(&dbus.Signal{
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	err := srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.NotificationClosed",
 		Body: []interface{}{uint32(42), uint32(2), "unexpected"},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process NotificationClosed signal: unexpected number of body elements: 3")
 
-	err = notification.ProcessSignal(&dbus.Signal{
+	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.NotificationClosed",
 		Body: []interface{}{uint32(42)},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process NotificationClosed signal: unexpected number of body elements: 1")
 
-	err = notification.ProcessSignal(&dbus.Signal{
+	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.NotificationClosed",
 		Body: []interface{}{uint32(42), true},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process NotificationClosed signal: expected second body element to be uint32, got bool")
 
-	err = notification.ProcessSignal(&dbus.Signal{
+	err = srv.ProcessSignal(&dbus.Signal{
 		Name: "org.freedesktop.Notifications.NotificationClosed",
 		Body: []interface{}{true, uint32(2)},
 	}, &testObserver{})

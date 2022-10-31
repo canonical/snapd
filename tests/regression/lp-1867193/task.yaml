@@ -13,7 +13,6 @@ prepare: |
     lxc exec bionic -- mkdir -p "$GOHOME"
     lxc file push --quiet "$GOHOME"/snapd_*.deb "bionic/$GOHOME/"
     lxc exec bionic -- apt install -y "$GOHOME"/snapd_*.deb
-    lxc exec bionic -- snap set core experimental.robust-mount-namespace-updates=true
 
 restore: |
     lxc stop --force bionic

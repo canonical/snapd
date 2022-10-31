@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,20 +30,37 @@ import (
 	"path/filepath"
 )
 
+// TransactionType says whether we want to treat each snap separately
+// (the transaction is per snap) or whether to consider the call a
+// single transaction so everything is reverted if it fails for just
+// one snap. This applies to installs and updates, which can be done
+// for multiple snaps in the same API call.
+type TransactionType string
+
+const (
+	TransactionAllSnaps TransactionType = "all-snaps"
+	TransactionPerSnap  TransactionType = "per-snap"
+)
+
 type SnapOptions struct {
-	Channel          string `json:"channel,omitempty"`
-	Revision         string `json:"revision,omitempty"`
-	CohortKey        string `json:"cohort-key,omitempty"`
-	LeaveCohort      bool   `json:"leave-cohort,omitempty"`
-	DevMode          bool   `json:"devmode,omitempty"`
-	JailMode         bool   `json:"jailmode,omitempty"`
-	Classic          bool   `json:"classic,omitempty"`
-	Dangerous        bool   `json:"dangerous,omitempty"`
-	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
-	IgnoreRunning    bool   `json:"ignore-running,omitempty"`
-	Unaliased        bool   `json:"unaliased,omitempty"`
-	Purge            bool   `json:"purge,omitempty"`
-	Amend            bool   `json:"amend,omitempty"`
+	Channel          string          `json:"channel,omitempty"`
+	Revision         string          `json:"revision,omitempty"`
+	CohortKey        string          `json:"cohort-key,omitempty"`
+	LeaveCohort      bool            `json:"leave-cohort,omitempty"`
+	DevMode          bool            `json:"devmode,omitempty"`
+	JailMode         bool            `json:"jailmode,omitempty"`
+	Classic          bool            `json:"classic,omitempty"`
+	Dangerous        bool            `json:"dangerous,omitempty"`
+	IgnoreValidation bool            `json:"ignore-validation,omitempty"`
+	IgnoreRunning    bool            `json:"ignore-running,omitempty"`
+	Unaliased        bool            `json:"unaliased,omitempty"`
+	Purge            bool            `json:"purge,omitempty"`
+	Amend            bool            `json:"amend,omitempty"`
+	Transaction      TransactionType `json:"transaction,omitempty"`
+	QuotaGroupName   string          `json:"quota-group,omitempty"`
+	ValidationSets   []string        `json:"validation-sets,omitempty"`
+	Time             string          `json:"time,omitempty"`
+	HoldLevel        string          `json:"hold-level,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -55,18 +72,14 @@ func writeFieldBool(mw *multipart.Writer, key string, val bool) error {
 	return mw.WriteField(key, "true")
 }
 
-func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
-	fields := []struct {
-		f string
-		b bool
-	}{
-		{"devmode", opts.DevMode},
-		{"classic", opts.Classic},
-		{"jailmode", opts.JailMode},
-		{"dangerous", opts.Dangerous},
-	}
-	for _, o := range fields {
-		if err := writeFieldBool(mw, o.f, o.b); err != nil {
+type field struct {
+	field string
+	value bool
+}
+
+func writeFields(mw *multipart.Writer, fields []field) error {
+	for _, fd := range fields {
+		if err := writeFieldBool(mw, fd.field, fd.value); err != nil {
 			return err
 		}
 	}
@@ -74,11 +87,32 @@ func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
 	return nil
 }
 
-func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
-	if err := writeFieldBool(mw, "ignore-running", opts.IgnoreRunning); err != nil {
-		return err
+func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
+	fields := []field{
+		{"devmode", opts.DevMode},
+		{"classic", opts.Classic},
+		{"jailmode", opts.JailMode},
+		{"dangerous", opts.Dangerous},
 	}
-	return writeFieldBool(mw, "unaliased", opts.Unaliased)
+	return writeFields(mw, fields)
+}
+
+func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
+	fields := []field{
+		{"ignore-running", opts.IgnoreRunning},
+		{"unaliased", opts.Unaliased},
+	}
+	if opts.Transaction != "" {
+		if err := mw.WriteField("transaction", string(opts.Transaction)); err != nil {
+			return err
+		}
+	}
+	if opts.QuotaGroupName != "" {
+		if err := mw.WriteField("quota-group", opts.QuotaGroupName); err != nil {
+			return err
+		}
+	}
+	return writeFields(mw, fields)
 }
 
 type actionData struct {
@@ -89,9 +123,15 @@ type actionData struct {
 }
 
 type multiActionData struct {
-	Action string   `json:"action"`
-	Snaps  []string `json:"snaps,omitempty"`
-	Users  []string `json:"users,omitempty"`
+	Action         string          `json:"action"`
+	Snaps          []string        `json:"snaps,omitempty"`
+	Users          []string        `json:"users,omitempty"`
+	Transaction    TransactionType `json:"transaction,omitempty"`
+	IgnoreRunning  bool            `json:"ignore-running,omitempty"`
+	Purge          bool            `json:"purge,omitempty"`
+	ValidationSets []string        `json:"validation-sets,omitempty"`
+	Time           string          `json:"time,omitempty"`
+	HoldLevel      string          `json:"hold-level,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -121,6 +161,22 @@ func (client *Client) Refresh(name string, options *SnapOptions) (changeID strin
 
 func (client *Client) RefreshMany(names []string, options *SnapOptions) (changeID string, err error) {
 	return client.doMultiSnapAction("refresh", names, options)
+}
+
+func (client *Client) HoldRefreshes(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("hold", name, options)
+}
+
+func (client *Client) HoldRefreshesMany(names []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("hold", names, options)
+}
+
+func (client *Client) UnholdRefreshes(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("unhold", name, options)
+}
+
+func (client *Client) UnholdRefreshesMany(names []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("unhold", names, options)
 }
 
 func (client *Client) Enable(name string, options *SnapOptions) (changeID string, err error) {
@@ -183,9 +239,6 @@ func (client *Client) doSnapAction(actionName string, snapName string, options *
 }
 
 func (client *Client) doMultiSnapAction(actionName string, snaps []string, options *SnapOptions) (changeID string, err error) {
-	if options != nil {
-		return "", fmt.Errorf("cannot use options for multi-action") // (yet)
-	}
 	_, changeID, err = client.doMultiSnapActionFull(actionName, snaps, options)
 
 	return changeID, err
@@ -197,8 +250,16 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		Snaps:  snaps,
 	}
 	if options != nil {
+		// TODO: consider returning error when options.Dangerous is set
 		action.Users = options.Users
+		action.Transaction = options.Transaction
+		action.IgnoreRunning = options.IgnoreRunning
+		action.Purge = options.Purge
+		action.ValidationSets = options.ValidationSets
+		action.Time = options.Time
+		action.HoldLevel = options.HoldLevel
 	}
+
 	data, err := json.Marshal(&action)
 	if err != nil {
 		return nil, "", fmt.Errorf("cannot marshal multi-snap action: %s", err)
@@ -216,7 +277,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 func (client *Client) InstallPath(path, name string, options *SnapOptions) (changeID string, err error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", fmt.Errorf("cannot open: %q", path)
+		return "", fmt.Errorf("cannot open %q: %w", path, err)
 	}
 
 	action := actionData{
@@ -226,15 +287,43 @@ func (client *Client) InstallPath(path, name string, options *SnapOptions) (chan
 		SnapOptions: options,
 	}
 
+	return client.sendLocalSnaps([]string{path}, []*os.File{f}, action)
+}
+
+// InstallPathMany sideloads the snaps with the given paths,
+// returning the UUID of the background operation upon success.
+func (client *Client) InstallPathMany(paths []string, options *SnapOptions) (changeID string, err error) {
+	action := actionData{
+		Action:      "install",
+		SnapOptions: options,
+	}
+
+	var files []*os.File
+	for _, path := range paths {
+		f, err := os.Open(path)
+		if err != nil {
+			for _, openFile := range files {
+				openFile.Close()
+			}
+			return "", fmt.Errorf("cannot open %q: %w", path, err)
+		}
+
+		files = append(files, f)
+	}
+
+	return client.sendLocalSnaps(paths, files, action)
+}
+
+func (client *Client) sendLocalSnaps(paths []string, files []*os.File, action actionData) (string, error) {
 	pr, pw := io.Pipe()
 	mw := multipart.NewWriter(pw)
-	go sendSnapFile(path, f, pw, mw, &action)
+	go sendSnapFiles(paths, files, pw, mw, &action)
 
 	headers := map[string]string{
 		"Content-Type": mw.FormDataContentType(),
 	}
 
-	_, changeID, err = client.doAsyncFull("POST", "/v2/snaps", nil, headers, pr, doNoTimeoutAndRetry)
+	_, changeID, err := client.doAsyncFull("POST", "/v2/snaps", nil, headers, pr, doNoTimeoutAndRetry)
 	return changeID, err
 }
 
@@ -261,21 +350,30 @@ func (client *Client) Try(path string, options *SnapOptions) (changeID string, e
 	return client.doAsync("POST", "/v2/snaps", nil, headers, buf)
 }
 
-func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *multipart.Writer, action *actionData) {
-	defer snapFile.Close()
+func sendSnapFiles(paths []string, files []*os.File, pw *io.PipeWriter, mw *multipart.Writer, action *actionData) {
+	defer func() {
+		for _, f := range files {
+			f.Close()
+		}
+	}()
 
 	if action.SnapOptions == nil {
 		action.SnapOptions = &SnapOptions{}
 	}
-	fields := []struct {
+
+	type field struct {
 		name  string
 		value string
-	}{
-		{"action", action.Action},
-		{"name", action.Name},
-		{"snap-path", action.SnapPath},
-		{"channel", action.Channel},
 	}
+
+	fields := []field{{"action", action.Action}}
+	if len(paths) == 1 {
+		fields = append(fields, []field{
+			{"name", action.Name},
+			{"snap-path", action.SnapPath},
+			{"channel", action.Channel}}...)
+	}
+
 	for _, s := range fields {
 		if s.value == "" {
 			continue
@@ -296,16 +394,19 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 		return
 	}
 
-	fw, err := mw.CreateFormFile("snap", filepath.Base(snapPath))
-	if err != nil {
-		pw.CloseWithError(err)
-		return
-	}
+	for i, file := range files {
+		path := paths[i]
+		fw, err := mw.CreateFormFile("snap", filepath.Base(path))
+		if err != nil {
+			pw.CloseWithError(err)
+			return
+		}
 
-	_, err = io.Copy(fw, snapFile)
-	if err != nil {
-		pw.CloseWithError(err)
-		return
+		_, err = io.Copy(fw, file)
+		if err != nil {
+			pw.CloseWithError(err)
+			return
+		}
 	}
 
 	mw.Close()

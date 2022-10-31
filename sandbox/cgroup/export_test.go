@@ -19,7 +19,11 @@
 package cgroup
 
 import (
+	"time"
+
 	"github.com/godbus/dbus"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -93,3 +97,17 @@ func MockDoCreateTransientScope(fn func(conn *dbus.Conn, unitName string, pid in
 }
 
 func FreezerCgroupV1Dir() string { return freezerCgroupV1Dir }
+
+func MockCreateScopeJobTimeout(d time.Duration) (restore func()) {
+	oldCreateScopeJobTimeout := createScopeJobTimeout
+	createScopeJobTimeout = d
+	return func() {
+		createScopeJobTimeout = oldCreateScopeJobTimeout
+	}
+}
+
+func MockCgroupsFilePath(path string) (restore func()) {
+	r := testutil.Backup(&cgroupsFilePath)
+	cgroupsFilePath = path
+	return r
+}

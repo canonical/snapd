@@ -39,7 +39,7 @@ func init() {
 
 // WARNING: do not remove this command, older systems may still have
 //          a systemd snapd.firstboot.service job in /etc/systemd/system
-//          that we did not cleanup. so we need this dummy command or
+//          that we did not cleanup. so we need this sample command or
 //          those units will start failing.
 func (x *cmdInternalFirstBoot) Execute(args []string) error {
 	if len(args) > 0 {

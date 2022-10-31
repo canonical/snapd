@@ -182,4 +182,4 @@ directly into the kernel. The actual apparmor profile is managed by `snapd`.
 BUGS
 ====
 
-Please report all bugs with https://bugs.launchpad.net/snap-confine/+filebug
+Please report all bugs with https://bugs.launchpad.net/snapd/+filebug

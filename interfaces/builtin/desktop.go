@@ -104,7 +104,7 @@ dbus (send)
      bus=session
      interface=org.gtk.Actions
      member=Changed
-     peer=(name=org.freedesktop.DBus, label=unconfined),
+     peer=(label=unconfined),
 
 # notifications
 dbus (send)

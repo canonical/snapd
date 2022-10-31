@@ -1,0 +1,45 @@
+type: model
+authority-id: FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL
+revision: 3
+series: 16
+brand-id: FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL
+model: my-model
+architecture: amd64
+base: core20
+grade: dangerous
+serial-authority:
+  - generic
+snaps:
+  -
+    default-channel: 20/edge
+    id: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
+    name: pc
+    type: gadget
+  -
+    default-channel: 20/edge
+    id: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+    name: pc-kernel
+    type: kernel
+  -
+    default-channel: latest/stable
+    id: DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
+    name: core20
+    type: base
+  -
+    default-channel: latest/stable
+    id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    name: snapd
+    type: snapd
+timestamp: 2021-06-01T12:18:12+00:00
+sign-key-sha3-384: u2EnPKDpHm8Or1VWwjs3duNosoBpFS4Da-c6vRQHPKwdllDOlQ02_JFGrxZDe03C
+
+AcLBcwQAAQoAHRYhBKg05U8V+aOkBzV5W4jJZcdh7V/PBQJhJPWuAAoJEIjJZcdh7V/Pk+cP+wcT
+vd0kld0L/xSWYQT1BHfCcP329OAyvZcgpUwM15lq3Qz+2dJH+PE6Ro/r0EI3auRuLOQePppwhGDm
+k6r1ojDC1pYMel+fyelFHreA3Cnpps5SeXPugV55NIvS5v7Py+jeYTb8swJ68jO7T9Hcv7uNvNF+
+XxPxTWcdbrnFMNTxAGdY7yWsxIN/pVd0Nn6IiC9U6e50RW3kOCkw4UWf2Q3NaI36XU//66KggjLZ
+uNbe3pDhrsIXHbWNwrXxqW29fQXBpK4brJLgviB0Um4QutHKtA83lvj7K4iQbMxXsuHnoHyVaHlj
+yrMtsRKlHZ3ctuVaEVs/VPbQ1Qi0MSwwJoCym2pnmh18uPDFzNn6Qb6dqPLpo4Q/PsQUewo5yUws
+1DD3l6GYqUHCjlzbT8ofNxG/ADUqXuPNEzMhk6/XXuiyUN+viiFNjvvAZ9MO8J7hrNlrBq+nptTt
+WN1zLfkYBOiFHGeDqol22eHQow6z2Ono9WQfYHS7ojRN/kbxmhgxImtMRG7UG4+XO5gIE+fiBe4/
+iKdRX0t4K5lg8U3FSrrju2JgAuvb6k+fGpCmkoxEstiXxwiBNc2IuV5LdfKaqVVDXA51m4h6OFfq
+E25BdKKQdmm+TdYyYtgju+FkRenGHhjA57dCtFuSTyIN21jESdcJ38Cd1C2KAIO5MwP04B7s

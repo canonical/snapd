@@ -28,7 +28,21 @@ func DiskFromDeviceName(deviceName string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
-var diskFromDeviceName = func(mountpoint string) (Disk, error) {
+var diskFromDeviceName = func(deviceName string) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
+// DiskFromPartitionDeviceNode is not implemented on darwin
+func DiskFromPartitionDeviceNode(node string) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
+// DiskFromDevicePath is not implemented on darwin
+func DiskFromDevicePath(devicePath string) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
+var diskFromDevicePath = func(devicePath string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
@@ -37,6 +51,30 @@ func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
+func AllPhysicalDisks() ([]Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
 var diskFromMountPoint = func(mountpoint string, opts *Options) (Disk, error) {
 	return nil, osutil.ErrDarwin
+}
+
+var mountPointsForPartitionRoot = func(p Partition, opts map[string]string) ([]string, error) {
+	return nil, osutil.ErrDarwin
+}
+
+var diskFromPartitionDeviceNode = func(node string) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
+func PartitionUUIDFromMountPoint(mountpoint string, opts *Options) (string, error) {
+	return "", osutil.ErrDarwin
+}
+
+func PartitionUUID(node string) (string, error) {
+	return "", osutil.ErrDarwin
+}
+
+func SectorSize(devname string) (uint64, error) {
+	return 0, osutil.ErrDarwin
 }

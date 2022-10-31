@@ -116,14 +116,18 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 
 	var unet *ucrednet
 	if ucon, ok := con.(*net.UnixConn); ok {
-		f, err := ucon.File()
+		syscallConn, err := ucon.SyscallConn()
 		if err != nil {
 			return nil, err
 		}
-		// File() is a dup(); needs closing
-		defer f.Close()
 
-		ucred, err := getUcred(int(f.Fd()), sys.SOL_SOCKET, sys.SO_PEERCRED)
+		var ucred *sys.Ucred
+		scErr := syscallConn.Control(func(fd uintptr) {
+			ucred, err = getUcred(int(fd), sys.SOL_SOCKET, sys.SO_PEERCRED)
+		})
+		if scErr != nil {
+			return nil, scErr
+		}
 		if err != nil {
 			return nil, err
 		}

@@ -32,7 +32,7 @@ import (
 
 func (s *SnapSuite) TestDisconnectHelp(c *C) {
 	msg := `Usage:
-  snap.test disconnect [disconnect-OPTIONS] [<snap>:<plug>] [<snap>:<slot>]
+  snap.test disconnect [disconnect-OPTIONS] <snap>:<plug> [<snap>:<slot>]
 
 The disconnect command disconnects a plug from a slot.
 It may be called in the following ways:
@@ -209,7 +209,7 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 		c.Fatalf("expected nothing to reach the server")
 	})
 	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "consumer"})
-	c.Assert(err, ErrorMatches, `please provide the plug or slot name to disconnect from snap "consumer"`)
+	c.Assert(err, ErrorMatches, `invalid value: "consumer" \(want snap:name or :name\)`)
 	c.Assert(rest, DeepEquals, []string{"consumer"})
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")

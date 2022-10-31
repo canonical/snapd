@@ -110,7 +110,7 @@ void sc_call_snap_update_ns_as_user(int snap_update_ns_fd,
 			 snap_name);
 
 	const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
-	char xdg_runtime_dir_env[PATH_MAX + strlen("XDG_RUNTIME_DIR=")];
+	char xdg_runtime_dir_env[PATH_MAX + sizeof("XDG_RUNTIME_DIR=")] = { 0 };
 	if (xdg_runtime_dir != NULL) {
 		sc_must_snprintf(xdg_runtime_dir_env,
 				 sizeof(xdg_runtime_dir_env),
@@ -163,14 +163,21 @@ static int sc_open_snapd_tool(const char *tool_name)
 	// want to store the terminating '\0'. The readlink system call doesn't add
 	// terminating null, but our initialization of buf handles this for us.
 	char buf[PATH_MAX + 1] = { 0 };
-	if (readlink("/proc/self/exe", buf, sizeof buf) < 0) {
+	if (readlink("/proc/self/exe", buf, sizeof(buf) - 1) < 0) {
 		die("cannot readlink /proc/self/exe");
 	}
 	if (buf[0] != '/') {	// this shouldn't happen, but make sure have absolute path
 		die("readlink /proc/self/exe returned relative path");
 	}
+	// as we are looking up other tools relative to our own path, check
+	// we are located where we think we should be - otherwise we
+	// may have been hardlink'd elsewhere and then may execute the
+	// wrong tool as a result
+	if (!sc_is_expected_path(buf)) {
+		die("running from unexpected location: %s", buf);
+	}
 	char *dir_name = dirname(buf);
-	int dir_fd SC_CLEANUP(sc_cleanup_close) = 1;
+	int dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	dir_fd = open(dir_name, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
 	if (dir_fd < 0) {
 		die("cannot open path %s", dir_name);

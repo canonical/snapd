@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@
 package overlord
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -44,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -52,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -59,13 +62,17 @@ var (
 	ensureInterval = 5 * time.Minute
 	pruneInterval  = 10 * time.Minute
 	pruneWait      = 24 * time.Hour * 1
-	abortWait      = 24 * time.Hour * 7
+	abortWait      = 24 * time.Hour * 3
+
+	stateLockTimeout       = 1 * time.Minute
+	stateLockRetryInterval = 1 * time.Second
 
 	pruneMaxChanges = 500
 
 	defaultCachedDownloads = 5
 
 	configstateInit = configstate.Init
+	systemdSdNotify = systemd.SdNotify
 )
 
 var pruneTickerC = func(t *time.Ticker) <-chan time.Time {
@@ -75,6 +82,8 @@ var pruneTickerC = func(t *time.Ticker) <-chan time.Time {
 // Overlord is the central manager of a snappy system, keeping
 // track of all available state managers and related helpers.
 type Overlord struct {
+	stateFLock *osutil.FileLock
+
 	stateEng *StateEngine
 	// ensure loop
 	loopTomb    *tomb.Tomb
@@ -86,12 +95,11 @@ type Overlord struct {
 
 	startOfOperationTime time.Time
 
-	// restarts
-	restartBehavior RestartBehavior
 	// managers
 	inited     bool
 	startedUp  bool
 	runner     *state.TaskRunner
+	restartMgr *restart.RestartManager
 	snapMgr    *snapstate.SnapManager
 	serviceMgr *servicestate.ServiceManager
 	assertMgr  *assertstate.AssertManager
@@ -104,35 +112,20 @@ type Overlord struct {
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
 
-// RestartBehavior controls how to hanndle and carry forward restart requests
-// via the state.
-type RestartBehavior interface {
-	HandleRestart(t state.RestartType)
-	// RebootAsExpected is called early when either a reboot was
-	// requested by snapd and happened or no reboot was expected at all.
-	RebootAsExpected(st *state.State) error
-	// RebootDidNotHappen is called early instead when a reboot was
-	// requested by snad but did not happen.
-	RebootDidNotHappen(st *state.State) error
-}
-
 var storeNew = store.New
 
 // New creates a new Overlord with all its state managers.
-// It can be provided with an optional RestartBehavior.
-func New(restartBehavior RestartBehavior) (*Overlord, error) {
+// It can be provided with an optional restart.Handler.
+func New(restartHandler restart.Handler) (*Overlord, error) {
 	o := &Overlord{
-		loopTomb:        new(tomb.Tomb),
-		inited:          true,
-		restartBehavior: restartBehavior,
+		inited: true,
 	}
 
 	backend := &overlordStateBackend{
-		path:           dirs.SnapStateFile,
-		ensureBefore:   o.ensureBefore,
-		requestRestart: o.requestRestart,
+		path:         dirs.SnapStateFile,
+		ensureBefore: o.ensureBefore,
 	}
-	s, err := loadState(backend, restartBehavior)
+	s, restartMgr, err := o.loadState(backend, restartHandler)
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +138,8 @@ func New(restartBehavior RestartBehavior) (*Overlord, error) {
 		return true
 	}
 	o.runner.AddOptionalHandler(matchAnyUnknownTask, handleUnknownTask, nil)
+
+	o.addManager(restartMgr)
 
 	hookMgr, err := hookstate.Manager(s, o.runner)
 	if err != nil {
@@ -220,14 +215,66 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.cmdMgr = x
 	case *snapshotstate.SnapshotManager:
 		o.shotMgr = x
+	case *restart.RestartManager:
+		o.restartMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
 
-func loadState(backend state.Backend, restartBehavior RestartBehavior) (*state.State, error) {
+func initStateFileLock() (*osutil.FileLock, error) {
+	lockFilePath := dirs.SnapStateLockFile
+	if err := os.MkdirAll(filepath.Dir(lockFilePath), 0755); err != nil {
+		return nil, err
+	}
+
+	return osutil.NewFileLockWithMode(lockFilePath, 0644)
+}
+
+func lockWithTimeout(l *osutil.FileLock, timeout time.Duration) error {
+	startTime := time.Now()
+	systemdWasNotified := false
+	for {
+		err := l.TryLock()
+		if err != osutil.ErrAlreadyLocked {
+			// We return nil if err is nil (that is, if we got the lock); we
+			// also return for any error except for ErrAlreadyLocked, because
+			// in that case we want to continue trying.
+			return err
+		}
+
+		// The state is locked. Let's notify systemd that our startup might be
+		// longer than usual, or we risk getting killed if we overstep the
+		// systemd timeout.
+		if !systemdWasNotified {
+			logger.Noticef("Adjusting startup timeout by %v", timeout)
+			systemdSdNotify(fmt.Sprintf("EXTEND_TIMEOUT_USEC=%d", timeout.Microseconds()))
+			systemdWasNotified = true
+		}
+
+		if time.Since(startTime) >= timeout {
+			return errors.New("timeout for state lock file expired")
+		}
+		time.Sleep(stateLockRetryInterval)
+	}
+}
+
+func (o *Overlord) loadState(backend state.Backend, restartHandler restart.Handler) (*state.State, *restart.RestartManager, error) {
+	flock, err := initStateFileLock()
+	if err != nil {
+		return nil, nil, fmt.Errorf("fatal: error opening lock file: %v", err)
+	}
+	o.stateFLock = flock
+
+	logger.Noticef("Acquiring state lock file")
+	if err := lockWithTimeout(o.stateFLock, stateLockTimeout); err != nil {
+		logger.Noticef("Failed to lock state file")
+		return nil, nil, fmt.Errorf("fatal: could not lock state file: %v", err)
+	}
+	logger.Noticef("Acquired state lock file")
+
 	curBootID, err := osutil.BootID()
 	if err != nil {
-		return nil, fmt.Errorf("fatal: cannot find current boot id: %v", err)
+		return nil, nil, fmt.Errorf("fatal: cannot find current boot id: %v", err)
 	}
 
 	perfTimings := timings.New(map[string]string{"startup": "load-state"})
@@ -237,19 +284,20 @@ func loadState(backend state.Backend, restartBehavior RestartBehavior) (*state.S
 		// by the snapd package
 		stateDir := filepath.Dir(dirs.SnapStateFile)
 		if !osutil.IsDirectory(stateDir) {
-			return nil, fmt.Errorf("fatal: directory %q must be present", stateDir)
+			return nil, nil, fmt.Errorf("fatal: directory %q must be present", stateDir)
 		}
 		s := state.New(backend)
-		s.Lock()
-		s.VerifyReboot(curBootID)
-		s.Unlock()
+		restartMgr, err := initRestart(s, curBootID, restartHandler)
+		if err != nil {
+			return nil, nil, err
+		}
 		patch.Init(s)
-		return s, nil
+		return s, restartMgr, nil
 	}
 
 	r, err := os.Open(dirs.SnapStateFile)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read the state file: %s", err)
+		return nil, nil, fmt.Errorf("cannot read the state file: %s", err)
 	}
 	defer r.Close()
 
@@ -258,43 +306,29 @@ func loadState(backend state.Backend, restartBehavior RestartBehavior) (*state.S
 		s, err = state.ReadState(backend, r)
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	s.Lock()
 	perfTimings.Save(s)
 	s.Unlock()
 
-	err = verifyReboot(s, curBootID, restartBehavior)
+	restartMgr, err := initRestart(s, curBootID, restartHandler)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// one-shot migrations
 	err = patch.Apply(s)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return s, nil
+	return s, restartMgr, nil
 }
 
-func verifyReboot(s *state.State, curBootID string, restartBehavior RestartBehavior) error {
+func initRestart(s *state.State, curBootID string, restartHandler restart.Handler) (*restart.RestartManager, error) {
 	s.Lock()
 	defer s.Unlock()
-	err := s.VerifyReboot(curBootID)
-	if err != nil && err != state.ErrExpectedReboot {
-		return err
-	}
-	expectedRebootDidNotHappen := err == state.ErrExpectedReboot
-	if restartBehavior != nil {
-		if expectedRebootDidNotHappen {
-			return restartBehavior.RebootDidNotHappen(s)
-		}
-		return restartBehavior.RebootAsExpected(s)
-	}
-	if expectedRebootDidNotHappen {
-		logger.Noticef("expected system restart but it did not happen")
-	}
-	return nil
+	return restart.Manager(s, curBootID, restartHandler)
 }
 
 func (o *Overlord) newStoreWithContext(storeCtx store.DeviceAndAuthContext) snapstate.StoreService {
@@ -404,14 +438,6 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	}
 }
 
-func (o *Overlord) requestRestart(t state.RestartType) {
-	if o.restartBehavior == nil {
-		logger.Noticef("restart requested but no behavior set")
-	} else {
-		o.restartBehavior.HandleRestart(t)
-	}
-}
-
 var preseedExitWithError = func(err error) {
 	fmt.Fprintf(os.Stderr, "cannot preseed: %v\n", err)
 	os.Exit(1)
@@ -423,6 +449,9 @@ func (o *Overlord) Loop() {
 	preseed := snapdenv.Preseeding()
 	if preseed {
 		o.runner.OnTaskError(preseedExitWithError)
+	}
+	if o.loopTomb == nil {
+		o.loopTomb = new(tomb.Tomb)
 	}
 	o.loopTomb.Go(func() error {
 		for {
@@ -471,9 +500,17 @@ func (o *Overlord) CanStandby() bool {
 
 // Stop stops the ensure loop and the managers under the StateEngine.
 func (o *Overlord) Stop() error {
-	o.loopTomb.Kill(nil)
-	err := o.loopTomb.Wait()
+	var err error
+	if o.loopTomb != nil {
+		o.loopTomb.Kill(nil)
+		err = o.loopTomb.Wait()
+	}
 	o.stateEng.Stop()
+	if o.stateFLock != nil {
+		// This will also unlock the file
+		o.stateFLock.Close()
+		logger.Noticef("Released state lock file")
+	}
 	return err
 }
 
@@ -584,6 +621,11 @@ func (o *Overlord) TaskRunner() *state.TaskRunner {
 	return o.runner
 }
 
+// RestartManager returns the manager responsible for restart state.
+func (o *Overlord) RestartManager() *restart.RestartManager {
+	return o.restartMgr
+}
+
 // SnapManager returns the snap manager responsible for snaps under
 // the overlord.
 func (o *Overlord) SnapManager() *snapstate.SnapManager {
@@ -634,18 +676,15 @@ func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
 // Mock creates an Overlord without any managers and with a backend
 // not using disk. Managers can be added with AddManager. For testing.
 func Mock() *Overlord {
-	return MockWithStateAndRestartHandler(nil, nil)
+	return MockWithState(nil)
 }
 
-// MockWithStateAndRestartHandler creates an Overlord with the given state
+// MockWithState creates an Overlord with the given state
 // unless it is nil in which case it uses a state backend not using
-// disk. It will use the given handler on restart requests. Managers
-// can be added with AddManager. For testing.
-func MockWithStateAndRestartHandler(s *state.State, handleRestart func(state.RestartType)) *Overlord {
+// disk. Managers can be added with AddManager. For testing.
+func MockWithState(s *state.State) *Overlord {
 	o := &Overlord{
-		loopTomb:        new(tomb.Tomb),
-		inited:          false,
-		restartBehavior: mockRestartBehavior(handleRestart),
+		inited: false,
 	}
 	if s == nil {
 		s = state.New(mockBackend{o: o})
@@ -665,23 +704,6 @@ func (o *Overlord) AddManager(mgr StateManager) {
 	o.addManager(mgr)
 }
 
-type mockRestartBehavior func(state.RestartType)
-
-func (rb mockRestartBehavior) HandleRestart(t state.RestartType) {
-	if rb == nil {
-		return
-	}
-	rb(t)
-}
-
-func (rb mockRestartBehavior) RebootAsExpected(*state.State) error {
-	panic("internal error: overlord.Mock should not invoke RebootAsExpected")
-}
-
-func (rb mockRestartBehavior) RebootDidNotHappen(*state.State) error {
-	panic("internal error: overlord.Mock should not invoke RebootDidNotHappen")
-}
-
 type mockBackend struct {
 	o *Overlord
 }
@@ -699,8 +721,4 @@ func (mb mockBackend) EnsureBefore(d time.Duration) {
 	}
 
 	mb.o.ensureBefore(d)
-}
-
-func (mb mockBackend) RequestRestart(t state.RestartType) {
-	mb.o.requestRestart(t)
 }

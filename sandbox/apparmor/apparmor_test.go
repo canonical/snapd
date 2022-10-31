@@ -20,7 +20,9 @@
 package apparmor_test
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -29,6 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -37,9 +40,21 @@ func TestApparmor(t *testing.T) {
 	TestingT(t)
 }
 
-type apparmorSuite struct{}
+type apparmorSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&apparmorSuite{})
+
+func (s *apparmorSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(func() {
+		configFile := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/tunables/home.d/snapd")
+		if err := os.Remove(configFile); err != nil {
+			c.Assert(os.IsNotExist(err), Equals, true)
+		}
+	})
+}
 
 func (*apparmorSuite) TestAppArmorLevelTypeStringer(c *C) {
 	c.Check(apparmor.Unknown.String(), Equals, "unknown")
@@ -129,13 +144,13 @@ func (*apparmorSuite) TestMockAppArmorFeatures(c *C) {
 	restore()
 
 	// Complete parser features but apparmor is unusable because of missing required kernel features.
-	// The dummy feature is there to pretend that apparmor in the kernel is not entirely disabled.
-	restore = apparmor.MockFeatures([]string{"dummy-feature"}, nil, apparmor.RequiredParserFeatures, nil)
+	// The test feature is there to pretend that apparmor in the kernel is not entirely disabled.
+	restore = apparmor.MockFeatures([]string{"test-feature"}, nil, apparmor.RequiredParserFeatures, nil)
 	c.Check(apparmor.ProbedLevel(), Equals, apparmor.Unusable)
 	c.Check(apparmor.Summary(), Equals, "apparmor is enabled but required kernel features are missing: file")
 	features, err = apparmor.KernelFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"dummy-feature"})
+	c.Check(features, DeepEquals, []string{"test-feature"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, apparmor.RequiredParserFeatures)
@@ -195,48 +210,51 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
 
 	var testcases = []struct {
-		exitCodes   []string
+		exitCodes   []int
 		expFeatures []string
 	}{
 		{
-			exitCodes: []string{"1", "1"},
+			exitCodes: []int{1, 1, 1, 1, 1},
 		},
 		{
-			exitCodes:   []string{"1", "0"},
+			exitCodes:   []int{1, 0, 1, 1, 1},
 			expFeatures: []string{"qipcrtr-socket"},
 		},
 		{
-			exitCodes:   []string{"0", "1"},
+			exitCodes:   []int{0, 1, 1, 1, 1},
 			expFeatures: []string{"unsafe"},
 		},
 		{
-			exitCodes:   []string{"0", "0"},
+			exitCodes:   []int{1, 1, 1, 0, 1},
+			expFeatures: []string{"cap-audit-read"},
+		},
+		{
+			exitCodes:   []int{0, 0, 1, 1, 1},
 			expFeatures: []string{"qipcrtr-socket", "unsafe"},
+		},
+		{
+			exitCodes:   []int{0, 0, 0, 0, 0},
+			expFeatures: []string{"cap-audit-read", "cap-bpf", "mqueue", "qipcrtr-socket", "unsafe"},
 		},
 	}
 
 	for _, t := range testcases {
 		d := c.MkDir()
-		err := ioutil.WriteFile(filepath.Join(d, "iter"), []byte("0"), 0755)
+		contents := ""
+		for _, code := range t.exitCodes {
+			contents += fmt.Sprintf("%d ", code)
+		}
+		err := ioutil.WriteFile(filepath.Join(d, "codes"), []byte(contents), 0755)
 		c.Assert(err, IsNil)
-		c.Assert(t.exitCodes, HasLen, 2, Commentf("invalid test setup, must have two exit codes for two apparmor parser features probed"))
 		mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fmt.Sprintf(`
 cat >> %[1]s/stdin
 echo "" >> %[1]s/stdin
 
-iter=$(cat %[1]s/iter)
-iter=$(( iter + 1 )) 
-echo $iter > %[1]s/iter
+read -r EXIT_CODE CODES_FOR_NEXT_CALLS < %[1]s/codes
+echo "$CODES_FOR_NEXT_CALLS" > %[1]s/codes
 
-case $iter in
-		1)
-			exit %[2]s
-		;;
-		2)
-			exit %[3]s
-		;;
-esac
-`, d, t.exitCodes[0], t.exitCodes[1]))
+exit "$EXIT_CODE"
+`, d))
 		defer mockParserCmd.Restore()
 		restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
 		defer restore()
@@ -249,7 +267,11 @@ esac
 			c.Check(features, DeepEquals, t.expFeatures)
 		}
 
-		c.Check(mockParserCmd.Calls(), DeepEquals, [][]string{{"apparmor_parser", "--preprocess"}, {"apparmor_parser", "--preprocess"}})
+		var expectedCalls [][]string
+		for range t.exitCodes {
+			expectedCalls = append(expectedCalls, []string{"apparmor_parser", "--preprocess"})
+		}
+		c.Check(mockParserCmd.Calls(), DeepEquals, expectedCalls)
 		data, err := ioutil.ReadFile(filepath.Join(d, "stdin"))
 		c.Assert(err, IsNil)
 		c.Check(string(data), Equals, `profile snap-test {
@@ -257,6 +279,15 @@ esac
 }
 profile snap-test {
  network qipcrtr dgram,
+}
+profile snap-test {
+ capability bpf,
+}
+profile snap-test {
+ capability audit_read,
+}
+profile snap-test {
+ mqueue,
 }
 `)
 	}
@@ -290,7 +321,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"qipcrtr-socket", "unsafe"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "mqueue", "qipcrtr-socket", "unsafe"})
 }
 
 func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
@@ -330,7 +361,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"qipcrtr-socket", "unsafe"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "mqueue", "qipcrtr-socket", "unsafe"})
 
 	// this makes probing fails but is not done again
 	err = os.RemoveAll(d)
@@ -345,4 +376,62 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 
 	_, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
+}
+
+func (s *apparmorSuite) TestValidateFreeFromAAREUnhappy(c *C) {
+	var testCases = []string{"a?", "*b", "c[c", "dd]", "e{", "f}", "g^", `h"`, "f\000", "g\x00"}
+
+	for _, s := range testCases {
+		c.Check(apparmor.ValidateNoAppArmorRegexp(s), ErrorMatches, ".* contains a reserved apparmor char from .*", Commentf("%q is not raising an error", s))
+	}
+}
+
+func (s *apparmorSuite) TestValidateFreeFromAAREhappy(c *C) {
+	var testCases = []string{"foo", "BaR", "b-z", "foo+bar", "b00m!", "be/ep", "a%b", "a&b", "a(b", "a)b", "a=b", "a#b", "a~b", "a'b", "a_b", "a,b", "a;b", "a>b", "a<b", "a|b"}
+
+	for _, s := range testCases {
+		c.Check(apparmor.ValidateNoAppArmorRegexp(s), IsNil, Commentf("%q raised an error but shouldn't", s))
+	}
+}
+
+func (s *apparmorSuite) TestUpdateHomedirsTunableMkdirFail(c *C) {
+	restore := apparmor.MockMkdirAll(func(string, os.FileMode) error {
+		return errors.New("mkdir failure")
+	})
+	defer restore()
+
+	err := apparmor.UpdateHomedirsTunable([]string{"does", "not", "matter"})
+	c.Check(err, ErrorMatches, `cannot create AppArmor tunable directory: mkdir failure`)
+}
+
+func (s *apparmorSuite) TestUpdateHomedirsTunableWriteFail(c *C) {
+	restore := apparmor.MockMkdirAll(func(string, os.FileMode) error {
+		return nil
+	})
+	defer restore()
+
+	restore = apparmor.MockAtomicWrite(func(string, io.Reader, os.FileMode, osutil.AtomicWriteFlags) error {
+		return errors.New("write failure")
+	})
+	defer restore()
+
+	err := apparmor.UpdateHomedirsTunable([]string{"does", "not", "matter"})
+	c.Check(err, ErrorMatches, `write failure`)
+}
+
+func (s *apparmorSuite) TestUpdateHomedirsTunableHappy(c *C) {
+	err := apparmor.UpdateHomedirsTunable([]string{"/home/a", "/dir2"})
+	c.Assert(err, IsNil)
+	configFile := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/tunables/home.d/snapd")
+	fileContents, err := ioutil.ReadFile(configFile)
+	c.Assert(err, IsNil)
+	c.Check(string(fileContents), Equals,
+		`# Generated by snapd -- DO NOT EDIT!`+"\n"+`@{HOMEDIRS}+="/home/a" "/dir2"`)
+}
+
+func (s *apparmorSuite) TestUpdateHomedirsTunableHappyNoDirs(c *C) {
+	err := apparmor.UpdateHomedirsTunable([]string{})
+	c.Check(err, IsNil)
+	configFile := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/tunables/home.d/snapd")
+	c.Check(osutil.FileExists(configFile), Equals, false)
 }

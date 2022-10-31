@@ -20,7 +20,9 @@
 package servicestate
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -32,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/strutil"
@@ -92,7 +95,7 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 	for _, snapName := range sortedNames {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, snapName, &snapst); err != nil {
-			if err == state.ErrNoState {
+			if errors.Is(err, state.ErrNoState) {
 				return nil, fmt.Errorf("snap not found: %s", snapName)
 			}
 			return nil, err
@@ -305,7 +308,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 
 	// sysd.Status() makes sure that we get only the units we asked
 	// for and raises an error otherwise
-	sts, err := sysd.Status(serviceNames...)
+	sts, err := sysd.Status(serviceNames)
 	if err != nil {
 		return fmt.Errorf("cannot get status of services of app %q: %v", appInfo.Name, err)
 	}
@@ -313,7 +316,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 		return fmt.Errorf("cannot get status of services of app %q: expected %d results, got %d", appInfo.Name, len(serviceNames), len(sts))
 	}
 	for _, st := range sts {
-		switch filepath.Ext(st.UnitName) {
+		switch filepath.Ext(st.Name) {
 		case ".service":
 			appInfo.Enabled = st.Enabled
 			appInfo.Active = st.Active
@@ -326,7 +329,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 			})
 		case ".socket":
 			appInfo.Activators = append(appInfo.Activators, client.AppActivator{
-				Name:    sockSvcFileToName[st.UnitName],
+				Name:    sockSvcFileToName[st.Name],
 				Enabled: st.Enabled,
 				Active:  st.Active,
 				Type:    "socket",
@@ -365,7 +368,7 @@ func SnapServiceOptions(st *state.State, instanceName string, quotaGroups map[st
 	// if quotaGroups was not provided to us, then go get that
 	if quotaGroups == nil {
 		allGrps, err := AllQuotas(st)
-		if err != nil && err != state.ErrNoState {
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return nil, err
 		}
 		quotaGroups = allGrps
@@ -395,4 +398,30 @@ func SnapServiceOptions(st *state.State, instanceName string, quotaGroups map[st
 	}
 
 	return opts, nil
+}
+
+// LogReader returns an io.ReadCloser which produce logs for the provided
+// snap AppInfo's. It is a convenience wrapper around the systemd.LogReader
+// implementation.
+func LogReader(appInfos []*snap.AppInfo, n int, follow bool) (io.ReadCloser, error) {
+	serviceNames := make([]string, len(appInfos))
+	for i, appInfo := range appInfos {
+		if !appInfo.IsService() {
+			return nil, fmt.Errorf("cannot read logs for app %q: not a service", appInfo.Name)
+		}
+		serviceNames[i] = appInfo.ServiceName()
+	}
+
+	// Include journal namespaces if supported. The --namespace option was
+	// introduced in systemd version 245. If systemd is older than that then
+	// we cannot use journal quotas in any case and don't include them.
+	includeNamespaces := false
+	if err := systemd.EnsureAtLeast(245); err == nil {
+		includeNamespaces = true
+	} else if !systemd.IsSystemdTooOld(err) {
+		return nil, fmt.Errorf("cannot get systemd version: %v", err)
+	}
+
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
+	return sysd.LogReader(serviceNames, n, follow, includeNamespaces)
 }

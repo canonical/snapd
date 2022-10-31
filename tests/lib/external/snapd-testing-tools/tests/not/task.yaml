@@ -1,0 +1,6 @@
+summary: test for the not tool
+
+backends: [google]
+
+execute: |
+    not false && echo test | MATCH test

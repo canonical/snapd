@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ package progress
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -67,10 +68,17 @@ func (NullMeter) Notify(string)               {}
 func (NullMeter) Spin(msg string)             {}
 
 // QuietMeter is a Meter that _just_ shows Notify()s.
-type QuietMeter struct{ NullMeter }
+type QuietMeter struct {
+	NullMeter
+	w io.Writer
+}
 
-func (QuietMeter) Notify(msg string) {
-	fmt.Fprintln(stdout, msg)
+func (m QuietMeter) Notify(msg string) {
+	w := m.w
+	if w == nil {
+		w = stdout
+	}
+	fmt.Fprintln(w, msg)
 }
 
 // testMeter, if set, is returned by MakeProgressBar; set it from tests.
@@ -85,22 +93,25 @@ func MockMeter(meter Meter) func() {
 
 var inTesting bool = (osutil.IsTestBinary()) || os.Getenv("SPREAD_SYSTEM") != ""
 
+var isTerminal = func() bool {
+	return !inTesting && terminal.IsTerminal(int(os.Stdin.Fd()))
+}
+
 // MakeProgressBar creates an appropriate progress.Meter for the environ in
 // which it is called:
 //
 // * if MockMeter has been called, return that.
-// * if no terminal is attached, or we think we're running a test, a
-//   minimalistic QuietMeter is returned.
+// * if w is not nil nor os.Stdout, a QuietMeter outputting to it is returned.
+// * if no terminal is attached, or we think we're running a test,
+//   a minimalistic QuietMeter outputting to stdout is returned.
 // * otherwise, an ANSIMeter is returned.
-//
-// TODO: instead of making the pivot at creation time, do it at every call.
-func MakeProgressBar() Meter {
+func MakeProgressBar(w io.Writer) Meter {
 	if testMeter != nil {
 		return testMeter
 	}
-	if !inTesting && terminal.IsTerminal(int(os.Stdin.Fd())) {
+	if (w == nil || w == os.Stdout) && isTerminal() {
 		return &ANSIMeter{}
 	}
 
-	return QuietMeter{}
+	return QuietMeter{w: w}
 }

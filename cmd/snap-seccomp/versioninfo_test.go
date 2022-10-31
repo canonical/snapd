@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mvo5/libseccomp-golang"
+	"github.com/seccomp/libseccomp-golang"
 	. "gopkg.in/check.v1"
 
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"

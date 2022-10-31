@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,7 +24,6 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,11 +34,13 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
@@ -50,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/tooling"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -68,7 +70,7 @@ type imageSuite struct {
 	storeActions           []*store.SnapAction
 	curSnaps               [][]*store.CurrentSnap
 
-	tsto *image.ToolingStore
+	tsto *tooling.ToolingStore
 
 	// SeedSnaps helps creating and making available seed snaps
 	// (it provides MakeAssertedSnap etc.) for the tests.
@@ -95,7 +97,7 @@ func (s *imageSuite) SetUpTest(c *C) {
 	image.Stdout = s.stdout
 	s.stderr = &bytes.Buffer{}
 	image.Stderr = s.stderr
-	s.tsto = image.MockToolingStore(s)
+	s.tsto = tooling.MockToolingStore(s)
 
 	s.SeedSnaps = &seedtest.SeedSnaps{}
 	s.SetupAssertSigning("canonical")
@@ -571,10 +573,10 @@ func (s *imageSuite) setupSnaps(c *C, publishers map[string]string, defaultsYaml
 	s.MakeAssertedSnap(c, snapReqCore16Base, nil, snap.R(16), "other")
 
 	s.MakeAssertedSnap(c, requiredSnap1, nil, snap.R(3), "other")
-	s.AssertedSnapInfo("required-snap1").EditedContact = "mailto:foo@example.com"
+	s.AssertedSnapInfo("required-snap1").LegacyEditedContact = "mailto:foo@example.com"
 
 	s.MakeAssertedSnap(c, requiredSnap18, nil, snap.R(6), "other")
-	s.AssertedSnapInfo("required-snap18").EditedContact = "mailto:foo@example.com"
+	s.AssertedSnapInfo("required-snap18").LegacyEditedContact = "mailto:foo@example.com"
 
 	s.MakeAssertedSnap(c, defaultTrackSnap18, nil, snap.R(5), "other")
 
@@ -595,7 +597,7 @@ func (s *imageSuite) loadSeed(c *C, seeddir string) (essSnaps []*seed.Snap, runS
 		label = filepath.Base(systems[0])
 	}
 
-	seed, err := seed.Open(seeddir, label)
+	sd, err := seed.Open(seeddir, label)
 	c.Assert(err, IsNil)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -608,14 +610,14 @@ func (s *imageSuite) loadSeed(c *C, seeddir string) (essSnaps []*seed.Snap, runS
 		return b.CommitTo(db, nil)
 	}
 
-	err = seed.LoadAssertions(db, commitTo)
+	err = sd.LoadAssertions(db, commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed.LoadMeta(timings.New(nil))
+	err = sd.LoadMeta(seed.AllModes, nil, timings.New(nil))
 	c.Assert(err, IsNil)
 
-	essSnaps = seed.EssentialSnaps()
-	runSnaps, err = seed.ModeSnaps("run")
+	essSnaps = sd.EssentialSnaps()
+	runSnaps, err = sd.ModeSnaps("run")
 	c.Assert(err, IsNil)
 
 	return essSnaps, runSnaps, db
@@ -677,7 +679,7 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 
 			Channel: stableChannel,
 		})
-		// sanity
+		// precondition
 		if name == "core" {
 			c.Check(essSnaps[i].SideInfo.SnapID, Equals, s.AssertedSnapID("core"))
 		}
@@ -1225,7 +1227,7 @@ func (s *imageSuite) TestPrepareUC20CustomizationsUnsupported(c *C) {
 			CloudInitUserData: "cloud-init-user-data",
 		},
 	})
-	c.Assert(err, ErrorMatches, `cannot support with UC20 model requested customizations: console-conf disable, cloud-init user-data`)
+	c.Assert(err, ErrorMatches, `cannot support with UC20\+ model requested customizations: console-conf disable, cloud-init user-data`)
 }
 
 func (s *imageSuite) TestPrepareClassicCustomizationsUnsupported(c *C) {
@@ -1545,45 +1547,6 @@ func (s *imageSuite) TestInstallCloudConfigWithCloudConfig(c *C) {
 	c.Check(filepath.Join(targetDir, "etc/cloud/cloud.cfg"), testutil.FileEquals, canary)
 }
 
-func (s *imageSuite) TestNewToolingStoreWithAuth(c *C) {
-	tmpdir := c.MkDir()
-	authFn := filepath.Join(tmpdir, "auth.json")
-	err := ioutil.WriteFile(authFn, []byte(`{
-"macaroon": "MACAROON",
-"discharges": ["DISCHARGE"]
-}`), 0600)
-	c.Assert(err, IsNil)
-
-	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
-	defer os.Unsetenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
-
-	tsto, err := image.NewToolingStore()
-	c.Assert(err, IsNil)
-	user := tsto.User()
-	c.Check(user.StoreMacaroon, Equals, "MACAROON")
-	c.Check(user.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
-}
-
-func (s *imageSuite) TestNewToolingStoreWithAuthFromSnapcraftLoginFile(c *C) {
-	tmpdir := c.MkDir()
-	authFn := filepath.Join(tmpdir, "auth.json")
-	err := ioutil.WriteFile(authFn, []byte(`[login.ubuntu.com]
-macaroon = MACAROON
-unbound_discharge = DISCHARGE
-
-`), 0600)
-	c.Assert(err, IsNil)
-
-	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
-	defer os.Unsetenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
-
-	tsto, err := image.NewToolingStore()
-	c.Assert(err, IsNil)
-	user := tsto.User()
-	c.Check(user.StoreMacaroon, Equals, "MACAROON")
-	c.Check(user.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
-}
-
 func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
@@ -1839,10 +1802,10 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAssertsValidationEnforce(c 
 		Path:     filepath.Join(seedsnapsdir, "required-snap1_3.snap"),
 		Required: true,
 		SideInfo: &snap.SideInfo{
-			RealName:      "required-snap1",
-			SnapID:        s.AssertedSnapID("required-snap1"),
-			Revision:      snap.R(3),
-			EditedContact: "mailto:foo@example.com",
+			RealName:            "required-snap1",
+			SnapID:              s.AssertedSnapID("required-snap1"),
+			Revision:            snap.R(3),
+			LegacyEditedContact: "mailto:foo@example.com",
 		},
 		Channel: stableChannel,
 	})
@@ -2017,6 +1980,43 @@ func (s *imageSuite) TestPrepareClassicModelSnapsButNoArchFails(c *C) {
 		ModelFile: fn,
 	})
 	c.Assert(err, ErrorMatches, "cannot have snaps for a classic image without an architecture in the model or from --arch")
+}
+
+func (s *imageSuite) TestPrepareClassicModelNoModelAssertion(c *C) {
+	preparedir := c.MkDir()
+	s.setupSnaps(c, nil, "")
+
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+	restore = sysdb.MockGenericClassicModel(s.StoreSigning.GenericClassicModel)
+	defer restore()
+	restore = image.MockNewToolingStoreFromModel(func(model *asserts.Model, fallbackArchitecture string) (*tooling.ToolingStore, error) {
+		return s.tsto, nil
+	})
+	defer restore()
+
+	// prepare an image with no model assertion but classic set to true
+	// to ensure the GenericClassicModel is used without error
+	err := image.Prepare(&image.Options{
+		Architecture: "amd64",
+		PrepareDir:   preparedir,
+		Classic:      true,
+		Snaps:        []string{"required-snap18", "core18"},
+	})
+	c.Assert(err, IsNil)
+
+	// ensure the prepareDir was preseeded
+	seeddir := filepath.Join(preparedir, "var/lib/snapd/seed")
+	seedsnapsdir := filepath.Join(seeddir, "snaps")
+	c.Check(filepath.Join(seeddir, "seed.yaml"), testutil.FilePresent)
+	m, err := filepath.Glob(filepath.Join(seedsnapsdir, "*"))
+	c.Assert(err, IsNil)
+	// generic classic model has no other snaps, so we expect only the snaps
+	// that were passed in options to be present
+	c.Check(m, DeepEquals, []string{
+		filepath.Join(seedsnapsdir, "core18_18.snap"),
+		filepath.Join(seedsnapsdir, "required-snap18_6.snap"),
+	})
 }
 
 func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
@@ -2382,6 +2382,10 @@ func (s *imageSuite) TestSetupSeedBaseNone(c *C) {
 }
 
 func (s *imageSuite) TestSetupSeedCore18GadgetDefaults(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+	defer dirs.SetRootDir("")
+
 	systemctlMock := testutil.MockCommand(c, "systemctl", "")
 	defer systemctlMock.Restore()
 
@@ -2676,11 +2680,115 @@ func (s *imageSuite) TestSetupSeedClassic(c *C) {
 		"snap_kernel": "",
 	})
 
-	c.Check(s.stderr.String(), Matches, `WARNING: ensure that the contents under .*/var/lib/snapd/seed are owned by root:root in the \(final\) image`)
+	c.Check(s.stderr.String(), Matches, `WARNING: ensure that the contents under .*/var/lib/snapd/seed are owned by root:root in the \(final\) image\n`)
 
 	// no blob dir created
 	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
 	c.Check(osutil.FileExists(blobdir), Equals, false)
+}
+
+func (s *imageSuite) TestSetupSeedClassicUC20(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	s.makeSnap(c, "snapd", nil, snap.R(1), "")
+	s.makeSnap(c, "core20", nil, snap.R(20), "")
+	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
+	gadgetContent := [][]string{
+		{"grub-recovery.conf", "# recovery grub.cfg"},
+		{"grub.conf", "# boot grub.cfg"},
+		{"meta/gadget.yaml", pcUC20GadgetYaml},
+	}
+	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "")
+	s.makeSnap(c, "required20", nil, snap.R(21), "other")
+
+	// classic UC20+ based model
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			},
+		},
+	})
+
+	prepareDir := c.MkDir()
+
+	opts := &image.Options{
+		Classic:    true,
+		PrepareDir: prepareDir,
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, IsNil)
+
+	// check seed
+	seeddir := filepath.Join(prepareDir, "system-seed")
+	seedsnapsdir := filepath.Join(seeddir, "snaps")
+	essSnaps, runSnaps, _ := s.loadSeed(c, seeddir)
+	c.Check(essSnaps, HasLen, 4)
+	c.Check(runSnaps, HasLen, 1)
+
+	stableChannel := "latest/stable"
+
+	// check the files are in place
+	for i, name := range []string{"snapd", "pc-kernel", "core20", "pc"} {
+		info := s.AssertedSnapInfo(name)
+
+		channel := stableChannel
+		switch name {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+
+		fn := info.Filename()
+		p := filepath.Join(seedsnapsdir, fn)
+		c.Check(p, testutil.FilePresent)
+		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
+			Path:          p,
+			SideInfo:      &info.SideInfo,
+			EssentialType: info.Type(),
+			Essential:     true,
+			Required:      true,
+			Channel:       channel,
+		})
+	}
+	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
+		Path:     filepath.Join(seedsnapsdir, "required20_21.snap"),
+		SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+		Required: true,
+		Channel:  stableChannel,
+	})
+	c.Check(runSnaps[0].Path, testutil.FilePresent)
+
+	l, err := ioutil.ReadDir(seedsnapsdir)
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 5)
+
+	// Ensure that system-seed/ dir does not contain any bootloader or
+	// extra files other than "snaps" ans "systems".
+	dirs, err := filepath.Glob(seeddir + "/*")
+	c.Assert(err, IsNil)
+	c.Check(dirs, DeepEquals, []string{
+		seeddir + "/snaps", seeddir + "/systems",
+	})
 }
 
 func (s *imageSuite) TestSetupSeedClassicWithLocalClassicSnap(c *C) {
@@ -2814,7 +2922,7 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
 		"snap_kernel": "",
 	})
 
-	c.Check(s.stderr.String(), Matches, `WARNING: ensure that the contents under .*/var/lib/snapd/seed are owned by root:root in the \(final\) image`)
+	c.Check(s.stderr.String(), Matches, `WARNING: ensure that the contents under .*/var/lib/snapd/seed are owned by root:root in the \(final\) image\n`)
 
 	// no blob dir created
 	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
@@ -3163,7 +3271,7 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
-	// sanity checks
+	// validity checks
 	seeddir := filepath.Join(prepareDir, "system-seed")
 	seedsnapsdir := filepath.Join(seeddir, "snaps")
 	essSnaps, runSnaps, _ := s.loadSeed(c, seeddir)
@@ -3264,56 +3372,85 @@ assets:
 	c.Assert(err, ErrorMatches, `no asset from the kernel.yaml needing synced update is consumed by the gadget at "/.*"`)
 }
 
-type toolingStoreContextSuite struct {
-	sc store.DeviceAndAuthContext
+func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
+	restoreSetupSeed := image.MockSetupSeed(func(tsto *tooling.ToolingStore, model *asserts.Model, opts *image.Options) error {
+		return nil
+	})
+	defer restoreSetupSeed()
+
+	var preseedCalled bool
+	restorePreseedCore20 := image.MockPreseedCore20(func(dir, key, aaDir string) error {
+		preseedCalled = true
+		c.Assert(dir, Equals, "/a/dir")
+		c.Assert(key, Equals, "foo")
+		c.Assert(aaDir, Equals, "/custom/aa/features")
+		return nil
+	})
+	defer restorePreseedCore20()
+
+	model := s.makeUC20Model(nil)
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	c.Assert(ioutil.WriteFile(fn, asserts.Encode(model), 0644), IsNil)
+
+	err := image.Prepare(&image.Options{
+		ModelFile:      fn,
+		Preseed:        true,
+		PrepareDir:     "/a/dir",
+		PreseedSignKey: "foo",
+
+		AppArmorKernelFeaturesDir: "/custom/aa/features",
+	})
+	c.Assert(err, IsNil)
+	c.Check(preseedCalled, Equals, true)
 }
 
-var _ = Suite(&toolingStoreContextSuite{})
+func (s *imageSuite) TestPrepareWithClassicPreseedError(c *C) {
+	restoreSetupSeed := image.MockSetupSeed(func(tsto *tooling.ToolingStore, model *asserts.Model, opts *image.Options) error {
+		return nil
+	})
+	defer restoreSetupSeed()
 
-func (s *toolingStoreContextSuite) SetUpTest(c *C) {
-	s.sc = image.ToolingStoreContext()
+	err := image.Prepare(&image.Options{
+		Preseed:    true,
+		Classic:    true,
+		PrepareDir: "/a/dir",
+	})
+	c.Assert(err, ErrorMatches, `cannot preseed the image for a classic model`)
 }
 
-func (s *toolingStoreContextSuite) TestNopBits(c *C) {
-	info, err := s.sc.CloudInfo()
-	c.Assert(err, IsNil)
-	c.Check(info, IsNil)
+func (s *imageSuite) TestSetupSeedCore20DelegatedSnap(c *C) {
+	bootloader.Force(nil)
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
 
-	device, err := s.sc.Device()
-	c.Assert(err, IsNil)
-	c.Check(device, DeepEquals, &auth.DeviceState{})
+	// a model that uses core20
+	model := s.makeUC20Model(nil)
 
-	p, err := s.sc.DeviceSessionRequestParams("")
-	c.Assert(err, Equals, store.ErrNoSerial)
-	c.Check(p, IsNil)
+	prepareDir := c.MkDir()
 
-	defURL, err := url.Parse("http://store")
-	c.Assert(err, IsNil)
-	proxyStoreID, proxyStoreURL, err := s.sc.ProxyStoreParams(defURL)
-	c.Assert(err, IsNil)
-	c.Check(proxyStoreID, Equals, "")
-	c.Check(proxyStoreURL, Equals, defURL)
+	s.makeSnap(c, "snapd", nil, snap.R(1), "")
+	s.makeSnap(c, "core20", nil, snap.R(20), "")
+	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
+	gadgetContent := [][]string{
+		{"grub.conf", "# boot grub.cfg"},
+		{"meta/gadget.yaml", pcUC20GadgetYaml},
+	}
+	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "")
 
-	storeID, err := s.sc.StoreID("")
-	c.Assert(err, IsNil)
-	c.Check(storeID, Equals, "")
+	ra := map[string]interface{}{
+		"account-id": "my-brand",
+		"provenance": []interface{}{"delegated-prov"},
+	}
+	s.MakeAssertedDelegatedSnap(c, seedtest.SampleSnapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "my-brand", "my-brand", "delegated-prov", ra, s.StoreSigning.Database)
 
-	storeID, err = s.sc.StoreID("my-store")
-	c.Assert(err, IsNil)
-	c.Check(storeID, Equals, "my-store")
-
-	_, err = s.sc.UpdateDeviceAuth(nil, "")
-	c.Assert(err, NotNil)
-}
-
-func (s *toolingStoreContextSuite) TestUpdateUserAuth(c *C) {
-	u := &auth.UserState{
-		StoreMacaroon:   "macaroon",
-		StoreDischarges: []string{"discharge1"},
+	opts := &image.Options{
+		PrepareDir: prepareDir,
+		Customizations: image.Customizations{
+			BootFlags:  []string{"factory"},
+			Validation: "ignore",
+		},
 	}
 
-	u1, err := s.sc.UpdateUserAuth(u, []string{"discharge2"})
-	c.Assert(err, IsNil)
-	c.Check(u1, Equals, u)
-	c.Check(u1.StoreDischarges, DeepEquals, []string{"discharge2"})
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Check(err, IsNil)
 }

@@ -21,11 +21,15 @@ package release_test
 
 import (
 	"io/ioutil"
+	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -60,6 +64,30 @@ BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
 	c.Assert(err, IsNil)
 
 	return mockOSRelease
+}
+
+// Kernel magic numbers
+const (
+	wslfs int64 = 0x53464846
+	ext4  int64 = 0xef53
+)
+
+func mockWSLsetup(c *C, existsWSLinterop bool, existsRunWSL bool, filesystemID int64) func() {
+	restoreFileExists := release.MockFileExists(func(s string) bool {
+		if s == "/proc/sys/fs/binfmt_misc/WSLInterop" {
+			return existsWSLinterop
+		}
+		if s == "/run/WSL" {
+			return existsRunWSL
+		}
+		return osutil.FileExists(s)
+	})
+	restoreFilesystemRootType := release.MockFilesystemRootType(filesystemID)
+
+	return func() {
+		restoreFileExists()
+		restoreFilesystemRootType()
+	}
 }
 
 func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
@@ -148,22 +176,44 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 	c.Assert(release.ReleaseInfo.ID, Equals, "distro-id")
 }
 
-func (s *ReleaseTestSuite) TestNonWSL(c *C) {
-	defer release.MockIoutilReadfile(func(s string) ([]byte, error) {
-		c.Check(s, Equals, "/proc/version")
-		return []byte("Linux version 2.2.19 (herbert@gondolin) (gcc version 2.7.2.3) #1 Wed Mar 20 19:41:41 EST 2002"), nil
-	})()
+func (s *ReleaseTestSuite) TestFilesystemRootType(c *C) {
+	reported_type, err := release.FilesystemRootType()
+	c.Assert(err, IsNil)
 
-	c.Check(release.IsWSL(), Equals, false)
+	// From man stat:
+	// %t   major device type in hex, for character/block device special files
+	output, err := exec.Command("stat", "-f", "-c", "%t", "/").CombinedOutput()
+	c.Assert(err, IsNil)
+
+	outstr := strings.TrimSpace(string(output[:]))
+	statted_type, err := strconv.ParseInt(outstr, 16, 64)
+	c.Assert(err, IsNil)
+
+	c.Check(reported_type, Equals, statted_type)
 }
 
-func (s *ReleaseTestSuite) TestWSL(c *C) {
-	defer release.MockIoutilReadfile(func(s string) ([]byte, error) {
-		c.Check(s, Equals, "/proc/version")
-		return []byte("Linux version 3.4.0-Microsoft (Microsoft@Microsoft.com) (gcc version 4.7 (GCC) ) #1 SMP PREEMPT Wed Dec 31 14:42:53 PST 2014"), nil
-	})()
+func (s *ReleaseTestSuite) TestNonWSL(c *C) {
+	defer mockWSLsetup(c, false, false, ext4)()
+	v := release.GetWSLVersion()
+	c.Check(v, Equals, 0)
+}
 
-	c.Check(release.IsWSL(), Equals, true)
+func (s *ReleaseTestSuite) TestWSL1(c *C) {
+	defer mockWSLsetup(c, true, true, wslfs)()
+	v := release.GetWSLVersion()
+	c.Check(v, Equals, 1)
+}
+
+func (s *ReleaseTestSuite) TestWSL2(c *C) {
+	defer mockWSLsetup(c, true, true, ext4)()
+	v := release.GetWSLVersion()
+	c.Check(v, Equals, 2)
+}
+
+func (s *ReleaseTestSuite) TestWSL2NoInterop(c *C) {
+	defer mockWSLsetup(c, false, true, ext4)()
+	v := release.GetWSLVersion()
+	c.Check(v, Equals, 2)
 }
 
 func (s *ReleaseTestSuite) TestSystemctlSupportsUserUnits(c *C) {

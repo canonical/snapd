@@ -41,7 +41,7 @@ prepare: |
         snap list | MATCH test-snapd-dbus-service
     fi
 
-    if ! os.query is-trusty && ! os.query is-amazon-linux && ! os.query is-centos-7 && ! os.query is-xenial; then
+    if ! os.query is-trusty && ! os.query is-amazon-linux && ! os.query is-centos 7 && ! os.query is-xenial; then
         # create a quota with a service in it
         snap set-quota group1 test-snapd-service --memory=100MB
     fi
@@ -70,9 +70,20 @@ prepare: |
         test "$(find /var/lib/snapd/dbus-1/services -name '*.service' | wc -l)" -gt 0
         test "$(find /var/lib/snapd/dbus-1/system-services -name '*.service' | wc -l)" -gt 0
     fi
-    if ! os.query is-trusty && ! os.query is-amazon-linux && ! os.query is-centos-7 && ! os.query is-xenial; then
+    if ! os.query is-trusty && ! os.query is-amazon-linux && ! os.query is-centos 7 && ! os.query is-xenial; then
         test "$(find /etc/systemd/system -name 'snap.*.slice' | wc -l)" -gt 0
     fi
+
+restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    if [ -e pkg-removed ]; then
+        distro_install_build_snapd
+        rm pkg-removed
+    fi
+
+debug: |
+    systemctl --no-legend --full | grep -E 'snap\..*\.(service|timer|socket|slice)' || true
 
 execute: |
     echo "Stop snapd before purging"
@@ -80,6 +91,7 @@ execute: |
 
     echo "A purge will really purge things"
     snapd.tool exec snap-mgmt --purge
+    touch pkg-removed
 
     echo "Data directories are empty"
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"

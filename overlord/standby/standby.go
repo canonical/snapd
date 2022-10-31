@@ -23,13 +23,12 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
 var standbyWait = 5 * time.Second
 var maxWait = 5 * time.Minute
-
-var stateRequestRestart = (*state.State).RequestRestart
 
 type Opinionator interface {
 	CanStandby() bool
@@ -99,7 +98,9 @@ func (m *StandbyOpinions) Start() {
 		timer := time.NewTimer(wait)
 		for {
 			if m.CanStandby() {
-				stateRequestRestart(m.state, state.RestartSocket)
+				m.state.Lock()
+				restart.Request(m.state, restart.RestartSocket, nil)
+				m.state.Unlock()
 			}
 			select {
 			case <-timer.C:

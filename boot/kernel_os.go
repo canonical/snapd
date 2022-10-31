@@ -36,20 +36,21 @@ var _ BootParticipant = (*coreBootParticipant)(nil)
 
 func (*coreBootParticipant) IsTrivial() bool { return false }
 
-func (bp *coreBootParticipant) SetNextBoot() (rebootRequired bool, err error) {
+func (bp *coreBootParticipant) SetNextBoot(bootCtx NextBootContext) (rebootInfo RebootInfo, err error) {
 	const errPrefix = "cannot set next boot: %s"
 
-	rebootRequired, u, err := bp.bs.setNext(bp.s)
+	rebootInfo, u, err := bp.bs.setNext(bp.s, bootCtx)
 	if err != nil {
-		return false, fmt.Errorf(errPrefix, err)
+		return RebootInfo{RebootRequired: false}, fmt.Errorf(errPrefix, err)
 	}
 
 	if u != nil {
 		if err := u.commit(); err != nil {
-			return false, fmt.Errorf(errPrefix, err)
+			return RebootInfo{RebootRequired: false}, fmt.Errorf(errPrefix, err)
 		}
 	}
-	return rebootRequired, nil
+
+	return rebootInfo, nil
 }
 
 type coreKernel struct {

@@ -20,6 +20,7 @@
 package cmdstate
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -51,7 +52,7 @@ func doExec(t *state.Task, tomb *tomb.Tomb) error {
 	defer st.Unlock()
 
 	var ignore bool
-	if err := t.Get("ignore", &ignore); err != nil && err != state.ErrNoState {
+	if err := t.Get("ignore", &ignore); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if ignore {
@@ -67,10 +68,10 @@ func doExec(t *state.Task, tomb *tomb.Tomb) error {
 
 	err := t.Get("timeout", &tout)
 	// timeout is optional and might not be set
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		tout = defaultExecTimeout
 	}
 

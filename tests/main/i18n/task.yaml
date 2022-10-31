@@ -3,6 +3,11 @@ summary: Test that i18n works
 # no i18n yet in debian-sid
 systems: [-debian-sid-*]
 
+restore: |
+  if os.query is_ubuntu && ! os.query is_core; then
+    apt remove -y 'language-pack-[a-z]+$'
+  fi
+
 execute: |
     # The snapd deb from the archive does not contain .mo files, those
     # are stripped out by the langpack buildd stuff and put into the
@@ -10,19 +15,25 @@ execute: |
     # Therefore this test only makes sense when we build snapd from
     # the local source. When running against an official snapd deb
     # or against the core we will not see translations
-    if [ ! -f /usr/share/locale/de/LC_MESSAGES/snappy.mo ]; then
-        echo "SKIP: No mo files for snapd available"
-        exit 0
+    if [ -f /usr/share/locale/de/LC_MESSAGES/snappy.mo ]; then
+      echo "Ensure that i18n works"
+      LANG=de snap changes everything | MATCH "Ja, ja, allerdings."
+
+      echo "Basic smoke test to ensure no locale causes crashes nor warnings"
+      for p in /usr/share/locale/*; do
+          b=$( basename "$p" )
+          if ! SNAPPY_TESTING=1 LANG="$b" snap >/dev/null 2>&1; then
+              SNAPPY_TESTING=0 LANG="$b" snap 2>&1 >/dev/null | sed -e "s/[^ ]* [^ ]* /${b^^}: /" >> bad
+          fi
+      done
+      not cat bad
     fi
 
-    echo "Ensure that i18n works"
-    LANG=de snap changes everything | MATCH "Ja, ja, allerdings."
+    echo "Lint translated commands"
+    # Only attempt to install the langpacks in Ubuntu
+    if os.query is_ubuntu && ! os.query is_core; then
+      apt install -y 'language-pack-[a-z]+$'
+    fi
 
-    echo "Basic smoke test to ensure no locale causes crashes nor warnings"
-    for p in /usr/share/locale/*; do
-        b=$( basename "$p" )
-        if ! SNAPPY_TESTING=1 LANG="$b" snap >/dev/null 2>&1; then
-            SNAPPY_TESTING=0 LANG="$b" snap 2>&1 >/dev/null | sed -e "s/[^ ]* [^ ]* /${b^^}: /" >> bad
-        fi
-    done
-    not cat bad
+    # shellcheck disable=SC2002
+    grep -v -E '(pt|ko|nl)_' /usr/share/i18n/SUPPORTED | xargs -d '\n' -Iloc env SNAPD_DEBUG=1 LANG=loc snap changes everything 2>&1 > /dev/null | NOMATCH panic:

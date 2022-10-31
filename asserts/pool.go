@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -561,10 +561,7 @@ func (p *Pool) add(a Assertion, g *internal.Grouping) error {
 		Type:       AccountKeyType,
 		PrimaryKey: []string{a.SignKeyID()},
 	}
-	if err := p.addPrerequisite(keyRef, g); err != nil {
-		return err
-	}
-	return nil
+	return p.addPrerequisite(keyRef, g)
 }
 
 func (p *Pool) resolveWith(unresolved map[string]unresolvedAssertRecord, uniq string, u unresolvedAssertRecord, a Assertion, extrag *internal.Grouping) (ok bool, err error) {

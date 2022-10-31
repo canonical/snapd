@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@ package daemon_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -176,7 +178,7 @@ func (s *modelSuite) TestGetModelHasModelAssertion(c *check.C) {
 
 	// check that we get an assertion response
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion")
 
 	// check that there is only one assertion
 	dec := asserts.NewDecoder(rec.Body)
@@ -216,9 +218,9 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	// get the body and try to unmarshal into modelAssertJSON
-	c.Assert(rsp.Result, check.FitsTypeOf, daemon.ModelAssertJSON{})
+	c.Assert(rsp.Result, check.FitsTypeOf, clientutil.ModelAssertJSON{})
 
-	jsonResponse := rsp.Result.(daemon.ModelAssertJSON)
+	jsonResponse := rsp.Result.(clientutil.ModelAssertJSON)
 
 	// get the architecture key from the headers
 	arch, ok := jsonResponse.Headers["architecture"]
@@ -298,7 +300,7 @@ func (s *modelSuite) TestGetModelHasSerialAssertion(c *check.C) {
 
 	// check that we get an assertion response
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
-	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion")
+	c.Check(rec.Header().Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion")
 
 	// check that there is only one assertion
 	dec := asserts.NewDecoder(rec.Body)
@@ -363,9 +365,9 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	// get the body and try to unmarshal into modelAssertJSON
-	c.Assert(rsp.Result, check.FitsTypeOf, daemon.ModelAssertJSON{})
+	c.Assert(rsp.Result, check.FitsTypeOf, clientutil.ModelAssertJSON{})
 
-	jsonResponse := rsp.Result.(daemon.ModelAssertJSON)
+	jsonResponse := rsp.Result.(clientutil.ModelAssertJSON)
 
 	// get the architecture key from the headers
 	devKey, ok := jsonResponse.Headers["device-key"]
@@ -375,4 +377,64 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	// created above
 	c.Assert(devKey, check.FitsTypeOf, "")
 	c.Assert(devKey.(string), check.Equals, string(encDevKey))
+}
+
+func (s *userSuite) TestPostSerialBadAction(c *check.C) {
+	buf := bytes.NewBufferString(`{"action":"what"}`)
+	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe, check.DeepEquals, daemon.BadRequest(`unsupported serial action "what"`))
+}
+
+func (s *userSuite) TestPostSerialForget(c *check.C) {
+	unregister := 0
+	defer daemon.MockDevicestateDeviceManagerUnregister(func(mgr *devicestate.DeviceManager, opts *devicestate.UnregisterOptions) error {
+		unregister++
+		c.Check(mgr, check.NotNil)
+		c.Check(opts.NoRegistrationUntilReboot, check.Equals, false)
+		return nil
+	})()
+
+	buf := bytes.NewBufferString(`{"action":"forget"}`)
+	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Result, check.IsNil)
+
+	c.Check(unregister, check.Equals, 1)
+}
+
+func (s *userSuite) TestPostSerialForgetNoRegistrationUntilReboot(c *check.C) {
+	unregister := 0
+	defer daemon.MockDevicestateDeviceManagerUnregister(func(mgr *devicestate.DeviceManager, opts *devicestate.UnregisterOptions) error {
+		unregister++
+		c.Check(mgr, check.NotNil)
+		c.Check(opts.NoRegistrationUntilReboot, check.Equals, true)
+		return nil
+	})()
+
+	buf := bytes.NewBufferString(`{"action":"forget", "no-registration-until-reboot": true}`)
+	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Result, check.IsNil)
+
+	c.Check(unregister, check.Equals, 1)
+}
+
+func (s *userSuite) TestPostSerialForgetError(c *check.C) {
+	defer daemon.MockDevicestateDeviceManagerUnregister(func(mgr *devicestate.DeviceManager, opts *devicestate.UnregisterOptions) error {
+		return errors.New("boom")
+	})()
+
+	buf := bytes.NewBufferString(`{"action":"forget"}`)
+	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe, check.DeepEquals, daemon.InternalError(`forgetting serial failed: boom`))
 }

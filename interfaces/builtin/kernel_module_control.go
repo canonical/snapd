@@ -80,5 +80,7 @@ func init() {
 		connectedPlugAppArmor: kernelModuleControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  kernelModuleControlConnectedPlugSecComp,
 		connectedPlugUDev:     kernelModuleControlConnectedPlugUDev,
+
+		usesSysModuleCapability: true,
 	})
 }

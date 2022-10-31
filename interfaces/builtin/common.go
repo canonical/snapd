@@ -67,9 +67,12 @@ type commonInterface struct {
 	permanentPlugKModModules []string
 	permanentSlotKModModules []string
 
-	usesPtraceTrace      bool
-	suppressPtraceTrace  bool
-	suppressHomeIx       bool
+	usesPtraceTrace             bool
+	suppressPtraceTrace         bool
+	suppressHomeIx              bool
+	usesSysModuleCapability     bool
+	suppressSysModuleCapability bool
+
 	controlsDeviceCgroup bool
 
 	serviceSnippets []string
@@ -106,6 +109,11 @@ func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	}
 	if iface.suppressHomeIx {
 		spec.SetSuppressHomeIx()
+	}
+	if iface.usesSysModuleCapability {
+		spec.SetUsesSysModuleCapability()
+	} else if iface.suppressSysModuleCapability {
+		spec.SetSuppressSysModuleCapability()
 	}
 	if snippet := iface.connectedPlugAppArmor; snippet != "" {
 		spec.AddSnippet(snippet)

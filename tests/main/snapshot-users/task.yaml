@@ -1,13 +1,20 @@
 summary: Check that the basic snapshots functionality works for different users
 
+# ubuntu-14.04: the test sets up a user session, which requires more recent systemd
+systems: [-ubuntu-14.04-*]
+
 prepare: |
     snap install test-snapd-sh
+    tests.session -u test prepare
+
+restore: |
+    tests.session -u test restore
 
 execute: |
     # use the snaps, so they create the dirs
     test-snapd-sh.sh -c 'true'
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    su -p -c "$SNAP_MOUNT_DIR/bin/test-snapd-sh.sh -c 'true'" test
+    tests.session -u test exec sh -c "$SNAP_MOUNT_DIR/bin/test-snapd-sh.sh -c 'true'" test
 
     # drop in canaries for both users
     echo "hello versioned test-snapd-sh"  > /root/snap/test-snapd-sh/current/canary.txt

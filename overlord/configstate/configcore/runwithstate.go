@@ -1,8 +1,9 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
 // +build !nomanagers
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -40,7 +41,9 @@ func init() {
 	addWithStateHandler(nil, setCloudInfoWhenSeeding, nil)
 
 	// proxy.{http,https,ftp}
-	addWithStateHandler(validateProxyStore, handleProxyConfiguration, coreOnly)
+	addWithStateHandler(nil, handleProxyConfiguration, coreOnly)
+	// proxy.store
+	addWithStateHandler(validateProxyStore, handleProxyStore, nil)
 
 	// resilience.vitality-hint
 	addWithStateHandler(validateVitalitySettings, handleVitalityConfiguration, nil)
@@ -120,7 +123,7 @@ func applyHandlers(dev sysconfig.Device, cfg config.Conf, handlers []configHandl
 			if !validCertOption(k) {
 				return fmt.Errorf("cannot set store ssl certificate under name %q: name must only contain word characters or a dash", k)
 			}
-		case k == "core.system.network.netplan" || strings.HasPrefix(k, "core.system.network.netplan."):
+		case isNetplanChange(k):
 			if release.OnClassic {
 				return fmt.Errorf("cannot set netplan configuration on classic")
 			}
