@@ -268,11 +268,15 @@ func (s *SnapSuite) TestUnknownCommand(c *C) {
 func (s *SnapSuite) TestNoCommandWithArgs(c *C) {
 	for _, args := range [][]string{
 		{"snap", "--foo"},
-		{"snap", "--foo", "install"},
+		{"snap", "--bar", "install"},
+		{"snap", "-f"},
+		{"snap", "-b", "refresh"},
 	} {
 		restore := mockArgs(args...)
 		err := snap.RunMain()
-		c.Assert(err, ErrorMatches, "unknown flag `foo'")
+
+		flag := strings.TrimLeft(args[1], "-")
+		c.Assert(err, ErrorMatches, fmt.Sprintf("unknown flag `%s'", flag))
 		restore()
 	}
 }
