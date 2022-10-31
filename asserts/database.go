@@ -44,6 +44,11 @@ func (e *NotFoundError) Error() string {
 	return fmt.Sprintf("%v not found", &Ref{Type: e.Type, PrimaryKey: pk})
 }
 
+func (e *NotFoundError) Is(err error) bool {
+	// TODO: replace IsNotFound usages for errors.Is(err, &NotFoundError{})
+	return IsNotFound(err)
+}
+
 // IsNotFound returns whether err is an assertion not found error.
 func IsNotFound(err error) bool {
 	_, ok := err.(*NotFoundError)

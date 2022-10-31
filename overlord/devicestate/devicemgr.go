@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -85,12 +85,7 @@ type DeviceManager struct {
 	// saveAvailable keeps track whether /var/lib/snapd/save
 	// is available, i.e. exists and is mounted from ubuntu-save
 	// if the latter exists.
-	// TODO: evolve this to state to track things if we start mounting
-	// save as rw vs ro, or mount/umount it fully on demand
 	saveAvailable bool
-
-	// isClassicBoot is true if classic system with classic initramfs
-	isClassicBoot bool
 
 	state   *state.State
 	hookMgr *hookstate.HookManager
@@ -104,6 +99,9 @@ type DeviceManager struct {
 	bootRevisionsUpdated bool
 
 	seedTimings *timings.Timings
+	// these are used as needed as cache during StartUp and cleared after
+	earlyDeviceCtx  snapstate.DeviceContext
+	earlyDeviceSeed seed.Seed
 
 	ensureSeedInConfigRan bool
 
@@ -149,8 +147,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		if modeenv != nil {
 			logger.Debugf("modeenv for model %q found", modeenv.Model)
 			m.sysMode = modeenv.Mode
-		} else if release.OnClassic {
-			m.isClassicBoot = true
 		}
 	} else {
 		// cache system label for preseeding of core20; note, this will fail on
@@ -295,8 +291,19 @@ func (m *DeviceManager) SystemMode(sysExpect SysExpectation) string {
 
 // StartUp implements StateStarterUp.Startup.
 func (m *DeviceManager) StartUp() error {
-	if m.shouldMountUbuntuSave() {
-		if err := m.setupUbuntuSave(); err != nil {
+	m.state.Lock()
+	defer m.state.Unlock()
+	defer m.earlyCleanup()
+
+	dev, err := m.earlyDeviceContext()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	// if ErrNoState then dev is nil, we assume a classic system here,
+	// any error will re-surface again in the main first boot code
+	if dev != nil && m.shouldMountUbuntuSave(dev) {
+		if err := m.setupUbuntuSave(dev); err != nil {
 			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
 		}
 	}
@@ -308,13 +315,11 @@ func (m *DeviceManager) StartUp() error {
 
 	// TODO: setup proper timings measurements for this
 
-	m.state.Lock()
-	defer m.state.Unlock()
-	return EarlyConfig(m.state, m.preloadGadget)
+	return EarlyConfig(m.state, m.earlyPreloadGadget)
 }
 
-func (m *DeviceManager) shouldMountUbuntuSave() bool {
-	if release.OnClassic {
+func (m *DeviceManager) shouldMountUbuntuSave(dev snap.Device) bool {
+	if dev.IsClassicBoot() {
 		return false
 	}
 	// TODO:UC20+: ubuntu-save needs to be mounted for recover too
@@ -379,9 +384,6 @@ func (m *DeviceManager) ensureUbuntuSaveIsMounted() error {
 // 2. During install mode for the gadget/kernel/etc, the folders are not created.
 //    So this function can be invoked as a part of system-setup.
 func (m *DeviceManager) ensureUbuntuSaveSnapFolders() error {
-	m.state.Lock()
-	defer m.state.Unlock()
-
 	snaps, err := snapstate.All(m.state)
 	if err != nil {
 		return err
@@ -399,16 +401,21 @@ func (m *DeviceManager) ensureUbuntuSaveSnapFolders() error {
 // setupUbuntuSave sets up ubuntu-save partition. It makes sure
 // to mount ubuntu-save (if feasible), and ensures the correct snap
 // folders are present according to currently installed snaps.
-func (m *DeviceManager) setupUbuntuSave() error {
+func (m *DeviceManager) setupUbuntuSave(dev snap.Device) error {
 	if err := m.ensureUbuntuSaveIsMounted(); err != nil {
 		return err
 	}
 
 	// At this point ubuntu-save should be available under the
 	// /var/lib/snapd/save path, so we mark the partition as such.
+	m.saveAvailable = true
+
 	// The last step is to ensure needed folder structure is present
 	// for the per-snap folder storage.
-	m.saveAvailable = true
+	// We support this only on Core for now.
+	if dev.Classic() {
+		return nil
+	}
 	return m.ensureUbuntuSaveSnapFolders()
 }
 
@@ -792,7 +799,33 @@ func (m *DeviceManager) systemForPreseeding() string {
 	return m.preseedSystemLabel
 }
 
-func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) {
+func (m *DeviceManager) earlyDeviceContext() (snapstate.DeviceContext, error) {
+	mod, err := findModel(m.state)
+	if err == nil {
+		return newModelDeviceContext(m, mod), nil
+	}
+	if !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+	dev, _, err := m.earlyLoadDeviceSeed()
+	return dev, err
+}
+
+func (m *DeviceManager) earlyCleanup() {
+	// clear things cached in StartUp
+	m.earlyDeviceCtx = nil
+	m.earlyDeviceSeed = nil
+}
+
+func (m *DeviceManager) earlyLoadDeviceSeed() (snapstate.DeviceContext, seed.Seed, error) {
+	// consider whether we were called already
+	if m.seedTimings != nil {
+		if m.earlyDeviceCtx != nil {
+			return m.earlyDeviceCtx, m.earlyDeviceSeed, nil
+		}
+		return nil, nil, state.ErrNoState
+	}
+
 	var sysLabel string
 	if m.preseed && !release.OnClassic {
 		sysLabel = m.systemForPreseeding()
@@ -808,7 +841,7 @@ func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) 
 		}
 	}
 
-	// we time preloadGadget + first ensureSeeded together
+	// we time StartUp/earlyPreloadGadget + first ensureSeeded together
 	// under --ensure=seed
 	tm, err := m.seedStart()
 	if err != nil {
@@ -817,6 +850,28 @@ func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) 
 	// cached for first ensureSeeded
 	m.seedTimings = tm
 
+	var deviceSeed seed.Seed
+	timings.Run(tm, "import-assertions[early]", "early import assertions from seed", func(nested timings.Measurer) {
+		deviceSeed, err = loadDeviceSeed(m.state, sysLabel)
+	})
+	if err != nil {
+		// this same error will be resurfaced in ensureSeed later
+		if err != seed.ErrNoAssertions {
+			logger.Debugf("early import assertions from seed failed: %v", err)
+		}
+		return nil, nil, state.ErrNoState
+	}
+
+	dev := newModelDeviceContext(m, deviceSeed.Model())
+
+	// cache
+	m.earlyDeviceCtx = dev
+	m.earlyDeviceSeed = deviceSeed
+
+	return dev, deviceSeed, nil
+}
+
+func (m *DeviceManager) earlyPreloadGadget() (sysconfig.Device, *gadget.Info, error) {
 	// Here we behave as if there was no gadget if we encounter
 	// errors, under the assumption that those will be resurfaced
 	// in ensureSeed. This preserves having a failing to seed
@@ -829,24 +884,17 @@ func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) 
 	// just by option flags. For example automatic user creation
 	// also requires the model to be known/set. Otherwise ignoring
 	// errors here would be problematic.
-	var deviceSeed seed.Seed
-	timings.Run(tm, "import-assertions[early]", "early import assertions from seed", func(nested timings.Measurer) {
-		deviceSeed, err = loadDeviceSeed(m.state, sysLabel)
-	})
+	dev, deviceSeed, err := m.earlyLoadDeviceSeed()
 	if err != nil {
-		// this same error will be resurfaced in ensureSeed later
-		if err != seed.ErrNoAssertions {
-			logger.Debugf("early import assertions from seed failed: %v", err)
-		}
-		return nil, nil, state.ErrNoState
+		return nil, nil, err
 	}
-	model := deviceSeed.Model()
+	model := dev.Model()
 	if model.Gadget() == "" {
 		// no gadget
 		return nil, nil, state.ErrNoState
 	}
 	var gi *gadget.Info
-	timings.Run(tm, "preload-verified-gadget-metadata", "preload verified gadget metadata from seed", func(nested timings.Measurer) {
+	timings.Run(m.seedTimings, "preload-verified-gadget-metadata", "preload verified gadget metadata from seed", func(nested timings.Measurer) {
 		gi, err = func() (*gadget.Info, error) {
 			if err := deviceSeed.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, nested); err != nil {
 				return nil, err
@@ -867,7 +915,6 @@ func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) 
 		return nil, nil, state.ErrNoState
 	}
 
-	dev := newModelDeviceContext(m, model)
 	return dev, gi, nil
 }
 
@@ -896,7 +943,7 @@ func (m *DeviceManager) ensureSeeded() error {
 	if err != nil {
 		return err
 	}
-	// we time preloadGadget + first ensureSeeded together
+	// we time StartUp/earlyPreloadGadget + first ensureSeeded together
 	// succcessive ensureSeeded should be timed separately
 	m.seedTimings = nil
 
@@ -948,10 +995,6 @@ func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.isClassicBoot {
-		return nil
-	}
-
 	// boot-ok/update-boot-revision is only relevant in run-mode
 	if m.SystemMode(SysAny) != "run" {
 		return nil
@@ -962,13 +1005,13 @@ func (m *DeviceManager) ensureBootOk() error {
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
-		if err == nil {
+		if err == nil && deviceCtx.Model().KernelSnap() != nil {
 			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
 				return err
 			}
-		}
-		if err := secbootMarkSuccessful(); err != nil {
-			return err
+			if err := secbootMarkSuccessful(); err != nil {
+				return err
+			}
 		}
 
 		m.bootOkRan = true
@@ -1543,6 +1586,45 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 	return os.Remove(factoryResetMarker)
 }
 
+// ensureExpiredUsersRemoved is periodically called as a part of Ensure()
+// to remove expired users from the system.
+func (m *DeviceManager) ensureExpiredUsersRemoved() error {
+	st := m.state
+	st.Lock()
+	defer st.Unlock()
+
+	// So far this is only set to be done in run mode, it might not
+	// make any sense to do in it any other mode.
+	mode := m.SystemMode(SysAny)
+	if mode != "run" {
+		return nil
+	}
+
+	// Expect the system to be seeded, otherwise we ignore this.
+	var seeded bool
+	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	users, err := auth.Users(st)
+	if err != nil {
+		return err
+	}
+
+	for _, user := range users {
+		if !user.HasExpired() {
+			continue
+		}
+		if _, err := RemoveUser(st, user.Username); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -1602,6 +1684,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensurePostFactoryReset(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureExpiredUsersRemoved(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1703,10 +1789,6 @@ func (m *DeviceManager) withKeypairMgr(f func(asserts.KeypairManager) error) err
 	}
 	return f(keypairMgr)
 }
-
-// TODO:UC20: we need proper encapsulated support to read
-// tpm-policy-auth-key from save if the latter can get unmounted on
-// demand
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	device, err := m.device()
@@ -2234,7 +2316,7 @@ func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool 
 	return m.ntpSyncedOrTimedOut
 }
 
-func (m *DeviceManager) hasFDESetupHook() (bool, error) {
+func (m *DeviceManager) hasFDESetupHook(kernelInfo *snap.Info) (bool, error) {
 	// state must be locked
 	st := m.state
 
@@ -2243,9 +2325,12 @@ func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 		return false, fmt.Errorf("cannot get device context: %v", err)
 	}
 
-	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
-	if err != nil {
-		return false, fmt.Errorf("cannot get kernel info: %v", err)
+	if kernelInfo == nil {
+		var err error
+		kernelInfo, err = snapstate.KernelInfo(st, deviceCtx)
+		if err != nil {
+			return false, fmt.Errorf("cannot get kernel info: %v", err)
+		}
 	}
 	return hasFDESetupHookInKernel(kernelInfo), nil
 }

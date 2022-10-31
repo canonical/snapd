@@ -118,6 +118,11 @@ const (
      "display-name": "Thingy Inc.",
      "validation": "unproven"
   },
+  "links": {
+    "contact": ["https://thingy.com","mailto:thingy@thingy.com"],
+    "website": ["http://example.com/thingy"],
+    "issues": ["mailto:bugs@thingy.com"]
+  },
   "revision": 21,
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
   "snap-yaml": "name: test-snapd-content-plug\nversion: 1.0\nassumes: [snapd2.49]\napps:\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\nprovenance: prov\n",
@@ -144,7 +149,7 @@ func (s *detailsV2Suite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-func (s *detailsV2Suite) TestInfoFromStoreSnapSimple(c *C) {
+func (s *detailsV2Suite) TestInfoFromStoreSnapSimpleAndLegacy(c *C) {
 	var snp storeSnap
 	err := json.Unmarshal([]byte(coreStoreJSON), &snp)
 	c.Assert(err, IsNil)
@@ -156,15 +161,15 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimple(c *C) {
 	c.Check(info, DeepEquals, &snap.Info{
 		Architectures: []string{"amd64"},
 		SideInfo: snap.SideInfo{
-			RealName:          "core",
-			SnapID:            "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
-			Revision:          snap.R(3887),
-			EditedContact:     "mailto:snappy-canonical-storeaccount@canonical.com",
-			EditedTitle:       "core",
-			EditedSummary:     "snapd runtime environment",
-			EditedDescription: "The core runtime environment for snapd",
-			Private:           false,
-			Paid:              false,
+			RealName:            "core",
+			SnapID:              "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
+			Revision:            snap.R(3887),
+			LegacyEditedContact: "mailto:snappy-canonical-storeaccount@canonical.com",
+			EditedTitle:         "core",
+			EditedSummary:       "snapd runtime environment",
+			EditedDescription:   "The core runtime environment for snapd",
+			Private:             false,
+			Paid:                false,
 		},
 		Epoch:       snap.E("0"),
 		SnapType:    snap.TypeOS,
@@ -181,10 +186,10 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimple(c *C) {
 			Sha3_384:    "b691f6dde3d8022e4db563840f0ef82320cb824b6292ffd027dbc838535214dac31c3512c619beaf73f1aeaf35ac62d5",
 			Size:        85291008,
 		},
-		Plugs:    make(map[string]*snap.PlugInfo),
-		Slots:    make(map[string]*snap.SlotInfo),
-		Website:  "http://example.com/core",
-		StoreURL: "https://snapcraft.io/core",
+		Plugs:         make(map[string]*snap.PlugInfo),
+		Slots:         make(map[string]*snap.SlotInfo),
+		LegacyWebsite: "http://example.com/core",
+		StoreURL:      "https://snapcraft.io/core",
 	})
 }
 
@@ -207,15 +212,20 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		Assumes:       []string{"snapd2.49"},
 		Base:          "base-18",
 		SideInfo: snap.SideInfo{
-			RealName:          "thingy",
-			SnapID:            "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
-			Revision:          snap.R(21),
-			EditedContact:     "https://thingy.com",
-			EditedTitle:       "This Is The Most Fantastical Snap of Th…",
-			EditedSummary:     "useful thingy",
-			EditedDescription: "Useful thingy for thinging",
-			Private:           false,
-			Paid:              true,
+			RealName: "thingy",
+			SnapID:   "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
+			Revision: snap.R(21),
+			EditedLinks: map[string][]string{
+				"contact": {"https://thingy.com", "mailto:thingy@thingy.com"},
+				"website": {"http://example.com/thingy"},
+				"issues":  {"mailto:bugs@thingy.com"},
+			},
+			LegacyEditedContact: "https://thingy.com",
+			EditedTitle:         "This Is The Most Fantastical Snap of Th…",
+			EditedSummary:       "useful thingy",
+			EditedDescription:   "Useful thingy for thinging",
+			Private:             false,
+			Paid:                true,
 		},
 		Epoch: snap.Epoch{
 			Read:  []uint32{0, 1},
@@ -255,7 +265,6 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", Width: 600, Height: 200},
 		},
 		CommonIDs:      []string{"org.thingy"},
-		Website:        "http://example.com/thingy",
 		StoreURL:       "https://snapcraft.io/thingy",
 		SnapProvenance: "prov",
 	})
@@ -306,8 +315,8 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Tracks",   // handled at a different level (see TestInfo)
 		"Layout",
 		"SideInfo.Channel",
-		"SideInfo.EditedLinks", // TODO: take this value from the store
 		"SystemUsernames",
+		"LegacyWebsite",
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {
@@ -390,6 +399,10 @@ func fillStruct(a interface{}, c *C) {
 				Type: "potato",
 				URL:  "http://example.com/foo.pot",
 			}}
+		case map[string][]string:
+			x = map[string][]string{
+				"contact": {"mailto:foo", "mailto:bar"},
+			}
 		default:
 			c.Fatalf("unhandled field type %T", field.Interface())
 		}

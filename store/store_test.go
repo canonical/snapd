@@ -1071,9 +1071,9 @@ const mockSingleOrderJSON = `{
 
 /* acquired via
 
-http --pretty=format --print b https://api.snapcraft.io/v2/snaps/info/hello-world architecture==amd64 fields==architectures,base,confinement,contact,created-at,description,download,epoch,license,name,prices,private,publisher,revision,snap-id,snap-yaml,summary,title,type,version,media,common-ids Snap-Device-Series:16 | xsel -b
+http --pretty=format --print b https://api.snapcraft.io/v2/snaps/info/hello-world architecture==amd64 fields==architectures,base,confinement,links,contact,created-at,description,download,epoch,license,name,prices,private,publisher,revision,snap-id,snap-yaml,summary,title,type,version,media,common-ids,website Snap-Device-Series:16 | xsel -b
 
-on 2018-06-13 (note snap-yaml is currently excluded from that list). Then, by hand:
+on 2022-10-20. Then, by hand:
 - set prices to {"EUR": "0.99", "USD": "1.23"},
 - set base in first channel-map entry to "bogus-base",
 - set snap-yaml in first channel-map entry to the one from the 'edge', plus the following pastiche:
@@ -1094,7 +1094,7 @@ slots:
     read:
       - /
 
-- add "released-at" to something randomish
+- change edge entry to have different revision, version and "released-at" to something randomish
 
 */
 const mockInfoJSON = `{
@@ -1107,18 +1107,18 @@ const mockInfoJSON = `{
             "channel": {
                 "architecture": "amd64",
                 "name": "stable",
-                "released-at": "2019-01-01T10:11:12.123456789+00:00",
+                "released-at": "2019-04-17T16:47:59.117114+00:00",
                 "risk": "stable",
                 "track": "latest"
             },
             "common-ids": [],
             "confinement": "strict",
-            "created-at": "2016-07-12T16:37:23.960632+00:00",
+            "created-at": "2019-04-17T16:43:58.548661+00:00",
             "download": {
                 "deltas": [],
-                "sha3-384": "eed62063c04a8c3819eb71ce7d929cc8d743b43be9e7d86b397b6d61b66b0c3a684f3148a9dbe5821360ae32105c1bd9",
+                "sha3-384": "b07bdb78e762c2e6020c75fafc92055b323a6f8da3ab42a3963da5ade386aba11f77e3c8f919b8aa23f3aa5c06c844f9",
                 "size": 20480,
-                "url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap"
+                "url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_29.snap"
             },
             "epoch": {
                 "read": [
@@ -1128,10 +1128,10 @@ const mockInfoJSON = `{
                     0
                 ]
             },
-            "revision": 27,
-            "snap-yaml": "name: hello-world\nversion: 6.3\narchitectures: [ all ]\nsummary: The 'hello-world' of snaps\ndescription: |\n    This is a simple snap example that includes a few interesting binaries\n    to demonstrate snaps and their confinement.\n    * hello-world.env  - dump the env of commands run inside app sandbox\n    * hello-world.evil - show how snappy sandboxes binaries\n    * hello-world.sh   - enter interactive shell that runs in app sandbox\n    * hello-world      - simply output text\napps:\n env:\n   command: bin/env\n evil:\n   command: bin/evil\n sh:\n   command: bin/sh\n hello-world:\n   command: bin/echo\n content-plug:\n   command: bin/content-plug\n   plugs: [shared-content-plug]\nplugs:\n  shared-content-plug:\n    interface: content\n    target: import\n    content: mylib\n    default-provider: test-snapd-content-slot\nslots:\n  shared-content-slot:\n    interface: content\n    content: mylib\n    read:\n      - /\n",
+            "revision": 29,
+            "snap-yaml": "name: hello-world\nversion: 6.4\narchitectures: [ all ]\nsummary: The 'hello-world' of snaps\ndescription: |\n    This is a simple snap example that includes a few interesting binaries\n    to demonstrate snaps and their confinement.\n    * hello-world.env  - dump the env of commands run inside app sandbox\n    * hello-world.evil - show how snappy sandboxes binaries\n    * hello-world.sh   - enter interactive shell that runs in app sandbox\n    * hello-world      - simply output text\napps:\n env:\n   command: bin/env\n evil:\n   command: bin/evil\n sh:\n   command: bin/sh\n hello-world:\n   command: bin/echo\n content-plug:\n   command: bin/content-plug\n   plugs: [shared-content-plug]\nplugs:\n  shared-content-plug:\n    interface: content\n    target: import\n    content: mylib\n    default-provider: test-snapd-content-slot\nslots:\n  shared-content-slot:\n    interface: content\n    content: mylib\n    read:\n      - /\n",
             "type": "app",
-            "version": "6.3"
+            "version": "6.4"
         },
         {
             "architectures": [
@@ -1141,18 +1141,18 @@ const mockInfoJSON = `{
             "channel": {
                 "architecture": "amd64",
                 "name": "candidate",
-                "released-at": "2019-01-02T10:11:12.123456789+00:00",
+                "released-at": "2019-04-17T16:47:59.117114+00:00",
                 "risk": "candidate",
                 "track": "latest"
             },
             "common-ids": [],
             "confinement": "strict",
-            "created-at": "2016-07-12T16:37:23.960632+00:00",
+            "created-at": "2019-04-17T16:43:58.548661+00:00",
             "download": {
                 "deltas": [],
-                "sha3-384": "eed62063c04a8c3819eb71ce7d929cc8d743b43be9e7d86b397b6d61b66b0c3a684f3148a9dbe5821360ae32105c1bd9",
+                "sha3-384": "b07bdb78e762c2e6020c75fafc92055b323a6f8da3ab42a3963da5ade386aba11f77e3c8f919b8aa23f3aa5c06c844f9",
                 "size": 20480,
-                "url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap"
+                "url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_29.snap"
             },
             "epoch": {
                 "read": [
@@ -1162,10 +1162,9 @@ const mockInfoJSON = `{
                     0
                 ]
             },
-            "revision": 27,
-            "snap-yaml": "",
+            "revision": 29,
             "type": "app",
-            "version": "6.3"
+            "version": "6.4"
         },
         {
             "architectures": [
@@ -1175,18 +1174,18 @@ const mockInfoJSON = `{
             "channel": {
                 "architecture": "amd64",
                 "name": "beta",
-                "released-at": "2019-01-03T10:11:12.123456789+00:00",
+                "released-at": "2019-04-17T16:48:09.906850+00:00",
                 "risk": "beta",
                 "track": "latest"
             },
             "common-ids": [],
             "confinement": "strict",
-            "created-at": "2016-07-12T16:37:23.960632+00:00",
+            "created-at": "2019-04-17T16:43:58.548661+00:00",
             "download": {
                 "deltas": [],
-                "sha3-384": "eed62063c04a8c3819eb71ce7d929cc8d743b43be9e7d86b397b6d61b66b0c3a684f3148a9dbe5821360ae32105c1bd9",
+                "sha3-384": "b07bdb78e762c2e6020c75fafc92055b323a6f8da3ab42a3963da5ade386aba11f77e3c8f919b8aa23f3aa5c06c844f9",
                 "size": 20480,
-                "url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap"
+                "url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_29.snap"
             },
             "epoch": {
                 "read": [
@@ -1196,10 +1195,9 @@ const mockInfoJSON = `{
                     0
                 ]
             },
-            "revision": 27,
-            "snap-yaml": "",
+            "revision": 29,
             "type": "app",
-            "version": "6.3"
+            "version": "6.4"
         },
         {
             "architectures": [
@@ -1209,18 +1207,18 @@ const mockInfoJSON = `{
             "channel": {
                 "architecture": "amd64",
                 "name": "edge",
-                "released-at": "2019-01-04T10:11:12.123456789+00:00",
+                "released-at": "2022-10-19T17:00:00+00:00",
                 "risk": "edge",
                 "track": "latest"
             },
             "common-ids": [],
             "confinement": "strict",
-            "created-at": "2017-11-20T07:59:46.563940+00:00",
+            "created-at": "2019-04-17T16:43:58.548661+00:00",
             "download": {
                 "deltas": [],
-                "sha3-384": "d888ed75a9071ace39fed922aa799cad4081de79fda650fbbf75e1bae780dae2c24a19aab8db5059c6ad0d0533d90c04",
+                "sha3-384": "b07bdb78e762c2e6020c75fafc92055b323a6f8da3ab42a3963da5ade386aba11f77e3c8f919b8aa23f3aa5c06c844f9",
                 "size": 20480,
-                "url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_28.snap"
+                "url": "https://api.snapcraft.io/api/v1/snaps/download/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_30.snap"
             },
             "epoch": {
                 "read": [
@@ -1230,28 +1228,40 @@ const mockInfoJSON = `{
                     0
                 ]
             },
-            "revision": 28,
+            "revision": 30,
             "snap-yaml": "",
             "type": "app",
-            "version": "6.3"
+            "version": "6.5"
         }
     ],
+    "default-track": null,
     "name": "hello-world",
     "snap": {
-        "contact": "mailto:snappy-devel@lists.ubuntu.com",
+        "contact": "mailto:snaps@canonical.com",
         "description": "This is a simple hello world example.",
         "license": "MIT",
+        "links": {
+            "contact": [
+                "mailto:snaps@canonical.com"
+            ]
+        },
         "media": [
             {
-                "height": null,
+                "height": 256,
                 "type": "icon",
                 "url": "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-                "width": null
+                "width": 256
+            },
+            {
+                "height": 118,
+                "type": "screenshot",
+                "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
+                "width": 199
             },
             {
                 "height": null,
-                "type": "screenshot",
-                "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
+                "type": "video",
+                "url": "https://vimeo.com/194577403",
                 "width": null
             }
         ],
@@ -1266,7 +1276,8 @@ const mockInfoJSON = `{
         },
         "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
         "summary": "The 'hello-world' of snaps",
-        "title": "Hello World"
+        "title": "Hello World",
+        "website": null
     },
     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
 }`
@@ -1315,7 +1326,7 @@ func (s *storeTestSuite) TestInfo(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(result.InstanceName(), Equals, "hello-world")
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
-	c.Check(result.Revision, Equals, snap.R(27))
+	c.Check(result.Revision, Equals, snap.R(29))
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
 	c.Check(result.Publisher, Equals, snap.StoreAccount{
 		ID:          "canonical",
@@ -1323,7 +1334,7 @@ func (s *storeTestSuite) TestInfo(c *C) {
 		DisplayName: "Canonical",
 		Validation:  "verified",
 	})
-	c.Check(result.Version, Equals, "6.3")
+	c.Check(result.Version, Equals, "6.4")
 	c.Check(result.Sha3_384, Matches, `[[:xdigit:]]{96}`)
 	c.Check(result.Size, Equals, int64(20480))
 	c.Check(result.Channel, Equals, "stable")
@@ -1335,15 +1346,25 @@ func (s *storeTestSuite) TestInfo(c *C) {
 	c.Check(result.Paid, Equals, true)
 	c.Check(result.Media, DeepEquals, snap.MediaInfos{
 		{
-			Type: "icon",
-			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+			Type:   "icon",
+			URL:    "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+			Width:  256,
+			Height: 256,
 		}, {
-			Type: "screenshot",
-			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
+			Type:   "screenshot",
+			URL:    "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
+			Width:  199,
+			Height: 118,
+		}, {
+			Type: "video",
+			URL:  "https://vimeo.com/194577403",
 		},
 	})
 	c.Check(result.MustBuy, Equals, true)
-	c.Check(result.Contact(), Equals, "mailto:snappy-devel@lists.ubuntu.com")
+	c.Check(result.Links(), DeepEquals, map[string][]string{
+		"contact": {"mailto:snaps@canonical.com"},
+	})
+	c.Check(result.Contact(), Equals, "mailto:snaps@canonical.com")
 	c.Check(result.Base, Equals, "bogus-base")
 	c.Check(result.Epoch.String(), Equals, "0")
 	c.Check(sto.SuggestedCurrency(), Equals, "GBP")
@@ -1554,40 +1575,40 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 	c.Check(result.InstanceName(), Equals, "hello-world")
 	expected := map[string]*snap.ChannelSnapInfo{
 		"latest/stable": {
-			Revision:    snap.R(27),
-			Version:     "6.3",
+			Revision:    snap.R(29),
+			Version:     "6.4",
 			Confinement: snap.StrictConfinement,
 			Channel:     "latest/stable",
 			Size:        20480,
 			Epoch:       snap.E("0"),
-			ReleasedAt:  time.Date(2019, 1, 1, 10, 11, 12, 123456789, time.UTC),
+			ReleasedAt:  time.Date(2019, 4, 17, 16, 47, 59, 117114000, time.UTC),
 		},
 		"latest/candidate": {
-			Revision:    snap.R(27),
-			Version:     "6.3",
+			Revision:    snap.R(29),
+			Version:     "6.4",
 			Confinement: snap.StrictConfinement,
 			Channel:     "latest/candidate",
 			Size:        20480,
 			Epoch:       snap.E("0"),
-			ReleasedAt:  time.Date(2019, 1, 2, 10, 11, 12, 123456789, time.UTC),
+			ReleasedAt:  time.Date(2019, 4, 17, 16, 47, 59, 117114000, time.UTC),
 		},
 		"latest/beta": {
-			Revision:    snap.R(27),
-			Version:     "6.3",
+			Revision:    snap.R(29),
+			Version:     "6.4",
 			Confinement: snap.StrictConfinement,
 			Channel:     "latest/beta",
 			Size:        20480,
 			Epoch:       snap.E("0"),
-			ReleasedAt:  time.Date(2019, 1, 3, 10, 11, 12, 123456789, time.UTC),
+			ReleasedAt:  time.Date(2019, 4, 17, 16, 48, 9, 906850000, time.UTC),
 		},
 		"latest/edge": {
-			Revision:    snap.R(28),
-			Version:     "6.3",
+			Revision:    snap.R(30),
+			Version:     "6.5",
 			Confinement: snap.StrictConfinement,
 			Channel:     "latest/edge",
 			Size:        20480,
 			Epoch:       snap.E("0"),
-			ReleasedAt:  time.Date(2019, 1, 4, 10, 11, 12, 123456789, time.UTC),
+			ReleasedAt:  time.Date(2022, 10, 19, 17, 0, 0, 0, time.UTC),
 		},
 	}
 	for k, v := range result.Channels {
@@ -1706,6 +1727,33 @@ func (s *storeTestSuite) TestStoreIDFromAuthContext(c *C) {
 	cfg.Architecture = "archXYZ"
 	cfg.StoreID = "fallback"
 	sto := store.New(cfg, &testDauthContext{c: c, device: s.device, storeID: "my-brand-store-id"})
+
+	// the actual test
+	spec := store.SnapSpec{
+		Name: "hello-world",
+	}
+	result, err := sto.SnapInfo(s.ctx, spec, nil)
+	c.Assert(err, IsNil)
+	c.Check(result.InstanceName(), Equals, "hello-world")
+}
+
+func (s *storeTestSuite) TestLocation(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", infoPathPattern)
+		storeID := r.Header.Get("Snap-Device-Location")
+		c.Check(storeID, Equals, `cloud-name="gcp" region="us-west1" availability-zone="us-west1-b"`)
+
+		w.WriteHeader(200)
+		io.WriteString(w, mockInfoJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.DefaultConfig()
+	cfg.StoreBaseURL = mockServerURL
+	sto := store.New(cfg, &testDauthContext{c: c, device: s.device, cloudInfo: &auth.CloudInfo{Name: "gcp", Region: "us-west1", AvailabilityZone: "us-west1-b"}})
 
 	// the actual test
 	spec := store.SnapSpec{
@@ -1978,7 +2026,7 @@ curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu
 
 And then add base and prices, increase title's length, and remove the _links dict
 */
-const MockSearchJSON = `{
+const mockSearchJSON = `{
     "_embedded": {
         "clickindex:package": [
             {
@@ -1991,7 +2039,7 @@ const MockSearchJSON = `{
                 "channel": "stable",
                 "common_ids": [],
                 "confinement": "strict",
-                "contact": "mailto:snappy-devel@lists.ubuntu.com",
+                "contact": "mailto:snaps@canonical.com",
                 "content": "application",
                 "description": "This is a simple hello world example.",
                 "developer_id": "canonical",
@@ -2029,52 +2077,60 @@ const MockSearchJSON = `{
 }
 `
 
-// curl -H 'Snap-Device-Series:16' 'https://api.snapcraft.io/v2/snaps/search?architecture=amd64&confinement=strict%2Cclassic&fields=base%2Cconfinement%2Ccontact%2Cdescription%2Cdownload%2Clicense%2Cprices%2Cprivate%2Cpublisher%2Crevision%2Csummary%2Ctitle%2Ctype%2Cversion%2Cmedia%2Cchannel&q=hello-world+of+snaps'
-const MockSearchJSONv2 = `
+// curl -H 'Snap-Device-Series:16' 'https://api.snapcraft.io/v2/snaps/find?architecture=amd64&confinement=strict%2Cclassic&fields=base%2Cconfinement%2Ccontact%2Cdescription%2Cdownload%2Clicense%2Clinks%2Cprices%2Cprivate%2Cpublisher%2Crevision%2Cstore-url%2Csummary%2Ctitle%2Ctype%2Cversion%2Cmedia%2Cchannel&q=hello-world+of+snaps'
+const mockSearchJSONv2 = `
 {
 	"results" : [
 	   {
-		  "name" : "hello-world",
-		  "snap-id" : "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
-		  "revision" : {
-			 "base" : "bare-base",
-			 "download" : {
-				"size" : 20480
-			 },
-			 "type" : "app",
-			 "version" : "6.3",
-			 "confinement" : "strict",
-			 "revision" : 27,
-			 "common-ids" : ["aaa", "bbb"],
-			 "channel" : "stable"
-		  },
-		  "snap" : {
-			 "publisher" : {
-				"username" : "canonical",
-				"validation" : "verified",
-				"id" : "canonical",
-				"display-name" : "Canonical"
-			 },
-			 "contact" : "mailto:snappy-devel@lists.ubuntu.com",
-			 "media" : [
-				{
-				   "type" : "icon",
-				   "url" : "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png"
-				},
-				{
-				   "type" : "screenshot",
-				   "url" : "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
-				}
-			 ],
-			 "summary" : "The 'hello-world' of snaps",
-			 "store-url" : "https://snapcraft.io/hello-world",
-			 "website": "https://ubuntu.com",
-			 "private" : false,
-			 "prices": {"EUR": "2.99", "USD": "3.49"},
-			 "description" : "This is a simple hello world example.",
-			 "license" : "MIT",
-			 "title" : "This Is The Most Fantastical Snap of Hello World"
-		  }
+              "name": "hello-world",
+              "revision": {
+                "base": "bare-base",
+                "channel": "stable",
+                "confinement": "strict",
+                "download": {
+                  "size": 20480
+                },
+                "revision": 27,
+                "common-ids" : ["aaa", "bbb"],
+                "type": "app",
+                "version": "6.3"
+              },
+              "snap": {
+                "contact": "mailto:snaps@canonical.com",
+                "description": "This is a simple hello world example.",
+                "license": "MIT",
+                "links": {
+                  "contact": [
+                    "mailto:snaps@canonical.com"
+                  ],
+                  "website": [
+                    "https://ubuntu.com"
+                  ]
+                },
+                "media": [
+                  {
+                    "type": "icon",
+                    "url": "https://dashboard.snapcraft.io/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png"
+                  },
+                  {
+                    "type": "screenshot",
+                    "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
+                  }
+                ],
+                "prices": {"EUR": "2.99", "USD": "3.49"},
+                "private": false,
+                "publisher": {
+                  "display-name": "Canonical",
+                  "id": "canonical",
+                  "username": "canonical",
+                  "validation": "verified"
+                },
+                "store-url": "https://snapcraft.io/hello-world",
+                "summary": "The 'hello-world' of snaps",
+                "website": "https://ubuntu.com",
+                "title": "This Is The Most Fantastical Snap of Hello World"
+              },
+              "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
 	   }
 	]
  }
@@ -2487,7 +2543,7 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 			w.Header().Set("Content-Type", "application/hal+json")
 			w.WriteHeader(200)
 
-			io.WriteString(w, MockSearchJSON)
+			io.WriteString(w, mockSearchJSON)
 		} else {
 
 			// check device authorization is set, implicitly checking doRequest was used
@@ -2508,7 +2564,7 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
 
-			io.WriteString(w, MockSearchJSONv2)
+			io.WriteString(w, mockSearchJSONv2)
 		}
 	}))
 
@@ -2560,7 +2616,7 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 		},
 	})
 	c.Check(snp.MustBuy, Equals, true)
-	c.Check(snp.Contact(), Equals, "mailto:snappy-devel@lists.ubuntu.com")
+	c.Check(snp.Contact(), Equals, "mailto:snaps@canonical.com")
 	c.Check(snp.Base, Equals, "bare-base")
 
 	// Make sure the epoch (currently not sent by the store) defaults to "0"
@@ -2573,7 +2629,11 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 		c.Check(snp.Sha3_384, Matches, `[[:xdigit:]]{96}`)
 		c.Check(v1Fallback, Equals, true)
 	} else {
-		c.Check(snp.Website, Equals, "https://ubuntu.com")
+		c.Check(snp.Links(), DeepEquals, map[string][]string{
+			"contact": {"mailto:snaps@canonical.com"},
+			"website": {"https://ubuntu.com"},
+		})
+		c.Check(snp.Website(), Equals, "https://ubuntu.com")
 		c.Check(snp.StoreURL, Equals, "https://snapcraft.io/hello-world")
 		c.Check(snp.CommonIDs, DeepEquals, []string{"aaa", "bbb"})
 		c.Check(v2Hit, Equals, true)
@@ -2597,7 +2657,7 @@ func (s *storeTestSuite) TestFindV2FindFields(c *C) {
 	sort.Strings(findFields)
 	c.Assert(findFields, DeepEquals, []string{
 		"base", "channel", "common-ids", "confinement", "contact",
-		"description", "download", "license", "media", "prices", "private",
+		"description", "download", "license", "links", "media", "prices", "private",
 		"publisher", "revision", "store-url", "summary", "title", "type",
 		"version", "website"})
 }
@@ -2648,12 +2708,12 @@ func (s *storeTestSuite) testFindPrivate(c *C, apiV1 bool) {
 		if apiV1 {
 			w.Header().Set("Content-Type", "application/hal+json")
 			w.WriteHeader(200)
-			io.WriteString(w, strings.Replace(MockSearchJSON, `"EUR": 2.99, "USD": 3.49`, "", -1))
+			io.WriteString(w, strings.Replace(mockSearchJSON, `"EUR": 2.99, "USD": 3.49`, "", -1))
 
 		} else {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			io.WriteString(w, strings.Replace(MockSearchJSON, `"EUR": "2.99", "USD": "3.49"`, "", -1))
+			io.WriteString(w, strings.Replace(mockSearchJSON, `"EUR": "2.99", "USD": "3.49"`, "", -1))
 		}
 
 		n++
@@ -2805,9 +2865,9 @@ func (s *storeTestSuite) testFindBadContentType(c *C, apiV1 bool) {
 		}
 		c.Check(r.URL.Query().Get("q"), Equals, "hello")
 		if apiV1 {
-			io.WriteString(w, MockSearchJSON)
+			io.WriteString(w, mockSearchJSON)
 		} else {
-			io.WriteString(w, MockSearchJSONv2)
+			io.WriteString(w, mockSearchJSONv2)
 		}
 	}))
 	c.Assert(mockServer, NotNil)
@@ -2992,11 +3052,11 @@ func (s *storeTestSuite) testFind500OnceThenSucceed(c *C, apiV1 bool) {
 			if apiV1 {
 				w.Header().Set("Content-Type", "application/hal+json")
 				w.WriteHeader(200)
-				io.WriteString(w, strings.Replace(MockSearchJSON, `"EUR": 2.99, "USD": 3.49`, "", -1))
+				io.WriteString(w, strings.Replace(mockSearchJSON, `"EUR": 2.99, "USD": 3.49`, "", -1))
 			} else {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(200)
-				io.WriteString(w, strings.Replace(MockSearchJSONv2, `"EUR": "2.99", "USD": "3.49"`, "", -1))
+				io.WriteString(w, strings.Replace(mockSearchJSONv2, `"EUR": "2.99", "USD": "3.49"`, "", -1))
 			}
 		}
 	}))
@@ -3057,10 +3117,10 @@ func (s *storeTestSuite) testFindAuthFailed(c *C, apiV1 bool) {
 			}
 			if apiV1 {
 				w.Header().Set("Content-Type", "application/hal+json")
-				io.WriteString(w, MockSearchJSON)
+				io.WriteString(w, mockSearchJSON)
 			} else {
 				w.Header().Set("Content-Type", "application/json")
-				io.WriteString(w, MockSearchJSONv2)
+				io.WriteString(w, mockSearchJSONv2)
 			}
 		case ordersPath:
 			c.Check(r.Header.Get("Authorization"), Equals, expectedAuthorization(c, s.user))
@@ -3137,13 +3197,13 @@ func (s *storeTestSuite) testFindCommonIDs(c *C, apiV1 bool) {
 		if apiV1 {
 			w.Header().Set("Content-Type", "application/hal+json")
 			w.WriteHeader(200)
-			io.WriteString(w, strings.Replace(MockSearchJSON,
+			io.WriteString(w, strings.Replace(mockSearchJSON,
 				`"common_ids": []`,
 				`"common_ids": ["org.hello"]`, -1))
 		} else {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			io.WriteString(w, MockSearchJSONv2)
+			io.WriteString(w, mockSearchJSONv2)
 		}
 
 		n++
@@ -3208,13 +3268,13 @@ func (s *storeTestSuite) testFindByCommonID(c *C, apiV1 bool) {
 		if apiV1 {
 			w.Header().Set("Content-Type", "application/hal+json")
 			w.WriteHeader(200)
-			io.WriteString(w, strings.Replace(MockSearchJSON,
+			io.WriteString(w, strings.Replace(mockSearchJSON,
 				`"common_ids": []`,
 				`"common_ids": ["org.hello"]`, -1))
 		} else {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			io.WriteString(w, MockSearchJSONv2)
+			io.WriteString(w, mockSearchJSONv2)
 		}
 
 		n++

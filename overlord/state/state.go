@@ -97,18 +97,21 @@ type State struct {
 	modified bool
 
 	cache map[interface{}]interface{}
+
+	pendingChangeByAttr map[string]func(*Change) bool
 }
 
 // New returns a new empty state.
 func New(backend Backend) *State {
 	return &State{
-		backend:  backend,
-		data:     make(customData),
-		changes:  make(map[string]*Change),
-		tasks:    make(map[string]*Task),
-		warnings: make(map[string]*Warning),
-		modified: true,
-		cache:    make(map[interface{}]interface{}),
+		backend:             backend,
+		data:                make(customData),
+		changes:             make(map[string]*Change),
+		tasks:               make(map[string]*Task),
+		warnings:            make(map[string]*Warning),
+		modified:            true,
+		cache:               make(map[interface{}]interface{}),
+		pendingChangeByAttr: make(map[string]func(*Change) bool),
 	}
 }
 
@@ -385,10 +388,18 @@ func (s *State) tasksIn(tids []string) []*Task {
 	return res
 }
 
+// RegisterPendingChangeByAttr registers predicates that will be invoked by
+// Prune on changes with the specified attribute set to check whether even if
+// they meet the time criteria they must not be aborted yet.
+func (s *State) RegisterPendingChangeByAttr(attr string, f func(*Change) bool) {
+	s.pendingChangeByAttr[attr] = f
+}
+
 // Prune does several cleanup tasks to the in-memory state:
 //
 //  * it removes changes that became ready for more than pruneWait and aborts
-//    tasks spawned for more than abortWait.
+//    tasks spawned for more than abortWait unless prevented by predicates
+//    registered with RegisterPendingChangeByAttr.
 //
 //  * it removes tasks unlinked to changes after pruneWait. When there are more
 //    changes than the limit set via "maxReadyChanges" those changes in ready
@@ -422,6 +433,7 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 		}
 	}
 
+NextChange:
 	for _, chg := range changes {
 		readyTime := chg.ReadyTime()
 		spawnTime := chg.SpawnTime()
@@ -433,6 +445,11 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 				chg.Abort()
 				delete(s.changes, chg.ID())
 			} else if spawnTime.Before(abortLimit) {
+				for attr, pending := range s.pendingChangeByAttr {
+					if chg.Has(attr) && pending(chg) {
+						continue NextChange
+					}
+				}
 				chg.AbortUnreadyLanes()
 			}
 			continue

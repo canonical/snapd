@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -319,7 +319,7 @@ func (s *snapsSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 
 	state := d.Overlord().State()
 	state.Lock()
-	user, err := auth.NewUser(state, auth.NewUserData{
+	user, err := auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -495,7 +495,7 @@ func (s *snapsSuite) TestPostSnapsOpSystemRestartImmediate(c *check.C) {
 
 func (s *snapsSuite) testPostSnapsOp(c *check.C, extraJSON, contentType string) (systemRestartImmediate bool) {
 	defer daemon.MockAssertstateRefreshSnapAssertions(func(*state.State, int, *assertstate.RefreshAssertionsOptions) error { return nil })()
-	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, _ []*snapstate.RevisionOptions, _ int, _ *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
 		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
@@ -1166,9 +1166,12 @@ func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 			EditedSummary:     "a summary",
 			EditedDescription: "the\nlong\ndescription",
 			Channel:           "bleeding/edge",
-			EditedContact:     "mailto:alice@example.com",
-			Revision:          snap.R(7),
-			Private:           true,
+			EditedLinks: map[string][]string{
+				"contact": {"mailto:alice@example.com"},
+			},
+			LegacyEditedContact: "mailto:alice@example.com",
+			Revision:            snap.R(7),
+			Private:             true,
 		},
 		InstanceKey: "instance",
 		SnapType:    "app",
@@ -1229,12 +1232,15 @@ func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 		JailMode:         true,
 		Private:          true,
 		Broken:           "very",
-		Contact:          "mailto:alice@example.com",
-		Title:            "A Title",
-		License:          "MIT",
-		CommonIDs:        []string{"foo", "bar"},
-		MountedFrom:      filepath.Join(dirs.SnapBlobDir, "some-snap_instance_7.snap"),
-		Media:            media,
+		Links: map[string][]string{
+			"contact": {"mailto:alice@example.com"},
+		},
+		Contact:     "mailto:alice@example.com",
+		Title:       "A Title",
+		License:     "MIT",
+		CommonIDs:   []string{"foo", "bar"},
+		MountedFrom: filepath.Join(dirs.SnapBlobDir, "some-snap_instance_7.snap"),
+		Media:       media,
 		Apps: []client.AppInfo{
 			{Snap: "some-snap_instance", Name: "bar"},
 			{Snap: "some-snap_instance", Name: "foo"},
@@ -1475,7 +1481,7 @@ func (s *snapsSuite) TestPostSnapSetsUser(c *check.C) {
 
 	state := d.Overlord().State()
 	state.Lock()
-	user, err := auth.NewUser(state, auth.NewUserData{
+	user, err := auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -2543,4 +2549,294 @@ func (s *snapsSuite) TestRefreshEnforceSetsNoUnmetConstraints(c *check.C) {
 	c.Check(resp.Affected, check.IsNil)
 	c.Check(resp.Tasksets, check.IsNil)
 	c.Check(resp.Summary, check.Equals, fmt.Sprintf("Enforce validation sets %s", strutil.Quoted(valsets)))
+}
+
+func (s *snapsSuite) TestRefreshEnforceResolveErrorChangeConflictError(c *check.C) {
+	restore := daemon.MockAssertstateTryEnforceValidationSets(func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+		return &snapasserts.ValidationSetsValidationError{}
+	})
+	defer restore()
+
+	restore = daemon.MockSnapstateResolveValSetEnforcementError(func(_ context.Context, st *state.State, validErr *snapasserts.ValidationSetsValidationError, pinnedSeqs map[string]int, _ int) ([]*state.TaskSet, []string, error) {
+		return nil, nil, fmt.Errorf("wrapped error: %w", &snapstate.ChangeConflictError{
+			Snap:       "some-snap",
+			ChangeID:   "12",
+			ChangeKind: "a-thing",
+			Message:    "conflict with a thing",
+		})
+	})
+	defer restore()
+
+	s.daemon(c)
+
+	buf := strings.NewReader(`{"action": "refresh", "validation-sets": ["foo/bar"]}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 409)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindSnapChangeConflict)
+	c.Check(rspe.Message, check.Equals, "conflict with a thing")
+}
+
+func (s *snapsSuite) TestHoldAllRefreshes(c *check.C) {
+	d := s.daemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	for _, time := range []string{"forever", "0001-02-03T00:00:00Z"} {
+		called := false
+		restore := daemon.MockConfigstateConfigureInstalled(func(s *state.State, name string, patchValues map[string]interface{}, flags int) (*state.TaskSet, error) {
+			called = true
+			c.Assert(patchValues, check.DeepEquals, map[string]interface{}{"refresh.hold": time})
+			c.Assert(name, check.Equals, "core")
+			return state.NewTaskSet(s.NewTask("fake-task", "Fakeness")), nil
+		})
+
+		inst := &daemon.SnapInstruction{
+			Action:    "hold",
+			Time:      time,
+			HoldLevel: "auto-refresh",
+		}
+
+		res, err := inst.DispatchForMany()(inst, st)
+		c.Assert(err, check.IsNil)
+		c.Assert(res.Tasksets, check.Not(check.IsNil))
+		c.Assert(res.Affected, check.IsNil)
+		c.Assert(res.Summary, check.Equals, `Hold auto-refreshes for all snaps`)
+		c.Assert(called, check.Equals, true)
+		restore()
+	}
+}
+
+func (s *snapsSuite) TestHoldManyRefreshes(c *check.C) {
+	snaps := []string{"some-snap", "other-snap"}
+	d := s.daemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	for _, time := range []string{"forever", "0001-02-03T00:00:00Z"} {
+		called := false
+		restore := daemon.MockSnapstateHoldRefreshesBySystem(func(s *state.State, level snapstate.HoldLevel, mockTime string, mockSnaps []string) error {
+			called = true
+			c.Assert(level, check.Equals, snapstate.HoldAutoRefresh)
+			c.Assert(mockTime, check.Equals, time)
+			c.Assert(mockSnaps, check.DeepEquals, snaps)
+			return nil
+		})
+
+		inst := &daemon.SnapInstruction{
+			Action:    "hold",
+			Snaps:     snaps,
+			Time:      time,
+			HoldLevel: "auto-refresh",
+		}
+
+		res, err := inst.DispatchForMany()(inst, st)
+		c.Assert(err, check.IsNil)
+		c.Assert(res.Tasksets, check.IsNil)
+		c.Assert(res.Affected, check.DeepEquals, snaps)
+		c.Assert(res.Summary, check.Equals, fmt.Sprintf(`Hold auto-refreshes for %s`, strutil.Quoted(snaps)))
+		c.Assert(called, check.Equals, true)
+		restore()
+	}
+}
+
+func (s *snapsSuite) TestHoldRefresh(c *check.C) {
+	d := s.daemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	for _, time := range []string{"forever", "0001-02-03T00:00:00Z"} {
+		called := false
+		restore := daemon.MockSnapstateHoldRefreshesBySystem(func(s *state.State, level snapstate.HoldLevel, mockTime string, mockSnaps []string) error {
+			called = true
+			c.Assert(level, check.Equals, snapstate.HoldGeneral)
+			c.Assert(mockTime, check.Equals, time)
+			c.Assert(mockSnaps, check.DeepEquals, []string{"some-snap"})
+			return nil
+		})
+
+		inst := &daemon.SnapInstruction{
+			Action:    "hold",
+			Snaps:     []string{"some-snap"},
+			Time:      time,
+			HoldLevel: "general",
+		}
+
+		summary, tasksets, err := inst.Dispatch()(inst, st)
+		c.Assert(err, check.IsNil)
+		c.Assert(tasksets, check.IsNil)
+		c.Assert(summary, check.Equals, `Hold general refreshes for "some-snap"`)
+		c.Assert(called, check.Equals, true)
+		restore()
+	}
+}
+
+func (s *snapsSuite) TestUnholdAllRefreshes(c *check.C) {
+	restore := daemon.MockConfigstateConfigureInstalled(func(s *state.State, name string, patchValues map[string]interface{}, flags int) (*state.TaskSet, error) {
+		c.Assert(patchValues, check.DeepEquals, map[string]interface{}{"refresh.hold": nil})
+		c.Assert(name, check.Equals, "core")
+		return state.NewTaskSet(s.NewTask("fake-task", "Fakeness")), nil
+	})
+	defer restore()
+
+	d := s.daemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	inst := &daemon.SnapInstruction{
+		Action: "unhold",
+	}
+
+	res, err := inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.IsNil)
+	c.Assert(res.Tasksets, check.Not(check.IsNil))
+	c.Assert(res.Affected, check.IsNil)
+	c.Assert(res.Summary, check.Equals, `Remove auto-refresh hold on all snaps`)
+}
+
+func (s *snapsSuite) TestUnholdManyRefreshes(c *check.C) {
+	snaps := []string{"some-snap", "other-snap"}
+
+	restore := daemon.MockSnapstateProceedWithRefresh(func(s *state.State, gatingSnap string, mockSnaps []string) error {
+		c.Assert(mockSnaps, check.DeepEquals, snaps)
+		c.Assert(gatingSnap, check.Equals, "system")
+		return nil
+	})
+	defer restore()
+
+	d := s.daemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	inst := &daemon.SnapInstruction{
+		Action: "unhold",
+		Snaps:  snaps,
+	}
+
+	res, err := inst.DispatchForMany()(inst, st)
+	c.Assert(err, check.IsNil)
+	c.Assert(res.Tasksets, check.IsNil)
+	c.Assert(res.Affected, check.DeepEquals, snaps)
+	c.Assert(res.Summary, check.Equals, fmt.Sprintf(`Remove refresh hold on %s`, strutil.Quoted(inst.Snaps)))
+}
+
+func (s *snapsSuite) TestUnholdRefresh(c *check.C) {
+	restore := daemon.MockSnapstateProceedWithRefresh(func(s *state.State, gatingSnap string, mockSnaps []string) error {
+		c.Assert(mockSnaps, check.DeepEquals, []string{"some-snap"})
+		c.Assert(gatingSnap, check.Equals, "system")
+		return nil
+	})
+	defer restore()
+
+	inst := &daemon.SnapInstruction{
+		Action: "unhold",
+		Snaps:  []string{"some-snap"},
+	}
+
+	d := s.daemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	summary, tasksets, err := inst.Dispatch()(inst, st)
+
+	c.Assert(err, check.IsNil)
+	c.Assert(tasksets, check.IsNil)
+	c.Assert(summary, check.Equals, `Remove refresh hold on "some-snap"`)
+}
+
+func (s *snapsSuite) TestHoldWithInvalidTime(c *check.C) {
+	s.daemon(c)
+	for _, snaps := range [][]string{{}, {"some-snap"}, {"some-snap", "other-snap"}} {
+		buf := bytes.NewBufferString(fmt.Sprintf(`{"action": "hold", "snaps": [%s], "time": "boom"}`, strutil.Quoted(snaps)))
+		req, err := http.NewRequest("POST", "/v2/snaps", buf)
+		req.Header.Set("Content-Type", "application/json")
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400)
+		c.Assert(rspe.Error(), check.Matches, `hold action requires time to be "forever" or in RFC3339 format: parsing time "boom".*`)
+	}
+}
+
+func (s *snapsSuite) TestHoldWithInvalidHoldLevel(c *check.C) {
+	s.daemon(c)
+	for _, snaps := range [][]string{{}, {"some-snap"}, {"some-snap", "other-snap"}} {
+		buf := bytes.NewBufferString(fmt.Sprintf(`{"action": "hold", "snaps": [%s], "time": "forever", "hold-level": "boom"}`, strutil.Quoted(snaps)))
+		req, err := http.NewRequest("POST", "/v2/snaps", buf)
+		req.Header.Set("Content-Type", "application/json")
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400)
+		c.Assert(rspe.Error(), check.Matches, `hold action requires hold-level to be either "auto-refresh" or "general".*`)
+	}
+}
+
+func (s *snapsSuite) TestHoldMissingTime(c *check.C) {
+	s.daemon(c)
+	buf := bytes.NewBufferString(`{"action": "hold"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Error(), check.Matches, `hold action requires a non-empty time value.*`)
+}
+
+func (s *snapsSuite) TestHoldMissingLevel(c *check.C) {
+	s.daemon(c)
+	buf := bytes.NewBufferString(`{"action": "hold", "time": "forever"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Error(), check.Matches, `hold action requires a non-empty hold-level value.*`)
+}
+
+func (s *snapsSuite) TestOnlyAllowTimeParamForHold(c *check.C) {
+	s.daemon(c)
+	buf := bytes.NewBufferString(`{"action": "refresh", "time": "forever"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Error(), check.Matches, `time can only be specified for the "hold" action.*`)
+}
+
+func (s *snapsSuite) TestOnlyAllowHoldLevelParamForHold(c *check.C) {
+	s.daemon(c)
+	buf := bytes.NewBufferString(`{"action": "refresh", "hold-level": "auto-refresh"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Error(), check.Matches, `hold-level can only be specified for the "hold" action.*`)
+}
+
+func (s *snapsSuite) TestHoldAllSnapsGeneralRefreshesNotSupported(c *check.C) {
+	s.daemon(c)
+	buf := bytes.NewBufferString(`{"action": "hold", "time": "forever", "hold-level": "general"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Error(), check.Matches, `cannot hold: holding general refreshes for all snaps is not supported.*`)
 }

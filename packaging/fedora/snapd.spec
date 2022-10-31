@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.57.4
+Version:        2.57.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -717,6 +717,11 @@ rm %{buildroot}%{_libexecdir}/snapd/system-shutdown
 rm -f %{buildroot}%{_unitdir}/snapd.apparmor.service
 rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
 
+# Remove prompt services
+rm %{buildroot}%{_unitdir}/snapd.aa-prompt-listener.service
+rm %{buildroot}%{_userunitdir}/snapd.aa-prompt-ui.service
+rm %{buildroot}%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
+
 # Install Polkit configuration
 install -m 644 -D data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
 
@@ -981,6 +986,27 @@ fi
 
 
 %changelog
+* Mon Oct 17 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.57.5
+ - image: clean snapd mount after preseeding
+ - wrappers,snap/quota: clear LogsDirectory= in the service unit
+   for journal namespaces
+ - cmd/snap,daemon: allow zero values from client to daemon for
+   journal rate-limit
+ - interfaces: steam-support allow pivot /run/media and /etc/nvidia
+   mount
+ - o/ifacestate: introduce DebugAutoConnectCheck hook
+ - release, snapd-apparmor, syscheck: distinguish WSL1 and WSL2
+ - autopkgtests: fix running autopkgtest on kinetic
+ - interfaces: add microceph interface
+ - interfaces: steam-support allow additional mounts
+ - many: add stub services
+ - interfaces: add kconfig paths to system-observe
+ - i/b/system_observe: honour root dir when checking for
+   /boot/config-*
+ - interfaces: grant access to speech-dispatcher socket
+ - interfaces: rework logic of unclashMountEntries
+
 * Thu Sep 29 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.57.4
  - release, snapd-apparmor: fixed outdated WSL detection

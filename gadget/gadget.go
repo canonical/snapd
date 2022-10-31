@@ -118,6 +118,8 @@ type Volume struct {
 	Name string `json:"-"`
 }
 
+const GPTPartitionGUIDESP = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
+
 // VolumeStructure describes a single structure inside a volume. A structure can
 // represent a partition, Master Boot Record, or any other contiguous range
 // within the volume.
@@ -159,11 +161,10 @@ type VolumeStructure struct {
 	Content []VolumeContent `yaml:"content" json:"content"`
 	Update  VolumeUpdate    `yaml:"update" json:"update"`
 
-	// Note that the Device and UnencryptedDevice fields will never
-	// be part of the yaml and just used as part of the POST
-	// /systems/<label> API that is used by an installer.
-	Device            string `yaml:"-" json:"device,omitempty"`
-	UnencryptedDevice string `yaml:"-" json:"unencrypted-device,omitempty"`
+	// Note that the Device field will never be part of the yaml
+	// and just used as part of the POST /systems/<label> API that
+	// is used by an installer.
+	Device string `yaml:"-" json:"device,omitempty"`
 }
 
 // HasFilesystem returns true if the structure is using a filesystem.

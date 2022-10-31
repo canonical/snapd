@@ -20,7 +20,6 @@
 package seed_test
 
 import (
-	"crypto/rand"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -640,6 +639,14 @@ func (s *seed20Suite) TestLoadMetaWrongGadgetBase(c *C) {
 	c.Check(err, ErrorMatches, `cannot use gadget snap because its base "core18" is different from model base "core20"`)
 }
 
+func (s *seed20Suite) setSnapContact(snapName, contact string) {
+	info := s.AssertedSnapInfo(snapName)
+	info.EditedLinks = map[string][]string{
+		"contact": {contact},
+	}
+	info.LegacyEditedContact = contact
+}
+
 func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
@@ -647,7 +654,7 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 	s.makeSnap(c, "pc=20", "")
 	s.makeSnap(c, "required20", "developerid")
 
-	s.AssertedSnapInfo("required20").EditedContact = "mailto:author@example.com"
+	s.setSnapContact("required20", "mailto:author@example.com")
 
 	sysLabel := "20191018"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
@@ -753,7 +760,7 @@ func (s *seed20Suite) TestLoadMetaCore20DelegatedSnap(c *C) {
 	}
 	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"]+"\nprovenance: delegated-prov\n", nil, snap.R(1), "developerid", "my-brand", "delegated-prov", ra, s.StoreSigning.Database)
 
-	s.AssertedSnapInfo("required20").EditedContact = "mailto:author@example.com"
+	s.setSnapContact("required20", "mailto:author@example.com")
 
 	sysLabel := "20220705"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
@@ -1813,7 +1820,7 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverride(c *C) {
 	s.makeSnap(c, "pc=20", "")
 	s.makeSnap(c, "required20", "developerid")
 
-	s.AssertedSnapInfo("required20").EditedContact = "mailto:author@example.com"
+	s.setSnapContact("required20", "mailto:author@example.com")
 
 	sysLabel := "20191018"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
@@ -1908,7 +1915,7 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverrideSnapd(c *C) {
 	s.makeSnap(c, "pc=20", "")
 	s.makeSnap(c, "required20", "developerid")
 
-	s.AssertedSnapInfo("required20").EditedContact = "mailto:author@example.com"
+	s.setSnapContact("required20", "mailto:author@example.com")
 
 	sysLabel := "20191121"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
@@ -3130,7 +3137,7 @@ func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade
 	// write test auto import assertion
 	switch sua {
 	case valid:
-		s.writeValidAutoImportAssertion(c, sysLabel, perm)
+		seedtest.WriteValidAutoImportAssertion(c, s.Brands, s.SeedDir, sysLabel, perm)
 	case invalid:
 		s.writeInvalidAutoImportAssertion(c, sysLabel, perm)
 	}
@@ -3155,7 +3162,7 @@ func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAsserti
 	c.Assert(seed20, NotNil)
 	c.Check(seed20.Model().Grade(), check.Equals, asserts.ModelDangerous)
 
-	s.writeValidAutoImportAssertion(c, sysLabel, 0644)
+	seedtest.WriteValidAutoImportAssertion(c, s.Brands, s.SeedDir, sysLabel, 0644)
 
 	// try to load auto import assertions
 	seed20AsLoader, ok := seed20.(seed.AutoImportAssertionsLoaderSeed)
@@ -3209,44 +3216,10 @@ func (s *seed20Suite) createMinimalSeed(c *C, grade string, sysLabel string) see
 	return seed20
 }
 
-var goodUser = map[string]interface{}{
-	"authority-id": "my-brand",
-	"brand-id":     "my-brand",
-	"email":        "foo@bar.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model", "other-model"},
-	"name":         "Boring Guy",
-	"username":     "guy",
-	"password":     "$6$salt$hash",
-	"since":        time.Now().Format(time.RFC3339),
-	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-}
-
-func (s *seed20Suite) writeValidAutoImportAssertion(c *C, sysLabel string, perm os.FileMode) {
-	systemUsers := []map[string]interface{}{goodUser}
-	// write system user assertion to the system seed root
-	autoImportAssert := filepath.Join(s.SeedDir, "systems", sysLabel, "auto-import.assert")
-	f, err := os.OpenFile(autoImportAssert, os.O_CREATE|os.O_WRONLY, perm)
-	c.Assert(err, IsNil)
-	defer f.Close()
-	enc := asserts.NewEncoder(f)
-	c.Assert(enc, NotNil)
-
-	for _, suMap := range systemUsers {
-		systemUser, err := s.Brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, "")
-		c.Assert(err, IsNil)
-		systemUser = systemUser.(*asserts.SystemUser)
-		err = enc.Encode(systemUser)
-		c.Assert(err, IsNil)
-	}
-}
-
 func (s *seed20Suite) writeInvalidAutoImportAssertion(c *C, sysLabel string, perm os.FileMode) {
 	autoImportAssert := filepath.Join(s.SeedDir, "systems", sysLabel, "auto-import.assert")
-	// write random data
-	randomness := make([]byte, 512)
-	rand.Read(randomness)
-	err := ioutil.WriteFile(autoImportAssert, randomness, perm)
+	// write invalid data
+	err := ioutil.WriteFile(autoImportAssert, []byte(strings.Repeat("a", 512)), perm)
 	c.Assert(err, IsNil)
 }
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2021 Canonical Ltd
+ * Copyright (C) 2018-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -121,8 +121,8 @@ func MockAssertstateRefreshSnapAssertions(mock func(*state.State, int, *assertst
 }
 
 func MockAssertstateTryEnforceValidationSets(f func(st *state.State, validationSets []string, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error) (restore func()) {
-	r := testutil.Backup(&assertstateTryEnforceValidationSets)
-	assertstateTryEnforceValidationSets = f
+	r := testutil.Backup(&assertstateTryEnforcedValidationSets)
+	assertstateTryEnforcedValidationSets = f
 	return r
 }
 
@@ -215,10 +215,10 @@ func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.
 }
 
 func MockSnapstateResolveValSetEnforcementError(f func(context.Context, *state.State, *snapasserts.ValidationSetsValidationError, map[string]int, int) ([]*state.TaskSet, []string, error)) func() {
-	old := snapstateResolveValSetEnforcementError
-	snapstateResolveValSetEnforcementError = f
+	old := snapstateResolveValSetsEnforcementError
+	snapstateResolveValSetsEnforcementError = f
 	return func() {
-		snapstateResolveValSetEnforcementError = old
+		snapstateResolveValSetsEnforcementError = old
 	}
 }
 
@@ -227,6 +227,30 @@ func MockSnapstateMigrate(mock func(*state.State, []string) ([]*state.TaskSet, e
 	snapstateMigrateHome = mock
 	return func() {
 		snapstateMigrateHome = oldSnapstateMigrate
+	}
+}
+
+func MockSnapstateProceedWithRefresh(f func(st *state.State, gatingSnap string, snaps []string) error) (restore func()) {
+	old := snapstateProceedWithRefresh
+	snapstateProceedWithRefresh = f
+	return func() {
+		snapstateProceedWithRefresh = old
+	}
+}
+
+func MockSnapstateHoldRefreshesBySystem(f func(st *state.State, level snapstate.HoldLevel, time string, snaps []string) error) (restore func()) {
+	old := snapstateHoldRefreshesBySystem
+	snapstateHoldRefreshesBySystem = f
+	return func() {
+		snapstateHoldRefreshesBySystem = old
+	}
+}
+
+func MockConfigstateConfigureInstalled(f func(st *state.State, name string, patchValues map[string]interface{}, flags int) (*state.TaskSet, error)) (restore func()) {
+	old := configstateConfigureInstalled
+	configstateConfigureInstalled = f
+	return func() {
+		configstateConfigureInstalled = old
 	}
 }
 

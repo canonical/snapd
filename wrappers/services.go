@@ -738,12 +738,12 @@ func (es *ensureSnapServicesContext) ensureSnapSlices(quotaGroups *quota.QuotaGr
 
 func (es *ensureSnapServicesContext) ensureSnapJournaldUnits(quotaGroups *quota.QuotaGroupSet) error {
 	handleJournalModification := func(grp *quota.Group, path string, content []byte) error {
-		old, modifiedFile, err := tryFileUpdate(path, content)
+		old, fileModified, err := tryFileUpdate(path, content)
 		if err != nil {
 			return err
 		}
 
-		if !modifiedFile {
+		if !fileModified {
 			return nil
 		}
 
@@ -768,13 +768,53 @@ func (es *ensureSnapServicesContext) ensureSnapJournaldUnits(quotaGroups *quota.
 
 	for _, grp := range quotaGroups.AllQuotaGroups() {
 		contents := generateJournaldConfFile(grp)
-		fileName := grp.JournalFileName()
+		fileName := grp.JournalConfFileName()
 
 		path := filepath.Join(dirs.SnapSystemdDir, fileName)
 		if err := handleJournalModification(grp, path, contents); err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+// ensureJournalQuotaServiceUnits takes care of writing service drop-in files for all journal namespaces.
+func (es *ensureSnapServicesContext) ensureJournalQuotaServiceUnits(quotaGroups *quota.QuotaGroupSet) error {
+	handleFileModification := func(grp *quota.Group, path string, content []byte) error {
+		old, fileModified, err := tryFileUpdate(path, content)
+		if err != nil {
+			return err
+		}
+
+		if fileModified {
+			if es.observeChange != nil {
+				var oldContent []byte
+				if old != nil {
+					oldContent = old.Content
+				}
+				es.observeChange(nil, grp, "service", grp.Name, string(oldContent), string(content))
+			}
+			es.modifiedUnits[path] = old
+		}
+		return nil
+	}
+
+	for _, grp := range quotaGroups.AllQuotaGroups() {
+		if grp.JournalLimit == nil {
+			continue
+		}
+
+		if err := os.MkdirAll(grp.JournalServiceDropInDir(), 0755); err != nil {
+			return err
+		}
+
+		dropInPath := grp.JournalServiceDropInFile()
+		content := genJournalServiceFile(grp)
+		if err := handleFileModification(grp, dropInPath, content); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -826,6 +866,10 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 	}
 
 	if err := context.ensureSnapJournaldUnits(quotaGroups); err != nil {
+		return err
+	}
+
+	if err := context.ensureJournalQuotaServiceUnits(quotaGroups); err != nil {
 		return err
 	}
 
@@ -1412,6 +1456,15 @@ WantedBy={{.SocketsTarget}}
 	}
 
 	return templateOut.Bytes()
+}
+
+func genJournalServiceFile(grp *quota.Group) []byte {
+	buf := bytes.Buffer{}
+	template := `[Service]
+LogsDirectory=
+`
+	fmt.Fprint(&buf, template)
+	return buf.Bytes()
 }
 
 func generateSnapSocketFiles(app *snap.AppInfo) (map[string][]byte, error) {

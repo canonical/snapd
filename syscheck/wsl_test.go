@@ -24,28 +24,41 @@ import (
 
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/syscheck"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type wslSuite struct{}
 
 var _ = Suite(&wslSuite{})
 
-func mockOnWSL(on bool) (restore func()) {
-	old := release.OnWSL
-	release.OnWSL = on
+// Mocks WSL check. Values:
+// - 0 to mock not being on WSL.
+// - 1 to mock being on WSL 1.
+// - 2 to mock being on WSL 2.
+func mockOnWSL(version int) (restore func()) {
+	restoreOnWSL := testutil.Backup(&release.OnWSL)
+	restoreWSLVersion := testutil.Backup(&release.WSLVersion)
+
+	release.OnWSL = version != 0
+	release.WSLVersion = version
+
 	return func() {
-		release.OnWSL = old
+		restoreOnWSL()
+		restoreWSLVersion()
 	}
 }
 
 func (s *wslSuite) TestNonWSL(c *C) {
-	defer mockOnWSL(false)()
-
+	defer mockOnWSL(0)()
 	c.Check(syscheck.CheckWSL(), IsNil)
 }
 
-func (s *wslSuite) TestWSL(c *C) {
-	defer mockOnWSL(true)()
+func (s *wslSuite) TestWSL1(c *C) {
+	defer mockOnWSL(1)()
+	c.Check(syscheck.CheckWSL(), ErrorMatches, "snapd does not work inside WSL1")
+}
 
-	c.Check(syscheck.CheckWSL(), ErrorMatches, "snapd does not work inside WSL")
+func (s *wslSuite) TestWSL2(c *C) {
+	defer mockOnWSL(2)()
+	c.Check(syscheck.CheckWSL(), IsNil)
 }
