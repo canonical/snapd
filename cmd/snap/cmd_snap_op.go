@@ -942,9 +942,9 @@ func (x *cmdRefresh) holdRefreshes() (err error) {
 
 	var timeStr string
 	if opts.Time == "forever" {
-		timeStr = "indefinitely"
+		timeStr = i18n.G("indefinitely")
 	} else {
-		timeStr = fmt.Sprintf("until %s", opts.Time)
+		timeStr = fmt.Sprintf(i18n.G("until %s"), opts.Time)
 	}
 
 	if len(names) == 0 {
