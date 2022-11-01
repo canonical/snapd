@@ -1435,7 +1435,7 @@ func (s *SnapSuite) TestRefreshHoldAllForever(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--hold"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "Auto-refresh of all snaps held until forever\n")
+	c.Check(s.Stdout(), check.Equals, "Auto-refresh of all snaps held indefinitely\n")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
@@ -1558,7 +1558,7 @@ func (s *SnapSuite) TestRefreshHoldSnapForever(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--hold", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "General refreshes of \"foo\" held until forever\n")
+	c.Check(s.Stdout(), check.Equals, "General refreshes of \"foo\" held indefinitely\n")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
