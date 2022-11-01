@@ -59,11 +59,11 @@ if [ "$1" = "purge" ]; then
             # snap mount dir
             # we pass -d (clean up loopback devices) for trusty compatibility
             umount -d -l "/snap/$snap/$rev" 2> /dev/null || true
-            rm -rf "/snap/$snap/$rev"
+            rm -rf --one-file-system "/snap/$snap/$rev"
             rm -f "/snap/$snap/current"
             # snap data dir
-            rm -rf "/var/snap/$snap/$rev"
-            rm -rf "/var/snap/$snap/common"
+            rm -rf --one-file-system "/var/snap/$snap/$rev"
+            rm -rf --one-file-system "/var/snap/$snap/common"
             rm -f "/var/snap/$snap/current"
             # opportunistic remove (may fail if there are still revisions left
             for d in "/snap/$snap" "/var/snap/$snap"; do
@@ -130,7 +130,7 @@ if [ "$1" = "purge" ]; then
     echo "Final directory cleanup"
     for d in "/snap/bin" "/snap" "/var/snap"; do
         # Force remove due to directories for old revisions could still exist
-        rm -rf "$d"
+        rm -rf --one-file-system "$d"
         if [ -d "$d" ]; then
             echo "Cannot remove directory $d"
         fi
