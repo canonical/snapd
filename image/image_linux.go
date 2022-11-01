@@ -401,8 +401,8 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		}
 
 		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
-		// available, unless we switch and download the revision provided by the seed.manifest. However
-		// we should not alter the expected outcome, instead lets fail and inform the user.
+		// available. Therefore the revision in the local snap must be exactly the revision specified
+		// in the manifest. If it's not, we fail.
 		specifiedRevision := opts.Revisions[info.SnapName()]
 		if specifiedRevision.N != 0 && specifiedRevision.N != info.Revision.N {
 			return fmt.Errorf("cannot use snap %s for image, unknown/local revision does not match the value specified by revisions file (%s != %s)",
