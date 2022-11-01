@@ -21,6 +21,7 @@ package ctlcmd
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
@@ -43,9 +44,10 @@ type isConnectedCommand struct {
 
 	Positional struct {
 		PlugOrSlotSpec string `positional-args:"true" positional-arg-name:"<plug|slot>"`
-	} `positional-args:"true" required:"true"`
+	} `positional-args:"true"`
 	Pid           int    `long:"pid" description:"Process ID for a plausibly connected process"`
 	AppArmorLabel string `long:"apparmor-label" description:"AppArmor label for a plausibly connected process"`
+	List          bool   `long:"list" description:"List all connected plugs and slots"`
 }
 
 var shortIsConnectedHelp = i18n.G(`Return success if the given plug or slot is connected`)
@@ -59,6 +61,8 @@ $ echo $?
 
 Snaps can only query their own plugs and slots - snap name is implicit and
 implied by the snapctl execution context.
+
+The --list option lists all connected plugs and slots.
 
 The --pid and --aparmor-label options can be used to determine whether
 a plug or slot is connected to the snap identified by the given
@@ -90,6 +94,13 @@ func isConnectedPidCheckAllowed(info *snap.Info, plugOrSlot string) bool {
 func (c *isConnectedCommand) Execute(args []string) error {
 	plugOrSlot := c.Positional.PlugOrSlotSpec
 
+	if plugOrSlot != "" && c.List {
+		return fmt.Errorf("cannot specify both a plug/slot name and --list")
+	}
+	if plugOrSlot == "" && !c.List {
+		return fmt.Errorf("must specify either a plug/slot name or --list")
+	}
+
 	context, err := c.ensureContext()
 	if err != nil {
 		return err
@@ -110,7 +121,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 	// would only affect calls that used the "core" snap as
 	// context.  That snap does not have any hooks using
 	// is-connected, so the limitation is probably moot.
-	if info.Plugs[plugOrSlot] == nil && info.Slots[plugOrSlot] == nil {
+	if plugOrSlot != "" && info.Plugs[plugOrSlot] == nil && info.Slots[plugOrSlot] == nil {
 		return fmt.Errorf("snap %q has no plug or slot named %q", snapName, plugOrSlot)
 	}
 
@@ -121,6 +132,9 @@ func (c *isConnectedCommand) Execute(args []string) error {
 
 	var otherSnap *snap.Info
 	if c.AppArmorLabel != "" {
+		if plugOrSlot == "" {
+			return fmt.Errorf("cannot use --apparmor-label check without plug/slot")
+		}
 		if !isConnectedPidCheckAllowed(info, plugOrSlot) {
 			return fmt.Errorf("cannot use --apparmor-label check with %s:%s", snapName, plugOrSlot)
 		}
@@ -133,6 +147,9 @@ func (c *isConnectedCommand) Execute(args []string) error {
 			return fmt.Errorf("internal error: cannot get snap info for AppArmor label %q: %s", c.AppArmorLabel, err)
 		}
 	} else if c.Pid != 0 {
+		if plugOrSlot == "" {
+			return fmt.Errorf("cannot use --pid check without plug/slot")
+		}
 		if !isConnectedPidCheckAllowed(info, plugOrSlot) {
 			return fmt.Errorf("cannot use --pid check with %s:%s", snapName, plugOrSlot)
 		}
@@ -145,6 +162,37 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		if err != nil {
 			return fmt.Errorf("internal error: cannot get snap info for pid %d: %s", c.Pid, err)
 		}
+	}
+
+	if c.List {
+		nameSet := make(map[string]struct{})
+		for refStr, connState := range conns {
+			if !connState.Active() {
+				continue
+			}
+			connRef, err := interfaces.ParseConnRef(refStr)
+			if err != nil {
+				return fmt.Errorf("internal error: %s", err)
+			}
+
+			if connRef.PlugRef.Snap == snapName {
+				nameSet[connRef.PlugRef.Name] = struct{}{}
+			}
+			if connRef.SlotRef.Snap == snapName {
+				nameSet[connRef.SlotRef.Name] = struct{}{}
+			}
+		}
+
+		names := make([]string, 0, len(nameSet))
+		for name := range nameSet {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			fmt.Fprintln(c.stdout, name)
+		}
+
+		return nil
 	}
 
 	// snapName is the name of the snap executing snapctl command, it's
