@@ -30,7 +30,7 @@ import (
 
 func (s *SnapSuite) TestAliasHelp(c *C) {
 	msg := `Usage:
-  snap.test alias [alias-OPTIONS] [<snap.app>] [<alias>]
+  snap.test alias [alias-OPTIONS] <snap.app> <alias>
 
 The alias command aliases the given snap application to the given alias.
 

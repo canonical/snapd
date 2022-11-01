@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.57.4
+Version:        2.57.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -570,8 +570,8 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %if 0%{?rhel} == 7
     M4PARAM='-D distro_rhel7'
 %endif
-%if 0%{?rhel} == 7 || 0%{?rhel} == 8 || 0%{?rhel} == 9
-    # RHEL7, RHEL8 and RHEL9 are missing the BPF interfaces from their reference policy
+%if 0%{?rhel} == 7 || 0%{?rhel} == 8
+    # RHEL7 and RHEL8 are missing the BPF interfaces from their reference policy
     M4PARAM="$M4PARAM -D no_bpf"
 %endif
     # Build SELinux module
@@ -986,6 +986,27 @@ fi
 
 
 %changelog
+* Mon Oct 17 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.57.5
+ - image: clean snapd mount after preseeding
+ - wrappers,snap/quota: clear LogsDirectory= in the service unit
+   for journal namespaces
+ - cmd/snap,daemon: allow zero values from client to daemon for
+   journal rate-limit
+ - interfaces: steam-support allow pivot /run/media and /etc/nvidia
+   mount
+ - o/ifacestate: introduce DebugAutoConnectCheck hook
+ - release, snapd-apparmor, syscheck: distinguish WSL1 and WSL2
+ - autopkgtests: fix running autopkgtest on kinetic
+ - interfaces: add microceph interface
+ - interfaces: steam-support allow additional mounts
+ - many: add stub services
+ - interfaces: add kconfig paths to system-observe
+ - i/b/system_observe: honour root dir when checking for
+   /boot/config-*
+ - interfaces: grant access to speech-dispatcher socket
+ - interfaces: rework logic of unclashMountEntries
+
 * Thu Sep 29 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.57.4
  - release, snapd-apparmor: fixed outdated WSL detection

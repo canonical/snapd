@@ -270,17 +270,19 @@ func SnapDir(home string, opts *dirs.SnapDirOptions) string {
 // from the store but is not required for working offline should not
 // end up in SideInfo.
 type SideInfo struct {
-	RealName          string              `yaml:"name,omitempty" json:"name,omitempty"`
-	SnapID            string              `yaml:"snap-id" json:"snap-id"`
-	Revision          Revision            `yaml:"revision" json:"revision"`
-	Channel           string              `yaml:"channel,omitempty" json:"channel,omitempty"`
-	EditedLinks       map[string][]string `yaml:"links,omitempty" json:"links,omitempty"`
-	EditedContact     string              `yaml:"contact,omitempty" json:"contact,omitempty"`
-	EditedTitle       string              `yaml:"title,omitempty" json:"title,omitempty"`
-	EditedSummary     string              `yaml:"summary,omitempty" json:"summary,omitempty"`
-	EditedDescription string              `yaml:"description,omitempty" json:"description,omitempty"`
-	Private           bool                `yaml:"private,omitempty" json:"private,omitempty"`
-	Paid              bool                `yaml:"paid,omitempty" json:"paid,omitempty"`
+	RealName    string              `yaml:"name,omitempty" json:"name,omitempty"`
+	SnapID      string              `yaml:"snap-id" json:"snap-id"`
+	Revision    Revision            `yaml:"revision" json:"revision"`
+	Channel     string              `yaml:"channel,omitempty" json:"channel,omitempty"`
+	EditedLinks map[string][]string `yaml:"links,omitempty" json:"links,omitempty"`
+	// subsumed by EditedLinks, by need to set for if we revert
+	// to old snapd
+	LegacyEditedContact string `yaml:"contact,omitempty" json:"contact,omitempty"`
+	EditedTitle         string `yaml:"title,omitempty" json:"title,omitempty"`
+	EditedSummary       string `yaml:"summary,omitempty" json:"summary,omitempty"`
+	EditedDescription   string `yaml:"description,omitempty" json:"description,omitempty"`
+	Private             bool   `yaml:"private,omitempty" json:"private,omitempty"`
+	Paid                bool   `yaml:"paid,omitempty" json:"paid,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -331,8 +333,11 @@ type Info struct {
 
 	Publisher StoreAccount
 
-	Media   MediaInfos
-	Website string
+	Media MediaInfos
+
+	// subsumed by EditedLinks but needed to handle information
+	// stored by old snapd
+	LegacyWebsite string
 
 	StoreURL string
 
@@ -491,32 +496,62 @@ func (s *Info) Description() string {
 // Links returns the blessed set of snap-related links.
 func (s *Info) Links() map[string][]string {
 	if s.EditedLinks != nil {
+		// coming from thes store, assumed normalized
 		return s.EditedLinks
 	}
-	return s.OriginalLinks
+	return s.normalizedOriginalLinks()
+}
+
+func (s *Info) normalizedOriginalLinks() map[string][]string {
+	res := make(map[string][]string, len(s.OriginalLinks))
+	addLink := func(k, v string) {
+		if v == "" {
+			return
+		}
+		u, err := url.Parse(v)
+		if err != nil {
+			// shouldn't happen if Validate succeeded but be robust
+			return
+		}
+		// assume email if no scheme
+		// Validate enforces the presence of @
+		if u.Scheme == "" {
+			v = "mailto:" + v
+		}
+		if strutil.ListContains(res[k], v) {
+			return
+		}
+		res[k] = append(res[k], v)
+	}
+	addLink("contact", s.LegacyEditedContact)
+	addLink("website", s.LegacyWebsite)
+	for k, links := range s.OriginalLinks {
+		for _, v := range links {
+			addLink(k, v)
+		}
+	}
+	if len(res) == 0 {
+		return nil
+	}
+	return res
 }
 
 // Contact returns the blessed contact information for the snap.
 func (s *Info) Contact() string {
-	var contact string
-	if s.EditedContact != "" {
-		contact = s.EditedContact
-	} else {
-		contacts := s.Links()["contact"]
-		if len(contacts) > 0 {
-			contact = contacts[0]
-		}
+	contacts := s.Links()["contact"]
+	if len(contacts) > 0 {
+		return contacts[0]
 	}
-	if contact != "" {
-		u, err := url.Parse(contact)
-		if err != nil {
-			return ""
-		}
-		if u.Scheme == "" {
-			contact = "mailto:" + contact
-		}
+	return ""
+}
+
+// Website returns the blessed website information for the snap.
+func (s *Info) Website() string {
+	websites := s.Links()["website"]
+	if len(websites) > 0 {
+		return websites[0]
 	}
-	return contact
+	return ""
 }
 
 // Type returns the type of the snap, including additional snap ID check

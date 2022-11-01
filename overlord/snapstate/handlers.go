@@ -1224,6 +1224,13 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 
 	st.Lock()
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
 	opts, err := getDirMigrationOpts(st, snapst, snapsup)
 	st.Unlock()
 	if err != nil {
@@ -1232,7 +1239,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb, dirOpts); copyDataErr != nil {
+	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, dirOpts, pb); copyDataErr != nil {
 		if oldInfo != nil {
 			// there is another revision of the snap, cannot remove
 			// shared data directory
@@ -1256,7 +1263,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		return copyDataErr
 	}
 
-	if err := m.backend.SetupSnapSaveData(newInfo, pb); err != nil {
+	if err := m.backend.SetupSnapSaveData(newInfo, deviceCtx, pb); err != nil {
 		return err
 	}
 
@@ -1360,6 +1367,13 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	st.Lock()
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
 	// undo migration actions performed in doCopySnapData and set SnapSetup flags
 	// accordingly (they're used in undoUnlinkCurrentSnap to set SnapState)
 	if snapsup.MigratedToExposedHome || snapsup.MigratedHidden || snapsup.UndidHiddenMigration {
@@ -1414,10 +1428,10 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, dirOpts); err != nil {
+	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, dirOpts, pb); err != nil {
 		return err
 	}
-	if err := m.backend.UndoSetupSnapSaveData(newInfo, oldInfo, pb); err != nil {
+	if err := m.backend.UndoSetupSnapSaveData(newInfo, oldInfo, deviceCtx, pb); err != nil {
 		return err
 	}
 
@@ -2781,7 +2795,6 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	opts, err := getDirMigrationOpts(st, snapst, snapsup)
 	st.Unlock()
-
 	if err != nil {
 		return err
 	}
@@ -2799,7 +2812,13 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 
 		// Same for the common snap save data directory, we only remove it if this
 		// is the last version.
-		if err = m.backend.RemoveSnapSaveData(info); err != nil {
+		st.Lock()
+		deviceCtx, err := DeviceCtx(t.State(), t, nil)
+		st.Unlock()
+		if err != nil {
+			return err
+		}
+		if err = m.backend.RemoveSnapSaveData(info, deviceCtx); err != nil {
 			return err
 		}
 

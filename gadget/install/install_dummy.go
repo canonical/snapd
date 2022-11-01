@@ -31,6 +31,10 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+var sysfsPathForBlockDevice = func(device string) (string, error) {
+	return "", fmt.Errorf("build without secboot support")
+}
+
 func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Options, _ gadget.ContentObserver, _ timings.Measurer) (*InstalledSystemSideData, error) {
 	return nil, fmt.Errorf("build without secboot support")
 }

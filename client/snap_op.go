@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -59,6 +59,8 @@ type SnapOptions struct {
 	Transaction      TransactionType `json:"transaction,omitempty"`
 	QuotaGroupName   string          `json:"quota-group,omitempty"`
 	ValidationSets   []string        `json:"validation-sets,omitempty"`
+	Time             string          `json:"time,omitempty"`
+	HoldLevel        string          `json:"hold-level,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -128,6 +130,8 @@ type multiActionData struct {
 	IgnoreRunning  bool            `json:"ignore-running,omitempty"`
 	Purge          bool            `json:"purge,omitempty"`
 	ValidationSets []string        `json:"validation-sets,omitempty"`
+	Time           string          `json:"time,omitempty"`
+	HoldLevel      string          `json:"hold-level,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -157,6 +161,22 @@ func (client *Client) Refresh(name string, options *SnapOptions) (changeID strin
 
 func (client *Client) RefreshMany(names []string, options *SnapOptions) (changeID string, err error) {
 	return client.doMultiSnapAction("refresh", names, options)
+}
+
+func (client *Client) HoldRefreshes(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("hold", name, options)
+}
+
+func (client *Client) HoldRefreshesMany(names []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("hold", names, options)
+}
+
+func (client *Client) UnholdRefreshes(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("unhold", name, options)
+}
+
+func (client *Client) UnholdRefreshesMany(names []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("unhold", names, options)
 }
 
 func (client *Client) Enable(name string, options *SnapOptions) (changeID string, err error) {
@@ -236,6 +256,8 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		action.IgnoreRunning = options.IgnoreRunning
 		action.Purge = options.Purge
 		action.ValidationSets = options.ValidationSets
+		action.Time = options.Time
+		action.HoldLevel = options.HoldLevel
 	}
 
 	data, err := json.Marshal(&action)

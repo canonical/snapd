@@ -413,7 +413,7 @@ func laidOutStructureForDiskStructure(laidVols map[string]*gadget.LaidOutVolume,
 }
 
 // sysfsPathForBlockDevice returns the sysfs path for a block device.
-func sysfsPathForBlockDevice(device string) (string, error) {
+var sysfsPathForBlockDevice = func(device string) (string, error) {
 	syfsLink := filepath.Join("/sys/class/block", filepath.Base(device))
 	partPath, err := os.Readlink(syfsLink)
 	if err != nil {
@@ -472,7 +472,6 @@ func deviceForMaybeEncryptedVolume(volStruct *gadget.VolumeStructure, encSetupDa
 
 // WriteContent writes gadget content to the devices specified in
 // onVolumes. It returns the resolved on disk volumes.
-// TODO this needs unit tests
 func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *EncryptionSetupData, observer gadget.ContentObserver, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
 	// TODO this taking onVolumes and allLaidOutVols is odd,
 	// we should try to avoid this when we have partial
@@ -615,7 +614,7 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 				continue
 			}
 			if volStruct.Device == "" {
-				return nil, fmt.Errorf("device field for volume struct %v cannot be empty", volStruct)
+				return nil, fmt.Errorf("device field for volume struct %+v cannot be empty", volStruct)
 			}
 			device := volStruct.Device
 

@@ -14,7 +14,7 @@ systems:
   - -ubuntu-*-arm*    # not available on arm
 
 environment:
-    CHANNEL/edge: latest/edge/strict
+    CHANNEL/edge: 1.25-strict/edge
 
 prepare: |
     # ensure curl is available (needed for Ubuntu Core)
