@@ -49,6 +49,8 @@ var ops = []struct {
 	{(*client.Client).Enable, "enable"},
 	{(*client.Client).Disable, "disable"},
 	{(*client.Client).Switch, "switch"},
+	{(*client.Client).HoldRefreshes, "hold"},
+	{(*client.Client).UnholdRefreshes, "unhold"},
 }
 
 var multiOps = []struct {
@@ -58,6 +60,8 @@ var multiOps = []struct {
 	{(*client.Client).RefreshMany, "refresh"},
 	{(*client.Client).InstallMany, "install"},
 	{(*client.Client).RemoveMany, "remove"},
+	{(*client.Client).HoldRefreshesMany, "hold"},
+	{(*client.Client).UnholdRefreshesMany, "unhold"},
 }
 
 func (cs *clientSuite) TestClientOpSnapServerError(c *check.C) {
@@ -833,6 +837,43 @@ func (cs *clientSuite) TestClientRefreshWithValidationSets(c *check.C) {
 	c.Check(decodedBody, check.DeepEquals, req{
 		ValidationSets: sets,
 		Action:         "refresh",
+	})
+	c.Check(cs.req.Header["Content-Type"], check.DeepEquals, []string{"application/json"})
+}
+
+func (cs *clientSuite) TestClientHoldMany(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "12",
+		"status-code": 202,
+		"type": "async"
+	}`
+
+	chgID, err := cs.cli.HoldRefreshesMany([]string{"foo", "bar"}, &client.SnapOptions{
+		Time:      "forever",
+		HoldLevel: "general",
+	})
+	c.Assert(err, check.IsNil)
+	c.Check(chgID, check.Equals, "12")
+
+	type req struct {
+		Action    string   `json:"action"`
+		Snaps     []string `json:"snaps"`
+		Time      string   `json:"time"`
+		HoldLevel string   `json:"hold-level"`
+	}
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	var decodedBody req
+	err = json.Unmarshal(body, &decodedBody)
+	c.Assert(err, check.IsNil)
+
+	c.Check(decodedBody, check.DeepEquals, req{
+		Action:    "hold",
+		Snaps:     []string{"foo", "bar"},
+		Time:      "forever",
+		HoldLevel: "general",
 	})
 	c.Check(cs.req.Header["Content-Type"], check.DeepEquals, []string{"application/json"})
 }

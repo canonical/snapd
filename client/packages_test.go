@@ -262,6 +262,9 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
                             {"type": "screenshot", "url":"http://example.com/shot2.png"}
                         ],
                         "cohort-key": "some-long-cohort-key",
+                        "links": {
+                            "website": ["http://example.com/funky"]
+                        },
                         "website": "http://example.com/funky",
                         "common-ids": ["org.funky.snap"],
                         "store-url": "https://snapcraft.io/chatroom"
@@ -308,8 +311,11 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		},
 		CommonIDs: []string{"org.funky.snap"},
 		CohortKey: "some-long-cohort-key",
-		Website:   "http://example.com/funky",
-		StoreURL:  "https://snapcraft.io/chatroom",
+		Links: map[string][]string{
+			"website": {"http://example.com/funky"},
+		},
+		Website:  "http://example.com/funky",
+		StoreURL: "https://snapcraft.io/chatroom",
 	})
 }
 
