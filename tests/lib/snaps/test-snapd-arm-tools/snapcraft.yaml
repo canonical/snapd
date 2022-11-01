@@ -1,0 +1,23 @@
+name: test-snapd-arm-tools
+summary: test-snapd-objcopy
+description: |
+    This is an example snap
+version: '1.0'
+base: core22
+grade: stable
+confinement: strict
+
+apps:
+  objcopy:
+    command: usr/bin/objcopy
+
+  unmkinitramfs:
+    command: usr/bin/unmkinitramfs
+
+parts:
+  copy:
+    plugin: dump
+    source: .
+    stage-packages: 
+        - binutils-multiarch
+        - initramfs-tools-core

@@ -591,6 +591,7 @@ uc20_build_corrupt_kernel_snap() {
 }
 
 uc20_build_initramfs_kernel_snap() {
+    apt install software-properties-common -y
     # carries ubuntu-core-initframfs
     add-apt-repository ppa:snappy-dev/image -y
     # On focal, lvm2 does not reinstall properly after being removed.
@@ -639,9 +640,23 @@ uc20_build_initramfs_kernel_snap() {
         # repack it using ubuntu-core-initramfs --skeleton=<unpacked> this does not
         # work and the rebuilt kernel.efi panics unable to start init, but we
         # still need the unpacked initrd to get the right kernel modules
-        objcopy -j .initrd -O binary kernel.efi initrd
-        # this works on 20.04 but not on 18.04
-        unmkinitramfs initrd unpacked-initrd
+        if os.query is-arm && os.query is-focal; then
+            snap install --classic snapcraft
+            snap install lxd
+            lxd init --auto
+            ( cd $PROJECT_PATH/tests/lib/snaps/test-snapd-arm-tools; snapcraft --use-lxd )
+            snap remove lxd --purge
+            snap remove snapcraft
+
+            snap install $PROJECT_PATH/tests/lib/snaps/test-snapd-arm-tools/test-snapd-arm-tools_1.0_arm64.snap --devmode --dangerous
+            test-snapd-arm-tools.objcopy -j .initrd -O binary kernel.efi initrd
+            test-snapd-arm-tools.unmkinitramfs initrd unpacked-initrd
+        else    
+            objcopy -j .initrd -O binary kernel.efi initrd
+            # this works on 20.04 but not on 18.04
+            unmkinitramfs initrd unpacked-initrd
+        fi
+        
 
         # use only the initrd we got from the kernel snap to inject our changes
         # we don't use the distro package because the distro package may be 
@@ -708,7 +723,12 @@ EOF
         )
 
         # copy out the kernel image for create-efi command
-        objcopy -j .linux -O binary kernel.efi "vmlinuz-$kver"
+        if os.query is-arm && os.query is-focal; then
+            test-snapd-arm-tools.objcopy -j .initrd -O binary kernel.efi initrd
+            snap remove test-snapd-arm-tools
+        else 
+            objcopy -j .linux -O binary kernel.efi "vmlinuz-$kver"
+        fi
 
         # assumes all files are named <name>-$kver
         ubuntu-core-initramfs create-efi \
@@ -957,10 +977,18 @@ setup_reflash_magic() {
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
     elif os.query is-core20; then
         repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
-        cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
+        if os.query is-arm; then
+            cp "$TESTSLIB/assertions/ubuntu-core-20-arm64.model" "$IMAGE_HOME/pc.model"
+        else
+            cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
+        fi
     elif os.query is-core22; then
         repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
-        cp "$TESTSLIB/assertions/ubuntu-core-22-amd64.model" "$IMAGE_HOME/pc.model"
+        if os.query is-arm; then
+            cp "$TESTSLIB/assertions/ubuntu-core-22-arm64.model" "$IMAGE_HOME/pc.model"
+        else
+            cp "$TESTSLIB/assertions/ubuntu-core-22-amd64.model" "$IMAGE_HOME/pc.model"
+        fi
     else
         # FIXME: install would be better but we don't have dpkg on
         #        the image
@@ -1003,17 +1031,23 @@ EOF
     if [ "$KERNEL_CHANNEL" = "$GADGET_CHANNEL" ]; then
         IMAGE_CHANNEL="$KERNEL_CHANNEL"
     else
-        # download pc-kernel snap for the specified channel and set
-        # ubuntu-image channel to that of the gadget, so that we don't
-        # need to download it
-        snap download --channel="$KERNEL_CHANNEL" pc-kernel
+        if os.query is-arm; then
+            snap download --channel=22/$KERNEL_CHANNEL pc-kernel
+        else
+            # download pc-kernel snap for the specified channel and set
+            # ubuntu-image channel to that of the gadget, so that we don't
+            # need to download it
+            snap download --channel="$KERNEL_CHANNEL" pc-kernel
+        fi
 
         EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel_*.snap"
         IMAGE_CHANNEL="$GADGET_CHANNEL"
     fi
 
     if os.query is-core20 || os.query is-core22; then
-        if os.query is-core20; then
+        if os.query is-arm; then
+            BRANCH=22
+        elif os.query is-core20; then
             BRANCH=20
         elif os.query is-core22; then
             BRANCH=22
@@ -1027,7 +1061,11 @@ EOF
 
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
-        snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
+        if os.query is-arm; then
+            snap download --basename=pc --channel=edge test-snapd-arm64-gadget 
+        else
+            snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
+        fi
         test -e pc.snap
         unsquashfs -d pc-gadget pc.snap
         
@@ -1059,14 +1097,16 @@ EOF
         # TODO: this probably means it's time to move this helper out of 
         # nested.sh to somewhere more general
         
-        #shellcheck source=tests/lib/nested.sh
-        . "$TESTSLIB/nested.sh"
-        KEY_NAME=$(nested_get_snakeoil_key)
+        if not os.query is-arm; then
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            KEY_NAME=$(nested_get_snakeoil_key)
 
-        SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-        SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+            SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+            SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
-        nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+            nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+        fi
         snap pack --filename=pc-repacked.snap pc-gadget 
         mv pc-repacked.snap $IMAGE_HOME/pc-repacked.snap
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/pc-repacked.snap"

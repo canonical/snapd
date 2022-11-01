@@ -194,6 +194,14 @@ backends:
                   image: ubuntu-os-cloud/ubuntu-2204-lts-arm64
                   workers: 8
                   storage: 12G
+            - ubuntu-core-20-arm-64:
+                  image: ubuntu-20.04-arm-64
+                  workers: 6
+                  storage: 20G
+            - ubuntu-core-22-arm-64:
+                  image: ubuntu-22.04-arm-64
+                  workers: 6
+                  storage: 20G
 
     google-sru:
         type: google

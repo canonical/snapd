@@ -1,0 +1,18 @@
+{
+    "type": "model",
+    "authority-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
+    "series": "16",
+    "brand-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
+    "model": "ubuntu-core-20-arm64-dangerous",
+    "architecture": "arm64",
+    "base": "core20",
+    "grade": "dangerous",
+    "serial-authority": ["generic"],
+    "timestamp": "2022-10-29T15:30:00Z",
+    "snaps": [
+        {"default-channel": "latest/edge", "id": "RQBRc1HkOwpH5DCwagfqShqQ7eJ2Yl9i", "name": "test-snapd-arm64-gadget", "type": "gadget"},
+        {"default-channel": "latest/stable", "id": "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q", "name": "core20", "type": "base"},
+        {"default-channel": "22/stable", "id": "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza", "name": "pc-kernel", "type": "kernel"},
+        {"default-channel": "latest/stable", "id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4", "name": "snapd", "type": "snapd"}
+    ]
+}
