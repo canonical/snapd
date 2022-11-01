@@ -76,8 +76,8 @@ func (s *manifestSuite) TestReadSeedManifestParseFails(c *C) {
 		contents string
 		err      string
 	}{
-		{"my/invalid&name 33\n", `cannot read seed manifest file: invalid snap name: "my/invalid&name"`},
-		{"core 0\n", `cannot read seed manifest file: invalid snap revision: "0"`},
+		{"my/invalid&name 33\n", `invalid snap name: "my/invalid&name"`},
+		{"core 0\n", `invalid snap revision: "0"`},
 	}
 
 	for _, t := range tests {
@@ -117,5 +117,5 @@ test x4.snap
 
 func (s *manifestSuite) TestWriteSeedManifestInvalidRevision(c *C) {
 	err := image.WriteSeedManifest("", map[string]snap.Revision{"core": {}})
-	c.Assert(err, ErrorMatches, `cannot write seed manifest: revision must not be 0 for snap "core"`)
+	c.Assert(err, ErrorMatches, `revision must not be 0 for snap "core"`)
 }

@@ -271,17 +271,6 @@ func makeLabel(now time.Time) string {
 	return now.UTC().Format("20060102")
 }
 
-func specifiedSnapRevision(snapName string, opts *Options) snap.Revision {
-	if len(opts.Revisions) == 0 {
-		return snap.Revision{}
-	}
-	revision, ok := opts.Revisions[snapName]
-	if !ok {
-		return snap.Revision{}
-	}
-	return revision
-}
-
 var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
@@ -414,7 +403,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
 		// available, unless we switch and download the revision provided by the seed.manifest. However
 		// we should not alter the expected outcome, instead lets fail and inform the user.
-		specifiedRevision := specifiedSnapRevision(info.SnapName(), opts)
+		specifiedRevision := opts.Revisions[info.SnapName()]
 		if specifiedRevision.N != 0 && specifiedRevision.N != info.Revision.N {
 			return fmt.Errorf("cannot use snap %s for image, unknown/local revision does not match the value specified by revisions file (%s != %s)",
 				sn.Path, info.Revision.String(), specifiedRevision.String())
@@ -451,7 +440,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			if sn == nil {
 				return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 			}
-			rev := specifiedSnapRevision(sn.SnapName(), opts)
+			rev := opts.Revisions[sn.SnapName()]
 			if rev.N != 0 {
 				fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), rev)
 			} else {
@@ -467,7 +456,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			byName[sn.SnapName()] = sn
 			snapToDownloadOptions[i].Snap = sn
 			snapToDownloadOptions[i].Channel = sn.Channel
-			snapToDownloadOptions[i].Revision = specifiedSnapRevision(sn.SnapName(), opts)
+			snapToDownloadOptions[i].Revision = opts.Revisions[sn.SnapName()]
 			snapToDownloadOptions[i].CohortKey = opts.WideCohortKey
 		}
 		downloadedSnaps, err := tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
