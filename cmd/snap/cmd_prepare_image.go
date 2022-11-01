@@ -86,7 +86,7 @@ For preparing classic images it supports a --classic mode`),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"extra-snaps": i18n.G("Extra snaps to be installed (DEPRECATED)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"revisions": i18n.G("Specify a seeds.manifest file containing the exact revisions of the provided snaps which should be installed"),
+			"revisions": i18n.G("Specify a seeds.manifest file referencing the exact revisions of the provided snaps which should be installed"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"channel": i18n.G("The channel to use"),
 			// TRANSLATORS: This should not start with a lowercase letter.
