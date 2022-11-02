@@ -40,17 +40,17 @@ import (
 
 // NewWatcher creates and returns a new inotify instance using inotify_init(2)
 func NewWatcher() (*Watcher, error) {
-	fd, errno := syscall.InotifyInit1(syscall.IN_CLOEXEC)
+	fd, errno := syscall.InotifyInit1(syscall.IN_CLOEXEC | syscall.IN_NONBLOCK)
 	if fd == -1 {
 		return nil, os.NewSyscallError("inotify_init", errno)
 	}
 	w := &Watcher{
-		fd:      fd,
-		watches: make(map[string]*watch),
-		paths:   make(map[int]string),
-		Event:   make(chan *Event),
-		Error:   make(chan error),
-		done:    make(chan bool, 1),
+		fd:         fd,
+		notifyFile: *os.NewFile(uintptr(fd), ""),
+		watches:    make(map[string]*watch),
+		paths:      make(map[int]string),
+		Event:      make(chan *Event),
+		Error:      make(chan error),
 	}
 
 	go w.readEvents()
@@ -65,13 +65,10 @@ func (w *Watcher) Close() error {
 		return nil
 	}
 	w.isClosed = true
-
-	// Send "quit" message to the reader goroutine
-	w.done <- true
 	for path := range w.watches {
 		w.RemoveWatch(path)
 	}
-
+	w.notifyFile.Close()
 	return nil
 }
 
@@ -142,24 +139,12 @@ func (w *Watcher) readEvents() {
 
 	for {
 		// wait until there are events from the kernel
-		n, err := syscall.Read(w.fd, buf[:])
+		n, err := w.notifyFile.Read(buf[:])
 
-		// See if there is a message on the "done" channel
-		done := false
-		select {
-		case done = <-w.done:
-		default:
-		}
-
-		// If EOF or a "done" message is received
-		if n == 0 || done {
-			// The syscall.Close can be slow.  Close
-			// w.Event first.
+		// If EOF is received
+		if n == 0 {
+			// Close w.Event first.
 			close(w.Event)
-			err := syscall.Close(w.fd)
-			if err != nil {
-				w.Error <- os.NewSyscallError("close", err)
-			}
 			close(w.Error)
 			return
 		}
