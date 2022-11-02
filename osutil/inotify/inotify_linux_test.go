@@ -108,3 +108,35 @@ func TestInotifyClose(t *testing.T) {
 		t.Fatal("expected error on Watch() after Close(), got nil")
 	}
 }
+
+func TestLockOnEvent(t *testing.T) {
+	watcher, err := inotify.NewWatcher()
+
+	if err != nil {
+		t.Fatalf("NewWatcher failed: %s", err)
+	}
+
+	dir, err := ioutil.TempDir("", "inotify")
+	if err != nil {
+		t.Fatalf("TempDir failed: %s", err)
+	}
+	defer os.RemoveAll(dir)
+
+	// Add a watch for "_test"
+	err = watcher.Watch(dir)
+	if err != nil {
+		t.Fatalf("Watch failed: %s", err)
+	}
+	os.Mkdir(dir+"/TestInotifyEvents.testfile", 0)
+	// wait one second to ensure that the event is created
+	time.Sleep(1 * time.Second)
+	// now close the watcher. It must close everything and unlock from the event
+	watcher.Close()
+	// wait another second to ensure that the thread is executed and everything is processed
+	time.Sleep(1 * time.Second)
+	// this must fail because the queue is closed
+	data, ok := <-watcher.Event
+	if (data != nil) || (ok != false) {
+		t.Fatalf("Watcher event queue isn't closed")
+	}
+}

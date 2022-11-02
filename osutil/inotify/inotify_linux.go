@@ -51,6 +51,7 @@ func NewWatcher() (*Watcher, error) {
 		paths:      make(map[int]string),
 		Event:      make(chan *Event),
 		Error:      make(chan error),
+		done:       make(chan bool),
 	}
 
 	go w.readEvents()
@@ -68,6 +69,7 @@ func (w *Watcher) Close() error {
 	for path := range w.watches {
 		w.RemoveWatch(path)
 	}
+	close(w.done)
 	w.notifyFile.Close()
 	return nil
 }
@@ -136,6 +138,11 @@ func (w *Watcher) RemoveWatch(path string) error {
 // received events into Event objects and sends them via the Event channel
 func (w *Watcher) readEvents() {
 	var buf [syscall.SizeofInotifyEvent * 4096]byte
+	defer func() {
+		// Close w.Event first.
+		close(w.Event)
+		close(w.Error)
+	}()
 
 	for {
 		// wait until there are events from the kernel
@@ -143,18 +150,23 @@ func (w *Watcher) readEvents() {
 
 		// If EOF is received
 		if n == 0 {
-			// Close w.Event first.
-			close(w.Event)
-			close(w.Error)
 			return
 		}
 		if n < 0 {
-			w.Error <- os.NewSyscallError("read", err)
-			continue
+			select {
+			case w.Error <- os.NewSyscallError("read", err):
+				continue
+			case <-w.done:
+				return
+			}
 		}
 		if n < syscall.SizeofInotifyEvent {
-			w.Error <- errors.New("inotify: short read in readEvents()")
-			continue
+			select {
+			case w.Error <- errors.New("inotify: short read in readEvents()"):
+				continue
+			case <-w.done:
+				return
+			}
 		}
 
 		var offset uint32
@@ -184,7 +196,11 @@ func (w *Watcher) readEvents() {
 					event.Name += "/" + strings.TrimRight(string(bytes[0:nameLen]), "\000")
 				}
 				// Send the event on the events channel
-				w.Event <- event
+				select {
+				case w.Event <- event:
+				case <-w.done:
+					return
+				}
 			}
 			// Move to the next event in the buffer
 			offset += syscall.SizeofInotifyEvent + nameLen
