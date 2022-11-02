@@ -149,14 +149,11 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	// On all-snaps systems, the font related mount entries are missing
+	// On all-snaps systems, the mounts are present
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
 	c.Check(spec.MountEntries(), HasLen, 3)
-
-	// Currently the document portal is not mounted on all snaps systems
-	entries := spec.UserMountEntries()
-	c.Check(entries, HasLen, 0)
+	c.Check(spec.UserMountEntries(), HasLen, 1)
 
 	// On classic systems, a number of font related directories
 	// are bind mounted from the host system if they exist.
@@ -167,7 +164,7 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	spec = &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 
-	entries = spec.MountEntries()
+	entries := spec.MountEntries()
 	c.Assert(entries, HasLen, 3)
 
 	const hostfs = "/var/lib/snapd/hostfs"

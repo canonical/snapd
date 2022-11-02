@@ -50,15 +50,6 @@ const desktopConnectedPlugAppArmor = `
 # Description: Can access basic graphical desktop resources. To be used with
 # other interfaces (eg, wayland).
 
-#include <abstractions/fonts>
-owner @{HOME}/.local/share/fonts/{,**} r,
-/var/cache/fontconfig/   r,
-/var/cache/fontconfig/** mr,
-# some applications are known to mmap fonts
-/usr/{,local/}share/fonts/** m,
-`
-
-const desktopConnectedPlugAppArmorClassic = `
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
 
@@ -70,6 +61,54 @@ dbus (send)
      member=GetId
      peer=(name=org.freedesktop.DBus, label=unconfined),
 
+#include <abstractions/fonts>
+owner @{HOME}/.local/share/fonts/{,**} r,
+/var/cache/fontconfig/   r,
+/var/cache/fontconfig/** mr,
+# some applications are known to mmap fonts
+/usr/{,local/}share/fonts/** m,
+
+# Allow access to xdg-document-portal file system.  Access control is
+# handled by bind mounting a snap-specific sub-tree to this location
+# (ie, this is /run/user/<uid>/doc/by-app/snap.@{SNAP_INSTANCE_NAME}
+# on the host).
+owner /run/user/[0-9]*/doc/{,*/} r,
+# Allow rw access without owner match to the documents themselves since
+# the user guided the access and can specify anything DAC allows.
+/run/user/[0-9]*/doc/*/** rw,
+
+# Allow access to xdg-desktop-portal and xdg-document-portal
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(label=unconfined),
+
+# The portals service is normally running and newer versions of
+# xdg-desktop-portal include AssumedAppArmor=unconfined. Since older
+# systems don't have this and because gtkfilechoosernativeportal.c relies on
+# service activation, allow sends to peer=(name=org.freedesktop.portal.Desktop)
+# for service activation.
+dbus (send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(name=org.freedesktop.portal.Desktop),
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(name=org.freedesktop.portal.Desktop),
+
+`
+
+const desktopConnectedPlugAppArmorClassic = `
 # subset of gnome abstraction
 /etc/gtk-3.0/settings.ini r,
 owner @{HOME}/.config/gtk-3.0/settings.ini r,
@@ -244,44 +283,6 @@ dbus (send)
     member={Check,CheckSub,Get,GetSub,Set,SetSub}
     peer=(label=unconfined),
 
-# Allow access to xdg-document-portal file system.  Access control is
-# handled by bind mounting a snap-specific sub-tree to this location
-# (ie, this is /run/user/<uid>/doc/by-app/snap.@{SNAP_INSTANCE_NAME}
-# on the host).
-owner /run/user/[0-9]*/doc/{,*/} r,
-# Allow rw access without owner match to the documents themselves since
-# the user guided the access and can specify anything DAC allows.
-/run/user/[0-9]*/doc/*/** rw,
-
-# Allow access to xdg-desktop-portal and xdg-document-portal
-dbus (receive, send)
-    bus=session
-    interface=org.freedesktop.portal.*
-    path=/org/freedesktop/portal/{desktop,documents}{,/**}
-    peer=(label=unconfined),
-
-dbus (receive, send)
-    bus=session
-    interface=org.freedesktop.DBus.Properties
-    path=/org/freedesktop/portal/{desktop,documents}{,/**}
-    peer=(label=unconfined),
-
-# The portals service is normally running and newer versions of
-# xdg-desktop-portal include AssumedAppArmor=unconfined. Since older
-# systems don't have this and because gtkfilechoosernativeportal.c relies on
-# service activation, allow sends to peer=(name=org.freedesktop.portal.Desktop)
-# for service activation.
-dbus (send)
-    bus=session
-    interface=org.freedesktop.portal.*
-    path=/org/freedesktop/portal/{desktop,documents}{,/**}
-    peer=(name=org.freedesktop.portal.Desktop),
-dbus (send)
-    bus=session
-    interface=org.freedesktop.DBus.Properties
-    path=/org/freedesktop/portal/{desktop,documents}{,/**}
-    peer=(name=org.freedesktop.portal.Desktop),
-
 # These accesses are noisy and applications can't do anything with the found
 # icon files, so explicitly deny to silence the denials
 deny /var/lib/snapd/desktop/icons/{,**/} r,
@@ -305,6 +306,25 @@ dbus (send, receive)
       path=/org/freedesktop/IBus/InputContext_[0-9]*
       interface=org.freedesktop.IBus.InputContext
       peer=(label=unconfined),
+`
+
+var desktopPermanentSlotAppArmor = `
+# Description: Can provide various desktop services
+
+#include <abstractions/dbus-session-strict>
+
+# Allow unconfined xdg-desktop-portal to communicate with impl
+# services provided by the snap.
+dbus (receive, send)
+    bus=session
+    path=/org/freedesktop/portal/desktop{,/**}
+    interface=org.freedesktop.impl.portal.*
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=session
+    path=/org/freedesktop/portal/desktop{,/**}
+    interface=org.freedesktop.DBus.Properties
+    peer=(label=unconfined),
 `
 
 type desktopInterface struct {
@@ -343,18 +363,18 @@ func (iface *desktopInterface) fontconfigDirs(plug *interfaces.ConnectedPlug) ([
 
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(desktopConnectedPlugAppArmor)
-
-	emit := spec.AddUpdateNSf
 	if implicitSystemConnectedSlot(slot) {
 		// Extra rules that have not been ported to work with
 		// a desktop slot provided by a snap.
 		spec.AddSnippet(desktopConnectedPlugAppArmorClassic)
 
-		// Allow mounting document portal
-		emit("  # Mount the document portal\n")
-		emit("  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
-		emit("  umount /run/user/[0-9]*/doc/,\n\n")
 	}
+
+	// Allow mounting document portal
+	emit := spec.AddUpdateNSf
+	emit("  # Mount the document portal\n")
+	emit("  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
+	emit("  umount /run/user/[0-9]*/doc/,\n\n")
 
 	// Allow mounting fonts
 	fontDirs, err := iface.fontconfigDirs(plug)
@@ -374,16 +394,12 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 }
 
 func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if implicitSystemConnectedSlot(slot) {
-		// We don't yet have support for a snap exposing the
-		// document portal.
-		appId := "snap." + plug.Snap().InstanceName()
-		spec.AddUserMountEntry(osutil.MountEntry{
-			Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
-			Dir:     "$XDG_RUNTIME_DIR/doc",
-			Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
-		})
-	}
+	appId := "snap." + plug.Snap().InstanceName()
+	spec.AddUserMountEntry(osutil.MountEntry{
+		Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
+		Dir:     "$XDG_RUNTIME_DIR/doc",
+		Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
+	})
 
 	fontDirs, err := iface.fontconfigDirs(plug)
 	if err != nil {
