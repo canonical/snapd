@@ -1,7 +1,7 @@
 name: test-snapd-arm64-gadget
-version: '20-0.4'
+version: '22-0.4'
 type: gadget
-base: core20
+base: core22
 summary: Arm64 gadget for generic devices
 description: |
     This gadget enables generic arm64 devices to work with Ubuntu Core
@@ -9,15 +9,19 @@ confinement: devmode
 grade: stable
 icon: icon.png
 
-package-repositories:
- - type: apt
-   ppa: ucdev/uc-staging-ppa
-
 parts:
-  grub:
+  deps:
     source: .
     build-packages:
       - ubuntu-dev-tools
-      - grub-pc-bin
+      - grub-efi-arm64-bin
       - grub-common
+    stage-packages:
+      - grub-efi-arm64-signed
+      - shim-signed
+    plugin: nil
+
+  grub:
+    source: .
     plugin: make
+    after: [ deps ]

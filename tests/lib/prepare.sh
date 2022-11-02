@@ -604,6 +604,21 @@ uc20_build_initramfs_kernel_snap() {
     # to build the initrd
     apt install ubuntu-core-initramfs linux-firmware -y
 
+    # Build the test-snapd-arm-tools snap in focal because the objcopy and unmkinitramfs don't work properly
+    if os.query is-arm && os.query is-focal; then
+        snap install --classic snapcraft
+        snap install lxd
+        lxd init --auto
+        ( cd $PROJECT_PATH/tests/lib/snaps/test-snapd-arm-tools; snapcraft --use-lxd )
+        snap remove lxd --purge
+        snap remove snapcraft
+
+        snap_tools_file="$(find "$PROJECT_PATH/tests/lib/snaps/test-snapd-arm-tools" -name "test-snapd-arm-tools_*.snap"| head -n1)"
+        snap install "$snap_tools_file" --devmode --dangerous
+        snap alias test-snapd-arm-tools.objcopy objcopy
+        snap alias test-snapd-arm-tools.unmkinitramfs unmkinitramfs
+    fi
+
     local ORIG_SNAP="$1"
     local TARGET="$2"
 
@@ -639,24 +654,10 @@ uc20_build_initramfs_kernel_snap() {
         # XXX: ideally we should unpack the initrd, replace snap-boostrap and
         # repack it using ubuntu-core-initramfs --skeleton=<unpacked> this does not
         # work and the rebuilt kernel.efi panics unable to start init, but we
-        # still need the unpacked initrd to get the right kernel modules
-        if os.query is-arm && os.query is-focal; then
-            snap install --classic snapcraft
-            snap install lxd
-            lxd init --auto
-            ( cd $PROJECT_PATH/tests/lib/snaps/test-snapd-arm-tools; snapcraft --use-lxd )
-            snap remove lxd --purge
-            snap remove snapcraft
-
-            snap install $PROJECT_PATH/tests/lib/snaps/test-snapd-arm-tools/test-snapd-arm-tools_1.0_arm64.snap --devmode --dangerous
-            test-snapd-arm-tools.objcopy -j .initrd -O binary kernel.efi initrd
-            test-snapd-arm-tools.unmkinitramfs initrd unpacked-initrd
-        else    
-            objcopy -j .initrd -O binary kernel.efi initrd
-            # this works on 20.04 but not on 18.04
-            unmkinitramfs initrd unpacked-initrd
-        fi
-        
+        # still need the unpacked initrd to get the right kernel modules        
+        objcopy -j .initrd -O binary kernel.efi initrd
+        # this works on 20.04 but not on 18.04
+        unmkinitramfs initrd unpacked-initrd
 
         # use only the initrd we got from the kernel snap to inject our changes
         # we don't use the distro package because the distro package may be 
@@ -664,9 +665,15 @@ uc20_build_initramfs_kernel_snap() {
         # kernel and we don't want to test that, just test our snap-bootstrap
         cp -ar unpacked-initrd skeleton
         # all the skeleton edits go to a local copy of distro directory
-        skeletondir=$PWD/skeleton
-        cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap.real"
-        cat <<'EOF' | sed -E "s/^ {8}//" >"$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+        skeletondir="$PWD/skeleton"
+        snap_bootstrap_file="$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+        clock_epoch_file="$skeletondir/main/usr/lib/clock-epoch"
+        if os.query is-arm; then
+            snap_bootstrap_file="$skeletondir/usr/lib/snapd/snap-bootstrap"
+            clock_epoch_file="$skeletondir/usr/lib/clock-epoch"
+        fi
+        cp -a /usr/lib/snapd/snap-bootstrap "${snap_bootstrap_file}.real"
+        cat <<'EOF' | sed -E "s/^ {8}//" >"$snap_bootstrap_file"
         #!/bin/sh
         set -eux
         if [ "$1" != initramfs-mounts ]; then
@@ -688,20 +695,34 @@ uc20_build_initramfs_kernel_snap() {
         date --utc '+%s' > /run/mnt/ubuntu-seed/test/${mode}-after-snap-bootstrap-date
 EOF
 
-        chmod +x "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+        chmod +x "$snap_bootstrap_file"
 
         if [ "$injectKernelPanic" = "true" ]; then
             # add a kernel panic to the end of the-tool execution
-            echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+            echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$snap_bootstrap_file"
         fi
 
         # bump the epoch time file timestamp, converting unix timestamp to 
         # touch's date format
-        touch -t "$(date --utc "--date=@$initramfsEpochBumpTime" '+%Y%m%d%H%M')" "$skeletondir/main/usr/lib/clock-epoch"
+        touch -t "$(date --utc "--date=@$initramfsEpochBumpTime" '+%Y%m%d%H%M')" "$clock_epoch_file"
 
         # copy any extra files to the same location inside the initrd
         if [ -d ../extra-initrd/ ]; then
-            cp -a ../extra-initrd/* "$skeletondir"/main
+            if os.query is-arm; then
+                cp -a ../extra-initrd/* "$skeletondir"
+            else
+                cp -a ../extra-initrd/* "$skeletondir"/main
+            fi
+        fi
+
+        # Patch the ubuntu-core-initramfs file until it supports arm
+        if os.query is-arm; then
+            # In arm the main if is '.' instead of main
+            sed 's/os.path.join(d, "main")/os.path.join(d, ".")/g' -i  /usr/bin/ubuntu-core-initramfs
+            # file clock-epoch is alreyad created and it is not needed
+            sed 's/pathlib.Path("/#pathlib.Path("/g' -i /usr/bin/ubuntu-core-initramfs
+            # depmod call is failing 
+            sed 's/subprocess.check_call(\["depmod"/#subprocess.check_call(\["depmod"/g' -i /usr/bin/ubuntu-core-initramfs
         fi
 
         # XXX: need to be careful to build an initrd using the right kernel
@@ -710,7 +731,11 @@ EOF
         (
             # accommodate assumptions about tree layout, use the unpacked initrd
             # to pick up the right modules
-            cd unpacked-initrd/main
+            if os.query is-arm; then
+                cd unpacked-initrd
+            else
+                cd unpacked-initrd/main
+            fi
             # XXX: pass feature 'main' and u-c-i picks up any directory named
             # after feature inside skeletondir and uses that a template
             ubuntu-core-initramfs create-initrd \
@@ -719,16 +744,11 @@ EOF
                                   --kerneldir "${unpackeddir}/modules/$kver" \
                                   --firmwaredir "${unpackeddir}/firmware" \
                                   --feature 'main' \
-                                  --output ../../repacked-initrd
+                                  --output "$unpackeddir"/repacked-initrd
         )
 
         # copy out the kernel image for create-efi command
-        if os.query is-arm && os.query is-focal; then
-            test-snapd-arm-tools.objcopy -j .initrd -O binary kernel.efi initrd
-            snap remove test-snapd-arm-tools
-        else 
-            objcopy -j .linux -O binary kernel.efi "vmlinuz-$kver"
-        fi
+        objcopy -j .linux -O binary kernel.efi "vmlinuz-$kver"
 
         # assumes all files are named <name>-$kver
         ubuntu-core-initramfs create-efi \
@@ -786,6 +806,11 @@ EOF
     
     snap pack repacked-kernel "$TARGET"
     rm -rf repacked-kernel
+
+    if os.query is-arm && os.query is-focal; then
+        snap remove test-snapd-arm-tools
+    fi 
+
 }
 
 
@@ -948,7 +973,9 @@ setup_reflash_magic() {
     UNPACK_DIR="/tmp/$core_name-snap"
     unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
-    if os.query is-core16; then
+    if os.query is-arm; then
+        snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+    elif os.query is-core16; then
         # the new ubuntu-image expects mkfs to support -d option, which was not
         # supported yet by the version of mkfs that shipped with Ubuntu 16.04
         snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
@@ -1165,7 +1192,7 @@ EOF
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap ${IMAGE_HOME}/${BASE}.snap"
     fi
     local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
-    if os.query is-core16; then
+    if os.query is-core16 || os.query is-arm; then
         # ubuntu-image on 16.04 needs to be installed from a snap
         UBUNTU_IMAGE=/snap/bin/ubuntu-image
     fi
