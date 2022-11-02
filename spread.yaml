@@ -236,6 +236,32 @@ backends:
                   storage: 20G
                   workers: 8
 
+
+    google-nested-dev:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-east1-b
+        plan: n2-standard-4
+        halt-timeout: 2h
+        cpu-family: "Intel Cascade Lake"
+        systems:
+            - ubuntu-16.04-64:
+                  image: ubuntu-1604-64-virt-enabled
+                  storage: 20G
+                  workers: 3
+            - ubuntu-18.04-64:
+                  image: ubuntu-1804-64-virt-enabled
+                  storage: 20G
+                  workers: 3
+            - ubuntu-20.04-64:
+                  image: ubuntu-2004-64-virt-enabled
+                  storage: 20G
+                  workers: 8
+            - ubuntu-22.04-64:
+                  image: ubuntu-2204-64-virt-enabled
+                  storage: 20G
+                  workers: 8
+
     qemu-nested:
         memory: 4G
         type: qemu
@@ -972,7 +998,7 @@ suites:
 
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
-        backends: [google-nested, qemu-nested]
+        backends: [google-nested, google-nested-dev, qemu-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "classic"
@@ -1031,7 +1057,7 @@ suites:
 
     tests/nested/classic/:
         summary: Tests for nested images
-        backends: [google-nested, qemu-nested]
+        backends: [google-nested, google-nested-dev, qemu-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "classic"
@@ -1083,7 +1109,7 @@ suites:
 
     tests/nested/core/:
         summary: Tests for nested images
-        backends: [google-nested, qemu-nested]
+        backends: [google-nested, google-nested-dev, qemu-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "core"
