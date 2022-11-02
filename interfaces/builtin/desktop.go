@@ -376,7 +376,9 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	emit("  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
 	emit("  umount /run/user/[0-9]*/doc/,\n\n")
 
-	// Allow mounting fonts
+	// Allow mounting fonts. For the app-provided slot case, we
+	// assume that the slot snap is using the boot base snap as
+	// its base, and that base contains fonts.
 	fontDirs, err := iface.fontconfigDirs(plug)
 	if err != nil {
 		return err
