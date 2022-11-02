@@ -122,15 +122,7 @@ build_rpm() {
             rpmbuild --with testkeys -bs "$rpm_dir/SOURCES/snapd.spec"
 
     # .. and we need all necessary build dependencies available
-    deps=()
-    IFS=$'\n'
-    for dep in $(rpm -qpR "$rpm_dir"/SRPMS/snapd-1337.*.src.rpm); do
-      if [[ "$dep" = rpmlib* ]]; then
-         continue
-      fi
-      deps+=("$dep")
-    done
-    distro_install_package "${deps[@]}"
+    install_snapd_rpm_dependencies "$rpm_dir"/SRPMS/snapd-1337.*.src.rpm
 
     # And now build our binary package
     unshare -n -- \
@@ -203,12 +195,47 @@ download_from_published(){
     done
 }
 
+download_from_gce_bucket(){
+    curl -o "${SPREAD_SYSTEM}.tar" "https://storage.googleapis.com/snapd-spread-tests/snapd-tests/packages/${SPREAD_SYSTEM}.tar"
+    tar -xf "${SPREAD_SYSTEM}.tar" -C "$PROJECT_PATH"/..
+}
+
 install_dependencies_from_published(){
     local published_version="$1"
 
     for dep in snap-confine ubuntu-core-launcher; do
         dpkg -i "$GOHOME/${dep}_${published_version}_$(dpkg --print-architecture).deb"
     done
+}
+
+install_snapd_rpm_dependencies(){
+    SRC_PATH=$1
+    deps=()
+    IFS=$'\n'
+    for dep in $(rpm -qpR "$SRC_PATH"); do
+        if [[ "$dep" = rpmlib* ]]; then
+            continue
+        fi
+        deps+=("$dep")
+    done
+    distro_install_package "${deps[@]}"
+}
+
+install_dependencies_gce_bucket(){
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            cp "$PROJECT_PATH"/../*.deb "$GOHOME"
+            ;;
+        fedora-*|opensuse-*|amazon-*|centos-*)
+            install_snapd_rpm_dependencies "$PROJECT_PATH"/../snapd-1337.*.src.rpm
+            # sources are not needed to run the tests
+            rm "$PROJECT_PATH"/../snapd-1337.*.src.rpm
+            find "$PROJECT_PATH"/.. -name '*.rpm' -exec cp -v {} "${GOPATH%%:*}" \;
+            ;;
+        arch-*)
+            cp "$PROJECT_PATH"/../snapd*.pkg.tar.* "${GOPATH%%:*}"
+            ;;
+    esac
 }
 
 ###
@@ -523,7 +550,7 @@ prepare_project() {
     # go mod runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"
 
-    if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
+    if [ "$BUILD_SNAPD_FROM_CURRENT" = true ]; then
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 build_deb
@@ -539,9 +566,12 @@ prepare_project() {
                 exit 1
                 ;;
         esac
-    else
+    elif [ -n "$SNAPD_PUBLISHED_VERSION" ]; then
         download_from_published "$SNAPD_PUBLISHED_VERSION"
         install_dependencies_from_published "$SNAPD_PUBLISHED_VERSION"
+    else
+        download_from_gce_bucket
+        install_dependencies_gce_bucket
     fi
 
     # Build fakestore.
