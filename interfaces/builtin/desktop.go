@@ -448,6 +448,13 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 	return nil
 }
 
+func (iface *desktopInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+	if !implicitSystemPermanentSlot(slot) {
+		spec.AddSnippet(desktopPermanentSlotAppArmor)
+	}
+	return nil
+}
+
 func (iface *desktopInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	_, err := iface.shouldMountHostFontCache(plug)
 	return err

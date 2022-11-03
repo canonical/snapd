@@ -59,6 +59,8 @@ apps:
 
 const desktopAppSlotYaml = `name: provider
 version: 0
+apps:
+  app:
 slots:
   desktop:
 `
@@ -115,6 +117,13 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  # Read-only access to /usr/local/share/fonts\n")
 	c.Check(updateNS, testutil.Contains, "  # Read-only access to /var/cache/fontconfig\n")
 
+	// There are permanent rules on the slot side
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
+	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "# Description: Can provide various desktop services")
+	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "interface=org.freedesktop.impl.portal.*")
+
 	// On a classic system, additional permissions are granted
 	restore = release.MockOnClassic(true)
 	defer restore()
@@ -135,6 +144,7 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected plug to core slot
 	spec = &apparmor.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
