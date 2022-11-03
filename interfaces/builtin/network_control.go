@@ -51,7 +51,7 @@ func (iface *networkControlInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 		return err
 	}
 	if strutil.ListContains(features, "xdp") {
-		spec.AddSnippet("network xdp,")
+		spec.AddSnippet("network xdp,\n")
 	}
 
 	return nil
