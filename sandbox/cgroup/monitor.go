@@ -20,7 +20,9 @@
 package cgroup
 
 import (
+	"errors"
 	"path"
+	"sync"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/inotify"
@@ -28,6 +30,7 @@ import (
 
 type inotifyWatcher struct {
 	wd        *inotify.Watcher
+	doOnce    sync.Once
 	addWatch  chan *groupToWatch
 	groupList []*groupToWatch
 	pathList  map[string]int32
@@ -121,15 +124,17 @@ func watcherMainLoop() {
 // MonitorFullDelete allows to monitor a group of files/folders
 // and, when all of them have been deleted, emits the specified name through the channel.
 func monitorFullDelete(name string, folders []string, channel chan string) error {
-	if currentWatcher.wd == nil {
+	currentWatcher.doOnce.Do(func() {
 		wd, err := inotify.NewWatcher()
-		if err != nil {
-			return err
+		if err == nil {
+			currentWatcher.wd = wd
+			go watcherMainLoop()
 		}
-		currentWatcher.wd = wd
-		go watcherMainLoop()
-	}
+	})
 
+	if currentWatcher.wd == nil {
+		return errors.New("Inotify failed to initialize")
+	}
 	currentWatcher.addWatch <- &groupToWatch{
 		name:    name,
 		folders: folders,
