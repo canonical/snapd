@@ -29,9 +29,11 @@ import (
 )
 
 type inotifyWatcher struct {
-	wd        *inotify.Watcher
-	doOnce    sync.Once
-	addWatch  chan *groupToWatch
+	wd       *inotify.Watcher
+	doOnce   sync.Once
+	addWatch chan *groupToWatch
+	// groupList and pathList are accessed only from inside the watcherMainLoop,
+	// so no locks are needed.
 	groupList []*groupToWatch
 	pathList  map[string]int32
 }
