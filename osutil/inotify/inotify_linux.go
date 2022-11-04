@@ -160,14 +160,6 @@ func (w *Watcher) readEvents() {
 				return
 			}
 		}
-		if n < syscall.SizeofInotifyEvent {
-			select {
-			case w.Error <- errors.New("inotify: short read in readEvents()"):
-				continue
-			case <-w.done:
-				return
-			}
-		}
 
 		var offset uint32
 		// We don't know how many events we just read into the buffer
@@ -191,9 +183,9 @@ func (w *Watcher) readEvents() {
 				event.Name = name
 				if nameLen > 0 {
 					// Point "bytes" at the first byte of the filename
-					bytes := (*[syscall.PathMax]byte)(unsafe.Pointer(&buf[offset+syscall.SizeofInotifyEvent]))
+					bytes := buf[offset+syscall.SizeofInotifyEvent : offset+syscall.SizeofInotifyEvent+nameLen]
 					// The filename is padded with NUL bytes. TrimRight() gets rid of those.
-					event.Name += "/" + strings.TrimRight(string(bytes[0:nameLen]), "\000")
+					event.Name += "/" + strings.TrimRight(string(bytes), "\000")
 				}
 				// Send the event on the events channel
 				select {
