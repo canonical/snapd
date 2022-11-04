@@ -29,9 +29,9 @@ import (
 )
 
 type inotifyWatcher struct {
-	wd       *inotify.Watcher
-	doOnce   sync.Once
-	addWatch chan *groupToWatch
+	wd           *inotify.Watcher
+	doOnce       sync.Once
+	addWatchChan chan *groupToWatch
 	// groupList and pathList are accessed only from inside the watcherMainLoop,
 	// so no locks are needed.
 	groupList []*groupToWatch
@@ -45,54 +45,54 @@ type groupToWatch struct {
 }
 
 var currentWatcher *inotifyWatcher = &inotifyWatcher{
-	wd:       nil,
-	pathList: make(map[string]int32),
-	addWatch: make(chan *groupToWatch),
+	wd:           nil,
+	pathList:     make(map[string]int32),
+	addWatchChan: make(chan *groupToWatch),
 }
 
-func addWatch(newWatch *groupToWatch) {
+func (this *inotifyWatcher) addWatch(newWatch *groupToWatch) {
 	var folderList []string
 	for _, fullPath := range newWatch.folders {
 		// It's not possible to use inotify.InDeleteSelf in /sys/fs because it
 		// isn't triggered, so we must monitor the parent folder and use InDelete
 		basePath := path.Dir(fullPath)
-		if _, exists := currentWatcher.pathList[basePath]; !exists {
-			currentWatcher.pathList[basePath] = 0
-			if err := currentWatcher.wd.AddWatch(basePath, inotify.InDelete); err != nil {
-				delete(currentWatcher.pathList, basePath)
+		if _, exists := this.pathList[basePath]; !exists {
+			this.pathList[basePath] = 0
+			if err := this.wd.AddWatch(basePath, inotify.InDelete); err != nil {
+				delete(this.pathList, basePath)
 				continue
 			}
 		}
-		currentWatcher.pathList[fullPath]++
+		this.pathList[fullPath]++
 		if osutil.FileExists(fullPath) {
 			folderList = append(folderList, fullPath)
 		} else {
-			removePath(fullPath)
+			this.removePath(fullPath)
 		}
 	}
 	if len(folderList) == 0 {
 		newWatch.channel <- newWatch.name
 	} else {
 		newWatch.folders = folderList
-		currentWatcher.groupList = append(currentWatcher.groupList, newWatch)
+		this.groupList = append(this.groupList, newWatch)
 	}
 }
 
-func removePath(fullPath string) {
-	currentWatcher.pathList[fullPath]--
-	if currentWatcher.pathList[fullPath] == 0 {
-		currentWatcher.wd.RemoveWatch(fullPath)
-		delete(currentWatcher.pathList, fullPath)
+func (this *inotifyWatcher) removePath(fullPath string) {
+	this.pathList[fullPath]--
+	if this.pathList[fullPath] == 0 {
+		this.wd.RemoveWatch(fullPath)
+		delete(this.pathList, fullPath)
 	}
 }
 
-func processEvent(watch *groupToWatch, event *inotify.Event) bool {
+func (this *inotifyWatcher) processEvent(watch *groupToWatch, event *inotify.Event) bool {
 	var tmpFolders []string
 	for _, fullPath := range watch.folders {
 		if fullPath != event.Name {
 			tmpFolders = append(tmpFolders, fullPath)
 		} else {
-			removePath(fullPath)
+			this.removePath(fullPath)
 		}
 	}
 	watch.folders = tmpFolders
@@ -103,41 +103,41 @@ func processEvent(watch *groupToWatch, event *inotify.Event) bool {
 	return true
 }
 
-func watcherMainLoop() {
+func (this *inotifyWatcher) watcherMainLoop() {
 	for {
 		select {
-		case event := <-currentWatcher.wd.Event:
+		case event := <-this.wd.Event:
 			if event.Mask&inotify.InDelete == 0 {
 				continue
 			}
 			var newGroupList []*groupToWatch
-			for _, watch := range currentWatcher.groupList {
-				if processEvent(watch, event) {
+			for _, watch := range this.groupList {
+				if this.processEvent(watch, event) {
 					newGroupList = append(newGroupList, watch)
 				}
 			}
-			currentWatcher.groupList = newGroupList
-		case newWatch := <-currentWatcher.addWatch:
-			addWatch(newWatch)
+			this.groupList = newGroupList
+		case newWatch := <-this.addWatchChan:
+			this.addWatch(newWatch)
 		}
 	}
 }
 
 // MonitorFullDelete allows to monitor a group of files/folders
 // and, when all of them have been deleted, emits the specified name through the channel.
-func monitorFullDelete(name string, folders []string, channel chan string) error {
-	currentWatcher.doOnce.Do(func() {
+func (this *inotifyWatcher) monitorFullDelete(name string, folders []string, channel chan string) error {
+	this.doOnce.Do(func() {
 		wd, err := inotify.NewWatcher()
 		if err == nil {
-			currentWatcher.wd = wd
-			go watcherMainLoop()
+			this.wd = wd
+			go this.watcherMainLoop()
 		}
 	})
 
-	if currentWatcher.wd == nil {
+	if this.wd == nil {
 		return errors.New("Inotify failed to initialize")
 	}
-	currentWatcher.addWatch <- &groupToWatch{
+	this.addWatchChan <- &groupToWatch{
 		name:    name,
 		folders: folders,
 		channel: channel,
@@ -155,5 +155,5 @@ func MonitorSnapEnded(snapName string, channel chan string) error {
 		ReturnCGroupPath: true,
 	}
 	paths, _ := InstancePathsOfSnap(snapName, options)
-	return monitorFullDelete(snapName, paths, channel)
+	return currentWatcher.monitorFullDelete(snapName, paths, channel)
 }
