@@ -5,6 +5,8 @@ defaults:
         disable: true
       console-conf:
         disable: true
+      ssh:
+        port: 8023
     watchdog:
       runtime-timeout: 13m
     system:
