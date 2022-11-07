@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -74,41 +75,6 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"verbose": i18n.G("Include more details on the snap (expanded notes, base, etc.)"),
 		}), nil)
-}
-
-func (iw *infoWriter) maybePrintHealth() {
-	if iw.localSnap == nil {
-		return
-	}
-	health := iw.localSnap.Health
-	if health == nil {
-		if !iw.verbose {
-			return
-		}
-		health = &client.SnapHealth{
-			Status:  "unknown",
-			Message: "health has not been set",
-		}
-	}
-	if health.Status == "okay" && !iw.verbose {
-		return
-	}
-
-	fmt.Fprintln(iw, "health:")
-	fmt.Fprintf(iw, "  status:\t%s\n", health.Status)
-	if health.Message != "" {
-		strutil.WordWrap(iw, quotedIfNeeded(health.Message), "  message:\t", "    ", iw.termWidth)
-	}
-	if health.Code != "" {
-		fmt.Fprintf(iw, "  code:\t%s\n", health.Code)
-	}
-	if !health.Timestamp.IsZero() {
-		fmt.Fprintf(iw, "  checked:\t%s\n", iw.fmtTime(health.Timestamp))
-	}
-	if !health.Revision.Unset() {
-		fmt.Fprintf(iw, "  revision:\t%s\n", health.Revision)
-	}
-	iw.Flush()
 }
 
 func clientSnapFromPath(path string) (*client.Snap, error) {
@@ -249,6 +215,41 @@ func (iw *infoWriter) maybePrintID() {
 	}
 }
 
+func (iw *infoWriter) maybePrintHealth() {
+	if iw.localSnap == nil {
+		return
+	}
+	health := iw.localSnap.Health
+	if health == nil {
+		if !iw.verbose {
+			return
+		}
+		health = &client.SnapHealth{
+			Status:  "unknown",
+			Message: "health has not been set",
+		}
+	}
+	if health.Status == "okay" && !iw.verbose {
+		return
+	}
+
+	fmt.Fprintln(iw, "health:")
+	fmt.Fprintf(iw, "  status:\t%s\n", health.Status)
+	if health.Message != "" {
+		strutil.WordWrap(iw, quotedIfNeeded(health.Message), "  message:\t", "    ", iw.termWidth)
+	}
+	if health.Code != "" {
+		fmt.Fprintf(iw, "  code:\t%s\n", health.Code)
+	}
+	if !health.Timestamp.IsZero() {
+		fmt.Fprintf(iw, "  checked:\t%s\n", iw.fmtTime(health.Timestamp))
+	}
+	if !health.Revision.Unset() {
+		fmt.Fprintf(iw, "  revision:\t%s\n", health.Revision)
+	}
+	iw.Flush()
+}
+
 func (iw *infoWriter) maybePrintTrackingChannel() {
 	if iw.localSnap == nil {
 		return
@@ -364,13 +365,27 @@ func (iw *infoWriter) maybePrintBuildDate() {
 	fmt.Fprintf(iw, "build-date:\t%s\n", iw.fmtTime(buildDate))
 }
 
-func (iw *infoWriter) maybePrintContact() error {
+func (iw *infoWriter) maybePrintLinks() {
 	contact := strings.TrimPrefix(iw.theSnap.Contact, "mailto:")
-	if contact == "" {
-		return nil
+	if contact != "" {
+		fmt.Fprintf(iw, "contact:\t%s\n", contact)
 	}
-	_, err := fmt.Fprintf(iw, "contact:\t%s\n", contact)
-	return err
+	if !iw.verbose || len(iw.theSnap.Links) == 0 {
+		return
+	}
+	links := iw.theSnap.Links
+	fmt.Fprintln(iw, "links:")
+	linkKeys := make([]string, 0, len(iw.theSnap.Links))
+	for k := range links {
+		linkKeys = append(linkKeys, k)
+	}
+	sort.Strings(linkKeys)
+	for _, k := range linkKeys {
+		fmt.Fprintf(iw, "  %s:\n", k)
+		for _, v := range links[k] {
+			fmt.Fprintf(iw, "    - %s\n", v)
+		}
+	}
 }
 
 func (iw *infoWriter) printLicense() {
@@ -644,7 +659,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.maybePrintStoreURL()
 		iw.maybePrintStandaloneVersion()
 		iw.maybePrintBuildDate()
-		iw.maybePrintContact()
+		iw.maybePrintLinks()
 		iw.printLicense()
 		iw.maybePrintPrice()
 		iw.printDescr()

@@ -556,7 +556,12 @@ func run() error {
 			}
 		}
 
-		msg, err := errorToCmdMessage("", strings.ToLower(parser.Active.Name), err, nil)
+		var cmdName string
+		if parser.Active != nil {
+			cmdName = parser.Active.Name
+		}
+
+		msg, err := errorToCmdMessage("", cmdName, err, nil)
 
 		if cmdline := strings.Join(os.Args, " "); strings.ContainsAny(cmdline, wrongDashes) {
 			// TRANSLATORS: the %+q is the commandline (+q means quoted, with any non-ascii character called out). Please keep the lines to at most 80 characters.

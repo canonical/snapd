@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -103,7 +103,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Private = d.Private
 	info.Paid = len(info.Prices) > 0
 	info.Confinement = snap.ConfinementType(d.Confinement)
-	info.EditedContact = d.Contact
+	info.LegacyEditedContact = d.Contact
 	info.License = d.License
 	info.Base = d.Base
 	info.CommonIDs = d.CommonIDs
@@ -112,8 +112,8 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 
 	// FIXME: once the store sends "contact" for everything, remove
 	//        the "SupportURL" part of the if
-	if info.EditedContact == "" {
-		info.EditedContact = d.SupportURL
+	if info.LegacyEditedContact == "" {
+		info.LegacyEditedContact = d.SupportURL
 	}
 
 	return info

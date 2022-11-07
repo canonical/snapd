@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -367,10 +367,10 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 	addAuxInfos := func(seedSnaps []*SeedSnap) {
 		for _, sn := range seedSnaps {
 			if sn.Info.ID() != "" {
-				if sn.Info.EditedContact != "" || sn.Info.Private {
+				if len(sn.Info.Links()) != 0 || sn.Info.Private {
 					auxInfos[sn.Info.ID()] = &internal.AuxInfo20{
 						Private: sn.Info.Private,
-						// TODO: set this only if the snap has no links
+						Links:   sn.Info.Links(),
 						Contact: sn.Info.Contact(),
 					}
 				}

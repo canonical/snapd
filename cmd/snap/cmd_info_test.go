@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -338,7 +338,7 @@ func (s *infoSuite) TestMaybePrintSum(c *check.C) {
 	c.Check(buf.String(), check.Equals, "")
 }
 
-func (s *infoSuite) TestMaybePrintContact(c *check.C) {
+func (s *infoSuite) TestMaybePrintLinksContact(c *check.C) {
 	var buf flushBuffer
 	iw := snap.NewInfoWriter(&buf)
 
@@ -350,9 +350,37 @@ func (s *infoSuite) TestMaybePrintContact(c *check.C) {
 	} {
 		buf.Reset()
 		snap.SetupDiskSnap(iw, "", &client.Snap{Contact: contact})
-		snap.MaybePrintContact(iw)
+		snap.MaybePrintLinks(iw)
 		c.Check(buf.String(), check.Equals, expected, check.Commentf("%q", contact))
 	}
+}
+
+func (s *infoSuite) TestMaybePrintLinksVerbose(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	snap.SetVerbose(iw, true)
+
+	const contact = "mailto:joe@example.com"
+	const website1 = "http://example.com/www1"
+	const website2 = "http://example.com/www2"
+	snap.SetupDiskSnap(iw, "", &client.Snap{
+		Links: map[string][]string{
+			"contact": {contact},
+			"website": {website1, website2},
+		},
+		Contact: contact,
+		Website: website1,
+	})
+
+	snap.MaybePrintLinks(iw)
+	c.Check(buf.String(), check.Equals, "contact:\tjoe@example.com\n"+
+		`links:
+  contact:
+    - mailto:joe@example.com
+  website:
+    - http://example.com/www1
+    - http://example.com/www2
+`)
 }
 
 func (s *infoSuite) TestMaybePrintBase(c *check.C) {
