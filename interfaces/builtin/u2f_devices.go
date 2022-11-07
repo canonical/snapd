@@ -162,6 +162,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "16d0",
 		ProductIDPattern: "0e90",
 	},
+	{
+		Name:             "TOKEN2 FIDO2 Security Key",
+		VendorIDPattern:  "1ea8",
+		ProductIDPattern: "fc25",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `
