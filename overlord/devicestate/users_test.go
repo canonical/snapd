@@ -206,13 +206,39 @@ func (s *usersSuite) TestUserActionRemoveDelUserErr(c *check.C) {
 	})()
 
 	s.state.Lock()
-	userState, userErr := devicestate.RemoveUser(s.state, "some-user")
+	userState, userErr := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{})
 	s.state.Unlock()
 	c.Check(userErr, check.NotNil)
 	c.Check(s.errorIsInternal(err), check.Equals, true)
 	c.Check(userErr.Error(), check.Matches, "wat")
 	c.Assert(userState, check.IsNil)
 	c.Check(called, check.Equals, 1)
+}
+
+func (s *usersSuite) TestUserActionRemoveDelUserForce(c *check.C) {
+	s.state.Lock()
+	_, err := auth.NewUser(s.state, auth.NewUserParams{
+		Username:   "some-user",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	s.state.Unlock()
+	c.Check(err, check.IsNil)
+
+	calls := 0
+	defer devicestate.MockOsutilDelUser(func(username string, opts *osutil.DelUserOptions) error {
+		calls++
+		c.Check(username, check.Equals, "some-user")
+		c.Check(opts.Force, check.Equals, true)
+		return nil
+	})()
+
+	s.state.Lock()
+	_, err = devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{Force: true})
+	s.state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(calls, check.Equals, 1)
 }
 
 func (s *usersSuite) TestUserActionRemoveStateErr(c *check.C) {
@@ -227,7 +253,7 @@ func (s *usersSuite) TestUserActionRemoveStateErr(c *check.C) {
 	})()
 
 	s.state.Lock()
-	userState, err := devicestate.RemoveUser(s.state, "some-user")
+	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{})
 	s.state.Unlock()
 
 	c.Check(err, check.NotNil)
@@ -246,7 +272,7 @@ func (s *usersSuite) TestUserActionRemoveNoUserInState(c *check.C) {
 	})
 
 	s.state.Lock()
-	userState, err := devicestate.RemoveUser(s.state, "some-user")
+	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{})
 	s.state.Unlock()
 
 	c.Check(err, check.NotNil)
@@ -275,7 +301,7 @@ func (s *usersSuite) TestUserActionRemove(c *check.C) {
 	})()
 
 	s.state.Lock()
-	userState, err := devicestate.RemoveUser(s.state, "some-user")
+	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{})
 	s.state.Unlock()
 
 	c.Check(err, check.IsNil)
@@ -293,7 +319,7 @@ func (s *usersSuite) TestUserActionRemove(c *check.C) {
 
 func (s *usersSuite) TestUserActionRemoveNoUsername(c *check.C) {
 
-	userState, err := devicestate.RemoveUser(s.state, "")
+	userState, err := devicestate.RemoveUser(s.state, "", &devicestate.RemoveUserOptions{})
 	c.Check(err, check.NotNil)
 	c.Check(err.Error(), check.Matches, "need a username to remove")
 	c.Check(s.errorIsInternal(err), check.Equals, false)
