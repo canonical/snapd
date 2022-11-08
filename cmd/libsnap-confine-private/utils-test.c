@@ -178,20 +178,20 @@ static void _test_sc_nonfatal_mkpath(const gchar *dirname,
 	// Use sc_nonfatal_mkpath to create the directory and ensure that it worked
 	// as expected.
 	g_test_queue_destroy((GDestroyNotify) my_rmdir, (char *)dirname);
-	int err = sc_nonfatal_mkpath(dirname, 0755);
+	int err = sc_nonfatal_mkpath(dirname, 0755, -1, -1);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_cmpint(errno, ==, 0);
 	g_assert_true(g_file_test(dirname, G_FILE_TEST_EXISTS |
 				  G_FILE_TEST_IS_REGULAR));
 	// Use same function again to try to create the same directory and ensure
 	// that it didn't fail and properly retained EEXIST in errno.
-	err = sc_nonfatal_mkpath(dirname, 0755);
+	err = sc_nonfatal_mkpath(dirname, 0755, -1, -1);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_cmpint(errno, ==, EEXIST);
 	// Now create a sub-directory of the original directory and observe the
 	// results. We should no longer see errno of EEXIST!
 	g_test_queue_destroy((GDestroyNotify) my_rmdir, (char *)subdirname);
-	err = sc_nonfatal_mkpath(subdirname, 0755);
+	err = sc_nonfatal_mkpath(subdirname, 0755, -1, -1);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_cmpint(errno, ==, 0);
 }

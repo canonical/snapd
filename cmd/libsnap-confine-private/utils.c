@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include "cleanup-funcs.h"
@@ -178,7 +179,8 @@ sc_identity sc_set_effective_identity(sc_identity identity)
 	return old;
 }
 
-int sc_nonfatal_mkpath(const char *const path, mode_t mode)
+int sc_nonfatal_mkpath(const char *const path, mode_t mode,
+                       uid_t uid, uid_t gid)
 {
 	// If asked to create an empty path, return immediately.
 	if (strlen(path) == 0) {
@@ -219,8 +221,16 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode)
 		// this as it may stay stale (errno is not reset if mkdirat(2) returns
 		// successfully).
 		errno = 0;
-		if (mkdirat(fd, path_segment, mode) < 0 && errno != EEXIST) {
-			return -1;
+		if (mkdirat(fd, path_segment, 0000) < 0) {
+			if (errno != EEXIST) {
+				return -1;
+			}
+		} else {
+			// new directory: set the right permissions and mode
+			if (fchownat(fd, path_segment, uid, gid, AT_SYMLINK_NOFOLLOW) < 0 ||
+			    fchmodat(fd, path_segment, mode, 0) < 0) {
+				return -1;
+			}
 		}
 		// Open the parent directory we just made (and close the previous one
 		// (but not the special value AT_FDCWD) so we can continue down the

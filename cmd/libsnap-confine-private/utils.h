@@ -107,10 +107,14 @@ void write_string_to_file(const char *filepath, const char *buf);
  * and the next directory is created using mkdirat(2), this sequence continues
  * while there are more directories to process.
  *
+ * The directory will be owned by the given user and group, unless these
+ * parameters are set to -1 (in which case they are not altered).
+ *
  * The function returns -1 in case of any error.
  **/
 __attribute__((warn_unused_result))
-int sc_nonfatal_mkpath(const char *const path, mode_t mode);
+int sc_nonfatal_mkpath(const char *const path, mode_t mode,
+                       uid_t uid, uid_t gid);
 
 /**
  * Return true if path is a valid path for the snap-confine binary

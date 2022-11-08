@@ -227,13 +227,10 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 			sc_must_snprintf(prefix_dir, sizeof prefix_dir,
 					 "%s%s", libgl_dir,
 					 &directory_name[source_dir_len]);
-			sc_identity old =
-			    sc_set_effective_identity(sc_root_group_identity());
-			if (sc_nonfatal_mkpath(prefix_dir, 0755) != 0) {
+			if (sc_nonfatal_mkpath(prefix_dir, 0755, 0, 0) != 0) {
 				die("failed to create prefix path: %s",
 				    prefix_dir);
 			}
-			(void)sc_set_effective_identity(old);
 		}
 
 		struct stat stat_buf;
@@ -588,16 +585,10 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 		return;
 	}
 
-	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	int res = sc_nonfatal_mkpath(SC_EXTRA_LIB_DIR, 0755);
+	int res = sc_nonfatal_mkpath(SC_EXTRA_LIB_DIR, 0755, 0, 0);
 	if (res != 0) {
 		die("cannot create " SC_EXTRA_LIB_DIR);
 	}
-	if (res == 0 && (chown(SC_EXTRA_LIB_DIR, 0, 0) < 0)) {
-		// Adjust the ownership only if we created the directory.
-		die("cannot change ownership of " SC_EXTRA_LIB_DIR);
-	}
-	(void)sc_set_effective_identity(old);
 
 #if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 	/* We include the globs for the glvnd libraries for old snaps

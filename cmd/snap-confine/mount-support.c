@@ -134,7 +134,6 @@ static void setup_private_tmp(const char *snap_instance)
 	if (mkdirat(base_dir_fd, "tmp", 01777) < 0 && errno != EEXIST) {
 		die("cannot create private tmp directory %s/tmp", base);
 	}
-	(void)sc_set_effective_identity(old);
 	tmp_dir_fd = openat(base_dir_fd, "tmp",
 			    O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (tmp_dir_fd < 0) {
@@ -254,12 +253,9 @@ static void sc_do_mounts(const char *scratch_dir, const struct sc_mount *mounts)
 	     mnt++) {
 
 		if (mnt->is_bidirectional) {
-			sc_identity old =
-			    sc_set_effective_identity(sc_root_group_identity());
 			if (mkdir(mnt->path, 0755) < 0 && errno != EEXIST) {
 				die("cannot create %s", mnt->path);
 			}
-			(void)sc_set_effective_identity(old);
 		}
 		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
 				 mnt->path);
@@ -1090,9 +1086,7 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	// to slave mode, so we see changes from the parent namespace
 	// but don't propagate our own changes.
 	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
-	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
-	(void)sc_set_effective_identity(old);
 }
 
 void sc_ensure_snap_dir_shared_mounts(void)
