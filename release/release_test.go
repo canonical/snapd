@@ -23,7 +23,6 @@ import (
 	"io/ioutil"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -66,7 +65,7 @@ BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
 	return mockOSRelease
 }
 
-func mockWSLsetup(c *C, existsWSLinterop bool, existsRunWSL bool, filesystemID int64) func() {
+func mockWSLsetup(c *C, existsWSLinterop bool, existsRunWSL bool, filesystemName string) func() {
 	restoreFileExists := release.MockFileExists(func(s string) bool {
 		if s == "/proc/sys/fs/binfmt_misc/WSLInterop" {
 			return existsWSLinterop
@@ -76,7 +75,7 @@ func mockWSLsetup(c *C, existsWSLinterop bool, existsRunWSL bool, filesystemID i
 		}
 		return osutil.FileExists(s)
 	})
-	restoreFilesystemRootType := release.MockFilesystemRootType(filesystemID)
+	restoreFilesystemRootType := release.MockFilesystemRootType(filesystemName)
 
 	return func() {
 		restoreFileExists()
@@ -171,47 +170,56 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestFilesystemRootType(c *C) {
-	reported_type, err := release.FilesystemRootType()
+	output, err := exec.Command("df", "--output=fstype", "/").CombinedOutput()
+	c.Assert(err, IsNil)
+	// $ df --output=fstype / # Example output on WSL1
+	// Type
+	// wslfs
+
+	fields := strings.Fields(string(output))
+	c.Check(len(fields), Equals, 2)
+
+	wants := strings.TrimSpace(fields[1])
 	c.Assert(err, IsNil)
 
-	// From man stat:
-	// %t   major device type in hex, for character/block device special files
-	output, err := exec.Command("stat", "-f", "-c", "%t", "/").CombinedOutput()
+	got, err := release.FilesystemRootType()
 	c.Assert(err, IsNil)
 
-	outstr := strings.TrimSpace(string(output[:]))
-	statted_type, err := strconv.ParseInt(outstr, 16, 64)
-	c.Assert(err, IsNil)
-
-	c.Check(reported_type, Equals, statted_type)
+	c.Check(wants, Equals, got)
 }
 
 func (s *ReleaseTestSuite) TestNonWSL(c *C) {
-	defer mockWSLsetup(c, false, false, release.Ext4)()
+	defer mockWSLsetup(c, false, false, "ext4")()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 0)
 }
 
 func (s *ReleaseTestSuite) TestWSL1(c *C) {
-	defer mockWSLsetup(c, true, true, release.Wslfs)()
+	defer mockWSLsetup(c, true, true, "wslfs")()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 1)
 }
 
 func (s *ReleaseTestSuite) TestWSL1Old(c *C) {
-	defer mockWSLsetup(c, true, true, release.Lxfs)()
+	defer mockWSLsetup(c, true, true, "lxfs")()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 1)
 }
 
 func (s *ReleaseTestSuite) TestWSL2(c *C) {
-	defer mockWSLsetup(c, true, true, release.Ext4)()
+	defer mockWSLsetup(c, true, true, "ext4")()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }
 
 func (s *ReleaseTestSuite) TestWSL2NoInterop(c *C) {
-	defer mockWSLsetup(c, false, true, release.Ext4)()
+	defer mockWSLsetup(c, false, true, "ext4")()
+	v := release.GetWSLVersion()
+	c.Check(v, Equals, 2)
+}
+
+func (s *ReleaseTestSuite) TestLXDInWSL2(c *C) {
+	defer mockWSLsetup(c, true, false, "btrfs")()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }
