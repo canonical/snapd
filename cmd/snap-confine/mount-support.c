@@ -64,8 +64,16 @@ static int must_mkdir_and_open_with_perms(const char *dir, uid_t uid, gid_t gid,
 	}
 	// Ignore EEXIST since we want to reuse and we will open with
 	// O_NOFOLLOW, below.
-	if (mkdir(dir, 0700) < 0 && errno != EEXIST) {
-		die("cannot create directory %s", dir);
+	if (mkdir(dir, 0700) < 0) {
+		if (errno != EEXIST) {
+			die("cannot create directory %s", dir);
+		}
+		debug("dir %s exists", dir);
+	} else {
+		debug("created dir %s", dir);
+		if (chown(dir, uid, gid) < 0) {
+			die("cannod chown on %s", dir);
+		}
 	}
 	fd = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (fd < 0) {
@@ -171,7 +179,6 @@ static void setup_private_mount(const char *snap_name)
 
 	/* Switch to root group so that mkdir and open calls below create filesystem
 	 * elements that are not owned by the user calling into snap-confine. */
-	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	// Create /tmp/snap.$SNAP_NAME/ 0700 root.root.
 	base_dir_fd = must_mkdir_and_open_with_perms(base_dir, 0, 0, 0700);
 	// Create /tmp/snap.$SNAP_NAME/tmp 01777 root.root Ignore EEXIST since we
@@ -179,7 +186,6 @@ static void setup_private_mount(const char *snap_name)
 	if (mkdirat(base_dir_fd, "tmp", 01777) < 0 && errno != EEXIST) {
 		die("cannot create private tmp directory %s/tmp", base_dir);
 	}
-	(void)sc_set_effective_identity(old);
 	tmp_dir_fd = openat(base_dir_fd, "tmp",
 			    O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (tmp_dir_fd < 0) {
@@ -272,12 +278,9 @@ static void sc_do_mounts(const char *scratch_dir,
 	for (const struct sc_mount * mnt = mounts; mnt->path != NULL; mnt++) {
 
 		if (mnt->is_bidirectional) {
-			sc_identity old =
-			    sc_set_effective_identity(sc_root_group_identity());
 			if (mkdir(mnt->path, 0755) < 0 && errno != EEXIST) {
 				die("cannot create %s", mnt->path);
 			}
-			(void)sc_set_effective_identity(old);
 		}
 		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
 				 mnt->path);
@@ -872,9 +875,7 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	// to slave mode, so we see changes from the parent namespace
 	// but don't propagate our own changes.
 	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
-	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
-	(void)sc_set_effective_identity(old);
 }
 
 void sc_ensure_snap_dir_shared_mounts(void)
