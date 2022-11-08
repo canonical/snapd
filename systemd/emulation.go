@@ -22,10 +22,12 @@ package systemd
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -153,17 +155,31 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 		return "", fmt.Errorf("cannot mount %s (%s) at %s in preseed mode: %s; %s", what, hostFsType, where, err, string(out))
 	}
 
-	multiUserTargetWantsDir := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants")
-	if err := os.MkdirAll(multiUserTargetWantsDir, 0755); err != nil {
-		return "", err
+	// Cannot call systemd, so manually enable the unit by
+	// symlinking into the targets' .wants directories.
+	// snapd.mounts.target is the proper target to install mounts.
+	// However, in order to handle preseeding of old images with old
+	// version of snapd, we also need to add the unit to
+	// multi-user.target
+	targets := []string{
+		"snapd.mounts.target",
+		"multi-user.target",
 	}
 
-	// cannot call systemd, so manually enable the unit by symlinking into multi-user.target.wants
 	mu := MountUnitPath(where)
-	enableUnitPath := filepath.Join(multiUserTargetWantsDir, mountUnitName)
-	if err := os.Symlink(mu, enableUnitPath); err != nil {
-		return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
+
+	for _, target := range targets {
+		targetWantsDir := filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s.wants", target))
+		if err := os.MkdirAll(targetWantsDir, 0755); err != nil {
+			return "", err
+		}
+
+		enableUnitPath := filepath.Join(targetWantsDir, mountUnitName)
+		if err := os.Symlink(mu, enableUnitPath); err != nil {
+			return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
+		}
 	}
+
 	return mountUnitName, nil
 }
 
@@ -188,10 +204,30 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 		}
 	}
 
-	multiUserTargetWantsDir := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants")
-	enableUnitPathSymlink := filepath.Join(multiUserTargetWantsDir, filepath.Base(unit))
-	if err := os.Remove(enableUnitPathSymlink); err != nil {
+	// `systemctl disable` removes all symlinks, so we should do the same
+	units, err := ioutil.ReadDir(dirs.SnapServicesDir)
+	if err != nil {
 		return err
+	}
+	for _, target := range units {
+		if !target.IsDir() {
+			continue
+		}
+		if !strings.HasSuffix(target.Name(), ".wants") && !strings.HasSuffix(target.Name(), ".requires") {
+			continue
+		}
+		dir := filepath.Join(dirs.SnapServicesDir, target.Name())
+		enableUnitPathSymlink := filepath.Join(dir, filepath.Base(unit))
+		err := os.Remove(enableUnitPathSymlink)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.Remove(dir); err != nil {
+			pathErr, ok := err.(*os.PathError)
+			if !ok || pathErr.Err != syscall.ENOTEMPTY {
+				return err
+			}
+		}
 	}
 
 	if err := os.Remove(unit); err != nil {
