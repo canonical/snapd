@@ -34,7 +34,7 @@ var (
 	RunUC20PreseedMode       = runUC20PreseedMode
 )
 
-type PreseedOpts = preseedOpts
+type PreseedCoreOptions = preseedCoreOptions
 
 func MockSeedOpen(f func(rootDir, label string) (seed.Seed, error)) (restore func()) {
 	oldSeedOpen := seedOpen
