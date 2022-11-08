@@ -219,11 +219,9 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir, const 
             // more directories below source_dir. Make sure to recreate the whole
             // prefix
             sc_must_snprintf(prefix_dir, sizeof prefix_dir, "%s%s", libgl_dir, &directory_name[source_dir_len]);
-            sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-            if (sc_nonfatal_mkpath(prefix_dir, 0755) != 0) {
+            if (sc_nonfatal_mkpath(prefix_dir, 0755, 0, 0) != 0) {
                 die("failed to create prefix path: %s", prefix_dir);
             }
-            (void)sc_set_effective_identity(old);
         }
 
         struct stat stat_buf;
@@ -280,11 +278,9 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir, const char
     sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir, tgt_dir);
     const char *libgl_dir = buf;
 
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
     if (sc_ensure_mkdir(libgl_dir, 0755, 0, 0) != 0) {
         die("cannot create tmpfs target %s", libgl_dir);
     }
-    (void)sc_set_effective_identity(old);
 
     debug("mounting tmpfs at %s", libgl_dir);
     if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
@@ -412,11 +408,9 @@ static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir, const char *src_
     if (access(src, F_OK) != 0) {
         return;
     }
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
     if (sc_ensure_mkdir(dst, 0755, 0, 0) != 0) {
         die("cannot create directory %s", dst);
     }
-    (void)sc_set_effective_identity(old);
     // Bind mount the binary nvidia driver into $tgt_dir (i.e. /var/lib/snapd/lib/gl).
     debug("bind mounting nvidia driver %s -> %s", src, dst);
     if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
@@ -509,16 +503,9 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name) 
         return;
     }
 
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-    int res = sc_nonfatal_mkpath(SC_EXTRA_LIB_DIR, 0755);
-    if (res != 0) {
+    if (sc_nonfatal_mkpath(SC_EXTRA_LIB_DIR, 0755, 0, 0) != 0) {
         die("cannot create " SC_EXTRA_LIB_DIR);
     }
-    if (res == 0 && (chown(SC_EXTRA_LIB_DIR, 0, 0) < 0)) {
-        // Adjust the ownership only if we created the directory.
-        die("cannot change ownership of " SC_EXTRA_LIB_DIR);
-    }
-    (void)sc_set_effective_identity(old);
 
 #if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
     /* We include the globs for the glvnd libraries for old snaps
