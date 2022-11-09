@@ -18,6 +18,8 @@
 #ifndef SNAP_CONFINE_PRIVS_H
 #define SNAP_CONFINE_PRIVS_H
 
+#include <stdint.h>
+
 /**
  * Permanently drop elevated permissions.
  *
@@ -34,5 +36,27 @@
  * nothing at all.
  **/
 void sc_privs_drop(void);
+
+/**
+ * sc_cap_mask is the type we use to store a mask of capabilities.
+ *
+ * It works similar to the masks defined in the cap_user_data_t structure used
+ * by capset(), except that it is a 64 bit one and therefore can accommodate
+ * all currently defined capabilities. At the moment all capabilities used by
+ * snap-confine are anyway located in the lower 32 bits, but we try to be open
+ * to future changes. */
+typedef uint64_t sc_cap_mask;
+#define SC_CAP_TO_MASK(cap) ((sc_cap_mask)1 << cap)
+
+typedef struct sc_capabilities {
+    sc_cap_mask effective;
+    sc_cap_mask permitted;
+    sc_cap_mask inheritable;
+} sc_capabilities;
+
+/**
+ * Set the given capabilities on the current process.
+ */
+void sc_set_capabilities(const sc_capabilities *capabilities);
 
 #endif
