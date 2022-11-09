@@ -270,3 +270,116 @@ func (s *aspectSuite) TestAspectsAccessControl(c *C) {
 		}
 	}
 }
+
+type spyDataBag struct {
+	bag              aspects.DataBag
+	getPath, setPath string
+}
+
+func newSpyDataBag(bag aspects.DataBag) *spyDataBag {
+	return &spyDataBag{bag: bag}
+}
+
+func (s *spyDataBag) Get(path string, value interface{}) error {
+	s.getPath = path
+	return s.bag.Get(path, value)
+}
+
+func (s *spyDataBag) Set(path string, value interface{}) error {
+	s.setPath = path
+	return s.bag.Set(path, value)
+}
+
+func (s *spyDataBag) Data() ([]byte, error) {
+	return s.bag.Data()
+}
+
+// getLastPaths returns the last paths passed into Get and Set and resets them.
+func (s *spyDataBag) getLastPaths() (get, set string) {
+	get, set = s.getPath, s.setPath
+	s.getPath, s.setPath = "", ""
+	return get, set
+}
+
+func (s *aspectSuite) TestAspectAssertionWithPlaceholder(c *C) {
+	bag := newSpyDataBag(aspects.NewJSONDataBag())
+
+	aspectDir, err := aspects.NewAspectDirectory("dir", map[string]interface{}{
+		"foo": []map[string]string{
+			{"name": "defaults.{foo}", "path": "first.{foo}.last"},
+			{"name": "{bar}.name", "path": "first.{bar}"},
+			{"name": "first.{baz}.last", "path": "{baz}.last"},
+			{"name": "first.{foo}.{bar}", "path": "{foo}.mid.{bar}"},
+			{"name": "{foo}.mid2.{bar}", "path": "{bar}.mid2.{foo}"},
+			{"name": "multi.{foo}", "path": "{foo}.multi.{foo}"},
+		},
+	}, bag, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	aspect := aspectDir.Aspect("foo")
+
+	for _, t := range []struct {
+		testName string
+		name     string
+		path     string
+	}{
+		{
+			testName: "placeholder last to mid",
+			name:     "defaults.abc",
+			path:     "first.abc.last",
+		},
+		{
+			testName: "placeholder first to last",
+			name:     "foo.name",
+			path:     "first.foo",
+		},
+		{
+			testName: "placeholder mid to first",
+			name:     "first.foo.last",
+			path:     "foo.last",
+		},
+		{
+			testName: "two placeholders in order",
+			name:     "first.one.two",
+			path:     "one.mid.two",
+		},
+		{
+			testName: "two placeholders out of order",
+			name:     "first2.mid2.two2",
+			path:     "two2.mid2.first2",
+		},
+		{
+			testName: "one placeholder mapping to several",
+			name:     "multi.firstLast",
+			path:     "firstLast.multi.firstLast",
+		},
+	} {
+		cmt := Commentf("sub-test %q failed", t.testName)
+		err := aspect.Set(t.name, "expectedValue")
+		c.Assert(err, IsNil, cmt)
+
+		var obtainedValue string
+		err = aspect.Get(t.name, &obtainedValue)
+		c.Assert(err, IsNil, cmt)
+
+		c.Assert(obtainedValue, Equals, "expectedValue", cmt)
+
+		getPath, setPath := bag.getLastPaths()
+		c.Assert(getPath, Equals, t.path, cmt)
+		c.Assert(setPath, Equals, t.path, cmt)
+	}
+}
+
+func (s *aspectSuite) TestAspectBadPlaceholderAssertion(c *C) {
+	aspectDir, err := aspects.NewAspectDirectory("dir", map[string]interface{}{
+		"foo": []map[string]string{
+			{"name": "bad.{foo}", "path": "bad.{bar}"},
+		},
+	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	aspect := aspectDir.Aspect("foo")
+
+	err = aspect.Set("bad.foo", "bar")
+	c.Assert(err, ErrorMatches, "path placeholder \"bar\" is absent from the name")
+}

@@ -171,16 +171,21 @@ type Aspect struct {
 
 // Set sets the named aspect to a specified value.
 func (a *Aspect) Set(name string, value interface{}) error {
-	for _, p := range a.accessPatterns {
-		if p.name != name {
+	for _, accessPatt := range a.accessPatterns {
+		path, err := accessPatt.getPath(name)
+		if err != nil {
+			return err
+		}
+
+		if path == "" {
 			continue
 		}
 
-		if !p.isWriteable() {
+		if !accessPatt.isWriteable() {
 			return fmt.Errorf("cannot set %q: path is not writeable", name)
 		}
 
-		if err := a.directory.dataBag.Set(p.path, value); err != nil {
+		if err := a.directory.dataBag.Set(path, value); err != nil {
 			return err
 		}
 
@@ -190,7 +195,6 @@ func (a *Aspect) Set(name string, value interface{}) error {
 		}
 
 		return a.directory.schema.Validate(data)
-
 	}
 
 	return &NotFoundError{fmt.Sprintf("cannot set %q: name not found", name)}
@@ -199,16 +203,21 @@ func (a *Aspect) Set(name string, value interface{}) error {
 // Get returns the aspect value identified by the name. If either the named aspect
 // or the corresponding value can't be found, a NotFoundError is returned.
 func (a *Aspect) Get(name string, value interface{}) error {
-	for _, p := range a.accessPatterns {
-		if p.name != name {
+	for _, accessPatt := range a.accessPatterns {
+		path, err := accessPatt.getPath(name)
+		if err != nil {
+			return err
+		}
+
+		if path == "" {
 			continue
 		}
 
-		if !p.isReadable() {
+		if !accessPatt.isReadable() {
 			return fmt.Errorf("cannot get %q: path is not readable", name)
 		}
 
-		if err := a.directory.dataBag.Get(p.path, value); err != nil {
+		if err := a.directory.dataBag.Get(path, value); err != nil {
 			if errors.Is(err, &NotFoundError{}) {
 				return &NotFoundError{fmt.Sprintf("cannot get %q: %v", name, err)}
 			}
@@ -226,6 +235,89 @@ type accessPattern struct {
 	name   string
 	path   string
 	access accessType
+}
+
+// getPath returns a path if the specified name matches the access pattern's name
+// (with optional placeholders) and an empty string, if not.
+func (p *accessPattern) getPath(name string) (string, error) {
+	if strings.ContainsAny(p.name, "{}") {
+		matches := matchedPlaceholders(p.name, name)
+		if matches == nil {
+			// aspect name w/ placeholders doesn't match the specified name
+			return "", nil
+		}
+
+		return fillInPlaceholders(p.path, matches)
+	} else if p.name == name {
+		return p.path, nil
+	}
+
+	return "", nil
+}
+
+// matchedPlaceholders takes a dot-separated pattern with optional placeholders
+// (e.g., "foo.{bar}") and a name. If the name fulfils the pattern, it returns
+// a map from placeholder names to their matches in the name. The map can be non-nil
+// but empty if no placeholders exist in the path. If there's no match, returns nil.
+func matchedPlaceholders(pattern, name string) map[string]string {
+	patternParts, nameParts := strings.Split(pattern, "."), strings.Split(name, ".")
+
+	if len(patternParts) != len(nameParts) {
+		return nil
+	}
+
+	placeholderMatches := make(map[string]string)
+	for i, patt := range patternParts {
+		// TODO: check assertions for:
+		//	* empty name parts (e.g., "a..b")
+		//	* names with non-ASCII characters (or we can't index the name directly)
+		//	* mismatched or out-of-place curly brackets (assuming they can only be used for placeholders)
+		//	* placeholders in a key but not in the path and vice-versa
+		if patt[0] == '{' && patt[len(patt)-1] == '}' {
+			trimmedPatt := strings.Trim(patt, "{}")
+			placeholderMatches[trimmedPatt] = nameParts[i]
+		} else if patt != nameParts[i] {
+			return nil
+		}
+	}
+
+	return placeholderMatches
+}
+
+// fillInPlaceholders takes a dot-separated path with optional placeholders and
+// fills in the values using the matching values in the map.
+func fillInPlaceholders(path string, placeholderValues map[string]string) (string, error) {
+	var sb strings.Builder
+
+	writePart := func(part string) error {
+		if sb.Len() > 0 {
+			if _, err := sb.WriteRune('.'); err != nil {
+				return err
+			}
+		}
+
+		_, err := sb.WriteString(part)
+		return err
+	}
+
+	pathParts := strings.Split(path, ".")
+	for _, part := range pathParts {
+		if part[0] == '{' && part[len(part)-1] == '}' {
+			trimmedPart := strings.Trim(part, "{}")
+
+			var ok bool
+			part, ok = placeholderValues[trimmedPart]
+			if !ok {
+				return "", fmt.Errorf("path placeholder %q is absent from the name", trimmedPart)
+			}
+		}
+
+		if err := writePart(part); err != nil {
+			return "", err
+		}
+	}
+
+	return sb.String(), nil
 }
 
 func (p accessPattern) isReadable() bool {
