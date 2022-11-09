@@ -825,6 +825,12 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.Res
 	// task belongs to is configured (system-restart-immediate) to
 	// choose whether request an immediate restart or not.
 	if rt == restart.RestartSystem {
+		snapsup, err := TaskSnapSetup(task)
+		if err != nil {
+			return err
+		}
+		task.Set("reboot-required-snap", snapsup.InstanceName())
+
 		chg := task.Change()
 		var immediate bool
 		if chg != nil {

@@ -20,13 +20,17 @@
 package restart_test
 
 import (
+	"bytes"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
@@ -394,4 +398,88 @@ func (s *restartSuite) TestPendingForSystemRestart(c *C) {
 	c.Check(rm.PendingForSystemRestart(chg1), Equals, false)
 	c.Check(rm.PendingForSystemRestart(chg2), Equals, false)
 	c.Check(rm.PendingForSystemRestart(chg3), Equals, false)
+}
+
+type notifyRebootRequiredSuite struct {
+	testutil.BaseTest
+
+	st          *state.State
+	mockNrrPath string
+	mockLog     *bytes.Buffer
+	t1          *state.Task
+}
+
+var _ = Suite(&notifyRebootRequiredSuite{})
+
+func (s *notifyRebootRequiredSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	s.AddCleanup(release.MockOnClassic(true))
+
+	s.st = state.New(nil)
+
+	mockLog, restore := logger.MockLogger()
+	s.AddCleanup(restore)
+	s.mockLog = mockLog
+
+	dirs.SetRootDir(c.MkDir())
+	s.mockNrrPath = filepath.Join(dirs.GlobalRootDir, "/usr/share/update-notifier/notify-reboot-required")
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	_, err := restart.Manager(s.st, "boot-id-1", nil)
+	c.Assert(err, IsNil)
+
+	// pretend there is a snap that requires a reboot
+	chg1 := s.st.NewChange("not-ready", "...")
+	s.t1 = s.st.NewTask("task", "...")
+	s.t1.Set("reboot-required-snap", "some-snap")
+	chg1.AddTask(s.t1)
+}
+
+func (s *notifyRebootRequiredSuite) TestFinishTaskWithRestartNotifiesRebootRequired(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	mockNrr := testutil.MockCommand(c, s.mockNrrPath, `
+test "$DPKG_MAINTSCRIPT_PACAGE" = "snap:some-snap"
+test "$DPKG_MAINTSCRIPT_NAME" = "postinst"
+`)
+	defer mockNrr.Restore()
+
+	restart.FinishTaskWithRestart(s.t1, state.DoneStatus, restart.RestartSystem, nil)
+	c.Check(mockNrr.Calls(), DeepEquals, [][]string{
+		{"notify-reboot-required"},
+	})
+	c.Check(s.mockLog.String(), Equals, "")
+}
+
+func (s *notifyRebootRequiredSuite) TestFinishTaskWithRestartNotifiesRebootRequiredLogsErr(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	mockNrr := testutil.MockCommand(c, s.mockNrrPath, `echo fail; exit 1`)
+	defer mockNrr.Restore()
+
+	restart.FinishTaskWithRestart(s.t1, state.DoneStatus, restart.RestartSystem, nil)
+	c.Check(mockNrr.Calls(), DeepEquals, [][]string{
+		{"notify-reboot-required"},
+	})
+	c.Check(s.mockLog.String(), Matches, `(?ms).*: cannot notify about pending reboot: fail`)
+}
+
+func (s *notifyRebootRequiredSuite) TestFinishTaskWithRestartNotifiesRebootRequiredNotOnCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	mockNrr := testutil.MockCommand(c, s.mockNrrPath, "")
+	defer mockNrr.Restore()
+
+	restart.FinishTaskWithRestart(s.t1, state.DoneStatus, restart.RestartSystem, nil)
+	c.Check(mockNrr.Calls(), HasLen, 0)
+	c.Check(s.mockLog.String(), Equals, "")
 }

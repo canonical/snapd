@@ -24,9 +24,15 @@ package restart
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 )
@@ -252,6 +258,34 @@ func setWaitForSystemRestart(chg *state.Change) {
 	chg.Set("wait-for-system-restart", true)
 }
 
+// notifyRebootRequiredClassic will write the
+// /run/reboot-required{,.pkgs} marker file
+func notifyRebootRequiredClassic(task *state.Task) error {
+	var rebootRequiredSnap string
+	if err := task.Get("reboot-required-snap", &rebootRequiredSnap); err != nil {
+		return fmt.Errorf("cannot get snap that triggered the reboot: %v", err)
+	}
+
+	// XXX: This will be replaced once there is a better way to
+	// notify about required reboots.  See
+	// https://github.com/uapi-group/specifications/issues/41
+	//
+	// For now call the update-notifier script with similar inputs
+	// as apt/dpkg.
+	nrrPath := filepath.Join(dirs.GlobalRootDir, "/usr/share/update-notifier/notify-reboot-required")
+	if osutil.FileExists(nrrPath) {
+		cmd := exec.Command(nrrPath)
+		cmd.Env = os.Environ()
+		cmd.Env = append(cmd.Env, fmt.Sprintf("DPKG_MAINTSCRIPT_PACKAGE=snap:%s", rebootRequiredSnap))
+		cmd.Env = append(cmd.Env, "DPKG_MAINTSCRIPT_NAME=postinst")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return osutil.OutputErr(output, err)
+		}
+	}
+
+	return nil
+}
+
 // FinishTaskWithRestart will finish a task that needs a restart, by setting
 // its status and requesting a restart.
 // It should usually be invoked returning its result immediately from the
@@ -270,7 +304,10 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType
 		if release.OnClassic {
 			if status == state.DoneStatus {
 				rm := restartManager(task.State(), "internal error: cannot request a restart before RestartManager initialization")
-				// TODO notify the system
+				// notify the system that a reboot is required
+				if err := notifyRebootRequiredClassic(task); err != nil {
+					logger.Noticef("cannot notify about pending reboot: %v", err)
+				}
 				// store current boot id to be able to check
 				// later if we have rebooted or not
 				task.Set("wait-for-system-restart-from-boot-id", rm.bootID)
