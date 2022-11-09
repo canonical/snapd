@@ -119,6 +119,8 @@ var filesystemRootType = func() (string, error) {
 	// WSL2       :  /dev/sdc / ext4 rw,relatime,discard,errors=remount-ro,data=ordered 0 0
 	// lxc on WSL2:  /dev/loop0 / btrfs rw,relatime,idmapped,space_cache,user_subvol_rm_allowed,subvolid=259,subvol=/containers/testlxd 0 0
 	// We search for mount point = "/", and return the fstype.
+	//
+	// This should be done by osutil.LoadMountInfo but that would cause a dependency cycle
 	file, err := os.Open("/proc/mounts")
 	if err != nil {
 		return "", fmt.Errorf("cannot find root filesystem type: %v", err)
