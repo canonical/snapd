@@ -64,7 +64,7 @@
 %global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 %global import_path     %{provider_prefix}
 
-%global snappy_svcs      snapd.service snapd.socket snapd.autoimport.service snapd.seeded.service
+%global snappy_svcs      snapd.service snapd.socket snapd.autoimport.service snapd.seeded.service snapd.mounts.target snapd.mounts-pre.target
 %global snappy_user_svcs snapd.session-agent.service snapd.session-agent.socket
 
 # Until we have a way to add more extldflags to gobuild macro...
@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.57.3
+Version:        2.57.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -570,8 +570,8 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %if 0%{?rhel} == 7
     M4PARAM='-D distro_rhel7'
 %endif
-%if 0%{?rhel} == 7 || 0%{?rhel} == 8 || 0%{?rhel} == 9
-    # RHEL7, RHEL8 and RHEL9 are missing the BPF interfaces from their reference policy
+%if 0%{?rhel} == 7 || 0%{?rhel} == 8
+    # RHEL7 and RHEL8 are missing the BPF interfaces from their reference policy
     M4PARAM="$M4PARAM -D no_bpf"
 %endif
     # Build SELinux module
@@ -717,6 +717,11 @@ rm %{buildroot}%{_libexecdir}/snapd/system-shutdown
 rm -f %{buildroot}%{_unitdir}/snapd.apparmor.service
 rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
 
+# Remove prompt services
+rm %{buildroot}%{_unitdir}/snapd.aa-prompt-listener.service
+rm %{buildroot}%{_userunitdir}/snapd.aa-prompt-ui.service
+rm %{buildroot}%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
+
 # Install Polkit configuration
 install -m 644 -D data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
 
@@ -824,6 +829,8 @@ popd
 %{_unitdir}/snapd.autoimport.service
 %{_unitdir}/snapd.failure.service
 %{_unitdir}/snapd.seeded.service
+%{_unitdir}/snapd.mounts.target
+%{_unitdir}/snapd.mounts-pre.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
@@ -981,6 +988,45 @@ fi
 
 
 %changelog
+* Mon Oct 17 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.57.5
+ - image: clean snapd mount after preseeding
+ - wrappers,snap/quota: clear LogsDirectory= in the service unit
+   for journal namespaces
+ - cmd/snap,daemon: allow zero values from client to daemon for
+   journal rate-limit
+ - interfaces: steam-support allow pivot /run/media and /etc/nvidia
+   mount
+ - o/ifacestate: introduce DebugAutoConnectCheck hook
+ - release, snapd-apparmor, syscheck: distinguish WSL1 and WSL2
+ - autopkgtests: fix running autopkgtest on kinetic
+ - interfaces: add microceph interface
+ - interfaces: steam-support allow additional mounts
+ - many: add stub services
+ - interfaces: add kconfig paths to system-observe
+ - i/b/system_observe: honour root dir when checking for
+   /boot/config-*
+ - interfaces: grant access to speech-dispatcher socket
+ - interfaces: rework logic of unclashMountEntries
+
+* Thu Sep 29 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.57.4
+ - release, snapd-apparmor: fixed outdated WSL detection
+ - overlord/ifacestate: fix conflict detection of auto-connection
+ - overlord: run install-device hook during factory reset
+ - image/preseed/preseed_linux: add missing new line
+ - boot: add factory-reset cases for boot-flags.
+ - interfaces: added read/write access to /proc/self/coredump_filter
+   for process-control
+ - interfaces: add read access to /proc/cgroups and
+   /proc/sys/vm/swappiness to system-observe
+ - fde: run fde-reveal-key with `DefaultDependencies=no`
+ - snapdenv: added wsl to userAgent
+ - tests: fix restore section for persistent-journal-namespace
+ - i/b/mount-control: add optional `/` to umount rules
+ - cmd/snap-bootstrap: changes to be able to boot classic rootfs
+ - cmd/snap-bootstrap: add CVM mode
+
 * Thu Sep 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.57.3
  - wrappers: journal namespaces did not honor journal.persistent

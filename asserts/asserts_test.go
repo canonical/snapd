@@ -82,7 +82,7 @@ func (as *assertsSuite) TestMaxSupportedFormats(c *C) {
 	systemUserMaxFormat := asserts.SystemUserType.MaxSupportedFormat()
 	// validity
 	c.Check(snapDeclMaxFormat >= 4, Equals, true)
-	c.Check(systemUserMaxFormat >= 1, Equals, true)
+	c.Check(systemUserMaxFormat >= 2, Equals, true)
 	c.Check(asserts.MaxSupportedFormats(1), DeepEquals, map[string]int{
 		"snap-declaration": snapDeclMaxFormat,
 		"system-user":      systemUserMaxFormat,

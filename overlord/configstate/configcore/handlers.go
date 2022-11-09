@@ -110,6 +110,9 @@ func init() {
 	// tmpfs.size
 	addFSOnlyHandler(validateTmpfsSettings, handleTmpfsConfiguration, coreOnly)
 
+	// system.faillock
+	addFSOnlyHandler(validateFaillockSettings, handleFaillockConfiguration, coreOnly)
+
 	sysconfig.ApplyFilesystemOnlyDefaultsImpl = filesystemOnlyApply
 }
 

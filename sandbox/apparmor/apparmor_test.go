@@ -51,10 +51,14 @@ var _ = Suite(&apparmorSuite{})
 
 func (s *apparmorSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
 	s.AddCleanup(func() {
 		configFile := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/tunables/home.d/snapd")
-		if err := os.Remove(configFile); err != nil {
-			c.Assert(os.IsNotExist(err), Equals, true)
+		if err := os.RemoveAll(configFile); err != nil {
+			panic(err)
 		}
 	})
 }
@@ -76,7 +80,7 @@ func (*apparmorSuite) TestAppArmorParser(c *C) {
 func (*apparmorSuite) TestAppArmorInternalAppArmorParser(c *C) {
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
-	defer dirs.SetRootDir("")
+
 	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
 	c.Assert(os.MkdirAll(d, 0755), IsNil)
 	p := filepath.Join(d, "apparmor_parser")
@@ -118,14 +122,12 @@ func (*apparmorSuite) TestAppArmorSystemCacheFallsback(c *C) {
 	err := os.MkdirAll(systemCacheDir, 0755)
 	c.Assert(err, IsNil)
 	dirs.SetRootDir(dir1)
-	defer dirs.SetRootDir("")
 	c.Assert(apparmor.SystemCacheDir, Equals, systemCacheDir)
 
 	// but if we set a new root dir without the system cache dir, now the var is
 	// set to the CacheDir
 	dir2 := c.MkDir()
 	dirs.SetRootDir(dir2)
-	defer dirs.SetRootDir("")
 	c.Assert(apparmor.SystemCacheDir, Equals, apparmor.CacheDir)
 
 	// finally test that it's insufficient to just have the conf dir, we need
@@ -134,7 +136,6 @@ func (*apparmorSuite) TestAppArmorSystemCacheFallsback(c *C) {
 	err = os.MkdirAll(filepath.Join(dir3, "/etc/apparmor.d"), 0755)
 	c.Assert(err, IsNil)
 	dirs.SetRootDir(dir3)
-	defer dirs.SetRootDir("")
 	c.Assert(apparmor.SystemCacheDir, Equals, apparmor.CacheDir)
 }
 
@@ -256,7 +257,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 }
 
 func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
-	var features = []string{"unsafe", "include-if-exists", "qipcrtr-socket", "mqueue", "cap-bpf", "cap-audit-read"}
+	var features = []string{"unsafe", "include-if-exists", "qipcrtr-socket", "mqueue", "cap-bpf", "cap-audit-read", "xdp"}
 	// test all combinations of features
 	for i := 0; i < int(math.Pow(2, float64(len(features)))); i++ {
 		expFeatures := []string{}
@@ -319,6 +320,9 @@ profile snap-test {
 profile snap-test {
  capability audit_read,
 }
+profile snap-test {
+ network xdp,
+}
 `)
 	}
 
@@ -332,7 +336,7 @@ profile snap-test {
 	// pretend we have an internal apparmor_parser
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
-	defer dirs.SetRootDir("")
+
 	d := filepath.Join(dirs.SnapMountDir, "/snapd/42", "/usr/lib/snapd")
 	c.Assert(os.MkdirAll(d, 0755), IsNil)
 	p := filepath.Join(d, "apparmor_parser")
@@ -370,7 +374,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "qipcrtr-socket", "unsafe"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "qipcrtr-socket", "unsafe", "xdp"})
 }
 
 func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
@@ -410,7 +414,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "qipcrtr-socket", "unsafe"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "qipcrtr-socket", "unsafe", "xdp"})
 
 	// this makes probing fails but is not done again
 	err = os.RemoveAll(d)
@@ -471,7 +475,7 @@ func (s *apparmorSuite) TestUpdateHomedirsTunableWriteFail(c *C) {
 func (s *apparmorSuite) TestUpdateHomedirsTunableHappy(c *C) {
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
-	defer dirs.SetRootDir("")
+
 	err := apparmor.UpdateHomedirsTunable([]string{"/home/a", "/dir2"})
 	c.Assert(err, IsNil)
 	configFile := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/tunables/home.d/snapd")
@@ -491,7 +495,6 @@ func (s *apparmorSuite) TestUpdateHomedirsTunableHappyNoDirs(c *C) {
 func (s *apparmorSuite) TestSnapdAppArmorSupportsReexecImpl(c *C) {
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
-	defer dirs.SetRootDir("")
 
 	// with no info file should indicate it does not support reexec
 	c.Check(apparmor.SnapdAppArmorSupportsRexecImpl(), Equals, false)

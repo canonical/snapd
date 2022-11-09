@@ -20,7 +20,11 @@
 package builtin
 
 import (
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/osutil"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const networkControlSummary = `allows configuring networking and network namespaces`
@@ -32,6 +36,26 @@ const networkControlBaseDeclarationSlots = `
         - core
     deny-auto-connection: true
 `
+
+func (iface *networkControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if err := iface.commonInterface.AppArmorConnectedPlug(spec, plug, slot); err != nil {
+		return err
+	}
+
+	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Unsupported {
+		// no apparmor means we don't have to deal with parser features
+		return nil
+	}
+	features, err := apparmor_sandbox.ParserFeatures()
+	if err != nil {
+		return err
+	}
+	if strutil.ListContains(features, "xdp") {
+		spec.AddSnippet("network xdp,\n")
+	}
+
+	return nil
+}
 
 const networkControlConnectedPlugAppArmor = `
 # Description: Can configure networking and network namespaces via the standard
@@ -319,6 +343,9 @@ socket AF_NETLINK - NETLINK_GENERIC
 
 # for receiving kobject_uevent() net messages from the kernel
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+
+# For XDP:
+bpf
 `
 
 /* https://www.kernel.org/doc/Documentation/networking/tuntap.txt
@@ -378,24 +405,30 @@ mount options=(rw bind) /var/lib/snapd/hostfs/var/lib/dhcp/ -> /var/lib/dhcp/,
 umount /var/lib/dhcp/,
 `
 
+type networkControlInterface struct {
+	commonInterface
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "network-control",
-		summary:               networkControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  networkControlBaseDeclarationSlots,
-		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
-		connectedPlugUDev:     networkControlConnectedPlugUDev,
+	registerIface(&networkControlInterface{
+		commonInterface{
+			name:                  "network-control",
+			summary:               networkControlSummary,
+			implicitOnCore:        true,
+			implicitOnClassic:     true,
+			baseDeclarationSlots:  networkControlBaseDeclarationSlots,
+			connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
+			connectedPlugSecComp:  networkControlConnectedPlugSecComp,
+			connectedPlugUDev:     networkControlConnectedPlugUDev,
 
-		connectedPlugMount:            networkControlConnectedPlugMount,
-		connectedPlugUpdateNSAppArmor: networkControlConnectedPlugUpdateNSAppArmor,
+			connectedPlugMount:            networkControlConnectedPlugMount,
+			connectedPlugUpdateNSAppArmor: networkControlConnectedPlugUpdateNSAppArmor,
 
-		suppressPtraceTrace:         true,
-		suppressSysModuleCapability: true,
+			suppressPtraceTrace:         true,
+			suppressSysModuleCapability: true,
 
-		// affects the plug snap because of mount backend
-		affectsPlugOnRefresh: true,
+			// affects the plug snap because of mount backend
+			affectsPlugOnRefresh: true,
+		},
 	})
 }

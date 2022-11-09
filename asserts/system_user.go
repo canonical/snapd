@@ -34,12 +34,13 @@ var validSystemUserUsernames = regexp.MustCompile(`^[a-z0-9][-a-z0-9+.-_]*$`)
 // system users.
 type SystemUser struct {
 	assertionBase
-	series  []string
-	models  []string
-	serials []string
-	sshKeys []string
-	since   time.Time
-	until   time.Time
+	series     []string
+	models     []string
+	serials    []string
+	sshKeys    []string
+	since      time.Time
+	until      time.Time
+	expiration string
 
 	forcePasswordChange bool
 }
@@ -104,6 +105,19 @@ func (su *SystemUser) Since() time.Time {
 // Until returns the time until the assertion is valid.
 func (su *SystemUser) Until() time.Time {
 	return su.until
+}
+
+// UserExpiration returns the expiration or validity duration of the user created.
+//
+// If no expiration was specified, this will return an zero time.Time structure.
+//
+// If expiration was set to 'until-expiration' then the .Until() time will be
+// returned.
+func (su *SystemUser) UserExpiration() time.Time {
+	if su.expiration == "until-expiration" {
+		return su.until
+	}
+	return time.Time{}
 }
 
 // ValidAt returns whether the system-user is valid at 'when' time.
@@ -216,6 +230,21 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 	return pw, nil
 }
 
+func checkSystemUserPresence(assert assertionBase) (string, error) {
+	str, err := checkOptionalString(assert.headers, "user-presence")
+	if err != nil || str == "" {
+		return "", err
+	}
+	if assert.Format() < 2 {
+		return "", fmt.Errorf(`the "user-presence" header is only supported for format 2 or greater`)
+	}
+
+	if str != "until-expiration" {
+		return "", fmt.Errorf(`invalid "user-presence" header, only explicit valid value is "until-expiration": %q`, str)
+	}
+	return str, nil
+}
+
 func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	// brand-id here can be different from authority-id,
 	// the code using the assertion must use the policy set
@@ -280,6 +309,10 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	if until.Before(since) {
 		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
 	}
+	expiration, err := checkSystemUserPresence(assert)
+	if err != nil {
+		return nil, err
+	}
 
 	// "global" system-user assertion can only be valid for 1y
 	if len(models) == 0 && until.After(since.AddDate(1, 0, 0)) {
@@ -294,6 +327,7 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 		sshKeys:             sshKeys,
 		since:               since,
 		until:               until,
+		expiration:          expiration,
 		forcePasswordChange: forcePasswordChange,
 	}, nil
 }
@@ -307,6 +341,14 @@ func systemUserFormatAnalyze(headers map[string]interface{}, body []byte) (forma
 	}
 	if len(serials) > 0 {
 		formatnum = 1
+	}
+
+	presence, err := checkOptionalString(headers, "user-presence")
+	if err != nil {
+		return 0, err
+	}
+	if presence != "" {
+		formatnum = 2
 	}
 
 	return formatnum, nil

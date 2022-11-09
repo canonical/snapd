@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2019 Canonical Ltd
+ * Copyright (C) 2018-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -99,16 +99,13 @@ func (dc groundDeviceContext) RunMode() bool {
 }
 
 // HasModeenv is true if the grade is set
-// TODO:UC20: will classic devices with uc20 models have a modeenv? I think so?
 func (dc groundDeviceContext) HasModeenv() bool {
 	return dc.model.Grade() != asserts.ModelGradeUnset
 }
 
-// IsCoreBoot is true when there are modes, or when there are not but
-// we are not in classic (UC16/18 case). If true this implies that a
-// kernel snap is in use.
+// IsCoreBoot is true if the model sports a kernel.
 func (d *groundDeviceContext) IsCoreBoot() bool {
-	return d.HasModeenv() || !d.Classic()
+	return d.model.Kernel() != ""
 }
 
 // IsClassicBoot is true for classic systems with classic initramfs

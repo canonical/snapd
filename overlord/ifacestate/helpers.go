@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/interfaces/utils"
@@ -110,7 +109,7 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 		CoreSnapInfo:  coreSnapInfo,
 		SnapdSnapInfo: snapdSnapInfo,
 	}
-	for _, backend := range backends.All {
+	for _, backend := range allSecurityBackends() {
 		if err := backend.Initialize(&opts); err != nil {
 			return err
 		}
@@ -666,6 +665,10 @@ func addNewConnection(st *state.State, task *state.Task, newconns map[string]*in
 	return nil
 }
 
+// DebugAutoConnectCheck is a hook that can be set to debug auto-connection
+// candidates as they are checked.
+var DebugAutoConnectCheck func(*policy.ConnectCandidate, interfaces.SideArity, error)
+
 type autoConnectChecker struct {
 	st   *state.State
 	task *state.Task
@@ -748,6 +751,9 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 	}
 
 	arity, err := ic.CheckAutoConnect()
+	if DebugAutoConnectCheck != nil {
+		DebugAutoConnectCheck(&ic, arity, err)
+	}
 	if err == nil {
 		return true, arity, nil
 	}

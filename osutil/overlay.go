@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,8 +17,17 @@
  *
  */
 
-package backends
+package osutil
 
-var (
-	Backends = backends
-)
+func IsRootWritableOverlay() (string, error) {
+	return isRootWritableOverlay()
+}
+
+// MockIsRootWritableOverlay mocks the real implementation of osutil.IsRootWritableOverlay
+func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
+	old := isRootWritableOverlay
+	isRootWritableOverlay = new
+	return func() {
+		isRootWritableOverlay = old
+	}
+}

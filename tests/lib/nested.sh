@@ -520,7 +520,9 @@ nested_prepare_snapd() {
             snap_id="PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
         fi
 
-        "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap "$snap_name" "$NESTED_ASSETS_DIR"
+        if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
+            "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap "$snap_name" "$NESTED_ASSETS_DIR"
+        fi
         cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
 
         # sign the snapd snap with fakestore if requested
@@ -539,28 +541,33 @@ nested_prepare_kernel() {
         snap_id="pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
         version="$(nested_get_version)"
 
-        if nested_is_core_16_system || nested_is_core_18_system; then
-            kernel_snap=pc-kernel-new.snap
-            repack_kernel_snap "$kernel_snap"
-        elif nested_is_core_20_system || nested_is_core_22_system; then
-            snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
+        if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
+            if nested_is_core_16_system || nested_is_core_18_system; then
+                kernel_snap=pc-kernel-new.snap
+                repack_kernel_snap "$kernel_snap"
 
-            # set the unix bump time if the NESTED_* var is set,
-            # otherwise leave it empty
-            local epochBumpTime
-            epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
-            if [ -n "$epochBumpTime" ]; then
-                epochBumpTime="--epoch-bump-time=$epochBumpTime"
+            elif nested_is_core_20_system || nested_is_core_22_system; then
+                snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
+
+                # set the unix bump time if the NESTED_* var is set,
+                # otherwise leave it empty
+                local epochBumpTime
+                epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
+                if [ -n "$epochBumpTime" ]; then
+                    epochBumpTime="--epoch-bump-time=$epochBumpTime"
+                fi
+
+                uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
+                rm -f "$PWD/pc-kernel.snap"
+
+                # Prepare the pc kernel snap
+                kernel_snap=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
+                chmod 0600 "$kernel_snap"
             fi
-
-            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-            rm -f "$PWD/pc-kernel.snap"
-
-            # Prepare the pc kernel snap
-            kernel_snap=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
-            chmod 0600 "$kernel_snap"
+            cp "$kernel_snap" "$NESTED_ASSETS_DIR/$output_name"
         fi
-        cp "$kernel_snap" "$(nested_get_extra_snaps_path)/$output_name"
+        cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
+
         # sign the pc-kernel snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
             make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
@@ -619,10 +626,19 @@ defaults:
     journal:
       persistent: true
 EOF
+            local GADGET_EXTRA_CMDLINE=""
             if [ "$NESTED_SNAPD_DEBUG_TO_SERIAL" = "true" ]; then
                 # add snapd debug and log to serial console for extra
                 # visibility what happens when a machine fails to boot
-                echo 'console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1 ' > pc-gadget/cmdline.extra
+                GADGET_EXTRA_CMDLINE="console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
+            fi
+            if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
+                GADGET_EXTRA_CMDLINE="$GADGET_EXTRA_CMDLINE $NESTED_EXTRA_CMDLINE"
+            fi
+
+            if [ -n "$GADGET_EXTRA_CMDLINE" ]; then
+                echo "Configuring command line parameters in the gadget snap: \"console=ttyS0 $GADGET_EXTRA_CMDLINE\""
+                echo "$GADGET_EXTRA_CMDLINE" > pc-gadget/cmdline.extra
             fi
 
             # pack it
@@ -658,6 +674,7 @@ nested_prepare_base() {
             snap_name="core22"
             snap_id="amcUKQILKXHHTlmSa7NMdnXSx02dNeeT"
         fi
+        output_name="${snap_name}.snap"
 
         existing_snap=$(find "$(nested_get_extra_snaps_path)" -name "${snap_name}*.snap")
         if [ -n "$existing_snap" ]; then
@@ -668,11 +685,15 @@ nested_prepare_base() {
             return
         fi
         
-        echo "Repacking $snap_name snap"
-        snap download --channel="$CORE_CHANNEL" --basename="$snap_name" "$snap_name"
-        repack_core_snap_with_tweaks "${snap_name}.snap" "new-${snap_name}.snap"
+        if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
+            echo "Repacking $snap_name snap"
+            snap download --channel="$CORE_CHANNEL" --basename="$snap_name" "$snap_name"
+            repack_core_snap_with_tweaks "${snap_name}.snap" "new-${snap_name}.snap"
 
-        cp "new-${snap_name}.snap" "$(nested_get_extra_snaps_path)/${snap_name}.snap"
+            cp "new-${snap_name}.snap" "$NESTED_ASSETS_DIR/$output_name"
+        fi
+        cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
+
         # sign the base snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
             make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/${snap_name}.snap" "$snap_id"
@@ -963,6 +984,9 @@ nested_start_core_vm_unit() {
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
         PARAM_SMP="-smp 2"
+    elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
+        PARAM_MEM="${NESTED_PARAM_MEM:--m 8192}"
+        PARAM_SMP="-smp 4"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
         PARAM_SMP="-smp 1"
@@ -1012,7 +1036,7 @@ nested_start_core_vm_unit() {
     fi
 
     local PARAM_MACHINE
-    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+    if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
         PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         # check if we have nested kvm
@@ -1078,7 +1102,7 @@ nested_start_core_vm_unit() {
                 rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall
                 snap restart test-snapd-swtpm > /dev/null
             else
-                snap install test-snapd-swtpm --beta
+                snap install test-snapd-swtpm --edge
             fi
             # wait for the tpm sock file to exist
             retry -n 10 --wait 1 test -S /var/snap/test-snapd-swtpm/current/swtpm-sock
@@ -1280,6 +1304,10 @@ nested_start_classic_vm() {
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
+        PARAM_SMP="-smp 2"
+    elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
+        PARAM_MEM="${NESTED_PARAM_MEM:--m 8192}"
+        PARAM_SMP="-smp 4"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
     else
@@ -1297,7 +1325,7 @@ nested_start_classic_vm() {
     PARAM_SNAPSHOT="-snapshot"
 
     local PARAM_MACHINE PARAM_IMAGE PARAM_SEED PARAM_SERIAL PARAM_BIOS PARAM_TPM
-    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+    if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
         PARAM_MACHINE="-machine ubuntu,accel=kvm"
         PARAM_CPU="-cpu host"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then

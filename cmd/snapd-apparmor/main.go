@@ -44,17 +44,10 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snapdtool"
 )
-
-func isWSL() bool {
-	if output, err := exec.Command("systemd-detect-virt", "--container").Output(); err == nil {
-		virt := strings.TrimSpace(string(output))
-		return virt == "wsl"
-	}
-	return false
-}
 
 // Checks to see if the current container is capable of having internal AppArmor
 // profiles that should be loaded.
@@ -75,13 +68,13 @@ func isWSL() bool {
 // process should continue without any loss of functionality. This is an
 // unsupported configuration that cannot be properly handled by this function.
 func isContainerWithInternalPolicy() bool {
+	if release.OnWSL {
+		return true
+	}
+
 	var appArmorSecurityFSPath = filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor")
 	var nsStackedPath = filepath.Join(appArmorSecurityFSPath, ".ns_stacked")
 	var nsNamePath = filepath.Join(appArmorSecurityFSPath, ".ns_name")
-
-	if isWSL() {
-		return true
-	}
 
 	contents, err := ioutil.ReadFile(nsStackedPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -133,7 +126,8 @@ func loadAppArmorProfiles() error {
 }
 
 func isContainer() bool {
-	return (exec.Command("systemd-detect-virt", "--quiet", "--container").Run() == nil)
+	// systemd's implementation may fail on WSL2 with custom kernels
+	return release.OnWSL || (exec.Command("systemd-detect-virt", "--quiet", "--container").Run() == nil)
 }
 
 func validateArgs(args []string) error {

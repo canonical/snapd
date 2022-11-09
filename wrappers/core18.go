@@ -180,8 +180,13 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 	if err != nil {
 		return err
 	}
+	targetUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.target"))
+	if err != nil {
+		return err
+	}
 	units := append(socketUnits, serviceUnits...)
 	units = append(units, timerUnits...)
+	units = append(units, targetUnits...)
 
 	snapdUnits := make(map[string]osutil.FileState, len(units)+1)
 	for _, unit := range units {
@@ -206,7 +211,7 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 			Mode:    st.Mode(),
 		}
 	}
-	globs := []string{"snapd.service", "snapd.socket", "snapd.*.service", "snapd.*.timer"}
+	globs := []string{"snapd.service", "snapd.socket", "snapd.*.service", "snapd.*.timer", "snapd.*.target"}
 	changed, removed, err := osutil.EnsureDirStateGlobs(dirs.SnapServicesDir, globs, snapdUnits)
 	if err != nil {
 		// TODO: uhhhh, what do we do in this case?
@@ -352,8 +357,13 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 	if err != nil {
 		return err
 	}
+	targetUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.target"))
+	if err != nil {
+		return err
+	}
 	units := append(socketUnits, serviceUnits...)
 	units = append(units, timerUnits...)
+	units = append(units, targetUnits...)
 
 	for _, snapdUnit := range units {
 		sysdUnit := filepath.Base(snapdUnit)
@@ -617,6 +627,7 @@ func undoSnapdDbusConfigOnCore() error {
 
 var dbusSessionServices = []string{
 	"io.snapcraft.Launcher.service",
+	"io.snapcraft.Prompt.service",
 	"io.snapcraft.Settings.service",
 	"io.snapcraft.SessionAgent.service",
 }
@@ -628,8 +639,12 @@ func writeSnapdDbusActivationOnCore(s *snap.Info) error {
 
 	content := make(map[string]osutil.FileState, len(dbusSessionServices)+1)
 	for _, service := range dbusSessionServices {
+		filePathInSnap := filepath.Join(s.MountDir(), "usr/share/dbus-1/services", service)
+		if !osutil.FileExists(filePathInSnap) {
+			continue
+		}
 		content[service] = &osutil.FileReference{
-			Path: filepath.Join(s.MountDir(), "usr/share/dbus-1/services", service),
+			Path: filePathInSnap,
 		}
 	}
 

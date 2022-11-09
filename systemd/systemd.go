@@ -1360,16 +1360,15 @@ func ExistingMountUnitPath(mountPointDir string) string {
 
 var squashfsFsType = squashfs.FsType
 
-// XXX: After=zfs-mount.service is a workaround for LP: #1922293 (a problem
-// with order of mounting most likely related to zfs-linux and/or systemd).
-// XXX: Remove multi-user.target once we are sure it's unnecessary (see the
-// comments in LP: #1983528).
+// Note that WantedBy=multi-user.target and Before=local-fs.target are
+// only used to allow downgrading to an older version of snapd.
 const mountUnitTemplate = `[Unit]
 Description=Mount unit for {{.SnapName}}
 {{- with .Revision}}, revision {{.}}{{end}}
 {{- with .Origin}} via {{.}}{{end}}
-Before=snapd.service
-After=zfs-mount.service
+After=snapd.mounts-pre.target
+Before=snapd.mounts.target
+Before=local-fs.target
 
 [Mount]
 What={{.What}}
@@ -1379,7 +1378,8 @@ Options={{join .Options ","}}
 LazyUnmount=yes
 
 [Install]
-WantedBy=default.target multi-user.target
+WantedBy=snapd.mounts.target
+WantedBy=multi-user.target
 {{- with .Origin}}
 X-SnapdOrigin={{.}}
 {{- end}}

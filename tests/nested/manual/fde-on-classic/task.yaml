@@ -24,7 +24,6 @@ prepare: |
   # run outside of spread easily for quick interactive testing
   ./mk-image.sh ./boot.img "$CACHE_D" "./mnt" ./pc_x1.snap
   # replaces snap-bootstrap in initramfs and snapd in rootfs
-  # TODO chroot install of deb? /home/gopath/src/github.com/snapcore/snapd_*_amd64.deb
   ./replace-image-files.sh ./boot.img "$CACHE_D"
   # We will need yq
   snap install yq

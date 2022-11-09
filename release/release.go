@@ -21,10 +21,10 @@ package release
 
 import (
 	"bufio"
-	"bytes"
-	"io/ioutil"
+	"fmt"
 	"os"
 	"strings"
+	"syscall"
 	"unicode"
 
 	"github.com/snapcore/snapd/strutil"
@@ -105,15 +105,42 @@ func readOSRelease() OS {
 	return osRelease
 }
 
-var ioutilReadFile = ioutil.ReadFile
+// Note that osutil.FileExists cannot be used here as an osutil import will create a cyclic import
+var fileExists = func(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
 
-func isWSL() bool {
-	version, err := ioutilReadFile("/proc/version")
-	if err == nil && bytes.Contains(version, []byte("Microsoft")) {
-		return true
+var filesystemRootType = func() (int64, error) {
+	var statfs syscall.Statfs_t
+	if err := syscall.Statfs("/", &statfs); err != nil {
+		return 0, fmt.Errorf("cannot statfs filesystem root")
+	}
+	// Type is int32 on 386, use explicit conversion to keep the code
+	// working for both
+	return int64(statfs.Type), nil
+}
+
+// We detect WSL via the existence of /proc/sys/fs/binfmt_misc/WSLInterop
+// Under some undocumented circumstances this file may be missing. We have /run/WSL as a backup.
+//
+// We detect WSL1 via the root filesystem type:
+// - ext4 (Kernel magic: 0xef53) means WSL2
+// - wslfs (Kernel magic: 0x53464846) and  lxfs (Kernel magic: ?) mean WSL1
+// After knowing we're in WSL, if any error occurs we assume WSL1 as it is the more restrictive version
+func getWSLVersion() int {
+	if !fileExists("/proc/sys/fs/binfmt_misc/WSLInterop") && !fileExists("/run/WSL") {
+		return 0
+	}
+	fstype, err := filesystemRootType()
+	if err != nil {
+		return 1
 	}
 
-	return false
+	if fstype == 0xef53 { // ext
+		return 2
+	}
+	return 1
 }
 
 // SystemctlSupportsUserUnits returns true if the systemctl utility
@@ -133,6 +160,10 @@ var OnClassic bool
 // Subsystem for Linux
 var OnWSL bool
 
+// If the previous is true, WSLVersion states whether the process is running inside WSL1 or WSL2
+// Otherwise it is set to 0
+var WSLVersion int
+
 // ReleaseInfo contains data loaded from /etc/os-release on startup.
 var ReleaseInfo OS
 
@@ -141,7 +172,8 @@ func init() {
 
 	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
 
-	OnWSL = isWSL()
+	WSLVersion = getWSLVersion()
+	OnWSL = WSLVersion != 0
 }
 
 // MockOnClassic forces the process to appear inside a classic

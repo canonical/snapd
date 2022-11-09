@@ -29,7 +29,7 @@
 
 # The list of systemd services we are expected to ship. Note that this does
 # not include services that are only required on core systems.
-%global systemd_services_list snapd.socket snapd.service snapd.seeded.service snapd.failure.service %{?with_apparmor:snapd.apparmor.service}
+%global systemd_services_list snapd.socket snapd.service snapd.seeded.service snapd.failure.service %{?with_apparmor:snapd.apparmor.service} snapd.mounts.target snapd.mounts-pre.target
 %global systemd_user_services_list snapd.session-agent.socket
 
 # Alternate snap mount directory: not used by openSUSE.
@@ -81,7 +81,7 @@
 
 
 Name:           snapd
-Version:        2.57.3
+Version:        2.57.5
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -319,6 +319,11 @@ install -m 644 -D %{indigo_srcdir}/data/completion/bash/etelpmoc.sh %{buildroot}
 install -d -p %{buildroot}%{_datadir}/zsh/site-functions
 install -m 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
 
+# Remove prompt services
+rm %{buildroot}%{_unitdir}/snapd.aa-prompt-listener.service
+rm %{buildroot}%{_userunitdir}/snapd.aa-prompt-ui.service
+rm %{buildroot}%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
+
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
 
@@ -473,6 +478,8 @@ fi
 %{_unitdir}/snapd.seeded.service
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
+%{_unitdir}/snapd.mounts.target
+%{_unitdir}/snapd.mounts-pre.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
 

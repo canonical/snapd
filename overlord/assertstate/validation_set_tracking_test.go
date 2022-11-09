@@ -247,7 +247,7 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSets(c *C) {
 	vs3 := s.mockAssert(c, "baz", "5", "invalid")
 	c.Assert(assertstate.Add(s.st, vs3), IsNil)
 
-	valsets, err := assertstate.EnforcedValidationSets(s.st)
+	valsets, err := assertstate.TrackedEnforcedValidationSets(s.st)
 	c.Assert(err, IsNil)
 
 	// foo and bar are in conflict, use this as an indirect way of checking
@@ -284,7 +284,7 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSetsWithExtraSets(c *
 	vs2 := s.mockAssert(c, "bar", "1", "required")
 	c.Assert(assertstate.Add(s.st, vs2), IsNil)
 
-	valsets, err := assertstate.EnforcedValidationSets(s.st)
+	valsets, err := assertstate.TrackedEnforcedValidationSets(s.st)
 	c.Assert(err, IsNil)
 
 	err = valsets.Conflict()
@@ -295,7 +295,7 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSetsWithExtraSets(c *
 
 	// extra validation set "foo" replaces vs from the state
 	extra1 := s.mockAssert(c, "foo", "9", "required")
-	valsets, err = assertstate.EnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet))
+	valsets, err = assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet))
 	c.Assert(err, IsNil)
 
 	err = valsets.Conflict()
@@ -303,14 +303,14 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSetsWithExtraSets(c *
 
 	// extra validations set "baz" is not tracked, it augments computed validation sets (and creates a conflict)
 	extra2 := s.mockAssert(c, "baz", "9", "invalid")
-	valsets, err = assertstate.EnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet))
+	valsets, err = assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet))
 	c.Assert(err, IsNil)
 	err = valsets.Conflict()
 	c.Check(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "snap-b" as both invalid \(.*/baz\) and required at any revision \(.*/foo\)`)
 
 	// extra validations set "baz" is not tracked, it augments computed validation sets (no conflict this time)
 	extra2 = s.mockAssert(c, "baz", "9", "optional")
-	valsets, err = assertstate.EnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet))
+	valsets, err = assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet))
 	c.Assert(err, IsNil)
 	err = valsets.Conflict()
 	c.Assert(err, IsNil)
@@ -318,14 +318,14 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSetsWithExtraSets(c *
 	// extra validations set replace both foo and bar vs from the state
 	extra1 = s.mockAssert(c, "foo", "9", "required")
 	extra2 = s.mockAssert(c, "bar", "9", "invalid")
-	valsets, err = assertstate.EnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet))
+	valsets, err = assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet))
 	c.Assert(err, IsNil)
 	err = valsets.Conflict()
 	c.Check(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "snap-b" as both invalid \(.*/bar\) and required at any revision \(.*/foo\)`)
 
 	// no conflict once both are invalid
 	extra1 = s.mockAssert(c, "foo", "9", "invalid")
-	valsets, err = assertstate.EnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet))
+	valsets, err = assertstate.TrackedEnforcedValidationSets(s.st, extra1.(*asserts.ValidationSet), extra2.(*asserts.ValidationSet))
 	c.Assert(err, IsNil)
 	err = valsets.Conflict()
 	c.Check(err, IsNil)

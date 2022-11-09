@@ -55,8 +55,7 @@ environment:
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
     DELTA_REF: 2.52
     DELTA_PREFIX: snapd-$DELTA_REF/
-    REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
-    SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
+    REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'    
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
     HTTPS_PROXY: '$(HOST: echo "$SPREAD_HTTPS_PROXY")'
     NO_PROXY: "127.0.0.1"
@@ -74,6 +73,10 @@ environment:
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
     EXPERIMENTAL_FEATURES: '$(HOST: echo "${SPREAD_EXPERIMENTAL_FEATURES:-}")'
+
+    SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
+    # Build and use snapd from current branch
+    BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-true}")'
 
     # Directory where the nested images and test assets are stored
     NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
@@ -213,6 +216,32 @@ backends:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: snapd-spread/us-east1-b
         plan: n2-standard-2
+        halt-timeout: 2h
+        cpu-family: "Intel Cascade Lake"
+        systems:
+            - ubuntu-16.04-64:
+                  image: ubuntu-1604-64-virt-enabled
+                  storage: 20G
+                  workers: 3
+            - ubuntu-18.04-64:
+                  image: ubuntu-1804-64-virt-enabled
+                  storage: 20G
+                  workers: 3
+            - ubuntu-20.04-64:
+                  image: ubuntu-2004-64-virt-enabled
+                  storage: 20G
+                  workers: 8
+            - ubuntu-22.04-64:
+                  image: ubuntu-2204-64-virt-enabled
+                  storage: 20G
+                  workers: 8
+
+
+    google-nested-dev:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-east1-b
+        plan: n2-standard-4
         halt-timeout: 2h
         cpu-family: "Intel Cascade Lake"
         systems:
@@ -970,7 +999,7 @@ suites:
 
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
-        backends: [google-nested, qemu-nested]
+        backends: [google-nested, google-nested-dev, qemu-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "classic"
@@ -982,6 +1011,8 @@ suites:
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
             # Add snapd debug and log to serial console
             NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
+            # Add any extra cmd line parameter to the nested vm
+            NESTED_EXTRA_CMDLINE:  '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
             # Generic imane name which has to be overwritten in the test
             NESTED_IMAGE_ID: "unset"
             # Configuration file used for remote tools
@@ -1027,7 +1058,7 @@ suites:
 
     tests/nested/classic/:
         summary: Tests for nested images
-        backends: [google-nested, qemu-nested]
+        backends: [google-nested, google-nested-dev, qemu-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "classic"
@@ -1079,7 +1110,7 @@ suites:
 
     tests/nested/core/:
         summary: Tests for nested images
-        backends: [google-nested, qemu-nested]
+        backends: [google-nested, google-nested-dev, qemu-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "core"
@@ -1091,6 +1122,8 @@ suites:
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
             # Add snapd debug and log to serial console
             NESTED_SNAPD_DEBUG_TO_SERIAL:  '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
+            # Add any extra cmd line parameter to the nested vm
+            NESTED_EXTRA_CMDLINE:  '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
         manual: true

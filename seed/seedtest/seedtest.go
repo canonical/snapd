@@ -394,3 +394,35 @@ func ValidateSeed(c *C, root, label string, usesSnapd bool, trusted []asserts.As
 	}
 	return sd
 }
+
+var goodUser = map[string]interface{}{
+	"authority-id": "my-brand",
+	"brand-id":     "my-brand",
+	"email":        "foo@bar.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model", "other-model"},
+	"name":         "Boring Guy",
+	"username":     "guy",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
+func WriteValidAutoImportAssertion(c *C, brands *assertstest.SigningAccounts, seedDir, sysLabel string, perm os.FileMode) {
+	systemUsers := []map[string]interface{}{goodUser}
+	// write system user assertion to the system seed root
+	autoImportAssert := filepath.Join(seedDir, "systems", sysLabel, "auto-import.assert")
+	f, err := os.OpenFile(autoImportAssert, os.O_CREATE|os.O_WRONLY, perm)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	enc := asserts.NewEncoder(f)
+	c.Assert(enc, NotNil)
+
+	for _, suMap := range systemUsers {
+		systemUser, err := brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, "")
+		c.Assert(err, IsNil)
+		systemUser = systemUser.(*asserts.SystemUser)
+		err = enc.Encode(systemUser)
+		c.Assert(err, IsNil)
+	}
+}

@@ -368,6 +368,10 @@ func probeParserFeatures() ([]string, error) {
 			feature: "cap-audit-read",
 			probe:   "capability audit_read,",
 		},
+		{
+			feature: "xdp",
+			probe:   "network xdp,",
+		},
 	}
 	_, internal, err := AppArmorParser()
 	if err != nil {

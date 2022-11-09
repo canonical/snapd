@@ -402,6 +402,16 @@ allow snappy_t var_t:sock_file unlink;
 allow snappy_t unconfined_t:dir search;
 allow snappy_t unconfined_t:file { open read };
 
+# the release package calls stat() on /proc/sys/fs/binfmt_misc/WSLInterop to
+# detect WSL
+gen_require(`
+    type binfmt_misc_fs_t;
+    type unlabeled_t;
+')
+allow snappy_t binfmt_misc_fs_t:dir search;
+allow snappy_t unlabeled_t:dir { getattr open read search };
+allow snappy_t unlabeled_t:file { getattr open read };
+
 # snapd executes cp when copying snap data between revisions
 allow snappy_t self:process { setfscreate };
 allow snappy_t self:capability { fsetid chown };
@@ -547,6 +557,11 @@ allow snappy_mount_t snappy_snap_t:filesystem { unmount remount };
 # snaps
 allow snappy_mount_t snappy_var_lib_t:dir mounton;
 allow snappy_mount_t snappy_var_lib_t:file mounton;
+
+# the release package calls stat() on /proc/sys/fs/binfmt_misc/WSLInterop to
+# detect WSL
+allow snappy_mount_t binfmt_misc_fs_t:dir search;
+allow snappy_mount_t sysctl_fs_t:dir search;
 
 # freezer
 fs_manage_cgroup_dirs(snappy_mount_t)
@@ -769,6 +784,11 @@ allow snappy_cli_t snappy_snap_t:lnk_file { read_lnk_file_perms };
 allow snappy_cli_t snappy_var_lib_t:dir { list_dir_perms };
 allow snappy_cli_t snappy_var_lib_t:file { read_file_perms };
 allow snappy_cli_t snappy_var_lib_t:lnk_file { read_lnk_file_perms };
+
+# the release package calls stat() on /proc/sys/fs/binfmt_misc/WSLInterop to
+# detect WSL
+allow snappy_cli_t binfmt_misc_fs_t:dir search;
+allow snappy_cli_t sysctl_fs_t:dir search;
 
 # allow talking to system and session bus for app tracking
 dbus_system_bus_client(snappy_cli_t);

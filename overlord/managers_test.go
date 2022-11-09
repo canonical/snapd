@@ -4901,7 +4901,11 @@ func (a byReadyTime) Len() int           { return len(a) }
 func (a byReadyTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byReadyTime) Less(i, j int) bool { return a[i].ReadyTime().Before(a[j].ReadyTime()) }
 
-func (s *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
+func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAdded(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
 	for _, name := range []string{"foo", "bar", "baz"} {
 		s.prereqSnapAssertions(c, map[string]interface{}{
 			"snap-name": name,
@@ -5002,7 +5006,11 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	c.Assert(tasks, HasLen, i+1)
 }
 
-func (s *mgrsSuite) TestRemodelRequiredSnapsAddedUndo(c *C) {
+func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAddedUndo(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
 	for _, name := range []string{"foo", "bar", "baz"} {
 		s.prereqSnapAssertions(c, map[string]interface{}{
 			"snap-name": name,
@@ -5085,7 +5093,7 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAddedUndo(c *C) {
 	c.Assert(model, DeepEquals, curModel)
 }
 
-func (s *mgrsSuite) TestRemodelDifferentBase(c *C) {
+func (s *mgrsSuiteCore) TestRemodelDifferentBase(c *C) {
 	// make "core18" snap available in the store
 	snapYamlContent := `name: core18
 version: 18.04
@@ -5123,7 +5131,7 @@ type: base`
 	c.Assert(chg, IsNil)
 }
 
-func (ms *mgrsSuite) TestRemodelSwitchToDifferentBase(c *C) {
+func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBase(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
@@ -6097,7 +6105,11 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndoOnRollback(c *C) {
 	})
 }
 
-func (s *mgrsSuite) TestRemodelStoreSwitch(c *C) {
+func (s *mgrsSuiteCore) TestRemodelStoreSwitch(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
 	s.prereqSnapAssertions(c, map[string]interface{}{
 		"snap-name": "foo",
 	})
@@ -6201,7 +6213,7 @@ func (s *mgrsSuite) TestRemodelStoreSwitch(c *C) {
 	c.Check(device.SessionMacaroon, Equals, "switched-store-session")
 }
 
-func (s *mgrsSuite) TestRemodelSwitchGadgetTrack(c *C) {
+func (s *mgrsSuiteCore) TestRemodelSwitchGadgetTrack(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
@@ -6295,7 +6307,7 @@ func (m *mockUpdater) Update() error {
 	return m.onUpdate
 }
 
-func (s *mgrsSuite) TestRemodelSwitchToDifferentGadget(c *C) {
+func (s *mgrsSuiteCore) TestRemodelSwitchToDifferentGadget(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
@@ -6447,7 +6459,7 @@ volumes:
 	c.Assert(tasks, HasLen, i+1)
 }
 
-func (s *mgrsSuite) TestRemodelSwitchToIncompatibleGadget(c *C) {
+func (s *mgrsSuiteCore) TestRemodelSwitchToIncompatibleGadget(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
@@ -6544,7 +6556,11 @@ volumes:
 	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*cannot remodel to an incompatible gadget: .*cannot change structure size.*`)
 }
 
-func (s *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
+func (s *mgrsSuiteCore) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
 	// just to 404 locally eager account-key requests
 	mockStoreServer := s.mockStore(c)
 	defer mockStoreServer.Close()
@@ -6650,7 +6666,11 @@ func (s *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	c.Check(serial.DeviceKey().ID(), Equals, device.KeyID)
 }
 
-func (s *mgrsSuite) TestRemodelReregistration(c *C) {
+func (s *mgrsSuiteCore) TestRemodelReregistration(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
 	s.prereqSnapAssertions(c, map[string]interface{}{
 		"snap-name": "foo",
 	})
