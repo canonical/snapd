@@ -1116,9 +1116,9 @@ func (s *backendSuite) TestCombineSnippetsChangeProfile(c *C) {
 func (s *backendSuite) TestCombineSnippetsIncludeIfExists(c *C) {
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
-	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
-	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
 
 	restoreTemplate := apparmor.MockTemplate("###INCLUDE_IF_EXISTS_SNAP_TUNING###")
