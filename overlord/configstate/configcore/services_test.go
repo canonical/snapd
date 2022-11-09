@@ -384,7 +384,7 @@ func (s *servicesSuite) TestConfigureNetworkIntegrationSSHPort(c *C) {
 	c.Assert(err, IsNil)
 
 	sshPortCfg := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_config.d/port.conf")
-	c.Check(sshPortCfg, testutil.FileEquals, "Port 8022")
+	c.Check(sshPortCfg, testutil.FileEquals, "Port 8022\n")
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"reload-or-restart", "ssh.service"},
 	})

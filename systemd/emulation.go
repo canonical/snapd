@@ -91,7 +91,7 @@ func (s *emulation) Restart(services []string) error {
 }
 
 func (s *emulation) ReloadOrRestart(service string) error {
-	return &notImplementedError{"ReloadOrRestart"}
+	return nil
 }
 
 func (s *emulation) RestartAll(service string) error {

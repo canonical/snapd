@@ -237,7 +237,7 @@ func handleServiceConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts
 		}
 	}
 	// configure ssh ports
-	if err := handleNetworkConfigSSHPort(dev, tr, opts); err != nil {
+	if err := handleServiceConfigSSHPort(dev, tr, opts); err != nil {
 		return err
 	}
 
@@ -263,8 +263,8 @@ func validateServiceConfiguration(tr config.ConfGetter) error {
 	return nil
 }
 
-func handleNetworkConfigSSHPort(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
-	// see if anything needs to happen
+func handleServiceConfigSSHPort(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+	// see if anything needs to happenhan
 	var pristineSSHPort, newSSHPort interface{}
 
 	if err := tr.GetPristine("core", sshPortOpt, &pristineSSHPort); err != nil && !config.IsNoOption(err) {
@@ -283,26 +283,28 @@ func handleNetworkConfigSSHPort(dev sysconfig.Device, tr config.ConfGetter, opts
 		root = opts.RootDir
 	}
 
-	// Note: Only UC20+ supports ussing the "sshd_config.d"
+	// Note: Only UC20+ supports using the "sshd_config.d"
 	// dir. Supporting older systems would be hard because we
 	// would have to merge somehow the UC16 and UC18 config in a
 	// fsOnlyContext
 	if !dev.HasModeenv() {
 		return fmt.Errorf("cannot set ssh port configuration on systems older than UC20")
 	}
-	portConfPath := filepath.Join(root, "/etc/ssh/sshd_config.d/port.conf")
-	if err := os.MkdirAll(filepath.Join(root, "/etc/ssh/sshd_config.d"), 0755); err != nil {
+	name := "port.conf"
+	dirContent := map[string]osutil.FileState{}
+	if newSSHPort != nil && newSSHPort != "" {
+		dirContent[name] = &osutil.MemoryFileState{
+			Content: []byte(fmt.Sprintf("Port %v\n", newSSHPort)),
+			Mode:    0600,
+		}
+	}
+	dir := filepath.Join(root, "/etc/ssh/sshd_config.d/")
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	if newSSHPort == "" {
-		if err := os.Remove(portConfPath); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-	} else {
-		configStr := fmt.Sprintf("Port %v", newSSHPort)
-		if err := ioutil.WriteFile(portConfPath, []byte(configStr), 0600); err != nil {
-			return err
-		}
+	_, _, err := osutil.EnsureDirState(dir, name, dirContent)
+	if err != nil {
+		return err
 	}
 
 	var sysd systemd.Systemd
