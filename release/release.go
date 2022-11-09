@@ -136,6 +136,10 @@ var filesystemRootType = func() (string, error) {
 		return data[2], nil
 	}
 
+	if err = scanner.Err(); err != nil {
+		return "", fmt.Errorf("failed to find root filesystem type: %v", err)
+	}
+
 	return "", fmt.Errorf("failed to find root filesystem type: not in list")
 }
 
