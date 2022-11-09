@@ -76,3 +76,19 @@ void sc_privs_drop(void)
 		die("cannot set user identifier to %d", uid);
 	}
 }
+
+void sc_set_capabilities(const sc_capabilities *capabilities)
+{
+	struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
+	struct __user_cap_data_struct cap_data[2] = { {0} };
+
+	cap_data[0].effective = capabilities->effective & 0xffffffff;
+	cap_data[1].effective = capabilities->effective >> 32;
+	cap_data[0].permitted = capabilities->permitted & 0xffffffff;
+	cap_data[1].permitted = capabilities->permitted >> 32;
+	cap_data[0].inheritable = capabilities->inheritable & 0xffffffff;
+	cap_data[1].inheritable = capabilities->inheritable >> 32;
+	if (capset(&hdr, cap_data) != 0) {
+		die("capset failed");
+	}
+}
