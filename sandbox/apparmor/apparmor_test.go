@@ -48,10 +48,12 @@ var _ = Suite(&apparmorSuite{})
 
 func (s *apparmorSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() {
 		configFile := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/tunables/home.d/snapd")
-		if err := os.Remove(configFile); err != nil {
-			c.Assert(os.IsNotExist(err), Equals, true)
+		if err := os.RemoveAll(configFile); err != nil {
+			panic(err)
 		}
 	})
 }
