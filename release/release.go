@@ -121,7 +121,7 @@ var filesystemRootType = func() (string, error) {
 	// We search for mount point = "/", and return the fstype.
 	file, err := os.Open("/proc/mounts")
 	if err != nil {
-		return "", fmt.Errorf("failed to find root filesystem type: %v", err)
+		return "", fmt.Errorf("cannot find root filesystem type: %v", err)
 	}
 	defer file.Close()
 
