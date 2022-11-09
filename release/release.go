@@ -137,10 +137,10 @@ var filesystemRootType = func() (string, error) {
 	}
 
 	if err = scanner.Err(); err != nil {
-		return "", fmt.Errorf("failed to find root filesystem type: %v", err)
+		return "", fmt.Errorf("cannot find root filesystem type: %v", err)
 	}
 
-	return "", fmt.Errorf("failed to find root filesystem type: not in list")
+	return "", fmt.Errorf("cannot find root filesystem type: not in list")
 }
 
 // We detect WSL via the existence of /proc/sys/fs/binfmt_misc/WSLInterop
