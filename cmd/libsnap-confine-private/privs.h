@@ -54,9 +54,19 @@ typedef struct sc_capabilities {
     sc_cap_mask inheritable;
 } sc_capabilities;
 
+void sc_set_keep_caps_flag(void);
+
 /**
  * Set the given capabilities on the current process.
  */
 void sc_set_capabilities(const sc_capabilities *capabilities);
+
+/* This is a separate function because the kernel API to set ambient
+ * capabilities is very different; note that also libcap has this as a separate
+ * method, so we are not an outlier.
+ */
+void sc_set_ambient_capabilities(sc_cap_mask capabilities);
+
+void sc_debug_capabilities(const char *msg_prefix);
 
 #endif
