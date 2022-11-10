@@ -115,11 +115,3 @@ func (upCtx *CommonProfileUpdateContext) LoadCurrentProfile() (*osutil.MountProf
 	}
 	return profile, nil
 }
-
-// SaveCurrentProfile saves the current mount profile.
-func (upCtx *CommonProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
-	if err := profile.Save(upCtx.currentProfilePath); err != nil {
-		return fmt.Errorf("cannot save current mount profile of snap %q: %s", upCtx.instanceName, err)
-	}
-	return nil
-}
