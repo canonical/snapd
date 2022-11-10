@@ -39,14 +39,15 @@ void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid) 
     if (parent_fd < 0) {
         die("cannot open cgroup hierarchy %s", parent);
     }
-    // Since we may be running from a setuid but not setgid executable, switch
-    // to the effective group to root so that the mkdirat call creates a cgroup
-    // that is always owned by root.root.
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-    if (mkdirat(parent_fd, name, 0755) < 0 && errno != EEXIST) {
+    if (mkdirat(parent_fd, name, 0000) < 0 && errno != EEXIST) {
         die("cannot create cgroup hierarchy %s/%s", parent, name);
     }
-    (void)sc_set_effective_identity(old);
+    if (errno == 0) {
+        if (fchownat(parent_fd, name, 0, 0, 0) < 0 ||
+            fchmodat(parent_fd, name, 0700, 0) < 0) {
+            die("cannot change mode/ownership to cgroup directory");
+        }
+    }
     int hierarchy_fd SC_CLEANUP(sc_cleanup_close) = -1;
     hierarchy_fd = openat(parent_fd, name, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (hierarchy_fd < 0) {

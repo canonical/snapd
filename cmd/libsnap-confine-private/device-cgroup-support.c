@@ -717,8 +717,8 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
             if (fchownat(devices_fd, security_tag_relpath, 0, 0, AT_SYMLINK_NOFOLLOW) < 0) {
                 die("cannot set root ownership on %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
             }
-            if (fchmodat(devices_fd, security_tag_relpath, 0755, 0) < 0) {
-                die("cannot set 0755 permissions on %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
+            if (fchmodat(devices_fd, security_tag_relpath, 0700, 0) < 0) {
+                die("cannot set 0700 permissions on %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
             }
         } else if (errno != EEXIST) {
             die("cannot create directory %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
