@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/cgroup"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type commonSuite struct {
@@ -155,21 +154,4 @@ func (s *commonSuite) TestLoadCurrentProfile(c *C) {
 
 	// The profile is returned unchanged.
 	c.Check(builder.String(), Equals, text)
-}
-
-func (s *commonSuite) TestSaveCurrentProfile(c *C) {
-	upCtx := s.upCtx
-	text := "tmpfs /tmp tmpfs defaults 0 0\n"
-
-	// Prepare a mount profile to be saved.
-	profile, err := osutil.LoadMountProfileText(text)
-	c.Assert(err, IsNil)
-
-	// Prepare the directory for saving the profile.
-	path := upCtx.CurrentProfilePath()
-	c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-
-	// Ask the common profile update to write the current profile.
-	c.Assert(upCtx.SaveCurrentProfile(profile), IsNil)
-	c.Check(path, testutil.FileEquals, text)
 }

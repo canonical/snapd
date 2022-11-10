@@ -296,3 +296,9 @@ func NewCommonProfileUpdateContext(instanceName string, fromSnapConfine bool, cu
 		desiredProfilePath: desiredProfilePath,
 	}
 }
+
+func MockSaveMountProfile(f func(p *osutil.MountProfile, fname string, uid sys.UserID, gid sys.GroupID) error) (restore func()) {
+	r := testutil.Backup(&osutilSaveMountProfile)
+	osutilSaveMountProfile = f
+	return r
+}

@@ -24,6 +24,8 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+var newMountProfile = func() osutil.MountProfile { return osutil.MountProfile{} }
+
 // MountProfileUpdateContext provides the context of a mount namespace update.
 // The context provides a way to synchronize the operation with other users of
 // the snap system, to load and save the mount profiles and to provide the file
@@ -92,7 +94,7 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 
 	// Compute the new current profile so that it contains only changes that were made
 	// and save it back for next runs.
-	var currentAfter osutil.MountProfile
+	currentAfter := newMountProfile()
 	for _, change := range changesMade {
 		if change.Action == Mount || change.Action == Keep {
 			currentAfter.Entries = append(currentAfter.Entries, change.Entry)
