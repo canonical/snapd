@@ -332,11 +332,6 @@ int main(int argc, char **argv)
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
 
-	// Remember certain properties of the process that are clobbered by
-	// snap-confine during execution. Those are restored just before calling
-	// execv.
-	sc_preserve_and_sanitize_process_state(&proc_state);
-
 	// We've been asked to print the version string so let's just do that.
 	if (sc_args_is_version_query(args)) {
 		printf("%s %s\n", PACKAGE, PACKAGE_VERSION);
@@ -435,6 +430,11 @@ int main(int argc, char **argv)
 		sc_set_capabilities(&caps);
 		sc_set_ambient_capabilities(snap_update_ns_caps);
 	}
+
+	// Remember certain properties of the process that are clobbered by
+	// snap-confine during execution. Those are restored just before calling
+	// execv.
+	sc_preserve_and_sanitize_process_state(&proc_state);
 
 	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
