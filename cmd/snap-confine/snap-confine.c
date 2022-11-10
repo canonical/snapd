@@ -294,6 +294,7 @@ int main(int argc, char **argv) {
     sc_error *err = NULL;
 
     log_startup_stage("snap-confine enter");
+    sc_debug_capabilities("caps at startup");
 
     // Figure out what is the SNAP_MOUNT_DIR in practice.
     sc_probe_snap_mount_dir_from_pid_1_mount_ns(AT_FDCWD, &err);
@@ -351,6 +352,8 @@ int main(int argc, char **argv) {
      */
     bool use_capabilities = real_uid != 0;
 
+    sc_debug_capabilities("initial caps");
+
     static const sc_cap_mask snap_confine_caps =
         SC_CAP_TO_MASK(CAP_DAC_OVERRIDE) | SC_CAP_TO_MASK(CAP_DAC_READ_SEARCH) | SC_CAP_TO_MASK(CAP_SYS_ADMIN) |
         SC_CAP_TO_MASK(CAP_SYS_CHROOT) | SC_CAP_TO_MASK(CAP_CHOWN) |
@@ -398,7 +401,6 @@ int main(int argc, char **argv) {
         sc_set_capabilities(&caps);
         sc_set_ambient_capabilities(snap_update_ns_caps);
     }
-
     // Remember certain properties of the process that are clobbered by
     // snap-confine during execution. Those are restored just before calling
     // execv.
@@ -752,6 +754,7 @@ static void enter_non_classic_execution_environment(sc_invocation *inv, struct s
        join. We need to construct a new mount namespace ourselves.
        To capture it we will need a helper process so make one. */
     sc_fork_helper(group, aa);
+    sc_debug_capabilities("caps on join");
     int retval = sc_join_preserved_ns(group, aa, inv, snap_discard_ns_fd);
     if (retval == ESRCH) {
         /* Create and populate the mount namespace. This performs all
