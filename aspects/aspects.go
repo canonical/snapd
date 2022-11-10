@@ -256,9 +256,11 @@ func (p *accessPattern) getPath(name string) (string, error) {
 }
 
 // matchedPlaceholders takes a dot-separated pattern with optional placeholders
-// (e.g., "foo.{bar}") and a name. If the name fulfils the pattern, it returns
-// a map from placeholder names to their matches in the name. The map can be non-nil
-// but empty if no placeholders exist in the path. If there's no match, returns nil.
+// and a name. To match the pattern, the name's dot-separated parts must be equal
+// to the pattern's non-placeholder parts (a pattern "foo.{bar}" is matched by a
+// name with a part "foo" followed by any part). It returns a map from placeholders
+// to their matches in the name (can be empty, if the path has no placeholders).
+// If there's no match, it returns nil.
 func matchedPlaceholders(pattern, name string) map[string]string {
 	patternParts, nameParts := strings.Split(pattern, "."), strings.Split(name, ".")
 
