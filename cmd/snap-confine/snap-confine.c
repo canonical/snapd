@@ -372,6 +372,70 @@ int main(int argc, char **argv)
 		die("need to run as root or suid");
 	}
 
+	/* Check if snap-confine was invoked by an ordinary user; if so, we want to
+	 * drop the root privileges ASAP.  Before doing that, however, we must
+	 * setup the capabilities that we want to retain.
+	 */
+	bool use_capabilities = real_uid != 0;
+
+	static const sc_cap_mask snap_confine_caps =
+		SC_CAP_TO_MASK(CAP_DAC_OVERRIDE) |
+		SC_CAP_TO_MASK(CAP_DAC_READ_SEARCH) |
+		SC_CAP_TO_MASK(CAP_SYS_ADMIN) |
+		SC_CAP_TO_MASK(CAP_SYS_CHROOT) |
+		SC_CAP_TO_MASK(CAP_CHOWN) |
+		SC_CAP_TO_MASK(CAP_FOWNER) | // to create tmp dir with sticky bit
+		SC_CAP_TO_MASK(CAP_SYS_PTRACE); // to inspect the mount namespace of PID1
+
+	/* Since we are invoking snap-update-ns, we must also retain the
+	 * capabilities required by it. Make sure that this list is kept in sync
+	 * with the capabilities used in bootstrap.c in snap-update-ns code.
+	 */
+	static const sc_cap_mask snap_update_ns_caps =
+		SC_CAP_TO_MASK(CAP_DAC_OVERRIDE) |  // needed for the lock file
+		SC_CAP_TO_MASK(CAP_SYS_ADMIN) |
+		SC_CAP_TO_MASK(CAP_CHOWN) |
+		SC_CAP_TO_MASK(CAP_SETUID) |
+		SC_CAP_TO_MASK(CAP_SETGID);
+
+	if (use_capabilities) {
+		/* Don't lose the permitted capabilities when switching user.
+		 * Note that there's no need to undo this operation later, since this
+		 * flag is automatically cleared on execve(). */
+		sc_set_keep_caps_flag();
+
+		// Permanently drop if not root
+		debug("Dropping into user %d - %d", real_uid, real_gid);
+		// Note that we do not call setgroups() here because its ok
+		// that the user keeps the groups he already belongs to
+		if (setgid(real_gid) != 0)
+			die("setgid failed");
+		if (setuid(real_uid) != 0)
+			die("setuid failed");
+
+		if (real_gid != 0 && (getuid() == 0 || geteuid() == 0))
+			die("permanently dropping privs did not work");
+		if (real_uid != 0 && (getgid() == 0 || getegid() == 0))
+			die("permanently dropping privs did not work");
+
+		/* Capability setup:
+		 * 1. Restore those capabilities that we really need into the
+		 *    "effective" set.
+		 * 2. Capabilities needed by either us or by any of our child processes
+		 *    need to be set into the "permitted" set.
+		 * 3. Capabilities needed by our helper child processes need to be set
+		 *    into the "permitted", "inheritable" and "ambient" sets.
+		 *
+		 * Before executing the snap application we'll drop all capabilities.
+		 */
+		sc_capabilities caps;
+		caps.effective = snap_confine_caps;
+		caps.permitted = snap_confine_caps | snap_update_ns_caps;
+		caps.inheritable = snap_update_ns_caps;
+		sc_set_capabilities(&caps);
+		sc_set_ambient_capabilities(snap_update_ns_caps);
+	}
+
 	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
 	if (!sc_is_hook_security_tag(invocation.security_tag)) {
@@ -450,16 +514,18 @@ int main(int argc, char **argv)
 
 	log_startup_stage("snap-confine mount namespace finish");
 
-	// Temporarily drop privileges back to the calling user until we can
-	// permanently drop (which we can't do just yet due to seccomp, see
-	// below).
-	sc_identity real_user_identity = {
-		.uid = real_uid,
-		.gid = real_gid,
-		.change_uid = 1,
-		.change_gid = 1,
-	};
-	sc_set_effective_identity(real_user_identity);
+	// Temporarily drop all capabilities, since we don't need any for a while.
+	if (use_capabilities) {
+		debug("dropping caps");
+		sc_capabilities caps;
+		caps.effective = 0;
+		// Don't alter permitted and inheritable capabilities, use the same
+		// values as before.
+		caps.permitted = snap_confine_caps | snap_update_ns_caps;
+		caps.inheritable = snap_update_ns_caps;
+		sc_set_capabilities(&caps);
+	}
+
 	// Ensure that the user data path exists. When creating it use the identity
 	// of the calling user (by using real user and group identifiers). This
 	// allows the creation of directories inside ~/ on NFS with root_squash
@@ -479,50 +545,14 @@ int main(int argc, char **argv)
 		// for compatibility, if facing older snapd.
 		setenv("SNAP_CONTEXT", snap_context, 1);
 	}
-	// Normally setuid/setgid not only permanently drops the UID/GID, but
-	// also clears the capabilities bounding sets (see "Effect of user ID
-	// changes on capabilities" in 'man capabilities'). To load a seccomp
+	// To load a seccomp
 	// profile, we need either CAP_SYS_ADMIN or PR_SET_NO_NEW_PRIVS. Since
 	// NNP causes issues with AppArmor and exec transitions in certain
 	// snapd interfaces, keep CAP_SYS_ADMIN temporarily when we are
 	// permanently dropping privileges.
-	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0) {
-		die("getresuid failed");
-	}
-	debug("ruid: %d, euid: %d, suid: %d",
-	      real_uid, effective_uid, saved_uid);
-
-	// At this point in time, if we are going to permanently drop our
-	// effective_uid will not be '0' but our saved_uid will be '0'. Detect
-	// and save when we are in the this state so know when to setup the
-	// capabilities bounding set, regain CAP_SYS_ADMIN and later drop it.
-	bool keep_sys_admin = effective_uid != 0 && saved_uid == 0;
-	if (keep_sys_admin) {
+	if (use_capabilities) {
 		debug("setting capabilities bounding set");
 		// clear all caps but SYS_ADMIN, with none inheritable
-		sc_capabilities caps;
-		caps.effective = SC_CAP_TO_MASK(CAP_SYS_ADMIN);
-		caps.permitted = caps.effective;
-		caps.inheritable = 0;
-		sc_set_capabilities(&caps);
-	}
-	// Permanently drop if not root
-	if (effective_uid == 0) {
-		// Note that we do not call setgroups() here because its ok
-		// that the user keeps the groups he already belongs to
-		if (setgid(real_gid) != 0)
-			die("setgid failed");
-		if (setuid(real_uid) != 0)
-			die("setuid failed");
-
-		if (real_gid != 0 && (getuid() == 0 || geteuid() == 0))
-			die("permanently dropping privs did not work");
-		if (real_uid != 0 && (getgid() == 0 || getegid() == 0))
-			die("permanently dropping privs did not work");
-	}
-	// Now that we've permanently dropped, regain SYS_ADMIN
-	if (keep_sys_admin) {
-		debug("regaining SYS_ADMIN");
 		sc_capabilities caps;
 		caps.effective = SC_CAP_TO_MASK(CAP_SYS_ADMIN);
 		caps.permitted = caps.effective;
@@ -536,10 +566,8 @@ int main(int argc, char **argv)
 		// global profile as well.
 		sc_apply_global_seccomp_profile();
 	}
-	// Even though we set inheritable to 0, let's clear SYS_ADMIN
-	// explicitly
-	if (keep_sys_admin) {
-		debug("clearing SYS_ADMIN");
+	if (use_capabilities) {
+		debug("dropping all capabilities");
 		sc_capabilities caps = { 0 };
 		sc_set_capabilities(&caps);
 	}
