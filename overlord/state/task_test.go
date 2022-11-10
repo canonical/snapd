@@ -156,6 +156,18 @@ func (ts *taskSuite) TestSetDoneAfterAbortNoop(c *C) {
 	c.Check(t.Status(), Equals, state.AbortStatus)
 }
 
+func (ts *taskSuite) TestSetWaitAfterAbortNoop(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+	t.SetStatus(state.AbortStatus)
+	c.Check(t.Status(), Equals, state.AbortStatus)
+	t.SetStatus(state.WaitStatus)
+	c.Check(t.Status(), Equals, state.AbortStatus)
+}
+
 func (ts *taskSuite) TestIsCleanAndSetClean(c *C) {
 	st := state.New(nil)
 	st.Lock()
