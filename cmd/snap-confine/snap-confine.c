@@ -29,8 +29,8 @@
 #include <string.h>
 #include <sys/capability.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include "../libsnap-confine-private/apparmor-support.h"
@@ -91,7 +91,9 @@ static void sc_maybe_fixup_permissions(void)
 static void sc_maybe_fixup_udev(void)
 {
 	glob_t glob_res SC_CLEANUP(globfree) = {
-		.gl_pathv = NULL,.gl_pathc = 0,.gl_offs = 0,
+		.gl_pathv = NULL,
+		.gl_pathc = 0,
+		.gl_offs = 0,
 	};
 	const char *glob_pattern = "/run/udev/tags/snap_*/*nvidia*";
 	int err = glob(glob_pattern, 0, NULL, &glob_res);
@@ -99,8 +101,8 @@ static void sc_maybe_fixup_udev(void)
 		return;
 	}
 	if (err != 0) {
-		die("cannot search using glob pattern %s: %d",
-		    glob_pattern, err);
+		die("cannot search using glob pattern %s: %d", glob_pattern,
+		    err);
 	}
 	// kill bogus udev tags for nvidia. They confuse udev, this
 	// undoes the damage from github.com/snapcore/snapd/pull/3671.
@@ -118,7 +120,7 @@ static void sc_maybe_fixup_udev(void)
  *
  * The umask is preserved and restored to ensure consistent permissions for
  * runtime system. The value is preserved and restored perfectly.
-**/
+ **/
 typedef struct sc_preserved_process_state {
 	mode_t orig_umask;
 	int orig_cwd_fd;
@@ -135,7 +137,7 @@ typedef struct sc_preserved_process_state {
  * The original values are stored to be restored later. Currently only the
  * umask is altered. It is set to zero to make the ownership of created files
  * and directories more predictable.
-**/
+ **/
 static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state
 						   *proc_state)
 {
@@ -162,7 +164,7 @@ static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state
 
 /**
  *  sc_restore_process_state restores values stored earlier.
-**/
+ **/
 static void sc_restore_process_state(const sc_preserved_process_state
 				     *proc_state)
 {
@@ -249,10 +251,8 @@ static void sc_restore_process_state(const sc_preserved_process_state
 	 * this will be somehow communicated to cooperating applications that can
 	 * instruct the user and avoid potential confusion. This mostly applies to
 	 * tools that are invoked from /tmp. */
-	if (proc_state->file_info_orig_cwd.st_dev ==
-	    file_info_inner.st_dev
-	    && proc_state->file_info_orig_cwd.st_ino ==
-	    file_info_inner.st_ino) {
+	if (proc_state->file_info_orig_cwd.st_dev == file_info_inner.st_dev &&
+	    proc_state->file_info_orig_cwd.st_ino == file_info_inner.st_ino) {
 		/* The path of the original working directory points to the same
 		 * inode as before. */
 		debug("working directory restored to %s", orig_cwd);
@@ -268,8 +268,8 @@ static void sc_restore_process_state(const sc_preserved_process_state
 	 * systems using bootable base snap coupled with snapd snap, the
 	 * /var/lib/snapd directory structure is not provided with packages but
 	 * created on demand. */
-	void_dir_fd = open(sc_void_dir,
-			   O_DIRECTORY | O_PATH | O_NOFOLLOW | O_CLOEXEC);
+	void_dir_fd =
+	    open(sc_void_dir, O_DIRECTORY | O_PATH | O_NOFOLLOW | O_CLOEXEC);
 	if (void_dir_fd < 0 && errno == ENOENT) {
 		if (mkdir(sc_void_dir, 0111) < 0) {
 			die("cannot create void directory: %s", sc_void_dir);
@@ -278,9 +278,9 @@ static void sc_restore_process_state(const sc_preserved_process_state
 			die("cannot change ownership of void directory %s",
 			    sc_void_dir);
 		}
-		void_dir_fd = open(sc_void_dir,
-				   O_DIRECTORY | O_PATH | O_NOFOLLOW |
-				   O_CLOEXEC);
+		void_dir_fd =
+		    open(sc_void_dir,
+			 O_DIRECTORY | O_PATH | O_NOFOLLOW | O_CLOEXEC);
 	}
 	if (void_dir_fd < 0) {
 		die("cannot open the void directory %s", sc_void_dir);
@@ -304,7 +304,7 @@ static void log_startup_stage(const char *stage)
 
 /**
  *  sc_cleanup_preserved_process_state releases system resources.
-**/
+ **/
 static void sc_cleanup_preserved_process_state(sc_preserved_process_state
 					       *proc_state)
 {
@@ -335,8 +335,8 @@ int main(int argc, char **argv)
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 	sc_preserved_process_state proc_state
-	    SC_CLEANUP(sc_cleanup_preserved_process_state) = {
-		.orig_umask = 0,.orig_cwd_fd = -1
+	    SC_CLEANUP(sc_cleanup_preserved_process_state) = {.orig_umask = 0,
+		.orig_cwd_fd = -1
 	};
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
@@ -376,14 +376,69 @@ int main(int argc, char **argv)
 	if (getresgid(&real_gid, &effective_gid, &saved_gid) != 0) {
 		die("getresgid failed");
 	}
-	debug("ruid: %d, euid: %d, suid: %d",
-	      real_uid, effective_uid, saved_uid);
-	debug("rgid: %d, egid: %d, sgid: %d",
-	      real_gid, effective_gid, saved_gid);
+	debug("ruid: %d, euid: %d, suid: %d", real_uid, effective_uid,
+	      saved_uid);
+	debug("rgid: %d, egid: %d, sgid: %d", real_gid, effective_gid,
+	      saved_gid);
 
 	// snap-confine needs to run as root for cgroup/udev/mount/apparmor/etc setup.
 	if (effective_uid != 0) {
 		die("need to run as root or suid");
+	}
+
+	/* Check if snap-confine was invoked by an ordinary user; if so, we want to
+	 * drop the root privileges ASAP.  Before doing that, however, we must
+	 * setup the capabilities that we want to retain.
+	 */
+	bool use_capabilities = real_uid != 0;
+
+	static const sc_cap_mask snap_confine_caps = SC_CAP_TO_MASK(CAP_DAC_OVERRIDE) | SC_CAP_TO_MASK(CAP_DAC_READ_SEARCH) | SC_CAP_TO_MASK(CAP_SYS_ADMIN) | SC_CAP_TO_MASK(CAP_SYS_CHROOT) | SC_CAP_TO_MASK(CAP_CHOWN) | SC_CAP_TO_MASK(CAP_FOWNER) |	// to create tmp dir with sticky bit
+	    SC_CAP_TO_MASK(CAP_SYS_PTRACE);	// to inspect the mount namespace of PID1
+
+	/* Since we are invoking snap-update-ns, we must also retain the
+	 * capabilities required by it. Make sure that this list is kept in sync
+	 * with the capabilities used in bootstrap.c in snap-update-ns code.
+	 */
+	static const sc_cap_mask snap_update_ns_caps = SC_CAP_TO_MASK(CAP_DAC_OVERRIDE) |	// needed for the lock file
+	    SC_CAP_TO_MASK(CAP_SYS_ADMIN) | SC_CAP_TO_MASK(CAP_CHOWN) |
+	    SC_CAP_TO_MASK(CAP_SETUID) | SC_CAP_TO_MASK(CAP_SETGID);
+
+	if (use_capabilities) {
+		/* Don't lose the permitted capabilities when switching user.
+		 * Note that there's no need to undo this operation later, since this
+		 * flag is automatically cleared on execve(). */
+		sc_set_keep_caps_flag();
+
+		// Permanently drop if not root
+		debug("Dropping into user %d - %d", real_uid, real_gid);
+		// Note that we do not call setgroups() here because its ok
+		// that the user keeps the groups he already belongs to
+		if (setgid(real_gid) != 0)
+			die("setgid failed");
+		if (setuid(real_uid) != 0)
+			die("setuid failed");
+
+		if (real_gid != 0 && (getuid() == 0 || geteuid() == 0))
+			die("permanently dropping privs did not work");
+		if (real_uid != 0 && (getgid() == 0 || getegid() == 0))
+			die("permanently dropping privs did not work");
+
+		/* Capability setup:
+		 * 1. Restore those capabilities that we really need into the
+		 *    "effective" set.
+		 * 2. Capabilities needed by either us or by any of our child processes
+		 *    need to be set into the "permitted" set.
+		 * 3. Capabilities needed by our helper child processes need to be set
+		 *    into the "permitted", "inheritable" and "ambient" sets.
+		 *
+		 * Before executing the snap application we'll drop all capabilities.
+		 */
+		sc_capabilities caps;
+		caps.effective = snap_confine_caps;
+		caps.permitted = snap_confine_caps | snap_update_ns_caps;
+		caps.inheritable = snap_update_ns_caps;
+		sc_set_capabilities(&caps);
+		sc_set_ambient_capabilities(snap_update_ns_caps);
 	}
 
 	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
@@ -422,9 +477,8 @@ int main(int argc, char **argv)
 	/* perform global initialization of mount namespace support for non-classic
 	 * snaps or both classic and non-classic when parallel-instances feature is
 	 * enabled */
-	if (!invocation.classic_confinement ||
-	    sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
-
+	if (!invocation.classic_confinement
+	    || sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
 		/* snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
 		 * mount namespaces of each snap. In the case that snap-confine is invoked
 		 * from the mount namespace it typically constructs, the said directory
@@ -456,24 +510,24 @@ int main(int argc, char **argv)
 		enter_classic_execution_environment(&invocation, real_gid,
 						    saved_gid);
 	} else {
-		enter_non_classic_execution_environment(&invocation,
-							&apparmor,
-							real_uid,
-							real_gid, saved_gid);
+		enter_non_classic_execution_environment(&invocation, &apparmor,
+							real_uid, real_gid,
+							saved_gid);
 	}
 
 	log_startup_stage("snap-confine mount namespace finish");
 
-	// Temporarily drop privileges back to the calling user until we can
-	// permanently drop (which we can't do just yet due to seccomp, see
-	// below).
-	sc_identity real_user_identity = {
-		.uid = real_uid,
-		.gid = real_gid,
-		.change_uid = 1,
-		.change_gid = 1,
-	};
-	sc_set_effective_identity(real_user_identity);
+	// Temporarily drop all capabilities, since we don't need any for a while.
+	if (use_capabilities) {
+		debug("dropping caps");
+		sc_capabilities caps;
+		caps.effective = 0;
+		// Don't alter permitted and inheritable capabilities, use the same
+		// values as before.
+		caps.permitted = snap_confine_caps | snap_update_ns_caps;
+		caps.inheritable = snap_update_ns_caps;
+		sc_set_capabilities(&caps);
+	}
 	// Ensure that the user data path exists. When creating it use the identity
 	// of the calling user (by using real user and group identifiers). This
 	// allows the creation of directories inside ~/ on NFS with root_squash
@@ -493,50 +547,14 @@ int main(int argc, char **argv)
 		// for compatibility, if facing older snapd.
 		setenv("SNAP_CONTEXT", snap_context, 1);
 	}
-	// Normally setuid/setgid not only permanently drops the UID/GID, but
-	// also clears the capabilities bounding sets (see "Effect of user ID
-	// changes on capabilities" in 'man capabilities'). To load a seccomp
+	// To load a seccomp
 	// profile, we need either CAP_SYS_ADMIN or PR_SET_NO_NEW_PRIVS. Since
 	// NNP causes issues with AppArmor and exec transitions in certain
 	// snapd interfaces, keep CAP_SYS_ADMIN temporarily when we are
 	// permanently dropping privileges.
-	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0) {
-		die("getresuid failed");
-	}
-	debug("ruid: %d, euid: %d, suid: %d",
-	      real_uid, effective_uid, saved_uid);
-
-	// At this point in time, if we are going to permanently drop our
-	// effective_uid will not be '0' but our saved_uid will be '0'. Detect
-	// and save when we are in the this state so know when to setup the
-	// capabilities bounding set, regain CAP_SYS_ADMIN and later drop it.
-	bool keep_sys_admin = effective_uid != 0 && saved_uid == 0;
-	if (keep_sys_admin) {
+	if (use_capabilities) {
 		debug("setting capabilities bounding set");
 		// clear all caps but SYS_ADMIN, with none inheritable
-		sc_capabilities caps;
-		caps.effective = SC_CAP_TO_MASK(CAP_SYS_ADMIN);
-		caps.permitted = caps.effective;
-		caps.inheritable = 0;
-		sc_set_capabilities(&caps);
-	}
-	// Permanently drop if not root
-	if (effective_uid == 0) {
-		// Note that we do not call setgroups() here because its ok
-		// that the user keeps the groups he already belongs to
-		if (setgid(real_gid) != 0)
-			die("setgid failed");
-		if (setuid(real_uid) != 0)
-			die("setuid failed");
-
-		if (real_gid != 0 && (getuid() == 0 || geteuid() == 0))
-			die("permanently dropping privs did not work");
-		if (real_uid != 0 && (getgid() == 0 || getegid() == 0))
-			die("permanently dropping privs did not work");
-	}
-	// Now that we've permanently dropped, regain SYS_ADMIN
-	if (keep_sys_admin) {
-		debug("regaining SYS_ADMIN");
 		sc_capabilities caps;
 		caps.effective = SC_CAP_TO_MASK(CAP_SYS_ADMIN);
 		caps.permitted = caps.effective;
@@ -546,10 +564,8 @@ int main(int argc, char **argv)
 	// Now that we've dropped and regained SYS_ADMIN, we can load the
 	// seccomp profiles.
 	sc_apply_seccomp_profile_for_security_tag(invocation.security_tag);
-	// Even though we set inheritable to 0, let's clear SYS_ADMIN
-	// explicitly
-	if (keep_sys_admin) {
-		debug("clearing SYS_ADMIN");
+	if (use_capabilities) {
+		debug("dropping all capabilities");
 		sc_capabilities caps = { 0 };
 		sc_set_capabilities(&caps);
 	}
@@ -640,8 +656,7 @@ static void sc_get_device_cgroup_setup(const sc_invocation *inv, struct sc_devic
 	}
 
 	char info_path[PATH_MAX] = { 0 };
-	sc_must_snprintf(info_path,
-			 sizeof info_path,
+	sc_must_snprintf(info_path, sizeof info_path,
 			 "/var/lib/snapd/cgroup/snap.%s.device",
 			 inv->snap_instance);
 
@@ -686,16 +701,13 @@ static sc_device_cgroup_mode device_cgroup_mode_for_snap(sc_invocation *inv)
 	 * will be placed within a device cgroup. Note that 'bare' base is also
 	 * subject to the new behavior. */
 	const char *non_required_cgroup_bases[] = {
-		"core", "core16", "core18", "core20", "core22",
-		NULL,
+		"core", "core16", "core18", "core20", "core22", NULL,
 	};
-	for (const char **non_required_on_base =
-	     non_required_cgroup_bases; *non_required_on_base != NULL;
-	     non_required_on_base++) {
+	for (const char **non_required_on_base = non_required_cgroup_bases;
+	     *non_required_on_base != NULL; non_required_on_base++) {
 		if (sc_streq(inv->base_snap_name, *non_required_on_base)) {
-			debug
-			    ("device cgroup not required due to base %s",
-			     *non_required_on_base);
+			debug("device cgroup not required due to base %s",
+			      *non_required_on_base);
 			mode = SC_DEVICE_CGROUP_MODE_OPTIONAL;
 			break;
 		}
@@ -758,35 +770,35 @@ static void enter_non_classic_execution_environment(sc_invocation *inv,
 		sc_setup_device_cgroup(inv->security_tag, mode);
 	}
 
-	/**
-	 * is_normal_mode controls if we should pivot into the base snap.
-	 *
-	 * There are two modes of execution for snaps that are not using classic
-	 * confinement: normal and legacy. The normal mode is where snap-confine
-	 * sets up a rootfs and then pivots into it using pivot_root(2). The legacy
-	 * mode is when snap-confine just unshares the initial mount namespace,
-	 * makes some extra changes but largely runs with what was presented to it
-	 * initially.
-	 *
-	 * Historically the ubuntu-core distribution used the now-legacy mode. This
-	 * was sensible then since snaps already (kind of) have the right root
-	 * file-system and just need some privacy and isolation features applied.
-	 * With the introduction of snaps to classic distributions as well as the
-	 * introduction of bases, where each snap can use a different root
-	 * filesystem, this lost sensibility and thus became legacy.
-	 *
-	 * For compatibility with current installations of ubuntu-core
-	 * distributions the legacy mode is used when: the distribution is
-	 * SC_DISTRO_CORE16 or when the base snap name is not "core" or
-	 * "ubuntu-core".
-	 *
-	 * The SC_DISTRO_CORE16 is applied to systems that boot with the "core",
-	 * "ubuntu-core" or "core16" snap. Systems using the "core18" base snap do
-	 * not qualify for that classification.
-	 **/
+    /**
+     * is_normal_mode controls if we should pivot into the base snap.
+     *
+     * There are two modes of execution for snaps that are not using classic
+     * confinement: normal and legacy. The normal mode is where snap-confine
+     * sets up a rootfs and then pivots into it using pivot_root(2). The legacy
+     * mode is when snap-confine just unshares the initial mount namespace,
+     * makes some extra changes but largely runs with what was presented to it
+     * initially.
+     *
+     * Historically the ubuntu-core distribution used the now-legacy mode. This
+     * was sensible then since snaps already (kind of) have the right root
+     * file-system and just need some privacy and isolation features applied.
+     * With the introduction of snaps to classic distributions as well as the
+     * introduction of bases, where each snap can use a different root
+     * filesystem, this lost sensibility and thus became legacy.
+     *
+     * For compatibility with current installations of ubuntu-core
+     * distributions the legacy mode is used when: the distribution is
+     * SC_DISTRO_CORE16 or when the base snap name is not "core" or
+     * "ubuntu-core".
+     *
+     * The SC_DISTRO_CORE16 is applied to systems that boot with the "core",
+     * "ubuntu-core" or "core16" snap. Systems using the "core18" base snap do
+     * not qualify for that classification.
+     **/
 	sc_distro distro = sc_classify_distro();
-	inv->is_normal_mode = distro != SC_DISTRO_CORE16 ||
-	    !sc_streq(inv->orig_base_snap_name, "core");
+	inv->is_normal_mode = distro != SC_DISTRO_CORE16
+	    || !sc_streq(inv->orig_base_snap_name, "core");
 
 	/* Read the homedirs configuration: this information is needed both by our
 	 * namespace helper (in order to detect if the homedirs are mounted) and by

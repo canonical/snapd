@@ -86,7 +86,8 @@ void sc_set_keep_caps_flag()
 
 void sc_set_capabilities(const sc_capabilities *capabilities)
 {
-	struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
+	struct __user_cap_header_struct hdr =
+	    { _LINUX_CAPABILITY_VERSION_3, 0 };
 	struct __user_cap_data_struct cap_data[2] = { {0} };
 
 	cap_data[0].effective = capabilities->effective & 0xffffffff;
@@ -104,11 +105,11 @@ void sc_set_ambient_capabilities(sc_cap_mask capabilities)
 {
 	// Ubuntu trusty has a 4.4 kernel, but these macros are not defined
 #ifndef PR_CAP_AMBIENT
-#  define PR_CAP_AMBIENT          47
-#  define PR_CAP_AMBIENT_IS_SET      1
-#  define PR_CAP_AMBIENT_RAISE       2
-#  define PR_CAP_AMBIENT_LOWER       3
-#  define PR_CAP_AMBIENT_CLEAR_ALL   4
+#define PR_CAP_AMBIENT          47
+#define PR_CAP_AMBIENT_IS_SET      1
+#define PR_CAP_AMBIENT_RAISE       2
+#define PR_CAP_AMBIENT_LOWER       3
+#define PR_CAP_AMBIENT_CLEAR_ALL   4
 #endif
 
 	/* We would like to use cap_set_ambient(), but it's not in Debian 10; so
@@ -121,7 +122,8 @@ void sc_set_ambient_capabilities(sc_cap_mask capabilities)
 	for (int i = 0; i < CAP_LAST_CAP; i++) {
 		if (capabilities & SC_CAP_TO_MASK(i)) {
 			debug("setting ambient capability %d", i);
-			if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, i, 0, 0) < 0) {
+			if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, i, 0, 0)
+			    < 0) {
 				die("cannot set ambient capability %d", i);
 			}
 		}

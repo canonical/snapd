@@ -49,9 +49,9 @@ typedef uint64_t sc_cap_mask;
 #define SC_CAP_TO_MASK(cap) ((sc_cap_mask)1 << cap)
 
 typedef struct sc_capabilities {
-    sc_cap_mask effective;
-    sc_cap_mask permitted;
-    sc_cap_mask inheritable;
+	sc_cap_mask effective;
+	sc_cap_mask permitted;
+	sc_cap_mask inheritable;
 } sc_capabilities;
 
 void sc_set_keep_caps_flag(void);
@@ -59,7 +59,7 @@ void sc_set_keep_caps_flag(void);
 /**
  * Set the given capabilities on the current process.
  */
-void sc_set_capabilities(const sc_capabilities *capabilities);
+void sc_set_capabilities(const sc_capabilities * capabilities);
 
 /* This is a separate function because the kernel API to set ambient
  * capabilities is very different; note that also libcap has this as a separate
