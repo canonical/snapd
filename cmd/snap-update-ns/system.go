@@ -24,7 +24,12 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+)
+
+var (
+	osutilSaveMountProfile = osutil.SaveMountProfile
 )
 
 // SystemProfileUpdateContext contains information about update to system-wide mount namespace.
@@ -90,6 +95,14 @@ func (upCtx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	// the right permissions.
 	as.AddModeHint("/dev/shm/snap.*", 0777|os.ModeSticky)
 	return as
+}
+
+// SaveCurrentProfile saves the current mount profile.
+func (upCtx *SystemProfileUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
+	if err := osutilSaveMountProfile(profile, upCtx.currentProfilePath, 0, 0); err != nil {
+		return fmt.Errorf("cannot save current mount profile of snap %q: %s", upCtx.instanceName, err)
+	}
+	return nil
 }
 
 // desiredSystemProfilePath returns the path of the fstab-like file with the desired, system-wide mount profile for a snap.

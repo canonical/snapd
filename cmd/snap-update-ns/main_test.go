@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -87,10 +88,19 @@ func (s *mainSuite) TestExecuteMountProfileUpdate(c *C) {
 	c.Assert(err, IsNil)
 
 	upCtx := update.NewSystemProfileUpdateContext(snapName, false)
+	var profilePath string
+	var savedProfile string
+	restore = update.MockSaveMountProfile(func(p *osutil.MountProfile, fname string, uid sys.UserID, gid sys.GroupID) (err error) {
+		profilePath = fname
+		savedProfile, err = osutil.SaveMountProfileText(p)
+		return err
+	})
+	defer restore()
 	err = update.ExecuteMountProfileUpdate(upCtx)
 	c.Assert(err, IsNil)
 
-	c.Check(currentProfilePath, testutil.FileEquals, `/var/lib/snapd/hostfs/usr/local/share/fonts /usr/local/share/fonts none bind,ro 0 0
+	c.Check(profilePath, Equals, currentProfilePath)
+	c.Check(savedProfile, Equals, `/var/lib/snapd/hostfs/usr/local/share/fonts /usr/local/share/fonts none bind,ro 0 0
 /var/lib/snapd/hostfs/usr/share/fonts /usr/share/fonts none bind,ro 0 0
 `)
 }
@@ -155,9 +165,18 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 	defer restore()
 
 	upCtx := update.NewSystemProfileUpdateContext(snapName, false)
+	var profilePath string
+	var savedProfile string
+	restore = update.MockSaveMountProfile(func(p *osutil.MountProfile, fname string, uid sys.UserID, gid sys.GroupID) (err error) {
+		profilePath = fname
+		savedProfile, err = osutil.SaveMountProfileText(p)
+		return err
+	})
+	defer restore()
 	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 
-	c.Check(currentProfilePath, testutil.FileEquals,
+	c.Check(profilePath, Equals, currentProfilePath)
+	c.Check(savedProfile, Equals,
 		`tmpfs /usr/share tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
 /usr/share/adduser /usr/share/adduser none bind,ro,x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
 /usr/share/awk /usr/share/awk none bind,ro,x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
@@ -236,9 +255,18 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	defer restore()
 
 	upCtx := update.NewSystemProfileUpdateContext(snapName, false)
+	var profilePath string
+	var savedProfile string
+	restore = update.MockSaveMountProfile(func(p *osutil.MountProfile, fname string, uid sys.UserID, gid sys.GroupID) (err error) {
+		profilePath = fname
+		savedProfile, err = osutil.SaveMountProfileText(p)
+		return err
+	})
+	defer restore()
 	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 
-	c.Check(currentProfilePath, testutil.FileEquals, "")
+	c.Check(profilePath, Equals, currentProfilePath)
+	c.Check(savedProfile, Equals, "")
 }
 
 func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
@@ -366,9 +394,18 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 
 	// The error was ignored, and no mount was recorded in the profile
 	upCtx := update.NewSystemProfileUpdateContext(snapName, false)
+	var profilePath string
+	var savedProfile string
+	restore = update.MockSaveMountProfile(func(p *osutil.MountProfile, fname string, uid sys.UserID, gid sys.GroupID) (err error) {
+		profilePath = fname
+		savedProfile, err = osutil.SaveMountProfileText(p)
+		return err
+	})
+	defer restore()
 	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 	c.Check(s.log.String(), Equals, "")
-	c.Check(currentProfilePath, testutil.FileEquals, "")
+	c.Check(profilePath, Equals, currentProfilePath)
+	c.Check(savedProfile, Equals, "")
 }
 
 func (s *mainSuite) TestApplyUserFstabHomeRequiredAndValid(c *C) {
