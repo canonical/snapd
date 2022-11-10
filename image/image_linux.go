@@ -57,7 +57,7 @@ var (
 )
 
 func (custo *Customizations) validate(model *asserts.Model) error {
-	core20 := model.Grade() != asserts.ModelGradeUnset
+	hasModes := model.Grade() != asserts.ModelGradeUnset
 	var unsupported []string
 	unsupportedConsoleConfDisable := func() {
 		if custo.ConsoleConf == "disabled" {
@@ -72,7 +72,7 @@ func (custo *Customizations) validate(model *asserts.Model) error {
 
 	kind := "UC16/18"
 	switch {
-	case core20:
+	case hasModes:
 		kind = "UC20+"
 		// TODO:UC20: consider supporting these with grade dangerous?
 		unsupportedConsoleConfDisable()
@@ -276,12 +276,12 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return fmt.Errorf("internal error: classic model but classic mode not set")
 	}
 
-	core20 := model.Grade() != asserts.ModelGradeUnset
+	hasModes := model.Grade() != asserts.ModelGradeUnset
 	var rootDir string
 	var bootRootDir string
 	var seedDir string
 	var label string
-	if !core20 {
+	if !hasModes {
 		if opts.Classic {
 			// Classic, PrepareDir is the root dir itself
 			rootDir = opts.PrepareDir
@@ -518,7 +518,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	//       This will need to be handled here eventually too.
 	if opts.Classic {
 		var fpath string
-		if core20 {
+		if hasModes {
 			fpath = filepath.Join(seedDir, "systems")
 		} else {
 			fpath = filepath.Join(seedDir, "seed.yaml")
@@ -544,7 +544,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 
 	bootWith := &boot.BootableSet{
 		UnpackedGadgetDir: gadgetUnpackDir,
-		Recovery:          core20,
+		Recovery:          hasModes,
 	}
 	if label != "" {
 		bootWith.RecoverySystemDir = filepath.Join("/systems/", label)
@@ -596,7 +596,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	}
 
 	// early config & cloud-init config (done at install for Core 20)
-	if !core20 {
+	if !hasModes {
 		// and the cloud-init things
 		if err := installCloudConfig(rootDir, gadgetUnpackDir); err != nil {
 			return err

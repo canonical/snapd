@@ -57,6 +57,8 @@ execute: |
 
     # prepare-image ran as user so it warns about the ownership
     MATCH 'WARNING: ensure that the contents under .* are owned by root:root in the \(final\) image' < stderr
+    # But there are not other warnings/errors on stderr
+    wc -l < stderr | MATCH "^1$"
 
     echo Verifying the result
     systemid="$(date +%Y%m%d)"
