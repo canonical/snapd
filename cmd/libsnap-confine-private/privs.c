@@ -22,8 +22,10 @@
 #include <unistd.h>
 
 #include <grp.h>
+#include <linux/securebits.h>
 #include <stdbool.h>
 #include <sys/capability.h>
+#include <sys/prctl.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -77,6 +79,11 @@ void sc_privs_drop(void)
 	}
 }
 
+void sc_set_keep_caps_flag()
+{
+	prctl(PR_SET_KEEPCAPS, 1);
+}
+
 void sc_set_capabilities(const sc_capabilities *capabilities)
 {
 	struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
@@ -90,5 +97,45 @@ void sc_set_capabilities(const sc_capabilities *capabilities)
 	cap_data[1].inheritable = capabilities->inheritable >> 32;
 	if (capset(&hdr, cap_data) != 0) {
 		die("capset failed");
+	}
+}
+
+void sc_set_ambient_capabilities(sc_cap_mask capabilities)
+{
+	// Ubuntu trusty has a 4.4 kernel, but these macros are not defined
+#ifndef PR_CAP_AMBIENT
+#  define PR_CAP_AMBIENT          47
+#  define PR_CAP_AMBIENT_IS_SET      1
+#  define PR_CAP_AMBIENT_RAISE       2
+#  define PR_CAP_AMBIENT_LOWER       3
+#  define PR_CAP_AMBIENT_CLEAR_ALL   4
+#endif
+
+	/* We would like to use cap_set_ambient(), but it's not in Debian 10; so
+	 * use prctl() instead.
+	 */
+	debug("setting ambient capabilities %lx", capabilities);
+	if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) < 0) {
+		die("cannot reset ambient capabilities");
+	}
+	for (int i = 0; i < CAP_LAST_CAP; i++) {
+		if (capabilities & SC_CAP_TO_MASK(i)) {
+			debug("setting ambient capability %d", i);
+			if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, i, 0, 0) < 0) {
+				die("cannot set ambient capability %d", i);
+			}
+		}
+	}
+}
+
+void sc_debug_capabilities(const char *msg_prefix)
+{
+	if (sc_is_debug_enabled()) {
+		cap_t caps;
+		caps = cap_get_proc();
+		char *caps_as_str = cap_to_text(caps, NULL);
+		debug("%s: %s", msg_prefix, caps_as_str);
+		cap_free(caps_as_str);
+		cap_free(caps);
 	}
 }
