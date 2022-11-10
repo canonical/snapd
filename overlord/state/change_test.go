@@ -69,7 +69,7 @@ func (cs *changeSuite) TestReadyTime(c *C) {
 }
 
 func (cs *changeSuite) TestStatusString(c *C) {
-	for s := state.Status(0); s < state.ErrorStatus+1; s++ {
+	for s := state.Status(0); s < state.WaitStatus+1; s++ {
 		c.Assert(s.String(), Matches, ".+")
 	}
 }
@@ -243,7 +243,7 @@ func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
 
 	tasks := make(map[state.Status]*state.Task)
 
-	for s := state.DefaultStatus + 1; s < state.ErrorStatus+1; s++ {
+	for s := state.DefaultStatus + 1; s < state.WaitStatus+1; s++ {
 		t := st.NewTask("download", s.String())
 		t.SetStatus(s)
 		chg.AddTask(t)
@@ -256,6 +256,7 @@ func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
 		state.UndoStatus,
 		state.DoingStatus,
 		state.DoStatus,
+		state.WaitStatus,
 		state.ErrorStatus,
 		state.UndoneStatus,
 		state.DoneStatus,
@@ -448,7 +449,7 @@ func (cs *changeSuite) TestAbort(c *C) {
 
 	chg := st.NewChange("install", "...")
 
-	for s := state.DefaultStatus + 1; s < state.ErrorStatus+1; s++ {
+	for s := state.DefaultStatus + 1; s < state.WaitStatus+1; s++ {
 		t := st.NewTask("download", s.String())
 		t.SetStatus(s)
 		t.Set("old-status", s)
@@ -467,7 +468,7 @@ func (cs *changeSuite) TestAbort(c *C) {
 		switch s {
 		case state.DoStatus:
 			c.Assert(t.Status(), Equals, state.HoldStatus)
-		case state.DoneStatus:
+		case state.DoneStatus, state.WaitStatus:
 			c.Assert(t.Status(), Equals, state.UndoStatus)
 		case state.DoingStatus:
 			c.Assert(t.Status(), Equals, state.AbortStatus)
@@ -595,6 +596,10 @@ var abortLanesTests = []struct {
 		abort:  []int{2},
 		result: "t21:hold t22:hold t41:hold t42:hold *:do",
 	}, {
+		setup:  "t11:done:1 t12:wait:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
+		abort:  []int{2},
+		result: "t21:hold t22:hold t41:hold t42:hold t11:done t12:wait *:do",
+	}, {
 		setup:  "t11:do:1 t12:do:1 t21:do:2 t22:do:2 t31:do:3 t32:do:3 t41:do:4 t42:do:4",
 		abort:  []int{3},
 		result: "t31:hold t32:hold t41:hold t42:hold *:do",
@@ -677,7 +682,7 @@ func (ts *taskRunnerSuite) TestAbortLanes(c *C) {
 		c.Logf("Testing setup: %s", test.setup)
 
 		statuses := make(map[string]state.Status)
-		for s := state.DefaultStatus; s <= state.ErrorStatus; s++ {
+		for s := state.DefaultStatus; s <= state.WaitStatus; s++ {
 			statuses[strings.ToLower(s.String())] = s
 		}
 
@@ -757,6 +762,9 @@ var abortUnreadyLanesTests = []struct {
 		setup:  "*:do",
 		result: "*:hold",
 	}, {
+		setup:  "*:wait",
+		result: "*:undo",
+	}, {
 		setup:  "*:done",
 		result: "*:done",
 	}, {
@@ -793,6 +801,11 @@ var abortUnreadyLanesTests = []struct {
 		order: "t11->t12 t12->t21 t12->t31 t21->t22 t31->t32 t22->t41 t32->t41 t41->t42",
 		// lane 2 is fully complete so it does not get aborted
 		result: "t11:done t12:done t21:done t22:done t31:abort t32:hold t41:hold t42:hold *:undo",
+	}, {
+		setup: "t11:done:2,3 t12:done:2,3 t21:done:2 t22:done:2 t31:wait:3 t32:do:3 t41:do:4 t42:do:4",
+		order: "t11->t12 t12->t21 t12->t31 t21->t22 t31->t32 t22->t41 t32->t41 t41->t42",
+		// lane 2 is fully complete so it does not get aborted
+		result: "t11:done t12:done t21:done t22:done t31:undo t32:hold t41:hold t42:hold *:undo",
 	}, {
 		setup:  "t11:done:2,3 t12:done:2,3 t21:doing:2 t22:do:2 t31:doing:3 t32:do:3 t41:do:4 t42:do:4",
 		order:  "t11->t12 t12->t21 t12->t31 t21->t22 t31->t32 t22->t41 t32->t41 t41->t42",
@@ -880,7 +893,7 @@ func (ts *taskRunnerSuite) TestAbortUnreadyLanes(c *C) {
 		}
 
 		statuses := make(map[string]state.Status)
-		for s := state.DefaultStatus; s <= state.ErrorStatus; s++ {
+		for s := state.DefaultStatus; s <= state.WaitStatus; s++ {
 			statuses[strings.ToLower(s.String())] = s
 		}
 
