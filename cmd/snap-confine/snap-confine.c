@@ -322,6 +322,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 int main(int argc, char **argv)
 {
 	log_startup_stage("snap-confine enter");
+	sc_debug_capabilities("caps at startup");
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	sc_error *err = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
@@ -372,6 +373,8 @@ int main(int argc, char **argv)
 	 * setup the capabilities that we want to retain.
 	 */
 	bool use_capabilities = real_uid != 0;
+
+	sc_debug_capabilities("initial caps");
 
 	static const sc_cap_mask snap_confine_caps =
 		SC_CAP_TO_MASK(CAP_DAC_OVERRIDE) |
@@ -777,6 +780,7 @@ static void enter_non_classic_execution_environment(sc_invocation *inv,
 	   join. We need to construct a new mount namespace ourselves.
 	   To capture it we will need a helper process so make one. */
 	sc_fork_helper(group, aa);
+	sc_debug_capabilities("caps on join");
 	int retval = sc_join_preserved_ns(group, aa, inv, snap_discard_ns_fd);
 	if (retval == ESRCH) {
 		/* Create and populate the mount namespace. This performs all
