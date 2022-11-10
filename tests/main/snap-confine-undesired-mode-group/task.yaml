@@ -28,10 +28,14 @@ execute: |
     # the group of the calling user and did not manage that properly.
     for dname in /run/snapd /sys/fs/cgroup /tmp/snap-private-tmp/snap.*; do
         # Filter out cgroups that are expected to be owned by the test user.
+        # Also ignore leaf files; we'll check below that the parent directory
+        # is not writable to non-root users.
         # Since we are a looking at sysfs, which is modified asynchronously,
         # ignore errors of the kind where readdir and stat race with a
         # concurrent mutator.
-        find "$dname" -ignore_readdir_race -user test ! -path '*/user@12345.service*' ! -path '*/user-12345.slice*' >> wrong-user.txt
+        find "$dname" -ignore_readdir_race -user test ! -path '*/user@12345.service*' ! -path '*/user-12345.slice*' \
+            ! \( -path '/sys/fs/cgroup/*' -type f \) \
+            >> wrong-user.txt
         # Filter out the following elements:
         # - regular files found under the cgroup tree which are not writable to
         #   the group, because even if the group is wrong we don't care as long
@@ -66,4 +70,20 @@ execute: |
         cat world-writable.txt
         ret=1
     fi
+
+    # Check that cgroups created by snap-confine don't have execute permissions
+    # for others than the owner; this is because the files created inside these
+    # groups will be owned by the user who ran snap-confine, and we don't want
+    # the users to be able to edit or even viewing the cgroups.
+    # Filter out .mount and .service files, which are not created by snap-confine
+    find /sys/fs/cgroup -ignore_readdir_race -path '*/snap.*' -type d -perm /g+x,o+x \
+        ! -path '*.mount' \
+        ! -path '*.service' \
+        >> group-writable.txt
+    if test -s group-writable.txt; then
+        echo "the following files should not be world-writable or group-writable"
+        cat group-writable.txt
+        ret=1
+    fi
+
     exit "$ret"
