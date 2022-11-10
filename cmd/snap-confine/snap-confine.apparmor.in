@@ -454,6 +454,7 @@
     /run/snapd/lock/*.lock rwk,
 
     # support for the mount namespace sharing
+    capability fowner,
     capability sys_ptrace,
     # allow snap-confine to read /proc/1/ns/mnt
     ptrace read peer=unconfined,
@@ -531,6 +532,7 @@
         /dev/random r,
         /dev/urandom r,
 
+        capability dac_override,
         capability sys_ptrace,
         capability sys_admin,
         # This allows us to read and bind mount the namespace file
