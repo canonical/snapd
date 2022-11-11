@@ -3256,7 +3256,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedHappy(c *C
 	}
 
 	sequence := 0
-	vs, _, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 	c.Check(vs.Revision(), Equals, 2)
 	c.Check(vs.Sequence(), Equals, 2)
@@ -3293,11 +3293,10 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforcePinnedHappy(c *C) {
 	}
 
 	sequence := 2
-	vs, cur, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 	c.Check(vs.Revision(), Equals, 2)
 	c.Check(vs.Sequence(), Equals, 2)
-	c.Check(cur, Equals, 2)
 
 	// and it has been committed
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
@@ -3329,7 +3328,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyMis
 
 	snaps := []*snapasserts.InstalledSnap{}
 	sequence := 0
-	_, _, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	_, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, NotNil)
 	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
 	c.Assert(ok, Equals, true)
@@ -3383,7 +3382,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyCon
 
 	snaps := []*snapasserts.InstalledSnap{}
 	sequence := 0
-	_, _, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	_, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Check(err, ErrorMatches, fmt.Sprintf(`validation sets are in conflict:\n- cannot constrain snap "foo" as both invalid \(%s/boo\) and required at revision 1 \(%s/bar\)`, s.dev1Acct.AccountID(), s.dev1Acct.AccountID()))
 
 	// and it hasn't been committed
@@ -3423,12 +3422,11 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterForge
 	}
 
 	sequence := 0
-	vs, cur, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 	// new assertion got fetched
 	c.Check(vs.Revision(), Equals, 5)
 	c.Check(vs.Sequence(), Equals, 3)
-	c.Check(cur, Equals, 3)
 
 	// and it has been committed
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
@@ -3475,12 +3473,11 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterMonit
 	}
 
 	sequence := 0
-	vs, cur, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
+	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 	// doesn't fetch new assertion
 	c.Check(vs.Revision(), Equals, 1)
 	c.Check(vs.Sequence(), Equals, 1)
-	c.Check(cur, Equals, 1)
 
 	// old assertion is stil in the database
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
@@ -3765,8 +3762,8 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionPinToOlderSequence(c *
 		Name:      "bar",
 		Mode:      assertstate.Enforce,
 		PinnedAt:  1,
-		// and current points at the latest sequence available
-		Current: 2,
+		// and current points at the pinned sequence number
+		Current: 1,
 	})
 	c.Check(tr, DeepEquals, *tracking)
 }
