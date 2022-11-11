@@ -15,7 +15,11 @@ prepare_classic_rootfs() {
     local DESTDIR="$1"
     local ROLE="$2"
 
-
+    if [ "$ROLE" = "" ]; then
+        echo "internal error: prepare_classic_rootfs called without 'ROLE'"
+        exit 1
+    fi
+    
     # Create basic devices to be able to install packages
     [ -e "$DESTDIR"/dev/null ] || sudo mknod -m 666 "$DESTDIR"/dev/null c 1 3
     [ -e "$DESTDIR"/dev/zero ] || sudo mknod -m 666 "$DESTDIR"/dev/zero c 1 5
@@ -84,7 +88,7 @@ fi
 # of a spread test in which case the installer needs to prepare the system
 # to be used from spread. The "ROLE" var will be set accordingly so that
 # the "prepare_classic_rootfs" knows what to do.
-ROLE="unset"
+ROLE=""
 if [ -f /cdrom/casper/base.squashfs ]; then
     sudo unsquashfs -f -d "$DST" /cdrom/casper/base.squashfs
     # TODO: find out why the squashfs is preseeded
