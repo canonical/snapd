@@ -599,6 +599,31 @@ var asyncPendingRefreshNotification = func(context context.Context, client *user
 	}()
 }
 
+// asyncBeginDeferredRefreshNotification broadcasts desktop notification in a goroutine.
+//
+// This allows the, possibly slow, communication with each snapd session agent,
+// to be performed without holding the snap state lock.
+var asyncBeginDeferredRefreshNotification = func(context context.Context, client *userclient.Client, finishInfo *userclient.FinishedSnapRefreshInfo) {
+	go func() {
+		if err := client.BeginDeferredRefreshNotification(context, finishInfo); err != nil {
+			logger.Noticef("Cannot send notification about finishing deferred refresh: %v", err)
+		}
+	}()
+}
+
+// asyncFinishDeferredRefreshNotification broadcasts desktop notification in a goroutine.
+//
+// This allows the, possibly slow, communication with each snapd session agent,
+// to be performed without holding the snap state lock.
+var asyncFinishDeferredRefreshNotification = func(context context.Context, client *userclient.Client, finishInfo *userclient.FinishedSnapRefreshInfo) {
+	go func() {
+		if err := client.FinishDeferredRefreshNotification(context, finishInfo); err != nil {
+			fmt.Println("error sending finish", err)
+			logger.Noticef("Cannot send notification about finishing deferred refresh: %v", err)
+		}
+	}()
+}
+
 // Adds a Snap to the list of snaps to monitor when all their instances
 // are closed. When that happens, the name of that snap is sent through
 // the channel.
@@ -613,8 +638,16 @@ var MonitorSnap = func(snapName string, monitorChannel chan string) {
 // refresh can be launched. This allows to serialize several refreshes,
 // avoiding to launch all of them at the same time.
 var RefreshSnap = func(snapName string) {
+	deferredRefreshInfo := userclient.FinishedSnapRefreshInfo{InstanceName: snapName}
+	asyncBeginDeferredRefreshNotification(context.TODO(), userclient.New(), &deferredRefreshInfo)
 	cmd := exec.Command("snap", "refresh", snapName)
-	cmd.Run()
+	fmt.Println("Starting deferred refresh")
+	if cmd.Run() == nil {
+		fmt.Println("Completed deferred refresh")
+		asyncFinishDeferredRefreshNotification(context.TODO(), userclient.New(), &deferredRefreshInfo)
+	} else {
+		fmt.Println("Error during deferred refresh")
+	}
 }
 
 // Monitors an specific snap to detect when it has been closed by

@@ -341,3 +341,32 @@ func (client *Client) FinishRefreshNotification(ctx context.Context, closeInfo *
 	_, err = client.doMany(ctx, "POST", "/v1/notifications/finish-refresh", nil, headers, reqBody)
 	return err
 }
+
+// DeferredSnapRefreshInfo holds information about a deferred refresh being started provided to userd.
+type DeferredSnapRefreshInfo struct {
+	InstanceName    string `json:"instance-name"`
+	AppName         string `json:"busy-app-name,omitempty"`
+	AppDesktopEntry string `json:"busy-app-desktop-entry,omitempty"`
+}
+
+// BeginDeferredRefreshNotification shows a notification about a deferred snap refresh.
+func (client *Client) BeginDeferredRefreshNotification(ctx context.Context, closeInfo *FinishedSnapRefreshInfo) error {
+	headers := map[string]string{"Content-Type": "application/json"}
+	reqBody, err := json.Marshal(closeInfo)
+	if err != nil {
+		return err
+	}
+	_, err = client.doMany(ctx, "POST", "/v1/notifications/begin-deferred-refresh", nil, headers, reqBody)
+	return err
+}
+
+// FinishDeferredRefreshNotification closes notification about a deferred snap refresh.
+func (client *Client) FinishDeferredRefreshNotification(ctx context.Context, closeInfo *FinishedSnapRefreshInfo) error {
+	headers := map[string]string{"Content-Type": "application/json"}
+	reqBody, err := json.Marshal(closeInfo)
+	if err != nil {
+		return err
+	}
+	_, err = client.doMany(ctx, "POST", "/v1/notifications/finish-deferred-refresh", nil, headers, reqBody)
+	return err
+}

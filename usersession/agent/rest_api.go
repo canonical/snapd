@@ -43,6 +43,8 @@ var restApi = []*Command{
 	sessionInfoCmd,
 	serviceControlCmd,
 	pendingRefreshNotificationCmd,
+	beginDeferredRefreshNotification,
+	finishDeferredRefreshNotification,
 }
 
 var (
@@ -69,6 +71,16 @@ var (
 	finishRefreshNotificationCmd = &Command{
 		Path: "/v1/notifications/finish-refresh",
 		POST: postRefreshFinishedNotification,
+	}
+
+	beginDeferredRefreshNotification = &Command{
+		Path: "/v1/notifications/begin-deferred-refresh",
+		POST: postBeginDeferredRefreshNotification,
+	}
+
+	finishDeferredRefreshNotification = &Command{
+		Path: "/v1/notifications/finish-deferred-refresh",
+		POST: postFinishDeferredRefreshNotification,
 	}
 )
 
@@ -329,6 +341,134 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 			Status: 500,
 			Result: &errorResult{
 				Message: fmt.Sprintf("cannot send close notification message: %v", err),
+			},
+		})
+	}
+	return SyncResponse(nil)
+}
+
+func postBeginDeferredRefreshNotification(c *Command, r *http.Request) Response {
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	// pendingSnapRefreshInfo holds information about pending snap refresh provided by snapd.
+	var refreshInfo client.DeferredSnapRefreshInfo
+	if err := decoder.Decode(&refreshInfo); err != nil {
+		return BadRequest("cannot decode request body into pending snap deferred refresh info: %v", err)
+	}
+
+	// Note that since the connection is shared, we are not closing it.
+	if c.s.bus == nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: "cannot connect to the session bus",
+			},
+		})
+	}
+
+	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
+	summary := fmt.Sprintf(i18n.G("Updating %q snap"), refreshInfo.InstanceName)
+	body := i18n.G("Please wait before opening it.")
+	var icon string
+	var hints []notification.Hint
+
+	hints = append(hints, notification.WithUrgency(notification.NormalUrgency))
+	// The notification is provided by snapd session agent.
+	hints = append(hints, notification.WithDesktopEntry("io.snapcraft.SessionAgent"))
+	// But if we have a desktop file of the busy application, use that apps's icon.
+	if refreshInfo.AppDesktopEntry != "" {
+		parser := goconfigparser.New()
+		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, refreshInfo.AppDesktopEntry+".desktop")
+		if err := parser.ReadFile(desktopFilePath); err == nil {
+			icon, _ = parser.Get("Desktop Entry", "Icon")
+		}
+	}
+
+	msg := &notification.Message{
+		AppName: refreshInfo.AppName,
+		Title:   summary,
+		Icon:    icon,
+		Body:    body,
+		Hints:   hints,
+	}
+
+	// TODO: silently ignore error returned when the notification server does not exist.
+	// TODO: track returned notification ID and respond to actions, if supported.
+	if err := c.s.notificationMgr.SendNotification(notification.ID(refreshInfo.InstanceName), msg); err != nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: fmt.Sprintf("cannot send notification message: %v", err),
+			},
+		})
+	}
+	return SyncResponse(nil)
+}
+
+func postFinishDeferredRefreshNotification(c *Command, r *http.Request) Response {
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	// pendingSnapRefreshInfo holds information about pending snap refresh provided by snapd.
+	var refreshInfo client.DeferredSnapRefreshInfo
+	if err := decoder.Decode(&refreshInfo); err != nil {
+		return BadRequest("cannot decode request body into pending snap deferred refresh info: %v", err)
+	}
+
+	// Note that since the connection is shared, we are not closing it.
+	if c.s.bus == nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: "cannot connect to the session bus",
+			},
+		})
+	}
+
+	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
+	summary := fmt.Sprintf(i18n.G("Refreshed %q snap"), refreshInfo.InstanceName)
+	body := i18n.G("You can launch it again now.")
+	var icon string
+	var hints []notification.Hint
+
+	hints = append(hints, notification.WithUrgency(notification.NormalUrgency))
+	// The notification is provided by snapd session agent.
+	hints = append(hints, notification.WithDesktopEntry("io.snapcraft.SessionAgent"))
+	// But if we have a desktop file of the busy application, use that apps's icon.
+	if refreshInfo.AppDesktopEntry != "" {
+		parser := goconfigparser.New()
+		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, refreshInfo.AppDesktopEntry+".desktop")
+		if err := parser.ReadFile(desktopFilePath); err == nil {
+			icon, _ = parser.Get("Desktop Entry", "Icon")
+		}
+	}
+
+	msg := &notification.Message{
+		AppName: refreshInfo.AppName,
+		Title:   summary,
+		Icon:    icon,
+		Body:    body,
+		Hints:   hints,
+	}
+
+	// TODO: silently ignore error returned when the notification server does not exist.
+	// TODO: track returned notification ID and respond to actions, if supported.
+	if err := c.s.notificationMgr.SendNotification(notification.ID(refreshInfo.InstanceName), msg); err != nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: fmt.Sprintf("cannot send notification message: %v", err),
 			},
 		})
 	}
