@@ -791,6 +791,12 @@ pkg_dependencies_opensuse(){
         xdg-utils
         zsh
         "
+    if os.query is-opensuse tumbleweed; then
+        echo "
+            libfwupd2
+            libfwupdplugin5
+        "
+    fi
 }
 
 pkg_dependencies_arch(){

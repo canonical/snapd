@@ -141,7 +141,7 @@ func (s *SnapSuite) TestSubCommandHelpPrintsHelp(c *check.C) {
 		// regexp matches "Usage: snap <the command>" plus an arbitrary
 		// number of [<something>] plus an arbitrary number of
 		// <<something>> optionally ending in ellipsis
-		c.Check(s.Stdout(), check.Matches, fmt.Sprintf(`(?sm)Usage:\s+snap %s(?: \[[^][]+\])*(?:(?: <[^<>]+>(?:\.<[^<>]+>)?)+(?:\.\.\.)?)?(?: \[[^][]+\])?$.*`, cmd), comment)
+		c.Check(s.Stdout(), check.Matches, fmt.Sprintf(`(?sm)Usage:\s+snap %s(?: \[[^][]+\])*(?:(?: <[^<>]+>(?:[.:]<[^<>]+>)?)+(?:\.\.\.)?)?(?: \[[^][]+\])?$.*`, cmd), comment)
 		c.Check(s.Stderr(), check.Equals, "", comment)
 	}
 }

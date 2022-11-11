@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -57,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
@@ -66,12 +67,14 @@ import (
 var (
 	bootMakeBootablePartition            = boot.MakeBootablePartition
 	bootMakeRunnable                     = boot.MakeRunnableSystem
+	bootMakeRunnableStandalone           = boot.MakeRunnableStandaloneSystem
 	bootMakeRunnableAfterDataReset       = boot.MakeRunnableSystemAfterDataReset
 	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
 	installRun                           = install.Run
 	installFactoryReset                  = install.FactoryReset
 	installMountVolumes                  = install.MountVolumes
 	installWriteContent                  = install.WriteContent
+	installEncryptPartitions             = install.EncryptPartitions
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
@@ -281,7 +284,16 @@ func buildInstallObserver(model *asserts.Model, gadgetDir string, useEncryption 
 }
 
 func (m *DeviceManager) doSetupUbuntuSave(t *state.Task, _ *tomb.Tomb) error {
-	return m.setupUbuntuSave()
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+
+	return m.setupUbuntuSave(deviceCtx)
 }
 
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
@@ -379,7 +391,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
 	}
-	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{
 		Base:              bootBaseInfo,
 		BasePath:          bootBaseInfo.MountFile(),
@@ -387,8 +398,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		GadgetPath:        gadgetInfo.MountFile(),
 		Kernel:            kernelInfo,
 		KernelPath:        kernelInfo.MountFile(),
-		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
+
+		RecoverySystemLabel: modeEnv.RecoverySystem,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
 		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
@@ -989,7 +1001,6 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
 	}
-	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{
 		Base:              bootBaseInfo,
 		BasePath:          bootBaseInfo.MountFile(),
@@ -997,8 +1008,9 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		GadgetPath:        gadgetInfo.MountFile(),
 		Kernel:            kernelInfo,
 		KernelPath:        kernelInfo.MountFile(),
-		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
+
+		RecoverySystemLabel: modeEnv.RecoverySystem,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
 		err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith, trustedInstallObserver)
@@ -1209,6 +1221,10 @@ func rotateEncryptionKeys() error {
 	return nil
 }
 
+type encryptionSetupDataKey struct {
+	systemLabel string
+}
+
 func mountSeedSnap(seedSn *seed.Snap) (mountpoint string, unmount func() error, err error) {
 	mountpoint = filepath.Join(dirs.SnapRunDir, "snap-content", string(seedSn.EssentialType))
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
@@ -1223,10 +1239,49 @@ func mountSeedSnap(seedSn *seed.Snap) (mountpoint string, unmount func() error, 
 	}
 	return mountpoint,
 		func() error {
-			logger.Debugf("Unmounting %q", mountpoint)
+			logger.Debugf("unmounting %q", mountpoint)
 			return sd.Umount(mountpoint)
 		},
 		nil
+}
+
+func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (
+	*System, map[snap.Type]*snap.Info, map[snap.Type]*seed.Snap, map[snap.Type]string, func(), error) {
+
+	essentialTypes := []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget}
+	sys, snapInfos, snapSeeds, err := m.loadSystemAndEssentialSnaps(systemLabel, essentialTypes)
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	// Unset revision here actually means that the snap is local.
+	// Assign then a local revision as seeding/installing the snap would do.
+	for _, snInfo := range snapInfos {
+		if snInfo.Revision.Unset() {
+			snInfo.Revision = snap.R(-1)
+		}
+	}
+
+	// Mount gadget and kernel
+	var unmountFuncs []func() error
+	mntPtForType := make(map[snap.Type]string)
+	unmount := func() {
+		for _, unmountF := range unmountFuncs {
+			if errUnmount := unmountF(); errUnmount != nil {
+				logger.Noticef("error unmounting: %v", errUnmount)
+			}
+		}
+	}
+	for _, seedSn := range []*seed.Snap{snapSeeds[snap.TypeGadget], snapSeeds[snap.TypeKernel]} {
+		mntPt, unmountSnap, err := mountSeedSnap(seedSn)
+		if err != nil {
+			unmount()
+			return nil, nil, nil, nil, nil, err
+		}
+		unmountFuncs = append(unmountFuncs, unmountSnap)
+		mntPtForType[seedSn.EssentialType] = mntPt
+	}
+
+	return sys, snapInfos, snapSeeds, mntPtForType, unmount, nil
 }
 
 // doInstallFinish performs the finish step of the install. It will
@@ -1252,76 +1307,88 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("on-volumes", &onVolumes); err != nil {
 		return err
 	}
-	logger.Debugf("starting install-finish for %q systemd on %v", systemLabel, onVolumes)
 
-	essentialTypes := []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget}
+	var encryptSetupData *install.EncryptionSetupData
+	cached := st.Cached(encryptionSetupDataKey{systemLabel})
+	if cached != nil {
+		var ok bool
+		// TODO check that encryptSetupData is not out of sync with the onVolumes we get
+		encryptSetupData, ok = cached.(*install.EncryptionSetupData)
+		if !ok {
+			return fmt.Errorf("internal error: wrong data type under encryptionSetupDataKey")
+		}
+	}
+
 	st.Unlock()
-	sys, snapInfos, snapSeeds, err := m.loadSystemAndEssentialSnaps(systemLabel, essentialTypes)
+	sys, snapInfos, snapSeeds, mntPtForType, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel)
 	st.Lock()
 	if err != nil {
 		return err
 	}
-	// Unset revision here actually means that the snap is local.
-	// Assign then a local revision as seeding/installing the snap would do.
-	for _, typ := range essentialTypes {
-		snInfo := snapInfos[typ]
-		if snInfo.Revision.Unset() {
-			snInfo.Revision = snap.R(-1)
-		}
-	}
-
-	// Mount gadget and kernel
-	mntPtForType := make(map[snap.Type]string)
-	for _, seedSn := range []*seed.Snap{snapSeeds[snap.TypeGadget], snapSeeds[snap.TypeKernel]} {
-		mntPt, unmountSnap, err := mountSeedSnap(seedSn)
-		if err != nil {
-			return err
-		}
-		mntPtForType[seedSn.EssentialType] = mntPt
-		defer func() {
-			errRest := unmountSnap()
-			if err == nil {
-				err = errRest
-			}
-		}()
-	}
+	defer unmount()
 
 	// TODO validation of onVolumes versus gadget.yaml
 
-	// TODO useEncryption always false until setup encryption is implemented
+	// Check if encryption is mandatory
+	if sys.Model.StorageSafety() == asserts.StorageSafetyEncrypted && encryptSetupData == nil {
+		return fmt.Errorf("storage encryption required by model but has not been set up")
+	}
+	useEncryption := encryptSetupData != nil
+
+	logger.Debugf("starting install-finish for %q (using encryption: %t) on %v", systemLabel, useEncryption, onVolumes)
+
 	// TODO we probably want to pass a different location for the assets cache
-	useEncryption := false
 	installObserver, trustedInstallObserver, err := buildInstallObserver(sys.Model, mntPtForType[snap.TypeGadget], useEncryption)
 	if err != nil {
 		return err
+	}
+
+	// TODO for partial gadgets we should also use the data from onVolumes instead of
+	// using only what comes from gadget.yaml.
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model)
+	if err != nil {
+		return fmt.Errorf("on finish install: cannot layout volumes: %v", err)
 	}
 
 	logger.Debugf("writing content to partitions")
 	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		_, err = installWriteContent(onVolumes, installObserver, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, perfTimings)
+		_, err = installWriteContent(onVolumes, allLaidOutVols, encryptSetupData, installObserver, perfTimings)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot write content: %v", err)
 	}
 
 	// Mount the partitions and find ESP partition
-	espMntDir, unmount, err := installMountVolumes(onVolumes)
+	espMntDir, unmountParts, err := installMountVolumes(onVolumes, encryptSetupData)
 	if err != nil {
 		return fmt.Errorf("cannot mount partitions for installation: %v", err)
 	}
-	defer unmount()
+	defer unmountParts()
+
+	if err := install.SaveStorageTraits(sys.Model, allLaidOutVols, encryptSetupData); err != nil {
+		return err
+	}
+
+	if useEncryption {
+		if trustedInstallObserver != nil {
+			if err := prepareEncryptedSystemData(sys.Model, install.KeysForRole(encryptSetupData), trustedInstallObserver); err != nil {
+				return err
+			}
+		}
+	}
 
 	bootWith := &boot.BootableSet{
-		Base:       snapInfos[snap.TypeBase],
-		BasePath:   snapSeeds[snap.TypeBase].Path,
-		Kernel:     snapInfos[snap.TypeKernel],
-		KernelPath: snapSeeds[snap.TypeKernel].Path,
-		Gadget:     snapInfos[snap.TypeGadget],
-		GadgetPath: snapSeeds[snap.TypeGadget].Path,
-
+		Base:              snapInfos[snap.TypeBase],
+		BasePath:          snapSeeds[snap.TypeBase].Path,
+		Kernel:            snapInfos[snap.TypeKernel],
+		KernelPath:        snapSeeds[snap.TypeKernel].Path,
+		Gadget:            snapInfos[snap.TypeGadget],
+		GadgetPath:        snapSeeds[snap.TypeGadget].Path,
 		UnpackedGadgetDir: mntPtForType[snap.TypeGadget],
+
+		RecoverySystemLabel: systemLabel,
 	}
 
 	// installs in ESP: grub.cfg, grubenv
@@ -1341,8 +1408,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	logger.Debugf("making the installed system runnable for systemLabel %s", systemLabel)
-	if err := bootMakeRunnable(sys.Model, bootWith, trustedInstallObserver); err != nil {
+	logger.Debugf("making the installed system runnable for system label %s", systemLabel)
+	if err := bootMakeRunnableStandalone(sys.Model, bootWith, trustedInstallObserver); err != nil {
 		return err
 	}
 
@@ -1354,6 +1421,9 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
 	var systemLabel string
 	if err := t.Get("system-label", &systemLabel); err != nil {
 		return err
@@ -1362,9 +1432,53 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	if err := t.Get("on-volumes", &onVolumes); err != nil {
 		return err
 	}
-	logger.Debugf("install-setup-storage-encyption for %q on %v", systemLabel, onVolumes)
-	// TODO: find device with role system-{data,seed} and setup
-	// storage encryption
+	logger.Debugf("install-setup-storage-encryption for %q on %v", systemLabel, onVolumes)
 
-	return fmt.Errorf("setup storage encryption step not implemented yet")
+	st.Unlock()
+	sys, snapInfos, snapSeeds, mntPtForType, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel)
+	st.Lock()
+	if err != nil {
+		return err
+	}
+	defer unmount()
+
+	// Gadget information
+	snapf, err := snapfile.Open(snapSeeds[snap.TypeGadget].Path)
+	if err != nil {
+		return fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	gadgetInfo, err := gadget.ReadInfoFromSnapFileNoValidate(snapf, sys.Model)
+	if err != nil {
+		return fmt.Errorf("reading gadget information: %v", err)
+	}
+
+	encryptInfo, err := m.encryptionSupportInfo(sys.Model, snapInfos[snap.TypeKernel], gadgetInfo)
+	if err != nil {
+		return err
+	}
+	if !encryptInfo.Available {
+		var whyStr string
+		if encryptInfo.UnavailableErr != nil {
+			whyStr = encryptInfo.UnavailableErr.Error()
+		} else {
+			whyStr = encryptInfo.UnavailableWarning
+		}
+		return fmt.Errorf("encryption unavailable on this device: %v", whyStr)
+	}
+
+	encryptionSetupData, err := installEncryptPartitions(onVolumes, secboot.EncryptionTypeLUKS, sys.Model, mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], perfTimings)
+	if err != nil {
+		return err
+	}
+
+	// Store created devices in the change so they can be accessed from the installer
+	apiData := map[string]interface{}{
+		"encrypted-devices": encryptionSetupData.EncryptedDevices(),
+	}
+	chg := t.Change()
+	chg.Set("api-data", apiData)
+
+	st.Cache(encryptionSetupDataKey{systemLabel}, encryptionSetupData)
+
+	return nil
 }

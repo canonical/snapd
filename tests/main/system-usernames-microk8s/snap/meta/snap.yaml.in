@@ -1,9 +1,0 @@
-name: SNAPNAME
-summary: Snap requesting the microk8s user
-version: 1.0
-system-usernames:
-  snap_microk8s: shared
-
-apps:
-  microk8s:
-    command: bin/sh

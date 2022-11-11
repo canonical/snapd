@@ -39,9 +39,7 @@ const (
 	DefaultStatus Status = 0
 
 	// HoldStatus means the task should not run for the moment, perhaps as a
-	// consequence of an error on another task or because an external action
-	// is needed (e.g. on classic we require the user to reboot after a
-	// kernel snap update).
+	// consequence of an error on another task.
 	HoldStatus Status = 1
 
 	// DoStatus means the change or task is ready to start.
@@ -69,6 +67,12 @@ const (
 	// ErrorStatus means the change or task has errored out while running or being undone.
 	ErrorStatus Status = 9
 
+	// WaitStatus means the task was accomplished successfully but some
+	// external event needs to happen before work can progress further
+	// (e.g. on classic we require the user to reboot after a
+	// kernel snap update).
+	WaitStatus Status = 10
+
 	nStatuses = iota
 )
 
@@ -92,6 +96,8 @@ func (s Status) String() string {
 		return "Doing"
 	case DoneStatus:
 		return "Done"
+	case WaitStatus:
+		return "Wait"
 	case AbortStatus:
 		return "Abort"
 	case UndoStatus:
@@ -263,6 +269,7 @@ var statusOrder = []Status{
 	UndoStatus,
 	DoingStatus,
 	DoStatus,
+	WaitStatus,
 	ErrorStatus,
 	UndoneStatus,
 	DoneStatus,
@@ -562,7 +569,7 @@ NextChangeTask:
 
 		var live bool
 		switch t.Status() {
-		case DoStatus, DoingStatus, DoneStatus:
+		case DoStatus, DoingStatus, WaitStatus, DoneStatus:
 			live = true
 		}
 
@@ -619,7 +626,7 @@ func (c *Change) abortTasks(tasks []*Task, abortedLanes map[int]bool, seenTasks 
 		case DoingStatus:
 			// In progress so stop and undo it.
 			t.SetStatus(AbortStatus)
-		case DoneStatus:
+		case WaitStatus, DoneStatus:
 			// Already done so undo it.
 			t.SetStatus(UndoStatus)
 		}

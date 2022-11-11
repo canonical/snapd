@@ -296,7 +296,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		c.Check(model, DeepEquals, mockModel)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
-		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
+		c.Check(bootWith.RecoverySystemLabel, Equals, "20191218")
+		c.Check(bootWith.RecoverySystemDir, Equals, "")
 		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
 		if tc.encrypt {
 			c.Check(seal, NotNil)
@@ -2445,7 +2446,8 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		c.Check(makeRunnableModel, DeepEquals, model)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
-		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
+		c.Check(bootWith.RecoverySystemLabel, Equals, "20191218")
+		c.Check(bootWith.RecoverySystemDir, Equals, "")
 		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
 		if tc.encrypt {
 			c.Check(seal, NotNil)
@@ -3942,6 +3944,7 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionTasksAn
 	c.Assert(onVols, DeepEquals, mockOnVolumes)
 }
 
+// TODO make this test a happy one
 func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionRunthrough(c *C) {
 	st := s.state
 	st.Lock()
@@ -3957,5 +3960,6 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionRunthro
 
 	c.Check(chg.IsReady(), Equals, true)
 	// TODO: update once the change actually does something
-	c.Check(chg.Err(), ErrorMatches, `(?ms).*setup storage encryption step not implemented yet.*`)
+	c.Check(chg.Err().Error(), testutil.Contains, `cannot perform the following tasks:
+- Setup storage encryption for installing system "1234" (cannot load assertions for label "1234": no seed assertions)`)
 }

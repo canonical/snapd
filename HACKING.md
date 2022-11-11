@@ -517,7 +517,8 @@ and the tests inside it. The most important ones are described bellow:
 - `NESTED_ENABLE_SECURE_BOOT`: enable secure boot in the nested VM in case it is supported (supported just on UC20)
 - `NESTED_BUILD_SNAPD_FROM_CURRENT`: build and use either core or `snapd` from the current branch
 - `NESTED_CUSTOM_IMAGE_URL`: download and use an custom image from this URL
-
+- `NESTED_SNAPD_DEBUG_TO_SERIAL`:  add snapd debug and log to nested vm serial console
+- `NESTED_EXTRA_CMDLINE`:  add any extra cmd line parameter to the nested vm
 
 # Quick intro to hacking on snap-confine
 

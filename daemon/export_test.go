@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2021 Canonical Ltd
+ * Copyright (C) 2018-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -227,6 +227,30 @@ func MockSnapstateMigrate(mock func(*state.State, []string) ([]*state.TaskSet, e
 	snapstateMigrateHome = mock
 	return func() {
 		snapstateMigrateHome = oldSnapstateMigrate
+	}
+}
+
+func MockSnapstateProceedWithRefresh(f func(st *state.State, gatingSnap string, snaps []string) error) (restore func()) {
+	old := snapstateProceedWithRefresh
+	snapstateProceedWithRefresh = f
+	return func() {
+		snapstateProceedWithRefresh = old
+	}
+}
+
+func MockSnapstateHoldRefreshesBySystem(f func(st *state.State, level snapstate.HoldLevel, time string, snaps []string) error) (restore func()) {
+	old := snapstateHoldRefreshesBySystem
+	snapstateHoldRefreshesBySystem = f
+	return func() {
+		snapstateHoldRefreshesBySystem = old
+	}
+}
+
+func MockConfigstateConfigureInstalled(f func(st *state.State, name string, patchValues map[string]interface{}, flags int) (*state.TaskSet, error)) (restore func()) {
+	old := configstateConfigureInstalled
+	configstateConfigureInstalled = f
+	return func() {
+		configstateConfigureInstalled = old
 	}
 }
 

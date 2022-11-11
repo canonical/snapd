@@ -184,8 +184,10 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 				PlugsOnly:    len(update.Slots) == 0,
 				InstanceKey:  update.InstanceKey,
 				auxStoreInfo: auxStoreInfo{
-					Website: update.Website,
-					Media:   update.Media,
+					Media: update.Media,
+					// XXX we store this for the benefit of
+					// old snapd
+					Website: update.Website(),
 				},
 			},
 			Version: update.Version,

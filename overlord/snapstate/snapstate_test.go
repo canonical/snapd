@@ -233,14 +233,14 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 
 	s.state.Lock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
-	s.user, err = auth.NewUser(s.state, auth.NewUserData{
+	s.user, err = auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
 		Discharges: []string{"discharge"},
 	})
 	c.Assert(err, IsNil)
-	s.user2, err = auth.NewUser(s.state, auth.NewUserData{
+	s.user2, err = auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "username2",
 		Email:      "email2@test.com",
 		Macaroon:   "macaroon2",
@@ -248,7 +248,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 	// 3 has no store auth
-	s.user3, err = auth.NewUser(s.state, auth.NewUserData{
+	s.user3, err = auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "username3",
 		Email:      "email2@test.com",
 		Macaroon:   "",
@@ -4447,7 +4447,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Description(), Equals, "Lots of text")
 	c.Check(info.Media, IsNil)
-	c.Check(info.Website, Equals, "")
+	c.Check(info.Website(), Equals, "")
 }
 
 func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C) {
@@ -4478,7 +4478,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Description(), Equals, "Lots of text")
 	c.Check(info.Media, DeepEquals, storeInfo.Media)
-	c.Check(info.Website, Equals, storeInfo.Website)
+	c.Check(info.Website(), Equals, storeInfo.Website)
 }
 
 func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoParallelInstall(c *C) {

@@ -35,6 +35,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
@@ -91,6 +92,7 @@ func (s *storeActionSuite) TestSnapAction(c *C) {
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
 		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Location"), Equals, "")
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -918,6 +920,7 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, "21")
 		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, "archXYZ")
+		c.Check(r.Header.Get("Snap-Device-Location"), Equals, `cloud-name="gcp" region="us-west1" availability-zone="us-west1-b"`)
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "true")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -976,7 +979,7 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 	cfg.Series = "21"
 	cfg.Architecture = "archXYZ"
 	cfg.StoreID = "foo"
-	dauthCtx := &testDauthContext{c: c, device: s.device}
+	dauthCtx := &testDauthContext{c: c, device: s.device, cloudInfo: &auth.CloudInfo{Name: "gcp", Region: "us-west1", AvailabilityZone: "us-west1-b"}}
 	sto := store.New(cfg, dauthCtx)
 
 	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{

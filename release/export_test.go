@@ -43,6 +43,16 @@ func MockFileExists(mockFileExists func(string) bool) (restorer func()) {
 	}
 }
 
+func MockFilesystemRootType(filesystemID int64) (restorer func()) {
+	// Cannot use testutil.Backup due to import loop
+	old := filesystemRootType
+	filesystemRootType = func() (int64, error) { return filesystemID, nil }
+	return func() {
+		filesystemRootType = old
+	}
+}
+
 var (
-	IsWSL = isWSL
+	GetWSLVersion      = getWSLVersion
+	FilesystemRootType = filesystemRootType
 )

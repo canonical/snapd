@@ -115,6 +115,9 @@ func (s *kvmInterfaceSuite) TestAppArmorSpec(c *C) {
 /sys/module/kvm_amd/parameters/nested r,
 /sys/module/kvm_hv/parameters/nested r, # PPC64.
 /sys/module/kvm/parameters/nested r, # S390.
+
+# Allow AMD SEV checks for AMD CPU's.
+/sys/module/kvm_amd/parameters/sev r,
 `)
 }
 

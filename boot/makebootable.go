@@ -82,6 +82,9 @@ func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableS
 // using information from bootWith and bootFlags. Contrarily to
 // MakeBootableImage this happens in a live system.
 func MakeBootablePartition(partDir string, opts *bootloader.Options, bootWith *BootableSet, bootMode string, bootFlags []string) error {
+	if bootWith.RecoverySystemDir != "" {
+		return fmt.Errorf("internal error: RecoverySystemDir unexpectedly set for MakeBootablePartition")
+	}
 	return configureBootloader(partDir, opts, bootWith, bootMode, bootFlags)
 }
 
@@ -309,12 +312,39 @@ func MakeRecoverySystemBootable(rootdir string, relativeRecoverySystemDir string
 }
 
 type makeRunnableOptions struct {
+	Standalone     bool
 	AfterDataReset bool
+}
+
+func copyBootSnap(orig string, dstInfo *snap.Info, dstSnapBlobDir string) error {
+	// if the source path is a symlink, don't copy the symlink, copy the
+	// target file instead of copying the symlink, as the initramfs won't
+	// follow the symlink when it goes to mount the base and kernel snaps by
+	// design as the initramfs should only be using trusted things from
+	// ubuntu-data to boot in run mode
+	if osutil.IsSymlink(orig) {
+		link, err := os.Readlink(orig)
+		if err != nil {
+			return err
+		}
+		orig = link
+	}
+	// note that we need to use the "Filename()" here because unasserted
+	// snaps will have names like pc-kernel_5.19.4.snap but snapd expects
+	// "pc-kernel_x1.snap"
+	dst := filepath.Join(dstSnapBlobDir, dstInfo.Filename())
+	if err := osutil.CopyFile(orig, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+		return err
+	}
+	return nil
 }
 
 func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver, makeOpts makeRunnableOptions) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: cannot make pre-UC20 system runnable")
+	}
+	if bootWith.RecoverySystemDir != "" {
+		return fmt.Errorf("internal error: RecoverySystemDir unexpectedly set for MakeRunnableSystem")
 	}
 
 	// TODO:UC20:
@@ -327,21 +357,14 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
-	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath, bootWith.GadgetPath} {
-		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
-		// if the source filename is a symlink, don't copy the symlink, copy the
-		// target file instead of copying the symlink, as the initramfs won't
-		// follow the symlink when it goes to mount the base and kernel snaps by
-		// design as the initramfs should only be using trusted things from
-		// ubuntu-data to boot in run mode
-		if osutil.IsSymlink(fn) {
-			link, err := os.Readlink(fn)
-			if err != nil {
-				return err
-			}
-			fn = link
-		}
-		if err := osutil.CopyFile(fn, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+	for _, origDest := range []struct {
+		orig     string
+		destInfo *snap.Info
+	}{
+		{orig: bootWith.BasePath, destInfo: bootWith.Base},
+		{orig: bootWith.KernelPath, destInfo: bootWith.Kernel},
+		{orig: bootWith.GadgetPath, destInfo: bootWith.Gadget}} {
+		if err := copyBootSnap(origDest.orig, origDest.destInfo, snapBlobDir); err != nil {
 			return err
 		}
 	}
@@ -357,11 +380,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		currentTrustedBootAssets = sealer.currentTrustedBootAssetsMap()
 		currentTrustedRecoveryBootAssets = sealer.currentTrustedRecoveryBootAssetsMap()
 	}
-	// filepath.Base("") returns ".", so we need to be a bit careful here
-	recoverySystemLabel := ""
-	if bootWith.RecoverySystemDir != "" {
-		recoverySystemLabel = filepath.Base(bootWith.RecoverySystemDir)
-	}
+	recoverySystemLabel := bootWith.RecoverySystemLabel
 	// write modeenv on the ubuntu-data partition
 	modeenv := &Modeenv{
 		Mode:           "run",
@@ -376,8 +395,8 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		// installed
 		CurrentKernelCommandLines: nil,
 		// keep this comment to make gofmt 1.9 happy
-		Base:           filepath.Base(bootWith.BasePath),
-		Gadget:         filepath.Base(bootWith.GadgetPath),
+		Base:           bootWith.Base.Filename(),
+		Gadget:         bootWith.Gadget.Filename(),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 		BrandID:        model.BrandID(),
 		Model:          model.Model(),
@@ -478,8 +497,17 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	}
 
 	if sealer != nil {
+		hasHook, err := HasFDESetupHook(bootWith.Kernel)
+		if err != nil {
+			return fmt.Errorf("cannot check for fde-setup hook: %v", err)
+		}
+
 		flags := sealKeyToModeenvFlags{
-			FactoryReset: makeOpts.AfterDataReset,
+			HasFDESetupHook: hasHook,
+			FactoryReset:    makeOpts.AfterDataReset,
+		}
+		if makeOpts.Standalone {
+			flags.SnapsDir = snapBlobDir
 		}
 		// seal the encryption key to the parameters specified in modeenv
 		if err := sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, model, modeenv, flags); err != nil {
@@ -506,6 +534,17 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 // running in between.
 func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{})
+}
+
+// MakeRunnableStandaloneSystem operates like MakeRunnableSystem but does
+// assume that the run system being set up is related to the current
+// system. This is appropriate e.g when installing from a classic installer.
+func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+	// TODO consider merging this back into MakeRunnableSystem but need
+	// to consider the properties of the different input used for sealing
+	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
+		Standalone: true,
+	})
 }
 
 // MakeRunnableSystemAfterDataReset sets up the system to be able to boot, but it is

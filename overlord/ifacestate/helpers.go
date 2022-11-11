@@ -665,6 +665,10 @@ func addNewConnection(st *state.State, task *state.Task, newconns map[string]*in
 	return nil
 }
 
+// DebugAutoConnectCheck is a hook that can be set to debug auto-connection
+// candidates as they are checked.
+var DebugAutoConnectCheck func(*policy.ConnectCandidate, interfaces.SideArity, error)
+
 type autoConnectChecker struct {
 	st   *state.State
 	task *state.Task
@@ -747,6 +751,9 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 	}
 
 	arity, err := ic.CheckAutoConnect()
+	if DebugAutoConnectCheck != nil {
+		DebugAutoConnectCheck(&ic, arity, err)
+	}
 	if err == nil {
 		return true, arity, nil
 	}

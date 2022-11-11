@@ -76,7 +76,7 @@ func (s *userSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(daemon.MockHasUserAdmin(true))
 
 	// make sure we don't call these by accident)
-	s.AddCleanup(daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string) (createdUsers *devicestate.CreatedUser, internalErr error) {
+	s.AddCleanup(daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string, expiration time.Time) (createdUsers *devicestate.CreatedUser, internalErr error) {
 		c.Fatalf("unexpected create user %q call", email)
 		return nil, &devicestate.UserError{Err: fmt.Errorf("unexpected create user %q call", email)}
 	}))
@@ -86,7 +86,7 @@ func (s *userSuite) SetUpTest(c *check.C) {
 		return nil, &devicestate.UserError{Err: fmt.Errorf("unexpected create user %q call", email)}
 	}))
 
-	s.AddCleanup(daemon.MockDeviceStateRemoveUser(func(st *state.State, username string) (*auth.UserState, error) {
+	s.AddCleanup(daemon.MockDeviceStateRemoveUser(func(st *state.State, username string, opts *devicestate.RemoveUserOptions) (*auth.UserState, error) {
 		c.Fatalf("unexpected remove user %q call", username)
 		return nil, &devicestate.UserError{Err: fmt.Errorf("unexpected remove user %q call", username)}
 	}))
@@ -200,7 +200,7 @@ func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
 
 	// setup local-only user
 	state.Lock()
-	localUser, err := auth.NewUser(state, auth.NewUserData{
+	localUser, err := auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "",
@@ -248,7 +248,7 @@ func (s *userSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 
 	// setup local-only user
 	state.Lock()
-	localUser, err := auth.NewUser(state, auth.NewUserData{
+	localUser, err := auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "",
@@ -296,7 +296,7 @@ func (s *userSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
 
 	// setup local-only user
 	state.Lock()
-	localUser, err := auth.NewUser(state, auth.NewUserData{
+	localUser, err := auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "",
@@ -344,7 +344,7 @@ func (s *userSuite) TestLogoutUser(c *check.C) {
 	s.expectLoginAccess()
 
 	state.Lock()
-	user, err := auth.NewUser(state, auth.NewUserData{
+	user, err := auth.NewUser(state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -482,9 +482,10 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 	expectedEmail := "popper@lse.ac.uk"
 
 	var deviceStateCreateUserCalled bool
-	defer daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string) (*devicestate.CreatedUser, error) {
+	defer daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string, expiration time.Time) (*devicestate.CreatedUser, error) {
 		c.Check(email, check.Equals, expectedEmail)
 		c.Check(sudoer, check.Equals, false)
+		c.Check(expiration, check.Equals, time.Time{})
 		expected := &devicestate.CreatedUser{
 			Username: expectedUsername,
 			SSHKeys: []string{
@@ -631,7 +632,7 @@ func (s *userSuite) TestPostUserActionRemoveDelUserErrInternal(c *check.C) {
 func (s *userSuite) testpostUserActionRemoveDelUserErr(c *check.C, internalErr bool) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, auth.NewUserData{
+	_, err := auth.NewUser(st, auth.NewUserParams{
 		Username:   "some-user",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -641,7 +642,7 @@ func (s *userSuite) testpostUserActionRemoveDelUserErr(c *check.C, internalErr b
 	c.Check(err, check.IsNil)
 
 	called := 0
-	defer daemon.MockDeviceStateRemoveUser(func(st *state.State, username string) (*auth.UserState, error) {
+	defer daemon.MockDeviceStateRemoveUser(func(st *state.State, username string, opts *devicestate.RemoveUserOptions) (*auth.UserState, error) {
 		called++
 		if internalErr {
 			return nil, fmt.Errorf("internal error: wat-internal")
@@ -671,7 +672,7 @@ func (s *userSuite) TestPostUserActionRemove(c *check.C) {
 	expectedEmail := "email@test.com"
 
 	called := 0
-	defer daemon.MockDeviceStateRemoveUser(func(st *state.State, username string) (*auth.UserState, error) {
+	defer daemon.MockDeviceStateRemoveUser(func(st *state.State, username string, opts *devicestate.RemoveUserOptions) (*auth.UserState, error) {
 		called++
 		removedUser := &auth.UserState{ID: expectedID, Username: expectedUsername, Email: expectedEmail}
 
@@ -867,7 +868,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *che
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, auth.NewUserData{
+	_, err := auth.NewUser(st, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -890,7 +891,7 @@ func (s *userSuite) TestPostCreateUserAutomaticManagedDoesNotActOrError(c *check
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	_, err := auth.NewUser(st, auth.NewUserData{
+	_, err := auth.NewUser(st, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -946,6 +947,76 @@ func (s *userSuite) TestPostCreateUserAutomaticDisabled(c *check.C) {
 	c.Check(users, check.HasLen, 0)
 }
 
+func (s *userSuite) TestPostCreateUserExpirationHappy(c *check.C) {
+	expectedUsername := "karl"
+	expectedEmail := "popper@lse.ac.uk"
+	// strip away subsecond values which are lost during json marshal/unmarshalling
+	expectedTime := time.Now().Add(time.Hour * 24).Round(time.Second)
+
+	var deviceStateCreateUserCalls int
+	defer daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string, expiration time.Time) (*devicestate.CreatedUser, error) {
+		c.Check(email, check.Equals, expectedEmail)
+		c.Check(sudoer, check.Equals, false)
+		c.Check(expiration.Equal(expectedTime), check.Equals, true)
+		expected := &devicestate.CreatedUser{
+			Username: expectedUsername,
+			SSHKeys: []string{
+				`ssh1 # snapd {"origin":"store","email":"popper@lse.ac.uk"}`,
+				`ssh2 # snapd {"origin":"store","email":"popper@lse.ac.uk"}`,
+			},
+		}
+		deviceStateCreateUserCalls++
+		return expected, nil
+	})()
+
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"email":"%s","expiration":"%s"}`,
+		expectedEmail, expectedTime.Format(time.RFC3339)))
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Result, check.DeepEquals, &daemon.UserResponseData{
+		Username: expectedUsername,
+		SSHKeys: []string{
+			`ssh1 # snapd {"origin":"store","email":"popper@lse.ac.uk"}`,
+			`ssh2 # snapd {"origin":"store","email":"popper@lse.ac.uk"}`,
+		},
+	})
+	c.Check(deviceStateCreateUserCalls, check.Equals, 1)
+}
+
+func (s *userSuite) TestPostCreateUserExpirationDateSetInPast(c *check.C) {
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"expiration":"%s"}`,
+		time.Now().Add(-(time.Hour * 24)).Format(time.RFC3339)))
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, `cannot create user: expiration date must be set in the future`)
+}
+
+func (s *userSuite) TestPostCreateUserExpirationKnownNotAllowed(c *check.C) {
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"known": true, "expiration":"%s"}`,
+		time.Now().Add(time.Hour*24).Format(time.RFC3339)))
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, `cannot create user: expiration date cannot be provided for known users`)
+}
+
+func (s *userSuite) TestPostCreateUserExpirationAutomaticNotAllowed(c *check.C) {
+	// Automatic implies known, which means we should see identical result to
+	// the known unit test
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"automatic": true, "expiration":"%s"}`,
+		time.Now().Add(time.Hour*24).Format(time.RFC3339)))
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, `cannot create user: expiration date cannot be provided for known users`)
+}
+
 func (s *userSuite) TestUsersEmpty(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/users", nil)
 	c.Assert(err, check.IsNil)
@@ -960,7 +1031,7 @@ func (s *userSuite) TestUsersEmpty(c *check.C) {
 func (s *userSuite) TestUsersHasUser(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	u, err := auth.NewUser(st, auth.NewUserData{
+	u, err := auth.NewUser(st, auth.NewUserParams{
 		Username:   "someuser",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",
@@ -986,7 +1057,7 @@ func (s *userSuite) testPostCreateUserFromAssertion(c *check.C, postData string,
 
 	// mock the calls that create the user
 	var deviceStateCreateUserCalled bool
-	defer daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string) (*devicestate.CreatedUser, error) {
+	defer daemon.MockDeviceStateCreateUser(func(st *state.State, sudoer bool, email string, expiration time.Time) (*devicestate.CreatedUser, error) {
 		deviceStateCreateUserCalled = true
 		return nil, nil
 	})()

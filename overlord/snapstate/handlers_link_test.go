@@ -235,7 +235,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserIDAlreadySet(c *C) {
 		UserID:  1,
 	})
 	// the user
-	user, err := auth.NewUser(s.state, auth.NewUserData{
+	user, err := auth.NewUser(s.state, auth.NewUserParams{
 		Username:   "username",
 		Email:      "email@test.com",
 		Macaroon:   "macaroon",

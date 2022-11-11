@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/osutil"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -80,12 +81,17 @@ func (s *NetworkControlInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *NetworkControlInterfaceSuite) TestAppArmorSpec(c *C) {
+	r := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
+	defer r()
+
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.SuppressSysModuleCapability(), Equals, true)
 	c.Check(spec.UsesSysModuleCapability(), Equals, false)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/netns/* rw,\n")
+	// No "xdp" feature is available, so this rule should not be added
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "network xdp,")
 	c.Assert(spec.UpdateNS(), DeepEquals, []string{`
 /var/ r,
 /var/lib/ r,
@@ -98,6 +104,32 @@ func (s *NetworkControlInterfaceSuite) TestAppArmorSpec(c *C) {
 mount options=(rw bind) /var/lib/snapd/hostfs/var/lib/dhcp/ -> /var/lib/dhcp/,
 umount /var/lib/dhcp/,
 `})
+}
+
+func (s *NetworkControlInterfaceSuite) TestAppArmorSpecWithNoAppArmor(c *C) {
+	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Unsupported)
+	defer r()
+
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	// Check a rule that should always be there...
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/netns/* rw,\n")
+	// Since no sandbox is there, this should also not be there
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "network xdp,\n")
+}
+
+func (s *NetworkControlInterfaceSuite) TestAppArmorSpecWithXdpFeature(c *C) {
+	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer r()
+	r = apparmor_sandbox.MockFeatures(nil, nil, []string{"feat1", "xdp", "feat2"}, nil)
+	defer r()
+
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	// Check a rule that should always be there...
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/netns/* rw,\n")
+	// ...and one which requires XDP support in AppArmor
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network xdp,\n")
 }
 
 func (s *NetworkControlInterfaceSuite) TestSecCompSpec(c *C) {

@@ -137,8 +137,10 @@ func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 	return m.setTimeOnce(name, t)
 }
 
-func PreloadGadget(m *DeviceManager) (sysconfig.Device, *gadget.Info, error) {
-	return m.preloadGadget()
+func EarlyPreloadGadget(m *DeviceManager) (sysconfig.Device, *gadget.Info, error) {
+	// let things fully run again
+	m.seedTimings = nil
+	return m.earlyPreloadGadget()
 }
 
 func MockLoadDeviceSeed(f func(st *state.State, sysLabel string) (seed.Seed, error)) func() {
@@ -392,8 +394,8 @@ func MockRestrictCloudInit(f func(sysconfig.CloudInitState, *sysconfig.CloudInit
 	}
 }
 
-func DeviceManagerHasFDESetupHook(mgr *DeviceManager) (bool, error) {
-	return mgr.hasFDESetupHook()
+func DeviceManagerHasFDESetupHook(mgr *DeviceManager, kernelInfo *snap.Info) (bool, error) {
+	return mgr.hasFDESetupHook(kernelInfo)
 }
 
 func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]byte, error) {
@@ -475,5 +477,17 @@ func MockOsutilDelUser(delUser func(name string, opts *osutil.DelUserOptions) er
 func MockUserLookup(lookup func(username string) (*user.User, error)) (restore func()) {
 	restore = testutil.Backup(&userLookup)
 	userLookup = lookup
+	return restore
+}
+
+func EnsureExpiredUsersRemoved(m *DeviceManager) error {
+	return m.ensureExpiredUsersRemoved()
+}
+
+var ProcessAutoImportAssertions = processAutoImportAssertions
+
+func MockCreateAllKnownSystemUsers(createAllUsers func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*CreatedUser, error)) (restore func()) {
+	restore = testutil.Backup(&createAllKnownSystemUsers)
+	createAllKnownSystemUsers = createAllUsers
 	return restore
 }

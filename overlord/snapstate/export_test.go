@@ -380,9 +380,15 @@ func MockHoldState(firstHeld string, holdUntil string) *HoldState {
 	if err != nil {
 		panic(err)
 	}
-	until, err := time.Parse(time.RFC3339, holdUntil)
-	if err != nil {
-		panic(err)
+	var until time.Time
+	if holdUntil != "forever" {
+		var err error
+		until, err = time.Parse(time.RFC3339, holdUntil)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		until = first.Add(maxDuration)
 	}
 	return &holdState{
 		FirstHeld: first,

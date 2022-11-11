@@ -1,11 +1,14 @@
 summary: Check that the /system/<label> API works via fake installer
 
 # this is a UC20+ specific test
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+# TODO this currently fails on ubuntu-20.04-64 timing out
+systems: [ubuntu-22.04-64]
 
 environment:
     # nested test so that we can test encryted installs eventually
     # TODO enable tpm variant too for testing of encryption installs
+    #      this will probably require fixes in nested.sh as the classic VM
+    #      does not (yet) support tpm/secureboot(?)
     NESTED_ENABLE_TPM: false
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -102,19 +105,17 @@ execute: |
   # create fake disk for the installer to work on
   truncate --size=4G fake-disk.img
   loop_device=$(losetup --show -f ./fake-disk.img)
-  # TODO: fakeinstaller should work on a empty disk too
-  echo "label: gpt" | sfdisk "$loop_device"
   # and "install" the current seed to the fake disk
   ./fakeinstaller "$LABEL" "$loop_device" "$TESTSLIB"/fakeinstaller/mk-classic-rootfs.sh
   # validate that the fake installer created the expected partitions
-  fdisk -x "$loop_device" > fdisk_output
-  MATCH "${loop_device}p1 .* BIOS Boot"   < fdisk_output
+  sfdisk -d "$loop_device" > fdisk_output
+  MATCH "${loop_device}p1 .* name=\"BIOS Boot\""   < fdisk_output
   # TODO: the real MVP hybrid device will not contain a ubuntu-seed
   #       partition (needs a different gadget)
-  MATCH "${loop_device}p2 .* ubuntu-seed" < fdisk_output
-  MATCH "${loop_device}p3 .* ubuntu-boot" < fdisk_output
-  MATCH "${loop_device}p4 .* ubuntu-save" < fdisk_output
-  MATCH "${loop_device}p5 .* ubuntu-data" < fdisk_output
+  MATCH "${loop_device}p2 .* name=\"ubuntu-seed\"" < fdisk_output
+  MATCH "${loop_device}p3 .* name=\"ubuntu-boot\"" < fdisk_output
+  MATCH "${loop_device}p4 .* name=\"ubuntu-save\"" < fdisk_output
+  MATCH "${loop_device}p5 .* name=\"ubuntu-data\"" < fdisk_output
 
   # image partitions are not mounted anymore
   for d in ubuntu-seed ubuntu-boot ubuntu-data ubuntu-save; do
@@ -157,9 +158,20 @@ execute: |
   # TODO: this prevents "nested_prepare_ssh" inside nested_start_core_vm
   #       from running, we already have a user so this is not needed
   touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
-  # TODO: disabled until https://github.com/mvo5/snappy/commit/71e39c73f7662c386eaf86f021ec443d7fa380c0 lands
-  #nested_start_core_vm
-  #
-  #remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
-  #remote.exec "snap changes" | MATCH "Done.* Initialize system state"
-  #remote.exec "snap list" | MATCH pc-kernel
+  nested_start_core_vm
+
+  remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
+  remote.exec "snap changes" | MATCH "Done.* Initialize system state"
+  remote.exec "snap list" | MATCH pc-kernel
+
+  # Check disk traits
+  # TODO: enable for the encrypted cases
+  # TODO: this should grow extensive check like
+  #   tests/main/uc20-create-partitions/task.yaml
+  #   tests/main/uc20-create-partitions-encrypt/task.yaml
+  #DISK_MAPPINGS=(/run/mnt/ubuntu-save/device/disk-mapping.json
+  #               /run/mnt/data/var/lib/snapd/device/disk-mapping.json)
+  #for DM in "${DISK_MAPPINGS[@]}"; do
+  #    remote.exec "jq '.pc.\"structure-encryption\".\"ubuntu-save\".method' $DM" | MATCH '"LUKS"'
+  #    remote.exec "jq '.pc.\"structure-encryption\".\"ubuntu-data\".method' $DM" | MATCH '"LUKS"'
+  #done

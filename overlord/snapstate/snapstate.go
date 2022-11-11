@@ -163,8 +163,9 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 		PlugsOnly:          len(update.Slots) == 0,
 		InstanceKey:        update.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
-			Website: update.Website,
-			Media:   update.Media,
+			Media: update.Media,
+			// XXX we store this for the benefit of old snapd
+			Website: update.Website(),
 		},
 		ExpectedProvenance: update.SnapProvenance,
 	}
@@ -1189,8 +1190,9 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		PlugsOnly:          len(info.Slots) == 0,
 		InstanceKey:        info.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
-			Media:   info.Media,
-			Website: info.Website,
+			Media: info.Media,
+			// XXX we store this for the benefit of old snapd
+			Website: info.Website(),
 		},
 		CohortKey:          opts.CohortKey,
 		ExpectedProvenance: info.SnapProvenance,
@@ -1642,7 +1644,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 
 	// don't refresh held snaps in a general refresh
 	if len(names) == 0 {
-		toUpdate, err = filterHeldSnaps(st, toUpdate)
+		toUpdate, err = filterHeldSnaps(st, toUpdate, flags)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1661,8 +1663,12 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 }
 
 // filterHeldSnaps filters held snaps from being updated in a general refresh.
-func filterHeldSnaps(st *state.State, updates []minimalInstallInfo) ([]minimalInstallInfo, error) {
-	heldSnaps, err := HeldSnaps(st)
+func filterHeldSnaps(st *state.State, updates []minimalInstallInfo, flags *Flags) ([]minimalInstallInfo, error) {
+	holdLevel := HoldGeneral
+	if flags.IsAutoRefresh {
+		holdLevel = HoldAutoRefresh
+	}
+	heldSnaps, err := HeldSnaps(st, holdLevel)
 	if err != nil {
 		return nil, err
 	}

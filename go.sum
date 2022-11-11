@@ -1,5 +1,7 @@
 github.com/canonical/go-efilib v0.0.0-20210909101908-41435fa545d4 h1:rSWREoNHHbcIC1iQeKKraBlsDm7cmKg8eS+N48jMVKA=
 github.com/canonical/go-efilib v0.0.0-20210909101908-41435fa545d4/go.mod h1:9Sr9kd7IhQPYqaU5nut8Ky97/CtlhHDzQncQnrULgDM=
+github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93 h1:F0bRDzPy/j2IX/iIWqCEA23S1nal+f7A+/vLyj6Ye+4=
+github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93/go.mod h1:9b2PNAuPcZsB76x75/uwH99D8CyH/A2y4rq1/+bvplg=
 github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9 h1:USzKjrfWo/ESzozv2i3OMM7XDgxrZRvaHFrKkIKRtwU=
 github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9/go.mod h1:Zrs3YjJr+w51u0R/dyLh/oWt/EcBVdLPCVFYC4daW5s=
 github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 h1:oe6fCvaEpkhyW3qAicT0TnGtyht/UrgvOwMcEgLb7Aw=
@@ -22,6 +24,10 @@ github.com/gvalkov/golang-evdev v0.0.0-20191114124502-287e62b94bcb h1:WHSAxLz3P5
 github.com/gvalkov/golang-evdev v0.0.0-20191114124502-287e62b94bcb/go.mod h1:SAzVFKCRezozJTGavF3GX8MBUruETCqzivVLYiywouA=
 github.com/jessevdk/go-flags v1.4.1-0.20180927143258-7309ec74f752 h1:m3PU7LDxU4RuLo9UbMywqLEShXrZS4rliqUO9KiH+XU=
 github.com/jessevdk/go-flags v1.4.1-0.20180927143258-7309ec74f752/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
+github.com/jessevdk/go-flags v1.5.0 h1:1jKYvbxEjfUl0fmqTCOfonvskHHXMjBySTLW4y9LFvc=
+github.com/jessevdk/go-flags v1.5.0/go.mod h1:Fw0T6WPc1dYxT4mKEZRfG5kJhaTDP9pj1c2EWnYs/m4=
+github.com/jessevdk/go-flags v1.5.1-0.20210607101731-3927b71304df h1:JTDw/M13b6dZmEJI/vfcCLENqcjUHi9UBry+R0pjh5Q=
+github.com/jessevdk/go-flags v1.5.1-0.20210607101731-3927b71304df/go.mod h1:Fw0T6WPc1dYxT4mKEZRfG5kJhaTDP9pj1c2EWnYs/m4=
 github.com/juju/ratelimit v1.0.1 h1:+7AIFJVQ0EQgq/K9+0Krm7m530Du7tIz0METWzN0RgY=
 github.com/juju/ratelimit v1.0.1/go.mod h1:qapgC/Gy+xNh9UxzV13HGGl/6UXNN+ct+vwSgWNm/qk=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
@@ -52,6 +58,8 @@ github.com/snapcore/secboot v0.0.0-20211018143212-802bb19ca263 h1:cq2rG4JcNBCwHv
 github.com/snapcore/secboot v0.0.0-20211018143212-802bb19ca263/go.mod h1:72paVOkm4sJugXt+v9ItmnjXgO921D8xqsbH2OekouY=
 github.com/snapcore/secboot v0.0.0-20220905094328-6a625ee231d3 h1:58BNTUsb16y89bcfYRU23V9ykMhOHHGy9zrVKgKFiqU=
 github.com/snapcore/secboot v0.0.0-20220905094328-6a625ee231d3/go.mod h1:72paVOkm4sJugXt+v9ItmnjXgO921D8xqsbH2OekouY=
+github.com/snapcore/secboot v0.0.0-20220922155412-5d2b29ff0ee2 h1:sPC5tmNoJ6H8Pu9OHZiYP1YIAlG98Nm44CYS9nliPz0=
+github.com/snapcore/secboot v0.0.0-20220922155412-5d2b29ff0ee2/go.mod h1:72paVOkm4sJugXt+v9ItmnjXgO921D8xqsbH2OekouY=
 github.com/snapcore/snapd v0.0.0-20201005140838-501d14ac146e/go.mod h1:3xrn7QDDKymcE5VO2rgWEQ5ZAUGb9htfwlXnoel6Io8=
 go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1 h1:A/5uWzF44DlIgdm/PQFwfMkW0JX+cIcQi/SwLAmZP5M=
 go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1/go.mod h1:SNgMg+EgDFwmvSmLRTNKC5fegJjB7v23qTQ0XLGUNHk=
@@ -70,6 +78,7 @@ golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a/go.mod h1:STP8DvDyc/dI5b8T5h
 golang.org/x/sys v0.0.0-20190412213103-97732733099d/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20201119102817-f84b799fce68/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20210320140829-1e4c9ba3b0c4/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210324051608-47abb6519492/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210423082822-04245dca01da/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=

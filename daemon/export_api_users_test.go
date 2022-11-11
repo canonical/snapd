@@ -20,6 +20,8 @@
 package daemon
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -32,7 +34,7 @@ func MockHasUserAdmin(mockHasUserAdmin bool) (restore func()) {
 	return restore
 }
 
-func MockDeviceStateCreateUser(createUser func(st *state.State, sudoer bool, email string) (*devicestate.CreatedUser, error)) (restore func()) {
+func MockDeviceStateCreateUser(createUser func(st *state.State, sudoer bool, email string, expiration time.Time) (*devicestate.CreatedUser, error)) (restore func()) {
 	restore = testutil.Backup(&deviceStateCreateUser)
 	deviceStateCreateUser = createUser
 	return restore
@@ -44,7 +46,7 @@ func MockDeviceStateCreateKnownUsers(createKnownUser func(st *state.State, sudoe
 	return restore
 }
 
-func MockDeviceStateRemoveUser(removeUser func(st *state.State, username string) (*auth.UserState, error)) (restore func()) {
+func MockDeviceStateRemoveUser(removeUser func(st *state.State, username string, opts *devicestate.RemoveUserOptions) (*auth.UserState, error)) (restore func()) {
 	restore = testutil.Backup(&deviceStateRemoveUser)
 	deviceStateRemoveUser = removeUser
 	return restore

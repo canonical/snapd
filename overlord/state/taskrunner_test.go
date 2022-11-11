@@ -809,20 +809,20 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 	c.Check(t.AtTime().IsZero(), Equals, false)
 }
 
-func (ts *taskRunnerSuite) TestTaskReturningHold(c *C) {
+func (ts *taskRunnerSuite) TestTaskReturningWait(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
 	r := state.NewTaskRunner(st)
 	defer r.Stop()
 
-	r.AddHandler("ask-for-hold", func(t *state.Task, tb *tomb.Tomb) error {
-		// ask for hold
-		return &state.Hold{}
+	r.AddHandler("ask-for-wait", func(t *state.Task, tb *tomb.Tomb) error {
+		// ask for wait
+		return &state.Wait{}
 	}, nil)
 
 	st.Lock()
 	chg := st.NewChange("install", "...")
-	t := st.NewTask("ask-for-hold", "...")
+	t := st.NewTask("ask-for-wait", "...")
 	chg.AddTask(t)
 	st.Unlock()
 
@@ -832,12 +832,9 @@ func (ts *taskRunnerSuite) TestTaskReturningHold(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
-	c.Check(t.Status(), Equals, state.HoldStatus)
+	c.Check(t.Status(), Equals, state.WaitStatus)
 
-	// NB: such a change, finishing in a held task is ready; this is a bit
-	// odd, but usually this would be done for tasks that expect more tasks
-	// to follow them
-	c.Check(chg.Status().Ready(), Equals, true)
+	c.Check(chg.Status().Ready(), Equals, false)
 }
 
 func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
