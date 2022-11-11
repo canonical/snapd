@@ -184,11 +184,12 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, updateAt
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Assert(chg.IsReady(), Equals, true)
 	if errMatch == "" {
+		c.Assert(chg.IsReady(), Equals, false)
 		c.Check(chg.Err(), IsNil)
-		c.Check(tsk.Status(), Equals, state.HoldStatus)
+		c.Check(tsk.Status(), Equals, state.WaitStatus)
 	} else {
+		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), ErrorMatches, errMatch)
 		c.Check(tsk.Status(), Equals, state.ErrorStatus)
 	}
@@ -199,7 +200,7 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, updateAt
 			log := tsk.Log()
 			c.Assert(log, HasLen, 2)
 			c.Check(log[0], Matches, ".* updated boot config assets")
-			c.Check(log[1], Matches, ".* Task held until a manual system restart allows to continue")
+			c.Check(log[1], Matches, ".* Task set to wait until a manual system restart allows to continue")
 		}
 		// There must be no restart request
 		c.Check(s.restartRequests, HasLen, 0)

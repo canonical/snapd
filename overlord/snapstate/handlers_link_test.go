@@ -901,11 +901,11 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *
 	s.se.Wait()
 	s.state.Lock()
 
-	c.Check(t.Status(), Equals, state.HoldStatus)
+	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(s.restartRequested, HasLen, 0)
 	// XXX avoid logging Requested system restart?
 	c.Assert(t.Log(), HasLen, 2)
-	c.Check(t.Log()[1], Matches, `.*INFO Task held until a manual system restart allows to continue`)
+	c.Check(t.Log()[1], Matches, `.*INFO Task set to wait until a manual system restart allows to continue`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmediate(c *C) {

@@ -391,11 +391,12 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), IsNil)
 	if isClassic {
-		c.Check(t.Status(), Equals, state.HoldStatus)
+		c.Assert(chg.IsReady(), Equals, false)
+		c.Check(t.Status(), Equals, state.WaitStatus)
 	} else {
+		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(t.Status(), Equals, state.DoneStatus)
 	}
 	c.Check(updateCalled, Equals, true)
@@ -1191,12 +1192,13 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Assert(chg.IsReady(), Equals, true)
 	if errMatch == "" {
 		c.Check(chg.Err(), IsNil)
 		if isClassic {
-			c.Check(tsk.Status(), Equals, state.HoldStatus)
+			c.Assert(chg.IsReady(), Equals, false)
+			c.Check(tsk.Status(), Equals, state.WaitStatus)
 		} else {
+			c.Assert(chg.IsReady(), Equals, true)
 			c.Check(tsk.Status(), Equals, state.DoneStatus)
 		}
 		// we log on success
@@ -1209,7 +1211,7 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 			}
 			c.Check(log[0], Matches, fmt.Sprintf(".* %v", logMatch))
 			if isClassic {
-				c.Check(log[1], Matches, ".* Task held until a manual system restart allows to continue")
+				c.Check(log[1], Matches, ".* Task set to wait until a manual system restart allows to continue")
 			}
 		} else {
 			c.Check(log, HasLen, 0)
@@ -1224,6 +1226,7 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 			c.Check(s.restartRequests, HasLen, 0)
 		}
 	} else {
+		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), ErrorMatches, errMatch)
 		c.Check(tsk.Status(), Equals, state.ErrorStatus)
 	}
@@ -1704,11 +1707,11 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineClassicWithModesUpdateUndo(c
 	defer s.state.Unlock()
 
 	// after manual reboot
-	c.Check(tsk.Status(), Equals, state.HoldStatus)
+	c.Check(tsk.Status(), Equals, state.WaitStatus)
 	log := tsk.Log()
 	c.Assert(log, HasLen, 2)
 	c.Check(log[0], Matches, ".* Updated kernel command line")
-	c.Check(log[1], Matches, ".* Task held until a manual system restart allows to continue")
+	c.Check(log[1], Matches, ".* Task set to wait until a manual system restart allows to continue")
 	c.Check(s.restartRequests, HasLen, 0)
 	c.Check(restartCount, Equals, 0)
 

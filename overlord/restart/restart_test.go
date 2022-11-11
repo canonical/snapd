@@ -223,20 +223,20 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 		restartType    restart.RestartType
 		classic        bool
 		restart        bool
-		hold           bool
+		wait           bool
 	}{
 		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartDaemon, classic: false, restart: true},
 		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartDaemon, classic: true, restart: true},
 		{initial: state.UndoStatus, final: state.UndoneStatus, restartType: restart.RestartDaemon, classic: false, restart: true},
 		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystem, classic: false, restart: true},
-		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystem, classic: true, restart: false, hold: true},
-		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystemNow, classic: true, restart: false, hold: true},
+		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystem, classic: true, restart: false, wait: true},
+		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystemNow, classic: true, restart: false, wait: true},
 		{initial: state.UndoStatus, final: state.UndoneStatus, restartType: restart.RestartSystem, classic: true, restart: false},
 		{initial: state.UndoStatus, final: state.UndoneStatus, restartType: restart.RestartSystem, classic: false, restart: true},
 	}
 
 	chg := st.NewChange("chg", "...")
-	heldCount := 0
+	waitCount := 0
 
 	for _, t := range tests {
 		restart.MockPending(st, restart.RestartUnset)
@@ -248,12 +248,12 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 
 		err := restart.FinishTaskWithRestart(task, t.final, t.restartType, nil)
 		setStatus := t.final
-		if t.hold {
-			setStatus = state.HoldStatus
+		if t.wait {
+			setStatus = state.WaitStatus
 		}
 		c.Check(task.Status(), Equals, setStatus)
-		var holdBootID string
-		if err := task.Get("held-for-system-restart-from-boot-id", &holdBootID); !errors.Is(err, state.ErrNoState) {
+		var waitBootID string
+		if err := task.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
 			c.Check(err, IsNil)
 		}
 		ok, rst := restart.Pending(st)
@@ -261,25 +261,25 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 			c.Check(err, IsNil)
 			c.Check(ok, Equals, true)
 			c.Check(rst, Equals, t.restartType)
-			c.Check(holdBootID, Equals, "")
+			c.Check(waitBootID, Equals, "")
 		} else {
-			if t.hold {
-				heldCount++
-				c.Check(err, DeepEquals, &state.Hold{Reason: "waiting for manual system restart"})
-				c.Check(holdBootID, Equals, "boot-id-1")
-				var held bool
-				c.Check(chg.Get("held-for-system-restart", &held), IsNil)
-				c.Check(held, Equals, heldCount != 0)
+			if t.wait {
+				waitCount++
+				c.Check(err, DeepEquals, &state.Wait{Reason: "waiting for manual system restart"})
+				c.Check(waitBootID, Equals, "boot-id-1")
+				var wait bool
+				c.Check(chg.Get("wait-for-system-restart", &wait), IsNil)
+				c.Check(wait, Equals, waitCount != 0)
 			} else {
 				c.Check(err, IsNil)
-				c.Check(holdBootID, Equals, "")
+				c.Check(waitBootID, Equals, "")
 			}
 			c.Check(ok, Equals, false)
 		}
 	}
 }
 
-func (s *restartSuite) TestStartUpHeldTasks(c *C) {
+func (s *restartSuite) TestStartUpWaitTasks(c *C) {
 	st := state.New(nil)
 
 	st.Lock()
@@ -295,21 +295,21 @@ func (s *restartSuite) TestStartUpHeldTasks(c *C) {
 	// needed in change otherwise the change is considered ready
 	chg.AddTask(t0)
 
-	t1 := st.NewTask("held", "...")
-	t1.SetStatus(state.HoldStatus)
+	t1 := st.NewTask("wait", "...")
+	t1.SetStatus(state.WaitStatus)
 	chg.AddTask(t1)
 
-	t2 := st.NewTask("held-for-reboot", "...")
+	t2 := st.NewTask("wait-for-reboot", "...")
 	chg.AddTask(t2)
 	err = restart.FinishTaskWithRestart(t2, state.DoneStatus, restart.RestartSystem, nil)
-	c.Assert(err, FitsTypeOf, &state.Hold{})
+	c.Assert(err, FitsTypeOf, &state.Wait{})
 
 	restart.ReplaceBootID(st, "boot-id-2")
 
-	t3 := st.NewTask("held-for-reboot-same-boot", "...")
+	t3 := st.NewTask("wait-for-reboot-same-boot", "...")
 	chg.AddTask(t3)
 	err = restart.FinishTaskWithRestart(t3, state.DoneStatus, restart.RestartSystem, nil)
-	c.Assert(err, FitsTypeOf, &state.Hold{})
+	c.Assert(err, FitsTypeOf, &state.Wait{})
 
 	c.Assert(chg.IsReady(), Equals, false)
 
@@ -321,15 +321,15 @@ func (s *restartSuite) TestStartUpHeldTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	// no boot id is set in the task, status does not change
-	c.Check(t1.Status(), Equals, state.HoldStatus)
+	c.Check(t1.Status(), Equals, state.WaitStatus)
 	// same boot id in task/system, status does not change
-	c.Check(t3.Status(), Equals, state.HoldStatus)
+	c.Check(t3.Status(), Equals, state.WaitStatus)
 	// old boot id in task, task marked DoneStatus
 	c.Check(t2.Status(), Equals, state.DoneStatus)
 
-	var held bool
-	c.Check(chg.Get("held-for-system-restart", &held), IsNil)
-	c.Check(held, Equals, true)
+	var wait bool
+	c.Check(chg.Get("wait-for-system-restart", &wait), IsNil)
+	c.Check(wait, Equals, true)
 
 	// another boot
 	restart.ReplaceBootID(st, "boot-id-3")
@@ -341,10 +341,10 @@ func (s *restartSuite) TestStartUpHeldTasks(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	c.Check(t1.Status(), Equals, state.HoldStatus)
+	c.Check(t1.Status(), Equals, state.WaitStatus)
 	c.Check(t3.Status(), Equals, state.DoneStatus)
 
-	c.Check(chg.Has("held-for-system-restart"), Equals, false)
+	c.Check(chg.Has("wait-for-system-restart"), Equals, false)
 }
 
 func (s *restartSuite) TestPendingForSystemRestart(c *C) {
@@ -362,7 +362,7 @@ func (s *restartSuite) TestPendingForSystemRestart(c *C) {
 	c.Check(chg1.IsReady(), Equals, false)
 
 	chg2 := st.NewChange("not-pending", "...")
-	t2 := st.NewTask("held-task", "...")
+	t2 := st.NewTask("wait-task", "...")
 	t3 := st.NewTask("task", "...")
 	t4 := st.NewTask("task", "...")
 	chg2.AddTask(t2)
@@ -371,13 +371,13 @@ func (s *restartSuite) TestPendingForSystemRestart(c *C) {
 	t3.WaitFor(t2)
 	t4.WaitFor(t2)
 	err = restart.FinishTaskWithRestart(t2, state.DoneStatus, restart.RestartSystem, nil)
-	c.Assert(err, FitsTypeOf, &state.Hold{})
+	c.Assert(err, FitsTypeOf, &state.Wait{})
 	t3.SetStatus(state.UndoStatus)
-	t4.SetStatus(state.HoldStatus)
+	t4.SetStatus(state.WaitStatus)
 	c.Check(chg1.IsReady(), Equals, false)
 
 	chg3 := st.NewChange("pending", "...")
-	t5 := st.NewTask("held-task", "...")
+	t5 := st.NewTask("wait-task", "...")
 	t6 := st.NewTask("task", "...")
 	t7 := st.NewTask("task", "...")
 	chg3.AddTask(t5)
@@ -386,8 +386,8 @@ func (s *restartSuite) TestPendingForSystemRestart(c *C) {
 	t6.WaitFor(t5)
 	t7.WaitFor(t5)
 	err = restart.FinishTaskWithRestart(t6, state.DoneStatus, restart.RestartSystem, nil)
-	c.Assert(err, FitsTypeOf, &state.Hold{})
-	t6.SetStatus(state.HoldStatus)
+	c.Assert(err, FitsTypeOf, &state.Wait{})
+	t6.SetStatus(state.WaitStatus)
 	t7.SetStatus(state.DoStatus)
 	c.Check(chg1.IsReady(), Equals, false)
 
