@@ -49,14 +49,33 @@ var (
 	Stderr io.Writer = os.Stderr
 )
 
-type preseedOpts struct {
-	PrepareImageDir  string
-	PreseedChrootDir string
-	SystemLabel      string
-	WritableDir      string
-	PreseedSignKey   string
+//  CoreOptions provides required and optional options for core
+// preseeding.
+type CoreOptions struct {
+	// prepare image directory
+	PrepareImageDir string
+	// key to sign preseeded data with
+	PreseedSignKey string
 	// optional path to AppArmor kernel features directory
 	AppArmorKernelFeaturesDir string
+	// optional sysfs overlay
+	SysfsOverlay string
+}
+
+// preseedCoreOptions holds internal preseeding options for the core case
+type preseedCoreOptions struct {
+	// input options
+	CoreOptions
+	// chroot directory to run chroot from
+	PreseedChrootDir string
+	// stystem label of system to be seededs
+	SystemLabel string
+	// writable directory
+	WritableDir string
+	// snapd mount point
+	SnapdSnapPath string
+	// base snap mount point
+	BaseSnapPath string
 }
 
 type targetSnapdInfo struct {
@@ -78,7 +97,7 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-func writePreseedAssertion(artifactDigest []byte, opts *preseedOpts) error {
+func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) error {
 	keypairMgr, err := getKeypairManager()
 	if err != nil {
 		return err

@@ -132,7 +132,7 @@ var (
 	MaybePrintNotes             = (*infoWriter).maybePrintNotes
 	MaybePrintStandaloneVersion = (*infoWriter).maybePrintStandaloneVersion
 	MaybePrintBuildDate         = (*infoWriter).maybePrintBuildDate
-	MaybePrintContact           = (*infoWriter).maybePrintContact
+	MaybePrintLinks             = (*infoWriter).maybePrintLinks
 	MaybePrintBase              = (*infoWriter).maybePrintBase
 	MaybePrintPath              = (*infoWriter).maybePrintPath
 	MaybePrintSum               = (*infoWriter).maybePrintSum

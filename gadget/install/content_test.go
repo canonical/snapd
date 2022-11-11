@@ -121,6 +121,9 @@ func makeMockGadget(gadgetRoot, gadgetContent string) error {
 	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644); err != nil {
 		return err
 	}
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "shim.efi.signed"), []byte("shim.efi.signed content"), 0644); err != nil {
+		return err
+	}
 
 	return nil
 }

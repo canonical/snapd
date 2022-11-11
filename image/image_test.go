@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/image/preseed"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
@@ -573,10 +574,10 @@ func (s *imageSuite) setupSnaps(c *C, publishers map[string]string, defaultsYaml
 	s.MakeAssertedSnap(c, snapReqCore16Base, nil, snap.R(16), "other")
 
 	s.MakeAssertedSnap(c, requiredSnap1, nil, snap.R(3), "other")
-	s.AssertedSnapInfo("required-snap1").EditedContact = "mailto:foo@example.com"
+	s.AssertedSnapInfo("required-snap1").LegacyEditedContact = "mailto:foo@example.com"
 
 	s.MakeAssertedSnap(c, requiredSnap18, nil, snap.R(6), "other")
-	s.AssertedSnapInfo("required-snap18").EditedContact = "mailto:foo@example.com"
+	s.AssertedSnapInfo("required-snap18").LegacyEditedContact = "mailto:foo@example.com"
 
 	s.MakeAssertedSnap(c, defaultTrackSnap18, nil, snap.R(5), "other")
 
@@ -1802,10 +1803,10 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAssertsValidationEnforce(c 
 		Path:     filepath.Join(seedsnapsdir, "required-snap1_3.snap"),
 		Required: true,
 		SideInfo: &snap.SideInfo{
-			RealName:      "required-snap1",
-			SnapID:        s.AssertedSnapID("required-snap1"),
-			Revision:      snap.R(3),
-			EditedContact: "mailto:foo@example.com",
+			RealName:            "required-snap1",
+			SnapID:              s.AssertedSnapID("required-snap1"),
+			Revision:            snap.R(3),
+			LegacyEditedContact: "mailto:foo@example.com",
 		},
 		Channel: stableChannel,
 	})
@@ -3379,11 +3380,12 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 	defer restoreSetupSeed()
 
 	var preseedCalled bool
-	restorePreseedCore20 := image.MockPreseedCore20(func(dir, key, aaDir string) error {
+	restorePreseedCore20 := image.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
 		preseedCalled = true
-		c.Assert(dir, Equals, "/a/dir")
-		c.Assert(key, Equals, "foo")
-		c.Assert(aaDir, Equals, "/custom/aa/features")
+		c.Assert(opts.PrepareImageDir, Equals, "/a/dir")
+		c.Assert(opts.PreseedSignKey, Equals, "foo")
+		c.Assert(opts.AppArmorKernelFeaturesDir, Equals, "/custom/aa/features")
+		c.Assert(opts.SysfsOverlay, Equals, "/sysfs-overlay")
 		return nil
 	})
 	defer restorePreseedCore20()
@@ -3397,6 +3399,7 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 		Preseed:        true,
 		PrepareDir:     "/a/dir",
 		PreseedSignKey: "foo",
+		SysfsOverlay:   "/sysfs-overlay",
 
 		AppArmorKernelFeaturesDir: "/custom/aa/features",
 	})

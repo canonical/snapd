@@ -31,6 +31,9 @@ execute: |
         centos-8-*)
             # tries to load ipmi_si module which fails with ENODEV
             systemctl reset-failed systemd-modules-load.service
+            # These transient units attempt to update the man page cache, but
+            # fail with the error "Warning! D-Bus connection terminated."
+            systemctl reset-failed 'run-*'
             ;;
     esac
 

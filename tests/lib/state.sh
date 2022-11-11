@@ -60,6 +60,7 @@ save_snapd_state() {
             /var/cache/snapd \
             "$SNAP_MOUNT_DIR" \
             /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount \
+            /etc/systemd/system/snapd.mounts.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
             /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
             $snap_confine_profiles \
             $snapd_env \

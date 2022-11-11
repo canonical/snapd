@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"regexp"
+	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -234,7 +235,7 @@ func removeUser(c *Command, username string, opts postUserDeleteData) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	u, err := deviceStateRemoveUser(st, username)
+	u, err := deviceStateRemoveUser(st, username, &devicestate.RemoveUserOptions{})
 	if err != nil {
 		if _, ok := err.(*devicestate.UserError); ok {
 			return BadRequest(err.Error())
@@ -284,6 +285,18 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	st.Unlock()
 	if err != nil {
 		return InternalError("cannot get user count: %s", err)
+	}
+
+	if !createData.Expiration.IsZero() {
+		// Automatic implies known
+		if createData.Known || createData.Automatic {
+			// Known users are described by assertions, and assertions provide their own
+			// expiration date for users, which we will not allow to overwrite
+			return BadRequest("cannot create user: expiration date cannot be provided for known users")
+		}
+		if createData.Expiration.Before(time.Now()) {
+			return BadRequest("cannot create user: expiration date must be set in the future")
+		}
 	}
 
 	if !createData.ForceManaged {
@@ -352,7 +365,7 @@ func doCreateUser(st *state.State, createData postUserCreateData) ([]*devicestat
 		return deviceStateCreateKnownUsers(st, createData.Sudoer, createData.Email)
 	}
 
-	user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email)
+	user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email, createData.Expiration)
 	return []*devicestate.CreatedUser{user}, err
 }
 
@@ -364,11 +377,12 @@ type postUserData struct {
 }
 
 type postUserCreateData struct {
-	Email        string `json:"email"`
-	Sudoer       bool   `json:"sudoer"`
-	Known        bool   `json:"known"`
-	ForceManaged bool   `json:"force-managed"`
-	Automatic    bool   `json:"automatic"`
+	Email        string    `json:"email"`
+	Sudoer       bool      `json:"sudoer"`
+	Known        bool      `json:"known"`
+	ForceManaged bool      `json:"force-managed"`
+	Automatic    bool      `json:"automatic"`
+	Expiration   time.Time `json:"expiration"`
 
 	// singleUserResultCompat indicates whether to preserve
 	// backwards compatibility, which results in more clunky

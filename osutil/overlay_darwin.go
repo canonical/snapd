@@ -19,7 +19,7 @@
 
 package osutil
 
-// IsRootWritableOverlay is not implemented on darwin
-func IsRootWritableOverlay() (string, error) {
+// isRootWritableOverlay is not implemented on darwin
+var isRootWritableOverlay = func() (string, error) {
 	return "", ErrDarwin
 }
