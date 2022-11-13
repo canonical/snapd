@@ -138,9 +138,9 @@ var u2fDevices = []u2fDevice{
 		ProductIDPattern: "a2ac",
 	},
 	{
-		Name:             "Ledger Blue + Nano S + Nano X",
+		Name:             "Ledger Blue + Nano S + Nano X + Nano S Plus",
 		VendorIDPattern:  "2c97",
-		ProductIDPattern: "0000|0001|0004|0005|0015|1005|1015|4005|4015",
+		ProductIDPattern: "0000|0001|0004|0005|0015|1005|1015|4005|4015|5011",
 	},
 	{
 		Name:             "GoTrust Idem Key",
