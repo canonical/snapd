@@ -733,8 +733,10 @@ EOF
             # to pick up the right modules
             if os.query is-arm; then
                 cd unpacked-initrd
+                feature='.'
             else
                 cd unpacked-initrd/main
+                feature='main'
             fi
             # XXX: pass feature 'main' and u-c-i picks up any directory named
             # after feature inside skeletondir and uses that a template
@@ -743,19 +745,34 @@ EOF
                                   --skeleton "$skeletondir" \
                                   --kerneldir "${unpackeddir}/modules/$kver" \
                                   --firmwaredir "${unpackeddir}/firmware" \
-                                  --feature 'main' \
+                                  --feature "$feature" \
                                   --output "$unpackeddir"/repacked-initrd
         )
 
         # copy out the kernel image for create-efi command
         objcopy -j .linux -O binary kernel.efi "vmlinuz-$kver"
 
-        # assumes all files are named <name>-$kver
-        ubuntu-core-initramfs create-efi \
-                              --kernelver "$kver" \
-                              --initrd repacked-initrd \
-                              --kernel vmlinuz \
-                              --output repacked-kernel.efi
+        if os.query is-arm; then
+            # copy sbat file and linuxaa64.efi.stub to avoid error access when using the test-snapd-arm-tools snap
+            cp /usr/lib/ubuntu-core-initramfs/efi/sbat.txt .
+            cp /usr/lib/ubuntu-core-initramfs/efi/linuxaa64.efi.stub .
+
+            # assumes all files are named <name>-$kver
+            ubuntu-core-initramfs create-efi \
+                                  --kernelver "$kver" \
+                                  --initrd repacked-initrd \
+                                  --kernel vmlinuz \
+                                  --output repacked-kernel.efi \
+                                  --sbat sbat.txt \
+                                  --stub linuxaa64.efi.stub
+        else
+            # assumes all files are named <name>-$kver
+            ubuntu-core-initramfs create-efi \
+                                  --kernelver "$kver" \
+                                  --initrd repacked-initrd \
+                                  --kernel vmlinuz \
+                                  --output repacked-kernel.efi
+        fi
 
         mv "repacked-kernel.efi-$kver" kernel.efi
 
@@ -1086,10 +1103,16 @@ EOF
         uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
         EXTRA_FUNDAMENTAL="--snap $IMAGE_HOME/pc-kernel_*.snap"
 
+        if os.query is-core20; then
+            BRANCH=20
+        elif os.query is-core22; then
+            BRANCH=22
+        fi
+
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
         if os.query is-arm; then
-            snap download --basename=pc --channel=edge test-snapd-arm64-gadget 
+            snap download --basename=pc --channel=${BRANCH}/edge test-snapd-arm64-gadget 
         else
             snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
         fi
@@ -1205,7 +1228,10 @@ EOF
                     --output-dir "$IMAGE_HOME"
     rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core{20,22}.{snap,assert}
 
-    if os.query is-core20 || os.query is-core22; then
+    if os.query is-arm; then
+        mv "$(find "$IMAGE_HOME" -name "*.img"| head -n1)" "$IMAGE_HOME/$IMAGE"
+        LOOP_PARTITION=1
+    elif os.query is-core20 || os.query is-core22; then
         # (ab)use ubuntu-seed
         LOOP_PARTITION=2
     else
@@ -1325,10 +1351,13 @@ set -x
 OF=/dev/sda
 if [ -e /dev/vda ]; then
     OF=/dev/vda
+elif [ -e /dev/nvme0n1 ]; then
+    OF=/dev/nvme0n1
 fi
 dd if=/tmp/$IMAGE of=\$OF bs=4M
 # and reboot
 sync
+
 echo b > /proc/sysrq-trigger
 
 EOF

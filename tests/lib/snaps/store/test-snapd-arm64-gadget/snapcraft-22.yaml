@@ -9,8 +9,12 @@ confinement: devmode
 grade: stable
 icon: icon.png
 
+package-repositories:
+ - type: apt
+   ppa: ucdev/uc-staging-ppa
+
 parts:
-  deps:
+  grub:
     source: .
     build-packages:
       - ubuntu-dev-tools
@@ -19,9 +23,4 @@ parts:
     stage-packages:
       - grub-efi-arm64-signed
       - shim-signed
-    plugin: nil
-
-  grub:
-    source: .
     plugin: make
-    after: [ deps ]

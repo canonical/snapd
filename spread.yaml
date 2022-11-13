@@ -200,12 +200,11 @@ backends:
             - ubuntu-core-20-arm-64:
                   image: ubuntu-20.04-arm-64
                   workers: 6
-                  storage: 20G
+                  storage: 30G
             - ubuntu-core-22-arm-64:
                   image: ubuntu-22.04-arm-64
                   workers: 6
-                  storage: 20G
-
+                  storage: 30G
     google-sru:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
