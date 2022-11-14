@@ -156,6 +156,7 @@ func getWSLVersion() int {
 	}
 	fstype, err := filesystemRootType()
 	if err != nil {
+		// TODO log error here once logger can be imported without circular imports
 		return 2
 	}
 
