@@ -355,6 +355,9 @@ func probeParserFeatures() ([]string, error) {
 	if tryAppArmorParserFeature(parser, "mqueue,") {
 		features = append(features, "mqueue")
 	}
+	if tryAppArmorParserFeature(parser, "network xdp,") {
+		features = append(features, "xdp")
+	}
 	sort.Strings(features)
 	return features, nil
 }

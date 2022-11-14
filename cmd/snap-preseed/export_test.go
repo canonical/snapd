@@ -19,7 +19,10 @@
 
 package main
 
-import "github.com/snapcore/snapd/testutil"
+import (
+	"github.com/snapcore/snapd/image/preseed"
+	"github.com/snapcore/snapd/testutil"
+)
 
 var (
 	Run = run
@@ -31,7 +34,7 @@ func MockOsGetuid(f func() int) (restore func()) {
 	return r
 }
 
-func MockPreseedCore20(f func(dir, key, aaDir string) error) (restore func()) {
+func MockPreseedCore20(f func(opts *preseed.CoreOptions) error) (restore func()) {
 	r := testutil.Backup(&preseedCore20)
 	preseedCore20 = f
 	return r

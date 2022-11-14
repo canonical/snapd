@@ -61,7 +61,6 @@ import (
 
 var (
 	procSelfExe           = "/proc/self/exe"
-	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 	kernelFeatures        = apparmor_sandbox.KernelFeatures
 	parserFeatures        = apparmor_sandbox.ParserFeatures
@@ -125,7 +124,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// Check if NFS is mounted at or under $HOME. Because NFS is not
 	// transparent to apparmor we must alter our profile to counter that and
 	// allow snap-confine to work.
-	if nfs, err := isHomeUsingNFS(); err != nil {
+	if nfs, err := osutil.IsHomeUsingNFS(); err != nil {
 		logger.Noticef("cannot determine if NFS is in use: %v", err)
 	} else if nfs {
 		policy["nfs-support"] = &osutil.MemoryFileState{
@@ -882,7 +881,7 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 				// transparent to apparmor we must alter the profile to counter that and
 				// allow access to SNAP_USER_* files.
 				tagSnippets = snippetForTag
-				if nfs, _ := isHomeUsingNFS(); nfs {
+				if nfs, _ := osutil.IsHomeUsingNFS(); nfs {
 					tagSnippets += nfsSnippet
 				}
 
@@ -972,15 +971,4 @@ func (b *Backend) SandboxFeatures() []string {
 	tags = append(tags, fmt.Sprintf("policy:%s", policy))
 
 	return tags
-}
-
-// MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS.
-// This is exported so that other packages that indirectly interact with AppArmor backend
-// can mock isHomeUsingNFS.
-func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
-	old := isHomeUsingNFS
-	isHomeUsingNFS = new
-	return func() {
-		isHomeUsingNFS = old
-	}
 }

@@ -154,17 +154,6 @@ func (s *SnapSuite) TestNoRecoverySystemsError(c *C) {
 	c.Check(err, ErrorMatches, `cannot list recovery systems: permission denied`)
 }
 
-func (s *SnapSuite) TestRecoveryShowRecoveryKeyOnClassicErrors(c *C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
-
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Fatalf("unexpected server call")
-	})
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-keys"})
-	c.Assert(err, ErrorMatches, `command "show-keys" is not available on classic systems`)
-}
-
 func (s *SnapSuite) TestRecoveryShowRecoveryKeyHappy(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()

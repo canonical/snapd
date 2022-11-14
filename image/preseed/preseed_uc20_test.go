@@ -78,7 +78,12 @@ func (s *toolingStore) Assertion(assertType *asserts.AssertionType, primaryKey [
 	return as, nil
 }
 
-func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir string) {
+// list of test overlays
+var sysFsOverlaysGood = []string{"class/backlight", "class/bluetooth", "class/gpio", "class/leds", "class/ptp", "class/pwm", "class/rtc", "class/video4linux", "devices/platform", "devices/pci0000:00"}
+
+var sysFsOverlaysBad = []string{"class/backlight-xxx", "class/spi", "devices/pci"}
+
+func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, sysfsOverlay string) {
 
 	testKey, _ := assertstest.GenerateKey(752)
 
@@ -209,7 +214,14 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir s
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), []byte(`hello world`), 0644), IsNil)
 
-	c.Assert(preseed.Core20(tmpDir, "", customAppArmorFeaturesDir), IsNil)
+	opts := &preseed.CoreOptions{
+		PrepareImageDir:           tmpDir,
+		PreseedSignKey:            "",
+		AppArmorKernelFeaturesDir: customAppArmorFeaturesDir,
+		SysfsOverlay:              sysfsOverlay,
+	}
+
+	c.Assert(preseed.Core20(opts), IsNil)
 
 	c.Check(mockChootCmd.Calls()[0], DeepEquals, []string{"chroot", preseedTmpDir, "/usr/lib/snapd/snapd"})
 
@@ -261,6 +273,18 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir s
 		// from handle-writable-paths
 		{"umount", filepath.Join(preseedTmpDir, "somepath")},
 		{"umount", preseedTmpDir},
+	}
+
+	if sysfsOverlay != "" {
+		for i, dir := range sysFsOverlaysGood {
+			const sysFsMountFirstIndex = 10
+			expectedMountCalls = append(expectedMountCalls[:sysFsMountFirstIndex+i+1], expectedMountCalls[sysFsMountFirstIndex+i:]...)
+			expectedMountCalls[sysFsMountFirstIndex+i] = []string{"mount", "--bind", filepath.Join(sysfsOverlay, "sys", dir), filepath.Join(preseedTmpDir, "sys", dir)}
+			// order of umounts is reversed, prepend
+			const sysFsUmountFirstIndex = 11
+			expectedUmountCalls = append(expectedUmountCalls[:sysFsUmountFirstIndex+1], expectedUmountCalls[sysFsUmountFirstIndex:]...)
+			expectedUmountCalls[sysFsUmountFirstIndex] = []string{"umount", filepath.Join(preseedTmpDir, "sys", dir)}
+		}
 	}
 
 	if customAppArmorFeaturesDir != "" {
@@ -334,11 +358,52 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir s
 }
 
 func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
-	s.testRunPreseedUC20Happy(c, "")
+	s.testRunPreseedUC20Happy(c, "", "")
 }
 
 func (s *preseedSuite) TestRunPreseedUC20HappyCustomApparmorFeaturesDir(c *C) {
-	s.testRunPreseedUC20Happy(c, "/custom-aa-features")
+	s.testRunPreseedUC20Happy(c, "/custom-aa-features", "")
+}
+
+func (s *preseedSuite) TestRunPreseedUC20HappySysfsOverlay(c *C) {
+	// create example sysfs overlay structure
+	// backlight bluetooth gpio leds  ptp pwm rtc video4linux
+	// sys
+	//  ├── class
+	//  │   ├── backlight
+	//  │   │   └── intel_backlight  ->  ../../devices/pci0000:00/0000:00:02.0
+	//  │   ├── bluetooth
+	//  │   │   └── hci0             ->  ../../devices/platform/e4000000.s_ahb
+	//  │   ├── gpio
+	//  │   │   └── gpio1            -> ../../devices/platform/e4000000.s_ahb
+	//  │   ├── leds
+	//  │   │   └── input2::capslock -> ../../devices/platform/e8000000.s_ahb
+	//  │   ├── ptp
+	//  │   │   └── ptp0             -> ../../devices/pci0000:00/0000:00:1d.0
+	//  │   ├── pwm
+	//  │   │   └── pwmchip0         -> ../../devices/platform/e8000000.s_ahb
+	//  │   ├── rtc
+	//  │   │   └── rtc0             -> ../../devices/platform/rtc_cmos/rtc/rtc0
+	//  │   └── video4linux
+	//  │       └── video0           -> ../../devices/platform/e8000000.s_ahb
+	//  └── devices
+	//      ├── platform
+	//      │   └── e8000000.s_ahb
+	//      └── pci0000:00
+	//          └──  0000:00:02.0
+
+	tmpdir := c.MkDir()
+	for _, dir := range sysFsOverlaysGood {
+		err := os.MkdirAll(filepath.Join(tmpdir, "sys", dir), os.ModePerm)
+		c.Assert(err, IsNil)
+	}
+
+	for _, dir := range sysFsOverlaysBad {
+		err := os.MkdirAll(filepath.Join(tmpdir, "sys", dir), os.ModePerm)
+		c.Assert(err, IsNil)
+	}
+
+	s.testRunPreseedUC20Happy(c, "", tmpdir)
 }
 
 func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
@@ -354,7 +419,13 @@ func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
 	err := ioutil.WriteFile(mockChrootCmd.Exe(), []byte("invalid-exe"), 0755)
 	c.Check(err, IsNil)
 
-	opts := &preseed.PreseedOpts{PreseedChrootDir: tmpdir}
-	err = preseed.RunUC20PreseedMode(opts)
+	popts := &preseed.PreseedCoreOptions{
+		CoreOptions: preseed.CoreOptions{
+			PrepareImageDir: tmpdir,
+		},
+		PreseedChrootDir: tmpdir,
+	}
+
+	err = preseed.RunUC20PreseedMode(popts)
 	c.Check(err, ErrorMatches, `error running snapd, please try installing the "qemu-user-static" package: fork/exec .* exec format error`)
 }
