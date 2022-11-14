@@ -257,10 +257,10 @@ func (p *accessPattern) getPath(name string) (string, error) {
 
 // matchedPlaceholders takes a dot-separated pattern with optional placeholders
 // and a name. To match the pattern, the name's dot-separated parts must be equal
-// to the pattern's non-placeholder parts (a pattern "foo.{bar}" is matched by a
-// name with a part "foo" followed by any part). It returns a map from placeholders
-// to their matches in the name (can be empty, if the path has no placeholders).
-// If there's no match, it returns nil.
+// to the pattern's non-placeholder parts. It returns a map from placeholders to
+// their matches in the name (can be empty, if the path has no placeholders). If
+// there's no match, it returns nil. For example, if pattern="{foo}.b.{bar}" and
+// name="a.b.c", then it returns {"foo": "a", "bar": "c"}.
 func matchedPlaceholders(pattern, name string) map[string]string {
 	patternParts, nameParts := strings.Split(pattern, "."), strings.Split(name, ".")
 
@@ -310,7 +310,7 @@ func fillInPlaceholders(path string, placeholderValues map[string]string) (strin
 			var ok bool
 			part, ok = placeholderValues[trimmedPart]
 			if !ok {
-				return "", fmt.Errorf("path placeholder %q is absent from the name", trimmedPart)
+				return "", fmt.Errorf("cannot find path placeholder %q in the aspect name", trimmedPart)
 			}
 		}
 
