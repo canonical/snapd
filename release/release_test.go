@@ -20,6 +20,7 @@
 package release_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -63,6 +65,23 @@ BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
 	return mockOSRelease
 }
 
+// MockFilesystemRootType changes relase.ProcMountsPath so that it points to a temp file
+// generated to contain the provided filesystem type
+func MockFilesystemRootType(c *C, fsType string) (restorer func()) {
+	tmpfile, err := ioutil.TempFile(c.MkDir(), "proc_mounts_mock_")
+	c.Assert(err, IsNil)
+
+	// Sample contents of /proc/mounts. The second line is the one that matters.
+	tmpfile.Write([]byte(fmt.Sprintf(`none /usr/lib/wsl/lib overlay rw,relatime,lowerdir=/gpu_lib_packaged:/gpu_lib_inbox,upperdir=/gpu_lib/rw/upper,workdir=/gpu_lib/rw/work 0 0
+/dev/sdc / %s rw,relatime,discard,errors=remount-ro,data=ordered 0 0
+none /mnt/wslg tmpfs rw,relatime 0 0
+`, fsType)))
+
+	restorer = testutil.Backup(release.ProcMountsPath)
+	*release.ProcMountsPath = tmpfile.Name()
+	return restorer
+}
+
 type mockWsl struct {
 	ExistsInterop bool
 	ExistsRunWSL  bool
@@ -79,7 +98,8 @@ func mockWSLsetup(c *C, settings mockWsl) func() {
 		}
 		return osutil.FileExists(s)
 	})
-	restoreFilesystemRootType := release.MockFilesystemRootType(settings.FsType)
+
+	restoreFilesystemRootType := MockFilesystemRootType(c, settings.FsType)
 
 	return func() {
 		restoreFileExists()

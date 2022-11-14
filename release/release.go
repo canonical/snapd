@@ -110,8 +110,10 @@ var fileExists = func(path string) bool {
 	return err == nil
 }
 
+var procMountsPath = "/proc/mounts"
+
 // filesystemRootType returns the filesystem type mounted at "/".
-var filesystemRootType = func() (string, error) {
+func filesystemRootType() (string, error) {
 	// We scan /proc/mounts, which contains space-separated values:
 	// [irrelevant] [mount point] [fstype] [irrelevant...]
 	// Here are some examples on some platforms:
@@ -121,7 +123,7 @@ var filesystemRootType = func() (string, error) {
 	// We search for mount point = "/", and return the fstype.
 	//
 	// This should be done by osutil.LoadMountInfo but that would cause a dependency cycle
-	file, err := os.Open("/proc/mounts")
+	file, err := os.Open(procMountsPath)
 	if err != nil {
 		return "", fmt.Errorf("cannot find root filesystem type: %v", err)
 	}
