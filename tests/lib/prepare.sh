@@ -609,7 +609,7 @@ uc20_build_initramfs_kernel_snap() {
         snap install --classic snapcraft
         snap install lxd
         lxd init --auto
-        ( cd $PROJECT_PATH/tests/lib/snaps/test-snapd-arm-tools; snapcraft --use-lxd )
+        ( cd "$PROJECT_PATH/tests/lib/snaps/test-snapd-arm-tools"; snapcraft --use-lxd )
         snap remove lxd --purge
         snap remove snapcraft
 
@@ -1076,7 +1076,7 @@ EOF
         IMAGE_CHANNEL="$KERNEL_CHANNEL"
     else
         if os.query is-arm; then
-            snap download --channel=22/$KERNEL_CHANNEL pc-kernel
+            snap download --channel=22/"$KERNEL_CHANNEL" pc-kernel
         else
             # download pc-kernel snap for the specified channel and set
             # ubuntu-image channel to that of the gadget, so that we don't
