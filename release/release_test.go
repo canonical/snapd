@@ -72,10 +72,11 @@ func MockFilesystemRootType(c *C, fsType string) (restorer func()) {
 	c.Assert(err, IsNil)
 
 	// Sample contents of /proc/mounts. The second line is the one that matters.
-	tmpfile.Write([]byte(fmt.Sprintf(`none /usr/lib/wsl/lib overlay rw,relatime,lowerdir=/gpu_lib_packaged:/gpu_lib_inbox,upperdir=/gpu_lib/rw/upper,workdir=/gpu_lib/rw/work 0 0
+	_, err = tmpfile.Write([]byte(fmt.Sprintf(`none /usr/lib/wsl/lib overlay rw,relatime,lowerdir=/gpu_lib_packaged:/gpu_lib_inbox,upperdir=/gpu_lib/rw/upper,workdir=/gpu_lib/rw/work 0 0
 /dev/sdc / %s rw,relatime,discard,errors=remount-ro,data=ordered 0 0
 none /mnt/wslg tmpfs rw,relatime 0 0
 `, fsType)))
+	c.Assert(err, IsNil)
 
 	restorer = testutil.Backup(release.ProcMountsPath)
 	*release.ProcMountsPath = tmpfile.Name()
