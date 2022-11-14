@@ -21,9 +21,7 @@ package release_test
 
 import (
 	"io/ioutil"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -167,25 +165,6 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 	})
 	defer reset()
 	c.Assert(release.ReleaseInfo.ID, Equals, "distro-id")
-}
-
-func (s *ReleaseTestSuite) TestFilesystemRootType(c *C) {
-	output, err := exec.Command("df", "--output=fstype", "/").CombinedOutput()
-	c.Assert(err, IsNil)
-	// $ df --output=fstype / # Example output on WSL1
-	// Type
-	// wslfs
-
-	fields := strings.Fields(string(output))
-	c.Check(len(fields), Equals, 2)
-
-	wants := strings.TrimSpace(fields[1])
-	c.Assert(err, IsNil)
-
-	got, err := release.FilesystemRootType()
-	c.Assert(err, IsNil)
-
-	c.Check(wants, Equals, got)
 }
 
 func (s *ReleaseTestSuite) TestNonWSL(c *C) {
