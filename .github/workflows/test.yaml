@@ -400,7 +400,7 @@ jobs:
         - ubuntu-core-18-64
         - ubuntu-core-20-64
         - ubuntu-core-22-64
-        - ubuntu-core-22.04-arm-64
+        - ubuntu-core-22-arm-64
         - ubuntu-secboot-20.04-64
     steps:
     - name: Cleanup job workspace
