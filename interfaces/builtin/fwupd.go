@@ -110,6 +110,9 @@ const fwupdPermanentSlotAppArmor = `
   /dev/wmi/dell-smbios rw,
   # MTD plugin
   /dev/mtd[0-9]* rw,
+  # Plugin for Logitech Whiteboard camera
+  /dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] r,
+  /dev/video[0-9]* r,
   # Realtek MST plugin
   /dev/i2c-[0-9]* rw,
 
