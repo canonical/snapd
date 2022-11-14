@@ -63,17 +63,23 @@ BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
 	return mockOSRelease
 }
 
-func mockWSLsetup(c *C, existsWSLinterop bool, existsRunWSL bool, filesystemName string) func() {
+type mockWsl struct {
+	ExistsInterop bool
+	ExistsRunWSL  bool
+	FsType        string
+}
+
+func mockWSLsetup(c *C, settings mockWsl) func() {
 	restoreFileExists := release.MockFileExists(func(s string) bool {
 		if s == "/proc/sys/fs/binfmt_misc/WSLInterop" {
-			return existsWSLinterop
+			return settings.ExistsInterop
 		}
 		if s == "/run/WSL" {
-			return existsRunWSL
+			return settings.ExistsRunWSL
 		}
 		return osutil.FileExists(s)
 	})
-	restoreFilesystemRootType := release.MockFilesystemRootType(filesystemName)
+	restoreFilesystemRootType := release.MockFilesystemRootType(settings.FsType)
 
 	return func() {
 		restoreFileExists()
@@ -168,37 +174,37 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestNonWSL(c *C) {
-	defer mockWSLsetup(c, false, false, "ext4")()
+	defer mockWSLsetup(c, mockWsl{ExistsInterop: false, ExistsRunWSL: false, FsType: "ext4"})()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 0)
 }
 
 func (s *ReleaseTestSuite) TestWSL1(c *C) {
-	defer mockWSLsetup(c, true, true, "wslfs")()
+	defer mockWSLsetup(c, mockWsl{ExistsInterop: true, ExistsRunWSL: true, FsType: "wslfs"})()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 1)
 }
 
 func (s *ReleaseTestSuite) TestWSL1Old(c *C) {
-	defer mockWSLsetup(c, true, true, "lxfs")()
+	defer mockWSLsetup(c, mockWsl{ExistsInterop: true, ExistsRunWSL: true, FsType: "lxfs"})()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 1)
 }
 
 func (s *ReleaseTestSuite) TestWSL2(c *C) {
-	defer mockWSLsetup(c, true, true, "ext4")()
+	defer mockWSLsetup(c, mockWsl{ExistsInterop: true, ExistsRunWSL: true, FsType: "ext4"})()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }
 
 func (s *ReleaseTestSuite) TestWSL2NoInterop(c *C) {
-	defer mockWSLsetup(c, false, true, "ext4")()
+	defer mockWSLsetup(c, mockWsl{ExistsInterop: false, ExistsRunWSL: true, FsType: "ext4"})()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }
 
 func (s *ReleaseTestSuite) TestLXDInWSL2(c *C) {
-	defer mockWSLsetup(c, true, false, "btrfs")()
+	defer mockWSLsetup(c, mockWsl{ExistsInterop: true, ExistsRunWSL: false, FsType: "btrfs"})()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }
