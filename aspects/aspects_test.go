@@ -381,5 +381,5 @@ func (s *aspectSuite) TestAspectBadPlaceholderAssertion(c *C) {
 	aspect := aspectDir.Aspect("foo")
 
 	err = aspect.Set("bad.foo", "bar")
-	c.Assert(err, ErrorMatches, "path placeholder \"bar\" is absent from the name")
+	c.Assert(err, ErrorMatches, "cannot find path placeholder \"bar\" in the aspect name")
 }
