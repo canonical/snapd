@@ -151,7 +151,7 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
 
 	// Create a new quota group with a journal quota
-	err := servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName()}, quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	err := servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName()}, nil, quota.NewResourcesBuilder().WithJournalNamespace().Build())
 	c.Assert(err, IsNil)
 
 	flags := snapstate.Flags{}
