@@ -135,7 +135,7 @@ func (s *servicestateQuotasSuite) TestCreateQuotaInState(c *C) {
 		Name:        "foogroup",
 		MemoryLimit: quantity.SizeGiB,
 	}
-	grp1, newGrps, err := internal.CreateQuotaInState(st, "foogroup", nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(), nil)
+	grp1, newGrps, err := internal.CreateQuotaInState(st, "foogroup", nil, nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(), nil)
 	c.Assert(err, IsNil)
 	c.Check(grp1, DeepEquals, grp)
 	c.Check(newGrps, DeepEquals, map[string]*quota.Group{
@@ -156,12 +156,13 @@ func (s *servicestateQuotasSuite) TestCreateQuotaInState(c *C) {
 		ParentGroup: "foogroup",
 		Snaps:       []string{"snap1", "snap2"},
 	}
-	grp3, newGrps, err := internal.CreateQuotaInState(st, "group-2", grp1, []string{"snap1", "snap2"}, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(), nil)
+	grp3, newGrps, err := internal.CreateQuotaInState(st, "group-2", grp1, []string{"snap1", "snap2"}, []string{"snap1.svc1", "snap2.svc2"}, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(), nil)
 	c.Assert(err, IsNil)
 	c.Check(grp3.Name, Equals, grp2.Name)
 	c.Check(grp3.MemoryLimit, Equals, grp2.MemoryLimit)
 	c.Check(grp3.ParentGroup, Equals, grp2.ParentGroup)
 	c.Check(grp3.Snaps, DeepEquals, grp2.Snaps)
+	c.Check(grp3.Services, DeepEquals, []string{"snap1.svc1", "snap2.svc2"})
 	c.Check(newGrps, HasLen, 2)
 	c.Check(newGrps["foogroup"].SubGroups, DeepEquals, []string{"group-2"})
 
