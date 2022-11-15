@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	tomb "gopkg.in/tomb.v2"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
@@ -55,6 +57,10 @@ type QuotaControlAction struct {
 	// AddSnaps is the set of snaps to add to the quota group, valid for either
 	// the "update" or the "create" actions.
 	AddSnaps []string `json:"snaps,omitempty"`
+
+	// AddServices is the set of services to add to the quota group, valid for either
+	// the "update" or the "create" actions.
+	AddServices []string `json:"services,omitempty"`
 
 	// ResourceLimits is the set of resource limits to set on the quota group.
 	// Either the initial limit the group is created with for the "create"
@@ -386,12 +392,24 @@ func quotaCreate(st *state.State, action QuotaControlAction, allGrps map[string]
 		return nil, nil, false, fmt.Errorf("cannot create quota group %q: %v", action.QuotaName, err)
 	}
 
-	// make sure the specified snaps exist and aren't currently in another group
-	if err := validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, allGrps); err != nil {
+	// validate that after the snaps/services have been added that the group is not
+	// illegally mixed.
+	if err := ensureGroupIsNotMixed(action.AddSnaps, action.AddServices, action.QuotaName, allGrps); err != nil {
 		return nil, nil, false, err
 	}
 
-	grp, allGrps, err := internal.CreateQuotaInState(st, action.QuotaName, parentGrp, action.AddSnaps, action.ResourceLimits, allGrps)
+	// make sure the specified snaps exist and aren't currently in another group
+	if err := validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, action.ParentName, allGrps); err != nil {
+		return nil, nil, false, err
+	}
+
+	// if services are provided, the make sure they refer to correct snaps and valid
+	// services.
+	if err := validateSnapServicesForAddingToGroup(st, action.AddServices, action.QuotaName, action.ParentName, allGrps); err != nil {
+		return nil, nil, false, err
+	}
+
+	grp, allGrps, err := internal.CreateQuotaInState(st, action.QuotaName, parentGrp, action.AddSnaps, action.AddServices, action.ResourceLimits, allGrps)
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -494,20 +512,27 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 
 	modifiedGrps := []*quota.Group{grp}
 
-	// ensure that the group we are modifying does not contain a mix of snaps and sub-groups
-	// as we no longer support this, and existing quota groups might have this
-	if err := ensureGroupIsNotMixed(action.QuotaName, allGrps); err != nil {
+	// validate that after the snaps/services have been added that the group is not
+	// illegally mixed.
+	if err := ensureGroupIsNotMixed(action.AddSnaps, action.AddServices, action.QuotaName, allGrps); err != nil {
 		return nil, nil, false, err
 	}
 
 	// now ensure that all of the snaps mentioned in AddSnaps exist as snaps and
 	// that they aren't already in an existing quota group
-	if err := validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, allGrps); err != nil {
+	if err := validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, grp.ParentGroup, allGrps); err != nil {
 		return nil, nil, false, err
 	}
 
-	// append the snaps list in the group
+	// if services are provided, the make sure they refer to correct snaps and valid
+	// services.
+	if err := validateSnapServicesForAddingToGroup(st, action.AddServices, action.QuotaName, grp.ParentGroup, allGrps); err != nil {
+		return nil, nil, false, err
+	}
+
+	// append snap list and service list in the group
 	grp.Snaps = append(grp.Snaps, action.AddSnaps...)
+	grp.Services = append(grp.Services, action.AddServices...)
 
 	// store the current status of journal quota, if it changes we need
 	// to refresh the profiles for the snaps in the groups
@@ -781,31 +806,41 @@ func ensureSnapServicesStateForGroup(st *state.State, grp *quota.Group, opts *en
 	return restartSnapServices(st, appsToRestartBySnap)
 }
 
-func ensureGroupIsNotMixed(group string, allGrps map[string]*quota.Group) error {
+// ensureGroupIsNotMixed is a helper which returns an error if the snaps and/or
+// services we are trying to add would result in a mixed group. A group is considered
+// mixed if:
+// 1. The group would end up containing both snaps and services
+// 2. The group would end up containing both services and groups
+func ensureGroupIsNotMixed(snapsToAdd, servicesToAdd []string, group string, allGrps map[string]*quota.Group) error {
+	if len(snapsToAdd) > 0 && len(servicesToAdd) > 0 {
+		return fmt.Errorf("cannot mix services and snaps in the same quota group")
+	}
+
 	grp, ok := allGrps[group]
-	if ok && len(grp.SubGroups) != 0 && len(grp.Snaps) != 0 {
-		return fmt.Errorf("quota group %q has mixed snaps and sub-groups, which is no longer supported; removal and re-creation is necessary to modify it", group)
+	if ok && ((len(grp.Services) > 0 && len(snapsToAdd) > 0) || (len(grp.Snaps) > 0 && len(servicesToAdd) > 0)) {
+		return fmt.Errorf("cannot mix services and snaps in the same quota group")
 	}
 	return nil
 }
 
-// ensureGroupHasNoSubgroups returns true if the group has no sub-groups or it doesn't exist,
-// otherwise turns false.
-func ensureGroupHasNoSubgroups(group string, allGrps map[string]*quota.Group) bool {
-	grp, ok := allGrps[group]
-	if ok && len(grp.SubGroups) != 0 {
-		return false
+// ensureParentIsNotMixed returns true if the parent is not a mixed group. A group
+// is considered mixed if it contains both snaps and sub-groups. In this case we only
+// allow services to be added to sub-groups, as we do not support nesting of snaps.
+func ensureParentIsNotMixed(parentGroup string, allGrps map[string]*quota.Group) bool {
+	parent := allGrps[parentGroup]
+	if parent == nil {
+		return true
 	}
-	return true
+	return len(parent.SubGroups) == 0 || len(parent.Snaps) == 0
 }
 
-func validateSnapForAddingToGroup(st *state.State, snaps []string, group string, allGrps map[string]*quota.Group) error {
+func validateSnapForAddingToGroup(st *state.State, snaps []string, group, parentGroup string, allGrps map[string]*quota.Group) error {
 	// With the new quotas we don't support groups that have a mixture of snaps and
 	// subgroups, as this will cause issues with nesting. Groups/subgroups may now
 	// only consist of either snaps or subgroups.
 	if len(snaps) > 0 {
-		if !ensureGroupHasNoSubgroups(group, allGrps) {
-			return fmt.Errorf("cannot mix snaps and sub groups in the group %q", group)
+		if !ensureParentIsNotMixed(parentGroup, allGrps) {
+			return fmt.Errorf("cannot add snaps to group %q: only services are allowed in this sub-group", group)
 		}
 	}
 
@@ -823,7 +858,78 @@ func validateSnapForAddingToGroup(st *state.State, snaps []string, group string,
 			}
 		}
 	}
+	return nil
+}
 
+// splitSnapServiceName splits and verifies the snap service reference
+// taken in by the frontend. It expects the format snap.service
+func splitSnapServiceName(name string) (string, string, error) {
+	parts := strings.Split(name, ".")
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("invalid snap service: %s", name)
+	}
+	if err := naming.ValidateSnap(parts[0]); err != nil {
+		return "", "", err
+	}
+	return parts[0], parts[1], naming.ValidateApp(parts[1])
+}
+
+func appReferenceIsService(st *state.State, snap, service string) error {
+	// validate that the snap exists, and is in a parent group
+	snapInfo, err := snapstate.CurrentInfo(st, snap)
+	if err != nil {
+		return err
+	}
+
+	appInfo, ok := snapInfo.Apps[service]
+	if !ok {
+		return fmt.Errorf("invalid service %q", service)
+	}
+	if !appInfo.IsService() {
+		return fmt.Errorf("%q is not a service", service)
+	}
+	return nil
+}
+
+// ensureGroupHasNoSubgroups returns true if the group has no sub-groups or it doesn't exist,
+// otherwise turns false.
+func ensureGroupHasNoSubgroups(group string, allGrps map[string]*quota.Group) bool {
+	grp, ok := allGrps[group]
+	if ok && len(grp.SubGroups) != 0 {
+		return false
+	}
+	return true
+}
+
+func validateSnapServicesForAddingToGroup(st *state.State, services []string, group, parentGroup string, allGrps map[string]*quota.Group) error {
+	// Services come in the format of snap.service, and we do the split and parsing
+	// in this function. We need to make sure that the snaps referred are related to
+	// the current group, and we make sure that the services are valid service names.
+
+	// We do not allow mixing services and sub-groups. A quota group of service must be
+	// the final leaf node in the quota group tree.
+	if len(services) > 0 {
+		if !ensureGroupHasNoSubgroups(group, allGrps) {
+			return fmt.Errorf("cannot mix services and sub groups in the group %q", group)
+		}
+	}
+
+	parentGrp := allGrps[parentGroup]
+	for _, name := range services {
+		snap, service, err := splitSnapServiceName(name)
+		if err != nil {
+			return err
+		}
+
+		err = appReferenceIsService(st, snap, service)
+		if err != nil {
+			return fmt.Errorf("cannot use snap service in group %q: %v", group, err)
+		}
+
+		if parentGrp != nil && !parentGrp.IsSnapRelated(snap) {
+			return fmt.Errorf("cannot use snap %q: the snap must be in a parent group of group %q", snap, group)
+		}
+	}
 	return nil
 }
 
