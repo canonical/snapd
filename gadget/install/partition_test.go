@@ -221,7 +221,7 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
-	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -255,7 +255,7 @@ func (s *partitionTestSuite) TestBuildPartitionListOnlyCreatablePartitions(c *C)
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
-	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -290,7 +290,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	})
 	defer restore()
 
-	err := makeMockGadget(s.gadgetRoot, gadgetContent)
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -349,7 +349,7 @@ func (s *partitionTestSuite) TestCreatePartitionsNonRolePartitions(c *C) {
 	})
 	defer restore()
 
-	err := makeMockGadget(s.gadgetRoot, gadgetContent)
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -375,7 +375,7 @@ func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
-	err := makeMockGadget(s.gadgetRoot, gadgetContent)
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -455,7 +455,7 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
-	err = makeMockGadget(s.gadgetRoot, gadgetContent)
+	err = gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -587,7 +587,7 @@ func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
-	err = makeMockGadget(s.gadgetRoot, gadgetContent)
+	err = gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 
 	// add the file to indicate we should do the device/rescan trick
@@ -746,7 +746,7 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
-	err = makeMockGadget(s.gadgetRoot, gadgetContentDifferentOrder)
+	err = gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContentDifferentOrder)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -949,7 +949,7 @@ func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
-	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -1074,7 +1074,7 @@ func (s *partitionTestSuite) TestCreatedDuringInstallMBR(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("node")
 	c.Assert(err, IsNil)
 
-	err = makeMockGadget(s.gadgetRoot, mbrGadgetContentWithSave)
+	err = gadgettest.MakeMockGadget(s.gadgetRoot, mbrGadgetContentWithSave)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
