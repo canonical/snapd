@@ -346,6 +346,21 @@ int main(int argc, char **argv) {
         die("need to run as root or suid");
     }
 
+    struct sc_apparmor apparmor;
+    sc_init_apparmor_support(&apparmor);
+    if (!apparmor.is_confined && apparmor.mode != SC_AA_NOT_APPLICABLE && real_uid != 0) {
+        // Refuse to run when this process is running unconfined on a system
+        // that supports AppArmor when the effective uid is root and the real
+        // id is non-root.  This protects against, for example, unprivileged
+        // users trying to leverage the snap-confine in the core snap to
+        // escalate privileges.
+        errno = 0;  // errno is insignificant here
+        die("snap-confine has elevated permissions and is not confined"
+            " but should be. Refusing to continue to avoid"
+            " permission escalation attacks\n"
+            "Please make sure that the snapd.apparmor service is enabled and started.");
+    }
+
     /* Check if snap-confine was invoked by an ordinary user; if so, we want to
      * drop the root privileges ASAP.  Before doing that, however, we must
      * setup the capabilities that we want to retain.
@@ -418,21 +433,6 @@ int main(int argc, char **argv) {
          * will fail but it is more important to run a little than break
          * entirely in case snapd-side code is incorrect. Therefore error
          * information is collected but discarded. */
-    }
-
-    struct sc_apparmor apparmor;
-    sc_init_apparmor_support(&apparmor);
-    if (!apparmor.is_confined && apparmor.mode != SC_AA_NOT_APPLICABLE && getuid() != 0 && geteuid() == 0) {
-        // Refuse to run when this process is running unconfined on a system
-        // that supports AppArmor when the effective uid is root and the real
-        // id is non-root.  This protects against, for example, unprivileged
-        // users trying to leverage the snap-confine in the core snap to
-        // escalate privileges.
-        errno = 0;  // errno is insignificant here
-        die("snap-confine has elevated permissions and is not confined"
-            " but should be. Refusing to continue to avoid"
-            " permission escalation attacks\n"
-            "Please make sure that the snapd.apparmor service is enabled and started.");
     }
 
     log_startup_stage("snap-confine mount namespace start");
