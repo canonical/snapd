@@ -114,6 +114,19 @@ base: core20
 version: 1.0
 confinement: devmode
 `,
+	"core22": `name: core22
+type: base
+version: 1.0
+`,
+	"pc-kernel=22": `name: pc-kernel
+type: kernel
+version: 1.0
+`,
+	"pc=22": `name: pc
+type: gadget
+base: core22
+version: 1.0
+`,
 }
 
 func MergeSampleSnapYaml(snapYaml ...map[string]string) map[string]string {
