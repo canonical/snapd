@@ -75,6 +75,7 @@ var (
 	installMountVolumes                  = install.MountVolumes
 	installWriteContent                  = install.WriteContent
 	installEncryptPartitions             = install.EncryptPartitions
+	installSaveStorageTraits             = install.SaveStorageTraits
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
@@ -1367,7 +1368,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 	defer unmountParts()
 
-	if err := install.SaveStorageTraits(sys.Model, allLaidOutVols, encryptSetupData); err != nil {
+	if err := installSaveStorageTraits(sys.Model, allLaidOutVols, encryptSetupData); err != nil {
 		return err
 	}
 
