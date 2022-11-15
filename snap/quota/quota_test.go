@@ -298,16 +298,28 @@ func (ts *quotaTestSuite) TestComplexSubGroups(c *C) {
 	c.Assert(subsubsub1.SliceFileName(), Equals, "snap.myroot-sub1-subsub1-subsubsub1.slice")
 }
 
-func (ts *quotaTestSuite) TestGroupUnmixableSnapsSubgroups(c *C) {
+func (ts *quotaTestSuite) TestGroupIsMixableSnapsSubgroups(c *C) {
 	parent, err := quota.NewGroup("parent", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
 
 	// now we add a snap to the parent group
 	parent.Snaps = []string{"test-snap"}
 
-	// add a subgroup to the parent group, this should fail as the group now has snaps
+	// add a subgroup to the parent group
 	_, err = parent.NewSubGroup("sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
-	c.Assert(err, ErrorMatches, "cannot mix sub groups with snaps in the same group")
+	c.Assert(err, IsNil)
+}
+
+func (ts *quotaTestSuite) TestGroupUnmixableServicesSubgroups(c *C) {
+	parent, err := quota.NewGroup("parent", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+
+	// now we add a snap to the parent group
+	parent.Services = []string{"my-service"}
+
+	// add a subgroup to the parent group
+	_, err = parent.NewSubGroup("sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, ErrorMatches, "cannot mix sub groups with services in the same group")
 }
 
 func (ts *quotaTestSuite) TestJournalNamespaceName(c *C) {
@@ -1354,4 +1366,33 @@ func (ts *quotaTestSuite) TestJournalQuotasUpdatesCorrectly(c *C) {
 	c.Check(grp1.JournalLimit.Size, Equals, quantity.SizeMiB)
 	c.Check(grp1.JournalLimit.RateCount, Equals, 15)
 	c.Check(grp1.JournalLimit.RatePeriod, Equals, time.Microsecond*5)
+}
+
+func (ts *quotaTestSuite) TestIsSnapRelatedHappy(c *C) {
+	grp1, err := quota.NewGroup("grp1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	grp1.Snaps = []string{"my-snap"}
+
+	grp2, err := grp1.NewSubGroup("grp1-sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB*128).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp2.IsSnapRelated("my-snap"), Equals, true)
+}
+
+func (ts *quotaTestSuite) TestIsSnapRelatedSameGroupHappy(c *C) {
+	grp1, err := quota.NewGroup("grp1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+	grp1.Snaps = []string{"my-snap"}
+	c.Check(grp1.IsSnapRelated("my-snap"), Equals, true)
+}
+
+func (ts *quotaTestSuite) TestIsSnapRelatedNoMatchingSnap(c *C) {
+	grp1, err := quota.NewGroup("grp1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	grp1.Snaps = []string{"my-snap"}
+
+	grp2, err := grp1.NewSubGroup("grp1-sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB*128).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp2.IsSnapRelated("not-in-group"), Equals, false)
 }

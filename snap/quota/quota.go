@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -132,9 +133,13 @@ type Group struct {
 	// calculations
 	parentGroup *Group
 
-	// Snaps is the set of snaps that is part of this quota group. If this is
-	// empty then the underlying slice may not exist on the system.
+	// Snaps is the set of snaps that is part of this quota group. If both this
+	// and Services is empty then the underlying slice may not exist on the system.
 	Snaps []string `json:"snaps,omitempty"`
+
+	// Services is the set of snap services that is part of this quota group. If both
+	// this and Snaps is empty then the underlying slice may not exist on the system.
+	Services []string `json:"services,omitempty"`
 }
 
 // NewGroup creates a new top quota group with the given name and memory limit.
@@ -236,6 +241,19 @@ func (grp *Group) CurrentTaskUsage() (int, error) {
 		return 0, err
 	}
 	return int(count), nil
+}
+
+// IsSnapRelated returns true if a snap is a part of any parent group
+// or the current quota group.
+func (grp *Group) IsSnapRelated(snap string) bool {
+	i := grp
+	for i != nil {
+		if strutil.ListContains(i.Snaps, snap) {
+			return true
+		}
+		i = i.parentGroup
+	}
+	return false
 }
 
 // SliceFileName returns the name of the slice file that should be used for this
@@ -814,13 +832,15 @@ func (grp *Group) NewSubGroup(name string, resourceLimits Resources) (*Group, er
 		return nil, fmt.Errorf("cannot use same name %q for sub group as parent group", name)
 	}
 
-	// With the new quotas we don't support groups that have a mixture of snaps and
-	// subgroups, as this will cause issues with nesting. Groups/subgroups may now
-	// only consist of either snaps or subgroups.
-	if len(grp.Snaps) != 0 {
-		return nil, fmt.Errorf("cannot mix sub groups with snaps in the same group")
+	// We do not allow services to be mixed with sub-groups. Instead snaps can be mixed
+	// with sub-groups to apply individual limits to services that originate from that snap.
+	if len(grp.Services) != 0 {
+		return nil, fmt.Errorf("cannot mix sub groups with services in the same group")
 	}
 
+	// With the new quotas we don't support nesting of snaps and sub-groups. However as we
+	// now allow sub-groups to be mixed with snaps, the sub-groups mixed this way
+	// can only contain services.
 	if err := subGrp.validate(); err != nil {
 		return nil, err
 	}
@@ -830,6 +850,36 @@ func (grp *Group) NewSubGroup(name string, resourceLimits Resources) (*Group, er
 	grp.SubGroups = append(grp.SubGroups, name)
 
 	return subGrp, nil
+}
+
+func (grp *Group) VerifyGroupNesting() error {
+	// A parent group is only allowed to contain a mixture of snaps
+	// and sub-groups if it's a direct parent. Introducing this limitation
+	// will not affect anything as we didn't allow mixing snaps and sub-groups
+	// prior to this change.
+	i := grp.parentGroup
+	for i != nil {
+		if len(i.Snaps) > 0 && len(i.SubGroups) > 0 {
+			// then the group must be a direct parent
+			if grp.parentGroup != i {
+				return fmt.Errorf("group %q is invalid: only one level of sub-groups are allowed for groups mixed with snaps and sub-groups",
+					grp.Name)
+			}
+		}
+		i = i.parentGroup
+	}
+
+	// Now we verify sub-groups, make sure that we are not mixing
+	// snaps and sub-groups with depths deeper than 1
+	if len(grp.Snaps) > 0 && len(grp.SubGroups) > 0 {
+		for _, sub := range grp.subGroups {
+			if len(sub.SubGroups) > 0 {
+				return fmt.Errorf("group %q is invalid: only one level of sub-groups are allowed for groups mixed with snaps and sub-groups",
+					sub.SubGroups[0])
+			}
+		}
+	}
+	return nil
 }
 
 // ResolveCrossReferences takes a set of deserialized groups and sets all
