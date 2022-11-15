@@ -10,8 +10,9 @@
     <target port='0'/>
   </serial>
   <qemu:commandline>
+    <!-- Workaround for https://bugzilla.redhat.com/show_bug.cgi?id=2034160 -->
     <qemu:arg value='-device'/>
-    <qemu:arg value='virtio-net,netdev=n0'/>
+    <qemu:arg value='virtio-net-pci,netdev=n0,bus=pci.0,addr=03.0'/>
     <qemu:arg value='-netdev'/>
     <qemu:arg value='tap,id=n0,ifname=tap100,script=no,downscript=no'/>
     <qemu:arg value='-device'/>
