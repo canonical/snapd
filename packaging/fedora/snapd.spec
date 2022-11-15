@@ -103,7 +103,7 @@
 %endif
 
 Name:           snapd
-Version:        2.57.5
+Version:        2.57.6
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -991,6 +991,10 @@ fi
 
 
 %changelog
+* Tue Nov 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.57.6
+ - bugfixes
+
 * Mon Oct 17 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.57.5
  - image: clean snapd mount after preseeding
