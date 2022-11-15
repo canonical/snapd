@@ -73,10 +73,10 @@ execute: |
 
   refresh_snap_and_reboot pc-kernel-new.snap
   # XXX gadget refresh test has still issues
-  #refresh_snap_and_reboot pc-new.snap
+  refresh_snap_and_reboot pc-new.snap
 
-  #for f in /boot/grub/kernel.efi /run/mnt/ubuntu-boot/EFI/boot/bootx64.efi /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi; do
-  #    remote.exec sudo grep -q -a '"This program cannot be run in XXX mode"' "$f"
-  #done
+  for f in /boot/grub/kernel.efi /run/mnt/ubuntu-boot/EFI/boot/bootx64.efi /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi; do
+      remote.exec sudo grep -q -a '"This program cannot be run in XXX mode"' "$f"
+  done
 
   rm -rf "$CACHE_D"
