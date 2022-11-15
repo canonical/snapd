@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -31,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
@@ -64,7 +64,7 @@ func (s *contentTestSuite) SetUpTest(c *C) {
 	s.mockUnmountCalls = nil
 
 	s.gadgetRoot = c.MkDir()
-	err := makeMockGadget(s.gadgetRoot, gadgetContent)
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 
 	s.mockMountPoint = c.MkDir()
@@ -103,29 +103,6 @@ var mockOnDiskStructureSystemSeed = gadget.OnDiskStructure{
 		YamlIndex:   1000, // to demonstrate we do not use the laid out index
 	},
 	DiskIndex: 2,
-}
-
-func makeMockGadget(gadgetRoot, gadgetContent string) error {
-	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0644); err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0644); err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644); err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "shim.efi.signed"), []byte("shim.efi.signed content"), 0644); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 const gadgetContent = `volumes:
