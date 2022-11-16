@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"syscall"
 	"unicode"
 
 	"github.com/snapcore/snapd/strutil"
@@ -111,36 +110,62 @@ var fileExists = func(path string) bool {
 	return err == nil
 }
 
-var filesystemRootType = func() (int64, error) {
-	var statfs syscall.Statfs_t
-	if err := syscall.Statfs("/", &statfs); err != nil {
-		return 0, fmt.Errorf("cannot statfs filesystem root")
+var procMountsPath = "/proc/mounts"
+
+// filesystemRootType returns the filesystem type mounted at "/".
+func filesystemRootType() (string, error) {
+	// We scan /proc/mounts, which contains space-separated values:
+	// [irrelevant] [mount point] [fstype] [irrelevant...]
+	// Here are some examples on some platforms:
+	// WSL1       :  rootfs / wslfs rw,noatime 0 0
+	// WSL2       :  /dev/sdc / ext4 rw,relatime,discard,errors=remount-ro,data=ordered 0 0
+	// lxc on WSL2:  /dev/loop0 / btrfs rw,relatime,idmapped,space_cache,user_subvol_rm_allowed,subvolid=259,subvol=/containers/testlxd 0 0
+	// We search for mount point = "/", and return the fstype.
+	//
+	// This should be done by osutil.LoadMountInfo but that would cause a dependency cycle
+	file, err := os.Open(procMountsPath)
+	if err != nil {
+		return "", fmt.Errorf("cannot find root filesystem type: %v", err)
 	}
-	// Type is int32 on 386, use explicit conversion to keep the code
-	// working for both
-	return int64(statfs.Type), nil
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		data := strings.Fields(scanner.Text())
+		if len(data) < 3 || data[1] != "/" {
+			continue
+		}
+		return data[2], nil
+	}
+
+	if err = scanner.Err(); err != nil {
+		return "", fmt.Errorf("cannot find root filesystem type: %v", err)
+	}
+
+	return "", fmt.Errorf("cannot find root filesystem type: not in list")
 }
 
 // We detect WSL via the existence of /proc/sys/fs/binfmt_misc/WSLInterop
 // Under some undocumented circumstances this file may be missing. We have /run/WSL as a backup.
 //
 // We detect WSL1 via the root filesystem type:
-// - ext4 (Kernel magic: 0xef53) means WSL2
-// - wslfs (Kernel magic: 0x53464846) and  lxfs (Kernel magic: ?) mean WSL1
-// After knowing we're in WSL, if any error occurs we assume WSL1 as it is the more restrictive version
+// - wslfs or lxfs mean WSL1
+// - Anything else means WSL2
+// After knowing we're in WSL, if any error occurs we assume WSL2 as it is the more flexible version
 func getWSLVersion() int {
 	if !fileExists("/proc/sys/fs/binfmt_misc/WSLInterop") && !fileExists("/run/WSL") {
 		return 0
 	}
 	fstype, err := filesystemRootType()
 	if err != nil {
-		return 1
-	}
-
-	if fstype == 0xef53 { // ext
+		// TODO log error here once logger can be imported without circular imports
 		return 2
 	}
-	return 1
+
+	if fstype == "wslfs" || fstype == "lxfs" {
+		return 1
+	}
+	return 2
 }
 
 // SystemctlSupportsUserUnits returns true if the systemctl utility
