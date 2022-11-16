@@ -20,17 +20,16 @@
 package release_test
 
 import (
+	"fmt"
 	"io/ioutil"
-	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -66,23 +65,42 @@ BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
 	return mockOSRelease
 }
 
-// Kernel magic numbers
-const (
-	wslfs int64 = 0x53464846
-	ext4  int64 = 0xef53
-)
+// MockFilesystemRootType changes relase.ProcMountsPath so that it points to a temp file
+// generated to contain the provided filesystem type
+func MockFilesystemRootType(c *C, fsType string) (restorer func()) {
+	tmpfile, err := ioutil.TempFile(c.MkDir(), "proc_mounts_mock_")
+	c.Assert(err, IsNil)
 
-func mockWSLsetup(c *C, existsWSLinterop bool, existsRunWSL bool, filesystemID int64) func() {
+	// Sample contents of /proc/mounts. The second line is the one that matters.
+	_, err = tmpfile.Write([]byte(fmt.Sprintf(`none /usr/lib/wsl/lib overlay rw,relatime,lowerdir=/gpu_lib_packaged:/gpu_lib_inbox,upperdir=/gpu_lib/rw/upper,workdir=/gpu_lib/rw/work 0 0
+/dev/sdc / %s rw,relatime,discard,errors=remount-ro,data=ordered 0 0
+none /mnt/wslg tmpfs rw,relatime 0 0
+`, fsType)))
+	c.Assert(err, IsNil)
+
+	restorer = testutil.Backup(release.ProcMountsPath)
+	*release.ProcMountsPath = tmpfile.Name()
+	return restorer
+}
+
+type mockWsl struct {
+	ExistsInterop bool
+	ExistsRunWSL  bool
+	FsType        string
+}
+
+func mockWSLsetup(c *C, settings mockWsl) func() {
 	restoreFileExists := release.MockFileExists(func(s string) bool {
 		if s == "/proc/sys/fs/binfmt_misc/WSLInterop" {
-			return existsWSLinterop
+			return settings.ExistsInterop
 		}
 		if s == "/run/WSL" {
-			return existsRunWSL
+			return settings.ExistsRunWSL
 		}
 		return osutil.FileExists(s)
 	})
-	restoreFilesystemRootType := release.MockFilesystemRootType(filesystemID)
+
+	restoreFilesystemRootType := MockFilesystemRootType(c, settings.FsType)
 
 	return func() {
 		restoreFileExists()
@@ -176,42 +194,38 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 	c.Assert(release.ReleaseInfo.ID, Equals, "distro-id")
 }
 
-func (s *ReleaseTestSuite) TestFilesystemRootType(c *C) {
-	reported_type, err := release.FilesystemRootType()
-	c.Assert(err, IsNil)
-
-	// From man stat:
-	// %t   major device type in hex, for character/block device special files
-	output, err := exec.Command("stat", "-f", "-c", "%t", "/").CombinedOutput()
-	c.Assert(err, IsNil)
-
-	outstr := strings.TrimSpace(string(output[:]))
-	statted_type, err := strconv.ParseInt(outstr, 16, 64)
-	c.Assert(err, IsNil)
-
-	c.Check(reported_type, Equals, statted_type)
-}
-
 func (s *ReleaseTestSuite) TestNonWSL(c *C) {
-	defer mockWSLsetup(c, false, false, ext4)()
+	defer mockWSLsetup(c, mockWsl{ExistsInterop: false, ExistsRunWSL: false, FsType: "ext4"})()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 0)
 }
 
 func (s *ReleaseTestSuite) TestWSL1(c *C) {
-	defer mockWSLsetup(c, true, true, wslfs)()
+	defer mockWSLsetup(c, mockWsl{ExistsInterop: true, ExistsRunWSL: true, FsType: "wslfs"})()
+	v := release.GetWSLVersion()
+	c.Check(v, Equals, 1)
+}
+
+func (s *ReleaseTestSuite) TestWSL1Old(c *C) {
+	defer mockWSLsetup(c, mockWsl{ExistsInterop: true, ExistsRunWSL: true, FsType: "lxfs"})()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 1)
 }
 
 func (s *ReleaseTestSuite) TestWSL2(c *C) {
-	defer mockWSLsetup(c, true, true, ext4)()
+	defer mockWSLsetup(c, mockWsl{ExistsInterop: true, ExistsRunWSL: true, FsType: "ext4"})()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }
 
 func (s *ReleaseTestSuite) TestWSL2NoInterop(c *C) {
-	defer mockWSLsetup(c, false, true, ext4)()
+	defer mockWSLsetup(c, mockWsl{ExistsInterop: false, ExistsRunWSL: true, FsType: "ext4"})()
+	v := release.GetWSLVersion()
+	c.Check(v, Equals, 2)
+}
+
+func (s *ReleaseTestSuite) TestLXDInWSL2(c *C) {
+	defer mockWSLsetup(c, mockWsl{ExistsInterop: true, ExistsRunWSL: false, FsType: "btrfs"})()
 	v := release.GetWSLVersion()
 	c.Check(v, Equals, 2)
 }
