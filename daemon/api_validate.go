@@ -113,13 +113,9 @@ func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response
 	results := make([]validationSetResult, len(names))
 	for i, vs := range names {
 		tr := validationSets[vs]
-		sequence := tr.Current
-		if tr.PinnedAt > 0 {
-			sequence = tr.PinnedAt
-		}
-		sets, err := validationSetForAssert(st, tr.AccountID, tr.Name, sequence)
+		sets, err := validationSetForTracked(st, tr)
 		if err != nil {
-			return InternalError("cannot get assertion for validation set tracking %s/%s/%d: %v", tr.AccountID, tr.Name, sequence, err)
+			return InternalError("cannot get assertion for validation set tracking %s/%s/%d: %v", tr.AccountID, tr.Name, tr.Sequence(), err)
 		}
 		// do not pass ignore validation map, we don't want to ignore validation and show invalid ones.
 		validErr := checkInstalledSnaps(sets, snaps, nil)
@@ -132,7 +128,7 @@ func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response
 			Name:      tr.Name,
 			PinnedAt:  tr.PinnedAt,
 			Mode:      modeStr,
-			Sequence:  tr.Current,
+			Sequence:  tr.Sequence(),
 			Valid:     validErr == nil,
 		}
 	}
@@ -145,18 +141,12 @@ var checkInstalledSnaps = func(vsets *snapasserts.ValidationSets, snaps []*snapa
 }
 
 func validationSetResultFromTracking(st *state.State, tr *assertstate.ValidationSetTracking) (*validationSetResult, error) {
-	var sequence int
-	if tr.PinnedAt > 0 {
-		sequence = tr.PinnedAt
-	} else {
-		sequence = tr.Current
-	}
 	modeStr, err := modeString(tr.Mode)
 	if err != nil {
 		return nil, err
 	}
 
-	sets, err := validationSetForAssert(st, tr.AccountID, tr.Name, sequence)
+	sets, err := validationSetForTracked(st, tr)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +161,7 @@ func validationSetResultFromTracking(st *state.State, tr *assertstate.Validation
 		Name:      tr.Name,
 		PinnedAt:  tr.PinnedAt,
 		Mode:      modeStr,
-		Sequence:  tr.Current,
+		Sequence:  tr.Sequence(),
 		Valid:     validErr == nil,
 	}, nil
 }
@@ -325,8 +315,8 @@ func forgetValidationSet(st *state.State, accountID, name string, sequence int) 
 	return SyncResponse(nil)
 }
 
-func validationSetForAssert(st *state.State, accountID, name string, sequence int) (*snapasserts.ValidationSets, error) {
-	as, err := validationSetAssertFromDb(st, accountID, name, sequence)
+func validationSetForTracked(st *state.State, tr *assertstate.ValidationSetTracking) (*snapasserts.ValidationSets, error) {
+	as, err := validationSetAssertFromDb(st, tr.AccountID, tr.Name, tr.Sequence())
 	if err != nil {
 		return nil, err
 	}
