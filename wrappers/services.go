@@ -582,9 +582,42 @@ func (es *ensureSnapServicesContext) reloadModified() error {
 	return nil
 }
 
+// quotaGroupByName is a helper to find the quota group by name in a quota group slice.
+func quotaGroupByName(name string, allGrps []*quota.Group) *quota.Group {
+	for _, grp := range allGrps {
+		if grp.Name == name {
+			return grp
+		}
+	}
+	return nil
+}
+
+// resolveAppSpecificQuotaGroup takes into account any service-specific quota group. Quota groups
+// are assigned on snap basis in general, which means the quota applies to everything inside the snap, unless
+// a sub-group exists that refer to a specific service. This function checks for that, and returns the correct
+// quota group, should a sub-group exist for this specific appInfo.
+func resolveAppSpecificQuotaGroup(appInfo *snap.AppInfo, snapQuotaGroup *quota.Group, allGrps []*quota.Group) *quota.Group {
+	if snapQuotaGroup == nil {
+		return nil
+	}
+
+	for _, name := range snapQuotaGroup.SubGroups {
+		subGroup := quotaGroupByName(name, allGrps)
+		if subGroup == nil {
+			logger.Debugf("sub-group %q specified but was not added by AddAllNecessaryGroups", name)
+			continue
+		}
+		serviceRef := fmt.Sprintf("%s.%s", appInfo.Snap.InstanceName(), appInfo.Name)
+		if strutil.ListContains(subGroup.Services, serviceRef) {
+			return subGroup
+		}
+	}
+	return snapQuotaGroup
+}
+
 // ensureSnapSystemdUnits takes care of writing .service files for all services
 // registered in snap.Info apps.
-func (es *ensureSnapServicesContext) ensureSnapSystemdUnits(snapInfo *snap.Info, opts *AddSnapServicesOptions) error {
+func (es *ensureSnapServicesContext) ensureSnapSystemdUnits(snapInfo *snap.Info, opts *AddSnapServicesOptions, quotaGroups *quota.QuotaGroupSet) error {
 	handleFileModification := func(app *snap.AppInfo, unitType string, name, path string, content []byte) error {
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
@@ -615,6 +648,7 @@ func (es *ensureSnapServicesContext) ensureSnapSystemdUnits(snapInfo *snap.Info,
 	}
 
 	// note that the Preseeding option is not used here at all
+	allGrps := quotaGroups.AllQuotaGroups()
 	for _, app := range snapInfo.Apps {
 		if !app.IsService() {
 			continue
@@ -622,13 +656,19 @@ func (es *ensureSnapServicesContext) ensureSnapSystemdUnits(snapInfo *snap.Info,
 
 		// create services first; this doesn't trigger systemd
 
-		// Generate new service file state
-		path := app.ServiceFile()
-		content, err := generateSnapServiceFile(app, opts)
+		// Generate new service file state, make an app-specific AddSnapServicesOptions
+		// to avoid modifying the original copy, if we were to override the quota group.
+		content, err := generateSnapServiceFile(app, &AddSnapServicesOptions{
+			QuotaGroup:              resolveAppSpecificQuotaGroup(app, opts.QuotaGroup, allGrps),
+			VitalityRank:            opts.VitalityRank,
+			RequireMountedSnapdSnap: opts.RequireMountedSnapdSnap,
+			Preseeding:              opts.Preseeding,
+		})
 		if err != nil {
 			return err
 		}
 
+		path := app.ServiceFile()
 		if err := handleFileModification(app, "service", app.Name, path, content); err != nil {
 			return err
 		}
@@ -689,7 +729,7 @@ func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaG
 			}
 		}
 
-		if err := es.ensureSnapSystemdUnits(s, genServiceOpts); err != nil {
+		if err := es.ensureSnapSystemdUnits(s, genServiceOpts, neededQuotaGrps); err != nil {
 			return nil, err
 		}
 	}

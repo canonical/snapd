@@ -863,6 +863,165 @@ TasksAccounting=true
 	c.Assert(svcFile, testutil.FileEquals, svcContent)
 }
 
+func (s *servicesTestSuite) TestEnsureSnapServicesWithSnapServices(c *C) {
+	// Test ensures that if a snap has services in a sub-group, the sub-group
+	// slice is correctly applied to the service unit for the snap service. We should
+	// see two slices created (one for root group which has the snap, and one for the
+	// sub-group which has the service).
+	// Furthermore we should see the service unit file for hello-snap.svc1 refer to the
+	// sub-group slice, and not the slice for the primary group.
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	// set up arbitrary quotas for the group to test they get written correctly to the slice
+	grp, err := quota.NewGroup("my-root", quota.NewResourcesBuilder().
+		WithMemoryLimit(quantity.SizeGiB).
+		WithCPUPercentage(50).
+		WithCPUCount(1).
+		Build())
+	c.Assert(err, IsNil)
+
+	grp.Snaps = []string{"hello-snap"}
+
+	sub, err := grp.NewSubGroup("my-sub", quota.NewResourcesBuilder().
+		WithJournalNamespace().
+		Build())
+	c.Assert(err, IsNil)
+
+	sub.Services = []string{"hello-snap.svc1"}
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {QuotaGroup: grp},
+	}
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	svcContent := fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+Slice=snap.%[3]s.slice
+LogNamespace=snap-my-sub
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		systemd.EscapeUnitNamePath("my-root")+"-"+systemd.EscapeUnitNamePath("my-sub"),
+	)
+	jSvcContent := `[Service]
+LogsDirectory=
+`
+
+	rootSliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+X-Snappy=yes
+
+[Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+CPUQuota=50%%
+
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=1073741824
+# for compatibility with older versions of systemd
+MemoryLimit=1073741824
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
+`
+
+	subSliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+X-Snappy=yes
+
+[Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
+`
+
+	jconfTempl := `# Journald configuration for snap quota group %s
+[Journal]
+Storage=auto
+`
+
+	rootSliceContent := fmt.Sprintf(rootSliceTempl, grp.Name)
+	subSliceContent := fmt.Sprintf(subSliceTempl, sub.Name)
+	jconfContent := fmt.Sprintf(jconfTempl, sub.Name)
+
+	exp := []changesObservation{
+		{
+			grp:      sub,
+			unitType: "journald",
+			new:      jconfContent,
+			old:      "",
+			name:     "my-sub",
+		},
+		{
+			grp:      sub,
+			unitType: "service",
+			new:      jSvcContent,
+			old:      "",
+			name:     "my-sub",
+		},
+		{
+			snapName: "hello-snap",
+			unitType: "service",
+			name:     "svc1",
+			old:      "",
+			new:      svcContent,
+		},
+		{
+			grp:      grp,
+			unitType: "slice",
+			new:      rootSliceContent,
+			old:      "",
+			name:     "my-root",
+		},
+		{
+			grp:      sub,
+			unitType: "slice",
+			new:      subSliceContent,
+			old:      "",
+			name:     "my-sub",
+		},
+	}
+	r, observe := expChangeObserver(c, exp)
+	defer r()
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	c.Assert(svcFile, testutil.FileEquals, svcContent)
+}
+
 type changesObservation struct {
 	snapName string
 	grp      *quota.Group
