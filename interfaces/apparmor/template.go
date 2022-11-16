@@ -66,6 +66,8 @@ var templateCommon = `
 
 #include <tunables/global>
 
+###INCLUDE_IF_EXISTS_SNAP_TUNING###
+
 # snapd supports the concept of 'parallel installs' where snaps with the same
 # name are differentiated by '_<instance>' such that foo, foo_bar and foo_baz
 # may all be installed on the system. To support this, SNAP_NAME is set to the

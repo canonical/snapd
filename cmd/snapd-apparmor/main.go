@@ -67,7 +67,6 @@ import (
 // container's boot process to experience failed policy loads but the boot
 // process should continue without any loss of functionality. This is an
 // unsupported configuration that cannot be properly handled by this function.
-//
 func isContainerWithInternalPolicy() bool {
 	if release.OnWSL {
 		return true
@@ -164,4 +163,8 @@ func run() error {
 	}
 
 	return loadAppArmorProfiles()
+}
+
+func mockParserSearchPath(parserSearchPath string) (restore func()) {
+	return apparmor_sandbox.MockParserSearchPath(parserSearchPath)
 }
