@@ -67,6 +67,17 @@ func (vs *ValidationSetTracking) sameAs(tr *ValidationSetTracking) bool {
 		vs.Name == tr.Name && vs.PinnedAt == tr.PinnedAt
 }
 
+// Sequence returns the sequence number of the currently used validation set.
+func (vs *ValidationSetTracking) Sequence() int {
+	// Current was occasionally set to the latest sequence number even when Pinned != 0,
+	// this should no longer happen but return PinnedAt anyway to be safe
+	if vs.PinnedAt > 0 {
+		return vs.PinnedAt
+	}
+
+	return vs.Current
+}
+
 // ValidationSetKey formats the given account id and name into a validation set key.
 func ValidationSetKey(accountID, name string) string {
 	return fmt.Sprintf("%s/%s", accountID, name)
