@@ -33,6 +33,7 @@ type postQuotaData struct {
 	GroupName   string       `json:"group-name"`
 	Parent      string       `json:"parent,omitempty"`
 	Snaps       []string     `json:"snaps,omitempty"`
+	Services    []string     `json:"services,omitempty"`
 	Constraints *QuotaValues `json:"constraints,omitempty"`
 }
 
@@ -41,6 +42,7 @@ type QuotaGroupResult struct {
 	Parent      string       `json:"parent,omitempty"`
 	Subgroups   []string     `json:"subgroups,omitempty"`
 	Snaps       []string     `json:"snaps,omitempty"`
+	Services    []string     `json:"services,omitempty"`
 	Constraints *QuotaValues `json:"constraints,omitempty"`
 	Current     *QuotaValues `json:"current,omitempty"`
 }
@@ -74,7 +76,7 @@ type QuotaValues struct {
 
 // EnsureQuota creates a quota group or updates an existing group.
 // The list of snaps can be empty.
-func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, constraints *QuotaValues) (changeID string, err error) {
+func (client *Client) EnsureQuota(groupName string, parent string, snaps, services []string, constraints *QuotaValues) (changeID string, err error) {
 	if groupName == "" {
 		return "", fmt.Errorf("cannot create or update quota group without a name")
 	}
@@ -85,6 +87,7 @@ func (client *Client) EnsureQuota(groupName string, parent string, snaps []strin
 		GroupName:   groupName,
 		Parent:      parent,
 		Snaps:       snaps,
+		Services:    services,
 		Constraints: constraints,
 	}
 
