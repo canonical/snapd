@@ -182,6 +182,7 @@ func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response 
 		GroupName:   group.Name,
 		Parent:      group.ParentGroup,
 		Snaps:       group.Snaps,
+		Services:    group.Services,
 		Subgroups:   group.SubGroups,
 		Constraints: createQuotaValues(group),
 		Current:     currentUsage,
