@@ -56,10 +56,11 @@ type roleInstance struct {
 
 func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *ValidationConstraints) error {
 	roles := map[string]*roleInstance{
-		SystemSeed: nil,
-		SystemBoot: nil,
-		SystemData: nil,
-		SystemSave: nil,
+		SystemSeed:     nil,
+		SystemSeedNull: nil,
+		SystemBoot:     nil,
+		SystemData:     nil,
+		SystemSave:     nil,
 	}
 
 	xvols := ""
@@ -82,6 +83,9 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 			}
 		}
 	}
+	if roles[SystemSeed] != nil && roles[SystemSeedNull] != nil {
+		return fmt.Errorf("cannot have more than one partition with %s/%s role%s", SystemSeed, SystemSeedNull, xvols)
+	}
 
 	hasModes := false
 	// Classic with gadget + kernel snaps
@@ -95,6 +99,13 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 		// if system-seed role is mentioned assume the uc20
 		// consistency rules
 		hasModes = roles[SystemSeed] != nil
+		// if system-seed-null, this is classic with modes
+		// Note that this will not be true if we use this role in
+		// the future for UC cloud images.
+		if roles[SystemSeedNull] != nil {
+			hasModes = true
+			isClassicWithModes = true
+		}
 	}
 
 	for name, v := range vols {
@@ -260,11 +271,11 @@ func ensureRolesConsistencyClassicWithModes(roles map[string]*roleInstance) erro
 		return err
 	}
 
-	// Check that boot/seed/save are in the same volume
+	// Check that boot/seed/seed-null/save are in the same volume
 	bootVolName := roles[SystemBoot].volName
-	for _, rlLb := range roleLabelOptional {
-		if roles[rlLb.role] != nil && roles[rlLb.role].volName != bootVolName {
-			return fmt.Errorf("system-boot and %s are expected to share the same volume", rlLb.role)
+	for _, role := range []string{SystemSeed, SystemSeedNull, SystemSave} {
+		if roles[role] != nil && roles[role].volName != bootVolName {
+			return fmt.Errorf("system-boot and %s are expected to share the same volume", role)
 		}
 	}
 	return nil
