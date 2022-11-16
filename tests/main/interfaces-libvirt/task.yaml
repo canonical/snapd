@@ -33,6 +33,9 @@ prepare: |
 
     echo "And a snap declaring a plug on the libvirt interface is installed"
     snap install --edge test-snapd-libvirt-consumer
+    # Temporary workaround until the updated test snap is released
+    mount -o bind "$TESTSLIB/snaps/store/test-snapd-libvirt-consumer/vm/ping-unikernel.xml" \
+        /snap/test-snapd-libvirt-consumer/current/vm/ping-unikernel.xml
 
     echo "And the required tap interface is in place"
     ip tuntap add tap100 mode tap
