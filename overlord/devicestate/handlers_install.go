@@ -425,7 +425,7 @@ func prepareEncryptedSystemData(model *asserts.Model, keyForRole map[string]keys
 
 	// keep track of recovery assets
 	if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
-		return fmt.Errorf("cannot observe existing trusted recovery assets: err")
+		return fmt.Errorf("cannot observe existing trusted recovery assets: %v", err)
 	}
 	if err := saveKeys(model, keyForRole); err != nil {
 		return err
