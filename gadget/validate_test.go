@@ -457,7 +457,7 @@ volumes:
 
 func (s *validateGadgetTestSuite) TestValidateRoleDuplicated(c *C) {
 
-	for _, role := range []string{"system-seed", "system-data", "system-boot", "system-save"} {
+	for _, role := range []string{"system-seed", "system-seed-null", "system-data", "system-boot", "system-save"} {
 		gadgetYamlContent := fmt.Sprintf(`
 volumes:
   pc:
@@ -483,7 +483,7 @@ volumes:
 
 func (s *validateGadgetTestSuite) TestValidateSystemSeedRoleTwiceAcrossVolumes(c *C) {
 
-	for _, role := range []string{"system-seed", "system-data", "system-boot", "system-save"} {
+	for _, role := range []string{"system-seed", "system-seed-null", "system-data", "system-boot", "system-save"} {
 		gadgetYamlContent := fmt.Sprintf(`
 volumes:
   pc:
@@ -507,6 +507,31 @@ volumes:
 		err = gadget.Validate(ginfo, nil, nil)
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot have more than one partition with %s role across volumes`, role))
 	}
+}
+
+func (s *validateGadgetTestSuite) TestValidateSystemSeedAndSeedNullRolesAcrossVolumes(c *C) {
+	gadgetYamlContent := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        role: system-seed
+  other:
+    structure:
+      - name: bar
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        role: system-seed-null
+`
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
+
+	ginfo, err := gadget.ReadInfo(s.dir, nil)
+	c.Assert(err, IsNil)
+	err = gadget.Validate(ginfo, nil, nil)
+	c.Assert(err, ErrorMatches, "cannot have more than one partition with system-seed/system-seed-null role across volumes")
 }
 
 func (s *validateGadgetTestSuite) TestRuleValidateHybridGadget(c *C) {
@@ -1185,4 +1210,54 @@ volumes:
 
 	err = gadget.Validate(giMeta, mod, nil)
 	c.Check(err, ErrorMatches, `system-boot and system-save are expected to share the same volume`)
+}
+
+func (s *validateGadgetTestSuite) TestValidateClassicWithModesNoEncryptHappy(c *C) {
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgettest.SingleVolumeClassicwithModesNoEncryptGadgetYaml))
+	mod := &gadgettest.ModelCharacteristics{HasModes: true, IsClassic: true}
+	ginfo, err := gadget.ReadInfo(s.dir, mod)
+	c.Assert(err, IsNil)
+	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, ErrorMatches, `gadget does not support encrypted data: required partition with system-save role is missing`)
+
+	// Now validate without model
+	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, ErrorMatches, `gadget does not support encrypted data: required partition with system-save role is missing`)
+
+	// Should be fine if no encryption
+	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{})
+	c.Assert(err, IsNil)
+
+	// Now validate without model
+	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{})
+	c.Assert(err, IsNil)
+}
+
+func (s *validateGadgetTestSuite) TestValidateClassicWithModesEncryptHappy(c *C) {
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgettest.SingleVolumeClassicwithModesEncryptGadgetYaml))
+	mod := &gadgettest.ModelCharacteristics{HasModes: true, IsClassic: true}
+	ginfo, err := gadget.ReadInfo(s.dir, mod)
+	c.Assert(err, IsNil)
+	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, IsNil)
+
+	// Now validate without model
+	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, IsNil)
+
+	// Should be fine if no encryption
+	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{})
+	c.Assert(err, IsNil)
+
+	// Now validate without model
+	err = gadget.Validate(ginfo, nil, &gadget.ValidationConstraints{})
+	c.Assert(err, IsNil)
 }
