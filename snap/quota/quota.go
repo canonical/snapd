@@ -852,7 +852,11 @@ func (grp *Group) NewSubGroup(name string, resourceLimits Resources) (*Group, er
 	return subGrp, nil
 }
 
-func (grp *Group) VerifyGroupNesting() error {
+// VerifyNesting takes a group and verifies that it satisfies the following conditions:
+// 1. That if any parent is mixed (has both snaps and sub-groups), it must be the immediate
+//    parent group.
+// 2. If the group itself is mixed, that it has only one level of sub-grouping.
+func (grp *Group) VerifyNesting() error {
 	// A parent group is only allowed to contain a mixture of snaps
 	// and sub-groups if it's a direct parent. Introducing this limitation
 	// will not affect anything as we didn't allow mixing snaps and sub-groups
