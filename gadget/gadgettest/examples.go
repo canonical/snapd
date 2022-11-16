@@ -884,6 +884,75 @@ const MultiVolumeUC20GadgetYaml = SingleVolumeUC20GadgetYaml + `
         size: 1G
 `
 
+const SingleVolumeClassicwithModesNoEncryptGadgetYaml = `
+volumes:
+  pc:
+    schema: gpt
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: EFI System Partition
+        role: system-seed-null
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 750M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+
+const SingleVolumeClassicwithModesEncryptGadgetYaml = `
+volumes:
+  pc:
+    schema: gpt
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: EFI System Partition
+        role: system-seed-null
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 750M
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+
 var VMExtraVolumeDiskMapping = &disks.MockDiskMapping{
 	DevNode: "/dev/vdb",
 	DevPath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb",
