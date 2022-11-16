@@ -61,8 +61,8 @@ var longSetQuotaHelp = i18n.G(`
 The set-quota command updates or creates a quota group with the specified set of
 snaps.
 
-A quota group sets resource limits on the set of snaps it contains. Snaps can 
-be at most in one quota group but quota groups can be nested. Nested quota 
+A quota group sets resource limits on the set of snaps or snap services it contains.
+Snaps can be at most in one quota group but quota groups can be nested. Nested quota 
 groups are subject to the restriction that the total sum of each existing quota
 in sub-groups cannot exceed that of the parent group the nested groups are part of.
 
@@ -70,6 +70,12 @@ All provided snaps are appended to the group; to remove a snap from a
 quota group, the entire group must be removed with remove-quota and recreated 
 without the snap. To remove a sub-group from the quota group, the 
 sub-group must be removed directly with the remove-quota command.
+
+A single or multiple services can also be isolated from a snap and put into
+their own sub-groups, as long as the snap they originate from is in the parent
+group. Theses sub-groups fall under same limitations as nested groups, which means
+their resource usage cannot exceed any resources allocated for the parent groups.
+This allows for specific resource restraints on individual services.
 
 The memory limit for a quota group can be increased but not decreased. To
 decrease the memory limit for a quota group, the entire group must be removed
@@ -140,8 +146,8 @@ type cmdSetQuota struct {
 	JournalRateLimit string `long:"journal-rate-limit" optional:"true"`
 	Parent           string `long:"parent" optional:"true"`
 	Positional       struct {
-		GroupName string              `positional-arg-name:"<group-name>" required:"true"`
-		Snaps     []installedSnapName `positional-arg-name:"<snap>" optional:"true"`
+		GroupName string        `positional-arg-name:"<group-name>" required:"true"`
+		Snaps     []serviceName `positional-arg-name:"<snap-or-service>" optional:"true"`
 	} `positional-args:"yes"`
 }
 
@@ -274,10 +280,21 @@ func (x *cmdSetQuota) hasQuotaSet() bool {
 		x.ThreadsMax != "" || x.JournalSizeMax != "" || x.JournalRateLimit != ""
 }
 
+func (x *cmdSetQuota) splitSnapsAndServices() (snaps []string, services []string) {
+	names := serviceNames(x.Positional.Snaps)
+	for _, name := range names {
+		if strings.Contains(name, ".") {
+			services = append(services, name)
+		} else {
+			snaps = append(snaps, name)
+		}
+	}
+	return snaps, services
+}
+
 func (x *cmdSetQuota) Execute(args []string) (err error) {
 	quotaProvided := x.hasQuotaSet()
-
-	names := installedSnapNames(x.Positional.Snaps)
+	snaps, services := x.splitSnapsAndServices()
 
 	// figure out if the group exists or not to make error messages more useful
 	groupExists := false
@@ -289,7 +306,7 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 
 	switch {
 	case !quotaProvided && x.Parent == "" && len(x.Positional.Snaps) == 0:
-		// no snaps were specified, no memory limit was specified, and no parent
+		// no snaps or services were specified, no memory limit was specified, and no parent
 		// was specified, so just the group name was provided - this is not
 		// supported since there is nothing to change/create
 
@@ -326,21 +343,21 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// orphan a sub-group to no longer have a parent, but currently it just
 		// means leave the group with whatever parent it has, or if it doesn't
 		// currently exist, create the group without a parent group
-		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, quotaValues)
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, snaps, services, quotaValues)
 		if err != nil {
 			return err
 		}
 	case len(x.Positional.Snaps) != 0:
-		// there are snaps specified for this group but no limits, so the
-		// group must already exist and we must be adding the specified snaps to
+		// there are snaps or services specified for this group but no limits, so the
+		// group must already exist and we must be adding the specified snaps or services to
 		// the group
 
 		// TODO: this case may someday also imply overwriting the current set of
-		// snaps with whatever was specified with some option, but we don't
-		// currently support that, so currently all snaps specified here are
+		// snaps or services with whatever was specified with some option, but we don't
+		// currently support that, so currently all snaps or services specified here are
 		// just added to the group
 
-		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, nil)
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, snaps, services, nil)
 		if err != nil {
 			return err
 		}
@@ -445,6 +462,12 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 		fmt.Fprint(w, "snaps:\n")
 		for _, snapName := range group.Snaps {
 			fmt.Fprintf(w, "  - %s\n", snapName)
+		}
+	}
+	if len(group.Services) > 0 {
+		fmt.Fprint(w, "services:\n")
+		for _, name := range group.Services {
+			fmt.Fprintf(w, "  - %s\n", name)
 		}
 	}
 
