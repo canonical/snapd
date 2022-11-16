@@ -392,8 +392,7 @@ func quotaCreate(st *state.State, action QuotaControlAction, allGrps map[string]
 		return nil, nil, false, fmt.Errorf("cannot create quota group %q: %v", action.QuotaName, err)
 	}
 
-	// validate that after the snaps/services have been added that the group is not
-	// illegally mixed.
+	// verify we are not trying to add a mixture of services and snaps
 	if err := ensureGroupIsNotMixed(action.AddSnaps, action.AddServices, action.QuotaName, allGrps); err != nil {
 		return nil, nil, false, err
 	}
@@ -510,10 +509,7 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 		return nil, nil, false, fmt.Errorf("group %q cannot be moved to a different parent (re-parenting not yet supported)", action.QuotaName)
 	}
 
-	modifiedGrps := []*quota.Group{grp}
-
-	// validate that after the snaps/services have been added that the group is not
-	// illegally mixed.
+	// verify we are not trying to add a mixture of services and snaps
 	if err := ensureGroupIsNotMixed(action.AddSnaps, action.AddServices, action.QuotaName, allGrps); err != nil {
 		return nil, nil, false, err
 	}
@@ -544,7 +540,7 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 	}
 
 	// update the quota group state
-	allGrps, err := internal.PatchQuotas(st, modifiedGrps...)
+	allGrps, err := internal.PatchQuotas(st, grp)
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -874,8 +870,9 @@ func splitSnapServiceName(name string) (string, string, error) {
 	return parts[0], parts[1], naming.ValidateApp(parts[1])
 }
 
+// appReferenceIsService returns whether the service referred to in the
+// snap is actually a service.
 func appReferenceIsService(st *state.State, snap, service string) error {
-	// validate that the snap exists, and is in a parent group
 	snapInfo, err := snapstate.CurrentInfo(st, snap)
 	if err != nil {
 		return err
@@ -920,12 +917,9 @@ func validateSnapServicesForAddingToGroup(st *state.State, services []string, gr
 		if err != nil {
 			return err
 		}
-
-		err = appReferenceIsService(st, snap, service)
-		if err != nil {
+		if err = appReferenceIsService(st, snap, service); err != nil {
 			return fmt.Errorf("cannot use snap service in group %q: %v", group, err)
 		}
-
 		if parentGrp != nil && !parentGrp.IsSnapRelated(snap) {
 			return fmt.Errorf("cannot use snap %q: the snap must be in a parent group of group %q", snap, group)
 		}

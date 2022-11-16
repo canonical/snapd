@@ -119,8 +119,7 @@ func CreateQuota(st *state.State, name string, createOpts CreateQuotaOptions) (*
 		return nil, fmt.Errorf("group %q already exists", name)
 	}
 
-	// validate that after the snaps/services have been added that the group is not
-	// illegally mixed.
+	// verify we are not trying to add a mixture of services and snaps
 	if err := ensureGroupIsNotMixed(snaps, services, name, allGrps); err != nil {
 		return nil, err
 	}
@@ -266,8 +265,7 @@ func UpdateQuota(st *state.State, name string, updateOpts UpdateQuotaOptions) (*
 		return nil, fmt.Errorf("cannot update group %q: %v", name, err)
 	}
 
-	// validate that after the snaps/services have been added that the group is not
-	// illegally mixed.
+	// verify we are not trying to add a mixture of services and snaps
 	if err := ensureGroupIsNotMixed(updateOpts.AddSnaps, updateOpts.AddServices, name, allGrps); err != nil {
 		return nil, err
 	}
@@ -310,42 +308,36 @@ func UpdateQuota(st *state.State, name string, updateOpts UpdateQuotaOptions) (*
 	return ts, nil
 }
 
+// remove a string item from a string slice, it maintains
+// the same order of the original slice.
 func remove(slice []string, s int) []string {
 	return append(slice[:s], slice[s+1:]...)
 }
 
 // ensureSnapServicesAbsentFromSubGroups removes all service references of a snap in
-// sub-groups related to the group of the snap.
-func ensureSnapServicesAbsentFromSubGroups(st *state.State, grp *quota.Group, snap string, allGrps map[string]*quota.Group) error {
+// sub-groups related to the group of the snap, and returns the groups that were modified.
+func ensureSnapServicesAbsentFromSubGroups(grp *quota.Group, snap string, allGrps map[string]*quota.Group) ([]*quota.Group, error) {
 	// We can assume that when removing a snap, that if it has services in
-	// sub-groups that there will be only one level of sub-groups.
+	// sub-groups that there will be only one level of sub-groups, so we can
+	// avoid checking further sub-groups.
+	var modifiedGrps []*quota.Group
 	for _, name := range grp.SubGroups {
 		subgrp, ok := allGrps[name]
 		if !ok {
-			return fmt.Errorf("non-existent sub-group %q", name)
+			return nil, fmt.Errorf("non-existent sub-group %q", name)
 		}
 
-		var updateState bool
 		for idx, svc := range subgrp.Services {
 			parts := strings.Split(svc, ".")
 			if parts[0] == snap {
 				// found a service that matches the snap we are removing,
 				// so remove that too
 				subgrp.Services = remove(subgrp.Services, idx)
-				updateState = true
+				modifiedGrps = append(modifiedGrps, subgrp)
 			}
-		}
-
-		// update the quota group state
-		if updateState {
-			grps, err := internal.PatchQuotas(st, subgrp)
-			if err != nil {
-				return err
-			}
-			allGrps = grps
 		}
 	}
-	return nil
+	return modifiedGrps, nil
 }
 
 // EnsureSnapAbsentFromQuota ensures that the specified snap is not present
@@ -364,19 +356,18 @@ func EnsureSnapAbsentFromQuota(st *state.State, snap string) error {
 	for _, grp := range allGrps {
 		for idx, sn := range grp.Snaps {
 			if sn == snap {
-				// remove all services in any sub-groups for this snap first.
-				if err := ensureSnapServicesAbsentFromSubGroups(st, grp, snap, allGrps); err != nil {
+				// remove any snap reference from sub-groups, this returns
+				// a list of modified sub-groups which we can then pass along
+				// to PatchQuotas
+				subGrps, err := ensureSnapServicesAbsentFromSubGroups(grp, snap, allGrps)
+				if err != nil {
 					return err
 				}
 
-				// drop this snap from the list of Snaps by swapping it with the
-				// last snap in the list, and then dropping the last snap from
-				// the list
-				grp.Snaps[idx] = grp.Snaps[len(grp.Snaps)-1]
-				grp.Snaps = grp.Snaps[:len(grp.Snaps)-1]
+				grp.Snaps = remove(grp.Snaps, idx)
 
 				// update the quota group state
-				allGrps, err = internal.PatchQuotas(st, grp)
+				allGrps, err = internal.PatchQuotas(st, append(subGrps, grp)...)
 				if err != nil {
 					return err
 				}
