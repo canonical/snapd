@@ -102,7 +102,8 @@ func (s *apiValidationSetsSuite) mockValidationSetsTracking(st *state.State) {
 			"name":       "foo",
 			"mode":       assertstate.Enforce,
 			"pinned-at":  9,
-			"current":    99,
+			// Current should equal pinned-at if pinned-at != 0 but let's check api_validate is robust
+			"current": 99,
 		},
 		fmt.Sprintf("%s/baz", s.dev1acct.AccountID()): map[string]interface{}{
 			"account-id": s.dev1acct.AccountID(),
@@ -247,7 +248,7 @@ func (s *apiValidationSetsSuite) TestListValidationSets(c *check.C) {
 			Name:      "foo",
 			PinnedAt:  9,
 			Mode:      "enforce",
-			Sequence:  99,
+			Sequence:  9,
 			Valid:     false,
 		},
 	})
@@ -304,7 +305,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinned(c *check.C) {
 		Name:      "foo",
 		PinnedAt:  9,
 		Mode:      "enforce",
-		Sequence:  99,
+		Sequence:  9,
 		Valid:     false,
 	})
 }
@@ -614,6 +615,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetMonitorModePinnedLocalOnl
 		c.Assert(name, check.Equals, "bar")
 		c.Assert(sequence, check.Equals, 99)
 		called++
+		// Current should be the same as PinnedAt when PinnedAt != 0 but let's check api_validate is robust
 		return &assertstate.ValidationSetTracking{AccountID: accountID, Name: name, PinnedAt: 99, Current: 99999}, nil
 	})
 	defer restore()
@@ -636,7 +638,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetMonitorModePinnedLocalOnl
 		Name:      "bar",
 		Mode:      "monitor",
 		PinnedAt:  99,
-		Sequence:  99999,
+		Sequence:  99,
 		Valid:     true,
 	})
 	c.Check(called, check.Equals, 1)
