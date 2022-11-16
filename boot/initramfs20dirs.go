@@ -68,6 +68,10 @@ var (
 	// keys during the initramfs on ubuntu-boot.
 	InitramfsBootEncryptionKeyDir string
 
+	// InstallUbuntuDataDir is the location of the data partition during
+	// install mode. This should always be on a physical partition.
+	InstallUbuntuDataDir string
+
 	// snapBootFlagsFile is the location of the file that is used
 	// internally for saving the current boot flags active for this boot.
 	snapBootFlagsFile string
@@ -78,9 +82,9 @@ var (
 // partition.
 func InstallHostWritableDir(mod gadget.Model) string {
 	if mod.Classic() {
-		return filepath.Join(InitramfsRunMntDir, "ubuntu-data")
+		return InstallUbuntuDataDir
 	}
-	return filepath.Join(InitramfsRunMntDir, "ubuntu-data", "system-data")
+	return filepath.Join(InstallUbuntuDataDir, "system-data")
 }
 
 // InitramfsHostWritableDir is the location of the host writable
@@ -125,6 +129,8 @@ func setInitramfsDirVars(rootdir string) {
 	InstallHostFDESaveDir = filepath.Join(InstallHostDeviceSaveDir, "fde")
 	InitramfsSeedEncryptionKeyDir = filepath.Join(InitramfsUbuntuSeedDir, "device/fde")
 	InitramfsBootEncryptionKeyDir = filepath.Join(InitramfsUbuntuBootDir, "device/fde")
+
+	InstallUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data")
 
 	snapBootFlagsFile = filepath.Join(dirs.SnapRunDir, "boot-flags")
 }
