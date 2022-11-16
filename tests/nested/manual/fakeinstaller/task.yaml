@@ -80,6 +80,13 @@ execute: |
   uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
+  # Prepare gadget with the right gadget.yaml
+  snap download --basename=pc --channel="$version/edge" pc
+  unsquashfs -d pc pc.snap
+  sed -i 's/name: ubuntu-seed/name: EFI System partition/' pc/meta/gadget.yaml
+  sed -i 's/role: system-seed/role: system-seed-null/' pc/meta/gadget.yaml
+  snap pack --filename=pc-new.snap pc
+
   # prepare a classic seed
   # TODO:
   # - create pc-classic custom gadget
@@ -90,6 +97,7 @@ execute: |
   snap prepare-image --classic \
       --channel=edge \
       --snap ./pc-kernel.snap \
+      --snap ./pc-new.snap \
       my.model \
       ./classic-seed
   cp -a ./classic-seed/system-seed/ /var/lib/snapd/seed
@@ -112,7 +120,7 @@ execute: |
   MATCH "${loop_device}p1 .* name=\"BIOS Boot\""   < fdisk_output
   # TODO: the real MVP hybrid device will not contain a ubuntu-seed
   #       partition (needs a different gadget)
-  MATCH "${loop_device}p2 .* name=\"ubuntu-seed\"" < fdisk_output
+  MATCH "${loop_device}p2 .* name=\"EFI System partition\"" < fdisk_output
   MATCH "${loop_device}p3 .* name=\"ubuntu-boot\"" < fdisk_output
   MATCH "${loop_device}p4 .* name=\"ubuntu-save\"" < fdisk_output
   MATCH "${loop_device}p5 .* name=\"ubuntu-data\"" < fdisk_output
