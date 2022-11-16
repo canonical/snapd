@@ -138,7 +138,7 @@ current_kernels=${SNAP_F[kernel]}
 model=canonical/ubuntu-core-22-pc-amd64
 grade=dangerous
 model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
-current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 quiet splash"]
+current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0,115200n8 console=tty1 panic=-1"]
 EOF
     sudo cp modeenv "$DESTDIR"/var/lib/snapd/
     # needed from the beginning in ubuntu-data as these are mounted by snap-bootstrap
