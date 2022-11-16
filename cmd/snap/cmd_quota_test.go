@@ -324,6 +324,7 @@ func (s *quotaSuite) TestGetQuotaGroup(c *check.C) {
 			"parent":"bar",
 			"subgroups":["subgrp1"],
 			"snaps":["snap-a","snap-b"],
+			"services":["snap-a.svc1", "snap-b.svc2"],
 			"constraints": { "memory": 1000 },
 			"current": { "memory": 900 }
 		}
@@ -347,6 +348,9 @@ subgroups:
 snaps:
   - snap-a
   - snap-b
+services:
+  - snap-a.svc1
+  - snap-b.svc2
 `[1:])
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
 	c.Check(s.quotaPostHandlerCalls, check.Equals, 0)
