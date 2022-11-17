@@ -261,9 +261,6 @@ func setWaitForSystemRestart(chg *state.Change) {
 // notifyRebootRequiredClassic will write the
 // /run/reboot-required{,.pkgs} marker file
 func notifyRebootRequiredClassic(rebootRequiredSnap string) error {
-	if rebootRequiredSnap == "" {
-		rebootRequiredSnap = "snapd"
-	}
 	// XXX: This will be replaced once there is a better way to
 	// notify about required reboots.  See
 	// https://github.com/uapi-group/specifications/issues/41
@@ -272,7 +269,12 @@ func notifyRebootRequiredClassic(rebootRequiredSnap string) error {
 	// as apt/dpkg.
 	nrrPath := filepath.Join(dirs.GlobalRootDir, "/usr/share/update-notifier/notify-reboot-required")
 	if osutil.FileExists(nrrPath) {
-		snapStr := fmt.Sprintf("snap:%s", rebootRequiredSnap)
+		var snapStr string
+		if rebootRequiredSnap == "" {
+			snapStr = "snapd"
+		} else {
+			snapStr = fmt.Sprintf("snap:%s", rebootRequiredSnap)
+		}
 		cmd := exec.Command(nrrPath, snapStr)
 		cmd.Env = append(os.Environ(),
 			// XXX: remove once update-notifer can take the
