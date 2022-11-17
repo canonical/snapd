@@ -1354,6 +1354,82 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapAndServicesFail(c *C) {
 	c.Assert(err, ErrorMatches, `cannot mix services and snaps in the same quota group`)
 }
 
+func (s *quotaHandlersSuite) TestQuotaSnapAddSnapAndServicesFailExistingSnaps(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		// CreateQuota for foo
+		systemctlCallsForSliceStart("foo"),
+		systemctlCallsForServiceRestart("test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+		AddSnaps:       []string{"test-snap"},
+	})
+	c.Assert(err, IsNil)
+
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:      "update",
+		QuotaName:   "foo",
+		AddServices: []string{"test-snap.svc1"},
+	})
+	c.Assert(err, ErrorMatches, `cannot mix services and snaps in the same quota group`)
+}
+
+func (s *quotaHandlersSuite) TestQuotaSnapAddSnapAndServicesFailExistingServices(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		// CreateQuota for foo
+		systemctlCallsForSliceStart("foo"),
+		// CreateQuota for foo2
+		systemctlCallsForServiceRestart("test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+		AddSnaps:       []string{"test-snap"},
+	})
+	c.Assert(err, IsNil)
+
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo-sub",
+		ParentName:     "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
+		AddServices:    []string{"test-snap.svc1"},
+	})
+	c.Assert(err, IsNil)
+
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:    "update",
+		QuotaName: "foo-sub",
+		AddSnaps:  []string{"test-snap"},
+	})
+	c.Assert(err, ErrorMatches, `cannot mix services and snaps in the same quota group`)
+}
+
 func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServicesFailOnInvalidSnapService(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},

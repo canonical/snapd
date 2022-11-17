@@ -590,7 +590,7 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 
 	// create a quota group
 	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()
-	ts, err := servicestate.CreateQuota(s.state, "foo", servicestate.CreateQuotaOptions{
+	ts1, err := servicestate.CreateQuota(s.state, "foo", servicestate.CreateQuotaOptions{
 		Snaps:          []string{"test-snap", "test-snap2"},
 		ResourceLimits: quotaConstraits,
 	})
@@ -710,12 +710,12 @@ func (s *quotaControlSuite) TestUpdateQuotaPrecond(c *C) {
 		opts servicestate.UpdateQuotaOptions
 		err  string
 	}{
-		{"what", servicestate.QuotaGroupUpdate{}, `group "what" does not exist`},
-		{"foo", servicestate.QuotaGroupUpdate{NewResourceLimits: newConstraits}, `cannot update group "foo": cannot decrease memory limit, remove and re-create it to decrease the limit`},
-		{"foo", servicestate.QuotaGroupUpdate{AddSnaps: []string{"baz"}}, `cannot use snap "baz" in group "foo": snap "baz" is not installed`},
-		{"foo", servicestate.QuotaGroupUpdate{AddSnaps: []string{"baz"}, AddServices: []string{"baz.svc"}}, `cannot mix services and snaps in the same quota group`},
-		{"foo", servicestate.QuotaGroupUpdate{AddServices: []string{"baz"}}, `invalid snap service: baz`},
-		{"foo", servicestate.QuotaGroupUpdate{AddServices: []string{"baz.svc"}}, `cannot use snap service in group "foo": snap "baz" is not installed`},
+		{"what", servicestate.UpdateQuotaOptions{}, `group "what" does not exist`},
+		{"foo", servicestate.UpdateQuotaOptions{NewResourceLimits: newConstraits}, `cannot update group "foo": cannot decrease memory limit, remove and re-create it to decrease the limit`},
+		{"foo", servicestate.UpdateQuotaOptions{AddSnaps: []string{"baz"}}, `cannot use snap "baz" in group "foo": snap "baz" is not installed`},
+		{"foo", servicestate.UpdateQuotaOptions{AddSnaps: []string{"baz"}, AddServices: []string{"baz.svc"}}, `cannot mix services and snaps in the same quota group`},
+		{"foo", servicestate.UpdateQuotaOptions{AddServices: []string{"baz"}}, `invalid snap service: baz`},
+		{"foo", servicestate.UpdateQuotaOptions{AddServices: []string{"baz.svc"}}, `cannot use snap service in group "foo": snap "baz" is not installed`},
 	}
 
 	for _, t := range tests {

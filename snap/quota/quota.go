@@ -137,8 +137,10 @@ type Group struct {
 	// and Services is empty then the underlying slice may not exist on the system.
 	Snaps []string `json:"snaps,omitempty"`
 
-	// Services is the set of snap services that is part of this quota group. If both
-	// this and Snaps is empty then the underlying slice may not exist on the system.
+	// Services is the set of snap services that is part of this quota group. The entries here
+	// are in the format of snap-name.service-name, and the snap-name will refer to a snap in a
+	// parent quota group. If both this and Snaps is empty then the underlying slice may not
+	// exist on the system.
 	Services []string `json:"services,omitempty"`
 }
 
@@ -246,12 +248,12 @@ func (grp *Group) CurrentTaskUsage() (int, error) {
 // IsSnapRelated returns true if a snap is a part of any parent group
 // or the current quota group.
 func (grp *Group) IsSnapRelated(snap string) bool {
-	i := grp
-	for i != nil {
-		if strutil.ListContains(i.Snaps, snap) {
+	currentGrp := grp
+	for currentGrp != nil {
+		if strutil.ListContains(currentGrp.Snaps, snap) {
 			return true
 		}
-		i = i.parentGroup
+		currentGrp = currentGrp.parentGroup
 	}
 	return false
 }
@@ -852,34 +854,42 @@ func (grp *Group) NewSubGroup(name string, resourceLimits Resources) (*Group, er
 	return subGrp, nil
 }
 
-// VerifyNesting takes a group and verifies that it satisfies the following conditions:
-// 1. That if any parent is mixed (has both snaps and sub-groups), it must be the immediate
-//    parent group.
-// 2. If the group itself is mixed, that it has only one level of sub-grouping.
-func (grp *Group) VerifyNesting() error {
+// VerifyNestingAndMixingIsAllowed takes a group and verifies that it satisfies the following conditions:
+//  1. That if any parent is mixed (has both snaps and sub-groups), it must be the immediate
+//     parent group.
+//  2. If the group itself is mixed, that it has only one level of sub-grouping.
+func (grp *Group) VerifyNestingAndMixingIsAllowed() error {
 	// A parent group is only allowed to contain a mixture of snaps
 	// and sub-groups if it's a direct parent. Introducing this limitation
 	// will not affect anything as we didn't allow mixing snaps and sub-groups
 	// prior to this change.
-	i := grp.parentGroup
-	for i != nil {
-		if len(i.Snaps) > 0 && len(i.SubGroups) > 0 {
+	parent := grp.parentGroup
+	for parent != nil {
+		if len(parent.Snaps) > 0 && len(parent.SubGroups) > 0 {
 			// then the group must be a direct parent
-			if grp.parentGroup != i {
+			// and we must not have any sub-groups
+			if grp.parentGroup != parent || len(grp.SubGroups) > 0 {
 				return fmt.Errorf("group %q is invalid: only one level of sub-groups are allowed for groups mixed with snaps and sub-groups",
 					grp.Name)
 			}
 		}
-		i = i.parentGroup
+		parent = parent.parentGroup
 	}
 
 	// Now we verify sub-groups, make sure that we are not mixing
-	// snaps and sub-groups with depths deeper than 1
+	// snaps and sub-groups with depths deeper than 1.
 	if len(grp.Snaps) > 0 && len(grp.SubGroups) > 0 {
 		for _, sub := range grp.subGroups {
+			// If the sub-group has sub-groups, then we fail on this as we don't
+			// allow more nesting that one level.
 			if len(sub.SubGroups) > 0 {
 				return fmt.Errorf("group %q is invalid: only one level of sub-groups are allowed for groups mixed with snaps and sub-groups",
 					sub.SubGroups[0])
+			}
+			// If the sub-group has snaps in it, then fail on this as we don't allow
+			// nesting of snaps
+			if len(sub.Snaps) > 0 {
+				return fmt.Errorf("group %q is invalid: nesting of snaps is not supported", grp.Name)
 			}
 		}
 	}

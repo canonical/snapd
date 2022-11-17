@@ -120,7 +120,7 @@ func CreateQuota(st *state.State, name string, createOpts CreateQuotaOptions) (*
 	}
 
 	// verify we are not trying to add a mixture of services and snaps
-	if err := ensureGroupIsNotMixed(snaps, services, name, allGrps); err != nil {
+	if err := groupEnsureIsNotMixed(createOpts.Snaps, createOpts.Services, name, allGrps); err != nil {
 		return nil, err
 	}
 
@@ -134,13 +134,14 @@ func CreateQuota(st *state.State, name string, createOpts CreateQuotaOptions) (*
 	}
 
 	// make sure the specified snaps exist and aren't currently in another group
-	if err := validateSnapForAddingToGroup(st, createOpts.Snaps, name, allGrps); err != nil {
+	parentGrp := allGrps[createOpts.ParentName]
+	if err := validateSnapForAddingToGroup(st, createOpts.Snaps, name, parentGrp, allGrps); err != nil {
 		return nil, err
 	}
 
 	// if services are provided, the make sure they refer to correct snaps and valid
 	// services.
-	if err := validateSnapServicesForAddingToGroup(st, createOpts.Services, name, createOpts.ParentName, allGrps); err != nil {
+	if err := validateSnapServicesForAddingToGroup(st, createOpts.Services, name, parentGrp, allGrps); err != nil {
 		return nil, err
 	}
 
@@ -266,19 +267,20 @@ func UpdateQuota(st *state.State, name string, updateOpts UpdateQuotaOptions) (*
 	}
 
 	// verify we are not trying to add a mixture of services and snaps
-	if err := ensureGroupIsNotMixed(updateOpts.AddSnaps, updateOpts.AddServices, name, allGrps); err != nil {
+	if err := groupEnsureIsNotMixed(updateOpts.AddSnaps, updateOpts.AddServices, name, allGrps); err != nil {
 		return nil, err
 	}
 
 	// now ensure that all of the snaps mentioned in AddSnaps exist as snaps and
 	// that they aren't already in an existing quota group
-	if err := validateSnapForAddingToGroup(st, updateOpts.AddSnaps, name, grp.ParentGroup, allGrps); err != nil {
+	parentGrp := allGrps[grp.ParentGroup]
+	if err := validateSnapForAddingToGroup(st, updateOpts.AddSnaps, name, parentGrp, allGrps); err != nil {
 		return nil, err
 	}
 
 	// if services are provided, the make sure they refer to correct snaps and valid
 	// services.
-	if err := validateSnapServicesForAddingToGroup(st, updateOpts.AddServices, name, grp.ParentGroup, allGrps); err != nil {
+	if err := validateSnapServicesForAddingToGroup(st, updateOpts.AddServices, name, parentGrp, allGrps); err != nil {
 		return nil, err
 	}
 
@@ -308,10 +310,10 @@ func UpdateQuota(st *state.State, name string, updateOpts UpdateQuotaOptions) (*
 	return ts, nil
 }
 
-// remove a string item from a string slice, it maintains
-// the same order of the original slice.
-func remove(slice []string, s int) []string {
-	return append(slice[:s], slice[s+1:]...)
+// remove a string item at index i from the string slice,
+// it maintains the ordering of the original slice.
+func remove(slice []string, i int) []string {
+	return append(slice[:i], slice[i+1:]...)
 }
 
 // ensureSnapServicesAbsentFromSubGroups removes all service references of a snap in
