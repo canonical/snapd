@@ -860,11 +860,6 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBase(c *C) {
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
 	c.Assert(t.Log(), HasLen, 1)
 	c.Check(t.Log()[0], Matches, `.*INFO Requested system restart.*`)
-
-	var rebootRequiredSnap string
-	err := t.Get("reboot-required-snap", &rebootRequiredSnap)
-	c.Check(err, IsNil)
-	c.Check(rebootRequiredSnap, Equals, "core18")
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *C) {
