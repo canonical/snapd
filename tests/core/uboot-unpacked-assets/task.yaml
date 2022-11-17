@@ -7,6 +7,11 @@ environment:
     NAME/kernelimg: kernel.img
 
 execute: |
+    if [ "$(snaps.name gadget)" = "test-snapd-arm64-gadget" ]; then
+        echo "Devices with test-snapd-arm64-gadget snap don't use uboot, exiting..."
+        exit 0
+    fi
+
     if os.query is-core20 || os.query is-core22; then
         echo "Check that on UC20 and UC22, the kernel snap is extracted onto ubuntu-seed, not on ubuntu-boot"
         output=$(find /run/mnt/ubuntu-seed/systems/*/kernel/ -name "$NAME" )
