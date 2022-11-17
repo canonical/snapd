@@ -251,7 +251,9 @@ func (s *quotaControlSuite) TestCreateQuotaNotEnabled(c *C) {
 	tr.Commit()
 
 	// try to create an empty quota group
-	_, err := servicestate.CreateQuota(s.state, "foo", "", nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	_, err := servicestate.CreateQuota(s.state, "foo", servicestate.QuotaGroupCreate{
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+	})
 	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
 }
 
@@ -264,7 +266,9 @@ func (s *quotaControlSuite) TestCreateQuotaSystemdTooOld(c *C) {
 
 	servicestate.CheckSystemdVersion()
 
-	_, err := servicestate.CreateQuota(s.state, "foo", "", nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	_, err := servicestate.CreateQuota(s.state, "foo", servicestate.QuotaGroupCreate{
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+	})
 	c.Assert(err, ErrorMatches, `cannot use quotas with incompatible systemd: systemd version 229 is too old \(expected at least 230\)`)
 }
 
@@ -288,8 +292,10 @@ func (s *quotaControlSuite) TestCreateQuotaPrecond(c *C) {
 	}
 
 	for _, t := range tests {
-		testConstraints := quota.NewResourcesBuilder().WithMemoryLimit(t.mem).Build()
-		_, err := servicestate.CreateQuota(st, t.name, "", t.snaps, testConstraints)
+		_, err := servicestate.CreateQuota(st, t.name, servicestate.QuotaGroupCreate{
+			Snaps:          t.snaps,
+			ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(t.mem).Build(),
+		})
 		c.Check(err, ErrorMatches, t.err)
 	}
 }
@@ -306,7 +312,10 @@ func (s *quotaControlSuite) TestRemoveQuotaPreseeding(c *C) {
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
 	// create a quota group
-	ts, err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	ts, err := servicestate.CreateQuota(s.state, "foo", servicestate.QuotaGroupCreate{
+		Snaps:          []string{"test-snap"},
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+	})
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("quota-control", "...")
@@ -360,7 +369,10 @@ func (s *quotaControlSuite) TestCreateUnhappyCheckFeatureReqs(c *C) {
 	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()
 
 	// create the quota group
-	_, err := servicestate.CreateQuota(st, "foo", "", []string{"test-snap"}, quotaConstraits)
+	_, err := servicestate.CreateQuota(st, "foo", servicestate.QuotaGroupCreate{
+		Snaps:          []string{"test-snap"},
+		ResourceLimits: quotaConstraits,
+	})
 	c.Check(err, ErrorMatches, `cannot create quota group "foo": check feature requirements error`)
 }
 
@@ -383,7 +395,10 @@ func (s *quotaControlSuite) TestUpdateUnhappyCheckFeatureReqs(c *C) {
 	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()
 
 	// create the quota group
-	ts, err := servicestate.CreateQuota(st, "foo", "", []string{"test-snap"}, quotaConstraits)
+	ts, err := servicestate.CreateQuota(st, "foo", servicestate.QuotaGroupCreate{
+		Snaps:          []string{"test-snap"},
+		ResourceLimits: quotaConstraits,
+	})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("quota-control", "...")
 	chg.AddAll(ts)
@@ -438,7 +453,10 @@ func (s *quotaControlSuite) TestCreateUpdateRemoveQuotaHappy(c *C) {
 	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()
 
 	// create the quota group
-	ts, err := servicestate.CreateQuota(st, "foo", "", []string{"test-snap"}, quotaConstraits)
+	ts, err := servicestate.CreateQuota(st, "foo", servicestate.QuotaGroupCreate{
+		Snaps:          []string{"test-snap"},
+		ResourceLimits: quotaConstraits,
+	})
 	c.Assert(err, IsNil)
 	c.Check(resCheckFeatureRequirementsCalled, Equals, 1)
 
@@ -565,7 +583,10 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 
 	// create a quota group
 	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()
-	ts, err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap", "test-snap2"}, quotaConstraits)
+	ts, err := servicestate.CreateQuota(s.state, "foo", servicestate.QuotaGroupCreate{
+		Snaps:          []string{"test-snap", "test-snap2"},
+		ResourceLimits: quotaConstraits,
+	})
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("quota-control", "...")
@@ -685,7 +706,10 @@ func (s *quotaControlSuite) TestRemoveQuotaPrecond(c *C) {
 }
 
 func (s *quotaControlSuite) createQuota(c *C, name string, limits quota.Resources, snaps ...string) {
-	ts, err := servicestate.CreateQuota(s.state, name, "", snaps, limits)
+	ts, err := servicestate.CreateQuota(s.state, name, servicestate.QuotaGroupCreate{
+		Snaps:          snaps,
+		ResourceLimits: limits,
+	})
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("quota-control", "...")
@@ -752,7 +776,10 @@ func (s *quotaControlSuite) TestSnapOpCreateQuotaConflict(c *C) {
 	chg1.AddAll(ts)
 
 	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()
-	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quotaConstraits)
+	_, err = servicestate.CreateQuota(s.state, "foo", servicestate.QuotaGroupCreate{
+		Snaps:          []string{"test-snap"},
+		ResourceLimits: quotaConstraits,
+	})
 	c.Assert(err, ErrorMatches, `snap "test-snap" has "disable" change in progress`)
 }
 
@@ -795,7 +822,10 @@ func (s *quotaControlSuite) TestCreateQuotaSnapOpConflict(c *C) {
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
 	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()
-	ts, err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quotaConstraits)
+	ts, err := servicestate.CreateQuota(s.state, "foo", servicestate.QuotaGroupCreate{
+		Snaps:          []string{"test-snap"},
+		ResourceLimits: quotaConstraits,
+	})
 	c.Assert(err, IsNil)
 	chg1 := s.state.NewChange("quota-control", "...")
 	chg1.AddAll(ts)
@@ -1050,13 +1080,18 @@ func (s *quotaControlSuite) TestCreateQuotaCreateQuotaConflict(c *C) {
 	snaptest.MockSnapCurrent(c, testYaml2, si2)
 
 	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()
-	ts, err := servicestate.CreateQuota(st, "foo", "", []string{"test-snap"}, quotaConstraits)
+	ts, err := servicestate.CreateQuota(st, "foo", servicestate.QuotaGroupCreate{
+		Snaps:          []string{"test-snap"},
+		ResourceLimits: quotaConstraits,
+	})
 	c.Assert(err, IsNil)
 	chg1 := s.state.NewChange("quota-control", "...")
 	chg1.AddAll(ts)
 
-	newConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB * 2).Build()
-	_, err = servicestate.CreateQuota(st, "foo", "", []string{"test-snap2"}, newConstraits)
+	_, err = servicestate.CreateQuota(st, "foo", servicestate.QuotaGroupCreate{
+		Snaps:          []string{"test-snap2"},
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB * 2).Build(),
+	})
 	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
 }
 
@@ -1109,8 +1144,10 @@ func (s *quotaControlSuite) TestAddSnapToQuotaGroupQuotaConflict(c *C) {
 	snapstate.Set(s.state, "test-snap2", snapst2)
 	snaptest.MockSnapCurrent(c, testYaml2, si2)
 
-	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()
-	ts, err := servicestate.CreateQuota(st, "foo", "", []string{"test-snap"}, quotaConstraits)
+	ts, err := servicestate.CreateQuota(st, "foo", servicestate.QuotaGroupCreate{
+		Snaps:          []string{"test-snap"},
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+	})
 	c.Assert(err, IsNil)
 	chg1 := s.state.NewChange("quota-control", "...")
 	chg1.AddAll(ts)
