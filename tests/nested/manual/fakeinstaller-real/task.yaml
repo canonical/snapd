@@ -27,26 +27,17 @@ prepare: |
       exit
   fi
   snap install jq
-   #shellcheck source=tests/lib/store.sh
-   . "$TESTSLIB"/store.sh
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
   setup_fake_store "$STORE_DIR"
 
-
 restore: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
-  fi
   #shellcheck source=tests/lib/store.sh
   . "$TESTSLIB"/store.sh
   teardown_fake_store "$STORE_DIR"
   rm -rf ./classic-root
 
 execute: |
-  if [ "$TRUST_TEST_KEYS" = "false" ]; then
-      echo "This test needs test keys to be trusted"
-      exit
-  fi
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB/prepare.sh"
   #shellcheck source=tests/lib/nested.sh
@@ -85,8 +76,7 @@ execute: |
   # TODO:
   # - create pc-classic custom gadget
   # - repacked snapd snap
-  # (should be as simple as addinga "--snap=./local-gadget.snap ...")
-  LABEL="$(date +%Y%m%d)"
+  # (should be as simple as adding "--snap=./local-gadget.snap ...")
   gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-22-classic-dangerous.json > my.model
   snap prepare-image --classic \
       --channel=edge \
@@ -95,9 +85,9 @@ execute: |
       my.model \
       ./classic-seed
   # make the seed label more predictable for fake-installer auto-mode
-  NEW_LABEL=classic
-  mv ./classic-seed/system-seed/systems/"$LABEL" ./classic-seed/system-seed/systems/"$NEW_LABEL"
-  LABEL="$NEW_LABEL"
+  LABEL=classic
+  mv ./classic-seed/system-seed/systems/* ./classic-seed/system-seed/systems/"$LABEL"
+  cp -a ./classic-seed/system-seed/ /var/lib/snapd/seed
 
   # we don't need the fakestore anymore
   teardown_fake_store "$STORE_DIR"
@@ -117,7 +107,7 @@ execute: |
     lxd.lxc config set core.proxy_https "$http_proxy"
   fi
   (cd "$TESTSLIB"/fakeinstaller && snapcraft)
-  FAKEINSTALLER_SNAP="$(ls "$TESTSLIB"/fakeinstaller/*.snap)"
+  FAKEINSTALLER_SNAP="$(find "$TESTSLIB"/fakeinstaller/ -maxdepth 1 -name '*.snap')"
   echo "found $FAKEINSTALLER_SNAP"
 
   # create new disk for the installer to work on and attach to VM
@@ -156,7 +146,7 @@ execute: |
   # push our snap down
   # TODO: this abuses /var/lib/snapd to store the deb so that mk-initramfs-classic
   # can pick it up. the real installer will also need a very recent snapd
-  # in it's on disk-image to supprot seeding
+  # in its on disk-image to supprot seeding
   remote.push "$SPREAD_PATH"/../snapd_*.deb
   remote.exec "sudo mv snapd_*.deb /var/lib/snapd/"
   remote.exec "sudo apt install -y /var/lib/snapd/snapd_*.deb"

@@ -91,8 +91,7 @@ execute: |
   # TODO:
   # - create pc-classic custom gadget
   # - repacked snapd snap
-  # (should be as simple as addinga "--snap=./local-gadget.snap ...")
-  LABEL="$(date +%Y%m%d)"
+  # (should be as simple as adding "--snap=./local-gadget.snap ...")
   gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-22-classic-dangerous.json > my.model
   snap prepare-image --classic \
       --channel=edge \
@@ -101,9 +100,8 @@ execute: |
       my.model \
       ./classic-seed
   # make the seed label more predictable for fake-installer auto-mode
-  NEW_LABEL=classic
-  mv ./classic-seed/system-seed/systems/"$LABEL" ./classic-seed/system-seed/systems/"$NEW_LABEL"
-  LABEL="$NEW_LABEL"
+  LABEL=classic
+  mv ./classic-seed/system-seed/systems/* ./classic-seed/system-seed/systems/"$LABEL"
   cp -a ./classic-seed/system-seed/ /var/lib/snapd/seed
 
   # do some light checking that the system is valid
