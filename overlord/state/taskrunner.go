@@ -419,6 +419,10 @@ ConsiderTasks:
 			}
 			continue
 		}
+		if status == WaitStatus {
+			// nothing more to run
+			continue
+		}
 
 		if mustWait(t) {
 			// Dependencies still unhandled.

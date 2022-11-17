@@ -818,12 +818,9 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 // setting its status and requesting a restart.
 // It should usually be invoked returning its result immediately
 // from the caller.
-// TODO not implemented yet: we will return an error in the future if
-// we want to hold the restart. We will also add post hold status and
-// boot id information in the task in that case.
-func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.RestartType,
-	rebootInfo *boot.RebootInfo) error {
-
+// It delegates the work to restart.FinishTaskWithRestart which can decide
+// to set the task to wait returning state.Wait.
+func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.RestartType, rebootInfo *boot.RebootInfo) error {
 	// If system restart is requested, consider how the change the
 	// task belongs to is configured (system-restart-immediate) to
 	// choose whether request an immediate restart or not.
@@ -842,9 +839,17 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.Res
 		}
 	}
 
-	task.SetStatus(status)
-	restart.Request(task.State(), rt, rebootInfo)
-	return nil
+	return restart.FinishTaskWithRestart(task, status, rt, rebootInfo)
+}
+
+// IsErrAndNotWait returns true if err is not nil and neither state.Wait, it is
+// useful for code using FinishTaskWithRestart to not undo work in the presence
+// of a state.Wait return.
+func IsErrAndNotWait(err error) bool {
+	if _, ok := err.(*state.Wait); err == nil || ok {
+		return false
+	}
+	return true
 }
 
 func contentAttr(attrer interfaces.Attrer) string {

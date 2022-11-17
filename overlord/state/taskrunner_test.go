@@ -833,7 +833,17 @@ func (ts *taskRunnerSuite) TestTaskReturningWait(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(chg.Status().Ready(), Equals, false)
 
+	st.Unlock()
+	defer st.Lock()
+	// does nothing
+	r.Ensure()
+
+	// state is unchanged
+	st.Lock()
+	defer st.Unlock()
+	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(chg.Status().Ready(), Equals, false)
 }
 

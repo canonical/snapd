@@ -54,29 +54,27 @@ execute: |
   remote.exec "snap list core22"
   remote.exec "snap list snapd"
 
-  # XXX CLASSIC-NO-REBOOT
-  exit 0
-
   # refresh kernel snap
   refresh_snap_and_reboot()
   {
       local snap_filename=$1
       printf "Test installing snap from file %s\n" "$snap_filename"
-      tests.nested copy "$snap_filename"
+      remote.push "$snap_filename"
       boot_id=$(tests.nested boot-id)
       REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous "$snap_filename" --no-wait)
       # Wait until we stall in the connection of interface as we wait for a reboot
-      retry --wait 1 -n 60 sh -c "remote.exec \"snap change $REMOTE_CHG_ID | grep -E 'Doing .*Automatically connect eligible plugs and slots of snap'\""
+      retry --wait 1 -n 60 sh -c "remote.exec \"snap change $REMOTE_CHG_ID | grep -E 'Wait .*(Make snap .* available to the system|Update assets from gadget .*)'\""
       # Check that no reboot has been scheduled, then force a reboot
-      not test -f /run/systemd/shutdown/scheduled
+      remote.exec not test -f /run/systemd/shutdown/scheduled
       remote.exec sudo reboot || true
       tests.nested wait-for reboot "$boot_id"
       remote.exec sudo snap watch "$REMOTE_CHG_ID"
   }
 
   refresh_snap_and_reboot pc-kernel-new.snap
-  refresh_snap_and_reboot pc-new.snap
 
+  echo "Refresh pc gadget and assert assets got updated"
+  refresh_snap_and_reboot pc-new.snap
   for f in /boot/grub/kernel.efi /run/mnt/ubuntu-boot/EFI/boot/bootx64.efi /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi; do
       remote.exec sudo grep -q -a '"This program cannot be run in XXX mode"' "$f"
   done

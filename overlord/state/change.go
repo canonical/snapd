@@ -68,7 +68,9 @@ const (
 	ErrorStatus Status = 9
 
 	// WaitStatus means the task was accomplished successfully but some
-	// external event needs to happen before work can progress further.
+	// external event needs to happen before work can progress further
+	// (e.g. on classic we require the user to reboot after a
+	// kernel snap update).
 	WaitStatus Status = 10
 
 	nStatuses = iota

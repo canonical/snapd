@@ -184,11 +184,12 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, updateAt
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Assert(chg.IsReady(), Equals, true)
 	if errMatch == "" {
+		c.Assert(chg.IsReady(), Equals, false)
 		c.Check(chg.Err(), IsNil)
-		c.Check(tsk.Status(), Equals, state.DoneStatus)
+		c.Check(tsk.Status(), Equals, state.WaitStatus)
 	} else {
+		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), ErrorMatches, errMatch)
 		c.Check(tsk.Status(), Equals, state.ErrorStatus)
 	}
@@ -197,13 +198,12 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, updateAt
 		if errMatch == "" && applied {
 			// we log on success
 			log := tsk.Log()
-			c.Assert(log, HasLen, 1)
+			c.Assert(log, HasLen, 2)
 			c.Check(log[0], Matches, ".* updated boot config assets")
-			// XXX CLASSIC-NO-REBOOT c.Check(log[1], Matches, ".* Not restarting as this is a classic device.")
+			c.Check(log[1], Matches, ".* Task set to wait until a manual system restart allows to continue")
 		}
 		// There must be no restart request
-		// XXXX CLASSIC-NO-REBOOT
-		c.Check(s.restartRequests, HasLen, 1)
+		c.Check(s.restartRequests, HasLen, 0)
 	} else {
 		c.Assert(s.managedbl.UpdateCalls, Equals, 0)
 	}
@@ -228,7 +228,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccess(c *C) {
 	})
 }
 
-func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassic(c *C) {
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccessClassicWithModes(c *C) {
 	s.state.Lock()
 	s.setupClassicWithModesModel(c)
 	s.state.Unlock()
