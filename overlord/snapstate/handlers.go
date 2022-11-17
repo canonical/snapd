@@ -1754,7 +1754,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	defer func() {
 		// if link snap fails and this is a first install, then we need to clean up
 		// the sequence file
-		if err != nil && firstInstall {
+		if IsErrAndNotWait(err) && firstInstall {
 			snapst.MigratedHidden = false
 			snapst.MigratedToExposedHome = false
 			if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
@@ -1767,7 +1767,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
 	defer func() {
-		if err == nil {
+		if !IsErrAndNotWait(err) {
 			return
 		}
 		// err is not nil, we need to try and unlink the snap to cleanup after
@@ -1859,7 +1859,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 		if len(snapst.Sequence) == 1 {
 			defer func() {
-				if err != nil {
+				if IsErrAndNotWait(err) {
 					// the install is getting undone, and there are no more of this snap
 					// try to remove the aux info we just created
 					discardAuxStoreInfo(cand.SnapID)

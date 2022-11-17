@@ -391,17 +391,21 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), IsNil)
-	c.Check(t.Status(), Equals, state.DoneStatus)
+	if isClassic {
+		c.Assert(chg.IsReady(), Equals, false)
+		c.Check(t.Status(), Equals, state.WaitStatus)
+	} else {
+		c.Assert(chg.IsReady(), Equals, true)
+		c.Check(t.Status(), Equals, state.DoneStatus)
+	}
 	c.Check(updateCalled, Equals, true)
 	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
 	c.Check(rollbackDir, Equals, passedRollbackDir)
 	// should have been removed right after update
 	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
 	if isClassic {
-		// XXX CLASSIC-NO-REBOOT
-		c.Check(s.restartRequests, HasLen, 1)
+		c.Check(s.restartRequests, HasLen, 0)
 	} else {
 		c.Check(s.restartRequests, DeepEquals, []restart.RestartType{expectedRst})
 	}
@@ -1188,23 +1192,26 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Assert(chg.IsReady(), Equals, true)
 	if errMatch == "" {
 		c.Check(chg.Err(), IsNil)
-		c.Check(tsk.Status(), Equals, state.DoneStatus)
+		if isClassic {
+			c.Assert(chg.IsReady(), Equals, false)
+			c.Check(tsk.Status(), Equals, state.WaitStatus)
+		} else {
+			c.Assert(chg.IsReady(), Equals, true)
+			c.Check(tsk.Status(), Equals, state.DoneStatus)
+		}
 		// we log on success
 		log := tsk.Log()
 		if logMatch != "" {
 			if !isClassic {
 				c.Assert(log, HasLen, 1)
 			} else {
-				// XXX CLASSIC-NO-REBOOT
-				c.Assert(log, HasLen, 1)
-				isClassic = false
+				c.Assert(log, HasLen, 2)
 			}
 			c.Check(log[0], Matches, fmt.Sprintf(".* %v", logMatch))
 			if isClassic {
-				c.Check(log[1], Matches, ".* Not restarting as this is a classic device.")
+				c.Check(log[1], Matches, ".* Task set to wait until a manual system restart allows to continue")
 			}
 		} else {
 			c.Check(log, HasLen, 0)
@@ -1219,6 +1226,7 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 			c.Check(s.restartRequests, HasLen, 0)
 		}
 	} else {
+		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), ErrorMatches, errMatch)
 		c.Check(tsk.Status(), Equals, state.ErrorStatus)
 	}
@@ -1698,21 +1706,37 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineClassicWithModesUpdateUndo(c
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// after manual reboot
+	c.Check(tsk.Status(), Equals, state.WaitStatus)
+	log := tsk.Log()
+	c.Assert(log, HasLen, 2)
+	c.Check(log[0], Matches, ".* Updated kernel command line")
+	c.Check(log[1], Matches, ".* Task set to wait until a manual system restart allows to continue")
+	c.Check(s.restartRequests, HasLen, 0)
+	c.Check(restartCount, Equals, 0)
+
+	// simulate restart
+	tsk.SetStatus(state.DoneStatus)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// after manual reboot
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.*total undo.*")
 	c.Check(tsk.Status(), Equals, state.UndoneStatus)
-	log := tsk.Log()
-	// XXX CLASSIC-NO-REBOOT
-	c.Assert(log, HasLen, 2)
-	c.Check(log[0], Matches, ".* Updated kernel command line")
-	// XXX CLASSIC-NO-REBOOT c.Check(log[1], Matches, ".* Not restarting as this is a classic device.")
-	c.Check(log[1], Matches, ".* Reverted kernel command line change")
-	// XXX CLASSIC-NO-REBOOT c.Check(log[3], Matches, ".* Not restarting as this is a classic device.")
-	// update was applied and then undone, but no restarts happened
-	// XXX CLASSIC-NO-REBOOT
-	c.Check(s.restartRequests, HasLen, 2)
-	// XXX CLASSIC-NO-REBOOT
-	c.Check(restartCount, Equals, 2)
+	log = tsk.Log()
+	c.Assert(log, HasLen, 4)
+	c.Check(log[2], Matches, ".* Reverted kernel command line change")
+	c.Check(log[3], Matches, ".* Skipped automatic system restart on classic system when undoing changes back to previous state")
+	// update was applied and then undone, but no automatic restarts happened
+	c.Check(s.restartRequests, HasLen, 0)
+	c.Check(restartCount, Equals, 0)
 	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{

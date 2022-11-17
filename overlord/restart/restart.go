@@ -26,7 +26,9 @@ import (
 	"errors"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 )
 
 type RestartType int
@@ -89,6 +91,9 @@ func Manager(st *state.State, curBootID string, h Handler) (*RestartManager, err
 	if err := rm.init(fromBootID, curBootID); err != nil {
 		return nil, err
 	}
+
+	st.RegisterPendingChangeByAttr("wait-for-system-restart", rm.PendingForSystemRestart)
+
 	return rm, nil
 }
 
@@ -117,6 +122,52 @@ func (m *RestartManager) Ensure() error {
 	return nil
 }
 
+// StartUp implements StateStarterUp.Startup.
+func (m *RestartManager) StartUp() error {
+	s := m.state
+	s.Lock()
+	defer s.Unlock()
+
+	// mark as done tasks that were waiting for an external reboot
+	for _, chg := range s.Changes() {
+		if chg.IsReady() {
+			continue
+		}
+		if !chg.Has("wait-for-system-restart") {
+			continue
+		}
+		stillSetToWait := false
+		for _, t := range chg.Tasks() {
+			if t.Status() != state.WaitStatus {
+				continue
+			}
+
+			var waitBootId string
+			if err := t.Get("wait-for-system-restart-from-boot-id", &waitBootId); err != nil {
+				if errors.Is(err, state.ErrNoState) {
+					continue
+				}
+				return err
+			}
+
+			if m.bootID == waitBootId {
+				// no boot has intervened yet
+				stillSetToWait = true
+				continue
+			}
+
+			logger.Debugf("system restart happened, mark as done task %q for change %s", t.Summary(), chg.ID())
+			t.SetStatus(state.DoneStatus)
+			t.Set("wait-for-system-restart-from-boot-id", nil)
+		}
+		if !stillSetToWait {
+			chg.Set("wait-for-system-restart", nil)
+		}
+	}
+
+	return nil
+}
+
 func (rm *RestartManager) handleRestart(t RestartType, rebootInfo *boot.RebootInfo) {
 	if rm.h != nil {
 		rm.h.HandleRestart(t, rebootInfo)
@@ -137,6 +188,42 @@ func (rm *RestartManager) rebootDidNotHappen() error {
 	return nil
 }
 
+// PendingForSystemRestart returns true if the change has tasks that are set to
+// wait pending a manual system restart. It is registered with the prune logic.
+func (rm *RestartManager) PendingForSystemRestart(chg *state.Change) bool {
+	if chg.IsReady() {
+		return false
+	}
+	if !chg.Has("wait-for-system-restart") {
+		return false
+	}
+	for _, t := range chg.Tasks() {
+		if t.Status() != state.WaitStatus {
+			continue
+		}
+
+		var waitBootId string
+		if err := t.Get("wait-for-system-restart-from-boot-id", &waitBootId); err != nil {
+			if errors.Is(err, state.ErrNoState) {
+				continue
+			}
+			logger.Noticef("internal error: cannot retrieve task state: %v", err)
+			continue
+		}
+
+		if rm.bootID == waitBootId {
+			// no boot has intervened yet
+			continue
+		}
+		for _, dep := range t.HaltTasks() {
+			if dep.Status() == state.DoStatus {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func restartManager(st *state.State, errMsg string) *RestartManager {
 	cached := st.Cached(restartManagerKey{})
 	if cached == nil {
@@ -155,6 +242,52 @@ func Request(st *state.State, t RestartType, rebootInfo *boot.RebootInfo) {
 	}
 	rm.restarting = t
 	rm.handleRestart(t, rebootInfo)
+}
+
+func setWaitForSystemRestart(chg *state.Change) {
+	if chg == nil {
+		// nothing to do
+		return
+	}
+	chg.Set("wait-for-system-restart", true)
+}
+
+// FinishTaskWithRestart will finish a task that needs a restart, by setting
+// its status and requesting a restart.
+// It should usually be invoked returning its result immediately from the
+// caller.
+// In some situations it might not set the desired status directly and schedule
+// the restart. If a manual restart is preferred (like on classic, where
+// automatic restarts are undesirable) it will instead set the task to
+// WaitStatus and return a marker error of type state.Wait.
+// The restart manager itself will then make sure to set the the status as
+// requested later on system restart to allow progress again.
+func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType, rebootInfo *boot.RebootInfo) error {
+	// if a system restart is requested on classic set the task to wait
+	// instead or just log the request if we are on the undo path
+	switch rt {
+	case RestartSystem, RestartSystemNow:
+		if release.OnClassic {
+			if status == state.DoneStatus {
+				rm := restartManager(task.State(), "internal error: cannot request a restart before RestartManager initialization")
+				// TODO notify the system
+				// store current boot id to be able to check
+				// later if we have rebooted or not
+				task.Set("wait-for-system-restart-from-boot-id", rm.bootID)
+				setWaitForSystemRestart(task.Change())
+				task.SetStatus(state.WaitStatus)
+				task.Logf("Task set to wait until a manual system restart allows to continue")
+				return &state.Wait{Reason: "waiting for manual system restart"}
+			} else {
+				task.SetStatus(status)
+				task.Logf("Skipped automatic system restart on classic system when undoing changes back to previous state")
+				return nil
+			}
+		}
+	}
+	task.SetStatus(status)
+	Request(task.State(), rt, rebootInfo)
+	return nil
 }
 
 // Pending returns whether a restart was requested with Request and of which type.

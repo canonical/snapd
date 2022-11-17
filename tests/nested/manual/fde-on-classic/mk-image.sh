@@ -138,7 +138,7 @@ current_kernels=${SNAP_F[kernel]}
 model=canonical/ubuntu-core-22-pc-amd64
 grade=dangerous
 model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
-current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 quiet splash"]
+current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"]
 EOF
     sudo cp modeenv "$DESTDIR"/var/lib/snapd/
     # needed from the beginning in ubuntu-data as these are mounted by snap-bootstrap
@@ -224,7 +224,7 @@ set timeout=3
 # the bootenv
 load_env --file /EFI/ubuntu/grubenv kernel_status snapd_extra_cmdline_args snapd_full_cmdline_args
 
-set snapd_static_cmdline_args='console=ttyS0 console=tty1 panic=-1'
+set snapd_static_cmdline_args='console=ttyS0 console=tty1 console=tty1 panic=-1'
 set cmdline_args="$snapd_static_cmdline_args $snapd_extra_cmdline_args"
 if [ -n "$snapd_full_cmdline_args" ]; then
     set cmdline_args="$snapd_full_cmdline_args"
