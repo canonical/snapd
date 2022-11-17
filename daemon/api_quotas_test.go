@@ -264,6 +264,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 func (s *apiQuotaSuite) TestPostEnsureQuotaCreateJournalRateZeroHappy(c *check.C) {
 	var createCalled int
 	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, createOpts servicestate.QuotaGroupCreate) (*state.TaskSet, error) {
+		createCalled++
 		c.Check(name, check.Equals, "booze")
 		c.Check(createOpts.ParentName, check.Equals, "foo")
 		c.Check(createOpts.Snaps, check.DeepEquals, []string{"some-snap"})
