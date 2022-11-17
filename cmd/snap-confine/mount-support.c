@@ -411,7 +411,6 @@ static void sc_replicate_base_rootfs(const char *scratch_dir,
 			sc_must_snprintf(src_path, sizeof(src_path), "%s/%s",
 					 rootfs_dir, ent->d_name);
 			sc_do_mount(src_path, full_path, NULL, MS_REC | MS_BIND, NULL);
-			sc_do_mount("none", full_path, NULL, MS_REC | MS_SLAVE, NULL);
 		} else if (ent->d_type == DT_LNK) {
 			char link_target[PATH_MAX + 1];
 			ssize_t len = readlinkat(rootfs_fd, ent->d_name,
