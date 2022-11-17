@@ -30,7 +30,7 @@ type (
 	PostQuotaGroupData = postQuotaGroupData
 )
 
-func MockServicestateCreateQuota(f func(st *state.State, name string, parentName string, snaps []string, resourceLimits quota.Resources) (*state.TaskSet, error)) func() {
+func MockServicestateCreateQuota(f func(st *state.State, name string, createOpts servicestate.QuotaGroupCreate) (*state.TaskSet, error)) func() {
 	old := servicestateCreateQuota
 	servicestateCreateQuota = f
 	return func() {

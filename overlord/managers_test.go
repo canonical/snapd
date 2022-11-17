@@ -841,8 +841,10 @@ apps:
 	tr.Commit()
 
 	// add the snap to a quota group
-	ts, err := servicestate.CreateQuota(st, "grp", "", []string{"foo"},
-		quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	ts, err := servicestate.CreateQuota(st, "grp", servicestate.QuotaGroupCreate{
+		Snaps:          []string{"foo"},
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+	})
 	c.Assert(err, IsNil)
 	quotaUpdateChg := st.NewChange("update-quota", "...")
 	quotaUpdateChg.AddAll(ts)
