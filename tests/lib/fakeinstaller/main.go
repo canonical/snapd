@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -60,7 +61,7 @@ func waitForDevice() string {
 	}
 }
 
-// emptyFixedBlockDevices finds any non-removalble physical disk that has
+// emptyFixedBlockDevices finds any non-removable physical disk that has
 // no partitions. It will exclude loop devices.
 func emptyFixedBlockDevices() (devices []string, err error) {
 	// eg. /sys/block/sda/removable
@@ -68,18 +69,19 @@ func emptyFixedBlockDevices() (devices []string, err error) {
 	if err != nil {
 		return nil, err
 	}
+devicesLoop:
 	for _, removableAttr := range removable {
 		val, err := ioutil.ReadFile(removableAttr)
 		if err != nil || string(val) != "0\n" {
 			// removable, ignore
 			continue
 		}
-		// let's see if it has partitions
 		dev := filepath.Base(filepath.Dir(removableAttr))
 		if strings.HasPrefix(dev, "loop") {
 			// is loop device, ignore
 			continue
 		}
+		// let's see if it has partitions
 		pattern := fmt.Sprintf(filepath.Join(dirs.GlobalRootDir, "/sys/block/%s/%s*/partition"), dev, dev)
 		// eg. /sys/block/sda/sda1/partition
 		partitionAttrs, _ := filepath.Glob(pattern)
@@ -87,15 +89,21 @@ func emptyFixedBlockDevices() (devices []string, err error) {
 			// has partitions, ignore
 			continue
 		}
+		// check that there was no previous filesystem
 		devNode := fmt.Sprintf("/dev/%s", dev)
-		output, err := exec.Command("lsblk", "--output", "fstype", "--json", devNode).CombinedOutput()
+		output, err := exec.Command("lsblk", "--output", "fstype", "--noheadings", devNode).CombinedOutput()
 		if err != nil {
 			return nil, osutil.OutputErr(output, err)
 		}
-		// TODO: parser proper json
-		if !strings.Contains(string(output), "null") {
-			// found a filesystem, ignore
-			continue
+		scanner := bufio.NewScanner(strings.NewReader(string(output)))
+		for scanner.Scan() {
+			if scanner.Text() != "" {
+				// found a filesystem, ignore
+				continue devicesLoop
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			return nil, err
 		}
 
 		devices = append(devices, devNode)
@@ -467,7 +475,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "need seed-label, target-device and classic-rootfs as argument\n")
 		os.Exit(1)
 	}
-	os.Setenv("SNAPD_DEBUG", "1")
 	logger.SimpleSetup()
 
 	seedLabel := os.Args[1]
