@@ -38,7 +38,7 @@ dbus (send)
     bus=system
     path=/org/freedesktop/systemd1
     interface=org.freedesktop.systemd1.Manager
-    member={Reboot,PowerOff,Halt}
+    member={Reboot,PowerOff,Halt,Reload}
     peer=(label=unconfined),
 
 dbus (send)
