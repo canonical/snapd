@@ -40,7 +40,9 @@ import (
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 type quotaHandlersSuite struct {
@@ -2969,4 +2971,107 @@ func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupHappy(c *C)
 
 	err := servicestate.ValidateSnapServicesForAddingToGroup(st, []string{"test-snap.svc1"}, "foo2", allQuotas["foo"], allQuotas)
 	c.Assert(err, IsNil)
+}
+
+func (s *quotaHandlersSuite) checkServiceMap(c *C, obtained map[*snap.Info]*wrappers.SnapServiceOptions, expected map[string][]string) {
+	c.Assert(len(expected), Equals, len(obtained))
+	for info, opts := range obtained {
+		expectedSvcs, ok := expected[info.InstanceName()]
+		c.Assert(ok, Equals, true)
+		c.Assert(len(opts.Services), Equals, len(expectedSvcs))
+		for _, svc := range opts.Services {
+			c.Assert(strutil.ListContains(expectedSvcs, svc.Name), Equals, true)
+		}
+	}
+}
+
+func (s *quotaHandlersSuite) TestAffectedSnapServices(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	// Create the root group with snaps in them
+	servicestatetest.MockQuotaInState(st, "foo", "", []string{"test-snap", "test-snap2"}, nil,
+		quota.NewResourcesBuilder().WithJournalNamespace().Build())
+
+	// Create a sub-group containing just service from test-snap
+	servicestatetest.MockQuotaInState(st, "foo-svc", "foo", nil, []string{"test-snap.svc1"},
+		quota.NewResourcesBuilder().WithJournalNamespace().Build())
+
+	// Get all quotas currently in state
+	allGrps, err := servicestate.AllQuotas(st)
+	c.Assert(err, IsNil)
+	c.Assert(allGrps["foo"], NotNil)
+	c.Assert(allGrps["foo-svc"], NotNil)
+
+	// Now, we get a list of services affected if we were to do changes
+	// to the sub-group containing just services
+	opts := servicestate.EnsureSnapServicesForGroupOptions(allGrps, nil)
+	affectedServices, err := servicestate.AffectedSnapServices(st, allGrps["foo-svc"], opts)
+	c.Assert(err, IsNil)
+	s.checkServiceMap(c, affectedServices, map[string][]string{
+		"test-snap": {"svc1"},
+	})
+
+	// However, if we get affected services from the group containing snaps,
+	// we should expect to see all services
+	affectedServices, err = servicestate.AffectedSnapServices(st, allGrps["foo"], opts)
+	c.Assert(err, IsNil)
+	s.checkServiceMap(c, affectedServices, map[string][]string{
+		"test-snap":  {"svc1"},
+		"test-snap2": {"svc1"},
+	})
+}
+
+func (s *quotaHandlersSuite) TestAffectedSnapServicesExtraSnaps(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	// Create the root group with only test-snap in it
+	servicestatetest.MockQuotaInState(st, "foo", "", []string{"test-snap"}, nil,
+		quota.NewResourcesBuilder().WithJournalNamespace().Build())
+
+	// Get all quotas currently in state
+	allGrps, err := servicestate.AllQuotas(st)
+	c.Assert(err, IsNil)
+	c.Assert(allGrps["foo"], NotNil)
+
+	// Now, we get a list of services affected for foo, which should return only
+	// test-snap.svc1, but add in test-snap2 using the ExtraSnaps property.
+	opts := servicestate.EnsureSnapServicesForGroupOptions(allGrps, []string{"test-snap2"})
+	affectedServices, err := servicestate.AffectedSnapServices(st, allGrps["foo"], opts)
+	c.Assert(err, IsNil)
+	s.checkServiceMap(c, affectedServices, map[string][]string{
+		"test-snap":  {"svc1"},
+		"test-snap2": {"svc1"},
+	})
 }
