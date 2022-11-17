@@ -30,7 +30,7 @@ type (
 	PostQuotaGroupData = postQuotaGroupData
 )
 
-func MockServicestateCreateQuota(f func(st *state.State, name string, createOpts servicestate.QuotaGroupCreate) (*state.TaskSet, error)) func() {
+func MockServicestateCreateQuota(f func(st *state.State, name string, createOpts servicestate.CreateQuotaOptions) (*state.TaskSet, error)) func() {
 	old := servicestateCreateQuota
 	servicestateCreateQuota = f
 	return func() {
@@ -38,7 +38,7 @@ func MockServicestateCreateQuota(f func(st *state.State, name string, createOpts
 	}
 }
 
-func MockServicestateUpdateQuota(f func(st *state.State, name string, opts servicestate.QuotaGroupUpdate) (*state.TaskSet, error)) func() {
+func MockServicestateUpdateQuota(f func(st *state.State, name string, opts servicestate.UpdateQuotaOptions) (*state.TaskSet, error)) func() {
 	old := servicestateUpdateQuota
 	servicestateUpdateQuota = f
 	return func() {

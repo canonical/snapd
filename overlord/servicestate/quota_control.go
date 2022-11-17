@@ -82,9 +82,9 @@ func quotaGroupsAvailable(st *state.State) error {
 	return nil
 }
 
-// QuotaGroupCreate reflects all of options available when creating new quota
+// CreateQuotaOptions reflects all of options available when creating new quota
 // groups.
-type QuotaGroupCreate struct {
+type CreateQuotaOptions struct {
 	// ParentName is the name of the parent quota group, the group should be
 	// placed under.
 	ParentName string
@@ -100,7 +100,7 @@ type QuotaGroupCreate struct {
 
 // CreateQuota attempts to create the specified quota group with the specified
 // snaps in it.
-func CreateQuota(st *state.State, name string, createOpts QuotaGroupCreate) (*state.TaskSet, error) {
+func CreateQuota(st *state.State, name string, createOpts CreateQuotaOptions) (*state.TaskSet, error) {
 	if err := quotaGroupsAvailable(st); err != nil {
 		return nil, err
 	}
@@ -203,9 +203,9 @@ func RemoveQuota(st *state.State, name string) (*state.TaskSet, error) {
 	return ts, nil
 }
 
-// QuotaGroupUpdate reflects all of the modifications that can be performed on
+// UpdateQuotaOptions reflects all of the modifications that can be performed on
 // a quota group in one operation.
-type QuotaGroupUpdate struct {
+type UpdateQuotaOptions struct {
 	// AddSnaps is the set of snaps to add to the quota group. These are
 	// instance names of snaps, and are appended to the existing snaps in
 	// the quota group
@@ -220,7 +220,7 @@ type QuotaGroupUpdate struct {
 // TODO: this should support more kinds of updates such as moving groups between
 // parents, removing sub-groups from their parents, and removing snaps from
 // the group.
-func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*state.TaskSet, error) {
+func UpdateQuota(st *state.State, name string, updateOpts UpdateQuotaOptions) (*state.TaskSet, error) {
 	if err := quotaGroupsAvailable(st); err != nil {
 		return nil, err
 	}
