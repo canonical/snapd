@@ -7,7 +7,7 @@ Working persistent state is implemented by `overlord/state.State` with a global 
 
 State managers
 ---------------
-State managers are used to manage both the working state and the on-disk snap state. They all implement the `overlord.StateManager` interface. Code-wise together with a few other auxiliary components they live in `overlord` and its subpackages. `overlord.Overlord` itself is responsible for wiring and coordination of all of these
+State managers are used to manage both the working state and the on-disk snap state. They all implement the `overlord.StateManager` interface. Code-wise, together with a few other auxiliary components, they live in `overlord` and its subpackages. `overlord.Overlord` itself is responsible for the wiring and coordination of all of these.
 
 In broad terms, state managers have assigned responsibilities for different subsystems, and these are in mostly orthogonal areas. They then participate in the management and bookkeeping of the state via various mechanisms.
 
@@ -17,21 +17,21 @@ The *ensure loop* is intended to initiate any automatic state management and cor
 
 `state.Change`
 ---------------
-A `state.Change` is a graph of `state.Task` structs and their inter-dependencies as edges. The purpose of both a `state.Change` and `state.Task` is identified by their kind (which should be an explanatory string value).
+A `state.Change` is a graph of `state.Task` structs and their inter-dependencies as edges. The purpose of both a `state.Change` and a `state.Task` is identified by their kind (which should be an explanatory string value).
 
-Time-consuming and user-initiated operations, usually initiated from the API provided by the `daemon` package, should be realized using the `state.Change` functionality.
+Time-consuming and user-initiated operations, usually initiated from the API provided by the `daemon` package, should be performed using the `state.Change` functionality.
 
 `state.Change` and `state.Task`s instances use the working state to remain persistent, and they can carry input parameters, and their own state, accessible with `Get` and `Set` methods.
 
- The goals of the `state.Change` mechanisms is that operations should survive restarts and reboots and that on error snapd should try to bring back the external state to a previous good state if possible.
+ The goals of the `state.Change` mechanisms are such that operations should survive restarts and reboots and that, on error, snapd should try to bring back the external state to a previous good state if possible.
 
 `state.TaskRunner`
 -------------------
-The `state.TaskRunner` is responsible for `state.Change` and `state.Task` execution, and their state management. The do and undo logic of `state.Task`s is defined by `Task` kind using `TaskRunner.AddHandler`.
+The `state.TaskRunner` is responsible for `state.Change` and `state.Task` execution, and their state management. The do and undo logic of a `state.Task` is defined by `Task` kind using `TaskRunner.AddHandler`.
 
- During execution, a `Task` goes through a series of statuses. These are represented by state.Status and will finish in a ready status of either `DoneStatus, UndoneStatus, ErrorStatus` or `HoldStatus`.
+During execution, a `Task` goes through a series of statuses. These are represented by `state.Status` and will finish in a ready status of either `DoneStatus, UndoneStatus, ErrorStatus` or `HoldStatus`.
 
- If errors are encountered, the `TaskRunner `will normally try to recursively execute the undo logic of any previously depended-upon `Task`s with the exception of the `Task` that generated the error. It is instead expected that any desired undo should be part of its error paths.
+If errors are encountered, the `TaskRunner` will normally try to recursively execute the undo logic of any previously depended-upon `Task`s with the exception of the `Task` that generated the error. It is instead expected that any desired undo should be part of its error paths.
 
 Different `Change`s and independent `Task`s are normally executed concurrently.
 
@@ -49,7 +49,7 @@ st.Lock()
 defer st.Unlock()
 ```
 
-where `st` is the runtime `state.State` instance, accessible via `Task.State() or the handler manager.
+where `st` is the runtime `state.State` instance, accessible via `Task.State()` or the handler manager.
 
 The deferred `Unlock` will implicitly commit any working state mutations at the end of the handler.
 
@@ -59,7 +59,7 @@ Due to potential restarts, the do or undo handler logic in a Task may be re-exec
 
 If slow operations need to be performed, the required `Unlock/Lock` should happen before any working state manipulation.
 
-If the `State` lock is released during a handler, the code needs to consider that other code could have manipulated some relevant working state.There may be also cases where it’s neither possible nor desirable to hold the `State` lock for the entirety of a state manipulation, such as when a manipulation spans multiple subsystems, and so spans multiple tasks. For all such cases, and to simplify reasoning, snapd offers other coordination mechanisms with differing granularity to the `State` lock.
+If the `State` lock is released during a handler, the code needs to consider that other code could have manipulated some relevant working state. There may be also cases where it’s neither possible nor desirable to hold the `State` lock for the entirety of a state manipulation, such as when a manipulation spans multiple subsystems, and so spans multiple tasks. For all such cases, and to simplify reasoning, snapd offers other coordination mechanisms with differing granularity to the `State` lock.
 
 See also the comment in `overlord/snapstate/handlers.go` about state locking.
 
