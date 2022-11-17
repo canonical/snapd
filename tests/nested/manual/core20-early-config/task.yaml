@@ -74,7 +74,7 @@ execute: |
         remote.exec "hostname" | MATCH "foo"
 
         # netplan config defaults are applied
-        remote.exec "cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54
+        remote.exec "sudo cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54
         remote.exec "netplan get bridges.br54.dhcp4" | MATCH true
         remote.exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH true
         remote.exec "netplan get ethernets.ens3.dhcp4" | MATCH false
