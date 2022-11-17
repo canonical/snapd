@@ -7,8 +7,6 @@ set -e
 #exec > /tmp/mk-classic-rootfs.sh.log
 #exec 2>&1
 
-
-# XXX: merge with the work from alfonso in
 # tests/nested/manual/fde-on-classic/mk-image.sh (PR:12102)
 prepare_classic_rootfs() {
     set -x
