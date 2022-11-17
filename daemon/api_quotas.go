@@ -252,7 +252,7 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 		}
 		if err == servicestate.ErrQuotaNotFound {
 			// then we need to create the quota
-			ts, err = servicestateCreateQuota(st, data.GroupName, servicestate.QuotaGroupCreate{
+			ts, err = servicestateCreateQuota(st, data.GroupName, servicestate.CreateQuotaOptions{
 				ParentName:     data.Parent,
 				Snaps:          data.Snaps,
 				ResourceLimits: resourceLimits,
@@ -263,7 +263,7 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 			chgSummary = "Create quota group"
 		} else if err == nil {
 			// the quota group already exists, update it
-			updateOpts := servicestate.QuotaGroupUpdate{
+			updateOpts := servicestate.UpdateQuotaOptions{
 				AddSnaps:          data.Snaps,
 				NewResourceLimits: resourceLimits,
 			}
