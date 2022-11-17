@@ -271,31 +271,31 @@ func (s *aspectSuite) TestAspectsAccessControl(c *C) {
 	}
 }
 
-type spyDataBag struct {
+type witnessDataBag struct {
 	bag              aspects.DataBag
 	getPath, setPath string
 }
 
-func newSpyDataBag(bag aspects.DataBag) *spyDataBag {
-	return &spyDataBag{bag: bag}
+func newSpyDataBag(bag aspects.DataBag) *witnessDataBag {
+	return &witnessDataBag{bag: bag}
 }
 
-func (s *spyDataBag) Get(path string, value interface{}) error {
+func (s *witnessDataBag) Get(path string, value interface{}) error {
 	s.getPath = path
 	return s.bag.Get(path, value)
 }
 
-func (s *spyDataBag) Set(path string, value interface{}) error {
+func (s *witnessDataBag) Set(path string, value interface{}) error {
 	s.setPath = path
 	return s.bag.Set(path, value)
 }
 
-func (s *spyDataBag) Data() ([]byte, error) {
+func (s *witnessDataBag) Data() ([]byte, error) {
 	return s.bag.Data()
 }
 
 // getLastPaths returns the last paths passed into Get and Set and resets them.
-func (s *spyDataBag) getLastPaths() (get, set string) {
+func (s *witnessDataBag) getLastPaths() (get, set string) {
 	get, set = s.getPath, s.setPath
 	s.getPath, s.setPath = "", ""
 	return get, set
