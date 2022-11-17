@@ -1075,7 +1075,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapFailToMixSubgroupWithServices(c *C) {
 	}
 
 	err = s.callDoQuotaControl(&qc3)
-	c.Assert(err, ErrorMatches, `cannot update quota "foo3": group "foo3" is invalid: only one level of sub-groups are allowed for groups mixed with snaps and sub-groups`)
+	c.Assert(err, ErrorMatches, `cannot update quota "foo2": group "foo2" is invalid: only one level of sub-groups are allowed for groups mixed with snaps and sub-groups`)
 
 	// and at last, we add services from test-snap into the sub-group, which itself already
 	// has a subgroup.
