@@ -113,7 +113,7 @@ func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response
 	results := make([]validationSetResult, len(names))
 	for i, vs := range names {
 		tr := validationSets[vs]
-		sets, err := validationSetForTracked(st, tr)
+		sets, err := validationSetsForTracking(st, tr)
 		if err != nil {
 			return InternalError("cannot get assertion for validation set tracking %s/%s/%d: %v", tr.AccountID, tr.Name, tr.Sequence(), err)
 		}
@@ -146,7 +146,7 @@ func validationSetResultFromTracking(st *state.State, tr *assertstate.Validation
 		return nil, err
 	}
 
-	sets, err := validationSetForTracked(st, tr)
+	sets, err := validationSetsForTracking(st, tr)
 	if err != nil {
 		return nil, err
 	}
@@ -315,7 +315,7 @@ func forgetValidationSet(st *state.State, accountID, name string, sequence int) 
 	return SyncResponse(nil)
 }
 
-func validationSetForTracked(st *state.State, tr *assertstate.ValidationSetTracking) (*snapasserts.ValidationSets, error) {
+func validationSetsForTracking(st *state.State, tr *assertstate.ValidationSetTracking) (*snapasserts.ValidationSets, error) {
 	as, err := validationSetAssertFromDb(st, tr.AccountID, tr.Name, tr.Sequence())
 	if err != nil {
 		return nil, err
