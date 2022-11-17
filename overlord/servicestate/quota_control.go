@@ -82,8 +82,8 @@ func quotaGroupsAvailable(st *state.State) error {
 	return nil
 }
 
-// QuotaGroupCreate reflects all of the modifications that can be performed on
-// a quota group in one operation.
+// QuotaGroupCreate reflects all of options available when creating new quota
+// groups.
 type QuotaGroupCreate struct {
 	// ParentName is the name of the parent quota group, the group should be
 	// placed under.
@@ -94,8 +94,7 @@ type QuotaGroupCreate struct {
 	// the quota group
 	Snaps []string
 
-	// ResourceLimits is the new resource limits to be used for the quota group. A
-	// limit is only changed if the corresponding limit is != nil.
+	// ResourceLimits is the resource limits to be used for the quota group.
 	ResourceLimits quota.Resources
 }
 
