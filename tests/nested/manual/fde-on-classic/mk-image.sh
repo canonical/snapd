@@ -93,7 +93,7 @@ install_data_partition() {
     echo "nameserver 8.8.8.8" | sudo tee -a "$DESTDIR"/etc/resolv.conf
     # install additional packages
     sudo chroot "$DESTDIR" /usr/bin/sh -c "DEBIAN_FRONTEND=noninteractive apt update"
-    local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init jq"
+    local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init jq update-notifier-common"
     sudo chroot "$DESTDIR" /usr/bin/sh -c \
          "DEBIAN_FRONTEND=noninteractive apt install --no-install-recommends -y $pkgs"
     # netplan config
@@ -224,7 +224,7 @@ set timeout=3
 # the bootenv
 load_env --file /EFI/ubuntu/grubenv kernel_status snapd_extra_cmdline_args snapd_full_cmdline_args
 
-set snapd_static_cmdline_args='console=ttyS0 console=tty1 console=tty1 panic=-1'
+set snapd_static_cmdline_args='console=ttyS0 console=tty1 panic=-1'
 set cmdline_args="$snapd_static_cmdline_args $snapd_extra_cmdline_args"
 if [ -n "$snapd_full_cmdline_args" ]; then
     set cmdline_args="$snapd_full_cmdline_args"

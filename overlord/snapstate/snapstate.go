@@ -821,10 +821,17 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 // It delegates the work to restart.FinishTaskWithRestart which can decide
 // to set the task to wait returning state.Wait.
 func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.RestartType, rebootInfo *boot.RebootInfo) error {
+	var rebootRequiredSnap string
 	// If system restart is requested, consider how the change the
 	// task belongs to is configured (system-restart-immediate) to
 	// choose whether request an immediate restart or not.
 	if rt == restart.RestartSystem {
+		snapsup, err := TaskSnapSetup(task)
+		if err != nil {
+			return fmt.Errorf("cannot get snap that triggered a reboot: %v", err)
+		}
+		rebootRequiredSnap = snapsup.InstanceName()
+
 		chg := task.Change()
 		var immediate bool
 		if chg != nil {
@@ -839,7 +846,7 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.Res
 		}
 	}
 
-	return restart.FinishTaskWithRestart(task, status, rt, rebootInfo)
+	return restart.FinishTaskWithRestart(task, status, rt, rebootRequiredSnap, rebootInfo)
 }
 
 // IsErrAndNotWait returns true if err is not nil and neither state.Wait, it is

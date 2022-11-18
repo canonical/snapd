@@ -132,6 +132,10 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, updateAttempted
 
 	s.state.Lock()
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
+	tsk.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &s.gadgetSnapInfo.SideInfo,
+		Type:     snap.TypeGadget,
+	})
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	chg.Set("system-restart-immediate", true)
@@ -174,6 +178,10 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRunClassic(c *C, updateAt
 
 	s.state.Lock()
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
+	tsk.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &s.gadgetSnapInfo.SideInfo,
+		Type:     snap.TypeGadget,
+	})
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	chg.Set("system-restart-immediate", true)

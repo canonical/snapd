@@ -24,9 +24,15 @@ package restart
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 )
@@ -252,6 +258,37 @@ func setWaitForSystemRestart(chg *state.Change) {
 	chg.Set("wait-for-system-restart", true)
 }
 
+// notifyRebootRequiredClassic will write the
+// /run/reboot-required{,.pkgs} marker file
+func notifyRebootRequiredClassic(rebootRequiredSnap string) error {
+	// XXX: This will be replaced once there is a better way to
+	// notify about required reboots.  See
+	// https://github.com/uapi-group/specifications/issues/41
+	//
+	// For now call the update-notifier script with similar inputs
+	// as apt/dpkg.
+	nrrPath := filepath.Join(dirs.GlobalRootDir, "/usr/share/update-notifier/notify-reboot-required")
+	if osutil.FileExists(nrrPath) {
+		var snapStr string
+		if rebootRequiredSnap == "" {
+			snapStr = "snapd"
+		} else {
+			snapStr = fmt.Sprintf("snap:%s", rebootRequiredSnap)
+		}
+		cmd := exec.Command(nrrPath, snapStr)
+		cmd.Env = append(os.Environ(),
+			// XXX: remove once update-notifer can take the
+			// reboot required pkg as commandline argument
+			fmt.Sprintf("DPKG_MAINTSCRIPT_PACKAGE=%s", snapStr),
+			"DPKG_MAINTSCRIPT_NAME=postinst")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return osutil.OutputErr(output, err)
+		}
+	}
+
+	return nil
+}
+
 // FinishTaskWithRestart will finish a task that needs a restart, by setting
 // its status and requesting a restart.
 // It should usually be invoked returning its result immediately from the
@@ -262,7 +299,7 @@ func setWaitForSystemRestart(chg *state.Change) {
 // WaitStatus and return a marker error of type state.Wait.
 // The restart manager itself will then make sure to set the the status as
 // requested later on system restart to allow progress again.
-func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType, rebootInfo *boot.RebootInfo) error {
+func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType, snapName string, rebootInfo *boot.RebootInfo) error {
 	// if a system restart is requested on classic set the task to wait
 	// instead or just log the request if we are on the undo path
 	switch rt {
@@ -270,7 +307,10 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType
 		if release.OnClassic {
 			if status == state.DoneStatus {
 				rm := restartManager(task.State(), "internal error: cannot request a restart before RestartManager initialization")
-				// TODO notify the system
+				// notify the system that a reboot is required
+				if err := notifyRebootRequiredClassic(snapName); err != nil {
+					logger.Noticef("cannot notify about pending reboot: %v", err)
+				}
 				// store current boot id to be able to check
 				// later if we have rebooted or not
 				task.Set("wait-for-system-restart-from-boot-id", rm.bootID)
