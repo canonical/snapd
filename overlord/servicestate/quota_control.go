@@ -90,8 +90,7 @@ type CreateQuotaOptions struct {
 	ParentName string
 
 	// Snaps is the set of snaps to add to the quota group. These are
-	// instance names of snaps, and are appended to the existing snaps in
-	// the quota group
+	// instance names of snaps.
 	Snaps []string
 
 	// ResourceLimits is the resource limits to be used for the quota group.
