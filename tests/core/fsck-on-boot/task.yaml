@@ -58,7 +58,7 @@ execute: |
         *)
           umount /boot/uboot
           ;;
-      fi
+      esac
     else
       echo "Please adjust the test to support this core system"
       false
