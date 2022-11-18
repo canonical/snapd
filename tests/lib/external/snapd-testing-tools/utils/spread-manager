@@ -135,31 +135,15 @@ main() {
 
     local subcommand="$1"
     local action=
-    local params=
     while [ $# -gt 0 ]; do
         case "$1" in
             -h|--help)
                 show_help
                 exit 0
                 ;;
-            *-manual)
-                action=$(echo "$subcommand" | tr '-' '_')                
-                shift
-                if [ "$1" == "--project-path" ]; then
-                    params="$2"
-                    shift 2
-                else
-                    params="$(pwd)"
-                fi
-                # shellcheck disable=SC2124
-                params="$params $@"
-                break
-                ;;
             *)
                 action=$(echo "$subcommand" | tr '-' '_')
                 shift
-                # shellcheck disable=SC2124
-                params="$@"
                 break
                 ;;
         esac
@@ -170,8 +154,24 @@ main() {
         show_help
         exit 1
     fi
-    "$action" "$params"
-    
+
+    while [ $# -gt 0 ]; do
+        case "$action" in
+            *_manual)
+                if [ "$1" == "--project-path" ]; then
+                    shift
+                    "$action" "$@"
+                else
+                    "$action" "$(pwd)" "$@"
+                fi
+                break
+                ;;
+            *)
+                "$action" "$@"
+                break
+                ;;
+        esac
+    done
 }
 
 main "$@"
