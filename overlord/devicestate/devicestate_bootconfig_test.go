@@ -159,8 +159,9 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, updateAttempted
 		if errMatch == "" && applied {
 			// we log on success
 			log := tsk.Log()
-			c.Assert(log, HasLen, 1)
+			c.Assert(log, HasLen, 2)
 			c.Check(log[0], Matches, ".* updated boot config assets")
+			c.Check(log[1], Matches, ".* Requested system restart")
 			// update was applied, thus a restart was requested
 			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 		} else {
