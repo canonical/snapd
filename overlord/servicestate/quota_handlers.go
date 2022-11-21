@@ -393,8 +393,8 @@ func quotaCreate(st *state.State, action QuotaControlAction, allGrps map[string]
 	}
 
 	// verify we are not trying to add a mixture of services and snaps
-	if err := groupEnsureIsNotMixed(action.AddSnaps, action.AddServices, action.QuotaName, allGrps); err != nil {
-		return nil, nil, false, err
+	if len(action.AddSnaps) > 0 && len(action.AddServices) > 0 {
+		return nil, nil, false, fmt.Errorf("cannot mix services and snaps in the same quota group")
 	}
 
 	// make sure the specified snaps exist and aren't currently in another group
@@ -510,7 +510,7 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 	}
 
 	// verify we are not trying to add a mixture of services and snaps
-	if err := groupEnsureIsNotMixed(action.AddSnaps, action.AddServices, action.QuotaName, allGrps); err != nil {
+	if err := groupEnsureOnlySnapsOrServices(action.AddSnaps, action.AddServices, grp); err != nil {
 		return nil, nil, false, err
 	}
 
@@ -803,18 +803,17 @@ func ensureSnapServicesStateForGroup(st *state.State, grp *quota.Group, opts *en
 	return restartSnapServices(st, appsToRestartBySnap)
 }
 
-// groupEnsureIsNotMixed is a helper which returns an error if the snaps and/or
+// groupEnsureOnlySnapsOrServices is a helper which returns an error if the snaps and/or
 // services we are trying to add would result in a mixed group. A group is considered
 // mixed if:
 // 1. The group would end up containing both snaps and services
 // 2. The group would end up containing both services and groups
-func groupEnsureIsNotMixed(snapsToAdd, servicesToAdd []string, group string, allGrps map[string]*quota.Group) error {
+func groupEnsureOnlySnapsOrServices(snapsToAdd, servicesToAdd []string, grp *quota.Group) error {
 	if len(snapsToAdd) > 0 && len(servicesToAdd) > 0 {
 		return fmt.Errorf("cannot mix services and snaps in the same quota group")
 	}
 
-	grp, ok := allGrps[group]
-	if ok && ((len(grp.Services) > 0 && len(snapsToAdd) > 0) || (len(grp.Snaps) > 0 && len(servicesToAdd) > 0)) {
+	if (len(grp.Services) > 0 && len(snapsToAdd) > 0) || (len(grp.Snaps) > 0 && len(servicesToAdd) > 0) {
 		return fmt.Errorf("cannot mix services and snaps in the same quota group")
 	}
 	return nil
@@ -870,9 +869,9 @@ func splitSnapServiceName(name string) (string, string, error) {
 	return parts[0], parts[1], naming.ValidateApp(parts[1])
 }
 
-// appReferenceIsService returns whether the service referred to in the
+// ensureAppReferenceIsService returns whether the service referred to in the
 // snap is actually a service.
-func appReferenceIsService(st *state.State, snap, service string) error {
+func ensureAppReferenceIsService(st *state.State, snap, service string) error {
 	snapInfo, err := snapstate.CurrentInfo(st, snap)
 	if err != nil {
 		return err
@@ -888,9 +887,9 @@ func appReferenceIsService(st *state.State, snap, service string) error {
 	return nil
 }
 
-// ensureGroupHasNoSubgroups returns true if the group has no sub-groups or it doesn't exist,
+// groupHasSubGroups returns true if the group has no sub-groups or it doesn't exist,
 // otherwise turns false.
-func ensureGroupHasNoSubgroups(group string, allGrps map[string]*quota.Group) bool {
+func groupHasSubGroups(group string, allGrps map[string]*quota.Group) bool {
 	grp, ok := allGrps[group]
 	if ok && len(grp.SubGroups) != 0 {
 		return false
@@ -898,15 +897,17 @@ func ensureGroupHasNoSubgroups(group string, allGrps map[string]*quota.Group) bo
 	return true
 }
 
+// validateSnapServicesForAddingToGroup verifies that the given services can be added
+// to the provided group. Services come in the format of snap.service, and we do
+// the split and parsing in this function. We need to make sure that the snaps referred
+// are related to the current group, and we make sure that the services are valid service names.
+//
+// We do not allow mixing services and sub-groups. A quota group of service must be
+// the final leaf node in the quota group tree.
+// State must locked prior to calling this function
 func validateSnapServicesForAddingToGroup(st *state.State, services []string, group string, parentGroup *quota.Group, allGrps map[string]*quota.Group) error {
-	// Services come in the format of snap.service, and we do the split and parsing
-	// in this function. We need to make sure that the snaps referred are related to
-	// the current group, and we make sure that the services are valid service names.
-
-	// We do not allow mixing services and sub-groups. A quota group of service must be
-	// the final leaf node in the quota group tree.
 	if len(services) > 0 {
-		if !ensureGroupHasNoSubgroups(group, allGrps) {
+		if !groupHasSubGroups(group, allGrps) {
 			return fmt.Errorf("cannot mix services and sub groups in the group %q", group)
 		}
 	}
@@ -916,7 +917,7 @@ func validateSnapServicesForAddingToGroup(st *state.State, services []string, gr
 		if err != nil {
 			return err
 		}
-		if err = appReferenceIsService(st, snap, service); err != nil {
+		if err = ensureAppReferenceIsService(st, snap, service); err != nil {
 			return fmt.Errorf("cannot use snap service in group %q: %v", group, err)
 		}
 		if parentGroup != nil && !parentGroup.IsSnapRelated(snap) {

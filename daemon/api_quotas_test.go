@@ -263,13 +263,13 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 
 func (s *apiQuotaSuite) TestPostEnsureQuotaCreateServicesHappy(c *check.C) {
 	var createCalled int
-	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps, services []string, resourceLimits quota.Resources) (*state.TaskSet, error) {
+	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, createOpts servicestate.CreateQuotaOptions) (*state.TaskSet, error) {
 		createCalled++
 		c.Check(name, check.Equals, "booze")
-		c.Check(parentName, check.Equals, "foo")
-		c.Check(snaps, check.DeepEquals, []string{"some-snap"})
-		c.Check(services, check.DeepEquals, []string{"some-snap.svc1"})
-		c.Check(resourceLimits, check.DeepEquals, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+		c.Check(createOpts.ParentName, check.Equals, "foo")
+		c.Check(createOpts.Snaps, check.DeepEquals, []string{"some-snap"})
+		c.Check(createOpts.Services, check.DeepEquals, []string{"some-snap.svc1"})
+		c.Check(createOpts.ResourceLimits, check.DeepEquals, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
 		ts := state.NewTaskSet(st.NewTask("foo-quota", "..."))
 		return ts, nil
 	})

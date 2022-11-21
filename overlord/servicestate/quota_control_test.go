@@ -598,7 +598,11 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 
 	// create a sub-group containing services to ensure these are removed too
 	subConstraints := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build()
-	ts2, err := servicestate.CreateQuota(s.state, "foo2", "foo", nil, []string{"test-snap.svc1"}, subConstraints)
+	ts2, err := servicestate.CreateQuota(s.state, "foo2", servicestate.CreateQuotaOptions{
+		ParentName:     "foo",
+		Services:       []string{"test-snap.svc1"},
+		ResourceLimits: subConstraints,
+	})
 	c.Assert(err, IsNil)
 	ts2.WaitAll(ts1)
 
