@@ -20,7 +20,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -95,15 +94,9 @@ devicesLoop:
 		if err != nil {
 			return nil, osutil.OutputErr(output, err)
 		}
-		scanner := bufio.NewScanner(strings.NewReader(string(output)))
-		for scanner.Scan() {
-			if scanner.Text() != "" {
-				// found a filesystem, ignore
-				continue devicesLoop
-			}
-		}
-		if err := scanner.Err(); err != nil {
-			return nil, err
+		if strings.TrimSpace(string(output)) != "" {
+			// found a filesystem, ignore
+			continue devicesLoop
 		}
 
 		devices = append(devices, devNode)
