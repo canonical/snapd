@@ -378,7 +378,7 @@ func (s *restartSuite) TestPendingForSystemRestart(c *C) {
 	c.Assert(err, FitsTypeOf, &state.Wait{})
 	t3.SetStatus(state.UndoStatus)
 	t4.SetStatus(state.WaitStatus)
-	c.Check(chg1.IsReady(), Equals, false)
+	c.Check(chg2.IsReady(), Equals, false)
 
 	chg3 := st.NewChange("pending", "...")
 	t5 := st.NewTask("wait-task", "...")
@@ -389,15 +389,24 @@ func (s *restartSuite) TestPendingForSystemRestart(c *C) {
 	chg3.AddTask(t7)
 	t6.WaitFor(t5)
 	t7.WaitFor(t5)
-	err = restart.FinishTaskWithRestart(t6, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t5, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
 	c.Assert(err, FitsTypeOf, &state.Wait{})
 	t6.SetStatus(state.WaitStatus)
 	t7.SetStatus(state.DoStatus)
-	c.Check(chg1.IsReady(), Equals, false)
+	c.Check(chg3.IsReady(), Equals, false)
+
+	chg4 := st.NewChange("pending", "...")
+	t8 := st.NewTask("wait-task", "...")
+	chg4.AddTask(t8)
+	// nothing after t8
+	err = restart.FinishTaskWithRestart(t8, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	c.Assert(err, FitsTypeOf, &state.Wait{})
+	c.Check(chg4.IsReady(), Equals, false)
 
 	c.Check(rm.PendingForSystemRestart(chg1), Equals, false)
 	c.Check(rm.PendingForSystemRestart(chg2), Equals, false)
-	c.Check(rm.PendingForSystemRestart(chg3), Equals, false)
+	c.Check(rm.PendingForSystemRestart(chg3), Equals, true)
+	c.Check(rm.PendingForSystemRestart(chg4), Equals, true)
 }
 
 type notifyRebootRequiredSuite struct {
