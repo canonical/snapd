@@ -123,12 +123,10 @@ const fwupdPermanentSlotAppArmor = `
   # Allow write access for efi firmware updater
   /boot/efi/{,**/} r,
   # allow access to fwupd* and fw/ under boot/ for core systems
-  /boot/efi/EFI/boot/fwupd*.efi* rw,
-  /boot/efi/EFI/boot/fw/** rw,
-  # allow access to fwupd* and fw/ under ubuntu/ for classic systems
-  # but it should be deprecated once old uefi-fw-tools is no longer used
-  /boot/efi/EFI/ubuntu/fwupd*.efi* rw,
-  /boot/efi/EFI/ubuntu/fw/** rw,
+  /boot/efi/EFI/*/fwupd*.efi* rw,
+  /boot/efi/EFI/*/ rw,
+  /boot/efi/EFI/*/fw/ rw,
+  /boot/efi/EFI/*/fw/** rw,
 
   # Allow access from efivar library
   /sys/devices/{pci*,platform}/**/block/**/partition r,
@@ -202,6 +200,13 @@ const fwupdPermanentSlotAppArmor = `
       interface=org.freedesktop.systemd1.Manager
       member="Job{New,Removed}"
       peer=(label=unconfined),
+
+  dbus (send)
+      bus=system
+      path=/org/freedesktop/login1
+      interface=org.freedesktop.login1.Manager
+      member={Inhibit,Reboot}
+      peer=(label=unconfined),
 `
 
 const fwupdPermanentSlotAppArmorClassic = `
@@ -264,6 +269,27 @@ const fwupdConnectedPlugAppArmor = `
       interface=org.freedesktop.DBus.Introspectable
       member=Introspect
       peer=(label=###SLOT_SECURITY_TAGS###),
+
+  dbus (send)
+      bus=system
+      path=/org/freedesktop/systemd1
+      interface=org.freedesktop.systemd1.Manager
+      member="GetDefaultTarget"
+      peer=(label=unconfined),
+
+  dbus (send)
+      bus=system
+      interface=org.freedesktop.DBus.Properties
+      path=/org/freedesktop/systemd1
+      member=Get{,All}
+      peer=(label=unconfined),
+
+  dbus (send)
+      bus=system
+      path=/org/freedesktop/systemd1
+      interface=org.freedesktop.systemd1.Manager
+      member=GetUnit
+      peer=(label=unconfined),
 `
 
 const fwupdConnectedSlotAppArmor = `
