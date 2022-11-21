@@ -217,10 +217,19 @@ func (rm *RestartManager) PendingForSystemRestart(chg *state.Change) bool {
 			continue
 		}
 
-		if rm.bootID == waitBootId {
-			// no boot has intervened yet
+		if rm.bootID != waitBootId {
+			// this should not happen as it
+			// means StartUp did not operate correctly,
+			// but if it happens fair game for aborting
 			continue
 		}
+		// no boot intervened yet
+		// no successive tasks, take the WaitStatus at face value
+		if len(t.HaltTasks()) == 0 {
+			return true
+		}
+		// check if anything that would
+		// need doing is pending from the wait status task
 		for _, dep := range t.HaltTasks() {
 			if dep.Status() == state.DoStatus {
 				return true
