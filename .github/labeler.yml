@@ -6,3 +6,6 @@
 # Add 'Run nested' label to either any change on nested lib or nested test
 Run nested:
   - any: ["tests/lib/nested.sh", "tests/nested/**/*"]
+
+Needs Documentation:
+  - any: ["cmd/snap/**/*", "daemon/**/*", "overlord/hookstate/ctlcmd/**/*", "overlord/configstate/configcore/**/*"]
