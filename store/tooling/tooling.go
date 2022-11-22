@@ -316,17 +316,15 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 	for _, sn := range toDownload {
 		// One cannot specify both a channel and specific revision. The store
 		// will return an error if do this.
-		downloadChannel := func() string {
-			if sn.Revision.N != 0 {
-				return ""
-			}
-			return sn.Channel
+		channel := sn.Channel
+		if !sn.Revision.Unset() {
+			channel = ""
 		}
 
 		actions = append(actions, &store.SnapAction{
 			Action:       "download",
 			InstanceName: sn.Snap.SnapName(), // XXX consider using snap-id first
-			Channel:      downloadChannel(),
+			Channel:      channel,
 			Revision:     sn.Revision,
 			CohortKey:    sn.CohortKey,
 			Flags:        actionFlag,

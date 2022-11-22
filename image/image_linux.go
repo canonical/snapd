@@ -404,9 +404,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		// available. Therefore the revision in the local snap must be exactly the revision specified
 		// in the manifest. If it's not, we fail.
 		specifiedRevision := opts.Revisions[info.SnapName()]
-		if specifiedRevision.N != 0 && specifiedRevision.N != info.Revision.N {
+		if !specifiedRevision.Unset() && specifiedRevision != info.Revision {
 			return fmt.Errorf("cannot use snap %s for image, unknown/local revision does not match the value specified by revisions file (%s != %s)",
-				sn.Path, info.Revision.String(), specifiedRevision.String())
+				sn.Path, info.Revision, specifiedRevision)
 		}
 
 		if err := w.SetInfo(sn, info); err != nil {
@@ -441,7 +441,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 				return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 			}
 			rev := opts.Revisions[sn.SnapName()]
-			if rev.N != 0 {
+			if !rev.Unset() {
 				fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), rev)
 			} else {
 				fmt.Fprintf(Stdout, "Fetching %s\n", sn.SnapName())

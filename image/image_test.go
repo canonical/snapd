@@ -3595,9 +3595,9 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapFails(c *C) {
 	// 2. required-snap.
 	// So lets provide a revision for one of them and it should then fail
 	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]snap.Revision{
-		"pc-kernel": {N: 1},
-		"pc":        {N: 13},
-		"core":      {N: 5},
+		"pc-kernel": snap.R(1),
+		"pc":        snap.R(13),
+		"core":      snap.R(5),
 	})
 	c.Check(err, ErrorMatches, `cannot use snap .*/snapsrc/core_16.04_all.snap for image, unknown/local revision does not match the value specified by revisions file \(unset != 5\)`)
 }
@@ -3606,8 +3606,8 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapHappy(c *C) {
 	// Make sure we can still provide specific revisions for snaps that are
 	// non-local.
 	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]snap.Revision{
-		"pc-kernel": {N: 15},
-		"pc":        {N: 28},
+		"pc-kernel": snap.R(15),
+		"pc":        snap.R(28),
 	})
 	c.Check(err, IsNil)
 }
