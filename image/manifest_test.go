@@ -54,20 +54,18 @@ func (s *manifestSuite) TestReadSeedManifestFull(c *C) {
 	// Include two entries that end on .snap as ubuntu-image
 	// once produced entries looking like this
 	manifestFile := s.writeSeedManifest(c, `# test line should not match
-core22 275.snap
-pc 128.snap
+core22 275
+pc 128
 snapd 16681
 one-snap x6
-ignore-this -1
-skip this
 `)
 	snapRevs, err := image.ReadSeedManifest(manifestFile)
 	c.Assert(err, IsNil)
 	c.Check(snapRevs, DeepEquals, map[string]snap.Revision{
-		"core22":   {N: 275},
-		"pc":       {N: 128},
-		"snapd":    {N: 16681},
-		"one-snap": {N: -6},
+		"core22":   snap.R(275),
+		"pc":       snap.R(128),
+		"snapd":    snap.R(16681),
+		"one-snap": snap.R(-6),
 	})
 }
 
@@ -78,6 +76,7 @@ func (s *manifestSuite) TestReadSeedManifestParseFails(c *C) {
 	}{
 		{"my/invalid&name 33\n", `invalid snap name: "my/invalid&name"`},
 		{"core 0\n", `invalid snap revision: "0"`},
+		{"core\n", `line was illegally formatted: "core"`},
 	}
 
 	for _, t := range tests {
@@ -91,7 +90,7 @@ func (s *manifestSuite) TestReadSeedManifestNoFile(c *C) {
 	snapRevs, err := image.ReadSeedManifest("noexists.manifest")
 	c.Assert(err, NotNil)
 	c.Check(snapRevs, IsNil)
-	c.Check(err, ErrorMatches, `cannot read seed manifest: open noexists.manifest: no such file or directory`)
+	c.Check(err, ErrorMatches, `open noexists.manifest: no such file or directory`)
 }
 
 func (s *manifestSuite) testWriteSeedManifest(c *C, revisions map[string]snap.Revision) string {
@@ -110,8 +109,8 @@ func (s *manifestSuite) TestWriteSeedManifest(c *C) {
 	filePath := s.testWriteSeedManifest(c, map[string]snap.Revision{"core": {N: 12}, "test": {N: -4}})
 	contents, err := ioutil.ReadFile(filePath)
 	c.Assert(err, IsNil)
-	c.Check(string(contents), Equals, `core 12.snap
-test x4.snap
+	c.Check(string(contents), Equals, `core 12
+test x4
 `)
 }
 
