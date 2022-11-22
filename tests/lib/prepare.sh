@@ -1229,7 +1229,7 @@ EOF
     rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core{20,22}.{snap,assert}
 
     if os.query is-arm; then
-        mv "$(find "$IMAGE_HOME" -name "*.img"| head -n1)" "$IMAGE_HOME/$IMAGE"
+        mv "$IMAGE_HOME/test-snapd-arm64-gadget.img" "$IMAGE_HOME/$IMAGE"
         LOOP_PARTITION=1
     elif os.query is-core20 || os.query is-core22; then
         # (ab)use ubuntu-seed
