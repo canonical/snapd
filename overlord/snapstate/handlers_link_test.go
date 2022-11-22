@@ -901,11 +901,11 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *
 	s.se.Wait()
 	s.state.Lock()
 
-	c.Check(t.Status(), Equals, state.DoneStatus)
-	// XXX CLASSIC-NO-REBOOT
-	c.Check(s.restartRequested, HasLen, 1)
-	// c.Assert(t.Log(), HasLen, 1)
-	// c.Check(t.Log()[0], Matches, `.*INFO Not restarting as this is a classic device.`)
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(s.restartRequested, HasLen, 0)
+	// XXX avoid logging Requested system restart?
+	c.Assert(t.Log(), HasLen, 2)
+	c.Check(t.Log()[1], Matches, `.*INFO Task set to wait until a manual system restart allows to continue`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmediate(c *C) {

@@ -359,6 +359,7 @@ func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReas
 		// command line is the same or no actual change in modeenv
 		return false, nil
 	}
+	logger.Debugf("kernel commandline changes from %q to %q", cmdline, candidateCmdline)
 	// actual change of the command line content
 	m.CurrentKernelCommandLines = bootCommandLines{cmdline, candidateCmdline}
 

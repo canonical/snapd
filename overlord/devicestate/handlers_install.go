@@ -75,6 +75,7 @@ var (
 	installMountVolumes                  = install.MountVolumes
 	installWriteContent                  = install.WriteContent
 	installEncryptPartitions             = install.EncryptPartitions
+	installSaveStorageTraits             = install.SaveStorageTraits
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
@@ -425,7 +426,7 @@ func prepareEncryptedSystemData(model *asserts.Model, keyForRole map[string]keys
 
 	// keep track of recovery assets
 	if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
-		return fmt.Errorf("cannot observe existing trusted recovery assets: err")
+		return fmt.Errorf("cannot observe existing trusted recovery assets: %v", err)
 	}
 	if err := saveKeys(model, keyForRole); err != nil {
 		return err
@@ -1360,14 +1361,14 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot write content: %v", err)
 	}
 
-	// Mount the partitions and find ESP partition
-	espMntDir, unmountParts, err := installMountVolumes(onVolumes, encryptSetupData)
+	// Mount the partitions and find the system-seed{,-null} partition
+	seedMntDir, unmountParts, err := installMountVolumes(onVolumes, encryptSetupData)
 	if err != nil {
 		return fmt.Errorf("cannot mount partitions for installation: %v", err)
 	}
 	defer unmountParts()
 
-	if err := install.SaveStorageTraits(sys.Model, allLaidOutVols, encryptSetupData); err != nil {
+	if err := installSaveStorageTraits(sys.Model, allLaidOutVols, encryptSetupData); err != nil {
 		return err
 	}
 
@@ -1391,15 +1392,15 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		RecoverySystemLabel: systemLabel,
 	}
 
-	// installs in ESP: grub.cfg, grubenv
-	logger.Debugf("making the ESP partition bootable, mount dir is %q", espMntDir)
+	// installs in system-seed{,-null} partition: grub.cfg, grubenv
+	logger.Debugf("making the system-seed{,-null} partition bootable, mount dir is %q", seedMntDir)
 	opts := &bootloader.Options{
 		PrepareImageTime: false,
 		// We need the same configuration that a recovery partition,
 		// as we will chainload to grub in the boot partition.
 		Role: bootloader.RoleRecovery,
 	}
-	if err := bootMakeBootablePartition(espMntDir, opts, bootWith, boot.ModeRun, nil); err != nil {
+	if err := bootMakeBootablePartition(seedMntDir, opts, bootWith, boot.ModeRun, nil); err != nil {
 		return err
 	}
 

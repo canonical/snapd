@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -356,7 +355,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 			partsEncrypted[part.Name] = createEncryptionParams(options.EncryptionType)
 		}
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
-			if err := mountFilesystem(fsDevice, part.Filesystem, filepath.Join(boot.InitramfsRunMntDir, part.Label)); err != nil {
+			if err := mountFilesystem(fsDevice, part.Filesystem, getMntPointForPart(part.VolumeStructure)); err != nil {
 				return nil, err
 			}
 		}
@@ -525,12 +524,30 @@ func WriteContent(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string
 	return onDiskVols, nil
 }
 
+// getMntPointForPart tells us where to mount a given structure so we
+// match what the functions that write something expect.
+func getMntPointForPart(part *gadget.VolumeStructure) (mntPt string) {
+	switch part.Role {
+	case gadget.SystemSeed, gadget.SystemSeedNull:
+		mntPt = boot.InitramfsUbuntuSeedDir
+	case gadget.SystemBoot:
+		mntPt = boot.InitramfsUbuntuBootDir
+	case gadget.SystemSave:
+		mntPt = boot.InitramfsUbuntuSaveDir
+	case gadget.SystemData:
+		mntPt = boot.InstallUbuntuDataDir
+	default:
+		mntPt = filepath.Join(boot.InitramfsRunMntDir, part.Name)
+	}
+	return mntPt
+}
+
 // MountVolumes mounts partitions for the volumes specified by
-// onVolumes. It returns the ESP partition and a function that needs
-// to be called for unmounting them.
-func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionSetupData) (espMntDir string, unmount func() error, err error) {
+// onVolumes. It returns the partition with the system-seed{,-null}
+// role and a function that needs to be called for unmounting them.
+func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionSetupData) (seedMntDir string, unmount func() error, err error) {
 	var mountPoints []string
-	numEsp := 0
+	numSeedPart := 0
 	unmount = func() (err error) {
 		for _, mntPt := range mountPoints {
 			errUnmount := sysUnmount(mntPt, 0)
@@ -549,7 +566,12 @@ func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionS
 			if part.Filesystem == "" {
 				continue
 			}
-			mntPt := filepath.Join(boot.InitramfsRunMntDir, part.Name)
+			mntPt := getMntPointForPart(&part)
+			switch part.Role {
+			case gadget.SystemSeed, gadget.SystemSeedNull:
+				seedMntDir = mntPt
+				numSeedPart++
+			}
 			// Device might have been encrypted
 			device := deviceForMaybeEncryptedVolume(&part, encSetupData)
 
@@ -558,19 +580,14 @@ func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionS
 				return "", nil, fmt.Errorf("cannot mount %q at %q: %v", device, mntPt, err)
 			}
 			mountPoints = append(mountPoints, mntPt)
-
-			if strings.Contains(strings.ToUpper(part.Type), gadget.GPTPartitionGUIDESP) {
-				espMntDir = mntPt
-				numEsp++
-			}
 		}
 	}
-	if numEsp != 1 {
+	if numSeedPart != 1 {
 		defer unmount()
-		return "", nil, fmt.Errorf("there are %d ESP partitions, expected one", numEsp)
+		return "", nil, fmt.Errorf("there are %d system-seed{,-null} partitions, expected one", numSeedPart)
 	}
 
-	return espMntDir, unmount, nil
+	return seedMntDir, unmount, nil
 }
 
 func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *EncryptionSetupData) error {

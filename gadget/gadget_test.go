@@ -294,6 +294,66 @@ volumes:
         size: 1G
 `)
 
+var gadgetYamlClassicWithModes = []byte(`
+volumes:
+  pc:
+    # bootloader configuration is shipped and managed by snapd
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        update:
+          edition: 1
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        update:
+          edition: 1
+        content:
+          - image: pc-core.img
+      - name: EFI System partition
+        role: system-seed-null
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 99M
+        update:
+          edition: 1
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        offset: 1202M
+        size: 750M
+        update:
+          edition: 1
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`)
+
 var gadgetYamlRPi = []byte(`
 volumes:
   pi:
@@ -647,6 +707,10 @@ func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
 var (
 	classicMod = &gadgettest.ModelCharacteristics{
 		IsClassic: true,
+	}
+	classicWithModesMod = &gadgettest.ModelCharacteristics{
+		IsClassic: true,
+		HasModes:  true,
 	}
 	coreMod = &gadgettest.ModelCharacteristics{
 		IsClassic: false,
@@ -3709,4 +3773,23 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeStructureInternalFieldsNoJSON(
 	// but otherwise they are identical
 	newVolS.VolumeName = volS.VolumeName
 	c.Check(volS, DeepEquals, newVolS)
+}
+
+func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromClassicWithModesGadgetHappy(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlClassicWithModes, 0644)
+	c.Assert(err, IsNil)
+	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
+		err = ioutil.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", classicWithModesMod)
+	c.Assert(err, IsNil)
+	c.Assert(all, HasLen, 1)
+	c.Assert(all["pc"], DeepEquals, systemLv)
+	c.Assert(systemLv.Volume.Bootloader, Equals, "grub")
+	c.Assert(systemLv.LaidOutStructure, HasLen, 6)
+	// There is no implicit fs label for system-seed-null role
+	c.Assert(systemLv.Structure[2].Role, Equals, gadget.SystemSeedNull)
+	c.Assert(systemLv.Structure[2].Label, Equals, "")
 }

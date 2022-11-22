@@ -53,10 +53,11 @@ const (
 	// schemaGPT identifies a GUID Partition Table partitioning schema
 	schemaGPT = "gpt"
 
-	SystemBoot = "system-boot"
-	SystemData = "system-data"
-	SystemSeed = "system-seed"
-	SystemSave = "system-save"
+	SystemBoot     = "system-boot"
+	SystemData     = "system-data"
+	SystemSeed     = "system-seed"
+	SystemSeedNull = "system-seed-null"
+	SystemSave     = "system-save"
 
 	// extracted kernels for all uc systems
 	bootImage = "system-boot-image"
@@ -1018,7 +1019,7 @@ func validateRole(vs *VolumeStructure) error {
 	}
 
 	switch vsRole {
-	case SystemData, SystemSeed, SystemSave:
+	case SystemData, SystemSeed, SystemSeedNull, SystemSave:
 		// roles have cross dependencies, consistency checks are done at
 		// the volume level
 	case schemaMBR:

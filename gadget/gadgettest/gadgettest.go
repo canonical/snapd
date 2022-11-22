@@ -26,8 +26,10 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/osutil/disks"
 )
 
 // LayoutMultiVolumeFromYaml returns all LaidOutVolumes for the given
@@ -119,4 +121,91 @@ func (m *ModelCharacteristics) Grade() asserts.ModelGrade {
 		return asserts.ModelSigned
 	}
 	return asserts.ModelGradeUnset
+}
+
+func MakeMockGadget(gadgetRoot, gadgetContent string) error {
+	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0644); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0644); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "shim.efi.signed"), []byte("shim.efi.signed content"), 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Info, laidVols map[string]*gadget.LaidOutVolume, model *asserts.Model, restore func(), err error) {
+	// TODO test for UC systems too
+	model = boottest.MakeMockClassicWithModesModel()
+
+	// Create gadget with all files
+	err = MakeMockGadget(gadgetRoot, gadgetYaml)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	_, laidVols, err = gadget.LaidOutVolumesFromGadget(gadgetRoot, "", model)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	ginfo, err = gadget.ReadInfo(gadgetRoot, model)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	// "Real" disk data that will be read
+	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
+	disk := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				PartitionLabel:   "BIOS\x20Boot",
+				KernelDeviceNode: "/dev/vda1",
+				DiskIndex:        1,
+			},
+			{
+				PartitionLabel:   "EFI System partition",
+				KernelDeviceNode: "/dev/vda2",
+				DiskIndex:        2,
+			},
+			{
+				PartitionLabel:   "ubuntu-boot",
+				KernelDeviceNode: "/dev/vda3",
+				DiskIndex:        3,
+			},
+			{
+				PartitionLabel:   "ubuntu-save",
+				KernelDeviceNode: "/dev/vda4",
+				DiskIndex:        4,
+			},
+			{
+				PartitionLabel:   "ubuntu-data",
+				KernelDeviceNode: "/dev/vda5",
+				DiskIndex:        5,
+			},
+		},
+		DiskHasPartitions: true,
+		DevNum:            "disk1",
+		DevNode:           "/dev/vda",
+		DevPath:           vdaSysPath,
+	}
+	diskMapping := map[string]*disks.MockDiskMapping{
+		vdaSysPath: disk,
+		// this simulates a symlink in /sys/block which points to the above path
+		"/sys/block/vda": disk,
+	}
+	restore = disks.MockDevicePathToDiskMapping(diskMapping)
+
+	return ginfo, laidVols, model, restore, nil
 }
