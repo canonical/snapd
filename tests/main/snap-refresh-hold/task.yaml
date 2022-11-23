@@ -13,7 +13,8 @@ restore: |
 
 debug: |
   snap changes
-  snap changes | tail -n 4 | head -n 3 | awk '{ system("snap change " $1) }'
+  # show last 3 changes in detail
+  snap changes | tail -n 4 | awk '{ if (NF != 0) system("snap change " $1) }'
 
 execute: |
   reset() {
