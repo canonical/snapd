@@ -1166,10 +1166,19 @@ func (s *imageSuite) TestSetupSeedWithBaseWithCloudConf(c *C) {
 	c.Check(filepath.Join(rootdir, "/etc/cloud/cloud.cfg"), testutil.FileEquals, "# cloud config")
 }
 
-func (s *imageSuite) TestSetupSeedWithBaseWithCustomizations(c *C) {
+func (s *imageSuite) testSetupSeedWithBaseWithCustomizationsAndDefaults(c *C, withDefaults bool) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
+	defaults := ""
+	if withDefaults {
+		defaults = `defaults:
+  system:
+       service:
+         ssh:
+           disable: true
+`
+	}
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture": "amd64",
 		"gadget":       "pc18",
@@ -1186,11 +1195,11 @@ func (s *imageSuite) TestSetupSeedWithBaseWithCustomizations(c *C) {
 		"core18":    "canonical",
 		"pc-kernel": "canonical",
 		"snapd":     "canonical",
-	}, "")
+	}, defaults)
 	s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{
 		{"grub.conf", ""},
 		{"grub.cfg", "I'm a grub.cfg"},
-		{"meta/gadget.yaml", pcGadgetYaml},
+		{"meta/gadget.yaml", pcGadgetYaml + defaults},
 	}, snap.R(5), "canonical")
 
 	opts := &image.Options{
@@ -1210,6 +1219,20 @@ func (s *imageSuite) TestSetupSeedWithBaseWithCustomizations(c *C) {
 	c.Check(filepath.Join(varCloudDir, "user-data"), testutil.FileEquals, "# user cloud data")
 	// console-conf disable
 	c.Check(filepath.Join(rootdir, "_writable_defaults", "var/lib/console-conf/complete"), testutil.FilePresent)
+
+	// ssh file should be there if and only if the defaults are used
+	sshConfigExpected := withDefaults
+	c.Check(osutil.FileExists(filepath.Join(rootdir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, sshConfigExpected)
+}
+
+func (s *imageSuite) TestSetupSeedWithBaseWithCustomizations(c *C) {
+	withDefaults := false
+	s.testSetupSeedWithBaseWithCustomizationsAndDefaults(c, withDefaults)
+}
+
+func (s *imageSuite) TestSetupSeedWithBaseWithCustomizationsAndDefaults(c *C) {
+	withDefaults := true
+	s.testSetupSeedWithBaseWithCustomizationsAndDefaults(c, withDefaults)
 }
 
 func (s *imageSuite) TestPrepareUC20CustomizationsUnsupported(c *C) {
