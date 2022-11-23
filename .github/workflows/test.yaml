@@ -585,7 +585,7 @@ jobs:
     - name: Run spread tests
       # run if the commit is pushed to the release/* branch or there is a 'Run
       # nested' label set on the PR
-      if: "contains(github.event.pull_request.labels.*.name, 'Run nested') || contains(github.ref, 'refs/heads/release/')"
+      if: "contains(github.event.pull_request.labels.*.name, 'Run nested') || contains(github.event.pull_request.labels.*.name, 'Run nested -auto-') || contains(github.ref, 'refs/heads/release/')"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |

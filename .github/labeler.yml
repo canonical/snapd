@@ -3,12 +3,13 @@
 # - https://github.com/actions/labeler/issues/112
 # - https://github.com/actions/labeler/issues/104
 
-# Add 'Run nested' label to either any change on nested lib or nested test
-Run nested:
+# Add 'Run nested -auto-' label to either any change on nested lib or nested test
+Run nested -auto-:
   - tests/lib/nested.sh
   - tests/nested/**/*
 
-Needs Documentation:
+# Add 'Needs Documentation -auto-' label to indicate a change needs changes in the docs
+Needs Documentation -auto-:
   - cmd/snap/**/*"
   - daemon/**/*
   - overlord/hookstate/ctlcmd/**/*
