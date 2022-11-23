@@ -58,6 +58,10 @@ ensure_jq() {
     elif os.query is-core22; then
         snap install --devmode --edge jq-core22
         snap alias jq-core22.jq jq
+    elif os.query is-core24; then
+        # TODO: publish jq-core24
+        snap install --devmode --edge jq-core22
+        snap alias jq-core22.jq jq
     else
         snap install --devmode jq
     fi
@@ -1354,6 +1358,9 @@ prepare_ubuntu_core() {
             rsync_snap="test-snapd-rsync-core20"
         elif os.query is-core22; then
             rsync_snap="test-snapd-rsync-core22"
+        elif os.query is-core24; then
+            # TODO: publish test-snapd-rsync-core24
+            rsync_snap="test-snapd-rsync-core22"
         fi
         snap install --devmode --edge "$rsync_snap"
         snap alias "$rsync_snap".rsync rsync
@@ -1365,7 +1372,7 @@ prepare_ubuntu_core() {
 
     echo "Ensure the core snap is cached"
     # Cache snaps
-    if os.query is-core18 || os.query is-core20 || os.query is-core22; then
+    if os.query is-core18 || os.query is-core20 || os.query is-core22 || os.query is-core24; then
         if snap list core >& /dev/null; then
             echo "core snap on core18 should not be installed yet"
             snap list
