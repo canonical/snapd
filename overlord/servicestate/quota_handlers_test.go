@@ -1569,7 +1569,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServicesFailOnInvalidSnapServic
 	}
 
 	err = s.callDoQuotaControl(&qc3)
-	c.Assert(err, ErrorMatches, `cannot use snap service in group "foo2": invalid service "svc-none"`)
+	c.Assert(err, ErrorMatches, `cannot use snap service "foo2": invalid service "svc-none"`)
 
 	qc4 := servicestate.QuotaControlAction{
 		Action:      "update",
@@ -1578,7 +1578,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServicesFailOnInvalidSnapServic
 	}
 
 	err = s.callDoQuotaControl(&qc4)
-	c.Assert(err, ErrorMatches, `cannot use snap service in group "foo2": snap "no-snap" is not installed`)
+	c.Assert(err, ErrorMatches, `cannot use snap service "foo2": snap "no-snap" is not installed`)
 
 	// also test adding a valid snap, but the snap is not relevant for this quota group
 	qc5 := servicestate.QuotaControlAction{
@@ -1588,7 +1588,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServicesFailOnInvalidSnapServic
 	}
 
 	err = s.callDoQuotaControl(&qc5)
-	c.Assert(err, ErrorMatches, `cannot use snap "test-snap2": the snap must be in a parent group of group "foo2"`)
+	c.Assert(err, ErrorMatches, `cannot use snap service "svc1": the snap "test-snap2" must be in a direct parent group of group "foo2"`)
 
 	// check that the quota groups was created in the state
 	checkQuotaState(c, st, map[string]quotaGroupState{

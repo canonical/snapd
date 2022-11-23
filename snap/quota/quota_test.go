@@ -688,7 +688,7 @@ func (ts *quotaTestSuite) TestVerifyNestingAndMixingIsAllowed(c *C) {
 				},
 			},
 			check:   "foogroup",
-			err:     `group "foogroup" is invalid: nesting of snaps is not supported`,
+			err:     `group "foogroup" is invalid: nesting of groups with snaps is not supported`,
 			comment: "mixed parent group with nested snap, verifying foogroup",
 		},
 	}

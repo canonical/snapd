@@ -596,6 +596,22 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	chg1 := st.NewChange("quota-control", "...")
+	chg1.AddAll(ts1)
+	checkQuotaControlTasks(c, chg1.Tasks(), &servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		AddSnaps:       []string{"test-snap", "test-snap2"},
+		ResourceLimits: quotaConstraits,
+	})
+
+	// run the change
+	st.Unlock()
+	defer s.se.Stop()
+	err = s.o.Settle(5 * time.Second)
+	st.Lock()
+	c.Assert(err, IsNil)
+
 	// create a sub-group containing services to ensure these are removed too
 	subConstraints := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build()
 	ts2, err := servicestate.CreateQuota(s.state, "foo2", servicestate.CreateQuotaOptions{
@@ -605,15 +621,6 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 	})
 	c.Assert(err, IsNil)
 	ts2.WaitAll(ts1)
-
-	chg1 := st.NewChange("quota-control", "...")
-	chg1.AddAll(ts1)
-	checkQuotaControlTasks(c, chg1.Tasks(), &servicestate.QuotaControlAction{
-		Action:         "create",
-		QuotaName:      "foo",
-		AddSnaps:       []string{"test-snap", "test-snap2"},
-		ResourceLimits: quotaConstraits,
-	})
 
 	chg2 := st.NewChange("quota-control-sub", "...")
 	chg2.AddAll(ts2)
@@ -719,7 +726,7 @@ func (s *quotaControlSuite) TestUpdateQuotaPrecond(c *C) {
 		{"foo", servicestate.UpdateQuotaOptions{AddSnaps: []string{"baz"}}, `cannot use snap "baz" in group "foo": snap "baz" is not installed`},
 		{"foo", servicestate.UpdateQuotaOptions{AddSnaps: []string{"baz"}, AddServices: []string{"baz.svc"}}, `cannot mix services and snaps in the same quota group`},
 		{"foo", servicestate.UpdateQuotaOptions{AddServices: []string{"baz"}}, `invalid snap service: baz`},
-		{"foo", servicestate.UpdateQuotaOptions{AddServices: []string{"baz.svc"}}, `cannot use snap service in group "foo": snap "baz" is not installed`},
+		{"foo", servicestate.UpdateQuotaOptions{AddServices: []string{"baz.svc"}}, `cannot use snap service "foo": snap "baz" is not installed`},
 	}
 
 	for _, t := range tests {
