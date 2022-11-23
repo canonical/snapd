@@ -41,7 +41,7 @@ execute: |
   # Also try to further create a sub-group in that sub-group, should not be allowed
   # as the parent is now mixed.
   echo "Add another sub-group to the sub-group, this should fail"
-  snap set-quota group-sub-one-sub --parent=group-sub-one --memory=768KB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'cannot update quota "group-sub-one-sub": group "group-sub-one-sub" is invalid: only one level of sub-groups are allowed for groups with snaps'
+  snap set-quota group-sub-one-sub --parent=group-sub-one --memory=768KB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'cannot update quota "group-sub-one": group "group-sub-one" is invalid: only one level of sub-groups are allowed for groups with snaps'
 
   echo "Removing the nested sub-group again"
   snap remove-quota group-sub-one
