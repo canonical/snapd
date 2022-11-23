@@ -416,6 +416,9 @@ apps:
   service-watchdog:
     command: bin/run
     plugs: [ daemon-notify ]
+  systemd-reload:
+    command: bin/run
+    plugs: [ systemd-reload ]
   can-bus:
     command: bin/run
     plugs: [ can-bus ]
