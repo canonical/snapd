@@ -139,16 +139,12 @@ func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag Dat
 				return nil, errors.New(`cannot create aspect pattern without a "path" field`)
 			}
 
-			access, err := newAccessType(aspectPattern["access"])
+			accPattern, err := newAccessPattern(name, path, aspectPattern["access"])
 			if err != nil {
-				return nil, fmt.Errorf("cannot create aspect pattern: %w", err)
+				return nil, err
 			}
 
-			aspect.accessPatterns = append(aspect.accessPatterns, &accessPattern{
-				name:   name,
-				path:   path,
-				access: access,
-			})
+			aspect.accessPatterns = append(aspect.accessPatterns, accPattern)
 		}
 
 		aspectDir.aspects[name] = aspect
@@ -171,14 +167,16 @@ type Aspect struct {
 
 // Set sets the named aspect to a specified value.
 func (a *Aspect) Set(name string, value interface{}) error {
+	nameParts := strings.Split(name, ".")
+	placeholders := make(map[string]string)
 	for _, accessPatt := range a.accessPatterns {
-		path, err := accessPatt.getPath(name)
-		if err != nil {
-			return err
+		if !accessPatt.match(nameParts, placeholders) {
+			continue
 		}
 
-		if path == "" {
-			continue
+		path, err := accessPatt.getPath(placeholders)
+		if err != nil {
+			return err
 		}
 
 		if !accessPatt.isWriteable() {
@@ -203,14 +201,16 @@ func (a *Aspect) Set(name string, value interface{}) error {
 // Get returns the aspect value identified by the name. If either the named aspect
 // or the corresponding value can't be found, a NotFoundError is returned.
 func (a *Aspect) Get(name string, value interface{}) error {
+	nameParts := strings.Split(name, ".")
+	placeholders := make(map[string]string)
 	for _, accessPatt := range a.accessPatterns {
-		path, err := accessPatt.getPath(name)
-		if err != nil {
-			return err
+		if !accessPatt.match(nameParts, placeholders) {
+			continue
 		}
 
-		if path == "" {
-			continue
+		path, err := accessPatt.getPath(placeholders)
+		if err != nil {
+			return err
 		}
 
 		if !accessPatt.isReadable() {
@@ -230,93 +230,77 @@ func (a *Aspect) Get(name string, value interface{}) error {
 	return &NotFoundError{fmt.Sprintf("cannot get %q: name not found", name)}
 }
 
-// accessPattern holds information on how to access an aspect.
+func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
+	accType, err := newAccessType(accesstype)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create aspect pattern: %w", err)
+	}
+
+	split := func(str string) []pattern {
+		parts := strings.Split(str, ".")
+		patterns := make([]pattern, 0, len(parts))
+		for _, p := range parts {
+			patterns = append(patterns, pattern(p))
+		}
+		return patterns
+	}
+
+	return &accessPattern{
+		name:   split(name),
+		path:   split(path),
+		access: accType,
+	}, nil
+}
+
+// accessPattern represents an individual aspect access pattern. It can be used
+// to match an input name and map it into a corresponding path, potentially with
+// placeholders filled in.
 type accessPattern struct {
-	name   string
-	path   string
+	name   []pattern
+	path   []pattern
 	access accessType
 }
 
-// getPath returns a path if the specified name matches the access pattern's name
-// (with optional placeholders) and an empty string, if not.
-func (p *accessPattern) getPath(name string) (string, error) {
-	if strings.ContainsAny(p.name, "{}") {
-		matches := matchedPlaceholders(p.name, name)
-		if matches == nil {
-			// aspect name w/ placeholders doesn't match the specified name
-			return "", nil
-		}
-
-		return fillInPlaceholders(p.path, matches)
-	} else if p.name == name {
-		return p.path, nil
+// match takes a list of parts and returns true if those parts match the pattern's
+// name. If the name contains placeholders, those will be mapped to their values in
+// the supplied parts and set in the map. Example: if pattern.name=["{foo}", "b", "{bar}"],
+// and nameParts=["a", "b", "c"], then it returns true and the map will contain
+// {"foo": "a", "bar": "c"}.
+func (p *accessPattern) match(nameParts []string, placeholders map[string]string) bool {
+	if len(p.name) != len(nameParts) {
+		return false
 	}
 
-	return "", nil
-}
-
-// matchedPlaceholders takes a dot-separated pattern with optional placeholders
-// and a name. To match the pattern, the name's dot-separated parts must be equal
-// to the pattern's non-placeholder parts. It returns a map from placeholders to
-// their matches in the name (can be empty, if the path has no placeholders). If
-// there's no match, it returns nil. For example, if pattern="{foo}.b.{bar}" and
-// name="a.b.c", then it returns {"foo": "a", "bar": "c"}.
-func matchedPlaceholders(pattern, name string) map[string]string {
-	patternParts, nameParts := strings.Split(pattern, "."), strings.Split(name, ".")
-
-	if len(patternParts) != len(nameParts) {
-		return nil
-	}
-
-	placeholderMatches := make(map[string]string)
-	for i, patt := range patternParts {
-		// TODO: check assertions for:
-		//	* empty name parts (e.g., "a..b")
-		//	* names with non-ASCII characters (or we can't index the name directly)
-		//	* mismatched or out-of-place curly brackets (assuming they can only be used for placeholders)
-		//	* placeholders in a key but not in the path and vice-versa
-		if patt[0] == '{' && patt[len(patt)-1] == '}' {
-			trimmedPatt := strings.Trim(patt, "{}")
-			placeholderMatches[trimmedPatt] = nameParts[i]
-		} else if patt != nameParts[i] {
-			return nil
+	for i, part := range nameParts {
+		if !p.name[i].match(part, placeholders) {
+			// clearing the map isn't strictly necessary because a path's placeholders
+			// must be in the name so they would be overwritten but let's be robust
+			for k := range placeholders {
+				delete(placeholders, k)
+			}
+			return false
 		}
 	}
 
-	return placeholderMatches
+	return true
 }
 
-// fillInPlaceholders takes a dot-separated path with optional placeholders and
-// fills in the values using the matching values in the map.
-func fillInPlaceholders(path string, placeholderValues map[string]string) (string, error) {
-	var sb strings.Builder
+// getPath takes a map of placeholders to their values in the aspect name and
+// returns the path with its placeholder values filled in with the map's values.
+func (p *accessPattern) getPath(placeholders map[string]string) (string, error) {
+	sb := &strings.Builder{}
 
-	writePart := func(part string) error {
+	for _, part := range p.path {
 		if sb.Len() > 0 {
 			if _, err := sb.WriteRune('.'); err != nil {
-				return err
+				return "", err
 			}
 		}
 
-		_, err := sb.WriteString(part)
-		return err
-	}
-
-	pathParts := strings.Split(path, ".")
-	for _, part := range pathParts {
-		if part[0] == '{' && part[len(part)-1] == '}' {
-			trimmedPart := strings.Trim(part, "{}")
-
-			var ok bool
-			part, ok = placeholderValues[trimmedPart]
-			if !ok {
-				return "", fmt.Errorf("cannot find path placeholder %q in the aspect name", trimmedPart)
-			}
-		}
-
-		if err := writePart(part); err != nil {
+		if err := part.write(sb, placeholders); err != nil {
 			return "", err
 		}
+
 	}
 
 	return sb.String(), nil
@@ -328,6 +312,48 @@ func (p accessPattern) isReadable() bool {
 
 func (p accessPattern) isWriteable() bool {
 	return p.access == readWrite || p.access == write
+}
+
+// pattern is an individual part of a dot-separated name or path pattern. It
+// can be a literal value of a placeholder delineated by curly brackets.
+type pattern string
+
+func (p pattern) isPlaceholder() bool {
+	return p[0] == '{' && p[len(p)-1] == '}'
+}
+
+// match returns true if the part matches the pattern. If the pattern is a
+// non-placeholder part (e.g., "foo"), then the two must be equal. If the pattern
+// is a placeholder (e.g., "{foo}"), then the part can be anything and the mapping
+// from placeholder to part is added to the supplied map.
+func (p pattern) match(part string, placeholders map[string]string) bool {
+	if p.isPlaceholder() {
+		placeholder := string(p)[1 : len(p)-1]
+		placeholders[placeholder] = part
+		return true
+	}
+
+	return string(p) == part
+}
+
+// write writes the pattern into the strings.Builder. If it's not a placeholder,
+// it writes its literal value. If it is a placeholder, it writes the corresponding
+// value from the supplied map.
+func (p pattern) write(sb *strings.Builder, placeholders map[string]string) error {
+	var part string
+	if p.isPlaceholder() {
+		placeholder := string(p)[1 : len(p)-1]
+		var ok bool
+		part, ok = placeholders[placeholder]
+		if !ok {
+			return fmt.Errorf("cannot find path placeholder %q in the aspect name", placeholder)
+		}
+	} else {
+		part = string(p)
+	}
+
+	_, err := sb.WriteString(part)
+	return err
 }
 
 // JSONDataBag is a simple DataBag implementation that keeps JSON in-memory.
