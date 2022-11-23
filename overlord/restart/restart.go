@@ -224,12 +224,13 @@ func (rm *RestartManager) PendingForSystemRestart(chg *state.Change) bool {
 			continue
 		}
 		// no boot intervened yet
-		// no successive tasks, take the WaitStatus at face value
+
 		if len(t.HaltTasks()) == 0 {
+			// no successive tasks, take the WaitStatus at face value
 			return true
 		}
-		// check if anything that would
-		// need doing is pending from the wait status task
+		// check if there are tasks which need doing (DoStatus)
+		// that depend on the task that is waiting for reboot
 		for _, dep := range t.HaltTasks() {
 			if dep.Status() == state.DoStatus {
 				return true

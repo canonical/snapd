@@ -389,6 +389,7 @@ func (s *restartSuite) TestPendingForSystemRestart(c *C) {
 	chg3.AddTask(t7)
 	t6.WaitFor(t5)
 	t7.WaitFor(t5)
+	c.Check(t5.Status(), Equals, state.DoStatus)
 	err = restart.FinishTaskWithRestart(t5, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
 	c.Assert(err, FitsTypeOf, &state.Wait{})
 	t6.SetStatus(state.WaitStatus)
@@ -398,6 +399,7 @@ func (s *restartSuite) TestPendingForSystemRestart(c *C) {
 	chg4 := st.NewChange("pending", "...")
 	t8 := st.NewTask("wait-task", "...")
 	chg4.AddTask(t8)
+	c.Check(t8.Status(), Equals, state.DoStatus)
 	// nothing after t8
 	err = restart.FinishTaskWithRestart(t8, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
 	c.Assert(err, FitsTypeOf, &state.Wait{})
