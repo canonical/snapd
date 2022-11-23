@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap/naming"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -243,19 +242,6 @@ func (grp *Group) CurrentTaskUsage() (int, error) {
 		return 0, err
 	}
 	return int(count), nil
-}
-
-// IsSnapRelated returns true if a snap is a part of any parent group
-// or the current quota group.
-func (grp *Group) IsSnapRelated(snap string) bool {
-	currentGrp := grp
-	for currentGrp != nil {
-		if strutil.ListContains(currentGrp.Snaps, snap) {
-			return true
-		}
-		currentGrp = currentGrp.parentGroup
-	}
-	return false
 }
 
 // SliceFileName returns the name of the slice file that should be used for this
@@ -854,11 +840,11 @@ func (grp *Group) NewSubGroup(name string, resourceLimits Resources) (*Group, er
 	return subGrp, nil
 }
 
-// VerifyNestingAndMixingIsAllowed takes a group and verifies that it satisfies the following conditions:
+// ValidateNestingAndSnaps takes a group and verifies that it satisfies the following conditions:
 //  1. That if any parent is mixed (has both snaps and sub-groups), it must be the immediate
 //     parent group.
 //  2. If the group itself is mixed, that it has only one level of sub-grouping.
-func (grp *Group) VerifyNestingAndMixingIsAllowed() error {
+func (grp *Group) ValidateNestingAndSnaps() error {
 	// A parent group is only allowed to contain a mixture of snaps
 	// and sub-groups if it's a direct parent. Introducing this limitation
 	// will not affect anything as we didn't allow mixing snaps and sub-groups
@@ -869,7 +855,7 @@ func (grp *Group) VerifyNestingAndMixingIsAllowed() error {
 			// then the group must be a direct parent
 			// and we must not have any sub-groups
 			if grp.parentGroup != parent || len(grp.SubGroups) > 0 {
-				return fmt.Errorf("group %q is invalid: only one level of sub-groups are allowed for groups mixed with snaps and sub-groups",
+				return fmt.Errorf("group %q is invalid: only one level of sub-groups are allowed for groups with snaps",
 					grp.Name)
 			}
 		}
@@ -883,13 +869,13 @@ func (grp *Group) VerifyNestingAndMixingIsAllowed() error {
 			// If the sub-group has sub-groups, then we fail on this as we don't
 			// allow more nesting that one level.
 			if len(sub.SubGroups) > 0 {
-				return fmt.Errorf("group %q is invalid: only one level of sub-groups are allowed for groups mixed with snaps and sub-groups",
+				return fmt.Errorf("group %q is invalid: only one level of sub-groups are allowed for groups with snaps",
 					sub.SubGroups[0])
 			}
 			// If the sub-group has snaps in it, then fail on this as we don't allow
 			// nesting of snaps
 			if len(sub.Snaps) > 0 {
-				return fmt.Errorf("group %q is invalid: nesting of snaps is not supported", grp.Name)
+				return fmt.Errorf("group %q is invalid: nesting of groups with snaps is not supported", grp.Name)
 			}
 		}
 	}

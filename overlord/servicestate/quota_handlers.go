@@ -918,10 +918,10 @@ func validateSnapServicesForAddingToGroup(st *state.State, services []string, gr
 			return err
 		}
 		if err = ensureAppReferenceIsService(st, snap, service); err != nil {
-			return fmt.Errorf("cannot use snap service in group %q: %v", group, err)
+			return fmt.Errorf("cannot use snap service %q: %v", group, err)
 		}
-		if parentGroup != nil && !parentGroup.IsSnapRelated(snap) {
-			return fmt.Errorf("cannot use snap %q: the snap must be in a parent group of group %q", snap, group)
+		if parentGroup == nil || !strutil.ListContains(parentGroup.Snaps, snap) {
+			return fmt.Errorf("cannot use snap service %q: the snap %q must be in a direct parent group of group %q", service, snap, group)
 		}
 	}
 	return nil

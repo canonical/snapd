@@ -1075,7 +1075,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapFailToMixSubgroupWithServices(c *C) {
 	}
 
 	err = s.callDoQuotaControl(&qc3)
-	c.Assert(err, ErrorMatches, `cannot update quota "foo2": group "foo2" is invalid: only one level of sub-groups are allowed for groups mixed with snaps and sub-groups`)
+	c.Assert(err, ErrorMatches, `cannot update quota "foo2": group "foo2" is invalid: only one level of sub-groups are allowed for groups with snaps`)
 
 	// and at last, we add services from test-snap into the sub-group, which itself already
 	// has a subgroup.
@@ -1190,6 +1190,67 @@ func (s *quotaHandlersSuite) TestQuotaSnapFailToMixServicesWithSubgroups(c *C) {
 			Services:       []string{"test-snap.svc1"},
 		},
 	})
+}
+
+func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToTopGroup(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// Create root group
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+	})
+	c.Assert(err, IsNil)
+
+	// Try to add services to that root group
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:      "update",
+		QuotaName:   "foo",
+		AddServices: []string{"test-snap.svc1"},
+	})
+	c.Assert(err, ErrorMatches, `cannot use snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo"`)
+}
+
+func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToGroupWithSubgroups(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// Create root group
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+	})
+	c.Assert(err, IsNil)
+
+	// Create a sub-group for foo
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo2",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
+		ParentName:     "foo",
+	})
+	c.Assert(err, IsNil)
+
+	// Try to add services to that root group
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:      "update",
+		QuotaName:   "foo",
+		AddServices: []string{"test-snap.svc1"},
+	})
+	c.Assert(err, ErrorMatches, `cannot mix services and sub groups in the group "foo"`)
 }
 
 func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServices(c *C) {
@@ -1601,7 +1662,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapCorrectlyDetectErrorsIfCreatingSubgrou
 		QuotaName: "foo",
 		AddSnaps:  []string{"test-snap"},
 	})
-	c.Assert(err, ErrorMatches, `cannot update quota "foo": group "foo3" is invalid: only one level of sub-groups are allowed for groups mixed with snaps and sub-groups`)
+	c.Assert(err, ErrorMatches, `cannot update quota "foo": group "foo3" is invalid: only one level of sub-groups are allowed for groups with snaps`)
 
 	// Should work: insert snap into foo2
 	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{

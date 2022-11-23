@@ -621,7 +621,7 @@ func (ts *quotaTestSuite) TestVerifyNestingAndMixingIsAllowed(c *C) {
 				},
 			},
 			check:   "foogroup",
-			err:     `group "foo-sub-sub" is invalid: only one level of sub-groups are allowed for groups mixed with snaps and sub-groups`,
+			err:     `group "foo-sub-sub" is invalid: only one level of sub-groups are allowed for groups with snaps`,
 			comment: "mixed parent group with more than 1 level of sub-grouping",
 		},
 		{
@@ -645,7 +645,7 @@ func (ts *quotaTestSuite) TestVerifyNestingAndMixingIsAllowed(c *C) {
 				},
 			},
 			check:   "foo-sub",
-			err:     `group "foo-sub" is invalid: only one level of sub-groups are allowed for groups mixed with snaps and sub-groups`,
+			err:     `group "foo-sub" is invalid: only one level of sub-groups are allowed for groups with snaps`,
 			comment: "mixed parent group with more than 1 level of sub-grouping, verifying foo-sub",
 		},
 		{
@@ -669,7 +669,7 @@ func (ts *quotaTestSuite) TestVerifyNestingAndMixingIsAllowed(c *C) {
 				},
 			},
 			check:   "foo-sub-sub",
-			err:     `group "foo-sub-sub" is invalid: only one level of sub-groups are allowed for groups mixed with snaps and sub-groups`,
+			err:     `group "foo-sub-sub" is invalid: only one level of sub-groups are allowed for groups with snaps`,
 			comment: "mixed parent group with more than 1 level of sub-grouping, verifying foo-sub-sub",
 		},
 		{
@@ -700,7 +700,7 @@ func (ts *quotaTestSuite) TestVerifyNestingAndMixingIsAllowed(c *C) {
 		c.Assert(err, IsNil, comment)
 		grpToCheck := t.grps[t.check]
 		c.Assert(grpToCheck, NotNil, comment)
-		err = grpToCheck.VerifyNestingAndMixingIsAllowed()
+		err = grpToCheck.ValidateNestingAndSnaps()
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, comment)
 		} else {
@@ -1510,33 +1510,4 @@ func (ts *quotaTestSuite) TestJournalQuotasUpdatesCorrectly(c *C) {
 	c.Check(grp1.JournalLimit.Size, Equals, quantity.SizeMiB)
 	c.Check(grp1.JournalLimit.RateCount, Equals, 15)
 	c.Check(grp1.JournalLimit.RatePeriod, Equals, time.Microsecond*5)
-}
-
-func (ts *quotaTestSuite) TestIsSnapRelatedHappy(c *C) {
-	grp1, err := quota.NewGroup("grp1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
-	c.Assert(err, IsNil)
-
-	grp1.Snaps = []string{"my-snap"}
-
-	grp2, err := grp1.NewSubGroup("grp1-sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB*128).Build())
-	c.Assert(err, IsNil)
-	c.Check(grp2.IsSnapRelated("my-snap"), Equals, true)
-}
-
-func (ts *quotaTestSuite) TestIsSnapRelatedSameGroupHappy(c *C) {
-	grp1, err := quota.NewGroup("grp1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
-	c.Assert(err, IsNil)
-	grp1.Snaps = []string{"my-snap"}
-	c.Check(grp1.IsSnapRelated("my-snap"), Equals, true)
-}
-
-func (ts *quotaTestSuite) TestIsSnapRelatedNoMatchingSnap(c *C) {
-	grp1, err := quota.NewGroup("grp1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
-	c.Assert(err, IsNil)
-
-	grp1.Snaps = []string{"my-snap"}
-
-	grp2, err := grp1.NewSubGroup("grp1-sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB*128).Build())
-	c.Assert(err, IsNil)
-	c.Check(grp2.IsSnapRelated("not-in-group"), Equals, false)
 }

@@ -107,7 +107,7 @@ func PatchQuotas(st *state.State, grps ...*quota.Group) (map[string]*quota.Group
 	// correct nesting of groups. Execute this verification after updating
 	// group pointers in ResolveCrossReferences.
 	for _, grp := range grps {
-		if err := grp.VerifyNestingAndMixingIsAllowed(); err != nil {
+		if err := grp.ValidateNestingAndSnaps(); err != nil {
 			return nil, fmt.Errorf("cannot update quota %q: %v", grp.Name, err)
 		}
 	}
