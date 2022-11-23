@@ -11,6 +11,10 @@ restore: |
   snap refresh --unhold test-snapd-tools || true
   snap remove --purge test-snapd-tools || true
 
+debug: |
+  snap changes
+  snap changes | tail -n 4 | head -n 3 | awk '{ system("snap change " $1) }'
+
 execute: |
   reset() {
     snap refresh --channel=latest/stable test-snapd-tools
@@ -27,7 +31,7 @@ execute: |
   "$TESTSTOOLS"/snapd-state force-autorefresh
   systemctl start snapd.{socket,service}
 
-  if retry -n 10 --quiet sh -c 'snap changes | tail -2 | grep "Done.*Auto-refresh"'; then
+  if retry -n 15 --quiet sh -c 'snap changes | tail -2 | grep "(Done|Doing).*Auto-refresh"'; then
     echo "expected 'snap refresh --hold' to prevent auto-refresh"
     exit 1
   fi
@@ -36,13 +40,14 @@ execute: |
   reset
   snap refresh --hold test-snapd-tools
 
+  CHANGE_ID=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
   systemctl stop snapd.{service,socket}
   "$TESTSTOOLS"/snapd-state change-snap-channel test-snapd-tools edge
   "$TESTSTOOLS"/snapd-state change-snap-channel test-snapd-tools_instance edge
   "$TESTSTOOLS"/snapd-state force-autorefresh
   systemctl start snapd.{socket,service}
 
-  if ! retry -n 10 --quiet sh -c 'snap changes | tail -2 | grep "Done.*Auto-refresh snap \"test-snapd-tools_instance\""'; then
+  if ! "$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh test-snapd-tools_instance "$CHANGE_ID"; then
     echo 'expected "test-snapd-tools_instance" to have been auto-refreshed'
     exit 1
   fi
