@@ -176,7 +176,14 @@ parts:
       # copy in a pregenerated list of network address families so that the
       # parser gets built to support as many as possible even if glibc in
       # the current build environment does not support them
-      cp $SNAPCRAFT_PROJECT_DIR/build-aux/snap/local/apparmor/af_names.h .
+      # For some reason, some snapcraft version remove the "build-aux" folder
+      # and move the contents up when the data is uploaded; this conditional
+      # manages it.
+      if [ -d "$SNAPCRAFT_PROJECT_DIR/build-aux" ]; then
+        cp $SNAPCRAFT_PROJECT_DIR/build-aux/snap/local/apparmor/af_names.h .
+      else
+        cp $SNAPCRAFT_PROJECT_DIR/snap/local/apparmor/af_names.h .
+      fi
       make -j4
       mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
       cp -a apparmor_parser $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/
