@@ -1192,7 +1192,26 @@ func (s *quotaHandlersSuite) TestQuotaSnapFailToMixServicesWithSubgroups(c *C) {
 	})
 }
 
-func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToTopGroup(c *C) {
+func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToNewTopGroup(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// Create root group
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+		AddServices:    []string{"test-snap.svc1"},
+	})
+	c.Assert(err, ErrorMatches, `cannot use snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo"`)
+}
+
+func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToExistingTopGroup(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
