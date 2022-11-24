@@ -168,9 +168,9 @@ type Aspect struct {
 // Set sets the named aspect to a specified value.
 func (a *Aspect) Set(name string, value interface{}) error {
 	nameParts := strings.Split(name, ".")
-	placeholders := make(map[string]string)
 	for _, accessPatt := range a.accessPatterns {
-		if !accessPatt.match(nameParts, placeholders) {
+		placeholders, ok := accessPatt.match(nameParts)
+		if !ok {
 			continue
 		}
 
@@ -202,9 +202,9 @@ func (a *Aspect) Set(name string, value interface{}) error {
 // or the corresponding value can't be found, a NotFoundError is returned.
 func (a *Aspect) Get(name string, value interface{}) error {
 	nameParts := strings.Split(name, ".")
-	placeholders := make(map[string]string)
 	for _, accessPatt := range a.accessPatterns {
-		if !accessPatt.match(nameParts, placeholders) {
+		placeholders, ok := accessPatt.match(nameParts)
+		if !ok {
 			continue
 		}
 
@@ -236,18 +236,35 @@ func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 		return nil, fmt.Errorf("cannot create aspect pattern: %w", err)
 	}
 
-	split := func(str string) []pattern {
-		parts := strings.Split(str, ".")
-		patterns := make([]pattern, 0, len(parts))
-		for _, p := range parts {
-			patterns = append(patterns, pattern(p))
+	nameParts := strings.Split(name, ".")
+	nameMatchers := make([]nameMatcher, 0, len(nameParts))
+	for _, part := range nameParts {
+		var patt nameMatcher
+		if part[0] == '{' && part[len(part)-1] == '}' {
+			patt = placeholder(part[1 : len(part)-1])
+		} else {
+			patt = literal(part)
 		}
-		return patterns
+
+		nameMatchers = append(nameMatchers, patt)
+	}
+
+	pathParts := strings.Split(path, ".")
+	pathWriters := make([]pathWriter, 0, len(pathParts))
+	for _, part := range pathParts {
+		var patt pathWriter
+		if part[0] == '{' && part[len(part)-1] == '}' {
+			patt = placeholder(part[1 : len(part)-1])
+		} else {
+			patt = literal(part)
+		}
+
+		pathWriters = append(pathWriters, patt)
 	}
 
 	return &accessPattern{
-		name:   split(name),
-		path:   split(path),
+		name:   nameMatchers,
+		path:   pathWriters,
 		access: accType,
 	}, nil
 }
@@ -256,8 +273,8 @@ func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 // to match an input name and map it into a corresponding path, potentially with
 // placeholders filled in.
 type accessPattern struct {
-	name   []pattern
-	path   []pattern
+	name   []nameMatcher
+	path   []pathWriter
 	access accessType
 }
 
@@ -266,23 +283,19 @@ type accessPattern struct {
 // the supplied parts and set in the map. Example: if pattern.name=["{foo}", "b", "{bar}"],
 // and nameParts=["a", "b", "c"], then it returns true and the map will contain
 // {"foo": "a", "bar": "c"}.
-func (p *accessPattern) match(nameParts []string, placeholders map[string]string) bool {
+func (p *accessPattern) match(nameParts []string) (map[string]string, bool) {
 	if len(p.name) != len(nameParts) {
-		return false
+		return nil, false
 	}
 
+	placeholders := make(map[string]string)
 	for i, part := range nameParts {
 		if !p.name[i].match(part, placeholders) {
-			// clearing the map isn't strictly necessary because a path's placeholders
-			// must be in the name so they would be overwritten but let's be robust
-			for k := range placeholders {
-				delete(placeholders, k)
-			}
-			return false
+			return nil, false
 		}
 	}
 
-	return true
+	return placeholders, true
 }
 
 // getPath takes a map of placeholders to their values in the aspect name and
@@ -316,43 +329,48 @@ func (p accessPattern) isWriteable() bool {
 
 // pattern is an individual part of a dot-separated name or path pattern. It
 // can be a literal value of a placeholder delineated by curly brackets.
-type pattern string
-
-func (p pattern) isPlaceholder() bool {
-	return p[0] == '{' && p[len(p)-1] == '}'
+type nameMatcher interface {
+	match(part string, placeholders map[string]string) bool
 }
 
-// match returns true if the part matches the pattern. If the pattern is a
-// non-placeholder part (e.g., "foo"), then the two must be equal. If the pattern
-// is a placeholder (e.g., "{foo}"), then the part can be anything and the mapping
-// from placeholder to part is added to the supplied map.
-func (p pattern) match(part string, placeholders map[string]string) bool {
-	if p.isPlaceholder() {
-		placeholder := string(p)[1 : len(p)-1]
-		placeholders[placeholder] = part
-		return true
-	}
-
-	return string(p) == part
+type pathWriter interface {
+	write(sb *strings.Builder, placeholders map[string]string) error
 }
 
-// write writes the pattern into the strings.Builder. If it's not a placeholder,
-// it writes its literal value. If it is a placeholder, it writes the corresponding
-// value from the supplied map.
-func (p pattern) write(sb *strings.Builder, placeholders map[string]string) error {
-	var part string
-	if p.isPlaceholder() {
-		placeholder := string(p)[1 : len(p)-1]
-		var ok bool
-		part, ok = placeholders[placeholder]
-		if !ok {
-			return fmt.Errorf("cannot find path placeholder %q in the aspect name", placeholder)
-		}
-	} else {
-		part = string(p)
+// placeholder represents a part of a name/path (e.g., "{foo}") that can match
+// with any value and map it from the input name to the path.
+type placeholder string
+
+// match adds a mapping to the placeholders map from this placeholder key to the
+// supplied name part and returns true (a placeholder matches with any value).
+func (p placeholder) match(part string, placeholders map[string]string) bool {
+	placeholders[string(p)] = part
+	return true
+}
+
+// write writes the value from the placeholders map corresponding to this placeholder
+// key into the strings.Builder.
+func (p placeholder) write(sb *strings.Builder, placeholders map[string]string) error {
+	part, ok := placeholders[string(p)]
+	if !ok {
+		return fmt.Errorf("cannot find path placeholder %q in the aspect name", p)
 	}
 
 	_, err := sb.WriteString(part)
+	return err
+}
+
+// literal is a non-placeholder name/path part.
+type literal string
+
+// match returns true if the part is equal to the literal.
+func (p literal) match(part string, _ map[string]string) bool {
+	return string(p) == part
+}
+
+// write writes the literal part into the strings.Builder.
+func (p literal) write(sb *strings.Builder, _ map[string]string) error {
+	_, err := sb.WriteString(string(p))
 	return err
 }
 
