@@ -60,6 +60,8 @@ execute: |
   snap download --basename=pc --channel="$version/edge" pc
   unsquashfs -d pc-gadget pc.snap
   echo 'console=ttyS0 systemd.journald.forward_to_console=1' > pc-gadget/cmdline.extra
+  # use the system-seed-null classic role
+  sed -i 's/role: system-seed/role: system-seed-null/' pc-gadget/meta/gadget.yaml
   echo "Sign the shim binary"
   KEY_NAME=$(tests.nested download snakeoil-key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
