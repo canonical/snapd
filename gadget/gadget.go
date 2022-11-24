@@ -684,6 +684,8 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLa
 			implicitLabel = ubuntuDataLabel
 		case rs == volRuleset20 && vs.Role == SystemSeed:
 			implicitLabel = ubuntuSeedLabel
+		case rs == volRuleset20 && vs.Role == SystemSeedNull:
+			implicitLabel = ubuntuSeedLabel
 		case rs == volRuleset20 && vs.Role == SystemBoot:
 			implicitLabel = ubuntuBootLabel
 		case rs == volRuleset20 && vs.Role == SystemSave:
