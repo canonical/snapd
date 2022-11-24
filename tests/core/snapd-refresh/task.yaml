@@ -28,7 +28,7 @@ execute: |
         echo "Installing a new snapd snap"
         snap install --dangerous "$SNAPD_SNAP"
         echo "Still leaves 'snap list' working"
-        if snap list | grep "snapd.*$current "; then
+        if snap list | grep "snapd .*$current "; then
             echo "snap install of new snapd did not update to new snapd"
             exit 1
         fi
@@ -41,7 +41,7 @@ execute: |
         echo "And reverting snapd"
         snap revert snapd
         echo "Also gives us a working snapd"
-        snap list | MATCH "snapd.*$current "
+        snap list | MATCH "snapd .*$current "
         echo "And we see the original snapd running"
         running="$(readlink -f /proc/"$(pidof snapd)"/exe)"
         echo "$running" | MATCH "/snap/snapd/$current/usr/lib/"
