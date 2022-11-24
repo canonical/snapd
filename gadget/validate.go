@@ -261,7 +261,7 @@ func ensureRolesConsistencyClassicWithModes(roles map[string]*roleInstance) erro
 
 	// Make sure labels are as expected - save is optional
 	roleLabelToCheck := []roleLabel{roleLabelBoot, roleLabelData}
-	roleLabelOptional := []roleLabel{roleLabelSeed, roleLabelSave}
+	roleLabelOptional := []roleLabel{roleLabelSeed, roleLabelSeedNull, roleLabelSave}
 	for _, rlLb := range roleLabelOptional {
 		if roles[rlLb.role] != nil {
 			roleLabelToCheck = append(roleLabelToCheck, rlLb)
@@ -299,10 +299,11 @@ type roleLabel struct {
 }
 
 var (
-	roleLabelSeed = roleLabel{role: SystemSeed, label: ubuntuSeedLabel}
-	roleLabelBoot = roleLabel{role: SystemBoot, label: ubuntuBootLabel}
-	roleLabelSave = roleLabel{role: SystemSave, label: ubuntuSaveLabel}
-	roleLabelData = roleLabel{role: SystemData, label: ubuntuDataLabel}
+	roleLabelSeed     = roleLabel{role: SystemSeed, label: ubuntuSeedLabel}
+	roleLabelSeedNull = roleLabel{role: SystemSeedNull, label: ubuntuSeedLabel}
+	roleLabelBoot     = roleLabel{role: SystemBoot, label: ubuntuBootLabel}
+	roleLabelSave     = roleLabel{role: SystemSave, label: ubuntuSaveLabel}
+	roleLabelData     = roleLabel{role: SystemData, label: ubuntuDataLabel}
 )
 
 func checkImplicitLabels(roles map[string]*roleInstance, roleLabels ...roleLabel) error {

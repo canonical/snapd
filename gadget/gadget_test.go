@@ -3789,9 +3789,8 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromClassicWithModesGadgetHappy(
 	c.Assert(all["pc"], DeepEquals, systemLv)
 	c.Assert(systemLv.Volume.Bootloader, Equals, "grub")
 	c.Assert(systemLv.LaidOutStructure, HasLen, 6)
-	// There is no implicit fs label for system-seed-null role
 	c.Assert(systemLv.Structure[2].Role, Equals, gadget.SystemSeedNull)
-	c.Assert(systemLv.Structure[2].Label, Equals, "")
+	c.Assert(systemLv.Structure[2].Label, Equals, "ubuntu-seed")
 }
 
 func (s *gadgetYamlTestSuite) TestHasRole(c *C) {
