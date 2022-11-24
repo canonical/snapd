@@ -7345,7 +7345,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedSeedP
 	writeGadget(c, "EFI System partition", "")
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, ErrorMatches, "seed partition found but not defined in the gadget")
+	c.Assert(err, ErrorMatches, "ubuntu-seed partition found but not defined in the gadget")
 }
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedSeedInGadgetNotInVolume(c *C) {
@@ -7394,7 +7394,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedSeedI
 	writeGadget(c, "ubuntu-seed", "system-seed")
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, ErrorMatches, "seed partition not found but defined in the gadget")
+	c.Assert(err, ErrorMatches, `ubuntu-seed partition not found but defined in the gadget \(system-seed\)`)
 }
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedNoSeedHappy(c *C) {
@@ -7439,11 +7439,14 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedNoSee
 	err := modeEnv.WriteTo(boot.InitramfsDataDir)
 	c.Assert(err, IsNil)
 
+	// write gadget.yaml with no ubuntu-seed label and no role
+	writeGadget(c, "EFI System partition", "")
+
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 }
 
-func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMount(c *C) {
+func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeHappySystemSeedNull(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
@@ -7461,6 +7464,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMou
 		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 	}, nil)
 	defer restore()
@@ -7480,13 +7484,14 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMou
 	modeEnv := boot.Modeenv{
 		Mode:           "run",
 		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
 		CurrentKernels: []string{s.kernel.Filename()},
 	}
 	err := modeEnv.WriteTo(boot.InitramfsDataDir)
 	c.Assert(err, IsNil)
 
 	// write gadget.yaml, which is checked for classic
-	writeGadget(c, "ubuntu-seed", "system-seed")
+	writeGadget(c, "ubuntu-seed", "system-seed-null")
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)

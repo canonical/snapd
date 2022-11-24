@@ -1773,25 +1773,16 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 4.4 check if we expected a ubuntu-seed partition from the gadget data
 	if isClassic {
 		gadgetDir := filepath.Join(boot.InitramfsRunMntDir, snapTypeToMountDir[snap.TypeGadget])
-		gadgetInfo, err := gadget.ReadInfo(gadgetDir, model)
+		foundRole, err := gadget.HasRole(gadgetDir, []string{gadget.SystemSeed, gadget.SystemSeedNull})
 		if err != nil {
 			return err
 		}
-		seedDefinedInGadget := false
-	volLoop:
-		for _, vol := range gadgetInfo.Volumes {
-			for _, part := range vol.Structure {
-				if part.Role == gadget.SystemSeed {
-					seedDefinedInGadget = true
-					break volLoop
-				}
-			}
-		}
+		seedDefinedInGadget := foundRole != ""
 		if hasSeedPart && !seedDefinedInGadget {
-			return fmt.Errorf("seed partition found but not defined in the gadget")
+			return fmt.Errorf("ubuntu-seed partition found but not defined in the gadget")
 		}
 		if !hasSeedPart && seedDefinedInGadget {
-			return fmt.Errorf("seed partition not found but defined in the gadget")
+			return fmt.Errorf("ubuntu-seed partition not found but defined in the gadget (%s)", foundRole)
 		}
 	}
 
