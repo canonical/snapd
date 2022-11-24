@@ -163,13 +163,13 @@ parts:
       - bin/fc-cache-v7
   apparmor:
     plugin: autotools
-    build-packages: [bison, flex, gettext]
+    build-packages: [bison, flex, gettext, g++, pkg-config]
     source: https://launchpad.net/apparmor/3.0/3.0.7/+download/apparmor-3.0.7.tar.gz
     override-build: |
       cd $SNAPCRAFT_PART_BUILD/libraries/libapparmor
       ./autogen.sh
       ./configure --prefix=/usr --disable-man-pages --disable-perl --disable-python --disable-ruby
-      make -j
+      make -j4
       # place libapparmor into staging area for use by snap-confine
       make -C src install DESTDIR=$SNAPCRAFT_STAGE
       cd $SNAPCRAFT_PART_BUILD/parser
@@ -177,13 +177,13 @@ parts:
       # parser gets built to support as many as possible even if glibc in
       # the current build environment does not support them
       cp $SNAPCRAFT_PROJECT_DIR/build-aux/snap/local/apparmor/af_names.h .
-      make -j
+      make -j4
       mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
       cp -a apparmor_parser $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/
       mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor
       cp -a parser.conf $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor/
       cd $SNAPCRAFT_PART_BUILD/profiles
-      make -j
+      make -j4
       mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d
       cp -a apparmor.d/abi $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d/
       cp -a apparmor.d/abstractions $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d/
