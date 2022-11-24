@@ -96,11 +96,11 @@ execute: |
     # ensure the "snap recovery" command works
     MODEL="$(snap model --verbose | grep '^model' | awk '{ print $2 }')"
     BRAND_ID="$(snap model --verbose | grep '^brand-id:' | awk '{print $2}')"
-    if [ "$(snap known account "username=$BRAND_ID" | grep '^validation:' | awk '{print $2}')" != "unproven" ]; then
-        BRAND_ID="$BRAND_ID\*\*"
     # TODO: remove this once we have the final gadget snap
-    elif [ "$(snaps.name gadget)" = "test-snapd-arm64-gadget" ]; then
+    if [ "$(snaps.name gadget)" = "test-snapd-arm64-gadget" ]; then
         BRAND_ID=cachio
+    elif [ "$(snap known account "username=$BRAND_ID" | grep '^validation:' | awk '{print $2}')" != "unproven" ]; then
+        BRAND_ID="$BRAND_ID\*\*"
     fi
     snap recovery --unicode=never | MATCH "[0-9]+ +$BRAND_ID +$MODEL +current"
 
