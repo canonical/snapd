@@ -1385,3 +1385,35 @@ func parseCommandLineFromGadget(content []byte) (string, error) {
 	}
 	return strings.Join(kargs, " "), nil
 }
+
+// HasRole reads the gadget specific metadata from meta/gadget.yaml in the snap
+// root directory with minimal validation and checks whether any volume
+// structure has one of the given roles returning it, otherwhise it returns the
+// empty string.
+// This is mainly intended to avoid compatibility issues from snap-bootstrap
+// but could be used on any known to be properly installed gadget.
+func HasRole(gadgetSnapRootDir string, roles []string) (foundRole string, err error) {
+	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
+	gadgetYaml, err := ioutil.ReadFile(gadgetYamlFn)
+	if err != nil {
+		return "", err
+	}
+	var minInfo struct {
+		Volumes map[string]struct {
+			Structure []struct {
+				Role string `yaml:"role"`
+			} `yaml:"structure"`
+		} `yaml:"volumes"`
+	}
+	if err := yaml.Unmarshal(gadgetYaml, &minInfo); err != nil {
+		return "", fmt.Errorf("cannot minimally parse gadget metadata: %v", err)
+	}
+	for _, vol := range minInfo.Volumes {
+		for _, s := range vol.Structure {
+			if strutil.ListContains(roles, s.Role) {
+				return s.Role, nil
+			}
+		}
+	}
+	return "", nil
+}
