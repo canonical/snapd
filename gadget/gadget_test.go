@@ -3793,3 +3793,35 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromClassicWithModesGadgetHappy(
 	c.Assert(systemLv.Structure[2].Role, Equals, gadget.SystemSeedNull)
 	c.Assert(systemLv.Structure[2].Label, Equals, "")
 }
+
+func (s *gadgetYamlTestSuite) TestHasRole(c *C) {
+	tests := []struct {
+		yaml  []byte
+		roles []string
+		found string
+	}{
+		{yaml: gadgetYamlUC20PC, roles: []string{gadget.SystemData}, found: gadget.SystemData},
+		{yaml: gadgetYamlUC20PC, roles: []string{"system-other"}, found: ""},
+		{yaml: gadgetYamlUC20PC, roles: []string{gadget.SystemSeed, gadget.SystemSeedNull}, found: gadget.SystemSeed},
+		{yaml: gadgetYamlClassicWithModes, roles: []string{gadget.SystemSeed, gadget.SystemSeedNull}, found: gadget.SystemSeedNull},
+	}
+
+	for _, t := range tests {
+		err := ioutil.WriteFile(s.gadgetYamlPath, t.yaml, 0644)
+		c.Assert(err, IsNil)
+
+		found, err := gadget.HasRole(s.dir, t.roles)
+		c.Assert(err, IsNil)
+		c.Check(found, Equals, t.found)
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestHasRoleUnhappy(c *C) {
+	_, err := gadget.HasRole("bogus-path", []string{gadget.SystemData})
+	c.Check(err, ErrorMatches, `.*meta/gadget.yaml: no such file or directory`)
+
+	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(`{`), 0644)
+	c.Assert(err, IsNil)
+	_, err = gadget.HasRole(s.dir, []string{gadget.SystemData})
+	c.Check(err, ErrorMatches, `cannot minimally parse gadget metadata: yaml:.*`)
+}
