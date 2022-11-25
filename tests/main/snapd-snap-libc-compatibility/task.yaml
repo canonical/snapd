@@ -1,0 +1,124 @@
+summary: Ensure snapd builds as a snap
+
+# TODO: we don't need to build the snapd snap in this test on as many systems
+# when we have a way to dynamically download the snapd snap that was built for a
+# particular PR from github actions, in which case we can just download that and
+# install it here to test the things that we need to test about the snapd snap
+
+# effectively we can only build the snap using LXD + snapcraft on ubuntu systems
+# due to various bugs with other distros and snapcraft and/or LXD
+systems:
+    - ubuntu-*
+
+# Start early as it takes a long time.
+priority: 100
+
+prepare: |
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
+    echo "Install snapcraft from 4.x/candidate"
+    snap install snapcraft --channel=7.x/candidate --classic
+    tests.cleanup defer snap remove --purge snapcraft
+
+    echo "Remove any installed LXD debs"
+    # meh trusty's apt doesn't support -y, so use apt-get
+    apt-get remove -y lxd lxd-client
+
+    # load the fuse kernel module before installing lxd
+    modprobe fuse
+
+    echo "Install lxd"
+    snap install lxd --channel="$LXD_SNAP_CHANNEL"
+    tests.cleanup defer snap remove --purge lxd
+
+    echo "Setup the lxd snap"
+    snap set lxd waitready.timeout=240
+    lxd waitready
+    lxd init --auto
+
+
+execute: |
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
+    # shellcheck disable=SC2164
+    pushd "$PROJECT_PATH"
+    echo "Build the snap"
+    snap run snapcraft --use-lxd # snap --output=snapd_spread-test.snap
+    popd
+
+    mv "$PROJECT_PATH"/snapd_*.snap "$PWD/snapd_spread-test.snap"
+
+    # meh it doesn't work well to use quotes and "&&" in the arguments to sh -c
+    # with defer, so just put what we want to run in a script and execute that
+    cat >> snapcraft-cleanup.sh <<EOF
+    #!/bin/sh
+    cd $PROJECT_PATH
+    snap run snapcraft clean --use-lxd
+    EOF
+    chmod +x snapcraft-cleanup.sh
+    tests.cleanup defer sh -c "$PWD/snapcraft-cleanup.sh"
+
+    echo "Unsquash the snapd snap"
+    unsquashfs snapd_spread-test.snap
+
+    # We now check that the programs in the snap don't use any glibc symbols
+    # which are absent from our libc version
+    echo "Get glibc simbols"
+    # shellcheck disable=SC2207
+    AVAILABLE_SYMBOLS=($(objdump -p /lib/x86_64-linux-gnu/libc-*.so \
+        | grep -A 100 "Version definitions:" \
+        | grep -e "^\s*GLIBC_[0-9]" \
+        | sed 's/.* (\(GLIBC_[0-9.]*\)) .*/\1/'
+        ))
+
+    # This next check ensures that our magic above does not break
+    if [ "${#AVAILABLE_SYMBOLS[@]}" -eq 0 ]; then
+        echo "Couldn't find any libc symbols used by $program, please check the test code"
+        exit 1
+    fi
+    echo "Our libc has " "${AVAILABLE_SYMBOLS[@]}"
+
+    echo "Get symbols usage by binaries in snapd snap"
+
+    for program in \
+        usr/bin/snap \
+        usr/lib/snapd/snapd
+    do
+        # shellcheck disable=SC2207
+        SYMBOLS=($(objdump -p "squashfs-root/$program" \
+            | grep -A 100 "required from libc.so" \
+            | tail -n +2 \
+            | while read -r _ _ _ SYMBOL
+              do
+                  if test -z "$SYMBOL"; then break; fi
+                  echo "$SYMBOL"
+              done
+        ))
+        # This next check ensures that our magic above does not break
+        if [ "${#SYMBOLS[@]}" -eq 0 ]; then
+            echo "Couldn't find any libc symbols used by $program, please check the test code"
+            exit 1
+        fi
+        echo "$program uses " "${SYMBOLS[@]}"
+
+        for S in "${SYMBOLS[@]}"
+        do
+            # Inefficient way to check if AVAILABLE_SYMBOLS contains S, but
+            # slightly more readable than others
+            if ! (echo "${AVAILABLE_SYMBOLS[@]}" | grep -q -w "$S"); then
+                echo "$program uses $S which is not available in our libc"
+                exit 1
+            fi
+        done
+    done
+
+    echo "The snap program can be run"
+    ./squashfs-root/usr/bin/snap version | MATCH "snap"
+
+    echo "The snapd program can be run"
+    # Set SNAPPY_GLOBAL_ROOT=/tmp so that the lock file can be acquired; then
+    # anyway snapd fails because it cannot create the socket, but we don't
+    # care: we just want to verify that the program starts.
+    SNAPPY_GLOBAL_ROOT=/tmp ./squashfs-root/usr/lib/snapd/snapd 2>&1 | MATCH "Acquiring state lock file"
