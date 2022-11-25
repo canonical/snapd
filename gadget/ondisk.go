@@ -30,7 +30,24 @@ import (
 
 // OnDiskStructure represents a gadget structure laid on a block device.
 type OnDiskStructure struct {
-	LaidOutStructure
+	// Name, when non empty, provides the name of the structure
+	Name string
+	// Label provides the filesystem label
+	Label string
+	// Type of the structure, which can be 2-hex digit MBR partition,
+	// 36-char GUID partition, comma separated <mbr>,<guid> for hybrid
+	// partitioning schemes, or 'bare' when the structure is not considered
+	// a partition.
+	//
+	// For backwards compatibility type 'mbr' is also accepted, and the
+	// structure is treated as if it is of role 'mbr'.
+	Type string
+	// Filesystem used for the partition, 'vfat', 'ext4' or 'none' for
+	// structures of type 'bare'
+	Filesystem string
+	// StartOffset defines the start offset of the structure within the
+	// enclosing volume
+	StartOffset quantity.Offset
 
 	// Node identifies the device node of the block device.
 	Node string
@@ -154,22 +171,15 @@ func OnDiskStructureFromPartition(p disks.Partition) (OnDiskStructure, error) {
 		return OnDiskStructure{}, fmt.Errorf("cannot decode filesystem label for partition %s: %v", p.KernelDeviceNode, err)
 	}
 
-	volStruct := VolumeStructure{
-		Name:       decodedPartLabel,
-		Size:       quantity.Size(p.SizeInBytes),
-		Label:      decodedFsLabel,
-		Type:       p.PartitionType,
-		Filesystem: p.FilesystemType,
-		ID:         p.PartitionUUID,
-	}
-
+	// TODO add ID in second part of the gadget refactoring?
 	return OnDiskStructure{
-		LaidOutStructure: LaidOutStructure{
-			VolumeStructure: &volStruct,
-			StartOffset:     quantity.Offset(p.StartInBytes),
-		},
-		DiskIndex: int(p.DiskIndex),
-		Size:      quantity.Size(p.SizeInBytes),
-		Node:      p.KernelDeviceNode,
+		Name:        decodedPartLabel,
+		Label:       decodedFsLabel,
+		Type:        p.PartitionType,
+		Filesystem:  p.FilesystemType,
+		StartOffset: quantity.Offset(p.StartInBytes),
+		DiskIndex:   int(p.DiskIndex),
+		Size:        quantity.Size(p.SizeInBytes),
+		Node:        p.KernelDeviceNode,
 	}, nil
 }

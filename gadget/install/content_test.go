@@ -82,15 +82,9 @@ func (s *contentTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 }
 
-var mockOnDiskStructureSystemSeed = gadget.OnDiskStructure{
-	Node: "/dev/node2",
-	LaidOutStructure: gadget.LaidOutStructure{
+func mockOnDiskStructureSystemSeed(gadgetRoot string) *gadget.LaidOutStructure {
+	return &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Name:       "Recovery",
-			Size:       1258291200,
-			Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Role:       "system-seed",
-			Label:      "ubuntu-seed",
 			Filesystem: "vfat",
 			Content: []gadget.VolumeContent{
 				{
@@ -99,10 +93,17 @@ var mockOnDiskStructureSystemSeed = gadget.OnDiskStructure{
 				},
 			},
 		},
-		StartOffset: 2097152,
-		YamlIndex:   1000, // to demonstrate we do not use the laid out index
-	},
-	DiskIndex: 2,
+		YamlIndex: 1000, // to demonstrate we do not use the laid out index
+		ResolvedContent: []gadget.ResolvedContent{
+			{
+				VolumeContent: &gadget.VolumeContent{
+					UnresolvedSource: "grubx64.efi",
+					Target:           "EFI/boot/grubx64.efi",
+				},
+				ResolvedSource: filepath.Join(gadgetRoot, "grubx64.efi"),
+			},
+		},
+	}
 }
 
 const gadgetContent = `volumes:
@@ -177,7 +178,7 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 		}, {
 			mountErr:   errors.New("mount error"),
 			unmountErr: nil,
-			err:        "cannot mount filesystem .*: mount error",
+			err:        "cannot mount .* at .*: mount error",
 		}, {
 			mountErr:   nil,
 			unmountErr: errors.New("unmount error"),
@@ -192,7 +193,7 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 		restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
 			c.Check(source, Equals, "/dev/node2")
 			c.Check(fstype, Equals, "vfat")
-			c.Check(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/2"))
+			c.Check(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2"))
 			return tc.mountErr
 		})
 		defer restore()
@@ -203,22 +204,13 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 		defer restore()
 
 		// copy existing mock
-		m := mockOnDiskStructureSystemSeed
-		m.ResolvedContent = []gadget.ResolvedContent{
-			{
-				VolumeContent: &gadget.VolumeContent{
-					UnresolvedSource: "grubx64.efi",
-					Target:           "EFI/boot/grubx64.efi",
-				},
-				ResolvedSource: filepath.Join(s.gadgetRoot, "grubx64.efi"),
-			},
-		}
+		m := mockOnDiskStructureSystemSeed(s.gadgetRoot)
 		obs := &mockWriteObserver{
 			c:              c,
 			observeErr:     tc.observeErr,
-			expectedStruct: &m.LaidOutStructure,
+			expectedStruct: m,
 		}
-		err := install.WriteFilesystemContent(&m, "/dev/node2", obs)
+		err := install.WriteFilesystemContent(m, "/dev/node2", obs)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -227,11 +219,11 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 
 		if err == nil {
 			// the target file system is mounted on a directory named after the structure index
-			content, err := ioutil.ReadFile(filepath.Join(dirs.SnapRunDir, "gadget-install/2", "EFI/boot/grubx64.efi"))
+			content, err := ioutil.ReadFile(filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2", "EFI/boot/grubx64.efi"))
 			c.Assert(err, IsNil)
 			c.Check(string(content), Equals, "grubx64.efi content")
 			c.Assert(obs.content, DeepEquals, map[string][]*mockContentChange{
-				filepath.Join(dirs.SnapRunDir, "gadget-install/2"): {
+				filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2"): {
 					{
 						path:   "EFI/boot/grubx64.efi",
 						change: &gadget.ContentChange{After: filepath.Join(s.gadgetRoot, "grubx64.efi")},

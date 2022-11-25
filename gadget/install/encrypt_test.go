@@ -49,17 +49,11 @@ type encryptSuite struct {
 var _ = Suite(&encryptSuite{})
 
 var mockDeviceStructure = gadget.OnDiskStructure{
-	LaidOutStructure: gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Role:  gadget.SystemData,
-			Name:  "Test structure",
-			Label: "some-label",
-		},
-		StartOffset: 0,
-		YamlIndex:   1,
-	},
-	Size: 3 * quantity.SizeMiB,
-	Node: "/dev/node1",
+	Name:        "Test structure",
+	Label:       "some-label",
+	StartOffset: 0,
+	Size:        3 * quantity.SizeMiB,
+	Node:        "/dev/node1",
 }
 
 func (s *encryptSuite) SetUpTest(c *C) {
@@ -135,17 +129,11 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 }
 
 var mockDeviceStructureForDeviceSetupHook = gadget.OnDiskStructure{
-	LaidOutStructure: gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Role:  gadget.SystemData,
-			Name:  "ubuntu-data",
-			Label: "ubuntu-data",
-		},
-		StartOffset: 0,
-		YamlIndex:   1,
-	},
-	Size: 3 * quantity.SizeMiB,
-	Node: "/dev/node1",
+	Name:        "ubuntu-data",
+	Label:       "ubuntu-data",
+	StartOffset: 0,
+	Size:        3 * quantity.SizeMiB,
+	Node:        "/dev/node1",
 }
 
 func (s *encryptSuite) TestCreateEncryptedDeviceWithSetupHook(c *C) {
@@ -212,17 +200,11 @@ func (s *encryptSuite) TestCreateEncryptedDeviceWithSetupHook(c *C) {
 
 func (s *encryptSuite) TestCreateEncryptedDeviceWithSetupHookPartitionNameCheck(c *C) {
 	mockDeviceStructureBadName := gadget.OnDiskStructure{
-		LaidOutStructure: gadget.LaidOutStructure{
-			VolumeStructure: &gadget.VolumeStructure{
-				Role:  gadget.SystemData,
-				Name:  "ubuntu-data",
-				Label: "ubuntu-data",
-			},
-			StartOffset: 0,
-			YamlIndex:   1,
-		},
-		Size: 3 * quantity.SizeMiB,
-		Node: "/dev/node1",
+		Name:        "ubuntu-data",
+		Label:       "ubuntu-data",
+		StartOffset: 0,
+		Size:        3 * quantity.SizeMiB,
+		Node:        "/dev/node1",
 	}
 	restore := install.MockBootRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
 		c.Error("unexpected call")
@@ -236,7 +218,7 @@ func (s *encryptSuite) TestCreateEncryptedDeviceWithSetupHookPartitionNameCheck(
 	// pass a name that does not match partition name
 	dev, err := install.CreateEncryptedDeviceWithSetupHook(&mockDeviceStructureBadName,
 		s.mockedEncryptionKey, "some-name")
-	c.Assert(err, ErrorMatches, `cannot use partition name "some-name" for an encrypted structure with system-data role and filesystem with label "ubuntu-data"`)
+	c.Assert(err, ErrorMatches, `cannot use partition name "some-name" for an encrypted structure with partition label "ubuntu-data" or filesystem label "ubuntu-data"`)
 	c.Check(dev, IsNil)
 	c.Check(mockDmsetup.Calls(), HasLen, 0)
 	// make structure name different than the label, which is set to either
@@ -245,7 +227,7 @@ func (s *encryptSuite) TestCreateEncryptedDeviceWithSetupHookPartitionNameCheck(
 	mockDeviceStructureBadName.Name = "bad-name"
 	dev, err = install.CreateEncryptedDeviceWithSetupHook(&mockDeviceStructureBadName,
 		s.mockedEncryptionKey, "bad-name")
-	c.Assert(err, ErrorMatches, `cannot use partition name "bad-name" for an encrypted structure with system-data role and filesystem with label "ubuntu-data"`)
+	c.Assert(err, ErrorMatches, `cannot use partition name "bad-name" for an encrypted structure with partition label "bad-name" or filesystem label "ubuntu-data"`)
 	c.Check(dev, IsNil)
 	c.Check(mockDmsetup.Calls(), HasLen, 0)
 }
