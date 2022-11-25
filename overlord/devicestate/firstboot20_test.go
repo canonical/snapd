@@ -230,6 +230,17 @@ func stripSnapNamesWithChannels(snaps []string) []string {
 	return names
 }
 
+func (s *firstBoot20Suite) updateModel(c *C, sysLabel string, model *asserts.Model, modelUpdater func(c *C, headers map[string]interface{})) *asserts.Model {
+	if modelUpdater != nil {
+		hdrs := model.Headers()
+		modelUpdater(c, hdrs)
+		model = s.Brands.Model(model.BrandID(), model.Model(), hdrs)
+		modelFn := filepath.Join(s.SeedDir, "systems", sysLabel, "model")
+		seedtest.WriteAssertions(modelFn, model)
+	}
+	return model
+}
+
 func checkSnapstateDevModeFlags(c *C, tsAll []*state.TaskSet, snapsWithDevModeFlag ...string) {
 	allDevModeSnaps := stripSnapNamesWithChannels(snapsWithDevModeFlag)
 
@@ -913,7 +924,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 	}})
 }
 
-func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c *C, modelGrade asserts.ModelGrade, expectedErr string) {
+func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c *C, modelGrade asserts.ModelGrade, modelUpdater func(*C, map[string]interface{}), expectedErr string) {
 	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "20.04"})()
 	// XXX this shouldn't be needed
 	defer release.MockOnClassic(true)()
@@ -921,7 +932,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAn
 
 	m := &boot.Modeenv{
 		Mode:           "run",
-		RecoverySystem: "20191018",
+		RecoverySystem: "20221129",
 		Base:           "core20_1.snap",
 		Classic:        true,
 	}
@@ -952,6 +963,8 @@ apps:
 	model := s.setupCore20LikeSeed(c, sysLabel, modelGrade, kernelAndGadget, "", "classic-installer")
 	// validity check that our returned model has the expected grade
 	c.Assert(model.Grade(), Equals, modelGrade)
+
+	s.updateModel(c, sysLabel, model, modelUpdater)
 
 	s.startOverlord(c)
 
@@ -1093,7 +1106,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesDangerousRunModeN
 		"modes": []interface{}{"run"},
 	}
 
-	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelDangerous, "")
+	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelDangerous, nil, "")
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKernelAndGadgetClassicSnap(c *C) {
@@ -1103,15 +1116,23 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKe
 		"modes":   []interface{}{"run"},
 	}
 
-	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelSigned, "")
+	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelSigned, nil, "")
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKernelAndGadgetClassicSnapImplicitFails(c *C) {
 	// classic snaps must be declared explicitly for non-dangerous models,
 	// not doing so results in a seeding error
+
+	// to evade the seedwriter checks to test the firstboot ones
+	// create the system with model grade dangerous and then
+	// switch/rewrite the model to be grade signed
 	s.extraSnapModelDetails["classic-installer"] = map[string]interface{}{
 		"modes": []interface{}{"run"},
 	}
 
-	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelSigned, `snap "classic-installer" requires classic confinement`)
+	switchToSigned := func(_ *C, modHeaders map[string]interface{}) {
+		modHeaders["grade"] = string(asserts.ModelSigned)
+	}
+
+	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelDangerous, switchToSigned, `snap "classic-installer" requires classic confinement`)
 }
