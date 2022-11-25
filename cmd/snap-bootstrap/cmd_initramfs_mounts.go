@@ -1782,7 +1782,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 			return fmt.Errorf("ubuntu-seed partition found but not defined in the gadget")
 		}
 		if !hasSeedPart && seedDefinedInGadget {
-			return fmt.Errorf("ubuntu-seed partition not found but defined in the gadget")
+			return fmt.Errorf("ubuntu-seed partition not found but defined in the gadget (%s)", foundRole)
 		}
 	}
 

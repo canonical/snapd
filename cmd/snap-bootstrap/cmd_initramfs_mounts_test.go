@@ -7394,7 +7394,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedSeedI
 	writeGadget(c, "ubuntu-seed", "system-seed")
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, ErrorMatches, "ubuntu-seed partition not found but defined in the gadget")
+	c.Assert(err, ErrorMatches, `ubuntu-seed partition not found but defined in the gadget \(system-seed\)`)
 }
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedNoSeedHappy(c *C) {

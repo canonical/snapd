@@ -1390,6 +1390,8 @@ func parseCommandLineFromGadget(content []byte) (string, error) {
 // root directory with minimal validation and checks whether any volume
 // structure has one of the given roles returning it, otherwhise it returns the
 // empty string.
+// This is mainly intended to avoid compatibility issues from snap-bootstrap
+// but could be used on any known to be properly installed gadget.
 func HasRole(gadgetSnapRootDir string, roles []string) (foundRole string, err error) {
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
 	gadgetYaml, err := ioutil.ReadFile(gadgetYamlFn)
