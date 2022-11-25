@@ -570,7 +570,7 @@ func (w *Writer) InfoDerived() error {
 // SetInfo sets Info of the SeedSnap and possibly computes its
 // destination Path.
 func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
-	if info.Confinement == snap.DevModeConfinement {
+	if info.NeedsDevMode() {
 		if err := w.policy.allowsDangerousFeatures(); err != nil {
 			return err
 		}
