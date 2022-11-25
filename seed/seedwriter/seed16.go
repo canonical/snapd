@@ -60,6 +60,11 @@ func (pol *policy16) checkSnapChannel(_ channel.Channel, whichSnap string) error
 	return nil
 }
 
+func (pol *policy16) checkClassicSnap(_ *SeedSnap) error {
+	// Core 16/18 have no constraints on classic snaps
+	return nil
+}
+
 func makeSystemSnap(snapName string) *asserts.ModelSnap {
 	return internal.MakeSystemSnap(snapName, "", []string{"run"})
 }

@@ -213,6 +213,8 @@ type policy interface {
 
 	checkAvailable(snpRef naming.SnapRef, modes []string, availableByMode map[string]*naming.SnapSet) bool
 
+	checkClassicSnap(sn *SeedSnap) error
+
 	needsImplicitSnaps(availableByMode map[string]*naming.SnapSet) (bool, error)
 	implicitSnaps(availableByMode map[string]*naming.SnapSet) []*asserts.ModelSnap
 	implicitExtraSnaps(availableByMode map[string]*naming.SnapSet) []*OptionsSnap
@@ -912,8 +914,13 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 		}
 
 		needsClassic := info.NeedsClassic()
-		if needsClassic && !w.model.Classic() {
-			return fmt.Errorf("cannot use classic snap %q in a core system", info.SnapName())
+		if needsClassic {
+			if !w.model.Classic() {
+				return fmt.Errorf("cannot use classic snap %q in a core system", info.SnapName())
+			}
+			if err := w.policy.checkClassicSnap(sn); err != nil {
+				return err
+			}
 		}
 
 		modes := sn.modes()
