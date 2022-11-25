@@ -87,6 +87,28 @@ func addImplicitSlots(st *state.State, snapInfo *snap.Info) error {
 		}
 	}
 
+	// Classic slots have lowest priority.
+	if release.OnClassic {
+		classicSlots, err := snap.LoadClassicSlots()
+		if err != nil {
+			return err
+		}
+
+		for _, cslotInfo := range classicSlots {
+			if _, ok := snapInfo.Slots[cslotInfo.Name]; ok {
+				return fmt.Errorf("cannot add classic slot %s: slot already exists", cslotInfo.Name)
+			}
+
+			snapInfo.Slots[cslotInfo.Name] = &snap.SlotInfo{
+				Name:      cslotInfo.Name,
+				Label:     cslotInfo.Label,
+				Snap:      snapInfo,
+				Interface: cslotInfo.Interface,
+				Attrs:     cslotInfo.Attrs,
+			}
+		}
+	}
+
 	return nil
 }
 
