@@ -2474,6 +2474,10 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 		// shouldn't happen as the marker file is under ubuntu-data
 		return nil, fmt.Errorf("cannot ensure recovery keys without any ubuntu-data mount points")
 	}
+	authKeyDir := dataMountPoints[0]
+	if !model.Classic() {
+		authKeyDir = filepath.Join(authKeyDir, "system-data")
+	}
 	recoveryKeyDevices := []secboot.RecoveryKeyDevice{
 		{
 			Mountpoint: dataMountPoints[0],
@@ -2482,7 +2486,7 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 		},
 		{
 			Mountpoint:         boot.InitramfsUbuntuSaveDir,
-			AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data"))),
+			AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(authKeyDir)),
 		},
 	}
 	rkey, err := secbootEnsureRecoveryKey(device.RecoveryKeyUnder(fdeDir), recoveryKeyDevices)
@@ -2523,9 +2527,13 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	if !osutil.FileExists(reinstallKeyFile) {
 		reinstallKeyFile = rkey
 	}
+	authKeyDir := dataMountPoints[0]
+	if !model.Classic() {
+		authKeyDir = filepath.Join(authKeyDir, "system-data")
+	}
 	recoveryKeyDevices[secboot.RecoveryKeyDevice{
 		Mountpoint:         boot.InitramfsUbuntuSaveDir,
-		AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(filepath.Join(dataMountPoints[0], "system-data"))),
+		AuthorizingKeyFile: device.SaveKeyUnder(dirs.SnapFDEDirUnder(authKeyDir)),
 	}] = reinstallKeyFile
 
 	return secbootRemoveRecoveryKeys(recoveryKeyDevices)
