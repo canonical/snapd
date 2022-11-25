@@ -28,6 +28,7 @@ import (
 )
 
 type MkfsParams = mkfsParams
+type OnDiskAndLaidoutStructure = onDiskAndLaidoutStructure
 
 var (
 	MakeFilesystem         = makeFilesystem
@@ -38,7 +39,8 @@ var (
 	RemoveCreatedPartitions = removeCreatedPartitions
 	EnsureNodesExist        = ensureNodesExist
 
-	CreatedDuringInstall = createdDuringInstall
+	CreatedDuringInstall        = createdDuringInstall
+	TestCreateMissingPartitions = createMissingPartitions
 )
 
 func MockSysMount(f func(source, target, fstype string, flags uintptr, data string) error) (restore func()) {
@@ -57,7 +59,7 @@ func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
 	}
 }
 
-func MockEnsureNodesExist(f func(dss []gadget.OnDiskStructure, timeout time.Duration) error) (restore func()) {
+func MockEnsureNodesExist(f func(dss []OnDiskAndLaidoutStructure, timeout time.Duration) error) (restore func()) {
 	old := ensureNodesExist
 	ensureNodesExist = f
 	return func() {
@@ -110,4 +112,16 @@ func CheckEncryptionSetupData(encryptSetup *EncryptionSetupData, labelToEncDevic
 	}
 
 	return nil
+}
+
+func MockOnDiskAndLaidoutStructure(onDisk *gadget.OnDiskStructure, laidOut *gadget.LaidOutStructure) OnDiskAndLaidoutStructure {
+	return OnDiskAndLaidoutStructure{onDisk, laidOut}
+}
+
+func OnDiskFromOnDiskAndLaidoutStructure(odls OnDiskAndLaidoutStructure) *gadget.OnDiskStructure {
+	return odls.onDisk
+}
+
+func LaidOutFromOnDiskAndLaidoutStructure(odls OnDiskAndLaidoutStructure) *gadget.LaidOutStructure {
+	return odls.laidOut
 }
