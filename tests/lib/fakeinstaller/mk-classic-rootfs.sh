@@ -30,7 +30,7 @@ prepare_classic_rootfs() {
 
         # install additional packages
         sudo chroot "$DESTDIR" /usr/bin/sh -c "DEBIAN_FRONTEND=noninteractive apt update"
-        local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init"
+        local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init cryptsetup"
         sudo chroot "$DESTDIR" /usr/bin/sh -c \
              "DEBIAN_FRONTEND=noninteractive apt install --no-install-recommends -y $pkgs"
         # netplan config

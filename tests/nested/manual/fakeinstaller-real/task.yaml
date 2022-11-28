@@ -149,7 +149,7 @@ execute: |
   remote.push "$SPREAD_PATH"/../snapd_*.deb
   remote.exec "sudo mv snapd_*.deb /var/lib/snapd/"
   remote.exec "sudo apt install -y /var/lib/snapd/snapd_*.deb"
-    
+
   # push our seed down
   # TODO: merge with classic /var/lib/snapd/seed eventually
   # XXX: port scp -r to remote.push
@@ -227,7 +227,11 @@ execute: |
       remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
       remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
       remote.exec "sudo blkid /dev/disk/by-label/ubuntu-data-enc" | MATCH crypto_LUKS
-  
+
+      echo "Ensure recovery keys are available on classic FDE too"
+      remote.exec "sudo snap recovery --show-keys" > show-keys.out
+      MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}' < show-keys.out
+
       # check disk mappings
       remote.exec "sudo snap install jq"
       # TODO: no ubuntu-save right now because:
