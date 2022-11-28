@@ -178,7 +178,7 @@ populate_image() {
     loop_save="${loop}"p4
     loop_data="${loop}"p5
     # XXX: on a real UC device this the ESP is "ubuntu-seed"
-    sudo mkfs.fat /dev/mapper/"$loop_esp"
+    sudo mkfs.fat -n ubuntu-seed /dev/mapper/"$loop_esp"
     sudo mkfs.ext4 -L ubuntu-boot -q /dev/mapper/"$loop_boot"
     sudo mkfs.ext4 -L ubuntu-save -q /dev/mapper/"$loop_save"
     sudo mkfs.ext4 -L ubuntu-data -q /dev/mapper/"$loop_data"
