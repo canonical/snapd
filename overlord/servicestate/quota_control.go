@@ -319,9 +319,8 @@ func remove(slice []string, i int) []string {
 // removeServicesFromSubGroups removes all service references of a snap in
 // sub-groups related to the group of the snap, and returns the groups that were modified.
 func removeServicesFromSubGroups(grp *quota.Group, snap string, allGrps map[string]*quota.Group) ([]*quota.Group, error) {
-	// When removing a snap we assume that if it has services in
-	// sub-groups there will be only one level of sub-groups, so we can
-	// avoid checking any nested sub-groups.
+	// If a snap has services in sub-groups, the services must be in the first level of sub-groups only,
+	// that's why the code here does not check for nested sub-groups.
 	var modifiedGrps []*quota.Group
 	for _, name := range grp.SubGroups {
 		subgrp, ok := allGrps[name]

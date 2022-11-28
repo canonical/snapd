@@ -819,14 +819,12 @@ func groupEnsureOnlySnapsOrServices(snapsToAdd, servicesToAdd []string, grp *quo
 	return nil
 }
 
-// ensureParentIsNotMixed returns true if the parent is not a mixed group. A group
-// is considered mixed if it contains both snaps and sub-groups. In this case we only
-// allow services to be added to sub-groups, as we do not support nesting of snaps.
-func ensureParentIsNotMixed(grp *quota.Group) bool {
+// groupIsMixed returns whether a group contains both sub-groups and snaps (i.e is mixed)
+func groupIsMixed(grp *quota.Group) bool {
 	if grp == nil {
-		return true
+		return false
 	}
-	return len(grp.SubGroups) == 0 || len(grp.Snaps) == 0
+	return len(grp.SubGroups) > 0 && len(grp.Snaps) > 0
 }
 
 func validateSnapForAddingToGroup(st *state.State, snaps []string, group string, parentGroup *quota.Group, allGrps map[string]*quota.Group) error {
@@ -834,7 +832,7 @@ func validateSnapForAddingToGroup(st *state.State, snaps []string, group string,
 	// subgroups, as this will cause issues with nesting. Groups/subgroups may now
 	// only consist of either snaps or subgroups.
 	if len(snaps) > 0 {
-		if !ensureParentIsNotMixed(parentGroup) {
+		if groupIsMixed(parentGroup) {
 			return fmt.Errorf("cannot add snaps to group %q: only services are allowed in this sub-group", group)
 		}
 	}
@@ -887,16 +885,6 @@ func ensureAppReferenceIsService(st *state.State, snap, service string) error {
 	return nil
 }
 
-// groupHasSubGroups returns true if the group has no sub-groups or it doesn't exist,
-// otherwise turns false.
-func groupHasSubGroups(group string, allGrps map[string]*quota.Group) bool {
-	grp, ok := allGrps[group]
-	if ok && len(grp.SubGroups) != 0 {
-		return false
-	}
-	return true
-}
-
 // validateSnapServicesForAddingToGroup verifies that the given services can be added
 // to the provided group. Services come in the format of snap.service, and we do
 // the split and parsing in this function. We need to make sure that the snaps referred
@@ -907,7 +895,8 @@ func groupHasSubGroups(group string, allGrps map[string]*quota.Group) bool {
 // State must locked prior to calling this function
 func validateSnapServicesForAddingToGroup(st *state.State, services []string, group string, parentGroup *quota.Group, allGrps map[string]*quota.Group) error {
 	if len(services) > 0 {
-		if !groupHasSubGroups(group, allGrps) {
+		grp, ok := allGrps[group]
+		if ok && len(grp.SubGroups) != 0 {
 			return fmt.Errorf("cannot mix services and sub groups in the group %q", group)
 		}
 	}

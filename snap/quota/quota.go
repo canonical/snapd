@@ -851,7 +851,9 @@ func (grp *Group) ValidateNestingAndSnaps() error {
 	// prior to this change.
 	parent := grp.parentGroup
 	for parent != nil {
-		if len(parent.Snaps) > 0 && len(parent.SubGroups) > 0 {
+		// We know that the parent contains sub-groups (grp), so just
+		// do a check for snaps
+		if len(parent.Snaps) > 0 {
 			// then the group must be a direct parent
 			// and we must not have any sub-groups
 			if grp.parentGroup != parent || len(grp.SubGroups) > 0 {
