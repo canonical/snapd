@@ -400,15 +400,6 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			return err
 		}
 
-		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
-		// available. Therefore the revision in the local snap must be exactly the revision specified
-		// in the manifest. If it's not, we fail.
-		specifiedRevision := opts.Revisions[info.SnapName()]
-		if !specifiedRevision.Unset() && specifiedRevision != info.Revision {
-			return fmt.Errorf("cannot use snap %s for image, unknown/local revision does not match the value specified by revisions file (%s != %s)",
-				sn.Path, info.Revision, specifiedRevision)
-		}
-
 		if err := w.SetInfo(sn, info); err != nil {
 			return err
 		}
@@ -426,6 +417,20 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 
 	if err := w.InfoDerived(); err != nil {
 		return err
+	}
+
+	// Check local snaps again, but now after InfoDerived has been called. InfoDerived
+	// fills out the snap revisions for the local snaps, and we need this to verify against
+	// expected revisions.
+	for _, sn := range localSnaps {
+		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
+		// available. Therefore the revision in the local snap must be exactly the revision specified
+		// in the manifest. If it's not, we fail.
+		specifiedRevision := opts.Revisions[sn.Info.SnapName()]
+		if !specifiedRevision.Unset() && specifiedRevision != sn.Info.Revision {
+			return fmt.Errorf("cannot use snap %s for image, unknown/local revision does not match the value specified by revisions file (%s != %s)",
+				sn.Path, sn.Info.Revision, specifiedRevision)
+		}
 	}
 
 	for {
