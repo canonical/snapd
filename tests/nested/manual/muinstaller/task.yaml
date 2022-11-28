@@ -109,14 +109,14 @@ execute: |
   test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems/"$LABEL" > system
   jq '.result.model.distribution' system | MATCH "ubuntu"
 
-  # build fakeinstaller and put in place
-  go build -o fakeinstaller "$TESTSLIB"/fakeinstaller/main.go
+  # build muinstaller and put in place
+  go build -o muinstaller "$TESTSLIB"/muinstaller/main.go
 
   # create fake disk for the installer to work on
   truncate --size=4G fake-disk.img
   loop_device=$(losetup --show -f ./fake-disk.img)
   # and "install" the current seed to the fake disk
-  ./fakeinstaller "$LABEL" "$TESTSLIB"/fakeinstaller/mk-classic-rootfs.sh "$loop_device"
+  ./muinstaller "$LABEL" "$TESTSLIB"/muinstaller/mk-classic-rootfs.sh "$loop_device"
   # validate that the fake installer created the expected partitions
   sfdisk -d "$loop_device" > fdisk_output
   MATCH "${loop_device}p1 .* name=\"BIOS Boot\""   < fdisk_output

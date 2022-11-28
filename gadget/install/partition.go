@@ -68,7 +68,7 @@ type CreateOptions struct {
 
 // CreateMissingPartitions calls createMissingPartitions but returns only
 // OnDiskStructure, as it is meant to be used externally (i.e. by
-// fakeinstaller).
+// muinstaller).
 func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts *CreateOptions) ([]gadget.OnDiskStructure, error) {
 	odlsStructures, err := createMissingPartitions(dl, pv, opts)
 	if err != nil {
