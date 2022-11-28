@@ -10,6 +10,9 @@
     "grade": "dangerous",
     "classic": "true",
     "distribution": "ubuntu",
+    "serial-authority": [
+        "generic"
+    ],
     "snaps": [
         {
             "name": "pc",
