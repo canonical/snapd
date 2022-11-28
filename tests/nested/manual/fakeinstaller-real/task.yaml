@@ -114,9 +114,6 @@ execute: |
 
   # create new disk for the installer to work on and attach to VM
   truncate --size=4G fake-disk.img
-  # TODO: XXX: fakeinstaller should work on a empty disk too, it errors
-  # right now with "device with name "/dev/vdc" is not a physical disk
-  echo "label: gpt" | sfdisk "fake-disk.img"
 
   NESTED_PARAM_EXTRA="-drive file=$(pwd)/fake-disk.img,if=virtio,snapshot=off"
   export NESTED_PARAM_EXTRA
