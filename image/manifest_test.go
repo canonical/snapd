@@ -106,7 +106,7 @@ func (s *manifestSuite) TestWriteSeedManifestNoFile(c *C) {
 }
 
 func (s *manifestSuite) TestWriteSeedManifest(c *C) {
-	filePath := s.testWriteSeedManifest(c, map[string]snap.Revision{"core": {N: 12}, "test": {N: -4}})
+	filePath := s.testWriteSeedManifest(c, map[string]snap.Revision{"core": snap.R(12), "test": snap.R(-4)})
 	contents, err := ioutil.ReadFile(filePath)
 	c.Assert(err, IsNil)
 	c.Check(string(contents), Equals, `core 12
