@@ -370,16 +370,76 @@ func (s *aspectSuite) TestAspectAssertionWithPlaceholder(c *C) {
 	}
 }
 
-func (s *aspectSuite) TestAspectBadPlaceholderAssertion(c *C) {
-	aspectDir, err := aspects.NewAspectDirectory("dir", map[string]interface{}{
-		"foo": []map[string]string{
-			{"name": "bad.{foo}", "path": "bad.{bar}"},
+func (s *aspectSuite) TestAspectNameAndPathValidation(c *C) {
+	type testcase struct {
+		testName string
+		name     string
+		path     string
+		err      string
+	}
+
+	for _, tc := range []testcase{
+		{
+			testName: "empty parts in name",
+			name:     "a..b", path: "a.b", err: `"a..b" has empty parts`,
 		},
-	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, IsNil)
+		{
+			testName: "empty parts in path",
+			name:     "a.b", path: "c..b", err: `"c..b" has empty parts`,
+		},
+		{
+			testName: "placeholder mismatch (same number)",
+			name:     "bad.{foo}", path: "bad.{bar}", err: `placeholder "{foo}" from name "bad.{foo}" is absent from path "bad.{bar}"`,
+		},
+		{
+			testName: "placeholder mismatch (different number)",
+			name:     "{foo}", path: "{foo}.bad.{bar}", err: `name "{foo}" and path "{foo}.bad.{bar}" have mismatched placeholders`,
+		},
+		{
+			testName: "invalid character in name: $",
+			name:     "a.b$", path: "bad", err: `invalid part: "b$"`,
+		},
+		{
+			testName: "invalid character in path: é",
+			name:     "a.b", path: "a.é", err: `invalid part: "é"`,
+		},
+		{
+			testName: "invalid character in name: _",
+			name:     "a.b_c", path: "a.b-c", err: `invalid part: "b_c"`,
+		},
+		{
+			testName: "invalid leading dash",
+			name:     "-a", path: "a", err: `invalid part: "-a"`,
+		},
+		{
+			testName: "invalid trailing dash",
+			name:     "a", path: "a-", err: `invalid part: "a-"`,
+		},
+		{
+			testName: "missing closing curly bracket",
+			name:     "{a{", path: "a", err: `invalid part: "{a{"`,
+		},
+		{
+			testName: "missing opening curly bracket",
+			name:     "a", path: "}a}", err: `invalid part: "}a}"`,
+		},
+		{
+			testName: "curly brackets not wrapping part",
+			name:     "a", path: "a.b{a}c", err: `invalid part: "b{a}c"`,
+		},
+		{
+			testName: "invalid whitespace character",
+			name:     "a. .c", path: "a.b", err: `invalid part: " "`,
+		},
+	} {
+		_, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+			"foo": []map[string]string{
+				{"name": tc.name, "path": tc.path},
+			},
+		}, nil, nil)
 
-	aspect := aspectDir.Aspect("foo")
-
-	err = aspect.Set("bad.foo", "bar")
-	c.Assert(err, ErrorMatches, "cannot find path placeholder \"bar\" in the aspect name")
+		cmt := Commentf("sub-test %q failed", tc.testName)
+		c.Assert(err, Not(IsNil), cmt)
+		c.Assert(err.Error(), Equals, tc.err, cmt)
+	}
 }

@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/jsonutil"
@@ -123,20 +124,13 @@ func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag Dat
 				return nil, errors.New(`cannot create aspect pattern without a "name" field`)
 			}
 
-			// TODO: either
-			// * Validate that a path isn't a subset of another
-			//   (possibly somewhere else).  Otherwise, we can
-			//   write a user value in a subkey of a path (that
-			//   should be map).
-			// * Our schema should be able to provide
-			//   allowed/expected types given a path; these should
-			//   guide and take precedence resolving conflicts
-			//   between data in the data bags or written E.g
-			//   possibly return null or empty object if at a path
-			//   were the schema expects an object there is scalar?
 			path, ok := aspectPattern["path"]
 			if !ok || path == "" {
 				return nil, errors.New(`cannot create aspect pattern without a "path" field`)
+			}
+
+			if err := validateNamePathPair(name, path); err != nil {
+				return nil, err
 			}
 
 			accPattern, err := newAccessPattern(name, path, aspectPattern["access"])
@@ -151,6 +145,79 @@ func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag Dat
 	}
 
 	return &aspectDir, nil
+}
+
+// validateNamePathPair checks that:
+//     * names and paths are composed of valid parts (see: validateAspectString)
+//     * all placeholders in a name are in the path and vice-versa
+func validateNamePathPair(name, path string) error {
+	if err := validateAspectString(name); err != nil {
+		return err
+	}
+
+	if err := validateAspectString(path); err != nil {
+		return err
+	}
+
+	namePlaceholders, pathPlaceholders := getPlaceholders(name), getPlaceholders(path)
+	if len(namePlaceholders) != len(pathPlaceholders) {
+		return fmt.Errorf("name %q and path %q have mismatched placeholders", name, path)
+	}
+
+	for placeholder := range namePlaceholders {
+		if !pathPlaceholders[placeholder] {
+			return fmt.Errorf("placeholder %q from name %q is absent from path %q",
+				placeholder, name, path)
+		}
+	}
+
+	return nil
+}
+
+var (
+	partRegex        = "(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*"
+	validPart        = regexp.MustCompile(fmt.Sprintf("^%s$", partRegex))
+	validPlaceholder = regexp.MustCompile(fmt.Sprintf("^{%s}$", partRegex))
+)
+
+// validateAspectString validates that names/paths in an aspect definition are:
+//     * composed of non-empty, dot-separated parts with optional placeholders ("foo.{bar}")
+//     * non-placeholder parts are made up of lowercase alphanumeric ASCII characters,
+//			optionally with dashes between alphanumeric characters (e.g., "a-b-c")
+//     * placeholder parts are composed of non-placeholder parts wrapped in curly brackets
+func validateAspectString(str string) error {
+	parts := strings.Split(str, ".")
+
+	for _, part := range parts {
+		if part == "" {
+			return fmt.Errorf("%q has empty parts", str)
+		}
+
+		if !(validPart.MatchString(part) || validPlaceholder.MatchString(part)) {
+			return fmt.Errorf("invalid part: %q", part)
+		}
+	}
+
+	return nil
+}
+
+// getPlaceholders returns the set of placeholders in the string or nil, if
+// there is none.
+func getPlaceholders(aspectStr string) map[string]bool {
+	var placeholders map[string]bool
+
+	parts := strings.Split(aspectStr, ".")
+	for _, part := range parts {
+		if part[0] == '{' && part[len(part)-1] == '}' {
+			if placeholders == nil {
+				placeholders = make(map[string]bool)
+			}
+
+			placeholders[part] = true
+		}
+	}
+
+	return placeholders
 }
 
 // Aspect returns an aspect from the aspect directory.
@@ -353,6 +420,8 @@ func (p placeholder) match(part string, placeholders map[string]string) bool {
 func (p placeholder) write(sb *strings.Builder, placeholders map[string]string) error {
 	part, ok := placeholders[string(p)]
 	if !ok {
+		// the validation at create-time checks for mismatched placeholders so this
+		// shouldn't be possible save for programmer error
 		return fmt.Errorf("cannot find path placeholder %q in the aspect name", p)
 	}
 
