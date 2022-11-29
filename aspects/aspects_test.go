@@ -54,14 +54,14 @@ func (*aspectSuite) TestNewAspectDirectory(c *C) {
 			{"path": "foo"},
 		},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspect pattern without a "name" field`)
+	c.Assert(err, ErrorMatches, `cannot create aspect "bar": access patterns must have a "name" field`)
 
 	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"name": "foo"},
 		},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspect pattern without a "path" field`)
+	c.Assert(err, ErrorMatches, `cannot create aspect "bar": access patterns must have a "path" field`)
 
 	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": []map[string]string{
@@ -381,55 +381,55 @@ func (s *aspectSuite) TestAspectNameAndPathValidation(c *C) {
 	for _, tc := range []testcase{
 		{
 			testName: "empty parts in name",
-			name:     "a..b", path: "a.b", err: `"a..b" has empty parts`,
+			name:     "a..b", path: "a.b", err: `invalid access name "a..b": cannot have empty parts`,
 		},
 		{
 			testName: "empty parts in path",
-			name:     "a.b", path: "c..b", err: `"c..b" has empty parts`,
+			name:     "a.b", path: "c..b", err: `invalid path "c..b": cannot have empty parts`,
 		},
 		{
 			testName: "placeholder mismatch (same number)",
-			name:     "bad.{foo}", path: "bad.{bar}", err: `placeholder "{foo}" from name "bad.{foo}" is absent from path "bad.{bar}"`,
+			name:     "bad.{foo}", path: "bad.{bar}", err: `placeholder "{foo}" from access name "bad.{foo}" is absent from path "bad.{bar}"`,
 		},
 		{
 			testName: "placeholder mismatch (different number)",
-			name:     "{foo}", path: "{foo}.bad.{bar}", err: `name "{foo}" and path "{foo}.bad.{bar}" have mismatched placeholders`,
+			name:     "{foo}", path: "{foo}.bad.{bar}", err: `access name "{foo}" and path "{foo}.bad.{bar}" have mismatched placeholders`,
 		},
 		{
 			testName: "invalid character in name: $",
-			name:     "a.b$", path: "bad", err: `invalid part: "b$"`,
+			name:     "a.b$", path: "bad", err: `invalid access name "a.b$": invalid part "b$"`,
 		},
 		{
 			testName: "invalid character in path: é",
-			name:     "a.b", path: "a.é", err: `invalid part: "é"`,
+			name:     "a.b", path: "a.é", err: `invalid path "a.é": invalid part "é"`,
 		},
 		{
 			testName: "invalid character in name: _",
-			name:     "a.b_c", path: "a.b-c", err: `invalid part: "b_c"`,
+			name:     "a.b_c", path: "a.b-c", err: `invalid access name "a.b_c": invalid part "b_c"`,
 		},
 		{
 			testName: "invalid leading dash",
-			name:     "-a", path: "a", err: `invalid part: "-a"`,
+			name:     "-a", path: "a", err: `invalid access name "-a": invalid part "-a"`,
 		},
 		{
 			testName: "invalid trailing dash",
-			name:     "a", path: "a-", err: `invalid part: "a-"`,
+			name:     "a", path: "a-", err: `invalid path "a-": invalid part "a-"`,
 		},
 		{
 			testName: "missing closing curly bracket",
-			name:     "{a{", path: "a", err: `invalid part: "{a{"`,
+			name:     "{a{", path: "a", err: `invalid access name "{a{": invalid part "{a{"`,
 		},
 		{
 			testName: "missing opening curly bracket",
-			name:     "a", path: "}a}", err: `invalid part: "}a}"`,
+			name:     "a", path: "}a}", err: `invalid path "}a}": invalid part "}a}"`,
 		},
 		{
 			testName: "curly brackets not wrapping part",
-			name:     "a", path: "a.b{a}c", err: `invalid part: "b{a}c"`,
+			name:     "a", path: "a.b{a}c", err: `invalid path "a.b{a}c": invalid part "b{a}c"`,
 		},
 		{
 			testName: "invalid whitespace character",
-			name:     "a. .c", path: "a.b", err: `invalid part: " "`,
+			name:     "a. .c", path: "a.b", err: `invalid access name "a. .c": invalid part " "`,
 		},
 	} {
 		_, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
@@ -440,6 +440,6 @@ func (s *aspectSuite) TestAspectNameAndPathValidation(c *C) {
 
 		cmt := Commentf("sub-test %q failed", tc.testName)
 		c.Assert(err, Not(IsNil), cmt)
-		c.Assert(err.Error(), Equals, tc.err, cmt)
+		c.Assert(err.Error(), Equals, `cannot create aspect "foo": `+tc.err, cmt)
 	}
 }

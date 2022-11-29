@@ -97,7 +97,7 @@ func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag Dat
 		return nil, errors.New(`cannot create aspects directory: no aspects`)
 	}
 
-	aspectDir := Directory{
+	aspectDir := &Directory{
 		Name:    name,
 		dataBag: dataBag,
 		schema:  schema,
@@ -112,61 +112,70 @@ func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag Dat
 			return nil, errors.New("cannot create aspect without access patterns")
 		}
 
-		aspect := &Aspect{
-			Name:           name,
-			accessPatterns: make([]*accessPattern, 0, len(aspectPatterns)),
-			directory:      aspectDir,
-		}
-
-		for _, aspectPattern := range aspectPatterns {
-			name, ok := aspectPattern["name"]
-			if !ok || name == "" {
-				return nil, errors.New(`cannot create aspect pattern without a "name" field`)
-			}
-
-			path, ok := aspectPattern["path"]
-			if !ok || path == "" {
-				return nil, errors.New(`cannot create aspect pattern without a "path" field`)
-			}
-
-			if err := validateNamePathPair(name, path); err != nil {
-				return nil, err
-			}
-
-			accPattern, err := newAccessPattern(name, path, aspectPattern["access"])
-			if err != nil {
-				return nil, err
-			}
-
-			aspect.accessPatterns = append(aspect.accessPatterns, accPattern)
+		aspect, err := newAspect(aspectDir, name, aspectPatterns)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create aspect %q: %w", name, err)
 		}
 
 		aspectDir.aspects[name] = aspect
 	}
 
-	return &aspectDir, nil
+	return aspectDir, nil
+}
+
+func newAspect(dir *Directory, name string, aspectPatterns []map[string]string) (*Aspect, error) {
+	aspect := &Aspect{
+		Name:           name,
+		accessPatterns: make([]*accessPattern, 0, len(aspectPatterns)),
+		directory:      dir,
+	}
+
+	for _, aspectPattern := range aspectPatterns {
+		name, ok := aspectPattern["name"]
+		if !ok || name == "" {
+			return nil, errors.New(`access patterns must have a "name" field`)
+		}
+
+		path, ok := aspectPattern["path"]
+		if !ok || path == "" {
+			return nil, errors.New(`access patterns must have a "path" field`)
+		}
+
+		if err := validateNamePathPair(name, path); err != nil {
+			return nil, err
+		}
+
+		accPattern, err := newAccessPattern(name, path, aspectPattern["access"])
+		if err != nil {
+			return nil, err
+		}
+
+		aspect.accessPatterns = append(aspect.accessPatterns, accPattern)
+	}
+
+	return aspect, nil
 }
 
 // validateNamePathPair checks that:
 //     * names and paths are composed of valid parts (see: validateAspectString)
 //     * all placeholders in a name are in the path and vice-versa
 func validateNamePathPair(name, path string) error {
-	if err := validateAspectString(name); err != nil {
-		return err
+	if err := validateAspectDottedPath(name); err != nil {
+		return fmt.Errorf("invalid access name %q: %w", name, err)
 	}
 
-	if err := validateAspectString(path); err != nil {
-		return err
+	if err := validateAspectDottedPath(path); err != nil {
+		return fmt.Errorf("invalid path %q: %w", path, err)
 	}
 
 	namePlaceholders, pathPlaceholders := getPlaceholders(name), getPlaceholders(path)
 	if len(namePlaceholders) != len(pathPlaceholders) {
-		return fmt.Errorf("name %q and path %q have mismatched placeholders", name, path)
+		return fmt.Errorf("access name %q and path %q have mismatched placeholders", name, path)
 	}
 
 	for placeholder := range namePlaceholders {
 		if !pathPlaceholders[placeholder] {
-			return fmt.Errorf("placeholder %q from name %q is absent from path %q",
+			return fmt.Errorf("placeholder %q from access name %q is absent from path %q",
 				placeholder, name, path)
 		}
 	}
@@ -180,21 +189,21 @@ var (
 	validPlaceholder = regexp.MustCompile(fmt.Sprintf("^{%s}$", partRegex))
 )
 
-// validateAspectString validates that names/paths in an aspect definition are:
+// validateAspectDottedPath validates that names/paths in an aspect definition are:
 //     * composed of non-empty, dot-separated parts with optional placeholders ("foo.{bar}")
 //     * non-placeholder parts are made up of lowercase alphanumeric ASCII characters,
 //			optionally with dashes between alphanumeric characters (e.g., "a-b-c")
 //     * placeholder parts are composed of non-placeholder parts wrapped in curly brackets
-func validateAspectString(str string) error {
-	parts := strings.Split(str, ".")
+func validateAspectDottedPath(path string) (err error) {
+	parts := strings.Split(path, ".")
 
 	for _, part := range parts {
 		if part == "" {
-			return fmt.Errorf("%q has empty parts", str)
+			return errors.New("cannot have empty parts")
 		}
 
 		if !(validPart.MatchString(part) || validPlaceholder.MatchString(part)) {
-			return fmt.Errorf("invalid part: %q", part)
+			return fmt.Errorf("invalid part %q", part)
 		}
 	}
 
@@ -229,7 +238,7 @@ func (d *Directory) Aspect(aspect string) *Aspect {
 type Aspect struct {
 	Name           string
 	accessPatterns []*accessPattern
-	directory      Directory
+	directory      *Directory
 }
 
 // Set sets the named aspect to a specified value.
