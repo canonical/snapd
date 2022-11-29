@@ -916,6 +916,8 @@ func (x *cmdRefresh) holdRefreshes() (err error) {
 		dur, err := time.ParseDuration(x.Hold)
 		if err != nil {
 			return fmt.Errorf("hold value must be a number of hours or minutes (e.g., 72h): %v", err)
+		} else if dur < time.Second {
+			return fmt.Errorf("cannot hold refreshes for less than a second: %s", x.Hold)
 		}
 
 		opts.Time = timeNow().Add(dur).Format(time.RFC3339)
