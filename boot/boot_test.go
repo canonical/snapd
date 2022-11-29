@@ -5221,3 +5221,39 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallNewNoReseal(c *
 	// no reseal
 	c.Check(resealCalls, Equals, 0)
 }
+
+func (s *bootenv20Suite) TestInUseClassicWithModes(c *C) {
+	classicWithModesDev := boottest.MockClassicWithModesDevice("", nil)
+	c.Assert(classicWithModesDev.IsCoreBoot(), Equals, true)
+
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		&bootenv20Setup{
+			modeenv: &boot.Modeenv{
+				// gadget is gadget1
+				Gadget: s.gadget1.Filename(),
+				// current kernels is just kern1
+				CurrentKernels: []string{s.kern1.Filename()},
+				// operating mode is run
+				Mode: "run",
+				// RecoverySystem is unset, as it should be during run mode
+				RecoverySystem: "",
+			},
+			// enabled kernel is kern1
+			kern: s.kern1,
+			// no try kernel enabled
+			tryKern: nil,
+			// kernel status is default
+			kernStatus: boot.DefaultStatus,
+		})
+	defer r()
+
+	inUse, err := boot.InUse(snap.TypeKernel, classicWithModesDev)
+	c.Check(err, IsNil)
+	c.Check(inUse(s.kern1.SnapName(), s.kern1.SnapRevision()), Equals, true)
+	c.Check(inUse(s.kern2.SnapName(), s.kern2.SnapRevision()), Equals, false)
+
+	_, err = boot.InUse(snap.TypeBase, classicWithModesDev)
+	c.Check(err, IsNil)
+}
