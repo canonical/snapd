@@ -1687,7 +1687,7 @@ func (s *SnapSuite) TestRefreshHoldBadDuration(c *check.C) {
 	})
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--hold=1d"})
-	c.Assert(err, check.ErrorMatches, "hold value must be a number of hours or minutes \\(e\\.g\\., 72h\\): time: unknown unit \"?d\"? in duration \"?1d\"?")
+	c.Assert(err, check.ErrorMatches, "hold value must be a number of hours, minutes or seconds, or \"forever\": time: unknown unit \"?d\"? in duration \"?1d\"?")
 	c.Assert(rest, check.DeepEquals, []string{"--hold=1d"})
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
