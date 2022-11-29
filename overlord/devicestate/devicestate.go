@@ -888,6 +888,14 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		return nil, fmt.Errorf("cannot remodel to different series yet")
 	}
 
+	// don't allow remodel on classic for now
+	if current.Classic() {
+		return nil, fmt.Errorf("cannot remodel from classic model")
+	}
+	if current.Classic() != new.Classic() {
+		return nil, fmt.Errorf("cannot remodel across classic and non-classic models")
+	}
+
 	// TODO:UC20: ensure we never remodel to a lower
 	// grade
 

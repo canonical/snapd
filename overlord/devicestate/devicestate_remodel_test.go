@@ -155,6 +155,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 		{map[string]interface{}{"base": "core18"}, "cannot remodel from core to bases yet"},
 		// pre-UC20 to UC20
 		{map[string]interface{}{"base": "core20", "kernel": nil, "gadget": nil, "snaps": mockCore20ModelSnaps}, `cannot remodel from pre-UC20 to UC20\+ models`},
+		{map[string]interface{}{"base": "core20", "kernel": nil, "gadget": nil, "classic": "true", "distribution": "ubuntu", "snaps": mockCore20ModelSnaps}, `cannot remodel across classic and non-classic models`},
 	} {
 		mergeMockModelHeaders(cur, t.new)
 		new := s.brands.Model(t.new["brand"].(string), t.new["model"].(string), t.new)
@@ -162,6 +163,41 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 		c.Check(chg, IsNil)
 		c.Check(err, ErrorMatches, t.errStr)
 	}
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelFromClassicUnhappy(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	// set a model assertion
+	cur := map[string]interface{}{
+		"brand":        "canonical",
+		"model":        "pc-model",
+		"architecture": "amd64",
+		"classic":      "true",
+		"gadget":       "pc",
+	}
+	s.makeModelAssertionInState(c, cur["brand"].(string), cur["model"].(string), map[string]interface{}{
+		"architecture": cur["architecture"],
+		"gadget":       cur["gadget"],
+		"classic":      cur["classic"],
+	})
+	s.makeSerialAssertionInState(c, cur["brand"].(string), cur["model"].(string), "orig-serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  cur["brand"].(string),
+		Model:  cur["model"].(string),
+		Serial: "orig-serial",
+	})
+
+	new := s.brands.Model(cur["brand"].(string), "new-model", map[string]interface{}{
+		"architecture": cur["architecture"],
+		"gadget":       cur["gadget"],
+		"classic":      cur["classic"],
+	})
+
+	_, err := devicestate.Remodel(s.state, new)
+	c.Check(err, ErrorMatches, `cannot remodel from classic model`)
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelCheckGrade(c *C) {
