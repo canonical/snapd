@@ -259,7 +259,7 @@ jobs:
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
           ./autogen.sh
-          make -j2
+          make -j$(nproc)
 
     - name: Get deps
       run: |
