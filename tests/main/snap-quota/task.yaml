@@ -53,7 +53,7 @@ execute: |
   # it is omitted entirely, or it could be either 4096 or 12.3kB on some systems where 
   # empty cgroups have memory usage even on empty cgroups
   MATCH "     4\s+group-three\s+group-top1\s+memory=15.0MB(\s*|\s*memory=[0-9.a-zA-Z]+)\s*$" < quotas.txt
-  MATCH "     5\s+group-sub-three\s+group-three\s+memory=4.00MB(\s*|\s*memory=4096B|\s*memory=12.3kB)\s*$" < quotas.txt
+  MATCH "     5\s+group-sub-three\s+group-three\s+memory=4.00MB(\s*|\s*memory=4096B|\s*memory=8.19kB|\s*memory=12.3kB)\s*$" < quotas.txt
   MATCH "     6\s+group-sub-sub-three\s+group-sub-three\s+memory=1.00MB\s*$" < quotas.txt
   MATCH "     7\s+group-two\s+group-top1\s+memory=2.00MB\s*$" < quotas.txt
   MATCH "     8\s+group-top2\s+memory=500MB\s*$" < quotas.txt
