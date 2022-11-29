@@ -915,7 +915,7 @@ func (x *cmdRefresh) holdRefreshes() (err error) {
 	} else {
 		dur, err := time.ParseDuration(x.Hold)
 		if err != nil {
-			return fmt.Errorf("hold value must be a number of hours or minutes (e.g., 72h): %v", err)
+			return fmt.Errorf("hold value must be a number of hours, minutes or seconds, or \"forever\": %v", err)
 		} else if dur < time.Second {
 			return fmt.Errorf("cannot hold refreshes for less than a second: %s", x.Hold)
 		}
@@ -1301,7 +1301,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"hold": i18n.G("Hold refreshes for a specified duration (or indefinitely, if none is specified)"),
+			"hold": i18n.G("Hold refreshes for a specified duration (or forever, if no value is specified)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"unhold": i18n.G("Remove refresh hold"),
 		}), nil)
