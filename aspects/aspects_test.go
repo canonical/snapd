@@ -380,12 +380,12 @@ func (s *aspectSuite) TestAspectNameAndPathValidation(c *C) {
 
 	for _, tc := range []testcase{
 		{
-			testName: "empty parts in name",
-			name:     "a..b", path: "a.b", err: `invalid access name "a..b": cannot have empty parts`,
+			testName: "empty subkeys in name",
+			name:     "a..b", path: "a.b", err: `invalid access name "a..b": cannot have empty subkeys`,
 		},
 		{
-			testName: "empty parts in path",
-			name:     "a.b", path: "c..b", err: `invalid path "c..b": cannot have empty parts`,
+			testName: "empty subkeys in path",
+			name:     "a.b", path: "c..b", err: `invalid path "c..b": cannot have empty subkeys`,
 		},
 		{
 			testName: "placeholder mismatch (same number)",
@@ -397,39 +397,39 @@ func (s *aspectSuite) TestAspectNameAndPathValidation(c *C) {
 		},
 		{
 			testName: "invalid character in name: $",
-			name:     "a.b$", path: "bad", err: `invalid access name "a.b$": invalid part "b$"`,
+			name:     "a.b$", path: "bad", err: `invalid access name "a.b$": invalid subkey "b$"`,
 		},
 		{
 			testName: "invalid character in path: é",
-			name:     "a.b", path: "a.é", err: `invalid path "a.é": invalid part "é"`,
+			name:     "a.b", path: "a.é", err: `invalid path "a.é": invalid subkey "é"`,
 		},
 		{
 			testName: "invalid character in name: _",
-			name:     "a.b_c", path: "a.b-c", err: `invalid access name "a.b_c": invalid part "b_c"`,
+			name:     "a.b_c", path: "a.b-c", err: `invalid access name "a.b_c": invalid subkey "b_c"`,
 		},
 		{
 			testName: "invalid leading dash",
-			name:     "-a", path: "a", err: `invalid access name "-a": invalid part "-a"`,
+			name:     "-a", path: "a", err: `invalid access name "-a": invalid subkey "-a"`,
 		},
 		{
 			testName: "invalid trailing dash",
-			name:     "a", path: "a-", err: `invalid path "a-": invalid part "a-"`,
+			name:     "a", path: "a-", err: `invalid path "a-": invalid subkey "a-"`,
 		},
 		{
 			testName: "missing closing curly bracket",
-			name:     "{a{", path: "a", err: `invalid access name "{a{": invalid part "{a{"`,
+			name:     "{a{", path: "a", err: `invalid access name "{a{": invalid subkey "{a{"`,
 		},
 		{
 			testName: "missing opening curly bracket",
-			name:     "a", path: "}a}", err: `invalid path "}a}": invalid part "}a}"`,
+			name:     "a", path: "}a}", err: `invalid path "}a}": invalid subkey "}a}"`,
 		},
 		{
-			testName: "curly brackets not wrapping part",
-			name:     "a", path: "a.b{a}c", err: `invalid path "a.b{a}c": invalid part "b{a}c"`,
+			testName: "curly brackets not wrapping subkey",
+			name:     "a", path: "a.b{a}c", err: `invalid path "a.b{a}c": invalid subkey "b{a}c"`,
 		},
 		{
 			testName: "invalid whitespace character",
-			name:     "a. .c", path: "a.b", err: `invalid access name "a. .c": invalid part " "`,
+			name:     "a. .c", path: "a.b", err: `invalid access name "a. .c": invalid subkey " "`,
 		},
 	} {
 		_, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
