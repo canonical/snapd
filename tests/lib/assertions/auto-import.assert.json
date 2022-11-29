@@ -4,7 +4,7 @@
     "series": ["16"],
     "brand-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
     "email": "snappy-dev@lists.launchpad.net",
-    "models": ["pc","pc-i386","pi2"],
+    "models": ["pc","pc-i386","pi2", "arm64"],
     "name": "user1",
     "username": "user1",
     "password": "$6$o5er943Y$cngsJHutSgACVbR65WAnhaUPC9.vENj8locb50hvMdMRMK8cQ3Zbu6WPh5Al2JrnHzpR63osPCwE/IFG/2s6K1",
