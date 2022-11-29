@@ -141,7 +141,8 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	timings.Run(tm, "load-verified-snap-metadata", "load verified snap metadata from seed", func(nested timings.Measurer) {
 		err = deviceSeed.LoadMeta(mode, nil, nested)
 	})
-	if release.OnClassic && err == seed.ErrNoMeta {
+	// ErrNoMeta can happen only with Core 16/18-style seeds
+	if err == seed.ErrNoMeta && release.OnClassic {
 		if preseed {
 			return nil, fmt.Errorf("no snaps to preseed")
 		}
