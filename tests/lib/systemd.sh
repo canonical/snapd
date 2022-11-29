@@ -29,7 +29,9 @@ systemd_stop_and_remove_unit() {
 wait_for_service() {
     local service_name="$1"
     local state="${2:-active}"
-    for i in $(seq 300); do
+    local attempts="${3:-300}"
+
+    for i in $(seq $attempts); do
         if systemctl show -p ActiveState "$service_name" | grep -q "ActiveState=$state"; then
             return
         fi
@@ -40,7 +42,7 @@ wait_for_service() {
         sleep 1;
     done
 
-    echo "service $service_name did not start"
+    echo "service $service_name did not get state $state"
     exit 1
 }
 

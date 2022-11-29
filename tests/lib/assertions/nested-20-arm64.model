@@ -2,7 +2,7 @@ type: model
 authority-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
 series: 16
 brand-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
-model: pc
+model: arm64
 architecture: arm64
 base: core20
 grade: dangerous
@@ -10,7 +10,7 @@ serial-authority:
   - generic
 snaps:
   -
-    default-channel: latest/edge
+    default-channel: 20/edge
     id: RQBRc1HkOwpH5DCwagfqShqQ7eJ2Yl9i
     name: test-snapd-arm64-gadget
     type: gadget
@@ -32,13 +32,13 @@ snaps:
 timestamp: 2022-09-29T15:30:00Z
 sign-key-sha3-384: V414fsCB9X2YOxd9aESpCOq4u9yZufjjIA2pCqPVeX_w-f_g_Dc0KF9GwxfwgpMK
 
-AcLBcwQAAQoAHRYhBDiVJpd70BfvApKUHyjFylG0jRnSBQJjPXsiAAoJECjFylG0jRnSux4P/iWT
-zKuX/vYfbgxL2yvEUtqtHsBWUOpe1TihL0WdwpTCmUzLfgdMcLoY9gL2v/T1CYP9NdoAupn4wF6j
-UBoCokOfZk6si65B4MxfhxtgFZ3kXv2NA++tRHd5GL+oo6BAfil/uC68seeoXDLTCmQHcBGJQ0Qp
-3ZPcAHfOCLZ6Iz1+J8DCtzDFzQ8tYQk0refGXn90CIJfBJ1aPgkI99WGC2bzirRDi/BGzegQ0j6r
-U71YeF7tjPkMMCjvs6wfdFecBcVx26N5rm9tK59i3V3Xl4TWRZ8ZLpB7pQczGBqLvbby9G7FevO3
-pQOkBQs2XLrUhgYe8ouc20IuIwPKLdMeraS7mBVosQfjAGHWonoR6YjDaPGECIf48KHyVXcCiVPO
-AMGfZfVXlMacC1O0Ll6ncknSCnj0Cb4wzXyXQeijrLhH/IK7V6g+H1aa0HWJ1P5hnPCynLFX/Ff+
-q65sXM/XZbVvmwsjdzTg2LOPyRdZttNN/E6DOpg1nX0jvmXyCdUJRuygQKQRV8U8AHilOlxAUHwd
-NVCPQ2CCUZVXL5rSgIJiPmuxCki3cXfMcCA7wAj2t7yBmKHnsdz9J38RyvAqAZNc1KYvWfqc02ez
-4wo1iLXbB1vHRVzFOvNKvSTVsWFKuaOFWTog66ynvKmgGDuWhKofVwOAYZ3S2aai5EULnMgW
+AcLBcwQAAQoAHRYhBDiVJpd70BfvApKUHyjFylG0jRnSBQJjhP4cAAoJECjFylG0jRnS7xEP/R3M
+A5NdQ8sWiSSxgmkfBpf75QC3FWTllShBgMWuXCyL8X/LdARhL5ghEdpB9CuZ0Qj0Ze9bKmj0gCW9
+OaTZWkrQdI4tBBj55p7sYJKyXnOcg3hrAlYv5roq4EKa8qnFAdmtxOjWc+pqjCq8+r/LIbSaxBpn
+YjrSCF3ckpR6v1OT4DAs/0NSYh6FYd2CjMlXtka1ihywLoqmlA8n2eje3TQnhXETYCQdCmbxbtxq
+urfdlfza3UOA6/iT1rSA2EdYzOsoBNqgtWpLj27xrEM2/TT9QhLxPBMhH3ueofGxARMDvD5ONWIy
+ckyuQyKfg5Ayu8mNwJ9fpQluqxActaiTVkWsAuOTMrq387rSKkbfKXHcb1X9QyDAvk9nJN++ca75
+042hLRsosjq8x8HnBE76y1nIsJJI5v0hmNdg+F+bpJ4wzuesVfYT39rfNZkbiRrDEp5M4sOr1aKq
+KJfkQILvsP6aR74WogCILJud+903Ku4hlkKqQBs/L8s2bNSf0an8//2vEznruooUK7UcfNxPg43A
+CGR9pQGKFA7/vTJYel+qXqxgZob4mgkP6GXxw+cSFmeIuBTpKU2NUXYLV+FODQaMR87qus30DPPO
+7crTrBBG145v11WbhGDJmm5V3FLENHWZENvyQnRKgAkqHcjIoCF1GLYs9H7WWc/ZxVa6jwTY

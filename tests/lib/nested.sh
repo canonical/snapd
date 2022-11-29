@@ -166,6 +166,10 @@ nested_is_tpm_enabled() {
                 return 1
                 ;;
             ubuntu-2*)
+                # No supported tpm backends in focal for arm
+                if os.query is-arm && nested_is_core_20_system; then
+                    return 1
+                fi
                 # TPM enabled by default on 20.04 and later
                 return 0
                 ;;
@@ -186,6 +190,10 @@ nested_is_secure_boot_enabled() {
                 return 1
                 ;;
             ubuntu-2*)
+                # No supported secure boot in focal for arm
+                if os.query is-arm && nested_is_core_20_system; then
+                    return 1
+                fi
                 # secure boot enabled by default on 20.04 and later
                 return 0
                 ;;
@@ -480,6 +488,9 @@ nested_get_model() {
         ubuntu-22.04-64)
             echo "$TESTSLIB/assertions/nested-22-amd64.model"
             ;;
+        ubuntu-22.04-arm-64)
+            echo "$TESTSLIB/assertions/nested-22-arm64.model"
+            ;;
         *)
             echo "unsupported system"
             exit 1
@@ -715,8 +726,6 @@ nested_create_core_vm() {
     if os.query is-arm; then
         snap install ubuntu-image --classic || true
         export UBUNTU_IMAGE=/snap/bin/ubuntu-image
-        export NESTED_REPACK_KERNEL_SNAP=false
-        export NESTED_REPACK_GADGET_SNAP=false
         export NESTED_USE_CLOUD_INIT=false
     fi
 
@@ -1046,10 +1055,12 @@ nested_start_core_vm_unit() {
 
     local PARAM_MACHINE
     if [[ "$SPREAD_BACKEND" = google-nested* ]]; then
-        PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
-    elif [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
-        PARAM_MACHINE="-machine virt --accel tcg,thread=multi"
-        PARAM_CPU="-cpu cortex-a57"
+        if os.query is-arm; then
+            PARAM_MACHINE="-machine virt --accel tcg,thread=multi"
+            PARAM_CPU="-cpu cortex-a57"
+        else
+            PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
+        fi
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         # check if we have nested kvm
         if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
@@ -1133,7 +1144,12 @@ nested_start_core_vm_unit() {
             fi
             # wait for the tpm sock file to exist
             retry -n 10 --wait 1 test -S /var/snap/test-snapd-swtpm/current/swtpm-sock
-            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/test-snapd-swtpm/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
+            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/test-snapd-swtpm/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm"
+            if os.query is-arm; then
+                PARAM_TPM="$PARAM_TPM -device tpm-tis-device,tpmdev=tpm0"
+            else
+                PARAM_TPM="$PARAM_TPM -device tpm-tis,tpmdev=tpm0"
+            fi
         fi
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
     else
@@ -1175,7 +1191,7 @@ nested_start_core_vm_unit() {
         ${PARAM_CD} " "${PARAM_REEXEC_ON_FAILURE}"
 
     # wait for the $NESTED_VM service to appear active
-    wait_for_service "$NESTED_VM"
+    wait_for_service "$NESTED_VM" active 30
 
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
