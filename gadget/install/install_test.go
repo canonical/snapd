@@ -1139,11 +1139,17 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 	// Fill encrypted partitions if encrypting
 	var esd *install.EncryptionSetupData
 	if opts.encryption {
-		labelToEncDevice := map[string]string{
-			"ubuntu-save": "/dev/mapper/ubuntu-save",
-			"ubuntu-data": "/dev/mapper/ubuntu-data",
+		labelToEncData := map[string]*install.MockEncryptedDeviceAndRole{
+			"ubuntu-save": {
+				Role:            "system-save",
+				EncryptedDevice: "/dev/mapper/ubuntu-save",
+			},
+			"ubuntu-data": {
+				Role:            "system-data",
+				EncryptedDevice: "/dev/mapper/ubuntu-data",
+			},
 		}
-		esd = install.BuildEncryptionSetupData(labelToEncDevice)
+		esd = install.MockEncryptionSetupData(labelToEncData)
 	}
 	onDiskVols, err := install.WriteContent(ginfo.Volumes, allLaidOutVols, esd, nil, timings.New(nil))
 	c.Assert(err, IsNil)

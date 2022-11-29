@@ -72,3 +72,26 @@ func (esd *EncryptionSetupData) EncryptedDevices() map[string]string {
 	}
 	return m
 }
+
+// MockEncryptedDeviceAndRole is meant to be used for unit tests from other
+// packages.
+type MockEncryptedDeviceAndRole struct {
+	Role            string
+	EncryptedDevice string
+}
+
+// MockEncryptionSetupData is meant to be used for unit tests from other
+// packages.
+func MockEncryptionSetupData(labelToEncDevice map[string]*MockEncryptedDeviceAndRole) *EncryptionSetupData {
+	esd := &EncryptionSetupData{
+		parts: map[string]partEncryptionData{}}
+	for label, encryptData := range labelToEncDevice {
+		esd.parts[label] = partEncryptionData{
+			role:                encryptData.Role,
+			encryptedDevice:     encryptData.EncryptedDevice,
+			encryptionKey:       keys.EncryptionKey{1, 2, 3},
+			encryptedSectorSize: 512,
+		}
+	}
+	return esd
+}
