@@ -228,15 +228,16 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 		classic        bool
 		restart        bool
 		wait           bool
+		log            string
 	}{
 		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartDaemon, classic: false, restart: true},
 		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartDaemon, classic: true, restart: true},
 		{initial: state.UndoStatus, final: state.UndoneStatus, restartType: restart.RestartDaemon, classic: false, restart: true},
-		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystem, classic: false, restart: true},
-		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystem, classic: true, restart: false, wait: true},
-		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystemNow, classic: true, restart: false, wait: true},
-		{initial: state.UndoStatus, final: state.UndoneStatus, restartType: restart.RestartSystem, classic: true, restart: false},
-		{initial: state.UndoStatus, final: state.UndoneStatus, restartType: restart.RestartSystem, classic: false, restart: true},
+		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystem, classic: false, restart: true, log: ".* INFO Requested system restart"},
+		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystem, classic: true, restart: false, wait: true, log: ".* INFO Task set to wait until a manual system restart allows to continue"},
+		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystemNow, classic: true, restart: false, wait: true, log: ".* INFO Task set to wait until a manual system restart allows to continue"},
+		{initial: state.UndoStatus, final: state.UndoneStatus, restartType: restart.RestartSystem, classic: true, restart: false, log: ".* INFO Skipped automatic system restart on classic system when undoing changes back to previous state"},
+		{initial: state.UndoStatus, final: state.UndoneStatus, restartType: restart.RestartSystem, classic: false, restart: true, log: ".* INFO Requested system restart"},
 	}
 
 	chg := st.NewChange("chg", "...")
@@ -279,6 +280,12 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 				c.Check(waitBootID, Equals, "")
 			}
 			c.Check(ok, Equals, false)
+		}
+		if t.log == "" {
+			c.Check(task.Log(), HasLen, 0)
+		} else {
+			c.Check(task.Log(), HasLen, 1)
+			c.Check(task.Log()[0], Matches, t.log)
 		}
 	}
 }
@@ -378,7 +385,7 @@ func (s *restartSuite) TestPendingForSystemRestart(c *C) {
 	c.Assert(err, FitsTypeOf, &state.Wait{})
 	t3.SetStatus(state.UndoStatus)
 	t4.SetStatus(state.WaitStatus)
-	c.Check(chg1.IsReady(), Equals, false)
+	c.Check(chg2.IsReady(), Equals, false)
 
 	chg3 := st.NewChange("pending", "...")
 	t5 := st.NewTask("wait-task", "...")
@@ -389,15 +396,26 @@ func (s *restartSuite) TestPendingForSystemRestart(c *C) {
 	chg3.AddTask(t7)
 	t6.WaitFor(t5)
 	t7.WaitFor(t5)
-	err = restart.FinishTaskWithRestart(t6, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	c.Check(t5.Status(), Equals, state.DoStatus)
+	err = restart.FinishTaskWithRestart(t5, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
 	c.Assert(err, FitsTypeOf, &state.Wait{})
 	t6.SetStatus(state.WaitStatus)
 	t7.SetStatus(state.DoStatus)
-	c.Check(chg1.IsReady(), Equals, false)
+	c.Check(chg3.IsReady(), Equals, false)
+
+	chg4 := st.NewChange("pending", "...")
+	t8 := st.NewTask("wait-task", "...")
+	chg4.AddTask(t8)
+	c.Check(t8.Status(), Equals, state.DoStatus)
+	// nothing after t8
+	err = restart.FinishTaskWithRestart(t8, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	c.Assert(err, FitsTypeOf, &state.Wait{})
+	c.Check(chg4.IsReady(), Equals, false)
 
 	c.Check(rm.PendingForSystemRestart(chg1), Equals, false)
 	c.Check(rm.PendingForSystemRestart(chg2), Equals, false)
-	c.Check(rm.PendingForSystemRestart(chg3), Equals, false)
+	c.Check(rm.PendingForSystemRestart(chg3), Equals, true)
+	c.Check(rm.PendingForSystemRestart(chg4), Equals, true)
 }
 
 type notifyRebootRequiredSuite struct {

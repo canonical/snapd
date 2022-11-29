@@ -1377,30 +1377,53 @@ next: 2017-04-26T00:58:00+02:00
 }
 
 func (s *SnapSuite) TestRefreshTimeShowsHolds(c *check.C) {
-	n := 0
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch n {
-		case 0:
-			c.Check(r.Method, check.Equals, "GET")
-			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
-			fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"timer": "0:00-24:00/4", "last": "2017-04-25T17:35:00+02:00", "next": "2017-04-26T00:58:00+02:00", "hold": "2017-04-28T00:00:00+02:00"}}}`)
-		default:
-			c.Fatalf("expected to get 1 requests, now on %d", n+1)
-		}
+	type testcase struct {
+		in  string
+		out string
+	}
 
-		n++
-	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--time", "--abs-time"})
+	curTime, err := time.Parse(time.RFC3339, "2017-04-27T23:00:00+02:00")
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, `timer: 0:00-24:00/4
+	restore := snap.MockTimeNow(func() time.Time {
+		return curTime
+	})
+	defer restore()
+
+	for _, tc := range []testcase{
+		{in: "2017-04-28T00:00:00+02:00", out: "2017-04-28T00:00:00+02:00"},
+		{in: "2117-04-28T00:00:00+02:00", out: "forever"},
+	} {
+		n := 0
+		s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+			switch n {
+			case 0:
+				c.Check(r.Method, check.Equals, "GET")
+				c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+				fmt.Fprintf(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"timer": "0:00-24:00/4", "last": "2017-04-25T17:35:00+02:00", "next": "2017-04-26T00:58:00+02:00", "hold": %q}}}`, tc.in)
+			default:
+				errMsg := fmt.Sprintf("expected to get 1 requests, now on %d", n+1)
+				c.Error(errMsg)
+				w.WriteHeader(500)
+				w.Write([]byte(errMsg))
+			}
+
+			n++
+		})
+
+		rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--time", "--abs-time"})
+		c.Assert(err, check.IsNil)
+		c.Assert(rest, check.DeepEquals, []string{})
+		expectedOutput := fmt.Sprintf(`timer: 0:00-24:00/4
 last: 2017-04-25T17:35:00+02:00
-hold: 2017-04-28T00:00:00+02:00
+hold: %s
 next: 2017-04-26T00:58:00+02:00 (but held)
-`)
-	c.Check(s.Stderr(), check.Equals, "")
-	// ensure that the fake server api was actually hit
-	c.Check(n, check.Equals, 1)
+`, tc.out)
+		c.Check(s.Stdout(), check.Equals, expectedOutput)
+		c.Check(s.Stderr(), check.Equals, "")
+		// ensure that the fake server api was actually hit
+		c.Check(n, check.Equals, 1)
+		s.ResetStdStreams()
+	}
 }
 
 func (s *SnapSuite) TestRefreshHoldAllForever(c *check.C) {

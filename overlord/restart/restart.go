@@ -217,10 +217,20 @@ func (rm *RestartManager) PendingForSystemRestart(chg *state.Change) bool {
 			continue
 		}
 
-		if rm.bootID == waitBootId {
-			// no boot has intervened yet
+		if rm.bootID != waitBootId {
+			// this should not happen as it
+			// means StartUp did not operate correctly,
+			// but if it happens fair game for aborting
 			continue
 		}
+		// no boot intervened yet
+
+		if len(t.HaltTasks()) == 0 {
+			// no successive tasks, take the WaitStatus at face value
+			return true
+		}
+		// check if there are tasks which need doing (DoStatus)
+		// that depend on the task that is waiting for reboot
 		for _, dep := range t.HaltTasks() {
 			if dep.Status() == state.DoStatus {
 				return true
@@ -323,6 +333,8 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType
 				task.Logf("Skipped automatic system restart on classic system when undoing changes back to previous state")
 				return nil
 			}
+		} else {
+			task.Logf("Requested system restart")
 		}
 	}
 	task.SetStatus(status)

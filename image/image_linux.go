@@ -608,7 +608,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(rootDir, "/etc"), 0755); err != nil {
 				return err
 			}
-			return sysconfig.ApplyFilesystemOnlyDefaults(model, defaultsDir, defaults)
+			if err := sysconfig.ApplyFilesystemOnlyDefaults(model, defaultsDir, defaults); err != nil {
+				return err
+			}
 		}
 
 		customizeImage(rootDir, defaultsDir, &opts.Customizations)

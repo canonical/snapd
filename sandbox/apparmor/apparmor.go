@@ -408,22 +408,29 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	// snapd snap (likely) or be part of the snapd distro package (unlikely)
 	// - but only use the internal one when we know that the system
 	// installed snapd-apparmor support re-exec
-	if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
-		if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() {
-			prefix := strings.TrimSuffix(path, "apparmor_parser")
-			// when using the internal apparmor_parser also use
-			// its own configuration and includes etc plus
-			// also ensure we use the 3.0 feature ABI to get
-			// the widest array of policy features across the
-			// widest array of kernel versions
-			args := []string{
-				"--config-file", filepath.Join(prefix, "/apparmor/parser.conf"),
-				"--base", filepath.Join(prefix, "/apparmor.d"),
-				"--policy-features", filepath.Join(prefix, "/apparmor.d/abi/3.0"),
+
+	// TODO:apparmor-vendoring
+	// disabled until the test failures:
+	// - ubuntu-core-18-64:tests/core/snapd-refresh-vs-services
+	// and similar are fixed
+	/*
+		if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
+			if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() {
+				prefix := strings.TrimSuffix(path, "apparmor_parser")
+				// when using the internal apparmor_parser also use
+				// its own configuration and includes etc plus
+				// also ensure we use the 3.0 feature ABI to get
+				// the widest array of policy features across the
+				// widest array of kernel versions
+				args := []string{
+					"--config-file", filepath.Join(prefix, "/apparmor/parser.conf"),
+					"--base", filepath.Join(prefix, "/apparmor.d"),
+					"--policy-features", filepath.Join(prefix, "/apparmor.d/abi/3.0"),
+				}
+				return exec.Command(path, args...), true, nil
 			}
-			return exec.Command(path, args...), true, nil
 		}
-	}
+	*/
 
 	// now search for one in the configured parserSearchPath
 	for _, dir := range filepath.SplitList(parserSearchPath) {

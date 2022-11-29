@@ -537,3 +537,17 @@ func (s *validationSetTrackingSuite) TestRestoreValidationSetsTracking(c *C) {
 		"foo/bar": &tr1,
 	})
 }
+
+func (s *validationSetTrackingSuite) TestValidationSetSequence(c *C) {
+	tr := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		PinnedAt:  0,
+		Current:   2,
+	}
+
+	c.Check(tr.Sequence(), Equals, 2)
+	tr.PinnedAt = 1
+	c.Check(tr.Sequence(), Equals, 1)
+}

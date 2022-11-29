@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -40,6 +40,14 @@ type mkfsParams struct {
 	Label      string
 	Size       quantity.Size
 	SectorSize quantity.Size
+}
+
+// onDiskAndLaidoutStructure puts together the on disk and the laid
+// out for a disk structure.
+// TODO This is a temporary structure until we include StorageStructure in LaidOutStructure.
+type onDiskAndLaidoutStructure struct {
+	onDisk  *gadget.OnDiskStructure
+	laidOut *gadget.LaidOutStructure
 }
 
 // makeFilesystem creates a filesystem on the on-disk structure, according
@@ -70,16 +78,16 @@ func mountFilesystem(fsDevice, fs, mountpoint string) error {
 // writeContent populates the given on-disk filesystem structure with a
 // corresponding filesystem device, according to the contents defined in the
 // gadget.
-func writeFilesystemContent(ds *gadget.OnDiskStructure, fsDevice string, observer gadget.ContentObserver) (err error) {
-	mountpoint := filepath.Join(dirs.SnapRunDir, "gadget-install", strconv.Itoa(ds.DiskIndex))
+func writeFilesystemContent(laidOut *gadget.LaidOutStructure, fsDevice string, observer gadget.ContentObserver) (err error) {
+	mountpoint := filepath.Join(dirs.SnapRunDir, "gadget-install", strings.ReplaceAll(strings.Trim(fsDevice, "/"), "/", "-"))
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
 		return err
 	}
 
 	// temporarily mount the filesystem
-	logger.Debugf("mounting %q in %q (fs type %q)", fsDevice, mountpoint, ds.Filesystem)
-	if err := sysMount(fsDevice, mountpoint, ds.Filesystem, 0, ""); err != nil {
-		return fmt.Errorf("cannot mount filesystem %q at %q: %v", ds.Node, mountpoint, err)
+	logger.Debugf("mounting %q in %q (fs type %q)", fsDevice, mountpoint, laidOut.Filesystem)
+	if err := sysMount(fsDevice, mountpoint, laidOut.Filesystem, 0, ""); err != nil {
+		return fmt.Errorf("cannot mount %q at %q: %v", fsDevice, mountpoint, err)
 	}
 	defer func() {
 		errUnmount := sysUnmount(mountpoint, 0)
@@ -87,7 +95,7 @@ func writeFilesystemContent(ds *gadget.OnDiskStructure, fsDevice string, observe
 			err = errUnmount
 		}
 	}()
-	fs, err := gadget.NewMountedFilesystemWriter(&ds.LaidOutStructure, observer)
+	fs, err := gadget.NewMountedFilesystemWriter(laidOut, observer)
 	if err != nil {
 		return fmt.Errorf("cannot create filesystem image writer: %v", err)
 	}
