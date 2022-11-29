@@ -779,7 +779,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 			keyForRole[laidOut.Role] = encryptionKey
 		}
 		if options.Mount && onDisk.Label != "" && laidOut.HasFilesystem() {
-			if err := mountFilesystem(fsDevice, onDisk.Filesystem, filepath.Join(boot.InitramfsRunMntDir, onDisk.Label)); err != nil {
+			if err := mountFilesystem(fsDevice, laidOut.Filesystem, getMntPointForPart(laidOut.VolumeStructure)); err != nil {
 				return nil, err
 			}
 		}
