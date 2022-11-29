@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
+// +build !nosecboot
 
 /*
  * Copyright (C) 2022 Canonical Ltd
@@ -21,11 +23,15 @@ package devicestate_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -35,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -78,16 +85,36 @@ func unpackSnap(snapBlob, targetDir string) error {
 }
 
 func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml string, isClassic bool) *asserts.Model {
-	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["snapd"], nil, snap.R(1), "canonical", s.StoreSigning.Database)
+	s.StoreSigning = assertstest.NewStoreStack("can0nical", nil)
+	s.AddCleanup(sysdb.InjectTrusted(s.StoreSigning.Trusted))
+
+	s.Brands = assertstest.NewSigningAccounts(s.StoreSigning)
+	s.Brands.Register("my-brand", brandPrivKey, nil)
+
+	// now create a minimal seed dir with snaps/assertions
+	testSeed := &seedtest.TestingSeed20{
+		SeedSnaps: seedtest.SeedSnaps{
+			StoreSigning: s.StoreSigning,
+			Brands:       s.Brands,
+		},
+		SeedDir: dirs.SnapSeedDir,
+	}
+
+	restore := seed.MockTrusted(testSeed.StoreSigning.Trusted)
+	s.AddCleanup(restore)
+
+	assertstest.AddMany(s.StoreSigning.Database, s.Brands.AccountsAndKeys("my-brand")...)
+
+	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["snapd"], nil, snap.R(1), "my-brand", s.StoreSigning.Database)
 	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc-kernel=22"],
-		[][]string{{"kernel.efi", ""}}, snap.R(1), "canonical", s.StoreSigning.Database)
-	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["core22"], nil, snap.R(1), "canonical", s.StoreSigning.Database)
+		[][]string{{"kernel.efi", ""}}, snap.R(1), "my-brand", s.StoreSigning.Database)
+	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["core22"], nil, snap.R(1), "my-brand", s.StoreSigning.Database)
 	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc=22"],
 		[][]string{
 			{"meta/gadget.yaml", gadgetYaml},
 			{"pc-boot.img", ""}, {"pc-core.img", ""}, {"grubx64.efi", ""},
 			{"shim.efi.signed", ""}, {"grub.conf", ""}},
-		snap.R(1), "canonical", s.StoreSigning.Database)
+		snap.R(1), "my-brand", s.StoreSigning.Database)
 
 	model := map[string]interface{}{
 		"display-name": "my model",
@@ -141,10 +168,6 @@ func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, i
 	s.AddCleanup(restore)
 
 	// now create a label with snaps/assertions
-	s.SetupAssertSigning("canonical")
-	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
-		"verification": "verified",
-	})
 	// TODO This should be "gadgetYaml" instead of SingleVolumeUC20GadgetYaml,
 	// but we have to do it this way as otherwise snap pack will complain
 	// while validating, as it does not have information about the model at
@@ -211,6 +234,24 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		writeContentCalls++
 		if opts.encrypted {
 			c.Check(encSetupData, NotNil)
+
+			// Make sure we "observe" grub from boot partition
+			mockRunBootStruct := &gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Role: gadget.SystemBoot,
+				},
+			}
+			writeChange := &gadget.ContentChange{
+				// file that contains the data of the installed file
+				After: filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/boot/grubx64.efi"),
+				// there is no original file in place
+				Before: "",
+			}
+			action, err := observer.Observe(gadget.ContentWrite, mockRunBootStruct,
+				filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/"),
+				"EFI/boot/grubx64.efi", writeChange)
+			c.Check(err, IsNil)
+			c.Check(action, Equals, gadget.ChangeApply)
 		} else {
 			c.Check(encSetupData, IsNil)
 		}
@@ -218,20 +259,15 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	})
 	s.AddCleanup(restore)
 
-	// Note that ESP must be mounted in the same place as a seed partition
-	// so MarkRecoveryCapableSystem is happy when searching for a bootloader.
-	// TODO Should this be changed?
-	espDir := filepath.Join(dirs.RunDir, "mnt/ubuntu-seed")
+	seedDir := filepath.Join(dirs.RunDir, "mnt/ubuntu-seed")
 
 	// Mock mounting of partitions
 	mountVolsCalls := 0
-	restore = devicestate.MockInstallMountVolumes(func(onVolumes map[string]*gadget.Volume, encSetupData *install.EncryptionSetupData) (espMntDir string, unmount func() error, err error) {
+	restore = devicestate.MockInstallMountVolumes(func(onVolumes map[string]*gadget.Volume, encSetupData *install.EncryptionSetupData) (seedMntDir string, unmount func() error, err error) {
 		mountVolsCalls++
-		return espDir, func() error { return nil }, nil
+		return seedDir, func() error { return nil }, nil
 	})
 	s.AddCleanup(restore)
-	s.state.Lock()
-	defer s.state.Unlock()
 
 	// Mock saving of traits
 	saveStorageTraitsCalls := 0
@@ -243,9 +279,48 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 	// Insert encryption data when enabled
 	if opts.encrypted {
+		// Mock TPM and sealing
+		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
+		s.AddCleanup(restore)
+		restore = boot.MockSealKeyToModeenv(func(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
+			c.Check(model.Classic(), Equals, opts.isClassic)
+			// Note that we cannot compare the full structure and we check
+			// separately bits as the types for these are not exported.
+			c.Check(len(modeenv.CurrentTrustedBootAssets), Equals, 1)
+			c.Check(modeenv.CurrentTrustedBootAssets["grubx64.efi"], DeepEquals,
+				[]string{"0c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004"})
+			c.Check(len(modeenv.CurrentTrustedRecoveryBootAssets), Equals, 2)
+			c.Check(modeenv.CurrentTrustedRecoveryBootAssets["bootx64.efi"], DeepEquals, []string{"0c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004"})
+			c.Check(modeenv.CurrentTrustedRecoveryBootAssets["grubx64.efi"], DeepEquals, []string{"0c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004"})
+			c.Check(len(modeenv.CurrentKernelCommandLines), Equals, 1)
+			c.Check(modeenv.CurrentKernelCommandLines[0], Equals,
+				"snapd_recovery_mode=run console=ttyS0,115200n8 console=tty1 panic=-1")
+			return nil
+		})
+		s.AddCleanup(restore)
+
+		// Insert encryption set-up data in state cache
 		restore = devicestate.MockEncryptionSetupDataInCache(s.state, label)
 		s.AddCleanup(restore)
+
+		// Write expected boot assets needed when creating bootchain
+		seedBootDir := filepath.Join(dirs.RunDir, "mnt/ubuntu-seed/EFI/boot/")
+		c.Assert(os.MkdirAll(seedBootDir, 0755), IsNil)
+
+		for _, p := range []string{
+			filepath.Join(seedBootDir, "bootx64.efi"),
+			filepath.Join(seedBootDir, "grubx64.efi"),
+		} {
+			c.Assert(ioutil.WriteFile(p, []byte{}, 0755), IsNil)
+		}
+
+		bootDir := filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/boot/")
+		c.Assert(os.MkdirAll(bootDir, 0755), IsNil)
+		c.Assert(ioutil.WriteFile(filepath.Join(bootDir, "grubx64.efi"), []byte{}, 0755), IsNil)
 	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
 
 	// Create change
 	chg := s.state.NewChange("install-step-finish", "finish setup of run system")
@@ -278,8 +353,8 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	c.Check(saveStorageTraitsCalls, Equals, 1)
 
 	expectedFiles := []string{
-		filepath.Join(espDir, "EFI/ubuntu/grub.cfg"),
-		filepath.Join(espDir, "EFI/ubuntu/grubenv"),
+		filepath.Join(seedDir, "EFI/ubuntu/grub.cfg"),
+		filepath.Join(seedDir, "EFI/ubuntu/grubenv"),
 		filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/ubuntu/grub.cfg"),
 		filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/ubuntu/grubenv"),
 		filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/ubuntu/pc-kernel_1.snap/kernel.efi"),
@@ -290,6 +365,12 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		filepath.Join(dirs.RunDir, "mnt/ubuntu-data/var/lib/snapd/snaps/pc_1.snap"),
 		filepath.Join(dirs.RunDir, "mnt/ubuntu-data/var/lib/snapd/snaps/pc-kernel_1.snap"),
 	}
+	if opts.encrypted {
+		expectedFiles = append(expectedFiles, dirs.RunDir,
+			filepath.Join(dirs.RunDir, "mnt/ubuntu-data/var/lib/snapd/device/fde/marker"),
+			filepath.Join(dirs.RunDir, "mnt/ubuntu-data/var/lib/snapd/device/fde/ubuntu-save.key"),
+			filepath.Join(dirs.RunDir, "mnt/ubuntu-save/device/fde/marker"))
+	}
 	for _, f := range expectedFiles {
 		c.Check(f, testutil.FilePresent)
 	}
@@ -297,6 +378,10 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 func (s *deviceMgrInstallAPISuite) TestInstallFinishNoEncryptionHappy(c *C) {
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: false, isClassic: true})
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallFinishEncryptionHappy(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, isClassic: true})
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {
@@ -386,8 +471,6 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 
 	// Make sure that if anything was stored in cache it is removed after test is run
 	s.AddCleanup(func() {
-		s.state.Lock()
-		defer s.state.Unlock()
 		devicestate.CleanUpEncryptionSetupDataInCache(s.state, label)
 	})
 
