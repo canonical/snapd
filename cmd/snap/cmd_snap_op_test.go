@@ -1693,6 +1693,21 @@ func (s *SnapSuite) TestRefreshHoldBadDuration(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+func (s *SnapSuite) TestRefreshHoldNegativeDuration(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Errorf("unexpected request")
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "received too many requests"}, "status-code": 500}`)
+	})
+
+	for _, dur := range []string{"-5h", "15ns"} {
+		rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--hold=" + dur})
+		c.Assert(err, check.ErrorMatches, "cannot hold refreshes for less than a second: "+dur)
+		c.Assert(rest, check.DeepEquals, []string{"--hold=" + dur})
+		c.Check(s.Stdout(), check.Equals, "")
+		c.Check(s.Stderr(), check.Equals, "")
+	}
+}
+
 func (s *SnapSuite) TestRefreshNoTimerNoSchedule(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, check.Equals, "GET")
