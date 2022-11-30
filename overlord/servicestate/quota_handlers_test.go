@@ -2629,3 +2629,100 @@ func (s *quotaHandlersSuite) TestUndoQuotaAddSnap(c *C) {
 		},
 	})
 }
+
+func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupCantMixGroup(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// build test quota groups
+	allQuotas := map[string]*quota.Group{
+		"foo": {
+			Name:      "foo",
+			SubGroups: []string{"foo2"},
+		},
+		"foo2": {
+			Name:        "foo2",
+			ParentGroup: "foo",
+		},
+	}
+
+	err := servicestate.ValidateSnapServicesForAddingToGroup(st, []string{"test-snap.svc1"}, "foo", nil, allQuotas)
+	c.Assert(err, ErrorMatches, `cannot mix services and sub groups in the group "foo"`)
+}
+
+func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupServiceSnapNotInParent(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// build test quota groups
+	allQuotas := map[string]*quota.Group{
+		"foo": {
+			Name:      "foo",
+			SubGroups: []string{"foo2"},
+		},
+		"foo2": {
+			Name:        "foo2",
+			ParentGroup: "foo",
+		},
+	}
+
+	err := servicestate.ValidateSnapServicesForAddingToGroup(st, []string{"test-snap.svc1"}, "foo2", allQuotas["foo"], allQuotas)
+	c.Assert(err, ErrorMatches, `cannot use snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo2"`)
+}
+
+func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupInvalidService(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// build test quota groups
+	allQuotas := map[string]*quota.Group{
+		"foo": {
+			Name:      "foo",
+			SubGroups: []string{"foo2"},
+		},
+		"foo2": {
+			Name:        "foo2",
+			ParentGroup: "foo",
+		},
+	}
+
+	err := servicestate.ValidateSnapServicesForAddingToGroup(st, []string{"test-snap.svc2"}, "foo2", allQuotas["foo"], allQuotas)
+	c.Assert(err, ErrorMatches, `cannot use snap service "foo2": invalid service "svc2"`)
+}
+
+func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupHappy(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// build test quota groups
+	allQuotas := map[string]*quota.Group{
+		"foo": {
+			Name:      "foo",
+			SubGroups: []string{"foo2"},
+			Snaps:     []string{"test-snap"},
+		},
+		"foo2": {
+			Name:        "foo2",
+			ParentGroup: "foo",
+		},
+	}
+
+	err := servicestate.ValidateSnapServicesForAddingToGroup(st, []string{"test-snap.svc1"}, "foo2", allQuotas["foo"], allQuotas)
+	c.Assert(err, IsNil)
+}

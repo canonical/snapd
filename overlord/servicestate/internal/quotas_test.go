@@ -123,6 +123,31 @@ func (s *servicestateQuotasSuite) TestQuotas(c *C) {
 	_, err = internal.PatchQuotas(st, otherGrp2, otherGrp)
 	// either group can get checked first
 	c.Assert(err, ErrorMatches, `cannot update quotas "other-group", "other-group2": group "other-group2?" is invalid: quota group must have at least one resource limit set`)
+
+	// test that patching quotas with invalid nesting causes an error
+	nestGrp1 := &quota.Group{
+		Name:        "nest-root",
+		MemoryLimit: quantity.SizeGiB,
+		SubGroups:   []string{"nest-sub1"},
+		Snaps:       []string{"foo"},
+	}
+
+	nestGrp2 := &quota.Group{
+		Name:        "nest-sub1",
+		ParentGroup: "nest-root",
+		SubGroups:   []string{"nest-sub2"},
+		MemoryLimit: quantity.SizeGiB / 2,
+		Services:    []string{"foo.bar"},
+	}
+
+	nestGrp3 := &quota.Group{
+		Name:        "nest-sub2",
+		ParentGroup: "nest-sub1",
+		MemoryLimit: quantity.SizeGiB / 4,
+	}
+
+	_, err = internal.PatchQuotas(st, nestGrp1, nestGrp2, nestGrp3)
+	c.Assert(err, ErrorMatches, `cannot update quota "nest-root": group "nest-sub2" is invalid: only one level of sub-groups are allowed for groups with snaps`)
 }
 
 func (s *servicestateQuotasSuite) TestCreateQuotaInState(c *C) {
