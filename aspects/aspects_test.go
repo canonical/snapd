@@ -37,31 +37,31 @@ var _ = Suite(&aspectSuite{})
 
 func (*aspectSuite) TestNewAspectDirectory(c *C) {
 	_, err := aspects.NewAspectDirectory("foo", nil, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspects directory: no aspects`)
+	c.Assert(err, ErrorMatches, `cannot define aspects directory: no aspects`)
 
 	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": "baz",
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspect: access patterns should be a list of maps`)
+	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns should be a list of maps`)
 
 	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": []map[string]string{},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspect without access patterns`)
+	c.Assert(err, ErrorMatches, `cannot define aspect "bar": no access patterns found`)
 
 	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"path": "foo"},
 		},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspect "bar": access patterns must have a "name" field`)
+	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns must have a "name" field`)
 
 	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"name": "foo"},
 		},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspect "bar": access patterns must have a "path" field`)
+	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns must have a "path" field`)
 
 	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": []map[string]string{
@@ -440,6 +440,6 @@ func (s *aspectSuite) TestAspectNameAndPathValidation(c *C) {
 
 		cmt := Commentf("sub-test %q failed", tc.testName)
 		c.Assert(err, Not(IsNil), cmt)
-		c.Assert(err.Error(), Equals, `cannot create aspect "foo": `+tc.err, cmt)
+		c.Assert(err.Error(), Equals, `cannot define aspect "foo": `+tc.err, cmt)
 	}
 }
