@@ -470,8 +470,8 @@ jobs:
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
-          echo "Running command: $SPREAD -abend $RUN_TESTS"
-          (set -o pipefail; $SPREAD -abend $RUN_TESTS | tee spread.log)
+          echo "Running command: $SPREAD $RUN_TESTS"
+          (set -o pipefail; $SPREAD $RUN_TESTS | tee spread.log)
 
     - name: Discard spread workers
       if: always()
@@ -602,7 +602,7 @@ jobs:
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
-          (set -o pipefail; spread -abend $RUN_TESTS | tee spread.log)
+          (set -o pipefail; spread $RUN_TESTS | tee spread.log)
 
     - name: Discard spread workers
       if: always()
