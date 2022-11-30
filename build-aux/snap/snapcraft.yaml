@@ -38,11 +38,12 @@ parts:
     build-packages:
       - git
       - dpkg-dev
+      - wget
     after: [apparmor]
     override-pull: |
       snapcraftctl pull
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
-      snapcraftctl set-version "$(./mkversion.sh --output-only)"
+      snapcraftctl set-version "$($SNAPCRAFT_PROJECT_DIR/mkversion.sh --output-only)"
       # Ensure that ./debian/ packaging which we are about to use
       # matches the current `build-base` release. I.e. ubuntu-16.04
       # for build-base:core, etc.
@@ -50,9 +51,60 @@ parts:
       # install build dependencies
       export DEBIAN_FRONTEND=noninteractive
       export DEBCONF_NONINTERACTIVE_SEEN=true
-      sudo -E apt-get build-dep -y ./
+      sudo -E apt-get build-dep -y "$SNAPCRAFT_PROJECT_DIR"
+      # Get archives from xenial; we are not shipping these, we just need to
+      # build against them
+      if [ "${SNAPCRAFT_TARGET_ARCH}" == "amd64" ] || [ "${SNAPCRAFT_TARGET_ARCH}" == "i386" ]; then
+          UBUNTU_POOL="archive.ubuntu.com/ubuntu/pool"
+      else
+          UBUNTU_POOL="ports.ubuntu.com/pool"
+      fi
+      for PACKAGE in libc6-dev libc6
+      do
+          PACKAGE_FILE="${PACKAGE}_2.23-0ubuntu3_${SNAPCRAFT_TARGET_ARCH}.deb"
+          wget "http://${UBUNTU_POOL}/main/g/glibc/${PACKAGE_FILE}"
+      done
       ./get-deps.sh --skip-unused-check
     override-build: |
+      # TODO: when something like "craftctl get-version" is ready, then we can
+      # use that, but until then, we have to re-run mkversion.sh to check if the
+      # version number was set as "dirty" from the override-pull step
+      if sh -x $SNAPCRAFT_PROJECT_DIR/mkversion.sh --output-only | grep "dirty"; then
+        mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
+        ( 
+          echo "dirty git tree during build detected:"
+          git status
+          git diff
+        ) > $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/dirty-git-tree-info.txt
+      fi
+
+      for PACKAGE in libc6*.deb
+      do
+          dpkg -x $PACKAGE $SNAPCRAFT_PART_BUILD/
+      done
+      find $SNAPCRAFT_PART_BUILD/
+
+      # The file $SNAPCRAFT_PART_BUILD/usr/lib/x86_64-linux-gnu/libpthread.so
+      # is a linker script which instructs ld to look for pthread in one of
+      # these locations:
+      # - /lib/x86_64-linux-gnu/libpthread.so.0
+      # - /usr/lib/x86_64-linux-gnu/libpthread_nonshared.a
+      # However, we don't want to use these absolute paths, but rather have ld
+      # link against the libraries we just unpacked into $SNAPCRAFT_PART_BUILD.
+      # This "sed" command updates the script to use the desired paths.
+      #
+      # Original file contents, for reference:
+      #
+      # ======================================================================
+      # /* GNU ld script
+      #    Use the shared library, but some functions are only in
+      #    the static library, so try that secondarily.  */
+      # OUTPUT_FORMAT(elf64-x86-64)
+      # GROUP ( /lib/x86_64-linux-gnu/libpthread.so.0 /usr/lib/x86_64-linux-gnu/libpthread_nonshared.a )
+      # ======================================================================
+      sed -i -e "s, /\(usr/\)\?, $SNAPCRAFT_PART_BUILD/\1,g" $SNAPCRAFT_PART_BUILD/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/libpthread.so
+      sed -i -e "s, /\(usr/\)\?, $SNAPCRAFT_PART_BUILD/\1,g" $SNAPCRAFT_PART_BUILD/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/libc.so
+
       # unset the LD_FLAGS and LD_LIBRARY_PATH vars that snapcraft sets for us
       # as those will point to the $SNAPCRAFT_STAGE which on re-builds will 
       # contain things like libc and friends that confuse the debian package
@@ -65,6 +117,9 @@ parts:
       if [ "$(id -u)" = "0" ]; then
         DEB_BUILD_OPTIONS=nocheck
         export DEB_BUILD_OPTIONS
+      fi
+      if [ ! -e debian/changelog ]; then
+        ln -sf packaging/ubuntu-20.04 debian
       fi
       # run the real build (but just build the binary package, and don't
       # bother compressing it too much)
