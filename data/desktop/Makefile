@@ -16,12 +16,16 @@
 BINDIR = /usr/bin
 SYSCONFXDGAUTOSTARTDIR = /etc/xdg/autostart
 APPLICATIONSDIR = /usr/share/applications
+ICONDIR = /usr/share/snapd
 
 DESKTOP_SOURCES = snap-handle-link.desktop.in io.snapcraft.SessionAgent.desktop.in
 DESKTOP_FILES = $(DESKTOP_SOURCES:.in=)
 
 AUTOSTART_SOURCES = snap-userd-autostart.desktop.in
 AUTOSTART_FILES = $(AUTOSTART_SOURCES:.in=)
+
+ICON_FILES = snapcraft-logo-bird.svg
+ICON_FOLDER = /usr/share/snapd
 
 .PHONY: all
 all: $(DESKTOP_FILES) $(AUTOSTART_FILES)
@@ -35,6 +39,10 @@ install:: $(DESKTOP_FILES)
 install:: $(AUTOSTART_FILES)
 	install -d -m 0755 $(DESTDIR)/$(SYSCONFXDGAUTOSTARTDIR)
 	install -m 0644 -t $(DESTDIR)/$(SYSCONFXDGAUTOSTARTDIR) $^
+
+install:: $(ICON_FILES)
+	install -d -m 0755 $(DESTDIR)/$(ICON_FOLDER)
+	install -m 0644 -t $(DESTDIR)/$(ICON_FOLDER) $^
 
 .PHONY: clean
 clean:
