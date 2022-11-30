@@ -49,7 +49,7 @@ var fdeInitramfsHelperPollWaitParanoiaFactor = 2
 // overridden in tests
 var fdeInitramfsHelperCommandExtra []string
 
-func runFDEinitramfsHelper(name string, stdin []byte) (output []byte, err error) {
+func RunFDEinitramfsHelper(name string, stdin []byte) (output []byte, err error) {
 	runDir := filepath.Join(dirs.GlobalRootDir, "/run", name)
 	if err := os.MkdirAll(runDir, 0700); err != nil {
 		return nil, fmt.Errorf("cannot create tmp dir for %s: %v", name, err)

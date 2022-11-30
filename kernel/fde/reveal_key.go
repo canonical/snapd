@@ -53,7 +53,7 @@ func runFDERevealKeyCommand(req *RevealKeyRequest) (output []byte, err error) {
 		return nil, fmt.Errorf(`cannot build request %v for fde-reveal-key: %v`, req, err)
 	}
 
-	return runFDEinitramfsHelper("fde-reveal-key", stdin)
+	return RunFDEinitramfsHelper("fde-reveal-key", stdin)
 }
 
 var runFDERevealKey = runFDERevealKeyCommand
