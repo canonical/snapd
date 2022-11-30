@@ -119,10 +119,10 @@ execute: |
     # Write the lists of revisions we want to get from the fake-store. We have purposely
     # only put these revisions into the store.
     cat > "$ROOT/seed.manifest" <<EOF
-    core 1.snap
-    pc 1.snap
-    pc-kernel 1.snap
-    test-snapd-sh 23.snap
+    core 1
+    pc 1
+    pc-kernel 1
+    test-snapd-sh 23
     EOF
 
     # Now we test, as mentioned the store does not really support getting revisions, and it
