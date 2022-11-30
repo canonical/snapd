@@ -54,10 +54,14 @@ func ReadSeedManifest(manifestFile string) (map[string]snap.Revision, error) {
 		if strings.HasPrefix(line, "#") {
 			continue
 		}
+		if strings.HasPrefix(line, " ") {
+			return nil, fmt.Errorf("line cannot start with any spaces: %q", line)
+		}
 
-		tokens := strings.SplitN(line, " ", 2)
-		if len(tokens) < 2 {
-			return nil, fmt.Errorf("line was illegally formatted: %q", line)
+		tokens := strings.Fields(line)
+		// Expect exactly two tokens
+		if len(tokens) != 2 {
+			return nil, fmt.Errorf("line is illegally formatted: %q", line)
 		}
 
 		snapName := tokens[0]

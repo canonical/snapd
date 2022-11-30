@@ -3515,10 +3515,21 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, revisions map
 	seeddir := filepath.Join(rootdir, "var/lib/snapd/seed")
 	seedsnapsdir := filepath.Join(seeddir, "snaps")
 	essSnaps, runSnaps, _ := s.loadSeed(c, seeddir)
-	c.Check(essSnaps, HasLen, 3)
-	c.Check(runSnaps, HasLen, 1)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path: filepath.Join(seedsnapsdir, "required-snap1_x1.snap"),
 
-	// check the files are in place
+			SideInfo: &snap.SideInfo{
+				RealName: "required-snap1",
+			},
+			Required: true,
+		},
+	})
+	c.Check(runSnaps[0].Path, testutil.FilePresent)
+
+	// check the essential snaps, we have to do this in runtime instead
+	// of hardcoding as the information is "calculated".
+	c.Check(essSnaps, HasLen, 3)
 	for i, name := range []string{"core_x1.snap", "pc-kernel", "pc"} {
 		channel := stableChannel
 		info := s.AssertedSnapInfo(name)
@@ -3555,15 +3566,6 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, revisions map
 			Channel: channel,
 		})
 	}
-	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
-		Path: filepath.Join(seedsnapsdir, "required-snap1_x1.snap"),
-
-		SideInfo: &snap.SideInfo{
-			RealName: "required-snap1",
-		},
-		Required: true,
-	})
-	c.Check(runSnaps[0].Path, testutil.FilePresent)
 
 	l, err := ioutil.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
@@ -3571,17 +3573,19 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, revisions map
 
 	// check the downloads
 	c.Check(s.storeActionsBunchSizes, DeepEquals, []int{2})
-	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
-		Action:       "download",
-		InstanceName: "pc-kernel",
-		Revision:     revisions["pc-kernel"],
-		Flags:        store.SnapActionIgnoreValidation,
-	})
-	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
-		Action:       "download",
-		InstanceName: "pc",
-		Revision:     revisions["pc"],
-		Flags:        store.SnapActionIgnoreValidation,
+	c.Check(s.storeActions, DeepEquals, []*store.SnapAction{
+		{
+			Action:       "download",
+			InstanceName: "pc-kernel",
+			Revision:     revisions["pc-kernel"],
+			Flags:        store.SnapActionIgnoreValidation,
+		},
+		{
+			Action:       "download",
+			InstanceName: "pc",
+			Revision:     revisions["pc"],
+			Flags:        store.SnapActionIgnoreValidation,
+		},
 	})
 	return nil
 }

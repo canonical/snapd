@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -76,7 +76,9 @@ func (s *manifestSuite) TestReadSeedManifestParseFails(c *C) {
 	}{
 		{"my/invalid&name 33\n", `invalid snap name: "my/invalid&name"`},
 		{"core 0\n", `invalid snap revision: "0"`},
-		{"core\n", `line was illegally formatted: "core"`},
+		{"core\n", `line is illegally formatted: "core"`},
+		{" test\n", `line cannot start with any spaces: " test"`},
+		{"core 14 14\n", `line is illegally formatted: "core 14 14"`},
 	}
 
 	for _, t := range tests {
