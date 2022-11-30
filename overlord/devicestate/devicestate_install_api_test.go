@@ -338,7 +338,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(chg.Err(), IsNil)
+	c.Assert(chg.Err(), IsNil)
 
 	// Checks now
 	kernelDir := filepath.Join(dirs.SnapRunDir, "snap-content/kernel")
