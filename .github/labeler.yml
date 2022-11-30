@@ -1,5 +1,5 @@
 # Add 'needs tests' label to either any change on remote, tools or utils dir
-need tests:
+needs tests:
   - remote/**/*
   - tools/**/*
   - utils/**/*
