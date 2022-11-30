@@ -6,7 +6,7 @@ defaults:
       console-conf:
         disable: true
       ssh:
-        port: 8023
+        listen-address: :8023,192.168.99.4:9922
     watchdog:
       runtime-timeout: 13m
     system:

@@ -20,11 +20,14 @@
 package configcore
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -41,14 +44,14 @@ var services = []struct{ configName, systemdName string }{
 	{"systemd-resolved", "systemd-resolved.service"},
 }
 
-const sshPortOpt = "service.ssh.port"
+const sshListenOpt = "service.ssh.listen-address"
 
 func init() {
 	for _, service := range services {
 		s := fmt.Sprintf("core.service.%s.disable", service.configName)
 		supportedConfigurations[s] = true
 	}
-	supportedConfigurations["core."+sshPortOpt] = true
+	supportedConfigurations["core."+sshListenOpt] = true
 }
 
 type sysdLogger struct{}
@@ -237,43 +240,90 @@ func handleServiceConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts
 		}
 	}
 	// configure ssh ports
-	if err := handleServiceConfigSSHPort(dev, tr, opts); err != nil {
+	if err := handleServiceConfigSSHListen(dev, tr, opts); err != nil {
 		return err
 	}
 
 	return nil
 }
 
+func parseOneSSHListenAddr(oneAddr string) (addrs []string, err error) {
+	// 1. check if it's something like "host:port", "[host]:port" etc
+	//    (this will return an error if there is no
+	host, portStr, err := net.SplitHostPort(oneAddr)
+	if err != nil {
+		// for any error assume there is no port and continue
+		host = oneAddr
+	}
+	// 2. valid port (if needed)
+	if portStr != "" {
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse port number: %v", err)
+		}
+		if port > 65535 || port < 1 {
+			return nil, fmt.Errorf("cannot use port %v: must be in the range 1-65535", port)
+		}
+	}
+	// 3. validate host
+	if host != "" {
+		if net.ParseIP(host) == nil && validateHostname(host) != nil {
+			return nil, fmt.Errorf("cannot use %q as hostname", host)
+		}
+	}
+
+	// at this point the oneAddr is validated but openssh will
+	// error when no host is given, so workaround here
+	if host == "" && portStr != "" {
+		return []string{
+			fmt.Sprintf("0.0.0.0:%v", portStr),
+			fmt.Sprintf("[::]:%v", portStr),
+		}, nil
+	}
+
+	// no special handling needed and a valid listen address
+	return []string{oneAddr}, nil
+}
+
+func parseSSHListenCfg(cfgStr string) ([]string, error) {
+	var listenAddrs []string
+	for _, hostAndPort := range strings.Split(cfgStr, ",") {
+		addrs, err := parseOneSSHListenAddr(hostAndPort)
+		if err != nil {
+			return nil, err
+		}
+		listenAddrs = append(listenAddrs, addrs...)
+	}
+	return listenAddrs, nil
+}
+
 func validateServiceConfiguration(tr config.ConfGetter) error {
-	// validate the ssh port setting
-	output, err := coreCfg(tr, sshPortOpt)
+	// validate the ssh listen setting
+	output, err := coreCfg(tr, sshListenOpt)
 	if err != nil {
 		return err
 	}
 	if output == "" {
 		return nil
 	}
-	port, err := strconv.Atoi(output)
-	if err != nil {
+	if _, err := parseSSHListenCfg(output); err != nil {
 		return err
 	}
-	if port > 65535 || port < 1 {
-		return fmt.Errorf("cannot use port %v: must be in the range 1-65535", port)
-	}
+
 	return nil
 }
 
-func handleServiceConfigSSHPort(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleServiceConfigSSHListen(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	// see if anything needs to happenhan
-	var pristineSSHPort, newSSHPort interface{}
+	var pristineSSHListen, newSSHListen interface{}
 
-	if err := tr.GetPristine("core", sshPortOpt, &pristineSSHPort); err != nil && !config.IsNoOption(err) {
+	if err := tr.GetPristine("core", sshListenOpt, &pristineSSHListen); err != nil && !config.IsNoOption(err) {
 		return err
 	}
-	if err := tr.Get("core", sshPortOpt, &newSSHPort); err != nil && !config.IsNoOption(err) {
+	if err := tr.Get("core", sshListenOpt, &newSSHListen); err != nil && !config.IsNoOption(err) {
 		return err
 	}
-	if pristineSSHPort == newSSHPort {
+	if pristineSSHListen == newSSHListen {
 		return nil
 	}
 
@@ -288,13 +338,26 @@ func handleServiceConfigSSHPort(dev sysconfig.Device, tr config.ConfGetter, opts
 	// would have to merge somehow the UC16 and UC18 config in a
 	// fsOnlyContext
 	if !dev.HasModeenv() {
-		return fmt.Errorf("cannot set ssh port configuration on systems older than UC20")
+		return fmt.Errorf("cannot set ssh listen address configuration on systems older than UC20")
 	}
-	name := "port.conf"
+
+	name := "listen.conf"
 	dirContent := map[string]osutil.FileState{}
-	if newSSHPort != nil && newSSHPort != "" {
+	if newSSHListen != nil && newSSHListen != "" {
+		listenAddrs, err := parseSSHListenCfg(fmt.Sprintf("%v", newSSHListen))
+		if err != nil {
+			return fmt.Errorf("cannot set ssh configuration: %v", err)
+		}
+
+		var buf bytes.Buffer
+		for _, s := range listenAddrs {
+			if _, err := fmt.Fprintf(&buf, "ListenAddress %v\n", s); err != nil {
+				return fmt.Errorf("cannot create ssh option buffer: %v", err)
+			}
+		}
+
 		dirContent[name] = &osutil.MemoryFileState{
-			Content: []byte(fmt.Sprintf("Port %v\n", newSSHPort)),
+			Content: buf.Bytes(),
 			Mode:    0600,
 		}
 	}
