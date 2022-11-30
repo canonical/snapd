@@ -193,7 +193,7 @@ func (iface *x11Interface) MountConnectedPlug(spec *mount.Specification, plug *i
 	}
 	slotSnapName := slot.Snap().InstanceName()
 	return spec.AddMountEntry(osutil.MountEntry{
-		Name:    fmt.Sprintf("/var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix", slotSnapName),
+		Name:    fmt.Sprintf("/var/lib/snapd/hostfs/tmp/snap-private-tmp/snap.%s/tmp/.X11-unix", slotSnapName),
 		Dir:     "/tmp/.X11-unix",
 		Options: []string{"bind", "ro"},
 	})
@@ -220,8 +220,8 @@ func (iface *x11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	slotSnapName := slot.Snap().InstanceName()
 	spec.AddUpdateNS(fmt.Sprintf(`
 	/tmp/.X11-unix/ rw,
-	/var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix/ rw,
-	mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/snap.%s/tmp/.X11-unix/ -> /tmp/.X11-unix/,
+	/var/lib/snapd/hostfs/tmp/snap-private-tmp/snap.%s/tmp/.X11-unix/ rw,
+	mount options=(rw, bind) /var/lib/snapd/hostfs/tmp/snap-private-tmp/snap.%s/tmp/.X11-unix/ -> /tmp/.X11-unix/,
 	mount options=(ro, remount, bind) -> /tmp/.X11-unix/,
 	mount options=(rslave) -> /tmp/.X11-unix/,
 	umount /tmp/.X11-unix/,
