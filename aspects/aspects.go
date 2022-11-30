@@ -94,7 +94,7 @@ type Directory struct {
 // and access patterns.
 func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag DataBag, schema Schema) (*Directory, error) {
 	if len(aspects) == 0 {
-		return nil, errors.New(`cannot create aspects directory: no aspects`)
+		return nil, errors.New(`cannot define aspects directory: no aspects`)
 	}
 
 	aspectDir := &Directory{
@@ -107,14 +107,14 @@ func NewAspectDirectory(name string, aspects map[string]interface{}, dataBag Dat
 	for name, v := range aspects {
 		aspectPatterns, ok := v.([]map[string]string)
 		if !ok {
-			return nil, errors.New("cannot create aspect: access patterns should be a list of maps")
+			return nil, fmt.Errorf("cannot define aspect %q: access patterns should be a list of maps", name)
 		} else if len(aspectPatterns) == 0 {
-			return nil, errors.New("cannot create aspect without access patterns")
+			return nil, fmt.Errorf("cannot define aspect %q: no access patterns found", name)
 		}
 
 		aspect, err := newAspect(aspectDir, name, aspectPatterns)
 		if err != nil {
-			return nil, fmt.Errorf("cannot create aspect %q: %w", name, err)
+			return nil, fmt.Errorf("cannot define aspect %q: %w", name, err)
 		}
 
 		aspectDir.aspects[name] = aspect
@@ -309,7 +309,7 @@ func (a *Aspect) Get(name string, value interface{}) error {
 func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 	accType, err := newAccessType(accesstype)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create aspect pattern: %w", err)
+		return nil, fmt.Errorf("cannot  aspect pattern: %w", err)
 	}
 
 	nameSubkeys := strings.Split(name, ".")
