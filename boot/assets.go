@@ -89,6 +89,8 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedA
 	defer inf.Close()
 	// temporary output
 	tempPath := c.pathInCache(c.tempAssetRelPath(blName, assetName))
+	fmt.Println("assetPath:", assetPath)
+	fmt.Println("tempPath:", tempPath)
 	outf, err := osutil.NewAtomicFile(tempPath, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create temporary cache file: %v", err)
@@ -201,6 +203,7 @@ func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("TrustedAssetsInstallObserverForModel using encryption:", useEncryption)
 	if !useEncryption {
 		// we do not care about trusted assets when not encrypting data
 		// partition
@@ -314,6 +317,7 @@ func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(reco
 		// not a trusted assets bootloader or has no trusted assets
 		return nil
 	}
+	fmt.Println("Trusted assets:", o.trustedRecoveryAssets)
 	for _, trustedAsset := range o.trustedRecoveryAssets {
 		ta, err := o.cache.Add(filepath.Join(recoveryRootDir, trustedAsset), o.recoveryBlName, filepath.Base(trustedAsset))
 		if err != nil {

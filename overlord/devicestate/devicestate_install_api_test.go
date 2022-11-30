@@ -213,6 +213,7 @@ func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, i
 
 // TODO encryption case for the finish step is not tested yet, it needs more mocking
 func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOpts) {
+	fmt.Println("testInstallFinishStep")
 	// TODO UC case when supported
 	restore := release.MockOnClassic(opts.isClassic)
 	s.AddCleanup(restore)
@@ -374,6 +375,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	for _, f := range expectedFiles {
 		c.Check(f, testutil.FilePresent)
 	}
+	fmt.Println("testInstallFinishStep end")
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallFinishNoEncryptionHappy(c *C) {

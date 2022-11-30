@@ -467,6 +467,7 @@ var grubBootAssetsForArch = map[string]grubBootAssetPath{
 }
 
 func (g *grub) getGrubBootAssetsForArch() (*grubBootAssetPath, error) {
+	fmt.Println("getting assets for arch", arch.DpkgArchitecture())
 	if g.prepareImageTime {
 		return nil, fmt.Errorf("internal error: retrieving boot assets at prepare image time")
 	}
