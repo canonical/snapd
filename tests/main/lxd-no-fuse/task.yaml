@@ -29,7 +29,7 @@ execute: |
     fi
 
     # There isn't an official image for kinetic yet, let's use the community one
-    if os.query is-ubuntu 22.10; then
+    if os.query is-ubuntu 23.04; then
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu
     else

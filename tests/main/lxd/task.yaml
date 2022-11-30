@@ -92,7 +92,7 @@ execute: |
     # my-nesting-ubuntu nesting container
 
     # There isn't an official image for kinetic yet, let's use the community one
-    if os.query is-ubuntu 22.10; then
+    if os.query is-ubuntu 23.04; then
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu
         lxc launch --quiet "images:ubuntu/$CODENAME" my-nesting-ubuntu -c security.nesting=true
@@ -171,7 +171,7 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- lxd init --auto
 
     # There isn't an official image for kinetic yet, let's use the community one
-    if os.query is-ubuntu 22.10; then
+    if os.query is-ubuntu 23.04; then
       CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
       lxd.lxc exec my-nesting-ubuntu -- lxc launch --quiet "images:ubuntu/$CODENAME" my-inner-ubuntu
     else
