@@ -1703,6 +1703,66 @@ func (s *SnapSuite) TestRefreshHoldAndUnholdFailWithOtherFlags(c *check.C) {
 	}
 }
 
+func (s *SnapSuite) TestRefreshHoldAllowedTimeUnits(c *check.C) {
+	now := time.Now()
+	restore := snap.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	var holdTime string
+	var n int
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "POST")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+				"action":     "hold",
+				"time":       holdTime,
+				"hold-level": "general",
+			})
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type": "async", "change": "42", "status-code": 202}`)
+
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			w.WriteHeader(200)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
+
+		default:
+			c.Errorf("expected to get 2 requests, now on %d", n+1)
+			w.WriteHeader(500)
+			fmt.Fprintln(w, `{"type": "error", "result": {"message": "received too many requests"}, "status-code": 500}`)
+		}
+
+		n++
+	})
+
+	for _, holdDuration := range []string{"1s", "999s", "5m", "78h", "8760h", "forever"} {
+		var outTime string
+		if holdDuration != "forever" {
+			offset, err := time.ParseDuration(holdDuration)
+			c.Assert(err, check.IsNil)
+			holdTime = now.Add(offset).Format(time.RFC3339)
+			outTime = fmt.Sprintf("until %s", holdTime)
+		} else {
+			holdTime = "forever"
+			outTime = "indefinitely"
+		}
+
+		rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--hold=" + holdDuration, "foo"})
+		c.Assert(err, check.IsNil)
+		c.Assert(rest, check.DeepEquals, []string{})
+		c.Check(s.Stdout(), check.Equals, fmt.Sprintf("General refreshes of \"foo\" held %s\n", outTime))
+		c.Check(s.Stderr(), check.Equals, "")
+		n = 0
+		s.ResetStdStreams()
+	}
+}
+
 func (s *SnapSuite) TestRefreshHoldBadDuration(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Errorf("unexpected request")
@@ -1722,7 +1782,7 @@ func (s *SnapSuite) TestRefreshHoldNegativeDuration(c *check.C) {
 		fmt.Fprintln(w, `{"type": "error", "result": {"message": "received too many requests"}, "status-code": 500}`)
 	})
 
-	for _, dur := range []string{"-5h", "15ns"} {
+	for _, dur := range []string{"-5h", "15ns", "999ms"} {
 		rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--hold=" + dur})
 		c.Assert(err, check.ErrorMatches, "cannot hold refreshes for less than a second: "+dur)
 		c.Assert(rest, check.DeepEquals, []string{"--hold=" + dur})
