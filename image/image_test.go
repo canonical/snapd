@@ -3480,3 +3480,405 @@ func (s *imageSuite) TestSetupSeedCore20DelegatedSnap(c *C) {
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Check(err, IsNil)
 }
+
+func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, revisions map[string]snap.Revision) error {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	s.setupSnaps(c, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "my-brand",
+	}, "")
+
+	coreFn := snaptest.MakeTestSnapWithFiles(c, packageCore, [][]string{{"local", ""}})
+	requiredSnap1Fn := snaptest.MakeTestSnapWithFiles(c, requiredSnap1, [][]string{{"local", ""}})
+
+	opts := &image.Options{
+		Snaps: []string{
+			coreFn,
+			requiredSnap1Fn,
+		},
+		PrepareDir: filepath.Dir(rootdir),
+		Customizations: image.Customizations{
+			Validation: "ignore",
+		},
+		Revisions: revisions,
+	}
+
+	if err := image.SetupSeed(s.tsto, s.model, opts); err != nil {
+		// let each unit test test against this
+		return err
+	}
+
+	// check seed
+	seeddir := filepath.Join(rootdir, "var/lib/snapd/seed")
+	seedsnapsdir := filepath.Join(seeddir, "snaps")
+	essSnaps, runSnaps, _ := s.loadSeed(c, seeddir)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path: filepath.Join(seedsnapsdir, "required-snap1_x1.snap"),
+
+			SideInfo: &snap.SideInfo{
+				RealName: "required-snap1",
+			},
+			Required: true,
+		},
+	})
+	c.Check(runSnaps[0].Path, testutil.FilePresent)
+
+	// check the essential snaps, we have to do this in runtime instead
+	// of hardcoding as the information is "calculated".
+	c.Check(essSnaps, HasLen, 3)
+	for i, name := range []string{"core_x1.snap", "pc-kernel", "pc"} {
+		channel := stableChannel
+		info := s.AssertedSnapInfo(name)
+		var pinfo snap.PlaceInfo = info
+		var sideInfo *snap.SideInfo
+		var snapType snap.Type
+		if info == nil {
+			switch name {
+			case "core_x1.snap":
+				pinfo = snap.MinimalPlaceInfo("core", snap.R(-1))
+				sideInfo = &snap.SideInfo{
+					RealName: "core",
+				}
+				channel = ""
+				snapType = snap.TypeOS
+			}
+		} else {
+			sideInfo = &info.SideInfo
+			snapType = info.Type()
+		}
+
+		fn := pinfo.Filename()
+		p := filepath.Join(seedsnapsdir, fn)
+		c.Check(p, testutil.FilePresent)
+		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
+			Path: p,
+
+			SideInfo: sideInfo,
+
+			EssentialType: snapType,
+			Essential:     true,
+			Required:      true,
+
+			Channel: channel,
+		})
+	}
+
+	l, err := ioutil.ReadDir(seedsnapsdir)
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 4)
+
+	// check the downloads
+	c.Check(s.storeActionsBunchSizes, DeepEquals, []int{2})
+	c.Check(s.storeActions, DeepEquals, []*store.SnapAction{
+		{
+			Action:       "download",
+			InstanceName: "pc-kernel",
+			Revision:     revisions["pc-kernel"],
+			Flags:        store.SnapActionIgnoreValidation,
+		},
+		{
+			Action:       "download",
+			InstanceName: "pc",
+			Revision:     revisions["pc"],
+			Flags:        store.SnapActionIgnoreValidation,
+		},
+	})
+	return nil
+}
+
+func (s *imageSuite) TestSetupSeedSnapRevisionsWithCorrectLocalSnap(c *C) {
+	// It doesn't make sense to use a local snap when doing a reproducible build,
+	// so if a revision is provided, and we are trying to provide that snap locally,
+	// then we should return an error.
+	// Our helper creates two local snaps
+	// 1. core.
+	// 2. required-snap.
+	// So lets provide a revision for one of them and it should then fail
+	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]snap.Revision{
+		"pc-kernel": snap.R(1),
+		"pc":        snap.R(13),
+		"core":      snap.R(-1),
+	})
+	c.Check(err, IsNil)
+}
+
+func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapFails(c *C) {
+	// It doesn't make sense to use a local snap when doing a reproducible build,
+	// so if a revision is provided, and we are trying to provide that snap locally,
+	// then we should return an error.
+	// Our helper creates two local snaps
+	// 1. core.
+	// 2. required-snap.
+	// So lets provide a revision for one of them and it should then fail
+	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]snap.Revision{
+		"pc-kernel": snap.R(1),
+		"pc":        snap.R(13),
+		"core":      snap.R(5),
+	})
+	c.Check(err, ErrorMatches, `cannot use snap .*/snapsrc/core_16.04_all.snap for image, unknown/local revision does not match the value specified by revisions file \(x1 != 5\)`)
+}
+
+func (s *imageSuite) TestSetupSeedSnapRevisionsWithLocalSnapHappy(c *C) {
+	// Make sure we can still provide specific revisions for snaps that are
+	// non-local.
+	err := s.testSetupSeedWithMixedSnapsAndRevisions(c, map[string]snap.Revision{
+		"pc-kernel": snap.R(15),
+		"pc":        snap.R(28),
+	})
+	c.Check(err, IsNil)
+}
+
+func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
+	bootloader.Force(nil)
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// a model that uses core20
+	model := s.makeUC20Model(nil)
+	prepareDir := c.MkDir()
+
+	// Create a new core20 image with the following snaps:
+	// snapd, core20, pc-kernel, pc, required20
+	// We will use revisions for each of them to guarantee that
+	// exact revisions will be used when the store action is invoked.
+	// The revisions provided to s.makeSnap won't matter, and they shouldn't.
+	// Instead the revision provided in the revisions map should be used instead.
+	s.makeSnap(c, "snapd", nil, snap.R(1), "")
+	s.makeSnap(c, "core20", nil, snap.R(20), "")
+	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
+	gadgetContent := [][]string{
+		{"uboot.conf", ""},
+		{"meta/gadget.yaml", pcUC20GadgetYaml},
+	}
+	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "")
+	s.makeSnap(c, "required20", nil, snap.R(21), "other")
+
+	opts := &image.Options{
+		PrepareDir: prepareDir,
+		Customizations: image.Customizations{
+			BootFlags:  []string{"factory"},
+			Validation: "ignore",
+		},
+		Revisions: map[string]snap.Revision{
+			"snapd":      snap.R(133),
+			"core20":     snap.R(58),
+			"pc-kernel":  snap.R(15),
+			"pc":         snap.R(12),
+			"required20": snap.R(59),
+		},
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, IsNil)
+
+	// check seed
+	seeddir := filepath.Join(prepareDir, "system-seed")
+	seedsnapsdir := filepath.Join(seeddir, "snaps")
+	essSnaps, runSnaps, _ := s.loadSeed(c, seeddir)
+	c.Check(essSnaps, HasLen, 4)
+	c.Check(runSnaps, HasLen, 1)
+
+	stableChannel := "latest/stable"
+
+	// check the files are in place
+	for i, name := range []string{"snapd", "pc-kernel", "core20", "pc"} {
+		info := s.AssertedSnapInfo(name)
+
+		channel := stableChannel
+		switch name {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+
+		fn := info.Filename()
+		p := filepath.Join(seedsnapsdir, fn)
+		c.Check(p, testutil.FilePresent)
+		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
+			Path:          p,
+			SideInfo:      &info.SideInfo,
+			EssentialType: info.Type(),
+			Essential:     true,
+			Required:      true,
+			Channel:       channel,
+		})
+	}
+	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
+		Path:     filepath.Join(seedsnapsdir, "required20_21.snap"),
+		SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+		Required: true,
+		Channel:  stableChannel,
+	})
+	c.Check(runSnaps[0].Path, testutil.FilePresent)
+
+	l, err := ioutil.ReadDir(seedsnapsdir)
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 5)
+
+	// check the downloads
+	c.Check(s.storeActionsBunchSizes, DeepEquals, []int{5})
+	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "snapd",
+		Revision:     snap.R(133),
+		Flags:        store.SnapActionIgnoreValidation,
+	})
+	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc-kernel",
+		Revision:     snap.R(15),
+		Flags:        store.SnapActionIgnoreValidation,
+	})
+	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "core20",
+		Revision:     snap.R(58),
+		Flags:        store.SnapActionIgnoreValidation,
+	})
+	c.Check(s.storeActions[3], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc",
+		Revision:     snap.R(12),
+		Flags:        store.SnapActionIgnoreValidation,
+	})
+	c.Check(s.storeActions[4], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "required20",
+		Revision:     snap.R(59),
+		Flags:        store.SnapActionIgnoreValidation,
+	})
+}
+
+func (s *imageSuite) TestLocalSnapRevisionMatchingStoreRevision(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	s.setupSnaps(c, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "my-brand",
+	}, "")
+
+	opts := &image.Options{
+		Snaps: []string{
+			s.AssertedSnap("core"),
+		},
+		PrepareDir: filepath.Dir(rootdir),
+		Customizations: image.Customizations{
+			Validation: "enforce",
+		},
+		Revisions: map[string]snap.Revision{
+			"core": snap.R(3),
+		},
+	}
+
+	err := image.SetupSeed(s.tsto, s.model, opts)
+	c.Assert(err, IsNil)
+
+	// check seed
+	seeddir := filepath.Join(rootdir, "var/lib/snapd/seed")
+	seedsnapsdir := filepath.Join(seeddir, "snaps")
+	essSnaps, runSnaps, roDB := s.loadSeed(c, seeddir)
+	c.Check(essSnaps, HasLen, 3)
+	c.Check(runSnaps, HasLen, 1)
+
+	// check the files are in place
+	for i, name := range []string{"core_3.snap", "pc-kernel", "pc"} {
+		info := s.AssertedSnapInfo(name)
+		if info == nil {
+			switch name {
+			case "core_3.snap":
+				info = &snap.Info{
+					SideInfo: snap.SideInfo{
+						RealName: "core",
+						SnapID:   s.AssertedSnapID("core"),
+						Revision: snap.R(3),
+					},
+					SnapType: snap.TypeOS,
+				}
+			default:
+				c.Errorf("cannot have %s", name)
+			}
+		}
+
+		fn := info.Filename()
+		p := filepath.Join(seedsnapsdir, fn)
+		c.Check(p, testutil.FilePresent)
+		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
+			Path:          p,
+			SideInfo:      &info.SideInfo,
+			EssentialType: info.Type(),
+			Essential:     true,
+			Required:      true,
+			Channel:       stableChannel,
+		})
+	}
+	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
+		Path:     filepath.Join(seedsnapsdir, "required-snap1_3.snap"),
+		Required: true,
+		SideInfo: &snap.SideInfo{
+			RealName:            "required-snap1",
+			SnapID:              s.AssertedSnapID("required-snap1"),
+			Revision:            snap.R(3),
+			LegacyEditedContact: "mailto:foo@example.com",
+		},
+		Channel: stableChannel,
+	})
+	c.Check(runSnaps[0].Path, testutil.FilePresent)
+
+	l, err := ioutil.ReadDir(seedsnapsdir)
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 4)
+
+	// check assertions
+	decls, err := roDB.FindMany(asserts.SnapDeclarationType, nil)
+	c.Assert(err, IsNil)
+	c.Check(decls, HasLen, 4)
+
+	// check the bootloader config
+	m, err := s.bootloader.GetBootVars("snap_kernel", "snap_core")
+	c.Assert(err, IsNil)
+	c.Check(m["snap_kernel"], Equals, "pc-kernel_2.snap")
+	c.Assert(err, IsNil)
+	c.Check(m["snap_core"], Equals, "core_3.snap")
+
+	c.Check(s.stderr.String(), Equals, "")
+
+	// check the downloads, make sure no core snap downloads are
+	// present as we are using the local file for this.
+	c.Check(s.storeActionsBunchSizes, DeepEquals, []int{3})
+	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc-kernel",
+		Channel:      stableChannel,
+		Flags:        store.SnapActionEnforceValidation,
+	})
+	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc",
+		Channel:      stableChannel,
+		Flags:        store.SnapActionEnforceValidation,
+	})
+	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "required-snap1",
+		Channel:      stableChannel,
+		Flags:        store.SnapActionEnforceValidation,
+	})
+
+	// Verify that the local file is of correct revision (3)
+	c.Check(s.curSnaps, HasLen, 1)
+	c.Check(s.curSnaps[0], DeepEquals, []*store.CurrentSnap{
+		{
+			InstanceName:     "core",
+			SnapID:           s.AssertedSnapID("core"),
+			Revision:         snap.R(3),
+			TrackingChannel:  "stable",
+			Epoch:            snap.E("0"),
+			IgnoreValidation: false,
+		},
+	})
+}

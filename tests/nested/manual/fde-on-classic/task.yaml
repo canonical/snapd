@@ -57,6 +57,12 @@ execute: |
   # no reboot required
   remote.exec not test -f /run/reboot-required
 
+  # Check for the generic serial assertion
+  retry -n 100 sh -c 'remote.exec "snap changes" | MATCH "Done.*Initialize device"'
+  remote.exec "snap model --serial --assertion" | MATCH "authority-id: generic"
+  remote.exec "snap model --serial --assertion" | MATCH "brand-id: tcMZ22pMaY5EVwoLozfjM4fR31bko4yj"
+  remote.exec "snap model --serial --assertion" | MATCH "model: ubuntu-core-22-pc-amd64"
+
   # refresh kernel snap
   refresh_snap_and_reboot()
   {

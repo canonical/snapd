@@ -3364,3 +3364,72 @@ func (s *writerSuite) TestSeedSnapsWriteCore20ErrWhenDirExists(c *C) {
 	c.Assert(err, ErrorMatches, `system "1234" already exists`)
 	c.Assert(seedwriter.IsSytemDirectoryExistsError(err), Equals, true)
 }
+
+func (s *writerSuite) testDownloadedCore20CheckClassic(c *C, modelGrade asserts.ModelGrade, classicFlag bool) error {
+	classicSnap := map[string]interface{}{
+		"name":  "classic-snap",
+		"id":    s.AssertedSnapID("classic-snap"),
+		"modes": []interface{}{"run"},
+	}
+	if classicFlag {
+		classicSnap["classic"] = "true"
+	}
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-store",
+		"base":         "core20",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"grade":        string(modelGrade),
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core",
+				"id":   s.AssertedSnapID("core"),
+				"type": "core",
+			},
+			classicSnap,
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, modelGrade)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "core", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "classic-snap", "developerid")
+
+	s.opts.Label = "20221125"
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	return err
+}
+
+func (s *writerSuite) TestDownloadedCore20CheckClassicDangerous(c *C) {
+	err := s.testDownloadedCore20CheckClassic(c, asserts.ModelDangerous, false)
+	c.Check(err, IsNil)
+}
+
+func (s *writerSuite) TestDownloadedCore20CheckClassicSignedNoFlag(c *C) {
+	err := s.testDownloadedCore20CheckClassic(c, asserts.ModelSigned, false)
+	c.Check(err, ErrorMatches, `cannot use classic snap "classic-snap" with a model of grade higher than dangerous that does not allow it explicitly \(missing classic: true in snap stanza\)`)
+}
+
+func (s *writerSuite) TestDownloadedCore20CheckClassicSignedWithFlag(c *C) {
+	err := s.testDownloadedCore20CheckClassic(c, asserts.ModelSigned, true)
+	c.Check(err, IsNil)
+}

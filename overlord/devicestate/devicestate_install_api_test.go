@@ -28,6 +28,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -47,7 +50,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
-	. "gopkg.in/check.v1"
 )
 
 type deviceMgrInstallAPISuite struct {
@@ -217,6 +219,11 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	restore := release.MockOnClassic(opts.isClassic)
 	s.AddCleanup(restore)
 
+	// only amd64/arm64 have trusted boot assets
+	oldArch := arch.DpkgArchitecture()
+	defer arch.SetArchitecture(arch.ArchitectureType(oldArch))
+	arch.SetArchitecture("amd64")
+
 	// Mock label
 	label := "classic"
 	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, opts.isClassic)
@@ -338,7 +345,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(chg.Err(), IsNil)
+	c.Assert(chg.Err(), IsNil)
 
 	// Checks now
 	kernelDir := filepath.Join(dirs.SnapRunDir, "snap-content/kernel")

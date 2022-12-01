@@ -191,7 +191,7 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]g
 }
 
 func runMntFor(label string) string {
-	return filepath.Join(dirs.GlobalRootDir, "/run/fakeinstaller-mnt/", label)
+	return filepath.Join(dirs.GlobalRootDir, "/run/muinstaller-mnt/", label)
 }
 
 func postSystemsInstallSetupStorageEncryption(cli *client.Client,

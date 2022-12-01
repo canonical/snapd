@@ -1,3 +1,10 @@
+snapd (2.57.6~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1983035
+    - bugfixes
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 15 Nov 2022 16:13:59 +0100
+
 snapd (2.57.5~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1983035

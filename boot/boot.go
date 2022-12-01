@@ -268,18 +268,11 @@ func fixedInUse(inUse bool) InUseFunc {
 // InUse returns a checker for whether a given name/revision is used in the
 // boot environment for snaps of the relevant snap type.
 func InUse(typ snap.Type, dev snap.Device) (InUseFunc, error) {
-	if dev.Classic() {
-		// no boot state on classic
-		return fixedInUse(false), nil
-	}
 	if !dev.RunMode() {
 		// ephemeral mode, block manipulations for now
 		return fixedInUse(true), nil
 	}
-	switch typ {
-	case snap.TypeKernel, snap.TypeBase, snap.TypeOS:
-		break
-	default:
+	if !SnapTypeParticipatesInBoot(typ, dev) || typ == snap.TypeGadget {
 		return fixedInUse(false), nil
 	}
 	cands := make([]snap.PlaceInfo, 0, 2)

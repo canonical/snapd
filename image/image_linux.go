@@ -419,6 +419,20 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
+	// Check local snaps again, but now after InfoDerived has been called. InfoDerived
+	// fills out the snap revisions for the local snaps, and we need this to verify against
+	// expected revisions.
+	for _, sn := range localSnaps {
+		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
+		// available. Therefore the revision in the local snap must be exactly the revision specified
+		// in the manifest. If it's not, we fail.
+		specifiedRevision := opts.Revisions[sn.Info.SnapName()]
+		if !specifiedRevision.Unset() && specifiedRevision != sn.Info.Revision {
+			return fmt.Errorf("cannot use snap %s for image, unknown/local revision does not match the value specified by revisions file (%s != %s)",
+				sn.Path, sn.Info.Revision, specifiedRevision)
+		}
+	}
+
 	for {
 		toDownload, err := w.SnapsToDownload()
 		if err != nil {
@@ -431,7 +445,12 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			if sn == nil {
 				return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 			}
-			fmt.Fprintf(Stdout, "Fetching %s\n", sn.SnapName())
+			rev := opts.Revisions[sn.SnapName()]
+			if !rev.Unset() {
+				fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), rev)
+			} else {
+				fmt.Fprintf(Stdout, "Fetching %s\n", sn.SnapName())
+			}
 			if err := w.SetInfo(sn, info); err != nil {
 				return "", err
 			}
@@ -442,6 +461,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			byName[sn.SnapName()] = sn
 			snapToDownloadOptions[i].Snap = sn
 			snapToDownloadOptions[i].Channel = sn.Channel
+			snapToDownloadOptions[i].Revision = opts.Revisions[sn.SnapName()]
 			snapToDownloadOptions[i].CohortKey = opts.WideCohortKey
 		}
 		downloadedSnaps, err := tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
