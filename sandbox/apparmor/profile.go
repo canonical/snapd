@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -99,10 +98,20 @@ var LoadProfiles = func(fnames []string, cacheDir string, flags AaParserFlags) e
 	if !osutil.GetenvBool("SNAPD_DEBUG") {
 		args = append(args, "--quiet")
 	}
-	args = append(args, fnames...)
 
-	output, err := exec.Command("apparmor_parser", args...).CombinedOutput()
+	cmd, _, err := AppArmorParser()
 	if err != nil {
+		return err
+	}
+
+	cmd.Args = append(cmd.Args, args...)
+	cmd.Args = append(cmd.Args, fnames...)
+	output, err := cmd.CombinedOutput()
+	if err != nil || strings.Contains(string(output), "parser error") {
+		if err == nil {
+			// ensure we have an error to report
+			err = fmt.Errorf("exit status 0 with parser error")
+		}
 		return fmt.Errorf("cannot load apparmor profiles: %s\napparmor_parser output:\n%s", err, string(output))
 	}
 	return nil

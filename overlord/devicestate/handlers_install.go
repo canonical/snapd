@@ -75,6 +75,7 @@ var (
 	installMountVolumes                  = install.MountVolumes
 	installWriteContent                  = install.WriteContent
 	installEncryptPartitions             = install.EncryptPartitions
+	installSaveStorageTraits             = install.SaveStorageTraits
 	secbootStageEncryptionKeyChange      = secboot.StageEncryptionKeyChange
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 
@@ -1289,7 +1290,6 @@ func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (
 // - install gadget assets
 // - install kernel.efi
 // - make system bootable (including writing modeenv)
-// TODO this needs unit tests
 func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	var err error
 	st := t.State()
@@ -1367,7 +1367,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 	defer unmountParts()
 
-	if err := install.SaveStorageTraits(sys.Model, allLaidOutVols, encryptSetupData); err != nil {
+	if err := installSaveStorageTraits(sys.Model, allLaidOutVols, encryptSetupData); err != nil {
 		return err
 	}
 

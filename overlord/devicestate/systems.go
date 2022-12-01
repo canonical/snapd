@@ -82,7 +82,7 @@ func systemFromSeed(label string, current *currentSystem) (*System, error) {
 }
 
 func loadSeedAndSystem(label string, current *currentSystem) (seed.Seed, *System, error) {
-	s, err := seed.Open(dirs.SnapSeedDir, label)
+	s, err := seedOpen(dirs.SnapSeedDir, label)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot open: %v", err)
 	}

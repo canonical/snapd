@@ -327,11 +327,10 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		opts = &EnsureLayoutCompatibilityOptions{}
 	}
 	eq := func(ds OnDiskStructure, gs LaidOutStructure) (bool, string) {
-		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
 
 		// name mismatch
-		if gv.Name != dv.Name {
+		if gv.Name != ds.Name {
 			// partitions have no names in MBR so bypass the name check
 			if gadgetLayout.Schema != "mbr" {
 				// don't return a reason if the names don't match
@@ -347,16 +346,16 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 
 		switch {
 		// on disk size too small
-		case dv.Size < gv.Size:
+		case ds.Size < gv.Size:
 			return false, fmt.Sprintf("on disk size %d (%s) is smaller than gadget size %d (%s)",
-				dv.Size, dv.Size.IECString(), gv.Size, gv.Size.IECString())
+				ds.Size, ds.Size.IECString(), gv.Size, gv.Size.IECString())
 
 		// on disk size too large
-		case dv.Size > gv.Size:
+		case ds.Size > gv.Size:
 			// larger on disk size is allowed specifically only for system-data
 			if gv.Role != SystemData {
 				return false, fmt.Sprintf("on disk size %d (%s) is larger than gadget size %d (%s) (and the role should not be expanded)",
-					dv.Size, dv.Size.IECString(), gv.Size, gv.Size.IECString())
+					ds.Size, ds.Size.IECString(), gv.Size, gv.Size.IECString())
 			}
 		}
 
@@ -387,12 +386,12 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 				case EncryptionLUKS:
 					// then this partition is expected to have been encrypted, the
 					// filesystem label on disk will need "-enc" appended
-					if dv.Label != gv.Name+"-enc" {
+					if ds.Label != gv.Name+"-enc" {
 						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but is not named %[1]s-enc", gv.Name)
 					}
 
 					// the filesystem should also be "crypto_LUKS"
-					if dv.Filesystem != "crypto_LUKS" {
+					if ds.Filesystem != "crypto_LUKS" {
 						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but does not have an encrypted filesystem", gv.Name)
 					}
 
@@ -422,14 +421,14 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			// case we don't care about the filesystem at all because snapd does
 			// not touch it, unless a gadget asset update says to update that
 			// image file with a new binary image file.
-			if gv.Filesystem != "" && gv.Filesystem != dv.Filesystem {
+			if gv.Filesystem != "" && gv.Filesystem != ds.Filesystem {
 				// use more specific error message for structures that are
 				// not creatable at install when we are not being strict
 				if !IsCreatableAtInstall(gv) && !opts.AssumeCreatablePartitionsCreated {
-					return false, fmt.Sprintf("filesystems do not match (and the partition is not creatable at install): declared as %s, got %s", gv.Filesystem, dv.Filesystem)
+					return false, fmt.Sprintf("filesystems do not match (and the partition is not creatable at install): declared as %s, got %s", gv.Filesystem, ds.Filesystem)
 				}
 				// otherwise generic
-				return false, fmt.Sprintf("filesystems do not match: declared as %s, got %s", gv.Filesystem, dv.Filesystem)
+				return false, fmt.Sprintf("filesystems do not match: declared as %s, got %s", gv.Filesystem, ds.Filesystem)
 			}
 		}
 

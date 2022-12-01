@@ -469,8 +469,8 @@ jobs:
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
-          echo "Running command: $SPREAD -abend $RUN_TESTS"
-          (set -o pipefail; $SPREAD -abend $RUN_TESTS | tee spread.log)
+          echo "Running command: $SPREAD $RUN_TESTS"
+          (set -o pipefail; $SPREAD $RUN_TESTS | tee spread.log)
 
     - name: Discard spread workers
       if: always()
@@ -585,7 +585,7 @@ jobs:
     - name: Run spread tests
       # run if the commit is pushed to the release/* branch or there is a 'Run
       # nested' label set on the PR
-      if: "contains(github.event.pull_request.labels.*.name, 'Run nested') || contains(github.ref, 'refs/heads/release/')"
+      if: "contains(github.event.pull_request.labels.*.name, 'Run nested') || contains(github.event.pull_request.labels.*.name, 'Run nested -auto-') || contains(github.ref, 'refs/heads/release/')"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
@@ -601,7 +601,7 @@ jobs:
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
-          (set -o pipefail; spread -abend $RUN_TESTS | tee spread.log)
+          (set -o pipefail; spread $RUN_TESTS | tee spread.log)
 
     - name: Discard spread workers
       if: always()

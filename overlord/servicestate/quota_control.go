@@ -82,10 +82,24 @@ func quotaGroupsAvailable(st *state.State) error {
 	return nil
 }
 
+// CreateQuotaOptions reflects all of options available when creating new quota
+// groups.
+type CreateQuotaOptions struct {
+	// ParentName is the name of the parent quota group, the group should be
+	// placed under.
+	ParentName string
+
+	// Snaps is the set of snaps to add to the quota group. These are
+	// instance names of snaps.
+	Snaps []string
+
+	// ResourceLimits is the resource limits to be used for the quota group.
+	ResourceLimits quota.Resources
+}
+
 // CreateQuota attempts to create the specified quota group with the specified
 // snaps in it.
-// TODO: should this use something like QuotaGroupUpdate with fewer fields?
-func CreateQuota(st *state.State, name string, parentName string, snaps []string, resourceLimits quota.Resources) (*state.TaskSet, error) {
+func CreateQuota(st *state.State, name string, createOpts CreateQuotaOptions) (*state.TaskSet, error) {
 	if err := quotaGroupsAvailable(st); err != nil {
 		return nil, err
 	}
@@ -101,23 +115,23 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 	}
 
 	// validate the resource limits for the group
-	if err := resourceLimits.Validate(); err != nil {
+	if err := createOpts.ResourceLimits.Validate(); err != nil {
 		return nil, fmt.Errorf("cannot create quota group %q: %v", name, err)
 	}
 	// validate that the system has the features needed for this resource
-	if err := resourcesCheckFeatureRequirements(&resourceLimits); err != nil {
+	if err := resourcesCheckFeatureRequirements(&createOpts.ResourceLimits); err != nil {
 		return nil, fmt.Errorf("cannot create quota group %q: %v", name, err)
 	}
 
 	// make sure the specified snaps exist and aren't currently in another group
-	if err := validateSnapForAddingToGroup(st, snaps, name, allGrps); err != nil {
+	if err := validateSnapForAddingToGroup(st, createOpts.Snaps, name, allGrps); err != nil {
 		return nil, err
 	}
 
 	if err := CheckQuotaChangeConflictMany(st, []string{name}); err != nil {
 		return nil, err
 	}
-	if err := snapstate.CheckChangeConflictMany(st, snaps, ""); err != nil {
+	if err := snapstate.CheckChangeConflictMany(st, createOpts.Snaps, ""); err != nil {
 		return nil, err
 	}
 
@@ -125,9 +139,9 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 	qc := QuotaControlAction{
 		Action:         "create",
 		QuotaName:      name,
-		ResourceLimits: resourceLimits,
-		AddSnaps:       snaps,
-		ParentName:     parentName,
+		ResourceLimits: createOpts.ResourceLimits,
+		AddSnaps:       createOpts.Snaps,
+		ParentName:     createOpts.ParentName,
 	}
 
 	ts := state.NewTaskSet()
@@ -188,9 +202,9 @@ func RemoveQuota(st *state.State, name string) (*state.TaskSet, error) {
 	return ts, nil
 }
 
-// QuotaGroupUpdate reflects all of the modifications that can be performed on
+// UpdateQuotaOptions reflects all of the modifications that can be performed on
 // a quota group in one operation.
-type QuotaGroupUpdate struct {
+type UpdateQuotaOptions struct {
 	// AddSnaps is the set of snaps to add to the quota group. These are
 	// instance names of snaps, and are appended to the existing snaps in
 	// the quota group
@@ -205,7 +219,7 @@ type QuotaGroupUpdate struct {
 // TODO: this should support more kinds of updates such as moving groups between
 // parents, removing sub-groups from their parents, and removing snaps from
 // the group.
-func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*state.TaskSet, error) {
+func UpdateQuota(st *state.State, name string, updateOpts UpdateQuotaOptions) (*state.TaskSet, error) {
 	if err := quotaGroupsAvailable(st); err != nil {
 		return nil, err
 	}

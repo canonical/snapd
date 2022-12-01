@@ -32,9 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
@@ -162,69 +160,85 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		defer mockBlockdev.Restore()
 	}
 
-	restore = install.MockEnsureNodesExist(func(dss []gadget.OnDiskStructure, timeout time.Duration) error {
+	restore = install.MockEnsureNodesExist(func(dss []install.OnDiskAndLaidoutStructure, timeout time.Duration) error {
 		c.Assert(timeout, Equals, 5*time.Second)
-		c.Assert(dss, DeepEquals, []gadget.OnDiskStructure{
-			{
-				LaidOutStructure: gadget.LaidOutStructure{
+		c.Assert(dss, DeepEquals, []install.OnDiskAndLaidoutStructure{
+			install.MockOnDiskAndLaidoutStructure(
+				&gadget.OnDiskStructure{
+					Name:        "ubuntu-boot",
+					Label:       "ubuntu-boot",
+					Type:        "0C",
+					Filesystem:  "vfat",
+					StartOffset: (1 + 1200) * quantity.OffsetMiB,
+					// note this is YamlIndex + 1, the YamlIndex starts at 0
+					DiskIndex: 2,
+					Node:      "/dev/mmcblk0p2",
+					Size:      750 * quantity.SizeMiB,
+				},
+				&gadget.LaidOutStructure{
 					VolumeStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
 						Name:       "ubuntu-boot",
 						Label:      "ubuntu-boot",
-						Size:       750 * quantity.SizeMiB,
 						Type:       "0C",
 						Role:       gadget.SystemBoot,
 						Filesystem: "vfat",
+						Size:       750 * quantity.SizeMiB,
 					},
 					StartOffset: (1 + 1200) * quantity.OffsetMiB,
 					YamlIndex:   1,
+				}),
+			install.MockOnDiskAndLaidoutStructure(
+				&gadget.OnDiskStructure{
+					Name:        "ubuntu-save",
+					Label:       "ubuntu-save",
+					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					Filesystem:  "ext4",
+					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
+					// note this is YamlIndex + 1, the YamlIndex starts at 0
+					DiskIndex: 3,
+					Node:      "/dev/mmcblk0p3",
+					Size:      16 * quantity.SizeMiB,
 				},
-				// note this is YamlIndex + 1, the YamlIndex starts at 0
-				DiskIndex: 2,
-				Node:      "/dev/mmcblk0p2",
-				Size:      750 * quantity.SizeMiB,
-			},
-			{
-				LaidOutStructure: gadget.LaidOutStructure{
+				&gadget.LaidOutStructure{
 					VolumeStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
 						Name:       "ubuntu-save",
 						Label:      "ubuntu-save",
-						Size:       16 * quantity.SizeMiB,
 						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 						Role:       gadget.SystemSave,
 						Filesystem: "ext4",
+						Size:       16 * quantity.SizeMiB,
 					},
 					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
 					YamlIndex:   2,
+				}),
+			install.MockOnDiskAndLaidoutStructure(
+				&gadget.OnDiskStructure{
+					Name:        "ubuntu-data",
+					Label:       "ubuntu-data",
+					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					Filesystem:  "ext4",
+					StartOffset: (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
+					// note this is YamlIndex + 1, the YamlIndex starts at 0
+					DiskIndex: 4,
+					Node:      "/dev/mmcblk0p4",
+					Size:      (30528 - (1 + 1200 + 750 + 16)) * quantity.SizeMiB,
 				},
-				// note this is YamlIndex + 1, the YamlIndex starts at 0
-				DiskIndex: 3,
-				Node:      "/dev/mmcblk0p3",
-				Size:      16 * quantity.SizeMiB,
-			},
-			{
-				LaidOutStructure: gadget.LaidOutStructure{
+				&gadget.LaidOutStructure{
 					VolumeStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
 						Name:       "ubuntu-data",
 						Label:      "ubuntu-data",
-						// TODO: this is set from the yaml, not from the actual
-						// calculated disk size, probably should be updated
-						// somewhere
-						Size:       1500 * quantity.SizeMiB,
 						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 						Role:       gadget.SystemData,
 						Filesystem: "ext4",
+						// as set in gadgettest.RaspiSimplifiedYaml
+						Size: 1500 * quantity.SizeMiB,
 					},
 					StartOffset: (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
 					YamlIndex:   3,
-				},
-				// note this is YamlIndex + 1, the YamlIndex starts at 0
-				DiskIndex: 4,
-				Node:      "/dev/mmcblk0p4",
-				Size:      (30528 - (1 + 1200 + 750 + 16)) * quantity.SizeMiB,
-			},
+				}),
 		})
 
 		// after ensuring that the nodes exist, we now setup a different, full
@@ -298,27 +312,33 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		switch mountCall {
 		case 1:
 			c.Assert(source, Equals, "/dev/mmcblk0p2")
-			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/2"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/dev-mmcblk0p2"))
 			c.Assert(fstype, Equals, "vfat")
 			c.Assert(flags, Equals, uintptr(0))
 			c.Assert(data, Equals, "")
 		case 2:
+			var mntPoint string
 			if opts.encryption {
 				c.Assert(source, Equals, "/dev/mapper/ubuntu-save")
+				mntPoint = "gadget-install/dev-mapper-ubuntu-save"
 			} else {
 				c.Assert(source, Equals, "/dev/mmcblk0p3")
+				mntPoint = "gadget-install/dev-mmcblk0p3"
 			}
-			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/3"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, mntPoint))
 			c.Assert(fstype, Equals, "ext4")
 			c.Assert(flags, Equals, uintptr(0))
 			c.Assert(data, Equals, "")
 		case 3:
+			var mntPoint string
 			if opts.encryption {
 				c.Assert(source, Equals, "/dev/mapper/ubuntu-data")
+				mntPoint = "gadget-install/dev-mapper-ubuntu-data"
 			} else {
 				c.Assert(source, Equals, "/dev/mmcblk0p4")
+				mntPoint = "gadget-install/dev-mmcblk0p4"
 			}
-			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/4"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, mntPoint))
 			c.Assert(fstype, Equals, "ext4")
 			c.Assert(flags, Equals, uintptr(0))
 			c.Assert(data, Equals, "")
@@ -335,13 +355,21 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		umountCall++
 		switch umountCall {
 		case 1:
-			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/2"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/dev-mmcblk0p2"))
 			c.Assert(flags, Equals, 0)
 		case 2:
-			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/3"))
+			mntPoint := "gadget-install/dev-mmcblk0p3"
+			if opts.encryption {
+				mntPoint = "gadget-install/dev-mapper-ubuntu-save"
+			}
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, mntPoint))
 			c.Assert(flags, Equals, 0)
 		case 3:
-			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/4"))
+			mntPoint := "gadget-install/dev-mmcblk0p4"
+			if opts.encryption {
+				mntPoint = "gadget-install/dev-mapper-ubuntu-data"
+			}
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, mntPoint))
 			c.Assert(flags, Equals, 0)
 		default:
 			c.Errorf("unexpected umount call (%d)", umountCall)
@@ -647,95 +675,117 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	if opts.encryption {
 		dataDev = "/dev/mapper/ubuntu-data"
 	}
-	restore = install.MockEnsureNodesExist(func(dss []gadget.OnDiskStructure, timeout time.Duration) error {
+	restore = install.MockEnsureNodesExist(func(dss []install.OnDiskAndLaidoutStructure, timeout time.Duration) error {
 		c.Assert(timeout, Equals, 5*time.Second)
-		expectedDss := []gadget.OnDiskStructure{
-			{
-				LaidOutStructure: gadget.LaidOutStructure{
+		expectedDss := []install.OnDiskAndLaidoutStructure{
+			install.MockOnDiskAndLaidoutStructure(
+				&gadget.OnDiskStructure{
+					Name:        "ubuntu-boot",
+					Label:       "ubuntu-boot",
+					Size:        750 * quantity.SizeMiB,
+					Type:        "0C",
+					Filesystem:  "vfat",
+					StartOffset: (1 + 1200) * quantity.OffsetMiB,
+					// note this is YamlIndex + 1, the YamlIndex starts at 0
+					DiskIndex: 2,
+					Node:      "/dev/mmcblk0p2",
+				},
+				&gadget.LaidOutStructure{
 					VolumeStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
-						Name:       "ubuntu-boot",
-						Label:      "ubuntu-boot",
-						Size:       750 * quantity.SizeMiB,
-						Type:       "0C",
-						Role:       gadget.SystemBoot,
 						Filesystem: "vfat",
+						Size:       750 * quantity.SizeMiB,
 					},
 					StartOffset: (1 + 1200) * quantity.OffsetMiB,
 					YamlIndex:   1,
 				},
-				// note this is YamlIndex + 1, the YamlIndex starts at 0
-				DiskIndex: 2,
-				Node:      "/dev/mmcblk0p2",
-				Size:      750 * quantity.SizeMiB,
-			},
+			),
 		}
 		if opts.noSave {
 			// just data
-			expectedDss = append(expectedDss, gadget.OnDiskStructure{
-				LaidOutStructure: gadget.LaidOutStructure{
+			expectedDss = append(expectedDss, install.MockOnDiskAndLaidoutStructure(
+				&gadget.OnDiskStructure{
+					Name:        "ubuntu-data",
+					Label:       "ubuntu-data",
+					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					Filesystem:  "ext4",
+					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
+					// note this is YamlIndex + 1, the YamlIndex starts at 0
+					DiskIndex: 3,
+					Node:      dataDev,
+					Size:      (30528 - (1 + 1200 + 750)) * quantity.SizeMiB,
+				},
+				&gadget.LaidOutStructure{
 					VolumeStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
 						Name:       "ubuntu-data",
 						Label:      "ubuntu-data",
-						// TODO: this is set from the yaml, not from the actual
-						// calculated disk size, probably should be updated
-						// somewhere
-						Size:       1500 * quantity.SizeMiB,
 						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 						Role:       gadget.SystemData,
 						Filesystem: "ext4",
+						Size:       (30528 - (1 + 1200 + 750)) * quantity.SizeMiB,
 					},
 					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
 					YamlIndex:   2,
 				},
-				// note this is YamlIndex + 1, the YamlIndex starts at 0
-				DiskIndex: 3,
-				Node:      dataDev,
-				Size:      (30528 - (1 + 1200 + 750)) * quantity.SizeMiB,
-			})
+			))
 		} else {
 			// data + save
-			expectedDss = append(expectedDss, []gadget.OnDiskStructure{{
-				LaidOutStructure: gadget.LaidOutStructure{
+			expectedDss = append(expectedDss, install.MockOnDiskAndLaidoutStructure(
+				&gadget.OnDiskStructure{
+					Name:        "ubuntu-save",
+					Label:       "ubuntu-save",
+					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					Filesystem:  "ext4",
+					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
+					// note this is YamlIndex + 1, the YamlIndex starts at 0
+					DiskIndex: 3,
+					Node:      "/dev/mmcblk0p3",
+					Size:      16 * quantity.SizeMiB,
+				},
+				&gadget.LaidOutStructure{
 					VolumeStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
 						Name:       "ubuntu-save",
 						Label:      "ubuntu-save",
-						Size:       16 * quantity.SizeMiB,
 						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 						Role:       gadget.SystemSave,
 						Filesystem: "ext4",
+						Size:       16 * quantity.SizeMiB,
 					},
 					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
 					YamlIndex:   2,
 				},
-				// note this is YamlIndex + 1, the YamlIndex starts at 0
-				DiskIndex: 3,
-				Node:      "/dev/mmcblk0p3",
-				Size:      16 * quantity.SizeMiB,
-			}, {
-				LaidOutStructure: gadget.LaidOutStructure{
+			))
+			expectedDss = append(expectedDss, install.MockOnDiskAndLaidoutStructure(
+				&gadget.OnDiskStructure{
+					Name:        "ubuntu-data",
+					Label:       "ubuntu-data",
+					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					Filesystem:  "ext4",
+					StartOffset: (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
+					// note this is YamlIndex + 1, the YamlIndex starts at 0
+					DiskIndex: 4,
+					Node:      dataDev,
+					Size:      (30528 - (1 + 1200 + 750 + 16)) * quantity.SizeMiB,
+				},
+				&gadget.LaidOutStructure{
 					VolumeStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
 						Name:       "ubuntu-data",
 						Label:      "ubuntu-data",
-						// TODO: this is set from the yaml, not from the actual
-						// calculated disk size, probably should be updated
-						// somewhere
-						Size:       1500 * quantity.SizeMiB,
 						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 						Role:       gadget.SystemData,
 						Filesystem: "ext4",
+						// TODO: this is set from the yaml, not from the actual
+						// calculated disk size, probably should be updated
+						// somewhere
+						Size: 1500 * quantity.SizeMiB,
 					},
 					StartOffset: (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
 					YamlIndex:   3,
 				},
-				// note this is YamlIndex + 1, the YamlIndex starts at 0
-				DiskIndex: 4,
-				Node:      dataDev,
-				Size:      (30528 - (1 + 1200 + 750 + 16)) * quantity.SizeMiB,
-			}}...)
+			))
 		}
 		c.Assert(dss, DeepEquals, expectedDss)
 
@@ -781,16 +831,20 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 		switch mountCall {
 		case 1:
 			c.Assert(source, Equals, "/dev/mmcblk0p2")
-			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/2"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/dev-mmcblk0p2"))
 			c.Assert(fstype, Equals, "vfat")
 			c.Assert(flags, Equals, uintptr(0))
 			c.Assert(data, Equals, "")
 		case 2:
 			c.Assert(source, Equals, dataDev)
 			if opts.noSave {
-				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/3"))
+				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/dev-mmcblk0p3"))
 			} else {
-				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/4"))
+				mntPoint := "gadget-install/dev-mmcblk0p4"
+				if opts.encryption {
+					mntPoint = "gadget-install/dev-mapper-ubuntu-data"
+				}
+				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, mntPoint))
 			}
 			c.Assert(fstype, Equals, "ext4")
 			c.Assert(flags, Equals, uintptr(0))
@@ -808,13 +862,17 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 		umountCall++
 		switch umountCall {
 		case 1:
-			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/2"))
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/dev-mmcblk0p2"))
 			c.Assert(flags, Equals, 0)
 		case 2:
 			if opts.noSave {
-				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/3"))
+				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/dev-mmcblk0p3"))
 			} else {
-				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/4"))
+				mntPoint := "gadget-install/dev-mmcblk0p4"
+				if opts.encryption {
+					mntPoint = "gadget-install/dev-mapper-ubuntu-data"
+				}
+				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, mntPoint))
 			}
 			c.Assert(flags, Equals, 0)
 		default:
@@ -964,89 +1022,19 @@ func (s *installSuite) TestFactoryResetHappyEncrypted(c *C) {
 	})
 }
 
-func mockGadgetPartitionedDisk(c *C) (*gadget.Info, map[string]*gadget.LaidOutVolume, *asserts.Model, string, func()) {
-	cleanups := []func(){}
-	addCleanup := func(r func()) { cleanups = append(cleanups, r) }
-	cleanup := func() {
-		for _, r := range cleanups {
-			r()
-		}
-	}
-
-	// TODO test for UC systems too
-	model := boottest.MakeMockClassicWithModesModel()
-
-	// Create gadget with all files
-	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	err := makeMockGadget(gadgetRoot, gadgettest.SingleVolumeClassicWithModesGadgetYaml)
-	c.Assert(err, IsNil)
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, "", model)
-	c.Assert(err, IsNil)
-
-	ginfo, err := gadget.ReadInfo(gadgetRoot, model)
-	c.Assert(err, IsNil)
-
-	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
-	restore := install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
-		c.Assert(strings.HasPrefix(device, "/dev/vda"), Equals, true)
-		return filepath.Join(vdaSysPath, filepath.Base(device)), nil
-	})
-	addCleanup(restore)
-
-	// "Real" disk data that will be read
-	disk := &disks.MockDiskMapping{
-		Structure: []disks.Partition{
-			{
-				PartitionLabel:   "BIOS\x20Boot",
-				KernelDeviceNode: "/dev/vda1",
-				DiskIndex:        1,
-			},
-			{
-				PartitionLabel:   "EFI System partition",
-				KernelDeviceNode: "/dev/vda2",
-				DiskIndex:        2,
-			},
-			{
-				PartitionLabel:   "ubuntu-boot",
-				KernelDeviceNode: "/dev/vda3",
-				DiskIndex:        3,
-			},
-			{
-				PartitionLabel:   "ubuntu-save",
-				KernelDeviceNode: "/dev/vda4",
-				DiskIndex:        4,
-			},
-			{
-				PartitionLabel:   "ubuntu-data",
-				KernelDeviceNode: "/dev/vda5",
-				DiskIndex:        5,
-			},
-		},
-		DiskHasPartitions: true,
-		DevNum:            "disk1",
-		DevNode:           "/dev/vda",
-		DevPath:           vdaSysPath,
-	}
-	diskMapping := map[string]*disks.MockDiskMapping{
-		vdaSysPath: disk,
-		// this simulates a symlink in /sys/block which points to the above path
-		"/sys/block/vda": disk,
-	}
-	restore = disks.MockDevicePathToDiskMapping(diskMapping)
-	addCleanup(restore)
-
-	return ginfo, allLaidOutVols, model, gadgetRoot, cleanup
-}
-
 type writeContentOpts struct {
 	encryption bool
 }
 
 func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
-	espMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/2")
-	bootMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/3")
-	saveMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/4")
-	dataMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/5")
+	espMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/dev-vda2")
+	bootMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/dev-vda3")
+	saveMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/dev-vda4")
+	dataMntPt := filepath.Join(dirs.SnapRunDir, "gadget-install/dev-vda5")
+	if opts.encryption {
+		saveMntPt = filepath.Join(dirs.SnapRunDir, "gadget-install/dev-mapper-ubuntu-save")
+		dataMntPt = filepath.Join(dirs.SnapRunDir, "gadget-install/dev-mapper-ubuntu-data")
+	}
 	mountCall := 0
 	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
 		mountCall++
@@ -1094,18 +1082,46 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 	umountCall := 0
 	restore = install.MockSysUnmount(func(target string, flags int) error {
 		umountCall++
-		if umountCall > 4 {
+		switch umountCall {
+		case 1:
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir,
+				"gadget-install/dev-vda2"))
+		case 2:
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir,
+				"gadget-install/dev-vda3"))
+		case 3:
+			mntPoint := "gadget-install/dev-vda4"
+			if opts.encryption {
+				mntPoint = "gadget-install/dev-mapper-ubuntu-save"
+			}
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir,
+				mntPoint))
+		case 4:
+			mntPoint := "gadget-install/dev-vda5"
+			if opts.encryption {
+				mntPoint = "gadget-install/dev-mapper-ubuntu-data"
+			}
+			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir,
+				mntPoint))
+		default:
 			c.Errorf("unexpected umount call (%d)", umountCall)
 			return fmt.Errorf("test broken")
 		}
-		c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir,
-			"gadget-install/"+strconv.Itoa(umountCall+1)))
 		c.Assert(flags, Equals, 0)
 		return nil
 	})
 	defer restore()
 
-	ginfo, allLaidOutVols, _, _, restore := mockGadgetPartitionedDisk(c)
+	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
+	restore = install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
+		c.Assert(strings.HasPrefix(device, "/dev/vda"), Equals, true)
+		return filepath.Join(vdaSysPath, filepath.Base(device)), nil
+	})
+	defer restore()
+
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	ginfo, allLaidOutVols, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
+	c.Assert(err, IsNil)
 	defer restore()
 
 	// 10 million mocks later ...
@@ -1123,11 +1139,17 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 	// Fill encrypted partitions if encrypting
 	var esd *install.EncryptionSetupData
 	if opts.encryption {
-		labelToEncDevice := map[string]string{
-			"ubuntu-save": "/dev/mapper/ubuntu-save",
-			"ubuntu-data": "/dev/mapper/ubuntu-data",
+		labelToEncData := map[string]*install.MockEncryptedDeviceAndRole{
+			"ubuntu-save": {
+				Role:            "system-save",
+				EncryptedDevice: "/dev/mapper/ubuntu-save",
+			},
+			"ubuntu-data": {
+				Role:            "system-data",
+				EncryptedDevice: "/dev/mapper/ubuntu-data",
+			},
 		}
-		esd = install.BuildEncryptionSetupData(labelToEncDevice)
+		esd = install.MockEncryptionSetupData(labelToEncData)
 	}
 	onDiskVols, err := install.WriteContent(ginfo.Volumes, allLaidOutVols, esd, nil, timings.New(nil))
 	c.Assert(err, IsNil)
@@ -1178,7 +1200,16 @@ type encryptPartitionsOpts struct {
 }
 
 func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
-	ginfo, _, model, gadgetRoot, restore := mockGadgetPartitionedDisk(c)
+	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
+	restore := install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
+		c.Assert(strings.HasPrefix(device, "/dev/vda"), Equals, true)
+		return filepath.Join(vdaSysPath, filepath.Base(device)), nil
+	})
+	defer restore()
+
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	ginfo, _, model, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
+	c.Assert(err, IsNil)
 	defer restore()
 
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
@@ -1222,7 +1253,16 @@ func (s *installSuite) TestInstallEncryptPartitionsLUKSHappy(c *C) {
 }
 
 func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
-	ginfo, _, model, gadgetRoot, restore := mockGadgetPartitionedDisk(c)
+	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
+	restore := install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
+		c.Assert(strings.HasPrefix(device, "/dev/vda"), Equals, true)
+		return filepath.Join(vdaSysPath, filepath.Base(device)), nil
+	})
+	defer restore()
+
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	ginfo, _, model, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
+	c.Assert(err, IsNil)
 	defer restore()
 
 	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, secboot.EncryptionTypeLUKS, model, gadgetRoot, "", timings.New(nil))

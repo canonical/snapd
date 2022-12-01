@@ -2660,14 +2660,10 @@ var mockDeviceLayout = gadget.OnDiskVolume{
 		// as existing on the disk - the code and test accounts for the MBR
 		// structure not being present in the OnDiskVolume
 		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name: "BIOS Boot",
-					Size: 1 * quantity.SizeMiB,
-				},
-				StartOffset: 1 * quantity.OffsetMiB,
-			},
-			Node: "/dev/node1",
+			Node:        "/dev/node1",
+			Name:        "BIOS Boot",
+			Size:        1 * quantity.SizeMiB,
+			StartOffset: 1 * quantity.OffsetMiB,
 		},
 	},
 	ID:         "anything",
@@ -2774,15 +2770,11 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityTypeBareStructureAllowedMis
 			// as existing on the disk - the code and test accounts for the MBR
 			// structure not being present in the OnDiskVolume
 			{
-				LaidOutStructure: gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
-						Name:       "some-filesystem",
-						Size:       1 * quantity.SizeGiB,
-						Filesystem: "ext4",
-					},
-					StartOffset: 1*quantity.OffsetMiB + 4096,
-				},
-				Node: "/dev/node1",
+				Node:        "/dev/node1",
+				Name:        "some-filesystem",
+				Size:        1 * quantity.SizeGiB,
+				Filesystem:  "ext4",
+				StartOffset: 1*quantity.OffsetMiB + 4096,
 			},
 		},
 		ID:         "anything",
@@ -2849,15 +2841,11 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibility(c *C) {
 	deviceLayoutWithExtras := mockDeviceLayout
 	deviceLayoutWithExtras.Structure = append(deviceLayoutWithExtras.Structure,
 		gadget.OnDiskStructure{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name:  "Extra partition",
-					Size:  10 * quantity.SizeMiB,
-					Label: "extra",
-				},
-				StartOffset: 2 * quantity.OffsetMiB,
-			},
-			Node: "/dev/node2",
+			Node:        "/dev/node2",
+			Name:        "Extra partition",
+			Size:        10 * quantity.SizeMiB,
+			Label:       "extra",
+			StartOffset: 2 * quantity.OffsetMiB,
 		},
 	)
 	// extra structure (should fail)
@@ -2892,28 +2880,20 @@ func (s *gadgetYamlTestSuite) TestMBRLayoutCompatibility(c *C) {
 	var mockMBRDeviceLayout = gadget.OnDiskVolume{
 		Structure: []gadget.OnDiskStructure{
 			{
-				LaidOutStructure: gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
-						// partition names have no
-						// meaning in MBR schema
-						Name: "other",
-						Size: 440,
-					},
-					StartOffset: 0,
-				},
 				Node: "/dev/node1",
+				// partition names have no
+				// meaning in MBR schema
+				Name:        "other",
+				Size:        440,
+				StartOffset: 0,
 			},
 			{
-				LaidOutStructure: gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
-						// partition names have no
-						// meaning in MBR schema
-						Name: "different BIOS Boot",
-						Size: 1 * quantity.SizeMiB,
-					},
-					StartOffset: 1 * quantity.OffsetMiB,
-				},
 				Node: "/dev/node2",
+				// partition names have no
+				// meaning in MBR schema
+				Name:        "different BIOS Boot",
+				Size:        1 * quantity.SizeMiB,
+				StartOffset: 1 * quantity.OffsetMiB,
 			},
 		},
 		ID:               "anything",
@@ -2936,18 +2916,14 @@ func (s *gadgetYamlTestSuite) TestMBRLayoutCompatibility(c *C) {
 	deviceLayoutWithExtras := mockMBRDeviceLayout
 	deviceLayoutWithExtras.Structure = append(deviceLayoutWithExtras.Structure,
 		gadget.OnDiskStructure{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					// name is ignored with MBR schema
-					Name:       "Extra partition",
-					Size:       1200 * quantity.SizeMiB,
-					Label:      "extra",
-					Filesystem: "ext4",
-					Type:       "83",
-				},
-				StartOffset: 2 * quantity.OffsetMiB,
-			},
 			Node: "/dev/node2",
+			// name is ignored with MBR schema
+			Name:        "Extra partition",
+			Size:        1200 * quantity.SizeMiB,
+			Label:       "extra",
+			Filesystem:  "ext4",
+			Type:        "83",
+			StartOffset: 2 * quantity.OffsetMiB,
 		},
 	)
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayoutWithExtras, nil)
@@ -2968,15 +2944,11 @@ func (s *gadgetYamlTestSuite) TestMBRLayoutCompatibility(c *C) {
 	// add another structure that's not part of the gadget
 	deviceLayoutWithExtras.Structure = append(deviceLayoutWithExtras.Structure,
 		gadget.OnDiskStructure{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					// name is ignored with MBR schema
-					Name: "Extra extra partition",
-					Size: 1 * quantity.SizeMiB,
-				},
-				StartOffset: 1202 * quantity.OffsetMiB,
-			},
 			Node: "/dev/node4",
+			// name is ignored with MBR schema
+			Name:        "Extra extra partition",
+			Size:        1 * quantity.SizeMiB,
+			StartOffset: 1202 * quantity.OffsetMiB,
 		},
 	)
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayoutWithExtras, nil)
@@ -2991,16 +2963,12 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 	// device matches gadget except for the filesystem type
 	deviceLayout.Structure = append(deviceLayout.Structure,
 		gadget.OnDiskStructure{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name:       "Writable",
-					Size:       1200 * quantity.SizeMiB,
-					Label:      "writable",
-					Filesystem: "something_else",
-				},
-				StartOffset: 2 * quantity.OffsetMiB,
-			},
-			Node: "/dev/node2",
+			Node:        "/dev/node2",
+			Name:        "Writable",
+			Size:        1200 * quantity.SizeMiB,
+			Label:       "writable",
+			Filesystem:  "something_else",
+			StartOffset: 2 * quantity.OffsetMiB,
 		},
 	)
 
@@ -3071,16 +3039,12 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithUnspecifiedGadgetFilesy
 	// device matches, but it has a filesystem
 	deviceLayout.Structure = append(deviceLayout.Structure,
 		gadget.OnDiskStructure{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name:       "foobar",
-					Size:       1200 * quantity.SizeMiB,
-					Label:      "whatever",
-					Filesystem: "something",
-				},
-				StartOffset: 2 * quantity.OffsetMiB,
-			},
-			Node: "/dev/node2",
+			Node:        "/dev/node2",
+			Name:        "foobar",
+			Size:        1200 * quantity.SizeMiB,
+			Label:       "whatever",
+			Filesystem:  "something",
+			StartOffset: 2 * quantity.OffsetMiB,
 		},
 	)
 
@@ -3119,26 +3083,18 @@ var mockEncDeviceLayout = gadget.OnDiskVolume{
 		// as existing on the disk - the code and test accounts for the MBR
 		// structure not being present in the OnDiskVolume
 		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name: "BIOS Boot",
-					Size: 1 * quantity.SizeMiB,
-				},
-				StartOffset: 1 * quantity.OffsetMiB,
-			},
-			Node: "/dev/node1",
+			Node:        "/dev/node1",
+			Name:        "BIOS Boot",
+			Size:        1 * quantity.SizeMiB,
+			StartOffset: 1 * quantity.OffsetMiB,
 		},
 		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name:       "Writable",
-					Size:       1200 * quantity.SizeMiB,
-					Filesystem: "crypto_LUKS",
-					Label:      "Writable-enc",
-				},
-				StartOffset: 2 * quantity.OffsetMiB,
-			},
-			Node: "/dev/node2",
+			Node:        "/dev/node2",
+			Name:        "Writable",
+			Size:        1200 * quantity.SizeMiB,
+			Filesystem:  "crypto_LUKS",
+			Label:       "Writable-enc",
+			StartOffset: 2 * quantity.OffsetMiB,
 		},
 	},
 	ID:         "anything",

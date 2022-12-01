@@ -782,7 +782,13 @@ func (x *cmdRefresh) showRefreshTimes() error {
 		fmt.Fprintf(Stdout, "last: n/a\n")
 	}
 	if !hold.IsZero() {
-		fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(hold))
+		// show holds over 100 years as "forever", like in the input of 'snap refresh
+		// --hold', instead of as a distant time (how they're internally represented)
+		if hold.After(timeNow().Add(100 * 365 * 24 * time.Hour)) {
+			fmt.Fprintf(Stdout, "hold: forever\n")
+		} else {
+			fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(hold))
+		}
 	}
 	// only show "next" if its after "hold" to not confuse users
 	if !next.IsZero() {

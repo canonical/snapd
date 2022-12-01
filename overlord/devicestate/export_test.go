@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os/user"
 	"time"
@@ -366,6 +367,38 @@ func MockInstallFactoryReset(f func(model gadget.Model, gadgetRoot, kernelRoot, 
 	return restore
 }
 
+func MockInstallWriteContent(f func(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *install.EncryptionSetupData, observer gadget.ContentObserver, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error)) (restore func()) {
+	old := installWriteContent
+	installWriteContent = f
+	return func() {
+		installWriteContent = old
+	}
+}
+
+func MockInstallMountVolumes(f func(onVolumes map[string]*gadget.Volume, encSetupData *install.EncryptionSetupData) (espMntDir string, unmount func() error, err error)) (restore func()) {
+	old := installMountVolumes
+	installMountVolumes = f
+	return func() {
+		installMountVolumes = old
+	}
+}
+
+func MockInstallEncryptPartitions(f func(onVolumes map[string]*gadget.Volume, encryptionType secboot.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error)) (restore func()) {
+	old := installEncryptPartitions
+	installEncryptPartitions = f
+	return func() {
+		installEncryptPartitions = old
+	}
+}
+
+func MockInstallSaveStorageTraits(f func(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *install.EncryptionSetupData) error) (restore func()) {
+	old := installSaveStorageTraits
+	installSaveStorageTraits = f
+	return func() {
+		installSaveStorageTraits = old
+	}
+}
+
 func MockSecbootStageEncryptionKeyChange(f func(node string, key keys.EncryptionKey) error) (restore func()) {
 	restore = testutil.Backup(&secbootStageEncryptionKeyChange)
 	secbootStageEncryptionKeyChange = f
@@ -490,4 +523,41 @@ func MockCreateAllKnownSystemUsers(createAllUsers func(state *state.State, asser
 	restore = testutil.Backup(&createAllKnownSystemUsers)
 	createAllKnownSystemUsers = createAllUsers
 	return restore
+}
+
+func MockEncryptionSetupDataInCache(st *state.State, label string) (restore func()) {
+	st.Lock()
+	defer st.Unlock()
+	var esd *install.EncryptionSetupData
+	labelToEncData := map[string]*install.MockEncryptedDeviceAndRole{
+		"ubuntu-save": {
+			Role:            "system-save",
+			EncryptedDevice: "/dev/mapper/ubuntu-save",
+		},
+		"ubuntu-data": {
+			Role:            "system-data",
+			EncryptedDevice: "/dev/mapper/ubuntu-data",
+		},
+	}
+	esd = install.MockEncryptionSetupData(labelToEncData)
+	st.Cache(encryptionSetupDataKey{label}, esd)
+	return func() { CleanUpEncryptionSetupDataInCache(st, label) }
+}
+
+func CheckEncryptionSetupDataFromCache(st *state.State, label string) error {
+	cached := st.Cached(encryptionSetupDataKey{label})
+	if cached == nil {
+		return fmt.Errorf("no EncryptionSetupData found in cache")
+	}
+	if _, ok := cached.(*install.EncryptionSetupData); !ok {
+		return fmt.Errorf("wrong data type under encryptionSetupDataKey")
+	}
+	return nil
+}
+
+func CleanUpEncryptionSetupDataInCache(st *state.State, label string) {
+	st.Lock()
+	defer st.Unlock()
+	key := encryptionSetupDataKey{label}
+	st.Cache(key, nil)
 }

@@ -139,20 +139,12 @@ func makeMockDiskMappingIncludingPartitions(num int) *disks.MockDiskMapping {
 }
 
 var mockOnDiskStructureWritable = gadget.OnDiskStructure{
-	Node: "/dev/node3",
-	LaidOutStructure: gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			VolumeName: "pc",
-			Name:       "Writable",
-			Size:       1258291200,
-			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			Role:       "system-data",
-			Label:      "ubuntu-data",
-			Filesystem: "ext4",
-		},
-		StartOffset: 1260388352,
-		YamlIndex:   3,
-	},
+	Node:        "/dev/node3",
+	Name:        "Writable",
+	Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+	Label:       "ubuntu-data",
+	Filesystem:  "ext4",
+	StartOffset: 1260388352,
 	// Note the DiskIndex appears to be the same as the YamlIndex, but this is
 	// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
 	// yaml structure (the MBR) that does not appear on disk
@@ -161,31 +153,85 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 	Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
 }
 
-var mockOnDiskStructureSave = gadget.OnDiskStructure{
-	Node: "/dev/node3",
-	LaidOutStructure: gadget.LaidOutStructure{
+var mockOnDiskAndLaidoutStructureWritable = install.MockOnDiskAndLaidoutStructure(
+	&gadget.OnDiskStructure{
+		Node: "/dev/node3",
+		Name: "Writable",
+		//Size:        1258291200,
+		Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+		Label:       "ubuntu-data",
+		Filesystem:  "ext4",
+		StartOffset: 1260388352,
+		// Note the DiskIndex appears to be the same as the YamlIndex, but this is
+		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
+		// yaml structure (the MBR) that does not appear on disk
+		DiskIndex: 3,
+		// expanded to fill the disk
+		Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
+	},
+	&gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			VolumeName: "pc",
+			Name:       "Writable",
+			Size:       1258291200,
+			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			Role:       "system-data",
+			Label:      "ubuntu-data",
+			Filesystem: "ext4",
+			// Note the DiskIndex appears to be the same as the YamlIndex, but this is
+			// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
+			// yaml structure (the MBR) that does not appear on disk
+		},
+		StartOffset: 1260388352,
+		YamlIndex:   3,
+	},
+)
+
+var mockOnDiskAndLaidoutStructureSave = install.MockOnDiskAndLaidoutStructure(
+	&gadget.OnDiskStructure{
+		Node:        "/dev/node3",
+		Name:        "Save",
+		Size:        128 * quantity.SizeMiB,
+		Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+		Label:       "ubuntu-save",
+		Filesystem:  "ext4",
+		StartOffset: 1260388352,
+		// Note the DiskIndex appears to be the same as the YamlIndex, but this is
+		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
+		// yaml structure (the MBR) that does not appear on disk
+		DiskIndex: 3,
+	},
+	&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			VolumeName: "pc",
 			Name:       "Save",
+			Label:      "ubuntu-save",
 			Size:       128 * quantity.SizeMiB,
 			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			Role:       "system-save",
-			Label:      "ubuntu-save",
 			Filesystem: "ext4",
 		},
 		StartOffset: 1260388352,
 		YamlIndex:   3,
 	},
-	// Note the DiskIndex appears to be the same as the YamlIndex, but this is
-	// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
-	// yaml structure (the MBR) that does not appear on disk
-	DiskIndex: 3,
-	Size:      128 * quantity.SizeMiB,
-}
+)
 
-var mockOnDiskStructureWritableAfterSave = gadget.OnDiskStructure{
-	Node: "/dev/node4",
-	LaidOutStructure: gadget.LaidOutStructure{
+var mockOnDiskAndLaidoutStructureWritableAfterSave = install.MockOnDiskAndLaidoutStructure(
+	&gadget.OnDiskStructure{
+		Node: "/dev/node4",
+		Name: "Writable",
+		// expanded to fill the disk
+		Size:        2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
+		Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+		Label:       "ubuntu-data",
+		Filesystem:  "ext4",
+		StartOffset: 1394606080,
+		// Note the DiskIndex appears to be the same as the YamlIndex, but this is
+		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
+		// yaml structure (the MBR) that does not appear on disk
+		DiskIndex: 4,
+	},
+	&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			VolumeName: "pc",
 			Name:       "Writable",
@@ -198,13 +244,7 @@ var mockOnDiskStructureWritableAfterSave = gadget.OnDiskStructure{
 		StartOffset: 1394606080,
 		YamlIndex:   4,
 	},
-	// Note the DiskIndex appears to be the same as the YamlIndex, but this is
-	// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
-	// yaml structure (the MBR) that does not appear on disk
-	DiskIndex: 4,
-	// expanded to fill the disk
-	Size: 2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
-}
+)
 
 type uc20Model struct{}
 
@@ -221,7 +261,7 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
-	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -238,7 +278,10 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 /dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
 `)
 	c.Check(create, NotNil)
-	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureSave, mockOnDiskStructureWritableAfterSave})
+	c.Assert(create, DeepEquals, []install.OnDiskAndLaidoutStructure{
+		mockOnDiskAndLaidoutStructureSave,
+		mockOnDiskAndLaidoutStructureWritableAfterSave,
+	})
 }
 
 func (s *partitionTestSuite) TestBuildPartitionListOnlyCreatablePartitions(c *C) {
@@ -255,7 +298,7 @@ func (s *partitionTestSuite) TestBuildPartitionListOnlyCreatablePartitions(c *C)
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
-	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -282,15 +325,15 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	defer cmdUdevadm.Restore()
 
 	calls := 0
-	restore = install.MockEnsureNodesExist(func(ds []gadget.OnDiskStructure, timeout time.Duration) error {
+	restore = install.MockEnsureNodesExist(func(ds []install.OnDiskAndLaidoutStructure, timeout time.Duration) error {
 		calls++
 		c.Assert(ds, HasLen, 1)
-		c.Assert(ds[0].Node, Equals, "/dev/node3")
+		c.Assert(install.OnDiskFromOnDiskAndLaidoutStructure(ds[0]).Node, Equals, "/dev/node3")
 		return nil
 	})
 	defer restore()
 
-	err := makeMockGadget(s.gadgetRoot, gadgetContent)
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -300,9 +343,9 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	opts := &install.CreateOptions{
 		GadgetRootDir: s.gadgetRoot,
 	}
-	created, err := install.CreateMissingPartitions(dl, pv, opts)
+	created, err := install.TestCreateMissingPartitions(dl, pv, opts)
 	c.Assert(err, IsNil)
-	c.Assert(created, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureWritable})
+	c.Assert(created, DeepEquals, []install.OnDiskAndLaidoutStructure{mockOnDiskAndLaidoutStructureWritable})
 	c.Assert(calls, Equals, 1)
 
 	// Check partition table write
@@ -334,22 +377,25 @@ func (s *partitionTestSuite) TestCreatePartitionsNonRolePartitions(c *C) {
 	defer cmdUdevadm.Restore()
 
 	calls := 0
-	restore = install.MockEnsureNodesExist(func(ds []gadget.OnDiskStructure, timeout time.Duration) error {
+	restore = install.MockEnsureNodesExist(func(ds []install.OnDiskAndLaidoutStructure, timeout time.Duration) error {
 		calls++
 		c.Assert(ds, HasLen, 3)
 		// Ensure all partitions are created as asked for via
 		// the install.CreateOptions
-		c.Assert(ds[0].Node, Equals, "/dev/node1")
-		c.Assert(ds[0].Name, Equals, "BIOS Boot")
-		c.Assert(ds[1].Node, Equals, "/dev/node2")
-		c.Assert(ds[1].Name, Equals, "Recovery")
-		c.Assert(ds[2].Node, Equals, "/dev/node3")
-		c.Assert(ds[2].Name, Equals, "Writable")
+		onDisk0 := install.OnDiskFromOnDiskAndLaidoutStructure(ds[0])
+		onDisk1 := install.OnDiskFromOnDiskAndLaidoutStructure(ds[1])
+		onDisk2 := install.OnDiskFromOnDiskAndLaidoutStructure(ds[2])
+		c.Assert(onDisk0.Node, Equals, "/dev/node1")
+		c.Assert(onDisk0.Name, Equals, "BIOS Boot")
+		c.Assert(onDisk1.Node, Equals, "/dev/node2")
+		c.Assert(onDisk1.Name, Equals, "Recovery")
+		c.Assert(onDisk2.Node, Equals, "/dev/node3")
+		c.Assert(onDisk2.Name, Equals, "Writable")
 		return nil
 	})
 	defer restore()
 
-	err := makeMockGadget(s.gadgetRoot, gadgetContent)
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -360,7 +406,7 @@ func (s *partitionTestSuite) TestCreatePartitionsNonRolePartitions(c *C) {
 		GadgetRootDir:              s.gadgetRoot,
 		CreateAllMissingPartitions: true,
 	}
-	created, err := install.CreateMissingPartitions(dl, pv, opts)
+	created, err := install.TestCreateMissingPartitions(dl, pv, opts)
 	c.Assert(err, IsNil)
 	c.Assert(created, HasLen, 3)
 	c.Assert(calls, Equals, 1)
@@ -375,7 +421,7 @@ func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
-	err := makeMockGadget(s.gadgetRoot, gadgetContent)
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -455,7 +501,7 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
-	err = makeMockGadget(s.gadgetRoot, gadgetContent)
+	err = gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -474,35 +520,22 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 	// check that the OnDiskVolume was updated as expected
 	c.Assert(dl.Structure, DeepEquals, []gadget.OnDiskStructure{
 		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name: "BIOS Boot",
-					Size: 1024 * 1024,
-					Type: "21686148-6449-6E6F-744E-656564454649",
-					ID:   "2E59D969-52AB-430B-88AC-F83873519F6F",
-				},
-				StartOffset: 1024 * 1024,
-			},
-			DiskIndex: 1,
-			Node:      "/dev/node1",
-			Size:      1024 * 1024,
+			Name:        "BIOS Boot",
+			Size:        1024 * 1024,
+			Type:        "21686148-6449-6E6F-744E-656564454649",
+			StartOffset: 1024 * 1024,
+			DiskIndex:   1,
+			Node:        "/dev/node1",
 		},
 		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Label:      "ubuntu-seed",
-					Name:       "Recovery",
-					Size:       2457600 * 512,
-					Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-					ID:         "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
-					Filesystem: "vfat",
-				},
-
-				StartOffset: 1024*1024 + 1024*1024,
-			},
-			DiskIndex: 2,
-			Node:      "/dev/node2",
-			Size:      2457600 * 512,
+			Label:       "ubuntu-seed",
+			Name:        "Recovery",
+			Type:        "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			Filesystem:  "vfat",
+			StartOffset: 1024*1024 + 1024*1024,
+			DiskIndex:   2,
+			Node:        "/dev/node2",
+			Size:        2457600 * 512,
 		},
 	})
 }
@@ -587,7 +620,7 @@ func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
-	err = makeMockGadget(s.gadgetRoot, gadgetContent)
+	err = gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 
 	// add the file to indicate we should do the device/rescan trick
@@ -613,35 +646,22 @@ func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
 	// check that the OnDiskVolume was updated as expected
 	c.Assert(dl.Structure, DeepEquals, []gadget.OnDiskStructure{
 		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name: "BIOS Boot",
-					Size: 1024 * 1024,
-					Type: "21686148-6449-6E6F-744E-656564454649",
-					ID:   "2E59D969-52AB-430B-88AC-F83873519F6F",
-				},
-				StartOffset: 1024 * 1024,
-			},
-			DiskIndex: 1,
-			Node:      "/dev/node1",
-			Size:      1024 * 1024,
+			Name:        "BIOS Boot",
+			Type:        "21686148-6449-6E6F-744E-656564454649",
+			StartOffset: 1024 * 1024,
+			DiskIndex:   1,
+			Node:        "/dev/node1",
+			Size:        1024 * 1024,
 		},
 		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Label:      "ubuntu-seed",
-					Name:       "Recovery",
-					Size:       2457600 * 512,
-					Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-					ID:         "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
-					Filesystem: "vfat",
-				},
-
-				StartOffset: 1024*1024 + 1024*1024,
-			},
-			DiskIndex: 2,
-			Node:      "/dev/node2",
-			Size:      2457600 * 512,
+			Label:       "ubuntu-seed",
+			Name:        "Recovery",
+			Type:        "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			Filesystem:  "vfat",
+			StartOffset: 1024*1024 + 1024*1024,
+			DiskIndex:   2,
+			Node:        "/dev/node2",
+			Size:        2457600 * 512,
 		},
 	})
 }
@@ -746,7 +766,7 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
-	err = makeMockGadget(s.gadgetRoot, gadgetContentDifferentOrder)
+	err = gadgettest.MakeMockGadget(s.gadgetRoot, gadgetContentDifferentOrder)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -761,36 +781,22 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 	// check that the OnDiskVolume was updated as expected
 	c.Assert(dl.Structure, DeepEquals, []gadget.OnDiskStructure{
 		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name: "BIOS Boot",
-					Size: 1024 * 1024,
-					Type: "21686148-6449-6E6F-744E-656564454649",
-					ID:   "2E59D969-52AB-430B-88AC-F83873519F6F",
-				},
-				StartOffset: 1024 * 1024,
-			},
-			DiskIndex: 1,
-			Node:      "/dev/node1",
-			Size:      1024 * 1024,
+			Name:        "BIOS Boot",
+			Type:        "21686148-6449-6E6F-744E-656564454649",
+			StartOffset: 1024 * 1024,
+			DiskIndex:   1,
+			Node:        "/dev/node1",
+			Size:        1024 * 1024,
 		},
 		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Label:      "ubuntu-seed",
-					Name:       "Recovery",
-					Size:       2457600 * 512,
-					Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-					ID:         "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
-					Filesystem: "vfat",
-				},
-
-				StartOffset: 1024*1024 + 1024*1024 + 2457600*512,
-			},
-
-			Node:      "/dev/node3",
-			DiskIndex: 3,
-			Size:      2457600 * 512,
+			Label:       "ubuntu-seed",
+			Name:        "Recovery",
+			Type:        "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			Filesystem:  "vfat",
+			StartOffset: 1024*1024 + 1024*1024 + 2457600*512,
+			Node:        "/dev/node3",
+			DiskIndex:   3,
+			Size:        2457600 * 512,
 		},
 	})
 }
@@ -813,7 +819,12 @@ func (s *partitionTestSuite) TestEnsureNodesExist(c *C) {
 		cmdUdevadm := testutil.MockCommand(c, "udevadm", fmt.Sprintf(mockUdevadmScript, tc.utErr))
 		defer cmdUdevadm.Restore()
 
-		ds := []gadget.OnDiskStructure{{Node: node}}
+		ds := []install.OnDiskAndLaidoutStructure{
+			install.MockOnDiskAndLaidoutStructure(
+				&gadget.OnDiskStructure{Node: node},
+				&gadget.LaidOutStructure{},
+			),
+		}
 		err = install.EnsureNodesExist(ds, 10*time.Millisecond)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
@@ -832,7 +843,12 @@ func (s *partitionTestSuite) TestEnsureNodesExistTimeout(c *C) {
 	defer cmdUdevadm.Restore()
 
 	node := filepath.Join(c.MkDir(), "node")
-	ds := []gadget.OnDiskStructure{{Node: node}}
+	ds := []install.OnDiskAndLaidoutStructure{
+		install.MockOnDiskAndLaidoutStructure(
+			&gadget.OnDiskStructure{Node: node},
+			&gadget.LaidOutStructure{},
+		),
+	}
 	t := time.Now()
 	timeout := 1 * time.Second
 	err := install.EnsureNodesExist(ds, timeout)
@@ -949,7 +965,7 @@ func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
-	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
+	err := gadgettest.MakeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
@@ -1074,7 +1090,7 @@ func (s *partitionTestSuite) TestCreatedDuringInstallMBR(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("node")
 	c.Assert(err, IsNil)
 
-	err = makeMockGadget(s.gadgetRoot, mbrGadgetContentWithSave)
+	err = gadgettest.MakeMockGadget(s.gadgetRoot, mbrGadgetContentWithSave)
 	c.Assert(err, IsNil)
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)

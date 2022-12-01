@@ -32,6 +32,8 @@ import (
 	"github.com/snapcore/snapd/snap/snapfile"
 )
 
+var sealKeyToModeenv = sealKeyToModeenvImpl
+
 // BootableSet represents the boot snaps of a system to be made bootable.
 type BootableSet struct {
 	Base       *snap.Info

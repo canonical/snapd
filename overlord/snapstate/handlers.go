@@ -1964,7 +1964,6 @@ func (m *SnapManager) finishTaskWithMaybeRestart(t *state.Task, status state.Sta
 	st := t.State()
 
 	if restartPoss.RebootRequired {
-		t.Logf("Requested system restart.")
 		return FinishTaskWithRestart(t, status, restart.RestartSystem, &restartPoss.RebootInfo)
 	}
 

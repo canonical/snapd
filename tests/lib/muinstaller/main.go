@@ -23,9 +23,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/client"
@@ -36,8 +39,71 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/mkfs"
-	"github.com/snapcore/snapd/overlord/state"
 )
+
+func waitForDevice() string {
+	for {
+		devices, err := emptyFixedBlockDevices()
+		if err != nil {
+			logger.Noticef("cannot list devices: %v", err)
+		}
+		switch len(devices) {
+		case 0:
+			logger.Noticef("cannot use automatic mode, no empty disk found")
+		case 1:
+			// found exactly one target
+			return devices[0]
+		default:
+			logger.Noticef("cannot use automatic mode, multiple empty disks found: %v", devices)
+		}
+		time.Sleep(5 * time.Second)
+	}
+}
+
+// emptyFixedBlockDevices finds any non-removable physical disk that has
+// no partitions. It will exclude loop devices.
+func emptyFixedBlockDevices() (devices []string, err error) {
+	// eg. /sys/block/sda/removable
+	removable, err := filepath.Glob(filepath.Join(dirs.GlobalRootDir, "/sys/block/*/removable"))
+	if err != nil {
+		return nil, err
+	}
+devicesLoop:
+	for _, removableAttr := range removable {
+		val, err := ioutil.ReadFile(removableAttr)
+		if err != nil || string(val) != "0\n" {
+			// removable, ignore
+			continue
+		}
+		dev := filepath.Base(filepath.Dir(removableAttr))
+		if strings.HasPrefix(dev, "loop") {
+			// is loop device, ignore
+			continue
+		}
+		// let's see if it has partitions
+		pattern := fmt.Sprintf(filepath.Join(dirs.GlobalRootDir, "/sys/block/%s/%s*/partition"), dev, dev)
+		// eg. /sys/block/sda/sda1/partition
+		partitionAttrs, _ := filepath.Glob(pattern)
+		if len(partitionAttrs) != 0 {
+			// has partitions, ignore
+			continue
+		}
+		// check that there was no previous filesystem
+		devNode := fmt.Sprintf("/dev/%s", dev)
+		output, err := exec.Command("lsblk", "--output", "fstype", "--noheadings", devNode).CombinedOutput()
+		if err != nil {
+			return nil, osutil.OutputErr(output, err)
+		}
+		if strings.TrimSpace(string(output)) != "" {
+			// found a filesystem, ignore
+			continue devicesLoop
+		}
+
+		devices = append(devices, devNode)
+	}
+	sort.Strings(devices)
+	return devices, nil
+}
 
 func firstVol(volumes map[string]*gadget.Volume) *gadget.Volume {
 	for _, vol := range volumes {
@@ -125,7 +191,7 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume) ([]g
 }
 
 func runMntFor(label string) string {
-	return filepath.Join(dirs.GlobalRootDir, "/run/fakeinstaller-mnt/", label)
+	return filepath.Join(dirs.GlobalRootDir, "/run/muinstaller-mnt/", label)
 }
 
 func postSystemsInstallSetupStorageEncryption(cli *client.Client,
@@ -170,7 +236,7 @@ func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 	}
 
 	var encryptedDevices = make(map[string]string)
-	if err := chg.Get("encrypted-devices", &encryptedDevices); err != nil && !errors.Is(err, state.ErrNoState) {
+	if err := chg.Get("encrypted-devices", &encryptedDevices); err != nil {
 		return nil, fmt.Errorf("cannot get encrypted-devices from change: %v", err)
 	}
 
@@ -254,7 +320,7 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 
 	var mountPoints []string
 	for _, volStruct := range vol.Structure {
-		if volStruct.Label == "" || volStruct.Filesystem == "" {
+		if volStruct.Filesystem == "" {
 			continue
 		}
 
@@ -266,7 +332,7 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 			}
 			partNode = encryptedDevice
 		} else {
-			part, err := disk.FindMatchingPartitionWithPartLabel(volStruct.Label)
+			part, err := disk.FindMatchingPartitionWithPartLabel(volStruct.Name)
 			if err != nil {
 				return nil, err
 			}
@@ -351,14 +417,7 @@ func detectStorageEncryption(seedLabel string) (bool, error) {
 	return details.StorageEncryption.Support == client.StorageEncryptionSupportAvailable, nil
 }
 
-func run(seedLabel, bootDevice, rootfsCreator string) error {
-	if len(os.Args) != 4 {
-		// xxx: allow installing real UC without a classic-rootfs later
-		return fmt.Errorf("need seed-label, target-device and classic-rootfs as argument\n")
-	}
-	os.Setenv("SNAPD_DEBUG", "1")
-	logger.SimpleSetup()
-
+func run(seedLabel, rootfsCreator, bootDevice string) error {
 	logger.Noticef("installing on %q", bootDevice)
 
 	cli := client.New(nil)
@@ -404,13 +463,26 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 }
 
 func main() {
-	seedLabel := os.Args[1]
-	bootDevice := os.Args[2]
-	rootfsCreator := os.Args[3]
+	if len(os.Args) != 4 {
+		// XXX: allow installing real UC without a classic-rootfs later
+		fmt.Fprintf(os.Stderr, "need seed-label, target-device and classic-rootfs as argument\n")
+		os.Exit(1)
+	}
+	logger.SimpleSetup()
 
-	if err := run(seedLabel, bootDevice, rootfsCreator); err != nil {
+	seedLabel := os.Args[1]
+	rootfsCreator := os.Args[2]
+	bootDevice := os.Args[3]
+	if bootDevice == "auto" {
+		bootDevice = waitForDevice()
+	}
+
+	if err := run(seedLabel, rootfsCreator, bootDevice); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
-	logger.Noticef("install done, please reboot")
+
+	msg := "install done, please remove installation media and reboot"
+	fmt.Println(msg)
+	exec.Command("wall", msg).Run()
 }
