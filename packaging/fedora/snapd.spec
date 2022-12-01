@@ -993,7 +993,10 @@ fi
 %changelog
 * Tue Nov 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.57.6
- - bugfixes
+  - SECURITY UPDATE: Local privilege escalation
+    - snap-confine: Fix race condition in snap-confine when preparing a
+      private tmp mount namespace for a snap
+    - CVE-2022-3328
 
 * Mon Oct 17 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.57.5
