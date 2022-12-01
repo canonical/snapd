@@ -1,0 +1,13 @@
+diff --git a/overlord/devicestate/firstboot_test.go b/overlord/devicestate/firstboot_test.go
+index 47ac7a7a90..19b505673b 100644
+--- a/overlord/devicestate/firstboot_test.go
++++ b/overlord/devicestate/firstboot_test.go
+@@ -2036,6 +2036,8 @@ func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseedMissing(c *C) {
+ }
+ 
+ func (s *firstBoot16Suite) TestPopulateFromSeedWithConnectHook(c *C) {
++	c.Skip("not converging on debian")
++
+ 	restore := release.MockOnClassic(true)
+ 	defer restore()
+ 

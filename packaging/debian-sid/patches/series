@@ -1,5 +1,7 @@
 0002-cmd-snap-seccomp-skip-tests-that-fail-on-4.19.patch
 0003-cmd-snap-seccomp-skip-tests-that-use-m32.patch
+0004-cmd-snap-skip-tests-depending-on-text-wrapping.patch
 0005-advisor-errtracker-use-upstream-bolt-package.patch
 0007-i18n-use-dummy-localizations-to-avoid-dependencies.patch
 0010-man-page-sections.patch
+0016-skip-TestPopulateFromSeedWithConnectHook.patch
