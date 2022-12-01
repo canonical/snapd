@@ -6,7 +6,7 @@ defaults:
       console-conf:
         disable: true
     watchdog:
-      runtime-timeout: 13m
+      runtime-timeout: 1m
     system:
       power-key-action: ignore
       ctrl-alt-del-action: none
