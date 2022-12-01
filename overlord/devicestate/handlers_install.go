@@ -1290,7 +1290,6 @@ func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (
 // - install gadget assets
 // - install kernel.efi
 // - make system bootable (including writing modeenv)
-// TODO this needs unit tests
 func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	var err error
 	st := t.State()

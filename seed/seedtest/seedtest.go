@@ -212,7 +212,7 @@ func (s *TestingSeed16) WriteAssertions(fn string, assertions ...asserts.Asserti
 }
 
 func WriteAssertions(fn string, assertions ...asserts.Assertion) {
-	f, err := os.OpenFile(fn, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(fn, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		panic(err)
 	}

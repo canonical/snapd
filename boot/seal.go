@@ -90,6 +90,18 @@ func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectResea
 	}
 }
 
+// MockSealKeyToModeenvFlags is used for testing from other packages.
+type MockSealKeyToModeenvFlags = sealKeyToModeenvFlags
+
+// MockSealKeyToModeenv is used for testing from other packages.
+func MockSealKeyToModeenv(f func(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv, flags MockSealKeyToModeenvFlags) error) (restore func()) {
+	old := sealKeyToModeenv
+	sealKeyToModeenv = f
+	return func() {
+		sealKeyToModeenv = old
+	}
+}
+
 func bootChainsFileUnder(rootdir string) string {
 	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")
 }
@@ -109,10 +121,10 @@ type sealKeyToModeenvFlags struct {
 	SnapsDir string
 }
 
-// sealKeyToModeenv seals the supplied keys to the parameters specified
+// sealKeyToModeenvImpl seals the supplied keys to the parameters specified
 // in modeenv.
 // It assumes to be invoked in install mode.
-func sealKeyToModeenv(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
+func sealKeyToModeenvImpl(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
 	// make sure relevant locations exist
 	for _, p := range []string{
 		InitramfsSeedEncryptionKeyDir,

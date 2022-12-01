@@ -508,8 +508,9 @@ func (s *baseMgrsSuite) makeSerialAssertionInState(c *C, st *state.State, brandI
 }
 
 // XXX: We have some very similar code in hookstate/ctlcmd/is_connected_test.go
-//      should this be moved to overlord/snapstate/snapstatetest as a common
-//      helper
+//
+//	should this be moved to overlord/snapstate/snapstatetest as a common
+//	helper
 func (ms *baseMgrsSuite) mockInstalledSnapWithFiles(c *C, snapYaml string, files [][]string) *snap.Info {
 	return ms.mockInstalledSnapWithRevAndFiles(c, snapYaml, snap.R(1), files)
 }
@@ -841,8 +842,10 @@ apps:
 	tr.Commit()
 
 	// add the snap to a quota group
-	ts, err := servicestate.CreateQuota(st, "grp", "", []string{"foo"},
-		quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	ts, err := servicestate.CreateQuota(st, "grp", servicestate.CreateQuotaOptions{
+		Snaps:          []string{"foo"},
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+	})
 	c.Assert(err, IsNil)
 	quotaUpdateChg := st.NewChange("update-quota", "...")
 	quotaUpdateChg.AddAll(ts)

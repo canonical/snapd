@@ -58,11 +58,12 @@ and on [Facebook](https://www.facebook.com/snapcraftio).
 
 | Service | Status |
 |-----|:---|
-| [Github Actions](https://github.com/actions/) |  ![Build Status][actions-image]  |
+| [Github Actions](https://github.com/actions/) |  [![Build Status][actions-image]][actions-url]  |
 | [GoReport](https://goreportcard.com/) |  [![Go Report Card][goreportcard-image]][goreportcard-url] |
 | [Codecov](https://codecov.io/) |  [![codecov][codecov-image]][codecov-url] |
 
-[actions-image]: https://github.com/snapcore/snapd/actions
+[actions-image]: https://github.com/snapcore/snapd/actions/workflows/test.yaml/badge.svg?branch=master
+[actions-url]: https://github.com/snapcore/snapd/actions?query=branch%3Amaster+event%3Apush
 
 [goreportcard-image]: https://goreportcard.com/badge/github.com/snapcore/snapd
 [goreportcard-url]: https://goreportcard.com/report/github.com/snapcore/snapd

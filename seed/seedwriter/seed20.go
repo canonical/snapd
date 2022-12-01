@@ -61,6 +61,21 @@ func (pol *policy20) checkSnapChannel(ch channel.Channel, whichSnap string) erro
 	return pol.checkAllowedDangerous()
 }
 
+func (pol *policy20) checkClassicSnap(sn *SeedSnap) error {
+	if pol.model.Grade() == asserts.ModelDangerous {
+		// implicit classic snaps are accepted
+		return nil
+	}
+	modSnap, ok := sn.SnapRef.(*asserts.ModelSnap)
+	if !ok {
+		return fmt.Errorf("internal error: extra snap with non-dangerous grade")
+	}
+	if !modSnap.Classic {
+		return fmt.Errorf("cannot use classic snap %q with a model of grade higher than dangerous that does not allow it explicitly (missing classic: true in snap stanza)", modSnap.Name)
+	}
+	return nil
+}
+
 func (pol *policy20) systemSnap() *asserts.ModelSnap {
 	return internal.MakeSystemSnap("snapd", "latest/stable", []string{"run", "ephemeral"})
 }

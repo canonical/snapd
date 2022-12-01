@@ -1860,7 +1860,7 @@ func (s *quotaHandlersSuite) TestDoQuotaAddSnapSnapConflict(c *C) {
 	chg1.SetStatus(state.DoingStatus)
 
 	// Create a change that has a quota-control task in it for quota group foo
-	_, err = servicestate.UpdateQuota(st, "foo2", servicestate.QuotaGroupUpdate{
+	_, err = servicestate.UpdateQuota(st, "foo2", servicestate.UpdateQuotaOptions{
 		AddSnaps: []string{"test-snap"},
 	})
 	c.Assert(err.Error(), Equals, "snap \"test-snap\" has \"snap-install\" change in progress")

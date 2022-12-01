@@ -1,0 +1,246 @@
+summary: End-to-end test for install via muinstaller
+
+systems: [ubuntu-22.04-64]
+
+environment:
+    # Test both encrypted and unencrypted install using the muinstaller
+    NESTED_ENABLE_TPM/encrypted: true
+    NESTED_ENABLE_SECURE_BOOT/encrypted: true
+
+    # unencrypted case
+    NESTED_ENABLE_TPM/plain: false
+    NESTED_ENABLE_SECURE_BOOT/plain: false
+
+    # ensure we use our latest code
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
+    NESTED_REPACK_KERNEL_SNAP: true
+    NESTED_ENABLE_OVMF: true
+    # store related setup
+    STORE_ADDR: localhost:11028
+    STORE_DIR: $(pwd)/fake-store-blobdir
+    # image
+    IMAGE_MOUNTPOINT: /mnt/cloudimg
+
+prepare: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+  snap install jq
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+  setup_fake_store "$STORE_DIR"
+
+restore: |
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+  teardown_fake_store "$STORE_DIR"
+  rm -rf ./classic-root
+
+execute: |
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+
+  # install the snapd deb from spread so we are using the same version to 
+  # validate the seed as well as call preseed, etc. 
+  dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+
+  echo Expose the needed assertions through the fakestore
+  cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts" 
+  export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+
+  version="$(nested_get_version)"
+
+  # build updated shim
+  version=22
+  snap download --basename=pc --channel="$version/edge" pc
+  unsquashfs -d pc-gadget pc.snap
+  echo 'console=ttyS0 systemd.journald.forward_to_console=1' > pc-gadget/cmdline.extra
+  # use the system-seed-null classic role
+  sed -i 's/role: system-seed/role: system-seed-null/' pc-gadget/meta/gadget.yaml
+  echo "Sign the shim binary"
+  KEY_NAME=$(tests.nested download snakeoil-key)
+  SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+  SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+  tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+  snap pack --filename=pc.snap pc-gadget/ 
+
+  # get an updated kernel
+  snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
+  uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
+
+  # prepare a classic seed
+  # TODO:
+  # - create pc-classic custom gadget
+  # - repacked snapd snap
+  # (should be as simple as adding "--snap=./local-gadget.snap ...")
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-22-classic-dangerous.json > my.model
+  snap prepare-image --classic \
+      --channel=edge \
+      --snap ./pc-kernel.snap \
+      --snap ./pc.snap \
+      my.model \
+      ./classic-seed
+  # make the seed label more predictable for fake-installer auto-mode
+  LABEL=classic
+  mv ./classic-seed/system-seed/systems/* ./classic-seed/system-seed/systems/"$LABEL"
+  cp -a ./classic-seed/system-seed/ /var/lib/snapd/seed
+
+  # we don't need the fakestore anymore
+  teardown_fake_store "$STORE_DIR"
+
+
+  # build the fake-installer snap
+  snap install snapcraft --candidate --classic
+  snap install lxd --candidate
+  snap set lxd waitready.timeout=240
+  lxd waitready
+  lxd init --auto
+  echo "Setting up proxy for lxc"
+  if [ -n "${http_proxy:-}" ]; then
+    lxd.lxc config set core.proxy_http "$http_proxy"
+  fi
+  if [ -n "${https_proxy:-}" ]; then
+    lxd.lxc config set core.proxy_https "$http_proxy"
+  fi
+  (cd "$TESTSLIB"/muinstaller && snapcraft)
+  MUINSTALLER_SNAP="$(find "$TESTSLIB"/muinstaller/ -maxdepth 1 -name '*.snap')"
+  echo "found $MUINSTALLER_SNAP"
+
+  # create new disk for the installer to work on and attach to VM
+  truncate --size=4G fake-disk.img
+
+  NESTED_PARAM_EXTRA="-drive file=$(pwd)/fake-disk.img,if=virtio,snapshot=off"
+  export NESTED_PARAM_EXTRA
+
+  # create a VM and mount a cloud image
+  tests.nested build-image classic
+
+  # TODO: nested classic images do not support secure boot today so
+  #       this will not work to test the secure boot installer. So for
+  #       now the workaround is to boot classic to create user/ssh
+  #       keys, shutdown down, convert disk from qcow2->raw and rename
+  #       from classic->core and use nested_start_core_vm (like below)
+  #
+  # start it so that cloud-init creates ssh keys and user
+  nested_start_classic_vm
+
+  # make sure classic image is bootable with snakeoil keys
+  # TODO: move to nested_create_classic_image
+  # XXX: use assets from gadget instead?
+  for s in BOOT/BOOTX64.EFI ubuntu/shimx64.efi; do
+      remote.exec "sudo cp -a /boot/efi/EFI/$s /tmp"
+      remote.exec "sudo chmod 755 /tmp/$(basename $s)"
+      remote.pull /tmp/"$(basename $s)" .
+      nested_secboot_sign_file "$(basename $s)" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+      remote.push "$(basename $s)"
+      remote.exec "sudo mv $(basename $s) /boot/efi/EFI/$s"
+  done
+
+  # push our snap down
+  # TODO: this abuses /var/lib/snapd to store the deb so that mk-initramfs-classic
+  # can pick it up. the real installer will also need a very recent snapd
+  # in its on disk-image to supprot seeding
+  remote.push "$SPREAD_PATH"/../snapd_*.deb
+  remote.exec "sudo mv snapd_*.deb /var/lib/snapd/"
+  remote.exec "sudo apt install -y /var/lib/snapd/snapd_*.deb"
+
+  # push our seed down
+  # TODO: merge with classic /var/lib/snapd/seed eventually
+  # XXX: port scp -r to remote.push
+  #remote.push ./classic-seed/system-seed/ '~/'
+  sshpass -p ubuntu scp -r -P 8022 -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ./classic-seed/system-seed/ user1@localhost:~/install-seed
+  remote.exec "sudo mv /home/user1/install-seed /var/lib/snapd/"
+
+  # XXX: the code in DeviceManager.SystemAndGadgetInfo() will only work on
+  # classic systems with modeenv right now (which is something we may need
+  # to fix to work from the classic installer).
+  # For now pretend we have a modeenv
+  remote.exec 'echo "mode=run" | sudo tee -a /var/lib/snapd/modeenv'
+  remote.exec 'sudo systemctl restart snapd'
+
+  # shutdown the classic vm to install with a core VM that supports
+  # secboot/tpm
+  nested_shutdown
+  sync
+
+  # HACK: convert "classic" qcow2 to raw "core" image because we need
+  # to boot with OVMF we really should fix this so that classic and
+  # core VMs are more similar
+  qemu-img convert -f qcow2 -O raw "$NESTED_IMAGES_DIR/$(nested_get_image_name classic)" "$NESTED_IMAGES_DIR/$(nested_get_image_name core)"
+  # and we don't need the classic image anymore
+  # TODO: uncomment
+  #rm -f  "$NESTED_IMAGES_DIR/$(nested_get_image_name classic)"
+  # TODO: this prevents "nested_prepare_ssh" inside nested_start_core_vm
+  #       from running, we already have a user so this is not needed
+  IMAGE_NAME="$(nested_get_image_name core)"
+  touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
+  nested_start_core_vm
+  
+  # bind mount new seed
+  remote.exec "sudo mount -o bind /var/lib/snapd/install-seed /var/lib/snapd/seed"
+  # push the muinstaller
+  remote.push "$MUINSTALLER_SNAP"
+  remote.exec "sudo snap install --classic --dangerous $(basename "$MUINSTALLER_SNAP")"
+
+  # TODO: use retry
+  while true; do
+    if remote.exec "sudo snap logs muinstaller" | MATCH "install done"; then
+        break
+    fi
+    sleep 5
+  done
+  remote.exec "sudo sync"
+
+  # boot into the just installed drive
+  nested_shutdown
+  sync
+
+  # HACK: rename to "core" image because we need to boot with OVMF
+  # we really should fix this so that classic and core VMs are more similar
+  mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+  unset NESTED_PARAM_EXTRA
+
+  # remove cached image
+  # TODO: find a more elegant way
+  rm -f "$NESTED_IMAGES_DIR"/ubuntu-core-current.img
+
+  # and start again
+  # TODO: make this nicer
+  export NESTED_TPM_NO_RESTART=1
+  nested_start_core_vm
+  unset  NESTED_TPM_NO_RESTART
+  
+  # things look fine
+  remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
+  remote.exec "snap changes" | MATCH "Done.* Initialize system state"
+  remote.exec "snap list" | MATCH pc-kernel
+
+  # check encryption
+  if [ "$NESTED_ENABLE_TPM" = true ]; then
+      remote.exec "sudo test -d /var/lib/snapd/device/fde"
+      remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
+      remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
+      remote.exec "sudo blkid /dev/disk/by-label/ubuntu-data-enc" | MATCH crypto_LUKS
+
+      echo "Ensure recovery keys are available on classic FDE too"
+      remote.exec "sudo snap recovery --show-keys" > show-keys.out
+      MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}' < show-keys.out
+
+      # check disk mappings
+      remote.exec "sudo snap install jq"
+      # TODO: no ubuntu-save right now because:
+      #       "ERROR cannot store device key pair: internal error: cannot access device keypair manager if ubuntu-save is unavailable"
+      #DISK_MAPPINGS=(/run/mnt/ubuntu-save/device/disk-mapping.json
+      #               /run/mnt/data/var/lib/snapd/device/disk-mapping.json)
+      DISK_MAPPINGS=(/run/mnt/data/var/lib/snapd/device/disk-mapping.json)
+      for DM in "${DISK_MAPPINGS[@]}"; do
+          remote.exec "sudo cat $DM | jq '.pc.\"structure-encryption\".\"ubuntu-save\".method'" | MATCH '"LUKS"'
+          remote.exec "sudo cat $DM | jq '.pc.\"structure-encryption\".\"ubuntu-data\".method'" | MATCH '"LUKS"'
+      done
+  fi

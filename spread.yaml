@@ -124,11 +124,11 @@ backends:
                   workers: 6
             - ubuntu-core-20-64:
                   image: ubuntu-20.04-64
-                  workers: 6
+                  workers: 8
                   storage: 20G
             - ubuntu-core-22-64:
                   image: ubuntu-22.04-64
-                  workers: 6
+                  workers: 8
                   storage: 20G
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
@@ -527,7 +527,8 @@ debug-each: |
     if tests.nested is-nested; then
         echo '# nested VM status'
         tests.nested vm status
-        tests.nested get serial-log
+        # filter out ^[ to ensure that the debug output gets not messed up
+        tests.nested get serial-log | sed 's/\x1b//g'
         # add another echo in case the serial log is missing a newline
         echo
 

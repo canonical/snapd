@@ -51,8 +51,9 @@ type cmdPrepareImage struct {
 	Customize string `long:"customize" hidden:"yes"`
 
 	// TODO: introduce SnapWithChannel?
-	Snaps      []string `long:"snap" value-name:"<snap>[=<channel>]"`
-	ExtraSnaps []string `long:"extra-snaps" hidden:"yes"` // DEPRECATED
+	Snaps         []string `long:"snap" value-name:"<snap>[=<channel>]"`
+	ExtraSnaps    []string `long:"extra-snaps" hidden:"yes"` // DEPRECATED
+	RevisionsFile string   `long:"revisions"`
 }
 
 func init() {
@@ -85,6 +86,8 @@ For preparing classic images it supports a --classic mode`),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"extra-snaps": i18n.G("Extra snaps to be installed (DEPRECATED)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
+			"revisions": i18n.G("Specify a seeds.manifest file referencing the exact revisions of the provided snaps which should be installed"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"channel": i18n.G("The channel to use"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"customize": i18n.G("Image customizations specified as JSON file."),
@@ -104,6 +107,7 @@ For preparing classic images it supports a --classic mode`),
 }
 
 var imagePrepare = image.Prepare
+var imageReadSeedManifest = image.ReadSeedManifest
 
 func (x *cmdPrepareImage) Execute(args []string) error {
 	opts := &image.Options{
@@ -111,6 +115,14 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 		ModelFile:    x.Positional.ModelAssertionFn,
 		Channel:      x.Channel,
 		Architecture: x.Architecture,
+	}
+
+	if x.RevisionsFile != "" {
+		revisions, err := imageReadSeedManifest(x.RevisionsFile)
+		if err != nil {
+			return err
+		}
+		opts.Revisions = revisions
 	}
 
 	if x.Customize != "" {

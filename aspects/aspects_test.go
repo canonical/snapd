@@ -37,31 +37,31 @@ var _ = Suite(&aspectSuite{})
 
 func (*aspectSuite) TestNewAspectDirectory(c *C) {
 	_, err := aspects.NewAspectDirectory("foo", nil, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspects directory: no aspects`)
+	c.Assert(err, ErrorMatches, `cannot define aspects directory: no aspects`)
 
 	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": "baz",
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspect: access patterns should be a list of maps`)
+	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns should be a list of maps`)
 
 	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": []map[string]string{},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspect without access patterns`)
+	c.Assert(err, ErrorMatches, `cannot define aspect "bar": no access patterns found`)
 
 	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"path": "foo"},
 		},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspect pattern without a "name" field`)
+	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns must have a "name" field`)
 
 	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"name": "foo"},
 		},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspect pattern without a "path" field`)
+	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns must have a "path" field`)
 
 	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": []map[string]string{
@@ -268,5 +268,178 @@ func (s *aspectSuite) TestAspectsAccessControl(c *C) {
 		} else {
 			c.Assert(err, IsNil, cmt)
 		}
+	}
+}
+
+type witnessDataBag struct {
+	bag              aspects.DataBag
+	getPath, setPath string
+}
+
+func newSpyDataBag(bag aspects.DataBag) *witnessDataBag {
+	return &witnessDataBag{bag: bag}
+}
+
+func (s *witnessDataBag) Get(path string, value interface{}) error {
+	s.getPath = path
+	return s.bag.Get(path, value)
+}
+
+func (s *witnessDataBag) Set(path string, value interface{}) error {
+	s.setPath = path
+	return s.bag.Set(path, value)
+}
+
+func (s *witnessDataBag) Data() ([]byte, error) {
+	return s.bag.Data()
+}
+
+// getLastPaths returns the last paths passed into Get and Set and resets them.
+func (s *witnessDataBag) getLastPaths() (get, set string) {
+	get, set = s.getPath, s.setPath
+	s.getPath, s.setPath = "", ""
+	return get, set
+}
+
+func (s *aspectSuite) TestAspectAssertionWithPlaceholder(c *C) {
+	bag := newSpyDataBag(aspects.NewJSONDataBag())
+
+	aspectDir, err := aspects.NewAspectDirectory("dir", map[string]interface{}{
+		"foo": []map[string]string{
+			{"name": "defaults.{foo}", "path": "first.{foo}.last"},
+			{"name": "{bar}.name", "path": "first.{bar}"},
+			{"name": "first.{baz}.last", "path": "{baz}.last"},
+			{"name": "first.{foo}.{bar}", "path": "{foo}.mid.{bar}"},
+			{"name": "{foo}.mid2.{bar}", "path": "{bar}.mid2.{foo}"},
+			{"name": "multi.{foo}", "path": "{foo}.multi.{foo}"},
+		},
+	}, bag, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	aspect := aspectDir.Aspect("foo")
+
+	for _, t := range []struct {
+		testName string
+		name     string
+		path     string
+	}{
+		{
+			testName: "placeholder last to mid",
+			name:     "defaults.abc",
+			path:     "first.abc.last",
+		},
+		{
+			testName: "placeholder first to last",
+			name:     "foo.name",
+			path:     "first.foo",
+		},
+		{
+			testName: "placeholder mid to first",
+			name:     "first.foo.last",
+			path:     "foo.last",
+		},
+		{
+			testName: "two placeholders in order",
+			name:     "first.one.two",
+			path:     "one.mid.two",
+		},
+		{
+			testName: "two placeholders out of order",
+			name:     "first2.mid2.two2",
+			path:     "two2.mid2.first2",
+		},
+		{
+			testName: "one placeholder mapping to several",
+			name:     "multi.firstLast",
+			path:     "firstLast.multi.firstLast",
+		},
+	} {
+		cmt := Commentf("sub-test %q failed", t.testName)
+		err := aspect.Set(t.name, "expectedValue")
+		c.Assert(err, IsNil, cmt)
+
+		var obtainedValue string
+		err = aspect.Get(t.name, &obtainedValue)
+		c.Assert(err, IsNil, cmt)
+
+		c.Assert(obtainedValue, Equals, "expectedValue", cmt)
+
+		getPath, setPath := bag.getLastPaths()
+		c.Assert(getPath, Equals, t.path, cmt)
+		c.Assert(setPath, Equals, t.path, cmt)
+	}
+}
+
+func (s *aspectSuite) TestAspectNameAndPathValidation(c *C) {
+	type testcase struct {
+		testName string
+		name     string
+		path     string
+		err      string
+	}
+
+	for _, tc := range []testcase{
+		{
+			testName: "empty subkeys in name",
+			name:     "a..b", path: "a.b", err: `invalid access name "a..b": cannot have empty subkeys`,
+		},
+		{
+			testName: "empty subkeys in path",
+			name:     "a.b", path: "c..b", err: `invalid path "c..b": cannot have empty subkeys`,
+		},
+		{
+			testName: "placeholder mismatch (same number)",
+			name:     "bad.{foo}", path: "bad.{bar}", err: `placeholder "{foo}" from access name "bad.{foo}" is absent from path "bad.{bar}"`,
+		},
+		{
+			testName: "placeholder mismatch (different number)",
+			name:     "{foo}", path: "{foo}.bad.{bar}", err: `access name "{foo}" and path "{foo}.bad.{bar}" have mismatched placeholders`,
+		},
+		{
+			testName: "invalid character in name: $",
+			name:     "a.b$", path: "bad", err: `invalid access name "a.b$": invalid subkey "b$"`,
+		},
+		{
+			testName: "invalid character in path: é",
+			name:     "a.b", path: "a.é", err: `invalid path "a.é": invalid subkey "é"`,
+		},
+		{
+			testName: "invalid character in name: _",
+			name:     "a.b_c", path: "a.b-c", err: `invalid access name "a.b_c": invalid subkey "b_c"`,
+		},
+		{
+			testName: "invalid leading dash",
+			name:     "-a", path: "a", err: `invalid access name "-a": invalid subkey "-a"`,
+		},
+		{
+			testName: "invalid trailing dash",
+			name:     "a", path: "a-", err: `invalid path "a-": invalid subkey "a-"`,
+		},
+		{
+			testName: "missing closing curly bracket",
+			name:     "{a{", path: "a", err: `invalid access name "{a{": invalid subkey "{a{"`,
+		},
+		{
+			testName: "missing opening curly bracket",
+			name:     "a", path: "}a}", err: `invalid path "}a}": invalid subkey "}a}"`,
+		},
+		{
+			testName: "curly brackets not wrapping subkey",
+			name:     "a", path: "a.b{a}c", err: `invalid path "a.b{a}c": invalid subkey "b{a}c"`,
+		},
+		{
+			testName: "invalid whitespace character",
+			name:     "a. .c", path: "a.b", err: `invalid access name "a. .c": invalid subkey " "`,
+		},
+	} {
+		_, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+			"foo": []map[string]string{
+				{"name": tc.name, "path": tc.path},
+			},
+		}, nil, nil)
+
+		cmt := Commentf("sub-test %q failed", tc.testName)
+		c.Assert(err, Not(IsNil), cmt)
+		c.Assert(err.Error(), Equals, `cannot define aspect "foo": `+tc.err, cmt)
 	}
 }

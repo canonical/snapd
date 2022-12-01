@@ -74,8 +74,13 @@ func init() {
 	supportedConfigurations["core.homedirs"] = true
 }
 
-func updateHomedirsConfig(config string) error {
-	snapStateDir := dirs.SnapdStateDir(dirs.GlobalRootDir)
+func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
+	// if opts is not nil this is image build time
+	rootDir := dirs.GlobalRootDir
+	if opts != nil {
+		rootDir = opts.RootDir
+	}
+	snapStateDir := dirs.SnapdStateDir(rootDir)
 	if err := os.MkdirAll(snapStateDir, 0755); err != nil {
 		return err
 	}
@@ -101,10 +106,17 @@ func updateHomedirsConfig(config string) error {
 		return err
 	}
 
-	// We must reload the apparmor profiles in order for our changes to become
-	// effective. In theory, all profiles are affected; in practice, we are a
-	// bit egoist and only care about snapd.
-	return apparmorReloadAllSnapProfiles()
+	// Only if run time
+	if opts == nil {
+		// We must reload the apparmor profiles in order for our changes to become
+		// effective. In theory, all profiles are affected; in practice, we are a
+		// bit egoist and only care about snapd.
+		if err := apparmorReloadAllSnapProfiles(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func handleHomedirsConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
@@ -113,7 +125,7 @@ func handleHomedirsConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts 
 		return err
 	}
 
-	if err := updateHomedirsConfig(config); err != nil {
+	if err := updateHomedirsConfig(config, opts); err != nil {
 		return err
 	}
 

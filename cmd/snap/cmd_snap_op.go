@@ -782,7 +782,13 @@ func (x *cmdRefresh) showRefreshTimes() error {
 		fmt.Fprintf(Stdout, "last: n/a\n")
 	}
 	if !hold.IsZero() {
-		fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(hold))
+		// show holds over 100 years as "forever", like in the input of 'snap refresh
+		// --hold', instead of as a distant time (how they're internally represented)
+		if hold.After(timeNow().Add(100 * 365 * 24 * time.Hour)) {
+			fmt.Fprintf(Stdout, "hold: forever\n")
+		} else {
+			fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(hold))
+		}
 	}
 	// only show "next" if its after "hold" to not confuse users
 	if !next.IsZero() {
@@ -909,7 +915,9 @@ func (x *cmdRefresh) holdRefreshes() (err error) {
 	} else {
 		dur, err := time.ParseDuration(x.Hold)
 		if err != nil {
-			return fmt.Errorf("hold value must be a number of hours or minutes (e.g., 72h): %v", err)
+			return fmt.Errorf("hold value must be a number of hours, minutes or seconds, or \"forever\": %v", err)
+		} else if dur < time.Second {
+			return fmt.Errorf("cannot hold refreshes for less than a second: %s", x.Hold)
 		}
 
 		opts.Time = timeNow().Add(dur).Format(time.RFC3339)
@@ -1293,7 +1301,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"hold": i18n.G("Hold refreshes for a specified duration (or indefinitely, if none is specified)"),
+			"hold": i18n.G("Hold refreshes for a specified duration (or forever, if no value is specified)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"unhold": i18n.G("Remove refresh hold"),
 		}), nil)

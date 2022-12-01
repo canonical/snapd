@@ -83,7 +83,7 @@ execute: |
         lxd.lxc config set core.proxy_http "$http_proxy"
     fi
     if [ -n "${https_proxy:-}" ]; then
-        lxd.lxc config set core.proxy_https "$http_proxy"
+        lxd.lxc config set core.proxy_https "$https_proxy"
     fi
 
     # The snapd package we build as part of the tests will only run on the
