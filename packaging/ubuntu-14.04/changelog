@@ -1,7 +1,9 @@
 snapd (2.57.6~14.04) trusty; urgency=medium
 
-  * New upstream release, LP: #1983035
-    - bugfixes
+  * SECURITY UPDATE: Local privilege escalation
+    - snap-confine: Fix race condition in snap-confine when preparing a
+      private tmp mount namespace for a snap
+    - CVE-2022-3328
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 15 Nov 2022 16:13:59 +0100
 
