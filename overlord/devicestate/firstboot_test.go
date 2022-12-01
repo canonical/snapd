@@ -22,6 +22,7 @@ package devicestate_test
 import (
 	"fmt"
 	"io/ioutil"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -2181,6 +2182,12 @@ snaps:
 
 	checkOrder(c, tsAll, "snapd", "core18", "foo", "bar")
 
+	mockServer := s.mockServer(c, "REQID-1")
+	defer mockServer.Close()
+
+	restore = devicestate.MockBaseStoreURL(mockServer.URL)
+	defer restore()
+
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
@@ -2219,4 +2226,20 @@ snaps:
 			},
 		},
 	})
+}
+
+func (s *firstBoot16Suite) mockServer(c *C, reqID string) *httptest.Server {
+	bhv := &devicestatetest.DeviceServiceBehavior{
+		ReqID:                reqID,
+		SignSerial:           s.signSerial,
+		ExpectedCapabilities: "serial-stream",
+	}
+
+	return devicestatetest.MockDeviceService(c, bhv)
+}
+
+func (s *firstBoot16Suite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
+	signing := assertstest.NewStoreStack("canonical", nil)
+	a, err := signing.Sign(asserts.SerialType, headers, body, "")
+	return a, nil, err
 }
