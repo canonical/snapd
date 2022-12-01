@@ -1145,25 +1145,6 @@ func (s *quotaControlSuite) TestCreateQuotaCreateQuotaConflict(c *C) {
 	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
 }
 
-func (s *quotaControlSuite) TestUpdateQuotaModifyExistingMixable(c *C) {
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	// setup the snap so it exists
-	snapstate.Set(s.state, "test-snap", s.testSnapState)
-	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
-
-	err := mockMixedQuotaGroup(st, "mixed-grp", []string{"test-snap"})
-	c.Assert(err, IsNil)
-
-	// try to update a quota value, this must fail
-	_, err = servicestate.UpdateQuota(st, "mixed-grp", servicestate.UpdateQuotaOptions{
-		NewResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB * 2).Build(),
-	})
-	c.Assert(err, ErrorMatches, `quota group "mixed-grp" has mixed snaps and sub-groups, which is no longer supported; removal and re-creation is necessary to modify it`)
-}
-
 func (s *quotaControlSuite) TestAddSnapToQuotaGroup(c *C) {
 	st := s.state
 	st.Lock()
