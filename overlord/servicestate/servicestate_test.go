@@ -393,6 +393,37 @@ version: 0
 	})
 }
 
+func (s *snapServiceOptionsSuite) TestSnapServiceOptionsServices(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	fooInfo := snaptest.MockInfo(c, `
+name: foo
+version: 0
+apps:
+ app1:
+  command: foo
+`, nil)
+
+	opts, err := servicestate.SnapServiceOptions(st, "foo", fooInfo.Services(), nil)
+	c.Assert(err, IsNil)
+	c.Check(len(opts.Services), Equals, 0)
+
+	barInfo := snaptest.MockInfo(c, `
+name: bar
+version: 0
+apps:
+ app1:
+  command: foo
+  daemon: simple
+`, nil)
+
+	opts, err = servicestate.SnapServiceOptions(st, "bar", barInfo.Services(), nil)
+	c.Assert(err, IsNil)
+	c.Assert(len(opts.Services), Equals, 1)
+}
+
 func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
 	st := s.state
 	st.Lock()

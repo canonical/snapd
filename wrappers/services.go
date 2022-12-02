@@ -471,13 +471,38 @@ func tryFileUpdate(path string, desiredContent []byte) (old *osutil.MemoryFileSt
 	}
 }
 
+type ServiceQuotaMap map[*snap.AppInfo]*quota.Group
+
+func MakeServiceQuotaMap(svcs []*snap.AppInfo, grp *quota.Group) ServiceQuotaMap {
+	svcQuotaMap := make(ServiceQuotaMap, len(svcs))
+	for _, svc := range svcs {
+		// set nil grps for all services if parent is nil
+		if grp == nil {
+			svcQuotaMap[svc] = nil
+			continue
+		}
+
+		// always default to the snap quota group if the service is not
+		// in a seperate one
+		svcGrp := grp.FindQuotaGroupForServiceInSubGroups(svc.Name)
+		if svcGrp == nil {
+			svcGrp = grp
+		}
+		svcQuotaMap[svc] = svcGrp
+	}
+	return svcQuotaMap
+}
+
 type SnapServiceOptions struct {
 	// VitalityRank is the rank of all services in the specified snap used by
 	// the OOM killer when OOM conditions are reached.
 	VitalityRank int
 
-	// QuotaGroup is the quota group for all services in the specified snap.
+	// QuotaGroup is the quota group for the specified snap.
 	QuotaGroup *quota.Group
+
+	// Services is the snap services that should be updated in the snap.
+	Services ServiceQuotaMap
 }
 
 // ObserveChangeCallback can be invoked by EnsureSnapServices to observe
@@ -582,9 +607,9 @@ func (es *ensureSnapServicesContext) reloadModified() error {
 	return nil
 }
 
-// ensureSnapSystemdUnits takes care of writing .service files for all services
+// ensureSnapServiceSystemdUnits takes care of writing .service files for all services
 // registered in snap.Info apps.
-func (es *ensureSnapServicesContext) ensureSnapSystemdUnits(snapInfo *snap.Info, opts *AddSnapServicesOptions) error {
+func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(svcQuotaMap ServiceQuotaMap, opts *AddSnapServicesOptions) error {
 	handleFileModification := func(app *snap.AppInfo, unitType string, name, path string, content []byte) error {
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
@@ -615,43 +640,45 @@ func (es *ensureSnapServicesContext) ensureSnapSystemdUnits(snapInfo *snap.Info,
 	}
 
 	// note that the Preseeding option is not used here at all
-	for _, app := range snapInfo.Apps {
-		if !app.IsService() {
-			continue
-		}
-
+	for svc, grp := range svcQuotaMap {
 		// create services first; this doesn't trigger systemd
 
-		// Generate new service file state
-		path := app.ServiceFile()
-		content, err := generateSnapServiceFile(app, opts)
+		// Generate new service file state, make an app-specific AddSnapServicesOptions
+		// to avoid modifying the original copy, if we were to override the quota group.
+		content, err := generateSnapServiceFile(svc, &AddSnapServicesOptions{
+			QuotaGroup:              grp,
+			VitalityRank:            opts.VitalityRank,
+			RequireMountedSnapdSnap: opts.RequireMountedSnapdSnap,
+			Preseeding:              opts.Preseeding,
+		})
 		if err != nil {
 			return err
 		}
 
-		if err := handleFileModification(app, "service", app.Name, path, content); err != nil {
+		path := svc.ServiceFile()
+		if err := handleFileModification(svc, "service", svc.Name, path, content); err != nil {
 			return err
 		}
 
 		// Generate systemd .socket files if needed
-		socketFiles, err := generateSnapSocketFiles(app)
+		socketFiles, err := generateSnapSocketFiles(svc)
 		if err != nil {
 			return err
 		}
 		for name, content := range socketFiles {
-			path := app.Sockets[name].File()
-			if err := handleFileModification(app, "socket", name, path, content); err != nil {
+			path := svc.Sockets[name].File()
+			if err := handleFileModification(svc, "socket", name, path, content); err != nil {
 				return err
 			}
 		}
 
-		if app.Timer != nil {
-			content, err := generateSnapTimerFile(app)
+		if svc.Timer != nil {
+			content, err := generateSnapTimerFile(svc)
 			if err != nil {
 				return err
 			}
-			path := app.Timer.File()
-			if err := handleFileModification(app, "timer", "", path, content); err != nil {
+			path := svc.Timer.File()
+			if err := handleFileModification(svc, "timer", "", path, content); err != nil {
 				return err
 			}
 		}
@@ -674,6 +701,8 @@ func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaG
 		genServiceOpts := &AddSnapServicesOptions{
 			RequireMountedSnapdSnap: es.opts.RequireMountedSnapdSnap,
 		}
+
+		var svcQuotaMap ServiceQuotaMap
 		if snapSvcOpts != nil {
 			// and if there are per-snap options specified, use that for
 			// VitalityRank
@@ -687,9 +716,16 @@ func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaG
 					return nil, err
 				}
 			}
+
+			svcQuotaMap = snapSvcOpts.Services
 		}
 
-		if err := es.ensureSnapSystemdUnits(s, genServiceOpts); err != nil {
+		// default to all services no quota group if svcQuotaMap is unset
+		if svcQuotaMap == nil {
+			svcQuotaMap = MakeServiceQuotaMap(s.Services(), nil)
+		}
+
+		if err := es.ensureSnapServiceSystemdUnits(svcQuotaMap, genServiceOpts); err != nil {
 			return nil, err
 		}
 	}
@@ -900,22 +936,21 @@ type AddSnapServicesOptions struct {
 // AddSnapServices adds service units for the applications from the snap which
 // are services. The services do not get enabled or started.
 func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter Interacter) error {
+	if opts == nil {
+		opts = &AddSnapServicesOptions{}
+	}
+
 	m := map[*snap.Info]*SnapServiceOptions{
-		s: {},
+		s: {
+			VitalityRank: opts.VitalityRank,
+			QuotaGroup:   opts.QuotaGroup,
+			Services:     MakeServiceQuotaMap(s.Services(), opts.QuotaGroup),
+		},
 	}
-	ensureOpts := &EnsureSnapServicesOptions{}
-	if opts != nil {
-		// set the per-snap service options
-		m[s].VitalityRank = opts.VitalityRank
-		m[s].QuotaGroup = opts.QuotaGroup
-
-		// copy the globally applicable opts from AddSnapServicesOptions to
-		// EnsureSnapServicesOptions, since those options override the per-snap opts
-		// we put in the map argument
-		ensureOpts.Preseeding = opts.Preseeding
-		ensureOpts.RequireMountedSnapdSnap = opts.RequireMountedSnapdSnap
+	ensureOpts := &EnsureSnapServicesOptions{
+		Preseeding:              opts.Preseeding,
+		RequireMountedSnapdSnap: opts.RequireMountedSnapdSnap,
 	}
-
 	return EnsureSnapServices(m, ensureOpts, nil, inter)
 }
 
