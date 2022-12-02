@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/osutil/inotify"
 )
 
-// Manages the inotify watcher, allowing to have a single watch descriptor open
+// inotifyWatcher manages the inotify watcher, allowing to have a single watch descriptor open
 type inotifyWatcher struct {
 	// The watch object
 	wd *inotify.Watcher
@@ -65,7 +65,7 @@ type groupToWatch struct {
 	// This channel is used to notify to the requester that this CGroup has been
 	// destroyed. The watcher writes the CGroup identifier on it; this way, the
 	// same channel can be shared to monitor several CGroups.
-	channel chan string
+	channel chan<- string
 }
 
 var currentWatcher *inotifyWatcher = &inotifyWatcher{
@@ -158,9 +158,9 @@ func (iw *inotifyWatcher) watcherMainLoop() {
 	}
 }
 
-// MonitorFullDelete allows to monitor a group of files/folders
-// and, when all of them have been deleted, emits the specified name through the channel.
-func (iw *inotifyWatcher) monitorFullDelete(name string, folders []string, channel chan string) error {
+// MonitorDelete monitors the specified paths for deletion.
+// Once all of them have been deleted, it pushes the specified name through the channel.
+func (iw *inotifyWatcher) monitorDelete(folders []string, name string, channel chan<- string) error {
 	iw.doOnce.Do(func() {
 		wd, err := inotify.NewWatcher()
 		if err == nil {
@@ -170,7 +170,7 @@ func (iw *inotifyWatcher) monitorFullDelete(name string, folders []string, chann
 	})
 
 	if iw.wd == nil {
-		return errors.New("Inotify failed to initialize")
+		return errors.New("cannot initialise Inotify.")
 	}
 	iw.addWatchChan <- &groupToWatch{
 		name:    name,
@@ -190,5 +190,5 @@ func MonitorSnapEnded(snapName string, channel chan string) error {
 		ReturnCGroupPath: true,
 	}
 	paths, _ := InstancePathsOfSnap(snapName, options)
-	return currentWatcher.monitorFullDelete(snapName, paths, channel)
+	return currentWatcher.monitorDelete(paths, snapName, channel)
 }

@@ -48,7 +48,7 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	channel := make(chan string)
 	defer close(channel)
 
-	retval := cgroup.MonitorFullDelete("test1", filelist, channel)
+	retval := cgroup.MonitorDelete(filelist, "test1", channel)
 	c.Assert(retval, IsNil)
 
 	time.Sleep(1 * time.Second)
@@ -89,7 +89,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	channel := make(chan string)
 	defer close(channel)
 
-	retval := cgroup.MonitorFullDelete("test2", filelist, channel)
+	retval := cgroup.MonitorDelete(filelist, "test2", channel)
 	c.Assert(retval, Equals, nil)
 
 	time.Sleep(1 * time.Second)
@@ -106,26 +106,20 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	// Wait for two seconds to ensure that nothing spurious
 	// is received from the channel due to creating or
 	// removing folder3
-	for i := 0; i < 2; i++ {
-		select {
-		case <-channel:
-			c.Fail()
-		case <-time.After(1 * time.Second):
-			continue
-		}
+	select {
+	case <-channel:
+		c.Fail()
+	case <-time.After(2 * time.Second):
 	}
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
 	// Only one file has been removed, so wait two seconds
 	// two ensure that nothing spurious is received from
 	// the channel
-	for i := 0; i < 2; i++ {
-		select {
-		case <-channel:
-			c.Fail()
-		case <-time.After(1 * time.Second):
-			continue
-		}
+	select {
+	case <-channel:
+		c.Fail()
+	case <-time.After(2 * time.Second):
 	}
 	err = os.Remove(folder2)
 	c.Assert(err, IsNil)
@@ -146,7 +140,7 @@ func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 	channel := make(chan string)
 	defer close(channel)
 
-	retval := cgroup.MonitorFullDelete("test3", filelist, channel)
+	retval := cgroup.MonitorDelete(filelist, "test3", channel)
 	c.Assert(retval, Equals, nil)
 	event := <-channel
 	c.Assert(event, Equals, "test3")
@@ -172,9 +166,9 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	channel2 := make(chan string)
 	defer close(channel2)
 
-	retval := cgroup.MonitorFullDelete("test4a", filelist1, channel1)
+	retval := cgroup.MonitorDelete(filelist1, "test4a", channel1)
 	c.Assert(retval, Equals, nil)
-	retval = cgroup.MonitorFullDelete("test4b", filelist2, channel2)
+	retval = cgroup.MonitorDelete(filelist2, "test4b", channel2)
 	c.Assert(retval, Equals, nil)
 
 	time.Sleep(1 * time.Second)
@@ -191,15 +185,12 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	// Wait for two seconds to ensure that nothing spurious
 	// is received from the channel due to creating or
 	// removing folder3
-	for i := 0; i < 2; i++ {
-		select {
-		case <-channel1:
-			c.Fail()
-		case <-channel2:
-			c.Fail()
-		case <-time.After(1 * time.Second):
-			continue
-		}
+	select {
+	case <-channel1:
+		c.Fail()
+	case <-channel2:
+		c.Fail()
+	case <-time.After(2 * time.Second):
 	}
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
@@ -207,15 +198,13 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	// two ensure that nothing spurious is received from
 	// the channel
 	var receivedEvent = ""
-	for i := 0; i < 2; i++ {
-		select {
-		case receivedEvent = <-channel1:
-		case <-channel2:
-			c.Fail()
-		case <-time.After(1 * time.Second):
-			continue
-		}
+	select {
+	case receivedEvent = <-channel1:
+	case <-channel2:
+		c.Fail()
+	case <-time.After(2 * time.Second):
 	}
+
 	c.Assert(receivedEvent, Equals, "test4a")
 	err = os.Remove(folder2)
 	c.Assert(err, IsNil)
@@ -223,14 +212,11 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	// All files have been deleted, so NOW we must receive
 	// something from the channel
 	receivedEvent = ""
-	for i := 0; i < 2; i++ {
-		select {
-		case receivedEvent = <-channel2:
-		case <-channel1:
-			c.Fail()
-		case <-time.After(1 * time.Second):
-			continue
-		}
+	select {
+	case receivedEvent = <-channel2:
+	case <-channel1:
+		c.Fail()
+	case <-time.After(1 * time.Second):
 	}
 	c.Assert(receivedEvent, Equals, "test4b")
 }

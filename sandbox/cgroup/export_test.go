@@ -112,6 +112,6 @@ func MockCgroupsFilePath(path string) (restore func()) {
 	return r
 }
 
-func MonitorFullDelete(name string, folders []string, channel chan string) error {
-	return currentWatcher.monitorFullDelete(name, folders, channel)
+func MonitorDelete(folders []string, name string, channel chan string) error {
+	return currentWatcher.monitorDelete(folders, name, channel)
 }
