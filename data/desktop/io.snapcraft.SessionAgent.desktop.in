@@ -5,4 +5,4 @@ Exec=/bin/false
 DBusActivatable=true
 NoDisplay=true
 X-GNOME-UsesNotifications=true
-Icon=/usr/share/snapd/snapcraft-logo-bird.svg
+Icon=@icondir@/snapcraft-logo-bird.svg

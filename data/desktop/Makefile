@@ -51,3 +51,6 @@ clean:
 	cat $< | \
 		sed s:@bindir@:$(BINDIR):g | \
 		cat > $@
+	cat $< | \
+		sed s:@icondir@:$(ICON_FOLDER):g | \
+		cat > $@
