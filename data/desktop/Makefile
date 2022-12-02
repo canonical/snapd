@@ -16,7 +16,6 @@
 BINDIR = /usr/bin
 SYSCONFXDGAUTOSTARTDIR = /etc/xdg/autostart
 APPLICATIONSDIR = /usr/share/applications
-ICONDIR = /usr/share/snapd
 
 DESKTOP_SOURCES = snap-handle-link.desktop.in io.snapcraft.SessionAgent.desktop.in
 DESKTOP_FILES = $(DESKTOP_SOURCES:.in=)
