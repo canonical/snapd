@@ -37,8 +37,7 @@ restore: |
   # We need to skip this step in 22.10 because it fails with error:
   # Error: Qdisc not classful. We have an error talking to the kernel
   # The test works well even after skipping this
-  if not os.query is-ubuntu 22.10; then
-
+  if not os.query is-ubuntu 22.10 && not os.query is-ubuntu 23.04 ; then
       tc filter del dev ens4
   fi
   tc qdisc del dev ens4 ingress
