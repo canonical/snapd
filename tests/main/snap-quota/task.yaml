@@ -30,8 +30,21 @@ execute: |
   snap set-quota group-one --parent=group-top1 --memory=100MB hello-world
   snap set-quota group-two --parent=group-top1 --memory=2MB test-snapd-tools
 
-  echo "Creating a nested empty quota groups which fails"
-  snap set-quota group-sub-one --parent=group-one --memory=1MB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'cannot mix sub groups with snaps in the same group'
+  echo "Creating a nested empty quota groups"
+  snap set-quota group-sub-one --parent=group-one --memory=1MB
+
+  # Only services are allowed to be put into nested sub-groups, not snaps
+  # so this should now fail.
+  echo "Put a snap into the new nested group, this should fail"
+  snap set-quota group-sub-one go-example-webserver 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'error: cannot update quota group: cannot add snaps to group "group-sub-one": only services are allowed in this sub-group'
+
+  # Also try to further create a sub-group in that sub-group, should not be allowed
+  # as the parent is now mixed.
+  echo "Add another sub-group to the sub-group, this should fail"
+  snap set-quota group-sub-one-sub --parent=group-sub-one --memory=768KB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'cannot update quota "group-sub-one": group "group-sub-one" is invalid: only one level of sub-groups are allowed for groups with snaps'
+
+  echo "Removing the nested sub-group again"
+  snap remove-quota group-sub-one
 
   echo "Creating some empty quota sub groups"
   snap set-quota group-three --parent=group-top1 --memory=15MB
