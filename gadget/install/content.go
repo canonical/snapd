@@ -85,8 +85,8 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, fsDevice string, o
 	}
 
 	// temporarily mount the filesystem
-	logger.Debugf("mounting %q in %q (fs type %q)", fsDevice, mountpoint, laidOut.Filesystem)
-	if err := sysMount(fsDevice, mountpoint, laidOut.Filesystem, 0, ""); err != nil {
+	logger.Debugf("mounting %q in %q (fs type %q)", fsDevice, mountpoint, laidOut.VolumeStructure.Filesystem)
+	if err := sysMount(fsDevice, mountpoint, laidOut.VolumeStructure.Filesystem, 0, ""); err != nil {
 		return fmt.Errorf("cannot mount %q at %q: %v", fsDevice, mountpoint, err)
 	}
 	defer func() {

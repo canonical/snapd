@@ -756,7 +756,7 @@ volumes:
 			RootMountPoint: "",
 		})
 
-		c.Assert(ps.Name, Equals, "foo")
+		c.Assert(ps.VolumeStructure.Name, Equals, "foo")
 		c.Assert(rootDir, Equals, updateInfo.MountDir())
 		c.Assert(filepath.Join(rootDir, "content.img"), testutil.FileEquals, "updated content")
 		c.Assert(strings.HasPrefix(rollbackDir, expectedRollbackDir), Equals, true)

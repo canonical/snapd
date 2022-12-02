@@ -356,10 +356,10 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 	// bare structure content is checked to exist during layout
 	// make sure that filesystem content source paths exist as well
 	for _, s := range vol.LaidOutStructure {
-		if !s.HasFilesystem() {
+		if !s.VolumeStructure.HasFilesystem() {
 			continue
 		}
-		for _, c := range s.Content {
+		for _, c := range s.VolumeStructure.Content {
 			// TODO: detect and skip Content with "$kernel:" style
 			// refs if there is no kernelSnapRootDir passed in as
 			// well

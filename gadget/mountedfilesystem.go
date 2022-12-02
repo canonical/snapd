@@ -87,7 +87,7 @@ func NewMountedFilesystemWriter(ps *LaidOutStructure, observer ContentObserver) 
 	if ps == nil {
 		return nil, fmt.Errorf("internal error: *LaidOutStructure is nil")
 	}
-	if !ps.HasFilesystem() {
+	if !ps.VolumeStructure.HasFilesystem() {
 		return nil, fmt.Errorf("structure %v has no filesystem", ps)
 	}
 	fw := &MountedFilesystemWriter{
@@ -354,7 +354,7 @@ func (f *mountedFilesystemUpdater) entryDestPaths(dstRoot, source, target, backu
 // Update applies an update to a mounted filesystem. The caller must have
 // executed a Backup() before, to prepare a data set for rollback purpose.
 func (f *mountedFilesystemUpdater) Update() error {
-	preserveInDst, err := mapPreserve(f.mountPoint, f.ps.Update.Preserve)
+	preserveInDst, err := mapPreserve(f.mountPoint, f.ps.VolumeStructure.Update.Preserve)
 	if err != nil {
 		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}
@@ -536,7 +536,7 @@ func (f *mountedFilesystemUpdater) Backup() error {
 		return fmt.Errorf("cannot create backup directory: %v", err)
 	}
 
-	preserveInDst, err := mapPreserve(f.mountPoint, f.ps.Update.Preserve)
+	preserveInDst, err := mapPreserve(f.mountPoint, f.ps.VolumeStructure.Update.Preserve)
 	if err != nil {
 		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}
@@ -793,7 +793,7 @@ func (f *mountedFilesystemUpdater) backupVolumeContent(volumeRoot string, conten
 func (f *mountedFilesystemUpdater) Rollback() error {
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
-	preserveInDst, err := mapPreserve(f.mountPoint, f.ps.Update.Preserve)
+	preserveInDst, err := mapPreserve(f.mountPoint, f.ps.VolumeStructure.Update.Preserve)
 	if err != nil {
 		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}

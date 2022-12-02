@@ -275,7 +275,7 @@ type TrustedAssetsInstallObserver struct {
 //
 // Implements gadget.ContentObserver.
 func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
-	if affectedStruct.Role != gadget.SystemBoot {
+	if affectedStruct.VolumeStructure.Role != gadget.SystemBoot {
 		// only care about system-boot
 		return gadget.ChangeApply, nil
 	}
@@ -476,7 +476,7 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affect
 	var err error
 	var isRecovery bool
 
-	switch affectedStruct.Role {
+	switch affectedStruct.VolumeStructure.Role {
 	case gadget.SystemBoot:
 		whichBootloader = o.bootBootloader
 		whichTrustedAssets = o.bootTrustedAssets
