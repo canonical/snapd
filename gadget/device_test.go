@@ -75,7 +75,7 @@ func (d *deviceSuite) TestDeviceFindByStructureName(c *C) {
 	for _, tc := range names {
 		c.Logf("trying: %q", tc)
 		found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
-			VolumeStructure: &gadget.VolumeStructure{Name: tc.structure},
+			GadgetStructure: &gadget.VolumeStructure{Name: tc.structure},
 		})
 		c.Check(err, IsNil)
 		c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
@@ -87,7 +87,7 @@ func (d *deviceSuite) TestDeviceFindRelativeSymlink(c *C) {
 	c.Assert(err, IsNil)
 
 	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{Name: "relative"},
+		GadgetStructure: &gadget.VolumeStructure{Name: "relative"},
 	})
 	c.Check(err, IsNil)
 	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
@@ -113,7 +113,7 @@ func (d *deviceSuite) TestDeviceFindByFilesystemLabel(c *C) {
 	for _, tc := range names {
 		c.Logf("trying: %q", tc)
 		found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
-			VolumeStructure: &gadget.VolumeStructure{
+			GadgetStructure: &gadget.VolumeStructure{
 				Filesystem: "ext4",
 				Label:      tc.structure,
 			},
@@ -132,7 +132,7 @@ func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelHappy(c *C)
 	c.Assert(err, IsNil)
 
 	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Name:  "bar",
 			Label: "foo",
 		},
@@ -148,7 +148,7 @@ func (d *deviceSuite) TestDeviceFindFilesystemLabelToNameFallback(c *C) {
 	c.Assert(err, IsNil)
 
 	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Name:       "foo",
 			Filesystem: "ext4",
 		},
@@ -170,7 +170,7 @@ func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelMismatch(c 
 	c.Assert(err, IsNil)
 
 	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Name:       "bar",
 			Label:      "foo",
 			Filesystem: "ext4",
@@ -182,7 +182,7 @@ func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelMismatch(c 
 
 func (d *deviceSuite) TestDeviceFindNotFound(c *C) {
 	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Name:  "bar",
 			Label: "foo",
 		},
@@ -194,7 +194,7 @@ func (d *deviceSuite) TestDeviceFindNotFound(c *C) {
 func (d *deviceSuite) TestDeviceFindNotFoundEmpty(c *C) {
 	// neither name nor filesystem label set
 	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Name: "",
 			// structure has no filesystem, fs label check is
 			// ineffective
@@ -206,7 +206,7 @@ func (d *deviceSuite) TestDeviceFindNotFoundEmpty(c *C) {
 
 	// try with proper filesystem now
 	found, err = gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Name:       "",
 			Label:      "",
 			Filesystem: "ext4",
@@ -222,7 +222,7 @@ func (d *deviceSuite) TestDeviceFindNotFoundSymlinkPointsNowhere(c *C) {
 	c.Assert(err, IsNil)
 
 	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Label: "foo",
 		},
 	})
@@ -235,7 +235,7 @@ func (d *deviceSuite) TestDeviceFindNotFoundNotASymlink(c *C) {
 	c.Assert(err, IsNil)
 
 	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Filesystem: "ext4",
 			Label:      "foo",
 		},
@@ -257,7 +257,7 @@ func (d *deviceSuite) TestDeviceFindBadEvalSymlinks(c *C) {
 	defer restore()
 
 	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Filesystem: "vfat",
 			Label:      "foo",
 		},

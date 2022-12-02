@@ -406,7 +406,7 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 			// at the expected locations, but that is probably fragile and very
 			// non-performant.
 
-			if !vs.IsPartition() {
+			if !vs.GadgetStructure.IsPartition() {
 				// skip trying to find non-partitions on disk, it won't work
 				continue
 			}
@@ -874,9 +874,9 @@ func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures 
 				return fmt.Errorf(`structure %q has "mbr" role and must start at offset 0`, ps.Name)
 			}
 		}
-		if ps.OffsetWrite != nil && ps.OffsetWrite.RelativeTo != "" {
+		if ps.GadgetStructure.OffsetWrite != nil && ps.GadgetStructure.OffsetWrite.RelativeTo != "" {
 			// offset-write using a named structure
-			other := knownStructures[ps.OffsetWrite.RelativeTo]
+			other := knownStructures[ps.GadgetStructure.OffsetWrite.RelativeTo]
 			if other == nil {
 				return fmt.Errorf("structure %q refers to an unknown structure %q",
 					ps.Name, ps.OffsetWrite.RelativeTo)
@@ -889,11 +889,11 @@ func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures 
 		}
 		previousEnd = *(ps.Offset) + quantity.Offset(ps.Size)
 
-		if ps.HasFilesystem() {
+		if ps.GadgetStructure.HasFilesystem() {
 			// content relative offset only possible if it's a bare structure
 			continue
 		}
-		for cidx, c := range ps.Content {
+		for cidx, c := range ps.GadgetStructure.Content {
 			if c.OffsetWrite == nil || c.OffsetWrite.RelativeTo == "" {
 				continue
 			}

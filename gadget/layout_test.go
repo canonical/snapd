@@ -68,7 +68,7 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 		Size:    3 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{{
-			VolumeStructure: &gadget.VolumeStructure{Size: 2 * quantity.SizeMiB},
+			GadgetStructure: &gadget.VolumeStructure{Size: 2 * quantity.SizeMiB},
 			StartOffset:     1 * quantity.OffsetMiB,
 		}},
 	})
@@ -107,12 +107,12 @@ volumes:
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 				StartOffset:     1 * quantity.OffsetMiB,
 				YamlIndex:       0,
 			},
 			{
-				VolumeStructure: &vol.Structure[1],
+				GadgetStructure: &vol.Structure[1],
 				StartOffset:     401 * quantity.OffsetMiB,
 				YamlIndex:       1,
 			},
@@ -150,22 +150,22 @@ volumes:
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 				StartOffset:     1 * quantity.OffsetMiB,
 				YamlIndex:       0,
 			},
 			{
-				VolumeStructure: &vol.Structure[1],
+				GadgetStructure: &vol.Structure[1],
 				StartOffset:     401 * quantity.OffsetMiB,
 				YamlIndex:       1,
 			},
 			{
-				VolumeStructure: &vol.Structure[2],
+				GadgetStructure: &vol.Structure[2],
 				StartOffset:     901 * quantity.OffsetMiB,
 				YamlIndex:       2,
 			},
 			{
-				VolumeStructure: &vol.Structure[3],
+				GadgetStructure: &vol.Structure[3],
 				StartOffset:     1001 * quantity.OffsetMiB,
 				YamlIndex:       3,
 			},
@@ -207,22 +207,22 @@ volumes:
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
-				VolumeStructure: &vol.Structure[3],
+				GadgetStructure: &vol.Structure[3],
 				StartOffset:     1 * quantity.OffsetMiB,
 				YamlIndex:       3,
 			},
 			{
-				VolumeStructure: &vol.Structure[1],
+				GadgetStructure: &vol.Structure[1],
 				StartOffset:     200 * quantity.OffsetMiB,
 				YamlIndex:       1,
 			},
 			{
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 				StartOffset:     800 * quantity.OffsetMiB,
 				YamlIndex:       0,
 			},
 			{
-				VolumeStructure: &vol.Structure[2],
+				GadgetStructure: &vol.Structure[2],
 				StartOffset:     1200 * quantity.OffsetMiB,
 				YamlIndex:       2,
 			},
@@ -263,22 +263,22 @@ volumes:
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
-				VolumeStructure: &vol.Structure[3],
+				GadgetStructure: &vol.Structure[3],
 				StartOffset:     1 * quantity.OffsetMiB,
 				YamlIndex:       3,
 			},
 			{
-				VolumeStructure: &vol.Structure[1],
+				GadgetStructure: &vol.Structure[1],
 				StartOffset:     200 * quantity.OffsetMiB,
 				YamlIndex:       1,
 			},
 			{
-				VolumeStructure: &vol.Structure[2],
+				GadgetStructure: &vol.Structure[2],
 				StartOffset:     700 * quantity.OffsetMiB,
 				YamlIndex:       2,
 			},
 			{
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 				StartOffset:     800 * quantity.OffsetMiB,
 				YamlIndex:       0,
 			},
@@ -339,7 +339,7 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				StartOffset:     800 * quantity.OffsetMiB,
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 			},
 		},
 	})
@@ -520,7 +520,7 @@ volumes:
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 				StartOffset:     1 * quantity.OffsetMiB,
 				LaidOutContent: []gadget.LaidOutContent{
 					{
@@ -572,7 +572,7 @@ volumes:
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 				StartOffset:     1 * quantity.OffsetMiB,
 				LaidOutContent: []gadget.LaidOutContent{
 					{
@@ -621,7 +621,7 @@ volumes:
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 				StartOffset:     1 * quantity.OffsetMiB,
 				LaidOutContent: []gadget.LaidOutContent{
 					{
@@ -665,7 +665,7 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				StartOffset:     1 * quantity.OffsetMiB,
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 				ResolvedContent: []gadget.ResolvedContent{
 					{
 						VolumeContent: &gadget.VolumeContent{
@@ -723,12 +723,12 @@ volumes:
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 				StartOffset:     0,
 				YamlIndex:       0,
 			},
 			{
-				VolumeStructure: &vol.Structure[1],
+				GadgetStructure: &vol.Structure[1],
 				StartOffset:     1 * quantity.OffsetMiB,
 				YamlIndex:       1,
 				ResolvedContent: resolvedContent,
@@ -749,12 +749,12 @@ volumes:
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 				StartOffset:     0,
 				YamlIndex:       0,
 			},
 			{
-				VolumeStructure: &vol.Structure[1],
+				GadgetStructure: &vol.Structure[1],
 				StartOffset:     512 * quantity.OffsetKiB,
 				YamlIndex:       1,
 				ResolvedContent: resolvedContent,
@@ -776,11 +776,11 @@ volumes:
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 				YamlIndex:       0,
 			},
 			{
-				VolumeStructure: &vol.Structure[1],
+				GadgetStructure: &vol.Structure[1],
 				StartOffset:     446,
 				YamlIndex:       1,
 				ResolvedContent: resolvedContent,
@@ -817,11 +817,11 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// MBR
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 				StartOffset:     0,
 				YamlIndex:       0,
 			}, {
-				VolumeStructure: &vol.Structure[1],
+				GadgetStructure: &vol.Structure[1],
 				StartOffset:     1 * quantity.OffsetMiB,
 				YamlIndex:       1,
 			},
@@ -870,12 +870,12 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// mbr
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 				StartOffset:     0,
 				YamlIndex:       0,
 			}, {
 				// foo
-				VolumeStructure: &vol.Structure[1],
+				GadgetStructure: &vol.Structure[1],
 				StartOffset:     1 * quantity.OffsetMiB,
 				YamlIndex:       1,
 				// break for gofmt < 1.11
@@ -891,7 +891,7 @@ volumes:
 				},
 			}, {
 				// bar
-				VolumeStructure: &vol.Structure[2],
+				GadgetStructure: &vol.Structure[2],
 				StartOffset:     2 * quantity.OffsetMiB,
 				YamlIndex:       2,
 				// break for gofmt < 1.11
@@ -1038,7 +1038,7 @@ volumes:
 		Volume: vol,
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
-				VolumeStructure: &vol.Structure[0],
+				GadgetStructure: &vol.Structure[0],
 				StartOffset:     800 * quantity.OffsetMiB,
 				YamlIndex:       0,
 			},
@@ -1079,7 +1079,7 @@ volumes:
 
 	c.Assert(ps, DeepEquals, gadget.LaidOutStructure{
 		// foo
-		VolumeStructure: &vol.Structure[0],
+		GadgetStructure: &vol.Structure[0],
 		StartOffset:     1 * quantity.OffsetMiB,
 		YamlIndex:       0,
 		LaidOutContent: []gadget.LaidOutContent{
@@ -1100,7 +1100,7 @@ volumes:
 	shiftedTo0 := gadget.ShiftStructureTo(ps, 0)
 	c.Assert(shiftedTo0, DeepEquals, gadget.LaidOutStructure{
 		// foo
-		VolumeStructure: &vol.Structure[0],
+		GadgetStructure: &vol.Structure[0],
 		StartOffset:     0,
 		YamlIndex:       0,
 		LaidOutContent: []gadget.LaidOutContent{
@@ -1121,7 +1121,7 @@ volumes:
 	shiftedTo2M := gadget.ShiftStructureTo(ps, 2*quantity.OffsetMiB)
 	c.Assert(shiftedTo2M, DeepEquals, gadget.LaidOutStructure{
 		// foo
-		VolumeStructure: &vol.Structure[0],
+		GadgetStructure: &vol.Structure[0],
 		StartOffset:     2 * quantity.OffsetMiB,
 		YamlIndex:       0,
 		LaidOutContent: []gadget.LaidOutContent{

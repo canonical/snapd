@@ -170,7 +170,7 @@ var mockOnDiskAndLaidoutStructureWritable = install.MockOnDiskAndLaidoutStructur
 		Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
 	},
 	&gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			VolumeName: "pc",
 			Name:       "Writable",
 			Size:       1258291200,
@@ -202,7 +202,7 @@ var mockOnDiskAndLaidoutStructureSave = install.MockOnDiskAndLaidoutStructure(
 		DiskIndex: 3,
 	},
 	&gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			VolumeName: "pc",
 			Name:       "Save",
 			Label:      "ubuntu-save",
@@ -232,7 +232,7 @@ var mockOnDiskAndLaidoutStructureWritableAfterSave = install.MockOnDiskAndLaidou
 		DiskIndex: 4,
 	},
 	&gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			VolumeName: "pc",
 			Name:       "Writable",
 			Size:       1200 * quantity.SizeMiB,

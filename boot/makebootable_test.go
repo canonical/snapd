@@ -571,7 +571,7 @@ version: 5.0
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
 	runBootStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Role: gadget.SystemBoot,
 		},
 	}
@@ -1076,7 +1076,7 @@ version: 5.0
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
 	runBootStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Role: gadget.SystemBoot,
 		},
 	}
@@ -1271,7 +1271,7 @@ version: 5.0
 	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
 	runBootStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Role: gadget.SystemBoot,
 		},
 	}

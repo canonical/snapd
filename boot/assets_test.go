@@ -276,12 +276,12 @@ func (s *assetsSuite) TestInstallObserverNew(c *C) {
 
 var (
 	mockRunBootStruct = &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Role: gadget.SystemBoot,
 		},
 	}
 	mockSeedStruct = &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Role: gadget.SystemSeed,
 		},
 	}
@@ -347,7 +347,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 
 	// and one more, a non system-boot structure, so the file is ignored
 	systemSeedStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Role: gadget.SystemSeed,
 		},
 	}
@@ -975,7 +975,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateOtherRoleStructMocked(c *C) {
 
 	// non system-boot or system-seed structure gets ignored
 	mockVolumeStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Role: gadget.SystemData,
 		},
 	}

@@ -149,19 +149,19 @@ func (u *updateTestSuite) TestCanUpdateSize(c *C) {
 		{
 			// size change
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
+				GadgetStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1*quantity.SizeMiB + 1*quantity.SizeKiB},
+				GadgetStructure: &gadget.VolumeStructure{Size: 1*quantity.SizeMiB + 1*quantity.SizeKiB},
 			},
 			err: "cannot change structure size from [0-9]+ to [0-9]+",
 		}, {
 			// size change
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
+				GadgetStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
+				GadgetStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
 			},
 			err: "",
 		},
@@ -176,12 +176,12 @@ func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
 		{
 			// offset-write change
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
 				},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					OffsetWrite: &gadget.RelativeOffset{Offset: 2048},
 				},
 			},
@@ -189,12 +189,12 @@ func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
 		}, {
 			// offset-write, change in relative-to structure name
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
 				},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024},
 				},
 			},
@@ -202,12 +202,12 @@ func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
 		}, {
 			// offset-write, unspecified in old
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					OffsetWrite: nil,
 				},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "bar", Offset: 1024},
 				},
 			},
@@ -215,12 +215,12 @@ func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
 		}, {
 			// offset-write, unspecified in new
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
 				},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					OffsetWrite: nil,
 				},
 			},
@@ -228,12 +228,12 @@ func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
 		}, {
 			// all ok, both nils
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					OffsetWrite: nil,
 				},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					OffsetWrite: nil,
 				},
 			},
@@ -241,12 +241,12 @@ func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
 		}, {
 			// all ok, both fully specified
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
 				},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					OffsetWrite: &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1024},
 				},
 			},
@@ -254,12 +254,12 @@ func (u *updateTestSuite) TestCanUpdateOffsetWrite(c *C) {
 		}, {
 			// all ok, both fully specified
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
 				},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					OffsetWrite: &gadget.RelativeOffset{Offset: 1024},
 				},
 			},
@@ -275,22 +275,22 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 		{
 			// explicitly declared start offset change
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
+				GadgetStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
 				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
+				GadgetStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
 				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from [0-9]+ to [0-9]+",
 		}, {
 			// explicitly declared start offset in new structure
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
+				GadgetStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
 				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
+				GadgetStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
 				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from unspecified to [0-9]+",
@@ -298,22 +298,22 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 			// explicitly declared start offset in old structure,
 			// missing from new
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
+				GadgetStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
 				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
+				GadgetStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
 				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from [0-9]+ to unspecified",
 		}, {
 			// start offset changed due to layout
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
+				GadgetStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
 				StartOffset:     1 * quantity.OffsetMiB,
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
+				GadgetStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
 				StartOffset:     2 * quantity.OffsetMiB,
 			},
 			err: "cannot change structure start offset from [0-9]+ to [0-9]+",
@@ -328,46 +328,46 @@ func (u *updateTestSuite) TestCanUpdateRole(c *C) {
 		{
 			// new role
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: ""},
+				GadgetStructure: &gadget.VolumeStructure{Role: ""},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: "system-data"},
+				GadgetStructure: &gadget.VolumeStructure{Role: "system-data"},
 			},
 			err: `cannot change structure role from "" to "system-data"`,
 		}, {
 			// explicitly set tole
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: "mbr"},
+				GadgetStructure: &gadget.VolumeStructure{Role: "mbr"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: "system-data"},
+				GadgetStructure: &gadget.VolumeStructure{Role: "system-data"},
 			},
 			err: `cannot change structure role from "mbr" to "system-data"`,
 		}, {
 			// implicit legacy role to proper explicit role
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare", Role: "mbr"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "bare", Role: "mbr"},
 			},
 			err: "",
 		}, {
 			// but not in the opposite direction
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare", Role: "mbr"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "bare", Role: "mbr"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "mbr", Role: "mbr"},
 			},
 			err: `cannot change structure type from "bare" to "mbr"`,
 		}, {
 			// start offset changed due to layout
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: ""},
+				GadgetStructure: &gadget.VolumeStructure{Role: ""},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Role: ""},
+				GadgetStructure: &gadget.VolumeStructure{Role: ""},
 			},
 			err: "",
 		},
@@ -381,75 +381,75 @@ func (u *updateTestSuite) TestCanUpdateType(c *C) {
 		{
 			// from hybrid type to GUID
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
 			},
 			err: `cannot change structure type from "0C,00000000-0000-0000-0000-dd00deadbeef" to "00000000-0000-0000-0000-dd00deadbeef"`,
 		}, {
 			// from MBR type to GUID (would be stopped at volume update checks)
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
 			},
 			err: `cannot change structure type from "0C" to "00000000-0000-0000-0000-dd00deadbeef"`,
 		}, {
 			// from one MBR type to another
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0A"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0A"},
 			},
 			err: `cannot change structure type from "0C" to "0A"`,
 		}, {
 			// from one MBR type to another
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "bare"},
 			},
 			err: `cannot change structure type from "0C" to "bare"`,
 		}, {
 			// from one GUID to another
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadcafe"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadcafe"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
 			},
 			err: `cannot change structure type from "00000000-0000-0000-0000-dd00deadcafe" to "00000000-0000-0000-0000-dd00deadbeef"`,
 		}, {
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "bare"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "bare"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "bare"},
 			},
 		}, {
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C"},
 			},
 		}, {
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "00000000-0000-0000-0000-dd00deadbeef"},
 			},
 		}, {
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C,00000000-0000-0000-0000-dd00deadbeef"},
 			},
 		},
 	}
@@ -461,10 +461,10 @@ func (u *updateTestSuite) TestCanUpdateID(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{ID: "00000000-0000-0000-0000-dd00deadbeef"},
+				GadgetStructure: &gadget.VolumeStructure{ID: "00000000-0000-0000-0000-dd00deadbeef"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{ID: "00000000-0000-0000-0000-dd00deadcafe"},
+				GadgetStructure: &gadget.VolumeStructure{ID: "00000000-0000-0000-0000-dd00deadcafe"},
 			},
 			err: `cannot change structure ID from "00000000-0000-0000-0000-dd00deadbeef" to "00000000-0000-0000-0000-dd00deadcafe"`,
 		},
@@ -477,43 +477,43 @@ func (u *updateTestSuite) TestCanUpdateBareOrFilesystem(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: ""},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: ""},
 			},
 			err: `cannot change a filesystem structure to a bare one`,
 		}, {
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: ""},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: ""},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
 			},
 			err: `cannot change a bare structure to filesystem one`,
 		}, {
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "vfat"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "vfat"},
 			},
 			err: `cannot change filesystem from "ext4" to "vfat"`,
 		}, {
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "writable"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "writable"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
 			},
 			err: `cannot change filesystem label from "writable" to ""`,
 		}, {
 			// all ok
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch"},
+				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch"},
 			},
 			err: ``,
 		},
@@ -526,19 +526,19 @@ func (u *updateTestSuite) TestCanUpdateName(c *C) {
 	cases := []canUpdateTestCase{
 		{
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Name: "foo", Type: "0C"},
+				GadgetStructure: &gadget.VolumeStructure{Name: "foo", Type: "0C"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Name: "mbr-ok", Type: "0C"},
+				GadgetStructure: &gadget.VolumeStructure{Name: "mbr-ok", Type: "0C"},
 			},
 			err:    ``,
 			schema: "mbr",
 		}, {
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Name: "foo", Type: "00000000-0000-0000-0000-dd00deadbeef"},
+				GadgetStructure: &gadget.VolumeStructure{Name: "foo", Type: "00000000-0000-0000-0000-dd00deadbeef"},
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Name: "gpt-unhappy", Type: "00000000-0000-0000-0000-dd00deadbeef"},
+				GadgetStructure: &gadget.VolumeStructure{Name: "gpt-unhappy", Type: "00000000-0000-0000-0000-dd00deadbeef"},
 			},
 			err:    `cannot change structure name from "foo" to "gpt-unhappy"`,
 			schema: "gpt",
@@ -764,38 +764,38 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 
 		switch updaterForStructureCalls {
 		case 0:
-			c.Check(ps.Name, Equals, "first")
-			c.Check(ps.HasFilesystem(), Equals, false)
-			c.Check(ps.Size, Equals, 5*quantity.SizeMiB)
-			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.GadgetStructure.Name, Equals, "first")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, false)
+			c.Check(ps.GadgetStructure.Size, Equals, 5*quantity.SizeMiB)
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
 			// non MBR start offset defaults to 1MiB
 			c.Check(ps.StartOffset, Equals, 1*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 1)
 			c.Check(ps.LaidOutContent[0].Image, Equals, "first.img")
 			c.Check(ps.LaidOutContent[0].Size, Equals, 900*quantity.SizeKiB)
 		case 1:
-			c.Check(ps.Name, Equals, "second")
-			c.Check(ps.HasFilesystem(), Equals, true)
-			c.Check(ps.Filesystem, Equals, "ext4")
-			c.Check(ps.IsPartition(), Equals, true)
-			c.Check(ps.Size, Equals, 10*quantity.SizeMiB)
+			c.Check(ps.GadgetStructure.Name, Equals, "second")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+			c.Check(ps.GadgetStructure.Filesystem, Equals, "ext4")
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+			c.Check(ps.GadgetStructure.Size, Equals, 10*quantity.SizeMiB)
 			// foo's start offset + foo's size
 			c.Check(ps.StartOffset, Equals, (1+5)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.Content, HasLen, 1)
-			c.Check(ps.Content[0].UnresolvedSource, Equals, "/second-content")
-			c.Check(ps.Content[0].Target, Equals, "/")
+			c.Assert(ps.GadgetStructure.Content, HasLen, 1)
+			c.Check(ps.GadgetStructure.Content[0].UnresolvedSource, Equals, "/second-content")
+			c.Check(ps.GadgetStructure.Content[0].Target, Equals, "/")
 		default:
 			c.Fatalf("unexpected call")
 		}
 		updaterForStructureCalls++
 		mu := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.Name] = true
+				backupCalls[ps.GadgetStructure.Name] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.Name] = true
+				updateCalls[ps.GadgetStructure.Name] = true
 				return nil
 			},
 			rollbackCb: func() error {
@@ -917,10 +917,10 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 		switch updaterForStructureCalls {
 		case 0:
 			// mbr raw structure
-			c.Check(ps.Name, Equals, "mbr")
-			c.Check(ps.HasFilesystem(), Equals, false)
-			c.Check(ps.Size, Equals, quantity.Size(440))
-			c.Check(ps.IsPartition(), Equals, false)
+			c.Check(ps.GadgetStructure.Name, Equals, "mbr")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, false)
+			c.Check(ps.GadgetStructure.Size, Equals, quantity.Size(440))
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, false)
 			// no offset since we are updating the MBR itself
 			c.Check(ps.StartOffset, Equals, quantity.Offset(0))
 			c.Assert(ps.LaidOutContent, HasLen, 0)
@@ -930,27 +930,27 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 			})
 		case 1:
 			// bios boot
-			c.Check(ps.Name, Equals, "BIOS Boot")
-			c.Check(ps.HasFilesystem(), Equals, false)
-			c.Check(ps.IsPartition(), Equals, true)
-			c.Check(ps.Size, Equals, quantity.SizeMiB)
+			c.Check(ps.GadgetStructure.Name, Equals, "BIOS Boot")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, false)
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+			c.Check(ps.GadgetStructure.Size, Equals, quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.Content, HasLen, 0)
+			c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				Device: "/dev/sda",
 				Offset: quantity.OffsetMiB,
 			})
 		case 2:
 			// EFI system partition
-			c.Check(ps.Name, Equals, "EFI System")
-			c.Check(ps.HasFilesystem(), Equals, true)
-			c.Check(ps.Filesystem, Equals, "vfat")
-			c.Check(ps.IsPartition(), Equals, true)
-			c.Check(ps.Size, Equals, 50*quantity.SizeMiB)
+			c.Check(ps.GadgetStructure.Name, Equals, "EFI System")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+			c.Check(ps.GadgetStructure.Filesystem, Equals, "vfat")
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+			c.Check(ps.GadgetStructure.Size, Equals, 50*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.Content, HasLen, 0)
+			c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/boot/ubuntu"),
 			})
@@ -960,11 +960,11 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 		updaterForStructureCalls++
 		mu := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.Name] = true
+				backupCalls[ps.GadgetStructure.Name] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.Name] = true
+				updateCalls[ps.GadgetStructure.Name] = true
 				return nil
 			},
 			rollbackCb: func() error {
@@ -1111,10 +1111,10 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		switch updaterForStructureCalls {
 		case 0:
 			// mbr raw structure
-			c.Check(ps.Name, Equals, "mbr")
-			c.Check(ps.HasFilesystem(), Equals, false)
-			c.Check(ps.Size, Equals, quantity.Size(440))
-			c.Check(ps.IsPartition(), Equals, false)
+			c.Check(ps.GadgetStructure.Name, Equals, "mbr")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, false)
+			c.Check(ps.GadgetStructure.Size, Equals, quantity.Size(440))
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, false)
 			// no offset since we are updating the MBR itself
 			c.Check(ps.StartOffset, Equals, quantity.Offset(0))
 			c.Assert(ps.LaidOutContent, HasLen, 0)
@@ -1124,69 +1124,69 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			})
 		case 1:
 			// bios boot
-			c.Check(ps.Name, Equals, "BIOS Boot")
-			c.Check(ps.HasFilesystem(), Equals, false)
-			c.Check(ps.IsPartition(), Equals, true)
-			c.Check(ps.Size, Equals, quantity.SizeMiB)
+			c.Check(ps.GadgetStructure.Name, Equals, "BIOS Boot")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, false)
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+			c.Check(ps.GadgetStructure.Size, Equals, quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.Content, HasLen, 0)
+			c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				Device: "/dev/vda",
 				Offset: quantity.OffsetMiB,
 			})
 		case 2:
 			// ubuntu-seed
-			c.Check(ps.Name, Equals, "ubuntu-seed")
-			c.Check(ps.HasFilesystem(), Equals, true)
-			c.Check(ps.Filesystem, Equals, "vfat")
-			c.Check(ps.IsPartition(), Equals, true)
-			c.Check(ps.Size, Equals, 1200*quantity.SizeMiB)
+			c.Check(ps.GadgetStructure.Name, Equals, "ubuntu-seed")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+			c.Check(ps.GadgetStructure.Filesystem, Equals, "vfat")
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+			c.Check(ps.GadgetStructure.Size, Equals, 1200*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.Content, HasLen, 0)
+			c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
 			})
 		case 3:
 			// ubuntu-boot
-			c.Check(ps.Name, Equals, "ubuntu-boot")
-			c.Check(ps.HasFilesystem(), Equals, true)
-			c.Check(ps.Filesystem, Equals, "ext4")
-			c.Check(ps.IsPartition(), Equals, true)
-			c.Check(ps.Size, Equals, 750*quantity.SizeMiB)
+			c.Check(ps.GadgetStructure.Name, Equals, "ubuntu-boot")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+			c.Check(ps.GadgetStructure.Filesystem, Equals, "ext4")
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+			c.Check(ps.GadgetStructure.Size, Equals, 750*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.Content, HasLen, 0)
+			c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot"),
 			})
 		case 4:
 			// ubuntu-save
-			c.Check(ps.Name, Equals, "ubuntu-save")
-			c.Check(ps.HasFilesystem(), Equals, true)
-			c.Check(ps.Filesystem, Equals, "ext4")
-			c.Check(ps.IsPartition(), Equals, true)
-			c.Check(ps.Size, Equals, 16*quantity.SizeMiB)
+			c.Check(ps.GadgetStructure.Name, Equals, "ubuntu-save")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+			c.Check(ps.GadgetStructure.Filesystem, Equals, "ext4")
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+			c.Check(ps.GadgetStructure.Size, Equals, 16*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200+750)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.Content, HasLen, 0)
+			c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save"),
 			})
 		case 5:
 			// ubuntu-data
-			c.Check(ps.Name, Equals, "ubuntu-data")
-			c.Check(ps.HasFilesystem(), Equals, true)
-			c.Check(ps.Filesystem, Equals, "ext4")
-			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.GadgetStructure.Name, Equals, "ubuntu-data")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+			c.Check(ps.GadgetStructure.Filesystem, Equals, "ext4")
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
 			// NOTE: this is the laid out size, not the actual size (since data
 			// gets expanded), but the update op doesn't actually care about the
 			// size so it's okay
-			c.Check(ps.Size, Equals, quantity.SizeGiB)
+			c.Check(ps.GadgetStructure.Size, Equals, quantity.SizeGiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200+750+16)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.Content, HasLen, 0)
+			c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"),
 			})
@@ -1197,11 +1197,11 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		updaterForStructureCalls++
 		mu := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.Name] = true
+				backupCalls[ps.GadgetStructure.Name] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.Name] = true
+				updateCalls[ps.GadgetStructure.Name] = true
 				return nil
 			},
 			rollbackCb: func() error {
@@ -1360,10 +1360,10 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		switch updaterForStructureCalls {
 		case 0:
 			// mbr raw structure
-			c.Check(ps.Name, Equals, "mbr")
-			c.Check(ps.HasFilesystem(), Equals, false)
-			c.Check(ps.Size, Equals, quantity.Size(440))
-			c.Check(ps.IsPartition(), Equals, false)
+			c.Check(ps.GadgetStructure.Name, Equals, "mbr")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, false)
+			c.Check(ps.GadgetStructure.Size, Equals, quantity.Size(440))
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, false)
 			// no offset since we are updating the MBR itself
 			c.Check(ps.StartOffset, Equals, quantity.Offset(0))
 			c.Assert(ps.LaidOutContent, HasLen, 0)
@@ -1373,69 +1373,69 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			})
 		case 1:
 			// bios boot
-			c.Check(ps.Name, Equals, "BIOS Boot")
-			c.Check(ps.HasFilesystem(), Equals, false)
-			c.Check(ps.IsPartition(), Equals, true)
-			c.Check(ps.Size, Equals, quantity.SizeMiB)
+			c.Check(ps.GadgetStructure.Name, Equals, "BIOS Boot")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, false)
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+			c.Check(ps.GadgetStructure.Size, Equals, quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.Content, HasLen, 0)
+			c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				Device: "/dev/vda",
 				Offset: quantity.OffsetMiB,
 			})
 		case 2:
 			// ubuntu-seed
-			c.Check(ps.Name, Equals, "ubuntu-seed")
-			c.Check(ps.HasFilesystem(), Equals, true)
-			c.Check(ps.Filesystem, Equals, "vfat")
-			c.Check(ps.IsPartition(), Equals, true)
-			c.Check(ps.Size, Equals, 1200*quantity.SizeMiB)
+			c.Check(ps.GadgetStructure.Name, Equals, "ubuntu-seed")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+			c.Check(ps.GadgetStructure.Filesystem, Equals, "vfat")
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+			c.Check(ps.GadgetStructure.Size, Equals, 1200*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.Content, HasLen, 0)
+			c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
 			})
 		case 3:
 			// ubuntu-boot
-			c.Check(ps.Name, Equals, "ubuntu-boot")
-			c.Check(ps.HasFilesystem(), Equals, true)
-			c.Check(ps.Filesystem, Equals, "ext4")
-			c.Check(ps.IsPartition(), Equals, true)
-			c.Check(ps.Size, Equals, 750*quantity.SizeMiB)
+			c.Check(ps.GadgetStructure.Name, Equals, "ubuntu-boot")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+			c.Check(ps.GadgetStructure.Filesystem, Equals, "ext4")
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+			c.Check(ps.GadgetStructure.Size, Equals, 750*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.Content, HasLen, 0)
+			c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot"),
 			})
 		case 4:
 			// ubuntu-save
-			c.Check(ps.Name, Equals, "ubuntu-save")
-			c.Check(ps.HasFilesystem(), Equals, true)
-			c.Check(ps.Filesystem, Equals, "ext4")
-			c.Check(ps.IsPartition(), Equals, true)
-			c.Check(ps.Size, Equals, 16*quantity.SizeMiB)
+			c.Check(ps.GadgetStructure.Name, Equals, "ubuntu-save")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+			c.Check(ps.GadgetStructure.Filesystem, Equals, "ext4")
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+			c.Check(ps.GadgetStructure.Size, Equals, 16*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200+750)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.Content, HasLen, 0)
+			c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save"),
 			})
 		case 5:
 			// ubuntu-data
-			c.Check(ps.Name, Equals, "ubuntu-data")
-			c.Check(ps.HasFilesystem(), Equals, true)
-			c.Check(ps.Filesystem, Equals, "ext4")
-			c.Check(ps.IsPartition(), Equals, true)
+			c.Check(ps.GadgetStructure.Name, Equals, "ubuntu-data")
+			c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+			c.Check(ps.GadgetStructure.Filesystem, Equals, "ext4")
+			c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
 			// NOTE: this is the laid out size, not the actual size (since data
 			// gets expanded), but the update op doesn't actually care about the
 			// size so it's okay
-			c.Check(ps.Size, Equals, quantity.SizeGiB)
+			c.Check(ps.GadgetStructure.Size, Equals, quantity.SizeGiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200+750+16)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.Content, HasLen, 0)
+			c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"),
 			})
@@ -1446,11 +1446,11 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		updaterForStructureCalls++
 		mu := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.Name] = true
+				backupCalls[ps.GadgetStructure.Name] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.Name] = true
+				updateCalls[ps.GadgetStructure.Name] = true
 				return nil
 			},
 			rollbackCb: func() error {
@@ -1627,15 +1627,15 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 
 		var mu *mockUpdater
 
-		switch ps.VolumeName {
+		switch ps.GadgetStructure.VolumeName {
 		case "pc":
 			switch pcUpdaterForStructureCalls {
 			case 0:
 				// mbr raw structure
-				c.Check(ps.Name, Equals, "mbr")
-				c.Check(ps.HasFilesystem(), Equals, false)
-				c.Check(ps.Size, Equals, quantity.Size(440))
-				c.Check(ps.IsPartition(), Equals, false)
+				c.Check(ps.GadgetStructure.Name, Equals, "mbr")
+				c.Check(ps.GadgetStructure.HasFilesystem(), Equals, false)
+				c.Check(ps.GadgetStructure.Size, Equals, quantity.Size(440))
+				c.Check(ps.GadgetStructure.IsPartition(), Equals, false)
 				// no offset since we are updating the MBR itself
 				c.Check(ps.StartOffset, Equals, quantity.Offset(0))
 				c.Assert(ps.LaidOutContent, HasLen, 0)
@@ -1645,69 +1645,69 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				})
 			case 1:
 				// bios boot
-				c.Check(ps.Name, Equals, "BIOS Boot")
-				c.Check(ps.HasFilesystem(), Equals, false)
-				c.Check(ps.IsPartition(), Equals, true)
-				c.Check(ps.Size, Equals, quantity.SizeMiB)
+				c.Check(ps.GadgetStructure.Name, Equals, "BIOS Boot")
+				c.Check(ps.GadgetStructure.HasFilesystem(), Equals, false)
+				c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+				c.Check(ps.GadgetStructure.Size, Equals, quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.Content, HasLen, 0)
+				c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					Device: "/dev/vda",
 					Offset: quantity.OffsetMiB,
 				})
 			case 2:
 				// ubuntu-seed
-				c.Check(ps.Name, Equals, "ubuntu-seed")
-				c.Check(ps.HasFilesystem(), Equals, true)
-				c.Check(ps.Filesystem, Equals, "vfat")
-				c.Check(ps.IsPartition(), Equals, true)
-				c.Check(ps.Size, Equals, 1200*quantity.SizeMiB)
+				c.Check(ps.GadgetStructure.Name, Equals, "ubuntu-seed")
+				c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+				c.Check(ps.GadgetStructure.Filesystem, Equals, "vfat")
+				c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+				c.Check(ps.GadgetStructure.Size, Equals, 1200*quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.Content, HasLen, 0)
+				c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
 				})
 			case 3:
 				// ubuntu-boot
-				c.Check(ps.Name, Equals, "ubuntu-boot")
-				c.Check(ps.HasFilesystem(), Equals, true)
-				c.Check(ps.Filesystem, Equals, "ext4")
-				c.Check(ps.IsPartition(), Equals, true)
-				c.Check(ps.Size, Equals, 750*quantity.SizeMiB)
+				c.Check(ps.GadgetStructure.Name, Equals, "ubuntu-boot")
+				c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+				c.Check(ps.GadgetStructure.Filesystem, Equals, "ext4")
+				c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+				c.Check(ps.GadgetStructure.Size, Equals, 750*quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, (1+1+1200)*quantity.OffsetMiB)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.Content, HasLen, 0)
+				c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot"),
 				})
 			case 4:
 				// ubuntu-save
-				c.Check(ps.Name, Equals, "ubuntu-save")
-				c.Check(ps.HasFilesystem(), Equals, true)
-				c.Check(ps.Filesystem, Equals, "ext4")
-				c.Check(ps.IsPartition(), Equals, true)
-				c.Check(ps.Size, Equals, 16*quantity.SizeMiB)
+				c.Check(ps.GadgetStructure.Name, Equals, "ubuntu-save")
+				c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+				c.Check(ps.GadgetStructure.Filesystem, Equals, "ext4")
+				c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+				c.Check(ps.GadgetStructure.Size, Equals, 16*quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, (1+1+1200+750)*quantity.OffsetMiB)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.Content, HasLen, 0)
+				c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save"),
 				})
 			case 5:
 				// ubuntu-data
-				c.Check(ps.Name, Equals, "ubuntu-data")
-				c.Check(ps.HasFilesystem(), Equals, true)
-				c.Check(ps.Filesystem, Equals, "ext4")
-				c.Check(ps.IsPartition(), Equals, true)
+				c.Check(ps.GadgetStructure.Name, Equals, "ubuntu-data")
+				c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+				c.Check(ps.GadgetStructure.Filesystem, Equals, "ext4")
+				c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
 				// NOTE: this is the laid out size, not the actual size (since data
 				// gets expanded), but the update op doesn't actually care about the
 				// size so it's okay
-				c.Check(ps.Size, Equals, quantity.SizeGiB)
+				c.Check(ps.GadgetStructure.Size, Equals, quantity.SizeGiB)
 				c.Check(ps.StartOffset, Equals, (1+1+1200+750+16)*quantity.OffsetMiB)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.Content, HasLen, 0)
+				c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"),
 				})
@@ -1716,11 +1716,11 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 
 			mu = &mockUpdater{
 				backupCb: func() error {
-					pcBackupCalls[ps.Name] = true
+					pcBackupCalls[ps.GadgetStructure.Name] = true
 					return nil
 				},
 				updateCb: func() error {
-					pcUpdateCalls[ps.Name] = true
+					pcUpdateCalls[ps.GadgetStructure.Name] = true
 					return nil
 				},
 				rollbackCb: func() error {
@@ -1731,38 +1731,38 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 		case "foo":
 			switch fooUpdaterForStructureCalls {
 			case 0:
-				c.Check(ps.Name, Equals, "barething")
-				c.Check(ps.HasFilesystem(), Equals, false)
-				c.Check(ps.IsPartition(), Equals, false)
-				c.Check(ps.Size, Equals, quantity.Size(4096))
+				c.Check(ps.GadgetStructure.Name, Equals, "barething")
+				c.Check(ps.GadgetStructure.HasFilesystem(), Equals, false)
+				c.Check(ps.GadgetStructure.IsPartition(), Equals, false)
+				c.Check(ps.GadgetStructure.Size, Equals, quantity.Size(4096))
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.Content, HasLen, 0)
+				c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					Device: "/dev/vdb",
 					Offset: quantity.OffsetMiB,
 				})
 			case 1:
-				c.Check(ps.Name, Equals, "nofspart")
-				c.Check(ps.HasFilesystem(), Equals, false)
-				c.Check(ps.IsPartition(), Equals, true)
-				c.Check(ps.Size, Equals, quantity.Size(4096))
+				c.Check(ps.GadgetStructure.Name, Equals, "nofspart")
+				c.Check(ps.GadgetStructure.HasFilesystem(), Equals, false)
+				c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+				c.Check(ps.GadgetStructure.Size, Equals, quantity.Size(4096))
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.Content, HasLen, 0)
+				c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					Device: "/dev/vdb",
 					Offset: quantity.OffsetMiB + 4096,
 				})
 			case 2:
-				c.Check(ps.Name, Equals, "some-filesystem")
-				c.Check(ps.HasFilesystem(), Equals, true)
-				c.Check(ps.Filesystem, Equals, "ext4")
-				c.Check(ps.IsPartition(), Equals, true)
-				c.Check(ps.Size, Equals, quantity.SizeGiB)
+				c.Check(ps.GadgetStructure.Name, Equals, "some-filesystem")
+				c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+				c.Check(ps.GadgetStructure.Filesystem, Equals, "ext4")
+				c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+				c.Check(ps.GadgetStructure.Size, Equals, quantity.SizeGiB)
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096+4096)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.Content, HasLen, 0)
+				c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/foo/some-filesystem"),
 				})
@@ -1773,11 +1773,11 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 
 			mu = &mockUpdater{
 				backupCb: func() error {
-					fooBackupCalls[ps.Name] = true
+					fooBackupCalls[ps.GadgetStructure.Name] = true
 					return nil
 				},
 				updateCb: func() error {
-					fooUpdateCalls[ps.Name] = true
+					fooUpdateCalls[ps.GadgetStructure.Name] = true
 					return nil
 				},
 				rollbackCb: func() error {
@@ -2104,19 +2104,19 @@ volumes:
 
 		var mu *mockUpdater
 
-		switch ps.VolumeName {
+		switch ps.GadgetStructure.VolumeName {
 		case "pc":
 			switch pcUpdaterForStructureCalls {
 			case 0:
 				// ubuntu-seed
-				c.Check(ps.Name, Equals, "ubuntu-seed")
-				c.Check(ps.HasFilesystem(), Equals, true)
-				c.Check(ps.Filesystem, Equals, "vfat")
-				c.Check(ps.IsPartition(), Equals, true)
-				c.Check(ps.Size, Equals, 1200*quantity.SizeMiB)
+				c.Check(ps.GadgetStructure.Name, Equals, "ubuntu-seed")
+				c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+				c.Check(ps.GadgetStructure.Filesystem, Equals, "vfat")
+				c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+				c.Check(ps.GadgetStructure.Size, Equals, 1200*quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.Content, DeepEquals, []gadget.VolumeContent{
+				c.Assert(ps.GadgetStructure.Content, DeepEquals, []gadget.VolumeContent{
 					{
 						UnresolvedSource: "$kernel:ref/kernel-content",
 						Target:           "/",
@@ -2130,11 +2130,11 @@ volumes:
 
 			mu = &mockUpdater{
 				backupCb: func() error {
-					pcBackupCalls[ps.Name] = true
+					pcBackupCalls[ps.GadgetStructure.Name] = true
 					return nil
 				},
 				updateCb: func() error {
-					pcUpdateCalls[ps.Name] = true
+					pcUpdateCalls[ps.GadgetStructure.Name] = true
 					return nil
 				},
 				rollbackCb: func() error {
@@ -2145,14 +2145,14 @@ volumes:
 		case "foo":
 			switch fooUpdaterForStructureCalls {
 			case 0:
-				c.Check(ps.Name, Equals, "some-filesystem")
-				c.Check(ps.HasFilesystem(), Equals, true)
-				c.Check(ps.Filesystem, Equals, "ext4")
-				c.Check(ps.IsPartition(), Equals, true)
-				c.Check(ps.Size, Equals, quantity.SizeGiB)
+				c.Check(ps.GadgetStructure.Name, Equals, "some-filesystem")
+				c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+				c.Check(ps.GadgetStructure.Filesystem, Equals, "ext4")
+				c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+				c.Check(ps.GadgetStructure.Size, Equals, quantity.SizeGiB)
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096+4096)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.Content, DeepEquals, []gadget.VolumeContent{
+				c.Assert(ps.GadgetStructure.Content, DeepEquals, []gadget.VolumeContent{
 					{
 						UnresolvedSource: "$kernel:ref/kernel-content2",
 						Target:           "/",
@@ -2168,11 +2168,11 @@ volumes:
 
 			mu = &mockUpdater{
 				backupCb: func() error {
-					fooBackupCalls[ps.Name] = true
+					fooBackupCalls[ps.GadgetStructure.Name] = true
 					return nil
 				},
 				updateCb: func() error {
-					fooUpdateCalls[ps.Name] = true
+					fooUpdateCalls[ps.GadgetStructure.Name] = true
 					return nil
 				},
 				rollbackCb: func() error {
@@ -2404,19 +2404,19 @@ volumes:
 
 		var mu *mockUpdater
 
-		switch ps.VolumeName {
+		switch ps.GadgetStructure.VolumeName {
 		case "pc":
 			switch pcUpdaterForStructureCalls {
 			case 0:
 				// ubuntu-seed
-				c.Check(ps.Name, Equals, "ubuntu-seed")
-				c.Check(ps.HasFilesystem(), Equals, true)
-				c.Check(ps.Filesystem, Equals, "vfat")
-				c.Check(ps.IsPartition(), Equals, true)
-				c.Check(ps.Size, Equals, 1200*quantity.SizeMiB)
+				c.Check(ps.GadgetStructure.Name, Equals, "ubuntu-seed")
+				c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+				c.Check(ps.GadgetStructure.Filesystem, Equals, "vfat")
+				c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+				c.Check(ps.GadgetStructure.Size, Equals, 1200*quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.Content, DeepEquals, []gadget.VolumeContent{
+				c.Assert(ps.GadgetStructure.Content, DeepEquals, []gadget.VolumeContent{
 					{
 						UnresolvedSource: "$kernel:ref/kernel-content",
 						Target:           "/",
@@ -2430,11 +2430,11 @@ volumes:
 
 			mu = &mockUpdater{
 				backupCb: func() error {
-					pcBackupCalls[ps.Name] = true
+					pcBackupCalls[ps.GadgetStructure.Name] = true
 					return nil
 				},
 				updateCb: func() error {
-					pcUpdateCalls[ps.Name] = true
+					pcUpdateCalls[ps.GadgetStructure.Name] = true
 					return nil
 				},
 				rollbackCb: func() error {
@@ -2445,14 +2445,14 @@ volumes:
 		case "foo":
 			switch fooUpdaterForStructureCalls {
 			case 0:
-				c.Check(ps.Name, Equals, "some-filesystem")
-				c.Check(ps.HasFilesystem(), Equals, true)
-				c.Check(ps.Filesystem, Equals, "ext4")
-				c.Check(ps.IsPartition(), Equals, true)
-				c.Check(ps.Size, Equals, quantity.SizeGiB)
+				c.Check(ps.GadgetStructure.Name, Equals, "some-filesystem")
+				c.Check(ps.GadgetStructure.HasFilesystem(), Equals, true)
+				c.Check(ps.GadgetStructure.Filesystem, Equals, "ext4")
+				c.Check(ps.GadgetStructure.IsPartition(), Equals, true)
+				c.Check(ps.GadgetStructure.Size, Equals, quantity.SizeGiB)
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096+4096)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.Content, HasLen, 0)
+				c.Assert(ps.GadgetStructure.Content, HasLen, 0)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/foo/some-filesystem"),
 				})
@@ -2463,11 +2463,11 @@ volumes:
 
 			mu = &mockUpdater{
 				backupCb: func() error {
-					fooBackupCalls[ps.Name] = true
+					fooBackupCalls[ps.GadgetStructure.Name] = true
 					return nil
 				},
 				updateCb: func() error {
-					fooUpdateCalls[ps.Name] = true
+					fooUpdateCalls[ps.GadgetStructure.Name] = true
 					return nil
 				},
 				rollbackCb: func() error {
@@ -2525,7 +2525,7 @@ func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
 		switch updaterForStructureCalls {
 		case 0:
 			// only called for the first structure
-			c.Assert(ps.Name, Equals, "first")
+			c.Assert(ps.GadgetStructure.Name, Equals, "first")
 		default:
 			c.Fatalf("unexpected call")
 		}
@@ -2857,14 +2857,14 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 
 	toUpdate := map[string]int{}
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
-		toUpdate[ps.Name]++
+		toUpdate[ps.GadgetStructure.Name]++
 		return &mockUpdater{}, nil
 	})
 	defer restore()
 
 	policySeen := map[string]int{}
 	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
-		policySeen[to.Name]++
+		policySeen[to.GadgetStructure.Name]++
 		return false, nil
 	}, nil)
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
@@ -2880,8 +2880,8 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 	// try with different policy
 	policySeen = map[string]int{}
 	err = gadget.Update(uc16Model, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
-		policySeen[to.Name]++
-		return to.Name == "second", nil
+		policySeen[to.GadgetStructure.Name]++
+		return to.GadgetStructure.Name == "second", nil
 	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(policySeen, DeepEquals, map[string]int{
@@ -2908,7 +2908,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesRemodelPolicy(c *C) {
 
 	toUpdate := map[string]int{}
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
-		toUpdate[ps.Name] = toUpdate[ps.Name] + 1
+		toUpdate[ps.GadgetStructure.Name] = toUpdate[ps.GadgetStructure.Name] + 1
 		return &mockUpdater{}, nil
 	})
 	defer restore()
@@ -2963,7 +2963,7 @@ func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
 			},
 		}
 		if updaterForStructureCalls == 1 {
-			c.Assert(ps.Name, Equals, "second")
+			c.Assert(ps.GadgetStructure.Name, Equals, "second")
 			updater.backupCb = func() error {
 				return errors.New("failed")
 			}
@@ -2997,23 +2997,23 @@ func (u *updateTestSuite) TestUpdateApplyUpdateFailsThenRollback(c *C) {
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updater := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.Name] = true
+				backupCalls[ps.GadgetStructure.Name] = true
 				return nil
 			},
 			rollbackCb: func() error {
-				rollbackCalls[ps.Name] = true
+				rollbackCalls[ps.GadgetStructure.Name] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.Name] = true
+				updateCalls[ps.GadgetStructure.Name] = true
 				return nil
 			},
 		}
 		if updaterForStructureCalls == 1 {
-			c.Assert(ps.Name, Equals, "second")
+			c.Assert(ps.GadgetStructure.Name, Equals, "second")
 			// fail update of 2nd structure
 			updater.updateCb = func() error {
-				updateCalls[ps.Name] = true
+				updateCalls[ps.GadgetStructure.Name] = true
 				return errors.New("failed")
 			}
 		}
@@ -3064,31 +3064,31 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updater := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.Name] = true
+				backupCalls[ps.GadgetStructure.Name] = true
 				return nil
 			},
 			rollbackCb: func() error {
-				rollbackCalls[ps.Name] = true
+				rollbackCalls[ps.GadgetStructure.Name] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.Name] = true
+				updateCalls[ps.GadgetStructure.Name] = true
 				return nil
 			},
 		}
 		switch updaterForStructureCalls {
 		case 1:
-			c.Assert(ps.Name, Equals, "second")
+			c.Assert(ps.GadgetStructure.Name, Equals, "second")
 			// rollback fails on 2nd structure
 			updater.rollbackCb = func() error {
-				rollbackCalls[ps.Name] = true
+				rollbackCalls[ps.GadgetStructure.Name] = true
 				return errors.New("rollback failed with different error")
 			}
 		case 2:
-			c.Assert(ps.Name, Equals, "third")
+			c.Assert(ps.GadgetStructure.Name, Equals, "third")
 			// fail update of 3rd structure
 			updater.updateCb = func() error {
-				updateCalls[ps.Name] = true
+				updateCalls[ps.GadgetStructure.Name] = true
 				return errors.New("update error")
 			}
 		}
@@ -3163,7 +3163,7 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	defer restore()
 
 	psBare := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Filesystem: "none",
 			Size:       10 * quantity.SizeMiB,
 		},
@@ -3174,7 +3174,7 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	c.Assert(updater, FitsTypeOf, &gadget.RawStructureUpdater{})
 
 	psFs := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Filesystem: "ext4",
 			Size:       10 * quantity.SizeMiB,
 			Label:      "writable",
@@ -3233,7 +3233,7 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInAll(c *C) {
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		mu := &mockUpdater{
 			updateCb: func() error {
-				c.Assert(expectedStructs, testutil.Contains, ps.Name)
+				c.Assert(expectedStructs, testutil.Contains, ps.GadgetStructure.Name)
 				updateCalls++
 				return gadget.ErrNoUpdate
 			},
@@ -3271,9 +3271,9 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInSome(c *C) {
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		mu := &mockUpdater{
 			updateCb: func() error {
-				c.Assert(expectedStructs, testutil.Contains, ps.Name)
+				c.Assert(expectedStructs, testutil.Contains, ps.GadgetStructure.Name)
 				updateCalls++
-				if ps.Name == "first" {
+				if ps.GadgetStructure.Name == "first" {
 					return gadget.ErrNoUpdate
 				}
 				return nil
@@ -3373,7 +3373,7 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 		{
 			from: &gadget.LaidOutStructure{},
 			to: &gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{},
+				GadgetStructure: &gadget.VolumeStructure{},
 			},
 			update: false,
 		},
@@ -3381,7 +3381,7 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 		{
 			from: &gadget.LaidOutStructure{},
 			to: &gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					Content: []gadget.VolumeContent{
 						{UnresolvedSource: "something"},
 					},
@@ -3392,7 +3392,7 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 		// structure is relevant
 		{
 			from: &gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					Content: []gadget.VolumeContent{
 						{
 							UnresolvedSource: "$kernel:ref",
@@ -3401,7 +3401,7 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 				},
 			},
 			to: &gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{},
+				GadgetStructure: &gadget.VolumeStructure{},
 			},
 			update: false,
 		},
@@ -3409,7 +3409,7 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 		{
 			from: &gadget.LaidOutStructure{},
 			to: &gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					Content: []gadget.VolumeContent{
 						{
 							UnresolvedSource: "other",
@@ -3437,7 +3437,7 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 func (u *updateTestSuite) TestKernelUpdatePolicyFunc(c *C) {
 	from := &gadget.LaidOutStructure{}
 	to := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Content: []gadget.VolumeContent{
 				{
 					UnresolvedSource: "other",

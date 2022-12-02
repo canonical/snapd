@@ -327,7 +327,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		opts = &EnsureLayoutCompatibilityOptions{}
 	}
 	eq := func(ds OnDiskStructure, gs LaidOutStructure) (bool, string) {
-		gv := gs.VolumeStructure
+		gv := gs.GadgetStructure
 
 		// name mismatch
 		if gv.Name != ds.Name {
@@ -368,7 +368,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		if opts.AssumeCreatablePartitionsCreated && IsCreatableAtInstall(gv) {
 			// only partitions that are creatable at install can be encrypted,
 			// check if this partition was encrypted
-			if encTypeParams, ok := opts.ExpectedStructureEncryption[gs.Name]; ok {
+			if encTypeParams, ok := opts.ExpectedStructureEncryption[gs.GadgetStructure.Name]; ok {
 				if encTypeParams.Method == "" {
 					return false, "encrypted structure parameter missing required parameter \"method\""
 				}
@@ -509,7 +509,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	// the disk sector size (unless the structure is the MBR)
 	for _, ls := range gadgetLayout.LaidOutStructure {
 		if !IsRoleMBR(ls) {
-			if ls.Size%diskLayout.SectorSize != 0 {
+			if ls.GadgetStructure.Size%diskLayout.SectorSize != 0 {
 				return fmt.Errorf("gadget volume structure %v size is not a multiple of disk sector size %v",
 					ls, diskLayout.SectorSize)
 			}
@@ -550,7 +550,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 
 		// otherwise not present, figure out if it has a valid excuse
 
-		if !gs.IsPartition() {
+		if !gs.GadgetStructure.IsPartition() {
 			// raw structures like mbr or other "bare" type will not be
 			// identified by linux and thus should be skipped as they will not
 			// show up on the disk
@@ -559,7 +559,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 
 		// allow structures that are creatable during install if we don't assume
 		// created partitions to already exist
-		if IsCreatableAtInstall(gs.VolumeStructure) && !opts.AssumeCreatablePartitionsCreated {
+		if IsCreatableAtInstall(gs.GadgetStructure) && !opts.AssumeCreatablePartitionsCreated {
 			continue
 		}
 
@@ -572,7 +572,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	for gadgetLabel := range opts.ExpectedStructureEncryption {
 		found := false
 		for _, gs := range gadgetLayout.LaidOutStructure {
-			if gs.Name == gadgetLabel {
+			if gs.GadgetStructure.Name == gadgetLabel {
 				found = true
 				break
 			}
@@ -671,7 +671,7 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 		// their content - the fact that bare structures do not overlap with
 		// real partitions will have been validated when the YAML was validated
 		// previously
-		if !structure.IsPartition() {
+		if !structure.GadgetStructure.IsPartition() {
 			continue
 		}
 
@@ -1347,7 +1347,7 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 			for _, update := range allUpdates {
 				if update.volume.Name != supportedVolume {
 					// TODO: or should we error here instead?
-					logger.Noticef("skipping update on non-supported volume %s to structure %s", update.volume.Name, update.to.Name)
+					logger.Noticef("skipping update on non-supported volume %s to structure %s", update.volume.Name, update.to.GadgetStructure.Name)
 				} else {
 					keepUpdates = append(keepUpdates, update)
 				}
@@ -1408,52 +1408,52 @@ func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
 func isLegacyMBRTransition(from *LaidOutStructure, to *LaidOutStructure) bool {
 	// legacy MBR could have been specified by setting type: mbr, with no
 	// role
-	return from.Type == schemaMBR && to.Role == schemaMBR
+	return from.GadgetStructure.Type == schemaMBR && to.GadgetStructure.Role == schemaMBR
 }
 
 func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema string) error {
-	if schema == schemaGPT && from.Name != to.Name {
+	if schema == schemaGPT && from.GadgetStructure.Name != to.GadgetStructure.Name {
 		// partition names are only effective when GPT is used
-		return fmt.Errorf("cannot change structure name from %q to %q", from.Name, to.Name)
+		return fmt.Errorf("cannot change structure name from %q to %q", from.GadgetStructure.Name, to.GadgetStructure.Name)
 	}
-	if from.Size != to.Size {
-		return fmt.Errorf("cannot change structure size from %v to %v", from.Size, to.Size)
+	if from.GadgetStructure.Size != to.GadgetStructure.Size {
+		return fmt.Errorf("cannot change structure size from %v to %v", from.GadgetStructure.Size, to.GadgetStructure.Size)
 	}
-	if !isSameOffset(from.Offset, to.Offset) {
-		return fmt.Errorf("cannot change structure offset from %v to %v", from.Offset, to.Offset)
+	if !isSameOffset(from.GadgetStructure.Offset, to.GadgetStructure.Offset) {
+		return fmt.Errorf("cannot change structure offset from %v to %v", from.GadgetStructure.Offset, to.GadgetStructure.Offset)
 	}
 	if from.StartOffset != to.StartOffset {
 		return fmt.Errorf("cannot change structure start offset from %v to %v", from.StartOffset, to.StartOffset)
 	}
 	// TODO: should this limitation be lifted?
-	if !isSameRelativeOffset(from.OffsetWrite, to.OffsetWrite) {
-		return fmt.Errorf("cannot change structure offset-write from %v to %v", from.OffsetWrite, to.OffsetWrite)
+	if !isSameRelativeOffset(from.GadgetStructure.OffsetWrite, to.GadgetStructure.OffsetWrite) {
+		return fmt.Errorf("cannot change structure offset-write from %v to %v", from.GadgetStructure.OffsetWrite, to.GadgetStructure.OffsetWrite)
 	}
-	if from.Role != to.Role {
-		return fmt.Errorf("cannot change structure role from %q to %q", from.Role, to.Role)
+	if from.GadgetStructure.Role != to.GadgetStructure.Role {
+		return fmt.Errorf("cannot change structure role from %q to %q", from.GadgetStructure.Role, to.GadgetStructure.Role)
 	}
-	if from.Type != to.Type {
+	if from.GadgetStructure.Type != to.GadgetStructure.Type {
 		if !isLegacyMBRTransition(from, to) {
-			return fmt.Errorf("cannot change structure type from %q to %q", from.Type, to.Type)
+			return fmt.Errorf("cannot change structure type from %q to %q", from.GadgetStructure.Type, to.GadgetStructure.Type)
 		}
 	}
-	if from.ID != to.ID {
-		return fmt.Errorf("cannot change structure ID from %q to %q", from.ID, to.ID)
+	if from.GadgetStructure.ID != to.GadgetStructure.ID {
+		return fmt.Errorf("cannot change structure ID from %q to %q", from.GadgetStructure.ID, to.GadgetStructure.ID)
 	}
-	if to.HasFilesystem() {
-		if !from.HasFilesystem() {
+	if to.GadgetStructure.HasFilesystem() {
+		if !from.GadgetStructure.HasFilesystem() {
 			return fmt.Errorf("cannot change a bare structure to filesystem one")
 		}
-		if from.Filesystem != to.Filesystem {
+		if from.GadgetStructure.Filesystem != to.GadgetStructure.Filesystem {
 			return fmt.Errorf("cannot change filesystem from %q to %q",
-				from.Filesystem, to.Filesystem)
+				from.GadgetStructure.Filesystem, to.GadgetStructure.Filesystem)
 		}
-		if from.Label != to.Label {
+		if from.GadgetStructure.Label != to.GadgetStructure.Label {
 			return fmt.Errorf("cannot change filesystem label from %q to %q",
-				from.Label, to.Label)
+				from.GadgetStructure.Label, to.GadgetStructure.Label)
 		}
 	} else {
-		if from.HasFilesystem() {
+		if from.GadgetStructure.HasFilesystem() {
 			return fmt.Errorf("cannot change a filesystem structure to a bare one")
 		}
 	}
@@ -1481,13 +1481,13 @@ type updatePair struct {
 }
 
 func defaultPolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
-	return to.Update.Edition > from.Update.Edition, nil
+	return to.GadgetStructure.Update.Edition > from.GadgetStructure.Update.Edition, nil
 }
 
 // RemodelUpdatePolicy implements the update policy of a remodel scenario. The
 // policy selects all non-MBR structures for the update.
 func RemodelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
-	if from.Role == schemaMBR {
+	if from.GadgetStructure.Role == schemaMBR {
 		return false, nil
 	}
 	return true, nil
@@ -1505,7 +1505,7 @@ func KernelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilter
 	// The policy function has to work on unresolved content, the
 	// returned filter will make sure that after resolving only the
 	// relevant $kernel:refs are updated.
-	for _, ct := range to.Content {
+	for _, ct := range to.GadgetStructure.Content {
 		if strings.HasPrefix(ct.UnresolvedSource, "$kernel:") {
 			return true, func(rn *ResolvedContent) bool {
 				return rn.KernelUpdate
@@ -1563,13 +1563,13 @@ type Updater interface {
 }
 
 func updateLocationForStructure(structureLocations map[string]map[int]StructureLocation, ps *LaidOutStructure) (loc StructureLocation, err error) {
-	loc, ok := structureLocations[ps.VolumeName][ps.YamlIndex]
+	loc, ok := structureLocations[ps.GadgetStructure.VolumeName][ps.YamlIndex]
 	if !ok {
-		return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.YamlIndex, ps.VolumeName)
+		return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.YamlIndex, ps.GadgetStructure.VolumeName)
 	}
-	if !ps.HasFilesystem() {
+	if !ps.GadgetStructure.HasFilesystem() {
 		if loc.Device == "" {
-			return loc, fmt.Errorf("internal error: structure %d on volume %s should have had a device set but did not have one in an internal mapping", ps.YamlIndex, ps.VolumeName)
+			return loc, fmt.Errorf("internal error: structure %d on volume %s should have had a device set but did not have one in an internal mapping", ps.YamlIndex, ps.GadgetStructure.VolumeName)
 		}
 		return loc, nil
 	} else {
@@ -1581,7 +1581,7 @@ func updateLocationForStructure(structureLocations map[string]map[int]StructureL
 			// possibly mounting it, we could also mount it here instead and
 			// then proceed with the update, but we should also have a way to
 			// unmount it when we are done updating it
-			return loc, fmt.Errorf("structure %d on volume %s does not have a writable mountpoint in order to update the filesystem content", ps.YamlIndex, ps.VolumeName)
+			return loc, fmt.Errorf("structure %d on volume %s does not have a writable mountpoint in order to update the filesystem content", ps.YamlIndex, ps.GadgetStructure.VolumeName)
 		}
 		return loc, nil
 	}
@@ -1671,7 +1671,7 @@ var updaterForStructure = updaterForStructureImpl
 func updaterForStructureImpl(loc StructureLocation, ps *LaidOutStructure, newRootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error) {
 	// TODO: this is sort of clunky, we already did the lookup, but doing the
 	// lookup out of band from this function makes for easier mocking
-	if !ps.HasFilesystem() {
+	if !ps.GadgetStructure.HasFilesystem() {
 		lookup := func(ps *LaidOutStructure) (device string, offs quantity.Offset, err error) {
 			return loc.Device, loc.Offset, nil
 		}

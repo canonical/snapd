@@ -84,7 +84,7 @@ func (s *contentTestSuite) SetUpTest(c *C) {
 
 func mockOnDiskStructureSystemSeed(gadgetRoot string) *gadget.LaidOutStructure {
 	return &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Filesystem: "vfat",
 			Content: []gadget.VolumeContent{
 				{

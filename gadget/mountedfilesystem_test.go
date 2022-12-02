@@ -194,7 +194,7 @@ func (s *mountedfilesystemTestSuite) TestWriteDirectoryContents(c *C) {
 	makeGadgetData(c, s.dir, gd)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Filesystem: "ext4",
 		},
 	}
@@ -220,7 +220,7 @@ func (s *mountedfilesystemTestSuite) TestWriteDirectoryWhole(c *C) {
 	makeGadgetData(c, s.dir, gd)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Filesystem: "ext4",
 		},
 	}
@@ -241,7 +241,7 @@ func (s *mountedfilesystemTestSuite) TestWriteNonDirectory(c *C) {
 	}
 	makeGadgetData(c, s.dir, gd)
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Filesystem: "ext4",
 		},
 	}
@@ -317,7 +317,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Name:       "hello",
 			Size:       2048,
 			Filesystem: "ext4",
@@ -413,7 +413,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNonDirectory(c *C) {
 	makeGadgetData(c, s.dir, gd)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -439,7 +439,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNonDirectory(c *C) {
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterErrorMissingSource(c *C) {
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -471,7 +471,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorBadDestination(c *C) 
 	makeSizedFile(c, filepath.Join(s.dir, "foo"), 0, []byte("foo foo foo"))
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "vfat",
 			Content: []gadget.VolumeContent{
@@ -505,7 +505,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationDire
 	})
 
 	psOverwritesDirectoryWithFile := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -541,7 +541,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationFile
 		{name: "bar", content: "bar bar bar"},
 	})
 	psOverwritesFile := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -579,7 +579,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorNested(c *C) {
 	})
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -644,7 +644,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 	}
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -706,7 +706,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserveWithObserver(c *C)
 	makeSizedFile(c, filepath.Join(outDir, "foo"), 0, []byte("foo from disk"))
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -758,7 +758,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNonFilePreserveError(c *C)
 	c.Assert(err, IsNil)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -786,7 +786,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterImplicitDir(c *C) {
 	makeGadgetData(c, s.dir, gd)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -814,7 +814,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterImplicitDir(c *C) {
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterNoFs(c *C) {
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size: 2048,
 			// no filesystem
 			Content: []gadget.VolumeContent{
@@ -838,7 +838,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
 	c.Assert(rw, IsNil)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -881,7 +881,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterSymlinks(c *C) {
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -995,7 +995,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 	makeExistingData(c, outDir, backedUp)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1111,7 +1111,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterObserverErr(c *C) {
 	})
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1159,7 +1159,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupWithDirectories(c *
 	makeExistingData(c, outDir, backedUp)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1220,7 +1220,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupNonexistent(c *C) {
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1263,7 +1263,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBackupDirErr
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1314,7 +1314,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnDestinationE
 	c.Assert(err, IsNil)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1360,7 +1360,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBadSrcCompar
 	})
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1416,7 +1416,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFunnyNamesConflictB
 	makeExistingData(c, outDirConflictsFoo, existingUpFoo)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1476,7 +1476,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFunnyNamesOk(c *C) 
 	makeExistingData(c, outDir, backedUp)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1529,7 +1529,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkFile(
 	makeExistingData(c, outDir, existing)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1567,7 +1567,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkInPre
 	os.Symlink("nested-target", filepath.Join(outDir, "bar/nested"))
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1640,7 +1640,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 	}
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1793,7 +1793,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterDirContents(c *C) {
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1850,7 +1850,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterExpectsBackup(c *C) {
 	})
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1911,7 +1911,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEmptyDir(c *C) {
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -1972,7 +1972,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterSameFileSkipped(c *C) {
 	})
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -2023,7 +2023,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterLonePrefix(c *C) {
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -2072,7 +2072,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdateErrorOnSymlinkToFil
 	makeExistingData(c, outDir, existing)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -2111,7 +2111,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkToDir
 	makeExistingData(c, outDir, existing)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -2151,7 +2151,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) 
 	})
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -2222,7 +2222,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipSame(c *C) {
 	})
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -2275,7 +2275,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipPreserved(c *
 	})
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -2329,7 +2329,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNewFiles(c *C) {
 	})
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -2407,7 +2407,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C
 	c.Assert(err, IsNil)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -2467,7 +2467,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNotWritten(c *C) 
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -2542,7 +2542,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 	})
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -2691,7 +2691,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	}
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -2938,7 +2938,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 	psNoFs := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size: 2048,
 			// no filesystem
 			Content: []gadget.VolumeContent{},
@@ -2956,7 +2956,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 	c.Assert(rw, IsNil)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content:    []gadget.VolumeContent{},
@@ -2988,7 +2988,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 		{src: "/", dst: "", match: "internal error: target cannot be unset"},
 	} {
 		testPs := &gadget.LaidOutStructure{
-			VolumeStructure: &gadget.VolumeStructure{
+			GadgetStructure: &gadget.VolumeStructure{
 				Size:       2048,
 				Filesystem: "ext4",
 				Content: []gadget.VolumeContent{
@@ -3017,7 +3017,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterMountLookupFail(c *C) {
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -3053,7 +3053,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterNonFilePreserveError(c *C
 	c.Assert(err, IsNil)
 
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -3102,7 +3102,7 @@ managed grub.cfg from disk`
 	})
 	// based on pc gadget
 	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Role:       gadget.SystemBoot,
 			Filesystem: "ext4",
@@ -3182,7 +3182,7 @@ managed grub.cfg from disk`)
 var (
 	// based on pc gadget
 	psForObserver = &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
+		GadgetStructure: &gadget.VolumeStructure{
 			Size:       2048,
 			Role:       gadget.SystemBoot,
 			Filesystem: "ext4",

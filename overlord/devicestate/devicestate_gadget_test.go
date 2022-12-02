@@ -326,7 +326,7 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 			// respect to trusted and managed assets
 			targetDir := c.MkDir()
 			sourceStruct := &gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					Role: gadget.SystemSeed,
 				},
 			}
@@ -756,7 +756,7 @@ volumes:
 			RootMountPoint: "",
 		})
 
-		c.Assert(ps.Name, Equals, "foo")
+		c.Assert(ps.GadgetStructure.Name, Equals, "foo")
 		c.Assert(rootDir, Equals, updateInfo.MountDir())
 		c.Assert(filepath.Join(rootDir, "content.img"), testutil.FileEquals, "updated content")
 		c.Assert(strings.HasPrefix(rollbackDir, expectedRollbackDir), Equals, true)

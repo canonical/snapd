@@ -176,7 +176,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 					Size:      750 * quantity.SizeMiB,
 				},
 				&gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
+					GadgetStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
 						Name:       "ubuntu-boot",
 						Label:      "ubuntu-boot",
@@ -201,7 +201,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 					Size:      16 * quantity.SizeMiB,
 				},
 				&gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
+					GadgetStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
 						Name:       "ubuntu-save",
 						Label:      "ubuntu-save",
@@ -226,7 +226,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 					Size:      (30528 - (1 + 1200 + 750 + 16)) * quantity.SizeMiB,
 				},
 				&gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
+					GadgetStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
 						Name:       "ubuntu-data",
 						Label:      "ubuntu-data",
@@ -691,7 +691,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					Node:      "/dev/mmcblk0p2",
 				},
 				&gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
+					GadgetStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
 						Filesystem: "vfat",
 						Size:       750 * quantity.SizeMiB,
@@ -716,7 +716,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					Size:      (30528 - (1 + 1200 + 750)) * quantity.SizeMiB,
 				},
 				&gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
+					GadgetStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
 						Name:       "ubuntu-data",
 						Label:      "ubuntu-data",
@@ -744,7 +744,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					Size:      16 * quantity.SizeMiB,
 				},
 				&gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
+					GadgetStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
 						Name:       "ubuntu-save",
 						Label:      "ubuntu-save",
@@ -770,7 +770,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					Size:      (30528 - (1 + 1200 + 750 + 16)) * quantity.SizeMiB,
 				},
 				&gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
+					GadgetStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
 						Name:       "ubuntu-data",
 						Label:      "ubuntu-data",

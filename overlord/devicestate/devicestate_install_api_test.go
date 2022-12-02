@@ -244,7 +244,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 			// Make sure we "observe" grub from boot partition
 			mockRunBootStruct := &gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
+				GadgetStructure: &gadget.VolumeStructure{
 					Role: gadget.SystemBoot,
 				},
 			}
