@@ -1323,12 +1323,20 @@ var disallowedKernelArguments = []string{
 	"init",
 }
 
+var allowedSnapdKernelArguments = []string{
+	"snapd_system_disk",
+	"snapd.debug",
+}
+
 // isKernelArgumentAllowed checks whether the kernel command line argument is
 // allowed. Prohibits all arguments listed explicitly in
 // disallowedKernelArguments list and those prefixed with snapd, with exception
 // of snapd.debug. All other arguments are allowed.
 func isKernelArgumentAllowed(arg string) bool {
-	if strings.HasPrefix(arg, "snapd") && arg != "snapd.debug" {
+	if strutil.ListContains(allowedSnapdKernelArguments, arg) {
+		return true
+	}
+	if strings.HasPrefix(arg, "snapd") {
 		return false
 	}
 	if strutil.ListContains(disallowedKernelArguments, arg) {
