@@ -95,7 +95,7 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 			return err
 		}
 		for i, ps := range pvol.LaidOutStructure {
-			if !ps.HasFilesystem() {
+			if !ps.VolumeStructure.HasFilesystem() {
 				continue
 			}
 			mw, err := gadget.NewMountedFilesystemWriter(&ps, nil)
@@ -106,7 +106,7 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 			dst := filepath.Join(targetDir, volName, fmt.Sprintf("part%d", i))
 			// on UC20, ensure system-seed links back to the
 			// <PrepareDir>/system-seed
-			if ps.Role == gadget.SystemSeed {
+			if ps.VolumeStructure.Role == gadget.SystemSeed {
 				uc20systemSeedDir := filepath.Join(fullPrepareDir, "system-seed")
 				if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 					return err
