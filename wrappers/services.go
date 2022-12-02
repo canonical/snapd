@@ -478,6 +478,9 @@ type SnapServiceOptions struct {
 
 	// QuotaGroup is the quota group for all services in the specified snap.
 	QuotaGroup *quota.Group
+
+	// Services is the snap services that should be updated in the snap.
+	Services []*snap.AppInfo
 }
 
 // ObserveChangeCallback can be invoked by EnsureSnapServices to observe
@@ -615,9 +618,9 @@ func resolveAppSpecificQuotaGroup(appInfo *snap.AppInfo, snapQuotaGroup *quota.G
 	return snapQuotaGroup
 }
 
-// ensureSnapSystemdUnits takes care of writing .service files for all services
-// registered in snap.Info apps.
-func (es *ensureSnapServicesContext) ensureSnapSystemdUnits(snapInfo *snap.Info, opts *AddSnapServicesOptions, quotaGroups *quota.QuotaGroupSet) error {
+// ensureSnapServiceSystemdUnits writes service units for the list of services provided.
+// This function expects the list of AppInfo's to only contain service apps.
+func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(svcs []*snap.AppInfo, opts *AddSnapServicesOptions, quotaGroups *quota.QuotaGroupSet) error {
 	handleFileModification := func(app *snap.AppInfo, unitType string, name, path string, content []byte) error {
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
@@ -649,17 +652,13 @@ func (es *ensureSnapServicesContext) ensureSnapSystemdUnits(snapInfo *snap.Info,
 
 	// note that the Preseeding option is not used here at all
 	allGrps := quotaGroups.AllQuotaGroups()
-	for _, app := range snapInfo.Apps {
-		if !app.IsService() {
-			continue
-		}
-
+	for _, svc := range svcs {
 		// create services first; this doesn't trigger systemd
 
 		// Generate new service file state, make an app-specific AddSnapServicesOptions
 		// to avoid modifying the original copy, if we were to override the quota group.
-		content, err := generateSnapServiceFile(app, &AddSnapServicesOptions{
-			QuotaGroup:              resolveAppSpecificQuotaGroup(app, opts.QuotaGroup, allGrps),
+		content, err := generateSnapServiceFile(svc, &AddSnapServicesOptions{
+			QuotaGroup:              resolveAppSpecificQuotaGroup(svc, opts.QuotaGroup, allGrps),
 			VitalityRank:            opts.VitalityRank,
 			RequireMountedSnapdSnap: opts.RequireMountedSnapdSnap,
 			Preseeding:              opts.Preseeding,
@@ -668,30 +667,30 @@ func (es *ensureSnapServicesContext) ensureSnapSystemdUnits(snapInfo *snap.Info,
 			return err
 		}
 
-		path := app.ServiceFile()
-		if err := handleFileModification(app, "service", app.Name, path, content); err != nil {
+		path := svc.ServiceFile()
+		if err := handleFileModification(svc, "service", svc.Name, path, content); err != nil {
 			return err
 		}
 
 		// Generate systemd .socket files if needed
-		socketFiles, err := generateSnapSocketFiles(app)
+		socketFiles, err := generateSnapSocketFiles(svc)
 		if err != nil {
 			return err
 		}
 		for name, content := range socketFiles {
-			path := app.Sockets[name].File()
-			if err := handleFileModification(app, "socket", name, path, content); err != nil {
+			path := svc.Sockets[name].File()
+			if err := handleFileModification(svc, "socket", name, path, content); err != nil {
 				return err
 			}
 		}
 
-		if app.Timer != nil {
-			content, err := generateSnapTimerFile(app)
+		if svc.Timer != nil {
+			content, err := generateSnapTimerFile(svc)
 			if err != nil {
 				return err
 			}
-			path := app.Timer.File()
-			if err := handleFileModification(app, "timer", "", path, content); err != nil {
+			path := svc.Timer.File()
+			if err := handleFileModification(svc, "timer", "", path, content); err != nil {
 				return err
 			}
 		}
@@ -714,6 +713,7 @@ func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaG
 		genServiceOpts := &AddSnapServicesOptions{
 			RequireMountedSnapdSnap: es.opts.RequireMountedSnapdSnap,
 		}
+		services := s.Services()
 		if snapSvcOpts != nil {
 			// and if there are per-snap options specified, use that for
 			// VitalityRank
@@ -727,9 +727,11 @@ func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaG
 					return nil, err
 				}
 			}
+
+			services = snapSvcOpts.Services
 		}
 
-		if err := es.ensureSnapSystemdUnits(s, genServiceOpts, neededQuotaGrps); err != nil {
+		if err := es.ensureSnapServiceSystemdUnits(services, genServiceOpts, neededQuotaGrps); err != nil {
 			return nil, err
 		}
 	}
@@ -941,7 +943,9 @@ type AddSnapServicesOptions struct {
 // are services. The services do not get enabled or started.
 func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter Interacter) error {
 	m := map[*snap.Info]*SnapServiceOptions{
-		s: {},
+		s: {
+			Services: s.Services(),
+		},
 	}
 	ensureOpts := &EnsureSnapServicesOptions{}
 	if opts != nil {

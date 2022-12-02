@@ -68,7 +68,12 @@ func journalQuotaLayout(quotaGroup *quota.Group) []snap.Layout {
 // a snap instance. These are the layouts which can change during the lifetime of a snap
 // like for instance mimicking systemd journal namespace mount layouts.
 func getExtraLayouts(st *state.State, snapInstanceName string) ([]snap.Layout, error) {
-	snapOpts, err := servicestate.SnapServiceOptions(st, snapInstanceName, nil)
+	info, err := snapstate.CurrentInfo(st, snapInstanceName)
+	if err != nil {
+		return nil, err
+	}
+
+	snapOpts, err := servicestate.SnapServiceOptions(st, info, nil)
 	if err != nil {
 		return nil, err
 	}
