@@ -780,6 +780,12 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
+type byStructureOffset []VolumeStructure
+
+func (b byStructureOffset) Len() int           { return len(b) }
+func (b byStructureOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
+func (b byStructureOffset) Less(i, j int) bool { return *(b[i].Offset) < *(b[j].Offset) }
+
 func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bool) error {
 	if !validVolumeName.MatchString(vol.Name) {
 		return errors.New("invalid name")
@@ -789,11 +795,11 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 	}
 
 	// named structures, for cross-referencing relative offset-write names
-	knownStructures := make(map[string]*LaidOutStructure, len(vol.Structure))
+	knownStructures := make(map[string]*VolumeStructure, len(vol.Structure))
 	// for uniqueness of filesystem labels
 	knownFsLabels := make(map[string]bool, len(vol.Structure))
 	// for validating structure overlap
-	structures := make([]LaidOutStructure, len(vol.Structure))
+	structures := make([]VolumeStructure, len(vol.Structure))
 
 	if knownFsLabelsPerVolume != nil {
 		knownFsLabelsPerVolume[vol.Name] = knownFsLabels
@@ -814,18 +820,20 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 			start = previousEnd
 		}
 		end := start + quantity.Offset(s.Size)
-		ps := LaidOutStructure{
-			VolumeStructure: &vol.Structure[idx],
-			StartOffset:     start,
-			YamlIndex:       idx,
-		}
-		structures[idx] = ps
+		structures[idx] = vol.Structure[idx]
+		// TODO Note that we are filling this in a temporary copy of
+		// VolumeStructure. Ideally we would want this filled in the
+		// original data as well as offsets are in the end implicit in
+		// gadget.yaml, minus the NonMBRStartOffset. We should explore
+		// making that a constant, I'm not sure if we need it to be a
+		// variable.
+		structures[idx].Offset = &start
 		if s.Name != "" {
 			if _, ok := knownStructures[s.Name]; ok {
 				return fmt.Errorf("structure name %q is not unique", s.Name)
 			}
 			// keep track of named structures
-			knownStructures[s.Name] = &ps
+			knownStructures[s.Name] = &structures[idx]
 		}
 		if s.Label != "" {
 			if seen := knownFsLabels[s.Label]; seen {
@@ -838,7 +846,7 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 	}
 
 	// sort by starting offset
-	sort.Sort(byStartOffset(structures))
+	sort.Sort(byStructureOffset(structures))
 
 	return validateCrossVolumeStructure(structures, knownStructures)
 }
@@ -854,32 +862,32 @@ func isMBR(vs *VolumeStructure) bool {
 	return false
 }
 
-func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures map[string]*LaidOutStructure) error {
+func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures map[string]*VolumeStructure) error {
 	previousEnd := quantity.Offset(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
 	// - laid out structure overlap
 	// use structures laid out within the volume
 	for pidx, ps := range structures {
-		if isMBR(ps.VolumeStructure) {
-			if ps.StartOffset != 0 {
-				return fmt.Errorf(`structure %v has "mbr" role and must start at offset 0`, ps)
+		if isMBR(&ps) {
+			if *(ps.Offset) != 0 {
+				return fmt.Errorf(`structure %q has "mbr" role and must start at offset 0`, ps.Name)
 			}
 		}
 		if ps.OffsetWrite != nil && ps.OffsetWrite.RelativeTo != "" {
 			// offset-write using a named structure
 			other := knownStructures[ps.OffsetWrite.RelativeTo]
 			if other == nil {
-				return fmt.Errorf("structure %v refers to an unknown structure %q",
-					ps, ps.OffsetWrite.RelativeTo)
+				return fmt.Errorf("structure %q refers to an unknown structure %q",
+					ps.Name, ps.OffsetWrite.RelativeTo)
 			}
 		}
 
-		if ps.StartOffset < previousEnd {
+		if *(ps.Offset) < previousEnd {
 			previous := structures[pidx-1]
-			return fmt.Errorf("structure %v overlaps with the preceding structure %v", ps, previous)
+			return fmt.Errorf("structure %q overlaps with the preceding structure %q", ps.Name, previous.Name)
 		}
-		previousEnd = ps.StartOffset + quantity.Offset(ps.Size)
+		previousEnd = *(ps.Offset) + quantity.Offset(ps.Size)
 
 		if ps.HasFilesystem() {
 			// content relative offset only possible if it's a bare structure
@@ -891,8 +899,8 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 			}
 			relativeToStructure := knownStructures[c.OffsetWrite.RelativeTo]
 			if relativeToStructure == nil {
-				return fmt.Errorf("structure %v, content %v refers to an unknown structure %q",
-					ps, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
+				return fmt.Errorf("structure %q, content %v refers to an unknown structure %q",
+					ps.Name, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
 			}
 		}
 	}
