@@ -76,9 +76,11 @@ type PartiallyLaidOutVolume struct {
 	LaidOutStructure []LaidOutStructure
 }
 
-// LaidOutStructure describes a VolumeStructure that has been placed within the
-// volume
+// LaidOutStructure describes an OnDiskStructure that has been placed within the
+// volume.
 type LaidOutStructure struct {
+	OnDiskStructure
+	// GadgetStructure is the volume structure defined in gadget.yaml
 	GadgetStructure *VolumeStructure
 	// StartOffset defines the start offset of the structure within the
 	// enclosing volume
