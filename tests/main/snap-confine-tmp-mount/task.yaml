@@ -1,10 +1,8 @@
-summary: ensure snap-confine controls private mount namespace
+summary: ensure snap-confine correctly setups up the private tmp mount namespace
 
 details: |
-    Ensure that when creating the private mount namespace for a snap that
-    if it already exists but is not owned by root then any existing
-    contents within the private mount directory is first removed before the
-    mount is created.
+    Ensure that when creating the private tmp mount namespace for a snap that it
+    is done so under /tmp/snap-private-tmp/snap.SNAP_NAME which is owned by root
 
 # ubuntu-14.04: the test sets up a user session, which requires more recent systemd
 systems: [-ubuntu-14.04-*]
@@ -25,23 +23,22 @@ debug: |
     cat /tmp/snap-confine-stderr.log || true
 
 execute: |
-    rm -rf /tmp/snap.test-snapd-sh
-    # create /tmp/snap.test-snapd-sh as a regular user
-    tests.session -u test exec sh -c "mkdir /tmp/snap.test-snapd-sh"
-    test_umask=$(tests.session -u test exec sh -c "umask")
-    # check permissions are as expected
-    expected=$(printf "%o" $((0777-test_umask)))
-    stat -c "%U %G %a" /tmp/snap.test-snapd-sh | MATCH "test test $expected"
-    # and place other contents there
-    tests.session -u test exec sh -c "mkdir /tmp/snap.test-snapd-sh/tmp"
-    tests.session -u test exec sh -c "touch /tmp/snap.test-snapd-sh/tmp/foo"
-    stat -c "%U %G %a" /tmp/snap.test-snapd-sh/tmp | MATCH "test test $expected"
-    expected=$(printf "%o" $((0666-test_umask)))
-    stat -c "%U %G %a" /tmp/snap.test-snapd-sh/tmp/foo | MATCH "test test $expected"
+    # in general our systemd-tmpfiles configuration should have created
+    # /tmp/snap-private-tmp already, BUT if this is the first time a snapd deb
+    # has been installed which contains this configuration then it will not have
+    # been created yet so always reboot to ensure that our systemd-tmpfiles
+    # configuration gets run
+    if [ "$SPREAD_REBOOT" = "0" ]; then
+      # currently the systemd-tmpfiles config is not installed on UC so it will
+      # not get executed on reboot
+      if ! os.query is-core; then
+        echo "Rebooting to ensure systemd-tmpfiles gets triggered to create /tmp/snap-private-tmp"
+        REBOOT
+      fi
+    else
+      stat -c "%U %G %a" /tmp/snap-private-tmp | MATCH "root root 700"
+    fi
 
-    # then execute snap-confine - this should take over our imposter base
-    # dir but execute id successfully - snap-confine outputs to stderr and
-    # id will output to stdout so capture each separately
     SNAP_CONFINE=$(os.paths libexec-dir)/snapd/snap-confine
 
     # on Ubuntu Core we need to use the correct path to ensure it is
@@ -57,16 +54,14 @@ execute: |
         SNAPD_SNAP_REV=$(snap list snapd | tail -n +2 | awk '{print $3}')
         SNAP_CONFINE="/snap/snapd/$SNAPD_SNAP_REV/usr/lib/snapd/snap-confine"
     fi
+    # execute snap-confine - this should create a private tmp dir as
+    # /tmp/snap-private-tmp/snap.test-snapd-sh/ - snap-confine outputs to
+    # stderr and id will output to stdout so capture each separately
     tests.session -u test exec sh -c "env -i SNAPD_DEBUG=1 SNAP_INSTANCE_NAME=test-snapd-sh $SNAP_CONFINE --base core snap.test-snapd-sh.sh /bin/bash -c id 1>/tmp/snap-confine-stdout.log 2>/tmp/snap-confine-stderr.log"
     tests.cleanup defer rm -f /tmp/snap-confine-stdout.log /tmp/snap-confine-stderr.log
 
-    stat -c "%U %G %a" /tmp/snap.test-snapd-sh | MATCH "root root 700"
+    stat -c "%U %G %a" /tmp/snap-private-tmp/snap.test-snapd-sh | MATCH "root root 700"
 
-    # contents should have been removed and tmp dir recreated with root
-    # ownership but foo file should have been removed
-    stat -c "%U %G %a" /tmp/snap.test-snapd-sh/tmp | MATCH "root root 1777"
-    [ -f /tmp/snap.test-snapd-sh/tmp/foo ] && exit 1
-    # actual dir should be owned by root now
-    stat -c "%U %G %a" /tmp/snap.test-snapd-sh | MATCH "root root 700"
+    stat -c "%U %G %a" /tmp/snap-private-tmp/snap.test-snapd-sh/tmp | MATCH "root root 1777"
     # and snap-confine should ensure the target binary is executed as the test user
     MATCH "uid=12345\(test\) gid=12345\(test\)" /tmp/snap-confine-stdout.log

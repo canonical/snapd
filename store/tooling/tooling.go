@@ -259,6 +259,7 @@ func (tsto *ToolingStore) snapDownload(targetFn string, sar *store.SnapActionRes
 type SnapToDownload struct {
 	Snap      naming.SnapRef
 	Channel   string
+	Revision  snap.Revision
 	CohortKey string
 }
 
@@ -313,10 +314,18 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 
 	actions := make([]*store.SnapAction, 0, len(toDownload))
 	for _, sn := range toDownload {
+		// One cannot specify both a channel and specific revision. The store
+		// will return an error if do this.
+		channel := sn.Channel
+		if !sn.Revision.Unset() {
+			channel = ""
+		}
+
 		actions = append(actions, &store.SnapAction{
 			Action:       "download",
 			InstanceName: sn.Snap.SnapName(), // XXX consider using snap-id first
-			Channel:      sn.Channel,
+			Channel:      channel,
+			Revision:     sn.Revision,
 			CohortKey:    sn.CohortKey,
 			Flags:        actionFlag,
 		})

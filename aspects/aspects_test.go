@@ -37,31 +37,31 @@ var _ = Suite(&aspectSuite{})
 
 func (*aspectSuite) TestNewAspectDirectory(c *C) {
 	_, err := aspects.NewAspectDirectory("foo", nil, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspects directory: no aspects`)
+	c.Assert(err, ErrorMatches, `cannot define aspects directory: no aspects`)
 
 	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": "baz",
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspect: access patterns should be a list of maps`)
+	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns should be a list of maps`)
 
 	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": []map[string]string{},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspect without access patterns`)
+	c.Assert(err, ErrorMatches, `cannot define aspect "bar": no access patterns found`)
 
 	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"path": "foo"},
 		},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspect pattern without a "name" field`)
+	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns must have a "name" field`)
 
 	_, err = aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": []map[string]string{
 			{"name": "foo"},
 		},
 	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, ErrorMatches, `cannot create aspect pattern without a "path" field`)
+	c.Assert(err, ErrorMatches, `cannot define aspect "bar": access patterns must have a "path" field`)
 
 	aspectDir, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
 		"bar": []map[string]string{
@@ -370,16 +370,76 @@ func (s *aspectSuite) TestAspectAssertionWithPlaceholder(c *C) {
 	}
 }
 
-func (s *aspectSuite) TestAspectBadPlaceholderAssertion(c *C) {
-	aspectDir, err := aspects.NewAspectDirectory("dir", map[string]interface{}{
-		"foo": []map[string]string{
-			{"name": "bad.{foo}", "path": "bad.{bar}"},
+func (s *aspectSuite) TestAspectNameAndPathValidation(c *C) {
+	type testcase struct {
+		testName string
+		name     string
+		path     string
+		err      string
+	}
+
+	for _, tc := range []testcase{
+		{
+			testName: "empty subkeys in name",
+			name:     "a..b", path: "a.b", err: `invalid access name "a..b": cannot have empty subkeys`,
 		},
-	}, aspects.NewJSONDataBag(), aspects.NewJSONSchema())
-	c.Assert(err, IsNil)
+		{
+			testName: "empty subkeys in path",
+			name:     "a.b", path: "c..b", err: `invalid path "c..b": cannot have empty subkeys`,
+		},
+		{
+			testName: "placeholder mismatch (same number)",
+			name:     "bad.{foo}", path: "bad.{bar}", err: `placeholder "{foo}" from access name "bad.{foo}" is absent from path "bad.{bar}"`,
+		},
+		{
+			testName: "placeholder mismatch (different number)",
+			name:     "{foo}", path: "{foo}.bad.{bar}", err: `access name "{foo}" and path "{foo}.bad.{bar}" have mismatched placeholders`,
+		},
+		{
+			testName: "invalid character in name: $",
+			name:     "a.b$", path: "bad", err: `invalid access name "a.b$": invalid subkey "b$"`,
+		},
+		{
+			testName: "invalid character in path: é",
+			name:     "a.b", path: "a.é", err: `invalid path "a.é": invalid subkey "é"`,
+		},
+		{
+			testName: "invalid character in name: _",
+			name:     "a.b_c", path: "a.b-c", err: `invalid access name "a.b_c": invalid subkey "b_c"`,
+		},
+		{
+			testName: "invalid leading dash",
+			name:     "-a", path: "a", err: `invalid access name "-a": invalid subkey "-a"`,
+		},
+		{
+			testName: "invalid trailing dash",
+			name:     "a", path: "a-", err: `invalid path "a-": invalid subkey "a-"`,
+		},
+		{
+			testName: "missing closing curly bracket",
+			name:     "{a{", path: "a", err: `invalid access name "{a{": invalid subkey "{a{"`,
+		},
+		{
+			testName: "missing opening curly bracket",
+			name:     "a", path: "}a}", err: `invalid path "}a}": invalid subkey "}a}"`,
+		},
+		{
+			testName: "curly brackets not wrapping subkey",
+			name:     "a", path: "a.b{a}c", err: `invalid path "a.b{a}c": invalid subkey "b{a}c"`,
+		},
+		{
+			testName: "invalid whitespace character",
+			name:     "a. .c", path: "a.b", err: `invalid access name "a. .c": invalid subkey " "`,
+		},
+	} {
+		_, err := aspects.NewAspectDirectory("foo", map[string]interface{}{
+			"foo": []map[string]string{
+				{"name": tc.name, "path": tc.path},
+			},
+		}, nil, nil)
 
-	aspect := aspectDir.Aspect("foo")
-
-	err = aspect.Set("bad.foo", "bar")
-	c.Assert(err, ErrorMatches, "cannot find path placeholder \"bar\" in the aspect name")
+		cmt := Commentf("sub-test %q failed", tc.testName)
+		c.Assert(err, Not(IsNil), cmt)
+		c.Assert(err.Error(), Equals, `cannot define aspect "foo": `+tc.err, cmt)
+	}
 }

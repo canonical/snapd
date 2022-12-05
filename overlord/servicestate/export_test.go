@@ -28,10 +28,11 @@ import (
 )
 
 var (
-	UpdateSnapstateServices  = updateSnapstateServices
-	CheckSystemdVersion      = checkSystemdVersion
-	QuotaStateAlreadyUpdated = quotaStateAlreadyUpdated
-	ServiceControlTs         = serviceControlTs
+	UpdateSnapstateServices              = updateSnapstateServices
+	CheckSystemdVersion                  = checkSystemdVersion
+	QuotaStateAlreadyUpdated             = quotaStateAlreadyUpdated
+	ServiceControlTs                     = serviceControlTs
+	ValidateSnapServicesForAddingToGroup = validateSnapServicesForAddingToGroup
 )
 
 type QuotaStateUpdated = quotaStateUpdated

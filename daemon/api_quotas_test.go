@@ -74,18 +74,18 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 }
 
 func mockQuotas(st *state.State, c *check.C) {
-	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, quota.NewResourcesBuilder().WithMemoryLimit(16*quantity.SizeMiB).Build())
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(16*quantity.SizeMiB).Build())
 	c.Assert(err, check.IsNil)
-	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, quota.NewResourcesBuilder().WithMemoryLimit(4*quantity.SizeMiB).Build())
+	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(4*quantity.SizeMiB).Build())
 	c.Assert(err, check.IsNil)
-	err = servicestatetest.MockQuotaInState(st, "baz", "foo", nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	err = servicestatetest.MockQuotaInState(st, "baz", "foo", nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, check.IsNil)
 }
 
 func (s *apiQuotaSuite) TestCreateQuotaValues(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil,
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil,
 		quota.NewResourcesBuilder().
 			WithMemoryLimit(quantity.SizeMiB).
 			WithCPUCount(1).
@@ -261,6 +261,40 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 	c.Assert(createCalled, check.Equals, 2)
 }
 
+func (s *apiQuotaSuite) TestPostEnsureQuotaCreateServicesHappy(c *check.C) {
+	var createCalled int
+	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, createOpts servicestate.CreateQuotaOptions) (*state.TaskSet, error) {
+		createCalled++
+		c.Check(name, check.Equals, "booze")
+		c.Check(createOpts.ParentName, check.Equals, "foo")
+		c.Check(createOpts.Snaps, check.DeepEquals, []string{"some-snap"})
+		c.Check(createOpts.Services, check.DeepEquals, []string{"some-snap.svc1"})
+		c.Check(createOpts.ResourceLimits, check.DeepEquals, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+		ts := state.NewTaskSet(st.NewTask("foo-quota", "..."))
+		return ts, nil
+	})
+	defer r()
+
+	data, err := json.Marshal(daemon.PostQuotaGroupData{
+		Action:    "ensure",
+		GroupName: "booze",
+		Parent:    "foo",
+		Snaps:     []string{"some-snap"},
+		Services:  []string{"some-snap.svc1"},
+		Constraints: client.QuotaValues{
+			Memory: quantity.SizeGiB,
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	c.Assert(err, check.IsNil)
+	rsp := s.asyncReq(c, req, nil)
+	c.Assert(rsp.Status, check.Equals, 202)
+	c.Assert(createCalled, check.Equals, 1)
+	c.Assert(s.ensureSoonCalled, check.Equals, 1)
+}
+
 func (s *apiQuotaSuite) TestPostEnsureQuotaCreateJournalRateZeroHappy(c *check.C) {
 	var createCalled int
 	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, createOpts servicestate.CreateQuotaOptions) (*state.TaskSet, error) {
@@ -301,7 +335,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateJournalRateZeroHappy(c *check.C
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpuHappy(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil,
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil,
 		quota.NewResourcesBuilder().
 			WithMemoryLimit(quantity.SizeMiB).
 			WithCPUCount(1).
@@ -355,7 +389,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpuHappy(c *check.C) {
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpu2Happy(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil,
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil,
 		quota.NewResourcesBuilder().
 			WithMemoryLimit(quantity.SizeMiB).
 			WithCPUCount(1).
@@ -411,7 +445,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpu2Happy(c *check.C) {
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateMemoryHappy(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil,
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil,
 		quota.NewResourcesBuilder().
 			WithMemoryLimit(quantity.SizeMiB).
 			WithCPUCount(1).
@@ -461,7 +495,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateMemoryHappy(c *check.C) {
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateConflicts(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, quota.NewResourcesBuilder().WithMemoryLimit(650*quantity.SizeKiB).Build())
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(650*quantity.SizeKiB).Build())
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -557,7 +591,7 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
 func (s *apiQuotaSuite) TestPostRemoveQuotaConflict(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", []string{"some-snap"}, quota.NewResourcesBuilder().WithMemoryLimit(650*quantity.SizeKiB).Build())
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", []string{"some-snap"}, nil, quota.NewResourcesBuilder().WithMemoryLimit(650*quantity.SizeKiB).Build())
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -719,11 +753,11 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 func (s *apiQuotaSuite) TestListJournalQuotas(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, quota.NewResourcesBuilder().WithJournalSize(64*quantity.SizeMiB).Build())
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, nil, quota.NewResourcesBuilder().WithJournalSize(64*quantity.SizeMiB).Build())
 	c.Assert(err, check.IsNil)
-	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, quota.NewResourcesBuilder().WithJournalRate(100, time.Hour).Build())
+	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, nil, quota.NewResourcesBuilder().WithJournalRate(100, time.Hour).Build())
 	c.Assert(err, check.IsNil)
-	err = servicestatetest.MockQuotaInState(st, "baz", "foo", nil, quota.NewResourcesBuilder().WithJournalRate(0, 0).Build())
+	err = servicestatetest.MockQuotaInState(st, "baz", "foo", nil, nil, quota.NewResourcesBuilder().WithJournalRate(0, 0).Build())
 	c.Assert(err, check.IsNil)
 	st.Unlock()
 

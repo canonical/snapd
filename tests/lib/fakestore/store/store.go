@@ -586,6 +586,7 @@ type snapAction struct {
 	InstanceKey string `json:"instance-key"`
 	SnapID      string `json:"snap-id"`
 	Name        string `json:"name"`
+	Revision    int    `json:"revision,omitempty"`
 }
 
 type snapActionRequest struct {
@@ -710,6 +711,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 					Base:          essInfo.Base,
 				},
 			}
+			logger.Debugf("requested snap %q revision %d", essInfo.Name, a.Revision)
 			res.Snap.Publisher.ID = essInfo.DeveloperID
 			res.Snap.Publisher.Username = essInfo.DevelName
 			res.Snap.Download.URL = fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn))
