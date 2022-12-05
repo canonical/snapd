@@ -593,7 +593,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 			return nil, err
 		}
 
-		opts, err := SnapServiceOptions(st, sn, allGrps)
+		opts, err := SnapServiceOptions(st, info, allGrps)
 		if err != nil {
 			return nil, err
 		}
