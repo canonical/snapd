@@ -272,11 +272,12 @@ done
 %install
 # Install all systemd and dbus units, and env files.
 %make_install -C %{indigo_srcdir}/data \
-		BINDIR=%{_bindir} \
-		LIBEXECDIR=%{_libexecdir} \
-		DATADIR=%{_datadir} \
-		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
-		SNAP_MOUNT_DIR=%{snap_mount_dir}
+        BINDIR=%{_bindir} \
+        LIBEXECDIR=%{_libexecdir} \
+        DATADIR=%{_datadir} \
+        SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
+        SNAP_MOUNT_DIR=%{snap_mount_dir} \
+        TMPFILESDIR="%{_tmpfilesdir}"
 # Install all the C executables.
 %make_install -C %{indigo_srcdir}/cmd
 # Use the common packaging helper for bulk of installation.
