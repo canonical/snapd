@@ -411,7 +411,7 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 				continue
 			}
 
-			structureDevice, err := FindDeviceForStructure(&vs)
+			structureDevice, err := FindDeviceForStructure(vs.GadgetStructure)
 			if err != nil && err != ErrDeviceNotFound {
 				return nil, err
 			}

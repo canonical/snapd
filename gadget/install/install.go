@@ -46,7 +46,7 @@ func diskWithSystemSeed(lv *gadget.LaidOutVolume) (device string, err error) {
 		// XXX: this part of the finding maybe should be a
 		// method on gadget.*Volume
 		if vs.GadgetStructure.Role == gadget.SystemSeed {
-			device, err = gadget.FindDeviceForStructure(&vs)
+			device, err = gadget.FindDeviceForStructure(vs.GadgetStructure)
 			if err != nil {
 				return "", fmt.Errorf("cannot find device for role system-seed: %v", err)
 			}
