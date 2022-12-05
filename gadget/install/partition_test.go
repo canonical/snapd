@@ -153,8 +153,8 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 	Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
 }
 
-var mockOnDiskAndLaidoutStructureWritable = install.MockOnDiskAndLaidoutStructure(
-	&gadget.OnDiskStructure{
+var mockLaidoutStructureWritable = gadget.LaidOutStructure{
+	OnDiskStructure: gadget.OnDiskStructure{
 		Node: "/dev/node3",
 		Name: "Writable",
 		//Size:        1258291200,
@@ -169,26 +169,24 @@ var mockOnDiskAndLaidoutStructureWritable = install.MockOnDiskAndLaidoutStructur
 		// expanded to fill the disk
 		Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
 	},
-	&gadget.LaidOutStructure{
-		GadgetStructure: &gadget.VolumeStructure{
-			VolumeName: "pc",
-			Name:       "Writable",
-			Size:       1258291200,
-			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			Role:       "system-data",
-			Label:      "ubuntu-data",
-			Filesystem: "ext4",
-			// Note the DiskIndex appears to be the same as the YamlIndex, but this is
-			// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
-			// yaml structure (the MBR) that does not appear on disk
-		},
-		StartOffset: 1260388352,
-		YamlIndex:   3,
+	GadgetStructure: &gadget.VolumeStructure{
+		VolumeName: "pc",
+		Name:       "Writable",
+		Size:       1258291200,
+		Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+		Role:       "system-data",
+		Label:      "ubuntu-data",
+		Filesystem: "ext4",
+		// Note the DiskIndex appears to be the same as the YamlIndex, but this is
+		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
+		// yaml structure (the MBR) that does not appear on disk
 	},
-)
+	StartOffset: 1260388352,
+	YamlIndex:   3,
+}
 
-var mockOnDiskAndLaidoutStructureSave = install.MockOnDiskAndLaidoutStructure(
-	&gadget.OnDiskStructure{
+var mockLaidoutStructureSave = gadget.LaidOutStructure{
+	OnDiskStructure: gadget.OnDiskStructure{
 		Node:        "/dev/node3",
 		Name:        "Save",
 		Size:        128 * quantity.SizeMiB,
@@ -201,23 +199,21 @@ var mockOnDiskAndLaidoutStructureSave = install.MockOnDiskAndLaidoutStructure(
 		// yaml structure (the MBR) that does not appear on disk
 		DiskIndex: 3,
 	},
-	&gadget.LaidOutStructure{
-		GadgetStructure: &gadget.VolumeStructure{
-			VolumeName: "pc",
-			Name:       "Save",
-			Label:      "ubuntu-save",
-			Size:       128 * quantity.SizeMiB,
-			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			Role:       "system-save",
-			Filesystem: "ext4",
-		},
-		StartOffset: 1260388352,
-		YamlIndex:   3,
+	GadgetStructure: &gadget.VolumeStructure{
+		VolumeName: "pc",
+		Name:       "Save",
+		Label:      "ubuntu-save",
+		Size:       128 * quantity.SizeMiB,
+		Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+		Role:       "system-save",
+		Filesystem: "ext4",
 	},
-)
+	StartOffset: 1260388352,
+	YamlIndex:   3,
+}
 
-var mockOnDiskAndLaidoutStructureWritableAfterSave = install.MockOnDiskAndLaidoutStructure(
-	&gadget.OnDiskStructure{
+var mockLaidoutStructureWritableAfterSave = gadget.LaidOutStructure{
+	OnDiskStructure: gadget.OnDiskStructure{
 		Node: "/dev/node4",
 		Name: "Writable",
 		// expanded to fill the disk
@@ -231,20 +227,18 @@ var mockOnDiskAndLaidoutStructureWritableAfterSave = install.MockOnDiskAndLaidou
 		// yaml structure (the MBR) that does not appear on disk
 		DiskIndex: 4,
 	},
-	&gadget.LaidOutStructure{
-		GadgetStructure: &gadget.VolumeStructure{
-			VolumeName: "pc",
-			Name:       "Writable",
-			Size:       1200 * quantity.SizeMiB,
-			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			Role:       "system-data",
-			Label:      "ubuntu-data",
-			Filesystem: "ext4",
-		},
-		StartOffset: 1394606080,
-		YamlIndex:   4,
+	GadgetStructure: &gadget.VolumeStructure{
+		VolumeName: "pc",
+		Name:       "Writable",
+		Size:       1200 * quantity.SizeMiB,
+		Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+		Role:       "system-data",
+		Label:      "ubuntu-data",
+		Filesystem: "ext4",
 	},
-)
+	StartOffset: 1394606080,
+	YamlIndex:   4,
+}
 
 type uc20Model struct{}
 
@@ -278,9 +272,9 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 /dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
 `)
 	c.Check(create, NotNil)
-	c.Assert(create, DeepEquals, []install.OnDiskAndLaidoutStructure{
-		mockOnDiskAndLaidoutStructureSave,
-		mockOnDiskAndLaidoutStructureWritableAfterSave,
+	c.Assert(create, DeepEquals, []gadget.LaidOutStructure{
+		mockLaidoutStructureSave,
+		mockLaidoutStructureWritableAfterSave,
 	})
 }
 
@@ -325,10 +319,10 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	defer cmdUdevadm.Restore()
 
 	calls := 0
-	restore = install.MockEnsureNodesExist(func(ds []install.OnDiskAndLaidoutStructure, timeout time.Duration) error {
+	restore = install.MockEnsureNodesExist(func(los []gadget.LaidOutStructure, timeout time.Duration) error {
 		calls++
-		c.Assert(ds, HasLen, 1)
-		c.Assert(install.OnDiskFromOnDiskAndLaidoutStructure(ds[0]).Node, Equals, "/dev/node3")
+		c.Assert(los, HasLen, 1)
+		c.Assert(los[0].Node, Equals, "/dev/node3")
 		return nil
 	})
 	defer restore()
@@ -345,7 +339,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	}
 	created, err := install.TestCreateMissingPartitions(dl, pv, opts)
 	c.Assert(err, IsNil)
-	c.Assert(created, DeepEquals, []install.OnDiskAndLaidoutStructure{mockOnDiskAndLaidoutStructureWritable})
+	c.Assert(created, DeepEquals, []gadget.LaidOutStructure{mockLaidoutStructureWritable})
 	c.Assert(calls, Equals, 1)
 
 	// Check partition table write
@@ -377,20 +371,17 @@ func (s *partitionTestSuite) TestCreatePartitionsNonRolePartitions(c *C) {
 	defer cmdUdevadm.Restore()
 
 	calls := 0
-	restore = install.MockEnsureNodesExist(func(ds []install.OnDiskAndLaidoutStructure, timeout time.Duration) error {
+	restore = install.MockEnsureNodesExist(func(ds []gadget.LaidOutStructure, timeout time.Duration) error {
 		calls++
 		c.Assert(ds, HasLen, 3)
 		// Ensure all partitions are created as asked for via
 		// the install.CreateOptions
-		onDisk0 := install.OnDiskFromOnDiskAndLaidoutStructure(ds[0])
-		onDisk1 := install.OnDiskFromOnDiskAndLaidoutStructure(ds[1])
-		onDisk2 := install.OnDiskFromOnDiskAndLaidoutStructure(ds[2])
-		c.Assert(onDisk0.Node, Equals, "/dev/node1")
-		c.Assert(onDisk0.Name, Equals, "BIOS Boot")
-		c.Assert(onDisk1.Node, Equals, "/dev/node2")
-		c.Assert(onDisk1.Name, Equals, "Recovery")
-		c.Assert(onDisk2.Node, Equals, "/dev/node3")
-		c.Assert(onDisk2.Name, Equals, "Writable")
+		c.Assert(ds[0].Node, Equals, "/dev/node1")
+		c.Assert(ds[0].Name, Equals, "BIOS Boot")
+		c.Assert(ds[1].Node, Equals, "/dev/node2")
+		c.Assert(ds[1].Name, Equals, "Recovery")
+		c.Assert(ds[2].Node, Equals, "/dev/node3")
+		c.Assert(ds[2].Name, Equals, "Writable")
 		return nil
 	})
 	defer restore()
@@ -819,13 +810,9 @@ func (s *partitionTestSuite) TestEnsureNodesExist(c *C) {
 		cmdUdevadm := testutil.MockCommand(c, "udevadm", fmt.Sprintf(mockUdevadmScript, tc.utErr))
 		defer cmdUdevadm.Restore()
 
-		ds := []install.OnDiskAndLaidoutStructure{
-			install.MockOnDiskAndLaidoutStructure(
-				&gadget.OnDiskStructure{Node: node},
-				&gadget.LaidOutStructure{},
-			),
-		}
-		err = install.EnsureNodesExist(ds, 10*time.Millisecond)
+		los := []gadget.LaidOutStructure{{
+			OnDiskStructure: gadget.OnDiskStructure{Node: node}}}
+		err = install.EnsureNodesExist(los, 10*time.Millisecond)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -843,15 +830,11 @@ func (s *partitionTestSuite) TestEnsureNodesExistTimeout(c *C) {
 	defer cmdUdevadm.Restore()
 
 	node := filepath.Join(c.MkDir(), "node")
-	ds := []install.OnDiskAndLaidoutStructure{
-		install.MockOnDiskAndLaidoutStructure(
-			&gadget.OnDiskStructure{Node: node},
-			&gadget.LaidOutStructure{},
-		),
-	}
+	los := []gadget.LaidOutStructure{{
+		OnDiskStructure: gadget.OnDiskStructure{Node: node}}}
 	t := time.Now()
 	timeout := 1 * time.Second
-	err := install.EnsureNodesExist(ds, timeout)
+	err := install.EnsureNodesExist(los, timeout)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("device %s not available", node))
 	c.Assert(time.Since(t) >= timeout, Equals, true)
 	c.Assert(cmdUdevadm.Calls(), HasLen, 0)
