@@ -473,6 +473,11 @@ func tryFileUpdate(path string, desiredContent []byte) (old *osutil.MemoryFileSt
 
 type ServiceQuotaMap map[*snap.AppInfo]*quota.Group
 
+// MakeServiceQuotaMap builds a map of services and their quota groups. The goal is
+// to make sure that if any quota group applies to a snap service, then we can easily
+// look it up in this based on it's snap.AppInfo. We take the snap instance name, the services
+// want to include in the map (should only be services of the snap name provided) and the quota
+// group of the snap.
 func MakeServiceQuotaMap(snapName string, svcs []*snap.AppInfo, grp *quota.Group) ServiceQuotaMap {
 	if len(svcs) == 0 {
 		return nil
@@ -505,7 +510,8 @@ type SnapServiceOptions struct {
 	// QuotaGroup is the quota group for the specified snap.
 	QuotaGroup *quota.Group
 
-	// Services is the snap services that should be updated in the snap.
+	// Services is the map of snap services that have been affected and should
+	// have their services updated.
 	Services ServiceQuotaMap
 }
 
