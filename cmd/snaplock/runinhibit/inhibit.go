@@ -56,6 +56,7 @@ const (
 	HintInhibitedForRefresh Hint = "refresh"
 )
 
+// HintFile returns the full path of the lock file for a specific Snap package
 func HintFile(snapName string) string {
 	return filepath.Join(InhibitDir, snapName+".lock")
 }

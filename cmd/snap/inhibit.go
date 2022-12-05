@@ -34,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/usersession/client"
 )
 
-func tryNotifyRefreshToSnapDesktopIntegration(snapName string) (bool, error) {
+func tryNotifyRefreshViaSnapDesktopIntegrationFlow(snapName string) (bool, error) {
 	// Check if Snapd-Desktop-Integration is available
 	conn, err := dbusutil.SessionBus()
 	if err != nil {
@@ -77,11 +77,11 @@ func waitWhileInhibited(snapName string) error {
 	}
 
 	if isGraphicalSession() {
-		sentDesktopIntegration, err := tryNotifyRefreshToSnapDesktopIntegration(snapName)
+		notifiedDesktopIntegration, err := tryNotifyRefreshViaSnapDesktopIntegrationFlow(snapName)
 		if err != nil {
 			return err
 		}
-		if sentDesktopIntegration {
+		if notifiedDesktopIntegration {
 			return nil
 		}
 		return graphicalSessionFlow(snapName, hint)

@@ -2069,7 +2069,10 @@ func (s *RunSuite) TestRunDebugLog(c *check.C) {
 }
 
 func (s *RunSuite) TestDesktopIntegrationNoDBus(c *check.C) {
-	sent, err := snaprun.TryNotifyRefreshToSnapDesktopIntegration("Test")
+	_, r := logger.MockLogger()
+	defer r()
+
+	sent, err := snaprun.TryNotifyRefreshViaSnapDesktopIntegrationFlow("Test")
 	c.Assert(sent, check.Equals, false)
 	c.Assert(err, check.IsNil)
 }
@@ -2087,6 +2090,9 @@ func makeDBusMethodNotAvailableMessage(c *check.C, msg *dbus.Message) *dbus.Mess
 }
 
 func (s *RunSuite) TestDesktopIntegrationDBusAvailableNoMethod(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	conn, _, err := dbustest.InjectableConnection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		return []*dbus.Message{makeDBusMethodNotAvailableMessage(c, msg)}, nil
 	})
@@ -2095,7 +2101,7 @@ func (s *RunSuite) TestDesktopIntegrationDBusAvailableNoMethod(c *check.C) {
 	restore := dbusutil.MockOnlySessionBusAvailable(conn)
 	defer restore()
 
-	sent, err := snaprun.TryNotifyRefreshToSnapDesktopIntegration("SnapTest")
+	sent, err := snaprun.TryNotifyRefreshViaSnapDesktopIntegrationFlow("SnapTest")
 	c.Assert(sent, check.Equals, false)
 	c.Assert(err, check.IsNil)
 }
@@ -2124,6 +2130,9 @@ func makeDBusMethodAvailableMessage(c *check.C, msg *dbus.Message) *dbus.Message
 }
 
 func (s *RunSuite) TestDesktopIntegrationDBusAvailableMethodWorks(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	conn, _, err := dbustest.InjectableConnection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		return []*dbus.Message{makeDBusMethodAvailableMessage(c, msg)}, nil
 	})
@@ -2132,7 +2141,7 @@ func (s *RunSuite) TestDesktopIntegrationDBusAvailableMethodWorks(c *check.C) {
 	restore := dbusutil.MockOnlySessionBusAvailable(conn)
 	defer restore()
 
-	sent, err := snaprun.TryNotifyRefreshToSnapDesktopIntegration("SnapTest")
+	sent, err := snaprun.TryNotifyRefreshViaSnapDesktopIntegrationFlow("SnapTest")
 	c.Assert(sent, check.Equals, true)
 	c.Assert(err, check.IsNil)
 }
