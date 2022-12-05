@@ -25,12 +25,15 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/godbus/dbus"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -65,13 +68,13 @@ const launcherIntrospectionXML = `
 // https://github.com/snapcore/snapd/pull/7731#pullrequestreview-362900171
 //
 // The current criteria for adding url schemes is:
-// * understanding and documenting the scheme in this file
-// * the scheme itself does not cause xdg-open to open files (eg, file:// or
-//   matching '^[[:alpha:]+\.\-]+:' (from xdg-open source))
-// * verifying that the recipient of the url (ie, what xdg-open calls) won't
-//   process file paths/etc that can be leveraged to break out of the sandbox
-//   (but understanding how the url can drive the recipient application is
-//   important)
+//   - understanding and documenting the scheme in this file
+//   - the scheme itself does not cause xdg-open to open files (eg, file:// or
+//     matching '^[[:alpha:]+\.\-]+:' (from xdg-open source))
+//   - verifying that the recipient of the url (ie, what xdg-open calls) won't
+//     process file paths/etc that can be leveraged to break out of the sandbox
+//     (but understanding how the url can drive the recipient application is
+//     important)
 //
 // This code uses golang's net/url.Parse() which will help ensure the url is
 // ok before passing to xdg-open. xdg-open itself properly quotes the url so
@@ -205,10 +208,29 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 		return makeAccessDeniedError(fmt.Errorf("Supplied URL scheme %q is not allowed", u.Scheme))
 	}
 
-	if err := exec.Command("xdg-open", addr).Run(); err != nil {
+	if u.Scheme == "help" {
+		// This is a hack to allow to find the help files in the confined applications
+		snap, err := snapFromSender(s.conn, sender)
+		if err != nil {
+			return dbus.MakeFailedError(err)
+		}
+		xdg_data_dirs := []string{}
+		xdg_data_dirs = append(xdg_data_dirs, fmt.Sprintf(filepath.Join(dirs.SnapMountDir, snap, "current/usr/share")))
+		for _, dir := range strings.Split(os.Getenv("XDG_DATA_DIRS"), ":") {
+			xdg_data_dirs = append(xdg_data_dirs, dir)
+		}
+
+		cmd := exec.Command("xdg-open", addr)
+		cmd.Env = os.Environ()
+		cmd.Env = append(cmd.Env, fmt.Sprintf("XDG_DATA_DIRS=%s", strings.Join(xdg_data_dirs, ":")))
+
+		err = cmd.Run()
+	} else {
+		err = exec.Command("xdg-open", addr).Run()
+	}
+	if err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
 	}
-
 	return nil
 }
 
