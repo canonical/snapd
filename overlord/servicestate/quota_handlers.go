@@ -576,18 +576,19 @@ type ensureSnapServicesForGroupOptions struct {
 	extraSnaps []string
 }
 
-func filterApps(apps []*snap.AppInfo, include []string) []*snap.AppInfo {
+func filterApps(opts *wrappers.SnapServiceOptions, include []string) *wrappers.SnapServiceOptions {
 	if len(include) == 0 {
-		return apps
+		return opts
 	}
 
-	var out []*snap.AppInfo
-	for _, app := range apps {
-		if strutil.ListContains(include, app.Name) {
-			out = append(out, app)
+	filteredMap := make(wrappers.ServiceQuotaMap)
+	for svc, grp := range opts.Services {
+		if strutil.ListContains(include, svc.Name) {
+			filteredMap[svc] = grp
 		}
 	}
-	return out
+	opts.Services = filteredMap
+	return opts
 }
 
 // affectedSnapServices returns a map of snaps and the services affected
@@ -618,11 +619,11 @@ func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapSer
 		if err != nil {
 			return nil, err
 		}
-		opts, err := SnapServiceOptions(st, info.InstanceName(), filterApps(info.Services(), svcs), opts.allGrps)
+		opts, err := SnapServiceOptions(st, info, opts.allGrps)
 		if err != nil {
 			return nil, err
 		}
-		snapSvcMap[info] = opts
+		snapSvcMap[info] = filterApps(opts, svcs)
 	}
 	return snapSvcMap, nil
 }

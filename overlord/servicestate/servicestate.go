@@ -358,11 +358,11 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 	return nil
 }
 
-// SnapServiceOptions computes the options to configure services for
-// the given snap. It also takes as argument a map of all quota groups as an
-// optimization, the map if non-nil is used in place of checking state for
-// whether or not the specified snap is in a quota group or not. If nil, state
-// is consulted directly instead.
+// SnapServiceOptions computes the list of service quota groups for the given snap
+// and the options they should be configured with. It also takes as argument
+// a map of all quota groups as optimization, the map if non-nil is used in place
+// of checking state for whether the specified snap service is in a quota group.
+// If nil, the map is retrieved from state.
 func SnapServiceOptions(st *state.State, snapInfo *snap.Info, quotaGroups map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
 	// if quotaGroups was not provided to us, then go get that
 	if quotaGroups == nil {
@@ -392,13 +392,13 @@ func SnapServiceOptions(st *state.State, snapInfo *snap.Info, quotaGroups map[st
 	var snapGrp *quota.Group
 	for _, grp := range quotaGroups {
 		if strutil.ListContains(grp.Snaps, snapInfo.InstanceName()) {
-			opts.QuotaGroup = grp
+			snapGrp = grp
 			break
 		}
 	}
 
 	opts.QuotaGroup = snapGrp
-	opts.Services = wrappers.MakeServiceQuotaMap(instanceName, svcs, snapGrp)
+	opts.Services = wrappers.MakeServiceQuotaMap(snapInfo.InstanceName(), snapInfo.Services(), snapGrp)
 	return opts, nil
 }
 

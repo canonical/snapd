@@ -406,7 +406,7 @@ apps:
   command: foo
 `, nil)
 
-	opts, err := servicestate.SnapServiceOptions(st, "foo", fooInfo.Services(), nil)
+	opts, err := servicestate.SnapServiceOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(len(opts.Services), Equals, 0)
 
@@ -419,7 +419,7 @@ apps:
   daemon: simple
 `, nil)
 
-	opts, err = servicestate.SnapServiceOptions(st, "bar", barInfo.Services(), nil)
+	opts, err = servicestate.SnapServiceOptions(st, barInfo, nil)
 	c.Assert(err, IsNil)
 	c.Assert(len(opts.Services), Equals, 1)
 }
