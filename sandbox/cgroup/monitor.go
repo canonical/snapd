@@ -110,31 +110,26 @@ func (iw *inotifyWatcher) removePath(fullPath string) {
 	}
 }
 
-func (iw *inotifyWatcher) processEvent(watch *groupToWatch, event *inotify.Event) bool {
-	var tmpFolders []string
-	// every time an "InDelete" event is received, check if this CGroup is waiting for
-	// that file/folder deletion event
-	for _, fullPath := range watch.folders {
-		if fullPath != event.Name {
-			tmpFolders = append(tmpFolders, fullPath)
-		} else {
+// processDeletedPath checks if the received "path corresponds to the passed
+// CGroup, removing it from the list of folders being watched in that CGroup if
+// needed. It returns TRUE if there remain folders to be monitored in that CGroup,
+// or FALSE if all the folders of that CGroup have been deleted.
+func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath string) bool {
+	for i, fullPath := range watch.folders {
+		if fullPath == deletedPath {
 			// if the folder name is in the list of folders to monitor, decrement the
 			// parent's usage counter, and remove it from the list of folders to watch
 			// in this CGroup (by not adding it to tmpFolders)
 			iw.removePath(fullPath)
+			watch.folders = append(watch.folders[:i], watch.folders[i+1:]...)
 		}
 	}
-	watch.folders = tmpFolders
-	if len(tmpFolders) == 0 {
+	if len(watch.folders) == 0 {
 		// if all the files/folders of this CGroup have been deleted, notify the
 		// client that it is done.
 		watch.channel <- watch.name
-		// By returning FALSE, the caller is notified to remove this CGroup from
-		// the list of watched CGroups.
 		return false
 	}
-	// Returning TRUE means that this CGroup still have files/folders to be
-	// monitored, and must be kept in the CGroup list.
 	return true
 }
 
@@ -147,7 +142,7 @@ func (iw *inotifyWatcher) watcherMainLoop() {
 			}
 			var newGroupList []*groupToWatch
 			for _, watch := range iw.groupList {
-				if iw.processEvent(watch, event) {
+				if iw.processDeletedPath(watch, event.Name) {
 					newGroupList = append(newGroupList, watch)
 				}
 			}
