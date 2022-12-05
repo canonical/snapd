@@ -121,7 +121,6 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		return nil, err
 	}
 
-	var firstErr error
 	for name, snapst := range snapStates {
 		if len(wanted) > 0 && !wanted[name] {
 			continue
@@ -145,8 +144,8 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 					err = nil
 				}
 				info.Publisher, err = assertstate.PublisherStoreAccount(st, seq.SnapID)
-				if err != nil && firstErr == nil {
-					firstErr = err
+				if err != nil {
+					return nil, err
 				}
 				abSnap := aboutSnap{
 					info:   info,
@@ -157,22 +156,15 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 			}
 		} else {
 			info, err = snapst.CurrentInfo()
-			if err == nil {
-				info.Publisher, err = assertstate.PublisherStoreAccount(st, info.SnapID)
-				abSnap := aboutSnap{
-					info:   info,
-					snapst: snapst,
-					health: health,
-				}
-				aboutThis = append(aboutThis, abSnap)
+			if err != nil {
+				return nil, err
 			}
-		}
 
-		if err != nil {
-			// XXX: aggregate instead?
-			if firstErr == nil {
-				firstErr = err
+			info.Publisher, err = assertstate.PublisherStoreAccount(st, info.SnapID)
+			if err != nil {
+				return nil, err
 			}
+
 			abSnap := aboutSnap{
 				info:   info,
 				snapst: snapst,
@@ -183,7 +175,7 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		about = append(about, aboutThis...)
 	}
 
-	return about, firstErr
+	return about, nil
 }
 
 func clientHealthFromHealthstate(h *healthstate.HealthState) *client.SnapHealth {
