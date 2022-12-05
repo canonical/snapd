@@ -576,7 +576,7 @@ type ensureSnapServicesForGroupOptions struct {
 	extraSnaps []string
 }
 
-func filterApps(opts *wrappers.SnapServiceOptions, include []string) *wrappers.SnapServiceOptions {
+func filterSnapServices(opts *wrappers.SnapServiceOptions, include []string) *wrappers.SnapServiceOptions {
 	if len(include) == 0 {
 		return opts
 	}
@@ -623,7 +623,7 @@ func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapSer
 		if err != nil {
 			return nil, err
 		}
-		snapSvcMap[info] = filterApps(opts, svcs)
+		snapSvcMap[info] = filterSnapServices(opts, svcs)
 	}
 	return snapSvcMap, nil
 }
