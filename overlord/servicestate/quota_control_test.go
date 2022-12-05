@@ -106,7 +106,7 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 			c.Assert(grp.Snaps, DeepEquals, expGrp.Snaps)
 
 			// also check on the service file states, but take into account
-			// that the services might be in seperate sub-groups here. If it has
+			// that the services might be in separate sub-groups here. If it has
 			// sub-groups, assume those contain the services
 			if len(expGrp.SubGroups) == 0 {
 				for _, sn := range expGrp.Snaps {

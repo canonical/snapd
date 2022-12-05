@@ -492,7 +492,7 @@ func MakeServiceQuotaMap(snapName string, svcs []*snap.AppInfo, grp *quota.Group
 		}
 
 		// always default to the snap quota group if the service is not
-		// in a seperate one
+		// in a separate one
 		svcGrp := grp.FindQuotaGroupForServiceInSubGroups(fmt.Sprintf("%s.%s", snapName, svc.Name))
 		if svcGrp == nil {
 			svcGrp = grp
