@@ -105,20 +105,33 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 		if len(expGrp.Snaps) != 0 {
 			c.Assert(grp.Snaps, DeepEquals, expGrp.Snaps)
 
-			// also check on the service file states
-			for _, sn := range expGrp.Snaps {
-				// meh assume all services are named svc1
-				slicePath := name
-				if grp.ParentGroup != "" {
-					slicePath = grp.ParentGroup + "/" + name
+			// also check on the service file states, but take into account
+			// that the services might be in seperate sub-groups here. If it has
+			// sub-groups, assume those contain the services
+			if len(expGrp.SubGroups) == 0 {
+				for _, sn := range expGrp.Snaps {
+					// meh assume all services are named svc1
+					slicePath := name
+					if grp.ParentGroup != "" {
+						slicePath = grp.ParentGroup + "/" + name
+					}
+					checkSvcAndSliceState(c, sn+".svc1", slicePath, groupResources)
 				}
-				checkSvcAndSliceState(c, sn+".svc1", slicePath, groupResources)
 			}
 		}
 
 		c.Assert(grp.Services, HasLen, len(expGrp.Services))
 		if len(expGrp.Services) != 0 {
 			c.Assert(grp.Services, DeepEquals, expGrp.Services)
+			for _, svc := range expGrp.Services {
+				slicePath := name
+				parentName := expGrp.ParentGroup
+				for parentName != "" {
+					slicePath = parentName + "/" + slicePath
+					parentName = exp[parentName].ParentGroup
+				}
+				checkSvcAndSliceState(c, svc, slicePath, groupResources)
+			}
 		}
 		c.Assert(grp.SubGroups, HasLen, len(expGrp.SubGroups))
 		if len(expGrp.SubGroups) != 0 {
@@ -559,9 +572,11 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 
 		// CreateQuota for foo2
 		systemctlCallsForCreateQuota("foo/foo2"),
+		systemctlCallsForServiceRestart("test-snap"),
 
 		// EnsureSnapAbsentFromQuota with just test-snap restarted since it is
 		// no longer in the group
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForServiceRestart("test-snap"),
 
 		// EnsureSnapAbsentFromQuota with just test-snap2 restarted since it is no

@@ -982,34 +982,28 @@ func (s *quotaHandlersSuite) TestQuotaSnapMixSnapsWithSubgroupsHappy(c *C) {
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
-	qc := servicestate.QuotaControlAction{
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo",
 		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
-	}
-
-	err := s.callDoQuotaControl(&qc)
+	})
 	c.Assert(err, IsNil)
 
 	// create a subgroup for the foo group, which has neither snaps or subgroups
-	qc2 := servicestate.QuotaControlAction{
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo2",
 		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
 		ParentName:     "foo",
-	}
-
-	err = s.callDoQuotaControl(&qc2)
+	})
 	c.Assert(err, IsNil)
 
 	// now we try to add snaps to the foo group which already has subgroups
-	qc3 := servicestate.QuotaControlAction{
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:    "update",
 		QuotaName: "foo",
 		AddSnaps:  []string{"test-snap"},
-	}
-
-	err = s.callDoQuotaControl(&qc3)
+	})
 	c.Assert(err, IsNil)
 
 	// check that the quota groups was created in the state
@@ -1029,11 +1023,14 @@ func (s *quotaHandlersSuite) TestQuotaSnapMixSnapsWithSubgroupsHappy(c *C) {
 func (s *quotaHandlersSuite) TestQuotaSnapFailToMixSubgroupWithServices(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-
 		// CreateQuota for foo
 		systemctlCallsForSliceStart("foo"),
+		// CreateQuota for foo2 - foo has changed
+		systemctlCallsForServiceRestart("test-snap"),
 
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		// UpdateQuota for foo2 - just the slice changes
+		systemctlCallsForSliceStart("foo/foo2"),
 		systemctlCallsForServiceRestart("test-snap"),
 	))
 	defer r()
@@ -1046,48 +1043,40 @@ func (s *quotaHandlersSuite) TestQuotaSnapFailToMixSubgroupWithServices(c *C) {
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
-	qc := servicestate.QuotaControlAction{
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo",
 		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
 		AddSnaps:       []string{"test-snap"},
-	}
-
-	err := s.callDoQuotaControl(&qc)
+	})
 	c.Assert(err, IsNil)
 
 	// create a subgroup in a group that already has snaps
-	qc2 := servicestate.QuotaControlAction{
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo2",
 		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
 		ParentName:     "foo",
-	}
-
-	err = s.callDoQuotaControl(&qc2)
+	})
 	c.Assert(err, IsNil)
 
 	// then, we try to put another subgroup into the new sub-group, before we add services
 	// this should fail as only one level of sub-grouping is allowed with mixed parents
-	qc3 := servicestate.QuotaControlAction{
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo3",
 		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 4).Build(),
 		ParentName:     "foo2",
-	}
-
-	err = s.callDoQuotaControl(&qc3)
+	})
 	c.Assert(err, ErrorMatches, `cannot update quota "foo2": group "foo2" is invalid: only one level of sub-groups are allowed for groups with snaps`)
 
 	// and at last, we add services from test-snap into the sub-group, which itself already
 	// has a subgroup.
-	qc4 := servicestate.QuotaControlAction{
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:      "update",
 		QuotaName:   "foo2",
 		AddServices: []string{"test-snap.svc1"},
-	}
-
-	err = s.callDoQuotaControl(&qc4)
+	})
 	c.Assert(err, IsNil)
 
 	// now try to trigger the unmixable error by trying to create a new
@@ -1120,11 +1109,14 @@ func (s *quotaHandlersSuite) TestQuotaSnapFailToMixSubgroupWithServices(c *C) {
 func (s *quotaHandlersSuite) TestQuotaSnapFailToMixServicesWithSubgroups(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-
 		// CreateQuota for foo
 		systemctlCallsForSliceStart("foo"),
+		// CreateQuota for foo2 - foo has changed
+		systemctlCallsForServiceRestart("test-snap"),
 
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		// UpdateQuota for foo2 - just the slice changes
+		systemctlCallsForSliceStart("foo/foo2"),
 		systemctlCallsForServiceRestart("test-snap"),
 	))
 	defer r()
@@ -1137,46 +1129,38 @@ func (s *quotaHandlersSuite) TestQuotaSnapFailToMixServicesWithSubgroups(c *C) {
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
-	qc := servicestate.QuotaControlAction{
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo",
 		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
 		AddSnaps:       []string{"test-snap"},
-	}
-
-	err := s.callDoQuotaControl(&qc)
+	})
 	c.Assert(err, IsNil)
 
 	// create a subgroup in a group that already has snaps
-	qc2 := servicestate.QuotaControlAction{
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo2",
 		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
 		ParentName:     "foo",
-	}
-
-	err = s.callDoQuotaControl(&qc2)
+	})
 	c.Assert(err, IsNil)
 
 	// add services to the new sub group
-	qc3 := servicestate.QuotaControlAction{
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:      "update",
 		QuotaName:   "foo2",
 		AddServices: []string{"test-snap.svc1"},
-	}
-
-	err = s.callDoQuotaControl(&qc3)
+	})
 	c.Assert(err, IsNil)
 
 	// now we try to create a sub-group in foo2, this should fail
-	qc4 := servicestate.QuotaControlAction{
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo3",
 		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 4).Build(),
 		ParentName:     "foo2",
-	}
-
-	err = s.callDoQuotaControl(&qc4)
+	})
 	c.Assert(err, ErrorMatches, `cannot mix sub groups with services in the same group`)
 
 	// check that the quota groups was created in the state
@@ -1400,11 +1384,14 @@ func (s *quotaHandlersSuite) TestQuotaSnapFailToUpdateServicesAndJournalQuotaToG
 func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServices(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-
 		// CreateQuota for foo
 		systemctlCallsForSliceStart("foo"),
+		// CreateQuota for foo2 - foo has changed
+		systemctlCallsForServiceRestart("test-snap"),
 
-		// UpdateQuota for foo2 - just the slice changes
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		// UpdateQuota for foo - just the slice changes
+		systemctlCallsForSliceStart("foo/foo2"),
 		systemctlCallsForServiceRestart("test-snap"),
 	))
 	defer r()
@@ -1417,35 +1404,29 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServices(c *C) {
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
-	qc := servicestate.QuotaControlAction{
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo",
 		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
 		AddSnaps:       []string{"test-snap"},
-	}
-
-	err := s.callDoQuotaControl(&qc)
+	})
 	c.Assert(err, IsNil)
 
 	// create a subgroup in a group that already has snaps
-	qc2 := servicestate.QuotaControlAction{
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo2",
 		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
 		ParentName:     "foo",
-	}
-
-	err = s.callDoQuotaControl(&qc2)
+	})
 	c.Assert(err, IsNil)
 
 	// and at last, we add services from test-snap into the sub-group
-	qc3 := servicestate.QuotaControlAction{
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:      "update",
 		QuotaName:   "foo2",
 		AddServices: []string{"test-snap.svc1"},
-	}
-
-	err = s.callDoQuotaControl(&qc3)
+	})
 	c.Assert(err, IsNil)
 
 	// check that the quota groups was created in the state
@@ -1597,7 +1578,12 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapAndServicesFailExistingServices
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		// CreateQuota for foo
 		systemctlCallsForSliceStart("foo"),
-		// CreateQuota for foo2
+		// CreateQuota for foo2 - foo has changed
+		systemctlCallsForServiceRestart("test-snap"),
+
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		// CreateQuota for foo-sub
+		systemctlCallsForSliceStart("foo/foo-sub"),
 		systemctlCallsForServiceRestart("test-snap"),
 	))
 	defer r()
@@ -1819,8 +1805,10 @@ func (s *quotaHandlersSuite) TestQuotaSnapCorrectlyDetectErrorsIfCreatingSubgrou
 
 		// CreateQuota for foo3
 		systemctlCallsForSliceStart("foo/foo2/foo3"),
+		systemctlCallsForServiceRestart("test-snap"),
 
 		// UpdateQuota for foo - just the slice changes
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForServiceRestart("test-snap"),
 	))
 	defer r()
@@ -2979,7 +2967,7 @@ func (s *quotaHandlersSuite) checkServiceMap(c *C, obtained map[*snap.Info]*wrap
 		expectedSvcs, ok := expected[info.InstanceName()]
 		c.Assert(ok, Equals, true)
 		c.Assert(len(opts.Services), Equals, len(expectedSvcs))
-		for _, svc := range opts.Services {
+		for svc, _ := range opts.Services {
 			c.Assert(strutil.ListContains(expectedSvcs, svc.Name), Equals, true)
 		}
 	}

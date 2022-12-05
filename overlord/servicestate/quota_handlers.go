@@ -609,9 +609,7 @@ func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapSer
 		parts := strings.Split(sn, ".")
 		snapName := parts[0]
 		svcName := parts[1]
-		services := snapServices[snapName]
-		services = append(services, svcName)
-		snapServices[snapName] = services
+		snapServices[snapName] = append(snapServices[snapName], svcName)
 	}
 
 	snapSvcMap := map[*snap.Info]*wrappers.SnapServiceOptions{}

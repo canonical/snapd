@@ -473,7 +473,11 @@ func tryFileUpdate(path string, desiredContent []byte) (old *osutil.MemoryFileSt
 
 type ServiceQuotaMap map[*snap.AppInfo]*quota.Group
 
-func MakeServiceQuotaMap(svcs []*snap.AppInfo, grp *quota.Group) ServiceQuotaMap {
+func MakeServiceQuotaMap(snapName string, svcs []*snap.AppInfo, grp *quota.Group) ServiceQuotaMap {
+	if len(svcs) == 0 {
+		return nil
+	}
+
 	svcQuotaMap := make(ServiceQuotaMap, len(svcs))
 	for _, svc := range svcs {
 		// set nil grps for all services if parent is nil
@@ -484,7 +488,7 @@ func MakeServiceQuotaMap(svcs []*snap.AppInfo, grp *quota.Group) ServiceQuotaMap
 
 		// always default to the snap quota group if the service is not
 		// in a seperate one
-		svcGrp := grp.FindQuotaGroupForServiceInSubGroups(svc.Name)
+		svcGrp := grp.FindQuotaGroupForServiceInSubGroups(fmt.Sprintf("%s.%s", snapName, svc.Name))
 		if svcGrp == nil {
 			svcGrp = grp
 		}
@@ -722,7 +726,7 @@ func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaG
 
 		// default to all services no quota group if svcQuotaMap is unset
 		if svcQuotaMap == nil {
-			svcQuotaMap = MakeServiceQuotaMap(s.Services(), nil)
+			svcQuotaMap = MakeServiceQuotaMap(s.InstanceName(), s.Services(), nil)
 		}
 
 		if err := es.ensureSnapServiceSystemdUnits(svcQuotaMap, genServiceOpts); err != nil {
@@ -944,7 +948,7 @@ func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter Interacte
 		s: {
 			VitalityRank: opts.VitalityRank,
 			QuotaGroup:   opts.QuotaGroup,
-			Services:     MakeServiceQuotaMap(s.Services(), opts.QuotaGroup),
+			Services:     MakeServiceQuotaMap(s.InstanceName(), s.Services(), opts.QuotaGroup),
 		},
 	}
 	ensureOpts := &EnsureSnapServicesOptions{
