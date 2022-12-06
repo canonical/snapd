@@ -36,7 +36,7 @@ func sod(t time.Time) time.Time {
 // consumption.
 // Human(t)  --> "today at 07:47"
 func Human(then time.Time) string {
-	return humanTimeSince(then.Local(), time.Now().Local(), 60)
+	return humanTimeSince(then.Local(), timeNow().Local(), 60)
 }
 
 func delta(then, now time.Time) int {
@@ -77,4 +77,10 @@ func humanTimeSince(then, now time.Time, cutoffDays int) string {
 		// the following message is brought to you by Joel Armando, the self-described awesome and sexy mathematician.
 		panic("you have broken the law of trichotomy! ℤ is no longer totally ordered! chaos ensues!")
 	}
+}
+
+func MockTimeNow(f func() time.Time) (restorer func()) {
+	origTimeNow := timeNow
+	timeNow = f
+	return func() { timeNow = origTimeNow }
 }
