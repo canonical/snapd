@@ -136,7 +136,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 		}
 
 		// use the cached copy of all quota groups
-		snapSvcOpts, err := SnapServiceOptions(m.state, info.InstanceName(), allGrps)
+		snapSvcOpts, err := SnapServiceOptions(m.state, info, allGrps)
 		if err != nil {
 			return err
 		}
