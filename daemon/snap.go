@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
@@ -41,9 +42,13 @@ type aboutSnap struct {
 	info   *snap.Info
 	snapst *snapstate.SnapState
 	health *client.SnapHealth
+
+	UserHold   time.Time `json:"user-hold,omitempty"`
+	GatingHold time.Time `json:"gating-hold,omitempty"`
 }
 
-// localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
+// localSnapInfo returns the information about the current snap for the given
+// name plus the SnapState with the active flag and other snap revisions.
 func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 	st.Lock()
 	defer st.Unlock()
@@ -72,11 +77,32 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 		return aboutSnap{}, err
 	}
 
+	userHold, gatingHold, err := getUserAndGatingHolds(st, name)
+	if err != nil {
+		return aboutSnap{}, InternalError("%v", err)
+	}
+
 	return aboutSnap{
-		info:   info,
-		snapst: &snapst,
-		health: clientHealthFromHealthstate(health),
+		info:       info,
+		snapst:     &snapst,
+		health:     clientHealthFromHealthstate(health),
+		UserHold:   userHold,
+		GatingHold: gatingHold,
 	}, nil
+}
+
+func getUserAndGatingHolds(st *state.State, name string) (userHold, gatingHold time.Time, err error) {
+	userHold, err = snapstateSystemHold(st, name)
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+
+	gatingHold, err = snapstateLongestGatingHold(st, name)
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+
+	return userHold, gatingHold, err
 }
 
 // allLocalSnapInfos returns the information about the all current snaps and their SnapStates.
@@ -122,13 +148,23 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 				if err != nil && firstErr == nil {
 					firstErr = err
 				}
-				aboutThis = append(aboutThis, aboutSnap{info, snapst, health})
+				abSnap := aboutSnap{
+					info:   info,
+					snapst: snapst,
+					health: health,
+				}
+				aboutThis = append(aboutThis, abSnap)
 			}
 		} else {
 			info, err = snapst.CurrentInfo()
 			if err == nil {
 				info.Publisher, err = assertstate.PublisherStoreAccount(st, info.SnapID)
-				aboutThis = append(aboutThis, aboutSnap{info, snapst, health})
+				abSnap := aboutSnap{
+					info:   info,
+					snapst: snapst,
+					health: health,
+				}
+				aboutThis = append(aboutThis, abSnap)
 			}
 		}
 
@@ -137,7 +173,12 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 			if firstErr == nil {
 				firstErr = err
 			}
-			continue
+			abSnap := aboutSnap{
+				info:   info,
+				snapst: snapst,
+				health: health,
+			}
+			aboutThis = append(aboutThis, abSnap)
 		}
 		about = append(about, aboutThis...)
 	}
@@ -190,6 +231,8 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 		result.MountedFrom, _ = os.Readlink(result.MountedFrom)
 	}
 	result.Health = about.health
+	result.UserHold = about.UserHold
+	result.GatingHold = about.GatingHold
 
 	return result
 }
