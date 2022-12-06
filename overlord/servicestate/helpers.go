@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 )
 
 // updateSnapstateServices uses ServicesEnabledByHooks and ServicesDisabledByHooks in
@@ -96,4 +97,33 @@ func updateSnapstateServices(snapst *snapstate.SnapState, enable, disable []*sna
 		sort.Strings(snapst.ServicesDisabledByHooks)
 	}
 	return true, nil
+}
+
+// MakeServiceQuotaMap builds a map of services and their quota groups. The goal is
+// to make sure that if any quota group applies to a snap service, then we can easily
+// look it up in this based on it's snap.AppInfo. We take the snap instance name, the services
+// want to include in the map (should only be services of the snap name provided) and the quota
+// group of the snap.
+func MakeServiceQuotaMap(snapName string, svcs []*snap.AppInfo, grp *quota.Group) map[*snap.AppInfo]*quota.Group {
+	if len(svcs) == 0 {
+		return nil
+	}
+
+	svcQuotaMap := make(map[*snap.AppInfo]*quota.Group, len(svcs))
+	for _, svc := range svcs {
+		// set nil grps for all services if parent is nil
+		if grp == nil {
+			svcQuotaMap[svc] = nil
+			continue
+		}
+
+		// always default to the snap quota group if the service is not
+		// in a separate one
+		svcGrp := grp.GroupForService(fmt.Sprintf("%s.%s", snapName, svc.Name))
+		if svcGrp == nil {
+			svcGrp = grp
+		}
+		svcQuotaMap[svc] = svcGrp
+	}
+	return svcQuotaMap
 }

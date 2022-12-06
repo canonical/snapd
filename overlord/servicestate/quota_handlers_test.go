@@ -2966,8 +2966,8 @@ func (s *quotaHandlersSuite) checkServiceMap(c *C, obtained map[*snap.Info]*wrap
 	for info, opts := range obtained {
 		expectedSvcs, ok := expected[info.InstanceName()]
 		c.Assert(ok, Equals, true)
-		c.Assert(len(opts.Services), Equals, len(expectedSvcs))
-		for svc := range opts.Services {
+		c.Assert(len(opts.ServiceQuotaMap), Equals, len(expectedSvcs))
+		for svc := range opts.ServiceQuotaMap {
 			c.Assert(strutil.ListContains(expectedSvcs, svc.Name), Equals, true)
 		}
 	}

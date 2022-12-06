@@ -109,7 +109,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.state.Unlock()
 
 	oldSnapServiceOptions := snapstate.SnapServiceOptions
-	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
+	snapstate.SnapServiceOptions = servicestate.SnapServicesOptions
 	bs.AddCleanup(func() {
 		snapstate.SnapServiceOptions = oldSnapServiceOptions
 	})

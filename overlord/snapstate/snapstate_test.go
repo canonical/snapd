@@ -160,7 +160,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	snapstate.SetupPreRefreshHook = hookstate.SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = hookstate.SetupPostRefreshHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
-	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
+	snapstate.SnapServiceOptions = servicestate.SnapServicesOptions
 	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
 
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {

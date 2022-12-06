@@ -471,37 +471,6 @@ func tryFileUpdate(path string, desiredContent []byte) (old *osutil.MemoryFileSt
 	}
 }
 
-type ServiceQuotaMap map[*snap.AppInfo]*quota.Group
-
-// MakeServiceQuotaMap builds a map of services and their quota groups. The goal is
-// to make sure that if any quota group applies to a snap service, then we can easily
-// look it up in this based on it's snap.AppInfo. We take the snap instance name, the services
-// want to include in the map (should only be services of the snap name provided) and the quota
-// group of the snap.
-func MakeServiceQuotaMap(snapName string, svcs []*snap.AppInfo, grp *quota.Group) ServiceQuotaMap {
-	if len(svcs) == 0 {
-		return nil
-	}
-
-	svcQuotaMap := make(ServiceQuotaMap, len(svcs))
-	for _, svc := range svcs {
-		// set nil grps for all services if parent is nil
-		if grp == nil {
-			svcQuotaMap[svc] = nil
-			continue
-		}
-
-		// always default to the snap quota group if the service is not
-		// in a separate one
-		svcGrp := grp.GroupForService(fmt.Sprintf("%s.%s", snapName, svc.Name))
-		if svcGrp == nil {
-			svcGrp = grp
-		}
-		svcQuotaMap[svc] = svcGrp
-	}
-	return svcQuotaMap
-}
-
 type SnapServicesOptions struct {
 	// VitalityRank is the rank of all services in the specified snap used by
 	// the OOM killer when OOM conditions are reached.
@@ -510,9 +479,9 @@ type SnapServicesOptions struct {
 	// QuotaGroup is the quota group for the specified snap.
 	QuotaGroup *quota.Group
 
-	// Services is the map of snap services that have been affected and should
+	// ServiceQuotaMap is the map of snap services that have been affected and should
 	// have their services updated.
-	Services ServiceQuotaMap
+	ServiceQuotaMap map[*snap.AppInfo]*quota.Group
 }
 
 // ObserveChangeCallback can be invoked by EnsureSnapServices to observe
@@ -619,7 +588,7 @@ func (es *ensureSnapServicesContext) reloadModified() error {
 
 // ensureSnapServiceSystemdUnits takes care of writing .service files for all services
 // registered in snap.Info apps.
-func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(svcQuotaMap ServiceQuotaMap, opts *AddSnapServicesOptions) error {
+func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(svcQuotaMap map[*snap.AppInfo]*quota.Group, opts *AddSnapServicesOptions) error {
 	handleFileModification := func(app *snap.AppInfo, unitType string, name, path string, content []byte) error {
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
@@ -706,35 +675,25 @@ func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaG
 		if s.Type() == snap.TypeSnapd {
 			return nil, fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
 		}
+		if snapSvcOpts == nil {
+			return nil, fmt.Errorf("internal error: no service options provided for snap %q", s.InstanceName())
+		}
 
 		// always use RequireMountedSnapdSnap options from the global options
 		genServiceOpts := &AddSnapServicesOptions{
 			RequireMountedSnapdSnap: es.opts.RequireMountedSnapdSnap,
+			VitalityRank:            snapSvcOpts.VitalityRank,
+			QuotaGroup:              snapSvcOpts.QuotaGroup,
 		}
-
-		var svcQuotaMap ServiceQuotaMap
-		if snapSvcOpts != nil {
-			// and if there are per-snap options specified, use that for
-			// VitalityRank
-			genServiceOpts.VitalityRank = snapSvcOpts.VitalityRank
-			genServiceOpts.QuotaGroup = snapSvcOpts.QuotaGroup
-
-			if snapSvcOpts.QuotaGroup != nil {
-				if err := neededQuotaGrps.AddAllNecessaryGroups(snapSvcOpts.QuotaGroup); err != nil {
-					// this error can basically only be a circular reference
-					// in the quota group tree
-					return nil, err
-				}
+		if snapSvcOpts.QuotaGroup != nil {
+			if err := neededQuotaGrps.AddAllNecessaryGroups(snapSvcOpts.QuotaGroup); err != nil {
+				// this error can basically only be a circular reference
+				// in the quota group tree
+				return nil, err
 			}
-
-			svcQuotaMap = snapSvcOpts.Services
 		}
 
-		// default to all services no quota group if svcQuotaMap is unset
-		if svcQuotaMap == nil {
-			svcQuotaMap = MakeServiceQuotaMap(s.InstanceName(), s.Services(), nil)
-		}
-
+		svcQuotaMap := snapSvcOpts.ServiceQuotaMap
 		if err := es.ensureSnapServiceSystemdUnits(svcQuotaMap, genServiceOpts); err != nil {
 			return nil, err
 		}
@@ -941,27 +900,6 @@ type AddSnapServicesOptions struct {
 	// case there is not a running systemd for EnsureSnapServicesOptions to
 	// issue commands like systemctl daemon-reload to.
 	Preseeding bool
-}
-
-// AddSnapServices adds service units for the applications from the snap which
-// are services. The services do not get enabled or started.
-func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter Interacter) error {
-	if opts == nil {
-		opts = &AddSnapServicesOptions{}
-	}
-
-	m := map[*snap.Info]*SnapServicesOptions{
-		s: {
-			VitalityRank: opts.VitalityRank,
-			QuotaGroup:   opts.QuotaGroup,
-			Services:     MakeServiceQuotaMap(s.InstanceName(), s.Services(), opts.QuotaGroup),
-		},
-	}
-	ensureOpts := &EnsureSnapServicesOptions{
-		Preseeding:              opts.Preseeding,
-		RequireMountedSnapdSnap: opts.RequireMountedSnapdSnap,
-	}
-	return EnsureSnapServices(m, ensureOpts, nil, inter)
 }
 
 // StopServicesFlags carries extra flags for StopServices.

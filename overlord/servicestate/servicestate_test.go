@@ -297,17 +297,17 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsVitalityRank(c *C) {
 	barInfo := snaptest.MockInfo(c, "name: bar\nversion: 0", nil)
 	bazInfo := snaptest.MockInfo(c, "name: baz\nversion: 0", nil)
 
-	opts, err := servicestate.SnapServiceOptions(st, fooInfo, nil)
+	opts, err := servicestate.SnapServicesOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{
 		VitalityRank: 2,
 	})
-	opts, err = servicestate.SnapServiceOptions(st, barInfo, nil)
+	opts, err = servicestate.SnapServicesOptions(st, barInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{
 		VitalityRank: 1,
 	})
-	opts, err = servicestate.SnapServiceOptions(st, bazInfo, nil)
+	opts, err = servicestate.SnapServicesOptions(st, bazInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{
 		VitalityRank: 0,
@@ -337,7 +337,7 @@ version: 0
 		"foogroup": grp,
 	})
 
-	opts, err := servicestate.SnapServiceOptions(st, fooInfo, nil)
+	opts, err := servicestate.SnapServicesOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{
 		QuotaGroup: grp,
@@ -358,7 +358,7 @@ version: 0
 
 	// we can still get the quota group using the local map we got before
 	// modifying state
-	opts, err = servicestate.SnapServiceOptions(st, fooInfo, grps)
+	opts, err = servicestate.SnapServicesOptions(st, fooInfo, grps)
 	c.Assert(err, IsNil)
 	grp.Snaps = []string{"foosnap"}
 	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{
@@ -366,14 +366,14 @@ version: 0
 	})
 
 	// but using state produces nothing for the non-instance name snap
-	opts, err = servicestate.SnapServiceOptions(st, fooInfo, nil)
+	opts, err = servicestate.SnapServicesOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{})
 
 	// but it does work with instance names
 	fooInfo.InstanceKey = "instance"
 	grp.Snaps = []string{"foosnap_instance"}
-	opts, err = servicestate.SnapServiceOptions(st, fooInfo, nil)
+	opts, err = servicestate.SnapServicesOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{
 		QuotaGroup: grp,
@@ -385,7 +385,7 @@ version: 0
 	c.Assert(err, IsNil)
 	t.Commit()
 
-	opts, err = servicestate.SnapServiceOptions(st, fooInfo, nil)
+	opts, err = servicestate.SnapServicesOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{
 		VitalityRank: 2,
@@ -406,9 +406,9 @@ apps:
   command: foo
 `, nil)
 
-	opts, err := servicestate.SnapServiceOptions(st, fooInfo, nil)
+	opts, err := servicestate.SnapServicesOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
-	c.Check(len(opts.Services), Equals, 0)
+	c.Check(len(opts.ServiceQuotaMap), Equals, 0)
 
 	barInfo := snaptest.MockInfo(c, `
 name: bar
@@ -419,9 +419,9 @@ apps:
   daemon: simple
 `, nil)
 
-	opts, err = servicestate.SnapServiceOptions(st, barInfo, nil)
+	opts, err = servicestate.SnapServicesOptions(st, barInfo, nil)
 	c.Assert(err, IsNil)
-	c.Assert(len(opts.Services), Equals, 1)
+	c.Assert(len(opts.ServiceQuotaMap), Equals, 1)
 }
 
 func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {

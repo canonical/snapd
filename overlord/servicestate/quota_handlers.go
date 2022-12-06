@@ -581,13 +581,13 @@ func filterSnapServices(opts *wrappers.SnapServicesOptions, include []string) *w
 		return opts
 	}
 
-	filteredMap := make(wrappers.ServiceQuotaMap)
-	for svc, grp := range opts.Services {
+	filteredMap := make(map[*snap.AppInfo]*quota.Group)
+	for svc, grp := range opts.ServiceQuotaMap {
 		if strutil.ListContains(include, svc.Name) {
 			filteredMap[svc] = grp
 		}
 	}
-	opts.Services = filteredMap
+	opts.ServiceQuotaMap = filteredMap
 	return opts
 }
 
@@ -619,7 +619,7 @@ func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapSer
 		if err != nil {
 			return nil, err
 		}
-		opts, err := SnapServiceOptions(st, info, opts.allGrps)
+		opts, err := SnapServicesOptions(st, info, opts.allGrps)
 		if err != nil {
 			return nil, err
 		}

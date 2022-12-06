@@ -136,7 +136,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 		}
 
 		// use the cached copy of all quota groups
-		snapSvcOpts, err := SnapServiceOptions(m.state, info, allGrps)
+		snapSvcOpts, err := SnapServicesOptions(m.state, info, allGrps)
 		if err != nil {
 			return err
 		}
@@ -210,7 +210,7 @@ func (m *ServiceManager) Ensure() error {
 func delayedCrossMgrInit() {
 	// hook into conflict checks mechanisms
 	snapstate.RegisterAffectedSnapsByAttr("service-action", serviceControlAffectedSnaps)
-	snapstate.SnapServiceOptions = SnapServiceOptions
+	snapstate.SnapServiceOptions = SnapServicesOptions
 	snapstate.EnsureSnapAbsentFromQuotaGroup = EnsureSnapAbsentFromQuota
 }
 

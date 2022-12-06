@@ -21,6 +21,7 @@ package patch
 
 import (
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -39,7 +40,7 @@ func (log) Notify(status string) {
 }
 
 // patch5:
-//  - regenerate generated .service files
+//   - regenerate generated .service files
 func patch5(st *state.State) error {
 	log := log{}
 
@@ -71,7 +72,11 @@ func patch5(st *state.State) error {
 			return err
 		}
 
-		err = wrappers.AddSnapServices(info, nil, log)
+		err = wrappers.EnsureSnapServices(map[*snap.Info]*wrappers.SnapServicesOptions{
+			info: {
+				ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
+			},
+		}, nil, nil, log)
 		if err != nil {
 			return err
 		}
