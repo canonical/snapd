@@ -189,8 +189,14 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
 			logger.Noticef("cannot get state of snap %q: %s", snapName, err)
+			return interfaces.ConfinementOptions{}
 		}
-		opts, err := buildConfinementOptions(m.state, snapst.InstanceName(), snapst.Flags)
+		snapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			logger.Noticef("cannot get current info for snap %q: %s", snapName, err)
+			return interfaces.ConfinementOptions{}
+		}
+		opts, err := buildConfinementOptions(m.state, snapInfo, snapst.Flags)
 		if err != nil {
 			logger.Noticef("cannot get confinement options for snap %q: %s", snapName, err)
 		}

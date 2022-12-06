@@ -82,7 +82,7 @@
 
 
 Name:           snapd
-Version:        2.57.6
+Version:        2.58
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -272,11 +272,12 @@ done
 %install
 # Install all systemd and dbus units, and env files.
 %make_install -C %{indigo_srcdir}/data \
-		BINDIR=%{_bindir} \
-		LIBEXECDIR=%{_libexecdir} \
-		DATADIR=%{_datadir} \
-		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
-		SNAP_MOUNT_DIR=%{snap_mount_dir}
+        BINDIR=%{_bindir} \
+        LIBEXECDIR=%{_libexecdir} \
+        DATADIR=%{_datadir} \
+        SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
+        SNAP_MOUNT_DIR=%{snap_mount_dir} \
+        TMPFILESDIR="%{_tmpfilesdir}"
 # Install all the C executables.
 %make_install -C %{indigo_srcdir}/cmd
 # Use the common packaging helper for bulk of installation.

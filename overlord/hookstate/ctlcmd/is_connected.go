@@ -48,7 +48,7 @@ type isConnectedCommand struct {
 	AppArmorLabel string `long:"apparmor-label" description:"AppArmor label for a plausibly connected process"`
 }
 
-var shortIsConnectedHelp = i18n.G(`Return success if the given plug or slot is connected, and failure otherwise`)
+var shortIsConnectedHelp = i18n.G(`Return success if the given plug or slot is connected`)
 var longIsConnectedHelp = i18n.G(`
 The is-connected command returns success if the given plug or slot of the
 calling snap is connected, and failure otherwise.

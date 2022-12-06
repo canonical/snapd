@@ -62,7 +62,7 @@ import (
 )
 
 // SnapServiceOptions is a hook set by servicestate.
-var SnapServiceOptions = func(st *state.State, instanceName string, grps map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
+var SnapServiceOptions = func(st *state.State, snapInfo *snap.Info, grps map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
 	panic("internal error: snapstate.SnapServiceOptions is unset")
 }
 
@@ -1179,7 +1179,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	snapst.Active = true
 
-	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
+	opts, err := SnapServiceOptions(st, oldInfo, nil)
 	if err != nil {
 		return err
 	}
@@ -1731,7 +1731,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
-	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
+	opts, err := SnapServiceOptions(st, newInfo, nil)
 	if err != nil {
 		return err
 	}
@@ -2753,7 +2753,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = true
 	Set(st, snapsup.InstanceName(), snapst)
 
-	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
+	opts, err := SnapServiceOptions(st, info, nil)
 	if err != nil {
 		return err
 	}

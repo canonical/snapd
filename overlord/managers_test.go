@@ -790,7 +790,7 @@ apps:
 	tr.Commit()
 
 	// put the snap in a quota group
-	err := servicestatetest.MockQuotaInState(st, "quota-grp", "", []string{"foo"},
+	err := servicestatetest.MockQuotaInState(st, "quota-grp", "", []string{"foo"}, nil,
 		quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
 

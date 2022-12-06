@@ -43,9 +43,9 @@ type setCommand struct {
 	Typed  bool `short:"t" description:"parse the value strictly as JSON document"`
 }
 
-var shortSetHelp = i18n.G("Changes configuration options")
+var shortSetHelp = i18n.G("Set either configuration options or interface connection settings")
 var longSetHelp = i18n.G(`
-The set command changes the provided configuration options as requested.
+The set command sets the provided configuration options as requested.
 
     $ snapctl set username=frank password=$PASSWORD
 
@@ -59,8 +59,8 @@ Nested values may be modified via a dotted path:
 Configuration option may be unset with exclamation mark:
     $ snapctl set author!
 
-Plug and slot attributes may be set in the respective prepare and connect hooks by
-naming the respective plug or slot:
+Plug and slot attributes may be set in the respective prepare and connect hooks
+by naming the respective plug or slot:
 
     $ snapctl set :myplug path=/dev/ttyS0
 `)
