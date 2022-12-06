@@ -131,7 +131,7 @@ func (s *handlersSuite) TestBuildConfinementOptions(c *C) {
 
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
 	flags := snapstate.Flags{}
-	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo.InstanceName(), snapstate.Flags{})
+	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
 
 	c.Check(err, IsNil)
 	c.Check(len(opts.ExtraLayouts), Equals, 0)
@@ -155,7 +155,7 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	c.Assert(err, IsNil)
 
 	flags := snapstate.Flags{}
-	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo.InstanceName(), snapstate.Flags{})
+	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
 
 	c.Check(err, IsNil)
 	c.Assert(len(opts.ExtraLayouts), Equals, 1)
