@@ -1412,9 +1412,9 @@ func isLegacyMBRTransition(from *LaidOutStructure, to *LaidOutStructure) bool {
 }
 
 func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema string) error {
-	if schema == schemaGPT && from.GadgetStructure.Name != to.GadgetStructure.Name {
+	if schema == schemaGPT && from.Name != to.Name {
 		// partition names are only effective when GPT is used
-		return fmt.Errorf("cannot change structure name from %q to %q", from.GadgetStructure.Name, to.GadgetStructure.Name)
+		return fmt.Errorf("cannot change structure name from %q to %q", from.Name, to.Name)
 	}
 	if from.GadgetStructure.Size != to.GadgetStructure.Size {
 		return fmt.Errorf("cannot change structure size from %v to %v", from.GadgetStructure.Size, to.GadgetStructure.Size)
@@ -1448,9 +1448,9 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 			return fmt.Errorf("cannot change filesystem from %q to %q",
 				from.GadgetStructure.Filesystem, to.GadgetStructure.Filesystem)
 		}
-		if from.GadgetStructure.Label != to.GadgetStructure.Label {
+		if from.Label != to.Label {
 			return fmt.Errorf("cannot change filesystem label from %q to %q",
-				from.GadgetStructure.Label, to.GadgetStructure.Label)
+				from.Label, to.Label)
 		}
 	} else {
 		if from.GadgetStructure.HasFilesystem() {

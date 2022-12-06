@@ -170,7 +170,6 @@ func buildPartitionList(dl *gadget.OnDiskVolume, odv *gadget.LaidOutVolume, opts
 		}
 
 		pIndex++
-		s := laidOut.GadgetStructure
 
 		// Skip partitions that are already in the volume
 		startInSectors := uint64(laidOut.StartOffset) / sectorSize
@@ -184,23 +183,23 @@ func buildPartitionList(dl *gadget.OnDiskVolume, odv *gadget.LaidOutVolume, opts
 		}
 
 		// Check if the data partition should be expanded
-		newSizeInSectors := uint64(s.Size) / sectorSize
-		if s.Role == gadget.SystemData && canExpandData && startInSectors+newSizeInSectors < dl.UsableSectorsEnd {
+		newSizeInSectors := uint64(laidOut.Size) / sectorSize
+		if laidOut.GadgetStructure.Role == gadget.SystemData && canExpandData && startInSectors+newSizeInSectors < dl.UsableSectorsEnd {
 			// note that if startInSectors + newSizeInSectors == dl.UsableSectorEnd
 			// then we won't hit this branch, but it would be redundant anyways
 			newSizeInSectors = dl.UsableSectorsEnd - startInSectors
 		}
 
-		ptype := partitionType(dl.Schema, laidOut.GadgetStructure.Type)
+		ptype := partitionType(dl.Schema, laidOut.Type)
 
 		// synthesize the node name and on disk structure
 		node := deviceName(dl.Device, pIndex)
 		// TODO fill in construction of LaidOutStructure instead?
 		laidOut.OnDiskStructure = gadget.OnDiskStructure{
-			Name:        laidOut.GadgetStructure.Name,
-			Label:       laidOut.GadgetStructure.Label,
-			Type:        laidOut.GadgetStructure.Type,
-			Filesystem:  laidOut.GadgetStructure.Filesystem,
+			Name:        laidOut.Name,
+			Label:       laidOut.Label,
+			Type:        laidOut.Type,
+			Filesystem:  laidOut.Filesystem,
 			StartOffset: laidOut.StartOffset,
 			Node:        node,
 			DiskIndex:   pIndex,
@@ -209,7 +208,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, odv *gadget.LaidOutVolume, opts
 
 		// format sfdisk input for creating this partition
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
-			startInSectors, newSizeInSectors, ptype, s.Name)
+			startInSectors, newSizeInSectors, ptype, laidOut.Name)
 
 		toBeCreated = append(toBeCreated, laidOut)
 	}
@@ -312,8 +311,6 @@ func partitionsWithRolesAndContent(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVo
 
 	var loStructures []gadget.LaidOutStructure
 	for _, part := range dl.Structure {
-		// Create per-iter var from loop variable as we store the pointer in odls
-		part := part
 		laidOut := roleForOffset[part.StartOffset]
 		if laidOut == nil || laidOut.GadgetStructure.Role == "" || !strutil.ListContains(roles, laidOut.GadgetStructure.Role) {
 			continue

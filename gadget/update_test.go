@@ -476,45 +476,45 @@ func (u *updateTestSuite) TestCanUpdateBareOrFilesystem(c *C) {
 
 	cases := []canUpdateTestCase{
 		{
-			from: gadget.LaidOutStructure{
+			from: fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
-			},
-			to: gadget.LaidOutStructure{
+			}),
+			to: fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: ""},
-			},
+			}),
 			err: `cannot change a filesystem structure to a bare one`,
 		}, {
-			from: gadget.LaidOutStructure{
+			from: fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: ""},
-			},
-			to: gadget.LaidOutStructure{
+			}),
+			to: fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
-			},
+			}),
 			err: `cannot change a bare structure to filesystem one`,
 		}, {
-			from: gadget.LaidOutStructure{
+			from: fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
-			},
-			to: gadget.LaidOutStructure{
+			}),
+			to: fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "vfat"},
-			},
+			}),
 			err: `cannot change filesystem from "ext4" to "vfat"`,
 		}, {
-			from: gadget.LaidOutStructure{
+			from: fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "writable"},
-			},
-			to: gadget.LaidOutStructure{
+			}),
+			to: fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
-			},
+			}),
 			err: `cannot change filesystem label from "writable" to ""`,
 		}, {
 			// all ok
-			from: gadget.LaidOutStructure{
+			from: fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch"},
-			},
-			to: gadget.LaidOutStructure{
+			}),
+			to: fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch"},
-			},
+			}),
 			err: ``,
 		},
 	}
@@ -525,21 +525,21 @@ func (u *updateTestSuite) TestCanUpdateName(c *C) {
 
 	cases := []canUpdateTestCase{
 		{
-			from: gadget.LaidOutStructure{
+			from: fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &gadget.VolumeStructure{Name: "foo", Type: "0C"},
-			},
-			to: gadget.LaidOutStructure{
+			}),
+			to: fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &gadget.VolumeStructure{Name: "mbr-ok", Type: "0C"},
-			},
+			}),
 			err:    ``,
 			schema: "mbr",
 		}, {
-			from: gadget.LaidOutStructure{
+			from: fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &gadget.VolumeStructure{Name: "foo", Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
-			to: gadget.LaidOutStructure{
+			}),
+			to: fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &gadget.VolumeStructure{Name: "gpt-unhappy", Type: "00000000-0000-0000-0000-dd00deadbeef"},
-			},
+			}),
 			err:    `cannot change structure name from "foo" to "gpt-unhappy"`,
 			schema: "gpt",
 		},

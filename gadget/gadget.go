@@ -874,9 +874,10 @@ func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures 
 				return fmt.Errorf(`structure %q has "mbr" role and must start at offset 0`, ps.Name)
 			}
 		}
-		if ps.GadgetStructure.OffsetWrite != nil && ps.GadgetStructure.OffsetWrite.RelativeTo != "" {
+		if ps.OffsetWrite != nil && ps.OffsetWrite.RelativeTo != "" {
 			// offset-write using a named structure
-			other := knownStructures[ps.GadgetStructure.OffsetWrite.RelativeTo]
+
+			other := knownStructures[ps.OffsetWrite.RelativeTo]
 			if other == nil {
 				return fmt.Errorf("structure %q refers to an unknown structure %q",
 					ps.Name, ps.OffsetWrite.RelativeTo)
@@ -889,11 +890,11 @@ func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures 
 		}
 		previousEnd = *(ps.Offset) + quantity.Offset(ps.Size)
 
-		if ps.GadgetStructure.HasFilesystem() {
+		if ps.HasFilesystem() {
 			// content relative offset only possible if it's a bare structure
 			continue
 		}
-		for cidx, c := range ps.GadgetStructure.Content {
+		for cidx, c := range ps.Content {
 			if c.OffsetWrite == nil || c.OffsetWrite.RelativeTo == "" {
 				continue
 			}
@@ -1191,7 +1192,7 @@ func IsCompatible(current, new *Info) error {
 
 	// layout both volumes partially, without going deep into the layout of
 	// structure content, we only want to make sure that structures are
-	// comapatible
+	// compatible
 	pCurrent, err := LayoutVolumePartially(currentVol, DefaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the current volume: %v", err)

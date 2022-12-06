@@ -77,6 +77,8 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, fsDevice string, o
 	}
 
 	// temporarily mount the filesystem
+	// fs is taken from gadget, as on disk one might be displayed as
+	// crypto_LUKS, which is not useful for formatting.
 	logger.Debugf("mounting %q in %q (fs type %q)", fsDevice, mountpoint, laidOut.GadgetStructure.Filesystem)
 	if err := sysMount(fsDevice, mountpoint, laidOut.GadgetStructure.Filesystem, 0, ""); err != nil {
 		return fmt.Errorf("cannot mount %q at %q: %v", fsDevice, mountpoint, err)

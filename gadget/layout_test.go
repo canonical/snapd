@@ -67,10 +67,11 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 		},
 		Size:    3 * quantity.SizeMiB,
 		RootDir: p.dir,
-		LaidOutStructure: []gadget.LaidOutStructure{{
-			GadgetStructure: &gadget.VolumeStructure{Size: 2 * quantity.SizeMiB},
-			StartOffset:     1 * quantity.OffsetMiB,
-		}},
+		LaidOutStructure: []gadget.LaidOutStructure{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
+				GadgetStructure: &gadget.VolumeStructure{Size: 2 * quantity.SizeMiB},
+				StartOffset:     1 * quantity.OffsetMiB,
+			})},
 	})
 }
 
@@ -106,16 +107,16 @@ volumes:
 		Size:    501 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[0],
 				StartOffset:     1 * quantity.OffsetMiB,
 				YamlIndex:       0,
-			},
-			{
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[1],
 				StartOffset:     401 * quantity.OffsetMiB,
 				YamlIndex:       1,
-			},
+			}),
 		},
 	})
 }
@@ -149,26 +150,26 @@ volumes:
 		Size:    1101 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[0],
 				StartOffset:     1 * quantity.OffsetMiB,
 				YamlIndex:       0,
-			},
-			{
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[1],
 				StartOffset:     401 * quantity.OffsetMiB,
 				YamlIndex:       1,
-			},
-			{
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[2],
 				StartOffset:     901 * quantity.OffsetMiB,
 				YamlIndex:       2,
-			},
-			{
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[3],
 				StartOffset:     1001 * quantity.OffsetMiB,
 				YamlIndex:       3,
-			},
+			}),
 		},
 	})
 }
@@ -206,26 +207,26 @@ volumes:
 		Size:    1300 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[3],
 				StartOffset:     1 * quantity.OffsetMiB,
 				YamlIndex:       3,
-			},
-			{
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[1],
 				StartOffset:     200 * quantity.OffsetMiB,
 				YamlIndex:       1,
-			},
-			{
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[0],
 				StartOffset:     800 * quantity.OffsetMiB,
 				YamlIndex:       0,
-			},
-			{
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[2],
 				StartOffset:     1200 * quantity.OffsetMiB,
 				YamlIndex:       2,
-			},
+			}),
 		},
 	})
 }
@@ -262,26 +263,26 @@ volumes:
 		Size:    1200 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[3],
 				StartOffset:     1 * quantity.OffsetMiB,
 				YamlIndex:       3,
-			},
-			{
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[1],
 				StartOffset:     200 * quantity.OffsetMiB,
 				YamlIndex:       1,
-			},
-			{
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[2],
 				StartOffset:     700 * quantity.OffsetMiB,
 				YamlIndex:       2,
-			},
-			{
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[0],
 				StartOffset:     800 * quantity.OffsetMiB,
 				YamlIndex:       0,
-			},
+			}),
 		},
 	})
 }
@@ -337,10 +338,10 @@ volumes:
 		Size:    1200 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				StartOffset:     800 * quantity.OffsetMiB,
 				GadgetStructure: &vol.Structure[0],
-			},
+			}),
 		},
 	})
 }
@@ -519,7 +520,7 @@ volumes:
 		Size:    3 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[0],
 				StartOffset:     1 * quantity.OffsetMiB,
 				LaidOutContent: []gadget.LaidOutContent{
@@ -536,7 +537,7 @@ volumes:
 						Index:         0,
 					},
 				},
-			},
+			}),
 		},
 	})
 }
@@ -571,7 +572,7 @@ volumes:
 		Size:    3 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[0],
 				StartOffset:     1 * quantity.OffsetMiB,
 				LaidOutContent: []gadget.LaidOutContent{
@@ -588,7 +589,7 @@ volumes:
 						Index:         1,
 					},
 				},
-			},
+			}),
 		},
 	})
 }
@@ -620,7 +621,7 @@ volumes:
 		Size:    3 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[0],
 				StartOffset:     1 * quantity.OffsetMiB,
 				LaidOutContent: []gadget.LaidOutContent{
@@ -630,7 +631,7 @@ volumes:
 						Size:          size1_5MiB,
 					},
 				},
-			},
+			}),
 		},
 	})
 }
@@ -663,7 +664,7 @@ volumes:
 		Size:    3 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				StartOffset:     1 * quantity.OffsetMiB,
 				GadgetStructure: &vol.Structure[0],
 				ResolvedContent: []gadget.ResolvedContent{
@@ -675,7 +676,7 @@ volumes:
 						ResolvedSource: filepath.Join(p.dir, "foo.txt"),
 					},
 				},
-			},
+			}),
 		},
 	})
 }
@@ -722,17 +723,17 @@ volumes:
 		Size:    3 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[0],
 				StartOffset:     0,
 				YamlIndex:       0,
-			},
-			{
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[1],
 				StartOffset:     1 * quantity.OffsetMiB,
 				YamlIndex:       1,
 				ResolvedContent: resolvedContent,
-			},
+			}),
 		},
 	})
 
@@ -748,17 +749,17 @@ volumes:
 		Size:    2*quantity.SizeMiB + 512*quantity.SizeKiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[0],
 				StartOffset:     0,
 				YamlIndex:       0,
-			},
-			{
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[1],
 				StartOffset:     512 * quantity.OffsetKiB,
 				YamlIndex:       1,
 				ResolvedContent: resolvedContent,
-			},
+			}),
 		},
 	})
 
@@ -775,16 +776,16 @@ volumes:
 		Size:    2*quantity.SizeMiB + 446,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[0],
 				YamlIndex:       0,
-			},
-			{
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[1],
 				StartOffset:     446,
 				YamlIndex:       1,
 				ResolvedContent: resolvedContent,
-			},
+			}),
 		},
 	})
 }
@@ -815,16 +816,17 @@ volumes:
 		Size:    2 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				// MBR
 				GadgetStructure: &vol.Structure[0],
 				StartOffset:     0,
 				YamlIndex:       0,
-			}, {
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[1],
 				StartOffset:     1 * quantity.OffsetMiB,
 				YamlIndex:       1,
-			},
+			}),
 		},
 	})
 }
@@ -868,12 +870,13 @@ volumes:
 		Size:    3 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				// mbr
 				GadgetStructure: &vol.Structure[0],
 				StartOffset:     0,
 				YamlIndex:       0,
-			}, {
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				// foo
 				GadgetStructure: &vol.Structure[1],
 				StartOffset:     1 * quantity.OffsetMiB,
@@ -889,7 +892,8 @@ volumes:
 						AbsoluteOffsetWrite: asOffsetPtr(2*quantity.OffsetMiB + 10),
 					},
 				},
-			}, {
+			}),
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				// bar
 				GadgetStructure: &vol.Structure[2],
 				StartOffset:     2 * quantity.OffsetMiB,
@@ -905,7 +909,7 @@ volumes:
 						AbsoluteOffsetWrite: asOffsetPtr(450),
 					},
 				},
-			},
+			}),
 		},
 	})
 }
@@ -1037,11 +1041,11 @@ volumes:
 	c.Assert(v, DeepEquals, &gadget.PartiallyLaidOutVolume{
 		Volume: vol,
 		LaidOutStructure: []gadget.LaidOutStructure{
-			{
+			fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 				GadgetStructure: &vol.Structure[0],
 				StartOffset:     800 * quantity.OffsetMiB,
 				YamlIndex:       0,
-			},
+			}),
 		},
 	})
 	c.Assert(err, IsNil)
@@ -1077,7 +1081,7 @@ volumes:
 
 	ps := v.LaidOutStructure[0]
 
-	c.Assert(ps, DeepEquals, gadget.LaidOutStructure{
+	c.Assert(ps, DeepEquals, fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 		// foo
 		GadgetStructure: &vol.Structure[0],
 		StartOffset:     1 * quantity.OffsetMiB,
@@ -1095,10 +1099,10 @@ volumes:
 				Index:         1,
 			},
 		},
-	})
+	}))
 
 	shiftedTo0 := gadget.ShiftStructureTo(ps, 0)
-	c.Assert(shiftedTo0, DeepEquals, gadget.LaidOutStructure{
+	c.Assert(shiftedTo0, DeepEquals, fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 		// foo
 		GadgetStructure: &vol.Structure[0],
 		StartOffset:     0,
@@ -1116,28 +1120,29 @@ volumes:
 				Index:         1,
 			},
 		},
-	})
+	}))
 
 	shiftedTo2M := gadget.ShiftStructureTo(ps, 2*quantity.OffsetMiB)
-	c.Assert(shiftedTo2M, DeepEquals, gadget.LaidOutStructure{
-		// foo
-		GadgetStructure: &vol.Structure[0],
-		StartOffset:     2 * quantity.OffsetMiB,
-		YamlIndex:       0,
-		LaidOutContent: []gadget.LaidOutContent{
-			{
-				VolumeContent: &vol.Structure[0].Content[0],
-				Size:          200 * quantity.SizeKiB,
-				StartOffset:   2 * quantity.OffsetMiB,
-				Index:         0,
-			}, {
-				VolumeContent: &vol.Structure[0].Content[1],
-				Size:          150 * quantity.SizeKiB,
-				StartOffset:   2*quantity.OffsetMiB + 300*quantity.OffsetKiB,
-				Index:         1,
+	c.Assert(shiftedTo2M, DeepEquals,
+		fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
+			// foo
+			GadgetStructure: &vol.Structure[0],
+			StartOffset:     2 * quantity.OffsetMiB,
+			YamlIndex:       0,
+			LaidOutContent: []gadget.LaidOutContent{
+				{
+					VolumeContent: &vol.Structure[0].Content[0],
+					Size:          200 * quantity.SizeKiB,
+					StartOffset:   2 * quantity.OffsetMiB,
+					Index:         0,
+				}, {
+					VolumeContent: &vol.Structure[0].Content[1],
+					Size:          150 * quantity.SizeKiB,
+					StartOffset:   2*quantity.OffsetMiB + 300*quantity.OffsetKiB,
+					Index:         1,
+				},
 			},
-		},
-	})
+		}))
 }
 
 func mockKernel(c *C, kernelYaml string, filesWithContent map[string]string) string {

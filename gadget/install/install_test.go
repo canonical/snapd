@@ -160,6 +160,11 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		defer mockBlockdev.Restore()
 	}
 
+	labelSuffix := ""
+	if opts.encryption {
+		labelSuffix = "-enc"
+	}
+
 	restore = install.MockEnsureNodesExist(func(dss []gadget.LaidOutStructure, timeout time.Duration) error {
 		c.Assert(timeout, Equals, 5*time.Second)
 		c.Assert(dss, DeepEquals, []gadget.LaidOutStructure{
@@ -190,7 +195,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
 					Name:        "ubuntu-save",
-					Label:       "ubuntu-save",
+					Label:       "ubuntu-save" + labelSuffix,
 					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 					Filesystem:  "ext4",
 					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
@@ -214,7 +219,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 			{
 				OnDiskStructure: gadget.OnDiskStructure{
 					Name:        "ubuntu-data",
-					Label:       "ubuntu-data",
+					Label:       "ubuntu-data" + labelSuffix,
 					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 					Filesystem:  "ext4",
 					StartOffset: (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
@@ -276,24 +281,24 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		case 2:
 			c.Assert(typ, Equals, "ext4")
 			if opts.encryption {
-				c.Assert(img, Equals, "/dev/mapper/ubuntu-save")
+				c.Assert(img, Equals, "/dev/mapper/ubuntu-save-enc")
 				c.Assert(sectorSize, Equals, quantity.Size(4096))
 			} else {
 				c.Assert(img, Equals, "/dev/mmcblk0p3")
 				c.Assert(sectorSize, Equals, quantity.Size(512))
 			}
-			c.Assert(label, Equals, "ubuntu-save")
+			c.Assert(label, Equals, "ubuntu-save"+labelSuffix)
 			c.Assert(devSize, Equals, 16*quantity.SizeMiB)
 		case 3:
 			c.Assert(typ, Equals, "ext4")
 			if opts.encryption {
-				c.Assert(img, Equals, "/dev/mapper/ubuntu-data")
+				c.Assert(img, Equals, "/dev/mapper/ubuntu-data-enc")
 				c.Assert(sectorSize, Equals, quantity.Size(4096))
 			} else {
 				c.Assert(img, Equals, "/dev/mmcblk0p4")
 				c.Assert(sectorSize, Equals, quantity.Size(512))
 			}
-			c.Assert(label, Equals, "ubuntu-data")
+			c.Assert(label, Equals, "ubuntu-data"+labelSuffix)
 			c.Assert(devSize, Equals, (30528-(1+1200+750+16))*quantity.SizeMiB)
 		default:
 			c.Errorf("unexpected call (%d) to mkfs.Make()", mkfsCall)
@@ -316,8 +321,8 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		case 2:
 			var mntPoint string
 			if opts.encryption {
-				c.Assert(source, Equals, "/dev/mapper/ubuntu-save")
-				mntPoint = "gadget-install/dev-mapper-ubuntu-save"
+				c.Assert(source, Equals, "/dev/mapper/ubuntu-save-enc")
+				mntPoint = "gadget-install/dev-mapper-ubuntu-save-enc"
 			} else {
 				c.Assert(source, Equals, "/dev/mmcblk0p3")
 				mntPoint = "gadget-install/dev-mmcblk0p3"
@@ -329,8 +334,8 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		case 3:
 			var mntPoint string
 			if opts.encryption {
-				c.Assert(source, Equals, "/dev/mapper/ubuntu-data")
-				mntPoint = "gadget-install/dev-mapper-ubuntu-data"
+				c.Assert(source, Equals, "/dev/mapper/ubuntu-data-enc")
+				mntPoint = "gadget-install/dev-mapper-ubuntu-data-enc"
 			} else {
 				c.Assert(source, Equals, "/dev/mmcblk0p4")
 				mntPoint = "gadget-install/dev-mmcblk0p4"
@@ -357,14 +362,14 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		case 2:
 			mntPoint := "gadget-install/dev-mmcblk0p3"
 			if opts.encryption {
-				mntPoint = "gadget-install/dev-mapper-ubuntu-save"
+				mntPoint = "gadget-install/dev-mapper-ubuntu-save-enc"
 			}
 			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, mntPoint))
 			c.Assert(flags, Equals, 0)
 		case 3:
 			mntPoint := "gadget-install/dev-mmcblk0p4"
 			if opts.encryption {
-				mntPoint = "gadget-install/dev-mapper-ubuntu-data"
+				mntPoint = "gadget-install/dev-mapper-ubuntu-data-enc"
 			}
 			c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, mntPoint))
 			c.Assert(flags, Equals, 0)
@@ -460,8 +465,8 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	}
 
 	if opts.encryption {
-		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mapper/ubuntu-save"})
-		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mapper/ubuntu-data"})
+		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mapper/ubuntu-save-enc"})
+		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mapper/ubuntu-data-enc"})
 	} else {
 		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mmcblk0p3"})
 		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mmcblk0p4"})
@@ -471,8 +476,8 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 
 	if opts.encryption {
 		c.Assert(mockCryptsetup.Calls(), DeepEquals, [][]string{
-			{"cryptsetup", "open", "--key-file", "-", "/dev/mmcblk0p3", "ubuntu-save"},
-			{"cryptsetup", "open", "--key-file", "-", "/dev/mmcblk0p4", "ubuntu-data"},
+			{"cryptsetup", "open", "--key-file", "-", "/dev/mmcblk0p3", "ubuntu-save-enc"},
+			{"cryptsetup", "open", "--key-file", "-", "/dev/mmcblk0p4", "ubuntu-data-enc"},
 		})
 	} else {
 		c.Assert(mockCryptsetup.Calls(), HasLen, 0)
@@ -670,7 +675,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 		dataDev = "/dev/mmcblk0p3"
 	}
 	if opts.encryption {
-		dataDev = "/dev/mapper/ubuntu-data"
+		dataDev = "/dev/mapper/ubuntu-data-enc"
 	}
 	restore = install.MockEnsureNodesExist(func(dss []gadget.LaidOutStructure, timeout time.Duration) error {
 		c.Assert(timeout, Equals, 5*time.Second)
@@ -799,15 +804,16 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 		case 2:
 			c.Assert(typ, Equals, "ext4")
 			c.Assert(img, Equals, dataDev)
-			c.Assert(label, Equals, "ubuntu-data")
 			if opts.noSave {
 				c.Assert(devSize, Equals, (30528-(1+1200+750))*quantity.SizeMiB)
 			} else {
 				c.Assert(devSize, Equals, (30528-(1+1200+750+16))*quantity.SizeMiB)
 			}
 			if opts.encryption {
+				c.Assert(label, Equals, "ubuntu-data-enc")
 				c.Assert(sectorSize, Equals, quantity.Size(4096))
 			} else {
+				c.Assert(label, Equals, "ubuntu-data")
 				c.Assert(sectorSize, Equals, quantity.Size(512))
 			}
 		default:
@@ -835,7 +841,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 			} else {
 				mntPoint := "gadget-install/dev-mmcblk0p4"
 				if opts.encryption {
-					mntPoint = "gadget-install/dev-mapper-ubuntu-data"
+					mntPoint = "gadget-install/dev-mapper-ubuntu-data-enc"
 				}
 				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, mntPoint))
 			}
@@ -863,7 +869,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 			} else {
 				mntPoint := "gadget-install/dev-mmcblk0p4"
 				if opts.encryption {
-					mntPoint = "gadget-install/dev-mapper-ubuntu-data"
+					mntPoint = "gadget-install/dev-mapper-ubuntu-data-enc"
 				}
 				c.Assert(target, Equals, filepath.Join(dirs.SnapRunDir, mntPoint))
 			}
@@ -1224,18 +1230,18 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 	c.Assert(err, IsNil)
 	c.Assert(encryptSetup, NotNil)
 	err = install.CheckEncryptionSetupData(encryptSetup, map[string]string{
-		"ubuntu-save": "/dev/mapper/ubuntu-save",
-		"ubuntu-data": "/dev/mapper/ubuntu-data",
+		"ubuntu-save": "/dev/mapper/ubuntu-save-enc",
+		"ubuntu-data": "/dev/mapper/ubuntu-data-enc",
 	})
 	c.Assert(err, IsNil)
 
 	c.Assert(mockCryptsetup.Calls(), DeepEquals, [][]string{
 		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", "aes-xts-plain64", "--key-size", "512", "--label", "ubuntu-save-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda4"},
 		{"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/vda4"},
-		{"cryptsetup", "open", "--key-file", "-", "/dev/vda4", "ubuntu-save"},
+		{"cryptsetup", "open", "--key-file", "-", "/dev/vda4", "ubuntu-save-enc"},
 		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--cipher", "aes-xts-plain64", "--key-size", "512", "--label", "ubuntu-data-enc", "--pbkdf", "argon2i", "--pbkdf-force-iterations", "4", "--pbkdf-memory", "32", "--luks2-metadata-size", "2048k", "--luks2-keyslots-size", "2560k", "/dev/vda5"},
 		{"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/vda5"},
-		{"cryptsetup", "open", "--key-file", "-", "/dev/vda5", "ubuntu-data"},
+		{"cryptsetup", "open", "--key-file", "-", "/dev/vda5", "ubuntu-data-enc"},
 	})
 }
 

@@ -2122,6 +2122,16 @@ func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
 	c.Assert(giCore, IsNil)
 }
 
+func fillOnDiskFromGadgetInfoInLaidOut(laidOutIn *gadget.LaidOutStructure) gadget.LaidOutStructure {
+	laidOut := *laidOutIn
+	laidOut.Name = laidOut.GadgetStructure.Name
+	laidOut.Label = laidOut.GadgetStructure.Label
+	laidOut.Type = laidOut.GadgetStructure.Type
+	laidOut.Filesystem = laidOut.GadgetStructure.Filesystem
+	laidOut.Size = laidOut.GadgetStructure.Size
+	return laidOut
+}
+
 func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeUC20GadgetYaml, 0644)
 	c.Assert(err, IsNil)
@@ -2136,7 +2146,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 	c.Assert(all["frobinator-image"], DeepEquals, systemLv)
 	zero := quantity.Offset(0)
 	c.Assert(all["u-boot-frobinator"].LaidOutStructure, DeepEquals, []gadget.LaidOutStructure{
-		{
+		fillOnDiskFromGadgetInfoInLaidOut(&gadget.LaidOutStructure{
 			GadgetStructure: &gadget.VolumeStructure{
 				VolumeName: "u-boot-frobinator",
 				Name:       "u-boot",
@@ -2155,7 +2165,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 					},
 				},
 			},
-		},
+		}),
 	})
 
 	c.Assert(systemLv.Volume.Bootloader, Equals, "u-boot")
@@ -2471,9 +2481,9 @@ volumes:
 		c.Assert(err, IsNil)
 		err = gadget.IsCompatible(gi, giNew)
 		if tc.err == "" {
-			c.Check(err, IsNil)
+			c.Assert(err, IsNil)
 		} else {
-			c.Check(err, ErrorMatches, tc.err)
+			c.Assert(err, ErrorMatches, tc.err)
 		}
 
 	}

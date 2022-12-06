@@ -103,10 +103,10 @@ func maybeEncryptPartition(laidOut *gadget.LaidOutStructure, encryptionType secb
 	// the mapped LUKS device if the structure is encrypted (if
 	// the latter, it will be filled below in this function).
 	fsParams = &mkfsParams{
-		// Filesystem and label are as specified in the gadget
-		Type:  laidOut.GadgetStructure.Filesystem,
-		Label: laidOut.GadgetStructure.Label,
-		// Rest come from disk data
+		// fs is taken from gadget, as on disk one might be displayed as
+		// crypto_LUKS, which is not useful for formatting.
+		Type:       laidOut.GadgetStructure.Filesystem,
+		Label:      laidOut.Label,
 		Device:     laidOut.Node,
 		Size:       laidOut.Size,
 		SectorSize: sectorSize,
@@ -131,7 +131,7 @@ func maybeEncryptPartition(laidOut *gadget.LaidOutStructure, encryptionType secb
 			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", laidOut.GadgetStructure.Role),
 				fmt.Sprintf("Create encryption device for %s", laidOut.GadgetStructure.Role),
 				func(timings.Measurer) {
-					dataPart, err = newEncryptedDeviceLUKS(&laidOut.OnDiskStructure, encryptionKey, laidOut.GadgetStructure.Label)
+					dataPart, err = newEncryptedDeviceLUKS(&laidOut.OnDiskStructure, encryptionKey, laidOut.Label)
 				})
 			if err != nil {
 				return nil, nil, err
@@ -141,7 +141,7 @@ func maybeEncryptPartition(laidOut *gadget.LaidOutStructure, encryptionType secb
 			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device-setup-hook[%s]", laidOut.GadgetStructure.Role),
 				fmt.Sprintf("Create encryption device for %s using device-setup-hook", laidOut.GadgetStructure.Role),
 				func(timings.Measurer) {
-					dataPart, err = createEncryptedDeviceWithSetupHook(&laidOut.OnDiskStructure, encryptionKey, laidOut.GadgetStructure.Name)
+					dataPart, err = createEncryptedDeviceWithSetupHook(&laidOut.OnDiskStructure, encryptionKey, laidOut.Name)
 				})
 			if err != nil {
 				return nil, nil, err
@@ -248,6 +248,16 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 	if err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
+	// Tweak label for the encryption case.
+	// TODO: try to build LaidOutVolume providing OnDiskVolume so this is not needed.
+	if options.EncryptionType != "" {
+		for i := range laidOutBootVol.LaidOutStructure {
+			switch laidOutBootVol.LaidOutStructure[i].GadgetStructure.Role {
+			case gadget.SystemData, gadget.SystemSave:
+				laidOutBootVol.LaidOutStructure[i].Label += "-enc"
+			}
+		}
+	}
 
 	// check if the current partition table is compatible with the gadget,
 	// ignoring partitions added by the installer (will be removed later)
@@ -321,7 +331,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 	// gadget.IsCreatableAtInstall() which defines the list)
 	for _, laidOut := range created {
 		logger.Noticef("created new partition %v for structure %v (size %v) with role %s",
-			laidOut.Node, laidOut, laidOut.GadgetStructure.Size.IECString(), laidOut.GadgetStructure.Role)
+			laidOut.Node, laidOut, laidOut.Size.IECString(), laidOut.GadgetStructure.Role)
 		if laidOut.GadgetStructure.Role == gadget.SystemSave {
 			hasSavePartition = true
 		}
@@ -348,9 +358,11 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 				keyForRole = map[string]keys.EncryptionKey{}
 			}
 			keyForRole[laidOut.GadgetStructure.Role] = encryptionKey
-			partsEncrypted[laidOut.GadgetStructure.Name] = createEncryptionParams(options.EncryptionType)
+			partsEncrypted[laidOut.Name] = createEncryptionParams(options.EncryptionType)
 		}
-		if options.Mount && laidOut.GadgetStructure.Label != "" && laidOut.GadgetStructure.HasFilesystem() {
+		if options.Mount && laidOut.Label != "" && laidOut.GadgetStructure.HasFilesystem() {
+			// fs is taken from gadget, as on disk one might be displayed as
+			// crypto_LUKS, which is not useful for formatting.
 			if err := mountFilesystem(fsDevice, laidOut.GadgetStructure.Filesystem, getMntPointForPart(laidOut.GadgetStructure)); err != nil {
 				return nil, err
 			}
@@ -398,7 +410,7 @@ func laidOutStructureForDiskStructure(laidVols map[string]*gadget.LaidOutVolume,
 			continue
 		}
 		for _, laidStruct := range laidVol.LaidOutStructure {
-			if onDiskStruct.Name == laidStruct.GadgetStructure.Name {
+			if onDiskStruct.Name == laidStruct.Name {
 				// TODO fill in construction of LaidOutStructure instead?
 				laidStruct.OnDiskStructure = *onDiskStruct
 
@@ -732,7 +744,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 			if !roleNeedsEncryption(volStruct.GadgetStructure.Role) {
 				continue
 			}
-			layoutCompatOps.ExpectedStructureEncryption[volStruct.GadgetStructure.Name] = encryptionParam
+			layoutCompatOps.ExpectedStructureEncryption[volStruct.Name] = encryptionParam
 		}
 	}
 	// factory reset is done on a system that was once installed, so this
@@ -771,6 +783,8 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 			keyForRole[laidOut.GadgetStructure.Role] = encryptionKey
 		}
 		if options.Mount && laidOut.Label != "" && laidOut.GadgetStructure.HasFilesystem() {
+			// fs is taken from gadget, as on disk one might be displayed as
+			// crypto_LUKS, which is not useful for formatting.
 			if err := mountFilesystem(fsDevice, laidOut.GadgetStructure.Filesystem, getMntPointForPart(laidOut.GadgetStructure)); err != nil {
 				return nil, err
 			}

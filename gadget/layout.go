@@ -105,7 +105,7 @@ func IsRoleMBR(ls LaidOutStructure) bool {
 }
 
 func (p LaidOutStructure) String() string {
-	return fmtIndexAndName(p.YamlIndex, p.GadgetStructure.Name)
+	return fmtIndexAndName(p.YamlIndex, p.Name)
 }
 
 type byStartOffset []LaidOutStructure
@@ -171,13 +171,22 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 
 		end := start + quantity.Offset(s.Size)
 		ps := LaidOutStructure{
+			OnDiskStructure: OnDiskStructure{
+				Name:       volume.Structure[idx].Name,
+				Label:      volume.Structure[idx].Label,
+				Type:       volume.Structure[idx].Type,
+				Filesystem: volume.Structure[idx].Filesystem,
+				// TODO set StartOffset when VolumeStructure.Offset is
+				// changed so it is always defined.
+				Size: volume.Structure[idx].Size,
+			},
 			GadgetStructure: &volume.Structure[idx],
 			StartOffset:     start,
 			YamlIndex:       idx,
 		}
 
-		if ps.GadgetStructure.Name != "" {
-			byName[ps.GadgetStructure.Name] = &ps
+		if ps.Name != "" {
+			byName[ps.Name] = &ps
 		}
 
 		structures[idx] = ps
@@ -193,7 +202,7 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 		if ps.StartOffset < previousEnd {
 			return nil, nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
 		}
-		previousEnd = ps.StartOffset + quantity.Offset(ps.GadgetStructure.Size)
+		previousEnd = ps.StartOffset + quantity.Offset(ps.Size)
 
 		offsetWrite, err := resolveOffsetWrite(ps.GadgetStructure.OffsetWrite, byName)
 		if err != nil {
@@ -255,7 +264,7 @@ func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOpt
 		if ps.AbsoluteOffsetWrite != nil && *ps.AbsoluteOffsetWrite > fartherstOffsetWrite {
 			fartherstOffsetWrite = *ps.AbsoluteOffsetWrite
 		}
-		if end := ps.StartOffset + quantity.Offset(ps.GadgetStructure.Size); end > farthestEnd {
+		if end := ps.StartOffset + quantity.Offset(ps.Size); end > farthestEnd {
 			farthestEnd = end
 		}
 
@@ -453,7 +462,7 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known ma
 			AbsoluteOffsetWrite: offsetWrite,
 		}
 		previousEnd = start + quantity.Offset(actualSize)
-		if quantity.Size(previousEnd) > ps.GadgetStructure.Size {
+		if quantity.Size(previousEnd) > ps.Size {
 			return nil, fmt.Errorf("cannot lay out structure %v: content %q does not fit in the structure", ps, c.Image)
 		}
 	}
