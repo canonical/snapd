@@ -1138,6 +1138,38 @@ func (s *snapsSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 	c.Check(rspe.Message, check.Not(check.Equals), "")
 }
 
+func (s *snapsSuite) TestSnapInfoReturnsHolds(c *check.C) {
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), true, "")
+
+	now := time.Now()
+	userHold := now.Add(100 * 365 * 24 * time.Hour)
+	restore := daemon.MockSystemHold(func(st *state.State, name string) (time.Time, error) {
+		return userHold, nil
+	})
+	defer restore()
+
+	gatingHold := now.Add(24 * time.Hour)
+	restore = daemon.MockLongestGatingHold(func(st *state.State, name string) (time.Time, error) {
+		return gatingHold, nil
+	})
+	defer restore()
+
+	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+
+	c.Assert(rsp.Result, check.FitsTypeOf, &client.Snap{})
+	snapInfo := rsp.Result.(*client.Snap)
+
+	testCmt := check.Commentf("expected user hold %s but got %s", userHold, snapInfo.UserHold)
+	c.Check(snapInfo.UserHold.Equal(userHold), check.Equals, true, testCmt)
+
+	testCmt = check.Commentf("expected gating hold %s but got %s", gatingHold, snapInfo.GatingHold)
+	c.Check(snapInfo.GatingHold.Equal(gatingHold), check.Equals, true, testCmt)
+}
+
 func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 	media := snap.MediaInfos{
 		{
