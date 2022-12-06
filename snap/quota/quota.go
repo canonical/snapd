@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -301,6 +302,18 @@ func (grp *Group) JournalServiceDropInDir() string {
 // file for the quota group.
 func (grp *Group) JournalServiceDropInFile() string {
 	return filepath.Join(grp.JournalServiceDropInDir(), "00-snap.conf")
+}
+
+// GroupForService returns the quota group for the given
+// service name if found in one of the sub-groups of the current group. If the
+// service is not found, this will return nil.
+func (grp *Group) GroupForService(serviceName string) *Group {
+	for _, subgrp := range grp.subGroups {
+		if strutil.ListContains(subgrp.Services, serviceName) {
+			return subgrp
+		}
+	}
+	return nil
 }
 
 // groupQuotaAllocations contains information about current quotas of a group
