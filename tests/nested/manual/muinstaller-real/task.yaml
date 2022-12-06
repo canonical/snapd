@@ -108,9 +108,9 @@ execute: |
   if [ -n "${https_proxy:-}" ]; then
     lxd.lxc config set core.proxy_https "$http_proxy"
   fi
-  (cd "$TESTSLIB"/fakeinstaller && snapcraft)
-  FAKEINSTALLER_SNAP="$(find "$TESTSLIB"/fakeinstaller/ -maxdepth 1 -name '*.snap')"
-  echo "found $FAKEINSTALLER_SNAP"
+  (cd "$TESTSLIB"/muinstaller && snapcraft)
+  MUINSTALLER_SNAP="$(find "$TESTSLIB"/muinstaller/ -maxdepth 1 -name '*.snap')"
+  echo "found $MUINSTALLER_SNAP"
 
   # create new disk for the installer to work on and attach to VM
   truncate --size=4G fake-disk.img
@@ -184,9 +184,9 @@ execute: |
   
   # bind mount new seed
   remote.exec "sudo mount -o bind /var/lib/snapd/install-seed /var/lib/snapd/seed"
-  # push the fakeinstaller
-  remote.push "$FAKEINSTALLER_SNAP"
-  remote.exec "sudo snap install --classic --dangerous $(basename "$FAKEINSTALLER_SNAP")"
+  # push the muinstaller
+  remote.push "$MUINSTALLER_SNAP"
+  remote.exec "sudo snap install --classic --dangerous $(basename "$MUINSTALLER_SNAP")"
 
   # TODO: use retry
   while true; do

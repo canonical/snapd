@@ -111,7 +111,7 @@ execute: |
     trap "pkill sleep || true" EXIT
     echo "Ensure that snap-confine has finished its task and that the snap process"
     echo "is active. Note that we don't want to wait forever either."
-    retry -n 30 test -e /tmp/snap.test-snapd-tracking/tmp/1.stamp
+    retry -n 30 test -e /tmp/snap-private-tmp/snap.test-snapd-tracking/tmp/1.stamp
     pid1_sleep=$(cat /tmp/1.pid)
 
     echo "During startup snap-run has asked systemd to move the process to a"
@@ -130,7 +130,7 @@ execute: |
     #shellcheck disable=SC2016
     tests.session -p /tmp/2.pid -u "$USER" exec snap run test-snapd-tracking.sh -c 'touch /tmp/2.stamp && exec sleep 2m' &
     session2_pid=$!
-    retry -n 30 test -e /tmp/snap.test-snapd-tracking/tmp/2.stamp
+    retry -n 30 test -e /tmp/snap-private-tmp/snap.test-snapd-tracking/tmp/2.stamp
     pid2_sleep=$(cat /tmp/2.pid)
     pid2_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid2_sleep/cgroup" | cut -d : -f 3)"
     echo "$pid2_tracking_cg_path" | MATCH '.*/snap\.test-snapd-tracking\.sh\.[0-9a-f-]+\.scope'
@@ -153,7 +153,7 @@ execute: |
     #shellcheck disable=SC2016
     tests.session -p /tmp/3.pid -u "$USER" exec snap run test-snapd-tracking.sh -c 'touch /tmp/3.stamp && sleep 1m' &
     session3_pid=$!
-    retry -n 30 test -e /tmp/snap.test-snapd-tracking/tmp/3.stamp
+    retry -n 30 test -e /tmp/snap-private-tmp/snap.test-snapd-tracking/tmp/3.stamp
     pid3_sh=$(cat /tmp/3.pid)
     pid3_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid3_sh/cgroup" | cut -d : -f 3)"
     MATCH "$pid3_sh" < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs"

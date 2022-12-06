@@ -48,7 +48,7 @@ type getCommand struct {
 	Typed    bool `short:"t" description:"strict typing with nulls and quoted strings"`
 }
 
-var shortGetHelp = i18n.G("The get command prints configuration and interface connection settings.")
+var shortGetHelp = i18n.G("Print either configuration options or interface connection settings")
 var longGetHelp = i18n.G(`
 The get command prints configuration options for the current snap.
 
@@ -73,13 +73,15 @@ Values of interface connection settings may be printed with:
     $ snapctl get :myplug usb-vendor
     $ snapctl get :myslot path
 
-This will return the named setting from the local interface endpoint, whether a plug
-or a slot. Returning the setting from the connected snap's endpoint is also possible
-by explicitly requesting that via the --plug and --slot command line options:
+This will return the named setting from the local interface endpoint,
+regardless whether it's a plug or a slot. Returning the setting from the
+connected snap's endpoint is also possible by requesting the setting explicitly
+with optional --plug and --slot command options:
 
     $ snapctl get :myplug --slot usb-vendor
 
-This requests the "usb-vendor" setting from the slot that is connected to "myplug".
+This requests the "usb-vendor" setting from the slot that is connected to
+"myplug".
 `)
 
 func init() {

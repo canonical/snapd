@@ -21,6 +21,7 @@
 
 #include "mount-support.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libgen.h>
@@ -49,97 +50,13 @@
 #include "mount-support-nvidia.h"
 
 #define MAX_BUF 1000
+#define SNAP_PRIVATE_TMP_ROOT_DIR "/tmp/snap-private-tmp"
 
 static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode);
 
-static int must_mkdir_and_open_with_perms(const char *dir, uid_t uid, gid_t gid,
-					  mode_t mode)
-{
-	int retries = 10;
-	int fd;
-
- mkdir:
-	if (--retries == 0) {
-		die("lost race to create dir %s too many times", dir);
-	}
-	// Ignore EEXIST since we want to reuse and we will open with
-	// O_NOFOLLOW, below.
-	if (mkdir(dir, 0700) < 0 && errno != EEXIST) {
-		die("cannot create directory %s", dir);
-	}
-	fd = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-	if (fd < 0) {
-		// if is not a directory then remove it and try again
-		if (errno == ENOTDIR && unlink(dir) == 0) {
-			goto mkdir;
-		}
-		die("cannot open directory %s", dir);
-	}
-	// ensure base_dir has the expected permissions since it may have
-	// already existed
-	struct stat st;
-	if (fstat(fd, &st) < 0) {
-		die("cannot stat base directory %s", dir);
-	}
-	if (st.st_uid != uid || st.st_gid != gid
-	    || st.st_mode != (S_IFDIR | mode)) {
-		unsigned char random[10] = { 0 };
-		char random_dir[MAX_BUF] = { 0 };
-		int offset;
-		size_t i;
-
-		// base_dir isn't what we expect - create a random
-		// directory name and rename the existing erroneous
-		// base_dir to this then try recreating it again - NOTE we
-		// don't use mkdtemp() here since we don't want to actually
-		// create the directory yet as we want rename() to do that
-		// for us
-#ifdef SYS_getrandom
-		// use syscall(SYS_getrandom) since getrandom() is
-		// not available on older glibc
-		if (syscall(SYS_getrandom, random, sizeof(random), 0) !=
-		    sizeof(random)) {
-			die("cannot get random bytes");
-		}
-#else
-		// use /dev/urandom on older systems which don't support
-		// SYS_getrandom
-		int rfd = open("/dev/urandom", O_RDONLY);
-		if (rfd < 0) {
-			die("cannot open /dev/urandom");
-		}
-		if (read(rfd, random, sizeof(random)) != sizeof(random)) {
-			die("cannot get random bytes");
-		}
-		close(rfd);
-#endif
-		offset =
-		    sc_must_snprintf(random_dir, sizeof(random_dir), "%s.",
-				     dir);
-		for (i = 0; i < sizeof(random); i++) {
-			offset +=
-			    sc_must_snprintf(random_dir + offset,
-					     sizeof(random_dir) - offset,
-					     "%02x", (unsigned int)random[i]);
-		}
-		// try and get dir which we own by renaming it to something
-		// else then creating it again
-
-		// TODO - change this to use renameat2(RENAME_EXCHANGE)
-		// once we can use a newer version of glibc for snapd
-		if (rename(dir, random_dir) < 0) {
-			die("cannot rename base_dir to random_dir '%s'",
-			    random_dir);
-		}
-		close(fd);
-		goto mkdir;
-	}
-	return fd;
-}
-
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
-static void setup_private_mount(const char *snap_name)
+static void setup_private_tmp(const char *snap_instance)
 {
 	// Create a 0700 base directory. This is the "base" directory that is
 	// protected from other users. This directory name is NOT randomly
@@ -162,37 +79,80 @@ static void setup_private_mount(const char *snap_name)
 	// Because the directories are reused across invocations by distinct users
 	// and because the directories are trivially guessable, each invocation
 	// unconditionally chowns/chmods them to appropriate values.
-	char base_dir[MAX_BUF] = { 0 };
+	char base[MAX_BUF] = { 0 };
 	char tmp_dir[MAX_BUF] = { 0 };
+	int private_tmp_root_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	int base_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	int tmp_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	sc_must_snprintf(base_dir, sizeof(base_dir), "/tmp/snap.%s", snap_name);
-	sc_must_snprintf(tmp_dir, sizeof(tmp_dir), "%s/tmp", base_dir);
 
-	/* Switch to root group so that mkdir and open calls below create filesystem
-	 * elements that are not owned by the user calling into snap-confine. */
+	/* Switch to root group so that mkdir and open calls below create
+	 * filesystem elements that are not owned by the user calling into
+	 * snap-confine. */
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	// Create /tmp/snap.$SNAP_NAME/ 0700 root.root.
-	base_dir_fd = must_mkdir_and_open_with_perms(base_dir, 0, 0, 0700);
-	// Create /tmp/snap.$SNAP_NAME/tmp 01777 root.root Ignore EEXIST since we
+
+	// /tmp/snap-private-tmp should have already been created by
+	// systemd-tmpfiles but we can try create it anyway since snapd may have
+	// just been installed in which case the tmpfiles conf would not have
+	// got executed yet
+	if (mkdir(SNAP_PRIVATE_TMP_ROOT_DIR, 0700) < 0 && errno != EEXIST) {
+		die("cannot create /tmp/snap-private-tmp");
+	}
+	private_tmp_root_fd = open(SNAP_PRIVATE_TMP_ROOT_DIR,
+				   O_RDONLY | O_DIRECTORY | O_CLOEXEC |
+				   O_NOFOLLOW);
+	if (private_tmp_root_fd < 0) {
+		die("cannot open %s", SNAP_PRIVATE_TMP_ROOT_DIR);
+	}
+	struct stat st;
+	if (fstat(private_tmp_root_fd, &st) < 0) {
+		die("cannot stat %s", SNAP_PRIVATE_TMP_ROOT_DIR);
+	}
+	if (st.st_uid != 0 || st.st_gid != 0 || st.st_mode != (S_IFDIR | 0700)) {
+		die("%s has unexpected ownership / permissions",
+		    SNAP_PRIVATE_TMP_ROOT_DIR);
+	}
+	// Create /tmp/snap-private-tmp/snap.$SNAP_INSTANCE_NAME/ 0700 root.root.
+	sc_must_snprintf(base, sizeof(base), "snap.%s", snap_instance);
+	if (mkdirat(private_tmp_root_fd, base, 0700) < 0 && errno != EEXIST) {
+		die("cannot create base directory: %s", base);
+	}
+	base_dir_fd =
+	    openat(private_tmp_root_fd, base,
+		   O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (base_dir_fd < 0) {
+		die("cannot open base directory: %s", base);
+	}
+	if (fstat(base_dir_fd, &st) < 0) {
+		die("cannot stat %s/%s", SNAP_PRIVATE_TMP_ROOT_DIR, base);
+	}
+	if (st.st_uid != 0 || st.st_gid != 0 || st.st_mode != (S_IFDIR | 0700)) {
+		die("%s/%s has unexpected ownership / permissions",
+		    SNAP_PRIVATE_TMP_ROOT_DIR, base);
+	}
+	// Create /tmp/$PRIVATE/snap.$SNAP_NAME/tmp 01777 root.root Ignore EEXIST since we
 	// want to reuse and we will open with O_NOFOLLOW, below.
 	if (mkdirat(base_dir_fd, "tmp", 01777) < 0 && errno != EEXIST) {
-		die("cannot create private tmp directory %s/tmp", base_dir);
+		die("cannot create private tmp directory %s/tmp", base);
 	}
 	(void)sc_set_effective_identity(old);
 	tmp_dir_fd = openat(base_dir_fd, "tmp",
 			    O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (tmp_dir_fd < 0) {
-		die("cannot open private tmp directory %s/tmp", base_dir);
+		die("cannot open private tmp directory %s/tmp", base);
 	}
-	if (fchown(tmp_dir_fd, 0, 0) < 0) {
-		die("cannot chown private tmp directory %s/tmp to root.root",
-		    base_dir);
+	if (fstat(tmp_dir_fd, &st) < 0) {
+		die("cannot stat %s/%s/tmp", SNAP_PRIVATE_TMP_ROOT_DIR, base);
 	}
-	if (fchmod(tmp_dir_fd, 01777) < 0) {
-		die("cannot chmod private tmp directory %s/tmp to 01777",
-		    base_dir);
+	if (st.st_uid != 0 || st.st_gid != 0 || st.st_mode != (S_IFDIR | 01777)) {
+		die("%s/%s/tmp has unexpected ownership / permissions",
+		    SNAP_PRIVATE_TMP_ROOT_DIR, base);
 	}
+	// use the path to the file-descriptor in proc as the source mount point
+	// as this is a symlink itself to the real directory at
+	// /tmp/snap-private-tmp/snap.$SNAP_INSTANCE/tmp but doing it this way
+	// helps avoid any potential race
+	sc_must_snprintf(tmp_dir, sizeof(tmp_dir),
+			 "/proc/self/fd/%d", tmp_dir_fd);
 	sc_do_mount(tmp_dir, "/tmp", NULL, MS_BIND, NULL);
 	sc_do_mount("none", "/tmp", NULL, MS_PRIVATE, NULL);
 }
@@ -804,7 +764,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	}
 
 	// TODO: rename this and fold it into bootstrap
-	setup_private_mount(inv->snap_instance);
+	setup_private_tmp(inv->snap_instance);
 	// set up private /dev/pts
 	// TODO: fold this into bootstrap
 	setup_private_pts();

@@ -3466,11 +3466,11 @@ func (s *snapmgrTestSuite) testEnsureRemovesVulnerableSnap(c *C, snapName string
 	// make the currently installed snap info file fixed but an old version
 	// vulnerable
 	fixedInfoFile := `
-VERSION=2.54.3+git1.g479e745-dirty
+VERSION=2.57.6+git1.g479e745-dirty
 SNAPD_APPARMOR_REEXEC=1
 `
 	vulnInfoFile := `
-VERSION=2.54.2+git1.g479e745-dirty
+VERSION=2.57.5+git1.g479e745-dirty
 SNAPD_APPARMOR_REEXEC=1
 `
 
@@ -3551,7 +3551,7 @@ SNAPD_APPARMOR_REEXEC=1
 
 	// and we set the appropriate key in the state
 	var removeDone bool
-	st.Get(snapName+"-snap-cve-2021-44731-vuln-removed", &removeDone)
+	st.Get(snapName+"-snap-cve-2022-3328-vuln-removed", &removeDone)
 	c.Assert(removeDone, Equals, true)
 }
 
@@ -3634,7 +3634,7 @@ func (s *snapmgrTestSuite) TestEnsureSkipsCheckingBothCoreAndSnapdSnapsInfoFileW
 	c.Assert(ensureErr, ErrorMatches, fmt.Sprintf(`cannot open snapd info file "%s".*`, infoFileFor("snapd")))
 
 	st.Lock()
-	st.Set("snapd-snap-cve-2021-44731-vuln-removed", true)
+	st.Set("snapd-snap-cve-2022-3328-vuln-removed", true)
 	st.Unlock()
 
 	// still unhappy about core file missing
@@ -3643,7 +3643,7 @@ func (s *snapmgrTestSuite) TestEnsureSkipsCheckingBothCoreAndSnapdSnapsInfoFileW
 
 	// but with core state flag set too, we are now happy
 	st.Lock()
-	st.Set("core-snap-cve-2021-44731-vuln-removed", true)
+	st.Set("core-snap-cve-2022-3328-vuln-removed", true)
 	st.Unlock()
 
 	ensureErr = s.snapmgr.Ensure()
@@ -3669,7 +3669,7 @@ func (s *snapmgrTestSuite) testEnsureSkipsCheckingSnapdInfoFileWhenStateSet(c *C
 	// now it should stop trying to check if state says so
 	st := s.state
 	st.Lock()
-	st.Set(snapName+"-snap-cve-2021-44731-vuln-removed", true)
+	st.Set(snapName+"-snap-cve-2022-3328-vuln-removed", true)
 	st.Unlock()
 
 	ensureErr = s.snapmgr.Ensure()

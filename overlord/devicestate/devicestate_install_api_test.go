@@ -28,6 +28,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -47,7 +50,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
-	. "gopkg.in/check.v1"
 )
 
 type deviceMgrInstallAPISuite struct {
@@ -217,6 +219,11 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	restore := release.MockOnClassic(opts.isClassic)
 	s.AddCleanup(restore)
 
+	// only amd64/arm64 have trusted boot assets
+	oldArch := arch.DpkgArchitecture()
+	defer arch.SetArchitecture(arch.ArchitectureType(oldArch))
+	arch.SetArchitecture("amd64")
+
 	// Mock label
 	label := "classic"
 	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, opts.isClassic)
@@ -293,8 +300,9 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			c.Check(modeenv.CurrentTrustedRecoveryBootAssets["bootx64.efi"], DeepEquals, []string{"0c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004"})
 			c.Check(modeenv.CurrentTrustedRecoveryBootAssets["grubx64.efi"], DeepEquals, []string{"0c63a75b845e4f7d01107d852e4c2485c51a50aaaa94fc61995e71bbee983a2ac3713831264adb47fb6bd1e058d5f004"})
 			c.Check(len(modeenv.CurrentKernelCommandLines), Equals, 1)
-			c.Check(modeenv.CurrentKernelCommandLines[0], Equals,
-				"snapd_recovery_mode=run console=ttyS0,115200n8 console=tty1 panic=-1")
+			// exact cmdline depends on arch, see
+			// bootloader/assets/grub.go:init()
+			c.Check(modeenv.CurrentKernelCommandLines[0], testutil.Contains, "snapd_recovery_mode=run")
 			return nil
 		})
 		s.AddCleanup(restore)
@@ -338,7 +346,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(chg.Err(), IsNil)
+	c.Assert(chg.Err(), IsNil)
 
 	// Checks now
 	kernelDir := filepath.Join(dirs.SnapRunDir, "snap-content/kernel")
