@@ -486,6 +486,44 @@ Loop:
 	return held, nil
 }
 
+// SystemHold returns the time until which the snap's refreshes have been held
+// by the sysadmin. If no such hold exists, returns a zero time.Time value.
+func SystemHold(st *state.State, snap string) (time.Time, error) {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	holds := gating[snap]
+	for holdingSnap, hold := range holds {
+		if holdingSnap == "system" {
+			return hold.HoldUntil, nil
+		}
+	}
+
+	return time.Time{}, nil
+}
+
+// LongestGatingHold returns the time until which the snap's refreshes have been held
+// by a gating snap. If no such hold exists, returns a zero time.Time value.
+func LongestGatingHold(st *state.State, snap string) (time.Time, error) {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	holds := gating[snap]
+
+	var lastHold time.Time
+	for holdingSnap, timeRange := range holds {
+		if holdingSnap != "system" && timeRange.HoldUntil.After(lastHold) {
+			lastHold = timeRange.HoldUntil
+		}
+	}
+
+	return lastHold, nil
+}
+
 type AffectedSnapInfo struct {
 	Restart        bool
 	Base           bool
