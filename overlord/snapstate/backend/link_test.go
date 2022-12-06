@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
@@ -69,6 +70,14 @@ func (s *linkSuiteCommon) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.AddCleanup(restore)
+}
+
+func (s *linkSuiteCommon) defaultLinkContext(snapInfo *snap.Info) backend.LinkContext {
+	return backend.LinkContext{
+		ServiceOptions: &wrappers.SnapServicesOptions{
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(snapInfo, nil),
+		},
+	}
 }
 
 type linkSuite struct {
@@ -109,7 +118,7 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	_, err := s.be.LinkSnap(info, mockDev, s.defaultLinkContext(info), s.perfTimings)
 	c.Assert(err, IsNil)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -129,7 +138,7 @@ apps:
 	c.Assert(l, HasLen, 1)
 
 	// undo will remove
-	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
+	err = s.be.UnlinkSnap(info, s.defaultLinkContext(info), progress.Null)
 	c.Assert(err, IsNil)
 
 	l, err = filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -155,7 +164,7 @@ version: 1.0
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	reboot, err := s.be.LinkSnap(info, mockDev, s.defaultLinkContext(info), s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: false})
@@ -173,7 +182,7 @@ version: 1.0
 	c.Assert(currentDataDir, Equals, dataDir)
 
 	// undo will remove the symlinks
-	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
+	err = s.be.UnlinkSnap(info, s.defaultLinkContext(info), progress.Null)
 	c.Assert(err, IsNil)
 
 	c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
@@ -195,7 +204,7 @@ type: base
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	reboot, err := s.be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
+	reboot, err := s.be.LinkSnap(info, coreDev, s.defaultLinkContext(info), s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: true})
 }
@@ -217,7 +226,7 @@ type: kernel
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	reboot, err := be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
+	reboot, err := be.LinkSnap(info, coreDev, s.defaultLinkContext(info), s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Check(reboot, DeepEquals, boot.RebootInfo{})
 }
@@ -247,7 +256,7 @@ type: snapd
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
+	_, err := be.LinkSnap(info, coreDev, s.defaultLinkContext(info), s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, true)
 }
@@ -268,10 +277,10 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	_, err := s.be.LinkSnap(info, mockDev, s.defaultLinkContext(info), s.perfTimings)
 	c.Assert(err, IsNil)
 
-	_, err = s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	_, err = s.be.LinkSnap(info, mockDev, s.defaultLinkContext(info), s.perfTimings)
 	c.Assert(err, IsNil)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -310,13 +319,13 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	_, err := s.be.LinkSnap(info, mockDev, s.defaultLinkContext(info), s.perfTimings)
 	c.Assert(err, IsNil)
 
-	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
+	err = s.be.UnlinkSnap(info, s.defaultLinkContext(info), progress.Null)
 	c.Assert(err, IsNil)
 
-	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
+	err = s.be.UnlinkSnap(info, s.defaultLinkContext(info), progress.Null)
 	c.Assert(err, IsNil)
 
 	// no wrappers
@@ -341,7 +350,7 @@ func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
 	info := &snap.Info{
 		SuggestedName: "foo",
 	}
-	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	_, err := s.be.LinkSnap(info, mockDev, s.defaultLinkContext(info), s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot link snap "foo" with unset revision`)
 }
 
@@ -381,7 +390,7 @@ func (s *linkSuite) TestLinkSnapdSnapOnCore(c *C) {
 
 	info, _ := mockSnapdSnapForLink(c)
 
-	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	reboot, err := s.be.LinkSnap(info, mockDev, s.defaultLinkContext(info), s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -491,7 +500,7 @@ func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
 	c.Assert(os.Chmod(dir, 0555), IsNil)
 	defer os.Chmod(dir, 0755)
 
-	_, err := s.be.LinkSnap(s.info, mockDev, backend.LinkContext{}, s.perfTimings)
+	_, err := s.be.LinkSnap(s.info, mockDev, s.defaultLinkContext(s.info), s.perfTimings)
 	c.Assert(err, NotNil)
 	_, isPathError := err.(*os.PathError)
 	_, isLinkError := err.(*os.LinkError)
@@ -536,7 +545,7 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 	})
 	defer r()
 
-	_, err := s.be.LinkSnap(s.info, mockDev, backend.LinkContext{}, s.perfTimings)
+	_, err := s.be.LinkSnap(s.info, mockDev, s.defaultLinkContext(s.info), s.perfTimings)
 	c.Assert(err, ErrorMatches, "ouchie")
 
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
@@ -556,7 +565,7 @@ func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C)
 	c.Assert(os.Chmod(d, 0555), IsNil)
 	defer os.Chmod(d, 0755)
 
-	_, err := s.be.LinkSnap(s.info, mockDev, backend.LinkContext{}, s.perfTimings)
+	_, err := s.be.LinkSnap(s.info, mockDev, s.defaultLinkContext(s.info), s.perfTimings)
 	c.Assert(err, ErrorMatches, `(?i).*symlink.*permission denied.*`)
 
 	c.Check(s.info.DataDir(), testutil.FileAbsent)
@@ -576,7 +585,7 @@ func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
 		})
 		defer restore()
 
-		_, err := s.be.LinkSnap(s.info, dev, backend.LinkContext{}, s.perfTimings)
+		_, err := s.be.LinkSnap(s.info, dev, s.defaultLinkContext(s.info), s.perfTimings)
 		c.Assert(err, IsNil)
 		if dev.Classic() {
 			c.Assert(updateFontconfigCaches, Equals, 1)
@@ -615,7 +624,7 @@ type: os
 	})
 	defer restore()
 
-	_, err = s.be.LinkSnap(infoNew, mockClassicDev, backend.LinkContext{}, s.perfTimings)
+	_, err = s.be.LinkSnap(infoNew, mockClassicDev, s.defaultLinkContext(s.info), s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(oldCmdV6.Calls(), HasLen, 0)
@@ -732,7 +741,7 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 		return filepath.Join(dirs.SnapServicesDir, filepath.Base(p))
 	}
 
-	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	reboot, err := s.be.LinkSnap(info, mockDev, s.defaultLinkContext(info), s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
@@ -815,6 +824,9 @@ apps:
 
 	linkCtxWithTooling := backend.LinkContext{
 		RequireMountedSnapdSnap: true,
+		ServiceOptions: &wrappers.SnapServicesOptions{
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
+		},
 	}
 	_, err := s.be.LinkSnap(info, mockDev, linkCtxWithTooling, s.perfTimings)
 	c.Assert(err, IsNil)
@@ -829,6 +841,9 @@ After=usr-lib-snapd.mount`)
 
 	linkCtxNoTooling := backend.LinkContext{
 		RequireMountedSnapdSnap: false,
+		ServiceOptions: &wrappers.SnapServicesOptions{
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
+		},
 	}
 	_, err = s.be.LinkSnap(info, mockDev, linkCtxNoTooling, s.perfTimings)
 	c.Assert(err, IsNil)
@@ -851,7 +866,8 @@ apps:
 
 	linkCtxWithGroup := backend.LinkContext{
 		ServiceOptions: &wrappers.SnapServicesOptions{
-			QuotaGroup: grp,
+			QuotaGroup:      grp,
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
 		},
 	}
 	_, err = s.be.LinkSnap(info, mockDev, linkCtxWithGroup, s.perfTimings)
