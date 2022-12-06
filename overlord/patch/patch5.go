@@ -74,7 +74,7 @@ func patch5(st *state.State) error {
 
 		err = wrappers.EnsureSnapServices(map[*snap.Info]*wrappers.SnapServicesOptions{
 			info: {
-				ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
+				ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
 			},
 		}, nil, nil, log)
 		if err != nil {

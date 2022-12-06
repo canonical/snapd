@@ -398,7 +398,7 @@ func SnapServicesOptions(st *state.State, snapInfo *snap.Info, quotaGroups map[s
 	}
 
 	opts.QuotaGroup = snapGrp
-	opts.ServiceQuotaMap = MakeServiceQuotaMap(snapInfo.InstanceName(), snapInfo.Services(), snapGrp)
+	opts.ServiceQuotaMap = MakeServiceQuotaMap(snapInfo, snapGrp)
 	return opts, nil
 }
 

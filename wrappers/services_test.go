@@ -112,7 +112,7 @@ func (s *servicesTestSuite) addSnapServices(snapInfo *snap.Info, opts *wrappers.
 		snapInfo: {
 			VitalityRank:    opts.VitalityRank,
 			QuotaGroup:      opts.QuotaGroup,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(snapInfo.InstanceName(), snapInfo.Services(), opts.QuotaGroup),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(snapInfo, opts.QuotaGroup),
 		},
 	}
 	ensureOpts := &wrappers.EnsureSnapServicesOptions{
@@ -200,7 +200,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
 		},
 	}
 
@@ -259,7 +259,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -365,7 +365,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountQuotas(c *C) {
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -467,7 +467,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountAndCpuSetQuota
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -572,7 +572,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalNamespaceOnly(c *C)
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -690,7 +690,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotas(c *C) {
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -811,7 +811,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotaRateAsZero(c *
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -945,7 +945,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSnapServices(c *C) {
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -1207,7 +1207,7 @@ WantedBy=multi-user.target
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -1310,7 +1310,7 @@ WantedBy=multi-user.target
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -1422,11 +1422,11 @@ apps:
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info1: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info1.InstanceName(), info1.Services(), grp),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info1, grp),
 		},
 		info2: {
 			QuotaGroup:      subgrp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info2.InstanceName(), info2.Services(), subgrp),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info2, subgrp),
 		},
 	}
 
@@ -1568,7 +1568,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      subgrp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), subgrp),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, subgrp),
 		},
 	}
 
@@ -1644,7 +1644,7 @@ func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
 		},
 	}
 
@@ -1678,7 +1678,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesPreseedingHappy(c *C) {
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
 		},
 	}
 
@@ -1757,10 +1757,10 @@ apps:
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info1: {
 			VitalityRank:    1,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info1.InstanceName(), info1.Services(), nil),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info1, nil),
 		},
 		info2: {
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info2.InstanceName(), info2.Services(), nil),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info2, nil),
 		},
 	}
 
@@ -1872,7 +1872,7 @@ WantedBy=multi-user.target
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			VitalityRank:    1,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
 		},
 	}
 
@@ -1966,7 +1966,7 @@ WantedBy=multi-user.target
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
 		},
 	}
 
@@ -2041,7 +2041,7 @@ WantedBy=multi-user.target
 	// daemon-reload
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
 		},
 	}
 
@@ -2111,7 +2111,7 @@ WantedBy=multi-user.target
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			VitalityRank:    1,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
 		},
 	}
 
@@ -2207,7 +2207,7 @@ WantedBy=multi-user.target
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			VitalityRank:    1,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
 		},
 	}
 
@@ -2281,7 +2281,7 @@ WantedBy=multi-user.target
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
 		},
 	}
 
@@ -2379,7 +2379,7 @@ WantedBy=multi-user.target
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
 		},
 	}
 
@@ -2406,7 +2406,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesSubunits(c *C) {
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
 		},
 	}
 	err := wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
@@ -2431,7 +2431,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesSubunits(c *C) {
 	m = map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			VitalityRank:    1,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
+			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, nil),
 		},
 	}
 	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
