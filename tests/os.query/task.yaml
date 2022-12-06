@@ -37,6 +37,20 @@ execute: |
             ! os.query is-ubuntu 14.04
             ! os.query is-core
             os.query is-pc-amd64
+
+            # check ubuntu comparisons
+            os.query is-ubuntu-ge 14.04
+            os.query is-ubuntu-ge 18.04
+            ! os.query is-ubuntu-ge 20.04
+            os.query is-ubuntu-gt 16.04
+            ! os.query is-ubuntu-gt 18.04
+            os.query is-ubuntu-le 18.04
+            os.query is-ubuntu-le 20.04
+            ! os.query is-ubuntu-le 16.04
+            os.query is-ubuntu-lt 20.04
+            ! os.query is-ubuntu-lt 18.04
+            os.query is-ubuntu-lt 2>&1 | MATCH "os.query: version id is expected"
+            os.query is-ubuntu-lt 20.04-64 2>&1 | MATCH 'os.query: invalid version format "20.04-64" provided'
             ;;
         ubuntu-20.04-64)
             os.query is-focal
@@ -67,6 +81,11 @@ execute: |
             os.query is-debian 10
             os.query is-classic
             ! os.query is-core
+
+            # check ubuntu comparisons
+            ! os.query is-ubuntu-lt 20.04
+            os.query is-ubuntu-ge 20.04 | MATCH "os.query: comparing non ubuntu system"
+            os.query is-ubuntu-lt 2>&1 | MATCH "os.query: version id is expected"
             ;;
         debian-11-64)
             os.query is-debian
