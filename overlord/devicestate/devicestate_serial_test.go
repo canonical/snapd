@@ -20,6 +20,7 @@
 package devicestate_test
 
 import (
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -826,6 +827,18 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialNoNetwork(c *C) {
 	s.testDoRequestSerialKeepsRetrying(c, &simulateNoNetRoundTripper{})
 }
 
+type simulateCertExpiredErrorRoundTripper struct{}
+
+func (s *simulateCertExpiredErrorRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	return nil, x509.CertificateInvalidError{
+		Reason: x509.Expired,
+	}
+}
+
+func (s *deviceMgrSerialSuite) TestDoRequestSerialCertExpired(c *C) {
+	s.testDoRequestSerialKeepsRetrying(c, &simulateCertExpiredErrorRoundTripper{})
+}
+
 type simulateNoDNSRoundTripper struct{}
 
 func (s *simulateNoDNSRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
@@ -905,7 +918,7 @@ func (s *deviceMgrSerialSuite) testDoRequestSerialKeepsRetrying(c *C, rt http.Ro
 		s.state.Lock()
 
 		c.Check(chg.Status(), Equals, state.DoingStatus)
-		c.Check(chg.Err(), IsNil)
+		c.Assert(chg.Err(), IsNil)
 	}
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
