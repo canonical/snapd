@@ -609,6 +609,16 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		logger.Noticef("cannot write installation log: %v", err)
 	}
 
+	// if the model has a gadget snap, and said gadget snap has an install-device hook
+	// call systemctl daemon-reload to account for any potential side-effects of that
+	// install-device hook
+	if shouldReload, err := m.hasInstallDeviceHook(model); err == nil && shouldReload {
+		sd := systemd.New(systemd.SystemMode, progress.Null)
+		if err := sd.DaemonReload(); err != nil {
+			return err
+		}
+	}
+
 	// request by default a restart as the last action after a
 	// successful install or what install-device requested via
 	// snapctl reboot
