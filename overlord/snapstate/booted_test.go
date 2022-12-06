@@ -108,10 +108,10 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	ifacerepo.Replace(bs.state, repo)
 	bs.state.Unlock()
 
-	oldSnapServiceOptions := snapstate.SnapServiceOptions
-	snapstate.SnapServiceOptions = servicestate.SnapServicesOptions
+	oldSnapServiceOptions := snapstate.SnapServicesOptions
+	snapstate.SnapServicesOptions = servicestate.SnapServicesOptions
 	bs.AddCleanup(func() {
-		snapstate.SnapServiceOptions = oldSnapServiceOptions
+		snapstate.SnapServicesOptions = oldSnapServiceOptions
 	})
 	bs.AddCleanup(osutil.MockMountInfo(""))
 }
