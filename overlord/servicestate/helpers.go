@@ -106,18 +106,12 @@ func updateSnapstateServices(snapst *snapstate.SnapState, enable, disable []*sna
 // group of the snap.
 func MakeServiceQuotaMap(snapInfo *snap.Info, grp *quota.Group) map[*snap.AppInfo]*quota.Group {
 	snapServices := snapInfo.Services()
-	if len(snapServices) == 0 {
+	if len(snapServices) == 0 || grp == nil {
 		return nil
 	}
 
-	svcQuotaMap := make(map[*snap.AppInfo]*quota.Group, len(snapServices))
+	svcQuotaMap := make(map[*snap.AppInfo]*quota.Group)
 	for _, svc := range snapServices {
-		// set nil grps for all services if parent is nil
-		if grp == nil {
-			svcQuotaMap[svc] = nil
-			continue
-		}
-
 		// always default to the snap quota group if the service is not
 		// in a separate one
 		svcGrp := grp.GroupForService(fmt.Sprintf("%s.%s", snapInfo.InstanceName(), svc.Name))

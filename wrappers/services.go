@@ -588,7 +588,7 @@ func (es *ensureSnapServicesContext) reloadModified() error {
 
 // ensureSnapServiceSystemdUnits takes care of writing .service files for all services
 // registered in snap.Info apps.
-func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(svcQuotaMap map[*snap.AppInfo]*quota.Group, opts *AddSnapServicesOptions) error {
+func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(svcs []*snap.AppInfo, svcQuotaMap map[*snap.AppInfo]*quota.Group, opts *AddSnapServicesOptions) error {
 	handleFileModification := func(app *snap.AppInfo, unitType string, name, path string, content []byte) error {
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
@@ -619,13 +619,13 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(svcQuotaMap m
 	}
 
 	// note that the Preseeding option is not used here at all
-	for svc, grp := range svcQuotaMap {
+	for _, svc := range svcs {
 		// create services first; this doesn't trigger systemd
 
 		// Generate new service file state, make an app-specific AddSnapServicesOptions
 		// to avoid modifying the original copy, if we were to override the quota group.
 		content, err := generateSnapServiceFile(svc, &AddSnapServicesOptions{
-			QuotaGroup:              grp,
+			QuotaGroup:              svcQuotaMap[svc],
 			VitalityRank:            opts.VitalityRank,
 			RequireMountedSnapdSnap: opts.RequireMountedSnapdSnap,
 			Preseeding:              opts.Preseeding,
@@ -694,7 +694,7 @@ func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaG
 		}
 
 		svcQuotaMap := snapSvcOpts.ServiceQuotaMap
-		if err := es.ensureSnapServiceSystemdUnits(svcQuotaMap, genServiceOpts); err != nil {
+		if err := es.ensureSnapServiceSystemdUnits(s.Services(), svcQuotaMap, genServiceOpts); err != nil {
 			return nil, err
 		}
 	}

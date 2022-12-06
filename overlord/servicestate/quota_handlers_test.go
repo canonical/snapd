@@ -3060,6 +3060,6 @@ func (s *quotaHandlersSuite) TestAffectedSnapServicesExtraSnaps(c *C) {
 	c.Assert(err, IsNil)
 	s.checkServiceMap(c, affectedServices, map[string][]string{
 		"test-snap":  {"svc1"},
-		"test-snap2": {"svc1"},
+		"test-snap2": {},
 	})
 }
