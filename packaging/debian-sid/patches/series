@@ -4,4 +4,6 @@
 0005-advisor-errtracker-use-upstream-bolt-package.patch
 0007-i18n-use-dummy-localizations-to-avoid-dependencies.patch
 0010-man-page-sections.patch
+# XXX: remove 0016 once 2.58 is merged, see
+# https://github.com/snapcore/snapd/pull/12385
 0016-skip-TestPopulateFromSeedWithConnectHook.patch
