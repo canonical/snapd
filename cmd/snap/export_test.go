@@ -109,11 +109,19 @@ func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
 type ChangeTimings = changeTimings
 
 func NewInfoWriter(w writeflusher) *infoWriter {
+	return NewInfoWriterWithFmtTime(w, nil)
+}
+
+func NewInfoWriterWithFmtTime(w writeflusher, fmtTime func(time.Time) string) *infoWriter {
+	if fmtTime == nil {
+		fmtTime = func(t time.Time) string { return t.Format(time.Kitchen) }
+	}
+
 	return &infoWriter{
 		writeflusher: w,
 		termWidth:    20,
 		esc:          &escapes{dash: "--", tick: "*"},
-		fmtTime:      func(t time.Time) string { return t.Format(time.Kitchen) },
+		fmtTime:      fmtTime,
 	}
 }
 
@@ -139,6 +147,7 @@ var (
 	MaybePrintSum               = (*infoWriter).maybePrintSum
 	MaybePrintCohortKey         = (*infoWriter).maybePrintCohortKey
 	MaybePrintHealth            = (*infoWriter).maybePrintHealth
+	MaybePrintRefreshInfo       = (*infoWriter).maybePrintRefreshInfo
 	WaitInhibitUnlock           = waitInhibitUnlock
 	WaitWhileInhibited          = waitWhileInhibited
 	IsLocked                    = isLocked

@@ -34,6 +34,7 @@ import (
 	snaplib "github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 var cmdAppInfos = []client.AppInfo{{Name: "app1"}, {Name: "app2"}}
@@ -353,6 +354,94 @@ func (s *infoSuite) TestMaybePrintLinksContact(c *check.C) {
 		snap.MaybePrintLinks(iw)
 		c.Check(buf.String(), check.Equals, expected, check.Commentf("%q", contact))
 	}
+}
+
+func (s *infoSuite) TestMaybePrintHoldingInfo(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriterWithFmtTime(&buf, timeutil.Human)
+	instant, err := time.Parse(time.RFC3339, "2000-01-01T00:00:00Z")
+	c.Assert(err, check.IsNil)
+
+	restore := snap.MockTimeNow(func() time.Time {
+		return instant
+	})
+	defer restore()
+
+	restore = timeutil.MockTimeNow(func() time.Time {
+		return instant
+	})
+	defer restore()
+
+	// ensure timezone is UTC, otherwise test runs in other timezones would fail
+	oldLocal := time.Local
+	time.Local = time.UTC
+	defer func() {
+		time.Local = oldLocal
+	}()
+
+	for _, holdKind := range []string{"user hold expires", "gating hold expires"} {
+		for hold, expected := range map[string]string{
+			"0001-01-01T00:00:00Z": "",
+			"2000-01-01T11:30:00Z": fmt.Sprintf("%s:\ttoday at 11:30 UTC\n", holdKind),
+			"2000-01-02T12:00:00Z": fmt.Sprintf("%s:\ttomorrow at 12:00 UTC\n", holdKind),
+			"2000-02-01T00:00:00Z": fmt.Sprintf("%s:\tin 31 days, at 00:00 UTC\n", holdKind),
+			"2099-01-01T00:00:00Z": fmt.Sprintf("%s:\t2099-01-01\n", holdKind),
+			"2100-01-01T00:00:00Z": fmt.Sprintf("%s:\tin a very long time\n", holdKind),
+		} {
+			buf.Reset()
+
+			holdTime, err := time.Parse(time.RFC3339, hold)
+			c.Assert(err, check.IsNil)
+
+			switch holdKind {
+			case "user hold expires":
+				snap.SetupSnap(iw, &client.Snap{UserHold: holdTime}, nil, nil)
+			case "gating hold expires":
+				snap.SetupSnap(iw, &client.Snap{GatingHold: holdTime}, nil, nil)
+			default:
+				c.Fatalf("unknown hold field: %s", holdKind)
+			}
+
+			snap.MaybePrintRefreshInfo(iw)
+			iw.Flush()
+			cmt := check.Commentf("expected %q but got %q", expected, buf.String())
+			c.Assert(buf.String(), check.Equals, expected, cmt)
+		}
+	}
+}
+
+func (s *infoSuite) TestMaybePrintHoldingNonUTCLocalTime(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriterWithFmtTime(&buf, timeutil.Human)
+	instant, err := time.Parse(time.RFC3339, "2000-01-01T00:00:00Z")
+	c.Assert(err, check.IsNil)
+
+	restore := snap.MockTimeNow(func() time.Time {
+		return instant
+	})
+	defer restore()
+
+	restore = timeutil.MockTimeNow(func() time.Time {
+		return instant
+	})
+	defer restore()
+
+	hold := "2000-01-05T10:00:00Z"
+	holdTime, err := time.Parse(time.RFC3339, hold)
+	c.Assert(err, check.IsNil)
+
+	// mock a local timezone other than UTC
+	oldLocal := time.Local
+	time.Local = time.FixedZone("UTC+4", 4*60*60)
+	defer func() {
+		time.Local = oldLocal
+	}()
+
+	snap.SetupSnap(iw, &client.Snap{UserHold: holdTime}, nil, nil)
+
+	snap.MaybePrintRefreshInfo(iw)
+	iw.Flush()
+	c.Assert(buf.String(), check.Equals, "user hold expires:\tin 4 days, at 14:00 UTC+4\n")
 }
 
 func (s *infoSuite) TestMaybePrintLinksVerbose(c *check.C) {

@@ -260,14 +260,30 @@ func (iw *infoWriter) maybePrintTrackingChannel() {
 	fmt.Fprintf(iw, "tracking:\t%s\n", iw.localSnap.TrackingChannel)
 }
 
-func (iw *infoWriter) maybePrintInstallDate() {
+func (iw *infoWriter) maybePrintRefreshInfo() {
 	if iw.localSnap == nil {
 		return
 	}
-	if iw.localSnap.InstallDate.IsZero() {
-		return
+
+	if !iw.localSnap.InstallDate.IsZero() {
+		fmt.Fprintf(iw, "refresh-date:\t%s\n", iw.fmtTime(iw.localSnap.InstallDate))
 	}
-	fmt.Fprintf(iw, "refresh-date:\t%s\n", iw.fmtTime(iw.localSnap.InstallDate))
+
+	maybePrint := func(key string, hold time.Time) {
+		if hold.IsZero() {
+			return
+		}
+
+		longTime := timeNow().Add(100 * 365 * 24 * time.Hour)
+		if hold.After(longTime) {
+			fmt.Fprintf(iw, "%s:\tin a very long time\n", key)
+		} else {
+			fmt.Fprintf(iw, "%s:\t%s\n", key, iw.fmtTime(hold))
+		}
+	}
+
+	maybePrint("user hold expires", iw.localSnap.UserHold)
+	maybePrint("gating hold expires", iw.localSnap.GatingHold)
 }
 
 func (iw *infoWriter) maybePrintChinfo() {
@@ -674,7 +690,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.maybePrintID()
 		iw.maybePrintCohortKey()
 		iw.maybePrintTrackingChannel()
-		iw.maybePrintInstallDate()
+		iw.maybePrintRefreshInfo()
 		iw.maybePrintChinfo()
 	}
 	w.Flush()
