@@ -147,6 +147,8 @@ var (
 	snapstateSwitch                         = snapstate.Switch
 	snapstateProceedWithRefresh             = snapstate.ProceedWithRefresh
 	snapstateHoldRefreshesBySystem          = snapstate.HoldRefreshesBySystem
+	snapstateLongestGatingHold              = snapstate.LongestGatingHold
+	snapstateSystemHold                     = snapstate.SystemHold
 
 	configstateConfigureInstalled = configstate.ConfigureInstalled
 

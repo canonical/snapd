@@ -254,6 +254,22 @@ func MockConfigstateConfigureInstalled(f func(st *state.State, name string, patc
 	}
 }
 
+func MockSystemHold(f func(st *state.State, name string) (time.Time, error)) (restore func()) {
+	old := snapstateSystemHold
+	snapstateSystemHold = f
+	return func() {
+		snapstateSystemHold = old
+	}
+}
+
+func MockLongestGatingHold(f func(st *state.State, name string) (time.Time, error)) (restore func()) {
+	old := snapstateLongestGatingHold
+	snapstateLongestGatingHold = f
+	return func() {
+		snapstateLongestGatingHold = old
+	}
+}
+
 func MockReboot(f func(boot.RebootAction, time.Duration, *boot.RebootInfo) error) func() {
 	reboot = f
 	return func() { reboot = boot.Reboot }
