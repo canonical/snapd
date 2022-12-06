@@ -299,17 +299,17 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsVitalityRank(c *C) {
 
 	opts, err := servicestate.SnapServiceOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
-	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{
 		VitalityRank: 2,
 	})
 	opts, err = servicestate.SnapServiceOptions(st, barInfo, nil)
 	c.Assert(err, IsNil)
-	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{
 		VitalityRank: 1,
 	})
 	opts, err = servicestate.SnapServiceOptions(st, bazInfo, nil)
 	c.Assert(err, IsNil)
-	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{
 		VitalityRank: 0,
 	})
 }
@@ -339,7 +339,7 @@ version: 0
 
 	opts, err := servicestate.SnapServiceOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
-	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{
 		QuotaGroup: grp,
 	})
 
@@ -361,21 +361,21 @@ version: 0
 	opts, err = servicestate.SnapServiceOptions(st, fooInfo, grps)
 	c.Assert(err, IsNil)
 	grp.Snaps = []string{"foosnap"}
-	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{
 		QuotaGroup: grp,
 	})
 
 	// but using state produces nothing for the non-instance name snap
 	opts, err = servicestate.SnapServiceOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
-	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{})
+	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{})
 
 	// but it does work with instance names
 	fooInfo.InstanceKey = "instance"
 	grp.Snaps = []string{"foosnap_instance"}
 	opts, err = servicestate.SnapServiceOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
-	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{
 		QuotaGroup: grp,
 	})
 
@@ -387,7 +387,7 @@ version: 0
 
 	opts, err = servicestate.SnapServiceOptions(st, fooInfo, nil)
 	c.Assert(err, IsNil)
-	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+	c.Check(opts, DeepEquals, &wrappers.SnapServicesOptions{
 		VitalityRank: 2,
 		QuotaGroup:   grp,
 	})

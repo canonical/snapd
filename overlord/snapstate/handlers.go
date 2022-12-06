@@ -62,7 +62,7 @@ import (
 )
 
 // SnapServiceOptions is a hook set by servicestate.
-var SnapServiceOptions = func(st *state.State, snapInfo *snap.Info, grps map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
+var SnapServiceOptions = func(st *state.State, snapInfo *snap.Info, grps map[string]*quota.Group) (opts *wrappers.SnapServicesOptions, err error) {
 	panic("internal error: snapstate.SnapServiceOptions is unset")
 }
 

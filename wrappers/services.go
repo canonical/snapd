@@ -493,7 +493,7 @@ func MakeServiceQuotaMap(snapName string, svcs []*snap.AppInfo, grp *quota.Group
 
 		// always default to the snap quota group if the service is not
 		// in a separate one
-		svcGrp := grp.FindQuotaGroupForServiceInSubGroups(fmt.Sprintf("%s.%s", snapName, svc.Name))
+		svcGrp := grp.GroupForService(fmt.Sprintf("%s.%s", snapName, svc.Name))
 		if svcGrp == nil {
 			svcGrp = grp
 		}
@@ -502,7 +502,7 @@ func MakeServiceQuotaMap(snapName string, svcs []*snap.AppInfo, grp *quota.Group
 	return svcQuotaMap
 }
 
-type SnapServiceOptions struct {
+type SnapServicesOptions struct {
 	// VitalityRank is the rank of all services in the specified snap used by
 	// the OOM killer when OOM conditions are reached.
 	VitalityRank int
@@ -544,7 +544,7 @@ type ensureSnapServicesContext struct {
 	// snaps, observeChange, opts and inter are the arguments
 	// taken by EnsureSnapServices. They are here to allow sub-functions
 	// to easier access these, and keep parameter lists shorter.
-	snaps         map[*snap.Info]*SnapServiceOptions
+	snaps         map[*snap.Info]*SnapServicesOptions
 	observeChange ObserveChangeCallback
 	opts          *EnsureSnapServicesOptions
 	inter         Interacter
@@ -881,7 +881,7 @@ func (es *ensureSnapServicesContext) ensureJournalQuotaServiceUnits(quotaGroups 
 // produce immediate side-effects, as the changes are in effect only
 // if the function did not return an error.
 // This function is idempotent.
-func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter Interacter) (err error) {
+func EnsureSnapServices(snaps map[*snap.Info]*SnapServicesOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter Interacter) (err error) {
 	if opts == nil {
 		opts = &EnsureSnapServicesOptions{}
 	}
@@ -950,7 +950,7 @@ func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter Interacte
 		opts = &AddSnapServicesOptions{}
 	}
 
-	m := map[*snap.Info]*SnapServiceOptions{
+	m := map[*snap.Info]*SnapServicesOptions{
 		s: {
 			VitalityRank: opts.VitalityRank,
 			QuotaGroup:   opts.QuotaGroup,

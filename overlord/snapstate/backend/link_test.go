@@ -850,7 +850,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	linkCtxWithGroup := backend.LinkContext{
-		ServiceOptions: &wrappers.SnapServiceOptions{
+		ServiceOptions: &wrappers.SnapServicesOptions{
 			QuotaGroup: grp,
 		},
 	}

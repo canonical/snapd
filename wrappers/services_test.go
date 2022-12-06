@@ -176,7 +176,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: nil,
 	}
 
@@ -232,7 +232,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup: grp,
 			Services:   wrappers.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
@@ -338,7 +338,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountQuotas(c *C) {
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup: grp,
 			Services:   wrappers.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
@@ -440,7 +440,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountAndCpuSetQuota
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup: grp,
 			Services:   wrappers.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
@@ -535,7 +535,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalNamespaceOnly(c *C)
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup: grp,
 			Services:   wrappers.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
@@ -653,7 +653,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotas(c *C) {
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup: grp,
 			Services:   wrappers.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
@@ -774,7 +774,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotaRateAsZero(c *
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup: grp,
 			Services:   wrappers.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
@@ -908,7 +908,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSnapServices(c *C) {
 
 	sub.Services = []string{"hello-snap.svc1"}
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup: grp,
 			Services:   wrappers.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
@@ -1170,7 +1170,7 @@ WantedBy=multi-user.target
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup: grp,
 			Services:   wrappers.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
@@ -1273,7 +1273,7 @@ WantedBy=multi-user.target
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup: grp,
 			Services:   wrappers.MakeServiceQuotaMap(info.InstanceName(), info.Services(), grp),
@@ -1385,7 +1385,7 @@ apps:
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
 	subSliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup-subgroup.slice")
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info1: {
 			QuotaGroup: grp,
 			Services:   wrappers.MakeServiceQuotaMap(info1.InstanceName(), info1.Services(), grp),
@@ -1531,7 +1531,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
 	subSliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup-subgroup.slice")
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup: subgrp,
 			Services:   wrappers.MakeServiceQuotaMap(info.InstanceName(), info.Services(), subgrp),
@@ -1608,7 +1608,7 @@ func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFileDir := filepath.Join(s.tempdir, "/etc/systemd/system")
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: nil,
 	}
 
@@ -1640,7 +1640,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesPreseedingHappy(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: nil,
 	}
 
@@ -1716,7 +1716,7 @@ apps:
 	svcFile2 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-other-snap.svc1.service")
 
 	// some options per-snap
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info1: {
 			VitalityRank: 1,
 			Services:     wrappers.MakeServiceQuotaMap(info1.InstanceName(), info1.Services(), nil),
@@ -1829,7 +1829,7 @@ WantedBy=multi-user.target
 	c.Assert(err, IsNil)
 
 	// both will be written, one is new
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			VitalityRank: 1,
 			Services:     wrappers.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
@@ -1924,7 +1924,7 @@ WantedBy=multi-user.target
 	err = ioutil.WriteFile(svc1File, []byte(svc1Content), 0644)
 	c.Assert(err, IsNil)
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: nil,
 	}
 
@@ -1997,7 +1997,7 @@ WantedBy=multi-user.target
 
 	// now ensuring with no options will not modify anything or trigger a
 	// daemon-reload
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: nil,
 	}
 
@@ -2064,7 +2064,7 @@ WantedBy=multi-user.target
 	c.Assert(err, IsNil)
 
 	// now ensuring with the VitalityRank set will modify the file
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			VitalityRank: 1,
 			Services:     wrappers.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
@@ -2160,7 +2160,7 @@ WantedBy=multi-user.target
 	defer r()
 
 	// now ensuring with the VitalityRank set will modify the file
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			VitalityRank: 1,
 			Services:     wrappers.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),
@@ -2235,7 +2235,7 @@ WantedBy=multi-user.target
 	})
 	defer r()
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: nil,
 	}
 
@@ -2331,7 +2331,7 @@ WantedBy=multi-user.target
 	})
 	defer r()
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: nil,
 	}
 
@@ -2356,7 +2356,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesSubunits(c *C) {
   timer: 10:00-12:00
 `, &snap.SideInfo{Revision: snap.R(11)})
 
-	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: nil,
 	}
 	err := wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
@@ -2378,7 +2378,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesSubunits(c *C) {
       listen-stream: $SNAP_DATA/sock1.socket
 `, &snap.SideInfo{Revision: snap.R(12)})
 
-	m = map[*snap.Info]*wrappers.SnapServiceOptions{
+	m = map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			VitalityRank: 1,
 			Services:     wrappers.MakeServiceQuotaMap(info.InstanceName(), info.Services(), nil),

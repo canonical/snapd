@@ -122,7 +122,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 		return err
 	}
 
-	snapsMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
+	snapsMap := map[*snap.Info]*wrappers.SnapServicesOptions{}
 
 	for _, snapSt := range allStates {
 		info, err := snapSt.CurrentInfo()

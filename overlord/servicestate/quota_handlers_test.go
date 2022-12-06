@@ -2961,7 +2961,7 @@ func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupHappy(c *C)
 	c.Assert(err, IsNil)
 }
 
-func (s *quotaHandlersSuite) checkServiceMap(c *C, obtained map[*snap.Info]*wrappers.SnapServiceOptions, expected map[string][]string) {
+func (s *quotaHandlersSuite) checkServiceMap(c *C, obtained map[*snap.Info]*wrappers.SnapServicesOptions, expected map[string][]string) {
 	c.Assert(len(expected), Equals, len(obtained))
 	for info, opts := range obtained {
 		expectedSvcs, ok := expected[info.InstanceName()]

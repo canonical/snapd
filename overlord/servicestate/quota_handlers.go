@@ -576,7 +576,7 @@ type ensureSnapServicesForGroupOptions struct {
 	extraSnaps []string
 }
 
-func filterSnapServices(opts *wrappers.SnapServiceOptions, include []string) *wrappers.SnapServiceOptions {
+func filterSnapServices(opts *wrappers.SnapServicesOptions, include []string) *wrappers.SnapServicesOptions {
 	if len(include) == 0 {
 		return opts
 	}
@@ -595,7 +595,7 @@ func filterSnapServices(opts *wrappers.SnapServiceOptions, include []string) *wr
 // by performing changes to a quota group. For groups that contain just snaps, all
 // services are added to the map, for groups that contain specific services, only those
 // services are affected.
-func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions) (map[*snap.Info]*wrappers.SnapServiceOptions, error) {
+func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions) (map[*snap.Info]*wrappers.SnapServicesOptions, error) {
 
 	// handle extra snaps also passed here, so that they get included
 	// in any case
@@ -613,7 +613,7 @@ func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapSer
 		snapServices[snapName] = append(snapServices[snapName], svcName)
 	}
 
-	snapSvcMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
+	snapSvcMap := map[*snap.Info]*wrappers.SnapServicesOptions{}
 	for sn, svcs := range snapServices {
 		info, err := snapstate.CurrentInfo(st, sn)
 		if err != nil {

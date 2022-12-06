@@ -363,7 +363,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 // a map of all quota groups as optimization, the map if non-nil is used in place
 // of checking state for whether the specified snap service is in a quota group.
 // If nil, the map is retrieved from state.
-func SnapServiceOptions(st *state.State, snapInfo *snap.Info, quotaGroups map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
+func SnapServiceOptions(st *state.State, snapInfo *snap.Info, quotaGroups map[string]*quota.Group) (opts *wrappers.SnapServicesOptions, err error) {
 	// if quotaGroups was not provided to us, then go get that
 	if quotaGroups == nil {
 		allGrps, err := AllQuotas(st)
@@ -373,7 +373,7 @@ func SnapServiceOptions(st *state.State, snapInfo *snap.Info, quotaGroups map[st
 		quotaGroups = allGrps
 	}
 
-	opts = &wrappers.SnapServiceOptions{}
+	opts = &wrappers.SnapServicesOptions{}
 
 	tr := config.NewTransaction(st)
 	var vitalityStr string
