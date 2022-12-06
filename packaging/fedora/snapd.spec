@@ -696,7 +696,8 @@ pushd ./data
 %make_install BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" DATADIR="%{_datadir}" \
               SYSTEMDSYSTEMUNITDIR="%{_unitdir}" SYSTEMDUSERUNITDIR="%{_userunitdir}" \
               SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
-              SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
+              SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd" \
+              TMPFILESDIR="%{_tmpfilesdir}"
 popd
 
 %if 0%{?rhel} == 7
@@ -4549,7 +4550,7 @@ fi
    1.11 update
  - cmd/snap-bootstrap, secboot, tests: misc cleanups, add spread test
 
-* Thu Dec 15 2020 Michael Vogt <mvo@ubuntu.com>
+* Tue Dec 15 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.48.2
  - tests: sign new nested-18|20* models to allow for generic serials
  - secboot: add extra paranoia when waiting for that fde-reveal-key
