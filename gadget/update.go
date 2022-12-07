@@ -550,7 +550,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 
 		// otherwise not present, figure out if it has a valid excuse
 
-		if !gs.VolumeStructure.IsPartition() {
+		if !gs.IsPartition() {
 			// raw structures like mbr or other "bare" type will not be
 			// identified by linux and thus should be skipped as they will not
 			// show up on the disk
@@ -671,7 +671,7 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 		// their content - the fact that bare structures do not overlap with
 		// real partitions will have been validated when the YAML was validated
 		// previously
-		if !structure.VolumeStructure.IsPartition() {
+		if !structure.IsPartition() {
 			continue
 		}
 
@@ -1440,8 +1440,8 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 	if from.VolumeStructure.ID != to.VolumeStructure.ID {
 		return fmt.Errorf("cannot change structure ID from %q to %q", from.VolumeStructure.ID, to.VolumeStructure.ID)
 	}
-	if to.VolumeStructure.HasFilesystem() {
-		if !from.VolumeStructure.HasFilesystem() {
+	if to.HasFilesystem() {
+		if !from.HasFilesystem() {
 			return fmt.Errorf("cannot change a bare structure to filesystem one")
 		}
 		if from.Filesystem() != to.Filesystem() {
@@ -1453,7 +1453,7 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 				from.Label(), to.Label())
 		}
 	} else {
-		if from.VolumeStructure.HasFilesystem() {
+		if from.HasFilesystem() {
 			return fmt.Errorf("cannot change a filesystem structure to a bare one")
 		}
 	}
@@ -1567,7 +1567,7 @@ func updateLocationForStructure(structureLocations map[string]map[int]StructureL
 	if !ok {
 		return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.YamlIndex, ps.VolumeStructure.VolumeName)
 	}
-	if !ps.VolumeStructure.HasFilesystem() {
+	if !ps.HasFilesystem() {
 		if loc.Device == "" {
 			return loc, fmt.Errorf("internal error: structure %d on volume %s should have had a device set but did not have one in an internal mapping", ps.YamlIndex, ps.VolumeStructure.VolumeName)
 		}
@@ -1671,7 +1671,7 @@ var updaterForStructure = updaterForStructureImpl
 func updaterForStructureImpl(loc StructureLocation, ps *LaidOutStructure, newRootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error) {
 	// TODO: this is sort of clunky, we already did the lookup, but doing the
 	// lookup out of band from this function makes for easier mocking
-	if !ps.VolumeStructure.HasFilesystem() {
+	if !ps.HasFilesystem() {
 		lookup := func(ps *LaidOutStructure) (device string, offs quantity.Offset, err error) {
 			return loc.Device, loc.Offset, nil
 		}

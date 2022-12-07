@@ -95,7 +95,7 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 			return err
 		}
 		for i, ps := range pvol.LaidOutStructure {
-			if !ps.VolumeStructure.HasFilesystem() {
+			if !ps.HasFilesystem() {
 				continue
 			}
 			mw, err := gadget.NewMountedFilesystemWriter(&ps, nil)

@@ -167,7 +167,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts 
 	for _, p := range pv.LaidOutStructure {
 		// Make loop var per-iter as we store the pointer in the results
 		p := p
-		if !p.VolumeStructure.IsPartition() {
+		if !p.IsPartition() {
 			continue
 		}
 

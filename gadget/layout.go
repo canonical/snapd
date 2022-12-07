@@ -125,8 +125,20 @@ func (l LaidOutStructure) Filesystem() string {
 	return l.VolumeStructure.Filesystem
 }
 
+// Role for the structure as specified in the gadget.
 func (l LaidOutStructure) Role() string {
 	return l.VolumeStructure.Role
+}
+
+// HasFilesystem returns true if the structure is using a filesystem.
+func (l *LaidOutStructure) HasFilesystem() bool {
+	return l.VolumeStructure.HasFilesystem()
+}
+
+// IsPartition returns true when the structure describes a partition in a block
+// device.
+func (l *LaidOutStructure) IsPartition() bool {
+	return l.VolumeStructure.IsPartition()
 }
 
 func (p LaidOutStructure) String() string {
@@ -326,7 +338,7 @@ func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOpt
 }
 
 func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *LaidOutStructure, filter ResolvedContentFilterFunc) ([]ResolvedContent, error) {
-	if !ps.VolumeStructure.HasFilesystem() {
+	if !ps.HasFilesystem() {
 		// structures without a file system are not resolved here
 		return nil, nil
 	}
@@ -431,7 +443,7 @@ func getImageSize(path string) (quantity.Size, error) {
 }
 
 func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known map[string]*LaidOutStructure) ([]LaidOutContent, error) {
-	if ps.VolumeStructure.HasFilesystem() {
+	if ps.HasFilesystem() {
 		// structures with a filesystem do not need any extra layout
 		return nil, nil
 	}
