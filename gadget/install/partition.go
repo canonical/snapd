@@ -153,7 +153,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts 
 	canExpandData := false
 	if n := len(pv.LaidOutStructure); n > 0 {
 		last := pv.LaidOutStructure[n-1]
-		if last.VolumeStructure.Role == gadget.SystemData {
+		if last.Role() == gadget.SystemData {
 			canExpandData = true
 		}
 	}
@@ -193,16 +193,16 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts 
 			newSizeInSectors = dl.UsableSectorsEnd - startInSectors
 		}
 
-		ptype := partitionType(dl.Schema, p.VolumeStructure.Type)
+		ptype := partitionType(dl.Schema, p.Type())
 
 		// synthesize the node name and on disk structure
 		node := deviceName(dl.Device, pIndex)
 		ps := onDiskAndLaidoutStructure{
 			onDisk: &gadget.OnDiskStructure{
-				Name:        p.VolumeStructure.Name,
-				Label:       p.VolumeStructure.Label,
-				Type:        p.VolumeStructure.Type,
-				Filesystem:  p.VolumeStructure.Filesystem,
+				Name:        p.Name(),
+				Label:       p.Label(),
+				Type:        p.Type(),
+				Filesystem:  p.Filesystem(),
 				StartOffset: p.StartOffset,
 				Node:        node,
 				DiskIndex:   pIndex,
@@ -309,7 +309,7 @@ func removeCreatedPartitions(gadgetRoot string, lv *gadget.LaidOutVolume, dl *ga
 func partitionsWithRolesAndContent(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume, roles []string) []onDiskAndLaidoutStructure {
 	roleForOffset := map[quantity.Offset]*gadget.LaidOutStructure{}
 	for idx, gs := range lv.LaidOutStructure {
-		if gs.VolumeStructure.Role != "" {
+		if gs.Role() != "" {
 			roleForOffset[gs.StartOffset] = &lv.LaidOutStructure[idx]
 		}
 	}
@@ -319,7 +319,7 @@ func partitionsWithRolesAndContent(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVo
 		// Create per-iter var from loop variable as we store the pointer in odls
 		part := part
 		gs := roleForOffset[part.StartOffset]
-		if gs == nil || gs.VolumeStructure.Role == "" || !strutil.ListContains(roles, gs.VolumeStructure.Role) {
+		if gs == nil || gs.Role() == "" || !strutil.ListContains(roles, gs.Role()) {
 			continue
 		}
 		// now that we have a match, set the laid out structure such
@@ -426,7 +426,7 @@ func wasCreatedDuringInstall(lv *gadget.LaidOutVolume, s gadget.OnDiskStructure)
 	for _, gs := range lv.LaidOutStructure {
 		// TODO: how to handle ubuntu-save here? maybe a higher level function
 		//       should decide whether to delete it or not?
-		switch gs.VolumeStructure.Role {
+		switch gs.Role() {
 		case gadget.SystemSave, gadget.SystemData, gadget.SystemBoot:
 			// then it was created during install or is to be created during
 			// install, see if the offset matches the provided on disk structure

@@ -368,7 +368,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		if opts.AssumeCreatablePartitionsCreated && IsCreatableAtInstall(gv) {
 			// only partitions that are creatable at install can be encrypted,
 			// check if this partition was encrypted
-			if encTypeParams, ok := opts.ExpectedStructureEncryption[gs.VolumeStructure.Name]; ok {
+			if encTypeParams, ok := opts.ExpectedStructureEncryption[gs.Name()]; ok {
 				if encTypeParams.Method == "" {
 					return false, "encrypted structure parameter missing required parameter \"method\""
 				}
@@ -572,7 +572,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	for gadgetLabel := range opts.ExpectedStructureEncryption {
 		found := false
 		for _, gs := range gadgetLayout.LaidOutStructure {
-			if gs.VolumeStructure.Name == gadgetLabel {
+			if gs.Name() == gadgetLabel {
 				found = true
 				break
 			}
@@ -1347,7 +1347,7 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 			for _, update := range allUpdates {
 				if update.volume.Name != supportedVolume {
 					// TODO: or should we error here instead?
-					logger.Noticef("skipping update on non-supported volume %s to structure %s", update.volume.Name, update.to.VolumeStructure.Name)
+					logger.Noticef("skipping update on non-supported volume %s to structure %s", update.volume.Name, update.to.Name())
 				} else {
 					keepUpdates = append(keepUpdates, update)
 				}
@@ -1408,13 +1408,13 @@ func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
 func isLegacyMBRTransition(from *LaidOutStructure, to *LaidOutStructure) bool {
 	// legacy MBR could have been specified by setting type: mbr, with no
 	// role
-	return from.VolumeStructure.Type == schemaMBR && to.VolumeStructure.Role == schemaMBR
+	return from.Type() == schemaMBR && to.Role() == schemaMBR
 }
 
 func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema string) error {
-	if schema == schemaGPT && from.VolumeStructure.Name != to.VolumeStructure.Name {
+	if schema == schemaGPT && from.Name() != to.Name() {
 		// partition names are only effective when GPT is used
-		return fmt.Errorf("cannot change structure name from %q to %q", from.VolumeStructure.Name, to.VolumeStructure.Name)
+		return fmt.Errorf("cannot change structure name from %q to %q", from.Name(), to.Name())
 	}
 	if from.VolumeStructure.Size != to.VolumeStructure.Size {
 		return fmt.Errorf("cannot change structure size from %v to %v", from.VolumeStructure.Size, to.VolumeStructure.Size)
@@ -1429,12 +1429,12 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 	if !isSameRelativeOffset(from.VolumeStructure.OffsetWrite, to.VolumeStructure.OffsetWrite) {
 		return fmt.Errorf("cannot change structure offset-write from %v to %v", from.VolumeStructure.OffsetWrite, to.VolumeStructure.OffsetWrite)
 	}
-	if from.VolumeStructure.Role != to.VolumeStructure.Role {
-		return fmt.Errorf("cannot change structure role from %q to %q", from.VolumeStructure.Role, to.VolumeStructure.Role)
+	if from.Role() != to.Role() {
+		return fmt.Errorf("cannot change structure role from %q to %q", from.Role(), to.Role())
 	}
-	if from.VolumeStructure.Type != to.VolumeStructure.Type {
+	if from.Type() != to.Type() {
 		if !isLegacyMBRTransition(from, to) {
-			return fmt.Errorf("cannot change structure type from %q to %q", from.VolumeStructure.Type, to.VolumeStructure.Type)
+			return fmt.Errorf("cannot change structure type from %q to %q", from.Type(), to.Type())
 		}
 	}
 	if from.VolumeStructure.ID != to.VolumeStructure.ID {
@@ -1444,13 +1444,13 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 		if !from.VolumeStructure.HasFilesystem() {
 			return fmt.Errorf("cannot change a bare structure to filesystem one")
 		}
-		if from.VolumeStructure.Filesystem != to.VolumeStructure.Filesystem {
+		if from.Filesystem() != to.Filesystem() {
 			return fmt.Errorf("cannot change filesystem from %q to %q",
-				from.VolumeStructure.Filesystem, to.VolumeStructure.Filesystem)
+				from.Filesystem(), to.Filesystem())
 		}
-		if from.VolumeStructure.Label != to.VolumeStructure.Label {
+		if from.Label() != to.Label() {
 			return fmt.Errorf("cannot change filesystem label from %q to %q",
-				from.VolumeStructure.Label, to.VolumeStructure.Label)
+				from.Label(), to.Label())
 		}
 	} else {
 		if from.VolumeStructure.HasFilesystem() {
@@ -1487,7 +1487,7 @@ func defaultPolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc)
 // RemodelUpdatePolicy implements the update policy of a remodel scenario. The
 // policy selects all non-MBR structures for the update.
 func RemodelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
-	if from.VolumeStructure.Role == schemaMBR {
+	if from.Role() == schemaMBR {
 		return false, nil
 	}
 	return true, nil

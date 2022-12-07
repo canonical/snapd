@@ -99,11 +99,38 @@ type LaidOutStructure struct {
 // meh this function is weirdly placed, not sure what to do w/o making schemaMBR
 // constant exported
 func IsRoleMBR(ls LaidOutStructure) bool {
-	return ls.VolumeStructure.Role == schemaMBR
+	return ls.Role() == schemaMBR
+}
+
+// These accessors return currently what comes in the gadget, but will use
+// OnDiskVolume data when the latter is made part of LaidOutStructure.
+
+// Type returns the disk type
+func (l LaidOutStructure) Type() string {
+	return l.VolumeStructure.Type
+}
+
+// Name returns the partition label.
+func (l LaidOutStructure) Name() string {
+	return l.VolumeStructure.Name
+}
+
+// Label retturns the filesystem label.
+func (l LaidOutStructure) Label() string {
+	return l.VolumeStructure.Label
+}
+
+// Filesystem for formatting the structure.
+func (l LaidOutStructure) Filesystem() string {
+	return l.VolumeStructure.Filesystem
+}
+
+func (l LaidOutStructure) Role() string {
+	return l.VolumeStructure.Role
 }
 
 func (p LaidOutStructure) String() string {
-	return fmtIndexAndName(p.YamlIndex, p.VolumeStructure.Name)
+	return fmtIndexAndName(p.YamlIndex, p.Name())
 }
 
 type byStartOffset []LaidOutStructure
@@ -174,8 +201,8 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 			YamlIndex:       idx,
 		}
 
-		if ps.VolumeStructure.Name != "" {
-			byName[ps.VolumeStructure.Name] = &ps
+		if ps.Name() != "" {
+			byName[ps.Name()] = &ps
 		}
 
 		structures[idx] = ps

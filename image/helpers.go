@@ -106,7 +106,7 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 			dst := filepath.Join(targetDir, volName, fmt.Sprintf("part%d", i))
 			// on UC20, ensure system-seed links back to the
 			// <PrepareDir>/system-seed
-			if ps.VolumeStructure.Role == gadget.SystemSeed {
+			if ps.Role() == gadget.SystemSeed {
 				uc20systemSeedDir := filepath.Join(fullPrepareDir, "system-seed")
 				if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 					return err
