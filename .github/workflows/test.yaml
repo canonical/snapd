@@ -159,7 +159,6 @@ jobs:
         # use empty path prefix to make annotations work
         args: --new-from-rev=${{ github.base_ref }} --path-prefix=
         # skip all additional steps
-        skip-go-installation: true
         skip-pkg-cache: true
         skip-build-cache: true
         # XXX: does no work with working-directory
