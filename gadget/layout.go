@@ -105,7 +105,13 @@ func IsRoleMBR(ls LaidOutStructure) bool {
 // These accessors return currently what comes in the gadget, but will use
 // OnDiskVolume data when the latter is made part of LaidOutStructure.
 
-// Type returns the disk type
+// Type returns the type of the structure, which can be 2-hex digit MBR
+// partition, 36-char GUID partition, comma separated <mbr>,<guid> for hybrid
+// partitioning schemes, or 'bare' when the structure is not considered a
+// partition.
+//
+// For backwards compatibility type 'mbr' can also be returned, and
+// that is equivalent to role 'mbr'.
 func (l LaidOutStructure) Type() string {
 	return l.VolumeStructure.Type
 }
@@ -115,7 +121,7 @@ func (l LaidOutStructure) Name() string {
 	return l.VolumeStructure.Name
 }
 
-// Label retturns the filesystem label.
+// Label returns the filesystem label.
 func (l LaidOutStructure) Label() string {
 	return l.VolumeStructure.Label
 }
