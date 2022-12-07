@@ -7,9 +7,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
-      - uses: tj-actions/changed-files@v18.7
+      - uses: tj-actions/changed-files@v34.5.1
         id: files
 
       - name: woke

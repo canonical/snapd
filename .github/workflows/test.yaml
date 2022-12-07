@@ -19,7 +19,7 @@ jobs:
     if: ${{ github.event_name == 'pull_request' }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Build snapd snap
       uses: snapcore/action-build@v1
@@ -40,7 +40,7 @@ jobs:
         fi
 
     - name: Uploading snapd snap artifact
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: snap-files
         path: "*.snap"
@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -75,7 +75,7 @@ jobs:
         sudo tar cvf cached-apt.tar /var/cache/apt
 
     - name: upload Debian dependencies
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: debian-dependencies
         path: ./cached-apt.tar
@@ -103,7 +103,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -149,7 +149,7 @@ jobs:
 
     - name: golangci-lint
       if: ${{ matrix.gochannel == 'latest/stable' }}
-      uses: golangci/golangci-lint-action@v2
+      uses: golangci/golangci-lint-action@v3
       with:
         # version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest`
         # to use the latest version
@@ -167,7 +167,7 @@ jobs:
 
     - name: Get changed files
       id: changed-files
-      uses: tj-actions/changed-files@v19
+      uses: tj-actions/changed-files@v34.5.1
       with:
         path: ./src/github.com/snapcore/snapd
 
@@ -221,7 +221,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -315,7 +315,7 @@ jobs:
 
     - name: Upload the coverage results
       if: ${{ matrix.gochannel != 'latest/stable' }}
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: coverage-files
         path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
@@ -349,7 +349,7 @@ jobs:
         covertool merge -o .coverage/all.cov .coverage/coverage*.cov
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v2
+      uses: codecov/codecov-action@v3
       # uploading to codecov occasionally fails, so continue running the test
       # workflow regardless of the upload
       continue-on-error: true
@@ -409,14 +409,14 @@ jobs:
           mkdir "${{ github.workspace }}"
 
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         # spread uses tags as delta reference
         fetch-depth: 0
 
     - name: Cache snapd test results
       id: cache-snapd-test-results
-      uses: pat-s/always-upload-cache@v2.1.5
+      uses: pat-s/always-upload-cache@v3.0.11
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
@@ -549,11 +549,11 @@ jobs:
           mkdir "${{ github.workspace }}"
 
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Cache snapd test results
       id: cache-snapd-test-results
-      uses: pat-s/always-upload-cache@v2.1.5
+      uses: pat-s/always-upload-cache@v3.0.11
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
