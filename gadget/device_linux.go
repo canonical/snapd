@@ -41,7 +41,7 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 		byPartlabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", disks.BlkIDEncodeLabel(ps.Name()))
 		candidates = append(candidates, byPartlabel)
 	}
-	if ps.VolumeStructure.HasFilesystem() {
+	if ps.HasFilesystem() {
 		fsLabel := ps.Label()
 		if fsLabel == "" && ps.Name() != "" {
 			// when image is built and the structure has no

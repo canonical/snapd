@@ -87,7 +87,7 @@ func NewMountedFilesystemWriter(ps *LaidOutStructure, observer ContentObserver) 
 	if ps == nil {
 		return nil, fmt.Errorf("internal error: *LaidOutStructure is nil")
 	}
-	if !ps.VolumeStructure.HasFilesystem() {
+	if !ps.HasFilesystem() {
 		return nil, fmt.Errorf("structure %v has no filesystem", ps)
 	}
 	fw := &MountedFilesystemWriter{

@@ -355,7 +355,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 			keyForRole[laidOut.Role()] = encryptionKey
 			partsEncrypted[laidOut.Name()] = createEncryptionParams(options.EncryptionType)
 		}
-		if options.Mount && laidOut.Label() != "" && laidOut.VolumeStructure.HasFilesystem() {
+		if options.Mount && laidOut.Label() != "" && laidOut.HasFilesystem() {
 			if err := mountFilesystem(fsDevice, laidOut.Filesystem(), getMntPointForPart(laidOut.VolumeStructure)); err != nil {
 				return nil, err
 			}
@@ -778,7 +778,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 			}
 			keyForRole[laidOut.Role()] = encryptionKey
 		}
-		if options.Mount && onDisk.Label != "" && laidOut.VolumeStructure.HasFilesystem() {
+		if options.Mount && onDisk.Label != "" && laidOut.HasFilesystem() {
 			if err := mountFilesystem(fsDevice, laidOut.Filesystem(), getMntPointForPart(laidOut.VolumeStructure)); err != nil {
 				return nil, err
 			}
