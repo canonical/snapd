@@ -102,6 +102,10 @@ capability sys_admin,
 
 # Allow to use blkid to export key=value pairs such as UUID to get block device attributes
 /{,usr/}sbin/blkid ixr,
+
+# Allow to use mkfs utils to format partitions
+/{,usr/}sbin/mke2fs ixr,
+/{,usr/}sbin/mkfs.fat ixr,
 `
 
 var blockDevicesConnectedPlugUDev = []string{
