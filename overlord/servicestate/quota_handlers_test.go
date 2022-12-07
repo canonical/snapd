@@ -1208,7 +1208,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToNewTopGroup(c *C) {
 		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
 		AddServices:    []string{"test-snap.svc1"},
 	})
-	c.Assert(err, ErrorMatches, `cannot use snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo"`)
+	c.Assert(err, ErrorMatches, `cannot add snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo"`)
 }
 
 func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToExistingTopGroup(c *C) {
@@ -1234,7 +1234,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToExistingTopGroup(c 
 		QuotaName:   "foo",
 		AddServices: []string{"test-snap.svc1"},
 	})
-	c.Assert(err, ErrorMatches, `cannot use snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo"`)
+	c.Assert(err, ErrorMatches, `cannot add snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo"`)
 }
 
 func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToGroupWithSubgroups(c *C) {
@@ -1563,14 +1563,14 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServicesFailOnInvalidSnapServic
 		QuotaName:   "foo2",
 		AddServices: []string{"test-snap.svc-none"},
 	})
-	c.Assert(err, ErrorMatches, `cannot use snap service "foo2": invalid service "svc-none"`)
+	c.Assert(err, ErrorMatches, `cannot add snap service "foo2": invalid service "svc-none"`)
 
 	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:      "update",
 		QuotaName:   "foo2",
 		AddServices: []string{"no-snap.svc1"},
 	})
-	c.Assert(err, ErrorMatches, `cannot use snap service "foo2": snap "no-snap" is not installed`)
+	c.Assert(err, ErrorMatches, `cannot add snap service "foo2": snap "no-snap" is not installed`)
 
 	// also test adding a valid snap, but the snap is not relevant for this quota group
 	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
@@ -1578,7 +1578,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServicesFailOnInvalidSnapServic
 		QuotaName:   "foo2",
 		AddServices: []string{"test-snap2.svc1"},
 	})
-	c.Assert(err, ErrorMatches, `cannot use snap service "svc1": the snap "test-snap2" must be in a direct parent group of group "foo2"`)
+	c.Assert(err, ErrorMatches, `cannot add snap service "svc1": the snap "test-snap2" must be in a direct parent group of group "foo2"`)
 
 	// check that the quota groups was created in the state
 	checkQuotaState(c, st, map[string]quotaGroupState{
@@ -1661,7 +1661,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServicesFailOnServiceTwice(c *C
 		QuotaName:   "foo3",
 		AddServices: []string{"test-snap.svc1"},
 	})
-	c.Assert(err, ErrorMatches, `cannot use snap service "svc1": the service is already in group "foo2"`)
+	c.Assert(err, ErrorMatches, `cannot add snap service "svc1": the service is already in group "foo2"`)
 
 	// check that the quota groups was created in the state
 	checkQuotaState(c, st, map[string]quotaGroupState{
@@ -2751,7 +2751,7 @@ func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupServiceSnap
 	}
 
 	err := servicestate.ValidateSnapServicesForAddingToGroup(st, []string{"test-snap.svc1"}, "foo2", allQuotas["foo"], allQuotas)
-	c.Assert(err, ErrorMatches, `cannot use snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo2"`)
+	c.Assert(err, ErrorMatches, `cannot add snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo2"`)
 }
 
 func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupInvalidService(c *C) {
@@ -2776,7 +2776,7 @@ func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupInvalidServ
 	}
 
 	err := servicestate.ValidateSnapServicesForAddingToGroup(st, []string{"test-snap.svc2"}, "foo2", allQuotas["foo"], allQuotas)
-	c.Assert(err, ErrorMatches, `cannot use snap service "foo2": invalid service "svc2"`)
+	c.Assert(err, ErrorMatches, `cannot add snap service "foo2": invalid service "svc2"`)
 }
 
 func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupHappy(c *C) {

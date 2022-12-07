@@ -907,13 +907,13 @@ func validateSnapServicesForAddingToGroup(st *state.State, services []string, gr
 			return err
 		}
 		if err = ensureAppReferenceIsService(st, snap, service); err != nil {
-			return fmt.Errorf("cannot use snap service %q: %v", group, err)
+			return fmt.Errorf("cannot add snap service %q: %v", group, err)
 		}
 		if parentGroup == nil || !strutil.ListContains(parentGroup.Snaps, snap) {
-			return fmt.Errorf("cannot use snap service %q: the snap %q must be in a direct parent group of group %q", service, snap, group)
+			return fmt.Errorf("cannot add snap service %q: the snap %q must be in a direct parent group of group %q", service, snap, group)
 		}
 		if serviceGrp := parentGroup.GroupForService(name); serviceGrp != nil {
-			return fmt.Errorf("cannot use snap service %q: the service is already in group %q", service, serviceGrp.Name)
+			return fmt.Errorf("cannot add snap service %q: the service is already in group %q", service, serviceGrp.Name)
 		}
 	}
 	return nil
