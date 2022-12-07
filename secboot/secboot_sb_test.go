@@ -85,28 +85,36 @@ func (s *secbootSuite) TestCheckTPMKeySealingSupported(c *C) {
 	type testCase struct {
 		tpmErr     error
 		tpmEnabled bool
+		daLockout  bool
 		sbData     []uint8
 		err        string
 	}
 	for i, tc := range []testCase{
 		// happy case
-		{tpmErr: nil, tpmEnabled: true, sbData: sbEnabled, err: ""},
+		{tpmErr: nil, tpmEnabled: true, daLockout: false, sbData: sbEnabled, err: ""},
 		// secure boot EFI var is empty
-		{tpmErr: nil, tpmEnabled: true, sbData: sbEmpty, err: "secure boot variable does not exist"},
+		{tpmErr: nil, tpmEnabled: true, daLockout: false, sbData: sbEmpty, err: "secure boot variable does not exist"},
 		// secure boot is disabled
-		{tpmErr: nil, tpmEnabled: true, sbData: sbDisabled, err: "secure boot is disabled"},
+		{tpmErr: nil, tpmEnabled: true, daLockout: false, sbData: sbDisabled, err: "secure boot is disabled"},
 		// EFI not supported
-		{tpmErr: nil, tpmEnabled: true, sbData: efiNotSupported, err: "not a supported EFI system"},
+		{tpmErr: nil, tpmEnabled: true, daLockout: false, sbData: efiNotSupported, err: "not a supported EFI system"},
 		// TPM connection error
-		{tpmErr: tpmErr, sbData: sbEnabled, err: "cannot connect to TPM device: TPM error"},
+		{tpmErr: tpmErr, sbData: sbEnabled, daLockout: false, err: "cannot connect to TPM device: TPM error"},
 		// TPM was detected but it's not enabled
-		{tpmErr: nil, tpmEnabled: false, sbData: sbEnabled, err: "TPM device is not enabled"},
+		{tpmErr: nil, tpmEnabled: false, daLockout: false, sbData: sbEnabled, err: "TPM device is not enabled"},
 		// No TPM device
-		{tpmErr: sb_tpm2.ErrNoTPM2Device, sbData: sbEnabled, err: "cannot connect to TPM device: no TPM2 device is available"},
+		{tpmErr: sb_tpm2.ErrNoTPM2Device, daLockout: false, sbData: sbEnabled, err: "cannot connect to TPM device: no TPM2 device is available"},
+		// In DA lockout mode
+		{tpmErr: nil, tpmEnabled: true, daLockout: true, sbData: sbEnabled, err: "the TPM is in DA lockout mode"},
 	} {
 		c.Logf("%d: %v %v %v %q", i, tc.tpmErr, tc.tpmEnabled, tc.sbData, tc.err)
 
 		_, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		restore = secboot.MockSbInLockoutMode(func(tpm *sb_tpm2.Connection) bool {
+			return tc.daLockout
+		})
 		defer restore()
 
 		restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {

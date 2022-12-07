@@ -99,10 +99,24 @@ func CheckTPMKeySealingSupported() error {
 		logger.Noticef("TPM device detected but not enabled")
 		return fmt.Errorf("TPM device is not enabled")
 	}
+	if inDALockoutMode(tpm) {
+		logger.Noticef("TPM in lockout mode: %v", err)
+		return sb_tpm2.ErrTPMLockout
+	}
 
 	logger.Noticef("TPM device detected and enabled")
 
 	return nil
+}
+
+// XXX: use secboot for this once
+// https://github.com/snapcore/secboot/pull/220 is available
+var inDALockoutMode = func(tpm *sb_tpm2.Connection) bool {
+	props, err := tpm.TPMContext.GetCapabilityTPMProperties(tpm2.PropertyPermanent, 1)
+	if err != nil || len(props) == 0 {
+		return false
+	}
+	return tpm2.PermanentAttributes(props[0].Value)&tpm2.AttrInLockout > 0
 }
 
 func checkSecureBootEnabled() error {

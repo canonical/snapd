@@ -231,3 +231,9 @@ func MockSbTPMDictionaryAttackLockReset(f func(tpm *sb_tpm2.Connection, lockCont
 	sbTPMDictionaryAttackLockReset = f
 	return restore
 }
+
+func MockSbInLockoutMode(f func(tpm *sb_tpm2.Connection) bool) (restore func()) {
+	restore = testutil.Backup(&inDALockoutMode)
+	inDALockoutMode = f
+	return restore
+}
