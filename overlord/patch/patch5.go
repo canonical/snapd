@@ -72,7 +72,7 @@ func patch5(st *state.State) error {
 		}
 
 		err = wrappers.EnsureSnapServices(map[*snap.Info]*wrappers.SnapServicesOptions{
-			info: {},
+			info: nil,
 		}, nil, nil, log)
 		if err != nil {
 			return err
