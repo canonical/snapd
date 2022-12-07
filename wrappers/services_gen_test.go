@@ -202,7 +202,7 @@ apps:
 	defer restore()
 	dirs.SetRootDir("/")
 
-	opts := wrappers.AddSnapServicesOptions{
+	opts := wrappers.GenerateSnapServicesOptions{
 		RequireMountedSnapdSnap: false,
 	}
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, &opts)
@@ -210,7 +210,7 @@ apps:
 	c.Check(string(generatedWrapper), Equals, expectedAppServiceOnCore)
 
 	// now with additional dependency on tooling
-	opts = wrappers.AddSnapServicesOptions{
+	opts = wrappers.GenerateSnapServicesOptions{
 		RequireMountedSnapdSnap: true,
 	}
 	generatedWrapper, err = wrappers.GenerateSnapServiceFile(app, &opts)
@@ -992,7 +992,7 @@ func (s *servicesWrapperGenSuite) TestVitalityScore(c *C) {
 		RestartDelay: timeout.Timeout(20 * time.Second),
 	}
 
-	opts := &wrappers.AddSnapServicesOptions{VitalityRank: 1}
+	opts := &wrappers.GenerateSnapServicesOptions{VitalityRank: 1}
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, opts)
 	c.Assert(err, IsNil)
 
