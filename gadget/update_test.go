@@ -764,7 +764,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 
 		switch updaterForStructureCalls {
 		case 0:
-			c.Check(ps.VolumeStructure.Name, Equals, "first")
+			c.Check(ps.Name(), Equals, "first")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, false)
 			c.Check(ps.VolumeStructure.Size, Equals, 5*quantity.SizeMiB)
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
@@ -774,9 +774,9 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 			c.Check(ps.LaidOutContent[0].Image, Equals, "first.img")
 			c.Check(ps.LaidOutContent[0].Size, Equals, 900*quantity.SizeKiB)
 		case 1:
-			c.Check(ps.VolumeStructure.Name, Equals, "second")
+			c.Check(ps.Name(), Equals, "second")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-			c.Check(ps.VolumeStructure.Filesystem, Equals, "ext4")
+			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 10*quantity.SizeMiB)
 			// foo's start offset + foo's size
@@ -791,11 +791,11 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 		updaterForStructureCalls++
 		mu := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.VolumeStructure.Name] = true
+				backupCalls[ps.Name()] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.VolumeStructure.Name] = true
+				updateCalls[ps.Name()] = true
 				return nil
 			},
 			rollbackCb: func() error {
@@ -917,7 +917,7 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 		switch updaterForStructureCalls {
 		case 0:
 			// mbr raw structure
-			c.Check(ps.VolumeStructure.Name, Equals, "mbr")
+			c.Check(ps.Name(), Equals, "mbr")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, false)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, false)
@@ -930,7 +930,7 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 			})
 		case 1:
 			// bios boot
-			c.Check(ps.VolumeStructure.Name, Equals, "BIOS Boot")
+			c.Check(ps.Name(), Equals, "BIOS Boot")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, false)
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
@@ -943,9 +943,9 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 			})
 		case 2:
 			// EFI system partition
-			c.Check(ps.VolumeStructure.Name, Equals, "EFI System")
+			c.Check(ps.Name(), Equals, "EFI System")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-			c.Check(ps.VolumeStructure.Filesystem, Equals, "vfat")
+			c.Check(ps.Filesystem(), Equals, "vfat")
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 50*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
@@ -960,11 +960,11 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 		updaterForStructureCalls++
 		mu := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.VolumeStructure.Name] = true
+				backupCalls[ps.Name()] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.VolumeStructure.Name] = true
+				updateCalls[ps.Name()] = true
 				return nil
 			},
 			rollbackCb: func() error {
@@ -1111,7 +1111,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		switch updaterForStructureCalls {
 		case 0:
 			// mbr raw structure
-			c.Check(ps.VolumeStructure.Name, Equals, "mbr")
+			c.Check(ps.Name(), Equals, "mbr")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, false)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, false)
@@ -1124,7 +1124,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			})
 		case 1:
 			// bios boot
-			c.Check(ps.VolumeStructure.Name, Equals, "BIOS Boot")
+			c.Check(ps.Name(), Equals, "BIOS Boot")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, false)
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
@@ -1137,9 +1137,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			})
 		case 2:
 			// ubuntu-seed
-			c.Check(ps.VolumeStructure.Name, Equals, "ubuntu-seed")
+			c.Check(ps.Name(), Equals, "ubuntu-seed")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-			c.Check(ps.VolumeStructure.Filesystem, Equals, "vfat")
+			c.Check(ps.Filesystem(), Equals, "vfat")
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
@@ -1150,9 +1150,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			})
 		case 3:
 			// ubuntu-boot
-			c.Check(ps.VolumeStructure.Name, Equals, "ubuntu-boot")
+			c.Check(ps.Name(), Equals, "ubuntu-boot")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-			c.Check(ps.VolumeStructure.Filesystem, Equals, "ext4")
+			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200)*quantity.OffsetMiB)
@@ -1163,9 +1163,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			})
 		case 4:
 			// ubuntu-save
-			c.Check(ps.VolumeStructure.Name, Equals, "ubuntu-save")
+			c.Check(ps.Name(), Equals, "ubuntu-save")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-			c.Check(ps.VolumeStructure.Filesystem, Equals, "ext4")
+			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200+750)*quantity.OffsetMiB)
@@ -1176,9 +1176,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			})
 		case 5:
 			// ubuntu-data
-			c.Check(ps.VolumeStructure.Name, Equals, "ubuntu-data")
+			c.Check(ps.Name(), Equals, "ubuntu-data")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-			c.Check(ps.VolumeStructure.Filesystem, Equals, "ext4")
+			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 			// NOTE: this is the laid out size, not the actual size (since data
 			// gets expanded), but the update op doesn't actually care about the
@@ -1197,11 +1197,11 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		updaterForStructureCalls++
 		mu := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.VolumeStructure.Name] = true
+				backupCalls[ps.Name()] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.VolumeStructure.Name] = true
+				updateCalls[ps.Name()] = true
 				return nil
 			},
 			rollbackCb: func() error {
@@ -1360,7 +1360,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		switch updaterForStructureCalls {
 		case 0:
 			// mbr raw structure
-			c.Check(ps.VolumeStructure.Name, Equals, "mbr")
+			c.Check(ps.Name(), Equals, "mbr")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, false)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, false)
@@ -1373,7 +1373,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			})
 		case 1:
 			// bios boot
-			c.Check(ps.VolumeStructure.Name, Equals, "BIOS Boot")
+			c.Check(ps.Name(), Equals, "BIOS Boot")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, false)
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
@@ -1386,9 +1386,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			})
 		case 2:
 			// ubuntu-seed
-			c.Check(ps.VolumeStructure.Name, Equals, "ubuntu-seed")
+			c.Check(ps.Name(), Equals, "ubuntu-seed")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-			c.Check(ps.VolumeStructure.Filesystem, Equals, "vfat")
+			c.Check(ps.Filesystem(), Equals, "vfat")
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
@@ -1399,9 +1399,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			})
 		case 3:
 			// ubuntu-boot
-			c.Check(ps.VolumeStructure.Name, Equals, "ubuntu-boot")
+			c.Check(ps.Name(), Equals, "ubuntu-boot")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-			c.Check(ps.VolumeStructure.Filesystem, Equals, "ext4")
+			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200)*quantity.OffsetMiB)
@@ -1412,9 +1412,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			})
 		case 4:
 			// ubuntu-save
-			c.Check(ps.VolumeStructure.Name, Equals, "ubuntu-save")
+			c.Check(ps.Name(), Equals, "ubuntu-save")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-			c.Check(ps.VolumeStructure.Filesystem, Equals, "ext4")
+			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200+750)*quantity.OffsetMiB)
@@ -1425,9 +1425,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			})
 		case 5:
 			// ubuntu-data
-			c.Check(ps.VolumeStructure.Name, Equals, "ubuntu-data")
+			c.Check(ps.Name(), Equals, "ubuntu-data")
 			c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-			c.Check(ps.VolumeStructure.Filesystem, Equals, "ext4")
+			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 			// NOTE: this is the laid out size, not the actual size (since data
 			// gets expanded), but the update op doesn't actually care about the
@@ -1446,11 +1446,11 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		updaterForStructureCalls++
 		mu := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.VolumeStructure.Name] = true
+				backupCalls[ps.Name()] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.VolumeStructure.Name] = true
+				updateCalls[ps.Name()] = true
 				return nil
 			},
 			rollbackCb: func() error {
@@ -1632,7 +1632,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 			switch pcUpdaterForStructureCalls {
 			case 0:
 				// mbr raw structure
-				c.Check(ps.VolumeStructure.Name, Equals, "mbr")
+				c.Check(ps.Name(), Equals, "mbr")
 				c.Check(ps.VolumeStructure.HasFilesystem(), Equals, false)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
 				c.Check(ps.VolumeStructure.IsPartition(), Equals, false)
@@ -1645,7 +1645,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				})
 			case 1:
 				// bios boot
-				c.Check(ps.VolumeStructure.Name, Equals, "BIOS Boot")
+				c.Check(ps.Name(), Equals, "BIOS Boot")
 				c.Check(ps.VolumeStructure.HasFilesystem(), Equals, false)
 				c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
@@ -1658,9 +1658,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				})
 			case 2:
 				// ubuntu-seed
-				c.Check(ps.VolumeStructure.Name, Equals, "ubuntu-seed")
+				c.Check(ps.Name(), Equals, "ubuntu-seed")
 				c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-				c.Check(ps.VolumeStructure.Filesystem, Equals, "vfat")
+				c.Check(ps.Filesystem(), Equals, "vfat")
 				c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
@@ -1671,9 +1671,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				})
 			case 3:
 				// ubuntu-boot
-				c.Check(ps.VolumeStructure.Name, Equals, "ubuntu-boot")
+				c.Check(ps.Name(), Equals, "ubuntu-boot")
 				c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-				c.Check(ps.VolumeStructure.Filesystem, Equals, "ext4")
+				c.Check(ps.Filesystem(), Equals, "ext4")
 				c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, (1+1+1200)*quantity.OffsetMiB)
@@ -1684,9 +1684,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				})
 			case 4:
 				// ubuntu-save
-				c.Check(ps.VolumeStructure.Name, Equals, "ubuntu-save")
+				c.Check(ps.Name(), Equals, "ubuntu-save")
 				c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-				c.Check(ps.VolumeStructure.Filesystem, Equals, "ext4")
+				c.Check(ps.Filesystem(), Equals, "ext4")
 				c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, (1+1+1200+750)*quantity.OffsetMiB)
@@ -1697,9 +1697,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				})
 			case 5:
 				// ubuntu-data
-				c.Check(ps.VolumeStructure.Name, Equals, "ubuntu-data")
+				c.Check(ps.Name(), Equals, "ubuntu-data")
 				c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-				c.Check(ps.VolumeStructure.Filesystem, Equals, "ext4")
+				c.Check(ps.Filesystem(), Equals, "ext4")
 				c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 				// NOTE: this is the laid out size, not the actual size (since data
 				// gets expanded), but the update op doesn't actually care about the
@@ -1716,11 +1716,11 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 
 			mu = &mockUpdater{
 				backupCb: func() error {
-					pcBackupCalls[ps.VolumeStructure.Name] = true
+					pcBackupCalls[ps.Name()] = true
 					return nil
 				},
 				updateCb: func() error {
-					pcUpdateCalls[ps.VolumeStructure.Name] = true
+					pcUpdateCalls[ps.Name()] = true
 					return nil
 				},
 				rollbackCb: func() error {
@@ -1731,7 +1731,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 		case "foo":
 			switch fooUpdaterForStructureCalls {
 			case 0:
-				c.Check(ps.VolumeStructure.Name, Equals, "barething")
+				c.Check(ps.Name(), Equals, "barething")
 				c.Check(ps.VolumeStructure.HasFilesystem(), Equals, false)
 				c.Check(ps.VolumeStructure.IsPartition(), Equals, false)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(4096))
@@ -1743,7 +1743,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 					Offset: quantity.OffsetMiB,
 				})
 			case 1:
-				c.Check(ps.VolumeStructure.Name, Equals, "nofspart")
+				c.Check(ps.Name(), Equals, "nofspart")
 				c.Check(ps.VolumeStructure.HasFilesystem(), Equals, false)
 				c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(4096))
@@ -1755,9 +1755,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 					Offset: quantity.OffsetMiB + 4096,
 				})
 			case 2:
-				c.Check(ps.VolumeStructure.Name, Equals, "some-filesystem")
+				c.Check(ps.Name(), Equals, "some-filesystem")
 				c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-				c.Check(ps.VolumeStructure.Filesystem, Equals, "ext4")
+				c.Check(ps.Filesystem(), Equals, "ext4")
 				c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096+4096)
@@ -1773,11 +1773,11 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 
 			mu = &mockUpdater{
 				backupCb: func() error {
-					fooBackupCalls[ps.VolumeStructure.Name] = true
+					fooBackupCalls[ps.Name()] = true
 					return nil
 				},
 				updateCb: func() error {
-					fooUpdateCalls[ps.VolumeStructure.Name] = true
+					fooUpdateCalls[ps.Name()] = true
 					return nil
 				},
 				rollbackCb: func() error {
@@ -2109,9 +2109,9 @@ volumes:
 			switch pcUpdaterForStructureCalls {
 			case 0:
 				// ubuntu-seed
-				c.Check(ps.VolumeStructure.Name, Equals, "ubuntu-seed")
+				c.Check(ps.Name(), Equals, "ubuntu-seed")
 				c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-				c.Check(ps.VolumeStructure.Filesystem, Equals, "vfat")
+				c.Check(ps.Filesystem(), Equals, "vfat")
 				c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
@@ -2130,11 +2130,11 @@ volumes:
 
 			mu = &mockUpdater{
 				backupCb: func() error {
-					pcBackupCalls[ps.VolumeStructure.Name] = true
+					pcBackupCalls[ps.Name()] = true
 					return nil
 				},
 				updateCb: func() error {
-					pcUpdateCalls[ps.VolumeStructure.Name] = true
+					pcUpdateCalls[ps.Name()] = true
 					return nil
 				},
 				rollbackCb: func() error {
@@ -2145,9 +2145,9 @@ volumes:
 		case "foo":
 			switch fooUpdaterForStructureCalls {
 			case 0:
-				c.Check(ps.VolumeStructure.Name, Equals, "some-filesystem")
+				c.Check(ps.Name(), Equals, "some-filesystem")
 				c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-				c.Check(ps.VolumeStructure.Filesystem, Equals, "ext4")
+				c.Check(ps.Filesystem(), Equals, "ext4")
 				c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096+4096)
@@ -2168,11 +2168,11 @@ volumes:
 
 			mu = &mockUpdater{
 				backupCb: func() error {
-					fooBackupCalls[ps.VolumeStructure.Name] = true
+					fooBackupCalls[ps.Name()] = true
 					return nil
 				},
 				updateCb: func() error {
-					fooUpdateCalls[ps.VolumeStructure.Name] = true
+					fooUpdateCalls[ps.Name()] = true
 					return nil
 				},
 				rollbackCb: func() error {
@@ -2409,9 +2409,9 @@ volumes:
 			switch pcUpdaterForStructureCalls {
 			case 0:
 				// ubuntu-seed
-				c.Check(ps.VolumeStructure.Name, Equals, "ubuntu-seed")
+				c.Check(ps.Name(), Equals, "ubuntu-seed")
 				c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-				c.Check(ps.VolumeStructure.Filesystem, Equals, "vfat")
+				c.Check(ps.Filesystem(), Equals, "vfat")
 				c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
@@ -2430,11 +2430,11 @@ volumes:
 
 			mu = &mockUpdater{
 				backupCb: func() error {
-					pcBackupCalls[ps.VolumeStructure.Name] = true
+					pcBackupCalls[ps.Name()] = true
 					return nil
 				},
 				updateCb: func() error {
-					pcUpdateCalls[ps.VolumeStructure.Name] = true
+					pcUpdateCalls[ps.Name()] = true
 					return nil
 				},
 				rollbackCb: func() error {
@@ -2445,9 +2445,9 @@ volumes:
 		case "foo":
 			switch fooUpdaterForStructureCalls {
 			case 0:
-				c.Check(ps.VolumeStructure.Name, Equals, "some-filesystem")
+				c.Check(ps.Name(), Equals, "some-filesystem")
 				c.Check(ps.VolumeStructure.HasFilesystem(), Equals, true)
-				c.Check(ps.VolumeStructure.Filesystem, Equals, "ext4")
+				c.Check(ps.Filesystem(), Equals, "ext4")
 				c.Check(ps.VolumeStructure.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096+4096)
@@ -2463,11 +2463,11 @@ volumes:
 
 			mu = &mockUpdater{
 				backupCb: func() error {
-					fooBackupCalls[ps.VolumeStructure.Name] = true
+					fooBackupCalls[ps.Name()] = true
 					return nil
 				},
 				updateCb: func() error {
-					fooUpdateCalls[ps.VolumeStructure.Name] = true
+					fooUpdateCalls[ps.Name()] = true
 					return nil
 				},
 				rollbackCb: func() error {
@@ -2525,7 +2525,7 @@ func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
 		switch updaterForStructureCalls {
 		case 0:
 			// only called for the first structure
-			c.Assert(ps.VolumeStructure.Name, Equals, "first")
+			c.Assert(ps.Name(), Equals, "first")
 		default:
 			c.Fatalf("unexpected call")
 		}
@@ -2857,14 +2857,14 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 
 	toUpdate := map[string]int{}
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
-		toUpdate[ps.VolumeStructure.Name]++
+		toUpdate[ps.Name()]++
 		return &mockUpdater{}, nil
 	})
 	defer restore()
 
 	policySeen := map[string]int{}
 	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
-		policySeen[to.VolumeStructure.Name]++
+		policySeen[to.Name()]++
 		return false, nil
 	}, nil)
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
@@ -2880,8 +2880,8 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 	// try with different policy
 	policySeen = map[string]int{}
 	err = gadget.Update(uc16Model, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
-		policySeen[to.VolumeStructure.Name]++
-		return to.VolumeStructure.Name == "second", nil
+		policySeen[to.Name()]++
+		return to.Name() == "second", nil
 	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(policySeen, DeepEquals, map[string]int{
@@ -2908,7 +2908,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesRemodelPolicy(c *C) {
 
 	toUpdate := map[string]int{}
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
-		toUpdate[ps.VolumeStructure.Name] = toUpdate[ps.VolumeStructure.Name] + 1
+		toUpdate[ps.Name()] = toUpdate[ps.Name()] + 1
 		return &mockUpdater{}, nil
 	})
 	defer restore()
@@ -2963,7 +2963,7 @@ func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
 			},
 		}
 		if updaterForStructureCalls == 1 {
-			c.Assert(ps.VolumeStructure.Name, Equals, "second")
+			c.Assert(ps.Name(), Equals, "second")
 			updater.backupCb = func() error {
 				return errors.New("failed")
 			}
@@ -2997,23 +2997,23 @@ func (u *updateTestSuite) TestUpdateApplyUpdateFailsThenRollback(c *C) {
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updater := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.VolumeStructure.Name] = true
+				backupCalls[ps.Name()] = true
 				return nil
 			},
 			rollbackCb: func() error {
-				rollbackCalls[ps.VolumeStructure.Name] = true
+				rollbackCalls[ps.Name()] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.VolumeStructure.Name] = true
+				updateCalls[ps.Name()] = true
 				return nil
 			},
 		}
 		if updaterForStructureCalls == 1 {
-			c.Assert(ps.VolumeStructure.Name, Equals, "second")
+			c.Assert(ps.Name(), Equals, "second")
 			// fail update of 2nd structure
 			updater.updateCb = func() error {
-				updateCalls[ps.VolumeStructure.Name] = true
+				updateCalls[ps.Name()] = true
 				return errors.New("failed")
 			}
 		}
@@ -3064,31 +3064,31 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updater := &mockUpdater{
 			backupCb: func() error {
-				backupCalls[ps.VolumeStructure.Name] = true
+				backupCalls[ps.Name()] = true
 				return nil
 			},
 			rollbackCb: func() error {
-				rollbackCalls[ps.VolumeStructure.Name] = true
+				rollbackCalls[ps.Name()] = true
 				return nil
 			},
 			updateCb: func() error {
-				updateCalls[ps.VolumeStructure.Name] = true
+				updateCalls[ps.Name()] = true
 				return nil
 			},
 		}
 		switch updaterForStructureCalls {
 		case 1:
-			c.Assert(ps.VolumeStructure.Name, Equals, "second")
+			c.Assert(ps.Name(), Equals, "second")
 			// rollback fails on 2nd structure
 			updater.rollbackCb = func() error {
-				rollbackCalls[ps.VolumeStructure.Name] = true
+				rollbackCalls[ps.Name()] = true
 				return errors.New("rollback failed with different error")
 			}
 		case 2:
-			c.Assert(ps.VolumeStructure.Name, Equals, "third")
+			c.Assert(ps.Name(), Equals, "third")
 			// fail update of 3rd structure
 			updater.updateCb = func() error {
-				updateCalls[ps.VolumeStructure.Name] = true
+				updateCalls[ps.Name()] = true
 				return errors.New("update error")
 			}
 		}
@@ -3233,7 +3233,7 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInAll(c *C) {
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		mu := &mockUpdater{
 			updateCb: func() error {
-				c.Assert(expectedStructs, testutil.Contains, ps.VolumeStructure.Name)
+				c.Assert(expectedStructs, testutil.Contains, ps.Name())
 				updateCalls++
 				return gadget.ErrNoUpdate
 			},
@@ -3271,9 +3271,9 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInSome(c *C) {
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		mu := &mockUpdater{
 			updateCb: func() error {
-				c.Assert(expectedStructs, testutil.Contains, ps.VolumeStructure.Name)
+				c.Assert(expectedStructs, testutil.Contains, ps.Name())
 				updateCalls++
-				if ps.VolumeStructure.Name == "first" {
+				if ps.Name() == "first" {
 					return gadget.ErrNoUpdate
 				}
 				return nil

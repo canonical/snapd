@@ -6396,7 +6396,7 @@ volumes:
 	updaterForStructureCalls := 0
 	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updaterForStructureCalls++
-		c.Assert(ps.VolumeStructure.Name, Equals, "foo")
+		c.Assert(ps.Name(), Equals, "foo")
 		return &mockUpdater{}, nil
 	})
 	defer restore()
