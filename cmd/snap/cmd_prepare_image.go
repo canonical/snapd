@@ -171,6 +171,12 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	opts.AppArmorKernelFeaturesDir = x.AppArmorKernelFeaturesDir
 	opts.SysfsOverlay = x.SysfsOverlay
 
+	dir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	opts.SeedManifestDir = dir
+
 	return imagePrepare(opts)
 }
 
