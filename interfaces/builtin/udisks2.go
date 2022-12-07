@@ -40,6 +40,8 @@ const udisks2BaseDeclarationSlots = `
       slot-snap-type:
         - app
         - core
+      slot-attributes:
+        udev-file: $MISSING
     deny-connection:
       on-classic: false
     deny-auto-connection: true
