@@ -379,14 +379,14 @@ func (s *infoSuite) TestMaybePrintHoldingInfo(c *check.C) {
 		time.Local = oldLocal
 	}()
 
-	for _, holdKind := range []string{"user hold expires", "gating hold expires"} {
+	for _, holdKind := range []string{"hold", "hold-by-gating"} {
 		for hold, expected := range map[string]string{
 			"0001-01-01T00:00:00Z": "",
 			"2000-01-01T11:30:00Z": fmt.Sprintf("%s:\ttoday at 11:30 UTC\n", holdKind),
 			"2000-01-02T12:00:00Z": fmt.Sprintf("%s:\ttomorrow at 12:00 UTC\n", holdKind),
 			"2000-02-01T00:00:00Z": fmt.Sprintf("%s:\tin 31 days, at 00:00 UTC\n", holdKind),
 			"2099-01-01T00:00:00Z": fmt.Sprintf("%s:\t2099-01-01\n", holdKind),
-			"2100-01-01T00:00:00Z": fmt.Sprintf("%s:\tin a very long time\n", holdKind),
+			"2100-01-01T00:00:00Z": fmt.Sprintf("%s:\tforever\n", holdKind),
 		} {
 			buf.Reset()
 
@@ -394,9 +394,9 @@ func (s *infoSuite) TestMaybePrintHoldingInfo(c *check.C) {
 			c.Assert(err, check.IsNil)
 
 			switch holdKind {
-			case "user hold expires":
-				snap.SetupSnap(iw, &client.Snap{UserHold: holdTime}, nil, nil)
-			case "gating hold expires":
+			case "hold":
+				snap.SetupSnap(iw, &client.Snap{Hold: holdTime}, nil, nil)
+			case "hold-by-gating":
 				snap.SetupSnap(iw, &client.Snap{GatingHold: holdTime}, nil, nil)
 			default:
 				c.Fatalf("unknown hold field: %s", holdKind)
@@ -437,11 +437,11 @@ func (s *infoSuite) TestMaybePrintHoldingNonUTCLocalTime(c *check.C) {
 		time.Local = oldLocal
 	}()
 
-	snap.SetupSnap(iw, &client.Snap{UserHold: holdTime}, nil, nil)
+	snap.SetupSnap(iw, &client.Snap{Hold: holdTime}, nil, nil)
 
 	snap.MaybePrintRefreshInfo(iw)
 	iw.Flush()
-	c.Assert(buf.String(), check.Equals, "user hold expires:\tin 4 days, at 14:00 UTC+4\n")
+	c.Assert(buf.String(), check.Equals, "hold:\tin 4 days, at 14:00 UTC+4\n")
 }
 
 func (s *infoSuite) TestMaybePrintLinksVerbose(c *check.C) {
