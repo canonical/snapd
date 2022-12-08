@@ -35,6 +35,7 @@ type Change struct {
 	Status  string  `json:"status"`
 	Tasks   []*Task `json:"tasks,omitempty"`
 	Ready   bool    `json:"ready"`
+	Wait    bool    `json:"wait"`
 	Err     string  `json:"err,omitempty"`
 
 	SpawnTime time.Time `json:"spawn-time,omitempty"`

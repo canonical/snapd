@@ -86,6 +86,11 @@ func (s Status) Ready() bool {
 	return false
 }
 
+// Wait returns whether a task or change is in "Wait" state
+func (s Status) Wait() bool {
+	return s == WaitStatus
+}
+
 func (s Status) String() string {
 	switch s {
 	case DefaultStatus:

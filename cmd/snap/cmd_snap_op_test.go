@@ -2945,21 +2945,13 @@ func (s *SnapOpSuite) TestWaitReportsInfoStatus(c *check.C) {
 
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		if n < 2 {
-			fmt.Fprintln(w, `{"type": "sync",
+		fmt.Fprintln(w, `{"type": "sync",
 "result": {
 "ready": false,
+"wait": true,
 "status": "Doing",
 "tasks": [{"kind": "bar", "summary": "...", "status": "Wait", "progress": {"done": 1, "total": 1}, "log": ["INFO: Task set to wait until a manual system restart allows to continue"]}]
 }}`)
-		} else {
-			fmt.Fprintln(w, `{"type": "sync",
-"result": {
-"ready": true,
-"status": "Done",
-"tasks": [{"kind": "bar", "summary": "...", "status": "Wait", "progress": {"done": 1, "total": 1}}]
-}}`)
-		}
 		n++
 	})
 
@@ -2968,4 +2960,5 @@ func (s *SnapOpSuite) TestWaitReportsInfoStatus(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(chg, check.NotNil)
 	c.Check(meter.Notices, testutil.Contains, "INFO: Task set to wait until a manual system restart allows to continue")
+	c.Check(n, check.Equals, 1)
 }
