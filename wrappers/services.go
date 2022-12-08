@@ -620,6 +620,13 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *sna
 		return nil
 	}
 
+	// lets sort the service list before generating them for
+	// consistency when testing
+	services := snapInfo.Services()
+	sort.Slice(services, func(i, j int) bool {
+		return services[i].Name < services[j].Name
+	})
+
 	// note that the Preseeding option is not used here at all
 	for _, svc := range snapInfo.Services() {
 		// if an inclusion list is provided, then we want to make sure this service
@@ -631,10 +638,29 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *sna
 
 		// create services first; this doesn't trigger systemd
 
+		// get the correct quota group for the service we are generating.
+		quotaGrp := svcQuotaMap[svc]
+		if quotaGrp == nil {
+			// default to the parent quota group, which may also be nil.
+			quotaGrp = opts.QuotaGroup
+		} else if quotaGrp != opts.QuotaGroup {
+			// we must then be dealing with a sub-group
+			if opts.QuotaGroup == nil {
+				// this must be provided if any sub-groups are used for services
+				return fmt.Errorf("quota sub-group %q provided for service %q: parent quota group must be supplied", quotaGrp.Name, snapServiceName)
+			}
+
+			// ensure the quota group is a sub-group of the snap quota group
+			// or the parent itself
+			if quotaGrp.ParentGroup != opts.QuotaGroup.Name {
+				return fmt.Errorf("invalid quota group %q provided for service %q: must be a direct child of quota group %q", quotaGrp.Name, snapServiceName, opts.QuotaGroup.Name)
+			}
+		}
+
 		// Generate new service file state, make an app-specific generateSnapServicesOptions
 		// to avoid modifying the original copy, if we were to override the quota group.
 		content, err := generateSnapServiceFile(svc, &generateSnapServicesOptions{
-			QuotaGroup:              svcQuotaMap[svc],
+			QuotaGroup:              quotaGrp,
 			VitalityRank:            opts.VitalityRank,
 			RequireMountedSnapdSnap: opts.RequireMountedSnapdSnap,
 		})
@@ -694,6 +720,8 @@ func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaG
 			QuotaGroup:              snapSvcOpts.QuotaGroup,
 		}
 		if snapSvcOpts.QuotaGroup != nil {
+			// AddAllNecessaryGroups also adds all sub-groups to the quota group set. So this
+			// automatically covers any other quota group that might be set in snapSvcOpts.ServiceQuotaMap
 			if err := neededQuotaGrps.AddAllNecessaryGroups(snapSvcOpts.QuotaGroup); err != nil {
 				// this error can basically only be a circular reference
 				// in the quota group tree

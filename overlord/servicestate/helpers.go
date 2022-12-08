@@ -110,15 +110,9 @@ func MakeServiceQuotaMap(snapInfo *snap.Info, grp *quota.Group) map[*snap.AppInf
 		return nil
 	}
 
-	svcQuotaMap := make(map[*snap.AppInfo]*quota.Group)
+	svcQuotaMap := make(map[*snap.AppInfo]*quota.Group, len(snapServices))
 	for _, svc := range snapServices {
-		// always default to the snap quota group if the service is not
-		// in a separate one
-		svcGrp := grp.GroupForService(fmt.Sprintf("%s.%s", snapInfo.InstanceName(), svc.Name))
-		if svcGrp == nil {
-			svcGrp = grp
-		}
-		svcQuotaMap[svc] = svcGrp
+		svcQuotaMap[svc] = grp.GroupForService(fmt.Sprintf("%s.%s", snapInfo.InstanceName(), svc.Name))
 	}
 	return svcQuotaMap
 }
