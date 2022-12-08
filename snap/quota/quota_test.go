@@ -33,21 +33,18 @@ import (
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
-	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
 type quotaTestSuite struct {
-	testutil.BaseTest
 	tempdir string
 }
 
 var _ = Suite(&quotaTestSuite{})
 
 func (ts *quotaTestSuite) SetUpTest(c *C) {
-	ts.BaseTest.SetUpTest(c)
 	ts.tempdir = c.MkDir()
 	dirs.SetRootDir(ts.tempdir)
 }
