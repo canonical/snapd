@@ -2770,11 +2770,11 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityTypeBareStructureAllowedMis
 			// as existing on the disk - the code and test accounts for the MBR
 			// structure not being present in the OnDiskVolume
 			{
-				Node:        "/dev/node1",
-				Name:        "some-filesystem",
-				Size:        1 * quantity.SizeGiB,
-				Filesystem:  "ext4",
-				StartOffset: 1*quantity.OffsetMiB + 4096,
+				Node:            "/dev/node1",
+				Name:            "some-filesystem",
+				Size:            1 * quantity.SizeGiB,
+				PartitionFSType: "ext4",
+				StartOffset:     1*quantity.OffsetMiB + 4096,
 			},
 		},
 		ID:         "anything",
@@ -2841,11 +2841,11 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibility(c *C) {
 	deviceLayoutWithExtras := mockDeviceLayout
 	deviceLayoutWithExtras.Structure = append(deviceLayoutWithExtras.Structure,
 		gadget.OnDiskStructure{
-			Node:        "/dev/node2",
-			Name:        "Extra partition",
-			Size:        10 * quantity.SizeMiB,
-			Label:       "extra",
-			StartOffset: 2 * quantity.OffsetMiB,
+			Node:             "/dev/node2",
+			Name:             "Extra partition",
+			Size:             10 * quantity.SizeMiB,
+			PartitionFSLabel: "extra",
+			StartOffset:      2 * quantity.OffsetMiB,
 		},
 	)
 	// extra structure (should fail)
@@ -2918,12 +2918,12 @@ func (s *gadgetYamlTestSuite) TestMBRLayoutCompatibility(c *C) {
 		gadget.OnDiskStructure{
 			Node: "/dev/node2",
 			// name is ignored with MBR schema
-			Name:        "Extra partition",
-			Size:        1200 * quantity.SizeMiB,
-			Label:       "extra",
-			Filesystem:  "ext4",
-			Type:        "83",
-			StartOffset: 2 * quantity.OffsetMiB,
+			Name:             "Extra partition",
+			Size:             1200 * quantity.SizeMiB,
+			PartitionFSLabel: "extra",
+			PartitionFSType:  "ext4",
+			Type:             "83",
+			StartOffset:      2 * quantity.OffsetMiB,
 		},
 	)
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayoutWithExtras, nil)
@@ -2963,12 +2963,12 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 	// device matches gadget except for the filesystem type
 	deviceLayout.Structure = append(deviceLayout.Structure,
 		gadget.OnDiskStructure{
-			Node:        "/dev/node2",
-			Name:        "Writable",
-			Size:        1200 * quantity.SizeMiB,
-			Label:       "writable",
-			Filesystem:  "something_else",
-			StartOffset: 2 * quantity.OffsetMiB,
+			Node:             "/dev/node2",
+			Name:             "Writable",
+			Size:             1200 * quantity.SizeMiB,
+			PartitionFSLabel: "writable",
+			PartitionFSType:  "something_else",
+			StartOffset:      2 * quantity.OffsetMiB,
 		},
 	)
 
@@ -3039,12 +3039,12 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithUnspecifiedGadgetFilesy
 	// device matches, but it has a filesystem
 	deviceLayout.Structure = append(deviceLayout.Structure,
 		gadget.OnDiskStructure{
-			Node:        "/dev/node2",
-			Name:        "foobar",
-			Size:        1200 * quantity.SizeMiB,
-			Label:       "whatever",
-			Filesystem:  "something",
-			StartOffset: 2 * quantity.OffsetMiB,
+			Node:             "/dev/node2",
+			Name:             "foobar",
+			Size:             1200 * quantity.SizeMiB,
+			PartitionFSLabel: "whatever",
+			PartitionFSType:  "something",
+			StartOffset:      2 * quantity.OffsetMiB,
 		},
 	)
 
@@ -3089,12 +3089,12 @@ var mockEncDeviceLayout = gadget.OnDiskVolume{
 			StartOffset: 1 * quantity.OffsetMiB,
 		},
 		{
-			Node:        "/dev/node2",
-			Name:        "Writable",
-			Size:        1200 * quantity.SizeMiB,
-			Filesystem:  "crypto_LUKS",
-			Label:       "Writable-enc",
-			StartOffset: 2 * quantity.OffsetMiB,
+			Node:             "/dev/node2",
+			Name:             "Writable",
+			Size:             1200 * quantity.SizeMiB,
+			PartitionFSType:  "crypto_LUKS",
+			PartitionFSLabel: "Writable-enc",
+			StartOffset:      2 * quantity.OffsetMiB,
 		},
 	},
 	ID:         "anything",
@@ -3140,17 +3140,17 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions
 
 	// but if the name of the partition does not match "-enc" then it is not
 	// valid
-	deviceLayout.Structure[1].Label = "Writable"
+	deviceLayout.Structure[1].PartitionFSLabel = "Writable"
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, encOpts)
 	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: partition Writable is expected to be encrypted but is not named Writable-enc`)
 
 	// the filesystem must also be reported as crypto_LUKS
-	deviceLayout.Structure[1].Label = "Writable-enc"
-	deviceLayout.Structure[1].Filesystem = "ext4"
+	deviceLayout.Structure[1].PartitionFSLabel = "Writable-enc"
+	deviceLayout.Structure[1].PartitionFSType = "ext4"
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, encOpts)
 	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: partition Writable is expected to be encrypted but does not have an encrypted filesystem`)
 
-	deviceLayout.Structure[1].Filesystem = "crypto_LUKS"
+	deviceLayout.Structure[1].PartitionFSType = "crypto_LUKS"
 
 	// but without encrypted partition information and strict assumptions, they
 	// do not match due to differing filesystems
@@ -3370,10 +3370,10 @@ func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleU
 	deviceLayout.Structure[2].Size = oldSize
 
 	// if we make system-data not ext4 then it is not
-	deviceLayout.Structure[2].Filesystem = "zfs"
+	deviceLayout.Structure[2].PartitionFSType = "zfs"
 	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
 	c.Assert(matches, Equals, false)
-	deviceLayout.Structure[2].Filesystem = "ext4"
+	deviceLayout.Structure[2].PartitionFSType = "ext4"
 
 	// if we make the partition type not "Linux filesystem data", then it is not
 	deviceLayout.Structure[2].Type = "foo"
@@ -3382,10 +3382,10 @@ func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleU
 	deviceLayout.Structure[2].Type = "0FC63DAF-8483-4772-8E79-3D69D8477DE4"
 
 	// if we make the Label not writable, then it is not
-	deviceLayout.Structure[2].Label = "foo"
+	deviceLayout.Structure[2].PartitionFSLabel = "foo"
 	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
 	c.Assert(matches, Equals, false)
-	deviceLayout.Structure[2].Label = "writable"
+	deviceLayout.Structure[2].PartitionFSLabel = "writable"
 
 	// if we add another LaidOutStructure Partition to the YAML so that there is
 	// not exactly one extra partition on disk compated to the YAML, then it is
