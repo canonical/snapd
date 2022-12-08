@@ -199,14 +199,14 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts 
 		node := deviceName(dl.Device, pIndex)
 		ps := onDiskAndLaidoutStructure{
 			onDisk: &gadget.OnDiskStructure{
-				Name:        p.Name(),
-				Label:       p.Label(),
-				Type:        p.Type(),
-				Filesystem:  p.Filesystem(),
-				StartOffset: p.StartOffset,
-				Node:        node,
-				DiskIndex:   pIndex,
-				Size:        quantity.Size(newSizeInSectors * sectorSize),
+				Name:             p.Name(),
+				PartitionFSLabel: p.Label(),
+				Type:             p.Type(),
+				PartitionFSType:  p.Filesystem(),
+				StartOffset:      p.StartOffset,
+				Node:             node,
+				DiskIndex:        pIndex,
+				Size:             quantity.Size(newSizeInSectors * sectorSize),
 			},
 			laidOut: &p,
 		}

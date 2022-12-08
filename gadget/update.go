@@ -292,9 +292,9 @@ func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *LaidOutVolume, 
 
 	numPartsOnDisk := len(diskLayout.Structure)
 
-	return s.Filesystem == "ext4" &&
+	return s.PartitionFSType == "ext4" &&
 		(s.Type == "0FC63DAF-8483-4772-8E79-3D69D8477DE4" || s.Type == "83") &&
-		s.Label == "writable" &&
+		s.PartitionFSLabel == "writable" &&
 		// DiskIndex is 1-based
 		s.DiskIndex == numPartsOnDisk &&
 		numPartsInGadget+1 == numPartsOnDisk
@@ -386,12 +386,12 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 				case EncryptionLUKS:
 					// then this partition is expected to have been encrypted, the
 					// filesystem label on disk will need "-enc" appended
-					if ds.Label != gv.Name+"-enc" {
+					if ds.PartitionFSLabel != gv.Name+"-enc" {
 						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but is not named %[1]s-enc", gv.Name)
 					}
 
 					// the filesystem should also be "crypto_LUKS"
-					if ds.Filesystem != "crypto_LUKS" {
+					if ds.PartitionFSType != "crypto_LUKS" {
 						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but does not have an encrypted filesystem", gv.Name)
 					}
 
@@ -421,14 +421,14 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			// case we don't care about the filesystem at all because snapd does
 			// not touch it, unless a gadget asset update says to update that
 			// image file with a new binary image file.
-			if gv.Filesystem != "" && gv.Filesystem != ds.Filesystem {
+			if gv.Filesystem != "" && gv.Filesystem != ds.PartitionFSType {
 				// use more specific error message for structures that are
 				// not creatable at install when we are not being strict
 				if !IsCreatableAtInstall(gv) && !opts.AssumeCreatablePartitionsCreated {
-					return false, fmt.Sprintf("filesystems do not match (and the partition is not creatable at install): declared as %s, got %s", gv.Filesystem, ds.Filesystem)
+					return false, fmt.Sprintf("filesystems do not match (and the partition is not creatable at install): declared as %s, got %s", gv.Filesystem, ds.PartitionFSType)
 				}
 				// otherwise generic
-				return false, fmt.Sprintf("filesystems do not match: declared as %s, got %s", gv.Filesystem, ds.Filesystem)
+				return false, fmt.Sprintf("filesystems do not match: declared as %s, got %s", gv.Filesystem, ds.PartitionFSType)
 			}
 		}
 

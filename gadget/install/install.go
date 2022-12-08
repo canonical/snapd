@@ -65,8 +65,8 @@ func roleOrLabelOrName(role string, part *gadget.OnDiskStructure) string {
 	switch {
 	case role != "":
 		return role
-	case part.Label != "":
-		return part.Label
+	case part.PartitionFSLabel != "":
+		return part.PartitionFSLabel
 	case part.Name != "":
 		return part.Name
 	default:
@@ -778,7 +778,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 			}
 			keyForRole[laidOut.Role()] = encryptionKey
 		}
-		if options.Mount && onDisk.Label != "" && laidOut.HasFilesystem() {
+		if options.Mount && onDisk.PartitionFSLabel != "" && laidOut.HasFilesystem() {
 			if err := mountFilesystem(fsDevice, laidOut.Filesystem(), getMntPointForPart(laidOut.VolumeStructure)); err != nil {
 				return nil, err
 			}

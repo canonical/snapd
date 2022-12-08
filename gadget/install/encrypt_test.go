@@ -49,11 +49,11 @@ type encryptSuite struct {
 var _ = Suite(&encryptSuite{})
 
 var mockDeviceStructure = gadget.OnDiskStructure{
-	Name:        "Test structure",
-	Label:       "some-label",
-	StartOffset: 0,
-	Size:        3 * quantity.SizeMiB,
-	Node:        "/dev/node1",
+	Name:             "Test structure",
+	PartitionFSLabel: "some-label",
+	StartOffset:      0,
+	Size:             3 * quantity.SizeMiB,
+	Node:             "/dev/node1",
 }
 
 func (s *encryptSuite) SetUpTest(c *C) {
@@ -129,11 +129,11 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 }
 
 var mockDeviceStructureForDeviceSetupHook = gadget.OnDiskStructure{
-	Name:        "ubuntu-data",
-	Label:       "ubuntu-data",
-	StartOffset: 0,
-	Size:        3 * quantity.SizeMiB,
-	Node:        "/dev/node1",
+	Name:             "ubuntu-data",
+	PartitionFSLabel: "ubuntu-data",
+	StartOffset:      0,
+	Size:             3 * quantity.SizeMiB,
+	Node:             "/dev/node1",
 }
 
 func (s *encryptSuite) TestCreateEncryptedDeviceWithSetupHook(c *C) {
@@ -200,11 +200,11 @@ func (s *encryptSuite) TestCreateEncryptedDeviceWithSetupHook(c *C) {
 
 func (s *encryptSuite) TestCreateEncryptedDeviceWithSetupHookPartitionNameCheck(c *C) {
 	mockDeviceStructureBadName := gadget.OnDiskStructure{
-		Name:        "ubuntu-data",
-		Label:       "ubuntu-data",
-		StartOffset: 0,
-		Size:        3 * quantity.SizeMiB,
-		Node:        "/dev/node1",
+		Name:             "ubuntu-data",
+		PartitionFSLabel: "ubuntu-data",
+		StartOffset:      0,
+		Size:             3 * quantity.SizeMiB,
+		Node:             "/dev/node1",
 	}
 	restore := install.MockBootRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
 		c.Error("unexpected call")
