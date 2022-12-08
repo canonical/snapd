@@ -79,6 +79,7 @@ func humanTimeSince(then, now time.Time, cutoffDays int) string {
 	}
 }
 
+// MockTimeNow mocks the time.Now() calls used in the timeutil package.
 func MockTimeNow(f func() time.Time) (restorer func()) {
 	origTimeNow := timeNow
 	timeNow = f

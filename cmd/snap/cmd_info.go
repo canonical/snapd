@@ -269,21 +269,21 @@ func (iw *infoWriter) maybePrintRefreshInfo() {
 		fmt.Fprintf(iw, "refresh-date:\t%s\n", iw.fmtTime(iw.localSnap.InstallDate))
 	}
 
-	maybePrint := func(key string, hold time.Time) {
+	maybePrintHold := func(key string, hold time.Time) {
 		if hold.IsZero() {
 			return
 		}
 
 		longTime := timeNow().Add(100 * 365 * 24 * time.Hour)
 		if hold.After(longTime) {
-			fmt.Fprintf(iw, "%s:\tin a very long time\n", key)
+			fmt.Fprintf(iw, "%s:\tforever\n", key)
 		} else {
 			fmt.Fprintf(iw, "%s:\t%s\n", key, iw.fmtTime(hold))
 		}
 	}
 
-	maybePrint("user hold expires", iw.localSnap.UserHold)
-	maybePrint("gating hold expires", iw.localSnap.GatingHold)
+	maybePrintHold("hold", iw.localSnap.Hold)
+	maybePrintHold("hold-by-gating", iw.localSnap.GatingHold)
 }
 
 func (iw *infoWriter) maybePrintChinfo() {
