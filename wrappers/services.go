@@ -500,6 +500,11 @@ type EnsureSnapServicesOptions struct {
 	// the snapd snap being mounted, this is specific to systems like UC18 and
 	// UC20 which have the snapd snap and need to have units generated
 	RequireMountedSnapdSnap bool
+
+	// IncludeServices provides the option for allowing filtering which services
+	// that should be configured. The service list must be in the format my-snap.my-service.
+	// If this list is not provided, then all services will be included.
+	IncludeServices []string
 }
 
 // ensureSnapServicesContext is the context for EnsureSnapServices.
@@ -585,7 +590,7 @@ func (es *ensureSnapServicesContext) reloadModified() error {
 
 // ensureSnapServiceSystemdUnits takes care of writing .service files for all services
 // registered in snap.Info apps.
-func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(svcs []*snap.AppInfo, svcQuotaMap map[*snap.AppInfo]*quota.Group, opts *generateSnapServicesOptions) error {
+func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *snap.Info, svcQuotaMap map[*snap.AppInfo]*quota.Group, opts *generateSnapServicesOptions) error {
 	handleFileModification := func(app *snap.AppInfo, unitType string, name, path string, content []byte) error {
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
@@ -616,7 +621,14 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(svcs []*snap.
 	}
 
 	// note that the Preseeding option is not used here at all
-	for _, svc := range svcs {
+	for _, svc := range snapInfo.Services() {
+		// if an inclusion list is provided, then we want to make sure this service
+		// is included
+		snapServiceName := fmt.Sprintf("%s.%s", snapInfo.InstanceName(), svc.Name)
+		if len(es.opts.IncludeServices) > 0 && !strutil.ListContains(es.opts.IncludeServices, snapServiceName) {
+			continue
+		}
+
 		// create services first; this doesn't trigger systemd
 
 		// Generate new service file state, make an app-specific generateSnapServicesOptions
@@ -690,7 +702,7 @@ func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaG
 		}
 
 		svcQuotaMap := snapSvcOpts.ServiceQuotaMap
-		if err := es.ensureSnapServiceSystemdUnits(s.Services(), svcQuotaMap, genServiceOpts); err != nil {
+		if err := es.ensureSnapServiceSystemdUnits(s, svcQuotaMap, genServiceOpts); err != nil {
 			return nil, err
 		}
 	}

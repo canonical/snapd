@@ -22,6 +22,7 @@ package servicestate_test
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -224,6 +225,34 @@ func systemctlCallsForServiceRestart(name string) []expectedSystemctl {
 		},
 		{expArgs: []string{"start", svc}},
 	}
+}
+
+func systemctlCallsForMultipleServiceRestart(name string, svcs []string) []expectedSystemctl {
+	var svcNames []string
+	var statusOutputs []string
+	for _, svc := range svcs {
+		svcName := "snap." + name + "." + svc + ".service"
+		svcNames = append(svcNames, svcName)
+		statusOutputs = append(statusOutputs, fmt.Sprintf("Id=%s\nNames=%[1]s\nActiveState=active\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n", svcName))
+	}
+
+	var expCalls []expectedSystemctl
+	expCalls = append(expCalls, expectedSystemctl{
+		expArgs: append([]string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload"}, svcNames...),
+		output:  strings.Join(statusOutputs, "\n"),
+	})
+	for _, svc := range svcNames {
+		expCalls = append(expCalls, []expectedSystemctl{
+			{expArgs: []string{"stop", svc}},
+			{
+				expArgs: []string{"show", "--property=ActiveState", svc},
+				output:  "ActiveState=inactive",
+			},
+			{expArgs: []string{"start", svc}},
+		}...,
+		)
+	}
+	return expCalls
 }
 
 func systemctlCallsForCreateQuota(groupName string, snapNames ...string) []expectedSystemctl {

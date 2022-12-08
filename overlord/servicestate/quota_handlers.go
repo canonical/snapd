@@ -203,6 +203,9 @@ func addRestartServicesTasks(st *state.State, queueTask func(task *state.Task), 
 		for _, svc := range services {
 			names = append(names, svc.Name)
 		}
+		sort.Slice(names, func(i, j int) bool {
+			return names[i] < names[j]
+		})
 		return names
 	}
 
@@ -576,56 +579,59 @@ type ensureSnapServicesForGroupOptions struct {
 	extraSnaps []string
 }
 
-func filterSnapServices(opts *wrappers.SnapServicesOptions, include []string) *wrappers.SnapServicesOptions {
-	if len(include) == 0 {
-		return opts
+func snapServiceNames(info *snap.Info) []string {
+	var appNames []string
+	for _, app := range info.Services() {
+		appNames = append(appNames, fmt.Sprintf("%s.%s", info.InstanceName(), app.Name))
 	}
-
-	filteredMap := make(map[*snap.AppInfo]*quota.Group)
-	for svc, grp := range opts.ServiceQuotaMap {
-		if strutil.ListContains(include, svc.Name) {
-			filteredMap[svc] = grp
-		}
-	}
-	opts.ServiceQuotaMap = filteredMap
-	return opts
+	return appNames
 }
 
 // affectedSnapServices returns a map of snaps and the services affected
 // by performing changes to a quota group. For groups that contain just snaps, all
 // services are added to the map, for groups that contain specific services, only those
 // services are affected.
-func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions) (map[*snap.Info]*wrappers.SnapServicesOptions, error) {
-
-	// handle extra snaps also passed here, so that they get included
-	// in any case
-	snapServices := make(map[string][]string)
-	for _, sn := range append(grp.Snaps, opts.extraSnaps...) {
-		snapServices[sn] = []string{}
-	}
-
-	// if the group is a service group, then we need to get the affected
-	// snaps from the service names, which are of format 'snap.service'
-	for _, sn := range grp.Services {
-		parts := strings.Split(sn, ".")
-		snapName := parts[0]
-		svcName := parts[1]
-		snapServices[snapName] = append(snapServices[snapName], svcName)
-	}
+func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions) (map[*snap.Info]*wrappers.SnapServicesOptions, []string, error) {
 
 	snapSvcMap := map[*snap.Info]*wrappers.SnapServicesOptions{}
-	for sn, svcs := range snapServices {
+	addSnapToMap := func(sn string) (*snap.Info, error) {
 		info, err := snapstate.CurrentInfo(st, sn)
 		if err != nil {
 			return nil, err
+		}
+		if snapSvcMap[info] != nil {
+			return info, nil
 		}
 		opts, err := SnapServicesOptions(st, info, opts.allGrps)
 		if err != nil {
 			return nil, err
 		}
-		snapSvcMap[info] = filterSnapServices(opts, svcs)
+		snapSvcMap[info] = opts
+		return info, nil
 	}
-	return snapSvcMap, nil
+
+	// handle extra snaps also passed here, so that they get included
+	// in any case
+	var affectedServices []string
+	for _, sn := range append(grp.Snaps, opts.extraSnaps...) {
+		info, err := addSnapToMap(sn)
+		if err != nil {
+			return nil, nil, err
+		}
+		affectedServices = append(affectedServices, snapServiceNames(info)...)
+	}
+
+	// if the group is a service group, then we need to get the affected
+	// snaps from the service names, which are of format 'snap.service'
+	for _, svc := range grp.Services {
+		parts := strings.Split(svc, ".")
+		snapName := parts[0]
+		if _, err := addSnapToMap(snapName); err != nil {
+			return nil, nil, err
+		}
+		affectedServices = append(affectedServices, svc)
+	}
+	return snapSvcMap, affectedServices, nil
 }
 
 // ensureSnapServicesForGroup will handle updating changes to a given
@@ -652,7 +658,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	}
 
 	// build the map of snap infos to options to provide to EnsureSnapServices
-	snapSvcMap, err := affectedSnapServices(st, grp, opts)
+	snapSvcMap, affectedServices, err := affectedSnapServices(st, grp, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -660,7 +666,8 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	// TODO: the following lines should maybe be EnsureOptionsForDevice() or
 	// something since it is duplicated a few places
 	ensureOpts := &wrappers.EnsureSnapServicesOptions{
-		Preseeding: snapdenv.Preseeding(),
+		Preseeding:      snapdenv.Preseeding(),
+		IncludeServices: affectedServices,
 	}
 
 	// set RequireMountedSnapdSnap if we are on UC18+ only

@@ -20,6 +20,7 @@
 package servicestate_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -42,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -2998,7 +3000,7 @@ func (s *quotaHandlersSuite) TestAffectedSnapServices(c *C) {
 
 	// Create a sub-group containing just service from test-snap
 	servicestatetest.MockQuotaInState(st, "foo-svc", "foo", nil, []string{"test-snap.svc1"},
-		quota.NewResourcesBuilder().WithJournalNamespace().Build())
+		quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
 
 	// Get all quotas currently in state
 	allGrps, err := servicestate.AllQuotas(st)
@@ -3009,17 +3011,22 @@ func (s *quotaHandlersSuite) TestAffectedSnapServices(c *C) {
 	// Now, we get a list of services affected if we were to do changes
 	// to the sub-group containing just services
 	opts := servicestate.EnsureSnapServicesForGroupOptions(allGrps, nil)
-	affectedServices, err := servicestate.AffectedSnapServices(st, allGrps["foo-svc"], opts)
+	snapServices, affectedServices, err := servicestate.AffectedSnapServices(st, allGrps["foo-svc"], opts)
 	c.Assert(err, IsNil)
-	s.checkServiceMap(c, affectedServices, map[string][]string{
+	c.Check(affectedServices, DeepEquals, []string{"test-snap.svc1"})
+	s.checkServiceMap(c, snapServices, map[string][]string{
 		"test-snap": {"svc1"},
 	})
 
 	// However, if we get affected services from the group containing snaps,
 	// we should expect to see all services
-	affectedServices, err = servicestate.AffectedSnapServices(st, allGrps["foo"], opts)
+	snapServices, affectedServices, err = servicestate.AffectedSnapServices(st, allGrps["foo"], opts)
 	c.Assert(err, IsNil)
-	s.checkServiceMap(c, affectedServices, map[string][]string{
+	c.Check(affectedServices, DeepEquals, []string{"test-snap.svc1", "test-snap2.svc1"})
+
+	// Both svc1 from test-snap and test-snap2 are in quota groups, which means we should
+	// expect to see the quota assignments for both.
+	s.checkServiceMap(c, snapServices, map[string][]string{
 		"test-snap":  {"svc1"},
 		"test-snap2": {"svc1"},
 	})
@@ -3056,10 +3063,168 @@ func (s *quotaHandlersSuite) TestAffectedSnapServicesExtraSnaps(c *C) {
 	// Now, we get a list of services affected for foo, which should return only
 	// test-snap.svc1, but add in test-snap2 using the ExtraSnaps property.
 	opts := servicestate.EnsureSnapServicesForGroupOptions(allGrps, []string{"test-snap2"})
-	affectedServices, err := servicestate.AffectedSnapServices(st, allGrps["foo"], opts)
+	snapServices, affectedServices, err := servicestate.AffectedSnapServices(st, allGrps["foo"], opts)
 	c.Assert(err, IsNil)
-	s.checkServiceMap(c, affectedServices, map[string][]string{
+	c.Check(affectedServices, DeepEquals, []string{"test-snap.svc1", "test-snap2.svc1"})
+	s.checkServiceMap(c, snapServices, map[string][]string{
 		"test-snap":  {"svc1"},
-		"test-snap2": {},
+		"test-snap2": {}, // do not expect any services here as they are not in a quota group
 	})
+}
+
+const testYaml3 = `name: test-snap3
+version: v1
+apps:
+  svc1:
+    command: bin.sh
+    daemon: simple
+  svc2:
+    command: bin.sh
+    daemon: simple
+`
+
+// Do we have something like this anywhere?
+func (s *quotaHandlersSuite) appendToFile(c *C, filePath string, text string) {
+	f, err := os.OpenFile(filePath,
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	_, err = f.WriteString(text)
+	c.Assert(err, IsNil)
+}
+
+func (s *quotaHandlersSuite) TestQuotaSnapServicesRestartOnlyRelevantServices(c *C) {
+	// What makes services in a quota group restart? Moving snaps or services in or out
+	// of quota groups. Here we test that when placing services into sub-groups only those
+	// in the group are restarted.
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForSliceStart("foo"),
+		systemctlCallsForServiceRestart("test-snap"),
+		systemctlCallsForMultipleServiceRestart("test-snap3", []string{"svc1", "svc2"}),
+
+		// CreateQuota for foo2 - we put test-snapd3.svc1 into this group
+		// so we expect changes for that service only, and changes for the new quota group
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForSliceStart("foo/foo2"),
+		systemctlCallsForServiceRestart("test-snap3"), // this only operates in svc1, which is what we need
+
+		// UpdateQuota for foo2 - here we expect again to see just svc1 after our little hack
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForServiceRestart("test-snap3"), // svc1
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// to prove we can affect only individual services with service groups, we will
+	// need a couple of test snaps. We will include the default one for simplicity, and
+	// we will setup another custom test snap that contains multiple services.
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snapInfo := snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap3
+	si3 := &snap.SideInfo{RealName: "test-snap3", Revision: snap.R(42)}
+	snapst3 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si3},
+		Current:  si3.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap3", snapst3)
+	snap3Info := snaptest.MockSnapCurrent(c, testYaml3, si3)
+
+	// Create the root quota group, and put let's fill it with our test snap.
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+		AddSnaps:       []string{"test-snap", "test-snap3"},
+	})
+	c.Assert(err, IsNil)
+
+	// Create our sub-group with a simple memory quota, and put one of the services
+	// from test-snap3 into this.
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo2",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 4).Build(),
+		ParentName:     "foo",
+		AddServices:    []string{"test-snap3.svc1"},
+	})
+	c.Assert(err, IsNil)
+
+	// To verify only the service we want actually changes (and see the restart we want)
+	// we need to hack a bit. We need to modify the service files so the service layer actually
+	// changes the files. Modifying the quota limits does not in itself trigger restarts, as any changes
+	// that requires restart of services is not permitted as of writing this.
+	// Instead, we will manually modify the service units, and add a comment. Then the service layer will
+	// detect that it's making modifications.
+	// Modify the service we expect will change only, and modify a service we expect not to change
+	svc1AppInfo := snap3Info.Apps["svc1"]
+	svc2AppInfo := snap3Info.Apps["svc2"]
+	c.Assert(svc1AppInfo, NotNil)
+	c.Assert(svc2AppInfo, NotNil)
+	s.appendToFile(c, svc1AppInfo.ServiceFile(), "spaghetti\n")
+	s.appendToFile(c, svc2AppInfo.ServiceFile(), "spaghetti\n")
+
+	// Perform a change to the quota group, increase memory limit. If we ever decide to support
+	// decreasing quota limits (where we need to restart the services), then we can do this instead
+	// of the above hack.
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "update",
+		QuotaName:      "foo2",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
+	})
+	c.Assert(err, IsNil)
+
+	// check that the quota groups was created in the state
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+			Snaps:          []string{"test-snap", "test-snap3"},
+			SubGroups:      []string{"foo2"},
+		},
+		"foo2": {
+			ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
+			ParentGroup:    "foo",
+			Services:       []string{"test-snap3.svc1"},
+		},
+	})
+
+	// Verify service files agree on the correct slices
+	allQuotas, err := servicestate.AllQuotas(st)
+	c.Assert(err, IsNil)
+	expectedServiceUnits := []struct {
+		snap       string
+		service    string
+		quotaGroup string
+	}{
+		{
+			snap:       "test-snap3",
+			service:    "svc1",
+			quotaGroup: "foo2",
+		},
+		{
+			snap:       "test-snap3",
+			service:    "svc2",
+			quotaGroup: "foo",
+		},
+	}
+	for _, exp := range expectedServiceUnits {
+		var info *snap.Info
+		if exp.snap == "test-snap" {
+			info = snapInfo
+		} else if exp.snap == "test-snap3" {
+			info = snap3Info
+		}
+		c.Assert(info, NotNil)
+		svc := info.Apps[exp.service]
+		grp := allQuotas[exp.quotaGroup]
+		c.Assert(svc, NotNil)
+		c.Assert(grp, NotNil)
+		c.Check(svc.ServiceFile(), testutil.FileContains, fmt.Sprintf(`Slice=%s`, grp.SliceFileName()))
+	}
 }
