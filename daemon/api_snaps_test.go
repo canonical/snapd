@@ -1163,8 +1163,8 @@ func (s *snapsSuite) TestSnapInfoReturnsHolds(c *check.C) {
 	c.Assert(rsp.Result, check.FitsTypeOf, &client.Snap{})
 	snapInfo := rsp.Result.(*client.Snap)
 
-	testCmt := check.Commentf("expected user hold %s but got %s", userHold, snapInfo.UserHold)
-	c.Check(snapInfo.UserHold.Equal(userHold), check.Equals, true, testCmt)
+	testCmt := check.Commentf("expected user hold %s but got %s", userHold, snapInfo.Hold)
+	c.Check(snapInfo.Hold.Equal(userHold), check.Equals, true, testCmt)
 
 	testCmt = check.Commentf("expected gating hold %s but got %s", gatingHold, snapInfo.GatingHold)
 	c.Check(snapInfo.GatingHold.Equal(gatingHold), check.Equals, true, testCmt)

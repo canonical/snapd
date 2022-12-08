@@ -43,8 +43,8 @@ type aboutSnap struct {
 	snapst *snapstate.SnapState
 	health *client.SnapHealth
 
-	UserHold   time.Time `json:"user-hold,omitempty"`
-	GatingHold time.Time `json:"gating-hold,omitempty"`
+	hold       time.Time
+	gatingHold time.Time
 }
 
 // localSnapInfo returns the information about the current snap for the given
@@ -86,8 +86,8 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 		info:       info,
 		snapst:     &snapst,
 		health:     clientHealthFromHealthstate(health),
-		UserHold:   userHold,
-		GatingHold: gatingHold,
+		hold:       userHold,
+		gatingHold: gatingHold,
 	}, nil
 }
 
@@ -231,8 +231,8 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 		result.MountedFrom, _ = os.Readlink(result.MountedFrom)
 	}
 	result.Health = about.health
-	result.UserHold = about.UserHold
-	result.GatingHold = about.GatingHold
+	result.Hold = about.hold
+	result.GatingHold = about.gatingHold
 
 	return result
 }
