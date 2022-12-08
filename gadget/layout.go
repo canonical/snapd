@@ -46,13 +46,10 @@ type LayoutOptions struct {
 	KernelRootDir string
 }
 
-// LayoutConstraints defines the constraints for arranging structures within a
-// volume
-type LayoutConstraints struct {
-	// NonMBRStartOffset is the default start offset of non-MBR structure in
-	// the volume.
-	NonMBRStartOffset quantity.Offset
-}
+// NonMBRStartOffset is the minimum start offset of the first non-MBR structure
+// in the volume that does not specify explicitly an offset. It can be ignored
+// by setting explicitly offsets.
+const NonMBRStartOffset = 1 * quantity.OffsetMiB
 
 // LaidOutVolume defines the size of a volume and arrangement of all the
 // structures within it
@@ -195,7 +192,7 @@ type ResolvedContent struct {
 	KernelUpdate bool
 }
 
-func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
+func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
 	previousEnd := quantity.Offset(0)
 	structures = make([]LaidOutStructure, len(volume.Structure))
 	byName = make(map[string]*LaidOutStructure, len(volume.Structure))
@@ -203,8 +200,8 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 	for idx, s := range volume.Structure {
 		var start quantity.Offset
 		if s.Offset == nil {
-			if s.Role != schemaMBR && previousEnd < constraints.NonMBRStartOffset {
-				start = constraints.NonMBRStartOffset
+			if s.Role != schemaMBR && previousEnd < NonMBRStartOffset {
+				start = NonMBRStartOffset
 			} else {
 				start = previousEnd
 			}
@@ -248,9 +245,9 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 	return structures, byName, nil
 }
 
-// LayoutVolumePartially attempts to lay out only the structures in the volume using provided constraints
-func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*PartiallyLaidOutVolume, error) {
-	structures, _, err := layoutVolumeStructures(volume, constraints)
+// LayoutVolumePartially attempts to lay out only the structures in the volume.
+func LayoutVolumePartially(volume *Volume) (*PartiallyLaidOutVolume, error) {
+	structures, _, err := layoutVolumeStructures(volume)
 	if err != nil {
 		return nil, err
 	}
@@ -263,8 +260,8 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 }
 
 // LayoutVolume attempts to completely lay out the volume, that is the
-// structures and their content, using provided constraints
-func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOptions) (*LaidOutVolume, error) {
+// structures and their content, using provided options.
+func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 	var err error
 	if opts == nil {
 		opts = &LayoutOptions{}
@@ -286,7 +283,7 @@ func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOpt
 		}
 	}
 
-	structures, byName, err := layoutVolumeStructures(volume, constraints)
+	structures, byName, err := layoutVolumeStructures(volume)
 	if err != nil {
 		return nil, err
 	}
