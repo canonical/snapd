@@ -35,7 +35,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/overlord/servicestate"
 
 	// imported to ensure actual interfaces are defined (in production this is guaranteed by ifacestate)
 	_ "github.com/snapcore/snapd/interfaces/builtin"
@@ -248,7 +247,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -354,7 +353,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountQuotas(c *C) {
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -456,7 +455,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountAndCpuSetQuota
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -551,7 +550,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalNamespaceOnly(c *C)
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -669,7 +668,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotas(c *C) {
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -790,7 +789,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotaRateAsZero(c *
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -895,9 +894,7 @@ TasksAccounting=true
 }
 
 const testSnapServicesYaml = `name: hello-snap
-version: 1.10
-summary: hello
-description: Hello...
+version: 1
 apps:
  svc1:
    command: bin/hello
@@ -938,7 +935,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSnapServices(c *C) {
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -1129,7 +1126,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithIncludeServices(c *C) {
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -1290,7 +1287,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesFailOnInvalidServiceMap(c *C) 
 			// set the snap quota group to nil, this should make the service
 			// map fail
 			QuotaGroup:      nil,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -1444,7 +1441,7 @@ WantedBy=multi-user.target
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -1547,7 +1544,7 @@ WantedBy=multi-user.target
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
 		},
 	}
 
@@ -1659,11 +1656,11 @@ apps:
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info1: {
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info1, grp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info1, grp),
 		},
 		info2: {
 			QuotaGroup:      subgrp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info2, subgrp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info2, subgrp),
 		},
 	}
 
@@ -1805,7 +1802,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
 			QuotaGroup:      subgrp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, subgrp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, subgrp),
 		},
 	}
 

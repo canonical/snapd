@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
@@ -855,7 +854,7 @@ apps:
 	linkCtxWithGroup := backend.LinkContext{
 		ServiceOptions: &wrappers.SnapServicesOptions{
 			QuotaGroup:      grp,
-			ServiceQuotaMap: servicestate.MakeServiceQuotaMap(info, grp),
+			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
 		},
 	}
 	_, err = s.be.LinkSnap(info, mockDev, linkCtxWithGroup, s.perfTimings)
