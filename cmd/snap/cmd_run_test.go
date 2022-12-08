@@ -1893,6 +1893,9 @@ func (s *RunSuite) TestWaitWhileInhibitedTextFlow(c *check.C) {
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
 	defer restoreIsGraphicalSession()
 
@@ -1935,6 +1938,9 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
 	defer restoreIsGraphicalSession()
 
@@ -1953,6 +1959,9 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowErrorOnFinish(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
 	defer restoreIsGraphicalSession()
 
