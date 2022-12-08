@@ -809,6 +809,12 @@ func (grp *Group) validate() error {
 			}
 		}
 	}
+
+	// We don't support mixing services and the journal quota, the journal quota
+	// must be applied to the parent group, and services will inherit that one.
+	if len(grp.Services) > 0 && grp.JournalLimit != nil {
+		return fmt.Errorf("journal quota is not supported for individual services")
+	}
 	return nil
 }
 

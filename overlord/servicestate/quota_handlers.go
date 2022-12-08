@@ -488,12 +488,23 @@ func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]
 	return grp, allGrps, refreshProfiles, nil
 }
 
-func quotaUpdateGroupLimits(grp *quota.Group, limits quota.Resources) error {
+func validateQuotaLimitsChange(grp *quota.Group, limits quota.Resources) error {
 	// Do not allow setting a journal limit on any group which has
 	// services in them. Due to mounts being generated per-snap we cannot
 	// support per-service journal namespaces currently.
 	if limits.Journal != nil && len(grp.Services) > 0 {
-		return fmt.Errorf("cannot update limits for group %q: journal quotas are not supported for individual services", grp.Name)
+		return fmt.Errorf("journal quotas are not supported for individual services")
+	}
+	currentQuotas := grp.GetQuotaResources()
+	if err := currentQuotas.ValidateChange(limits); err != nil {
+		return err
+	}
+	return nil
+}
+
+func quotaUpdateGroupLimits(grp *quota.Group, limits quota.Resources) error {
+	if err := validateQuotaLimitsChange(grp, limits); err != nil {
+		return fmt.Errorf("cannot update limits for group %q: %v", grp.Name, err)
 	}
 
 	currentQuotas := grp.GetQuotaResources()

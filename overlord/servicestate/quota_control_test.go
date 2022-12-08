@@ -1186,3 +1186,39 @@ func (s *quotaControlSuite) TestAddSnapToQuotaGroupQuotaConflict(c *C) {
 	_, err = servicestate.AddSnapToQuotaGroup(st, "test-snap2", "foo")
 	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
 }
+
+func (s *quotaControlSuite) TestAddSnapServicesToQuotaJournalGroupQuotaFail(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	servicestatetest.MockQuotaInState(st, "foo", "", []string{"test-snap"}, nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	servicestatetest.MockQuotaInState(st, "foo2", "foo", nil, nil, quota.NewResourcesBuilder().WithJournalNamespace().Build())
+
+	_, err := servicestate.UpdateQuota(st, "foo2", servicestate.UpdateQuotaOptions{
+		AddServices: []string{"test-snap.svc1"},
+	})
+	c.Assert(err, ErrorMatches, `cannot put services into group "foo2": journal quotas are not supported for individual services`)
+}
+
+func (s *quotaControlSuite) TestAddJournalQuotaToGroupWithServicesFail(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	servicestatetest.MockQuotaInState(st, "foo", "", []string{"test-snap"}, nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	servicestatetest.MockQuotaInState(st, "foo2", "foo", nil, []string{"test-snap.svc1"}, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB/2).Build())
+
+	_, err := servicestate.UpdateQuota(st, "foo2", servicestate.UpdateQuotaOptions{
+		NewResourceLimits: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+	})
+	c.Assert(err, ErrorMatches, `cannot update group "foo2": journal quotas are not supported for individual services`)
+}
