@@ -58,13 +58,13 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 
 	// Wait for two seconds to ensure that nothing spurious
 	// is received from the channel due to removing folder2
-	for i := 0; i < 2; i++ {
-		select {
-		case <-channel:
-			c.Fail()
-		case <-time.After(1 * time.Second):
-			continue
-		}
+	// Wait for two seconds to ensure that nothing spurious
+	// is received from the channel due to creating or
+	// removing folder3
+	select {
+	case <-channel:
+		c.Fail()
+	case <-time.After(2 * time.Second):
 	}
 
 	err = os.Remove(folder1)
