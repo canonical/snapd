@@ -154,13 +154,13 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	oldSetupPreRefreshHook := snapstate.SetupPreRefreshHook
 	oldSetupPostRefreshHook := snapstate.SetupPostRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
-	oldSnapServiceOptions := snapstate.SnapServicesOptions
+	oldSnapServiceOptions := snapstate.SnapServiceOptions
 	oldEnsureSnapAbsentFromQuotaGroup := snapstate.EnsureSnapAbsentFromQuotaGroup
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 	snapstate.SetupPreRefreshHook = hookstate.SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = hookstate.SetupPostRefreshHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
-	snapstate.SnapServicesOptions = servicestate.SnapServicesOptions
+	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
 	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
 
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
@@ -196,7 +196,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		snapstate.SetupPreRefreshHook = oldSetupPreRefreshHook
 		snapstate.SetupPostRefreshHook = oldSetupPostRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
-		snapstate.SnapServicesOptions = oldSnapServiceOptions
+		snapstate.SnapServiceOptions = oldSnapServiceOptions
 		snapstate.EnsureSnapAbsentFromQuotaGroup = oldEnsureSnapAbsentFromQuotaGroup
 
 		dirs.SetRootDir("/")

@@ -127,12 +127,12 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		}
 
 		// get the options for this snap service
-		snapSvcOpts, err := servicestate.SnapServicesOptions(st, info, grps)
+		snapSvcOpts, err := servicestate.SnapServiceOptions(st, info, grps)
 		if err != nil {
 			return err
 		}
 
-		m := map[*snap.Info]*wrappers.SnapServicesOptions{
+		m := map[*snap.Info]*wrappers.SnapServiceOptions{
 			info: snapSvcOpts,
 		}
 

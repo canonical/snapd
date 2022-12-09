@@ -48,7 +48,7 @@ type LinkContext struct {
 	IsUndo bool
 
 	// ServiceOptions is used to configure services.
-	ServiceOptions *wrappers.SnapServicesOptions
+	ServiceOptions *wrappers.SnapServiceOptions
 
 	// RunInhibitHint is used only in Unlink snap, and can be used to
 	// establish run inhibition lock for refresh operations.
@@ -210,7 +210,7 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 		Preseeding:              b.preseed,
 		RequireMountedSnapdSnap: linkCtx.RequireMountedSnapdSnap,
 	}
-	if err = wrappers.EnsureSnapServices(map[*snap.Info]*wrappers.SnapServicesOptions{
+	if err = wrappers.EnsureSnapServices(map[*snap.Info]*wrappers.SnapServiceOptions{
 		s: linkCtx.ServiceOptions,
 	}, ensureOpts, nil, progress.Null); err != nil {
 		return err

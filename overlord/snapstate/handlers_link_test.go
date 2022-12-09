@@ -68,10 +68,10 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 
-	oldSnapServiceOptions := snapstate.SnapServicesOptions
-	snapstate.SnapServicesOptions = servicestate.SnapServicesOptions
+	oldSnapServiceOptions := snapstate.SnapServiceOptions
+	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
 	s.AddCleanup(func() {
-		snapstate.SnapServicesOptions = oldSnapServiceOptions
+		snapstate.SnapServiceOptions = oldSnapServiceOptions
 		s.restartRequested = nil
 	})
 

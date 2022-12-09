@@ -815,7 +815,7 @@ apps:
 
 	linkCtxWithTooling := backend.LinkContext{
 		RequireMountedSnapdSnap: true,
-		ServiceOptions:          &wrappers.SnapServicesOptions{},
+		ServiceOptions:          &wrappers.SnapServiceOptions{},
 	}
 	_, err := s.be.LinkSnap(info, mockDev, linkCtxWithTooling, s.perfTimings)
 	c.Assert(err, IsNil)
@@ -830,7 +830,7 @@ After=usr-lib-snapd.mount`)
 
 	linkCtxNoTooling := backend.LinkContext{
 		RequireMountedSnapdSnap: false,
-		ServiceOptions:          &wrappers.SnapServicesOptions{},
+		ServiceOptions:          &wrappers.SnapServiceOptions{},
 	}
 	_, err = s.be.LinkSnap(info, mockDev, linkCtxNoTooling, s.perfTimings)
 	c.Assert(err, IsNil)
@@ -852,7 +852,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	linkCtxWithGroup := backend.LinkContext{
-		ServiceOptions: &wrappers.SnapServicesOptions{
+		ServiceOptions: &wrappers.SnapServiceOptions{
 			QuotaGroup: grp,
 		},
 	}

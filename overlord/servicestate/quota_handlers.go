@@ -591,9 +591,9 @@ func snapServiceNames(info *snap.Info) []string {
 // by performing changes to a quota group. For groups that contain just snaps, all
 // services are added to the map, for groups that contain specific services, only those
 // services are affected.
-func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions) (map[*snap.Info]*wrappers.SnapServicesOptions, []string, error) {
+func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions) (map[*snap.Info]*wrappers.SnapServiceOptions, []string, error) {
 
-	snapSvcMap := map[*snap.Info]*wrappers.SnapServicesOptions{}
+	snapSvcMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
 	addSnapToMap := func(sn string) (*snap.Info, error) {
 		info, err := snapstate.CurrentInfo(st, sn)
 		if err != nil {
@@ -602,7 +602,7 @@ func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapSer
 		if snapSvcMap[info] != nil {
 			return info, nil
 		}
-		opts, err := SnapServicesOptions(st, info, opts.allGrps)
+		opts, err := SnapServiceOptions(st, info, opts.allGrps)
 		if err != nil {
 			return nil, err
 		}

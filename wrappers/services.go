@@ -468,7 +468,7 @@ func tryFileUpdate(path string, desiredContent []byte) (old *osutil.MemoryFileSt
 	}
 }
 
-type SnapServicesOptions struct {
+type SnapServiceOptions struct {
 	// VitalityRank is the rank of all services in the specified snap used by
 	// the OOM killer when OOM conditions are reached.
 	VitalityRank int
@@ -511,7 +511,7 @@ type ensureSnapServicesContext struct {
 	// snaps, observeChange, opts and inter are the arguments
 	// taken by EnsureSnapServices. They are here to allow sub-functions
 	// to easier access these, and keep parameter lists shorter.
-	snaps         map[*snap.Info]*SnapServicesOptions
+	snaps         map[*snap.Info]*SnapServiceOptions
 	observeChange ObserveChangeCallback
 	opts          *EnsureSnapServicesOptions
 	inter         Interacter
@@ -697,7 +697,7 @@ func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaG
 			return nil, fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
 		}
 		if snapSvcOpts == nil {
-			snapSvcOpts = &SnapServicesOptions{}
+			snapSvcOpts = &SnapServiceOptions{}
 		}
 
 		// always use RequireMountedSnapdSnap options from the global options
@@ -862,7 +862,7 @@ func (es *ensureSnapServicesContext) ensureJournalQuotaServiceUnits(quotaGroups 
 // produce immediate side-effects, as the changes are in effect only
 // if the function did not return an error.
 // This function is idempotent.
-func EnsureSnapServices(snaps map[*snap.Info]*SnapServicesOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter Interacter) (err error) {
+func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter Interacter) (err error) {
 	if opts == nil {
 		opts = &EnsureSnapServicesOptions{}
 	}
