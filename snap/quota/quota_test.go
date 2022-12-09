@@ -27,7 +27,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/systemd"
@@ -36,16 +35,9 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type quotaTestSuite struct {
-	tempdir string
-}
+type quotaTestSuite struct{}
 
 var _ = Suite(&quotaTestSuite{})
-
-func (ts *quotaTestSuite) SetUpTest(c *C) {
-	ts.tempdir = c.MkDir()
-	dirs.SetRootDir(ts.tempdir)
-}
 
 func (ts *quotaTestSuite) TestNewGroup(c *C) {
 
@@ -351,13 +343,13 @@ func (ts *quotaTestSuite) TestJournalServiceName(c *C) {
 func (ts *quotaTestSuite) TestJournalServiceDropInDir(c *C) {
 	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
-	c.Check(grp.JournalServiceDropInDir(), Equals, fmt.Sprintf("%s/etc/systemd/system/systemd-journald@snap-foo.service.d", ts.tempdir))
+	c.Check(grp.JournalServiceDropInDir(), Equals, "/etc/systemd/system/systemd-journald@snap-foo.service.d")
 }
 
 func (ts *quotaTestSuite) TestJournalServiceDropInFile(c *C) {
 	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
-	c.Check(grp.JournalServiceDropInFile(), Equals, fmt.Sprintf("%s/etc/systemd/system/systemd-journald@snap-foo.service.d/00-snap.conf", ts.tempdir))
+	c.Check(grp.JournalServiceDropInFile(), Equals, "/etc/systemd/system/systemd-journald@snap-foo.service.d/00-snap.conf")
 }
 
 func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {

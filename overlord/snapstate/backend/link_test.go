@@ -815,7 +815,6 @@ apps:
 
 	linkCtxWithTooling := backend.LinkContext{
 		RequireMountedSnapdSnap: true,
-		ServiceOptions:          &wrappers.SnapServiceOptions{},
 	}
 	_, err := s.be.LinkSnap(info, mockDev, linkCtxWithTooling, s.perfTimings)
 	c.Assert(err, IsNil)
@@ -830,7 +829,6 @@ After=usr-lib-snapd.mount`)
 
 	linkCtxNoTooling := backend.LinkContext{
 		RequireMountedSnapdSnap: false,
-		ServiceOptions:          &wrappers.SnapServiceOptions{},
 	}
 	_, err = s.be.LinkSnap(info, mockDev, linkCtxNoTooling, s.perfTimings)
 	c.Assert(err, IsNil)
