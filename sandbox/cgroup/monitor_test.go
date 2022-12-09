@@ -197,7 +197,7 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	// Only one file has been removed, so wait two seconds
 	// two ensure that nothing spurious is received from
 	// the channel
-	var receivedEvent = ""
+	var receivedEvent string
 	select {
 	case receivedEvent = <-channel1:
 	case <-channel2:
