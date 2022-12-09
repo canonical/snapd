@@ -128,6 +128,7 @@ func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath st
 			// in this CGroup (by not adding it to tmpFolders)
 			iw.removePath(fullPath)
 			watch.folders = append(watch.folders[:i], watch.folders[i+1:]...)
+			break
 		}
 	}
 	if len(watch.folders) == 0 {

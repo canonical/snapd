@@ -62,8 +62,8 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	// is received from the channel due to creating or
 	// removing folder3
 	select {
-	case <-channel:
-		c.Fail()
+	case event := <-channel:
+		c.Fatalf("unexpected channel read of event %q", event)
 	case <-time.After(2 * time.Second):
 	}
 
@@ -107,8 +107,8 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	// is received from the channel due to creating or
 	// removing folder3
 	select {
-	case <-channel:
-		c.Fail()
+	case event := <-channel:
+		c.Fatalf("unexpected channel read of event %q", event)
 	case <-time.After(2 * time.Second):
 	}
 	err = os.Remove(folder1)
@@ -117,8 +117,8 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	// two ensure that nothing spurious is received from
 	// the channel
 	select {
-	case <-channel:
-		c.Fail()
+	case event := <-channel:
+		c.Fatalf("unexpected channel read of event %q", event)
 	case <-time.After(2 * time.Second):
 	}
 	err = os.Remove(folder2)
@@ -186,10 +186,10 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	// is received from the channel due to creating or
 	// removing folder3
 	select {
-	case <-channel1:
-		c.Fail()
-	case <-channel2:
-		c.Fail()
+	case event := <-channel1:
+		c.Fatalf("unexpected channel read of event %q", event)
+	case event := <-channel2:
+		c.Fatalf("unexpected channel read of event %q", event)
 	case <-time.After(2 * time.Second):
 	}
 	err = os.Remove(folder1)
@@ -200,8 +200,8 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	var receivedEvent string
 	select {
 	case receivedEvent = <-channel1:
-	case <-channel2:
-		c.Fail()
+	case event := <-channel2:
+		c.Fatalf("unexpected channel read of event %q", event)
 	case <-time.After(2 * time.Second):
 	}
 
@@ -214,8 +214,8 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	receivedEvent = ""
 	select {
 	case receivedEvent = <-channel2:
-	case <-channel1:
-		c.Fail()
+	case event := <-channel1:
+		c.Fatalf("unexpected channel read of event %q", event)
 	case <-time.After(1 * time.Second):
 	}
 	c.Assert(receivedEvent, Equals, "test4b")
