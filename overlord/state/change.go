@@ -272,9 +272,10 @@ var statusOrder = []Status{
 	AbortStatus,
 	UndoingStatus,
 	UndoStatus,
+	// XXX: wait has a higher order than doing?
+	WaitStatus,
 	DoingStatus,
 	DoStatus,
-	WaitStatus,
 	ErrorStatus,
 	UndoneStatus,
 	DoneStatus,
