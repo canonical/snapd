@@ -110,10 +110,10 @@ func (iw *inotifyWatcher) removePath(fullPath string) {
 	}
 }
 
-// processDeletedPath checks if the received "path corresponds to the passed
+// processDeletedPath checks if the received path corresponds to the passed
 // CGroup, removing it from the list of folders being watched in that CGroup if
-// needed. It returns TRUE if there remain folders to be monitored in that CGroup,
-// or FALSE if all the folders of that CGroup have been deleted.
+// needed. It returns true if there remain folders to be monitored in that CGroup,
+// or false if all the folders of that CGroup have been deleted.
 func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath string) bool {
 	for i, fullPath := range watch.folders {
 		if fullPath == deletedPath {
