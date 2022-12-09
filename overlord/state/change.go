@@ -86,11 +86,6 @@ func (s Status) Ready() bool {
 	return false
 }
 
-// Wait returns whether a task or change is in "Wait" state
-func (s Status) Wait() bool {
-	return s == WaitStatus
-}
-
 func (s Status) String() string {
 	switch s {
 	case DefaultStatus:
@@ -272,10 +267,9 @@ var statusOrder = []Status{
 	AbortStatus,
 	UndoingStatus,
 	UndoStatus,
-	// XXX: wait has a higher order than doing?
-	WaitStatus,
 	DoingStatus,
 	DoStatus,
+	WaitStatus,
 	ErrorStatus,
 	UndoneStatus,
 	DoneStatus,
@@ -314,6 +308,22 @@ func (c *Change) Status() Status {
 		panic(fmt.Sprintf("internal error: cannot process change status: %v", statusStats))
 	}
 	return c.status
+}
+
+// Wait return true if any task is in "Wait" state.
+//
+// XXX: This should probably be part of Status() but the issue with
+// Status() is that "Doing" has higher priority than "Wait" so refresh
+// tasks that have a "check-rerefresh" task will always be in doing
+// state even when "link-snap" is in wait state.
+func (c *Change) Wait() bool {
+	c.state.reading()
+	for _, tid := range c.taskIDs {
+		if c.state.tasks[tid].Status() == WaitStatus {
+			return true
+		}
+	}
+	return false
 }
 
 // SetStatus sets the change status, overriding the default behavior (see Status method).

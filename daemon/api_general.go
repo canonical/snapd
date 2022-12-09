@@ -350,7 +350,7 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 		Summary: chg.Summary(),
 		Status:  status.String(),
 		Ready:   status.Ready(),
-		Wait:    status.Wait(),
+		Wait:    chg.Wait(),
 
 		SpawnTime: chg.SpawnTime(),
 	}
