@@ -21,9 +21,11 @@ package cgroup
 
 import (
 	"errors"
+	"os"
 	"path"
 	"sync"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/inotify"
 )
@@ -83,6 +85,10 @@ func (iw *inotifyWatcher) addWatch(newWatch *groupToWatch) {
 		if _, exists := iw.pathList[basePath]; !exists {
 			iw.pathList[basePath] = 0
 			if err := iw.wd.AddWatch(basePath, inotify.InDelete); err != nil {
+				target := &os.PathError{}
+				if !errors.As(err, &target) {
+					logger.Noticef("Error when calling AddWatch for path %s: %s", target.Path, target.Err)
+				}
 				delete(iw.pathList, basePath)
 				continue
 			}
@@ -175,8 +181,8 @@ func (iw *inotifyWatcher) monitorDelete(folders []string, name string, channel c
 	return nil
 }
 
-// MonitorSnapEnded monitors the running instances of a snap. Once all 
-// instances of the snap have stopped, its name is pushed through the supplied 
+// MonitorSnapEnded monitors the running instances of a snap. Once all
+// instances of the snap have stopped, its name is pushed through the supplied
 // channel. This allows the caller to use the same channel to monitor several snaps.
 func MonitorSnapEnded(snapName string, channel chan string) error {
 	options := InstancePathsOptions{
