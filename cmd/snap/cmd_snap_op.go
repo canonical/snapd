@@ -351,10 +351,16 @@ func maybeWithSudoSecurePath() bool {
 }
 
 // show what has been done
-func showDone(cli *client.Client, names []string, op string, opts *client.SnapOptions, esc *escapes) error {
+func showDone(cli *client.Client, chg *client.Change, names []string, op string, opts *client.SnapOptions, esc *escapes) error {
 	snaps, err := cli.List(names, nil)
 	if err != nil {
 		return err
+	}
+
+	if chg.Wait {
+		// XXX: better message?
+		fmt.Fprintf(Stdout, i18n.G("Change %v waiting to be completed\n"), chg.ID)
+		return nil
 	}
 
 	needsPathWarning := !isSnapInPath() && !maybeWithSudoSecurePath()
@@ -552,7 +558,7 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	}
 
 	// TODO: mention details of the install (e.g. like switch does)
-	return showDone(x.client, []string{snapName}, "install", opts, x.getEscapes())
+	return showDone(x.client, chg, []string{snapName}, "install", opts, x.getEscapes())
 }
 
 func isLocalSnap(name string) bool {
@@ -609,7 +615,7 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	}
 
 	if len(installed) > 0 {
-		if err := showDone(x.client, installed, "install", opts, x.getEscapes()); err != nil {
+		if err := showDone(x.client, chg, installed, "install", opts, x.getEscapes()); err != nil {
 			return err
 		}
 	}
@@ -724,7 +730,7 @@ func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error
 	}
 
 	if len(refreshed) > 0 {
-		return showDone(x.client, refreshed, "refresh", opts, x.getEscapes())
+		return showDone(x.client, chg, refreshed, "refresh", opts, x.getEscapes())
 	}
 
 	fmt.Fprintln(Stderr, i18n.G("All snaps up to date."))
@@ -743,7 +749,8 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 		return nil
 	}
 
-	if _, err := x.wait(changeID); err != nil {
+	chg, err := x.wait(changeID)
+	if err != nil {
 		if err == noWait {
 			return nil
 		}
@@ -752,7 +759,7 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 
 	// TODO: this doesn't really tell about all the things you
 	// could set while refreshing (something switch does)
-	return showDone(x.client, []string{name}, "refresh", opts, x.getEscapes())
+	return showDone(x.client, chg, []string{name}, "refresh", opts, x.getEscapes())
 }
 
 func parseSysinfoTime(s string) time.Time {
@@ -1182,14 +1189,15 @@ func (x *cmdRevert) Execute(args []string) error {
 		return err
 	}
 
-	if _, err := x.wait(changeID); err != nil {
+	chg, err := x.wait(changeID)
+	if err != nil {
 		if err == noWait {
 			return nil
 		}
 		return err
 	}
 
-	return showDone(x.client, []string{name}, "revert", nil, nil)
+	return showDone(x.client, chg, []string{name}, "revert", nil, nil)
 }
 
 var shortSwitchHelp = i18n.G("Switches snap to a different channel")
@@ -1243,14 +1251,15 @@ func (x cmdSwitch) Execute(args []string) error {
 		return err
 	}
 
-	if _, err := x.wait(changeID); err != nil {
+	chg, err := x.wait(changeID)
+	if err != nil {
 		if err == noWait {
 			return nil
 		}
 		return err
 	}
 
-	return showDone(x.client, []string{name}, "switch", opts, nil)
+	return showDone(x.client, chg, []string{name}, "switch", opts, nil)
 }
 
 func init() {
