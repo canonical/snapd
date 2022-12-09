@@ -89,7 +89,7 @@ For preparing classic images it supports a --classic mode`),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"revisions": i18n.G("Specify a seeds.manifest file referencing the exact revisions of the provided snaps which should be installed"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"write-revisions": i18n.G("Writes a seed.manifest file containing the exact snap revisions used for the image, optionally at the specified path."),
+			"write-revisions": i18n.G("Writes a manifest file containing references to the exact snap revisions used for the image. A path for the manifest is optional."),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"channel": i18n.G("The channel to use"),
 			// TRANSLATORS: This should not start with a lowercase letter.
