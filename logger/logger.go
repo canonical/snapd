@@ -37,6 +37,9 @@ type Logger interface {
 	Notice(msg string)
 	// Debug is for messages that the user should be able to find if they're debugging something
 	Debug(msg string)
+	// NoGuardDebug is for messages that we always want to print (e.g., configurations
+	// were checked by the caller, etc)
+	NoGuardDebug(msg string)
 }
 
 const (
@@ -46,8 +49,9 @@ const (
 
 type nullLogger struct{}
 
-func (nullLogger) Notice(string) {}
-func (nullLogger) Debug(string)  {}
+func (nullLogger) Notice(string)       {}
+func (nullLogger) Debug(string)        {}
+func (nullLogger) NoGuardDebug(string) {}
 
 // NullLogger is a logger that does nothing
 var NullLogger = nullLogger{}
@@ -86,6 +90,16 @@ func Debugf(format string, v ...interface{}) {
 	defer lock.Unlock()
 
 	logger.Debug(msg)
+}
+
+// NoGuardDebugf records something in the debug log
+func NoGuardDebugf(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+
+	lock.Lock()
+	defer lock.Unlock()
+
+	logger.NoGuardDebug(msg)
 }
 
 // MockLogger replaces the exiting logger with a buffer and returns
@@ -129,13 +143,19 @@ type Log struct {
 // Debug only prints if SNAPD_DEBUG is set
 func (l *Log) Debug(msg string) {
 	if l.debug || osutil.GetenvBool("SNAPD_DEBUG") {
-		l.log.Output(3, "DEBUG: "+msg)
+		l.NoGuardDebug(msg)
 	}
 }
 
 // Notice alerts the user about something, as well as putting it syslog
 func (l *Log) Notice(msg string) {
 	l.log.Output(3, msg)
+}
+
+// NoGuardDebug always prints the message, w/o gating it based on environment
+// variables or other configurations.
+func (l *Log) NoGuardDebug(msg string) {
+	l.log.Output(3, "DEBUG: "+msg)
 }
 
 // New creates a log.Logger using the given io.Writer and flag.
