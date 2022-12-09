@@ -65,8 +65,10 @@ func mustParse(s string) *url.URL {
 var (
 	keyLength     = 4096
 	retryInterval = 60 * time.Second
-	maxTentatives = 15
-	baseStoreURL  = baseURL().ResolveReference(authRef)
+	// max poll time for NTP attempats is 2048s (34m8s) so retry up to 35m
+	maxTentativesCertExpired = 35
+	maxTentatives            = 15
+	baseStoreURL             = baseURL().ResolveReference(authRef)
 
 	authRef    = mustParse("api/v1/snaps/auth/") // authRef must end in / for the following refs to work
 	reqIdRef   = mustParse("request-id")
@@ -335,20 +337,14 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 
 	resp, err := client.Do(req)
 	if err != nil {
-		if httputil.NoNetwork(err) || httputil.CertExpiredOrNotValidYet(err) {
-			// If there is no network there is no need to
-			// count this as a tentatives attempt. If the
-			// cert is expired/not-valid yet that most
-			// likely means that the devices has no
-			// ntp-synced time yet.  No need to count that
-			// as a tentative attempt either.
-			//
-			// If we do it this way the risk is that we
-			// tried a bunch of times with no network and
-			// if we hit the server for real and it
-			// replies with something we need to retry we
-			// will not because nTentatives is way over
-			// the limit.
+		if httputil.NoNetwork(err) {
+			// If there is no network there is no need to count
+			// this as a tentatives attempt. If we do it this
+			// way the risk is that we tried a bunch of times
+			// with no network and if we hit the server for real
+			// and it replies with something we need to retry
+			// we will not because nTentatives is way over the
+			// limit.
 			st.Lock()
 			t.Set("pre-poll-tentatives", 0)
 			st.Unlock()
@@ -358,6 +354,18 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 			// device
 			noNetworkRetryInterval := retryInterval / 2
 			return "", &state.Retry{After: noNetworkRetryInterval}
+		}
+		if httputil.CertExpiredOrNotValidYet(err) {
+			// If the cert is expired/not-valid yet that
+			// most likely means that the devices has no
+			// ntp-synced time yet. We will retry for up
+			// to 2048s (timesyncd.conf(5) says the
+			// maximum poll time is 2048s which is
+			// 34min8s).
+			if nTentatives > maxTentativesCertExpired {
+				return "", err
+			}
+			return "", &state.Retry{After: retryInterval}
 		}
 		if !httputil.ShouldRetryError(err) {
 			// a non temporary net error fully errors out and triggers a retry
