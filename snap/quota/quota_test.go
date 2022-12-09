@@ -29,9 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -1549,42 +1547,4 @@ func (ts *quotaTestSuite) TestGroupForService(c *C) {
 	svcGrp.Services = []string{"my-snap.service"}
 	grp = rootGrp.GroupForService("my-snap.service")
 	c.Check(grp, Equals, svcGrp)
-}
-
-const multiSvcsSnapYaml = `name: test-snap
-version: 1
-apps:
- svc1:
-   command: bin/hello
-   daemon: simple
- svc2:
-   command: bin/world
-   daemon: simple
-`
-
-func (ts *quotaTestSuite) TestMakeServiceQuotaMapNoQuota(c *C) {
-	info := snaptest.MockSnap(c, multiSvcsSnapYaml, &snap.SideInfo{Revision: snap.R(12)})
-	svcMap := quota.MakeServiceQuotaMap(info, nil)
-	c.Assert(svcMap, IsNil)
-}
-
-func (ts *quotaTestSuite) TestMakeServiceQuotaMap(c *C) {
-	info := snaptest.MockSnap(c, multiSvcsSnapYaml, &snap.SideInfo{Revision: snap.R(12)})
-	rootGrp, err := quota.NewGroup("myroot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
-	c.Assert(err, IsNil)
-
-	svcGrp, err := rootGrp.NewSubGroup("mysub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB/2).Build())
-	c.Assert(err, IsNil)
-
-	// put one of the services into svcGrp
-	svcGrp.Services = []string{"test-snap.svc2"}
-
-	// we expect one of the services to have a nil quota group, which means
-	// it should use the parent, and the one that actually has a sub-group
-	// should have the sub-group assigned.
-	svcMap := quota.MakeServiceQuotaMap(info, rootGrp)
-	c.Assert(svcMap, NotNil)
-	c.Check(len(svcMap), Equals, 2)
-	c.Check(svcMap[info.Apps["svc1"]], IsNil)
-	c.Check(svcMap[info.Apps["svc2"]], Equals, svcGrp)
 }

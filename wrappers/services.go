@@ -475,10 +475,6 @@ type SnapServicesOptions struct {
 
 	// QuotaGroup is the quota group for the specified snap.
 	QuotaGroup *quota.Group
-
-	// ServiceQuotaMap is the map of snap services that have been affected and should
-	// have their services updated.
-	ServiceQuotaMap map[*snap.AppInfo]*quota.Group
 }
 
 // ObserveChangeCallback can be invoked by EnsureSnapServices to observe
@@ -590,7 +586,7 @@ func (es *ensureSnapServicesContext) reloadModified() error {
 
 // ensureSnapServiceSystemdUnits takes care of writing .service files for all services
 // registered in snap.Info apps.
-func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *snap.Info, svcQuotaMap map[*snap.AppInfo]*quota.Group, opts *generateSnapServicesOptions) error {
+func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *snap.Info, opts *generateSnapServicesOptions) error {
 	handleFileModification := func(app *snap.AppInfo, unitType string, name, path string, content []byte) error {
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
@@ -639,21 +635,12 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *sna
 		// create services first; this doesn't trigger systemd
 
 		// get the correct quota group for the service we are generating.
-		quotaGrp := svcQuotaMap[svc]
-		if quotaGrp == nil {
-			// default to the parent quota group, which may also be nil.
-			quotaGrp = opts.QuotaGroup
-		} else if quotaGrp != opts.QuotaGroup {
-			// we must then be dealing with a sub-group
-			if opts.QuotaGroup == nil {
-				// this must be provided if any sub-groups are used for services
-				return fmt.Errorf("quota sub-group %q provided for service %q: parent quota group must be supplied", quotaGrp.Name, snapServiceName)
-			}
-
-			// ensure the quota group is a sub-group of the snap quota group
-			// or the parent itself
-			if quotaGrp.ParentGroup != opts.QuotaGroup.Name {
-				return fmt.Errorf("invalid quota group %q provided for service %q: must be a direct child of quota group %q", quotaGrp.Name, snapServiceName, opts.QuotaGroup.Name)
+		quotaGrp := opts.QuotaGroup
+		if quotaGrp != nil {
+			quotaGrp = quotaGrp.GroupForService(snapServiceName)
+			if quotaGrp == nil {
+				// default to the parent quota group, which may also be nil.
+				quotaGrp = opts.QuotaGroup
 			}
 		}
 
@@ -729,8 +716,7 @@ func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaG
 			}
 		}
 
-		svcQuotaMap := snapSvcOpts.ServiceQuotaMap
-		if err := es.ensureSnapServiceSystemdUnits(s, svcQuotaMap, genServiceOpts); err != nil {
+		if err := es.ensureSnapServiceSystemdUnits(s, genServiceOpts); err != nil {
 			return nil, err
 		}
 	}

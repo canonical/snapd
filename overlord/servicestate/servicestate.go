@@ -389,16 +389,12 @@ func SnapServicesOptions(st *state.State, snapInfo *snap.Info, quotaGroups map[s
 	}
 
 	// find the appropriate quota group for the snap itself
-	var snapGrp *quota.Group
 	for _, grp := range quotaGroups {
 		if strutil.ListContains(grp.Snaps, snapInfo.InstanceName()) {
-			snapGrp = grp
+			opts.QuotaGroup = grp
 			break
 		}
 	}
-
-	opts.QuotaGroup = snapGrp
-	opts.ServiceQuotaMap = quota.MakeServiceQuotaMap(snapInfo, snapGrp)
 	return opts, nil
 }
 

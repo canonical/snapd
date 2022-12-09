@@ -853,8 +853,7 @@ apps:
 
 	linkCtxWithGroup := backend.LinkContext{
 		ServiceOptions: &wrappers.SnapServicesOptions{
-			QuotaGroup:      grp,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
+			QuotaGroup: grp,
 		},
 	}
 	_, err = s.be.LinkSnap(info, mockDev, linkCtxWithGroup, s.perfTimings)

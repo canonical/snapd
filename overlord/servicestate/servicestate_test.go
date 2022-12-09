@@ -393,41 +393,6 @@ version: 0
 	})
 }
 
-func (s *snapServiceOptionsSuite) TestSnapServiceOptionsServices(c *C) {
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	fooInfo := snaptest.MockInfo(c, `
-name: foo
-version: 0
-apps:
- app1:
-  command: foo
-`, nil)
-
-	opts, err := servicestate.SnapServicesOptions(st, fooInfo, nil)
-	c.Assert(err, IsNil)
-	c.Check(len(opts.ServiceQuotaMap), Equals, 0)
-
-	grp, err := quota.NewGroup("foogroup", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
-	c.Assert(err, IsNil)
-
-	grp.Snaps = []string{"bar"}
-	barInfo := snaptest.MockInfo(c, `
-name: bar
-version: 0
-apps:
- app1:
-  command: foo
-  daemon: simple
-`, nil)
-
-	opts, err = servicestate.SnapServicesOptions(st, barInfo, map[string]*quota.Group{"foogroup": grp})
-	c.Assert(err, IsNil)
-	c.Assert(len(opts.ServiceQuotaMap), Equals, 1)
-}
-
 func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
 	st := s.state
 	st.Lock()

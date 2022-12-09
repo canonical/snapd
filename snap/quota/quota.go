@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -1067,22 +1066,4 @@ func (s *QuotaGroupSet) AllQuotaGroups() []*Group {
 	})
 
 	return grps
-}
-
-// MakeServiceQuotaMap builds a map of services and their quota groups. The goal is
-// to make sure that if any quota group applies to a snap service, then we can easily
-// look it up in this based on it's snap.AppInfo. We take the snap instance name, the services
-// want to include in the map (should only be services of the snap name provided) and the quota
-// group of the snap.
-func MakeServiceQuotaMap(snapInfo *snap.Info, grp *Group) map[*snap.AppInfo]*Group {
-	snapServices := snapInfo.Services()
-	if len(snapServices) == 0 || grp == nil {
-		return nil
-	}
-
-	svcQuotaMap := make(map[*snap.AppInfo]*Group, len(snapServices))
-	for _, svc := range snapServices {
-		svcQuotaMap[svc] = grp.GroupForService(fmt.Sprintf("%s.%s", snapInfo.InstanceName(), svc.Name))
-	}
-	return svcQuotaMap
 }

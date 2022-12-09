@@ -246,8 +246,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			QuotaGroup:      grp,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
+			QuotaGroup: grp,
 		},
 	}
 
@@ -352,8 +351,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountQuotas(c *C) {
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			QuotaGroup:      grp,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
+			QuotaGroup: grp,
 		},
 	}
 
@@ -454,8 +452,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountAndCpuSetQuota
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			QuotaGroup:      grp,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
+			QuotaGroup: grp,
 		},
 	}
 
@@ -549,8 +546,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalNamespaceOnly(c *C)
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			QuotaGroup:      grp,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
+			QuotaGroup: grp,
 		},
 	}
 
@@ -667,8 +663,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotas(c *C) {
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			QuotaGroup:      grp,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
+			QuotaGroup: grp,
 		},
 	}
 
@@ -788,8 +783,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotaRateAsZero(c *
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			QuotaGroup:      grp,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
+			QuotaGroup: grp,
 		},
 	}
 
@@ -934,8 +928,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSnapServices(c *C) {
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			QuotaGroup:      grp,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
+			QuotaGroup: grp,
 		},
 	}
 
@@ -1125,8 +1118,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithIncludeServices(c *C) {
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			QuotaGroup:      grp,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
+			QuotaGroup: grp,
 		},
 	}
 
@@ -1258,59 +1250,6 @@ Storage=auto
 	c.Assert(svc2File, testutil.FileEquals, svc2Content)
 }
 
-func (s *servicesTestSuite) TestEnsureSnapServicesFailOnInvalidServiceMap(c *C) {
-	// Test ensures that the IncludeServices member is working as expected. We have a snap
-	// that contains multiple services, however we only include svc2 in the IncludeServices
-	// option to EnsureSnapServices. Thus what we will observe happen is that only the service
-	// file for svc2 will be written.
-	info := snaptest.MockSnap(c, testSnapServicesYaml, &snap.SideInfo{Revision: snap.R(12)})
-
-	// set up arbitrary quotas for the group to test they get written correctly to the slice
-	grp, err := quota.NewGroup("my-root", quota.NewResourcesBuilder().
-		WithMemoryLimit(quantity.SizeGiB).
-		WithCPUPercentage(50).
-		WithCPUCount(1).
-		Build())
-	c.Assert(err, IsNil)
-
-	grp.Snaps = []string{"hello-snap"}
-
-	sub, err := grp.NewSubGroup("my-sub", quota.NewResourcesBuilder().
-		WithJournalNamespace().
-		Build())
-	c.Assert(err, IsNil)
-
-	sub.Services = []string{"hello-snap.svc2"}
-
-	m := map[*snap.Info]*wrappers.SnapServicesOptions{
-		info: {
-			// set the snap quota group to nil, this should make the service
-			// map fail
-			QuotaGroup:      nil,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
-		},
-	}
-
-	// expect it to fail that QuotaGroup is nil for the parent
-	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
-	c.Assert(err, ErrorMatches, `quota sub-group "my-sub" provided for service "hello-snap.svc2": parent quota group must be supplied`)
-
-	otherGrp, err := quota.NewGroup("other-group", quota.NewResourcesBuilder().
-		WithMemoryLimit(quantity.SizeGiB).
-		WithCPUPercentage(50).
-		WithCPUCount(1).
-		Build())
-	c.Assert(err, IsNil)
-
-	// fix the parent group and manually mess up the service map
-	m[info].QuotaGroup = grp
-	m[info].ServiceQuotaMap[info.Apps["svc2"]] = otherGrp
-
-	// now it should fail as "other-group" is not a child of "my-root"
-	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
-	c.Assert(err, ErrorMatches, `invalid quota group "other-group" provided for service "hello-snap.svc2": must be a direct child of quota group "my-root"`)
-}
-
 type changesObservation struct {
 	snapName string
 	grp      *quota.Group
@@ -1440,8 +1379,7 @@ WantedBy=multi-user.target
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			QuotaGroup:      grp,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
+			QuotaGroup: grp,
 		},
 	}
 
@@ -1543,8 +1481,7 @@ WantedBy=multi-user.target
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			QuotaGroup:      grp,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, grp),
+			QuotaGroup: grp,
 		},
 	}
 
@@ -1655,12 +1592,10 @@ apps:
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info1: {
-			QuotaGroup:      grp,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info1, grp),
+			QuotaGroup: grp,
 		},
 		info2: {
-			QuotaGroup:      subgrp,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info2, subgrp),
+			QuotaGroup: subgrp,
 		},
 	}
 
@@ -1801,8 +1736,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 
 	m := map[*snap.Info]*wrappers.SnapServicesOptions{
 		info: {
-			QuotaGroup:      subgrp,
-			ServiceQuotaMap: quota.MakeServiceQuotaMap(info, subgrp),
+			QuotaGroup: subgrp,
 		},
 	}
 

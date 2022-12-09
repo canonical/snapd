@@ -41,10 +41,8 @@ import (
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/wrappers"
 )
 
 type quotaHandlersSuite struct {
@@ -1709,12 +1707,20 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServicesFailOnInvalidSnapServic
 
 func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServicesFailOnServiceTwice(c *C) {
 	r := s.mockSystemctlCalls(c, join(
+
+		// CreateQuota for foo, and we put 'test-snap' into foo immediately
+		// so expect service restarts for that
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-
-		// CreateQuota for foo
 		systemctlCallsForSliceStart("foo"),
+		systemctlCallsForServiceRestart("test-snap"),
 
-		// UpdateQuota for foo2 - just the slice changes
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		// CreateQuota for foo2 and foo3
+		systemctlCallsForSliceStart("foo/foo2"),
+		systemctlCallsForSliceStart("foo/foo3"),
+
+		// UpdateQuota for foo2, we put test-snap.svc1 into foo2
+		// so we expect the service to be restarted at this point
 		systemctlCallsForServiceRestart("test-snap"),
 	))
 	defer r()
@@ -1726,16 +1732,6 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServicesFailOnServiceTwice(c *C
 	// setup the snap so it exists
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
-	// and test-snap2
-	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
-	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
-		Current:  si2.Revision,
-		Active:   true,
-		SnapType: "app",
-	}
-	snapstate.Set(s.state, "test-snap2", snapst2)
-	snaptest.MockSnapCurrent(c, testYaml2, si2)
 
 	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:         "create",
@@ -2963,18 +2959,6 @@ func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupHappy(c *C)
 	c.Assert(err, IsNil)
 }
 
-func (s *quotaHandlersSuite) checkServiceMap(c *C, obtained map[*snap.Info]*wrappers.SnapServicesOptions, expected map[string][]string) {
-	c.Assert(len(expected), Equals, len(obtained))
-	for info, opts := range obtained {
-		expectedSvcs, ok := expected[info.InstanceName()]
-		c.Assert(ok, Equals, true)
-		c.Assert(len(opts.ServiceQuotaMap), Equals, len(expectedSvcs))
-		for svc := range opts.ServiceQuotaMap {
-			c.Assert(strutil.ListContains(expectedSvcs, svc.Name), Equals, true)
-		}
-	}
-}
-
 func (s *quotaHandlersSuite) TestAffectedSnapServices(c *C) {
 	st := s.state
 	st.Lock()
@@ -3011,25 +2995,17 @@ func (s *quotaHandlersSuite) TestAffectedSnapServices(c *C) {
 	// Now, we get a list of services affected if we were to do changes
 	// to the sub-group containing just services
 	opts := servicestate.EnsureSnapServicesForGroupOptions(allGrps, nil)
-	snapServices, affectedServices, err := servicestate.AffectedSnapServices(st, allGrps["foo-svc"], opts)
+	svcOpts, affectedServices, err := servicestate.AffectedSnapServices(st, allGrps["foo-svc"], opts)
 	c.Assert(err, IsNil)
 	c.Check(affectedServices, DeepEquals, []string{"test-snap.svc1"})
-	s.checkServiceMap(c, snapServices, map[string][]string{
-		"test-snap": {"svc1"},
-	})
+	c.Check(len(svcOpts), Equals, 1)
 
 	// However, if we get affected services from the group containing snaps,
 	// we should expect to see all services
-	snapServices, affectedServices, err = servicestate.AffectedSnapServices(st, allGrps["foo"], opts)
+	svcOpts, affectedServices, err = servicestate.AffectedSnapServices(st, allGrps["foo"], opts)
 	c.Assert(err, IsNil)
 	c.Check(affectedServices, DeepEquals, []string{"test-snap.svc1", "test-snap2.svc1"})
-
-	// Both svc1 from test-snap and test-snap2 are in quota groups, which means we should
-	// expect to see the quota assignments for both.
-	s.checkServiceMap(c, snapServices, map[string][]string{
-		"test-snap":  {"svc1"},
-		"test-snap2": {"svc1"},
-	})
+	c.Check(len(svcOpts), Equals, 2)
 }
 
 func (s *quotaHandlersSuite) TestAffectedSnapServicesExtraSnaps(c *C) {
@@ -3063,13 +3039,10 @@ func (s *quotaHandlersSuite) TestAffectedSnapServicesExtraSnaps(c *C) {
 	// Now, we get a list of services affected for foo, which should return only
 	// test-snap.svc1, but add in test-snap2 using the ExtraSnaps property.
 	opts := servicestate.EnsureSnapServicesForGroupOptions(allGrps, []string{"test-snap2"})
-	snapServices, affectedServices, err := servicestate.AffectedSnapServices(st, allGrps["foo"], opts)
+	svcOpts, affectedServices, err := servicestate.AffectedSnapServices(st, allGrps["foo"], opts)
 	c.Assert(err, IsNil)
 	c.Check(affectedServices, DeepEquals, []string{"test-snap.svc1", "test-snap2.svc1"})
-	s.checkServiceMap(c, snapServices, map[string][]string{
-		"test-snap":  {"svc1"},
-		"test-snap2": {}, // do not expect any services here as they are not in a quota group
-	})
+	c.Check(len(svcOpts), Equals, 2)
 }
 
 const testYaml3 = `name: test-snap3
