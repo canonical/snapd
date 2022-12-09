@@ -845,6 +845,7 @@ popd
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_datadir}/applications/io.snapcraft.SessionAgent.desktop
 %{_datadir}/fish/vendor_conf.d/snapd.fish
+%{_datadir}/snapd/snapcraft-logo-bird.svg
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
