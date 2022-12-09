@@ -47,7 +47,7 @@ type inotifyWatcher struct {
 	// time a new CGroup paths have to be monitored, the parent paths are
 	// checked in the map, and if they already exist, the usage counter is
 	// incremented by one (of course, if a parent path isn't in the map,
-	// it is initialized to 'one'). Every time the path of a CGroup is deleted,
+	// it is initialized to one). Every time the path of a CGroup is deleted,
 	// the corresponding usage counter here corresponding to the parent path
 	// is decremented, and when it reaches zero, it is removed and inotify is
 	// notified to stop monitoring it.
