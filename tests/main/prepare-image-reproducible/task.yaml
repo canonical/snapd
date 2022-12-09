@@ -132,7 +132,7 @@ execute: |
     # verify that we are able to send a specific revision to the store.
     export SNAPPY_FORCE_API_URL=http://$STORE_ADDR
     echo Running prepare-image
-    snap prepare-image --channel edge --snap test-snapd-sh --revisions "$ROOT"/seed.manifest "$TESTSLIB"/assertions/developer1-pc.model $ROOT
+    snap prepare-image --channel edge --snap test-snapd-sh --write-revisions --revisions "$ROOT"/seed.manifest "$TESTSLIB"/assertions/developer1-pc.model $ROOT
     
     echo Verifying the expected revisions were retrieved
     test -e "$IMAGE/var/lib/snapd/seed/snaps/core_1.snap"

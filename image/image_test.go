@@ -990,19 +990,19 @@ func (s *imageSuite) TestSetupSeedImageManifest(c *C) {
 	}, "")
 
 	snapFile := snaptest.MakeTestSnapWithFiles(c, devmodeSnap, nil)
+	seedManifestPath := path.Join(rootdir, "seed.manifest")
 
 	opts := &image.Options{
 		Snaps: []string{snapFile},
 
-		PrepareDir:      filepath.Dir(rootdir),
-		SeedManifestDir: rootdir,
-		Channel:         "beta",
+		PrepareDir:       filepath.Dir(rootdir),
+		SeedManifestPath: seedManifestPath,
+		Channel:          "beta",
 	}
 
 	err := image.SetupSeed(s.tsto, s.model, opts)
 	c.Assert(err, IsNil)
 
-	seedManifestPath := path.Join(rootdir, "seed.manifest")
 	c.Assert(seedManifestPath, testutil.FilePresent)
 	c.Check(seedManifestPath, testutil.FileContains, `core 3
 devmode-snap x1

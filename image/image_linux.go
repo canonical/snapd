@@ -24,7 +24,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -647,10 +646,8 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	}
 
 	// last thing is to generate the image seed manifest file
-	// XXX: is this the correct place to do this? Should we instead
-	// return the "imageManifest" and the let cmd_prepare_image do this?
-	if opts.SeedManifestDir != "" {
-		if err := WriteSeedManifest(path.Join(opts.SeedManifestDir, "seed.manifest"), imageManifest); err != nil {
+	if opts.SeedManifestPath != "" {
+		if err := WriteSeedManifest(opts.SeedManifestPath, imageManifest); err != nil {
 			return err
 		}
 	}
