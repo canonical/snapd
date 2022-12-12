@@ -505,7 +505,7 @@ func (s *usersSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 
 	// ensure that if we query the details from the assert DB we get
 	// the expected user
-	username, expiration, opts, err := devicestate.GetUserDetailsFromAssertion(db, model, nil, "foo@bar.com")
+	username, expiration, opts, err := devicestate.GetUserDetailsFromAssertion(s.state, db, model, nil, "foo@bar.com")
 	c.Assert(err, check.IsNil)
 	c.Check(username, check.Equals, "guy")
 	c.Check(opts, check.DeepEquals, &osutil.AddUserOptions{
