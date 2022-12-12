@@ -488,8 +488,24 @@ func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]
 	return grp, allGrps, refreshProfiles, nil
 }
 
+func validateQuotaLimitsChange(grp *quota.Group, oldLimits, newLimits quota.Resources) error {
+	// Do not allow setting a journal limit on any group which has
+	// services in them. Due to mounts being generated per-snap we cannot
+	// support per-service journal namespaces currently.
+	if newLimits.Journal != nil && len(grp.Services) > 0 {
+		return fmt.Errorf("journal quotas are not supported for individual services")
+	}
+	if err := oldLimits.ValidateChange(newLimits); err != nil {
+		return err
+	}
+	return nil
+}
+
 func quotaUpdateGroupLimits(grp *quota.Group, limits quota.Resources) error {
 	currentQuotas := grp.GetQuotaResources()
+	if err := validateQuotaLimitsChange(grp, currentQuotas, limits); err != nil {
+		return fmt.Errorf("cannot update limits for group %q: %v", grp.Name, err)
+	}
 	if err := currentQuotas.Change(limits); err != nil {
 		return fmt.Errorf("cannot update limits for group %q: %v", grp.Name, err)
 	}
@@ -898,6 +914,14 @@ func validateSnapServicesForAddingToGroup(st *state.State, services []string, gr
 		grp, ok := allGrps[group]
 		if ok && len(grp.SubGroups) != 0 {
 			return fmt.Errorf("cannot mix services and sub groups in the group %q", group)
+		}
+
+		// We do not support services in a group with a journal limit. Due to how we generate mounts,
+		// which is currently per-snap, we cannot support individual journal namespaces for services.
+		// So services automatically inherit any journal namespace their parent (the group where the
+		// actual snap is) has set.
+		if ok && grp.JournalLimit != nil {
+			return fmt.Errorf("cannot put services into group %q: journal quotas are not supported for individual services", group)
 		}
 	}
 
