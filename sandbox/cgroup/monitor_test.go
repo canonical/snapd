@@ -172,15 +172,8 @@ func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 }
 
 func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
-	tmpcontainer := c.MkDir()
-
-	folder1 := path.Join(tmpcontainer, "folder1")
-	err := os.Mkdir(folder1, 0755)
-	c.Assert(err, IsNil)
-
-	folder2 := path.Join(tmpcontainer, "folder2")
-	err = os.Mkdir(folder2, 0755)
-	c.Assert(err, IsNil)
+	folder1 := s.makeTestFolder(c, "folder1")
+	folder2 := s.makeTestFolder(c, "folder2")
 
 	filelist1 := []string{folder1}
 	filelist2 := []string{folder2}
@@ -191,16 +184,14 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	channel2 := make(chan string)
 	defer close(channel2)
 
-	err = cgroup.MonitorDelete(filelist1, "test4a", channel1)
+	err := cgroup.MonitorDelete(filelist1, "test4a", channel1)
 	c.Assert(err, Equals, nil)
 	err = cgroup.MonitorDelete(filelist2, "test4b", channel2)
 	c.Assert(err, Equals, nil)
 
 	time.Sleep(s.inotifyWait)
 
-	folder3 := path.Join(tmpcontainer, "folder3")
-	err = os.Mkdir(folder3, 0755)
-	c.Assert(err, IsNil)
+	folder3 := s.makeTestFolder(c, "folder3")
 
 	time.Sleep(s.inotifyWait)
 
