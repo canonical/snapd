@@ -291,11 +291,8 @@ func (s *monitorSuite) TestMonitorCloseChannel(c *C) {
 	err = os.Remove(folder2)
 	c.Assert(err, IsNil)
 
-	// Wait for two seconds to ensure that nothing spurious
-	// is received from the channel due to removing folder2
-	// Wait for two seconds to ensure that nothing spurious
-	// is received from the channel due to creating or
-	// removing folder3
+	// Wait for a bit to ensure that
+	// nothing spurious is received from the channel
 	select {
 	case event := <-ch:
 		c.Fatalf("unexpected channel read of event %q", event)
