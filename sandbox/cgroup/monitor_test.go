@@ -48,8 +48,8 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	channel := make(chan string)
 	defer close(channel)
 
-	retval := cgroup.MonitorDelete(filelist, "test1", channel)
-	c.Assert(retval, IsNil)
+	err = cgroup.MonitorDelete(filelist, "test1", channel)
+	c.Assert(err, IsNil)
 
 	time.Sleep(1 * time.Second)
 
@@ -89,8 +89,8 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	channel := make(chan string)
 	defer close(channel)
 
-	retval := cgroup.MonitorDelete(filelist, "test2", channel)
-	c.Assert(retval, Equals, nil)
+	err = cgroup.MonitorDelete(filelist, "test2", channel)
+	c.Assert(err, Equals, nil)
 
 	time.Sleep(1 * time.Second)
 
@@ -140,8 +140,8 @@ func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 	channel := make(chan string)
 	defer close(channel)
 
-	retval := cgroup.MonitorDelete(filelist, "test3", channel)
-	c.Assert(retval, Equals, nil)
+	err := cgroup.MonitorDelete(filelist, "test3", channel)
+	c.Assert(err, Equals, nil)
 	event := <-channel
 	c.Assert(event, Equals, "test3")
 }
@@ -166,10 +166,10 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	channel2 := make(chan string)
 	defer close(channel2)
 
-	retval := cgroup.MonitorDelete(filelist1, "test4a", channel1)
-	c.Assert(retval, Equals, nil)
-	retval = cgroup.MonitorDelete(filelist2, "test4b", channel2)
-	c.Assert(retval, Equals, nil)
+	err = cgroup.MonitorDelete(filelist1, "test4a", channel1)
+	c.Assert(err, Equals, nil)
+	err = cgroup.MonitorDelete(filelist2, "test4b", channel2)
+	c.Assert(err, Equals, nil)
 
 	time.Sleep(1 * time.Second)
 
