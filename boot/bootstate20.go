@@ -695,10 +695,23 @@ func genericInitramfsSelectSnap(bs bootState20, modeenv *Modeenv, rootfsDir stri
 	err error,
 ) {
 	curSnap, trySnap, snapTryStatus, err := bs.revisionsFromModeenv(modeenv)
-
-	if err != nil && !isTrySnapError(err) {
-		// we have no fallback snap!
-		return nil, nil, fmt.Errorf("fallback %s snap unusable: %v", typeString, err)
+	if err != nil {
+		if isTrySnapError(err) {
+			// We just log the error, if we are here and this is a
+			// kernel is either because try-kernel.efi is a dangling
+			// link or because it points to a bad file. Most
+			// possibly the try kernel has not been used to start
+			// the system, so we just go on and wait to see what the
+			// try_status says - otherwise we could enter a boot
+			// loop. If it is a base, we have bad format in the
+			// modeenv for it, log and move on, we still want to
+			// boot.
+			logger.Noticef("unable to process try %s snap: %v", typeString, err)
+		} else {
+			// No current snap information found in modeenv for base,
+			// or cannot get information from bootloader for kernel.
+			return nil, nil, fmt.Errorf("current %s snap unusable: %v", typeString, err)
+		}
 	}
 
 	// check that the current snap actually exists
@@ -715,12 +728,6 @@ func genericInitramfsSelectSnap(bs bootState20, modeenv *Modeenv, rootfsDir stri
 		return nil, nil, fmt.Errorf("%s snap %q does not exist on ubuntu-data", typeString, file)
 	}
 
-	if err != nil && isTrySnapError(err) {
-		// just log that we had issues with the try snap and continue with
-		// using the normal snap
-		logger.Noticef("unable to process try %s snap: %v", typeString, err)
-		return curSnap, nil, errTrySnapFallback
-	}
 	if snapTryStatus != expectedTryStatus {
 		// the status is unexpected, log if its value is invalid and continue
 		// with the normal snap
