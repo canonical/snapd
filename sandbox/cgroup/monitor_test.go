@@ -30,16 +30,13 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-const (
-	spuriousMontiorChWait = 2 * time.Second
-	spuriousWaits         = 1 * time.Second
-)
-
 type monitorSuite struct {
 	testutil.BaseTest
 
 	tmp string
 	ch  chan string
+
+	inotifyWait time.Duration
 }
 
 var _ = Suite(&monitorSuite{})
@@ -50,6 +47,31 @@ func (s *monitorSuite) SetUpTest(c *C) {
 	s.tmp = c.MkDir()
 	s.ch = make(chan string)
 	s.AddCleanup(func() { close(s.ch) })
+
+	s.calibrateInotifyDelay(c)
+}
+
+func (s *monitorSuite) calibrateInotifyDelay(c *C) {
+	folder1 := s.makeTestFolder(c, "folder1")
+	filelist := []string{folder1}
+	err := cgroup.MonitorDelete(filelist, "test1", s.ch)
+	c.Assert(err, IsNil)
+	var start time.Time
+	go func() {
+		start = time.Now()
+		err = os.Remove(folder1)
+		c.Assert(err, IsNil)
+	}()
+	<-s.ch
+	d := time.Now().Sub(start)
+	// be very conservative
+	s.inotifyWait = 10 * d
+	switch {
+	case s.inotifyWait > 1*time.Second:
+		s.inotifyWait = 1 * time.Second
+	case s.inotifyWait < 10*time.Millisecond:
+		s.inotifyWait = 10 * time.Millisecond
+	}
 }
 
 func (s *monitorSuite) makeTestFolder(c *C, name string) (fullPath string) {
@@ -67,7 +89,7 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	err := cgroup.MonitorDelete(filelist, "test1", s.ch)
 	c.Assert(err, IsNil)
 
-	time.Sleep(spuriousWaits)
+	time.Sleep(s.inotifyWait)
 
 	err = os.Remove(folder2)
 	c.Assert(err, IsNil)
@@ -80,7 +102,7 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	select {
 	case event := <-s.ch:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(spuriousMontiorChWait):
+	case <-time.After(2 * s.inotifyWait):
 	}
 
 	err = os.Remove(folder1)
@@ -97,11 +119,11 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	err := cgroup.MonitorDelete(filelist, "test2", s.ch)
 	c.Assert(err, Equals, nil)
 
-	time.Sleep(spuriousWaits)
+	time.Sleep(s.inotifyWait)
 
 	folder3 := s.makeTestFolder(c, "folder3")
 
-	time.Sleep(spuriousWaits)
+	time.Sleep(s.inotifyWait)
 
 	err = os.Remove(folder3)
 	c.Assert(err, IsNil)
@@ -112,7 +134,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	select {
 	case event := <-s.ch:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(spuriousMontiorChWait):
+	case <-time.After(2 * s.inotifyWait):
 	}
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
@@ -122,7 +144,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	select {
 	case event := <-s.ch:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(spuriousMontiorChWait):
+	case <-time.After(2 * s.inotifyWait):
 	}
 	err = os.Remove(folder2)
 	c.Assert(err, IsNil)
@@ -174,13 +196,13 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	err = cgroup.MonitorDelete(filelist2, "test4b", channel2)
 	c.Assert(err, Equals, nil)
 
-	time.Sleep(spuriousWaits)
+	time.Sleep(s.inotifyWait)
 
 	folder3 := path.Join(tmpcontainer, "folder3")
 	err = os.Mkdir(folder3, 0755)
 	c.Assert(err, IsNil)
 
-	time.Sleep(spuriousWaits)
+	time.Sleep(s.inotifyWait)
 
 	err = os.Remove(folder3)
 	c.Assert(err, IsNil)
@@ -193,7 +215,7 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 		c.Fatalf("unexpected channel read of event %q", event)
 	case event := <-channel2:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(spuriousMontiorChWait):
+	case <-time.After(2 * s.inotifyWait):
 	}
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
@@ -205,7 +227,7 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	case receivedEvent = <-channel1:
 	case event := <-channel2:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(spuriousMontiorChWait):
+	case <-time.After(2 * s.inotifyWait):
 	}
 
 	c.Assert(receivedEvent, Equals, "test4a")
@@ -219,7 +241,7 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	case receivedEvent = <-channel2:
 	case event := <-channel1:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(spuriousWaits):
+	case <-time.After(s.inotifyWait):
 	}
 	c.Assert(receivedEvent, Equals, "test4b")
 }
