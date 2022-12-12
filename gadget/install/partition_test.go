@@ -139,12 +139,12 @@ func makeMockDiskMappingIncludingPartitions(num int) *disks.MockDiskMapping {
 }
 
 var mockOnDiskStructureWritable = gadget.OnDiskStructure{
-	Node:        "/dev/node3",
-	Name:        "Writable",
-	Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-	Label:       "ubuntu-data",
-	Filesystem:  "ext4",
-	StartOffset: 1260388352,
+	Node:             "/dev/node3",
+	Name:             "Writable",
+	Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+	PartitionFSLabel: "ubuntu-data",
+	PartitionFSType:  "ext4",
+	StartOffset:      1260388352,
 	// Note the DiskIndex appears to be the same as the YamlIndex, but this is
 	// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
 	// yaml structure (the MBR) that does not appear on disk
@@ -158,10 +158,10 @@ var mockOnDiskAndLaidoutStructureWritable = install.MockOnDiskAndLaidoutStructur
 		Node: "/dev/node3",
 		Name: "Writable",
 		//Size:        1258291200,
-		Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-		Label:       "ubuntu-data",
-		Filesystem:  "ext4",
-		StartOffset: 1260388352,
+		Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+		PartitionFSLabel: "ubuntu-data",
+		PartitionFSType:  "ext4",
+		StartOffset:      1260388352,
 		// Note the DiskIndex appears to be the same as the YamlIndex, but this is
 		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
 		// yaml structure (the MBR) that does not appear on disk
@@ -189,13 +189,13 @@ var mockOnDiskAndLaidoutStructureWritable = install.MockOnDiskAndLaidoutStructur
 
 var mockOnDiskAndLaidoutStructureSave = install.MockOnDiskAndLaidoutStructure(
 	&gadget.OnDiskStructure{
-		Node:        "/dev/node3",
-		Name:        "Save",
-		Size:        128 * quantity.SizeMiB,
-		Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-		Label:       "ubuntu-save",
-		Filesystem:  "ext4",
-		StartOffset: 1260388352,
+		Node:             "/dev/node3",
+		Name:             "Save",
+		Size:             128 * quantity.SizeMiB,
+		Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+		PartitionFSLabel: "ubuntu-save",
+		PartitionFSType:  "ext4",
+		StartOffset:      1260388352,
 		// Note the DiskIndex appears to be the same as the YamlIndex, but this is
 		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
 		// yaml structure (the MBR) that does not appear on disk
@@ -221,11 +221,11 @@ var mockOnDiskAndLaidoutStructureWritableAfterSave = install.MockOnDiskAndLaidou
 		Node: "/dev/node4",
 		Name: "Writable",
 		// expanded to fill the disk
-		Size:        2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
-		Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-		Label:       "ubuntu-data",
-		Filesystem:  "ext4",
-		StartOffset: 1394606080,
+		Size:             2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
+		Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+		PartitionFSLabel: "ubuntu-data",
+		PartitionFSType:  "ext4",
+		StartOffset:      1394606080,
 		// Note the DiskIndex appears to be the same as the YamlIndex, but this is
 		// because YamlIndex starts at 0 and DiskIndex starts at 1, and there is a
 		// yaml structure (the MBR) that does not appear on disk
@@ -528,14 +528,14 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 			Node:        "/dev/node1",
 		},
 		{
-			Label:       "ubuntu-seed",
-			Name:        "Recovery",
-			Type:        "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Filesystem:  "vfat",
-			StartOffset: 1024*1024 + 1024*1024,
-			DiskIndex:   2,
-			Node:        "/dev/node2",
-			Size:        2457600 * 512,
+			PartitionFSLabel: "ubuntu-seed",
+			Name:             "Recovery",
+			Type:             "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			PartitionFSType:  "vfat",
+			StartOffset:      1024*1024 + 1024*1024,
+			DiskIndex:        2,
+			Node:             "/dev/node2",
+			Size:             2457600 * 512,
 		},
 	})
 }
@@ -654,14 +654,14 @@ func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
 			Size:        1024 * 1024,
 		},
 		{
-			Label:       "ubuntu-seed",
-			Name:        "Recovery",
-			Type:        "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Filesystem:  "vfat",
-			StartOffset: 1024*1024 + 1024*1024,
-			DiskIndex:   2,
-			Node:        "/dev/node2",
-			Size:        2457600 * 512,
+			PartitionFSLabel: "ubuntu-seed",
+			Name:             "Recovery",
+			Type:             "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			PartitionFSType:  "vfat",
+			StartOffset:      1024*1024 + 1024*1024,
+			DiskIndex:        2,
+			Node:             "/dev/node2",
+			Size:             2457600 * 512,
 		},
 	})
 }
@@ -789,14 +789,14 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 			Size:        1024 * 1024,
 		},
 		{
-			Label:       "ubuntu-seed",
-			Name:        "Recovery",
-			Type:        "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Filesystem:  "vfat",
-			StartOffset: 1024*1024 + 1024*1024 + 2457600*512,
-			Node:        "/dev/node3",
-			DiskIndex:   3,
-			Size:        2457600 * 512,
+			PartitionFSLabel: "ubuntu-seed",
+			Name:             "Recovery",
+			Type:             "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			PartitionFSType:  "vfat",
+			StartOffset:      1024*1024 + 1024*1024 + 2457600*512,
+			Node:             "/dev/node3",
+			DiskIndex:        3,
+			Size:             2457600 * 512,
 		},
 	})
 }

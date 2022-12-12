@@ -258,7 +258,7 @@ func UpdateQuota(st *state.State, name string, updateOpts UpdateQuotaOptions) (*
 	}
 
 	currentQuotas := grp.GetQuotaResources()
-	if err := currentQuotas.ValidateChange(updateOpts.NewResourceLimits); err != nil {
+	if err := validateQuotaLimitsChange(grp, currentQuotas, updateOpts.NewResourceLimits); err != nil {
 		return nil, fmt.Errorf("cannot update group %q: %v", name, err)
 	}
 	// validate that the system has the features needed for this resource

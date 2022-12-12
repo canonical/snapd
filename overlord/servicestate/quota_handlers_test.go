@@ -1208,7 +1208,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToNewTopGroup(c *C) {
 		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
 		AddServices:    []string{"test-snap.svc1"},
 	})
-	c.Assert(err, ErrorMatches, `cannot use snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo"`)
+	c.Assert(err, ErrorMatches, `cannot add snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo"`)
 }
 
 func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToExistingTopGroup(c *C) {
@@ -1234,7 +1234,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToExistingTopGroup(c 
 		QuotaName:   "foo",
 		AddServices: []string{"test-snap.svc1"},
 	})
-	c.Assert(err, ErrorMatches, `cannot use snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo"`)
+	c.Assert(err, ErrorMatches, `cannot add snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo"`)
 }
 
 func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToGroupWithSubgroups(c *C) {
@@ -1270,6 +1270,129 @@ func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToGroupWithSubgroups(
 		AddServices: []string{"test-snap.svc1"},
 	})
 	c.Assert(err, ErrorMatches, `cannot mix services and sub groups in the group "foo"`)
+}
+
+func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesToGroupWithJournalQuota(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// Create root group
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+	})
+	c.Assert(err, IsNil)
+
+	// Create a sub-group for foo with a journal limit set
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo2",
+		ResourceLimits: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+		ParentName:     "foo",
+	})
+	c.Assert(err, IsNil)
+
+	// Try to add services to that sub-group
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:      "update",
+		QuotaName:   "foo2",
+		AddServices: []string{"test-snap.svc1"},
+	})
+	c.Assert(err, ErrorMatches, `cannot put services into group "foo2": journal quotas are not supported for individual services`)
+}
+
+func (s *quotaHandlersSuite) TestQuotaSnapFailToAddServicesAndJournalQuotaToGroup(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+
+		// CreateQuota for foo
+		systemctlCallsForSliceStart("foo"),
+
+		// UpdateQuota for foo2 - just the slice changes
+		systemctlCallsForServiceRestart("test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// Create root group
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+		AddSnaps:       []string{"test-snap"},
+	})
+	c.Assert(err, IsNil)
+
+	// Create a sub-group for foo with both a journal limit set and services
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo2",
+		ResourceLimits: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+		AddServices:    []string{"test-snap.svc1"},
+		ParentName:     "foo",
+	})
+	c.Assert(err, ErrorMatches, `cannot update quotas "foo", "foo2": group "foo2" is invalid: journal quota is not supported for individual services`)
+}
+
+func (s *quotaHandlersSuite) TestQuotaSnapFailToUpdateServicesAndJournalQuotaToGroup(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+
+		// CreateQuota for foo
+		systemctlCallsForSliceStart("foo"),
+
+		// UpdateQuota for foo2 - just the slice changes
+		systemctlCallsForServiceRestart("test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// Create root group
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+		AddSnaps:       []string{"test-snap"},
+	})
+	c.Assert(err, IsNil)
+
+	// Create empty sub group with no journal limit
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo2",
+		ParentName:     "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
+	})
+	c.Assert(err, IsNil)
+
+	// Update foo2 with both a journal limit set and services
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "update",
+		QuotaName:      "foo2",
+		ResourceLimits: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+		AddServices:    []string{"test-snap.svc1"},
+	})
+	c.Assert(err, ErrorMatches, `cannot update limits for group "foo2": journal quotas are not supported for individual services`)
 }
 
 func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServices(c *C) {
@@ -1540,55 +1663,45 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServicesFailOnInvalidSnapServic
 	snapstate.Set(s.state, "test-snap2", snapst2)
 	snaptest.MockSnapCurrent(c, testYaml2, si2)
 
-	qc := servicestate.QuotaControlAction{
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo",
 		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
 		AddSnaps:       []string{"test-snap"},
-	}
-
-	err := s.callDoQuotaControl(&qc)
+	})
 	c.Assert(err, IsNil)
 
 	// create a subgroup in a group that already has snaps
-	qc2 := servicestate.QuotaControlAction{
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo2",
 		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
 		ParentName:     "foo",
-	}
-
-	err = s.callDoQuotaControl(&qc2)
+	})
 	c.Assert(err, IsNil)
 
 	// now we test both invalid service name, and an invalid snap name
-	qc3 := servicestate.QuotaControlAction{
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:      "update",
 		QuotaName:   "foo2",
 		AddServices: []string{"test-snap.svc-none"},
-	}
+	})
+	c.Assert(err, ErrorMatches, `cannot add snap service "foo2": invalid service "svc-none"`)
 
-	err = s.callDoQuotaControl(&qc3)
-	c.Assert(err, ErrorMatches, `cannot use snap service "foo2": invalid service "svc-none"`)
-
-	qc4 := servicestate.QuotaControlAction{
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:      "update",
 		QuotaName:   "foo2",
 		AddServices: []string{"no-snap.svc1"},
-	}
-
-	err = s.callDoQuotaControl(&qc4)
-	c.Assert(err, ErrorMatches, `cannot use snap service "foo2": snap "no-snap" is not installed`)
+	})
+	c.Assert(err, ErrorMatches, `cannot add snap service "foo2": snap "no-snap" is not installed`)
 
 	// also test adding a valid snap, but the snap is not relevant for this quota group
-	qc5 := servicestate.QuotaControlAction{
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
 		Action:      "update",
 		QuotaName:   "foo2",
 		AddServices: []string{"test-snap2.svc1"},
-	}
-
-	err = s.callDoQuotaControl(&qc5)
-	c.Assert(err, ErrorMatches, `cannot use snap service "svc1": the snap "test-snap2" must be in a direct parent group of group "foo2"`)
+	})
+	c.Assert(err, ErrorMatches, `cannot add snap service "svc1": the snap "test-snap2" must be in a direct parent group of group "foo2"`)
 
 	// check that the quota groups was created in the state
 	checkQuotaState(c, st, map[string]quotaGroupState{
@@ -1598,6 +1711,94 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServicesFailOnInvalidSnapServic
 			SubGroups:      []string{"foo2"},
 		},
 		"foo2": {
+			ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
+			ParentGroup:    "foo",
+		},
+	})
+}
+
+func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServicesFailOnServiceTwice(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+
+		// CreateQuota for foo
+		systemctlCallsForSliceStart("foo"),
+
+		// UpdateQuota for foo2 - just the slice changes
+		systemctlCallsForServiceRestart("test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+		AddSnaps:       []string{"test-snap"},
+	})
+	c.Assert(err, IsNil)
+
+	// create two subgroups so we can test adding service twice
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo2",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
+		ParentName:     "foo",
+	})
+	c.Assert(err, IsNil)
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo3",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
+		ParentName:     "foo",
+	})
+	c.Assert(err, IsNil)
+
+	// add the service from test-snap, and then we try to re-add it to the second group
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:      "update",
+		QuotaName:   "foo2",
+		AddServices: []string{"test-snap.svc1"},
+	})
+	c.Assert(err, IsNil)
+
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:      "update",
+		QuotaName:   "foo3",
+		AddServices: []string{"test-snap.svc1"},
+	})
+	c.Assert(err, ErrorMatches, `cannot add snap service "svc1": the service is already in group "foo2"`)
+
+	// check that the quota groups was created in the state
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+			Snaps:          []string{"test-snap"},
+			SubGroups:      []string{"foo2", "foo3"},
+		},
+		"foo2": {
+			ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
+			ParentGroup:    "foo",
+			Services:       []string{"test-snap.svc1"},
+		},
+		"foo3": {
 			ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
 			ParentGroup:    "foo",
 		},
@@ -1921,6 +2122,49 @@ func (s *quotaHandlersSuite) TestQuotaUpdateChangeMemLimit(c *C) {
 	}
 	err = s.callDoQuotaControl(&qc3)
 	c.Assert(err, ErrorMatches, "cannot update limits for group \"foo\": cannot decrease memory limit, remove and re-create it to decrease the limit")
+}
+
+func (s *quotaHandlersSuite) TestQuotaUpdateJournalQuotaNotAllowedForServices(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// create a quota group with the test snap
+	err := s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+		AddSnaps:       []string{"test-snap"},
+	})
+	c.Assert(err, IsNil)
+
+	// create the sub-group which contain just the service
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo2",
+		ParentName:     "foo",
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
+		AddServices:    []string{"test-snap.svc1"},
+	})
+	c.Assert(err, IsNil)
+
+	// try to impose the journal quota on the sub-group that contains services
+	err = s.callDoQuotaControl(&servicestate.QuotaControlAction{
+		Action:         "update",
+		QuotaName:      "foo2",
+		ResourceLimits: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+	})
+	c.Assert(err, ErrorMatches, `cannot update limits for group "foo2": journal quotas are not supported for individual services`)
 }
 
 func (s *quotaHandlersSuite) TestCreateJournalQuota(c *C) {
@@ -2673,7 +2917,7 @@ func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupServiceSnap
 	}
 
 	err := servicestate.ValidateSnapServicesForAddingToGroup(st, []string{"test-snap.svc1"}, "foo2", allQuotas["foo"], allQuotas)
-	c.Assert(err, ErrorMatches, `cannot use snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo2"`)
+	c.Assert(err, ErrorMatches, `cannot add snap service "svc1": the snap "test-snap" must be in a direct parent group of group "foo2"`)
 }
 
 func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupInvalidService(c *C) {
@@ -2698,7 +2942,7 @@ func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupInvalidServ
 	}
 
 	err := servicestate.ValidateSnapServicesForAddingToGroup(st, []string{"test-snap.svc2"}, "foo2", allQuotas["foo"], allQuotas)
-	c.Assert(err, ErrorMatches, `cannot use snap service "foo2": invalid service "svc2"`)
+	c.Assert(err, ErrorMatches, `cannot add snap service "foo2": invalid service "svc2"`)
 }
 
 func (s *quotaHandlersSuite) TestValidateSnapServicesForAddingToGroupHappy(c *C) {

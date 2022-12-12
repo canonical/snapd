@@ -552,6 +552,17 @@ func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
 			err:     `missing group "other-missing" referenced as the parent of group "foogroup"`,
 			comment: "missing sub-group name",
 		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:         "foogroup",
+					JournalLimit: &quota.GroupQuotaJournal{},
+					Services:     []string{"snap.svc"},
+				},
+			},
+			err:     `group "foogroup" is invalid: journal quota is not supported for individual services`,
+			comment: "setting a journal quota for a group with services is not allowed",
+		},
 	}
 
 	for _, t := range tt {
@@ -1510,4 +1521,22 @@ func (ts *quotaTestSuite) TestJournalQuotasUpdatesCorrectly(c *C) {
 	c.Check(grp1.JournalLimit.Size, Equals, quantity.SizeMiB)
 	c.Check(grp1.JournalLimit.RateCount, Equals, 15)
 	c.Check(grp1.JournalLimit.RatePeriod, Equals, time.Microsecond*5)
+}
+
+func (ts *quotaTestSuite) TestGroupForService(c *C) {
+	rootGrp, err := quota.NewGroup("myroot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	svcGrp, err := rootGrp.NewSubGroup("mysub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB/2).Build())
+	c.Assert(err, IsNil)
+
+	// Checking the sub-groups for a service that doesn't exist should
+	// return nil
+	grp := rootGrp.GroupForService("unknown")
+	c.Check(grp, IsNil)
+
+	// Add a service a try again
+	svcGrp.Services = []string{"my-snap.service"}
+	grp = rootGrp.GroupForService("my-snap.service")
+	c.Check(grp, Equals, svcGrp)
 }

@@ -118,9 +118,9 @@ var _ = encryptedDevice(&encryptedDeviceWithSetupHook{})
 func createEncryptedDeviceWithSetupHook(part *gadget.OnDiskStructure, key keys.EncryptionKey, name string) (encryptedDevice, error) {
 	// for roles requiring encryption, the filesystem label is always set to
 	// either the implicit value or a value that has been validated
-	if part.Name != name || part.Label != name {
+	if part.Name != name || part.PartitionFSLabel != name {
 		return nil, fmt.Errorf("cannot use partition name %q for an encrypted structure with partition label %q or filesystem label %q",
-			name, part.Name, part.Label)
+			name, part.Name, part.PartitionFSLabel)
 	}
 
 	// 1. create linear mapper device with 1Mb of reserved space

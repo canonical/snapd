@@ -453,6 +453,7 @@ fi
 %{_datadir}/dbus-1/system.d/snapd.system-services.conf
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_datadir}/fish/vendor_conf.d/snapd.fish
+%{_datadir}/snapd/snapcraft-logo-bird.svg
 %{_environmentdir}/990-snapd.conf
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
