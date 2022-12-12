@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -132,9 +133,15 @@ type Group struct {
 	// calculations
 	parentGroup *Group
 
-	// Snaps is the set of snaps that is part of this quota group. If this is
-	// empty then the underlying slice may not exist on the system.
+	// Snaps is the set of snaps that is part of this quota group. If both this
+	// and Services is empty then the underlying slice may not exist on the system.
 	Snaps []string `json:"snaps,omitempty"`
+
+	// Services is the set of snap services that is part of this quota group. The entries here
+	// are in the format of snap-name.service-name, and the snap-name will refer to a snap in a
+	// parent quota group. If both this and Snaps is empty then the underlying slice may not
+	// exist on the system.
+	Services []string `json:"services,omitempty"`
 }
 
 // NewGroup creates a new top quota group with the given name and memory limit.
@@ -295,6 +302,18 @@ func (grp *Group) JournalServiceDropInDir() string {
 // file for the quota group.
 func (grp *Group) JournalServiceDropInFile() string {
 	return filepath.Join(grp.JournalServiceDropInDir(), "00-snap.conf")
+}
+
+// GroupForService returns the quota group for the given
+// service name if found in one of the sub-groups of the current group. If the
+// service is not found, this will return nil.
+func (grp *Group) GroupForService(serviceName string) *Group {
+	for _, subgrp := range grp.subGroups {
+		if strutil.ListContains(subgrp.Services, serviceName) {
+			return subgrp
+		}
+	}
+	return nil
 }
 
 // groupQuotaAllocations contains information about current quotas of a group
@@ -790,6 +809,12 @@ func (grp *Group) validate() error {
 			}
 		}
 	}
+
+	// We don't support mixing services and the journal quota, the journal quota
+	// must be applied to the parent group, and services will inherit that one.
+	if len(grp.Services) > 0 && grp.JournalLimit != nil {
+		return fmt.Errorf("journal quota is not supported for individual services")
+	}
 	return nil
 }
 
@@ -814,13 +839,15 @@ func (grp *Group) NewSubGroup(name string, resourceLimits Resources) (*Group, er
 		return nil, fmt.Errorf("cannot use same name %q for sub group as parent group", name)
 	}
 
-	// With the new quotas we don't support groups that have a mixture of snaps and
-	// subgroups, as this will cause issues with nesting. Groups/subgroups may now
-	// only consist of either snaps or subgroups.
-	if len(grp.Snaps) != 0 {
-		return nil, fmt.Errorf("cannot mix sub groups with snaps in the same group")
+	// We do not allow services to be mixed with sub-groups. Instead snaps can be mixed
+	// with sub-groups to apply individual limits to services that originate from that snap.
+	if len(grp.Services) != 0 {
+		return nil, fmt.Errorf("cannot mix sub groups with services in the same group")
 	}
 
+	// With the new quotas we don't support nesting of snaps and sub-groups. However as we
+	// now allow sub-groups to be mixed with snaps, the sub-groups mixed this way
+	// can only contain services.
 	if err := subGrp.validate(); err != nil {
 		return nil, err
 	}
@@ -830,6 +857,50 @@ func (grp *Group) NewSubGroup(name string, resourceLimits Resources) (*Group, er
 	grp.SubGroups = append(grp.SubGroups, name)
 
 	return subGrp, nil
+}
+
+// ValidateNestingAndSnaps takes a group and verifies that it satisfies the following conditions:
+//  1. That if any parent is mixed (has both snaps and sub-groups), it must be the immediate
+//     parent group.
+//  2. If the group itself is mixed, that it has only one level of sub-grouping.
+func (grp *Group) ValidateNestingAndSnaps() error {
+	// A parent group is only allowed to contain a mixture of snaps
+	// and sub-groups if it's a direct parent. Introducing this limitation
+	// will not affect anything as we didn't allow mixing snaps and sub-groups
+	// prior to this change.
+	parent := grp.parentGroup
+	for parent != nil {
+		// We know that the parent contains sub-groups (grp), so just
+		// do a check for snaps
+		if len(parent.Snaps) > 0 {
+			// then the group must be a direct parent
+			// and we must not have any sub-groups
+			if grp.parentGroup != parent || len(grp.SubGroups) > 0 {
+				return fmt.Errorf("group %q is invalid: only one level of sub-groups are allowed for groups with snaps",
+					grp.Name)
+			}
+		}
+		parent = parent.parentGroup
+	}
+
+	// Now we verify sub-groups, make sure that we are not mixing
+	// snaps and sub-groups with depths deeper than 1.
+	if len(grp.Snaps) > 0 && len(grp.SubGroups) > 0 {
+		for _, sub := range grp.subGroups {
+			// If the sub-group has sub-groups, then we fail on this as we don't
+			// allow more nesting that one level.
+			if len(sub.SubGroups) > 0 {
+				return fmt.Errorf("group %q is invalid: only one level of sub-groups are allowed for groups with snaps",
+					sub.SubGroups[0])
+			}
+			// If the sub-group has snaps in it, then fail on this as we don't allow
+			// nesting of snaps
+			if len(sub.Snaps) > 0 {
+				return fmt.Errorf("group %q is invalid: nesting of groups with snaps is not supported", grp.Name)
+			}
+		}
+	}
+	return nil
 }
 
 // ResolveCrossReferences takes a set of deserialized groups and sets all

@@ -37,17 +37,17 @@ var evalSymlinks = filepath.EvalSymlinks
 func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 	var candidates []string
 
-	if ps.Name != "" {
-		byPartlabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", disks.BlkIDEncodeLabel(ps.Name))
+	if ps.Name() != "" {
+		byPartlabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", disks.BlkIDEncodeLabel(ps.Name()))
 		candidates = append(candidates, byPartlabel)
 	}
 	if ps.HasFilesystem() {
-		fsLabel := ps.Label
-		if fsLabel == "" && ps.Name != "" {
+		fsLabel := ps.Label()
+		if fsLabel == "" && ps.Name() != "" {
 			// when image is built and the structure has no
 			// filesystem label, the structure name will be used by
 			// default as the label
-			fsLabel = ps.Name
+			fsLabel = ps.Name()
 		}
 		if fsLabel != "" {
 			byFsLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", disks.BlkIDEncodeLabel(fsLabel))

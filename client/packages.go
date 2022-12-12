@@ -84,6 +84,11 @@ type Snap struct {
 	Tracks []string `json:"tracks,omitempty"`
 
 	Health *SnapHealth `json:"health,omitempty"`
+
+	// Hold is the time until which the snap's refreshes are held by the user.
+	Hold time.Time `json:"hold,omitempty"`
+	// GatingHold is the time until which the snap's refreshes are held by a snap.
+	GatingHold time.Time `json:"gating-hold,omitempty"`
 }
 
 type SnapHealth struct {

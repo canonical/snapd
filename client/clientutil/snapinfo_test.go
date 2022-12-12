@@ -115,6 +115,8 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 		"TryMode",
 		"JailMode",
 		"MountedFrom",
+		"Hold",
+		"GatingHold",
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {

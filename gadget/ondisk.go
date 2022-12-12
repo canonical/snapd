@@ -32,8 +32,8 @@ import (
 type OnDiskStructure struct {
 	// Name, when non empty, provides the name of the structure
 	Name string
-	// Label provides the filesystem label
-	Label string
+	// PartitionFSLabel provides the filesystem label
+	PartitionFSLabel string
 	// Type of the structure, which can be 2-hex digit MBR partition,
 	// 36-char GUID partition, comma separated <mbr>,<guid> for hybrid
 	// partitioning schemes, or 'bare' when the structure is not considered
@@ -42,9 +42,10 @@ type OnDiskStructure struct {
 	// For backwards compatibility type 'mbr' is also accepted, and the
 	// structure is treated as if it is of role 'mbr'.
 	Type string
-	// Filesystem used for the partition, 'vfat', 'ext4' or 'none' for
-	// structures of type 'bare'
-	Filesystem string
+	// PartitionFSType used for the partition filesystem: 'vfat', 'ext4',
+	// 'none' for structures of type 'bare', or 'crypto_LUKS' for encrypted
+	// partitions.
+	PartitionFSType string
 	// StartOffset defines the start offset of the structure within the
 	// enclosing volume
 	StartOffset quantity.Offset
@@ -173,13 +174,13 @@ func OnDiskStructureFromPartition(p disks.Partition) (OnDiskStructure, error) {
 
 	// TODO add ID in second part of the gadget refactoring?
 	return OnDiskStructure{
-		Name:        decodedPartLabel,
-		Label:       decodedFsLabel,
-		Type:        p.PartitionType,
-		Filesystem:  p.FilesystemType,
-		StartOffset: quantity.Offset(p.StartInBytes),
-		DiskIndex:   int(p.DiskIndex),
-		Size:        quantity.Size(p.SizeInBytes),
-		Node:        p.KernelDeviceNode,
+		Name:             decodedPartLabel,
+		PartitionFSLabel: decodedFsLabel,
+		Type:             p.PartitionType,
+		PartitionFSType:  p.FilesystemType,
+		StartOffset:      quantity.Offset(p.StartInBytes),
+		DiskIndex:        int(p.DiskIndex),
+		Size:             quantity.Size(p.SizeInBytes),
+		Node:             p.KernelDeviceNode,
 	}, nil
 }

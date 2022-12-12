@@ -67,8 +67,8 @@ func journalQuotaLayout(quotaGroup *quota.Group) []snap.Layout {
 // getExtraLayouts helper function to dynamically calculate the extra mount layouts for
 // a snap instance. These are the layouts which can change during the lifetime of a snap
 // like for instance mimicking systemd journal namespace mount layouts.
-func getExtraLayouts(st *state.State, snapInstanceName string) ([]snap.Layout, error) {
-	snapOpts, err := servicestate.SnapServiceOptions(st, snapInstanceName, nil)
+func getExtraLayouts(st *state.State, snapInfo *snap.Info) ([]snap.Layout, error) {
+	snapOpts, err := servicestate.SnapServiceOptions(st, snapInfo, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -81,10 +81,10 @@ func getExtraLayouts(st *state.State, snapInstanceName string) ([]snap.Layout, e
 	return extraLayouts, nil
 }
 
-func buildConfinementOptions(st *state.State, snapInstanceName string, flags snapstate.Flags) (interfaces.ConfinementOptions, error) {
-	extraLayouts, err := getExtraLayouts(st, snapInstanceName)
+func buildConfinementOptions(st *state.State, snapInfo *snap.Info, flags snapstate.Flags) (interfaces.ConfinementOptions, error) {
+	extraLayouts, err := getExtraLayouts(st, snapInfo)
 	if err != nil {
-		return interfaces.ConfinementOptions{}, fmt.Errorf("cannot get extra mount layouts of snap %q: %s", snapInstanceName, err)
+		return interfaces.ConfinementOptions{}, fmt.Errorf("cannot get extra mount layouts of snap %q: %s", snapInfo.InstanceName(), err)
 	}
 
 	return interfaces.ConfinementOptions{
@@ -116,7 +116,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		if err := addImplicitSlots(st, affectedSnapInfo); err != nil {
 			return err
 		}
-		opts, err := buildConfinementOptions(st, affectedSnapInfo.InstanceName(), snapst.Flags)
+		opts, err := buildConfinementOptions(st, affectedSnapInfo, snapst.Flags)
 		if err != nil {
 			return err
 		}
@@ -162,7 +162,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return nil
 	}
 
-	opts, err := buildConfinementOptions(task.State(), snapInfo.InstanceName(), snapsup.Flags)
+	opts, err := buildConfinementOptions(task.State(), snapInfo, snapsup.Flags)
 	if err != nil {
 		return err
 	}
@@ -281,7 +281,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		if err := addImplicitSlots(st, snapInfo); err != nil {
 			return err
 		}
-		opts, err := buildConfinementOptions(st, snapInfo.InstanceName(), snapst.Flags)
+		opts, err := buildConfinementOptions(st, snapInfo, snapst.Flags)
 		if err != nil {
 			return err
 		}
@@ -383,7 +383,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if err != nil {
 			return err
 		}
-		opts, err := buildConfinementOptions(task.State(), snapInfo.InstanceName(), snapst.Flags)
+		opts, err := buildConfinementOptions(task.State(), snapInfo, snapst.Flags)
 		if err != nil {
 			return err
 		}
@@ -591,7 +591,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 	}()
 
 	if !delayedSetupProfiles {
-		slotOpts, err := buildConfinementOptions(st, slotSnapst.InstanceName(), slotSnapst.Flags)
+		slotSnapInfo, err := slotSnapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+		slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags)
 		if err != nil {
 			return err
 		}
@@ -599,7 +603,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 			return err
 		}
 
-		plugOpts, err := buildConfinementOptions(st, plugSnapst.InstanceName(), plugSnapst.Flags)
+		plugSnapInfo, err := plugSnapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+		plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags)
 		if err != nil {
 			return err
 		}
@@ -703,7 +711,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		opts, err := buildConfinementOptions(st, snapInfo.InstanceName(), snapst.Flags)
+		opts, err := buildConfinementOptions(st, snapInfo, snapst.Flags)
 		if err != nil {
 			return err
 		}
@@ -812,7 +820,11 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	slotOpts, err := buildConfinementOptions(st, slotSnapst.InstanceName(), slotSnapst.Flags)
+	slotSnapInfo, err := slotSnapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+	slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags)
 	if err != nil {
 		return err
 	}
@@ -820,7 +832,11 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	plugOpts, err := buildConfinementOptions(st, plugSnapst.InstanceName(), plugSnapst.Flags)
+	plugSnapInfo, err := plugSnapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+	plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags)
 	if err != nil {
 		return err
 	}
@@ -903,7 +919,11 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	slotOpts, err := buildConfinementOptions(st, slotSnapst.InstanceName(), slotSnapst.Flags)
+	slotSnapInfo, err := slotSnapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+	slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags)
 	if err != nil {
 		return err
 	}
@@ -911,7 +931,11 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	plugOpts, err := buildConfinementOptions(st, plugSnapst.InstanceName(), plugSnapst.Flags)
+	plugSnapInfo, err := plugSnapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+	plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags)
 	if err != nil {
 		return err
 	}

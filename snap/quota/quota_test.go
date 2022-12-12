@@ -298,16 +298,28 @@ func (ts *quotaTestSuite) TestComplexSubGroups(c *C) {
 	c.Assert(subsubsub1.SliceFileName(), Equals, "snap.myroot-sub1-subsub1-subsubsub1.slice")
 }
 
-func (ts *quotaTestSuite) TestGroupUnmixableSnapsSubgroups(c *C) {
+func (ts *quotaTestSuite) TestGroupIsMixableSnapsSubgroups(c *C) {
 	parent, err := quota.NewGroup("parent", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
 
 	// now we add a snap to the parent group
 	parent.Snaps = []string{"test-snap"}
 
-	// add a subgroup to the parent group, this should fail as the group now has snaps
+	// add a subgroup to the parent group
 	_, err = parent.NewSubGroup("sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
-	c.Assert(err, ErrorMatches, "cannot mix sub groups with snaps in the same group")
+	c.Assert(err, IsNil)
+}
+
+func (ts *quotaTestSuite) TestGroupUnmixableServicesSubgroups(c *C) {
+	parent, err := quota.NewGroup("parent", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+
+	// now we add a snap to the parent group
+	parent.Services = []string{"my-service"}
+
+	// add a subgroup to the parent group
+	_, err = parent.NewSubGroup("sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, ErrorMatches, "cannot mix sub groups with services in the same group")
 }
 
 func (ts *quotaTestSuite) TestJournalNamespaceName(c *C) {
@@ -540,11 +552,166 @@ func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
 			err:     `missing group "other-missing" referenced as the parent of group "foogroup"`,
 			comment: "missing sub-group name",
 		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:         "foogroup",
+					JournalLimit: &quota.GroupQuotaJournal{},
+					Services:     []string{"snap.svc"},
+				},
+			},
+			err:     `group "foogroup" is invalid: journal quota is not supported for individual services`,
+			comment: "setting a journal quota for a group with services is not allowed",
+		},
 	}
 
 	for _, t := range tt {
 		comment := Commentf(t.comment)
 		err := quota.ResolveCrossReferences(t.grps)
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, comment)
+		} else {
+			c.Assert(err, IsNil, comment)
+		}
+	}
+}
+
+func (ts *quotaTestSuite) TestVerifyNestingAndMixingIsAllowed(c *C) {
+	tt := []struct {
+		grps    map[string]*quota.Group
+		check   string
+		err     string
+		comment string
+	}{
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB * 16,
+					Snaps:       []string{"test-snap"},
+				},
+			},
+			check:   "foogroup",
+			comment: "single group with a snap",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB * 16,
+					Snaps:       []string{"test-snap"},
+					SubGroups:   []string{"foo-sub"},
+				},
+				"foo-sub": {
+					Name:        "foo-sub",
+					MemoryLimit: quantity.SizeMiB * 8,
+					ParentGroup: "foogroup",
+				},
+			},
+			check:   "foogroup",
+			comment: "mixed group, with a single sub-group",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB * 16,
+					Snaps:       []string{"test-snap"},
+					SubGroups:   []string{"foo-sub"},
+				},
+				"foo-sub": {
+					Name:        "foo-sub",
+					MemoryLimit: quantity.SizeMiB * 8,
+					ParentGroup: "foogroup",
+					SubGroups:   []string{"foo-sub-sub"},
+				},
+				"foo-sub-sub": {
+					Name:        "foo-sub-sub",
+					MemoryLimit: quantity.SizeMiB * 4,
+					ParentGroup: "foo-sub",
+				},
+			},
+			check:   "foogroup",
+			err:     `group "foo-sub-sub" is invalid: only one level of sub-groups are allowed for groups with snaps`,
+			comment: "mixed parent group with more than 1 level of sub-grouping",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB * 16,
+					Snaps:       []string{"test-snap"},
+					SubGroups:   []string{"foo-sub"},
+				},
+				"foo-sub": {
+					Name:        "foo-sub",
+					MemoryLimit: quantity.SizeMiB * 8,
+					ParentGroup: "foogroup",
+					SubGroups:   []string{"foo-sub-sub"},
+				},
+				"foo-sub-sub": {
+					Name:        "foo-sub-sub",
+					MemoryLimit: quantity.SizeMiB * 4,
+					ParentGroup: "foo-sub",
+				},
+			},
+			check:   "foo-sub",
+			err:     `group "foo-sub" is invalid: only one level of sub-groups are allowed for groups with snaps`,
+			comment: "mixed parent group with more than 1 level of sub-grouping, verifying foo-sub",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB * 16,
+					Snaps:       []string{"test-snap"},
+					SubGroups:   []string{"foo-sub"},
+				},
+				"foo-sub": {
+					Name:        "foo-sub",
+					MemoryLimit: quantity.SizeMiB * 8,
+					ParentGroup: "foogroup",
+					SubGroups:   []string{"foo-sub-sub"},
+				},
+				"foo-sub-sub": {
+					Name:        "foo-sub-sub",
+					MemoryLimit: quantity.SizeMiB * 4,
+					ParentGroup: "foo-sub",
+				},
+			},
+			check:   "foo-sub-sub",
+			err:     `group "foo-sub-sub" is invalid: only one level of sub-groups are allowed for groups with snaps`,
+			comment: "mixed parent group with more than 1 level of sub-grouping, verifying foo-sub-sub",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB * 16,
+					Snaps:       []string{"test-snap"},
+					SubGroups:   []string{"foo-sub"},
+				},
+				"foo-sub": {
+					Name:        "foo-sub",
+					MemoryLimit: quantity.SizeMiB * 8,
+					ParentGroup: "foogroup",
+					Snaps:       []string{"test-snap"},
+				},
+			},
+			check:   "foogroup",
+			err:     `group "foogroup" is invalid: nesting of groups with snaps is not supported`,
+			comment: "mixed parent group with nested snap, verifying foogroup",
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		// resolve cross references as we need group pointers to be updated
+		err := quota.ResolveCrossReferences(t.grps)
+		c.Assert(err, IsNil, comment)
+		grpToCheck := t.grps[t.check]
+		c.Assert(grpToCheck, NotNil, comment)
+		err = grpToCheck.ValidateNestingAndSnaps()
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, comment)
 		} else {
@@ -1354,4 +1521,22 @@ func (ts *quotaTestSuite) TestJournalQuotasUpdatesCorrectly(c *C) {
 	c.Check(grp1.JournalLimit.Size, Equals, quantity.SizeMiB)
 	c.Check(grp1.JournalLimit.RateCount, Equals, 15)
 	c.Check(grp1.JournalLimit.RatePeriod, Equals, time.Microsecond*5)
+}
+
+func (ts *quotaTestSuite) TestGroupForService(c *C) {
+	rootGrp, err := quota.NewGroup("myroot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	svcGrp, err := rootGrp.NewSubGroup("mysub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB/2).Build())
+	c.Assert(err, IsNil)
+
+	// Checking the sub-groups for a service that doesn't exist should
+	// return nil
+	grp := rootGrp.GroupForService("unknown")
+	c.Check(grp, IsNil)
+
+	// Add a service a try again
+	svcGrp.Services = []string{"my-snap.service"}
+	grp = rootGrp.GroupForService("my-snap.service")
+	c.Check(grp, Equals, svcGrp)
 }

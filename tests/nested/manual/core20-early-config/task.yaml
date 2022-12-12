@@ -73,17 +73,22 @@ execute: |
         remote.exec "cat /etc/hostname" | MATCH "foo"
         remote.exec "hostname" | MATCH "foo"
 
-        # netplan config defaults are applied
-        remote.exec "cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54
-        remote.exec "netplan get bridges.br54.dhcp4" | MATCH true
-        remote.exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH true
-        remote.exec "netplan get ethernets.ens3.dhcp4" | MATCH false
-        # and updating netplan works
-        remote.exec "sudo snap set system system.network.netplan.network.bridges.br54.dhcp4=false"
-        remote.exec "netplan get bridges.br54.dhcp4" | MATCH false
-        remote.exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH false
-        # ensure the test can be repeated
-        remote.exec "sudo rm -f /etc/netplan/90-snapd-config.yaml"
+        # 2022-11-30: netplan test on ubuntu-22.04-64 disabled until
+        #  https://bugs.launchpad.net/netplan/+bug/1997467
+        # is fixed
+        if os.query is-focal; then
+          # netplan config defaults are applied
+          remote.exec "sudo cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54
+          remote.exec "sudo netplan get bridges.br54.dhcp4" | MATCH true
+          remote.exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH true
+          remote.exec "sudo netplan get ethernets.ens3.dhcp4" | MATCH false
+          # and updating netplan works
+          remote.exec "sudo snap set system system.network.netplan.network.bridges.br54.dhcp4=false"
+          remote.exec "sudo netplan get bridges.br54.dhcp4" | MATCH false
+          remote.exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH false
+          # ensure the test can be repeated
+          remote.exec "sudo rm -f /etc/netplan/90-snapd-config.yaml"
+        fi
     }
 
     check_core20_early_config

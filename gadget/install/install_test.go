@@ -165,11 +165,11 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		c.Assert(dss, DeepEquals, []install.OnDiskAndLaidoutStructure{
 			install.MockOnDiskAndLaidoutStructure(
 				&gadget.OnDiskStructure{
-					Name:        "ubuntu-boot",
-					Label:       "ubuntu-boot",
-					Type:        "0C",
-					Filesystem:  "vfat",
-					StartOffset: (1 + 1200) * quantity.OffsetMiB,
+					Name:             "ubuntu-boot",
+					PartitionFSLabel: "ubuntu-boot",
+					Type:             "0C",
+					PartitionFSType:  "vfat",
+					StartOffset:      (1 + 1200) * quantity.OffsetMiB,
 					// note this is YamlIndex + 1, the YamlIndex starts at 0
 					DiskIndex: 2,
 					Node:      "/dev/mmcblk0p2",
@@ -190,11 +190,11 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 				}),
 			install.MockOnDiskAndLaidoutStructure(
 				&gadget.OnDiskStructure{
-					Name:        "ubuntu-save",
-					Label:       "ubuntu-save",
-					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					Filesystem:  "ext4",
-					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
+					Name:             "ubuntu-save",
+					PartitionFSLabel: "ubuntu-save",
+					Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					PartitionFSType:  "ext4",
+					StartOffset:      (1 + 1200 + 750) * quantity.OffsetMiB,
 					// note this is YamlIndex + 1, the YamlIndex starts at 0
 					DiskIndex: 3,
 					Node:      "/dev/mmcblk0p3",
@@ -215,11 +215,11 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 				}),
 			install.MockOnDiskAndLaidoutStructure(
 				&gadget.OnDiskStructure{
-					Name:        "ubuntu-data",
-					Label:       "ubuntu-data",
-					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					Filesystem:  "ext4",
-					StartOffset: (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
+					Name:             "ubuntu-data",
+					PartitionFSLabel: "ubuntu-data",
+					Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					PartitionFSType:  "ext4",
+					StartOffset:      (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
 					// note this is YamlIndex + 1, the YamlIndex starts at 0
 					DiskIndex: 4,
 					Node:      "/dev/mmcblk0p4",
@@ -680,12 +680,12 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 		expectedDss := []install.OnDiskAndLaidoutStructure{
 			install.MockOnDiskAndLaidoutStructure(
 				&gadget.OnDiskStructure{
-					Name:        "ubuntu-boot",
-					Label:       "ubuntu-boot",
-					Size:        750 * quantity.SizeMiB,
-					Type:        "0C",
-					Filesystem:  "vfat",
-					StartOffset: (1 + 1200) * quantity.OffsetMiB,
+					Name:             "ubuntu-boot",
+					PartitionFSLabel: "ubuntu-boot",
+					Size:             750 * quantity.SizeMiB,
+					Type:             "0C",
+					PartitionFSType:  "vfat",
+					StartOffset:      (1 + 1200) * quantity.OffsetMiB,
 					// note this is YamlIndex + 1, the YamlIndex starts at 0
 					DiskIndex: 2,
 					Node:      "/dev/mmcblk0p2",
@@ -705,11 +705,11 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 			// just data
 			expectedDss = append(expectedDss, install.MockOnDiskAndLaidoutStructure(
 				&gadget.OnDiskStructure{
-					Name:        "ubuntu-data",
-					Label:       "ubuntu-data",
-					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					Filesystem:  "ext4",
-					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
+					Name:             "ubuntu-data",
+					PartitionFSLabel: "ubuntu-data",
+					Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					PartitionFSType:  "ext4",
+					StartOffset:      (1 + 1200 + 750) * quantity.OffsetMiB,
 					// note this is YamlIndex + 1, the YamlIndex starts at 0
 					DiskIndex: 3,
 					Node:      dataDev,
@@ -733,11 +733,11 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 			// data + save
 			expectedDss = append(expectedDss, install.MockOnDiskAndLaidoutStructure(
 				&gadget.OnDiskStructure{
-					Name:        "ubuntu-save",
-					Label:       "ubuntu-save",
-					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					Filesystem:  "ext4",
-					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
+					Name:             "ubuntu-save",
+					PartitionFSLabel: "ubuntu-save",
+					Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					PartitionFSType:  "ext4",
+					StartOffset:      (1 + 1200 + 750) * quantity.OffsetMiB,
 					// note this is YamlIndex + 1, the YamlIndex starts at 0
 					DiskIndex: 3,
 					Node:      "/dev/mmcblk0p3",
@@ -759,11 +759,11 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 			))
 			expectedDss = append(expectedDss, install.MockOnDiskAndLaidoutStructure(
 				&gadget.OnDiskStructure{
-					Name:        "ubuntu-data",
-					Label:       "ubuntu-data",
-					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					Filesystem:  "ext4",
-					StartOffset: (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
+					Name:             "ubuntu-data",
+					PartitionFSLabel: "ubuntu-data",
+					Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					PartitionFSType:  "ext4",
+					StartOffset:      (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
 					// note this is YamlIndex + 1, the YamlIndex starts at 0
 					DiskIndex: 4,
 					Node:      dataDev,

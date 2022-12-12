@@ -2963,6 +2963,76 @@ func (s *autorefreshGatingSuite) TestSnapsNotHeldForeverBySnaps(c *C) {
 	c.Check(gatedSnaps, HasLen, 0)
 }
 
+func (s *autorefreshGatingSuite) TestLongestGatingHold(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now()
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+	mockInstalledSnap(c, st, snapCyaml, false)
+
+	_, err := snapstate.HoldRefresh(st, snapstate.HoldGeneral, "snap-a", 7*24*time.Hour, "snap-a")
+	c.Assert(err, IsNil)
+
+	_, err = snapstate.HoldRefresh(st, snapstate.HoldGeneral, "snap-c", 24*time.Hour, "snap-a")
+	c.Assert(err, IsNil)
+
+	holdTime, err := snapstate.LongestGatingHold(st, "snap-a")
+	c.Assert(err, IsNil)
+	c.Assert(holdTime.Equal(now.Add(7*24*time.Hour)), Equals, true)
+}
+
+func (s *autorefreshGatingSuite) TestGatingHoldEmptyTimeOnHoldNotFound(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+
+	holdTime, err := snapstate.LongestGatingHold(st, "snap-a")
+	c.Assert(err, IsNil)
+	c.Assert(holdTime.IsZero(), Equals, true)
+}
+
+func (s *autorefreshGatingSuite) TestSystemHold(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now()
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+
+	err := snapstate.HoldRefreshesBySystem(st, snapstate.HoldGeneral, "forever", []string{"snap-a"})
+	c.Assert(err, IsNil)
+
+	holdTime, err := snapstate.SystemHold(st, "snap-a")
+	c.Assert(err, IsNil)
+	c.Assert(holdTime.Equal(now.Add(snapstate.MaxDuration)), Equals, true)
+}
+
+func (s *autorefreshGatingSuite) TestSystemHoldEmptyTimeOnHoldNotFound(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+
+	holdTime, err := snapstate.SystemHold(st, "snap-a")
+	c.Assert(err, IsNil)
+	c.Assert(holdTime.IsZero(), Equals, true)
+}
+
 func verifyPhasedAutorefreshTasks(c *C, tasks []*state.Task, expected []string) {
 	c.Assert(len(tasks), Equals, len(expected))
 	for i, t := range tasks {
