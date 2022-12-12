@@ -76,6 +76,15 @@ var currentWatcher *inotifyWatcher = &inotifyWatcher{
 	addWatchChan: make(chan *groupToWatch),
 }
 
+func (gtw *groupToWatch) sendNotification() {
+	defer func() {
+		if err := recover(); err != nil {
+			logger.Noticef("Failed to send Close notification for %s", gtw.name)
+		}
+	}()
+	gtw.channel <- gtw.name
+}
+
 func (iw *inotifyWatcher) addWatch(newWatch *groupToWatch) {
 	var folderList []string
 	for _, fullPath := range newWatch.folders {
@@ -101,7 +110,7 @@ func (iw *inotifyWatcher) addWatch(newWatch *groupToWatch) {
 		}
 	}
 	if len(folderList) == 0 {
-		newWatch.channel <- newWatch.name
+		newWatch.sendNotification()
 	} else {
 		newWatch.folders = folderList
 		iw.groupList = append(iw.groupList, newWatch)
@@ -134,7 +143,7 @@ func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath st
 	if len(watch.folders) == 0 {
 		// if all the files/folders of this CGroup have been deleted, notify the
 		// client that it is done.
-		watch.channel <- watch.name
+		watch.sendNotification()
 		return false
 	}
 	return true

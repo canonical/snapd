@@ -276,3 +276,35 @@ func (s *monitorSuite) TestMonitorSnapEndedIntegration(c *C) {
 	snapName := <-s.eventsCh
 	c.Check(snapName, Equals, "firefox")
 }
+
+func (s *monitorSuite) TestMonitorCloseChannel(c *C) {
+	folder1 := s.makeTestFolder(c, "folder1")
+	folder2 := s.makeTestFolder(c, "folder2")
+
+	filelist := []string{folder1}
+	ch := make(chan string)
+	err := cgroup.MonitorDelete(filelist, "test1", ch)
+	c.Assert(err, IsNil)
+
+	time.Sleep(s.inotifyWait)
+
+	err = os.Remove(folder2)
+	c.Assert(err, IsNil)
+
+	// Wait for two seconds to ensure that nothing spurious
+	// is received from the channel due to removing folder2
+	// Wait for two seconds to ensure that nothing spurious
+	// is received from the channel due to creating or
+	// removing folder3
+	select {
+	case event := <-ch:
+		c.Fatalf("unexpected channel read of event %q", event)
+	case <-time.After(2 * s.inotifyWait):
+	}
+
+	close(ch)
+	err = os.Remove(folder1)
+	c.Assert(err, IsNil)
+	event := <-ch
+	c.Assert(event, Equals, "")
+}
