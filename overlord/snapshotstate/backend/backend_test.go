@@ -1000,6 +1000,15 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 	err = createTestExportFile(tarFile4, flags)
 	c.Check(err, check.IsNil)
 
+	// create an exported snapshot with parent path element
+	tarFile5 := path.Join(tempdir, "exported5.snapshot")
+	flags = &createTestExportFlags{
+		exportJSON: true,
+		withParent: true,
+	}
+	err = createTestExportFile(tarFile5, flags)
+	c.Check(err, check.IsNil)
+
 	type tableT struct {
 		setID      uint64
 		filename   string
@@ -1012,6 +1021,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		{14, tarFile2, false, "cannot import snapshot 14: no export.json file in uploaded data"},
 		{14, tarFile3, false, "cannot import snapshot 14: cannot read snapshot import: unexpected EOF"},
 		{14, tarFile4, false, "cannot import snapshot 14: unexpected directory in import file"},
+		{14, tarFile5, false, "cannot import snapshot 14: invalid filename in import file"},
 		{14, tarFile1, true, "cannot import snapshot 14: already in progress for this set id"},
 	}
 
@@ -1323,6 +1333,7 @@ func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
 type createTestExportFlags struct {
 	exportJSON      bool
 	withDir         bool
+	withParent      bool
 	corruptChecksum bool
 }
 
@@ -1401,6 +1412,20 @@ func createTestExportFile(filename string, flags *createTestExportFlags) error {
 			Mode:     0700,
 			Size:     int64(0),
 			Typeflag: tar.TypeDir,
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+		if _, err = tw.Write([]byte("")); err != nil {
+			return nil
+		}
+	}
+
+	if flags.withParent {
+		hdr := &tar.Header{
+			Name: dirs.SnapshotsDir + "/../../2_foo",
+			Mode: 0644,
+			Size: int64(0),
 		}
 		if err := tw.WriteHeader(hdr); err != nil {
 			return err
