@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -571,7 +570,7 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
 	c.Check(as, DeepEquals, deviceSeed.Model())
 }
 
-func (s *firstBoot20Suite) testProcessAutoImportAssertions(c *C, withAutoImportAssertion bool) string {
+func (s *firstBoot20Suite) testProcessAutoImportAssertions(c *C, withAutoImportAssertion bool) error {
 	m := boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
@@ -591,9 +590,6 @@ func (s *firstBoot20Suite) testProcessAutoImportAssertions(c *C, withAutoImportA
 	st.Lock()
 	defer st.Unlock()
 
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
 	deviceSeed, err := devicestate.LoadDeviceSeed(st, m.RecoverySystem)
 	c.Assert(err, IsNil)
 
@@ -606,8 +602,7 @@ func (s *firstBoot20Suite) testProcessAutoImportAssertions(c *C, withAutoImportA
 		return assertstate.AddBatch(st, batch, nil)
 	}
 	db := assertstate.DB(st)
-	devicestate.ProcessAutoImportAssertions(st, deviceSeed, db, commitTo)
-	return logbuf.String()
+	return devicestate.ProcessAutoImportAssertions(st, deviceSeed, db, commitTo)
 }
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousNoAutoImport(c *C) {
@@ -618,9 +613,9 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousNoAutoImport(c *C) {
 	})
 	defer r()
 
-	logs := s.testProcessAutoImportAssertions(c, false)
+	err := s.testProcessAutoImportAssertions(c, false)
 
-	c.Check(logs, testutil.Contains, `failed to auto-import assertions:`)
+	c.Check(err.Error(), testutil.Contains, `no such file or directory`)
 }
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImportUserCreateFail(c *C) {
@@ -631,11 +626,10 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImportUserCreate
 	})
 	defer r()
 
-	logs := s.testProcessAutoImportAssertions(c, true)
+	err := s.testProcessAutoImportAssertions(c, true)
 
 	c.Check(calledcreateAllUsers, Equals, true)
-	c.Check(logs, testutil.Contains, "failed to create known users:")
-	c.Check(logs, testutil.Contains, "User already exists")
+	c.Check(err.Error(), testutil.Contains, "User already exists")
 }
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImport(c *C) {
@@ -647,10 +641,10 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImport(c *C) {
 	})
 	defer r()
 
-	logs := s.testProcessAutoImportAssertions(c, true)
+	err := s.testProcessAutoImportAssertions(c, true)
 
 	c.Check(calledcreateAllUsers, Equals, true)
-	c.Assert(logs, Equals, "")
+	c.Assert(err, IsNil)
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunModeUserServiceTasks(c *C) {
