@@ -36,8 +36,8 @@ import (
 type monitorSuite struct {
 	testutil.BaseTest
 
-	tmp string
-	ch  chan string
+	tmp      string
+	eventsCh chan string
 
 	inotifyWait time.Duration
 }
@@ -51,8 +51,8 @@ func (s *monitorSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tmp)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 
-	s.ch = make(chan string)
-	s.AddCleanup(func() { close(s.ch) })
+	s.eventsCh = make(chan string)
+	s.AddCleanup(func() { close(s.eventsCh) })
 
 	s.calibrateInotifyDelay(c)
 }
@@ -60,7 +60,7 @@ func (s *monitorSuite) SetUpTest(c *C) {
 func (s *monitorSuite) calibrateInotifyDelay(c *C) {
 	folder1 := s.makeTestFolder(c, "folder1")
 	filelist := []string{folder1}
-	err := cgroup.MonitorDelete(filelist, "test1", s.ch)
+	err := cgroup.MonitorDelete(filelist, "test1", s.eventsCh)
 	c.Assert(err, IsNil)
 	var start time.Time
 	go func() {
@@ -68,7 +68,7 @@ func (s *monitorSuite) calibrateInotifyDelay(c *C) {
 		err = os.Remove(folder1)
 		c.Assert(err, IsNil)
 	}()
-	<-s.ch
+	<-s.eventsCh
 	d := time.Now().Sub(start)
 	// On a modern machine the dureation "d" for inotify delivery is
 	// around 30-100µs so even the very conservative multiplication means
@@ -94,7 +94,7 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	folder2 := s.makeTestFolder(c, "folder2")
 
 	filelist := []string{folder1}
-	err := cgroup.MonitorDelete(filelist, "test1", s.ch)
+	err := cgroup.MonitorDelete(filelist, "test1", s.eventsCh)
 	c.Assert(err, IsNil)
 
 	time.Sleep(s.inotifyWait)
@@ -108,14 +108,14 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	// is received from the channel due to creating or
 	// removing folder3
 	select {
-	case event := <-s.ch:
+	case event := <-s.eventsCh:
 		c.Fatalf("unexpected channel read of event %q", event)
 	case <-time.After(2 * s.inotifyWait):
 	}
 
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
-	event := <-s.ch
+	event := <-s.eventsCh
 	c.Assert(event, Equals, "test1")
 }
 
@@ -124,7 +124,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	folder2 := s.makeTestFolder(c, "folder2")
 
 	filelist := []string{folder1, folder2}
-	err := cgroup.MonitorDelete(filelist, "test2", s.ch)
+	err := cgroup.MonitorDelete(filelist, "test2", s.eventsCh)
 	c.Assert(err, Equals, nil)
 
 	time.Sleep(s.inotifyWait)
@@ -140,7 +140,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	// is received from the channel due to creating or
 	// removing folder3
 	select {
-	case event := <-s.ch:
+	case event := <-s.eventsCh:
 		c.Fatalf("unexpected channel read of event %q", event)
 	case <-time.After(2 * s.inotifyWait):
 	}
@@ -150,7 +150,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	// two ensure that nothing spurious is received from
 	// the channel
 	select {
-	case event := <-s.ch:
+	case event := <-s.eventsCh:
 		c.Fatalf("unexpected channel read of event %q", event)
 	case <-time.After(2 * s.inotifyWait):
 	}
@@ -159,7 +159,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 
 	// All files have been deleted, so NOW we must receive
 	// something from the channel
-	event := <-s.ch
+	event := <-s.eventsCh
 	c.Assert(event, Equals, "test2")
 }
 
@@ -170,10 +170,10 @@ func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 	nonExistingFolder := path.Join(s.tmp, "non-exiting-dir")
 
 	filelist := []string{nonExistingFolder}
-	err := cgroup.MonitorDelete(filelist, "test3", s.ch)
+	err := cgroup.MonitorDelete(filelist, "test3", s.eventsCh)
 	c.Assert(err, Equals, nil)
 
-	event := <-s.ch
+	event := <-s.eventsCh
 	c.Assert(event, Equals, "test3")
 }
 
@@ -244,10 +244,10 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 }
 
 func (s *monitorSuite) TestMonitorSnapEndedNonExisting(c *C) {
-	err := cgroup.MonitorSnapEnded("non-existing-snap", s.ch)
+	err := cgroup.MonitorSnapEnded("non-existing-snap", s.eventsCh)
 	c.Assert(err, IsNil)
 
-	event := <-s.ch
+	event := <-s.eventsCh
 	c.Check(event, Equals, "non-existing-snap")
 }
 
@@ -263,11 +263,11 @@ func (s *monitorSuite) TestMonitorSnapEndedIntegration(c *C) {
 	c.Assert(err, IsNil)
 
 	// wait for firefox to end
-	err = cgroup.MonitorSnapEnded("firefox", s.ch)
+	err = cgroup.MonitorSnapEnded("firefox", s.eventsCh)
 	c.Assert(err, IsNil)
 
 	select {
-	case snapName := <-s.ch:
+	case snapName := <-s.eventsCh:
 		c.Fatalf("unexpected stop reported for snap %v", snapName)
 	case <-time.After(2 * s.inotifyWait):
 	}
@@ -277,6 +277,6 @@ func (s *monitorSuite) TestMonitorSnapEndedIntegration(c *C) {
 	c.Assert(err, IsNil)
 
 	// validate the stoppedSnap got delivered
-	snapName := <-s.ch
+	snapName := <-s.eventsCh
 	c.Check(snapName, Equals, "firefox")
 }
