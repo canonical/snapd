@@ -64,8 +64,10 @@ func (s *monitorSuite) calibrateInotifyDelay(c *C) {
 	}()
 	<-s.ch
 	d := time.Now().Sub(start)
-	// be very conservative
-	s.inotifyWait = 10 * d
+	// On a modern machine the dureation "d" for inotify delivery is
+	// around 30-100µs so even the very conservative multiplication means
+	// the delay is typcially 3ms-10ms.
+	s.inotifyWait = 100 * d
 	switch {
 	case s.inotifyWait > 1*time.Second:
 		s.inotifyWait = 1 * time.Second
