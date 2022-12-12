@@ -70,7 +70,7 @@ func (s *monitorSuite) calibrateInotifyDelay(c *C) {
 	d := time.Now().Sub(start)
 	// On a modern machine the duration "d" for inotify delivery is
 	// around 30-100µs so even the very conservative multiplication means
-	// the delay is typcially 3ms-10ms.
+	// the delay is typically 3ms-10ms.
 	s.inotifyWait = 100 * d
 	switch {
 	case s.inotifyWait > 1*time.Second:
