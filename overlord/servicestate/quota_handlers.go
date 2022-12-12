@@ -590,7 +590,7 @@ func snapServiceNames(info *snap.Info) []string {
 // affectedSnapServices returns a map of snaps and the services affected
 // by performing changes to a quota group. For groups that contain just snaps, all
 // services are added to the map, for groups that contain specific services, only those
-// services are affected.
+// services listed in the group are affected, as snaps cannot be in same group as services.
 func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions) (map[*snap.Info]*wrappers.SnapServiceOptions, []string, error) {
 
 	snapSvcMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
@@ -621,8 +621,9 @@ func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapSer
 		affectedServices = append(affectedServices, snapServiceNames(info)...)
 	}
 
-	// if the group is a service group, then we need to get the affected
-	// snaps from the service names, which are of format 'snap.service'
+	// if the group is a service group, then grp.Snaps is empty and we
+	// need to get the affected snaps from the service names, which are
+	// of format 'snap.service'
 	for _, svc := range grp.Services {
 		parts := strings.Split(svc, ".")
 		snapName := parts[0]
@@ -973,6 +974,11 @@ func validateSnapServicesForAddingToGroup(st *state.State, services []string, gr
 		}
 	}
 
+	var svcQuotaMap map[string]*quota.Group
+	if parentGroup != nil {
+		svcQuotaMap = parentGroup.ServiceMap()
+	}
+
 	for _, name := range services {
 		snap, service, err := splitSnapServiceName(name)
 		if err != nil {
@@ -984,7 +990,7 @@ func validateSnapServicesForAddingToGroup(st *state.State, services []string, gr
 		if parentGroup == nil || !strutil.ListContains(parentGroup.Snaps, snap) {
 			return fmt.Errorf("cannot add snap service %q: the snap %q must be in a direct parent group of group %q", service, snap, group)
 		}
-		if serviceGrp := parentGroup.GroupForService(name); serviceGrp != nil {
+		if serviceGrp := svcQuotaMap[name]; serviceGrp != nil {
 			return fmt.Errorf("cannot add snap service %q: the service is already in group %q", service, serviceGrp.Name)
 		}
 	}

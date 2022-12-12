@@ -623,12 +623,18 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *sna
 		return services[i].Name < services[j].Name
 	})
 
+	var svcQuotaMap map[string]*quota.Group
+	if opts.QuotaGroup != nil {
+		svcQuotaMap = opts.QuotaGroup.ServiceMap()
+	}
+
 	// note that the Preseeding option is not used here at all
 	for _, svc := range snapInfo.Services() {
 		// if an inclusion list is provided, then we want to make sure this service
-		// is included
-		snapServiceName := fmt.Sprintf("%s.%s", snapInfo.InstanceName(), svc.Name)
-		if len(es.opts.IncludeServices) > 0 && !strutil.ListContains(es.opts.IncludeServices, snapServiceName) {
+		// is included.
+		// TODO: add an AppInfo.FullName member
+		fullServiceName := fmt.Sprintf("%s.%s", snapInfo.InstanceName(), svc.Name)
+		if len(es.opts.IncludeServices) > 0 && !strutil.ListContains(es.opts.IncludeServices, fullServiceName) {
 			continue
 		}
 
@@ -637,7 +643,9 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *sna
 		// get the correct quota group for the service we are generating.
 		quotaGrp := opts.QuotaGroup
 		if quotaGrp != nil {
-			quotaGrp = quotaGrp.GroupForService(snapServiceName)
+			// the service map contains quota group overrides if the service
+			// entry exists.
+			quotaGrp = svcQuotaMap[fullServiceName]
 			if quotaGrp == nil {
 				// default to the parent quota group, which may also be nil.
 				quotaGrp = opts.QuotaGroup
@@ -910,7 +918,8 @@ type generateSnapServicesOptions struct {
 	// the OOM killer when OOM conditions are reached.
 	VitalityRank int
 
-	// QuotaGroup is the quota group for all services in the specified snap.
+	// QuotaGroup is the quota group of the snap, of which services we are
+	// generating
 	QuotaGroup *quota.Group
 
 	// RequireMountedSnapdSnap is whether the generated units should depend on
