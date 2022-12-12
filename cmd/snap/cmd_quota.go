@@ -71,11 +71,11 @@ quota group, the entire group must be removed with remove-quota and recreated
 without the snap. To remove a sub-group from the quota group, the 
 sub-group must be removed directly with the remove-quota command.
 
-A single or multiple services can also be isolated from a snap and put into
-their own sub-groups, as long as the snap they originate from is in the parent
-group. Theses sub-groups fall under same limitations as nested groups, which means
-their resource usage cannot exceed any resources allocated for the parent groups.
-This allows for specific resource restraints on individual services.
+To set limits on individual services, one or more services can be placed into a
+sub-group. The respective snap for each service must belong to the sub-group's
+parent group. These sub-groups will have the same limitations as nested groups
+which means their combined resource usage cannot exceed the resource limits set 
+for the parent group.
 
 The memory limit for a quota group can be increased but not decreased. To
 decrease the memory limit for a quota group, the entire group must be removed
