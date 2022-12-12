@@ -162,15 +162,17 @@ func (iw *inotifyWatcher) watcherMainLoop() {
 
 // MonitorDelete monitors the specified paths for deletion.
 // Once all of them have been deleted, it pushes the specified name through the channel.
-func (iw *inotifyWatcher) monitorDelete(folders []string, name string, channel chan<- string) error {
+func (iw *inotifyWatcher) monitorDelete(folders []string, name string, channel chan<- string) (err error) {
 	iw.doOnce.Do(func() {
-		wd, err := inotify.NewWatcher()
-		if err == nil {
-			iw.wd = wd
-			go iw.watcherMainLoop()
+		iw.wd, err = inotify.NewWatcher()
+		if err != nil {
+			return
 		}
+		go iw.watcherMainLoop()
 	})
-
+	if err != nil {
+		return err
+	}
 	if iw.wd == nil {
 		return errors.New("cannot initialise Inotify.")
 	}
@@ -189,6 +191,9 @@ func MonitorSnapEnded(snapName string, channel chan string) error {
 	options := InstancePathsOptions{
 		ReturnCGroupPath: true,
 	}
-	paths, _ := InstancePathsOfSnap(snapName, options)
+	paths, err := InstancePathsOfSnap(snapName, options)
+	if err != nil {
+		return err
+	}
 	return currentWatcher.monitorDelete(paths, snapName, channel)
 }
