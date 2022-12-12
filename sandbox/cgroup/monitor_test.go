@@ -20,12 +20,15 @@
 package cgroup_test
 
 import (
+	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -45,6 +48,9 @@ func (s *monitorSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.tmp = c.MkDir()
+	dirs.SetRootDir(s.tmp)
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+
 	s.ch = make(chan string)
 	s.AddCleanup(func() { close(s.ch) })
 
@@ -235,4 +241,42 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	case <-time.After(s.inotifyWait):
 	}
 	c.Assert(receivedEvent, Equals, "test4b")
+}
+
+func (s *monitorSuite) TestMonitorSnapEndedNonExisting(c *C) {
+	err := cgroup.MonitorSnapEnded("non-existing-snap", s.ch)
+	c.Assert(err, IsNil)
+
+	event := <-s.ch
+	c.Check(event, Equals, "non-existing-snap")
+}
+
+func (s *monitorSuite) TestMonitorSnapEndedIntegration(c *C) {
+	restore := cgroup.MockVersion(cgroup.V2, nil)
+	s.AddCleanup(restore)
+
+	// make mock cgroups.procs file
+	mockProcsFile := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/snap.firefox.firefox.fa61f25b-92e1-4316-8acb-2b95af841855.scope/cgroup.procs")
+	err := os.MkdirAll(filepath.Dir(mockProcsFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockProcsFile, []byte("57003\n57004"), 0644)
+	c.Assert(err, IsNil)
+
+	// wait for firefox to end
+	err = cgroup.MonitorSnapEnded("firefox", s.ch)
+	c.Assert(err, IsNil)
+
+	select {
+	case snapName := <-s.ch:
+		c.Fatalf("unexpected stop reported for snap %v", snapName)
+	case <-time.After(2 * s.inotifyWait):
+	}
+
+	// simulate cgroup getting removed because firefox stopped
+	err = os.RemoveAll(filepath.Dir(mockProcsFile))
+	c.Assert(err, IsNil)
+
+	// validate the stoppedSnap got delivered
+	snapName := <-s.ch
+	c.Check(snapName, Equals, "firefox")
 }
