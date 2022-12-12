@@ -36,7 +36,6 @@ import (
 type monitorSuite struct {
 	testutil.BaseTest
 
-	tmp      string
 	eventsCh chan string
 
 	inotifyWait time.Duration
@@ -47,8 +46,7 @@ var _ = Suite(&monitorSuite{})
 func (s *monitorSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	s.tmp = c.MkDir()
-	dirs.SetRootDir(s.tmp)
+	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 
 	s.eventsCh = make(chan string)
@@ -83,7 +81,7 @@ func (s *monitorSuite) calibrateInotifyDelay(c *C) {
 }
 
 func (s *monitorSuite) makeTestFolder(c *C, name string) (fullPath string) {
-	fullPath = path.Join(s.tmp, name)
+	fullPath = path.Join(c.MkDir(), name)
 	err := os.Mkdir(fullPath, 0755)
 	c.Assert(err, IsNil)
 	return fullPath
@@ -167,7 +165,7 @@ func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 	// Note that there is no dir created in this test so
 	// this checks that the monitoring is correct is there
 	// is no dir
-	nonExistingFolder := path.Join(s.tmp, "non-exiting-dir")
+	nonExistingFolder := path.Join(c.MkDir(), "non-exiting-dir")
 
 	filelist := []string{nonExistingFolder}
 	err := cgroup.MonitorDelete(filelist, "test3", s.eventsCh)
