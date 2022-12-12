@@ -48,9 +48,8 @@ execute: |
   MATCH "     7\s+services:$" < details.txt
   MATCH "     8\s+-\s+test-snapd-stressd.stress-sc$" < details.txt
 
-  #echo "Test that it fails when we apply a journal quota to the sub-group"
-  # https://github.com/snapcore/snapd/pull/12401
-  #snap set-quota test-sub --journal-size=128MB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'error: cannot create quota group: cannot add snap "hello-world" to group "group-bad": snap already in quota group "group-one"'
+  echo "Test that it fails when we apply a journal quota to the sub-group"
+  snap set-quota test-sub --journal-size=128MB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'error: cannot update quota group: cannot update group "test-sub": journal quotas are not supported for individual services'
 
   echo "Test that we can however put a journal quota on the parent group"
   snap set-quota test-top --journal-size=128MB
@@ -60,7 +59,7 @@ execute: |
   # we will expect the unit to mention the top group slice, but for test-snapd-stressd.stress-sc
   # we will expect the unit to mention the sub group slice.
   TOP_SLICENAME="snap.$(systemd-escape --path test-top).slice"
-  SUB_SLICENAME="snap.$(systemd-escape --path test-top/test-sub).slice"
+  #SUB_SLICENAME="snap.$(systemd-escape --path test-top/test-sub).slice"
 
   echo "Verify that one of the non stress-sc services mention the top group"
   systemctl show --property=Slice snap.test-snapd-stressd.logger.service | grep "Slice=$TOP_SLICENAME"
