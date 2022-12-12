@@ -156,18 +156,16 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 }
 
 func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
-	tmpcontainer := c.MkDir()
+	// Note that there is no dir created in this test so
+	// this checks that the monitoring is correct is there
+	// is no dir
+	nonExistingFolder := path.Join(s.tmp, "non-exiting-dir")
 
-	folder1 := path.Join(tmpcontainer, "folder1")
-
-	filelist := []string{folder1}
-
-	channel := make(chan string)
-	defer close(channel)
-
-	err := cgroup.MonitorDelete(filelist, "test3", channel)
+	filelist := []string{nonExistingFolder}
+	err := cgroup.MonitorDelete(filelist, "test3", s.ch)
 	c.Assert(err, Equals, nil)
-	event := <-channel
+
+	event := <-s.ch
 	c.Assert(event, Equals, "test3")
 }
 
