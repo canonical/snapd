@@ -24,31 +24,42 @@ import (
 	"path"
 	"time"
 
-	"github.com/snapcore/snapd/sandbox/cgroup"
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type monitorSuite struct{}
+type monitorSuite struct {
+	testutil.BaseTest
+
+	tmp string
+	ch  chan string
+}
 
 var _ = Suite(&monitorSuite{})
 
+func (s *monitorSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	s.tmp = c.MkDir()
+	s.ch = make(chan string)
+	s.AddCleanup(func() { close(s.ch) })
+}
+
+func (s *monitorSuite) makeTestFolder(c *C, name string) (fullPath string) {
+	fullPath = path.Join(s.tmp, name)
+	err := os.Mkdir(fullPath, 0755)
+	c.Assert(err, IsNil)
+	return fullPath
+}
+
 func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
-	tmpcontainer := c.MkDir()
-
-	folder1 := path.Join(tmpcontainer, "folder1")
-	err := os.Mkdir(folder1, 0755)
-	c.Assert(err, IsNil)
-
-	folder2 := path.Join(tmpcontainer, "folder2")
-	err = os.Mkdir(folder2, 0755)
-	c.Assert(err, IsNil)
+	folder1 := s.makeTestFolder(c, "folder1")
+	folder2 := s.makeTestFolder(c, "folder2")
 
 	filelist := []string{folder1}
-
-	channel := make(chan string)
-	defer close(channel)
-
-	err = cgroup.MonitorDelete(filelist, "test1", channel)
+	err := cgroup.MonitorDelete(filelist, "test1", s.ch)
 	c.Assert(err, IsNil)
 
 	time.Sleep(1 * time.Second)
@@ -62,41 +73,28 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	// is received from the channel due to creating or
 	// removing folder3
 	select {
-	case event := <-channel:
+	case event := <-s.ch:
 		c.Fatalf("unexpected channel read of event %q", event)
 	case <-time.After(2 * time.Second):
 	}
 
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
-	event := <-channel
+	event := <-s.ch
 	c.Assert(event, Equals, "test1")
 }
 
 func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
-	tmpcontainer := c.MkDir()
-
-	folder1 := path.Join(tmpcontainer, "folder1")
-	err := os.Mkdir(folder1, 0755)
-	c.Assert(err, IsNil)
-
-	folder2 := path.Join(tmpcontainer, "folder2")
-	err = os.Mkdir(folder2, 0755)
-	c.Assert(err, IsNil)
+	folder1 := s.makeTestFolder(c, "folder1")
+	folder2 := s.makeTestFolder(c, "folder2")
 
 	filelist := []string{folder1, folder2}
-
-	channel := make(chan string)
-	defer close(channel)
-
-	err = cgroup.MonitorDelete(filelist, "test2", channel)
+	err := cgroup.MonitorDelete(filelist, "test2", s.ch)
 	c.Assert(err, Equals, nil)
 
 	time.Sleep(1 * time.Second)
 
-	folder3 := path.Join(tmpcontainer, "folder3")
-	err = os.Mkdir(folder3, 0755)
-	c.Assert(err, IsNil)
+	folder3 := s.makeTestFolder(c, "folder3")
 
 	time.Sleep(1 * time.Second)
 
@@ -107,7 +105,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	// is received from the channel due to creating or
 	// removing folder3
 	select {
-	case event := <-channel:
+	case event := <-s.ch:
 		c.Fatalf("unexpected channel read of event %q", event)
 	case <-time.After(2 * time.Second):
 	}
@@ -117,7 +115,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	// two ensure that nothing spurious is received from
 	// the channel
 	select {
-	case event := <-channel:
+	case event := <-s.ch:
 		c.Fatalf("unexpected channel read of event %q", event)
 	case <-time.After(2 * time.Second):
 	}
@@ -126,7 +124,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 
 	// All files have been deleted, so NOW we must receive
 	// something from the channel
-	event := <-channel
+	event := <-s.ch
 	c.Assert(event, Equals, "test2")
 }
 
