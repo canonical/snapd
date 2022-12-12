@@ -48,8 +48,6 @@ execute: |
   MATCH "     7\s+services:$" < details.txt
   MATCH "     8\s+-\s+test-snapd-stressd.stress-sc$" < details.txt
 
-  ls /nono
-  
   #echo "Test that it fails when we apply a journal quota to the sub-group"
   # https://github.com/snapcore/snapd/pull/12401
   #snap set-quota test-sub --journal-size=128MB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'error: cannot create quota group: cannot add snap "hello-world" to group "group-bad": snap already in quota group "group-one"'
@@ -65,11 +63,11 @@ execute: |
   SUB_SLICENAME="snap.$(systemd-escape --path test-top/test-sub).slice"
 
   echo "Verify that one of the non stress-sc services mention the top group"
-  systemctl show --property=Slice snap.test-snapd-stressd.logger.service | grep -F "Slice=$TOP_SLICENAME"
+  systemctl show --property=Slice snap.test-snapd-stressd.logger.service | grep "Slice=$TOP_SLICENAME"
 
   #echo "Verify that stress-sc service mention the sub group"
   # https://github.com/snapcore/snapd/pull/12395
-  #systemctl show --property=Slice snap.test-snapd-stressd.stress-sc.service | grep -F "Slice=$SUB_SLICENAME"
+  #systemctl show --property=Slice snap.test-snapd-stressd.stress-sc.service | grep "Slice=$SUB_SLICENAME"
 
   # echo "Verify that stress-sc service mention the journal namespace"
   # systemctl show --property=LogNamespace snap.test-snapd-stressd.stress-sc.service | MATCH "LogNamespace=snap-test-sub"
