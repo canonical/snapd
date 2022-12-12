@@ -30,6 +30,11 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+const (
+	spuriousMontiorChWait = 2 * time.Second
+	spuriousWaits         = 1 * time.Second
+)
+
 type monitorSuite struct {
 	testutil.BaseTest
 
@@ -62,7 +67,7 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	err := cgroup.MonitorDelete(filelist, "test1", s.ch)
 	c.Assert(err, IsNil)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(spuriousWaits)
 
 	err = os.Remove(folder2)
 	c.Assert(err, IsNil)
@@ -75,7 +80,7 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	select {
 	case event := <-s.ch:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(2 * time.Second):
+	case <-time.After(spuriousMontiorChWait):
 	}
 
 	err = os.Remove(folder1)
@@ -92,11 +97,11 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	err := cgroup.MonitorDelete(filelist, "test2", s.ch)
 	c.Assert(err, Equals, nil)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(spuriousWaits)
 
 	folder3 := s.makeTestFolder(c, "folder3")
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(spuriousWaits)
 
 	err = os.Remove(folder3)
 	c.Assert(err, IsNil)
@@ -107,7 +112,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	select {
 	case event := <-s.ch:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(2 * time.Second):
+	case <-time.After(spuriousMontiorChWait):
 	}
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
@@ -117,7 +122,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	select {
 	case event := <-s.ch:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(2 * time.Second):
+	case <-time.After(spuriousMontiorChWait):
 	}
 	err = os.Remove(folder2)
 	c.Assert(err, IsNil)
@@ -169,13 +174,13 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	err = cgroup.MonitorDelete(filelist2, "test4b", channel2)
 	c.Assert(err, Equals, nil)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(spuriousWaits)
 
 	folder3 := path.Join(tmpcontainer, "folder3")
 	err = os.Mkdir(folder3, 0755)
 	c.Assert(err, IsNil)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(spuriousWaits)
 
 	err = os.Remove(folder3)
 	c.Assert(err, IsNil)
@@ -188,7 +193,7 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 		c.Fatalf("unexpected channel read of event %q", event)
 	case event := <-channel2:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(2 * time.Second):
+	case <-time.After(spuriousMontiorChWait):
 	}
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
@@ -200,7 +205,7 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	case receivedEvent = <-channel1:
 	case event := <-channel2:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(2 * time.Second):
+	case <-time.After(spuriousMontiorChWait):
 	}
 
 	c.Assert(receivedEvent, Equals, "test4a")
@@ -214,7 +219,7 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	case receivedEvent = <-channel2:
 	case event := <-channel1:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(1 * time.Second):
+	case <-time.After(spuriousWaits):
 	}
 	c.Assert(receivedEvent, Equals, "test4b")
 }
