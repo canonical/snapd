@@ -135,14 +135,14 @@ compare_ubuntu() {
     fi
 
     NUM_RE='^[0-9]+$'
-    NUM_VERSION="$(echo $VERSION | tr -d '".')"
+    NUM_VERSION="$(echo "$VERSION" | tr -d '".')"
     if ! [[ $NUM_VERSION =~ $NUM_RE ]] ; then
        echo "os.query: invalid version format \"$VERSION\" provided"
        exit 1
     fi
 
     SYS_VERSION="$(grep 'VERSION_ID' /etc/os-release)"
-    SYS_VERSION="$(echo ${SYS_VERSION#*=} | tr -d '".')"
+    SYS_VERSION="$(echo "${SYS_VERSION#*=}" | tr -d '".')"
     if ! [[ $SYS_VERSION =~ $NUM_RE ]] ; then
        echo "os.query: invalid version format \"$SYS_VERSION\" retrieved from system"
        exit 1
