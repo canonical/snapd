@@ -68,7 +68,7 @@ func (s *monitorSuite) calibrateInotifyDelay(c *C) {
 	}()
 	<-s.eventsCh
 	d := time.Now().Sub(start)
-	// On a modern machine the dureation "d" for inotify delivery is
+	// On a modern machine the duration "d" for inotify delivery is
 	// around 30-100µs so even the very conservative multiplication means
 	// the delay is typcially 3ms-10ms.
 	s.inotifyWait = 100 * d
@@ -100,9 +100,9 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	err = os.Remove(folder2)
 	c.Assert(err, IsNil)
 
-	// Wait for two seconds to ensure that nothing spurious
+	// Wait for bit to ensure that nothing spurious
 	// is received from the channel due to removing folder2
-	// Wait for two seconds to ensure that nothing spurious
+	// Wait for a bit to ensure that nothing spurious
 	// is received from the channel due to creating or
 	// removing folder3
 	select {
@@ -134,7 +134,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	err = os.Remove(folder3)
 	c.Assert(err, IsNil)
 
-	// Wait for two seconds to ensure that nothing spurious
+	// Wait for a bit to ensure that nothing spurious
 	// is received from the channel due to creating or
 	// removing folder3
 	select {
@@ -144,9 +144,8 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	}
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
-	// Only one file has been removed, so wait two seconds
-	// two ensure that nothing spurious is received from
-	// the channel
+	// Only one file has been removed, so wait a bit to ensure
+	// that nothing spurious is received from the channel
 	select {
 	case event := <-s.eventsCh:
 		c.Fatalf("unexpected channel read of event %q", event)
@@ -202,7 +201,7 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	err = os.Remove(folder3)
 	c.Assert(err, IsNil)
 
-	// Wait for two seconds to ensure that nothing spurious
+	// Wait for a bit to ensure that nothing spurious
 	// is received from the channel due to creating or
 	// removing folder3
 	select {
@@ -214,9 +213,8 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	}
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
-	// Only one file has been removed, so wait two seconds
-	// two ensure that nothing spurious is received from
-	// the channel
+	// Only one file has been removed, so wait a bit to ensure
+	// that nothing spurious is received from the channel
 	var receivedEvent string
 	select {
 	case receivedEvent = <-channel1:
