@@ -108,7 +108,7 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	select {
 	case event := <-s.eventsCh:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(2 * s.inotifyWait):
+	case <-time.After(s.inotifyWait):
 	}
 
 	err = os.Remove(folder1)
@@ -140,7 +140,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	select {
 	case event := <-s.eventsCh:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(2 * s.inotifyWait):
+	case <-time.After(s.inotifyWait):
 	}
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
@@ -149,7 +149,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	select {
 	case event := <-s.eventsCh:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(2 * s.inotifyWait):
+	case <-time.After(s.inotifyWait):
 	}
 	err = os.Remove(folder2)
 	c.Assert(err, IsNil)
@@ -209,7 +209,7 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 		c.Fatalf("unexpected channel read of event %q", event)
 	case event := <-channel2:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(2 * s.inotifyWait):
+	case <-time.After(s.inotifyWait):
 	}
 	err = os.Remove(folder1)
 	c.Assert(err, IsNil)
@@ -220,7 +220,7 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	case receivedEvent = <-channel1:
 	case event := <-channel2:
 		c.Fatalf("unexpected channel read of event %q", event)
-	case <-time.After(2 * s.inotifyWait):
+	case <-time.After(s.inotifyWait):
 	}
 
 	c.Assert(receivedEvent, Equals, "test4a")
@@ -265,7 +265,7 @@ func (s *monitorSuite) TestMonitorSnapEndedIntegration(c *C) {
 	select {
 	case snapName := <-s.eventsCh:
 		c.Fatalf("unexpected stop reported for snap %v", snapName)
-	case <-time.After(2 * s.inotifyWait):
+	case <-time.After(s.inotifyWait):
 	}
 
 	// simulate cgroup getting removed because firefox stopped
