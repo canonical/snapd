@@ -2116,6 +2116,11 @@ func (s *quotaHandlersSuite) TestQuotaUpdateJournalQuotaNotAllowedForServices(c 
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo
 		systemctlCallsForCreateQuota("foo", "test-snap"),
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+
+		// CreateQuota for foo2
+		systemctlCallsForSliceStart("foo/foo2"),
+		systemctlCallsForServiceRestart("test-snap"),
 	))
 	defer r()
 
