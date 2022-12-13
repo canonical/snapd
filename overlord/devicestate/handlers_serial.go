@@ -370,8 +370,6 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 				return "", &state.Retry{After: retryInterval * 2}
 			case nTentatives <= 20:
 				return "", &state.Retry{After: retryInterval * 4}
-			default:
-				return "", err
 			}
 		}
 		if !httputil.ShouldRetryError(err) {

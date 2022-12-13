@@ -953,7 +953,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialCertExpired(c *C) {
 	}
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
-	c.Assert(chg.Err(), ErrorMatches, "(?ms).*: x509: certificate has expired or is not yet valid.*")
+	c.Assert(chg.Err(), ErrorMatches, `(?ms).*cannot retrieve request-id for making a request for a serial: Post "http://.*/request-id": x509: certificate has expired or is not yet valid.*`)
 
 	var nTentatives int
 	err := t.Get("pre-poll-tentatives", &nTentatives)
