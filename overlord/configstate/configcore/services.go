@@ -307,7 +307,7 @@ func validateServiceConfiguration(tr config.ConfGetter) error {
 		return nil
 	}
 	if _, err := parseSSHListenCfg(output); err != nil {
-		return err
+		return fmt.Errorf("cannot validate ssh configuration: %v", err)
 	}
 
 	return nil
