@@ -1890,9 +1890,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 
 	// change the new nofspart structure size which is an incompatible change
 
-	// ubuntu-save
+	// nofspart
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
-	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeMiB
+	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeKiB
 
 	muo := &mockUpdateProcessObserver{}
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
@@ -1903,7 +1903,12 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 
 	// go go go
 	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("nofspart"\) for volume foo: cannot change structure size from 4096 to 1048576`)
+	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("nofspart"\) for volume foo: cannot change structure size from 4096 to 1024`)
+
+	// now with overlap
+	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeMiB
+	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, ErrorMatches, `cannot lay out the new volume foo: cannot lay out volume, structure #2 \("some-filesystem"\) overlaps with preceding structure #1 \("nofspart"\)`)
 }
 
 func (u *updateTestSuite) TestUpdateApplyUC20KernelAssetsOnAllVolumesWithInitialMapAllVolumesUpdatedFullLogic(c *C) {

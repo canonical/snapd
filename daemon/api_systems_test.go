@@ -971,6 +971,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						VolumeName: "pc",
 						Type:       "mbr",
 						Role:       "mbr",
+						Offset:     asOffsetPtr(0),
 						Size:       440,
 						Content: []gadget.VolumeContent{
 							{
@@ -1000,6 +1001,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						Role:       "system-seed",
 						VolumeName: "pc",
 						Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+						Offset:     asOffsetPtr(2 * quantity.OffsetMiB),
 						Size:       1200 * quantity.SizeMiB,
 						Filesystem: "vfat",
 						Content: []gadget.VolumeContent{
@@ -1019,6 +1021,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						Role:       "system-boot",
 						VolumeName: "pc",
 						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						Offset:     asOffsetPtr(1202 * quantity.OffsetMiB),
 						Size:       750 * quantity.SizeMiB,
 						Filesystem: "ext4",
 					},
@@ -1028,6 +1031,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						Role:       "system-save",
 						VolumeName: "pc",
 						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						Offset:     asOffsetPtr(1952 * quantity.OffsetMiB),
 						Size:       16 * quantity.SizeMiB,
 						Filesystem: "ext4",
 					},
@@ -1037,6 +1041,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						Role:       "system-data",
 						VolumeName: "pc",
 						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						Offset:     asOffsetPtr(1968 * quantity.OffsetMiB),
 						Size:       1 * quantity.SizeGiB,
 						Filesystem: "ext4",
 					},

@@ -790,6 +790,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Name:       "system-boot",
 						Role:       "system-boot",
 						Label:      "system-boot",
+						Offset:     asOffsetPtr(gadget.NonMBRStartOffset),
 						Size:       mustParseGadgetSize(c, "128M"),
 						Filesystem: "vfat",
 						Type:       "0C",
@@ -805,6 +806,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Role:       "system-data",
 						Name:       "writable",
 						Label:      "writable",
+						Offset:     asOffsetPtr(gadget.NonMBRStartOffset + quantity.Offset(mustParseGadgetSize(c, "128M"))),
 						Type:       "83",
 						Filesystem: "ext4",
 						Size:       mustParseGadgetSize(c, "380M"),
@@ -1331,63 +1333,37 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
 	c.Assert(err, ErrorMatches, `structure name "duplicate" is not unique`)
 }
 
-func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
-	err := gadget.ValidateVolume(&gadget.Volume{
-		Name: "name",
-		Structure: []gadget.VolumeStructure{
-			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454123", Size: quantity.SizeMiB},
-			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454649", Size: quantity.SizeMiB},
-		},
-	})
-	c.Assert(err, ErrorMatches, `filesystem label "foo" is not unique`)
+func (s *gadgetYamlTestSuite) TestGadgetDuplicateFsLabel(c *C) {
+	yamlTemplate := `
+volumes:
+   minimal:
+     bootloader: grub
+     structure:
+       - name: data1
+         filesystem-label: %s
+         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+         size: 1G
+       - name: data2
+         filesystem-label: %s
+         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+         size: 1G
+`
 
-	// writable isn't special
-	for _, x := range []struct {
-		systemSeed bool
-		label      string
-		errMsg     string
+	tests := []struct {
+		dupLabel string
+		err      string
 	}{
-		{false, "writable", `filesystem label "writable" is not unique`},
-		{false, "ubuntu-data", `filesystem label "ubuntu-data" is not unique`},
-		{true, "writable", `filesystem label "writable" is not unique`},
-		{true, "ubuntu-data", `filesystem label "ubuntu-data" is not unique`},
-	} {
-
-		err = gadget.ValidateVolume(&gadget.Volume{
-			Name: "name",
-			Structure: []gadget.VolumeStructure{{
-				Name:  "data1",
-				Role:  gadget.SystemData,
-				Label: x.label,
-				Type:  "21686148-6449-6E6F-744E-656564454123",
-				Size:  quantity.SizeMiB,
-			}, {
-				Name:  "data2",
-				Role:  gadget.SystemData,
-				Label: x.label,
-				Type:  "21686148-6449-6E6F-744E-656564454649",
-				Size:  quantity.SizeMiB,
-			}},
-		})
-		c.Assert(err, ErrorMatches, x.errMsg)
+		{"foo", `invalid volume "minimal": filesystem label "foo" is not unique`},
+		{"writable", `invalid volume "minimal": filesystem label "writable" is not unique`},
+		{"ubuntu-data", `invalid volume "minimal": filesystem label "ubuntu-data" is not unique`},
+		{"system-boot", `invalid volume "minimal": filesystem label "system-boot" is not unique`},
 	}
 
-	// nor is system-boot
-	err = gadget.ValidateVolume(&gadget.Volume{
-		Name: "name",
-		Structure: []gadget.VolumeStructure{{
-			Name:  "boot1",
-			Label: "system-boot",
-			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Size:  quantity.SizeMiB,
-		}, {
-			Name:  "boot2",
-			Label: "system-boot",
-			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Size:  quantity.SizeMiB,
-		}},
-	})
-	c.Assert(err, ErrorMatches, `filesystem label "system-boot" is not unique`)
+	for _, t := range tests {
+		yaml := fmt.Sprintf(string(yamlTemplate), t.dupLabel, t.dupLabel)
+		_, err := gadget.InfoFromGadgetYaml([]byte(yaml), uc20Mod)
+		c.Assert(err, ErrorMatches, t.err)
+	}
 }
 
 func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
@@ -1712,7 +1688,7 @@ volumes:
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
-	c.Check(err, ErrorMatches, `invalid volume "pc": structure "mbr" has "mbr" role and must start at offset 0`)
+	c.Check(err, ErrorMatches, `invalid volume "pc": invalid structure #1 \("mbr"\): invalid role "mbr": mbr structure must start at offset 0`)
 }
 
 func (s *gadgetYamlTestSuite) TestReadInfoAndValidateConsistencyWithoutModelCharacteristics(c *C) {
@@ -2433,7 +2409,7 @@ volumes:
         size: 2M
         type: 00000000-0000-0000-0000-0000deadbeef
         filesystem: ext4
-        offset: 1M
+        offset: 2M
         filesystem-label: fs-legit
 `
 	var mockBadLabelYaml = baseYaml + `
@@ -2458,7 +2434,7 @@ volumes:
 		{mockYaml, ``},
 		{mockBadStructureTypeYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change structure type from "00000000-0000-0000-0000-0000deadbeef" to "00000000-0000-0000-0000-0000deadcafe"`},
 		{mockBadFsYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change filesystem from "ext4" to "vfat"`},
-		{mockBadOffsetYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change structure offset from unspecified to 1048576`},
+		{mockBadOffsetYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change structure offset from 1048576 to 2097152`},
 		{mockBadLabelYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change filesystem label from "fs-legit" to "fs-non-legit"`},
 		{mockGPTBadNameYaml, `incompatible layout change: incompatible structure #0 \("non-legit"\) change: cannot change structure name from "legit" to "non-legit"`},
 	} {
