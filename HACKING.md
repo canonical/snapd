@@ -464,7 +464,7 @@ transfer it to the snappy system and then run:
     sudo systemctl stop snapd.service snapd.socket
     sudo SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=3 ./snapd
 
-To debug interaction with the snap store, you can set `SNAP_DEBUG_HTTP`.
+To debug interaction with the snap store, you can set `SNAPD_DEBUG_HTTP`.
 It is a bitfield: dump requests: 1, dump responses: 2, dump bodies: 4.
 
 > In case you get some security profiles errors, when trying to install or refresh a snap, 
