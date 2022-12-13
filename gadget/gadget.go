@@ -594,8 +594,15 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		if v == nil {
 			return nil, fmt.Errorf("volume %q stanza is empty", name)
 		}
+
 		// set the VolumeName for the volume
 		v.Name = name
+
+		// Set values that are implicit in gadget.yaml.
+		if err := setImplicitForVolume(v, model); err != nil {
+			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
+		}
+
 		if err := validateVolume(v); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
@@ -619,12 +626,6 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		return nil, errors.New("bootloader not declared in any volume")
 	case bootloadersFound > 1:
 		return nil, fmt.Errorf("too many (%d) bootloaders declared", bootloadersFound)
-	}
-
-	for name, v := range gi.Volumes {
-		if err := setImplicitForVolume(v, model); err != nil {
-			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
-		}
 	}
 
 	return &gi, nil
@@ -666,13 +667,30 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 		}
 	}
 
+	previousEnd := quantity.Offset(0)
 	for i := range vol.Structure {
 		// set the VolumeName for the structure from the volume itself
 		vol.Structure[i].VolumeName = vol.Name
+
+		// set other implicit data for the structure
 		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels); err != nil {
 			return err
 		}
+
+		// set offset if it was not set (must be after setImplicitForVolumeStructure
+		// so roles are good).
+		if vol.Structure[i].Offset == nil {
+			var start quantity.Offset
+			if vol.Structure[i].Role != schemaMBR && previousEnd < NonMBRStartOffset {
+				start = NonMBRStartOffset
+			} else {
+				start = previousEnd
+			}
+			vol.Structure[i].Offset = &start
+		}
+		previousEnd = *vol.Structure[i].Offset + quantity.Offset(vol.Structure[i].Size)
 	}
+
 	return nil
 }
 
@@ -810,7 +828,6 @@ func validateVolume(vol *Volume) error {
 	// for validating structure overlap
 	structures := make([]VolumeStructure, len(vol.Structure))
 
-	previousEnd := quantity.Offset(0)
 	// TODO: should we also validate that if there is a system-recovery-select
 	// role there should also be at least 2 system-recovery-image roles and
 	// same for system-boot-select and at least 2 system-boot-image roles?
@@ -818,21 +835,7 @@ func validateVolume(vol *Volume) error {
 		if err := validateVolumeStructure(&s, vol); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
-		var start quantity.Offset
-		if s.Offset != nil {
-			start = *s.Offset
-		} else {
-			start = previousEnd
-		}
-		end := start + quantity.Offset(s.Size)
 		structures[idx] = vol.Structure[idx]
-		// TODO Note that we are filling this in a temporary copy of
-		// VolumeStructure. Ideally we would want this filled in the
-		// original data as well as offsets are in the end implicit in
-		// gadget.yaml, minus the NonMBRStartOffset. We should explore
-		// making that a constant, I'm not sure if we need it to be a
-		// variable.
-		structures[idx].Offset = &start
 		if s.Name != "" {
 			if _, ok := knownStructures[s.Name]; ok {
 				return fmt.Errorf("structure name %q is not unique", s.Name)
@@ -840,8 +843,6 @@ func validateVolume(vol *Volume) error {
 			// keep track of named structures
 			knownStructures[s.Name] = &structures[idx]
 		}
-
-		previousEnd = end
 	}
 
 	// sort by starting offset
