@@ -589,7 +589,6 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 
 	// basic validation
 	var bootloadersFound int
-	knownFsLabelsPerVolume := make(map[string]map[string]bool, len(gi.Volumes))
 	for name := range gi.Volumes {
 		v := gi.Volumes[name]
 		if v == nil {
@@ -597,7 +596,7 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		}
 		// set the VolumeName for the volume
 		v.Name = name
-		if err := validateVolume(v, knownFsLabelsPerVolume); err != nil {
+		if err := validateVolume(v); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
@@ -623,7 +622,7 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	}
 
 	for name, v := range gi.Volumes {
-		if err := setImplicitForVolume(v, model, knownFsLabelsPerVolume[name]); err != nil {
+		if err := setImplicitForVolume(v, model); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 	}
@@ -649,12 +648,24 @@ func whichVolRuleset(model Model) volRuleset {
 	return volRuleset16
 }
 
-func setImplicitForVolume(vol *Volume, model Model, knownFsLabels map[string]bool) error {
+func setImplicitForVolume(vol *Volume, model Model) error {
 	rs := whichVolRuleset(model)
 	if vol.Schema == "" {
 		// default for schema is gpt
 		vol.Schema = schemaGPT
 	}
+
+	// for uniqueness of filesystem labels
+	knownFsLabels := make(map[string]bool, len(vol.Structure))
+	for _, s := range vol.Structure {
+		if s.Label != "" {
+			if seen := knownFsLabels[s.Label]; seen {
+				return fmt.Errorf("filesystem label %q is not unique", s.Label)
+			}
+			knownFsLabels[s.Label] = true
+		}
+	}
+
 	for i := range vol.Structure {
 		// set the VolumeName for the structure from the volume itself
 		vol.Structure[i].VolumeName = vol.Name
@@ -786,7 +797,7 @@ func (b byStructureOffset) Len() int           { return len(b) }
 func (b byStructureOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
 func (b byStructureOffset) Less(i, j int) bool { return *(b[i].Offset) < *(b[j].Offset) }
 
-func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bool) error {
+func validateVolume(vol *Volume) error {
 	if !validVolumeName.MatchString(vol.Name) {
 		return errors.New("invalid name")
 	}
@@ -796,14 +807,8 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 
 	// named structures, for cross-referencing relative offset-write names
 	knownStructures := make(map[string]*VolumeStructure, len(vol.Structure))
-	// for uniqueness of filesystem labels
-	knownFsLabels := make(map[string]bool, len(vol.Structure))
 	// for validating structure overlap
 	structures := make([]VolumeStructure, len(vol.Structure))
-
-	if knownFsLabelsPerVolume != nil {
-		knownFsLabelsPerVolume[vol.Name] = knownFsLabels
-	}
 
 	previousEnd := quantity.Offset(0)
 	// TODO: should we also validate that if there is a system-recovery-select
@@ -834,12 +839,6 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 			}
 			// keep track of named structures
 			knownStructures[s.Name] = &structures[idx]
-		}
-		if s.Label != "" {
-			if seen := knownFsLabels[s.Label]; seen {
-				return fmt.Errorf("filesystem label %q is not unique", s.Label)
-			}
-			knownFsLabels[s.Label] = true
 		}
 
 		previousEnd = end

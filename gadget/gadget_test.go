@@ -1281,7 +1281,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolume(&gadget.Volume{Name: "name", Schema: tc.s}, nil)
+		err := gadget.ValidateVolume(&gadget.Volume{Name: "name", Schema: tc.s})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1311,7 +1311,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeName(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolume(&gadget.Volume{Name: tc.s}, nil)
+		err := gadget.ValidateVolume(&gadget.Volume{Name: tc.s})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1327,7 +1327,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
 			{Name: "duplicate", Type: "bare", Size: 1024},
 			{Name: "duplicate", Type: "21686148-6449-6E6F-744E-656564454649", Size: 2048},
 		},
-	}, nil)
+	})
 	c.Assert(err, ErrorMatches, `structure name "duplicate" is not unique`)
 }
 
@@ -1338,7 +1338,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454123", Size: quantity.SizeMiB},
 			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454649", Size: quantity.SizeMiB},
 		},
-	}, nil)
+	})
 	c.Assert(err, ErrorMatches, `filesystem label "foo" is not unique`)
 
 	// writable isn't special
@@ -1368,7 +1368,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 				Type:  "21686148-6449-6E6F-744E-656564454649",
 				Size:  quantity.SizeMiB,
 			}},
-		}, nil)
+		})
 		c.Assert(err, ErrorMatches, x.errMsg)
 	}
 
@@ -1386,7 +1386,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
 			Size:  quantity.SizeMiB,
 		}},
-	}, nil)
+	})
 	c.Assert(err, ErrorMatches, `filesystem label "system-boot" is not unique`)
 }
 
@@ -1397,7 +1397,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 			{Type: "bare", Size: 1024},
 			{Type: "bogus", Size: 1024},
 		},
-	}, nil)
+	})
 	c.Assert(err, ErrorMatches, `invalid structure #1: invalid type "bogus": invalid format`)
 
 	err = gadget.ValidateVolume(&gadget.Volume{
@@ -1406,7 +1406,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 			{Type: "bare", Size: 1024},
 			{Type: "bogus", Size: 1024, Name: "foo"},
 		},
-	}, nil)
+	})
 	c.Assert(err, ErrorMatches, `invalid structure #1 \("foo"\): invalid type "bogus": invalid format`)
 
 	err = gadget.ValidateVolume(&gadget.Volume{
@@ -1414,7 +1414,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 		Structure: []gadget.VolumeStructure{
 			{Type: "bare", Name: "foo", Size: 1024, Content: []gadget.VolumeContent{{UnresolvedSource: "foo"}}},
 		},
-	}, nil)
+	})
 	c.Assert(err, ErrorMatches, `invalid structure #0 \("foo"\): invalid content #0: cannot use non-image content for bare file system`)
 }
 
