@@ -65,10 +65,8 @@ func mustParse(s string) *url.URL {
 var (
 	keyLength     = 4096
 	retryInterval = 60 * time.Second
-	// max poll time for NTP attempats is 2048s (34m8s) so retry up to 35m
-	maxTentativesCertExpired = 35
-	maxTentatives            = 15
-	baseStoreURL             = baseURL().ResolveReference(authRef)
+	maxTentatives = 15
+	baseStoreURL  = baseURL().ResolveReference(authRef)
 
 	authRef    = mustParse("api/v1/snaps/auth/") // authRef must end in / for the following refs to work
 	reqIdRef   = mustParse("request-id")
@@ -361,11 +359,20 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 			// ntp-synced time yet. We will retry for up
 			// to 2048s (timesyncd.conf(5) says the
 			// maximum poll time is 2048s which is
-			// 34min8s).
-			if nTentatives > maxTentativesCertExpired {
+			// 34min8s). With retry of 60s the below adds
+			// up to 37.5m.
+			switch {
+			case nTentatives <= 5:
+				return "", &state.Retry{After: retryInterval / 2}
+			case nTentatives <= 10:
+				return "", &state.Retry{After: retryInterval}
+			case nTentatives <= 15:
+				return "", &state.Retry{After: retryInterval * 2}
+			case nTentatives <= 20:
+				return "", &state.Retry{After: retryInterval * 4}
+			default:
 				return "", err
 			}
-			return "", &state.Retry{After: retryInterval}
 		}
 		if !httputil.ShouldRetryError(err) {
 			// a non temporary net error fully errors out and triggers a retry

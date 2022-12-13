@@ -940,7 +940,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialCertExpired(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// keep trying well above maxTentativesCertExpired (35)
+	// keep trying well beyond the 21 retry attempts we do
 	for i := 0; i < 100; i++ {
 		s.state.Unlock()
 		s.se.Ensure()
@@ -959,7 +959,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialCertExpired(c *C) {
 	err := t.Get("pre-poll-tentatives", &nTentatives)
 	c.Assert(err, IsNil)
 	// this is one above maxTentativesCertExpired (35)
-	c.Check(nTentatives, Equals, 36)
+	c.Check(nTentatives, Equals, 21)
 
 }
 
