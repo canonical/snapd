@@ -63,6 +63,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/blkid"
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/udev"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -319,7 +320,70 @@ func scanPartitionNode(output io.Writer, node string) error {
 	return nil
 }
 
+func isAllowed() (bool, error) {
+	values, err := osutil.KernelCommandLineKeyValues("core.boot.disallow", "core.boot.allow")
+	if err != nil {
+		return true, err
+	}
+	disallowValue, hasDisallow := values["core.boot.disallow"]
+	allowValue, hasAllow := values["core.boot.allow"]
+
+	udevLib, err := udev.NewUdev()
+	if udevLib == nil {
+		return false, err
+	}
+	defer udevLib.Close()
+
+	device, err := udevLib.DeviceNewFromEnvironment()
+	if device == nil {
+		return false, err
+	}
+	defer device.Close()
+
+	disallowed := false
+	allowed := true
+
+	if hasDisallow {
+		fmt.Printf("hasDisallow\n")
+		for _, subsystem := range strings.Split(disallowValue, ",") {
+			fmt.Printf("Subsystem: %s\n", subsystem)
+			parentDevice := device.GetParentWithSubsystemDevtype(subsystem, nil)
+			if parentDevice != nil {
+				fmt.Printf("Disallowed %s\n", subsystem)
+				disallowed = true
+				break
+			}
+			fmt.Printf("NOT disallowed %s\n", subsystem)
+		}
+	}
+
+	if hasAllow {
+		fmt.Printf("hasAllow\n")
+		allowed = false
+		for _, subsystem := range strings.Split(allowValue, ",") {
+			fmt.Printf("Subsystem: %s\n", subsystem)
+			parentDevice := device.GetParentWithSubsystemDevtype(subsystem, nil)
+			if parentDevice != nil {
+				fmt.Printf("Allowed %s\n", subsystem)
+				allowed = true
+				break
+			}
+			fmt.Printf("maybe not allowed %s\n", subsystem)
+		}
+	}
+
+	return !disallowed && allowed, nil
+}
+
 func ScanDisk(output io.Writer) error {
+	allowed, err := isAllowed()
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return nil
+	}
+
 	devname := osGetenv("DEVNAME")
 	if osGetenv("DEVTYPE") == "disk" {
 		return scanDiskNode(output, devname)

@@ -31,6 +31,7 @@ import (
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/blkid"
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/udev"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
@@ -43,6 +44,7 @@ type scanDiskSuite struct {
 	efiVariables map[string]string
 	cmdlineFile  string
 	env          map[string]string
+	subsystems   []string
 }
 
 var _ = Suite(&scanDiskSuite{})
@@ -89,6 +91,10 @@ func (s *scanDiskSuite) SetUpTest(c *C) {
 	s.env = make(map[string]string)
 	cleanupEnv := main.MockGetenv(s.env)
 	s.AddCleanup(cleanupEnv)
+
+	s.subsystems = make([]string, 0)
+	cleanupUdev := udev.MockUdev(&s.subsystems)
+	s.AddCleanup(cleanupUdev)
 }
 
 func (s *scanDiskSuite) setCmdLine(c *C, value string) {
@@ -321,4 +327,88 @@ func (s *scanDiskSuite) TestDetectDataPartition(c *C) {
 	_, hasData := lines["UBUNTU_DATA=1"]
 	c.Assert(hasData, Equals, true)
 	c.Assert(len(lines), Equals, 1)
+}
+
+func (s *scanDiskSuite) TestDetectBootDiskDisallowed(c *C) {
+	s.efiVariables["LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"] = "29261148-B8BA-4335-B934-417ED71E9E91"
+	s.setCmdLine(c, "snapd_recovery_mode=run core.boot.disallow=evil")
+	s.subsystems = append(s.subsystems, "evil", "somesubsystem")
+
+	s.env["DEVNAME"] = "/dev/foo"
+	s.env["DEVTYPE"] = "disk"
+
+	output := newBuffer()
+	err := main.ScanDisk(output.File())
+	c.Assert(err, IsNil)
+	lines := output.GetLines()
+
+	c.Assert(len(lines), Equals, 0)
+}
+
+func (s *scanDiskSuite) TestDetectBootDiskNotDisallowed(c *C) {
+	s.efiVariables["LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"] = "29261148-B8BA-4335-B934-417ED71E9E91"
+	s.setCmdLine(c, "snapd_recovery_mode=run core.boot.disallow=evil")
+	s.subsystems = append(s.subsystems, "somesubsystem")
+
+	s.env["DEVNAME"] = "/dev/foo"
+	s.env["DEVTYPE"] = "disk"
+
+	output := newBuffer()
+	err := main.ScanDisk(output.File())
+	c.Assert(err, IsNil)
+	lines := output.GetLines()
+
+	_, hasDisk := lines["UBUNTU_DISK=1"]
+	c.Assert(hasDisk, Equals, true)
+	_, hasSeed := lines["UBUNTU_SEED_UUID=6ae5a792-912e-43c9-ac92-e36723bbda12"]
+	_, hasBoot := lines["UBUNTU_BOOT_UUID=29261148-b8ba-4335-b934-417ed71e9e91"]
+	_, hasData := lines["UBUNTU_DATA_UUID=c01a272d-fc72-40de-92fb-242c2da82533"]
+	_, hasSave := lines["UBUNTU_SAVE_UUID=050ee326-ab58-4eb4-ba7d-13694b2d0c8a"]
+	c.Assert(hasSeed, Equals, true)
+	c.Assert(hasBoot, Equals, true)
+	c.Assert(hasData, Equals, true)
+	c.Assert(hasSave, Equals, true)
+	c.Assert(len(lines), Equals, 5)
+}
+
+func (s *scanDiskSuite) TestDetectBootDiskAllowed(c *C) {
+	s.efiVariables["LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"] = "29261148-B8BA-4335-B934-417ED71E9E91"
+	s.setCmdLine(c, "snapd_recovery_mode=run core.boot.allow=fine")
+	s.subsystems = append(s.subsystems, "fine", "somesubsystem")
+
+	s.env["DEVNAME"] = "/dev/foo"
+	s.env["DEVTYPE"] = "disk"
+
+	output := newBuffer()
+	err := main.ScanDisk(output.File())
+	c.Assert(err, IsNil)
+	lines := output.GetLines()
+
+	_, hasDisk := lines["UBUNTU_DISK=1"]
+	c.Assert(hasDisk, Equals, true)
+	_, hasSeed := lines["UBUNTU_SEED_UUID=6ae5a792-912e-43c9-ac92-e36723bbda12"]
+	_, hasBoot := lines["UBUNTU_BOOT_UUID=29261148-b8ba-4335-b934-417ed71e9e91"]
+	_, hasData := lines["UBUNTU_DATA_UUID=c01a272d-fc72-40de-92fb-242c2da82533"]
+	_, hasSave := lines["UBUNTU_SAVE_UUID=050ee326-ab58-4eb4-ba7d-13694b2d0c8a"]
+	c.Assert(hasSeed, Equals, true)
+	c.Assert(hasBoot, Equals, true)
+	c.Assert(hasData, Equals, true)
+	c.Assert(hasSave, Equals, true)
+	c.Assert(len(lines), Equals, 5)
+}
+
+func (s *scanDiskSuite) TestDetectBootDiskNotAllowed(c *C) {
+	s.efiVariables["LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"] = "29261148-B8BA-4335-B934-417ED71E9E91"
+	s.setCmdLine(c, "snapd_recovery_mode=run core.boot.allow=fine")
+	s.subsystems = append(s.subsystems, "somesubsystem")
+
+	s.env["DEVNAME"] = "/dev/foo"
+	s.env["DEVTYPE"] = "disk"
+
+	output := newBuffer()
+	err := main.ScanDisk(output.File())
+	c.Assert(err, IsNil)
+	lines := output.GetLines()
+
+	c.Assert(len(lines), Equals, 0)
 }
