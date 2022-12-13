@@ -63,6 +63,7 @@ type Notes struct {
 	InCohort         bool
 	Health           string
 	Price            string
+	Held             bool
 }
 
 func NotesFromChannelSnapInfo(ref *snap.ChannelSnapInfo) *Notes {
@@ -103,6 +104,7 @@ func NotesFromLocal(snp *client.Snap) *Notes {
 		IgnoreValidation: snp.IgnoreValidation,
 		InCohort:         snp.CohortKey != "",
 		Health:           health,
+		Held:             snp.Hold != nil && snp.Hold.After(timeNow()),
 	}
 }
 
@@ -164,6 +166,10 @@ func (n *Notes) String() string {
 	}
 	if n.Health != "" && n.Health != "okay" {
 		ns = append(ns, n.Health)
+	}
+
+	if n.Held {
+		ns = append(ns, i18n.G("held"))
 	}
 
 	if len(ns) == 0 {
