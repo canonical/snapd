@@ -356,7 +356,7 @@ func (s *servicesSuite) TestConfigureNetworkSSHListenAdressFailsWrongRange(c *C)
 				"service.ssh.listen-address": fmt.Sprintf(":%v", invalidPort),
 			},
 		})
-		c.Check(err, ErrorMatches, fmt.Sprintf("cannot validate ssh configuration: cannot use port %v: must be in the range 1-65535", invalidPort))
+		c.Check(err, ErrorMatches, fmt.Sprintf("cannot validate ssh configuration: port %v must be in the range 1-65535", invalidPort))
 	}
 }
 
@@ -366,14 +366,14 @@ func (s *servicesSuite) TestConfigureNetworkSSHListenAdressFailsWrongAddr(c *C) 
 		errStr  string
 	}{
 		// strange chars
-		{"x!", `cannot validate ssh configuration: cannot use "x!" as hostname`},
+		{"x!", `cannot validate ssh configuration: invalid hostname "x!"`},
 		// invalid ports
-		{"x:x", `cannot validate ssh configuration: cannot parse port number: strconv.Atoi: parsing "x": invalid syntax`},
-		{"x:123456", "cannot validate ssh configuration: cannot use port 123456: must be in the range 1-65535"},
+		{"x:x", `cannot validate ssh configuration: port must be a number: strconv.Atoi: parsing "x": invalid syntax`},
+		{"x:123456", "cannot validate ssh configuration: port 123456 must be in the range 1-65535"},
 		// too long
-		{"1234567890123456789012345678901234567890123456789012345678901234567890", `cannot validate ssh configuration: cannot use "1234567890123456789012345678901234567890123456789012345678901234567890" as hostname`},
+		{"1234567890123456789012345678901234567890123456789012345678901234567890", `cannot validate ssh configuration: invalid hostname "1234567890123456789012345678901234567890123456789012345678901234567890"`},
 		// mixing good/bad also rejected
-		{"valid-hostname,invalid!one", `cannot validate ssh configuration: cannot use "invalid!one" as hostname`},
+		{"valid-hostname,invalid!one", `cannot validate ssh configuration: invalid hostname "invalid!one"`},
 	} {
 		err := configcore.Run(core20Dev, &mockConf{
 			state: s.state,

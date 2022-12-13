@@ -259,16 +259,16 @@ func parseOneSSHListenAddr(oneAddr string) (addrs []string, err error) {
 	if portStr != "" {
 		port, err := strconv.Atoi(portStr)
 		if err != nil {
-			return nil, fmt.Errorf("cannot parse port number: %v", err)
+			return nil, fmt.Errorf("port must be a number: %v", err)
 		}
 		if port > 65535 || port < 1 {
-			return nil, fmt.Errorf("cannot use port %v: must be in the range 1-65535", port)
+			return nil, fmt.Errorf("port %v must be in the range 1-65535", port)
 		}
 	}
 	// 3. validate host
 	if host != "" {
 		if net.ParseIP(host) == nil && validateHostname(host) != nil {
-			return nil, fmt.Errorf("cannot use %q as hostname", host)
+			return nil, fmt.Errorf("invalid hostname %q", host)
 		}
 	}
 
