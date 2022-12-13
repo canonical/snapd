@@ -223,8 +223,13 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 		result.MountedFrom, _ = os.Readlink(result.MountedFrom)
 	}
 	result.Health = about.health
-	result.Hold = about.hold
-	result.GatingHold = about.gatingHold
+
+	if !about.hold.IsZero() {
+		result.Hold = &about.hold
+	}
+	if !about.gatingHold.IsZero() {
+		result.GatingHold = &about.gatingHold
+	}
 
 	return result
 }
