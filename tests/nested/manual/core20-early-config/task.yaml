@@ -115,7 +115,6 @@ execute: |
 
     check_core20_early_config
 
-    # XXX: this should be a different test maybe?
     echo "Check that switching the ssh port works"
     remote.exec "sudo snap set system service.ssh.listen-address=:9022" || true
     # we need to connect to 9022 now
