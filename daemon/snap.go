@@ -126,9 +126,14 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 			continue
 		}
 		health := clientHealthFromHealthstate(healths[name])
+
+		userHold, gatingHold, err := getUserAndGatingHolds(st, name)
+		if err != nil {
+			return nil, err
+		}
+
 		var aboutThis []aboutSnap
 		var info *snap.Info
-		var err error
 		if all {
 			for _, seq := range snapst.Sequence {
 				info, err = snap.ReadInfo(name, seq)
@@ -148,9 +153,11 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 					return nil, err
 				}
 				abSnap := aboutSnap{
-					info:   info,
-					snapst: snapst,
-					health: health,
+					info:       info,
+					snapst:     snapst,
+					health:     health,
+					hold:       userHold,
+					gatingHold: gatingHold,
 				}
 				aboutThis = append(aboutThis, abSnap)
 			}
@@ -166,9 +173,11 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 			}
 
 			abSnap := aboutSnap{
-				info:   info,
-				snapst: snapst,
-				health: health,
+				info:       info,
+				snapst:     snapst,
+				health:     health,
+				hold:       userHold,
+				gatingHold: gatingHold,
 			}
 			aboutThis = append(aboutThis, abSnap)
 		}
