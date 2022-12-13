@@ -381,7 +381,9 @@ func (s *infoSuite) TestMaybePrintHoldingInfo(c *check.C) {
 
 	for _, holdKind := range []string{"hold", "hold-by-gating"} {
 		for hold, expected := range map[string]string{
+			"":                     "",
 			"0001-01-01T00:00:00Z": "",
+			"1999-01-01T00:00:00Z": "",
 			"2000-01-01T11:30:00Z": fmt.Sprintf("%s:\ttoday at 11:30 UTC\n", holdKind),
 			"2000-01-02T12:00:00Z": fmt.Sprintf("%s:\ttomorrow at 12:00 UTC\n", holdKind),
 			"2000-02-01T00:00:00Z": fmt.Sprintf("%s:\tin 31 days, at 00:00 UTC\n", holdKind),
@@ -390,8 +392,12 @@ func (s *infoSuite) TestMaybePrintHoldingInfo(c *check.C) {
 		} {
 			buf.Reset()
 
-			holdTime, err := time.Parse(time.RFC3339, hold)
-			c.Assert(err, check.IsNil)
+			var holdTime *time.Time
+			if hold != "" {
+				t, err := time.Parse(time.RFC3339, hold)
+				c.Assert(err, check.IsNil)
+				holdTime = &t
+			}
 
 			switch holdKind {
 			case "hold":
@@ -437,7 +443,7 @@ func (s *infoSuite) TestMaybePrintHoldingNonUTCLocalTime(c *check.C) {
 		time.Local = oldLocal
 	}()
 
-	snap.SetupSnap(iw, &client.Snap{Hold: holdTime}, nil, nil)
+	snap.SetupSnap(iw, &client.Snap{Hold: &holdTime}, nil, nil)
 
 	snap.MaybePrintRefreshInfo(iw)
 	iw.Flush()

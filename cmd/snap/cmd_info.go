@@ -269,8 +269,8 @@ func (iw *infoWriter) maybePrintRefreshInfo() {
 		fmt.Fprintf(iw, "refresh-date:\t%s\n", iw.fmtTime(iw.localSnap.InstallDate))
 	}
 
-	maybePrintHold := func(key string, hold time.Time) {
-		if hold.IsZero() {
+	maybePrintHold := func(key string, hold *time.Time) {
+		if hold == nil || hold.Before(timeNow()) {
 			return
 		}
 
@@ -278,7 +278,7 @@ func (iw *infoWriter) maybePrintRefreshInfo() {
 		if hold.After(longTime) {
 			fmt.Fprintf(iw, "%s:\tforever\n", key)
 		} else {
-			fmt.Fprintf(iw, "%s:\t%s\n", key, iw.fmtTime(hold))
+			fmt.Fprintf(iw, "%s:\t%s\n", key, iw.fmtTime(*hold))
 		}
 	}
 
