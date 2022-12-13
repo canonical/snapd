@@ -94,7 +94,9 @@ type populateStateFromSeedOptions struct {
 	Preseed bool
 }
 
-func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
+func (m *DeviceManager) populateStateFromSeedImpl(opts *populateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
+	st := m.state
+
 	mode := "run"
 	sysLabel := ""
 	preseed := false
@@ -122,7 +124,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
 		isCoreBoot := hasModeenv || !release.OnClassic
-		deviceSeed, err = importAssertionsFromSeed(st, sysLabel, isCoreBoot)
+		deviceSeed, err = m.importAssertionsFromSeed(sysLabel, isCoreBoot)
 	})
 	if err != nil && err != errNothingToDo {
 		return nil, err
@@ -342,7 +344,9 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	return tsAll, nil
 }
 
-func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool) (seed.Seed, error) {
+func (m *DeviceManager) importAssertionsFromSeed(sysLabel string, isCoreBoot bool) (seed.Seed, error) {
+	st := m.state
+
 	// TODO: use some kind of context fo Device/SetDevice?
 	device, err := internal.Device(st)
 	if err != nil {

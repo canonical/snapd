@@ -311,7 +311,9 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	// create overlord and pick up the modeenv
 	s.startOverlord(c)
 
-	c.Check(devicestate.SaveAvailable(s.overlord.DeviceManager()), Equals, m.Mode == "run")
+	mgr := s.overlord.DeviceManager()
+
+	c.Check(devicestate.SaveAvailable(mgr), Equals, m.Mode == "run")
 
 	opts := devicestate.PopulateStateFromSeedOptions{
 		Label: m.RecoverySystem,
@@ -322,7 +324,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, &opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	snaps := []string{"snapd", "pc-kernel", "core20", "pc"}
@@ -712,7 +714,7 @@ defaults:
 		Mode:  m.Mode,
 	}
 
-	_, err = devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	_, err = devicestate.PopulateStateFromSeedImpl(o.DeviceManager(), &opts, s.perfTimings)
 	c.Assert(err, IsNil)
 }
 
@@ -807,7 +809,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), &opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	snaps := []string{"snapd", "core20"}
@@ -977,7 +979,7 @@ apps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), &opts, s.perfTimings)
 	if expectedErr != "" {
 		c.Check(err, ErrorMatches, expectedErr)
 		return
