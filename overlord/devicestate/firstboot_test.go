@@ -260,10 +260,11 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, _, err = devicestate.EarlyPreloadGadget(s.overlord.DeviceManager())
+	mgr := s.overlord.DeviceManager()
+	_, _, err = devicestate.EarlyPreloadGadget(mgr)
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
@@ -302,10 +303,11 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, _, err = devicestate.EarlyPreloadGadget(ovld.DeviceManager())
+	mgr := ovld.DeviceManager()
+	_, _, err = devicestate.EarlyPreloadGadget(mgr)
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
@@ -335,7 +337,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	_, err = devicestate.PopulateStateFromSeedImpl(ovld.DeviceManager(), nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot proceed, no snaps to seed")
 	st.Unlock()
 	st.Lock()
@@ -372,7 +374,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInsta
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), nil, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
@@ -422,7 +424,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedErrorsOnState(c *C) {
 	defer st.Unlock()
 	st.Set("seeded", true)
 
-	_, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	_, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot populate state: already seeded")
 	// note, cannot use st.Tasks() here as it filters out tasks with no change
 	c.Check(st.TaskCount(), Equals, 0)
@@ -564,7 +566,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	// now run the change and check the result
@@ -704,14 +706,17 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 
 	hookMgr, err := hookstate.Manager(st, o.TaskRunner())
 	c.Assert(err, IsNil)
-	_, err = devicestate.Manager(st, hookMgr, o.TaskRunner(), nil)
+	deviceMgr, err := devicestate.Manager(st, hookMgr, o.TaskRunner(), nil)
 	c.Assert(err, IsNil)
+	o.AddManager(deviceMgr)
 
 	st.Lock()
 	assertstate.ReplaceDB(st, db.(*asserts.Database))
 	st.Unlock()
 
 	o.AddManager(o.TaskRunner())
+
+	s.overlord = o
 
 	chg, _ := s.makeSeedChange(c, st, nil, checkSeedTasks, checkOrder)
 
@@ -776,7 +781,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), nil, s.perfTimings)
 	c.Assert(err, IsNil)
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -882,7 +887,8 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	dev, gi, err := devicestate.EarlyPreloadGadget(s.overlord.DeviceManager())
+	mgr := s.overlord.DeviceManager()
+	dev, gi, err := devicestate.EarlyPreloadGadget(mgr)
 	c.Assert(err, IsNil)
 	c.Check(gi.Defaults, HasLen, 4)
 	c.Check(dev.RunMode(), Equals, true)
@@ -890,7 +896,7 @@ snaps:
 	c.Check(dev.HasModeenv(), Equals, false)
 	c.Check(dev.Kernel(), Equals, "pc-kernel")
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkSeedTasks(c, tsAll)
@@ -1038,7 +1044,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkSeedTasks(c, tsAll)
@@ -1118,7 +1124,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedClassicModelMismatch(c *C
 	defer st.Unlock()
 
 	isCoreBoot := true
-	_, err = devicestate.ImportAssertionsFromSeed(st, "", isCoreBoot)
+	_, err = devicestate.ImportAssertionsFromSeed(ovld.DeviceManager(), "", isCoreBoot)
 	c.Assert(err, ErrorMatches, "cannot seed a classic system with an all-snaps model")
 }
 
@@ -1140,7 +1146,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedClassicWithModes(c *C) {
 	defer st.Unlock()
 
 	isCoreBoot := true
-	_, err = devicestate.ImportAssertionsFromSeed(st, "", isCoreBoot)
+	_, err = devicestate.ImportAssertionsFromSeed(ovld.DeviceManager(), "", isCoreBoot)
 	c.Assert(err, IsNil)
 }
 
@@ -1159,7 +1165,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c *
 	defer st.Unlock()
 
 	isCoreBoot := true
-	_, err = devicestate.ImportAssertionsFromSeed(st, "", isCoreBoot)
+	_, err = devicestate.ImportAssertionsFromSeed(ovld.DeviceManager(), "", isCoreBoot)
 	c.Assert(err, ErrorMatches, "cannot seed an all-snaps system with a classic model")
 }
 
@@ -1281,7 +1287,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedHappy(c *C) {
 	defer st.Unlock()
 
 	isCoreBoot := true
-	deviceSeed, err := devicestate.ImportAssertionsFromSeed(st, "", isCoreBoot)
+	deviceSeed, err := devicestate.ImportAssertionsFromSeed(ovld.DeviceManager(), "", isCoreBoot)
 	c.Assert(err, IsNil)
 	c.Assert(deviceSeed, NotNil)
 
@@ -1325,7 +1331,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedMissingSig(c *C) {
 	// try import and verify that its rejects because other assertions are
 	// missing
 	isCoreBoot := true
-	_, err := devicestate.ImportAssertionsFromSeed(st, "", isCoreBoot)
+	_, err := devicestate.ImportAssertionsFromSeed(s.overlord.DeviceManager(), "", isCoreBoot)
 	c.Assert(err, ErrorMatches, "cannot resolve prerequisite assertion: account-key .*")
 }
 
@@ -1345,7 +1351,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 	// try import and verify that its rejects because other assertions are
 	// missing
 	isCoreBoot := true
-	_, err := devicestate.ImportAssertionsFromSeed(st, "", isCoreBoot)
+	_, err := devicestate.ImportAssertionsFromSeed(s.overlord.DeviceManager(), "", isCoreBoot)
 	c.Assert(err, ErrorMatches, "cannot have multiple model assertions in seed")
 }
 
@@ -1365,7 +1371,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 	// try import and verify that its rejects because other assertions are
 	// missing
 	isCoreBoot := true
-	_, err := devicestate.ImportAssertionsFromSeed(st, "", isCoreBoot)
+	_, err := devicestate.ImportAssertionsFromSeed(s.overlord.DeviceManager(), "", isCoreBoot)
 	c.Assert(err, ErrorMatches, "seed must have a model assertion")
 }
 
@@ -1476,7 +1482,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc")
@@ -1599,7 +1605,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc", "other-base", "snap-req-other-base")
@@ -1637,7 +1643,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	_, err = devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "core" is different from model base "core18"`)
 	// note, cannot use st.Tasks() here as it filters out tasks with no change
 	c.Check(st.TaskCount(), Equals, 0)
@@ -1704,7 +1710,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), nil, s.perfTimings)
 	c.Assert(err, IsNil)
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -1775,7 +1781,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	_, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	_, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot use snap "local": base "foo" is missing`)
 }
 
@@ -1824,7 +1830,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "snapd", "core18", "foo")
@@ -1910,7 +1916,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	_, err = devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	_, err = devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), nil, s.perfTimings)
 	c.Assert(err, NotNil)
 	// note, cannot use st.Tasks() here as it filters out tasks with no change
 	c.Check(st.TaskCount(), Equals, 0)
@@ -1965,7 +1971,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "snapd", "core18", "pc", "foo")
@@ -2171,7 +2177,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), nil, s.perfTimings)
 	c.Assert(err, IsNil)
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")

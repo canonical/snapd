@@ -103,6 +103,8 @@ type DeviceManager struct {
 	earlyDeviceCtx  snapstate.DeviceContext
 	earlyDeviceSeed seed.Seed
 
+	populateStateFromSeed func(*populateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)
+
 	ensureSeedInConfigRan bool
 
 	ensureInstalledRan        bool
@@ -138,6 +140,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		reg:      make(chan struct{}),
 		preseed:  snapdenv.Preseeding(),
 	}
+	m.populateStateFromSeed = m.populateStateFromSeedImpl
 
 	if !m.preseed {
 		modeenv, err := maybeReadModeenv()
@@ -918,8 +921,6 @@ func (m *DeviceManager) earlyPreloadGadget() (sysconfig.Device, *gadget.Info, er
 	return dev, gi, nil
 }
 
-var populateStateFromSeed = populateStateFromSeedImpl
-
 // ensureSeeded makes sure that the snaps from seed.yaml get installed
 // with the matching assertions
 func (m *DeviceManager) ensureSeeded() error {
@@ -971,7 +972,7 @@ func (m *DeviceManager) ensureSeeded() error {
 
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
-		tsAll, err = populateStateFromSeed(m.state, opts, tm)
+		tsAll, err = m.populateStateFromSeed(opts, tm)
 	})
 	if err != nil {
 		return err

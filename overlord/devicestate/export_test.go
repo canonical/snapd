@@ -184,15 +184,21 @@ func EnsureCloudInitRestricted(m *DeviceManager) error {
 	return m.ensureCloudInitRestricted()
 }
 
-var PopulateStateFromSeedImpl = populateStateFromSeedImpl
+func ImportAssertionsFromSeed(m *DeviceManager, sysLabel string, isCoreBoot bool) (seed.Seed, error) {
+	return m.importAssertionsFromSeed(sysLabel, isCoreBoot)
+}
+
+func PopulateStateFromSeedImpl(m *DeviceManager, opts *PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
+	return m.populateStateFromSeedImpl(opts, tm)
+}
 
 type PopulateStateFromSeedOptions = populateStateFromSeedOptions
 
-func MockPopulateStateFromSeed(f func(*state.State, *PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
-	old := populateStateFromSeed
-	populateStateFromSeed = f
+func MockPopulateStateFromSeed(m *DeviceManager, f func(*PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
+	old := m.populateStateFromSeed
+	m.populateStateFromSeed = f
 	return func() {
-		populateStateFromSeed = old
+		m.populateStateFromSeed = old
 	}
 }
 
@@ -251,7 +257,6 @@ func RecordSeededSystem(m *DeviceManager, st *state.State, sys *seededSystem) er
 var (
 	LoadDeviceSeed               = loadDeviceSeed
 	UnloadDeviceSeed             = unloadDeviceSeed
-	ImportAssertionsFromSeed     = importAssertionsFromSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
 	CheckGadgetValid             = checkGadgetValid
 	CheckGadgetRemodelCompatible = checkGadgetRemodelCompatible

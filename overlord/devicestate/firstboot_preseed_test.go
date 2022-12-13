@@ -299,7 +299,7 @@ snaps:
 	defer st.Unlock()
 
 	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true}
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -386,7 +386,7 @@ snaps:
 	defer st.Unlock()
 
 	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true}
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	// now run the change and check the result
@@ -519,7 +519,7 @@ snaps:
 	defer st.Unlock()
 
 	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true}
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), opts, s.perfTimings)
 	c.Assert(err, IsNil)
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
