@@ -918,8 +918,7 @@ type generateSnapServicesOptions struct {
 	// the OOM killer when OOM conditions are reached.
 	VitalityRank int
 
-	// QuotaGroup is the quota group of the snap, of which services we are
-	// generating
+	// QuotaGroup is the quota group for the service.
 	QuotaGroup *quota.Group
 
 	// RequireMountedSnapdSnap is whether the generated units should depend on
