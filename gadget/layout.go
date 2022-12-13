@@ -193,26 +193,13 @@ type ResolvedContent struct {
 }
 
 func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
-	previousEnd := quantity.Offset(0)
 	structures = make([]LaidOutStructure, len(volume.Structure))
 	byName = make(map[string]*LaidOutStructure, len(volume.Structure))
 
-	for idx, s := range volume.Structure {
-		var start quantity.Offset
-		if s.Offset == nil {
-			if s.Role != schemaMBR && previousEnd < NonMBRStartOffset {
-				start = NonMBRStartOffset
-			} else {
-				start = previousEnd
-			}
-		} else {
-			start = *s.Offset
-		}
-
-		end := start + quantity.Offset(s.Size)
+	for idx := range volume.Structure {
 		ps := LaidOutStructure{
 			VolumeStructure: &volume.Structure[idx],
-			StartOffset:     start,
+			StartOffset:     *volume.Structure[idx].Offset,
 			YamlIndex:       idx,
 		}
 
@@ -221,14 +208,12 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byNa
 		}
 
 		structures[idx] = ps
-
-		previousEnd = end
 	}
 
 	// sort by starting offset
 	sort.Sort(byStartOffset(structures))
 
-	previousEnd = quantity.Offset(0)
+	previousEnd := quantity.Offset(0)
 	for idx, ps := range structures {
 		if ps.StartOffset < previousEnd {
 			return nil, nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
