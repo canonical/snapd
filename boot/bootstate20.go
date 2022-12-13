@@ -284,7 +284,7 @@ func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, try
 	tryKernel, err := ks20.bks.tryKernel()
 	// if err is ErrNoTryKernelRef, then we will just return nil as the trySnap
 	if err != nil && err != bootloader.ErrNoTryKernelRef {
-		return kern, nil, "", newTrySnapErrorf("cannot identify try kernel snap: %v", err)
+		return kern, nil, status, newTrySnapErrorf("cannot identify try kernel snap: %v", err)
 	}
 
 	if err == nil {
@@ -729,14 +729,19 @@ func genericInitramfsSelectSnap(bs bootState20, modeenv *Modeenv, rootfsDir stri
 	}
 
 	if snapTryStatus != expectedTryStatus {
-		// the status is unexpected, log if its value is invalid and continue
-		// with the normal snap
+		// status does not match what we would have if we were trying a
+		// snap (which is the normal path when no update is happening),
+		// log if its value is invalid and continue with the normal snap
 		fallbackErr := errTrySnapFallback
 		switch snapTryStatus {
 		case DefaultStatus:
+			// all good, no update is happening in this boot
 			fallbackErr = nil
 		case TryStatus, TryingStatus:
 		default:
+			// something is wrong, status is neither the default nor
+			// what we would see from the initramfs if we were
+			// trying a snap
 			logger.Noticef("\"%s_status\" has an invalid setting: %q", typeString, snapTryStatus)
 		}
 		return curSnap, nil, fallbackErr
