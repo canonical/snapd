@@ -392,6 +392,9 @@ func (ks20 *bootState20Kernel) selectAndCommitSnapInitramfsMount(modeenv *Modeen
 		return nil, err
 	}
 
+	// If errTrySnapFallback it means that we are trying a new kernel
+	// but somewhat the status does not look correct of we cannot find
+	// the snap. Reboot so bootloader reverts to using the old kernel.
 	if err == errTrySnapFallback {
 		// this should not actually return, it should immediately reboot
 		return nil, initramfsReboot()
@@ -408,7 +411,6 @@ func (ks20 *bootState20Kernel) selectAndCommitSnapInitramfsMount(modeenv *Modeen
 	// but we need to fallback to the second kernel, but we can't do that in the
 	// initramfs, we need to reboot so the bootloader boots the fallback kernel
 	// for us
-
 	if second != nil {
 		// this should not actually return, it should immediately reboot
 		return nil, initramfsReboot()
@@ -710,7 +712,7 @@ func genericInitramfsSelectSnap(bs bootState20, modeenv *Modeenv, rootfsDir stri
 		} else {
 			// No current snap information found in modeenv for base,
 			// or cannot get information from bootloader for kernel.
-			return nil, nil, fmt.Errorf("current %s snap unusable: %v", typeString, err)
+			return nil, nil, fmt.Errorf("no currently usable %s snaps: %v", typeString, err)
 		}
 	}
 
