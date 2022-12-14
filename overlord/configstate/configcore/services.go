@@ -249,7 +249,8 @@ func handleServiceConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts
 
 func parseOneSSHListenAddr(oneAddr string) (addrs []string, err error) {
 	// 1. check if it's something like "host:port", "[host]:port" etc
-	//    (this will return an error if there is no
+	//    This will return an error if there is no port specified so
+	//    on error it's assume there is no port.
 	host, portStr, err := net.SplitHostPort(oneAddr)
 	if err != nil {
 		// for any error assume there is no port and continue
@@ -314,7 +315,7 @@ func validateServiceConfiguration(tr config.ConfGetter) error {
 }
 
 func handleServiceConfigSSHListen(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
-	// see if anything needs to happenhan
+	// see if anything needs to happen
 	var pristineSSHListen, newSSHListen interface{}
 
 	if err := tr.GetPristine("core", sshListenOpt, &pristineSSHListen); err != nil && !config.IsNoOption(err) {
