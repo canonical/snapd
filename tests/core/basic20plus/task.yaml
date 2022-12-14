@@ -75,7 +75,7 @@ execute: |
     # b) there was a cloud.cfg.d override (e.g. MAAS), then we must have more
     #    files in writable than in the core20 snap. The core20 content and the
     #    extra config will be merged
-    test -e /writable/system-data/etc/cloud/cloud-init.disabled || [ "$(find /writable/system-data/etc/cloud/cloud.cfg.d/ | wc -l)" -gt "$(find /snap/${base_snap}/current/etc/cloud/cloud.cfg.d/ | wc -l)" ]
+    test -e /writable/system-data/etc/cloud/cloud-init.disabled || [ "$(find /writable/system-data/etc/cloud/cloud.cfg.d/ | wc -l)" -gt "$(find /snap/"${base_snap}"/current/etc/cloud/cloud.cfg.d/ | wc -l)" ]
 
     # ensure that we have no symlinks from /var/lib/snapd/snaps to
     # /var/lib/snapd/seed
