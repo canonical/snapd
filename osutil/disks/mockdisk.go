@@ -58,6 +58,22 @@ type MockDiskMapping struct {
 	DiskSizeInBytes     uint64
 }
 
+func (d *MockDiskMapping) FindMatchingPartitionWithPartUUID(uuid string) (Partition, error) {
+	// TODO: this should just iterate over the static list when that is a thing
+	osutil.MustBeTestBinary("mock disks only to be used in tests")
+
+	for _, p := range d.Structure {
+		if p.FilesystemUUID == uuid {
+			return p, nil
+		}
+	}
+
+	return Partition{}, PartitionNotFoundError{
+		SearchType:  "filesystem-uuid",
+		SearchQuery: uuid,
+	}
+}
+
 // FindMatchingPartitionUUIDWithFsLabel returns a matching PartitionUUID
 // for the specified filesystem label if it exists. Part of the Disk interface.
 func (d *MockDiskMapping) FindMatchingPartitionWithFsLabel(label string) (Partition, error) {

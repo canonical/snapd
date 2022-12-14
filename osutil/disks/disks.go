@@ -34,6 +34,8 @@ type Options struct {
 
 // Disk is a single physical disk device that contains partitions.
 type Disk interface {
+	FindMatchingPartitionWithPartUUID(string) (Partition, error)
+
 	// FindMatchingPartitionWithFsLabel finds the partition with a matching
 	// filesystem label on the disk. Note that for non-ascii labels like
 	// "Some label", the label will be encoded using \x<hex> for potentially
