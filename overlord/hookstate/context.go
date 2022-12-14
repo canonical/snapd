@@ -309,5 +309,12 @@ func (c *Context) Errorf(fmt string, args ...interface{}) {
 		logger.Noticef(fmt, args...)
 	} else {
 		c.task.Errorf(fmt, args...)
+		// If errors are ignored the task will not be in "Error"
+		// state so the error is hard to find. In this case also
+		// log errors to the journal to ensure that e.g. seeding
+		// configure errors are observable.
+		if c.setup != nil && c.setup.IgnoreError {
+			logger.Noticef(fmt, args...)
+		}
 	}
 }

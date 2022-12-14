@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -183,4 +184,62 @@ func (s *contextSuite) TestChangeID(c *C) {
 	context, err = NewContext(task, s.state, &HookSetup{Snap: "test-snap"}, nil, "")
 	c.Assert(err, IsNil)
 	c.Check(context.ChangeID(), Equals, chg.ID())
+}
+
+func (s *contextSuite) TestChangeErrorf(c *C) {
+	mockLog, restore := logger.MockLogger()
+	defer restore()
+
+	s.state.Lock()
+	task1 := s.state.NewTask("foo1", "")
+	task2 := s.state.NewTask("foo2", "")
+	s.state.Unlock()
+
+	for _, tc := range []struct {
+		task                 *state.Task
+		ignoreError          bool
+		expectedLoggerOutput string
+		expectedTaskLog      string
+	}{
+		{nil, false, `.* context.go:.*: some error\n`, ``},
+		{nil, true, `.* context.go:.*: some error\n`, ``},
+		// ignore error hooks log errors to both logger and task
+		{task1, true, `.* context.go:.*: some error\n`, `.* ERROR some error`},
+		// normal hooks only log errors to the task
+		{task2, false, ``, `.* ERROR some error`},
+	} {
+		hs := &HookSetup{Snap: "test-snap", IgnoreError: tc.ignoreError}
+		context, err := NewContext(tc.task, s.state, hs, nil, "")
+		c.Assert(err, IsNil)
+		context.Lock()
+		context.Errorf("some error")
+		context.Unlock()
+		c.Check(mockLog.String(), Matches, tc.expectedLoggerOutput)
+		mockLog.Reset()
+		if tc.task != nil {
+			s.state.Lock()
+			taskLog := tc.task.Log()
+			s.state.Unlock()
+			if tc.expectedTaskLog != "" {
+				c.Assert(taskLog, HasLen, 1)
+				c.Check(taskLog[0], Matches, tc.expectedTaskLog)
+			} else {
+				c.Assert(taskLog, HasLen, 0)
+			}
+		}
+	}
+}
+
+func (s *contextSuite) TestChangeErrorfHookSetupNilPointerDoesNotCausePanic(c *C) {
+	s.state.Lock()
+	task := s.state.NewTask("foo", "")
+	s.state.Unlock()
+
+	var hookSetup *HookSetup = nil
+	context, err := NewContext(task, s.state, hookSetup, nil, "")
+	c.Assert(err, IsNil)
+	// it's enough to check here that there is no panic from "nil" hookSetup
+	context.Lock()
+	context.Errorf("some error")
+	context.Unlock()
 }
