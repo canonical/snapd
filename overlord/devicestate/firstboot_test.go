@@ -1206,66 +1206,6 @@ func (s *firstBoot16Suite) TestLoadDeviceSeed(c *C) {
 	c.Check(as, DeepEquals, deviceSeed.Model())
 }
 
-func (s *firstBoot16Suite) TestLoadDeviceSeedCaching(c *C) {
-	ovld, err := overlord.New(nil)
-	defer ovld.Stop()
-	c.Assert(err, IsNil)
-	st := ovld.State()
-
-	// add a bunch of assertions (model assertion and its chain)
-	assertsChain := s.makeModelAssertionChain(c, "my-model", nil)
-	for i, as := range assertsChain {
-		fname := strconv.Itoa(i)
-		if as.Type() == asserts.ModelType {
-			fname = "model"
-		}
-		s.WriteAssertions(fname, as)
-	}
-
-	// load them
-	st.Lock()
-	defer st.Unlock()
-
-	deviceSeed, err := devicestate.LoadDeviceSeed(st, "")
-	c.Assert(err, IsNil)
-
-	c.Check(deviceSeed.Model().Model(), Equals, "my-model")
-
-	// break the seed
-	modelAway := filepath.Join(c.MkDir(), "model")
-	modelFn := filepath.Join(s.AssertsDir(), "model")
-	err = os.Rename(modelFn, modelAway)
-	c.Assert(err, IsNil)
-
-	// result is still cached
-	deviceSeed, err = devicestate.LoadDeviceSeed(st, "")
-	c.Assert(err, IsNil)
-
-	c.Check(deviceSeed.Model().Model(), Equals, "my-model")
-
-	// unload cached result
-	devicestate.UnloadDeviceSeed(st)
-
-	// error now
-	_, err1 := devicestate.LoadDeviceSeed(st, "")
-	c.Assert(err1, ErrorMatches, "seed must have a model assertion")
-
-	// refix the seed
-	err = os.Rename(modelAway, modelFn)
-	c.Assert(err, IsNil)
-
-	// error is also cached
-	_, err = devicestate.LoadDeviceSeed(st, "")
-	c.Assert(err, Equals, err1)
-
-	// unload cached error
-	devicestate.UnloadDeviceSeed(st)
-
-	// soundness check: loading works again
-	_, err = devicestate.LoadDeviceSeed(st, "")
-	c.Assert(err, IsNil)
-}
-
 func (s *firstBoot16Suite) TestImportAssertionsFromSeedHappy(c *C) {
 	ovld, err := overlord.New(nil)
 	defer ovld.Stop()

@@ -99,8 +99,7 @@ type DeviceManager struct {
 	bootRevisionsUpdated bool
 
 	seedTimings *timings.Timings
-	// these are used as needed as cache during StartUp and cleared after
-	earlyDeviceCtx  snapstate.DeviceContext
+	// this is used during early phases until seeding is under way
 	earlyDeviceSeed seed.Seed
 
 	populateStateFromSeed func(*populateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)
@@ -296,7 +295,6 @@ func (m *DeviceManager) SystemMode(sysExpect SysExpectation) string {
 func (m *DeviceManager) StartUp() error {
 	m.state.Lock()
 	defer m.state.Unlock()
-	defer m.earlyCleanup()
 
 	dev, err := m.earlyDeviceContext()
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -810,17 +808,11 @@ func (m *DeviceManager) earlyDeviceContext() (snapstate.DeviceContext, error) {
 	if !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
-	dev, _, err := m.earlyLoadDeviceSeed()
+	dev, _, err := m.earlyLoadDeviceSeed(state.ErrNoState)
 	return dev, err
 }
 
-func (m *DeviceManager) earlyCleanup() {
-	// clear things cached in StartUp
-	m.earlyDeviceCtx = nil
-	m.earlyDeviceSeed = nil
-}
-
-func (m *DeviceManager) earlyLoadDeviceSeed() (snapstate.DeviceContext, seed.Seed, error) {
+func (m *DeviceManager) earlyLoadDeviceSeed(seedLoadErr error) (snapstate.DeviceContext, seed.Seed, error) {
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -831,11 +823,8 @@ func (m *DeviceManager) earlyLoadDeviceSeed() (snapstate.DeviceContext, seed.See
 	}
 
 	// consider whether we were called already
-	if m.seedTimings != nil {
-		if m.earlyDeviceCtx != nil {
-			return m.earlyDeviceCtx, m.earlyDeviceSeed, nil
-		}
-		return nil, nil, state.ErrNoState
+	if m.earlyDeviceSeed != nil {
+		return newModelDeviceContext(m, m.earlyDeviceSeed.Model()), m.earlyDeviceSeed, nil
 	}
 
 	var sysLabel string
@@ -867,19 +856,17 @@ func (m *DeviceManager) earlyLoadDeviceSeed() (snapstate.DeviceContext, seed.See
 		deviceSeed, err = loadDeviceSeed(m.state, sysLabel)
 	})
 	if err != nil {
-		// this same error will be resurfaced in ensureSeed later
-		if err != seed.ErrNoAssertions {
-			logger.Debugf("early import assertions from seed failed: %v", err)
+		// use seedLoadErr if specified
+		if seedLoadErr != nil {
+			err = seedLoadErr
 		}
-		return nil, nil, state.ErrNoState
+		return nil, nil, err
 	}
 
 	dev := newModelDeviceContext(m, deviceSeed.Model())
 
 	// cache
-	m.earlyDeviceCtx = dev
 	m.earlyDeviceSeed = deviceSeed
-
 	return dev, deviceSeed, nil
 }
 
@@ -896,7 +883,7 @@ func (m *DeviceManager) earlyPreloadGadget() (sysconfig.Device, *gadget.Info, er
 	// just by option flags. For example automatic user creation
 	// also requires the model to be known/set. Otherwise ignoring
 	// errors here would be problematic.
-	dev, deviceSeed, err := m.earlyLoadDeviceSeed()
+	dev, deviceSeed, err := m.earlyLoadDeviceSeed(state.ErrNoState)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -906,6 +893,7 @@ func (m *DeviceManager) earlyPreloadGadget() (sysconfig.Device, *gadget.Info, er
 		return nil, nil, state.ErrNoState
 	}
 	var gi *gadget.Info
+
 	timings.Run(m.seedTimings, "preload-verified-gadget-metadata", "preload verified gadget metadata from seed", func(nested timings.Measurer) {
 		gi, err = func() (*gadget.Info, error) {
 			if err := deviceSeed.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, nested); err != nil {

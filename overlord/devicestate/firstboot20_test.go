@@ -574,10 +574,6 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(as, DeepEquals, deviceSeed.Model())
-
-	// inconsistent seed request
-	_, err = devicestate.LoadDeviceSeed(st, "20210201")
-	c.Assert(err, ErrorMatches, `internal error: requested inconsistent device seed: 20210201 \(was 20191018\)`)
 }
 
 func (s *firstBoot20Suite) testProcessAutoImportAssertions(c *C, withAutoImportAssertion bool) string {
