@@ -140,7 +140,7 @@ func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 
 func EarlyPreloadGadget(m *DeviceManager) (sysconfig.Device, *gadget.Info, error) {
 	// let things fully run again
-	m.seedTimings = nil
+	m.earlyDeviceSeed = nil
 	return m.earlyPreloadGadget()
 }
 
@@ -256,7 +256,6 @@ func RecordSeededSystem(m *DeviceManager, st *state.State, sys *seededSystem) er
 
 var (
 	LoadDeviceSeed               = loadDeviceSeed
-	UnloadDeviceSeed             = unloadDeviceSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
 	CheckGadgetValid             = checkGadgetValid
 	CheckGadgetRemodelCompatible = checkGadgetRemodelCompatible
