@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil/disks"
 )
 
@@ -90,16 +89,13 @@ func MustLayOutSingleVolumeFromGadget(gadgetRoot, kernelRoot string, model gadge
 		return nil, fmt.Errorf("only single volumes supported in test helper")
 	}
 
-	constraints := gadget.LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-	}
 	opts := &gadget.LayoutOptions{
 		GadgetRootDir: gadgetRoot,
 		KernelRootDir: kernelRoot,
 	}
 	for _, vol := range info.Volumes {
 		// we know info.Volumes map has size 1 so we can return here
-		return gadget.LayoutVolume(vol, constraints, opts)
+		return gadget.LayoutVolume(vol, opts)
 	}
 
 	// this is impossible to reach, we already checked that info.Volumes has a

@@ -419,6 +419,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
+	// Build a map of snaps for the manifest file
+	imageManifest := make(map[string]snap.Revision)
+
 	// Check local snaps again, but now after InfoDerived has been called. InfoDerived
 	// fills out the snap revisions for the local snaps, and we need this to verify against
 	// expected revisions.
@@ -430,6 +433,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		if !specifiedRevision.Unset() && specifiedRevision != sn.Info.Revision {
 			return fmt.Errorf("cannot use snap %s for image, unknown/local revision does not match the value specified by revisions file (%s != %s)",
 				sn.Path, sn.Info.Revision, specifiedRevision)
+		}
+		if !sn.Info.Revision.Unset() {
+			imageManifest[sn.Info.SnapName()] = sn.Info.Revision
 		}
 	}
 
@@ -483,6 +489,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			prev := len(f.Refs())
 			if _, err = FetchAndCheckSnapAssertions(dlsn.Path, dlsn.Info, model, f, db); err != nil {
 				return err
+			}
+			if !sn.Info.Revision.Unset() {
+				imageManifest[sn.Info.SnapName()] = sn.Info.Revision
 			}
 			aRefs := f.Refs()[prev:]
 			sn.ARefs = aRefs
@@ -636,5 +645,11 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		customizeImage(rootDir, defaultsDir, &opts.Customizations)
 	}
 
+	// last thing is to generate the image seed manifest file
+	if opts.SeedManifestPath != "" {
+		if err := WriteSeedManifest(opts.SeedManifestPath, imageManifest); err != nil {
+			return err
+		}
+	}
 	return nil
 }

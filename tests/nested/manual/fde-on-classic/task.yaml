@@ -64,10 +64,14 @@ execute: |
   remote.exec "snap model --serial --assertion" | MATCH "model: ubuntu-core-22-pc-amd64"
 
   # refresh kernel snap
-  refresh_snap_and_reboot()
+  # $1: path to snap file
+  # $2: snap name
+  # $3: reboot action ("reboot"/"no-reboot")
+  refresh_rebooting_snap()
   {
       local snap_filename=$1
       local snap_name=$2
+      local reboot_action=$3
       printf "Test installing snap from file %s\n" "$snap_filename"
       remote.push "$snap_filename"
       boot_id=$(tests.nested boot-id)
@@ -80,15 +84,29 @@ execute: |
       # Check that no reboot has been scheduled, then force a reboot
       remote.exec not test -f /run/systemd/shutdown/scheduled
 
-      remote.exec sudo reboot || true
-      tests.nested wait-for reboot "$boot_id"
-      remote.exec sudo snap watch "$REMOTE_CHG_ID"
+      if [ "$reboot_action" = "reboot" ]; then
+          remote.exec sudo reboot || true
+          tests.nested wait-for reboot "$boot_id"
+          remote.exec sudo snap watch "$REMOTE_CHG_ID"
+      fi
   }
 
-  refresh_snap_and_reboot pc-kernel-new.snap pc-kernel
+  current_kernel_file=$(remote.exec readlink /run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi)
+  current_kernel_file=${current_kernel_file%/*}
+
+  # Test aborting a kernel installation before a reboot
+  refresh_rebooting_snap pc-kernel-new.snap pc-kernel no-reboot
+  remote.exec sudo snap abort "$REMOTE_CHG_ID"
+  # Make sure everything is in the same state
+  not remote.exec stat /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi
+  remote.exec cat /var/lib/snapd/modeenv | MATCH "^current_kernels=$current_kernel_file$"
+  remote.exec cat /run/mnt/ubuntu-boot/EFI/ubuntu/grubenv | MATCH -E "^kernel_status=$"
+
+  # Test successful kernel update
+  refresh_rebooting_snap pc-kernel-new.snap pc-kernel reboot
 
   echo "Refresh pc gadget and assert assets got updated"
-  refresh_snap_and_reboot pc-new.snap pc
+  refresh_rebooting_snap pc-new.snap pc reboot
   for f in /boot/grub/kernel.efi /run/mnt/ubuntu-boot/EFI/boot/bootx64.efi /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi; do
       remote.exec sudo grep -q -a '"This program cannot be run in XXX mode"' "$f"
   done

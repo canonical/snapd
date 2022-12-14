@@ -5257,3 +5257,48 @@ func (s *bootenv20Suite) TestInUseClassicWithModes(c *C) {
 	_, err = boot.InUse(snap.TypeBase, classicWithModesDev)
 	c.Check(err, IsNil)
 }
+
+func (s *bootenv20Suite) TestCoreParticipant20SetNextCurrentKernelSnap(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		s.normalDefaultState,
+	)
+	defer r()
+
+	// get the boot kernel participant from our current kernel snap
+	bootKern := boot.Participant(s.kern1, snap.TypeKernel, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootKern.IsTrivial(), Equals, false)
+
+	// Make it the kernel used on next boot. This sort of situation (same
+	// current and next kernel) can happen when an installation of a new
+	// kernel is aborted before we reboot: in that case we need to clean up
+	// some things although the current kernel did not really change.
+	rebootRequired, err := bootKern.SetNextBoot(boot.NextBootContext{BootWithoutTry: true})
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
+
+	// make sure that the bootloader was asked for the current kernel
+	_, nKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("Kernel")
+	c.Assert(nKernelCalls, Equals, 1)
+
+	// ensure that kernel_status is not set
+	c.Assert(s.bootloader.BootVars["kernel_status"], Equals, "")
+
+	// we were not asked to enable a try kernel
+	actual, _ := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
+	c.Assert(len(actual), Equals, 0)
+
+	// and we were asked to disable the try kernel
+	_, nDisableTryCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
+	c.Assert(nDisableTryCalls, Equals, 1)
+
+	// and that the modeenv has this kernel listed only once
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename()})
+}

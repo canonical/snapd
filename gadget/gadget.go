@@ -1192,11 +1192,11 @@ func IsCompatible(current, new *Info) error {
 	// layout both volumes partially, without going deep into the layout of
 	// structure content, we only want to make sure that structures are
 	// comapatible
-	pCurrent, err := LayoutVolumePartially(currentVol, DefaultConstraints)
+	pCurrent, err := LayoutVolumePartially(currentVol)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the current volume: %v", err)
 	}
-	pNew, err := LayoutVolumePartially(newVol, DefaultConstraints)
+	pNew, err := LayoutVolumePartially(newVol)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
 	}
@@ -1226,9 +1226,6 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model) (syste
 		return nil, nil, err
 	}
 
-	constraints := LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-	}
 	// layout all volumes saving them
 	opts := &LayoutOptions{
 		GadgetRootDir: gadgetRoot,
@@ -1238,7 +1235,7 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model) (syste
 	// find the volume with the system-boot role on it, we already validated
 	// that the system-* roles are all on the same volume
 	for name, vol := range info.Volumes {
-		lvol, err := LayoutVolume(vol, constraints, opts)
+		lvol, err := LayoutVolume(vol, opts)
 		if err != nil {
 			return nil, nil, err
 		}

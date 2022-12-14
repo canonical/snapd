@@ -236,7 +236,7 @@ backends:
                   workers: 8
             - ubuntu-22.04-64:
                   image: ubuntu-2204-64-virt-enabled
-                  storage: 20G
+                  storage: 25G
                   workers: 8
 
 

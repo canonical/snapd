@@ -320,12 +320,20 @@ snapd (2.58-1) unstable; urgency=medium
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 01 Dec 2022 09:52:23 +0100
 
-snapd (2.57.6-1) unstable; urgency=medium
+snapd (2.57.6-1) unstable; urgency=high
 
-  * New upstream release, LP: #1983035
-    - bugfixes
+  * SECURITY UPDATE: Local privilege escalation
+    - snap-confine: Fix race condition in snap-confine when preparing a
+      private tmp mount namespace for a snap
+    - CVE-2022-3328
+  * sync packaging changes from upstream
+  * d/p/0015-fix-build-5bd97b39a03.patch:
+    - cherry-pick 5bd97b39a03 to build FTBFS
+  * d/p/0016-skip-TestPopulateFromSeedWithConnectHook.patch:
+    - skip TestPopulateFromSeedWithConnectHook as it does not
+      converge
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 15 Nov 2022 16:13:59 +0100
+ -- Michael Vogt <mvo@debian.org>  Thu, 01 Dec 2022 17:35:36 +0100
 
 snapd (2.57.5-1) unstable; urgency=medium
 
@@ -1518,12 +1526,22 @@ snapd (2.54.3-1.1) unstable; urgency=medium
 
  -- Shengjing Zhu <zhsj@debian.org>  Sun, 17 Jul 2022 20:18:10 +0800
 
-snapd (2.54.3-1) unstable; urgency=medium
+snapd (2.54.3-1) unstable; urgency=high
 
-  * New upstream release, LP: #1955137
-    - bugfixes
+  * SECURITY UPDATE: Local privilege escalation
+    - snap-confine: Add validations of the location of the snap-confine
+      binary within snapd.
+    - snap-confine: Fix race condition in snap-confine when preparing a
+      private mount namespace for a snap.
+    - CVE-2021-44730
+    - CVE-2021-44731
+  * SECURITY UPDATE: Data injection from malicious snaps
+    - interfaces: Add validations of snap content interface and layout
+      paths in snapd.
+    - CVE-2021-4120
+    - LP: #1949368
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 15 Feb 2022 12:55:24 +0100
+ -- Michael Vogt <mvo@debian.org>  Wed, 23 Feb 2022 10:04:21 +0100
 
 snapd (2.54.2-1) unstable; urgency=medium
 
@@ -1554,7 +1572,20 @@ snapd (2.54.1-1) unstable; urgency=medium
     - buid-aux: set version before calling ./generate-packaging-dir
       This fixes the "dirty" suffix in the auto-generated version
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 20 Dec 2021 10:06:09 +0100
+  * Upstream fixes for Debian bugs:
+    - cgroups v2 are now supported (closes: #934372)
+    - transitional package golang-github-ubuntu-core-snappy-dev
+      dropped (closes: #940782)
+    - support squashfs-tools 4.5 properly (closes: #993233)
+    - fix FTBFS (closes: #997257)
+
+  * Updated the debian packaging:
+    - add myself to the uploaders (partly addresses 1001999)
+    - remove npn-default series patches)
+    - bump standards-version to 4.6.0 (required removal of
+      non-default series files)
+
+ -- Michael Vogt <mvo@debian.org>  Mon, 20 Dec 2021 15:15:32 +0100
 
 snapd (2.54-1) unstable; urgency=medium
 
@@ -2683,6 +2714,17 @@ snapd (2.52-1) unstable; urgency=medium
 
  -- Ian Johnson <ian.johnson@canonical.com>  Fri, 03 Sep 2021 16:06:15 -0500
 
+snapd (2.51.7-2) unstable; urgency=medium
+
+  * debian: cherry-pick PR#10745
+    - cherry pick https://github.com/snapcore/snapd/pull/10745
+      (closes: #993783)
+  * debian/control:
+    - build with go-1.15 for now until snapd-2.52 is released
+      which fully supports go.mod
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 07 Sep 2021 13:53:22 +0200
+
 snapd (2.51.7-1) unstable; urgency=medium
 
   * New upstream release, LP: #1929842
@@ -2695,7 +2737,7 @@ snapd (2.51.7-1) unstable; urgency=medium
     - overlord: add manager test for "assumes" checking
     - store: deal correctly with "assumes" from the store raw yaml
 
- -- Ian Johnson <ian.johnson@canonical.com>  Fri, 27 Aug 2021 15:26:46 -0500
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 01 Sep 2021 13:32:06 +0200
 
 snapd (2.51.6-1) unstable; urgency=medium
 
