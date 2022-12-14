@@ -21,7 +21,7 @@ execute: |
 
     # Define the core snap for the current system
     core_snap=core20
-    if os.query is-ubuntu 22.10; then
+    if os.query is-ubuntu 23.04; then
         core_snap=core22
     fi
 
@@ -34,7 +34,7 @@ execute: |
     fi
 
     # There isn't an official image for kinetic yet, let's use the community one
-    if os.query is-ubuntu 22.10; then
+    if os.query is-ubuntu 23.04; then
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" ubuntu
         core_snap=core22
@@ -60,7 +60,7 @@ execute: |
     lxd.lxc exec ubuntu -- apt update
     # As for ubuntu kinetic it is not using the official image, snapd is not installed by default
     # This should be removed once the official image is released
-    if os.query is-ubuntu 22.10; then
+    if os.query is-ubuntu 23.04; then
         lxd.lxc exec ubuntu -- apt install -y snapd
         lxd.lxc exec ubuntu -- snap install "$core_snap"
     fi
