@@ -181,7 +181,6 @@ main() {
         bootenv)
             shift
             bootenv "$@"
-            exit
             ;;
         boot-path)
             boot_path
