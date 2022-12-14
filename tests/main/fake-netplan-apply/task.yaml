@@ -50,8 +50,8 @@ prepare: |
 
     echo "Backup the dbus service file and policy config if they exist before executing"
     for f in system-services/$NETPLAN.service system.d/$NETPLAN.conf; do
-        if [ -f /usr/share/dbus-1/$f ]; then
-            mv /usr/share/dbus-1/$f /usr/share/dbus-1/$f.backup
+        if [ -f /usr/share/dbus-1/"$f" ]; then
+            mv /usr/share/dbus-1/"$f" /usr/share/dbus-1/"$f".backup
         fi      
     done
 
@@ -84,8 +84,8 @@ restore: |
 
     echo "Restore the dbus service file and policy config file if the backup exists"
     for f in system-services/$NETPLAN.service system.d/$NETPLAN.conf; do
-        if [ -f /usr/share/dbus-1/$f.backup ]; then
-            mv /usr/share/dbus-1/$f.backup /usr/share/dbus-1/$f
+        if [ -f /usr/share/dbus-1/"$f".backup ]; then
+            mv /usr/share/dbus-1/"$f".backup /usr/share/dbus-1/"$f"
         fi      
     done
 
