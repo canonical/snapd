@@ -353,7 +353,7 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 			noNetworkRetryInterval := retryInterval / 2
 			return "", &state.Retry{After: noNetworkRetryInterval}
 		}
-		if httputil.CertExpiredOrNotValidYet(err) {
+		if httputil.IsCertExpiredOrNotValidYetError(err) {
 			// If the cert is expired/not-valid yet that
 			// most likely means that the devices has no
 			// ntp-synced time yet. We will retry for up

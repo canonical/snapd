@@ -293,7 +293,7 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 	return resp, err
 }
 
-func CertExpiredOrNotValidYet(err error) bool {
+func IsCertExpiredOrNotValidYetError(err error) bool {
 	if err == nil {
 		return false
 	}

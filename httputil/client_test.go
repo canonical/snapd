@@ -259,7 +259,7 @@ func (s *tlsSuite) TestClientMaxTLS11Error(c *check.C) {
 	// - golang < 1.12: tls: server selected unsupported protocol version 302
 	// - golang >= 1.12: tls: protocol version not supported
 	c.Assert(err, check.ErrorMatches, ".* tls: (server selected unsupported protocol version 302|protocol version not supported)")
-	c.Check(httputil.CertExpiredOrNotValidYet(err), check.Equals, false)
+	c.Check(httputil.IsCertExpiredOrNotValidYetError(err), check.Equals, false)
 }
 
 func (s *tlsSuite) TestClientMaxTLS12Ok(c *check.C) {
@@ -287,7 +287,7 @@ func (s *tlsSuite) TestClientMaxTLS12Ok(c *check.C) {
 	// this is testing the protocol, the self-signed certificate error is
 	// fine and expected.
 	c.Assert(err, check.ErrorMatches, ".* certificate signed by unknown authority")
-	c.Check(httputil.CertExpiredOrNotValidYet(err), check.Equals, false)
+	c.Check(httputil.IsCertExpiredOrNotValidYetError(err), check.Equals, false)
 }
 
 func (s *tlsSuite) TestCertExpireOrNotValidYet(c *check.C) {
@@ -312,5 +312,5 @@ func (s *tlsSuite) TestCertExpireOrNotValidYet(c *check.C) {
 
 	_, err = cli.Get(srv.URL)
 	c.Assert(err, check.ErrorMatches, ".*: x509: certificate has expired or is not yet valid.*")
-	c.Check(httputil.CertExpiredOrNotValidYet(err), check.Equals, true)
+	c.Check(httputil.IsCertExpiredOrNotValidYetError(err), check.Equals, true)
 }
