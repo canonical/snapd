@@ -96,9 +96,9 @@ execute: |
         fi
 
         echo "Check the ssh port file is correct"
-        remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress 0.0.0.0:8023"
-        remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress [::]:8023"
-        remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress 192.168.99.4:9922"
+        remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress 0\.0\.0\.0:8023"
+        remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress \[::\]:8023"
+        remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress 192\.168\.99\.4:9922"
     }
 
     check_core20_early_config
@@ -121,8 +121,8 @@ execute: |
     remote.setup config --host localhost --port 9022 --user user1 --pass ubuntu
     "$TESTSLIB"/external/snapd-testing-tools/remote/remote.wait-for ssh
     remote.exec "sudo snap get system service.ssh.listen-address" | MATCH :9022
-    remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress 0.0.0.0:9022"
-    remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress [::1]:9022"
+    remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress 0\.0\.0\.0:9022"
+    remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress \[::\]:9022"
     echo "Check that unsetting the ssh port works"
     remote.exec "sudo snap unset system service.ssh.listen-address" || true
     # 8022 is the default port that is forwarded to "22" in the guest
