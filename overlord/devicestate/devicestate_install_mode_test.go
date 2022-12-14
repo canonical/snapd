@@ -1161,8 +1161,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	c.Assert(hooksCalled, HasLen, 1)
 	c.Assert(hooksCalled[0].HookName(), Equals, "install-device")
 
-	// ensure systemctl daemon-reload gets called at least once
-	c.Assert(s.SystemctlDaemonReloadCalls, testutil.IntGreaterEqual, 1)
+	// ensure systemctl daemon-reload gets called
+	c.Assert(s.SystemctlDaemonReloadCalls, Equals, 1)
 }
 
 func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboot(c *C, arg string, rst restart.RestartType) {
@@ -1204,8 +1204,8 @@ func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboo
 	// we did end up requesting the right shutdown
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{rst})
 
-	// ensure systemctl daemon-reload gets called at least once
-	c.Assert(s.SystemctlDaemonReloadCalls, testutil.IntGreaterEqual, 1)
+	// ensure systemctl daemon-reload gets called
+	c.Assert(s.SystemctlDaemonReloadCalls, Equals, 1)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookSnapctlRebootHalt(c *C) {
@@ -3154,8 +3154,8 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 	c.Assert(hooksCalled, HasLen, 1)
 	c.Assert(hooksCalled[0].HookName(), Equals, "install-device")
 
-	// ensure systemctl daemon-reload gets called at least once
-	c.Assert(s.SystemctlDaemonReloadCalls, testutil.IntGreaterEqual, 1)
+	// ensure systemctl daemon-reload gets called
+	c.Assert(s.SystemctlDaemonReloadCalls, Equals, 1)
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetRunSysconfig(c *C) {
