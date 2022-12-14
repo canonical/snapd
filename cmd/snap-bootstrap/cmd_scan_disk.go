@@ -179,6 +179,7 @@ func scanDiskNode(node string) error {
 	}
 
 	if (!fallback && found) || (fallback && has_seed) {
+		fmt.Printf("UBUNTU_DISK=1\n")
 		if has_seed {
 			fmt.Fprintf(os.Stderr, "Detected partition for seed: %s\n", seed_uuid)
 			fmt.Printf("UBUNTU_SEED_UUID=%s\n", seed_uuid)
