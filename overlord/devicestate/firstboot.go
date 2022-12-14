@@ -89,17 +89,16 @@ func trivialSeeding(st *state.State) []*state.TaskSet {
 }
 
 type populateStateFromSeedOptions struct {
-	Label   string
-	Mode    string
-	Preseed bool
+	Label string
+	Mode  string
 }
 
 func (m *DeviceManager) populateStateFromSeedImpl(opts *populateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
 	st := m.state
+	preseed := m.preseed
 
 	mode := "run"
 	sysLabel := ""
-	preseed := false
 	hasModeenv := false
 	if opts != nil {
 		if opts.Mode != "" {
@@ -107,7 +106,6 @@ func (m *DeviceManager) populateStateFromSeedImpl(opts *populateStateFromSeedOpt
 			hasModeenv = true
 		}
 		sysLabel = opts.Label
-		preseed = opts.Preseed
 	}
 
 	// check that the state is empty

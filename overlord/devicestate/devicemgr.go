@@ -950,7 +950,7 @@ func (m *DeviceManager) ensureSeeded() error {
 
 	var opts *populateStateFromSeedOptions
 	if m.preseed {
-		opts = &populateStateFromSeedOptions{Preseed: true}
+		opts = &populateStateFromSeedOptions{}
 		if !release.OnClassic {
 			opts.Mode = "run"
 			opts.Label = m.systemForPreseeding()
