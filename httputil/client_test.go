@@ -311,6 +311,6 @@ func (s *tlsSuite) TestCertExpireOrNotValidYet(c *check.C) {
 	c.Assert(s.logbuf.String(), check.Equals, "")
 
 	_, err = cli.Get(srv.URL)
-	c.Assert(err, check.ErrorMatches, ".*: x509: certificate has expired or is not yet valid")
+	c.Assert(err, check.ErrorMatches, ".*: x509: certificate has expired or is not yet valid.*")
 	c.Check(httputil.CertExpiredOrNotValidYet(err), check.Equals, true)
 }
