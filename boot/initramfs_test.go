@@ -219,10 +219,9 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 		{
 			m:                      &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), "pc-kernel_badrev.snap"}},
 			kernel:                 kernel1,
-			trykernel:              kernel2,
 			typs:                   []snap.Type{kernelT},
 			blvars:                 map[string]string{"kernel_status": boot.DefaultStatus},
-			snapsToMake:            []snap.PlaceInfo{kernel1, kernel2},
+			snapsToMake:            []snap.PlaceInfo{kernel1},
 			expected:               map[snap.Type]snap.PlaceInfo{kernelT: kernel1},
 			rootfsDir:              filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:                "bad try kernel but we don't reboot",
@@ -304,6 +303,20 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			expRebootPanic: "reboot due to kernel_status wrong",
 			rootfsDir:      filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:        "fallback kernel upgrade path, due to kernel_status wrong",
+		},
+		// bad try status and no try kernel found
+		{
+			m:                      &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), "pc-kernel_badrev.snap"}},
+			kernel:                 kernel1,
+			typs:                   []snap.Type{kernelT},
+			blvars:                 map[string]string{"kernel_status": boot.TryStatus},
+			snapsToMake:            []snap.PlaceInfo{kernel1},
+			expected:               map[snap.Type]snap.PlaceInfo{kernelT: kernel1},
+			rootfsDir:              filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
+			comment:                "bad try status, we reboot",
+			runBootEnvMethodToFail: "TryKernel",
+			runBootEnvError:        fmt.Errorf("cannot read dangling symlink"),
+			expRebootPanic:         "reboot due to bad try status",
 		},
 
 		//
@@ -424,7 +437,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			m:           &boot.Modeenv{Mode: "run"},
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1},
-			errPattern:  "current base snap unusable: cannot get snap revision: modeenv base boot variable is empty",
+			errPattern:  "no currently usable base snaps: cannot get snap revision: modeenv base boot variable is empty",
 			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "base snap unset in modeenv",
 		},
