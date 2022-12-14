@@ -349,18 +349,22 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo, bootCtx NextBootCont
 	}
 
 	currentKernel := ks20.bks.kernel()
-	if next.Filename() != currentKernel.Filename() {
-		// on commit, add this kernel to the modeenv
-		if bootCtx.BootWithoutTry {
-			// when undoing, the current kernel is being removed
-			u20.writeModeenv.CurrentKernels = []string{next.Filename()}
-		} else {
-			u20.writeModeenv.CurrentKernels = append(
-				u20.writeModeenv.CurrentKernels,
-				next.Filename(),
-			)
-		}
+	if bootCtx.BootWithoutTry {
+		// When undoing, only next kernel will be available (which will
+		// be actually the old kernel). Depending on when the undo
+		// happens (before or after the reboot triggered by the update),
+		// current will be the same as next or different, so in both
+		// cases we need this.
+		u20.writeModeenv.CurrentKernels = []string{next.Filename()}
+	} else if next.Filename() != currentKernel.Filename() {
+		// We are trying a new kernel, add to the modeenv
+		u20.writeModeenv.CurrentKernels = append(
+			u20.writeModeenv.CurrentKernels,
+			next.Filename(),
+		)
 	}
+	logger.Debugf("available kernels (BootWithoutTry: %t): %v",
+		bootCtx.BootWithoutTry, u20.writeModeenv.CurrentKernels)
 
 	bootTask := func() error { return ks20.bks.setNextKernel(next, nextStatus) }
 	if bootCtx.BootWithoutTry {

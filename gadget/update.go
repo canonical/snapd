@@ -39,13 +39,6 @@ var (
 	ErrNoUpdate = errors.New("nothing to update")
 )
 
-var (
-	// default positioning constraints that match ubuntu-image
-	DefaultConstraints = LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-	}
-)
-
 // GadgetData holds references to a gadget revision metadata and its data directory.
 type GadgetData struct {
 	// Info is the gadget metadata
@@ -1257,12 +1250,12 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 
 		// layout old partially, without going deep into the layout of structure
 		// content
-		pOld, err := LayoutVolumePartially(oldVol, DefaultConstraints)
+		pOld, err := LayoutVolumePartially(oldVol)
 		if err != nil {
 			return fmt.Errorf("cannot lay out the old volume %s: %v", volName, err)
 		}
 
-		pNew, err := LayoutVolume(newVol, DefaultConstraints, opts)
+		pNew, err := LayoutVolume(newVol, opts)
 		if err != nil {
 			return fmt.Errorf("cannot lay out the new volume %s: %v", volName, err)
 		}
