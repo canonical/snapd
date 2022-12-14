@@ -315,16 +315,11 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 
 	c.Check(devicestate.SaveAvailable(mgr), Equals, m.Mode == "run")
 
-	opts := devicestate.PopulateStateFromSeedOptions{
-		Label: m.RecoverySystem,
-		Mode:  m.Mode,
-	}
-
 	// run the firstboot stuff
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, &opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	snaps := []string{"snapd", "pc-kernel", "core20", "pc"}
@@ -705,12 +700,7 @@ defaults:
 	enabled, _ := features.Flag(tr, features.UserDaemons)
 	c.Check(enabled, Equals, true)
 
-	opts := devicestate.PopulateStateFromSeedOptions{
-		Label: m.RecoverySystem,
-		Mode:  m.Mode,
-	}
-
-	_, err = devicestate.PopulateStateFromSeedImpl(o.DeviceManager(), &opts, s.perfTimings)
+	_, err = devicestate.PopulateStateFromSeedImpl(o.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 }
 
@@ -796,16 +786,11 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 
 	s.startOverlord(c)
 
-	opts := devicestate.PopulateStateFromSeedOptions{
-		Label: m.RecoverySystem,
-		Mode:  m.Mode,
-	}
-
 	// run the firstboot stuff
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), &opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 
 	snaps := []string{"snapd", "core20"}
@@ -966,16 +951,11 @@ apps:
 
 	s.startOverlord(c)
 
-	opts := devicestate.PopulateStateFromSeedOptions{
-		Label: m.RecoverySystem,
-		Mode:  m.Mode,
-	}
-
 	// run the firstboot stuff
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), &opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	if expectedErr != "" {
 		c.Check(err, ErrorMatches, expectedErr)
 		return

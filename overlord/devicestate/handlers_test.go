@@ -566,7 +566,7 @@ func (s *preseedingClassicSuite) TestDoMarkPreseeded(c *C) {
 
 func (s *preseedingClassicSuite) TestEnsureSeededPreseedFlag(c *C) {
 	called := false
-	restore := devicestate.MockPopulateStateFromSeed(s.mgr, func(opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
+	restore := devicestate.MockPopulateStateFromSeed(s.mgr, func(sLabel, sMode string, tm timings.Measurer) ([]*state.TaskSet, error) {
 		called = true
 		return nil, nil
 	})
@@ -749,10 +749,10 @@ func (s *preseedingUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
-	restore := devicestate.MockPopulateStateFromSeed(mgr, func(opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
+	restore := devicestate.MockPopulateStateFromSeed(mgr, func(sLabel, sMode string, tm timings.Measurer) ([]*state.TaskSet, error) {
 		called = true
-		c.Check(opts.Label, Equals, "20220105")
-		c.Check(opts.Mode, Equals, "run")
+		c.Check(sLabel, Equals, "20220105")
+		c.Check(sMode, Equals, "run")
 		return nil, nil
 	})
 	defer restore()
