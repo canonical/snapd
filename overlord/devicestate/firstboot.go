@@ -88,26 +88,8 @@ func trivialSeeding(st *state.State) []*state.TaskSet {
 	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
 }
 
-type populateStateFromSeedOptions struct {
-	Label string
-	Mode  string
-}
-
-func (m *DeviceManager) populateStateFromSeedImpl(opts *populateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
+func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state.TaskSet, error) {
 	st := m.state
-	preseed := m.preseed
-
-	mode := "run"
-	sysLabel := ""
-	hasModeenv := false
-	if opts != nil {
-		if opts.Mode != "" {
-			mode = opts.Mode
-			hasModeenv = true
-		}
-		sysLabel = opts.Label
-	}
-
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
@@ -118,11 +100,23 @@ func (m *DeviceManager) populateStateFromSeedImpl(opts *populateStateFromSeedOpt
 		return nil, fmt.Errorf("cannot populate state: already seeded")
 	}
 
+	preseed := m.preseed
+	sysLabel, mode, err := m.seedLabelAndMode()
+	if err != nil {
+		return nil, err
+	}
+	hasModeenv := false
+	if mode != "" {
+		hasModeenv = true
+	} else {
+		mode = "run"
+	}
+
 	var deviceSeed seed.Seed
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
 		isCoreBoot := hasModeenv || !release.OnClassic
-		deviceSeed, err = m.importAssertionsFromSeed(sysLabel, isCoreBoot)
+		deviceSeed, err = m.importAssertionsFromSeed(isCoreBoot)
 	})
 	if err != nil && err != errNothingToDo {
 		return nil, err
@@ -342,7 +336,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(opts *populateStateFromSeedOpt
 	return tsAll, nil
 }
 
-func (m *DeviceManager) importAssertionsFromSeed(sysLabel string, isCoreBoot bool) (seed.Seed, error) {
+func (m *DeviceManager) importAssertionsFromSeed(isCoreBoot bool) (seed.Seed, error) {
 	st := m.state
 
 	// TODO: use some kind of context fo Device/SetDevice?
@@ -353,7 +347,6 @@ func (m *DeviceManager) importAssertionsFromSeed(sysLabel string, isCoreBoot boo
 
 	// collect and
 	// set device,model from the model assertion
-	// XXX sysLabel
 	_, deviceSeed, err := m.earlyLoadDeviceSeed(nil)
 	if err == seed.ErrNoAssertions && !isCoreBoot {
 		// if classic boot seeding is optional
