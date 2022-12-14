@@ -594,7 +594,7 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	// install-device hook
 	hasHook, err := m.hasInstallDeviceHook(model)
 	if err != nil {
-		return fmt.Errorf("cannot obtain install device hook from model: %v", err)
+		return err
 	}
 	if hasHook {
 		sd := systemd.New(systemd.SystemMode, progress.Null)
