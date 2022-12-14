@@ -210,9 +210,9 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 
 	if u.Scheme == "help" {
 		// This is a hack to allow to find the help files in the confined applications
-		snap, err := snapFromSender(s.conn, sender)
-		if err != nil {
-			return dbus.MakeFailedError(err)
+		snap, errS := snapFromSender(s.conn, sender)
+		if errS != nil {
+			return dbus.MakeFailedError(errS)
 		}
 		xdg_data_dirs := []string{}
 		xdg_data_dirs = append(xdg_data_dirs, fmt.Sprintf(filepath.Join(dirs.SnapMountDir, snap, "current/usr/share")))
