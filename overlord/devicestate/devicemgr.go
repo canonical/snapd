@@ -821,6 +821,15 @@ func (m *DeviceManager) earlyCleanup() {
 }
 
 func (m *DeviceManager) earlyLoadDeviceSeed() (snapstate.DeviceContext, seed.Seed, error) {
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, nil, err
+	}
+	if seeded {
+		return nil, nil, fmt.Errorf("internal error: loading device seed after being seeded already")
+	}
+
 	// consider whether we were called already
 	if m.seedTimings != nil {
 		if m.earlyDeviceCtx != nil {
