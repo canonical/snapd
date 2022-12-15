@@ -1372,11 +1372,20 @@ WantedBy={{.ServicesTarget}}
 		panic("unknown snap.DaemonScope")
 	}
 
-	// check the quota group slice
+	// get slice and journal options if a quota group is provided
+	// for the service
 	if opts.QuotaGroup != nil {
-		wrapperData.SliceUnit = opts.QuotaGroup.SliceFileName()
-		if opts.QuotaGroup.JournalLimit != nil {
-			wrapperData.LogNamespace = opts.QuotaGroup.JournalNamespaceName()
+		quotaGrp := opts.QuotaGroup
+		wrapperData.SliceUnit = quotaGrp.SliceFileName()
+
+		// service quota groups inherit their parents journal quotas,
+		// due to limitations in how we do the bind mount layouts for snaps.
+		if len(quotaGrp.Services) != 0 {
+			quotaGrp = quotaGrp.Parent()
+		}
+
+		if quotaGrp.JournalLimit != nil {
+			wrapperData.LogNamespace = quotaGrp.JournalNamespaceName()
 		}
 	}
 

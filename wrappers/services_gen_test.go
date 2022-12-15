@@ -29,8 +29,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeout"
@@ -1018,4 +1020,170 @@ OOMScoreAdjust=-899
 [Install]
 WantedBy=multi-user.target
 `, mountUnitPrefix, mountUnitPrefix))
+}
+
+func (s *servicesWrapperGenSuite) TestQuotaGroupSlice(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:         "app",
+		Command:      "bin/foo start",
+		Daemon:       "simple",
+		DaemonScope:  snap.SystemDaemon,
+		RestartDelay: timeout.Timeout(20 * time.Second),
+	}
+
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	opts := &wrappers.GenerateSnapServicesOptions{QuotaGroup: grp}
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, opts)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+Requires=%s-snap-44.mount
+Wants=network.target
+After=%s-snap-44.mount network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=on-failure
+RestartSec=20
+WorkingDirectory=/var/snap/snap/44
+TimeoutStopSec=30
+Type=simple
+Slice=snap.foo.slice
+
+[Install]
+WantedBy=multi-user.target
+`, mountUnitPrefix, mountUnitPrefix))
+}
+
+func (s *servicesWrapperGenSuite) TestQuotaGroupLogNamespace(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:         "app",
+		Command:      "bin/foo start",
+		Daemon:       "simple",
+		DaemonScope:  snap.SystemDaemon,
+		RestartDelay: timeout.Timeout(20 * time.Second),
+	}
+
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	c.Assert(err, IsNil)
+
+	opts := &wrappers.GenerateSnapServicesOptions{QuotaGroup: grp}
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, opts)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+Requires=%s-snap-44.mount
+Wants=network.target
+After=%s-snap-44.mount network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=on-failure
+RestartSec=20
+WorkingDirectory=/var/snap/snap/44
+TimeoutStopSec=30
+Type=simple
+Slice=snap.foo.slice
+LogNamespace=snap-foo
+
+[Install]
+WantedBy=multi-user.target
+`, mountUnitPrefix, mountUnitPrefix))
+}
+
+func (s *servicesWrapperGenSuite) TestQuotaGroupLogNamespaceInheritParent(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:         "app",
+		Command:      "bin/foo start",
+		Daemon:       "simple",
+		DaemonScope:  snap.SystemDaemon,
+		RestartDelay: timeout.Timeout(20 * time.Second),
+	}
+
+	testCases := []struct {
+		topResources  quota.Resources
+		subResources  quota.Resources
+		expectedSlice string
+		expectedLog   string
+		description   string
+	}{
+		{
+			topResources:  quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+			subResources:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
+			expectedSlice: "snap.foo-foosub.slice",
+			expectedLog:   "snap-foo",
+			description:   "Setting a namespace on parent, and none on service sub-group, must inherit parent",
+		},
+		{
+			topResources:  quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+			subResources:  quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+			expectedSlice: "snap.foo-foosub.slice",
+			expectedLog:   "snap-foo",
+			description:   "Setting a namespace on both groups, it should select parent",
+		},
+	}
+
+	for _, t := range testCases {
+		grp, err := quota.NewGroup("foo", t.topResources)
+		c.Assert(err, IsNil)
+		sub, err := grp.NewSubGroup("foosub", t.subResources)
+		c.Assert(err, IsNil)
+
+		// if this is not set, then it won't be considered
+		sub.Services = []string{"snap.app"}
+
+		opts := &wrappers.GenerateSnapServicesOptions{QuotaGroup: sub}
+		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, opts)
+		c.Assert(err, IsNil)
+		c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+Requires=%s-snap-44.mount
+Wants=network.target
+After=%s-snap-44.mount network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=on-failure
+RestartSec=20
+WorkingDirectory=/var/snap/snap/44
+TimeoutStopSec=30
+Type=simple
+Slice=%s
+LogNamespace=%s
+
+[Install]
+WantedBy=multi-user.target
+`, mountUnitPrefix, mountUnitPrefix, t.expectedSlice, t.expectedLog))
+	}
 }

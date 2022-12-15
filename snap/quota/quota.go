@@ -160,6 +160,10 @@ func NewGroup(name string, resourceLimits Resources) (*Group, error) {
 	return grp, nil
 }
 
+func (grp *Group) Parent() *Group {
+	return grp.parentGroup
+}
+
 func (grp *Group) GetQuotaResources() Resources {
 	resourcesBuilder := NewResourcesBuilder()
 	if grp.MemoryLimit != 0 {
