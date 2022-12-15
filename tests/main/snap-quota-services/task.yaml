@@ -54,8 +54,6 @@ execute: |
   echo "Test that we can however put a journal quota on the parent group"
   snap set-quota test-top --journal-size=128MB
 
-  ls /nono
-
   # Next up is checking for slices and unit contents
   # For test-snapd-stressd.logger (which is another service in test-snapd-stressd)
   # we will expect the unit to mention the top group slice, but for test-snapd-stressd.stress-sc
