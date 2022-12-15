@@ -33,6 +33,7 @@ var (
 	QuotaStateAlreadyUpdated             = quotaStateAlreadyUpdated
 	ServiceControlTs                     = serviceControlTs
 	ValidateSnapServicesForAddingToGroup = validateSnapServicesForAddingToGroup
+	AffectedSnapServices                 = affectedSnapServices
 )
 
 type QuotaStateUpdated = quotaStateUpdated
@@ -51,6 +52,13 @@ func (m *ServiceManager) DoQuotaAddSnap(t *state.Task, to *tomb.Tomb) error {
 
 func (m *ServiceManager) UndoQuotaAddSnap(t *state.Task, to *tomb.Tomb) error {
 	return m.undoQuotaAddSnap(t, to)
+}
+
+func EnsureSnapServicesForGroupOptions(allGrps map[string]*quota.Group, extraSnaps []string) *ensureSnapServicesForGroupOptions {
+	return &ensureSnapServicesForGroupOptions{
+		allGrps:    allGrps,
+		extraSnaps: extraSnaps,
+	}
 }
 
 func MockOsutilBootID(mockID string) (restore func()) {

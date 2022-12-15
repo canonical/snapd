@@ -22,6 +22,7 @@ package servicestate_test
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -105,20 +106,33 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 		if len(expGrp.Snaps) != 0 {
 			c.Assert(grp.Snaps, DeepEquals, expGrp.Snaps)
 
-			// also check on the service file states
-			for _, sn := range expGrp.Snaps {
-				// meh assume all services are named svc1
-				slicePath := name
-				if grp.ParentGroup != "" {
-					slicePath = grp.ParentGroup + "/" + name
+			// also check on the service file states, but take into account
+			// that the services might be in separate sub-groups here. If it has
+			// sub-groups, assume those contain the services
+			if len(expGrp.SubGroups) == 0 {
+				for _, sn := range expGrp.Snaps {
+					// meh assume all services are named svc1
+					slicePath := name
+					if grp.ParentGroup != "" {
+						slicePath = grp.ParentGroup + "/" + name
+					}
+					checkSvcAndSliceState(c, sn+".svc1", slicePath, groupResources)
 				}
-				checkSvcAndSliceState(c, sn+".svc1", slicePath, groupResources)
 			}
 		}
 
 		c.Assert(grp.Services, HasLen, len(expGrp.Services))
 		if len(expGrp.Services) != 0 {
 			c.Assert(grp.Services, DeepEquals, expGrp.Services)
+			for _, svc := range expGrp.Services {
+				slicePath := name
+				parentName := expGrp.ParentGroup
+				for parentName != "" {
+					slicePath = parentName + "/" + slicePath
+					parentName = exp[parentName].ParentGroup
+				}
+				checkSvcAndSliceState(c, svc, slicePath, groupResources)
+			}
 		}
 		c.Assert(grp.SubGroups, HasLen, len(expGrp.SubGroups))
 		if len(expGrp.SubGroups) != 0 {
@@ -211,6 +225,34 @@ func systemctlCallsForServiceRestart(name string) []expectedSystemctl {
 		},
 		{expArgs: []string{"start", svc}},
 	}
+}
+
+func systemctlCallsForMultipleServiceRestart(name string, svcs []string) []expectedSystemctl {
+	var svcNames []string
+	var statusOutputs []string
+	for _, svc := range svcs {
+		svcName := "snap." + name + "." + svc + ".service"
+		svcNames = append(svcNames, svcName)
+		statusOutputs = append(statusOutputs, fmt.Sprintf("Id=%s\nNames=%[1]s\nActiveState=active\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n", svcName))
+	}
+
+	var expCalls []expectedSystemctl
+	expCalls = append(expCalls, expectedSystemctl{
+		expArgs: append([]string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload"}, svcNames...),
+		output:  strings.Join(statusOutputs, "\n"),
+	})
+	for _, svc := range svcNames {
+		expCalls = append(expCalls, []expectedSystemctl{
+			{expArgs: []string{"stop", svc}},
+			{
+				expArgs: []string{"show", "--property=ActiveState", svc},
+				output:  "ActiveState=inactive",
+			},
+			{expArgs: []string{"start", svc}},
+		}...,
+		)
+	}
+	return expCalls
 }
 
 func systemctlCallsForCreateQuota(groupName string, snapNames ...string) []expectedSystemctl {
@@ -559,9 +601,11 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 
 		// CreateQuota for foo2
 		systemctlCallsForCreateQuota("foo/foo2"),
+		systemctlCallsForServiceRestart("test-snap"),
 
 		// EnsureSnapAbsentFromQuota with just test-snap restarted since it is
 		// no longer in the group
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForServiceRestart("test-snap"),
 
 		// EnsureSnapAbsentFromQuota with just test-snap2 restarted since it is no

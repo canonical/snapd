@@ -1523,20 +1523,47 @@ func (ts *quotaTestSuite) TestJournalQuotasUpdatesCorrectly(c *C) {
 	c.Check(grp1.JournalLimit.RatePeriod, Equals, time.Microsecond*5)
 }
 
-func (ts *quotaTestSuite) TestGroupForService(c *C) {
+func (ts *quotaTestSuite) TestServiceMapEmptyOnEmptyGroup(c *C) {
+	rootGrp, err := quota.NewGroup("myroot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	// Check the root group now. No services exists yet, so this should yield an empty map
+	serviceMap := rootGrp.ServiceMap()
+	c.Check(serviceMap, DeepEquals, map[string]*quota.Group{})
+}
+
+func (ts *quotaTestSuite) TestServiceMapEmptyOnGroupWithNoServices(c *C) {
+	rootGrp, err := quota.NewGroup("myroot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	_, err = rootGrp.NewSubGroup("mysub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB/2).Build())
+	c.Assert(err, IsNil)
+
+	// Add a snap, this should yield no difference as services that are not
+	// in service sub-groups are not included, and the fact that ServiceMap does
+	// not look into snap.Info, but relies completely on local information in the group.
+	rootGrp.Snaps = append(rootGrp.Snaps, "my-snap")
+
+	// Let's also add a service, while not permitted, we can do this as we manually do
+	// modifications. This service should not be included.
+	rootGrp.Services = append(rootGrp.Services, "my-snap.uh-oh")
+
+	// Check the root group now. No services exists yet, so this should yield an empty map
+	serviceMap := rootGrp.ServiceMap()
+	c.Check(serviceMap, DeepEquals, map[string]*quota.Group{})
+}
+
+func (ts *quotaTestSuite) TestServiceMapHappy(c *C) {
 	rootGrp, err := quota.NewGroup("myroot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
 	c.Assert(err, IsNil)
 
 	svcGrp, err := rootGrp.NewSubGroup("mysub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB/2).Build())
 	c.Assert(err, IsNil)
 
-	// Checking the sub-groups for a service that doesn't exist should
-	// return nil
-	grp := rootGrp.GroupForService("unknown")
-	c.Check(grp, IsNil)
-
-	// Add a service a try again
+	// add a service to the service sub-group, this should now be included
 	svcGrp.Services = []string{"my-snap.service"}
-	grp = rootGrp.GroupForService("my-snap.service")
-	c.Check(grp, Equals, svcGrp)
+	serviceMap := rootGrp.ServiceMap()
+	c.Check(serviceMap, DeepEquals, map[string]*quota.Group{
+		"my-snap.service": svcGrp,
+	})
 }
