@@ -328,6 +328,52 @@ func (ts *quotaTestSuite) TestJournalNamespaceName(c *C) {
 	c.Check(grp.JournalNamespaceName(), Equals, "snap-foo")
 }
 
+func (ts *quotaTestSuite) TestJournalQuotaSet(c *C) {
+	// If no services are in the sub-group, then it's not a service group.
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	c.Assert(err, IsNil)
+	sub, err := grp.NewSubGroup("bar", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalQuotaSet(), Equals, true)
+	c.Check(sub.JournalQuotaSet(), Equals, false)
+}
+
+func (ts *quotaTestSuite) TestJournalQuotaSetReflectsParent(c *C) {
+	// If services are in the sub-group, then it's a service group.
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	c.Assert(err, IsNil)
+	sub, err := grp.NewSubGroup("bar", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	sub.Services = []string{"snap.svc"}
+	c.Check(grp.JournalQuotaSet(), Equals, true)
+
+	// now that sub is a service group, we should see that this reflects
+	// the parent group
+	c.Check(sub.JournalQuotaSet(), Equals, true)
+}
+
+func (ts *quotaTestSuite) TestJournalNamespaceNameSubgroupNotInherit(c *C) {
+	// If no services are in the sub-group, then it's not a service group.
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	sub, err := grp.NewSubGroup("bar", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Check(grp.JournalNamespaceName(), Equals, "snap-foo")
+	c.Check(sub.JournalNamespaceName(), Equals, "snap-bar")
+}
+
+func (ts *quotaTestSuite) TestJournalNamespaceNameSubgroupInherit(c *C) {
+	// If services are in the sub-group, then it's a service group.
+	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	sub, err := grp.NewSubGroup("bar", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	sub.Services = []string{"snap.svc"}
+	c.Check(grp.JournalNamespaceName(), Equals, "snap-foo")
+	// now the journal namespace is set to the parent
+	c.Check(sub.JournalNamespaceName(), Equals, "snap-foo")
+}
+
 func (ts *quotaTestSuite) TestJournalConfFileName(c *C) {
 	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)

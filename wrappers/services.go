@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -802,6 +803,11 @@ func (es *ensureSnapServicesContext) ensureSnapJournaldUnits(quotaGroups *quota.
 	}
 
 	for _, grp := range quotaGroups.AllQuotaGroups() {
+		if len(grp.Services) > 0 {
+			// ignore service sub-groups
+			continue
+		}
+
 		contents := generateJournaldConfFile(grp)
 		fileName := grp.JournalConfFileName()
 
@@ -838,6 +844,7 @@ func (es *ensureSnapServicesContext) ensureJournalQuotaServiceUnits(quotaGroups 
 		if grp.JournalLimit == nil {
 			continue
 		}
+		log.Printf("ensureJournalQuotaServiceUnits %s", grp.Name)
 
 		if err := os.MkdirAll(grp.JournalServiceDropInDir(), 0755); err != nil {
 			return err
@@ -1372,20 +1379,11 @@ WantedBy={{.ServicesTarget}}
 		panic("unknown snap.DaemonScope")
 	}
 
-	// get slice and journal options if a quota group is provided
-	// for the service
+	// check the quota group slice
 	if opts.QuotaGroup != nil {
-		quotaGrp := opts.QuotaGroup
-		wrapperData.SliceUnit = quotaGrp.SliceFileName()
-
-		// service quota groups inherit their parents journal quotas,
-		// due to limitations in how we do the bind mount layouts for snaps.
-		if len(quotaGrp.Services) != 0 {
-			quotaGrp = quotaGrp.Parent()
-		}
-
-		if quotaGrp.JournalLimit != nil {
-			wrapperData.LogNamespace = quotaGrp.JournalNamespaceName()
+		wrapperData.SliceUnit = opts.QuotaGroup.SliceFileName()
+		if opts.QuotaGroup.JournalQuotaSet() {
+			wrapperData.LogNamespace = opts.QuotaGroup.JournalNamespaceName()
 		}
 	}
 
