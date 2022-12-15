@@ -794,7 +794,6 @@ pkg_dependencies_opensuse(){
     if os.query is-opensuse tumbleweed; then
         echo "
             libfwupd2
-            libfwupdplugin5
         "
     fi
 }
