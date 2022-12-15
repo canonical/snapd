@@ -1148,6 +1148,13 @@ func (s *servicesWrapperGenSuite) TestQuotaGroupLogNamespaceInheritParent(c *C) 
 			expectedLog:   "snap-foo",
 			description:   "Setting a namespace on both groups, it should select parent",
 		},
+		{
+			topResources:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+			subResources:  quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+			expectedSlice: "snap.foo-foosub.slice",
+			expectedLog:   "",
+			description:   "Setting a namespace on only sub-group, no namespace should be selected",
+		},
 	}
 
 	for _, t := range testCases {
@@ -1162,28 +1169,13 @@ func (s *servicesWrapperGenSuite) TestQuotaGroupLogNamespaceInheritParent(c *C) 
 		opts := &wrappers.GenerateSnapServicesOptions{QuotaGroup: sub}
 		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, opts)
 		c.Assert(err, IsNil)
-		c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
-# Auto-generated, DO NOT EDIT
-Description=Service for snap application snap.app
-Requires=%s-snap-44.mount
-Wants=network.target
-After=%s-snap-44.mount network.target snapd.apparmor.service
-X-Snappy=yes
-
-[Service]
-EnvironmentFile=-/etc/environment
-ExecStart=/usr/bin/snap run snap.app
-SyslogIdentifier=snap.app
-Restart=on-failure
-RestartSec=20
-WorkingDirectory=/var/snap/snap/44
-TimeoutStopSec=30
-Type=simple
-Slice=%s
-LogNamespace=%s
-
-[Install]
-WantedBy=multi-user.target
-`, mountUnitPrefix, mountUnitPrefix, t.expectedSlice, t.expectedLog))
+		c.Check(string(generatedWrapper), testutil.Contains, fmt.Sprintf("Slice=%s", t.expectedSlice), Commentf("test failed: %s", t.description))
+		if t.expectedLog != "" {
+			c.Check(string(generatedWrapper), testutil.Contains, fmt.Sprintf("LogNamespace=%s", t.expectedLog), Commentf("test failed: %s", t.description))
+		} else {
+			// no negative check? :(
+			found := strings.Contains(string(generatedWrapper), fmt.Sprintf("LogNamespace=%s", t.expectedLog))
+			c.Check(found, Equals, false, Commentf("test failed: %s", t.description))
+		}
 	}
 }
