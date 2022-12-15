@@ -897,9 +897,11 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSnapServices(c *C) {
 	svc1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 	svc2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service")
 
-	// set up arbitrary quotas for the group to test they get written correctly to the slice
+	// setup quotas for the parent, including a journal quota to verify service sub-groups
+	// correctly inherit the journal namespace, even without having one directly specified.
 	grp, err := quota.NewGroup("my-root", quota.NewResourcesBuilder().
 		WithMemoryLimit(quantity.SizeGiB).
+		WithJournalNamespace().
 		WithCPUPercentage(50).
 		WithCPUCount(1).
 		Build())
@@ -907,8 +909,9 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSnapServices(c *C) {
 
 	grp.Snaps = []string{"hello-snap"}
 
+	// setup basic quota for the service sub-group
 	sub, err := grp.NewSubGroup("my-sub", quota.NewResourcesBuilder().
-		WithJournalNamespace().
+		WithMemoryLimit(quantity.SizeGiB/2).
 		Build())
 	c.Assert(err, IsNil)
 
@@ -936,6 +939,7 @@ WorkingDirectory=%[2]s/var/snap/hello-snap/12
 TimeoutStopSec=30
 Type=simple
 Slice=snap.%[3]s.slice
+LogNamespace=snap-my-root
 
 [Install]
 WantedBy=multi-user.target
@@ -961,7 +965,7 @@ WorkingDirectory=%[2]s/var/snap/hello-snap/12
 TimeoutStopSec=30
 Type=simple
 Slice=snap.%[3]s.slice
-LogNamespace=snap-my-sub
+LogNamespace=snap-my-root
 
 [Install]
 WantedBy=multi-user.target
@@ -1006,6 +1010,10 @@ CPUAccounting=true
 
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
+MemoryMax=536870912
+# for compatibility with older versions of systemd
+MemoryLimit=536870912
+
 # Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
 TasksAccounting=true
@@ -1018,22 +1026,22 @@ Storage=auto
 
 	rootSliceContent := fmt.Sprintf(rootSliceTempl, grp.Name)
 	subSliceContent := fmt.Sprintf(subSliceTempl, sub.Name)
-	jconfContent := fmt.Sprintf(jconfTempl, sub.Name)
+	jconfContent := fmt.Sprintf(jconfTempl, grp.Name)
 
 	exp := []changesObservation{
 		{
-			grp:      sub,
+			grp:      grp,
 			unitType: "journald",
 			new:      jconfContent,
 			old:      "",
-			name:     "my-sub",
+			name:     "my-root",
 		},
 		{
-			grp:      sub,
+			grp:      grp,
 			unitType: "service",
 			new:      jSvcContent,
 			old:      "",
-			name:     "my-sub",
+			name:     "my-root",
 		},
 		{
 			snapName: "hello-snap",
@@ -1088,6 +1096,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithIncludeServices(c *C) {
 	// set up arbitrary quotas for the group to test they get written correctly to the slice
 	grp, err := quota.NewGroup("my-root", quota.NewResourcesBuilder().
 		WithMemoryLimit(quantity.SizeGiB).
+		WithJournalNamespace().
 		WithCPUPercentage(50).
 		WithCPUCount(1).
 		Build())
@@ -1096,7 +1105,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithIncludeServices(c *C) {
 	grp.Snaps = []string{"hello-snap"}
 
 	sub, err := grp.NewSubGroup("my-sub", quota.NewResourcesBuilder().
-		WithJournalNamespace().
+		WithMemoryLimit(quantity.SizeGiB/2).
 		Build())
 	c.Assert(err, IsNil)
 
@@ -1124,7 +1133,7 @@ WorkingDirectory=%[2]s/var/snap/hello-snap/12
 TimeoutStopSec=30
 Type=simple
 Slice=snap.%[3]s.slice
-LogNamespace=snap-my-sub
+LogNamespace=snap-my-root
 
 [Install]
 WantedBy=multi-user.target
@@ -1169,6 +1178,10 @@ CPUAccounting=true
 
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
+MemoryMax=536870912
+# for compatibility with older versions of systemd
+MemoryLimit=536870912
+
 # Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
 TasksAccounting=true
@@ -1181,22 +1194,22 @@ Storage=auto
 
 	rootSliceContent := fmt.Sprintf(rootSliceTempl, grp.Name)
 	subSliceContent := fmt.Sprintf(subSliceTempl, sub.Name)
-	jconfContent := fmt.Sprintf(jconfTempl, sub.Name)
+	jconfContent := fmt.Sprintf(jconfTempl, grp.Name)
 
 	exp := []changesObservation{
 		{
-			grp:      sub,
+			grp:      grp,
 			unitType: "journald",
 			new:      jconfContent,
 			old:      "",
-			name:     "my-sub",
+			name:     "my-root",
 		},
 		{
-			grp:      sub,
+			grp:      grp,
 			unitType: "service",
 			new:      jSvcContent,
 			old:      "",
-			name:     "my-sub",
+			name:     "my-root",
 		},
 		{
 			snapName: "hello-snap",
