@@ -24,7 +24,6 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -844,7 +843,6 @@ func (es *ensureSnapServicesContext) ensureJournalQuotaServiceUnits(quotaGroups 
 		if grp.JournalLimit == nil {
 			continue
 		}
-		log.Printf("ensureJournalQuotaServiceUnits %s", grp.Name)
 
 		if err := os.MkdirAll(grp.JournalServiceDropInDir(), 0755); err != nil {
 			return err
