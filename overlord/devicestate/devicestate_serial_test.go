@@ -20,6 +20,7 @@
 package devicestate_test
 
 import (
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -846,30 +847,55 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialNoReachableDNS(c *C) {
 }
 
 func (s *deviceMgrSerialSuite) testDoRequestSerialKeepsRetrying(c *C, rt http.RoundTripper) {
+	chg, t := s.makeRequestChangeWithTransport(c, rt)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// ensure we keep trying even if we are well above maxTentative
+	for i := 0; i < 10; i++ {
+		s.state.Unlock()
+		s.se.Ensure()
+		s.se.Wait()
+		s.state.Lock()
+
+		c.Check(chg.Status(), Equals, state.DoingStatus)
+		c.Assert(chg.Err(), IsNil)
+	}
+
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+
+	var nTentatives int
+	err := t.Get("pre-poll-tentatives", &nTentatives)
+	c.Assert(err, IsNil)
+	c.Check(nTentatives, Equals, 0)
+}
+
+func (s *deviceMgrSerialSuite) makeRequestChangeWithTransport(c *C, rt http.RoundTripper) (*state.Change, *state.Task) {
 	privKey, _ := assertstest.GenerateKey(testKeyLength)
 
 	// immediate
 	r := devicestate.MockRetryInterval(0)
-	defer r()
+	s.AddCleanup(r)
 
 	// set a low maxRetry value
 	r = devicestate.MockMaxTentatives(3)
-	defer r()
+	s.AddCleanup(r)
 
 	mockServer := s.mockServer(c, "REQID-1", nil)
-	defer mockServer.Close()
+	s.AddCleanup(mockServer.Close)
 
 	restore := devicestate.MockBaseStoreURL(mockServer.URL)
-	defer restore()
+	s.AddCleanup(restore)
 
 	restore = devicestate.MockRepeatRequestSerial("after-add-serial")
-	defer restore()
+	s.AddCleanup(restore)
 
 	restore = devicestate.MockHttputilNewHTTPClient(func(opts *httputil.ClientOptions) *http.Client {
 		c.Check(opts.ProxyConnectHeader, NotNil)
 		return &http.Client{Transport: rt}
 	})
-	defer restore()
+	s.AddCleanup(restore)
 
 	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
 	s.state.Lock()
@@ -897,23 +923,44 @@ func (s *deviceMgrSerialSuite) testDoRequestSerialKeepsRetrying(c *C, rt http.Ro
 	// avoid full seeding
 	s.seeding()
 
-	// ensure we keep trying even if we are well above maxTentative
-	for i := 0; i < 10; i++ {
+	return chg, t
+}
+
+type simulateCertExpiredErrorRoundTripper struct{}
+
+func (s *simulateCertExpiredErrorRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	return nil, x509.CertificateInvalidError{
+		Reason: x509.Expired,
+	}
+}
+
+func (s *deviceMgrSerialSuite) TestDoRequestSerialCertExpired(c *C) {
+	chg, t := s.makeRequestChangeWithTransport(c, &simulateCertExpiredErrorRoundTripper{})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// keep trying well beyond the 21 retry attempts we do
+	for i := 0; i < 100; i++ {
 		s.state.Unlock()
 		s.se.Ensure()
 		s.se.Wait()
 		s.state.Lock()
 
-		c.Check(chg.Status(), Equals, state.DoingStatus)
-		c.Check(chg.Err(), IsNil)
+		if chg.Status() == state.ErrorStatus {
+			break
+		}
 	}
 
-	c.Check(chg.Status(), Equals, state.DoingStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(chg.Err(), ErrorMatches, `(?ms).*cannot retrieve request-id for making a request for a serial: Post \"?http://.*/request-id\"?: x509: certificate has expired or is not yet valid.*`)
 
 	var nTentatives int
 	err := t.Get("pre-poll-tentatives", &nTentatives)
 	c.Assert(err, IsNil)
-	c.Check(nTentatives, Equals, 0)
+	// this is one above maxTentativesCertExpired (35)
+	c.Check(nTentatives, Equals, 21)
+
 }
 
 func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationPollHappy(c *C) {

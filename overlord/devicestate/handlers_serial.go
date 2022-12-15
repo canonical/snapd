@@ -335,11 +335,6 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 
 	resp, err := client.Do(req)
 	if err != nil {
-		if !httputil.ShouldRetryError(err) {
-			// a non temporary net error fully errors out and triggers a retry
-			// retries
-			return "", fmt.Errorf("cannot retrieve request-id for making a request for a serial: %v", err)
-		}
 		if httputil.NoNetwork(err) {
 			// If there is no network there is no need to count
 			// this as a tentatives attempt. If we do it this
@@ -357,6 +352,30 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 			// device
 			noNetworkRetryInterval := retryInterval / 2
 			return "", &state.Retry{After: noNetworkRetryInterval}
+		}
+		if httputil.IsCertExpiredOrNotValidYetError(err) {
+			// If the cert is expired/not-valid yet that
+			// most likely means that the devices has no
+			// ntp-synced time yet. We will retry for up
+			// to 2048s (timesyncd.conf(5) says the
+			// maximum poll time is 2048s which is
+			// 34min8s). With retry of 60s the below adds
+			// up to 37.5m.
+			switch {
+			case nTentatives <= 5:
+				return "", &state.Retry{After: retryInterval / 2}
+			case nTentatives <= 10:
+				return "", &state.Retry{After: retryInterval}
+			case nTentatives <= 15:
+				return "", &state.Retry{After: retryInterval * 2}
+			case nTentatives <= 20:
+				return "", &state.Retry{After: retryInterval * 4}
+			}
+		}
+		if !httputil.ShouldRetryError(err) {
+			// a non temporary net error fully errors out and triggers a retry
+			// retries
+			return "", fmt.Errorf("cannot retrieve request-id for making a request for a serial: %v", err)
 		}
 
 		return "", retryErr(t, nTentatives, "cannot retrieve request-id for making a request for a serial: %v", err)
