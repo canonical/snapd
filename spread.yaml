@@ -140,6 +140,9 @@ backends:
             - ubuntu-22.10-64:
                   storage: 12G
                   workers: 8
+            - ubuntu-23.04-64:
+                  storage: 12G
+                  workers: 6
 
             - debian-10-64:
                   workers: 6
@@ -233,7 +236,7 @@ backends:
                   workers: 8
             - ubuntu-22.04-64:
                   image: ubuntu-2204-64-virt-enabled
-                  storage: 20G
+                  storage: 25G
                   workers: 8
 
 

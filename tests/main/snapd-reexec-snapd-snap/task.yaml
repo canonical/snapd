@@ -27,8 +27,9 @@ execute: |
 
     echo "Enable installing the snapd snap, this happens automatically"
     snap set core experimental.snapd-snap=true
-    # give the state time to create the change and then start watching
-    # it
+    echo "Ensure transition"
+    snap debug ensure-state-soon
+    # give the state time to create the change and then start watching it
     retry -n 30 snap watch --last=transition-to-snapd-snap
     snap list snapd
 

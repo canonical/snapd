@@ -20,6 +20,7 @@
 package httputil
 
 import (
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -290,4 +291,19 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 	maybeLogRetrySummary(startTime, endpoint, attempt, resp, err)
 
 	return resp, err
+}
+
+func IsCertExpiredOrNotValidYetError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if urlErr, ok := err.(*url.Error); ok {
+		err = urlErr.Err
+	}
+	if certErr, ok := err.(x509.CertificateInvalidError); ok {
+		// Expired is misleading, also means not valid yet
+		return certErr.Reason == x509.Expired
+	}
+
+	return false
 }

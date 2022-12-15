@@ -53,6 +53,7 @@ type postQuotaGroupData struct {
 	GroupName   string             `json:"group-name"`
 	Parent      string             `json:"parent,omitempty"`
 	Snaps       []string           `json:"snaps,omitempty"`
+	Services    []string           `json:"services,omitempty"`
 	Constraints client.QuotaValues `json:"constraints,omitempty"`
 }
 
@@ -255,6 +256,7 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 			ts, err = servicestateCreateQuota(st, data.GroupName, servicestate.CreateQuotaOptions{
 				ParentName:     data.Parent,
 				Snaps:          data.Snaps,
+				Services:       data.Services,
 				ResourceLimits: resourceLimits,
 			})
 			if err != nil {
@@ -265,6 +267,7 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 			// the quota group already exists, update it
 			updateOpts := servicestate.UpdateQuotaOptions{
 				AddSnaps:          data.Snaps,
+				AddServices:       data.Services,
 				NewResourceLimits: resourceLimits,
 			}
 			ts, err = servicestateUpdateQuota(st, data.GroupName, updateOpts)

@@ -210,6 +210,8 @@ func (d mockDev) Kernel() string {
 var (
 	coreDev    = mockDev{classic: false}
 	classicDev = mockDev{classic: true}
+
+	core20Dev = mockDev{classic: false, uc20: true}
 )
 
 // applyCfgSuite tests configcore.Apply()

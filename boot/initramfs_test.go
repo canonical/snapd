@@ -140,18 +140,20 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 	gadgetT := snap.TypeGadget
 
 	tt := []struct {
-		m              *boot.Modeenv
-		expectedM      *boot.Modeenv
-		typs           []snap.Type
-		kernel         snap.PlaceInfo
-		trykernel      snap.PlaceInfo
-		blvars         map[string]string
-		snapsToMake    []snap.PlaceInfo
-		expected       map[snap.Type]snap.PlaceInfo
-		errPattern     string
-		expRebootPanic string
-		rootfsDir      string
-		comment        string
+		m                      *boot.Modeenv
+		expectedM              *boot.Modeenv
+		typs                   []snap.Type
+		kernel                 snap.PlaceInfo
+		trykernel              snap.PlaceInfo
+		blvars                 map[string]string
+		snapsToMake            []snap.PlaceInfo
+		expected               map[snap.Type]snap.PlaceInfo
+		errPattern             string
+		expRebootPanic         string
+		rootfsDir              string
+		comment                string
+		runBootEnvMethodToFail string
+		runBootEnvError        error
 	}{
 		//
 		// default paths
@@ -212,6 +214,19 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			expected:    map[snap.Type]snap.PlaceInfo{kernelT: kernel1},
 			rootfsDir:   boot.InitramfsDataDir,
 			comment:     "default kernel path for classic with modes",
+		},
+		// dangling link for try kernel should be ignored if not trying status
+		{
+			m:                      &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), "pc-kernel_badrev.snap"}},
+			kernel:                 kernel1,
+			typs:                   []snap.Type{kernelT},
+			blvars:                 map[string]string{"kernel_status": boot.DefaultStatus},
+			snapsToMake:            []snap.PlaceInfo{kernel1},
+			expected:               map[snap.Type]snap.PlaceInfo{kernelT: kernel1},
+			rootfsDir:              filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
+			comment:                "bad try kernel but we don't reboot",
+			runBootEnvMethodToFail: "TryKernel",
+			runBootEnvError:        fmt.Errorf("cannot read dangling symlink"),
 		},
 
 		//
@@ -288,6 +303,20 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			expRebootPanic: "reboot due to kernel_status wrong",
 			rootfsDir:      filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:        "fallback kernel upgrade path, due to kernel_status wrong",
+		},
+		// bad try status and no try kernel found
+		{
+			m:                      &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), "pc-kernel_badrev.snap"}},
+			kernel:                 kernel1,
+			typs:                   []snap.Type{kernelT},
+			blvars:                 map[string]string{"kernel_status": boot.TryStatus},
+			snapsToMake:            []snap.PlaceInfo{kernel1},
+			expected:               map[snap.Type]snap.PlaceInfo{kernelT: kernel1},
+			rootfsDir:              filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
+			comment:                "bad try status, we reboot",
+			runBootEnvMethodToFail: "TryKernel",
+			runBootEnvError:        fmt.Errorf("cannot read dangling symlink"),
+			expRebootPanic:         "reboot due to bad try status",
 		},
 
 		//
@@ -408,7 +437,7 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			m:           &boot.Modeenv{Mode: "run"},
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1},
-			errPattern:  "fallback base snap unusable: cannot get snap revision: modeenv base boot variable is empty",
+			errPattern:  "no currently usable base snaps: cannot get snap revision: modeenv base boot variable is empty",
 			rootfsDir:   filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"),
 			comment:     "base snap unset in modeenv",
 		},
@@ -616,6 +645,12 @@ func (s *initramfsSuite) TestInitramfsRunModeSelectSnapsToMount(c *C) {
 			var cleanups []func()
 
 			comment := Commentf("[%s] %s", tbl.name, t.comment)
+			if t.runBootEnvMethodToFail != "" {
+				if rbe, ok := tbl.bl.(*boottest.RunBootenv20); ok {
+					cleanups = append(cleanups, rbe.MockExtractedRunKernelImageMixin.SetRunKernelImageFunctionError(
+						t.runBootEnvMethodToFail, t.runBootEnvError))
+				}
+			}
 
 			// we use a panic to simulate a reboot
 			if t.expRebootPanic != "" {

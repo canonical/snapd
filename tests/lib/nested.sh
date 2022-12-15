@@ -352,7 +352,9 @@ nested_secboot_sign_file() {
     local FILE="$1"
     local KEY="$2"
     local CERT="$3"
-    sbattach --remove "$FILE"
+    while sbverify --list "$FILE" | grep "^signature [0-9]*$"; do
+        sbattach --remove "$FILE"
+    done
     sbsign --key "$KEY" --cert "$CERT" --output "$FILE" "$FILE"
 }
 
@@ -1000,7 +1002,7 @@ nested_start_core_vm_unit() {
 
     local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CD PARAM_RANDOM PARAM_CPU PARAM_TRACE PARAM_LOG PARAM_SERIAL PARAM_RTC
     PARAM_DISPLAY="-nographic"
-    PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
+    PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22,hostfwd=tcp::8023-:8023,hostfwd=tcp::9022-:9022"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server=on,wait=off"
     PARAM_USB="-usb"
     PARAM_CD="${NESTED_PARAM_CD:-}"

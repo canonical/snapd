@@ -901,7 +901,7 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	ic = s.installSlotCand(c, "shared-memory", snap.TypeApp, ``)
 	err = ic.Check()
 	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "installation not allowed by \"shared-memory\" slot rule of interface \"shared-memory\"")
+	c.Assert(err, ErrorMatches, "installation denied by \"shared-memory\" slot rule of interface \"shared-memory\"")
 
 	// The core and snapd snaps may provide a shared-memory slot
 	ic = s.installSlotCand(c, "shared-memory", snap.TypeOS, `name: core

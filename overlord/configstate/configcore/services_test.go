@@ -337,3 +337,139 @@ func (s *servicesSuite) TestFilesystemOnlyApply(c *C) {
 		{"--root", tmpDir, "mask", "rsyslog.service"},
 	})
 }
+
+func (s *servicesSuite) TestConfigureNetworkSSHListenAddressFailsOnNonCore20(c *C) {
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"service.ssh.listen-address": ":8022",
+		},
+	})
+	c.Assert(err, ErrorMatches, "cannot set ssh listen address configuration on systems older than UC20")
+}
+
+func (s *servicesSuite) TestConfigureNetworkSSHListenAdressFailsWrongRange(c *C) {
+	for _, invalidPort := range []int{0, 65536, -1, 99999} {
+		err := configcore.Run(coreDev, &mockConf{
+			state: s.state,
+			changes: map[string]interface{}{
+				"service.ssh.listen-address": fmt.Sprintf(":%v", invalidPort),
+			},
+		})
+		c.Check(err, ErrorMatches, fmt.Sprintf("cannot validate ssh configuration: port %v must be in the range 1-65535", invalidPort))
+	}
+}
+
+func (s *servicesSuite) TestConfigureNetworkSSHListenAdressFailsWrongAddr(c *C) {
+	for _, tc := range []struct {
+		confStr string
+		errStr  string
+	}{
+		// strange chars
+		{"x!", `cannot validate ssh configuration: invalid hostname "x!"`},
+		// invalid ports
+		{"x:x", `cannot validate ssh configuration: port must be a number: strconv.Atoi: parsing "x": invalid syntax`},
+		{"x:123456", "cannot validate ssh configuration: port 123456 must be in the range 1-65535"},
+		// too long
+		{"1234567890123456789012345678901234567890123456789012345678901234567890", `cannot validate ssh configuration: invalid hostname "1234567890123456789012345678901234567890123456789012345678901234567890"`},
+		// mixing good/bad also rejected
+		{"valid-hostname,invalid!one", `cannot validate ssh configuration: invalid hostname "invalid!one"`},
+	} {
+		err := configcore.Run(core20Dev, &mockConf{
+			state: s.state,
+			changes: map[string]interface{}{
+				"service.ssh.listen-address": tc.confStr,
+			},
+		})
+		c.Check(err, ErrorMatches, tc.errStr, Commentf(tc.confStr))
+	}
+}
+
+func (s *servicesSuite) TestConfigureNetworkValid(c *C) {
+	sshListenCfg := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_config.d/listen.conf")
+
+	for _, tc := range []struct {
+		confStr string
+		sshConf string
+	}{
+		// valid hostnames/IPs
+		{"host", "ListenAddress host\n"},
+		{"10.0.2.2", "ListenAddress 10.0.2.2\n"},
+		{"::1", "ListenAddress ::1\n"},
+		{"[::1]:8022", "ListenAddress [::1]:8022\n"},
+		{"2001", "ListenAddress 2001\n"},
+		{"2001.net", "ListenAddress 2001.net\n"},
+		// port only
+		{":9022", "ListenAddress 0.0.0.0:9022\nListenAddress [::]:9022\n"},
+		// multiple ones
+		{"host1,host2", "ListenAddress host1\nListenAddress host2\n"},
+	} {
+		err := configcore.Run(core20Dev, &mockConf{
+			state: s.state,
+			changes: map[string]interface{}{
+				"service.ssh.listen-address": tc.confStr,
+			},
+		})
+		c.Assert(err, IsNil)
+		c.Check(sshListenCfg, testutil.FileEquals, tc.sshConf)
+	}
+}
+
+func (s *servicesSuite) TestSamePortNoChange(c *C) {
+	err := configcore.Run(core20Dev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"service.ssh.listen-address": ":8022",
+		},
+		changes: map[string]interface{}{
+			"service.ssh.listen-address": ":8022",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(s.systemctlArgs, HasLen, 0)
+}
+
+func (s *servicesSuite) TestConfigureNetworkIntegrationSSHListenAddress(c *C) {
+	err := configcore.Run(core20Dev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"service.ssh.listen-address": ":8022",
+		},
+	})
+	c.Assert(err, IsNil)
+
+	sshListenCfg := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_config.d/listen.conf")
+	c.Check(sshListenCfg, testutil.FileEquals, "ListenAddress 0.0.0.0:8022\nListenAddress [::]:8022\n")
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"reload-or-restart", "ssh.service"},
+	})
+
+	// disable port again
+	err = configcore.Run(core20Dev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"service.ssh.listen-address": ":8022",
+		},
+		changes: map[string]interface{}{
+			"service.ssh.listen-address": "",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(sshListenCfg, testutil.FileAbsent)
+}
+
+func (s *servicesSuite) TestConfigureNetworkIntegrationSSHListenAddressMulti(c *C) {
+	err := configcore.Run(core20Dev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"service.ssh.listen-address": ":8022,192.168.99.4:9922",
+		},
+	})
+	c.Assert(err, IsNil)
+
+	sshListenCfg := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_config.d/listen.conf")
+	c.Check(sshListenCfg, testutil.FileEquals, "ListenAddress 0.0.0.0:8022\nListenAddress [::]:8022\nListenAddress 192.168.99.4:9922\n")
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"reload-or-restart", "ssh.service"},
+	})
+}

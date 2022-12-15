@@ -64,14 +64,14 @@ func (tr *LoggedTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 
 	if flags.debugRequest() {
 		buf, _ := httputil.DumpRequestOut(req, tr.body && flags.debugBody())
-		logger.Debugf("> %q", buf)
+		logger.NoGuardDebugf("> %q", buf)
 	}
 
 	rsp, err := tr.Transport.RoundTrip(req)
 
 	if err == nil && flags.debugResponse() {
 		buf, _ := httputil.DumpResponse(rsp, tr.body && flags.debugBody())
-		logger.Debugf("< %q", buf)
+		logger.NoGuardDebugf("< %q", buf)
 	}
 
 	return rsp, err

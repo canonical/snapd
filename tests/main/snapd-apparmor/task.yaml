@@ -55,7 +55,7 @@ execute: |
     systemctl restart snapd.apparmor.service
 
     # check that logging from snapd-apparmor works
-    journalctl -u snapd.apparmor | MATCH "Loading profiles "
+    "$TESTSTOOLS"/journal-state match-log "Loading profiles " -u snapd.apparmor
 
     # get the set of profiles which now exist
     grep -v / /sys/kernel/security/apparmor/profiles | cut -f1 -d" " | sort > profiles_after_reload.txt

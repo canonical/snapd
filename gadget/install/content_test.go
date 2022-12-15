@@ -249,9 +249,9 @@ func (s *contentTestSuite) TestMakeFilesystem(c *C) {
 	defer restore()
 
 	err := install.MakeFilesystem(install.MkfsParams{
-		Type:       mockOnDiskStructureWritable.Filesystem,
+		Type:       mockOnDiskStructureWritable.PartitionFSType,
 		Device:     mockOnDiskStructureWritable.Node,
-		Label:      mockOnDiskStructureWritable.Label,
+		Label:      mockOnDiskStructureWritable.PartitionFSLabel,
 		Size:       mockOnDiskStructureWritable.Size,
 		SectorSize: quantity.Size(512),
 	})
@@ -270,9 +270,9 @@ func (s *contentTestSuite) TestMakeFilesystemRealMkfs(c *C) {
 	defer mockMkfsExt4.Restore()
 
 	err := install.MakeFilesystem(install.MkfsParams{
-		Type:       mockOnDiskStructureWritable.Filesystem,
+		Type:       mockOnDiskStructureWritable.PartitionFSType,
 		Device:     mockOnDiskStructureWritable.Node,
-		Label:      mockOnDiskStructureWritable.Label,
+		Label:      mockOnDiskStructureWritable.PartitionFSLabel,
 		Size:       mockOnDiskStructureWritable.Size,
 		SectorSize: quantity.Size(512),
 	})

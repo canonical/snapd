@@ -284,7 +284,7 @@ execute: |
     # shared-memory plug with "private: true" cannot be connected if "/dev/shm" is a symlink)
     if os.query is-trusty; then
         cp -r "$TESTSLIB/snaps/$CONSUMER_SNAP" .
-        sed -e '/shared-memory:/,+2d' -i $CONSUMER_SNAP/meta/snap.yaml
+        sed -e '/shared-memory:/,+2d' -i "$CONSUMER_SNAP"/meta/snap.yaml
     fi
 
     echo "Given a snap is installed"

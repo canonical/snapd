@@ -38,7 +38,7 @@ prepare: |
         sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core20/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
         snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-20.snap
         snap install --dangerous netplan-snap-20.snap
-    elif os.query is-ubuntu 22.04 || os.query is-ubuntu 22.10; then
+    elif os.query is-ubuntu 22.04 || os.query is-ubuntu 22.10 || os.query is-ubuntu 23.04; then
         # use base: core22
         sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core22/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
         snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-22.snap
@@ -50,8 +50,8 @@ prepare: |
 
     echo "Backup the dbus service file and policy config if they exist before executing"
     for f in system-services/$NETPLAN.service system.d/$NETPLAN.conf; do
-        if [ -f /usr/share/dbus-1/$f ]; then
-            mv /usr/share/dbus-1/$f /usr/share/dbus-1/$f.backup
+        if [ -f /usr/share/dbus-1/"$f" ]; then
+            mv /usr/share/dbus-1/"$f" /usr/share/dbus-1/"$f".backup
         fi      
     done
 
@@ -84,8 +84,8 @@ restore: |
 
     echo "Restore the dbus service file and policy config file if the backup exists"
     for f in system-services/$NETPLAN.service system.d/$NETPLAN.conf; do
-        if [ -f /usr/share/dbus-1/$f.backup ]; then
-            mv /usr/share/dbus-1/$f.backup /usr/share/dbus-1/$f
+        if [ -f /usr/share/dbus-1/"$f".backup ]; then
+            mv /usr/share/dbus-1/"$f".backup /usr/share/dbus-1/"$f"
         fi      
     done
 

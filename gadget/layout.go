@@ -46,13 +46,10 @@ type LayoutOptions struct {
 	KernelRootDir string
 }
 
-// LayoutConstraints defines the constraints for arranging structures within a
-// volume
-type LayoutConstraints struct {
-	// NonMBRStartOffset is the default start offset of non-MBR structure in
-	// the volume.
-	NonMBRStartOffset quantity.Offset
-}
+// NonMBRStartOffset is the minimum start offset of the first non-MBR structure
+// in the volume that does not specify explicitly an offset. It can be ignored
+// by setting explicitly offsets.
+const NonMBRStartOffset = 1 * quantity.OffsetMiB
 
 // LaidOutVolume defines the size of a volume and arrangement of all the
 // structures within it
@@ -79,7 +76,7 @@ type PartiallyLaidOutVolume struct {
 // LaidOutStructure describes a VolumeStructure that has been placed within the
 // volume
 type LaidOutStructure struct {
-	*VolumeStructure
+	VolumeStructure *VolumeStructure
 	// StartOffset defines the start offset of the structure within the
 	// enclosing volume
 	StartOffset quantity.Offset
@@ -99,11 +96,56 @@ type LaidOutStructure struct {
 // meh this function is weirdly placed, not sure what to do w/o making schemaMBR
 // constant exported
 func IsRoleMBR(ls LaidOutStructure) bool {
-	return ls.Role == schemaMBR
+	return ls.Role() == schemaMBR
+}
+
+// These accessors return currently what comes in the gadget, but will use
+// OnDiskVolume data when the latter is made part of LaidOutStructure.
+
+// Type returns the type of the structure, which can be 2-hex digit MBR
+// partition, 36-char GUID partition, comma separated <mbr>,<guid> for hybrid
+// partitioning schemes, or 'bare' when the structure is not considered a
+// partition.
+//
+// For backwards compatibility type 'mbr' can also be returned, and
+// that is equivalent to role 'mbr'.
+func (l LaidOutStructure) Type() string {
+	return l.VolumeStructure.Type
+}
+
+// Name returns the partition label.
+func (l LaidOutStructure) Name() string {
+	return l.VolumeStructure.Name
+}
+
+// Label returns the filesystem label.
+func (l LaidOutStructure) Label() string {
+	return l.VolumeStructure.Label
+}
+
+// Filesystem for formatting the structure.
+func (l LaidOutStructure) Filesystem() string {
+	return l.VolumeStructure.Filesystem
+}
+
+// Role for the structure as specified in the gadget.
+func (l LaidOutStructure) Role() string {
+	return l.VolumeStructure.Role
+}
+
+// HasFilesystem returns true if the structure is using a filesystem.
+func (l *LaidOutStructure) HasFilesystem() bool {
+	return l.VolumeStructure.HasFilesystem()
+}
+
+// IsPartition returns true when the structure describes a partition in a block
+// device.
+func (l *LaidOutStructure) IsPartition() bool {
+	return l.VolumeStructure.IsPartition()
 }
 
 func (p LaidOutStructure) String() string {
-	return fmtIndexAndName(p.YamlIndex, p.Name)
+	return fmtIndexAndName(p.YamlIndex, p.Name())
 }
 
 type byStartOffset []LaidOutStructure
@@ -150,7 +192,7 @@ type ResolvedContent struct {
 	KernelUpdate bool
 }
 
-func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
+func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
 	previousEnd := quantity.Offset(0)
 	structures = make([]LaidOutStructure, len(volume.Structure))
 	byName = make(map[string]*LaidOutStructure, len(volume.Structure))
@@ -158,8 +200,8 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 	for idx, s := range volume.Structure {
 		var start quantity.Offset
 		if s.Offset == nil {
-			if s.Role != schemaMBR && previousEnd < constraints.NonMBRStartOffset {
-				start = constraints.NonMBRStartOffset
+			if s.Role != schemaMBR && previousEnd < NonMBRStartOffset {
+				start = NonMBRStartOffset
 			} else {
 				start = previousEnd
 			}
@@ -174,8 +216,8 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 			YamlIndex:       idx,
 		}
 
-		if ps.Name != "" {
-			byName[ps.Name] = &ps
+		if ps.Name() != "" {
+			byName[ps.Name()] = &ps
 		}
 
 		structures[idx] = ps
@@ -191,9 +233,9 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 		if ps.StartOffset < previousEnd {
 			return nil, nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
 		}
-		previousEnd = ps.StartOffset + quantity.Offset(ps.Size)
+		previousEnd = ps.StartOffset + quantity.Offset(ps.VolumeStructure.Size)
 
-		offsetWrite, err := resolveOffsetWrite(ps.OffsetWrite, byName)
+		offsetWrite, err := resolveOffsetWrite(ps.VolumeStructure.OffsetWrite, byName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot resolve offset-write of structure %v: %v", ps, err)
 		}
@@ -203,9 +245,9 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 	return structures, byName, nil
 }
 
-// LayoutVolumePartially attempts to lay out only the structures in the volume using provided constraints
-func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*PartiallyLaidOutVolume, error) {
-	structures, _, err := layoutVolumeStructures(volume, constraints)
+// LayoutVolumePartially attempts to lay out only the structures in the volume.
+func LayoutVolumePartially(volume *Volume) (*PartiallyLaidOutVolume, error) {
+	structures, _, err := layoutVolumeStructures(volume)
 	if err != nil {
 		return nil, err
 	}
@@ -218,8 +260,8 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 }
 
 // LayoutVolume attempts to completely lay out the volume, that is the
-// structures and their content, using provided constraints
-func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOptions) (*LaidOutVolume, error) {
+// structures and their content, using provided options.
+func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 	var err error
 	if opts == nil {
 		opts = &LayoutOptions{}
@@ -241,7 +283,7 @@ func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOpt
 		}
 	}
 
-	structures, byName, err := layoutVolumeStructures(volume, constraints)
+	structures, byName, err := layoutVolumeStructures(volume)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +295,7 @@ func LayoutVolume(volume *Volume, constraints LayoutConstraints, opts *LayoutOpt
 		if ps.AbsoluteOffsetWrite != nil && *ps.AbsoluteOffsetWrite > fartherstOffsetWrite {
 			fartherstOffsetWrite = *ps.AbsoluteOffsetWrite
 		}
-		if end := ps.StartOffset + quantity.Offset(ps.Size); end > farthestEnd {
+		if end := ps.StartOffset + quantity.Offset(ps.VolumeStructure.Size); end > farthestEnd {
 			farthestEnd = end
 		}
 
@@ -303,18 +345,18 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 		// structures without a file system are not resolved here
 		return nil, nil
 	}
-	if len(ps.Content) == 0 {
+	if len(ps.VolumeStructure.Content) == 0 {
 		return nil, nil
 	}
 
-	content := make([]ResolvedContent, 0, len(ps.Content))
-	for idx := range ps.Content {
-		resolvedSource, kupdate, err := resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, ps.Content[idx].UnresolvedSource)
+	content := make([]ResolvedContent, 0, len(ps.VolumeStructure.Content))
+	for idx := range ps.VolumeStructure.Content {
+		resolvedSource, kupdate, err := resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, ps.VolumeStructure.Content[idx].UnresolvedSource)
 		if err != nil {
 			return nil, fmt.Errorf("cannot resolve content for structure %v at index %v: %v", ps, idx, err)
 		}
 		rc := ResolvedContent{
-			VolumeContent:  &ps.Content[idx],
+			VolumeContent:  &ps.VolumeStructure.Content[idx],
 			ResolvedSource: resolvedSource,
 			KernelUpdate:   kupdate,
 		}
@@ -408,14 +450,14 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known ma
 		// structures with a filesystem do not need any extra layout
 		return nil, nil
 	}
-	if len(ps.Content) == 0 {
+	if len(ps.VolumeStructure.Content) == 0 {
 		return nil, nil
 	}
 
-	content := make([]LaidOutContent, len(ps.Content))
+	content := make([]LaidOutContent, len(ps.VolumeStructure.Content))
 	previousEnd := quantity.Offset(0)
 
-	for idx, c := range ps.Content {
+	for idx, c := range ps.VolumeStructure.Content {
 		imageSize, err := getImageSize(filepath.Join(gadgetRootDir, c.Image))
 		if err != nil {
 			return nil, fmt.Errorf("cannot lay out structure %v: content %q: %v", ps, c.Image, err)
@@ -443,7 +485,7 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known ma
 		}
 
 		content[idx] = LaidOutContent{
-			VolumeContent: &ps.Content[idx],
+			VolumeContent: &ps.VolumeStructure.Content[idx],
 			Size:          actualSize,
 			StartOffset:   ps.StartOffset + start,
 			Index:         idx,
@@ -451,7 +493,7 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known ma
 			AbsoluteOffsetWrite: offsetWrite,
 		}
 		previousEnd = start + quantity.Offset(actualSize)
-		if quantity.Size(previousEnd) > ps.Size {
+		if quantity.Size(previousEnd) > ps.VolumeStructure.Size {
 			return nil, fmt.Errorf("cannot lay out structure %v: content %q does not fit in the structure", ps, c.Image)
 		}
 	}

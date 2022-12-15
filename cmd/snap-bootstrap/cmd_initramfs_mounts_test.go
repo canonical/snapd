@@ -2963,7 +2963,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			modeenv: &boot.Modeenv{
 				Mode: "run",
 			},
-			expError: "fallback base snap unusable: cannot get snap revision: modeenv base boot variable is empty",
+			expError: "no currently usable base snaps: cannot get snap revision: modeenv base boot variable is empty",
 			comment:  "unhappy empty modeenv",
 		},
 		{

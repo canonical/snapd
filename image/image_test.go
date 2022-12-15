@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -974,6 +975,41 @@ func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
 	})
 	// check devmode-snap blob
 	c.Check(runSnaps[1].Path, testutil.FilePresent)
+}
+
+func (s *imageSuite) TestSetupSeedImageManifest(c *C) {
+	// Use almost identical setup as TestSetupSeedDevmodeSnap to
+	// get each type of snap into the manifest
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	s.setupSnaps(c, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	}, "")
+
+	snapFile := snaptest.MakeTestSnapWithFiles(c, devmodeSnap, nil)
+	seedManifestPath := path.Join(rootdir, "seed.manifest")
+
+	opts := &image.Options{
+		Snaps: []string{snapFile},
+
+		PrepareDir:       filepath.Dir(rootdir),
+		SeedManifestPath: seedManifestPath,
+		Channel:          "beta",
+	}
+
+	err := image.SetupSeed(s.tsto, s.model, opts)
+	c.Assert(err, IsNil)
+
+	c.Assert(seedManifestPath, testutil.FilePresent)
+	c.Check(seedManifestPath, testutil.FileContains, `core 3
+devmode-snap x1
+pc 1
+pc-kernel 2
+required-snap1 3
+`)
 }
 
 func (s *imageSuite) TestSetupSeedWithClassicSnapFails(c *C) {
