@@ -203,9 +203,7 @@ func addRestartServicesTasks(st *state.State, queueTask func(task *state.Task), 
 		for _, svc := range services {
 			names = append(names, svc.Name)
 		}
-		sort.Slice(names, func(i, j int) bool {
-			return names[i] < names[j]
-		})
+		sort.Strings(names)
 		return names
 	}
 
@@ -592,7 +590,6 @@ func snapServiceNames(info *snap.Info) []string {
 // services are added to the map, for groups that contain specific services, only those
 // services listed in the group are affected, as snaps cannot be in same group as services.
 func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions) (map[*snap.Info]*wrappers.SnapServiceOptions, []string, error) {
-
 	snapSvcMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
 	addSnapToMap := func(sn string) (*snap.Info, error) {
 		info, err := snapstate.CurrentInfo(st, sn)
@@ -625,7 +622,7 @@ func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapSer
 	// need to get the affected snaps from the service names, which are
 	// of format 'snap.service'
 	for _, svc := range grp.Services {
-		parts := strings.Split(svc, ".")
+		parts := strings.SplitN(svc, ".", 2)
 		snapName := parts[0]
 		if _, err := addSnapToMap(snapName); err != nil {
 			return nil, nil, err
@@ -922,7 +919,7 @@ func validateSnapForAddingToGroup(st *state.State, snaps []string, group string,
 // splitSnapServiceName splits and verifies the snap service reference
 // taken in by the frontend. It expects the format snap.service
 func splitSnapServiceName(name string) (string, string, error) {
-	parts := strings.Split(name, ".")
+	parts := strings.SplitN(name, ".", 2)
 	if len(parts) != 2 {
 		return "", "", fmt.Errorf("invalid snap service: %s", name)
 	}

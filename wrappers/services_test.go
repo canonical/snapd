@@ -245,9 +245,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			QuotaGroup: grp,
-		},
+		info: {QuotaGroup: grp},
 	}
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
@@ -350,9 +348,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountQuotas(c *C) {
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			QuotaGroup: grp,
-		},
+		info: {QuotaGroup: grp},
 	}
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
@@ -451,9 +447,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountAndCpuSetQuota
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			QuotaGroup: grp,
-		},
+		info: {QuotaGroup: grp},
 	}
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
@@ -545,9 +539,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalNamespaceOnly(c *C)
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			QuotaGroup: grp,
-		},
+		info: {QuotaGroup: grp},
 	}
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
@@ -662,9 +654,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotas(c *C) {
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			QuotaGroup: grp,
-		},
+		info: {QuotaGroup: grp},
 	}
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
@@ -782,9 +772,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotaRateAsZero(c *
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			QuotaGroup: grp,
-		},
+		info: {QuotaGroup: grp},
 	}
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
@@ -927,9 +915,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSnapServices(c *C) {
 	sub.Services = []string{"hello-snap.svc2"}
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			QuotaGroup: grp,
-		},
+		info: {QuotaGroup: grp},
 	}
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
@@ -1117,9 +1103,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithIncludeServices(c *C) {
 	sub.Services = []string{"hello-snap.svc2"}
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			QuotaGroup: grp,
-		},
+		info: {QuotaGroup: grp},
 	}
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
@@ -1378,9 +1362,7 @@ WantedBy=multi-user.target
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			QuotaGroup: grp,
-		},
+		info: {QuotaGroup: grp},
 	}
 
 	newContent := fmt.Sprintf(sliceTempl, "foogroup", memLimit2.String())
@@ -1480,9 +1462,7 @@ WantedBy=multi-user.target
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			QuotaGroup: grp,
-		},
+		info: {QuotaGroup: grp},
 	}
 
 	observe := func(app *snap.AppInfo, grp *quota.Group, unitType, name, old, new string) {
@@ -1591,12 +1571,8 @@ apps:
 	subSliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup-subgroup.slice")
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info1: {
-			QuotaGroup: grp,
-		},
-		info2: {
-			QuotaGroup: subgrp,
-		},
+		info1: {QuotaGroup: grp},
+		info2: {QuotaGroup: subgrp},
 	}
 
 	sliceTempl := `[Unit]
@@ -1735,9 +1711,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 	subSliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup-subgroup.slice")
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			QuotaGroup: subgrp,
-		},
+		info: {QuotaGroup: subgrp},
 	}
 
 	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
@@ -1919,9 +1893,7 @@ apps:
 
 	// some options per-snap
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info1: {
-			VitalityRank: 1,
-		},
+		info1: {VitalityRank: 1},
 		info2: nil,
 	}
 
@@ -2031,9 +2003,7 @@ WantedBy=multi-user.target
 
 	// both will be written, one is new
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			VitalityRank: 1,
-		},
+		info: {VitalityRank: 1},
 	}
 
 	seen := make(map[string][]string)
@@ -2265,9 +2235,7 @@ WantedBy=multi-user.target
 
 	// now ensuring with the VitalityRank set will modify the file
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			VitalityRank: 1,
-		},
+		info: {VitalityRank: 1},
 	}
 
 	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
@@ -2360,9 +2328,7 @@ WantedBy=multi-user.target
 
 	// now ensuring with the VitalityRank set will modify the file
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			VitalityRank: 1,
-		},
+		info: {VitalityRank: 1},
 	}
 
 	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
@@ -2577,9 +2543,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesSubunits(c *C) {
 `, &snap.SideInfo{Revision: snap.R(12)})
 
 	m = map[*snap.Info]*wrappers.SnapServiceOptions{
-		info: {
-			VitalityRank: 1,
-		},
+		info: {VitalityRank: 1},
 	}
 	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
 	c.Assert(err, IsNil)
