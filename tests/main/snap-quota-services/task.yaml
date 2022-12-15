@@ -1,7 +1,4 @@
-summary: Basic test for quota-related snap commands.
-
-details: |
-  Basic test for snap quota, remove-quota and quotas commands.
+summary: Test for per-service quota-related snap functionality.
 
 # In arm devices using ubuntu core, memory quota cannot be used because
 # memory cgroup is disabled
