@@ -191,8 +191,8 @@ func (s *contextSuite) TestChangeErrorf(c *C) {
 	defer restore()
 
 	s.state.Lock()
-	task1 := s.state.NewTask("foo1", "")
-	task2 := s.state.NewTask("foo2", "")
+	task1 := s.state.NewTask("foo1", "summary foo1")
+	task2 := s.state.NewTask("foo2", "summary foo2")
 	s.state.Unlock()
 
 	for _, tc := range []struct {
@@ -204,7 +204,7 @@ func (s *contextSuite) TestChangeErrorf(c *C) {
 		{nil, false, `.* context.go:.*: some error\n`, ``},
 		{nil, true, `.* context.go:.*: some error\n`, ``},
 		// ignore error hooks log errors to both logger and task
-		{task1, true, `.* context.go:.*: ERROR task ` + task1.ID() + ` \(foo1\): some error\n`, `.* ERROR some error`},
+		{task1, true, `.* context.go:.*: ERROR task ` + task1.ID() + ` \(summary foo1\): some error\n`, `.* ERROR some error`},
 		// normal hooks only log errors to the task
 		{task2, false, ``, `.* ERROR some error`},
 	} {
