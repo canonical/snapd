@@ -315,7 +315,7 @@ func (c *Context) Errorf(fmts string, args ...interface{}) {
 		// configure errors are observable.
 		if c.setup != nil && c.setup.IgnoreError {
 			msg := fmt.Sprintf(fmts, args...)
-			logger.Noticef("ERROR task %v (%v): %v", c.task.ID(), c.task.Kind(), msg)
+			logger.Noticef("ERROR task %v (%v): %v", c.task.ID(), c.task.Summary(), msg)
 		}
 	}
 }
