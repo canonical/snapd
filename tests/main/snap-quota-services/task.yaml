@@ -34,7 +34,7 @@ execute: |
   echo "Test the quota groups listings look sane"
   snap quotas | cat -n > quotas.txt
   MATCH "     1\s+Quota\s+Parent\s+Constraints\s+Current$" < quotas.txt
-  MATCH "     2\s+test-top\s+memory=400MB\s+$" < quotas.txt
+  MATCH "     2\s+test-top\s+memory=400MB(\s*|\s*memory=[0-9.a-zA-Z]+)+$" < quotas.txt
   MATCH "     3\s+test-sub\s+test-top\s+cpu=10%\s+$" < quotas.txt
 
   echo "Test that service details are listed correctly in test-sub"
@@ -54,19 +54,20 @@ execute: |
   echo "Test that we can however put a journal quota on the parent group"
   snap set-quota test-top --journal-size=128MB
 
+  ls /nono
+
   # Next up is checking for slices and unit contents
   # For test-snapd-stressd.logger (which is another service in test-snapd-stressd)
   # we will expect the unit to mention the top group slice, but for test-snapd-stressd.stress-sc
   # we will expect the unit to mention the sub group slice.
   TOP_SLICENAME="snap.$(systemd-escape --path test-top).slice"
-  #SUB_SLICENAME="snap.$(systemd-escape --path test-top/test-sub).slice"
+  SUB_SLICENAME="snap.$(systemd-escape --path test-top/test-sub).slice"
 
   echo "Verify that one of the non stress-sc services mention the top group"
-  systemctl show --property=Slice snap.test-snapd-stressd.logger.service | grep "Slice=$TOP_SLICENAME"
+  systemctl show --property=Slice snap.test-snapd-stressd.logger.service | grep -F "Slice=$TOP_SLICENAME"
 
-  #echo "Verify that stress-sc service mention the sub group"
-  # https://github.com/snapcore/snapd/pull/12395
-  #systemctl show --property=Slice snap.test-snapd-stressd.stress-sc.service | grep "Slice=$SUB_SLICENAME"
+  echo "Verify that stress-sc service mention the sub group"
+  systemctl show --property=Slice snap.test-snapd-stressd.stress-sc.service | grep -F "Slice=$SUB_SLICENAME"
 
   # echo "Verify that stress-sc service mention the journal namespace"
   # systemctl show --property=LogNamespace snap.test-snapd-stressd.stress-sc.service | MATCH "LogNamespace=snap-test-sub"
