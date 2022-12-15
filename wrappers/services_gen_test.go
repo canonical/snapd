@@ -1135,25 +1135,22 @@ func (s *servicesWrapperGenSuite) TestQuotaGroupLogNamespaceInheritParent(c *C) 
 		description   string
 	}{
 		{
-			topResources:  quota.NewResourcesBuilder().WithJournalNamespace().Build(),
-			subResources:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
-			expectedSlice: "snap.foo-foosub.slice",
-			expectedLog:   "snap-foo",
-			description:   "Setting a namespace on parent, and none on service sub-group, must inherit parent",
+			topResources: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+			subResources: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build(),
+			expectedLog:  "snap-foo",
+			description:  "Setting a namespace on parent, and none on service sub-group, must inherit parent",
 		},
 		{
-			topResources:  quota.NewResourcesBuilder().WithJournalNamespace().Build(),
-			subResources:  quota.NewResourcesBuilder().WithJournalNamespace().Build(),
-			expectedSlice: "snap.foo-foosub.slice",
-			expectedLog:   "snap-foo",
-			description:   "Setting a namespace on both groups, it should select parent",
+			topResources: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+			subResources: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+			expectedLog:  "snap-foo",
+			description:  "Setting a namespace on both groups, it should select parent",
 		},
 		{
-			topResources:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
-			subResources:  quota.NewResourcesBuilder().WithJournalNamespace().Build(),
-			expectedSlice: "snap.foo-foosub.slice",
-			expectedLog:   "",
-			description:   "Setting a namespace on only sub-group, no namespace should be selected",
+			topResources: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+			subResources: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+			expectedLog:  "",
+			description:  "Setting a namespace on only sub-group, no namespace should be selected",
 		},
 	}
 
@@ -1169,7 +1166,7 @@ func (s *servicesWrapperGenSuite) TestQuotaGroupLogNamespaceInheritParent(c *C) 
 		opts := &wrappers.GenerateSnapServicesOptions{QuotaGroup: sub}
 		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, opts)
 		c.Assert(err, IsNil)
-		c.Check(string(generatedWrapper), testutil.Contains, fmt.Sprintf("Slice=%s", t.expectedSlice), Commentf("test failed: %s", t.description))
+		c.Check(string(generatedWrapper), testutil.Contains, "Slice=snap.foo-foosub.slice", Commentf("test failed: %s", t.description))
 		if t.expectedLog != "" {
 			c.Check(string(generatedWrapper), testutil.Contains, fmt.Sprintf("LogNamespace=%s", t.expectedLog), Commentf("test failed: %s", t.description))
 		} else {
