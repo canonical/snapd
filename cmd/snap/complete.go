@@ -439,9 +439,9 @@ func (s appName) Complete(match string) []flags.Completion {
 
 type serviceName string
 
-func serviceNames(snaps []serviceName) []string {
-	names := make([]string, len(snaps))
-	for i, name := range snaps {
+func serviceNames(services []serviceName) []string {
+	names := make([]string, len(services))
+	for i, name := range services {
 		names[i] = string(name)
 	}
 
