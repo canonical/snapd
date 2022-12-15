@@ -27,9 +27,11 @@ execute: |
   # contains 4 services, which makes it perfect for our testing as we only need
   # this one snap to test isolating services.
   snap set-quota test-top --memory=400MB test-snapd-stressd
+  tests.cleanup defer snap remove-quota test-top
 
   echo "Create a sub-level group for the stress service and put it into that"
   snap set-quota test-sub --parent=test-top --cpu=10% test-snapd-stressd.stress-sc
+  tests.cleanup defer snap remove-quota test-sub
 
   echo "Test the quota groups listings look sane"
   snap quotas | cat -n > quotas.txt
@@ -67,8 +69,6 @@ execute: |
   echo "Verify that stress-sc service mention the sub group"
   systemctl show --property=Slice snap.test-snapd-stressd.stress-sc.service | grep -F "Slice=$SUB_SLICENAME"
 
+  # Enable check when: https://github.com/snapcore/snapd/pull/12449 lands
   # echo "Verify that stress-sc service mention the journal namespace"
   # systemctl show --property=LogNamespace snap.test-snapd-stressd.stress-sc.service | MATCH "LogNamespace=snap-test-sub"
-
-  snap remove-quota test-sub
-  snap remove-quota test-top
