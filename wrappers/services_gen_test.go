@@ -1029,11 +1029,10 @@ func (s *servicesWrapperGenSuite) TestQuotaGroupSlice(c *C) {
 			Version:       "0.3.4",
 			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
 		},
-		Name:         "app",
-		Command:      "bin/foo start",
-		Daemon:       "simple",
-		DaemonScope:  snap.SystemDaemon,
-		RestartDelay: timeout.Timeout(20 * time.Second),
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.SystemDaemon,
 	}
 
 	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
@@ -1056,7 +1055,6 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=on-failure
-RestartSec=20
 WorkingDirectory=/var/snap/snap/44
 TimeoutStopSec=30
 Type=simple
@@ -1074,11 +1072,10 @@ func (s *servicesWrapperGenSuite) TestQuotaGroupLogNamespace(c *C) {
 			Version:       "0.3.4",
 			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
 		},
-		Name:         "app",
-		Command:      "bin/foo start",
-		Daemon:       "simple",
-		DaemonScope:  snap.SystemDaemon,
-		RestartDelay: timeout.Timeout(20 * time.Second),
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.SystemDaemon,
 	}
 
 	grp, err := quota.NewGroup("foo", quota.NewResourcesBuilder().WithJournalNamespace().Build())
@@ -1101,7 +1098,6 @@ EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=on-failure
-RestartSec=20
 WorkingDirectory=/var/snap/snap/44
 TimeoutStopSec=30
 Type=simple
@@ -1120,19 +1116,17 @@ func (s *servicesWrapperGenSuite) TestQuotaGroupLogNamespaceInheritParent(c *C) 
 			Version:       "0.3.4",
 			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
 		},
-		Name:         "app",
-		Command:      "bin/foo start",
-		Daemon:       "simple",
-		DaemonScope:  snap.SystemDaemon,
-		RestartDelay: timeout.Timeout(20 * time.Second),
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.SystemDaemon,
 	}
 
 	testCases := []struct {
-		topResources  quota.Resources
-		subResources  quota.Resources
-		expectedSlice string
-		expectedLog   string
-		description   string
+		topResources quota.Resources
+		subResources quota.Resources
+		expectedLog  string
+		description  string
 	}{
 		{
 			topResources: quota.NewResourcesBuilder().WithJournalNamespace().Build(),
