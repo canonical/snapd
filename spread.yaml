@@ -154,6 +154,8 @@ backends:
 
             - fedora-36-64:
                   workers: 6
+            - fedora-37-64:
+                  workers: 6
 
             - arch-linux-64:
                   workers: 6
