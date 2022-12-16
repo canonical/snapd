@@ -21,6 +21,7 @@ package hookstate
 
 import (
 	"encoding/json"
+	"os"
 
 	. "gopkg.in/check.v1"
 
@@ -189,6 +190,11 @@ func (s *contextSuite) TestChangeID(c *C) {
 func (s *contextSuite) TestChangeErrorf(c *C) {
 	mockLog, restore := logger.MockLogger()
 	defer restore()
+
+	if v, ok := os.LookupEnv("SNAPD_DEBUG"); ok {
+		os.Unsetenv("SNAPD_DEBUG")
+		defer os.Setenv("SNAPD_DEBUG=%v", v)
+	}
 
 	s.state.Lock()
 	task1 := s.state.NewTask("foo1", "summary foo1")
