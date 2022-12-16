@@ -66,6 +66,5 @@ execute: |
   echo "Verify that stress-sc service mention the sub group"
   systemctl show --property=Slice snap.test-snapd-stressd.stress-sc.service | grep -F "Slice=$SUB_SLICENAME"
 
-  # Enable check when: https://github.com/snapcore/snapd/pull/12449 lands
-  # echo "Verify that stress-sc service mention the journal namespace"
-  # systemctl show --property=LogNamespace snap.test-snapd-stressd.stress-sc.service | MATCH "LogNamespace=snap-test-sub"
+  echo "Verify that stress-sc service mention the journal namespace"
+  systemctl show --property=LogNamespace snap.test-snapd-stressd.stress-sc.service | MATCH "LogNamespace=snap-test-top"
