@@ -75,7 +75,9 @@ To set limits on individual services, one or more services can be placed into a
 sub-group. The respective snap for each service must belong to the sub-group's
 parent group. These sub-groups will have the same limitations as nested groups
 which means their combined resource usage cannot exceed the resource limits set 
-for the parent group.
+for the parent group. Sub-groups which contain services cannot have their own
+journal quotas set, and instead automatically inherit any journal quota their
+parent quota group may have.
 
 The memory limit for a quota group can be increased but not decreased. To
 decrease the memory limit for a quota group, the entire group must be removed
