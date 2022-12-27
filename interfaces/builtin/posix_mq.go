@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/metautil"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
@@ -222,7 +223,7 @@ func (iface *posixMQInterface) validatePath(name, path string) error {
 	}
 
 	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(path); err != nil {
-		return fmt.Errorf(`posix-mq "path" attribute is invalid: %v"`, path)
+		return fmt.Errorf(`posix-mq "path" attribute is invalid: "%v"`, path)
 	}
 
 	if !cleanSubPath(path) {

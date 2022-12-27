@@ -643,7 +643,7 @@ func (s *PosixMQInterfaceSuite) TestPathValidationPosixMQ(c *C) {
 func (s *PosixMQInterfaceSuite) TestPathValidationAppArmorRegex(c *C) {
 	spec := &apparmor.Specification{}
 	err := spec.AddPermanentSlot(s.iface, s.testInvalidPath2SlotInfo)
-	c.Check(err, ErrorMatches, `posix-mq "path" attribute is invalid: /test-invalid-2"\["`)
+	c.Check(err, ErrorMatches, `posix-mq "path" attribute is invalid: "/test-invalid-2"\["`)
 }
 
 func (s *PosixMQInterfaceSuite) TestPathStringValidation(c *C) {
@@ -725,7 +725,7 @@ func (s *PosixMQInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath1SlotInfo), ErrorMatches,
 		`posix-mq "path" attribute must conform to the POSIX message queue name specifications \(see "man mq_overview"\): /../../test-invalid`)
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath2SlotInfo), ErrorMatches,
-		`posix-mq "path" attribute is invalid: /test-invalid-2"\["`)
+		`posix-mq "path" attribute is invalid: "/test-invalid-2"\["`)
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath3SlotInfo), ErrorMatches,
 		`snap "producer" has interface "posix-mq" with invalid value type map\[string\]interface {} for "path" attribute: \*\[\]string`)
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath4SlotInfo), ErrorMatches,
