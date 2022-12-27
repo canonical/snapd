@@ -69,6 +69,10 @@ slots:
       - /test-array-2
       - /test-array-3
 
+  test-valid-aare:
+    interface: posix-mq
+    path: /test-aare-1*
+
   test-empty-path-array:
     interface: posix-mq
     path: []
@@ -320,6 +324,9 @@ type PosixMQInterfaceSuite struct {
 	testInvalidPath5SlotInfo *snap.SlotInfo
 	testInvalidPath5Slot     *interfaces.ConnectedSlot
 
+	testValidAARESlotInfo *snap.SlotInfo
+	testValidAARESlot     *interfaces.ConnectedSlot
+
 	testInvalidPerms1SlotInfo *snap.SlotInfo
 	testInvalidPerms1Slot     *interfaces.ConnectedSlot
 	testInvalidPerms1PlugInfo *snap.PlugInfo
@@ -367,6 +374,9 @@ func (s *PosixMQInterfaceSuite) SetUpTest(c *C) {
 
 	s.testPathArraySlotInfo = slotSnap.Slots["test-path-array"]
 	s.testPathArraySlot = interfaces.NewConnectedSlot(s.testPathArraySlotInfo, nil, nil)
+
+	s.testValidAARESlotInfo = slotSnap.Slots["test-valid-aare"]
+	s.testValidAARESlot = interfaces.NewConnectedSlot(s.testValidAARESlotInfo, nil, nil)
 
 	s.testEmptyPathArraySlotInfo = slotSnap.Slots["test-empty-path-array"]
 	s.testEmptyPathArraySlot = interfaces.NewConnectedSlot(s.testEmptyPathArraySlotInfo, nil, nil)
@@ -718,6 +728,8 @@ func (s *PosixMQInterfaceSuite) TestSanitizeSlot(c *C) {
 	s.checkSlotPosixMQAttr(c, s.testAllPermsSlotInfo)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testPathArraySlotInfo), IsNil)
 	s.checkSlotPosixMQAttr(c, s.testPathArraySlotInfo)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testValidAARESlotInfo), IsNil)
+	s.checkSlotPosixMQAttr(c, s.testValidAARESlotInfo)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testLabelSlotInfo), IsNil)
 	c.Check(s.testLabelSlotInfo.Attrs["posix-mq"], Equals, "this-is-a-test-label")
 
