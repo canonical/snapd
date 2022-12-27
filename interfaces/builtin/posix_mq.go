@@ -222,7 +222,7 @@ func (iface *posixMQInterface) validatePath(name, path string) error {
 		return fmt.Errorf(`posix-mq "path" attribute must conform to the POSIX message queue name specifications (see "man mq_overview"): %v`, path)
 	}
 
-	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(path); err != nil {
+	if _, err := utils.NewPathPattern(path); err != nil {
 		return fmt.Errorf(`posix-mq "path" attribute is invalid: "%v"`, path)
 	}
 
