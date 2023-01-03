@@ -690,18 +690,19 @@ func (s *Info) ExpandSnapVariables(path string) string {
 
 // InstallDate returns the "install date" of the snap.
 //
-// If the snap is not active, it'll return a zero time; otherwise
+// If the snap is not active, it'll return nil; otherwise
 // it'll return the modtime of the "current" symlink. Sneaky.
-func (s *Info) InstallDate() time.Time {
+func (s *Info) InstallDate() *time.Time {
 	dir, rev := filepath.Split(s.MountDir())
 	cur := filepath.Join(dir, "current")
 	tag, err := os.Readlink(cur)
 	if err == nil && tag == rev {
 		if st, err := os.Lstat(cur); err == nil {
-			return st.ModTime()
+			modTime := st.ModTime()
+			return &modTime
 		}
 	}
-	return time.Time{}
+	return nil
 }
 
 // IsActive returns whether this snap revision is active.
