@@ -5,7 +5,7 @@ details: |
     are correct for snapfuse.
 
 # only 20.04+, we want lxd images that come with snaps preinstalled.
-systems: [ubuntu-2*]
+systems: [ubuntu-20*, ubuntu-22*]
 
 restore: |
     lxd.lxc stop ubuntu --force || true
@@ -33,7 +33,7 @@ execute: |
         lxd.lxc config set core.proxy_https "$http_proxy"
     fi
 
-    # There isn't an official image for kinetic yet, let's use the community one
+    # There isn't an official image for lunar yet, let's use the community one
     if os.query is-ubuntu 23.04; then
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" ubuntu
@@ -58,7 +58,7 @@ execute: |
     DEB=$(basename "$GOHOME"/snapd_*.deb)
     
     lxd.lxc exec ubuntu -- apt update
-    # As for ubuntu kinetic it is not using the official image, snapd is not installed by default
+    # As for ubuntu lunar it is not using the official image, snapd is not installed by default
     # This should be removed once the official image is released
     if os.query is-ubuntu 23.04; then
         lxd.lxc exec ubuntu -- apt install -y snapd

@@ -28,14 +28,8 @@ execute: |
         lxd.lxc config set core.proxy_https "$http_proxy"
     fi
 
-    # There isn't an official image for kinetic yet, let's use the community one
-    if os.query is-ubuntu 23.04; then
-        CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
-        lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu
-    else
-        VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
-        lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
-    fi
+    VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
+    lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
 
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
