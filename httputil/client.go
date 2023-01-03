@@ -152,7 +152,7 @@ type ClientOptions struct {
 	ExtraSSLCerts ExtraSSLCerts
 }
 
-// NewHTTPCLient returns a new http.Client with a LoggedTransport, a
+// NewHTTPClient returns a new http.Client with a LoggedTransport, a
 // Timeout and preservation of range requests across redirects
 func NewHTTPClient(opts *ClientOptions) *http.Client {
 	if opts == nil {
