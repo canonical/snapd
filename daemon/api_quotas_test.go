@@ -74,9 +74,9 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 }
 
 func mockQuotas(st *state.State, c *check.C) {
-	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(16*quantity.SizeMiB).Build())
+	err := servicestatetest.MockQuotaInState(st, "foo", "", []string{"test-snap"}, nil, quota.NewResourcesBuilder().WithMemoryLimit(16*quantity.SizeMiB).Build())
 	c.Assert(err, check.IsNil)
-	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(4*quantity.SizeMiB).Build())
+	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, []string{"test-snap.svc1"}, quota.NewResourcesBuilder().WithMemoryLimit(4*quantity.SizeMiB).Build())
 	c.Assert(err, check.IsNil)
 	err = servicestatetest.MockQuotaInState(st, "baz", "foo", nil, nil, quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, check.IsNil)
@@ -731,6 +731,7 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 		{
 			GroupName:   "bar",
 			Parent:      "foo",
+			Services:    []string{"test-snap.svc1"},
 			Constraints: &client.QuotaValues{Memory: 4 * quantity.SizeMiB},
 			Current:     &client.QuotaValues{Memory: quantity.Size(500)},
 		},
@@ -743,6 +744,7 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 		{
 			GroupName:   "foo",
 			Subgroups:   []string{"bar", "baz"},
+			Snaps:       []string{"test-snap"},
 			Constraints: &client.QuotaValues{Memory: 16 * quantity.SizeMiB},
 			Current:     &client.QuotaValues{Memory: quantity.Size(5000)},
 		},
@@ -840,6 +842,7 @@ func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 	c.Check(res, check.DeepEquals, client.QuotaGroupResult{
 		GroupName:   "bar",
 		Parent:      "foo",
+		Services:    []string{"test-snap.svc1"},
 		Constraints: &client.QuotaValues{Memory: quantity.Size(4194304)},
 		Current:     &client.QuotaValues{Memory: quantity.Size(500)},
 	})

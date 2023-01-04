@@ -146,6 +146,7 @@ func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
 			Parent:      group.ParentGroup,
 			Subgroups:   group.SubGroups,
 			Snaps:       group.Snaps,
+			Services:    group.Services,
 			Constraints: createQuotaValues(group),
 			Current:     currentUsage,
 		}
