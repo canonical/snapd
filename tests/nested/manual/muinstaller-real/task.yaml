@@ -58,6 +58,8 @@ execute: |
   # build updated shim
   version=22
   snap download --basename=pc --channel="$version/edge" pc
+  cp pc.snap pc.snap.orig
+  snap ack pc.assert
   unsquashfs -d pc-gadget pc.snap
   echo 'console=ttyS0 systemd.journald.forward_to_console=1' > pc-gadget/cmdline.extra
   # use the system-seed-null classic role
@@ -71,6 +73,8 @@ execute: |
 
   # get an updated kernel
   snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
+  cp pc-kernel.snap pc-kernel.snap.orig
+  snap ack pc-kernel.assert
   uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
@@ -215,7 +219,7 @@ execute: |
   # TODO: make this nicer
   export NESTED_TPM_NO_RESTART=1
   nested_start_core_vm
-  unset  NESTED_TPM_NO_RESTART
+  unset NESTED_TPM_NO_RESTART
   
   # things look fine
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
@@ -253,3 +257,60 @@ execute: |
       jq '.result."storage-encryption".support' < system | MATCH "unavailable"
       jq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: the TPM is in DA lockout mode"
   fi
+
+
+  # test kernel/gadget refreshes via the fake-store
+
+  # setup fake store again and make it available inside the nested vm
+  setup_fake_store "$STORE_DIR"
+  export NESTED_FAKESTORE_BLOB_DIR="$STORE_DIR"
+  export NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="$SNAPPY_FORCE_SAS_URL"
+
+  #shellcheck source=tests/lib/store.sh  
+  . "$TESTSLIB"/store.sh  
+
+  # nested vm needs to restart for fake-store
+  nested_shutdown
+  export NESTED_TPM_NO_RESTART=1
+  nested_start_core_vm
+  unset NESTED_TPM_NO_RESTART
+
+  # make new gadget
+  fakestore make-refreshable --dir "$STORE_DIR" --snap-orig-blob pc.snap.orig --snap-blob ./pc-gadget pc
+
+  # refresh gadget
+  boot_id="$(tests.nested boot-id)"
+  remote.exec "sudo snap refresh --amend --no-wait --channel=$version/edge pc" > refresh-change-id
+  change_id="$(cat refresh-change-id)"
+  while true; do
+      if remote.exec "snap change $change_id" | grep "Task set to wait until a manual system restart"; then
+          break
+      fi
+  done
+  remote.exec "sudo reboot" || true
+  tests.nested wait-for reboot "$boot_id"
+  remote.exec "snap watch $change_id"
+  remote.exec "snap change $change_id" | NOMATCH Error
+
+  # TODO: enable once the kernel is ready
+  exit 0
+  # XXX: todo this fails today because:
+  #    snap-bootstrap[162]: error: seed partition found but not defined in the gadget
+  # which happens because the released kernel is not supporting the new
+  # "ubuntu-seed-null" role yet
+  # make new kernel
+  fakestore make-refreshable --dir "$STORE_DIR" --snap-orig-blob pc-kernel.snap.orig --snap-blob ./pc-kernel pc-kernel
+
+  # refresh kernel
+  boot_id="$(tests.nested boot-id)"
+  remote.exec "sudo snap refresh --amend --no-wait --channel=$version/edge pc-kernel" > refresh-change-id
+  change_id="$(cat refresh-change-id)"
+  while true; do
+      if remote.exec "snap change $change_id" | grep "Task set to wait until a manual system restart"; then
+          break
+      fi
+  done
+  remote.exec "sudo reboot" || true
+  tests.nested wait-for reboot "$boot_id"
+  remote.exec "snap watch $change_id"
+  remote.exec "snap change $change_id" | NOMATCH Error
