@@ -56,6 +56,7 @@ func newAccessType(access string) (accessType, error) {
 	return readWrite, fmt.Errorf("expected 'access' to be one of %s but was %q", strutil.Quoted(accessTypeStrings), access)
 }
 
+// NotFoundError represents an error caused by a missing entity.
 type NotFoundError struct {
 	Message string
 }
@@ -507,7 +508,14 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 // in which case, a nested JSON object is created for each sub-key found after a dot.
 func (s JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
-	_, err := set(subKeys, 0, s, value)
+
+	var err error
+	if value == nil {
+		_, err = unset(subKeys, 0, s)
+	} else {
+		_, err = set(subKeys, 0, s, value)
+	}
+
 	return err
 }
 
@@ -533,8 +541,8 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 		rawLevel = []byte("{}")
 	}
 
-	// TODO this will error ungraciously if there is not an object
-	// at this level, see the TODO in NewAspectDirectory
+	// TODO: this will error ungraciously if there isn't an object
+	// at this level (see the TODO in NewAspectDirectory)
 	var level map[string]json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
 		return nil, err
@@ -546,6 +554,47 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 	}
 
 	node[key] = rawLevel
+	return json.Marshal(node)
+}
+
+func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.RawMessage, error) {
+	key := subKeys[index]
+	if index == len(subKeys)-1 {
+		delete(node, key)
+		// if the parent node has no other entries, it can also be deleted
+		if len(node) == 0 {
+			return nil, nil
+		}
+
+		return json.Marshal(node)
+	}
+
+	rawLevel, ok := node[key]
+	if !ok {
+		// no such entry, nothing to unset
+		return json.Marshal(node)
+	}
+
+	var level map[string]json.RawMessage
+	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
+		return nil, err
+	}
+
+	rawLevel, err := unset(subKeys, index+1, level)
+	if err != nil {
+		return nil, err
+	}
+
+	if rawLevel == nil {
+		delete(node, key)
+
+		if len(node) == 0 {
+			return nil, nil
+		}
+	} else {
+		node[key] = rawLevel
+	}
+
 	return json.Marshal(node)
 }
 
