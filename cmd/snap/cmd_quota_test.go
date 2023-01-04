@@ -290,12 +290,12 @@ func (s *quotaSuite) TestSetQuotaCpuHappy(c *check.C) {
 		cpuPercentage: 50,
 	}
 	// this data is not tested against, but it should still be valid
-	const getJsonTemplate = `{
+	const getJson = `{
 		"type": "sync",
 		"status-code": 200,
 		"result": {
 			"group-name":"foo",
-			"constraints": { "cpu":{"count":%d, "percentage":%d} },
+			"constraints": { "cpu":{"count":2, "percentage":50} },
 		}
 	}`
 	routes := map[string]http.HandlerFunc{
@@ -303,7 +303,7 @@ func (s *quotaSuite) TestSetQuotaCpuHappy(c *check.C) {
 			c,
 			fakeHandlerOpts,
 		),
-		"/v2/quotas/foo": s.makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(getJsonTemplate, 2, 50)),
+		"/v2/quotas/foo": s.makeFakeGetQuotaGroupHandler(c, getJson),
 		"/v2/changes/42": makeChangesHandler(c),
 	}
 	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
@@ -327,12 +327,12 @@ func (s *quotaSuite) TestSetQuotaSnapServices(c *check.C) {
 		cpuPercentage: 50,
 	}
 	// this data is not tested against, but it should still be valid
-	const getJsonTemplate = `{
+	const getJson = `{
 		"type": "sync",
 		"status-code": 200,
 		"result": {
 			"group-name":"foo",
-			"constraints": { "cpu":{"count":%d, "percentage":%d} },
+			"constraints": { "cpu":{"count":2, "percentage":50} },
 		}
 	}`
 	routes := map[string]http.HandlerFunc{
@@ -340,7 +340,7 @@ func (s *quotaSuite) TestSetQuotaSnapServices(c *check.C) {
 			c,
 			fakeHandlerOpts,
 		),
-		"/v2/quotas/foo": s.makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(getJsonTemplate, 2, 50)),
+		"/v2/quotas/foo": s.makeFakeGetQuotaGroupHandler(c, getJson),
 		"/v2/changes/42": makeChangesHandler(c),
 	}
 	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
