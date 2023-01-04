@@ -137,6 +137,17 @@ func newAspect(dir *Directory, name string, aspectPatterns []map[string]string) 
 			return nil, errors.New(`access patterns must have a "name" field`)
 		}
 
+		// TODO: either
+		// * Validate that a path isn't a subset of another
+		//   (possibly somewhere else).  Otherwise, we can
+		//   write a user value in a subkey of a path (that
+		//   should be map).
+		// * Our schema should be able to provide
+		//   allowed/expected types given a path; these should
+		//   guide and take precedence resolving conflicts
+		//   between data in the data bags or written E.g
+		//   possibly return null or empty object if at a path
+		//   were the schema expects an object there is scalar?
 		path, ok := aspectPattern["path"]
 		if !ok || path == "" {
 			return nil, errors.New(`access patterns must have a "path" field`)
