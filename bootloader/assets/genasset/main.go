@@ -27,7 +27,6 @@ import (
 	"os"
 	"strconv"
 	"text/template"
-	"time"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -100,6 +99,11 @@ func run(assetName, inputFile, outputFile string) error {
 	}
 	defer inf.Close()
 
+	stat, err := inf.Stat()
+	if err != nil {
+		return err
+	}
+
 	var inData bytes.Buffer
 	if _, err := io.Copy(&inData, inf); err != nil {
 		return fmt.Errorf("cannot copy input data: %v", err)
@@ -123,7 +127,7 @@ func run(assetName, inputFile, outputFile string) error {
 		// we use a preformatted lines carrying asset data
 		AssetDataLines: formatLines(inData.Bytes()),
 		AssetName:      assetName,
-		Year:           strconv.Itoa(time.Now().Year()),
+		Year:           strconv.Itoa(stat.ModTime().Year()),
 	}
 	if err := assetTemplate.Execute(outf, &templateData); err != nil {
 		return fmt.Errorf("cannot generate content: %v", err)
