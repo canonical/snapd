@@ -28,6 +28,13 @@ __attribute__((format(printf, 1, 2)))
 void debug(const char *fmt, ...);
 
 /**
+ * Sets the stdout stream to use non-blocking i/o.
+ * 
+ * Returns -1 on any errors.
+ **/
+int sc_nonblocking_stdout(void);
+
+/**
  * Get an environment variable and convert it to a boolean.
  *
  * Supported values are those of parse_bool(), namely "yes", "no" as well as "1"

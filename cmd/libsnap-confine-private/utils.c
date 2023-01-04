@@ -28,6 +28,15 @@
 #include "panic.h"
 #include "utils.h"
 
+int sc_nonblocking_stdout(void)
+{
+    int flags = fcntl(STDOUT_FILENO, F_GETFL, 0);
+    if (flags == -1) {
+        return -1;
+    }
+    return fcntl(STDOUT_FILENO, F_SETFL, flags | O_NONBLOCK);
+}
+
 void die(const char *msg, ...)
 {
 	va_list ap;
