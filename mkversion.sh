@@ -57,6 +57,9 @@ if command -v git >/dev/null && [ -d "$(dirname "$0")/.git" ] ; then
     # check if we are using a dirty tree
     if git describe --always --dirty | grep -q dirty; then
         DIRTY=true
+        git diff
+        git status
+        exit 1
     fi
 fi
 
@@ -108,6 +111,9 @@ fi
 # append dirty at the end if we had a dirty tree
 if [ "$DIRTY" = "true" ]; then
     v="$v-dirty"
+    git diff
+    git status
+    exit 1
 fi
 
 if [ "$OUTPUT_ONLY" = true ]; then
