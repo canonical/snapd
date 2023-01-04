@@ -989,6 +989,56 @@ func (m *DeviceManager) ensureSeeded() error {
 	return nil
 }
 
+var processAutoImportAssertionsImpl = processAutoImportAssertions
+
+// ensureAutoImportAssertions makes sure that auto import assertions
+// get processed. assertion should be processed while seeding is in progress
+func (m *DeviceManager) ensureAutoImportAssertions() {
+	if release.OnClassic {
+		return
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.earlyDeviceSeed == nil {
+		// we have no seed cached yet, no point to check further
+		return
+	}
+
+	var seeded bool
+	// if system is seeded, stop trying
+	err := m.state.Get("seeded", &seeded)
+	if err != nil || seeded {
+		return
+	}
+
+	// check if we have processed auto import as already
+	var asState string
+	err = m.state.Get("system-user-assertion", &asState)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		logger.Noticef("failed to get auto-import assert state")
+		return
+	}
+
+	if asState == "done" || asState == "pending" {
+		return
+	}
+
+	commitTo := func(batch *asserts.Batch) error {
+		return assertstate.AddBatch(m.state, batch, nil)
+	}
+	db := assertstate.DB(m.state)
+	// set auto-import-as as processed, even if it fails, it should not be re-run
+	// processing can alter state to "pending" if serial as is missing
+	// state should not be altered once processAutoImportAssertionsImpl is called
+	m.state.Set("system-user-assertion", "done")
+	err = processAutoImportAssertionsImpl(m.state, m.earlyDeviceSeed, db, commitTo)
+	if err != nil {
+		logger.Noticef("cannot process auto import assertion: %v", err)
+	}
+}
+
 func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1655,6 +1705,8 @@ func (m *DeviceManager) Ensure() error {
 	}
 
 	if !m.preseed {
+		m.ensureAutoImportAssertions()
+
 		if err := m.ensureCloudInitRestricted(); err != nil {
 			errs = append(errs, err)
 		}
