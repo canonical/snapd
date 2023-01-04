@@ -26,9 +26,10 @@ import (
 )
 
 type cmdMakeRefreshable struct {
-	TopDir     string `long:"dir" description:"Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions"`
-	SnapBlob   string `long:"snap-blob" description:"File or directory with new snap revision contents"`
-	Positional struct {
+	TopDir       string `long:"dir" description:"Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions"`
+	SnapBlob     string `long:"snap-blob" description:"File or directory with new snap revision contents"`
+	SnapOrigBlob string `long:"snap-orig-blob" description:"File or directory with original snap revision contents"`
+	Positional   struct {
 		SnapName string `description:"snap name" positional-arg-name:"snap-name"`
 	} `positional-args:"yes" required:"1"`
 }
@@ -38,7 +39,7 @@ func (x *cmdMakeRefreshable) Execute(args []string) error {
 		return fmt.Errorf("unexpected additional arguments %v", args)
 	}
 	// setup fake new revisions of snaps for refresh
-	return refresh.MakeFakeRefreshForSnaps(x.Positional.SnapName, x.TopDir, x.SnapBlob)
+	return refresh.MakeFakeRefreshForSnaps(x.Positional.SnapName, x.TopDir, x.SnapBlob, x.SnapOrigBlob)
 }
 
 var shortMakeRefreshableHelp = "Makes new versions of the given snaps"
