@@ -293,14 +293,14 @@ static void log_startup_stage(const char *stage)
 		return;
 	}
 
-	// Prevent the exploitation of CVE-2021-44731 and alike. It was possible
-	// to exploit certain aspects of mount namespace setups by being able to 
-	// single-step through the debug output of snap-confine. To avoid this we switch
-	// stdout to non-blocking IO. By default stdout is usually connected to a pipe, and
+	// It has shown that it's possible to single-step through the execution of
+	// snap-confine by turning on the debug output, which makes trivial to exploit
+	// any weaknesses that may exist related to setting up namespaces. This was
+	// used for instance in the exploitation of CVE-2021-44731. To make it harder to attack
+	// snap-confine by controlling stdout, switch stdout to non-blocking IO.
+	// By default stdout is usually connected to a pipe, and
 	// these pipes have buffers of 65kB (on linux), which means it's highly unlikely 
 	// we should fill it and lose any output unless it's been tampered with.
-	// This was only possible with debugging output enabled, so let's only enable
-	// this when debug is set.
 	if (sc_nonblocking_stdout()) {
 		die("failed to set non-blocking i/o: %s", strerror(errno));
 	}
