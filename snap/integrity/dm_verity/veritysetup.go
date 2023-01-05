@@ -24,20 +24,20 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
 type VeritySuperBlock struct {
-	Version        uint64
-	UUID           string
-	HashType       uint64
-	DataBlocks     uint64
-	DataBlockSize  uint64
-	HashBlocks     uint64
-	HashBlockSize  uint64
-	HashAlgorithm  string
-	Salt           string
-	HashDeviceSize uint64
+	Version       uint64 `json:"version"`
+	HashType      uint64 `json:"hash_type"`
+	UUID          string `json:"uuid"`
+	Algorithm     string `json:"algorithm"`
+	DataBlockSize uint64 `json:"data_block_size"`
+	HashBlockSize uint64 `json:"hash_block_size"`
+	DataBlocks    uint64 `json:"data_blocks"`
+	SaltSize      string `json:"salt_size"`
+	Salt          string `json:"salt"`
 }
 
 func NewVeritySuperBlock() VeritySuperBlock {
@@ -67,17 +67,12 @@ func parseVeritySetupOutput(output []byte) (string, *VeritySuperBlock) {
 			sb.DataBlocks, _ = strconv.ParseUint(val, 10, 64)
 		case "Data block size":
 			sb.DataBlockSize, _ = strconv.ParseUint(val, 10, 64)
-		case "Hash blocks":
-			sb.HashBlocks, _ = strconv.ParseUint(val, 10, 64)
 		case "Hash block size":
 			sb.HashBlockSize, _ = strconv.ParseUint(val, 10, 64)
 		case "Hash algorithm":
-			sb.HashAlgorithm = val
+			sb.Algorithm = val
 		case "Salt":
 			sb.Salt = val
-		case "Hash device size":
-			numBytes := strings.TrimSpace(strings.Split(val, "[")[0])
-			sb.HashDeviceSize, _ = strconv.ParseUint(numBytes, 10, 64)
 		case "Root hash":
 			rootHash = val
 		}
@@ -97,8 +92,7 @@ func FormatNoSB(dataDevice string, hashDevice string) (string, *VeritySuperBlock
 		return "", nil, osutil.OutputErr(output, err)
 	}
 
-	// TODO: Remove debug print
-	// fmt.Println(string(output))
+	logger.Debugf("%s", string(output))
 
 	rootHash, sb := parseVeritySetupOutput(output)
 
