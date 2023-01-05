@@ -517,6 +517,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result in
 
 // Set takes a path to which the value will be written. The path can be dotted,
 // in which case, a nested JSON object is created for each sub-key found after a dot.
+// If the value is nil, the entry is deleted.
 func (s JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
 
