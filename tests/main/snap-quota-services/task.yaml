@@ -1,8 +1,17 @@
 summary: Test for per-service quota-related snap functionality.
 
-# In arm devices using ubuntu core, memory quota cannot be used because
-# memory cgroup is disabled
-systems: [ -ubuntu-core-*-arm-* ]
+# these systems do not support journal quota groups due to their old systemd versions.
+# requires systemd v245+
+systems:
+  - -amazon-linux-2-*
+  - -centos-7-*
+  - -centos-8-*
+  - -debian-10-64
+  - -ubuntu-14.04-*
+  - -ubuntu-16.04-*
+  - -ubuntu-18.04-*
+  - -ubuntu-core-16-*
+  - -ubuntu-core-18-*
 
 prepare: |
   snap install test-snapd-stressd --edge --devmode
@@ -11,15 +20,6 @@ prepare: |
   tests.cleanup defer snap unset system experimental.quota-groups
 
 execute: |
-  if os.query is-trusty || os.query is-amazon-linux || os.query is-centos 7 || os.query is-xenial || os.query is-core16; then
-    # just check that we can't do anything with quota groups on systems with
-    # old systemd versions, we need at least 230 to avoid buggy slice usage
-    # reporting
-
-    snap set-quota foobar --memory=1MB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH "systemd version 2[0-2][0-9] is too old \(expected at least 230\)"
-    exit 0
-  fi
-
   # Create the top level snap group with a memory limit. test-snapd-stressd
   # contains 4 services, which makes it perfect for our testing as we only need
   # this one snap to test isolating services.
