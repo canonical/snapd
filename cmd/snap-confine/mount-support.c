@@ -439,7 +439,7 @@ static void sc_replicate_base_rootfs(const char *scratch_dir,
 					 rootfs_dir, ent->d_name);
 			sc_do_mount(src_path, full_path, NULL, MS_BIND, NULL);
 		} else {
-			die("unexpected directory entry \"%s\" of type %i encounted in \"%s\"",
+			die("unexpected directory entry \"%s\" of type %i encountered in \"%s\"",
 				ent->d_name, ent->d_type, rootfs_dir);
 		}
 	}
