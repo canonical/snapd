@@ -467,6 +467,10 @@ transfer it to the snappy system and then run:
 To debug interaction with the snap store, you can set `SNAPD_DEBUG_HTTP`.
 It is a bitfield: dump requests: 1, dump responses: 2, dump bodies: 4.
 
+Similarly, to debug the interaction between the `snap` command-line tool and the
+snapd's REST API, you can set `SNAP_CLIENT_DEBUG_HTTP`. It is also a bitfield,
+using the same values and behaviour as `SNAPD_DEBUG_HTTP`.
+
 > In case you get some security profiles errors, when trying to install or refresh a snap, 
 maybe you need to replace system installed snap-seccomp with the one aligned to the snapd that 
 you are testing. To do this, simply backup `/usr/lib/snapd/snap-seccomp` and overwrite it with 
