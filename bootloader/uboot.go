@@ -112,7 +112,7 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 		}
 
 		// TODO:UC20: what's a reasonable size for this file?
-		env, err := ubootenv.Create(u.envFile(), 4096)
+		env, err := ubootenv.Create(u.envFile(), 4096, &ubootenv.CreateOptions{HeaderFlagByte: true})
 		if err != nil {
 			return err
 		}
