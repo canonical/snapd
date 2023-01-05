@@ -58,7 +58,7 @@ func MockUbootFiles(c *C, rootdir string, blOpts *Options) {
 	c.Assert(err, IsNil)
 
 	// ensure that we have a valid uboot.env too
-	env, err := ubootenv.Create(u.envFile(), 4096)
+	env, err := ubootenv.Create(u.envFile(), 4096, ubootenv.CreateOptions{HeaderFlagByte: true})
 	c.Assert(err, IsNil)
 	err = env.Save()
 	c.Assert(err, IsNil)
@@ -258,7 +258,7 @@ func MockPibootFiles(c *C, rootdir string, blOpts *Options) func() {
 	c.Assert(err, IsNil)
 
 	// ensure that we have a valid piboot.conf
-	env, err := ubootenv.Create(p.envFile(), 4096)
+	env, err := ubootenv.Create(p.envFile(), 4096, ubootenv.CreateOptions{HeaderFlagByte: true})
 	c.Assert(err, IsNil)
 	err = env.Save()
 	c.Assert(err, IsNil)

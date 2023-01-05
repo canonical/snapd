@@ -90,7 +90,7 @@ func (s *ubootTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	c.Assert(u, NotNil)
 
 	envFile := bootloader.UbootConfigFile(u)
-	env, err := ubootenv.Create(envFile, 4096)
+	env, err := ubootenv.Create(envFile, 4096, ubootenv.CreateOptions{HeaderFlagByte: true})
 	c.Assert(err, IsNil)
 	env.Set("snap_ab", "b")
 	env.Set("snap_mode", "")

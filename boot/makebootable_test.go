@@ -1639,7 +1639,7 @@ func (s *makeBootable20UbootSuite) TestUbootMakeRunnableSystem20RunModeBootSel(c
 	mockSeedUbootBootSel := filepath.Join(boot.InitramfsUbuntuSeedDir, "uboot/ubuntu/boot.sel")
 	err = os.MkdirAll(filepath.Dir(mockSeedUbootBootSel), 0755)
 	c.Assert(err, IsNil)
-	env, err := ubootenv.Create(mockSeedUbootBootSel, 4096)
+	env, err := ubootenv.Create(mockSeedUbootBootSel, 4096, ubootenv.CreateOptions{HeaderFlagByte: true})
 	c.Assert(err, IsNil)
 	c.Assert(env.Save(), IsNil)
 
@@ -1647,7 +1647,7 @@ func (s *makeBootable20UbootSuite) TestUbootMakeRunnableSystem20RunModeBootSel(c
 	mockBootUbootBootSel := filepath.Join(boot.InitramfsUbuntuBootDir, "uboot/ubuntu/boot.sel")
 	err = os.MkdirAll(filepath.Dir(mockBootUbootBootSel), 0755)
 	c.Assert(err, IsNil)
-	env, err = ubootenv.Create(mockBootUbootBootSel, 4096)
+	env, err = ubootenv.Create(mockBootUbootBootSel, 4096, ubootenv.CreateOptions{HeaderFlagByte: true})
 	c.Assert(err, IsNil)
 	c.Assert(env.Save(), IsNil)
 
@@ -1710,6 +1710,7 @@ version: 5.0
 	uenvSeed, err := ubootenv.Open(mockSeedUbootenv)
 	c.Assert(err, IsNil)
 	c.Assert(uenvSeed.Get("snapd_recovery_mode"), Equals, "run")
+	c.Assert(uenvSeed.HeaderFlagByte(), Equals, true)
 
 	// now check ubuntu-boot boot.sel
 	mockBootUbootenv := filepath.Join(boot.InitramfsUbuntuBootDir, "uboot/ubuntu/boot.sel")
@@ -1718,6 +1719,7 @@ version: 5.0
 	c.Assert(uenvBoot.Get("snap_try_kernel"), Equals, "")
 	c.Assert(uenvBoot.Get("snap_kernel"), Equals, "arm-kernel_5.snap")
 	c.Assert(uenvBoot.Get("kernel_status"), Equals, boot.DefaultStatus)
+	c.Assert(uenvBoot.HeaderFlagByte(), Equals, true)
 
 	// check that we have the extracted kernel in the right places, in the
 	// old uc16/uc18 location
