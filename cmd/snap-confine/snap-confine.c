@@ -293,8 +293,8 @@ static void log_startup_stage(const char *stage)
 		return;
 	}
 
-	// It has shown that it's possible to single-step through the execution of
-	// snap-confine by turning on the debug output, which makes trivial to exploit
+	// It has been shown that it's possible to single-step through the execution of
+	// snap-confine by turning on the debug output, which makes it trivial to exploit
 	// any weaknesses that may exist related to setting up namespaces. This was
 	// used for instance in the exploitation of CVE-2021-44731. To make it harder to attack
 	// snap-confine by controlling stdout, switch stdout to non-blocking IO.
