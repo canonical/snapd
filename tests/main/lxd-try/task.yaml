@@ -1,6 +1,6 @@
 summary: Check that try command works inside lxd container
 
-systems: [ubuntu-2*]
+systems: [ubuntu-20*, ubuntu-22*]
 
 prepare: |
   echo "Install lxd"
@@ -17,8 +17,8 @@ prepare: |
       lxd.lxc config set core.proxy_https "$http_proxy"
   fi
 
-  # There isn't an official image for kinetic yet, let's use the community one
-  if os.query is-ubuntu 22.10; then
+  # There isn't an official image for lunar yet, let's use the community one
+  if os.query is-ubuntu 23.04; then
       CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
       lxc launch --quiet "images:ubuntu/$CODENAME" ubuntu
   else

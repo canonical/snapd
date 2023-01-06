@@ -4,7 +4,7 @@ summary: Check that package remove and purge works inside LXD containers
 # couple of systems only. The postrm purge is more thoroughly checked in
 # tests/main/postrm-purge.
 # ubuntu-18.04-32: i386 is not supported by lxd
-systems: [ubuntu-18.04-64, ubuntu-2*]
+systems: [ubuntu-18.04-64, ubuntu-20*, ubuntu-22*]
 
 # start early
 priority: 1000
@@ -27,7 +27,7 @@ prepare: |
     lxd waitready
     lxd init --auto
 
-    # There isn't an official image for kinetic yet, let's use the community one
+    # There isn't an official image for lunar yet, let's use the community one
     if os.query is-ubuntu 23.04; then
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu

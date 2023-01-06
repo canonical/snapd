@@ -48,14 +48,16 @@ execute: |
         # that defaults were applied early - that is checked further down.
         echo "Precondition check of the gadget defaults"
         remote.exec "sudo snap get system service.rsyslog.disable" | MATCH "true"
-        remote.exec "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
+        remote.exec "sudo snap get system watchdog.runtime-timeout" | MATCH "10m"
         remote.exec "sudo snap get system system.power-key-action" | MATCH "ignore"
         remote.exec "sudo snap get system system.ctrl-alt-del-action" | MATCH "none"
         remote.exec "sudo snap get system system.disable-backlight-service" | MATCH "true"
 
         remote.exec "test -L /etc/systemd/system/rsyslog.service"
         remote.exec "cat /etc/systemd/logind.conf.d/00-snap-core.conf" | MATCH "HandlePowerKey=ignore"
-        remote.exec "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=780"
+        remote.exec "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=600"
+        # ensure it was possible to set the timeout
+        remote.exec "sudo journalctl" | NOMATCH "Failed to set timeout to"
         remote.exec "test -L /etc/systemd/system/systemd-backlight@.service"
 
         echo "Test that defaults were applied early."

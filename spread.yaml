@@ -152,9 +152,9 @@ backends:
                   storage: 12G
                   workers: 6
 
-            - fedora-35-64:
-                  workers: 6
             - fedora-36-64:
+                  workers: 6
+            - fedora-37-64:
                   workers: 6
 
             - arch-linux-64:

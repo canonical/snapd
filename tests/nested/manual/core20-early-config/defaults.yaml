@@ -8,7 +8,8 @@ defaults:
       ssh:
         listen-address: :8023,192.168.99.4:9922
     watchdog:
-      runtime-timeout: 13m
+      # nested test uses iTCO_wdt with a maxmium timeout of 613s so stay below
+      runtime-timeout: 10m
     system:
       power-key-action: ignore
       ctrl-alt-del-action: none

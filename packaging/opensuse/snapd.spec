@@ -92,6 +92,7 @@ Source0:        https://github.com/snapcore/snapd/releases/download/%{version}/%
 Source1:        snapd-rpmlintrc
 BuildRequires:  autoconf
 BuildRequires:  automake
+BuildRequires:  fakeroot
 BuildRequires:  glib2-devel
 BuildRequires:  glibc-devel-static
 BuildRequires:  go >= 1.13
@@ -206,7 +207,7 @@ __DEFINES__
 
 # Set the version that is compiled into the various executables/
 pushd %{indigo_srcdir}
-./mkversion.sh %{version}-%{release}
+./mkversion.sh %{version}
 popd
 
 # Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.
@@ -272,18 +273,23 @@ done
 %install
 # Install all systemd and dbus units, and env files.
 %make_install -C %{indigo_srcdir}/data \
-        BINDIR=%{_bindir} \
-        LIBEXECDIR=%{_libexecdir} \
-        DATADIR=%{_datadir} \
-        SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
-        SNAP_MOUNT_DIR=%{snap_mount_dir} \
-        TMPFILESDIR="%{_tmpfilesdir}"
+		BINDIR=%{_bindir} \
+		LIBEXECDIR=%{_libexecdir} \
+		DATADIR=%{_datadir} \
+		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
+		TMPFILESDIR=%{_tmpfilesdir} \
+		SNAP_MOUNT_DIR=%{snap_mount_dir}
 # Install all the C executables.
 %make_install -C %{indigo_srcdir}/cmd
 # Use the common packaging helper for bulk of installation.
 %make_install -f %{indigo_srcdir}/packaging/snapd.mk \
             GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
             install
+%if ! %{with apparmor}
+rm %{buildroot}%{_unitdir}/snapd.aa-prompt-listener.service
+rm %{buildroot}%{_userunitdir}/snapd.aa-prompt-ui.service
+rm %{buildroot}%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
+%endif
 
 # Undo special permissions of the void directory. We handle that in RPM files
 # section below.
@@ -320,11 +326,6 @@ install -m 644 -D %{indigo_srcdir}/data/completion/bash/etelpmoc.sh %{buildroot}
 # Install zsh completion for "snap"
 install -d -p %{buildroot}%{_datadir}/zsh/site-functions
 install -m 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
-
-# Remove prompt services
-rm %{buildroot}%{_unitdir}/snapd.aa-prompt-listener.service
-rm %{buildroot}%{_userunitdir}/snapd.aa-prompt-ui.service
-rm %{buildroot}%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
 
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
@@ -491,10 +492,13 @@ fi
 # When apparmor is enabled there are some additional entries.
 %if %{with apparmor}
 %config %{_sysconfdir}/apparmor.d
+%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
 %{_libexecdir}/snapd/snapd-apparmor
 %{_sbindir}/rcsnapd.apparmor
 %{_sysconfdir}/apparmor.d/%{apparmor_snapconfine_profile}
 %{_unitdir}/snapd.apparmor.service
+%{_unitdir}/snapd.aa-prompt-listener.service
+%{_userunitdir}/snapd.aa-prompt-ui.service
 %endif
 
 %changelog

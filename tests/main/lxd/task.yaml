@@ -7,7 +7,7 @@ backends: [-autopkgtest]
 # Only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
 # ubuntu-18.04-32: i386 is not supported by lxd
-systems: [ubuntu-16*, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*]
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20*, ubuntu-22*, ubuntu-core-*]
 
 # Start before anything else as it can take a really long time.
 priority: 1000
@@ -91,7 +91,7 @@ execute: |
     # prep two containers, the my-ubuntu normal container and the
     # my-nesting-ubuntu nesting container
 
-    # There isn't an official image for kinetic yet, let's use the community one
+    # There isn't an official image for lunar yet, let's use the community one
     if os.query is-ubuntu 23.04; then
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu
@@ -170,7 +170,7 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- lxd waitready
     lxd.lxc exec my-nesting-ubuntu -- lxd init --auto
 
-    # There isn't an official image for kinetic yet, let's use the community one
+    # There isn't an official image for lunar yet, let's use the community one
     if os.query is-ubuntu 23.04; then
       CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
       lxd.lxc exec my-nesting-ubuntu -- lxc launch --quiet "images:ubuntu/$CODENAME" my-inner-ubuntu
