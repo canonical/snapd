@@ -101,10 +101,7 @@ func matchEpoch(a string) bool {
 // versionIsValid returns true if the given string is a valid
 // version number according to the debian policy
 func versionIsValid(a string) bool {
-	if matchEpoch(a) {
-		return false
-	}
-	return true
+	return !matchEpoch(a)
 }
 
 func nextFrag(s string) (frag, rest string, numeric bool) {
