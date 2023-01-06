@@ -184,19 +184,23 @@ func EnsureCloudInitRestricted(m *DeviceManager) error {
 	return m.ensureCloudInitRestricted()
 }
 
-func ImportAssertionsFromSeed(m *DeviceManager, sysLabel string, isCoreBoot bool) (seed.Seed, error) {
-	return m.importAssertionsFromSeed(sysLabel, isCoreBoot)
+func ImportAssertionsFromSeed(m *DeviceManager, isCoreBoot bool) (seed.Seed, error) {
+	return m.importAssertionsFromSeed(isCoreBoot)
 }
 
-func PopulateStateFromSeedImpl(m *DeviceManager, opts *PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
-	return m.populateStateFromSeedImpl(opts, tm)
+func PopulateStateFromSeedImpl(m *DeviceManager, tm timings.Measurer) ([]*state.TaskSet, error) {
+	return m.populateStateFromSeedImpl(tm)
 }
 
-type PopulateStateFromSeedOptions = populateStateFromSeedOptions
-
-func MockPopulateStateFromSeed(m *DeviceManager, f func(*PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
+func MockPopulateStateFromSeed(m *DeviceManager, f func(seedLabel, seedMode string, tm timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
 	old := m.populateStateFromSeed
-	m.populateStateFromSeed = f
+	m.populateStateFromSeed = func(tm timings.Measurer) ([]*state.TaskSet, error) {
+		sLabel, sMode, err := m.seedLabelAndMode()
+		if err != nil {
+			panic(err)
+		}
+		return f(sLabel, sMode, tm)
+	}
 	return func() {
 		m.populateStateFromSeed = old
 	}

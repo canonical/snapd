@@ -35,7 +35,7 @@ import (
 var assetTemplateText = `// -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) {{ .Year }} Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -123,7 +123,10 @@ func run(assetName, inputFile, outputFile string) error {
 		// we use a preformatted lines carrying asset data
 		AssetDataLines: formatLines(inData.Bytes()),
 		AssetName:      assetName,
-		Year:           strconv.Itoa(time.Now().Year()),
+		// XXX: The year is currently not used because it leads
+		//      to spurious changes every year. Once we use something
+		//      like real build-system we can re-enable this
+		Year: strconv.Itoa(time.Now().Year()),
 	}
 	if err := assetTemplate.Execute(outf, &templateData); err != nil {
 		return fmt.Errorf("cannot generate content: %v", err)

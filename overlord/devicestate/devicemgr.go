@@ -100,9 +100,11 @@ type DeviceManager struct {
 
 	seedTimings *timings.Timings
 	// this is used during early phases until seeding is under way
-	earlyDeviceSeed seed.Seed
+	earlyDeviceSeed     seed.Seed
+	seedLabel, seedMode string
+	seedChosen          bool
 
-	populateStateFromSeed func(*populateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)
+	populateStateFromSeed func(timings.Measurer) ([]*state.TaskSet, error)
 
 	ensureSeedInConfigRan bool
 
@@ -812,6 +814,36 @@ func (m *DeviceManager) earlyDeviceContext() (snapstate.DeviceContext, error) {
 	return dev, err
 }
 
+// seedLabelAndMode finds out the label and mode under which to seed the system.
+// Only to use if not yet seeded.
+// TODO: can it be unified with the code in Manager?
+func (m *DeviceManager) seedLabelAndMode() (seedLabel, seedMode string, err error) {
+	if m.seedChosen {
+		return m.seedLabel, m.seedMode, nil
+	}
+	if m.preseed {
+		if !release.OnClassic {
+			seedMode = "run"
+			seedLabel = m.systemForPreseeding()
+		}
+	} else {
+		modeenv, err := maybeReadModeenv()
+		if err != nil {
+			return "", "", err
+		}
+		if modeenv != nil {
+			logger.Debugf("modeenv read, mode %q label %q",
+				modeenv.Mode, modeenv.RecoverySystem)
+			seedMode = modeenv.Mode
+			seedLabel = modeenv.RecoverySystem
+		}
+	}
+	m.seedLabel = seedLabel
+	m.seedMode = seedMode
+	m.seedChosen = true
+	return seedLabel, seedMode, nil
+}
+
 func (m *DeviceManager) earlyLoadDeviceSeed(seedLoadErr error) (snapstate.DeviceContext, seed.Seed, error) {
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
@@ -827,19 +859,9 @@ func (m *DeviceManager) earlyLoadDeviceSeed(seedLoadErr error) (snapstate.Device
 		return newModelDeviceContext(m, m.earlyDeviceSeed.Model()), m.earlyDeviceSeed, nil
 	}
 
-	var sysLabel string
-	if m.preseed && !release.OnClassic {
-		sysLabel = m.systemForPreseeding()
-	}
-
-	if !m.preseed {
-		modeenv, err := maybeReadModeenv()
-		if err != nil {
-			return nil, nil, err
-		}
-		if modeenv != nil {
-			sysLabel = modeenv.RecoverySystem
-		}
+	sysLabel, _, err := m.seedLabelAndMode()
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// we time StartUp/earlyPreloadGadget + first ensureSeeded together
@@ -945,31 +967,9 @@ func (m *DeviceManager) ensureSeeded() error {
 	// succcessive ensureSeeded should be timed separately
 	m.seedTimings = nil
 
-	var opts *populateStateFromSeedOptions
-	if m.preseed {
-		opts = &populateStateFromSeedOptions{}
-		if !release.OnClassic {
-			opts.Mode = "run"
-			opts.Label = m.systemForPreseeding()
-		}
-	} else {
-		modeenv, err := maybeReadModeenv()
-		if err != nil {
-			return err
-		}
-		if modeenv != nil {
-			logger.Debugf("modeenv read, mode %q label %q",
-				modeenv.Mode, modeenv.RecoverySystem)
-			opts = &populateStateFromSeedOptions{
-				Mode:  modeenv.Mode,
-				Label: modeenv.RecoverySystem,
-			}
-		}
-	}
-
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
-		tsAll, err = m.populateStateFromSeed(opts, tm)
+		tsAll, err = m.populateStateFromSeed(tm)
 	})
 	if err != nil {
 		return err
