@@ -345,7 +345,12 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// orphan a sub-group to no longer have a parent, but currently it just
 		// means leave the group with whatever parent it has, or if it doesn't
 		// currently exist, create the group without a parent group
-		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, snaps, services, quotaValues)
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, &client.EnsureQuotaOptions{
+			Parent:      x.Parent,
+			Snaps:       snaps,
+			Services:    services,
+			Constraints: quotaValues,
+		})
 		if err != nil {
 			return err
 		}
@@ -358,8 +363,11 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// snaps or services with whatever was specified with some option, but we don't
 		// currently support that, so currently all snaps or services specified here are
 		// just added to the group
-
-		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, snaps, services, nil)
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, &client.EnsureQuotaOptions{
+			Parent:   x.Parent,
+			Snaps:    snaps,
+			Services: services,
+		})
 		if err != nil {
 			return err
 		}
