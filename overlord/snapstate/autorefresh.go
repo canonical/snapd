@@ -641,8 +641,12 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 		checkerErr = nil
 	}
 
-	// Send the notification asynchronously to avoid holding the state lock.
-	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+	// if the refresh is manual the error message already carries the information so don't notify
+	if snapst.IsAutoRefresh {
+		// Send the notification asynchronously to avoid holding the state lock.
+		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+	}
+
 	return checkerErr
 }
 
