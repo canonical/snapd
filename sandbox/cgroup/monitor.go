@@ -21,7 +21,6 @@ package cgroup
 
 import (
 	"errors"
-	"os"
 	"path"
 	"sync"
 
@@ -32,14 +31,11 @@ import (
 
 // inotifyWatcher manages the inotify watcher, allowing to have a single watch descriptor open
 type inotifyWatcher struct {
-	// The watch object
 	wd *inotify.Watcher
-	// This is used to ensure that the watcher goroutine is launched only once
-	doOnce sync.Once
-	// This channel is used to add a new CGroup that has to be checked
-	addWatchChan chan *groupToWatch
+
 	// Contains the list of groups to monitor, to detect when they have been deleted
 	groupList []*groupToWatch
+
 	// Contains the list of paths being monitored by the inotify watcher.
 	// The paths monitored aren't the CGroup paths, but the parent ones, because
 	// in /sys/fs is not possible to detect the InDeleteSelf message, only the
@@ -54,6 +50,9 @@ type inotifyWatcher struct {
 	// is decremented, and when it reaches zero, it is removed and inotify is
 	// notified to stop monitoring it.
 	pathList map[string]int32
+
+	// serialize operations
+	mu sync.Mutex
 }
 
 // Contains the data corresponding to a CGroup that must be watched to detect
@@ -64,16 +63,11 @@ type groupToWatch struct {
 	// This contains a list of folders to monitor. When all of them have been
 	// deleted, the CGroup has been destroyed and there are no processes running
 	folders []string
+
 	// This channel is used to notify to the requester that this CGroup has been
 	// destroyed. The watcher writes the CGroup identifier on it; this way, the
 	// same channel can be shared to monitor several CGroups.
 	channel chan<- string
-}
-
-var currentWatcher *inotifyWatcher = &inotifyWatcher{
-	wd:           nil,
-	pathList:     make(map[string]int32),
-	addWatchChan: make(chan *groupToWatch),
 }
 
 func (gtw *groupToWatch) sendClosedNotification() {
@@ -85,7 +79,36 @@ func (gtw *groupToWatch) sendClosedNotification() {
 	gtw.channel <- gtw.name
 }
 
-func (iw *inotifyWatcher) addWatch(newWatch *groupToWatch) {
+// newInotifyWatcher will create a new inotifyWatcher and starts
+// a monitor go-routine. Use "Stop()" when finished.
+func newInotifyWatcher() (iw *inotifyWatcher, err error) {
+	iw = &inotifyWatcher{
+		wd:       nil,
+		pathList: make(map[string]int32),
+	}
+	iw.wd, err = inotify.NewWatcher()
+	if err != nil {
+		return nil, err
+	}
+	if iw.wd == nil {
+		return nil, errors.New("cannot initialise Inotify.")
+	}
+	go iw.watcherMainLoop()
+	return iw, nil
+}
+
+// MonitorDelete monitors the specified paths for deletion.
+// Once all of them have been deleted, it pushes the specified name through the channel.
+func (iw *inotifyWatcher) MonitorDelete(folders []string, name string, channel chan<- string) (err error) {
+	iw.mu.Lock()
+	defer iw.mu.Unlock()
+
+	newWatch := &groupToWatch{
+		name:    name,
+		folders: folders,
+		channel: channel,
+	}
+
 	var folderList []string
 	for _, fullPath := range newWatch.folders {
 		// It's not possible to use inotify.InDeleteSelf in /sys/fs because it
@@ -94,12 +117,7 @@ func (iw *inotifyWatcher) addWatch(newWatch *groupToWatch) {
 		if _, exists := iw.pathList[basePath]; !exists {
 			iw.pathList[basePath] = 0
 			if err := iw.wd.AddWatch(basePath, inotify.InDelete); err != nil {
-				target := &os.PathError{}
-				if !errors.As(err, &target) {
-					logger.Noticef("Error when calling AddWatch for path %s: %s", target.Path, target.Err)
-				}
-				delete(iw.pathList, basePath)
-				continue
+				return err
 			}
 		}
 		iw.pathList[fullPath]++
@@ -110,11 +128,14 @@ func (iw *inotifyWatcher) addWatch(newWatch *groupToWatch) {
 		}
 	}
 	if len(folderList) == 0 {
-		newWatch.sendClosedNotification()
+		// XXX: this has to be a go-routine to support un-buffered channels
+		go newWatch.sendClosedNotification()
 	} else {
 		newWatch.folders = folderList
 		iw.groupList = append(iw.groupList, newWatch)
 	}
+
+	return nil
 }
 
 func (iw *inotifyWatcher) removePath(fullPath string) {
@@ -152,7 +173,11 @@ func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath st
 func (iw *inotifyWatcher) watcherMainLoop() {
 	for {
 		select {
-		case event := <-iw.wd.Event:
+		case event, ok := <-iw.wd.Event:
+			if !ok {
+				// channel got closed, exit
+				return
+			}
 			if event.Mask&inotify.InDelete == 0 {
 				continue
 			}
@@ -163,40 +188,35 @@ func (iw *inotifyWatcher) watcherMainLoop() {
 				}
 			}
 			iw.groupList = newGroupList
-		case newWatch := <-iw.addWatchChan:
-			iw.addWatch(newWatch)
 		}
 	}
 }
 
-// MonitorDelete monitors the specified paths for deletion.
-// Once all of them have been deleted, it pushes the specified name through the channel.
-func (iw *inotifyWatcher) monitorDelete(folders []string, name string, channel chan<- string) (err error) {
-	iw.doOnce.Do(func() {
-		iw.wd, err = inotify.NewWatcher()
-		if err != nil {
-			return
-		}
-		go iw.watcherMainLoop()
-	})
+func (iw *inotifyWatcher) Stop() error {
+	return iw.wd.Close()
+}
+
+// SnapWatcher can monitor the snap related cgroups
+type SnapWatcher struct {
+	iw *inotifyWatcher
+}
+
+// NewSnapWatcher returns a watcher that can monitor when all processes
+// of the given snapName are finished.
+//
+// Use "Stop()" when done with the watching.
+func NewSnapWatcher() (*SnapWatcher, error) {
+	iw, err := newInotifyWatcher()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if iw.wd == nil {
-		return errors.New("cannot initialise Inotify.")
-	}
-	iw.addWatchChan <- &groupToWatch{
-		name:    name,
-		folders: folders,
-		channel: channel,
-	}
-	return nil
+	return &SnapWatcher{iw: iw}, nil
 }
 
-// MonitorSnapEnded monitors the running instances of a snap. Once all
+// AllProcessesEnded monitors the running instances of a snap. Once all
 // instances of the snap have stopped, its name is pushed through the supplied
 // channel. This allows the caller to use the same channel to monitor several snaps.
-func MonitorSnapEnded(snapName string, channel chan string) error {
+func (sw *SnapWatcher) AllProcessesEnded(snapName string, channel chan string) error {
 	options := InstancePathsOptions{
 		ReturnCGroupPath: true,
 	}
@@ -204,5 +224,9 @@ func MonitorSnapEnded(snapName string, channel chan string) error {
 	if err != nil {
 		return err
 	}
-	return currentWatcher.monitorDelete(paths, snapName, channel)
+	return sw.iw.MonitorDelete(paths, snapName, channel)
+}
+
+func (sw *SnapWatcher) Stop() {
+	sw.iw.Stop()
 }

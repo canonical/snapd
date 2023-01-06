@@ -58,7 +58,12 @@ func (s *monitorSuite) SetUpTest(c *C) {
 func (s *monitorSuite) calibrateInotifyDelay(c *C) {
 	folder1 := s.makeTestFolder(c, "folder1")
 	filelist := []string{folder1}
-	err := cgroup.MonitorDelete(filelist, "test1", s.eventsCh)
+
+	iw, err := cgroup.NewInotifyWatcher()
+	c.Assert(err, IsNil)
+	defer iw.Stop()
+
+	err = iw.MonitorDelete(filelist, "test1", s.eventsCh)
 	c.Assert(err, IsNil)
 	var start time.Time
 	go func() {
@@ -88,11 +93,14 @@ func (s *monitorSuite) makeTestFolder(c *C, name string) (fullPath string) {
 }
 
 func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
+	iw, err := cgroup.NewInotifyWatcher()
+	c.Assert(err, IsNil)
+
 	folder1 := s.makeTestFolder(c, "folder1")
 	folder2 := s.makeTestFolder(c, "folder2")
 
 	filelist := []string{folder1}
-	err := cgroup.MonitorDelete(filelist, "test1", s.eventsCh)
+	err = iw.MonitorDelete(filelist, "test1", s.eventsCh)
 	c.Assert(err, IsNil)
 
 	time.Sleep(s.inotifyWait)
@@ -118,11 +126,14 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 }
 
 func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
+	iw, err := cgroup.NewInotifyWatcher()
+	c.Assert(err, IsNil)
+
 	folder1 := s.makeTestFolder(c, "folder1")
 	folder2 := s.makeTestFolder(c, "folder2")
 
 	filelist := []string{folder1, folder2}
-	err := cgroup.MonitorDelete(filelist, "test2", s.eventsCh)
+	err = iw.MonitorDelete(filelist, "test2", s.eventsCh)
 	c.Assert(err, Equals, nil)
 
 	time.Sleep(s.inotifyWait)
@@ -161,13 +172,16 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 }
 
 func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
+	iw, err := cgroup.NewInotifyWatcher()
+	c.Assert(err, IsNil)
+
 	// Note that there is no dir created in this test so
 	// this checks that the monitoring is correct is there
 	// is no dir
 	nonExistingFolder := path.Join(c.MkDir(), "non-exiting-dir")
 
 	filelist := []string{nonExistingFolder}
-	err := cgroup.MonitorDelete(filelist, "test3", s.eventsCh)
+	err = iw.MonitorDelete(filelist, "test3", s.eventsCh)
 	c.Assert(err, Equals, nil)
 
 	event := <-s.eventsCh
@@ -175,6 +189,9 @@ func (s *monitorSuite) TestMonitorSnapSnapAlreadyStopped(c *C) {
 }
 
 func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
+	iw, err := cgroup.NewInotifyWatcher()
+	c.Assert(err, IsNil)
+
 	folder1 := s.makeTestFolder(c, "folder1")
 	folder2 := s.makeTestFolder(c, "folder2")
 
@@ -187,9 +204,9 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 	channel2 := make(chan string)
 	defer close(channel2)
 
-	err := cgroup.MonitorDelete(filelist1, "test4a", channel1)
+	err = iw.MonitorDelete(filelist1, "test4a", channel1)
 	c.Assert(err, Equals, nil)
-	err = cgroup.MonitorDelete(filelist2, "test4b", channel2)
+	err = iw.MonitorDelete(filelist2, "test4b", channel2)
 	c.Assert(err, Equals, nil)
 
 	time.Sleep(s.inotifyWait)
@@ -240,7 +257,11 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 }
 
 func (s *monitorSuite) TestMonitorSnapEndedNonExisting(c *C) {
-	err := cgroup.MonitorSnapEnded("non-existing-snap", s.eventsCh)
+	sw, err := cgroup.NewSnapWatcher()
+	c.Assert(err, IsNil)
+	defer sw.Stop()
+
+	err = sw.AllProcessesEnded("non-existing-snap", s.eventsCh)
 	c.Assert(err, IsNil)
 
 	event := <-s.eventsCh
@@ -251,15 +272,19 @@ func (s *monitorSuite) TestMonitorSnapEndedIntegration(c *C) {
 	restore := cgroup.MockVersion(cgroup.V2, nil)
 	s.AddCleanup(restore)
 
+	sw, err := cgroup.NewSnapWatcher()
+	c.Assert(err, IsNil)
+	defer sw.Stop()
+
 	// make mock cgroups.procs file
 	mockProcsFile := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/snap.firefox.firefox.fa61f25b-92e1-4316-8acb-2b95af841855.scope/cgroup.procs")
-	err := os.MkdirAll(filepath.Dir(mockProcsFile), 0755)
+	err = os.MkdirAll(filepath.Dir(mockProcsFile), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockProcsFile, []byte("57003\n57004"), 0644)
 	c.Assert(err, IsNil)
 
 	// wait for firefox to end
-	err = cgroup.MonitorSnapEnded("firefox", s.eventsCh)
+	err = sw.AllProcessesEnded("firefox", s.eventsCh)
 	c.Assert(err, IsNil)
 
 	select {
@@ -283,7 +308,11 @@ func (s *monitorSuite) TestMonitorCloseChannel(c *C) {
 
 	filelist := []string{folder1}
 	ch := make(chan string)
-	err := cgroup.MonitorDelete(filelist, "test1", ch)
+	iw, err := cgroup.NewInotifyWatcher()
+	c.Assert(err, IsNil)
+	defer iw.Stop()
+
+	err = iw.MonitorDelete(filelist, "test1", ch)
 	c.Assert(err, IsNil)
 
 	time.Sleep(s.inotifyWait)
