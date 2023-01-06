@@ -88,26 +88,8 @@ func trivialSeeding(st *state.State) []*state.TaskSet {
 	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
 }
 
-type populateStateFromSeedOptions struct {
-	Label   string
-	Mode    string
-	Preseed bool
-}
-
-func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
-	mode := "run"
-	sysLabel := ""
-	preseed := false
-	hasModeenv := false
-	if opts != nil {
-		if opts.Mode != "" {
-			mode = opts.Mode
-			hasModeenv = true
-		}
-		sysLabel = opts.Label
-		preseed = opts.Preseed
-	}
-
+func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state.TaskSet, error) {
+	st := m.state
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
@@ -118,11 +100,23 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, fmt.Errorf("cannot populate state: already seeded")
 	}
 
+	preseed := m.preseed
+	sysLabel, mode, err := m.seedLabelAndMode()
+	if err != nil {
+		return nil, err
+	}
+	hasModeenv := false
+	if mode != "" {
+		hasModeenv = true
+	} else {
+		mode = "run"
+	}
+
 	var deviceSeed seed.Seed
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
 		isCoreBoot := hasModeenv || !release.OnClassic
-		deviceSeed, err = importAssertionsFromSeed(st, sysLabel, isCoreBoot)
+		deviceSeed, err = m.importAssertionsFromSeed(isCoreBoot)
 	})
 	if err != nil && err != errNothingToDo {
 		return nil, err
@@ -162,7 +156,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	}
 
 	// optimistically forget the deviceSeed here
-	unloadDeviceSeed(st)
+	m.earlyDeviceSeed = nil
 
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
@@ -342,7 +336,9 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	return tsAll, nil
 }
 
-func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool) (seed.Seed, error) {
+func (m *DeviceManager) importAssertionsFromSeed(isCoreBoot bool) (seed.Seed, error) {
+	st := m.state
+
 	// TODO: use some kind of context fo Device/SetDevice?
 	device, err := internal.Device(st)
 	if err != nil {
@@ -351,7 +347,7 @@ func importAssertionsFromSeed(st *state.State, sysLabel string, isCoreBoot bool)
 
 	// collect and
 	// set device,model from the model assertion
-	deviceSeed, err := loadDeviceSeed(st, sysLabel)
+	_, deviceSeed, err := m.earlyLoadDeviceSeed(nil)
 	if err == seed.ErrNoAssertions && !isCoreBoot {
 		// if classic boot seeding is optional
 		// set the fallback model
@@ -413,36 +409,9 @@ func processAutoImportAssertions(st *state.State, deviceSeed seed.Seed, db asser
 	}
 }
 
-// loadDeviceSeed loads and caches the device seed based on sysLabel,
-// it is meant to be used before and during seeding.
-// It is an error to call it with different sysLabel values once one
-// seed has been loaded and cached.
-//
-// TODO consider making this into a method of DeviceManager to simplify caching
-// and unifying it partly with seedStart and earlyLoadDeviceSeed. Mocking will
-// be a bit more cumbersome as other things will need to move there as well,
-// but the baroque cache logic is not great either.
-// TODO the name of this doesn't make it very clear that it is committing
-// the assertions to the device database
+// loadDeviceSeed loads the seed based on sysLabel,
+// It is meant to be called by DeviceManager.earlyLoadDeviceSeed.
 var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.Seed, err error) {
-	cached := st.Cached(loadedDeviceSeedKey{})
-	if cached != nil {
-		loaded := cached.(*loadedDeviceSeed)
-		if loaded.sysLabel != sysLabel {
-			return nil, fmt.Errorf("internal error: requested inconsistent device seed: %s (was %s)", sysLabel, loaded.sysLabel)
-		}
-		return loaded.seed, loaded.err
-	}
-
-	// cache the outcome, both success and errors
-	defer func() {
-		st.Cache(loadedDeviceSeedKey{}, &loadedDeviceSeed{
-			sysLabel: sysLabel,
-			seed:     deviceSeed,
-			err:      err,
-		})
-	}()
-
 	deviceSeed, err = seed.Open(dirs.SnapSeedDir, sysLabel)
 	if err != nil {
 		return nil, err
@@ -465,18 +434,4 @@ var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.See
 	}
 
 	return deviceSeed, nil
-}
-
-// unloadDeviceSeed forgets the cached outcomes of loadDeviceSeed.
-// Its main reason is to avoid using memory past the point where the deviceSeed
-// isn't needed anymore.
-func unloadDeviceSeed(st *state.State) {
-	st.Cache(loadedDeviceSeedKey{}, nil)
-}
-
-type loadedDeviceSeedKey struct{}
-type loadedDeviceSeed struct {
-	sysLabel string
-	seed     seed.Seed
-	err      error
 }

@@ -6,6 +6,7 @@ environment:
     NESTED_ENABLE_TPM: true
     NESTED_ENABLE_SECURE_BOOT: true
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
+    # gadget default.yaml uses port 8023
 
 prepare: |
     # Get the snakeoil key and cert
@@ -27,6 +28,10 @@ prepare: |
 
     rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
+    # Note that the early config is configured to set port to 8023 instead
+    # of the default 8022 (which maps to 22 on the VM).
+    remote.setup config --host localhost --port 8023 --user user1 --pass ubuntu
+
     tests.nested build-image core
     tests.nested create-vm core
 
@@ -43,14 +48,16 @@ execute: |
         # that defaults were applied early - that is checked further down.
         echo "Precondition check of the gadget defaults"
         remote.exec "sudo snap get system service.rsyslog.disable" | MATCH "true"
-        remote.exec "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
+        remote.exec "sudo snap get system watchdog.runtime-timeout" | MATCH "10m"
         remote.exec "sudo snap get system system.power-key-action" | MATCH "ignore"
         remote.exec "sudo snap get system system.ctrl-alt-del-action" | MATCH "none"
         remote.exec "sudo snap get system system.disable-backlight-service" | MATCH "true"
 
         remote.exec "test -L /etc/systemd/system/rsyslog.service"
         remote.exec "cat /etc/systemd/logind.conf.d/00-snap-core.conf" | MATCH "HandlePowerKey=ignore"
-        remote.exec "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=780"
+        remote.exec "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=600"
+        # ensure it was possible to set the timeout
+        remote.exec "sudo journalctl" | NOMATCH "Failed to set timeout to"
         remote.exec "test -L /etc/systemd/system/systemd-backlight@.service"
 
         echo "Test that defaults were applied early."
@@ -89,6 +96,11 @@ execute: |
           # ensure the test can be repeated
           remote.exec "sudo rm -f /etc/netplan/90-snapd-config.yaml"
         fi
+
+        echo "Check the ssh port file is correct"
+        remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress 0\.0\.0\.0:8023"
+        remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress \[::\]:8023"
+        remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress 192\.168\.99\.4:9922"
     }
 
     check_core20_early_config
@@ -104,3 +116,18 @@ execute: |
     remote.exec "sudo snap wait system seed.loaded"
 
     check_core20_early_config
+
+    echo "Check that switching the ssh port works"
+    remote.exec "sudo snap set system service.ssh.listen-address=:9022" || true
+    # we need to connect to 9022 now
+    remote.setup config --host localhost --port 9022 --user user1 --pass ubuntu
+    "$TESTSLIB"/external/snapd-testing-tools/remote/remote.wait-for ssh
+    remote.exec "sudo snap get system service.ssh.listen-address" | MATCH :9022
+    remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress 0\.0\.0\.0:9022"
+    remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress \[::\]:9022"
+    echo "Check that unsetting the ssh port works"
+    remote.exec "sudo snap unset system service.ssh.listen-address" || true
+    # 8022 is the default port that is forwarded to "22" in the guest
+    remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
+    "$TESTSLIB"/external/snapd-testing-tools/remote/remote.wait-for ssh
+    remote.exec "sudo test ! -f /etc/ssh/sshd_config.d/listen.conf"

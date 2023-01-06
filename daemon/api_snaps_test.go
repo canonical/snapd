@@ -1170,6 +1170,51 @@ func (s *snapsSuite) TestSnapInfoReturnsHolds(c *check.C) {
 	c.Check(snapInfo.GatingHold.Equal(gatingHold), check.Equals, true, testCmt)
 }
 
+func (s *snapsSuite) TestSnapManyInfosReturnsHolds(c *check.C) {
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "snap-a", "bar", "v0", snap.R(5), true, "")
+	s.mkInstalledInState(c, d, "snap-b", "bar", "v0", snap.R(5), true, "")
+
+	now := time.Now()
+	userHold := now.Add(100 * 365 * 24 * time.Hour)
+	restore := daemon.MockSystemHold(func(st *state.State, name string) (time.Time, error) {
+		if name == "snap-a" {
+			return userHold, nil
+		}
+		return time.Time{}, nil
+	})
+	defer restore()
+
+	gatingHold := now.Add(24 * time.Hour)
+	restore = daemon.MockLongestGatingHold(func(st *state.State, name string) (time.Time, error) {
+		if name == "snap-b" {
+			return gatingHold, nil
+		}
+		return time.Time{}, nil
+	})
+	defer restore()
+
+	req, err := http.NewRequest("GET", "/v2/snaps", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.jsonReq(c, req, nil)
+	snaps := snapList(rsp.Result)
+
+	for _, snap := range snaps {
+		switch snap["name"] {
+		case "snap-a":
+			c.Assert(snap["hold"], check.Equals, userHold.Format(time.RFC3339Nano))
+			_, ok := snap["gating-hold"]
+			c.Assert(ok, check.Equals, false)
+
+		case "snap-b":
+			c.Assert(snap["gating-hold"], check.Equals, gatingHold.Format(time.RFC3339Nano))
+			_, ok := snap["hold"]
+			c.Assert(ok, check.Equals, false)
+		}
+	}
+}
+
 func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 	media := snap.MediaInfos{
 		{

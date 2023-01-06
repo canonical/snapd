@@ -65,6 +65,7 @@ mount options=(rw,nosuid,nodev) /dev/dm-[0-9]* -> /{,run/}media/**,
 # Allow access to the file locking mechanism
 /{,var/}run/cryptsetup/ r,
 /{,var/}run/cryptsetup/* rwk,
+/{,var/}run/ r,
 `
 
 const dmCryptConnectedPlugSecComp = `

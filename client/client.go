@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/jsonutil"
 )
 
@@ -92,6 +93,10 @@ type Client struct {
 	warningTimestamp time.Time
 
 	userAgent string
+
+	// SetMayLogBody controls whether a request or response's body may be logged
+	// if the appropriate environment variable is set
+	SetMayLogBody func(bool)
 }
 
 // New returns a new instance of Client
@@ -100,31 +105,41 @@ func New(config *Config) *Client {
 		config = &Config{}
 	}
 
+	var baseURL *url.URL
+	var dial func(network, addr string) (net.Conn, error)
+
 	// By default talk over an UNIX socket.
 	if config.BaseURL == "" {
-		transport := &http.Transport{Dial: unixDialer(config.Socket), DisableKeepAlives: config.DisableKeepAlive}
-		return &Client{
-			baseURL: url.URL{
-				Scheme: "http",
-				Host:   "localhost",
-			},
-			doer:        &http.Client{Transport: transport},
-			disableAuth: config.DisableAuth,
-			interactive: config.Interactive,
-			userAgent:   config.UserAgent,
+		dial = unixDialer(config.Socket)
+		baseURL = &url.URL{
+			Scheme: "http",
+			Host:   "localhost",
+		}
+	} else {
+		var err error
+		baseURL, err = url.Parse(config.BaseURL)
+		if err != nil {
+			panic(fmt.Sprintf("cannot parse server base URL: %q (%v)", config.BaseURL, err))
 		}
 	}
 
-	baseURL, err := url.Parse(config.BaseURL)
-	if err != nil {
-		panic(fmt.Sprintf("cannot parse server base URL: %q (%v)", config.BaseURL, err))
+	transport := &httputil.LoggedTransport{
+		Transport: &http.Transport{
+			Dial:              dial,
+			DisableKeepAlives: config.DisableKeepAlive,
+		},
+		Key:        "SNAP_CLIENT_DEBUG_HTTP",
+		MayLogBody: true,
 	}
 	return &Client{
 		baseURL:     *baseURL,
-		doer:        &http.Client{Transport: &http.Transport{DisableKeepAlives: config.DisableKeepAlive}},
+		doer:        &http.Client{Transport: transport},
 		disableAuth: config.DisableAuth,
 		interactive: config.Interactive,
 		userAgent:   config.UserAgent,
+		SetMayLogBody: func(logBody bool) {
+			transport.MayLogBody = logBody
+		},
 	}
 }
 

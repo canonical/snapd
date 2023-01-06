@@ -140,7 +140,7 @@ func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 
 func EarlyPreloadGadget(m *DeviceManager) (sysconfig.Device, *gadget.Info, error) {
 	// let things fully run again
-	m.seedTimings = nil
+	m.earlyDeviceSeed = nil
 	return m.earlyPreloadGadget()
 }
 
@@ -184,15 +184,25 @@ func EnsureCloudInitRestricted(m *DeviceManager) error {
 	return m.ensureCloudInitRestricted()
 }
 
-var PopulateStateFromSeedImpl = populateStateFromSeedImpl
+func ImportAssertionsFromSeed(m *DeviceManager, isCoreBoot bool) (seed.Seed, error) {
+	return m.importAssertionsFromSeed(isCoreBoot)
+}
 
-type PopulateStateFromSeedOptions = populateStateFromSeedOptions
+func PopulateStateFromSeedImpl(m *DeviceManager, tm timings.Measurer) ([]*state.TaskSet, error) {
+	return m.populateStateFromSeedImpl(tm)
+}
 
-func MockPopulateStateFromSeed(f func(*state.State, *PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
-	old := populateStateFromSeed
-	populateStateFromSeed = f
+func MockPopulateStateFromSeed(m *DeviceManager, f func(seedLabel, seedMode string, tm timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
+	old := m.populateStateFromSeed
+	m.populateStateFromSeed = func(tm timings.Measurer) ([]*state.TaskSet, error) {
+		sLabel, sMode, err := m.seedLabelAndMode()
+		if err != nil {
+			panic(err)
+		}
+		return f(sLabel, sMode, tm)
+	}
 	return func() {
-		populateStateFromSeed = old
+		m.populateStateFromSeed = old
 	}
 }
 
@@ -250,8 +260,6 @@ func RecordSeededSystem(m *DeviceManager, st *state.State, sys *seededSystem) er
 
 var (
 	LoadDeviceSeed               = loadDeviceSeed
-	UnloadDeviceSeed             = unloadDeviceSeed
-	ImportAssertionsFromSeed     = importAssertionsFromSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
 	CheckGadgetValid             = checkGadgetValid
 	CheckGadgetRemodelCompatible = checkGadgetRemodelCompatible

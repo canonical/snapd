@@ -589,6 +589,20 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		logger.Noticef("preseed data not present, will do normal seeding")
 	}
 
+	// if the model has a gadget snap, and said gadget snap has an install-device hook
+	// call systemctl daemon-reload to account for any potential side-effects of that
+	// install-device hook
+	hasHook, err := m.hasInstallDeviceHook(model)
+	if err != nil {
+		return err
+	}
+	if hasHook {
+		sd := systemd.New(systemd.SystemMode, progress.Null)
+		if err := sd.DaemonReload(); err != nil {
+			return err
+		}
+	}
+
 	// ensure the next boot goes into run mode
 	if err := bootEnsureNextBootToRunMode(modeEnv.RecoverySystem); err != nil {
 		return err

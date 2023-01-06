@@ -203,6 +203,7 @@ func addRestartServicesTasks(st *state.State, queueTask func(task *state.Task), 
 		for _, svc := range services {
 			names = append(names, svc.Name)
 		}
+		sort.Strings(names)
 		return names
 	}
 
@@ -576,6 +577,61 @@ type ensureSnapServicesForGroupOptions struct {
 	extraSnaps []string
 }
 
+func snapServiceNames(info *snap.Info) []string {
+	var appNames []string
+	for _, app := range info.Services() {
+		appNames = append(appNames, fmt.Sprintf("%s.%s", info.InstanceName(), app.Name))
+	}
+	return appNames
+}
+
+// affectedSnapServices returns a map of snaps and the services affected
+// by performing changes to a quota group. For groups that contain just snaps, all
+// services are added to the map, for groups that contain specific services, only those
+// services listed in the group are affected, as snaps cannot be in same group as services.
+func affectedSnapServices(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions) (map[*snap.Info]*wrappers.SnapServiceOptions, []string, error) {
+	snapSvcMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
+	addSnapToMap := func(sn string) (*snap.Info, error) {
+		info, err := snapstate.CurrentInfo(st, sn)
+		if err != nil {
+			return nil, err
+		}
+		if snapSvcMap[info] != nil {
+			return info, nil
+		}
+		opts, err := SnapServiceOptions(st, info, opts.allGrps)
+		if err != nil {
+			return nil, err
+		}
+		snapSvcMap[info] = opts
+		return info, nil
+	}
+
+	// handle extra snaps also passed here, so that they get included
+	// in any case
+	var affectedServices []string
+	for _, sn := range append(grp.Snaps, opts.extraSnaps...) {
+		info, err := addSnapToMap(sn)
+		if err != nil {
+			return nil, nil, err
+		}
+		affectedServices = append(affectedServices, snapServiceNames(info)...)
+	}
+
+	// if the group is a service group, then grp.Snaps is empty and we
+	// need to get the affected snaps from the service names, which are
+	// of format 'snap.service'
+	for _, svc := range grp.Services {
+		parts := strings.SplitN(svc, ".", 2)
+		snapName := parts[0]
+		if _, err := addSnapToMap(snapName); err != nil {
+			return nil, nil, err
+		}
+		affectedServices = append(affectedServices, svc)
+	}
+	return snapSvcMap, affectedServices, nil
+}
+
 // ensureSnapServicesForGroup will handle updating changes to a given
 // quota group on disk, including re-generating systemd slice files,
 // as well as starting newly created quota groups and stopping and
@@ -592,8 +648,6 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 		return nil, fmt.Errorf("internal error: unset group information for ensuring")
 	}
 
-	allGrps := opts.allGrps
-
 	var meterLocked progress.Meter
 	if t == nil {
 		meterLocked = progress.Null
@@ -602,25 +656,16 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	}
 
 	// build the map of snap infos to options to provide to EnsureSnapServices
-	snapSvcMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
-	for _, sn := range append(grp.Snaps, opts.extraSnaps...) {
-		info, err := snapstate.CurrentInfo(st, sn)
-		if err != nil {
-			return nil, err
-		}
-
-		opts, err := SnapServiceOptions(st, info, allGrps)
-		if err != nil {
-			return nil, err
-		}
-
-		snapSvcMap[info] = opts
+	snapSvcMap, affectedServices, err := affectedSnapServices(st, grp, opts)
+	if err != nil {
+		return nil, err
 	}
 
 	// TODO: the following lines should maybe be EnsureOptionsForDevice() or
 	// something since it is duplicated a few places
 	ensureOpts := &wrappers.EnsureSnapServicesOptions{
-		Preseeding: snapdenv.Preseeding(),
+		Preseeding:      snapdenv.Preseeding(),
+		IncludeServices: affectedServices,
 	}
 
 	// set RequireMountedSnapdSnap if we are on UC18+ only
@@ -744,6 +789,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	// we need to handle the case where a quota was removed, this will only
 	// happen one at a time and can be identified by the grp provided to us
 	// not existing in the state
+	allGrps := opts.allGrps
 	if _, ok := allGrps[grp.Name]; !ok {
 		// stop the quota group, then remove it
 		if !ensureOpts.Preseeding {
@@ -873,7 +919,7 @@ func validateSnapForAddingToGroup(st *state.State, snaps []string, group string,
 // splitSnapServiceName splits and verifies the snap service reference
 // taken in by the frontend. It expects the format snap.service
 func splitSnapServiceName(name string) (string, string, error) {
-	parts := strings.Split(name, ".")
+	parts := strings.SplitN(name, ".", 2)
 	if len(parts) != 2 {
 		return "", "", fmt.Errorf("invalid snap service: %s", name)
 	}
@@ -925,6 +971,11 @@ func validateSnapServicesForAddingToGroup(st *state.State, services []string, gr
 		}
 	}
 
+	var svcQuotaMap map[string]*quota.Group
+	if parentGroup != nil {
+		svcQuotaMap = parentGroup.ServiceMap()
+	}
+
 	for _, name := range services {
 		snap, service, err := splitSnapServiceName(name)
 		if err != nil {
@@ -936,7 +987,7 @@ func validateSnapServicesForAddingToGroup(st *state.State, services []string, gr
 		if parentGroup == nil || !strutil.ListContains(parentGroup.Snaps, snap) {
 			return fmt.Errorf("cannot add snap service %q: the snap %q must be in a direct parent group of group %q", service, snap, group)
 		}
-		if serviceGrp := parentGroup.GroupForService(name); serviceGrp != nil {
+		if serviceGrp := svcQuotaMap[name]; serviceGrp != nil {
 			return fmt.Errorf("cannot add snap service %q: the service is already in group %q", service, serviceGrp.Name)
 		}
 	}

@@ -258,7 +258,15 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	st := o.State()
 	st.Lock()
 	st.Set("seeded", true)
+	// registered
+	err = assertstate.Add(st, sysdb.GenericClassicModel())
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "generic",
+		Model:  "generic-classic",
+		Serial: "serialserial",
+	})
 	st.Unlock()
+	c.Assert(err, IsNil)
 	err = o.StartUp()
 	c.Assert(err, IsNil)
 	o.InterfaceManager().DisableUDevMonitor()
@@ -266,14 +274,6 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
-	// registered
-	err = assertstate.Add(st, sysdb.GenericClassicModel())
-	c.Assert(err, IsNil)
-	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand:  "generic",
-		Model:  "generic-classic",
-		Serial: "serialserial",
-	})
 
 	// add "core" snap declaration
 	headers := map[string]interface{}{

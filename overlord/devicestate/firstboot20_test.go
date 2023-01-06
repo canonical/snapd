@@ -311,18 +311,15 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	// create overlord and pick up the modeenv
 	s.startOverlord(c)
 
-	c.Check(devicestate.SaveAvailable(s.overlord.DeviceManager()), Equals, m.Mode == "run")
+	mgr := s.overlord.DeviceManager()
 
-	opts := devicestate.PopulateStateFromSeedOptions{
-		Label: m.RecoverySystem,
-		Mode:  m.Mode,
-	}
+	c.Check(devicestate.SaveAvailable(mgr), Equals, m.Mode == "run")
 
 	// run the firstboot stuff
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	snaps := []string{"snapd", "pc-kernel", "core20", "pc"}
@@ -572,10 +569,6 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(as, DeepEquals, deviceSeed.Model())
-
-	// inconsistent seed request
-	_, err = devicestate.LoadDeviceSeed(st, "20210201")
-	c.Assert(err, ErrorMatches, `internal error: requested inconsistent device seed: 20210201 \(was 20191018\)`)
 }
 
 func (s *firstBoot20Suite) testProcessAutoImportAssertions(c *C, withAutoImportAssertion bool) string {
@@ -707,12 +700,7 @@ defaults:
 	enabled, _ := features.Flag(tr, features.UserDaemons)
 	c.Check(enabled, Equals, true)
 
-	opts := devicestate.PopulateStateFromSeedOptions{
-		Label: m.RecoverySystem,
-		Mode:  m.Mode,
-	}
-
-	_, err = devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	_, err = devicestate.PopulateStateFromSeedImpl(o.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 }
 
@@ -798,16 +786,11 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 
 	s.startOverlord(c)
 
-	opts := devicestate.PopulateStateFromSeedOptions{
-		Label: m.RecoverySystem,
-		Mode:  m.Mode,
-	}
-
 	// run the firstboot stuff
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 
 	snaps := []string{"snapd", "core20"}
@@ -968,16 +951,11 @@ apps:
 
 	s.startOverlord(c)
 
-	opts := devicestate.PopulateStateFromSeedOptions{
-		Label: m.RecoverySystem,
-		Mode:  m.Mode,
-	}
-
 	// run the firstboot stuff
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	if expectedErr != "" {
 		c.Check(err, ErrorMatches, expectedErr)
 		return

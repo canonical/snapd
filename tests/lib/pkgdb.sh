@@ -613,7 +613,7 @@ pkg_dependencies_ubuntu_classic(){
                 shellcheck
                 "
             ;;
-        ubuntu-22.04-64|ubuntu-22.04-arm-64|ubuntu-22.10-64)
+        ubuntu-22.*|ubuntu-23.*)
             # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
@@ -794,7 +794,6 @@ pkg_dependencies_opensuse(){
     if os.query is-opensuse tumbleweed; then
         echo "
             libfwupd2
-            libfwupdplugin5
         "
     fi
 }

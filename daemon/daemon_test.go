@@ -591,12 +591,7 @@ func (l *witnessAcceptListener) Close() error {
 func (s *daemonSuite) markSeeded(d *Daemon) {
 	st := d.overlord.State()
 	st.Lock()
-	st.Set("seeded", true)
-	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand:  "canonical",
-		Model:  "pc",
-		Serial: "serialserial",
-	})
+	devicestatetest.MarkInitialized(st)
 	st.Unlock()
 }
 
