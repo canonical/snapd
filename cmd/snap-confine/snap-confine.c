@@ -297,11 +297,11 @@ static void log_startup_stage(const char *stage)
 	// snap-confine by turning on the debug output, which makes it trivial to exploit
 	// any weaknesses that may exist related to setting up namespaces. This was
 	// used for instance in the exploitation of CVE-2021-44731. To make it harder to attack
-	// snap-confine by controlling stdout, switch stdout to non-blocking IO.
-	// By default stdout is usually connected to a pipe, and
+	// snap-confine by controlling stderr (where debug output is written), switch stderr 
+	// to non-blocking IO. By default stderr is usually connected to a pipe, and
 	// these pipes have buffers of 65kB (on linux), which means it's highly unlikely 
 	// we should fill it and lose any output unless it's been tampered with.
-	if (sc_nonblocking_stdout()) {
+	if (sc_nonblocking_stderr()) {
 		die("failed to set non-blocking i/o: %s", strerror(errno));
 	}
 

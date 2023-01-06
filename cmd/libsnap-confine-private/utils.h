@@ -28,11 +28,11 @@ __attribute__((format(printf, 1, 2)))
 void debug(const char *fmt, ...);
 
 /**
- * Sets the stdout stream to use non-blocking i/o.
+ * Sets the stderr stream to use non-blocking i/o.
  * 
  * Returns -1 on any errors.
  **/
-int sc_nonblocking_stdout(void);
+int sc_nonblocking_stderr(void);
 
 /**
  * Get an environment variable and convert it to a boolean.
