@@ -27,7 +27,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -91,7 +90,7 @@ func (s *generateAssetsTestSuite) TestSimpleAsset(c *C) {
 	const exp = `// -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) %d Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -119,7 +118,7 @@ func init() {
 	})
 }
 `
-	c.Check(string(data), Equals, fmt.Sprintf(exp, time.Now().Year(), filepath.Join(d, "in")))
+	c.Check(string(data), Equals, fmt.Sprintf(exp, filepath.Join(d, "in")))
 }
 
 func (s *generateAssetsTestSuite) TestGoFmtClean(c *C) {
