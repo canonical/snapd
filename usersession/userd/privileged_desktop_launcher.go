@@ -157,10 +157,12 @@ func desktopFileSearchPath() []string {
 // Per https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id,
 // if desktop entries have dashes in the name ('-'), this could be an indication of subdirectories, so search
 // for those too. Eg, given foo-bar_baz_norf.desktop the following are searched for:
-//   o .../foo-bar_baz-norf.desktop
-//   o .../foo/bar_baz-norf.desktop
-//   o .../foo/bar_baz/norf.desktop
-//   o .../foo-bar_baz/norf.desktop
+//
+//	o .../foo-bar_baz-norf.desktop
+//	o .../foo/bar_baz-norf.desktop
+//	o .../foo/bar_baz/norf.desktop
+//	o .../foo-bar_baz/norf.desktop
+//
 // We're not required to diagnose multiple files matching the desktop file ID.
 func findDesktopFile(baseDir string, splitFileId []string) (string, error) {
 	desktopFile := filepath.Join(baseDir, strings.Join(splitFileId, "-"))

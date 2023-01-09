@@ -138,8 +138,9 @@ func (m *MountedFilesystemWriter) Write(whereDir string, preserve []string) erro
 
 // writeDirectory copies the source directory, or its contents under target
 // location dst. Follows rsync like semantics, that is:
-//   /foo/ -> /bar - writes contents of foo under /bar
-//   /foo  -> /bar - writes foo and its subtree under /bar
+//
+//	/foo/ -> /bar - writes contents of foo under /bar
+//	/foo  -> /bar - writes foo and its subtree under /bar
 func (m *MountedFilesystemWriter) writeDirectory(volumeRoot, src, dst string, preserveInDst []string) error {
 	hasDirSourceSlash := strings.HasSuffix(src, "/")
 
@@ -202,8 +203,10 @@ func (m *MountedFilesystemWriter) observedWriteFileOrSymlink(volumeRoot, src, ds
 
 // writeFileOrSymlink writes the source file or a symlink at given location or
 // under given directory. Follows rsync like semantics, that is:
-//   /foo -> /bar/ - writes foo as /bar/foo
-//   /foo  -> /bar - writes foo as /bar
+//
+//	/foo -> /bar/ - writes foo as /bar/foo
+//	/foo  -> /bar - writes foo as /bar
+//
 // The destination location is overwritten.
 func writeFileOrSymlink(src, dst string, preserveInDst []string) error {
 	if strings.HasSuffix(dst, "/") {
@@ -394,8 +397,9 @@ func (f *mountedFilesystemUpdater) sourceDirectoryEntries(srcPath string) ([]os.
 
 // targetInSourceDir resolves the actual target for given source directory name
 // and target specification.
-//  source: /foo/bar/ target: /baz => /bar/    (contents of /foo/bar/ under /baz)
-//  source: /foo/bar  target: /baz => /bar/bar (directory /foo/bar under /baz, contents under /baz/bar)
+//
+//	source: /foo/bar/ target: /baz => /bar/    (contents of /foo/bar/ under /baz)
+//	source: /foo/bar  target: /baz => /bar/bar (directory /foo/bar under /baz, contents under /baz/bar)
 func targetForSourceDir(source, target string) string {
 	if strings.HasSuffix(source, "/") {
 		// contents of source directory land under target
@@ -528,7 +532,6 @@ func (f *mountedFilesystemUpdater) updateVolumeContent(volumeRoot string, conten
 // ├── b.same             <-- stamp indicating ./b is identical to the update data
 // ├── c.ignore           <-- stamp indicating change to ./c was requested to be ignored
 // └── d.preserve         <-- stamp indicating ./d is to be preserved
-//
 func (f *mountedFilesystemUpdater) Backup() error {
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 

@@ -229,12 +229,12 @@ func ValidateContainer(c Container, s *Info, logf func(format string, v ...inter
 // app's RestartCommand, which might be empty to mean there is no such thing),
 // and cleans it.
 //
-// * empty paths are returned as is
-// * if the path is not relative, it's initial / is dropped
-// * if the path goes "outside" (ie starts with ../), the empty string is
-//   returned (i.e. "ignore")
-// * if there's a space in the command, ignore the rest of the string
-//   (see also cmd/snap-exec/main.go's comment about strings.Split)
+//   - empty paths are returned as is
+//   - if the path is not relative, it's initial / is dropped
+//   - if the path goes "outside" (ie starts with ../), the empty string is
+//     returned (i.e. "ignore")
+//   - if there's a space in the command, ignore the rest of the string
+//     (see also cmd/snap-exec/main.go's comment about strings.Split)
 func normPath(path string) string {
 	if path == "" {
 		return ""

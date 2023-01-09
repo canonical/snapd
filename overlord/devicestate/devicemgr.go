@@ -381,11 +381,11 @@ func (m *DeviceManager) ensureUbuntuSaveIsMounted() error {
 // /var/lib/snapd/save/snap/<snap>. This is normally done during installation
 // of a snap, but there are two cases where this can be insufficient.
 //
-// 1. When migrating to a newer snapd, folders are not automatically created for
-//    snaps that are already installed. They will only be created during a refresh of
-//    the snap itself, whereas we want to cover all the cases.
-// 2. During install mode for the gadget/kernel/etc, the folders are not created.
-//    So this function can be invoked as a part of system-setup.
+//  1. When migrating to a newer snapd, folders are not automatically created for
+//     snaps that are already installed. They will only be created during a refresh of
+//     the snap itself, whereas we want to cover all the cases.
+//  2. During install mode for the gadget/kernel/etc, the folders are not created.
+//     So this function can be invoked as a part of system-setup.
 func (m *DeviceManager) ensureUbuntuSaveSnapFolders() error {
 	snaps, err := snapstate.All(m.state)
 	if err != nil {

@@ -60,7 +60,6 @@ package apparmor
 // The preamble and default accesses common to all bases go in templateCommon.
 // These rules include the aformentioned host file rules as well as non-file
 // rules (eg signal, dbus, unix, etc).
-//
 var templateCommon = `
 # vim:syntax=apparmor
 
@@ -782,10 +781,10 @@ var defaultOtherBaseTemplate = templateCommon + defaultOtherBaseTemplateRules + 
 // to send signals to other users (even within the same snap). We want to
 // maintain this with our privilege dropping rules, so we omit 'capability
 // kill' since snaps can work within the system without 'capability kill':
-// - root parent can drop, spawn a child and later (dropped) parent can send a
-//   signal
-// - root parent can spawn a child that drops, then later temporarily drop
-//   (ie, seteuid/setegid), send the signal, then reraise
+//   - root parent can drop, spawn a child and later (dropped) parent can send a
+//     signal
+//   - root parent can spawn a child that drops, then later temporarily drop
+//     (ie, seteuid/setegid), send the signal, then reraise
 var privDropAndChownRules = `
   # allow setuid, setgid and chown for privilege dropping (mediation is done
   # via seccomp). Note: CAP_SETUID allows (and CAP_SETGID is the same, but
@@ -818,7 +817,6 @@ var privDropAndChownRules = `
 
 // coreSnippet contains apparmor rules specific only for
 // snaps on native core systems.
-//
 var coreSnippet = `
 # Allow each snaps to access each their own folder on the
 # ubuntu-save partition, with write permissions.

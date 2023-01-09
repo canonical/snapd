@@ -453,8 +453,8 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 // GadgetConnect describes an interface connection requested by the gadget
 // between seeded snaps. The syntax is of a mapping like:
 //
-//  plug: (<plug-snap-id>|system):plug
-//  [slot: (<slot-snap-id>|system):slot]
+//	plug: (<plug-snap-id>|system):plug
+//	[slot: (<slot-snap-id>|system):slot]
 //
 // "system" indicates a system plug or slot.
 // Fully omitting the slot part indicates a system slot with the same name
@@ -1359,8 +1359,10 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, fu
 // According to https://elixir.bootlin.com/linux/latest/source/Documentation/admin-guide/kernel-parameters.txt
 // the # character can appear as part of a valid kernel command line argument,
 // specifically in the following argument:
-//   memmap=nn[KMG]#ss[KMG]
-//   memmap=100M@2G,100M#3G,1G!1024G
+//
+//	memmap=nn[KMG]#ss[KMG]
+//	memmap=100M@2G,100M#3G,1G!1024G
+//
 // Thus a lone # or a token starting with # are treated as errors.
 func parseCommandLineFromGadget(content []byte) (string, error) {
 	s := bufio.NewScanner(bytes.NewBuffer(content))

@@ -30,7 +30,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/seccomp/libseccomp-golang"
+	seccomp "github.com/seccomp/libseccomp-golang"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
@@ -218,9 +218,9 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 // Full testing of applied policy is done elsewhere via spread tests.
 //
 // Note that we skip testing prctl(PR_SET_ENDIAN) - it causes havoc when
-// it is run. We will also need to skip: fadvise64_64,
-//   ftruncate64, posix_fadvise, pread64, pwrite64, readahead,
-//   sync_file_range, and truncate64.
+// it is run. We will also need to skip: fadvise64_64, ftruncate64,
+// posix_fadvise, pread64, pwrite64, readahead,	sync_file_range, and truncate64.
+//
 // Once we start using those. See `man syscall`
 func (s *snapSeccompSuite) runBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
 	// Common syscalls we need to allow for a minimal statically linked
@@ -369,14 +369,16 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 // the rule into a bpf program and then running that program on a virtual bpf
 // machine and comparing the bpf machine output to the specified expected
 // output and seccomp operation. Eg:
-//    {"<rule>", "<mocked kernel input>", <seccomp result>}
+//
+//	{"<rule>", "<mocked kernel input>", <seccomp result>}
 //
 // Eg to test that the rule 'read >=2' is allowed with 'read(2)' and 'read(3)'
 // and denied with 'read(1)' and 'read(0)', add the following tests:
-//    {"read >=2", "read;native;2", Allow},
-//    {"read >=2", "read;native;3", Allow},
-//    {"read >=2", "read;native;1", main.SeccompRetKill},
-//    {"read >=2", "read;native;0", main.SeccompRetKill},
+//
+//	{"read >=2", "read;native;2", Allow},
+//	{"read >=2", "read;native;3", Allow},
+//	{"read >=2", "read;native;1", main.SeccompRetKill},
+//	{"read >=2", "read;native;0", main.SeccompRetKill},
 func (s *snapSeccompSuite) TestCompile(c *C) {
 
 	for _, t := range []struct {

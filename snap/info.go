@@ -1075,12 +1075,12 @@ type HookInfo struct {
 // SystemUsernameInfo provides information about a system username (ie, a
 // UNIX user and group with the same name). The scope defines visibility of the
 // username wrt the snap and the system. Defined scopes:
-// - shared    static, snapd-managed user/group shared between host and all
-//             snaps
-// - private   static, snapd-managed user/group private to a particular snap
-//             (currently not implemented)
-// - external  dynamic user/group shared between host and all snaps (currently
-//             not implented)
+//   - shared    static, snapd-managed user/group shared between host and all
+//     snaps
+//   - private   static, snapd-managed user/group private to a particular snap
+//     (currently not implemented)
+//   - external  dynamic user/group shared between host and all snaps (currently
+//     not implented)
 type SystemUsernameInfo struct {
 	Name  string
 	Scope string

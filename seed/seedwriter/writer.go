@@ -100,62 +100,56 @@ func (sn *SeedSnap) modes() []string {
 
 var _ naming.SnapRef = (*SeedSnap)(nil)
 
-/* Writer writes Core 16/18 and Core 20 seeds.
-
-Its methods need to be called in sequences that match prescribed
-flows.
-
-Some methods can be skipped given some conditions.
-
-SnapsToDownload and Downloaded needs to be called in a loop where the
-SeedSnaps returned by SnapsToDownload get SetInfo called with
-*snap.Info retrieved from the store and then the snaps can be
-downloaded at SeedSnap.Path, after which Downloaded must be invoked
-and the flow breaks out of the loop only when it returns complete =
-true. In the loop as well assertions for the snaps can be fetched and
-SeedSnap.ARefs set.
-
-Optionally a similar but simpler mechanism covers local snaps, where
-LocalSnaps returns SeedSnaps that can be filled with information
-derived from the snap at SeedSnap.Path, then InfoDerived is called.
-
-                      V-------->\
-                      |         |
-               SetOptionsSnaps  |
-                      |         v
-                      | ________/
-                      v
-         /          Start       \
-         |            |         |
-         |            v         |
-         |   /    LocalSnaps    |
-   no    |   |        |         |
-   local |   |        v         | no option
-   snaps |   |     SetInfo*     | snaps
-         |   |        |         |
-         |   |        v         |
-         |   |    InfoDerived   |
-         |   |        |         |
-         \   \        |         /
-          >   > SnapsToDownload<
-                      |     ^
-                      v     |
-                   SetInfo* |
-                      |     | complete = false
-                      v     /
-                  Downloaded
-                      |
-                      | complete = true
-                      |
-                      v
-                  SeedSnaps (copy files)
-                      |
-                      v
-                  WriteMeta
-
-  * = 0 or many calls (as needed)
-
-*/
+// Writer writes Core 16/18 and Core 20 seeds. Its methods need to be called in
+// sequences that match prescribed flows.
+// Some methods can be skipped given some conditions.
+//
+// SnapsToDownload and Downloaded needs to be called in a loop where the
+// SeedSnaps returned by SnapsToDownload get SetInfo called with *snap.Info
+// retrieved from the store and then the snaps can be downloaded at
+// SeedSnap.Path, after which Downloaded must be invoked and the flow breaks
+// out of the loop only when it returns complete = true. In the loop as well
+// assertions for the snaps can be fetched and SeedSnap.ARefs set.
+//
+// Optionally a similar but simpler mechanism covers local snaps, where
+// LocalSnaps returns SeedSnaps that can be filled with information derived
+// from the snap at SeedSnap.Path, then InfoDerived is called.
+//
+//	                    V-------->\
+//	                    |         |
+//	             SetOptionsSnaps  |
+//	                    |         v
+//	                    | ________/
+//	                    v
+//	       /          Start       \
+//	       |            |         |
+//	       |            v         |
+//	       |   /    LocalSnaps    |
+//	 no    |   |        |         |
+//	 local |   |        v         | no option
+//	 snaps |   |     SetInfo*     | snaps
+//	       |   |        |         |
+//	       |   |        v         |
+//	       |   |    InfoDerived   |
+//	       |   |        |         |
+//	       \   \        |         /
+//	        >   > SnapsToDownload<
+//	                    |     ^
+//	                    v     |
+//	                 SetInfo* |
+//	                    |     | complete = false
+//	                    v     /
+//	                Downloaded
+//	                    |
+//	                    | complete = true
+//	                    |
+//	                    v
+//	                SeedSnaps (copy files)
+//	                    |
+//	                    v
+//	                WriteMeta
+//
+//	* = 0 or many calls (as needed)
 type Writer struct {
 	model  *asserts.Model
 	opts   *Options

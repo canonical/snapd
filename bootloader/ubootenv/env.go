@@ -33,8 +33,8 @@ import (
 	"strings"
 )
 
-// FIXME: add config option for that so that the user can select if
-//        he/she wants env with or without flags
+// FIXME: add config option for that so that the user can select if he/she
+// wants env with or without flags
 var headerSize = 5
 
 // Env contains the data of the uboot environment

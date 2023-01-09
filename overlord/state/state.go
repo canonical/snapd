@@ -397,15 +397,15 @@ func (s *State) RegisterPendingChangeByAttr(attr string, f func(*Change) bool) {
 
 // Prune does several cleanup tasks to the in-memory state:
 //
-//  * it removes changes that became ready for more than pruneWait and aborts
-//    tasks spawned for more than abortWait unless prevented by predicates
-//    registered with RegisterPendingChangeByAttr.
+//   - it removes changes that became ready for more than pruneWait and aborts
+//     tasks spawned for more than abortWait unless prevented by predicates
+//     registered with RegisterPendingChangeByAttr.
 //
-//  * it removes tasks unlinked to changes after pruneWait. When there are more
-//    changes than the limit set via "maxReadyChanges" those changes in ready
-//    state will also removed even if they are below the pruneWait duration.
+//   - it removes tasks unlinked to changes after pruneWait. When there are more
+//     changes than the limit set via "maxReadyChanges" those changes in ready
+//     state will also removed even if they are below the pruneWait duration.
 //
-//  * it removes expired warnings.
+//   - it removes expired warnings.
 func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Duration, maxReadyChanges int) {
 	now := time.Now()
 	pruneLimit := now.Add(-pruneWait)

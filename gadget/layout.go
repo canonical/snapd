@@ -157,8 +157,8 @@ func (b byStartOffset) Less(i, j int) bool { return b[i].StartOffset < b[j].Star
 // LaidOutContent describes raw content that has been placed within the
 // encompassing structure and volume
 //
-// TODO: this can't have "$kernel:" refs at this point, fail in validate
-//       for bare structures with "$kernel:" refs
+// TODO: this can't have "$kernel:" refs at this point, fail in validate for
+// bare structures with "$kernel:" refs
 type LaidOutContent struct {
 	*VolumeContent
 
