@@ -17,8 +17,8 @@
  *
  */
 
-package dm_verity
+package dmverity
 
 var (
-	ParseVeritySetupOutput = parseVeritySetupOutput
+	GetRootHashFromOutput = getRootHashFromOutput
 )

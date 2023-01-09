@@ -140,3 +140,16 @@ func (s *SnapSuite) TestPackPacksASnapWithCompressionUnhappy(c *check.C) {
 		c.Assert(err, check.ErrorMatches, fmt.Sprintf(`cannot pack "/.*": cannot use compression %q`, comp))
 	}
 }
+
+func (s *SnapSuite) TestPackPacksASnapWithIntegrityHappy(c *check.C) {
+	snapDir := makeSnapDirForPack(c, "name: hello\nversion: 1.0")
+
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", "--append-integrity-data", snapDir, snapDir})
+	c.Assert(err, check.IsNil)
+
+	matches, err := filepath.Glob(snapDir + "/hello*.snap")
+	c.Assert(err, check.IsNil)
+	c.Assert(matches, check.HasLen, 1)
+	err = os.Remove(matches[0])
+	c.Assert(err, check.IsNil)
+}
