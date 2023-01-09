@@ -77,9 +77,9 @@ type QuotaValues struct {
 type EnsureQuotaOptions struct {
 	// Parent is used to assign a Parent quota group
 	Parent string
-	// Snaps is the Snaps that should be added to the quota group
+	// Snaps that should be added to the quota group
 	Snaps []string
-	// Services is the snap Services that should be added to the quota group
+	// Services that should be added to the quota group
 	Services []string
 	// Constraints are the resource limits that should be applied to the quota group,
 	// these are added or modified, not removed.
