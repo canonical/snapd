@@ -150,7 +150,7 @@ func (iw *inotifyWatcher) removePath(fullPath string) {
 // CGroup, removing it from the list of folders being watched in that CGroup if
 // needed. It returns true if there remain folders to be monitored in that CGroup,
 // or false if all the folders of that CGroup have been deleted.
-func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath string) bool {
+func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath string) {
 	for i, fullPath := range watch.folders {
 		if fullPath == deletedPath {
 			// if the folder name is in the list of folders to monitor, decrement the
@@ -165,9 +165,17 @@ func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath st
 		// if all the files/folders of this CGroup have been deleted, notify the
 		// client that it is done.
 		watch.sendClosedNotification()
-		return false
+		// and the group can be removed from the watching
+		iw.removeGroup(watch)
 	}
-	return true
+}
+
+func (iw *inotifyWatcher) removeGroup(toRemove *groupToWatch) {
+	for i, grp := range iw.groupList {
+		if grp == toRemove {
+			iw.groupList = append(iw.groupList[:i], iw.groupList[i+1:]...)
+		}
+	}
 }
 
 func (iw *inotifyWatcher) watcherMainLoop() {
@@ -189,10 +197,8 @@ func (iw *inotifyWatcher) watcherMainLoop() {
 			if event.Mask&inotify.InDelete == 0 {
 				continue
 			}
-			for i, watch := range iw.groupList {
-				if !iw.processDeletedPath(watch, event.Name) {
-					iw.groupList = append(iw.groupList[:i], iw.groupList[i+1:]...)
-				}
+			for _, watch := range iw.groupList {
+				iw.processDeletedPath(watch, event.Name)
 			}
 		}
 	}
