@@ -20,18 +20,17 @@
 package integrity_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap/integrity"
-	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/snap/integrity/dmverity"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -49,25 +48,6 @@ func (s *IntegrityTestSuite) SetUpTest(c *C) {
 
 func (s *IntegrityTestSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
-}
-
-func (s *IntegrityTestSuite) TestOffsetJSON(c *C) {
-	for _, tc := range []struct {
-		input          uint64
-		expectedOutput string
-	}{
-		{0, "0000000000000000"},
-		{^uint64(0), "ffffffffffffffff"},
-	} {
-		offset := integrity.Offset(tc.input)
-		json, err := json.Marshal(offset)
-
-		//remove quotes
-		json = json[1 : len(json)-1]
-
-		c.Assert(err, IsNil)
-		c.Check(string(json), Equals, tc.expectedOutput, Commentf("%v", tc))
-	}
 }
 
 func (s *IntegrityTestSuite) TestAlign(c *C) {
@@ -88,11 +68,42 @@ func (s *IntegrityTestSuite) TestAlign(c *C) {
 	}
 }
 
-func (s *IntegrityTestSuite) TestCreateHeader(c *C) {
-	var integrityMetadata integrity.IntegrityMetadata
+func (s *IntegrityTestSuite) TestIntegrityHeaderMarshalJSON(c *C) {
+	dmVerityBlock := &dmverity.Info{}
+	integrityDataHeader := integrity.NewIntegrityDataHeader(dmVerityBlock, 4096)
+
+	jsonHeader, err := json.Marshal(integrityDataHeader)
+	c.Assert(err, IsNil)
+
+	c.Check(json.Valid(jsonHeader), Equals, true)
+
+	expected := []byte(`{"type":"integrity","size":"8192","dm-verity":{"root-hash":""}}`)
+	c.Check(jsonHeader, DeepEquals, expected)
+}
+
+func (s *IntegrityTestSuite) TestIntegrityHeaderUnmarshalJSON(c *C) {
+	var integrityDataHeader integrity.IntegrityDataHeader
+	integrityHeaderJSON := `{
+		"type": "integrity",
+		"size": "4096",
+		"dm-verity": {
+			"root-hash": "00000000000000000000000000000000"
+		}
+	}`
+
+	err := json.Unmarshal([]byte(integrityHeaderJSON), &integrityDataHeader)
+	c.Assert(err, IsNil)
+
+	c.Check(integrityDataHeader.Type, Equals, "integrity")
+	c.Check(integrityDataHeader.Size, Equals, uint64(4096))
+	c.Check(integrityDataHeader.DmVerity.RootHash, Equals, "00000000000000000000000000000000")
+}
+
+func (s *IntegrityTestSuite) TestIntegrityHeaderEncode(c *C) {
+	var integrityDataHeader integrity.IntegrityDataHeader
 	magic := integrity.Magic
 
-	header, err := integrity.CreateHeader(&integrityMetadata)
+	header, err := integrityDataHeader.Encode()
 	c.Assert(err, IsNil)
 
 	magicRead := header[0:len(magic)]
@@ -100,24 +111,114 @@ func (s *IntegrityTestSuite) TestCreateHeader(c *C) {
 
 	nullByte := header[len(header)-1:]
 	c.Check(nullByte, DeepEquals, []byte{0x0})
+
 	c.Check(uint64(len(header)), Equals, integrity.Align(uint64(len(header))))
+}
+
+func (s *IntegrityTestSuite) TestIntegrityHeaderEncodeInvalidSize(c *C) {
+	var integrityDataHeader integrity.IntegrityDataHeader
+	integrityDataHeader.Type = strings.Repeat("a", integrity.BlockSize)
+
+	_, err := integrityDataHeader.Encode()
+	c.Assert(err, ErrorMatches, "internal error: invalid integrity data header: wrong size")
+}
+
+func (s *IntegrityTestSuite) TestIntegrityHeaderDecode(c *C) {
+	var integrityDataHeader integrity.IntegrityDataHeader
+	magic := integrity.Magic
+
+	integrityHeaderJSON := `{
+		"type": "integrity",
+		"size": "4096",
+		"dm-verity": {
+			"root-hash": "00000000000000000000000000000000"
+		}
+	}`
+	header := append(magic, integrityHeaderJSON...)
+	header = append(header, 0)
+
+	headerBlock := make([]byte, 4096)
+	copy(headerBlock, header)
+
+	err := integrityDataHeader.Decode(headerBlock)
+	c.Assert(err, IsNil)
+
+	c.Check(integrityDataHeader.Type, Equals, "integrity")
+	c.Check(integrityDataHeader.Size, Equals, uint64(4096))
+	c.Check(integrityDataHeader.DmVerity.RootHash, Equals, "00000000000000000000000000000000")
+}
+
+func (s *IntegrityTestSuite) TestIntegrityHeaderDecodeInvalidMagic(c *C) {
+	var integrityDataHeader integrity.IntegrityDataHeader
+	magic := []byte("invalid")
+
+	integrityHeaderJSON := `{
+		"type": "integrity",
+		"size": "4096",
+		"dm-verity": {
+			"root-hash": "00000000000000000000000000000000"
+		}
+	}`
+	header := append(magic, integrityHeaderJSON...)
+	header = append(header, 0)
+
+	headerBlock := make([]byte, 4096)
+	copy(headerBlock, header)
+
+	err := integrityDataHeader.Decode(headerBlock)
+	c.Check(err, ErrorMatches, "invalid integrity data header: invalid magic value")
+}
+
+func (s *IntegrityTestSuite) TestIntegrityHeaderDecodeInvalidJSON(c *C) {
+	var integrityDataHeader integrity.IntegrityDataHeader
+	magic := integrity.Magic
+
+	integrityHeaderJSON := `
+		"type": "integrity",
+		"size": "4096",
+		"dm-verity": {
+			"root-hash": "00000000000000000000000000000000"
+		}
+	}`
+	header := append(magic, integrityHeaderJSON...)
+	header = append(header, 0)
+
+	headerBlock := make([]byte, 4096)
+	copy(headerBlock, header)
+
+	err := integrityDataHeader.Decode(headerBlock)
+
+	_, ok := err.(*json.SyntaxError)
+	c.Check(ok, Equals, true)
+}
+
+func (s *IntegrityTestSuite) TestIntegrityHeaderDecodeInvalidTermination(c *C) {
+	var integrityDataHeader integrity.IntegrityDataHeader
+	magic := integrity.Magic
+
+	integrityHeaderJSON := `{
+		"type": "integrity",
+		"size": "4096",
+		"dm-verity": {
+			"root-hash": "00000000000000000000000000000000"
+		}
+	}`
+	header := append(magic, integrityHeaderJSON...)
+
+	headerBlock := make([]byte, len(header))
+	copy(headerBlock, header)
+
+	err := integrityDataHeader.Decode(headerBlock)
+	c.Check(err, ErrorMatches, "invalid integrity data header: no null byte found at end of input")
 }
 
 func (s *IntegrityTestSuite) TestGenerateAndAppendSuccess(c *C) {
 	blockSize := uint64(integrity.BlockSize)
-	magic := integrity.Magic
-	snapFileName := "foo.snap"
 
-	buildDir := c.MkDir()
-	err := ioutil.WriteFile(filepath.Join(buildDir, "data.bin"), []byte("data"), 0644)
-	c.Assert(err, IsNil)
-
-	snapPath := filepath.Join(buildDir, snapFileName)
-	snap := squashfs.New(snapPath)
-	err = snap.Build(buildDir, &squashfs.BuildOpts{SnapType: "app"})
-	c.Assert(err, IsNil)
+	snapPath, _ := snaptest.MakeTestSnapInfoWithFiles(c, "name: foo\nversion: 1.0", nil, nil)
 
 	snapFileInfo, err := os.Stat(snapPath)
+	c.Assert(err, IsNil)
 	orig_size := snapFileInfo.Size()
 
 	err = integrity.GenerateAndAppend(snapPath)
@@ -127,17 +228,19 @@ func (s *IntegrityTestSuite) TestGenerateAndAppendSuccess(c *C) {
 	c.Assert(err, IsNil)
 	defer snapFile.Close()
 
+	// check integrity header
 	_, err = snapFile.Seek(orig_size, io.SeekStart)
 	c.Assert(err, IsNil)
 
-	// check integrity header
 	header := make([]byte, blockSize-1)
 	n, err := snapFile.Read(header)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, int(blockSize)-1)
 
-	metadata := header[len(magic):bytes.IndexByte(header, 0)]
-	var integrityMetadata integrity.IntegrityMetadata
-	err = json.Unmarshal(metadata, &integrityMetadata)
+	var integrityDataHeader integrity.IntegrityDataHeader
+	err = integrityDataHeader.Decode(header)
 	c.Check(err, IsNil)
+	c.Check(integrityDataHeader.Type, Equals, "integrity")
+	c.Check(integrityDataHeader.Size, Equals, uint64(2*4096))
+	c.Check(integrityDataHeader.DmVerity.RootHash, HasLen, 64)
 }

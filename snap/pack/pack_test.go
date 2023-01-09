@@ -21,12 +21,15 @@ package pack_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -352,4 +355,48 @@ func (s *packSuite) TestPackWithCompressionUnhappy(c *C) {
 		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot use compression %q", comp))
 		c.Assert(snapfile, Equals, "")
 	}
+}
+
+func (s *packSuite) TestPackWithIntegrity(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
+
+	snapPath, err := pack.Snap(sourceDir, &pack.Options{
+		TargetDir: c.MkDir(),
+		Integrity: true,
+	})
+	c.Assert(err, IsNil)
+	c.Check(snapPath, testutil.FilePresent)
+
+	magic := []byte{'s', 'n', 'a', 'p', 'e', 'x', 't'}
+
+	snapFile, err := os.Open(snapPath)
+	c.Assert(err, IsNil)
+	defer snapFile.Close()
+
+	// example snap has a size of 4096 (1 block)
+	_, err = snapFile.Seek(4096, io.SeekStart)
+	c.Assert(err, IsNil)
+
+	integrityHdr := make([]byte, 4096)
+	_, err = snapFile.Read(integrityHdr)
+	c.Assert(err, IsNil)
+
+	c.Check(bytes.HasPrefix(integrityHdr, magic), Equals, true)
+
+	var hdr interface{}
+	integrityHdr = bytes.Trim(integrityHdr, "\x00")
+	err = json.Unmarshal(integrityHdr[len(magic):], &hdr)
+	c.Check(err, IsNil)
+
+	integrityDataHeader, ok := hdr.(map[string]interface{})
+	c.Assert(ok, Equals, true)
+	hdrSizeStr, ok := integrityDataHeader["size"].(string)
+	c.Assert(ok, Equals, true)
+	hdrSize, err := strconv.ParseUint(hdrSizeStr, 10, 64)
+	c.Assert(err, IsNil)
+	c.Check(hdrSize, Equals, uint64(2*4096))
+
+	fi, err := snapFile.Stat()
+	c.Assert(err, IsNil)
+	c.Check(fi.Size(), Equals, int64(3*4096))
 }

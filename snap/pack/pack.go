@@ -207,7 +207,7 @@ type Options struct {
 	SnapName string
 	// Compression method to use
 	Compression string
-	// Whether the snap contains integrity information
+	// Integrity requests appending integrity data to the snap when set
 	Integrity bool
 }
 

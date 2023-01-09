@@ -20,157 +20,107 @@
 package integrity
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/snap/integrity/dm_verity"
+	"github.com/snapcore/snapd/snap/integrity/dmverity"
 )
 
 const (
 	blockSize = 4096
+	// For now that the header only includes a fixed-size string and a fixed-size hash,
+	// the header size is always gonna be less than blockSize and will always get aligned
+	// to blockSize.
+	HeaderSize = 4096
 )
 
 var (
-	// magic is the magic prefix of snap metadata blocks.
-	magic = []byte{'s', 'n', 'a', 'p'}
+	// magic is the magic prefix of snap extension blocks.
+	magic = []byte{'s', 'n', 'a', 'p', 'e', 'x', 't'}
 )
 
-type Offset uint64
-
-func (offset Offset) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf("\"%016x\"", offset)), nil
-}
-
-func (offset Offset) UnmarshalJSON(bytes []byte) error {
-	val, err := strconv.ParseUint(string(bytes[1:len(bytes)-1]), 16, 64)
-	if err != nil {
-		return err
-	}
-	offset = Offset(val)
-	return nil
-}
-
-// Read file size and align it to closest `blockSize`
-func getAlignedFileSize(file *os.File) (uint64, error) {
-	fi, err := file.Stat()
-	if err != nil {
-		return 0, err
-	}
-
-	logger.Debugf("File size: %d", fi.Size())
-	if fi.Size() < 0 {
-		return 0, fmt.Errorf("unexpected file size %d", fi.Size())
-	}
-
-	size := uint64(fi.Size())
-
-	// Defensively align metadata block to 4KiB
-	offsetNum := align(size) - size
-	if offsetNum != 0 {
-		logger.Debugf("SquashFS not aligned to 4KiB, adding %d bytes", offsetNum)
-		size += offsetNum
-	}
-
-	return size, nil
-}
-
-// IntegrityMetadata gets appended first at the end of a squashfs packed snap
-// before the dm-verity data
-type IntegrityMetadata struct {
-	Version          uint8                      `json:"version"`
-	RootHash         string                     `json:"root-hash"`
-	HashOffset       Offset                     `json:"hash-offset"`
-	VeritySuperBlock dm_verity.VeritySuperBlock `json:"verity-superblock"`
-}
-
-func NewIntegrityMetadata(rootHash string, veritySuperBlock *dm_verity.VeritySuperBlock, snapFile *os.File) (*IntegrityMetadata, error) {
-	metadata := IntegrityMetadata{}
-	metadata.Version = 1
-	metadata.RootHash = rootHash
-	metadata.VeritySuperBlock = *veritySuperBlock
-
-	snapFileSize, err := getAlignedFileSize(snapFile)
-	if err != nil {
-		return nil, err
-	}
-
-	// calculate HashOffset
-	json, err := json.Marshal(metadata)
-	if err != nil {
-		return nil, err
-	}
-
-	headerSize := align(uint64(len(magic) + len(json)))
-	logger.Debugf("Magic size: %d", len(magic))
-	logger.Debugf("Metadata JSON size: %d", len(json))
-	logger.Debugf("Aligned header size: %d", headerSize)
-
-	metadata.HashOffset = Offset(snapFileSize + headerSize)
-	logger.Debugf("HashOffset (%d aligned): %d", blockSize, metadata.HashOffset)
-
-	return &metadata, nil
-}
-
-// Align input `size` to closest `blockSize` value
+// align aligns input `size` to closest `blockSize` value
 func align(size uint64) uint64 {
-	mod := size % blockSize
-	if mod == 0 {
-		return size
-	}
-
-	return size + (blockSize - mod)
+	return (size + blockSize - 1) / blockSize * blockSize
 }
 
-func createHeader(metadata *IntegrityMetadata) ([]byte, error) {
-	json, err := json.Marshal(metadata)
+// IntegrityDataHeader gets appended first at the end of a squashfs packed snap
+// before the dm-verity data. Size field includes the header size
+type IntegrityDataHeader struct {
+	Type     string        `json:"type"`
+	Size     uint64        `json:"size,string"`
+	DmVerity dmverity.Info `json:"dm-verity"`
+}
+
+// newIntegrityDataHeader constructs a new IntegrityDataHeader struct from a dmverity.Info struct.
+func newIntegrityDataHeader(dmVerityBlock *dmverity.Info, integrityDataSize uint64) *IntegrityDataHeader {
+	return &IntegrityDataHeader{
+		Type:     "integrity",
+		Size:     HeaderSize + integrityDataSize,
+		DmVerity: *dmVerityBlock,
+	}
+}
+
+// Encode serializes an IntegrityDataHeader struct to a null terminated json string.
+func (integrityDataHeader IntegrityDataHeader) Encode() ([]byte, error) {
+	jsonHeader, err := json.Marshal(integrityDataHeader)
 	if err != nil {
 		return nil, err
 	}
-	logger.Debugf("%s", string(json))
+	logger.Debugf("integrity data header:\n%s", string(jsonHeader))
 
 	// \0 terminate
-	json = append(json, 0)
+	jsonHeader = append(jsonHeader, 0)
 
-	headerSize := align(uint64(len(magic) + len(json)))
-	header := make([]byte, headerSize)
+	actualHeaderSize := align(uint64(len(magic) + len(jsonHeader) + 1))
+	if actualHeaderSize > HeaderSize {
+		return nil, fmt.Errorf("internal error: invalid integrity data header: wrong size")
+	}
 
-	copy(header, append(magic, json...))
+	header := make([]byte, HeaderSize)
+
+	copy(header, append(magic, jsonHeader...))
 
 	return header, nil
 }
 
-func GenerateAndAppend(snapName string) (err error) {
+// Decode unserializes an null-terminated byte array containing JSON data to an
+// IntegrityDataHeader struct.
+func (integrityDataHeader *IntegrityDataHeader) Decode(input []byte) error {
+	if !bytes.HasPrefix(input, magic) {
+		return fmt.Errorf("invalid integrity data header: invalid magic value")
+	}
+
+	firstNull := bytes.IndexByte(input, '\x00')
+	if firstNull == -1 {
+		return fmt.Errorf("invalid integrity data header: no null byte found at end of input")
+	}
+
+	err := json.Unmarshal(input[len(magic):firstNull], &integrityDataHeader)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GenerateAndAppend generates integrity data for a snap file and appends them
+// to it.
+// Integrity data are formed from a fixed-size header aligned to blockSize which
+// includes the root hash followed by the generated dm-verity hash data.
+func GenerateAndAppend(snapPath string) (err error) {
 	// Generate verity metadata
-	hashFileName := snapName + ".verity"
-	rootHash, sb, err := dm_verity.FormatNoSB(snapName, hashFileName)
+	hashFileName := snapPath + ".verity"
+	dmVerityBlock, err := dmverity.Format(snapPath, hashFileName)
 	if err != nil {
 		return err
 	}
 
-	snapFile, err := os.OpenFile(snapName, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer snapFile.Close()
-
-	metadata, err := NewIntegrityMetadata(rootHash, sb, snapFile)
-	if err != nil {
-		return err
-	}
-
-	// Append header to snap
-	header, err := createHeader(metadata)
-
-	if _, err = snapFile.Write(header); err != nil {
-		return err
-	}
-
-	// Append verity metadata to snap
-	hashFile, err := os.Open(hashFileName)
+	hashFile, err := os.OpenFile(hashFileName, os.O_RDONLY, 0644)
 	if err != nil {
 		return err
 	}
@@ -181,6 +131,30 @@ func GenerateAndAppend(snapName string) (err error) {
 		}
 	}()
 
+	fi, err := hashFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	integrityDataHeader := newIntegrityDataHeader(dmVerityBlock, uint64(fi.Size()))
+
+	// Append header to snap
+	header, err := integrityDataHeader.Encode()
+	if err != nil {
+		return err
+	}
+
+	snapFile, err := os.OpenFile(snapPath, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer snapFile.Close()
+
+	if _, err = snapFile.Write(header); err != nil {
+		return err
+	}
+
+	// Append verity metadata to snap
 	if _, err := io.Copy(snapFile, hashFile); err != nil {
 		return err
 	}
