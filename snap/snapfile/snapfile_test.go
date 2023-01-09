@@ -144,5 +144,5 @@ func (s *snapFileTestSuite) TestFileOpenForSnapDirErrors(c *C) {
 	// no snap.yaml file
 	_, err := snapfile.Open(c.MkDir())
 	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
-	c.Assert(err, ErrorMatches, `"/.*" is not a snap or snapdir`)
+	c.Assert(err, ErrorMatches, `cannot process snap or snapdir: directory ".*" is empty`)
 }

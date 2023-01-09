@@ -19,7 +19,11 @@
 
 package snap
 
-import "fmt"
+import (
+	"fmt"
+	"io"
+	"os"
+)
 
 type AlreadyInstalledError struct {
 	Snap string
@@ -41,10 +45,43 @@ func (e NotInstalledError) Error() string {
 	return fmt.Sprintf("revision %s of snap %q is not installed", e.Rev, e.Snap)
 }
 
+// NotSnapError is returned if a operation expects a snap file or snap dir
+// but no valid input is provided.
 type NotSnapError struct {
 	Path string
+
+	Err error
 }
 
 func (e NotSnapError) Error() string {
-	return fmt.Sprintf("%q is not a snap or snapdir", e.Path)
+	return fmt.Sprintf("cannot process snap or snapdir: %v", e.Err)
+}
+
+func buildNotSnapErrorContext(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if stat.IsDir() {
+		if _, err := f.Readdir(1); err == io.EOF {
+			return fmt.Errorf("directory %q is empty", path)
+		}
+		return fmt.Errorf("directory %q is invalid", path)
+	}
+
+	var header [10]byte
+	if _, err := f.Read(header[:]); err != nil {
+		return err
+	}
+	return fmt.Errorf("file %q is invalid (header %v)", path, header)
+}
+
+func NewNotSnapErrorWithContext(path string) NotSnapError {
+	return NotSnapError{Path: path, Err: buildNotSnapErrorContext(path)}
 }

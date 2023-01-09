@@ -52,6 +52,5 @@ func Open(path string) (snap.Container, error) {
 			return h.open(path)
 		}
 	}
-
-	return nil, snap.NotSnapError{Path: path}
+	return nil, snap.NewNotSnapErrorWithContext(path)
 }
