@@ -29,13 +29,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/godbus/dbus"
 	"github.com/mvo5/goconfigparser"
 
+	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/systemd"
-	"github.com/snapcore/snapd/usersession/client"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 var restApi = []*Command{
@@ -43,7 +46,15 @@ var restApi = []*Command{
 	sessionInfoCmd,
 	serviceControlCmd,
 	pendingRefreshNotificationCmd,
+	beginDeferredRefreshNotification,
 }
+
+type NotifyRefreshOperation int
+
+const (
+	ShowNewNotification NotifyRefreshOperation = iota
+	DestroyNotification
+)
 
 var (
 	rootCmd = &Command{
@@ -69,6 +80,11 @@ var (
 	finishRefreshNotificationCmd = &Command{
 		Path: "/v1/notifications/finish-refresh",
 		POST: postRefreshFinishedNotification,
+	}
+
+	beginDeferredRefreshNotification = &Command{
+		Path: "/v1/notifications/begin-deferred-refresh",
+		POST: postBeginDeferredRefreshNotification,
 	}
 )
 
@@ -227,7 +243,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	decoder := json.NewDecoder(r.Body)
 
 	// pendingSnapRefreshInfo holds information about pending snap refresh provided by snapd.
-	var refreshInfo client.PendingSnapRefreshInfo
+	var refreshInfo userclient.PendingSnapRefreshInfo
 	if err := decoder.Decode(&refreshInfo); err != nil {
 		return BadRequest("cannot decode request body into pending snap refresh info: %v", err)
 	}
@@ -244,7 +260,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	}
 
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
-	summary := fmt.Sprintf(i18n.G("Pending update of %q snap"), refreshInfo.InstanceName)
+	summary := fmt.Sprintf(i18n.G("Pending update of “%s” snap"), refreshInfo.InstanceName)
 	var urgencyLevel notification.Urgency
 	var body, icon string
 	var hints []notification.Hint
@@ -263,7 +279,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
 			i18n.NG("%d minute left", "%d minutes left", minutesLeft), minutesLeft))
 	} else {
-		summary = fmt.Sprintf(i18n.G("Snap %q is refreshing now!"), refreshInfo.InstanceName)
+		summary = fmt.Sprintf(i18n.G("Snap “%s” is refreshing now!"), refreshInfo.InstanceName)
 		urgencyLevel = notification.CriticalUrgency
 	}
 	hints = append(hints, notification.WithUrgency(urgencyLevel))
@@ -307,7 +323,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 
 	decoder := json.NewDecoder(r.Body)
 
-	var finishRefresh client.FinishedSnapRefreshInfo
+	var finishRefresh userclient.FinishedSnapRefreshInfo
 	if err := decoder.Decode(&finishRefresh); err != nil {
 		return BadRequest("cannot decode request body into finish refresh notification info: %v", err)
 	}
@@ -333,4 +349,77 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		})
 	}
 	return SyncResponse(nil)
+}
+
+func postBeginDeferredRefreshNotification(c *Command, r *http.Request) Response {
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	// BeginDeferredRefreshNotificationInfo holds information about pending snap refresh provided by snapd.
+	var refreshInfo userclient.BeginDeferredRefreshNotificationInfo
+	if err := decoder.Decode(&refreshInfo); err != nil {
+		return BadRequest("cannot decode request body into pending snap deferred refresh info: %v", err)
+	}
+
+	go monitorChanges(refreshInfo, c.s.notificationMgr)
+	return SyncResponse(&resp{
+		Type:   ResponseTypeError,
+		Status: 200,
+		Result: &errorResult{
+			Message: "Ok",
+		},
+	})
+}
+
+func sendDesktopStandardNotification(notificationMgr notification.NotificationManager, refreshInfo userclient.BeginDeferredRefreshNotificationInfo, summary string, body string) {
+	var icon string
+	var hints []notification.Hint
+
+	hints = append(hints, notification.WithUrgency(notification.NormalUrgency))
+	// The notification is provided by snapd session agent.
+	hints = append(hints, notification.WithDesktopEntry("io.snapcraft.SessionAgent"))
+	// But if we have a desktop file of the busy application, use that apps's icon.
+	if refreshInfo.AppDesktopEntry != "" {
+		parser := goconfigparser.New()
+		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, refreshInfo.AppDesktopEntry+".desktop")
+		if err := parser.ReadFile(desktopFilePath); err == nil {
+			icon, _ = parser.Get("Desktop Entry", "Icon")
+		}
+	}
+
+	msg := &notification.Message{
+		AppName: refreshInfo.AppName,
+		Title:   summary,
+		Icon:    icon,
+		Body:    body,
+		Hints:   hints,
+	}
+
+	// TODO: silently ignore error returned when the notification server does not exist.
+	// TODO: track returned notification ID and respond to actions, if supported.
+	if err := notificationMgr.SendNotification(notification.ID(refreshInfo.InstanceName), msg); err != nil {
+		logger.Noticef("unable to send a standard notification, %s, for app %s", summary, refreshInfo.AppName)
+	}
+}
+
+func updateRefreshStatusDesktopIntegration(snapName string, barText string, progress float64) error {
+	// Check if Snapd-Desktop-Integration is available
+	conn, err := dbusutil.SessionBus()
+	if err != nil {
+		return fmt.Errorf("unable to connect dbus session: %v", err)
+	}
+	obj := conn.Object("io.snapcraft.SnapDesktopIntegration", "/io/snapcraft/SnapDesktopIntegration")
+	extraParams := make(map[string]dbus.Variant)
+	if progress > 1 {
+		err = obj.Call("io.snapcraft.SnapDesktopIntegration.ApplicationRefreshPulsed", 0, snapName, barText, extraParams).Store()
+	} else {
+		err = obj.Call("io.snapcraft.SnapDesktopIntegration.ApplicationRefreshPercentage", 0, snapName, barText, progress, extraParams).Store()
+	}
+	if err != nil {
+		return fmt.Errorf("unable to successfully call io.snapcraft.SnapDesktopIntegration to update the state: %v", err)
+	}
+	return nil
 }

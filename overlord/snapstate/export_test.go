@@ -131,6 +131,9 @@ var (
 	GetDirMigrationOpts = getDirMigrationOpts
 	WriteSeqFile        = writeSeqFile
 	TriggeredMigration  = triggeredMigration
+
+	NotifyBeginRefresh = notifyBeginRefresh
+	SnapSetupAndState  = snapSetupAndState
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -469,5 +472,20 @@ func MockCgroupMonitorSnapEnded(f func(string, chan<- string) error) func() {
 	cgroupMonitorSnapEnded = f
 	return func() {
 		cgroupMonitorSnapEnded = old
+	}
+}
+
+func MockAsyncBeginDeferredRefreshNotification(f func(context context.Context, client *userclient.Client, refreshInfo *userclient.BeginDeferredRefreshNotificationInfo)) func() {
+	r := testutil.Backup(&asyncBeginDeferredRefreshNotification)
+	asyncBeginDeferredRefreshNotification = f
+	return r
+}
+
+func MockNotifyBeginRefresh() func() {
+	old := notifyBeginRefresh
+	notifyBeginRefresh = func(st *state.State, instanceName string, revision snap.Revision, snapName string, desktopPath string) {
+	}
+	return func() {
+		notifyBeginRefresh = old
 	}
 }

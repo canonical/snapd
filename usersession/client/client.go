@@ -328,7 +328,8 @@ func (client *Client) PendingRefreshNotification(ctx context.Context, refreshInf
 
 // FinishedSnapRefreshInfo holds information about a finished refresh provided to userd.
 type FinishedSnapRefreshInfo struct {
-	InstanceName string `json:"instance-name"`
+	InstanceName    string `json:"instance-name"`
+	AppDesktopEntry string `json:"busy-app-desktop-entry,omitempty"`
 }
 
 // FinishRefreshNotification closes notification about a snap refresh.
@@ -339,5 +340,25 @@ func (client *Client) FinishRefreshNotification(ctx context.Context, closeInfo *
 		return err
 	}
 	_, err = client.doMany(ctx, "POST", "/v1/notifications/finish-refresh", nil, headers, reqBody)
+	return err
+}
+
+type BeginDeferredRefreshNotificationInfo struct {
+	AppName         string   `json:"app-name"`
+	InstanceName    string   `json:"instance-name"`
+	Revision        string   `json:"revision"`
+	ChangeId        string   `json:"change-id"`
+	TaskIDs         []string `json:"task-ids"`
+	AppDesktopEntry string   `json:"busy-app-desktop-entry,omitempty"`
+}
+
+// BeginDeferredRefreshNotification shows a notification about a deferred snap refresh.
+func (client *Client) BeginDeferredRefreshNotification(ctx context.Context, refreshInfo *BeginDeferredRefreshNotificationInfo) error {
+	headers := map[string]string{"Content-Type": "application/json"}
+	reqBody, err := json.Marshal(refreshInfo)
+	if err != nil {
+		return err
+	}
+	_, err = client.doMany(ctx, "POST", "/v1/notifications/begin-deferred-refresh", nil, headers, reqBody)
 	return err
 }
