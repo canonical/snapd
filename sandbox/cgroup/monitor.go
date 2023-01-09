@@ -99,7 +99,7 @@ func newInotifyWatcher() (*inotifyWatcher, error) {
 
 // MonitorDelete monitors the specified paths for deletion.
 // Once all of them have been deleted, it pushes the specified name through the channel.
-func (iw *inotifyWatcher) MonitorDelete(folders []string, name string, channel chan<- string) (err error) {
+func (iw *inotifyWatcher) MonitorDelete(folders []string, name string, channel chan<- string) error {
 	iw.mu.Lock()
 	defer iw.mu.Unlock()
 
@@ -210,7 +210,7 @@ type SnapWatcher struct {
 }
 
 // NewSnapWatcher returns a watcher that can monitor when all processes
-// of the given snapName are finished.
+// of a snap are finished.
 //
 // Use "Stop()" when done with the watching.
 func NewSnapWatcher() (*SnapWatcher, error) {
