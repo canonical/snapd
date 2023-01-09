@@ -155,7 +155,7 @@ func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath st
 		if fullPath == deletedPath {
 			// if the folder name is in the list of folders to monitor, decrement the
 			// parent's usage counter, and remove it from the list of folders to watch
-			// in this CGroup (by not adding it to tmpFolders)
+			// in this CGroup
 			iw.removePath(fullPath)
 			watch.folders = append(watch.folders[:i], watch.folders[i+1:]...)
 			break
@@ -189,13 +189,11 @@ func (iw *inotifyWatcher) watcherMainLoop() {
 			if event.Mask&inotify.InDelete == 0 {
 				continue
 			}
-			var newGroupList []*groupToWatch
-			for _, watch := range iw.groupList {
-				if iw.processDeletedPath(watch, event.Name) {
-					newGroupList = append(newGroupList, watch)
+			for i, watch := range iw.groupList {
+				if !iw.processDeletedPath(watch, event.Name) {
+					iw.groupList = append(iw.groupList[:i], iw.groupList[i+1:]...)
 				}
 			}
-			iw.groupList = newGroupList
 		}
 	}
 }
