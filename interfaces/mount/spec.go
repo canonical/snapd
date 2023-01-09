@@ -54,7 +54,7 @@ func (spec *Specification) AddMountEntry(e osutil.MountEntry) error {
 	return nil
 }
 
-//AddUserMountEntry adds a new user mount entry.
+// AddUserMountEntry adds a new user mount entry.
 func (spec *Specification) AddUserMountEntry(e osutil.MountEntry) error {
 	spec.user = append(spec.user, e)
 	return nil

@@ -38,16 +38,16 @@ import (
 
 // From the freedesktop Desktop Entry Specification¹,
 //
-//    Keys with type localestring may be postfixed by [LOCALE], where
-//    LOCALE is the locale type of the entry. LOCALE must be of the form
-//    lang_COUNTRY.ENCODING@MODIFIER, where _COUNTRY, .ENCODING, and
-//    @MODIFIER may be omitted. If a postfixed key occurs, the same key
-//    must be also present without the postfix.
+//	Keys with type localestring may be postfixed by [LOCALE], where
+//	LOCALE is the locale type of the entry. LOCALE must be of the form
+//	lang_COUNTRY.ENCODING@MODIFIER, where _COUNTRY, .ENCODING, and
+//	@MODIFIER may be omitted. If a postfixed key occurs, the same key
+//	must be also present without the postfix.
 //
-//    When reading in the desktop entry file, the value of the key is
-//    selected by matching the current POSIX locale for the LC_MESSAGES
-//    category against the LOCALE postfixes of all occurrences of the
-//    key, with the .ENCODING part stripped.
+//	When reading in the desktop entry file, the value of the key is
+//	selected by matching the current POSIX locale for the LC_MESSAGES
+//	category against the LOCALE postfixes of all occurrences of the
+//	key, with the .ENCODING part stripped.
 //
 // sadly POSIX doesn't mention what values are valid for LC_MESSAGES,
 // beyond mentioning² that it's implementation-defined (and can be of

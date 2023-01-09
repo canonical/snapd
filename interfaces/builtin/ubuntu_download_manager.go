@@ -37,8 +37,8 @@ const ubuntuDownloadManagerBaseDeclarationSlots = `
     deny-connection: true
 `
 
-/* The methods: allowGSMDownload, createMmsDownload, exit and setDefaultThrottle
-   are deliberately left out of this profile due to their privileged nature. */
+// The methods: allowGSMDownload, createMmsDownload, exit and setDefaultThrottle
+// are deliberately left out of this profile due to their privileged nature.
 const downloadConnectedPlugAppArmor = `
 # Description: Can access the download manager.
 

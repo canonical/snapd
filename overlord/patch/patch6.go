@@ -68,7 +68,7 @@ func patch6FlagsFromPatch4(old patch4Flags) patch6Flags {
 }
 
 // patch6:
-//  - move from a flags-are-ints world to a flags-are-struct-of-bools world
+//   - move from a flags-are-ints world to a flags-are-struct-of-bools world
 func patch6(st *state.State) error {
 	var oldStateMap map[string]*patch4SnapState
 	err := st.Get("snaps", &oldStateMap)

@@ -198,25 +198,26 @@ func WriteSystemKey() error {
 // system-key than what is on disk.
 //
 // This is used in two places:
-// - snap run: when there is a mismatch it will wait for snapd
-//             to re-generate the security profiles
-// - snapd: on startup it checks if the system-key has changed and
-//          if so re-generate the security profiles
+//   - snap run: when there is a mismatch it will wait for snapd
+//     to re-generate the security profiles
+//   - snapd: on startup it checks if the system-key has changed and
+//     if so re-generate the security profiles
 //
 // This ensures that "snap run" and "snapd" have a consistent set
 // of security profiles. Without it we may have the following
 // scenario:
-// 1. snapd gets refreshed and snaps need updated security profiles
-//    to work (e.g. because snap-exec needs a new permission)
-// 2. The system reboots to start the new snapd. At this point
-//    the old security profiles are on disk (because the new
-//    snapd did not run yet)
-// 3. Snaps that run as daemon get started during boot by systemd
-//    (e.g. network-manager). This may happen before snapd had a
-//    chance to refresh the security profiles.
-// 4. Because the security profiles are for the old version of
-//    the snaps that run before snapd fail to start. For e.g.
-//    network-manager this is of course catastrophic.
+//  1. snapd gets refreshed and snaps need updated security profiles
+//     to work (e.g. because snap-exec needs a new permission)
+//  2. The system reboots to start the new snapd. At this point
+//     the old security profiles are on disk (because the new
+//     snapd did not run yet)
+//  3. Snaps that run as daemon get started during boot by systemd
+//     (e.g. network-manager). This may happen before snapd had a
+//     chance to refresh the security profiles.
+//  4. Because the security profiles are for the old version of
+//     the snaps that run before snapd fail to start. For e.g.
+//     network-manager this is of course catastrophic.
+//
 // To prevent this, in step(4) we have this wait-for-snapd
 // step to ensure the expected profiles are on disk.
 //

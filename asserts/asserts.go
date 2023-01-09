@@ -665,26 +665,26 @@ var _ Assertion = (*assertionBase)(nil)
 //
 // The expected serialisation format looks like:
 //
-//   HEADER ("\n\n" BODY?)? "\n\n" SIGNATURE
+//	HEADER ("\n\n" BODY?)? "\n\n" SIGNATURE
 //
 // where:
 //
-//    HEADER is a set of header entries separated by "\n"
-//    BODY can be arbitrary text,
-//    SIGNATURE is the signature
+//	HEADER is a set of header entries separated by "\n"
+//	BODY can be arbitrary text,
+//	SIGNATURE is the signature
 //
 // Both BODY and HEADER must be UTF8.
 //
 // A header entry for a single line value (no '\n' in it) looks like:
 //
-//   NAME ": " SIMPLEVALUE
+//	NAME ": " SIMPLEVALUE
 //
 // The format supports multiline text values (with '\n's in them) and
 // lists or maps, possibly nested, with string scalars in them.
 //
 // For those a header entry looks like:
 //
-//   NAME ":\n" MULTI(baseindent)
+//	NAME ":\n" MULTI(baseindent)
 //
 // where MULTI can be
 //
@@ -692,11 +692,11 @@ var _ Assertion = (*assertionBase)(nil)
 //
 // * entries of a list each of the form:
 //
-//     " "*baseindent "  -"  ( " " SIMPLEVALUE | "\n" MULTI )
+//	" "*baseindent "  -"  ( " " SIMPLEVALUE | "\n" MULTI )
 //
 // * entries of map each of the form:
 //
-//     " "*baseindent "  " NAME ":"  ( " " SIMPLEVALUE | "\n" MULTI )
+//	" "*baseindent "  " NAME ":"  ( " " SIMPLEVALUE | "\n" MULTI )
 //
 // baseindent starts at 0 and then grows with nesting matching the
 // previous level introduction (e.g. the " "*baseindent " -" bit)
@@ -704,8 +704,8 @@ var _ Assertion = (*assertionBase)(nil)
 //
 // In general the following headers are mandatory:
 //
-//   type
-//   authority-id (except for on the wire/self-signed assertions like serial-request)
+//	type
+//	authority-id (except for on the wire/self-signed assertions like serial-request)
 //
 // Further for a given assertion type all the primary key headers
 // must be non empty and must not contain '/'.
@@ -713,12 +713,11 @@ var _ Assertion = (*assertionBase)(nil)
 // The following headers expect string representing integer values and
 // if omitted otherwise are assumed to be 0:
 //
-//   revision (a positive int)
-//   body-length (expected to be equal to the length of BODY)
-//   format (a positive int for the format iteration of the type used)
+//	revision (a positive int)
+//	body-length (expected to be equal to the length of BODY)
+//	format (a positive int for the format iteration of the type used)
 //
 // Times are expected to be in the RFC3339 format: "2006-01-02T15:04:05Z07:00".
-//
 func Decode(serializedAssertion []byte) (Assertion, error) {
 	// copy to get an independent backstorage that can't be mutated later
 	assertionSnapshot := make([]byte, len(serializedAssertion))

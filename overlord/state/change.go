@@ -287,10 +287,9 @@ func init() {
 // of the individual tasks related to the change, according to the following
 // decision sequence:
 //
-//     - With at least one task in DoStatus, return DoStatus
-//     - With at least one task in ErrorStatus, return ErrorStatus
-//     - Otherwise, return DoneStatus
-//
+//   - With at least one task in DoStatus, return DoStatus
+//   - With at least one task in ErrorStatus, return ErrorStatus
+//   - Otherwise, return DoneStatus
 func (c *Change) Status() Status {
 	c.state.reading()
 	if c.status == DefaultStatus {

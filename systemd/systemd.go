@@ -428,16 +428,16 @@ type RunOptions struct {
 // In almost all cases, the strings map to a single string value, but as per the
 // manpage for journalctl, under the json format,
 //
-//    Journal entries permit non-unique fields within the same log entry. JSON
-//    does not allow non-unique fields within objects. Due to this, if a
-//    non-unique field is encountered a JSON array is used as field value,
-//    listing all field values as elements.
+//	Journal entries permit non-unique fields within the same log entry. JSON
+//	does not allow non-unique fields within objects. Due to this, if a
+//	non-unique field is encountered a JSON array is used as field value,
+//	listing all field values as elements.
 //
 // and this snippet as well,
 //
-//    Fields containing non-printable or non-UTF8 bytes are
-//    encoded as arrays containing the raw bytes individually
-//    formatted as unsigned numbers.
+//	Fields containing non-printable or non-UTF8 bytes are
+//	encoded as arrays containing the raw bytes individually
+//	formatted as unsigned numbers.
 //
 // as such, we sometimes get array values which need to be handled differently,
 // so we manually try to decode the json for each message into different types.

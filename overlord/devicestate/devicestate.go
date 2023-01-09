@@ -286,11 +286,11 @@ func interfaceConnected(st *state.State, snapName, ifName string) bool {
 // switched to the "core.refresh.schedule=managed" mode.
 //
 // TODO:
-// - Move the CanManageRefreshes code into the ifstate
-// - Look at the connections and find the connection for snapd-control
-//   with the managed attribute
-// - Take the snap from this connection and look at the snapstate to see
-//   if that snap has a snap declaration (to ensure it comes from the store)
+//   - Move the CanManageRefreshes code into the ifstate
+//   - Look at the connections and find the connection for snapd-control
+//     with the managed attribute
+//   - Take the snap from this connection and look at the snapstate to see
+//     if that snap has a snap declaration (to ensure it comes from the store)
 func CanManageRefreshes(st *state.State) bool {
 	snapStates, err := snapstate.All(st)
 	if err != nil {
@@ -857,11 +857,11 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 // transition is not possible.
 //
 // TODO:
-// - Check estimated disk size delta
-// - Check all relevant snaps exist in new store
-//   (need to check that even unchanged snaps are accessible)
-// - Make sure this works with Core 20 as well, in the Core 20 case
-//   we must enforce the default-channels from the model as well
+//   - Check estimated disk size delta
+//   - Check all relevant snaps exist in new store
+//     (need to check that even unchanged snaps are accessible)
+//   - Make sure this works with Core 20 as well, in the Core 20 case
+//     we must enforce the default-channels from the model as well
 func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
