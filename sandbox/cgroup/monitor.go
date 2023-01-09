@@ -51,7 +51,7 @@ type inotifyWatcher struct {
 	// notified to stop monitoring it.
 	pathList map[string]int32
 
-	// serialize operations
+	// serialize operations to groupList/pathList
 	mu sync.Mutex
 }
 
@@ -124,11 +124,12 @@ func (iw *inotifyWatcher) MonitorDelete(folders []string, name string, channel c
 		if osutil.FileExists(fullPath) {
 			folderList = append(folderList, fullPath)
 		} else {
-			iw.removePath(fullPath)
+			iw.removePathWithLockHeld(fullPath)
 		}
 	}
 	if len(folderList) == 0 {
 		// XXX: this has to be a go-routine to support un-buffered channels
+		// XXX: this has to be a go-routine to avoid holding the lock while waiting on dbus
 		go newWatch.sendClosedNotification()
 	} else {
 		newWatch.folders = folderList
@@ -138,7 +139,35 @@ func (iw *inotifyWatcher) MonitorDelete(folders []string, name string, channel c
 	return nil
 }
 
-func (iw *inotifyWatcher) removePath(fullPath string) {
+func (iw *inotifyWatcher) processDeletedPath(deletedPath string) {
+	iw.mu.Lock()
+	defer iw.mu.Unlock()
+
+	for _, watch := range iw.groupList {
+		for i, fullPath := range watch.folders {
+			if fullPath == deletedPath {
+				// if the folder name is in the list of folders to monitor, decrement the
+				// parent's usage counter, and remove it from the list of folders to watch
+				// in this CGroup
+				iw.removePathWithLockHeld(fullPath)
+				watch.folders = append(watch.folders[:i], watch.folders[i+1:]...)
+				break
+			}
+		}
+		if len(watch.folders) == 0 {
+			// and the group can be removed from the watching
+			iw.removeGroupWithLockHeld(watch)
+			// If all the files/folders of this CGroup
+			// have been deleted, notify the client that
+			// it is done.
+			//
+			// XXX: this has to be a go-routine to avoid holding the lock while waiting on dbus
+			go watch.sendClosedNotification()
+		}
+	}
+}
+
+func (iw *inotifyWatcher) removePathWithLockHeld(fullPath string) {
 	iw.pathList[fullPath]--
 	if iw.pathList[fullPath] == 0 {
 		iw.wd.RemoveWatch(fullPath)
@@ -146,31 +175,7 @@ func (iw *inotifyWatcher) removePath(fullPath string) {
 	}
 }
 
-// processDeletedPath checks if the received path corresponds to the passed
-// CGroup, removing it from the list of folders being watched in that CGroup if
-// needed. It returns true if there remain folders to be monitored in that CGroup,
-// or false if all the folders of that CGroup have been deleted.
-func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath string) {
-	for i, fullPath := range watch.folders {
-		if fullPath == deletedPath {
-			// if the folder name is in the list of folders to monitor, decrement the
-			// parent's usage counter, and remove it from the list of folders to watch
-			// in this CGroup
-			iw.removePath(fullPath)
-			watch.folders = append(watch.folders[:i], watch.folders[i+1:]...)
-			break
-		}
-	}
-	if len(watch.folders) == 0 {
-		// if all the files/folders of this CGroup have been deleted, notify the
-		// client that it is done.
-		watch.sendClosedNotification()
-		// and the group can be removed from the watching
-		iw.removeGroup(watch)
-	}
-}
-
-func (iw *inotifyWatcher) removeGroup(toRemove *groupToWatch) {
+func (iw *inotifyWatcher) removeGroupWithLockHeld(toRemove *groupToWatch) {
 	for i, grp := range iw.groupList {
 		if grp == toRemove {
 			iw.groupList = append(iw.groupList[:i], iw.groupList[i+1:]...)
@@ -197,9 +202,7 @@ func (iw *inotifyWatcher) watcherMainLoop() {
 			if event.Mask&inotify.InDelete == 0 {
 				continue
 			}
-			for _, watch := range iw.groupList {
-				iw.processDeletedPath(watch, event.Name)
-			}
+			iw.processDeletedPath(event.Name)
 		}
 	}
 }
