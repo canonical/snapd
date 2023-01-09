@@ -173,10 +173,18 @@ func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath st
 func (iw *inotifyWatcher) watcherMainLoop() {
 	for {
 		select {
+		case err, ok := <-iw.wd.Error:
+			if err != nil {
+				logger.Debugf("failed to read inotify event: %s", err)
+			}
+			if !ok {
+				// the Error channel is closed after Event so there's nothing else to read
+				return
+			}
 		case event, ok := <-iw.wd.Event:
 			if !ok {
-				// channel got closed, exit
-				return
+				// the Error channel is closed next so check it for errors before returning
+				continue
 			}
 			if event.Mask&inotify.InDelete == 0 {
 				continue
