@@ -81,17 +81,17 @@ func (gtw *groupToWatch) sendClosedNotification() {
 
 // newInotifyWatcher will create a new inotifyWatcher and starts
 // a monitor go-routine. Use "Stop()" when finished.
-func newInotifyWatcher() (iw *inotifyWatcher, err error) {
-	iw = &inotifyWatcher{
-		wd:       nil,
-		pathList: make(map[string]int32),
-	}
-	iw.wd, err = inotify.NewWatcher()
+func newInotifyWatcher() (*inotifyWatcher, error) {
+	wd, err := inotify.NewWatcher()
 	if err != nil {
 		return nil, err
 	}
-	if iw.wd == nil {
-		return nil, errors.New("cannot initialise Inotify.")
+	if wd == nil {
+		return nil, errors.New("cannot initialise inotify")
+	}
+	iw := &inotifyWatcher{
+		wd:       wd,
+		pathList: make(map[string]int32),
 	}
 	go iw.watcherMainLoop()
 	return iw, nil
