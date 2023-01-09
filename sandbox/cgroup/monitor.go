@@ -67,7 +67,7 @@ type groupToWatch struct {
 	// This channel is used to notify to the requester that this CGroup has been
 	// destroyed. The watcher writes the CGroup identifier on it; this way, the
 	// same channel can be shared to monitor several CGroups.
-	channel chan<- string
+	notify chan<- string
 }
 
 func (gtw *groupToWatch) sendClosedNotification() {
@@ -76,7 +76,7 @@ func (gtw *groupToWatch) sendClosedNotification() {
 			logger.Noticef("Failed to send Closed notification for %s", gtw.name)
 		}
 	}()
-	gtw.channel <- gtw.name
+	gtw.notify <- gtw.name
 }
 
 // newInotifyWatcher will create a new inotifyWatcher and starts
@@ -106,7 +106,7 @@ func (iw *inotifyWatcher) MonitorDelete(folders []string, name string, channel c
 	newWatch := &groupToWatch{
 		name:    name,
 		folders: folders,
-		channel: channel,
+		notify:  channel,
 	}
 
 	var folderList []string
