@@ -1100,7 +1100,6 @@ suites:
             tests.nested build-image classic
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-            tests.backup prepare
             tests.nested create-vm classic
         restore-each: |
             tests.nested vm remove
@@ -1156,7 +1155,6 @@ suites:
             tests.nested build-image core
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-            tests.backup prepare
             tests.nested create-vm core
         restore-each: |
             tests.nested vm remove
