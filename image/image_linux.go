@@ -455,7 +455,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			if !rev.Unset() {
 				fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), rev)
 			} else {
-				fmt.Fprintf(Stdout, "Fetching %s\n", sn.SnapName())
+				fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), info.Revision)
 			}
 			if err := w.SetInfo(sn, info); err != nil {
 				return "", err
