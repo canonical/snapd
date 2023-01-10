@@ -1070,40 +1070,34 @@ const mockSingleOrderJSON = `{
 }`
 
 // acquired via:
-//
-//	http --pretty=format --print b https://api.snapcraft.io/v2/snaps/info/hello-world architecture==amd64 fields==architectures,base,confinement,links,contact,created-at,description,download,epoch,license,name,prices,private,publisher,revision,snap-id,snap-yaml,summary,title,type,version,media,common-ids,website Snap-Device-Series:16 | xsel -b
-//
+// http --pretty=format --print b https://api.snapcraft.io/v2/snaps/info/hello-world architecture==amd64 fields==architectures,base,confinement,links,contact,created-at,description,download,epoch,license,name,prices,private,publisher,revision,snap-id,snap-yaml,summary,title,type,version,media,common-ids,website Snap-Device-Series:16 | xsel -b
 // on 2022-10-20. Then, by hand:
+// set prices to {"EUR": "0.99", "USD": "1.23"},
+// set base in first channel-map entry to "bogus-base",
+// set snap-yaml in first channel-map entry to the one from the 'edge', plus the following pastiche:
+// apps:
 //
-//   - set prices to {"EUR": "0.99", "USD": "1.23"},
+//	  content-plug:
+//		   command: bin/content-plug
+//		   plugs: [shared-content-plug]
 //
-//   - set base in first channel-map entry to "bogus-base",
+// plugs:
 //
-//   - set snap-yaml in first channel-map entry to the one from the 'edge', plus the following pastiche:
-//     apps:
+//	  shared-content-plug:
+//		   interface: content
+//		   target: import
+//		   content: mylib
+//		   default-provider: test-snapd-content-slot
 //
-//     content-plug:
-//     command: bin/content-plug
-//     plugs: [shared-content-plug]
+// slots:
 //
-//     plugs:
+//	  shared-content-slot:
+//		   interface: content
+//		   content: mylib
+//		   read:
+//		     - /
 //
-//     shared-content-plug:
-//     interface: content
-//     target: import
-//     content: mylib
-//     default-provider: test-snapd-content-slot
-//
-//     slots:
-//
-//     shared-content-slot:
-//     interface: content
-//     content: mylib
-//     read:
-//
-//   - /
-//
-// change edge entry to have different revision, version and "released-at" to something randomish
+// Then change edge entry to have different revision, version and "released-at" to something randomish
 const mockInfoJSON = `{
     "channel-map": [
         {
