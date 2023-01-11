@@ -12,7 +12,7 @@ environment:
 execute: |
     echo "Wait for the system to be seeded first"
     remote.exec "sudo snap wait system seed.loaded"
-    tests.nested wait-for device-initialized
+    remote.wait-for device-initialized
 
     remote.exec snap model > initial-model
     remote.exec snap model --serial > initial-serial
@@ -34,13 +34,13 @@ execute: |
     # since this command causes an immediate reboot
     remote.exec "sudo snap reboot --factory-reset" || true
 
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
 
     # check that we are back in run mode
     remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
 
     # wait for the system to get setup and finish seeding
-    tests.nested wait-for snap-command
+    remote.wait-for snap-command
     retry -n 10 --wait 2 remote.exec "sudo snap wait system seed.loaded"
 
     # wait up to two minutes for serial registration
@@ -106,9 +106,9 @@ execute: |
 
     echo "Perform subsequent factory reset"
     remote.exec "sudo snap reboot --factory-reset" || true
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
     remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
-    tests.nested wait-for snap-command
+    remote.wait-for snap-command
     # TODO investigate why does this have to be much longer than what is needed for the
     # initial wait and one after the first reset?
     retry -n 60 --wait 2 remote.exec "sudo snap wait system seed.loaded"

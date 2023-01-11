@@ -73,7 +73,7 @@ execute: |
     REMOTE_CHG_ID=$(remote.exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-extra-updated.snap')
 
     echo "Wait for reboot"
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
     boot_id="$(tests.nested boot-id)"
     remote.exec 'sudo cat /proc/cmdline' | MATCH 'snapd_recovery_mode=run .* updated hello from test'
     # wait for previous change to finish before proceeding
@@ -81,7 +81,7 @@ execute: |
 
     echo "Update to gadget with no command line"
     REMOTE_CHG_ID=$(remote.exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-none.snap')
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
     boot_id="$(tests.nested boot-id)"
     echo "Verify that custom command line elements are not present"
     remote.exec 'sudo cat /proc/cmdline' | NOMATCH 'hello from test'
@@ -90,7 +90,7 @@ execute: |
 
     echo "Update to gadget with full command line"
     REMOTE_CHG_ID=$(remote.exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-full.snap')
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
     boot_id="$(tests.nested boot-id)"
     remote.exec 'sudo cat /proc/cmdline' | MATCH 'snapd_recovery_mode=run snapd.debug=1 console=ttyS0 full hello from test'
     # wait for previous change to finish before proceeding
@@ -98,7 +98,7 @@ execute: |
 
     echo "Transition to recover mode to verify kernel command line"
     remote.exec 'sudo snap reboot --recover'
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
 
     echo "Check the vm is in recover mode"
     remote.exec 'sudo cat /proc/cmdline' > system.cmdline.recover

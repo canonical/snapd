@@ -44,7 +44,7 @@ execute: |
     boot_id="$(tests.nested boot-id)"
 
     # wait until device is initialized and has a serial
-    tests.nested wait-for device-initialized
+    remote.wait-for device-initialized
 
     remote.exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
     remote.exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_FROM\$"
@@ -68,9 +68,9 @@ execute: |
     # very long retry wait for the change to be in stable state, where stable
     # means that it's done or failed in which case we fail the test on the next
     # check just below
-    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | grep -E '^${CHANGE_ID}\s+(Done|Undone|Error)'"
+    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${CHANGE_ID}\s+(Done|Undone|Error)'"
     # check that the change was successful
-    remote.exec sudo snap changes | MATCH "^${CHANGE_ID}\s+Done"
+    remote.exec "sudo snap changes" | MATCH "^${CHANGE_ID}\s+Done"
 
     current_boot_id="$( tests.nested boot-id )"
     if [ "$variant" = "20" ] || [ "$variant" = "22" ]; then

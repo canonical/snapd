@@ -43,10 +43,6 @@ execute: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB"/nested.sh
 
-  # install the snapd deb from spread so we are using the same version to 
-  # validate the seed as well as call preseed, etc. 
-  dpkg -i "$SPREAD_PATH"/../snapd_*.deb
-
   echo Expose the needed assertions through the fakestore
   cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
   cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
@@ -62,6 +58,7 @@ execute: |
   echo 'console=ttyS0 systemd.journald.forward_to_console=1' > pc-gadget/cmdline.extra
   # use the system-seed-null classic role
   sed -i 's/role: system-seed/role: system-seed-null/' pc-gadget/meta/gadget.yaml
+
   echo "Sign the shim binary"
   KEY_NAME=$(tests.nested download snakeoil-key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
@@ -94,7 +91,6 @@ execute: |
   # we don't need the fakestore anymore
   teardown_fake_store "$STORE_DIR"
 
-
   # build the fake-installer snap
   snap install snapcraft --candidate --classic
   snap install lxd --candidate
@@ -115,9 +111,6 @@ execute: |
   # create new disk for the installer to work on and attach to VM
   truncate --size=4G fake-disk.img
 
-  NESTED_PARAM_EXTRA="-drive file=$(pwd)/fake-disk.img,if=virtio,snapshot=off"
-  export NESTED_PARAM_EXTRA
-
   # create a VM and mount a cloud image
   tests.nested build-image classic
 
@@ -128,7 +121,8 @@ execute: |
   #       from classic->core and use nested_start_core_vm (like below)
   #
   # start it so that cloud-init creates ssh keys and user
-  nested_start_classic_vm
+  NESTED_PARAM_EXTRA="-drive file=$(pwd)/fake-disk.img,if=virtio,snapshot=off"
+  tests.nested create-vm classic --extra-param "$NESTED_PARAM_EXTRA"
 
   # make sure classic image is bootable with snakeoil keys
   # TODO: move to nested_create_classic_image
@@ -166,7 +160,7 @@ execute: |
 
   # shutdown the classic vm to install with a core VM that supports
   # secboot/tpm
-  nested_shutdown
+  tests.nested vm stop
   sync
 
   # HACK: convert "classic" qcow2 to raw "core" image because we need
@@ -180,7 +174,7 @@ execute: |
   #       from running, we already have a user so this is not needed
   IMAGE_NAME="$(nested_get_image_name core)"
   touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
-  nested_start_core_vm
+  tests.nested create-vm core --extra-param "$NESTED_PARAM_EXTRA"
   
   # bind mount new seed
   remote.exec "sudo mount -o bind /var/lib/snapd/install-seed /var/lib/snapd/seed"
@@ -198,23 +192,18 @@ execute: |
   remote.exec "sudo sync"
 
   # boot into the just installed drive
-  nested_shutdown
+  tests.nested vm stop
   sync
 
   # HACK: rename to "core" image because we need to boot with OVMF
   # we really should fix this so that classic and core VMs are more similar
   mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-  unset NESTED_PARAM_EXTRA
 
   # remove cached image
   # TODO: find a more elegant way
   rm -f "$NESTED_IMAGES_DIR"/ubuntu-core-current.img
 
-  # and start again
-  # TODO: make this nicer
-  export NESTED_TPM_NO_RESTART=1
-  nested_start_core_vm
-  unset  NESTED_TPM_NO_RESTART
+  tests.nested create-vm core --tpm-no-restart
   
   # things look fine
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'

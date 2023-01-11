@@ -110,7 +110,7 @@ execute: |
     tests.nested transition "$recoverySystem" recover
 
     echo "Wait for the snap command to be available since recover mode needs to seed itself"
-    tests.nested wait-for snap-command
+    remote.wait-for snap-command
 
     echo "Wait for snap seeding to be done"
     remote.exec "sudo snap wait system seed.loaded"

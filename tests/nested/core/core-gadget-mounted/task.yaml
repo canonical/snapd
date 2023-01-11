@@ -34,5 +34,5 @@ execute: |
   # add || true in case the SSH connection is broken while executing this
   # since this command causes an immediate reboot
   remote.exec "sudo snap reboot || true"
-  tests.nested wait-for reboot "$boot_id"
+  remote.wait-for reboot "$boot_id"
   check_gadget_mounted "$gadget_snap"

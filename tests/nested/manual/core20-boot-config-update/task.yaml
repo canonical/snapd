@@ -98,7 +98,7 @@ execute: |
     # line is changed, in case of gadget overriding the command line fully
     # (gadget-full variant) the static part of the command line from new snapd
     # is not used, hence there is no resealing and no reboot
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
   fi
   
   echo "check boot assets have been updated"

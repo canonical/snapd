@@ -111,7 +111,7 @@ execute: |
   # driving the nested VM? That would save some time/resources
 
   # wait for snap seeding to be done
-  tests.nested wait-for snap-command
+  remote.wait-for snap-command
   remote.exec "sudo snap wait system seed.loaded"
 
   # push both snaps to the vm
@@ -126,7 +126,7 @@ execute: |
     # this will reboot as we refresh to our core snap
     boot_id="$( tests.nested boot-id )"
     REMOTE_CHG_ID="$(remote.exec sudo snap install --no-wait --dangerous core-from-branch.snap)"
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
     remote.exec sudo snap watch "${REMOTE_CHG_ID}"
 
     remote.exec sudo snap install --devmode --beta "$BASE_CORE_DEVMODE_SNAP"

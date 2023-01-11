@@ -37,7 +37,7 @@ execute: |
     echo "Refreshing snapd and core18 from the store"
     remote.exec "sudo snap refresh" || true
 
-    tests.nested wait-for reboot "$INITIAL_BOOT_ID"
+    remote.wait-for reboot "$INITIAL_BOOT_ID"
     remote.exec "retry --wait 2 -n 10 sh -c 'snap list snapd | NOMATCH \"snapd.*5760\"'"
 
     # this change is not immediately done and needs a retry

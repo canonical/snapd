@@ -86,7 +86,7 @@ execute: |
 
       if [ "$reboot_action" = "reboot" ]; then
           remote.exec sudo reboot || true
-          tests.nested wait-for reboot "$boot_id"
+          remote.wait-for reboot "$boot_id"
           remote.exec sudo snap watch "$REMOTE_CHG_ID"
       fi
   }

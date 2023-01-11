@@ -76,7 +76,7 @@ execute: |
     remote.exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
 
     # wait for snap seeding to be done
-    tests.nested wait-for snap-command
+    remote.wait-for snap-command
     remote.exec "sudo snap wait system seed.loaded"
 
     # if we are not building from current, then we need to prep the snapd snap
@@ -143,7 +143,7 @@ execute: |
 
     echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
     tests.nested vm start
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
 
     # cloud-init will actually still run because it was not disabled and we
     # provided a cloud-init drive but importantly, it will not import the drive,

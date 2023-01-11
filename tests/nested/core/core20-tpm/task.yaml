@@ -85,7 +85,7 @@ execute: |
 
     boot_id="$( tests.nested boot-id )"
     remote.exec "sudo reboot" || true
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
     echo "Check the test will race with snapd updating the modeenv, wait for the modenv to have a good state"
     remote.exec "retry --wait 5 -n 10 sh -c 'MATCH current_kernel_command_lines=.*snapd_recovery_mode=run < /var/lib/snapd/modeenv'"
     remote.exec "cat /var/lib/snapd/modeenv" > modeenv.after-reboot

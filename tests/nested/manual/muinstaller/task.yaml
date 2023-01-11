@@ -158,7 +158,7 @@ execute: |
   # HACK: better to change nested_start_vm() to take an image name
   # Note that use "core" here as the boot is so close to core that classic
   # does not work
-  IMAGE_NAME="$(nested_get_image_name core)"
+  IMAGE_NAME="$(tests.nested image-name core)"
   mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
 
   # boot into the created image
@@ -168,7 +168,7 @@ execute: |
   # TODO: this prevents "nested_prepare_ssh" inside nested_start_core_vm
   #       from running, we already have a user so this is not needed
   touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
-  nested_start_core_vm
+  tests.nested create-vm core
 
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
   remote.exec "snap changes" | MATCH "Done.* Initialize system state"

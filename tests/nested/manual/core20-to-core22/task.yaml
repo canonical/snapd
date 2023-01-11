@@ -39,7 +39,7 @@ execute: |
     label="${label_base}-1"
 
     # wait until device is initialized and has a serial
-    tests.nested wait-for device-initialized
+    remote.wait-for device-initialized
 
     echo "Remodel to UC22"
     remote.push "$TESTSLIB/assertions/valid-for-testing-pc-22-from-20.model"
@@ -68,14 +68,14 @@ execute: |
     echo "Verify that UC22 recover system is usable"
     boot_id="$(tests.nested boot-id)"
     remote.exec sudo snap reboot --recover "${label}" | MATCH 'Reboot into ".*" "recover" mode'
-    tests.nested wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
     # Verify we are in recover mode with the expected system label
     remote.exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=recover snapd_recovery_system=${label} "
 
     # we are in recover mode, so tools need to be set up again
     nested_prepare_tools
 
-    tests.nested wait-for snap-command
+    remote.wait-for snap-command
     # there should be no core20 since the seed is UC22
     remote.exec sudo snap list | NOMATCH core20
 
@@ -83,5 +83,5 @@ execute: |
     echo "And back to run mode"
     remote.exec "sudo snap wait system seed.loaded"
     remote.exec sudo snap reboot --run | MATCH 'Reboot into "run" mode.'
-    tests.nested wait-for reboot "${boot_id}"
+    rmeote.wait-for reboot "${boot_id}"
     remote.exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=run "
