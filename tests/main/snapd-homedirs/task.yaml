@@ -35,7 +35,7 @@ execute: |
         echo "The command succeeded; this is unexpected where AppArmor is fully working"
         test "$(snap debug confinement)" = partial
     else
-        MATCH "cannot create user data directory: /remote/users/$USERNAME/snap/test-snapd-sh/x1: Permission denied" < stderr.log
+        MATCH "Sorry, home directories outside of /home needs configuration" < stderr.log
     fi
     rm -f stderr.log
 
