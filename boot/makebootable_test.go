@@ -1627,6 +1627,74 @@ version: 5.0
 	)
 }
 
+func (s *makeBootable20UbootSuite) TestUbootMakeBootableImage20BootSelNoHeaderFlagByte(c *C) {
+	bootloader.Force(nil)
+	model := boottest.MakeMockUC20Model()
+
+	unpackedGadgetDir := c.MkDir()
+	// the uboot.conf must be empty for this to work/do the right thing
+	err := ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "uboot.conf"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	sampleEnv, err := ubootenv.Create(filepath.Join(unpackedGadgetDir, "boot.sel"), 4096, ubootenv.CreateOptions{HeaderFlagByte: false})
+	c.Assert(err, IsNil)
+	err = sampleEnv.Save()
+	c.Assert(err, IsNil)
+
+	// on uc20 the seed layout if different
+	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
+	err = os.MkdirAll(seedSnapsDirs, 0755)
+	c.Assert(err, IsNil)
+
+	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
+type: base
+version: 5.0
+`, snap.R(3))
+	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
+	err = os.Rename(baseFn, baseInSeed)
+	c.Assert(err, IsNil)
+	kernelFn, kernelInfo := makeSnapWithFiles(c, "arm-kernel", `name: arm-kernel
+type: kernel
+version: 5.0
+`, snap.R(5), [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/foo.dtb", "foo dtb"},
+		{"dtbs/bar.dto", "bar dtbo"},
+	})
+	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
+	err = os.Rename(kernelFn, kernelInSeed)
+	c.Assert(err, IsNil)
+
+	label := "20191209"
+	recoverySystemDir := filepath.Join("/systems", label)
+	bootWith := &boot.BootableSet{
+		Base:                baseInfo,
+		BasePath:            baseInSeed,
+		Kernel:              kernelInfo,
+		KernelPath:          kernelInSeed,
+		RecoverySystemDir:   recoverySystemDir,
+		RecoverySystemLabel: label,
+		UnpackedGadgetDir:   unpackedGadgetDir,
+		Recovery:            true,
+	}
+
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	c.Assert(err, IsNil)
+
+	// since uboot.conf was absent, we won't have installed the uboot.env, as
+	// it is expected that the gadget assets would have installed boot.scr
+	// instead
+	c.Check(filepath.Join(s.rootdir, "uboot.env"), testutil.FileAbsent)
+
+	env, err := ubootenv.Open(filepath.Join(s.rootdir, "/uboot/ubuntu/boot.sel"))
+	c.Assert(err, IsNil)
+
+	// Since we have a boot.sel w/o a header flag byte in our gadget,
+	// our recovery boot sel also should not have a header flag byte
+	c.Check(env.HeaderFlagByte(), Equals, false)
+}
+
 func (s *makeBootable20UbootSuite) TestUbootMakeRunnableSystem20RunModeBootSel(c *C) {
 	bootloader.Force(nil)
 
