@@ -210,7 +210,7 @@ func hardEnsureNothingRunningDuringRefresh(backend managerBackend, st *state.Sta
 		// to indicate when the refresh was first inhibited. If the first
 		// refresh inhibition is outside of a grace period then refresh
 		// proceeds regardless of the existing processes.
-		return inhibitRefresh(st, snapsup, snapst, info, HardNothingRunningRefreshCheck)
+		return inhibitRefresh(st, snapst, snapsup, info, HardNothingRunningRefreshCheck)
 	})
 }
 
@@ -233,6 +233,6 @@ func softCheckNothingRunningForRefresh(st *state.State, snapst *SnapState, snaps
 	return backend.WithSnapLock(info, func() error {
 		// Perform the soft refresh viability check, possibly writing to the state
 		// on failure.
-		return inhibitRefresh(st, snapsup, snapst, info, SoftNothingRunningRefreshCheck)
+		return inhibitRefresh(st, snapst, snapsup, info, SoftNothingRunningRefreshCheck)
 	})
 }

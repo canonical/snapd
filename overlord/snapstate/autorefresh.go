@@ -599,7 +599,7 @@ var asyncPendingRefreshNotification = func(context context.Context, client *user
 // Internally the snap state is updated to remember when the inhibition first
 // took place. Apps can inhibit refreshes for up to "maxInhibition", beyond
 // that period the refresh will go ahead despite application activity.
-func inhibitRefresh(st *state.State, snapsup *SnapSetup, snapst *SnapState, info *snap.Info, checker func(*snap.Info) error) error {
+func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info *snap.Info, checker func(*snap.Info) error) error {
 	checkerErr := checker(info)
 	if checkerErr == nil {
 		return nil
