@@ -268,12 +268,14 @@ func LoadedProfiles() ([]string, error) {
 func snapConfineHomedirsSnippet(homedirs []string) string {
 	var builder strings.Builder
 	for _, homedir := range homedirs {
+		trimmedHomedir := strings.TrimRight(homedir, "/")
 		// We must give snap-confine permissions to create all components of
 		// each homedir, since it will need to create them as a mountpoint
-		for path := strings.TrimRight(homedir, "/"); path != "/"; path = filepath.Dir(path) {
+		for path := trimmedHomedir; path != "/"; path = filepath.Dir(path) {
 			builder.WriteString(fmt.Sprintf("\"%s/\" rw,\n", path))
 		}
-		builder.WriteString(fmt.Sprintf("mount options=(rw rbind) \"%[1]s/\" -> \"/tmp/snap.rootfs_*/%[1]s/\",\n\n", homedir))
+		bindPath := path.Join("/tmp", "snap.rootfs_*", trimmedHomedir)
+		builder.WriteString(fmt.Sprintf("mount options=(rw rbind) \"%s/\" -> \"%s/\",\n\n", trimmedHomedir, bindPath))
 	}
 
 	return builder.String()
