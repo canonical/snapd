@@ -941,9 +941,10 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	snapst := &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{si},
 		Current:  si.Revision,
-		Flags:    snapstate.Flags{IsAutoRefresh: true},
 	}
-	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
+	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
+
+	err := snapstate.InhibitRefresh(s.state, snapsup, snapst, info, func(si *snap.Info) error {
 		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
 	})
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
@@ -973,10 +974,10 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 		Sequence:             []*snap.SideInfo{si},
 		Current:              si.Revision,
 		RefreshInhibitedTime: &pastInstant,
-		Flags:                snapstate.Flags{IsAutoRefresh: true},
 	}
+	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
-	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
+	err := snapstate.InhibitRefresh(s.state, snapsup, snapst, info, func(si *snap.Info) error {
 		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
 	})
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
@@ -1004,9 +1005,10 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 		Sequence:             []*snap.SideInfo{si},
 		Current:              si.Revision,
 		RefreshInhibitedTime: &pastInstant,
-		Flags:                snapstate.Flags{IsAutoRefresh: true},
 	}
-	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
+	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
+
+	err := snapstate.InhibitRefresh(s.state, snapsup, snapst, info, func(si *snap.Info) error {
 		return &snapstate.BusySnapError{SnapInfo: si}
 	})
 	c.Assert(err, IsNil)
@@ -1031,7 +1033,10 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 		Current:              si.Revision,
 		RefreshInhibitedTime: &pastInstant,
 	}
-	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
+	// manual refresh
+	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: false}}
+
+	err := snapstate.InhibitRefresh(s.state, snapsup, snapst, info, func(si *snap.Info) error {
 		return &snapstate.BusySnapError{SnapInfo: si}
 	})
 	c.Assert(err, IsNil)

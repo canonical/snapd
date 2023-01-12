@@ -1033,7 +1033,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		// held to prevent snap-run from advancing until UnlinkSnap, executed
 		// below, completes.
 		// XXX: should we skip it if type is snap.TypeSnapd?
-		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, oldInfo)
+		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, snapsup, oldInfo)
 		if err != nil {
 			return err
 		}
