@@ -350,10 +350,6 @@ nested_get_snakeoil_key() {
 
 nested_secboot_remove_signature() {
     local FILE="$1"
-    if [ -f "$FILE" ]; then
-        echo "The file to remove signature does not exist"
-        return 1
-    fi
     while sbverify --list "$FILE" | grep "^signature [0-9]*$"; do
         sbattach --remove "$FILE"
     done
