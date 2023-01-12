@@ -175,7 +175,7 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 		}
 
 		enableUnitPath := filepath.Join(targetWantsDir, mountUnitName)
-		if err := os.Symlink(mu, enableUnitPath); err != nil {
+		if err := os.Symlink(mu, enableUnitPath); err != nil && !os.IsExist(err) {
 			return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
 		}
 	}
