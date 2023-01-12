@@ -202,6 +202,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckAllowed(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapst, info := s.addFakeInstalledSnap()
+	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
 	// Pretend that snaps can refresh normally.
 	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
@@ -210,7 +211,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckAllowed(c *C) {
 	defer restore()
 
 	// Soft refresh should not fail.
-	err := snapstate.SoftCheckNothingRunningForRefresh(s.state, snapst, info)
+	err := snapstate.SoftCheckNothingRunningForRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, IsNil)
 
 	// In addition, the inhibition lock is not set.
@@ -224,6 +225,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapst, info := s.addFakeInstalledSnap()
+	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
 	// Pretend that snaps cannot refresh.
 	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
@@ -232,7 +234,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 	defer restore()
 
 	// Soft refresh should fail with a proper error.
-	err := snapstate.SoftCheckNothingRunningForRefresh(s.state, snapst, info)
+	err := snapstate.SoftCheckNothingRunningForRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
 
 	// Validity check: the inhibition lock was not set.
@@ -247,6 +249,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapst, info := s.addFakeInstalledSnap()
+	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
 	// Pretend that snaps can refresh normally.
 	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
@@ -255,7 +258,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {
 	defer restore()
 
 	// Hard refresh should not fail and return a valid lock.
-	lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, info)
+	lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, snapsup, info)
 	c.Assert(err, IsNil)
 	c.Assert(lock, NotNil)
 	defer lock.Close()
@@ -275,6 +278,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapst, info := s.addFakeInstalledSnap()
+	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
 	// Pretend that snaps cannot refresh.
 	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
@@ -283,7 +287,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
 	defer restore()
 
 	// Hard refresh should fail and not return a lock.
-	lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, info)
+	lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
 	c.Assert(lock, IsNil)
 
