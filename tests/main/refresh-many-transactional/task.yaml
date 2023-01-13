@@ -17,16 +17,13 @@ prepare: |
         exit
     fi
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-
     echo "Given snaps installed"
     for snap in test-snapd-tools test-snapd-python-webserver; do
         snap install $snap
     done
 
     echo "And the daemon is configured to point to the fake store"
-    setup_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -34,9 +31,7 @@ restore: |
         exit
     fi
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
     rm -rf "$BLOB_DIR"
 
 execute: |
@@ -49,10 +44,8 @@ execute: |
     snap refresh 2>&1 | MATCH "All snaps up to date."
 
     echo "When the store is configured to make them refreshable"
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    init_fake_refreshes "$BLOB_DIR" test-snapd-tools
-    init_fake_refreshes  "$BLOB_DIR" test-snapd-python-webserver
+    "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" test-snapd-tools
+    "$TESTSTOOLS"/store-state init-fake-refreshes  "$BLOB_DIR" test-snapd-python-webserver
 
     echo "And a refresh is performed"
     snap refresh --transaction=all-snaps test-snapd-tools test-snapd-python-webserver

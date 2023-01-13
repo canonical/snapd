@@ -1,0 +1,31 @@
+summary: smoke test for the store-state tool
+
+execute: |
+    # Check help
+    "$TESTSTOOLS"/store-state | MATCH "usage: store-state setup-fake-store <DIR>"
+    "$TESTSTOOLS"/store-state -h | MATCH "usage: store-state setup-fake-store <DIR>"
+    "$TESTSTOOLS"/store-state --help | MATCH "usage: store-state setup-fake-store <DIR>"
+
+    # Setup fakestore
+    "$TESTSTOOLS"/store-state setup-fake-store "$(pwd)/fake-store-blobdir"
+    systemctl is-active fakestore
+    ss -ntlp | MATCH "127.0.0.1:11028"
+
+    # Teardown fakestore
+    "$TESTSTOOLS"/store-state teardown-fake-store "$(pwd)/fake-store-blobdir"
+    not systemctl is-active fakestore
+    ss -ntlp | NOMATCH "127.0.0.1:11028"
+
+    # Test setup and teardown errors
+    "$TESTSTOOLS"/store-state setup-fake-store 2>&1 | MATCH "store-state: the provided dir cannot be empty"
+    "$TESTSTOOLS"/store-state teardown-fake-store "noexist" 2>&1 | MATCH 'store-state: the provided top dir does not exist "noexist"'
+
+    # Setup staging store
+    "$TESTSTOOLS"/store-state setup-staging-store
+    snap info core | MATCH "snap-id:.*xMNMpEm0COPZy7jq9YRwWVLCD9q5peow"
+
+    # Teardown staging store
+    "$TESTSTOOLS"/store-state teardown-staging-store
+    snap info core | MATCH "snap-id:.*99T7MUlRhtI3U0QFgl5mXXESAiSwt776"
+
+

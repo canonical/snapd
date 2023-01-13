@@ -14,16 +14,13 @@ prepare: |
         exit
     fi
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-
     echo "Given two snaps are installed"
     for snap in $GOOD_SNAP $BAD_SNAP; do
         snap install "$snap"
     done
 
     echo "And the daemon is configured to point to the fake store"
-    setup_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -31,9 +28,7 @@ restore: |
         exit
     fi
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
     rm -rf "$BLOB_DIR"
 
 execute: |
@@ -46,11 +41,9 @@ execute: |
     snap refresh 2>&1 | MATCH "All snaps up to date"
 
     echo "When the store is configured to make them refreshable"
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    init_fake_refreshes "$BLOB_DIR" "$GOOD_SNAP"
+    "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" "$GOOD_SNAP"
     retry -n 4 --wait 0.5 test -e "$BLOB_DIR/${GOOD_SNAP}"*fake1*.snap
-    init_fake_refreshes "$BLOB_DIR" "$BAD_SNAP"
+    "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" "$BAD_SNAP"
     retry -n 4 --wait 0.5 test -e "$BLOB_DIR/${BAD_SNAP}"*fake1*.snap
 
     echo "When a snap is broken"

@@ -12,10 +12,8 @@ prepare: |
         exit
     fi
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
 
-    setup_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
     readlink /snap/pc-kernel/current > pc-kernel.rev
     readlink "/snap/core18/current" > core.rev
@@ -25,9 +23,7 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -35,16 +31,13 @@ execute: |
         exit
     fi
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # break the pc-kernel snap
         unsquashfs -d pc-kernel-snap /var/lib/snapd/snaps/pc-kernel_*.snap
         truncate -s 0 pc-kernel-snap/initrd.img
 
-        init_fake_refreshes "$BLOB_DIR" pc-kernel --snap-blob "$PWD/pc-kernel-snap"
-        init_fake_refreshes "$BLOB_DIR" core18
+        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" pc-kernel --snap-blob "$PWD/pc-kernel-snap"
+        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" core18
 
         # taken from transition_to_recover_mode()
         cp /bin/systemctl /tmp/orig-systemctl

@@ -12,10 +12,8 @@ prepare: |
         exit
     fi
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
 
-    setup_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
     core_snap=core20
     if os.query is-core18; then
@@ -29,9 +27,7 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -39,17 +35,14 @@ execute: |
         exit
     fi
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-
     core_snap=core20
     if os.query is-core18; then
         core_snap=core18
     fi
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        init_fake_refreshes "$BLOB_DIR" pc-kernel
-        init_fake_refreshes "$BLOB_DIR" "$core_snap"
+        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" pc-kernel
+        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" "$core_snap"
 
         # taken from transition_to_recover_mode()
         cp /bin/systemctl /tmp/orig-systemctl

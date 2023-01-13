@@ -28,9 +28,7 @@ prepare: |
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    setup_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
     cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
     unsquashfs -d pc-snap gadget.snap
@@ -109,9 +107,7 @@ restore: |
         exit 1
     fi
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
     # Restore the state of the gadget snap.
     snap revert pc --revision="$(cat original-revision.txt)"
@@ -132,9 +128,6 @@ execute: |
         echo "This test needs a host using 'pc' gadget snap"
         exit 1
     fi
-
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
 
     # XXX: the test hardcodes a bunch of locations
     # - 'BIOS Boot' and 'EFI System' are modified during the update

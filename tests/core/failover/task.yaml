@@ -52,9 +52,7 @@ prepare: |
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
     snap ack "$TESTSLIB/assertions/developer1.account"
     snap ack "$TESTSLIB/assertions/developer1.account-key"
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    setup_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
     mkdir -p "$BUILD_DIR"
 
@@ -68,9 +66,7 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
     rm -rf "$BUILD_DIR"
 
@@ -114,8 +110,6 @@ execute: |
 
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
 
     core_name="core"
     core_snap_id="$SNAP_ID_core"

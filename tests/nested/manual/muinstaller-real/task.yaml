@@ -27,14 +27,10 @@ prepare: |
       exit
   fi
   snap install jq
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-  setup_fake_store "$STORE_DIR"
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
 restore: |
-  #shellcheck source=tests/lib/store.sh
-  . "$TESTSLIB"/store.sh
-  teardown_fake_store "$STORE_DIR"
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
   rm -rf ./classic-root
 
 execute: |
@@ -92,7 +88,7 @@ execute: |
   cp -a ./classic-seed/system-seed/ /var/lib/snapd/seed
 
   # we don't need the fakestore anymore
-  teardown_fake_store "$STORE_DIR"
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
 
 
   # build the fake-installer snap

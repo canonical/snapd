@@ -14,9 +14,7 @@ restore: |
         exit
     fi
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
 execute: |
     echo "Ensure the snap-repair timer is enabled"
@@ -24,9 +22,6 @@ execute: |
 
     # shellcheck source=tests/lib/uc20-recovery.sh
     . "$TESTSLIB/uc20-recovery.sh"
-
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
 
     # All the tests below are only relevant on an ubuntu-core system
     if [ "$SPREAD_REBOOT" == "0" ]; then
@@ -62,7 +57,7 @@ execute: |
 
         fakestore new-repair --dir "$BLOB_DIR" "$REPAIR_SCRIPT" --repair-json="$PWD/$REPAIR_JSON"
 
-        setup_fake_store "$BLOB_DIR"
+        "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
         # now snap repairs should be run when pointed at the fakestore
 
@@ -136,7 +131,7 @@ execute: |
             fakestore new-repair --dir "$BLOB_DIR" uc22-recover.sh --repair-json="$PWD/uc22-recover.json"
         fi
 
-        setup_fake_store "$BLOB_DIR"
+        "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
         SNAPPY_FORCE_SAS_URL="http://$STORE_ADDR/v2/"
         export SNAPPY_FORCE_SAS_URL

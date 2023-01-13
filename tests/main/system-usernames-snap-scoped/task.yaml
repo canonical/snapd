@@ -39,9 +39,7 @@ prepare: |
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    setup_fake_store "$STORE_DIR"
+    "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
     cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
     cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
@@ -62,11 +60,11 @@ prepare: |
 
     # Create a snap which is not entitled to use the user(s) under test
     snap_path=$(create_snap $UNAPPROVED_SNAP_NAME)
-    make_snap_installable "$STORE_DIR" "${snap_path}"
+    "$TESTSTOOLS"/store-state make-snap-installable "$STORE_DIR" "${snap_path}"
 
     # Then create a snap which is entitled to use the user(s) under test
     snap_path=$(create_snap $APPROVED_SNAP_NAME)
-    make_snap_installable_with_id "$STORE_DIR" "${snap_path}" "$APPROVED_SNAP_ID"
+    "$TESTSTOOLS"/store-state make-snap-installable "$STORE_DIR" "${snap_path}" "$APPROVED_SNAP_ID"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -82,9 +80,7 @@ restore: |
         not getent group "$user"
     done
 
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$STORE_DIR"
+    "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
