@@ -335,7 +335,7 @@ func (s *quotaControlSuite) TestCreateQuotaPerQuotaSystemdTooOld(c *C) {
 		//{quota.NewResourcesBuilder().WithCPUPercentage(25).Build(), 213},
 		//{quota.NewResourcesBuilder().WithThreadLimit(64).Build(), 228},
 
-		{quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build(), 243, `cannot use the cpu-set quota with incompatible systemd: systemd version 242 is too old \(expected at least 243\)`},
+		{quota.NewResourcesBuilder().WithCPUSet([]int{0, 1}).Build(), 243, `cannot use the cpu-set quota with incompatible systemd: systemd version 242 is too old \(expected at least 243\)`},
 		{quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).Build(), 245, `cannot use journal quota with incompatible systemd: systemd version 244 is too old \(expected at least 245\)`},
 	}
 
@@ -343,7 +343,9 @@ func (s *quotaControlSuite) TestCreateQuotaPerQuotaSystemdTooOld(c *C) {
 		r := systemd.MockSystemdVersion(t.systemdVersion-1, nil)
 		defer r()
 
-		_, err := servicestate.CreateQuota(s.state, "foo", "", nil, t.resources)
+		_, err := servicestate.CreateQuota(s.state, "foo", servicestate.CreateQuotaOptions{
+			ResourceLimits: t.resources,
+		})
 		c.Assert(err, ErrorMatches, t.expectedErr)
 	}
 }
@@ -353,7 +355,9 @@ func (s *quotaControlSuite) TestCreateQuotaJournalNotEnabled(c *C) {
 	defer s.state.Unlock()
 
 	quotaConstraits := quota.NewResourcesBuilder().WithJournalNamespace().Build()
-	_, err := servicestate.CreateQuota(s.state, "foo", "", nil, quotaConstraits)
+	_, err := servicestate.CreateQuota(s.state, "foo", servicestate.CreateQuotaOptions{
+		ResourceLimits: quotaConstraits,
+	})
 	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.journal-quota' to true`)
 }
 
@@ -366,7 +370,9 @@ func (s *quotaControlSuite) TestCreateQuotaJournalEnabled(c *C) {
 	tr.Commit()
 
 	quotaConstraits := quota.NewResourcesBuilder().WithJournalNamespace().Build()
-	_, err := servicestate.CreateQuota(s.state, "foo", "", nil, quotaConstraits)
+	_, err := servicestate.CreateQuota(s.state, "foo", servicestate.CreateQuotaOptions{
+		ResourceLimits: quotaConstraits,
+	})
 	c.Assert(err, IsNil)
 }
 
@@ -1287,6 +1293,10 @@ func (s *quotaControlSuite) TestAddSnapServicesToQuotaJournalGroupQuotaFail(c *C
 	st.Lock()
 	defer st.Unlock()
 
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.journal-quota", true)
+	tr.Commit()
+
 	// setup test-snap
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
@@ -1304,6 +1314,10 @@ func (s *quotaControlSuite) TestAddJournalQuotaToGroupWithServicesFail(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.journal-quota", true)
+	tr.Commit()
 
 	// setup test-snap
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
