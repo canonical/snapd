@@ -185,7 +185,6 @@ Sometimes it is helpful to modify the snap version in
 `./custom-core/meta/snap.yaml` before repacking with `snap pack` so it is easy
 to identify which snap file is which.
 
-
 ### Building natively
 
 To build the `snap` command line client:
@@ -407,7 +406,6 @@ to the official list of [Ubuntu releases](https://wiki.ubuntu.com/Releases).
 
 > `<release-short-name>` is the first word in the release's full name, 
 e.g. for "Bionic Beaver" it is `bionic`.
-
 
 To build an Ubuntu 14.04 (Trusty Tahr) based VM, use:
 
