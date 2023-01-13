@@ -19,12 +19,12 @@
 
 package randutil
 
+import "github.com/snapcore/snapd/testutil"
+
 var KernelUUIDPath = kernelUUIDPath
 
 func MockKernelUUIDPath(newPath string) (restore func()) {
-	kernelUUIDPathDefault := kernelUUIDPath
+	restore = testutil.Backup(&kernelUUIDPath)
 	kernelUUIDPath = newPath
-	return func() {
-		kernelUUIDPath = kernelUUIDPathDefault
-	}
+	return restore
 }
