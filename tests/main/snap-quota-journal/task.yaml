@@ -18,6 +18,8 @@ systems:
   - -ubuntu-core-18-*
 
 prepare: |
+  snap set system experimental.journal-quota=true
+  tests.cleanup defer snap unset system experimental.journal-quota
   "$TESTSTOOLS"/snaps-state install-local test-snapd-journal-quota
 
 execute: |

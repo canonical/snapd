@@ -14,6 +14,8 @@ systems:
   - -ubuntu-core-18-*
 
 prepare: |
+  snap set system experimental.journal-quota=true
+  tests.cleanup defer snap unset system experimental.journal-quota
   snap install test-snapd-stressd --edge --devmode
   tests.cleanup defer snap remove --purge test-snapd-stressd
 
