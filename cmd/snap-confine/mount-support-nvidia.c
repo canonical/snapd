@@ -253,7 +253,21 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 				die("cannot read symbolic link %s", pathname);
 			}
 			hostfs_symlink_target[num_read] = 0;
-			if (hostfs_symlink_target[0] == '/') {
+			if (!strncmp("/etc/alternatives/", hostfs_symlink_target, 18)) {
+				char hostfs_alt_symlink_target[512] = { 0 };
+				hostfs_alt_symlink_target[0] = 0;
+				num_read =
+				    readlink(hostfs_symlink_target, hostfs_alt_symlink_target,
+					    sizeof hostfs_alt_symlink_target - 1);
+				if (num_read == -1) {
+					die("cannot read symbolic link %s", pathname);
+				}
+				hostfs_alt_symlink_target[num_read] = 0;
+				sc_must_snprintf(symlink_target,
+						 sizeof symlink_target,
+						 "/var/lib/snapd/hostfs%s",
+						 hostfs_alt_symlink_target);
+			} else if (hostfs_symlink_target[0] == '/') {
 				sc_must_snprintf(symlink_target,
 						 sizeof symlink_target,
 						 "/var/lib/snapd/hostfs%s",
