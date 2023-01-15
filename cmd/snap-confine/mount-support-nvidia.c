@@ -45,7 +45,7 @@
 #define SC_GLVND_DIR  SC_EXTRA_LIB_DIR "/glvnd"
 
 #define SC_VULKAN_SOURCE_DIR "/usr/share/vulkan"
-#define SC_EGL_VENDOR_SOURCE_DIR "/usr/share/glvnd"
+#define SC_GLVND_VENDOR_SOURCE_DIR "/usr/share/glvnd"
 
 // Location for NVIDIA vulkan files (including _wayland)
 static const char *vulkan_globs[] = {
@@ -56,12 +56,12 @@ static const size_t vulkan_globs_len =
     sizeof vulkan_globs / sizeof *vulkan_globs;
 
 // Location of EGL vendor files
-static const char *egl_vendor_globs[] = {
+static const char *glvnd_vendor_globs[] = {
 	"egl_vendor.d/*nvidia*.json",
 };
 
-static const size_t egl_vendor_globs_len =
-    sizeof egl_vendor_globs / sizeof *egl_vendor_globs;
+static const size_t glvnd_vendor_globs_len =
+    sizeof glvnd_vendor_globs / sizeof *glvnd_vendor_globs;
 
 static char *overlay_dir;
 
@@ -603,9 +603,9 @@ static void sc_mount_vulkan(const char *rootfs_dir)
 	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_VULKAN_SOURCE_DIR, NULL, SC_VULKAN_DIR, vulkan_globs, vulkan_globs_len);
 }
 
-static void sc_mount_egl(const char *rootfs_dir)
+static void sc_mount_glvnd(const char *rootfs_dir)
 {
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_EGL_VENDOR_SOURCE_DIR, NULL, SC_GLVND_DIR, egl_vendor_globs, egl_vendor_globs_len);
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_GLVND_VENDOR_SOURCE_DIR, NULL, SC_GLVND_DIR, glvnd_vendor_globs, glvnd_vendor_globs_len);
 }
 
 void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
@@ -662,7 +662,7 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 
 	// Common for both driver mechanisms
 	sc_mount_vulkan(rootfs_dir);
-	sc_mount_egl(rootfs_dir);
+	sc_mount_glvnd(rootfs_dir);
 
 	sc_overlay_final();
 }
