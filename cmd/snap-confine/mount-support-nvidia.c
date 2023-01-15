@@ -48,6 +48,8 @@
 #define SC_GLVND_VENDOR_SOURCE_DIR "/usr/share/glvnd"
 #define SC_EGL_VENDOR_SOURCE_DIR "/usr/share/egl"
 
+#define SC_NATIVE_LIBVA_DIR NATIVE_LIBDIR "/" HOST_ARCH_TRIPLET "/dri"
+
 // Location for NVIDIA vulkan files (including _wayland)
 static const char *vulkan_globs[] = {
 	"icd.d/*nvidia*.json",
@@ -55,6 +57,14 @@ static const char *vulkan_globs[] = {
 
 static const size_t vulkan_globs_len =
     sizeof vulkan_globs / sizeof *vulkan_globs;
+
+// Location for NVIDIA DRI files.
+static const char *libvaglobs[] = {
+	"nvidia_drv_video.so*",
+};
+
+static const size_t libvaglobs_len =
+    sizeof libvaglobs / sizeof *libvaglobs;
 
 // Location of EGL vendor files
 static const char *glvnd_vendor_globs[] = {
@@ -623,6 +633,23 @@ static void sc_mount_egl(const char *rootfs_dir)
 	setenv("__EGL_EXTERNAL_PLATFORM_CONFIG_DIRS", SC_GLVND_DIR "/egl_external_platform.d", true);
 }
 
+// This is all a dirty hack involving mangling the snap's filesystem.
+// Unfortunately, desktop-launcher from snapcraft unconditionally sets
+// LIBVA_DRIVERS_PATH, which means that we have no choice except to put any
+// libva files in that directory.
+static void sc_mount_libva(const char *rootfs_dir)
+{
+	char *dest_dir;
+
+	if (asprintf(&dest_dir, "%s/usr/lib/%s/dri", getenv("SNAP"), HOST_ARCH_TRIPLET) < 0) {
+		debug("Unable to format DRI destination directory.");
+		return;
+	}
+
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_NATIVE_LIBVA_DIR, NULL, dest_dir, libvaglobs, libvaglobs_len);
+	free(dest_dir);
+}
+
 void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 {
 	/* If NVIDIA module isn't loaded, don't attempt to mount the drivers */
@@ -679,6 +706,7 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 	sc_mount_vulkan(rootfs_dir);
 	sc_mount_glvnd(rootfs_dir);
 	sc_mount_egl(rootfs_dir);
+	sc_mount_libva(rootfs_dir);
 
 	sc_overlay_final();
 }
