@@ -372,8 +372,8 @@ static int sc_overlay_mount(const char *target)
 }
 
 static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
-					      const char *source_dir[],
-					      size_t source_dir_len,
+					      const char *source1,
+					      const char *source2,
 					      const char *tgt_dir,
 					      const char *glob_list[],
 					      size_t glob_list_len)
@@ -395,9 +395,14 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 		die("cannot change ownership of %s", libgl_dir);
 	}
 
-	for (size_t i = 0; i < source_dir_len; i++) {
-		// Populate libgl_dir with symlinks to libraries from hostfs
-		sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source_dir[i],
+	// Populate libgl_dir with symlinks to libraries from hostfs
+	if (source1 != NULL) {
+		sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source1,
+						       glob_list,
+						       glob_list_len);
+	}
+	if (source2 != NULL) {
+		sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source2,
 						       glob_list,
 						       glob_list_len);
 	}
@@ -425,33 +430,17 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir, const char **globs, size_t globs_len)
 {
 
-	static const char *native_sources[] = {
-		NATIVE_LIBDIR,
-		NATIVE_LIBDIR "/nvidia*",
-	};
-	const size_t native_sources_len =
-	    sizeof native_sources / sizeof *native_sources;
-
-#if UINTPTR_MAX == 0xffffffffffffffff
-	// Alternative 32-bit support
-	static const char *lib32_sources[] = {
-		LIB32_DIR,
-		LIB32_DIR "/nvidia*",
-	};
-	const size_t lib32_sources_len =
-	    sizeof lib32_sources / sizeof *lib32_sources;
-#endif
-
 	// Primary arch
 	sc_mkdir_and_mount_and_glob_files(rootfs_dir,
-					  native_sources, native_sources_len,
+					  NATIVE_LIBDIR, NATIVE_LIBDIR "/nvidia*",
 					  SC_LIBGL_DIR, globs,
 					  globs_len);
 
 #if UINTPTR_MAX == 0xffffffffffffffff
 	// Alternative 32-bit support
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, lib32_sources,
-					  lib32_sources_len, SC_LIBGL32_DIR,
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir,
+					  LIB32_DIR, LIB32_DIR "/nvidia*",
+					  SC_LIBGL32_DIR,
 					  globs, globs_len);
 #endif
 }
@@ -580,16 +569,10 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
 	if ((strlen(HOST_ARCH_TRIPLET) > 0) &&
 	    (sc_mount_nvidia_is_driver_in_dir(native_libdir) == 1)) {
 
-		// sc_mkdir_and_mount_and_glob_files() takes an array of strings, so
-		// initialize native_sources accordingly, but calculate the array length
-		// dynamically to make adjustments to native_sources easier.
-		const char *native_sources[] = { native_libdir };
-		const size_t native_sources_len =
-		    sizeof native_sources / sizeof *native_sources;
 		// Primary arch
 		sc_mkdir_and_mount_and_glob_files(rootfs_dir,
-						  native_sources,
-						  native_sources_len,
+						  native_libdir,
+						  NULL,
 						  SC_LIBGL_DIR, globs,
 						  globs_len);
 
@@ -597,15 +580,8 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
 		if ((strlen(HOST_ARCH32_TRIPLET) > 0) &&
 		    (sc_mount_nvidia_is_driver_in_dir(lib32_libdir) == 1)) {
 
-			// sc_mkdir_and_mount_and_glob_files() takes an array of strings, so
-			// initialize lib32_sources accordingly, but calculate the array length
-			// dynamically to make adjustments to lib32_sources easier.
-			const char *lib32_sources[] = { lib32_libdir };
-			const size_t lib32_sources_len =
-			    sizeof lib32_sources / sizeof *lib32_sources;
 			sc_mkdir_and_mount_and_glob_files(rootfs_dir,
-							  lib32_sources,
-							  lib32_sources_len,
+							  lib32_libdir, NULL,
 							  SC_LIBGL32_DIR,
 							  globs,
 							  globs_len);
@@ -624,27 +600,12 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
 
 static void sc_mount_vulkan(const char *rootfs_dir)
 {
-	const char *vulkan_sources[] = {
-		SC_VULKAN_SOURCE_DIR,
-	};
-	const size_t vulkan_sources_len =
-	    sizeof vulkan_sources / sizeof *vulkan_sources;
-
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, vulkan_sources,
-					  vulkan_sources_len, SC_VULKAN_DIR,
-					  vulkan_globs, vulkan_globs_len);
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_VULKAN_SOURCE_DIR, NULL, SC_VULKAN_DIR, vulkan_globs, vulkan_globs_len);
 }
 
 static void sc_mount_egl(const char *rootfs_dir)
 {
-	const char *egl_vendor_sources[] = { SC_EGL_VENDOR_SOURCE_DIR };
-	const size_t egl_vendor_sources_len =
-	    sizeof egl_vendor_sources / sizeof *egl_vendor_sources;
-
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, egl_vendor_sources,
-					  egl_vendor_sources_len, SC_GLVND_DIR,
-					  egl_vendor_globs,
-					  egl_vendor_globs_len);
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_EGL_VENDOR_SOURCE_DIR, NULL, SC_GLVND_DIR, egl_vendor_globs, egl_vendor_globs_len);
 }
 
 void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
