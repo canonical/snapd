@@ -63,6 +63,8 @@ static const char *egl_vendor_globs[] = {
 static const size_t egl_vendor_globs_len =
     sizeof egl_vendor_globs / sizeof *egl_vendor_globs;
 
+static char *overlay_dir;
+
 #if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
 // List of globs that describe nvidia userspace libraries.
@@ -308,6 +310,67 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 	}
 }
 
+static void sc_overlay_init(const char *rootfs_dir)
+{
+	static char overlay_template[512];
+
+	sc_must_snprintf(overlay_template, sizeof(overlay_template), "%s/tmp/snap.nvidia_overlay_XXXXXX", rootfs_dir);
+	if (mkdtemp(overlay_template) == NULL) {
+		die("cannot create temporary directory %s for the nvidia overlay file system", overlay_template);
+	}
+
+	overlay_dir = overlay_template;
+
+	if (mount("none", overlay_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
+		die("cannot mount tmpfs at %s", overlay_dir);
+	}
+}
+
+static void sc_overlay_final(void)
+{
+	// Remount $tgt_dir (i.e. .../lib/gl) read only
+	debug("remounting overlay tmpfs as read-only %s", overlay_dir);
+	if (mount(NULL, overlay_dir, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL) != 0) {
+		die("cannot remount %s as read-only", overlay_dir);
+	}
+}
+
+static int sc_overlay_mount(const char *target)
+{
+	char copy[512] = { 0 };
+
+	strncpy(copy, target, sizeof(copy) - 1);
+	const char *base_dir = basename(copy);
+	char overlay_upper[512] = { 0 };
+	char overlay_work[512] = { 0 };
+	char overlay_options[512] = { 0 };
+
+	sc_must_snprintf(overlay_upper, sizeof(overlay_upper), "%s/upper_%s", overlay_dir, base_dir);
+	sc_must_snprintf(overlay_work, sizeof(overlay_work), "%s/work_%s", overlay_dir, base_dir);
+	int res = mkdir(overlay_upper, 0755);
+	if (res != 0 && errno != EEXIST) {
+		die("cannot create overlay fs target %s", overlay_upper);
+	}
+	res = mkdir(overlay_work, 0755);
+	if (res != 0 && errno != EEXIST) {
+		die("cannot create overlay fs target %s", overlay_work);
+	}
+
+	res = mkdir(target, 0755);
+	if (res != 0 && errno != EEXIST) {
+		die("cannot create target %s", target);
+	}
+
+	sc_must_snprintf(overlay_options, sizeof(overlay_options), "lowerdir=%s,upperdir=%s,workdir=%s", target, overlay_upper, overlay_work);
+
+	if ((res = mount("overlay", target, "overlay", 0, overlay_options)) != 0) {
+		die("Unable to create overlay mount, target: %s, upper: %s, work: %s, options: %s, res: %d, errno: %d",
+				target, overlay_upper, overlay_work, overlay_options, res, errno);
+	}
+
+	return res;
+}
+
 static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 					      const char *source_dir[],
 					      size_t source_dir_len,
@@ -316,36 +379,27 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 					      size_t glob_list_len)
 {
 	// Bind mount a tmpfs on $rootfs_dir/$tgt_dir (i.e. /var/lib/snapd/lib/gl)
-	char buf[512] = { 0 };
+	char buf[511] = { 0 };
 	sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir, tgt_dir);
 	const char *libgl_dir = buf;
 
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	int res = mkdir(libgl_dir, 0755);
-	if (res != 0 && errno != EEXIST) {
-		die("cannot create tmpfs target %s", libgl_dir);
+	(void)sc_set_effective_identity(old);
+
+	if (sc_overlay_mount(libgl_dir) != 0) {
+		die("cannot mount overlay at %s", libgl_dir);
 	}
-	if (res == 0 && (chown(libgl_dir, 0, 0) < 0)) {
+
+	if (chown(libgl_dir, 0, 0) < 0) {
 		// Adjust the ownership only if we created the directory.
 		die("cannot change ownership of %s", libgl_dir);
 	}
-	(void)sc_set_effective_identity(old);
-
-	debug("mounting tmpfs at %s", libgl_dir);
-	if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
-		die("cannot mount tmpfs at %s", libgl_dir);
-	};
 
 	for (size_t i = 0; i < source_dir_len; i++) {
 		// Populate libgl_dir with symlinks to libraries from hostfs
 		sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source_dir[i],
 						       glob_list,
 						       glob_list_len);
-	}
-	// Remount $tgt_dir (i.e. .../lib/gl) read only
-	debug("remounting tmpfs as read-only %s", libgl_dir);
-	if (mount(NULL, buf, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL) != 0) {
-		die("cannot remount %s as read-only", buf);
 	}
 }
 
@@ -611,6 +665,8 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 	}
 	(void)sc_set_effective_identity(old);
 
+	sc_overlay_init(rootfs_dir);
+
 #if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 	/* We include the globs for the glvnd libraries for old snaps
 	 * based on core, Ubuntu 16.04 did not include glvnd itself.
@@ -646,4 +702,6 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 	// Common for both driver mechanisms
 	sc_mount_vulkan(rootfs_dir);
 	sc_mount_egl(rootfs_dir);
+
+	sc_overlay_final();
 }
