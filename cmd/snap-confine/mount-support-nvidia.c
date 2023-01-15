@@ -46,6 +46,7 @@
 
 #define SC_VULKAN_SOURCE_DIR "/usr/share/vulkan"
 #define SC_GLVND_VENDOR_SOURCE_DIR "/usr/share/glvnd"
+#define SC_EGL_VENDOR_SOURCE_DIR "/usr/share/egl"
 
 // Location for NVIDIA vulkan files (including _wayland)
 static const char *vulkan_globs[] = {
@@ -62,6 +63,13 @@ static const char *glvnd_vendor_globs[] = {
 
 static const size_t glvnd_vendor_globs_len =
     sizeof glvnd_vendor_globs / sizeof *glvnd_vendor_globs;
+
+static const char *egl_vendor_globs[] = {
+	"egl_external_platform.d/*nvidia*.json",
+};
+
+static const size_t egl_vendor_globs_len =
+    sizeof egl_vendor_globs / sizeof *egl_vendor_globs;
 
 static char *overlay_dir;
 
@@ -89,7 +97,7 @@ static const char *nvidia_globs[] = {
 	"libnvidia-cfg.so*",
 	"libnvidia-compiler.so*",
 	"libnvidia-eglcore.so*",
-	"libnvidia-egl-wayland*",
+	"libnvidia-egl*",
 	"libnvidia-encode.so*",
 	"libnvidia-fatbinaryloader.so*",
 	"libnvidia-fbc.so*",
@@ -608,6 +616,13 @@ static void sc_mount_glvnd(const char *rootfs_dir)
 	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_GLVND_VENDOR_SOURCE_DIR, NULL, SC_GLVND_DIR, glvnd_vendor_globs, glvnd_vendor_globs_len);
 }
 
+static void sc_mount_egl(const char *rootfs_dir)
+{
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_EGL_VENDOR_SOURCE_DIR, NULL, SC_GLVND_DIR, egl_vendor_globs, egl_vendor_globs_len);
+	setenv("__EGL_VENDOR_LIBRARY_DIRS", SC_GLVND_DIR "/egl_vendor.d", true);
+	setenv("__EGL_EXTERNAL_PLATFORM_CONFIG_DIRS", SC_GLVND_DIR "/egl_external_platform.d", true);
+}
+
 void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 {
 	/* If NVIDIA module isn't loaded, don't attempt to mount the drivers */
@@ -663,6 +678,7 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 	// Common for both driver mechanisms
 	sc_mount_vulkan(rootfs_dir);
 	sc_mount_glvnd(rootfs_dir);
+	sc_mount_egl(rootfs_dir);
 
 	sc_overlay_final();
 }
