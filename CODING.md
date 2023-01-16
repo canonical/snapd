@@ -4,7 +4,7 @@
 
 * Reviews can give input on whether the proposed code is seemingly correct and reasonable in the context of project practices, and whether it seems sufficiently tested.
 
-* Code can have a long lifetime; the effort to maintain and adapt it in the future can be much larger than the original effort to produce the first version of it. Reviews from other team member should therefore focus on:
+* Code can have a long lifetime; the effort to maintain and adapt it in the future can be much larger than the original effort to produce the first version of it. Reviews from other team members should therefore focus on:
   * Is the new code readable and understandable, alongside other attributes that can help future maintainability?
   * Could the code be simplified?
 
@@ -22,16 +22,16 @@ To a large extent we follow [golang naming conventions](https://go.dev/doc/effec
 
 ## Comments
 
-  Ideally all exported names should have doc comments for them following [golang conventions](https://go.dev/doc/comment).
+Ideally all exported names should have doc comments for them following [golang conventions](https://go.dev/doc/comment).
 
 We sometimes also use long code comments or separate markdown README files for higher-level descriptions of mechanisms or concepts.
 
-Inline code comments should usually address non-obvious, unexpected parts of the code. Repeating what the code does is not usually very informative:
+Inline code comments should usually address non-obvious or unexpected parts of the code. Repeating what the code does is not usually very informative:
 
 * Code comments should either address the why something is done
 * Or clarify the more abstract impact of the low-level manipulation in the code
 
- It might be appropriate and useful also to give proper doc comments even to complex unexported helpers.
+It might be appropriate and useful also to give proper doc comments even to complex unexported helpers.
 
 ## Function signatures
 
@@ -56,7 +56,7 @@ Install(ctx context.Context, st *state.State, name string, opts *RevisionOptions
 
 * We use `fmt.Errorf` and `errors.New` as much as possible.
 
-* Error messages start with lowercase, as they often end up embedded in one another
+* Error messages start with lowercase and not end with a period, as they often end up embedded in one another
 
 * Error messages should be formulated as *"cannot …"* whenever possible, so avoid *"failed to …"* for example.
 
@@ -69,10 +69,10 @@ Install(ctx context.Context, st *state.State, name string, opts *RevisionOptions
 ## Other style points
 
 * We rely on and apply `go fmt` consistently.
-* Our PR CI static checks run [`golangci-lint`](https://github.com/golangci/golangci-lint), for details see our .golangci-lint.yml config
+* Our PR CI static checks run [`golangci-lint`](https://github.com/golangci/golangci-lint), for details see our `.golangci-lint.yml` config.
 * We tend to avoid naked returns, we run the `nakedret` test with an accepted function length of at most 5.
 * `run-checks –static` runs also various linting plus some project specific checks:
-  * For example, in the face of mixed usage in the end we agreed to use numbers directly instead and avoid `http.Status*` constants. This is checked by `run-checks –static`.
+  * For example, in the face of mixed usage in the end we agreed to use numbers directly instead and avoid `http.Status*` constants. This is checked by `run-checks -–static`.
 
 ## Code structuring
 
@@ -85,7 +85,7 @@ Install(ctx context.Context, st *state.State, name string, opts *RevisionOptions
 
 * When trying to keep functions and methods readable by introducing helpers, trying to aim for a mostly consistent level of abstraction inside each function could be useful.
 
-* *Do not repeat yourself* is a balancing act. Complex behaviour should ideally be encoded in code only once in the code base when possible. When extracting and deciding how to extract some behaviour it is important to consider the readability of both the now encapsulated code and its consumers. For example, if it's hard to give the extracted code a good name and signature it might show that a different approach should be looked at. For simpler helpers, it might be worth seeing a couple of usages before creating them as local helpers, and a bit more before creating an exported helper that can be imported from all the used places. When creating helpers and avoiding repetition the aim should also be first to improve maintainability and readability. If the consumer code is less readable then maybe the extraction in this case might not be a good idea in the end.
+* *Do not repeat yourself* is a balancing act. Complex behaviour should ideally be encoded only once in the code base when possible. When extracting and deciding how to extract some behaviour it is important to consider the readability of both the now encapsulated code and its consumers. For example, if it's hard to give the extracted code a good name and signature it might show that a different approach should be looked at. For simpler helpers, it might be worth seeing a couple of usages before creating them as local helpers, and a bit more before creating an exported helper that can be imported from all the used places. When creating helpers and avoiding repetition the aim should also be first to improve maintainability and readability. If the consumer code is less readable then maybe the extraction in this case might not be a good idea in the end.
 
 * See [Tests](#tests) for consideration about repetition and reuse specifically in test code.
 
@@ -121,6 +121,8 @@ Tests should help with these aspects:
 
 We do not mandate TDD, but it's always a good idea when possible to start at least from happy path tests for new code/behaviour.
 
+Bug fixes should be covered by new tests, for which is important to verify that they do not pass and fail as expected prior to the fix.
+
 Coverage of error handling is important as well:
 
 * Complex error handling should be tested
@@ -155,9 +157,9 @@ func MockTimeNow(f func() time.Time) (restore func()) { // in export_test.go
 
 If something cannot avoid being mocked across package boundaries, we sometimes have `Mock*` functions or constructors exported in the API of packages.
 
-Because of this complexity with mocking, and because mock-heavy tests might risk needing large rewrites when refactoring (which goes against their confidence enhancement use) we are not very strict about unit tests testing exactly single functions and structs. We should do that whenever possible without mocking, but otherwise it is not atypical for snapd tests to concentrate on mocking points of interaction with the actual external system and state, as it might require less overall mocking support and it might be easier to reason on expectations for effects. For example, we have support to mock our systemd interactions and observe the involved `systemctl` invocations (`systemd.MockSystemctl`).
+Because of this complexity with mocking, and because mock-heavy tests might risk needing large rewrites when refactoring (which goes against their confidence enhancement use), we are not very strict about unit tests testing exactly single functions and structs. We should do that whenever possible without mocking, but otherwise it is not atypical for snapd tests to concentrate on mocking points of interaction with the actual external system and state, as it might require less overall mocking support and it might be easier to reason on expectations for effects. For example, we have support to mock our systemd interactions and observe the involved `systemctl` invocations (`systemd.MockSystemctl`).
 
-So, many of our unit tests might end up testing more than one package, and test instead across two levels (rarely more) of packages in our architecture; a lower-level primitives' package, for example, and a more high-level behaviour one using the former.
+So, many of our unit tests might end up testing more than one package, and test instead across two levels (rarely more) of packages in our architecture; a package of lower-level primitives, for example, and a more high-level behaviour one using the former.
 
 Full direct mocking might still make perfect sense when the API of the consumed packages is very complex but its details should be fully or largely transparent to the consumer. This is mostly the case, for example, when testing API functionality in the `daemon` package vs the API offered by the [overlord state managers](https://github.com/snapcore/snapd/blob/master/overlord/README.md).
 
@@ -166,13 +168,13 @@ The cost of our approach is sometimes a complex fixture setup. To help mitigate 
 Related to tests in and for overlord state manager packages `overlord/<concern>state`, we have a few rules:
 
 * Ideally they should limit themselves to test the manager defined by the package
-* If that's not possible they should limit themselves to as few managers as possibles
-* If what needs to be tested is the full interaction across many or all managers then we have or can write tests for this in overlord/managers_test.go. Fixture setup in these cases is very costly but they are still easier to iterate on and can be useful to probe behaviour in more internal details than functional/integration tests.
+* If that's not possible they should limit themselves to as few managers as possible
+* If what needs to be tested is the full interaction across many or all managers then we have or can write tests for this in `overlord/managers_test.go`. Fixture setup in these cases is very costly but they are still easier to iterate on and can be useful to probe behaviour in more internal details than functional/integration tests.
 
 We do not have strong policies against repetition in test code, as usual the important consideration is readability. This area is mostly left to the personal judgement of developers. If any general advice can be given is that:
 
-* investing in clear helpers to setup complex fixtures is often valuable, while compressing actual ad hoc testing and checking code less so, as it might result in if-trees that might be hard to follow
-* wherever applicable, tabular tests (where cases are expressed as a slice of anonymous structs) should be used. For example, they are often appropriate when testing error cases of functions
+* Investing in clear helpers to setup complex fixtures is often valuable, while compressing actual ad hoc testing and checking code less so, as it might result in if-trees that might be hard to follow.
+* Wherever applicable, tabular tests (where cases are expressed as a slice of anonymous structs) should be used. For example, they are often appropriate when testing error cases of functions.
 
 ## Functional/integration tests
 
@@ -198,7 +200,7 @@ We write them using [spread](https://github.com/snapcore/spread). Generally all 
       * `gadget,image: remove LayoutConstraints struct`
       * `o/snapstate: add helpers to get user and gating holds`
       * `many: correct struct fields and output key`
-  * When no go code is involved, the context prefix before the colon can refer to directories or top-level files instead.
+  * When no golang code is involved, the context prefix before the colon can refer to directories or top-level files instead.
     * `build-aux,.github/workflows: limit make processes with nproc`
 
 ## Further readings
