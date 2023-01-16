@@ -65,6 +65,14 @@ restore: |
             echo "This test needs test keys to be trusted"
             exit
         fi
+
+        if [[ "$SNAP_NAME" =~ classic ]]; then
+            case "$SPREAD_SYSTEM" in
+                ubuntu-core-*|fedora-*|arch-*|centos-*)
+                    exit
+                    ;;
+            esac
+        fi
         "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
     fi
 
