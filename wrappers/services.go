@@ -629,7 +629,7 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *sna
 	}
 
 	// note that the Preseeding option is not used here at all
-	for _, svc := range snapInfo.Services() {
+	for _, svc := range services {
 		// if an inclusion list is provided, then we want to make sure this service
 		// is included.
 		// TODO: add an AppInfo.FullName member
