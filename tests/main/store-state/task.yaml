@@ -22,10 +22,10 @@ execute: |
 
     # Setup staging store
     "$TESTSTOOLS"/store-state setup-staging-store
-    snap info core | MATCH "snap-id:.*xMNMpEm0COPZy7jq9YRwWVLCD9q5peow"
+    snap info core | MATCH "store-url:.*https://staging-api.snapcraft.io"
 
     # Teardown staging store
     "$TESTSTOOLS"/store-state teardown-staging-store
-    snap info core | MATCH "snap-id:.*99T7MUlRhtI3U0QFgl5mXXESAiSwt776"
+    snap info core | MATCH "store-url:.*https://snapcraft.io"
 
 
