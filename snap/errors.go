@@ -43,7 +43,7 @@ func (e NotInstalledError) Error() string {
 	return fmt.Sprintf("revision %s of snap %q is not installed", e.Rev, e.Snap)
 }
 
-// NotSnapError is returned if a operation expects a snap file or snap dir
+// NotSnapError is returned if an operation expects a snap file or snap dir
 // but no valid input is provided. When creating it ensure "Err" is set
 // so that a useful error can be displayed to the user.
 type NotSnapError struct {
