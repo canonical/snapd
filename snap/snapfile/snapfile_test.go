@@ -132,12 +132,14 @@ func (s *snapFileTestSuite) TestOpenSnapdirUnsupportedFormat(c *C) {
 
 	_, err = snapfile.Open(fn)
 	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
+	c.Check(err, ErrorMatches, `cannot process snap or snapdir: file ".*" is invalid \(header \[110 111 116 45 97\]\)`)
 }
 
 func (s *snapFileTestSuite) TestOpenSnapdirFileNoExists(c *C) {
 	dir := c.MkDir()
-	_, err := snapfile.Open(filepath.Join(dir, "garbage"))
+	_, err := snapfile.Open(filepath.Join(dir, "non-existing-file"))
 	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
+	c.Check(err, ErrorMatches, `cannot process snap or snapdir: open /.*/non-existing-file: no such file or directory`)
 }
 
 func (s *snapFileTestSuite) TestFileOpenForSnapDirErrors(c *C) {
@@ -145,4 +147,13 @@ func (s *snapFileTestSuite) TestFileOpenForSnapDirErrors(c *C) {
 	_, err := snapfile.Open(c.MkDir())
 	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
 	c.Assert(err, ErrorMatches, `cannot process snap or snapdir: directory ".*" is empty`)
+}
+
+func (s *snapFileTestSuite) TestNotSnapErrorInvalidDir(c *C) {
+	tmpdir := c.MkDir()
+	err := ioutil.WriteFile(filepath.Join(tmpdir, "foo"), nil, 0644)
+	c.Assert(err, IsNil)
+	_, err = snapfile.Open(tmpdir)
+	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
+	c.Check(err, ErrorMatches, `cannot process snap or snapdir: directory ".*" is invalid`)
 }

@@ -20,8 +20,7 @@
 package snap_test
 
 import (
-	"io/ioutil"
-	"path/filepath"
+	"fmt"
 
 	. "gopkg.in/check.v1"
 
@@ -32,28 +31,12 @@ type errorsSuite struct{}
 
 var _ = Suite(&errorsSuite{})
 
-func (s *errorsSuite) TestNotSnapErrorNoSuchFile(c *C) {
-	err := snap.NewNotSnapErrorWithContext("non-existing-file")
-	c.Check(err, ErrorMatches, `cannot process snap or snapdir: open non-existing-file: no such file or directory`)
+func (s *errorsSuite) TestNotSnapErrorNoDetails(c *C) {
+	err := snap.NotSnapError{Path: "some-path"}
+	c.Check(err, ErrorMatches, `cannot process snap or snapdir "some-path"`)
 }
 
-func (s *errorsSuite) TestNotSnapErrorEmptyDir(c *C) {
-	err := snap.NewNotSnapErrorWithContext(c.MkDir())
-	c.Check(err, ErrorMatches, `cannot process snap or snapdir: directory ".*" is empty`)
-}
-
-func (s *errorsSuite) TestNotSnapErrorInvalidDir(c *C) {
-	tmpdir := c.MkDir()
-	err := ioutil.WriteFile(filepath.Join(tmpdir, "foo"), nil, 0644)
-	c.Assert(err, IsNil)
-	err = snap.NewNotSnapErrorWithContext(tmpdir)
-	c.Check(err, ErrorMatches, `cannot process snap or snapdir: directory ".*" is invalid`)
-}
-
-func (s *errorsSuite) TestNotSnapErrorInvalidFile(c *C) {
-	badFile := filepath.Join(c.MkDir(), "foo")
-	err := ioutil.WriteFile(badFile, []byte("not-a-snap-and-much-much-more-content"), 0644)
-	c.Assert(err, IsNil)
-	err = snap.NewNotSnapErrorWithContext(badFile)
-	c.Check(err, ErrorMatches, `cannot process snap or snapdir: file ".*" is invalid \(header \[110 111 116 45 97 45 115 110 97 112\]\)`)
+func (s *errorsSuite) TestNotSnapErrorWithDetails(c *C) {
+	err := snap.NotSnapError{Path: "some-path", Err: fmt.Errorf(`cannot open "some path"`)}
+	c.Check(err, ErrorMatches, `cannot process snap or snapdir: cannot open "some path"`)
 }
