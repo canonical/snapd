@@ -105,7 +105,7 @@ func (s *startPreseedSuite) TestRunPreseedClassicHappy(c *C) {
 	c.Check(called, Equals, true)
 }
 
-func (s *startPreseedSuite) TestReset(c *C) {
+func (s *startPreseedSuite) TestResetReexeced(c *C) {
 	restore := main.MockOsGetuid(func() int {
 		return 0
 	})
@@ -113,6 +113,24 @@ func (s *startPreseedSuite) TestReset(c *C) {
 
 	var called bool
 	main.MockResetPreseededChroot(func(dir string) error {
+		c.Check(dir, Equals, "/")
+		called = true
+		return nil
+	})
+
+	parser := testParser(c)
+	c.Assert(main.Run(parser, []string{"--reset-chroot"}), IsNil)
+	c.Check(called, Equals, true)
+}
+
+func (s *startPreseedSuite) TestReset(c *C) {
+	restore := main.MockOsGetuid(func() int {
+		return 0
+	})
+	defer restore()
+
+	var called bool
+	main.MockPreseedClassicReset(func(dir string) error {
 		c.Check(dir, Equals, "/a/dir")
 		called = true
 		return nil

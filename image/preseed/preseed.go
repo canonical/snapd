@@ -78,8 +78,9 @@ type preseedCoreOptions struct {
 }
 
 type targetSnapdInfo struct {
-	path    string
-	version string
+	path        string
+	preseedPath string
+	version     string
 }
 
 var (
