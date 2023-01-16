@@ -639,15 +639,11 @@ static void sc_mount_egl(const char *rootfs_dir)
 // libva files in that directory.
 static void sc_mount_libva(const char *rootfs_dir)
 {
-	char *dest_dir;
+	char dest_dir[500] = { 0 };
 
-	if (asprintf(&dest_dir, "%s/usr/lib/%s/dri", getenv("SNAP"), HOST_ARCH_TRIPLET) < 0) {
-		debug("Unable to format DRI destination directory.");
-		return;
-	}
+	sc_must_snprintf(dest_dir, sizeof dest_dir, "%s/usr/lib/%s/dri", getenv("SNAP"), HOST_ARCH_TRIPLET);
 
 	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_NATIVE_LIBVA_DIR, NULL, dest_dir, libvaglobs, libvaglobs_len);
-	free(dest_dir);
 }
 
 void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
