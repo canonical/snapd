@@ -350,6 +350,15 @@ func maybeWithSudoSecurePath() bool {
 	return release.DistroLike("fedora", "opensuse", "debian")
 }
 
+func hasWaitTasks(chg *client.Change) bool {
+	for _, t := range chg.Tasks {
+		if t.Status == "Wait" {
+			return true
+		}
+	}
+	return false
+}
+
 // show what has been done
 func showDone(cli *client.Client, chg *client.Change, names []string, op string, opts *client.SnapOptions, esc *escapes) error {
 	snaps, err := cli.List(names, nil)
@@ -357,8 +366,7 @@ func showDone(cli *client.Client, chg *client.Change, names []string, op string,
 		return err
 	}
 
-	if chg.Wait {
-		// XXX: better message?
+	if hasWaitTasks(chg) {
 		fmt.Fprintf(Stdout, i18n.G("Change %v waiting to be completed\n"), chg.ID)
 		return nil
 	}

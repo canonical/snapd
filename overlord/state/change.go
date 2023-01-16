@@ -310,22 +310,6 @@ func (c *Change) Status() Status {
 	return c.status
 }
 
-// Wait return true if any task is in "Wait" state.
-//
-// XXX: This should probably be part of Status() but the issue with
-// Status() is that "Doing" has higher priority than "Wait" so refresh
-// tasks that have a "check-rerefresh" task will always be in doing
-// state even when "link-snap" is in wait state.
-func (c *Change) Wait() bool {
-	c.state.reading()
-	for _, tid := range c.taskIDs {
-		if c.state.tasks[tid].Status() == WaitStatus {
-			return true
-		}
-	}
-	return false
-}
-
 // SetStatus sets the change status, overriding the default behavior (see Status method).
 func (c *Change) SetStatus(s Status) {
 	c.state.writing()

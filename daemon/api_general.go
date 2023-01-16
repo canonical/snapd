@@ -315,7 +315,6 @@ type changeInfo struct {
 	Status  string      `json:"status"`
 	Tasks   []*taskInfo `json:"tasks,omitempty"`
 	Ready   bool        `json:"ready"`
-	Wait    bool        `json:"wait"`
 	Err     string      `json:"err,omitempty"`
 
 	SpawnTime time.Time  `json:"spawn-time,omitempty"`
@@ -350,7 +349,6 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 		Summary: chg.Summary(),
 		Status:  status.String(),
 		Ready:   status.Ready(),
-		Wait:    chg.Wait(),
 
 		SpawnTime: chg.SpawnTime(),
 	}
