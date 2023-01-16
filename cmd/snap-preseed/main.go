@@ -116,11 +116,11 @@ func run(parser *flags.Parser, args []string) (err error) {
 		return fmt.Errorf("cannot run snap-preseed against /")
 	}
 
-	if opts.Reset {
-		return preseedResetPreseededChroot(chrootDir)
-	}
-
 	if probeCore20ImageDir(chrootDir) {
+		if opts.Reset {
+			return fmt.Errorf("cannot snap-preseed --reset for Ubuntu Core")
+		}
+
 		coreOpts := &preseed.CoreOptions{
 			PrepareImageDir:           chrootDir,
 			PreseedSignKey:            opts.PreseedSignKey,
@@ -128,6 +128,9 @@ func run(parser *flags.Parser, args []string) (err error) {
 			SysfsOverlay:              opts.SysfsOverlay,
 		}
 		return preseedCore20(coreOpts)
+	}
+	if opts.Reset {
+		return preseedResetPreseededChroot(chrootDir)
 	}
 	return preseedClassic(chrootDir)
 }
