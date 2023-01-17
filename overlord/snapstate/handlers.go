@@ -337,6 +337,15 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 	return ts, err
 }
 
+func isSeeded(st *state.State) (bool, error) {
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return false, err
+	}
+	return seeded, nil
+}
+
 // updates a prerequisite, if it's not providing a content interface that a plug expects it to
 func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []string, userID int, flags Flags) (*state.TaskSet, error) {
 	if len(contentAttrs) == 0 {
@@ -369,6 +378,13 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, deviceCtx, "")
 	if err != nil {
 		if conflErr, ok := err.(*ChangeConflictError); ok {
+			// If we aren't seeded, then it's to early to do any updates and we cannot
+			// handle this during seeding, so expect the ChangeConflictError in this scenario.
+			if seeded, err := isSeeded(st); err != nil || !seeded {
+				t.Logf("failed to update %q, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), conflErr)
+				return nil, nil
+			}
+
 			// there's already an update for the same snap in this change,
 			// just skip this one
 			if conflErr.ChangeID == t.Change().ID() {
