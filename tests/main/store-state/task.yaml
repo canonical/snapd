@@ -1,5 +1,8 @@
 summary: smoke test for the store-state tool
 
+# - not running on 14.04 as we have no real systemd here
+systems: [-ubuntu-14.04-*]
+
 prepare: |
     echo "Ensure jq is installed"
     if ! command -v jq; then
@@ -24,7 +27,6 @@ execute: |
     # Teardown staging store
     "$TESTSTOOLS"/store-state teardown-staging-store
     snap info core | MATCH "store-url:.*https://snapcraft.io"
-
 
     # Setup fakestore
     STORE_DIR="$(pwd)/fake-store-blobdir"
