@@ -108,7 +108,8 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 
-	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error {
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
 		return fmt.Errorf("TPM not available")
 	})
 	s.AddCleanup(restore)
@@ -266,7 +267,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	})
 	defer restore()
 
-	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error {
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
 		if tc.tpm {
 			return nil
 		} else {
@@ -1845,7 +1847,10 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 	defer restore()
 
 	// pretend we have a TPM
-	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return nil })
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
+		return nil
+	})
 	defer restore()
 
 	// must be a model that requires encryption to error
@@ -3014,7 +3019,8 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error {
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		c.Check(tpmMode, Equals, secboot.TPMPartialReprovision)
 		return fmt.Errorf("TPM not available")
 	})
 	defer restore()
@@ -3074,7 +3080,8 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error {
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+		c.Check(tpmMode, Equals, secboot.TPMPartialReprovision)
 		return fmt.Errorf("TPM not available")
 	})
 	defer restore()
