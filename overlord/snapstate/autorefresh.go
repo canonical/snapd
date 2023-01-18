@@ -536,31 +536,46 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return nil
 	}
 
-	if _, ok := err.(*httputil.PersistentNetworkError); ok {
-		logger.Noticef("Cannot prepare auto-refresh change due to a permanent network error: %s", err)
+	if err != nil {
+		switch err.(type) {
+		case *httputil.PersistentNetworkError:
+			logger.Noticef("Cannot prepare auto-refresh change due to a permanent network error: %s", err)
+
+		case *BusySnapError:
+			chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
+			for _, ts := range tasksets {
+				chg.AddAll(ts)
+			}
+		}
 		return err
 	}
+
 	m.state.Set("last-refresh", time.Now())
 	if err != nil {
 		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
 		return err
 	}
 
-	msg := autoRefreshSummary(updated)
+	chg := mkAutoRefreshChange(m.state, updated, tasksets)
+	state.TagTimingsWithChange(perfTimings, chg)
+	return nil
+}
+
+func mkAutoRefreshChange(st *state.State, snaps []string, tasksets []*state.TaskSet) *state.Change {
+	msg := autoRefreshSummary(snaps)
 	if msg == "" {
 		logger.Noticef(i18n.G("auto-refresh: all snaps are up-to-date"))
 		return nil
 	}
 
-	chg := m.state.NewChange("auto-refresh", msg)
+	chg := st.NewChange("auto-refresh", msg)
 	for _, ts := range tasksets {
 		chg.AddAll(ts)
 	}
-	chg.Set("snap-names", updated)
-	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
-	state.TagTimingsWithChange(perfTimings, chg)
+	chg.Set("snap-names", snaps)
+	chg.Set("api-data", map[string]interface{}{"snap-names": snaps})
 
-	return nil
+	return chg
 }
 
 func autoRefreshInFlight(st *state.State) bool {
@@ -628,11 +643,12 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 		Set(st, info.InstanceName(), snapst)
 	case now.Sub(*snapst.RefreshInhibitedTime) < maxInhibition:
-		// If we are still in the allowed window then just return the error but
-		// don't change the snap state again.
-		// TODO: as time left shrinks, send additional notifications with
-		// increasing frequency, allowing the user to understand the urgency.
-		refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+		// TODO: clean this up, no need for it now
+		//// If we are still in the allowed window then just return the error but
+		//// don't change the snap state again.
+		//// TODO: as time left shrinks, send additional notifications with
+		//// increasing frequency, allowing the user to understand the urgency.
+		//refreshInfo.TimeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 	default:
 		// If we run out of time then consume the error that would normally
 		// inhibit refresh and notify the user that the snap is refreshing right
@@ -641,8 +657,9 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		checkerErr = nil
 	}
 
-	// if the refresh is manual the error message already carries the information so don't notify
-	if snapsup.IsAutoRefresh {
+	// notify if we're refreshing right now. If we're postponing, we'll notify
+	// after pre-downloading the task. If it's a manual refresh, we don't notify at all
+	if snapsup.IsAutoRefresh && refreshInfo.TimeRemaining == 0 {
 		// Send the notification asynchronously to avoid holding the state lock.
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 	}

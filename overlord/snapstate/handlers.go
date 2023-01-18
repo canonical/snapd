@@ -53,11 +53,13 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
+	userclient "github.com/snapcore/snapd/usersession/client"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -730,6 +732,27 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	tasks, err := findTasksMatching(st, "pre-download", snapsup.InstanceName(), snapsup.Revision())
+	if err != nil {
+		return err
+	}
+
+	// if there are pre-download tasks for the same snap, wait for it to finish
+	for _, preTask := range tasks {
+		switch preTask.Status() {
+		case state.DoingStatus:
+			var taskIDs []string
+			if err := preTask.Get("waiting-tasks", &taskIDs); err != nil {
+				return err
+			}
+
+			taskIDs = append(taskIDs, t.ID())
+			t.Set("waiting-tasks", taskIDs)
+
+			return &state.Retry{After: 5 * time.Minute}
+		}
+	}
+
 	meter := NewTaskProgressAdapterUnlocked(t)
 	targetFn := snapsup.MountFile()
 
@@ -768,6 +791,153 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st.Unlock()
 
 	return nil
+}
+
+func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
+	snapsup, theStore, user, err := downloadSnapParams(st, t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	// do we need this? since it's an auto-refresh
+	meter := NewTaskProgressAdapterUnlocked(t)
+	targetFn := snapsup.MountFile()
+
+	dlOpts := &store.DownloadOptions{
+		// pre-downloads are only triggered in auto-refreshes
+		IsAutoRefresh: true,
+		RateLimit:     autoRefreshRateLimited(st),
+	}
+
+	err = theStore.Download(tomb.Context(nil), snapsup.SnapName(), targetFn, snapsup.DownloadInfo, meter, user, dlOpts)
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	var refreshInfo *userclient.PendingSnapRefreshInfo
+	if err := t.Get("refresh-info", &refreshInfo); err != nil {
+		return err
+	}
+
+	// successfully downloaded update, trigger notification so user stops snap
+	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+
+	var waitingTasks []string
+	if err := t.Get("waiting-tasks", &waitingTasks); err != nil {
+		return err
+	}
+
+	// reset download tasks that might've postponed themselves waiting for this one
+	if len(waitingTasks) > 0 {
+		for _, chg := range st.Changes() {
+			for _, t := range chg.Tasks() {
+				if strutil.ListContains(waitingTasks, t.ID()) {
+					t.At(time.Time{})
+				}
+			}
+		}
+		st.EnsureBefore(0)
+		return nil
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	// don't hold state lock while waiting for the snap to stop or doing I/O
+	st.Unlock()
+	defer st.Lock()
+
+	if err := runinhibit.LockWithHint(snapsup.InstanceName(), runinhibit.HintInhibitedForPreDownload); err != nil {
+		return err
+	}
+
+	if err := refreshCheck(info); err != nil {
+		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+
+		done := make(chan string)
+		if err := cgroup.MonitorSnapEnded(snapsup.InstanceName(), done); err != nil {
+			return err
+		}
+
+		select {
+		case <-done:
+		}
+	}
+
+	if err := runinhibit.LockWithHint(snapsup.InstanceName(), runinhibit.HintInhibitedForRefresh); err != nil {
+		return err
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	snaps, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
+	if err != nil {
+		return err
+	}
+
+	chg := mkAutoRefreshChange(st, snaps, tasksets)
+	if chg == nil {
+		// no snaps to refresh
+		return nil
+	}
+
+	releaseTask := st.NewTask("release-inhibit", "Release inhibition lock")
+	for _, t := range chg.Tasks() {
+		releaseTask.WaitFor(t)
+	}
+
+	// release the inhibition lock at the end even if the change fails
+	chg.AddTask(releaseTask)
+
+	return nil
+}
+
+func findTasksMatching(st *state.State, kind string, snapName string, revision snap.Revision) ([]*state.Task, error) {
+	var tasks []*state.Task
+
+	chgs := st.Changes()
+	for _, chg := range chgs {
+		if chg.ID() != kind {
+			continue
+		}
+
+		for _, t := range chg.Tasks() {
+			snapsup, _, err := snapSetupAndState(t)
+			if err != nil {
+				return nil, err
+			}
+
+			if snapsup.InstanceName() == snapName && snapsup.Revision() == revision {
+				tasks = append(tasks, t)
+			}
+		}
+	}
+
+	return tasks, nil
+}
+
+// TODO: always release the lock regardless of how the change terminates
+func (m *SnapManager) doReleaseInhibitLock(t *state.Task, tomb *tomb.Tomb) error {
+	snapsup, _, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	return runinhibit.Unlock(snapsup.InstanceName())
 }
 
 var (
@@ -3736,6 +3906,13 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 
 	tss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
 	if err != nil {
+		if errors.Is(err, &BusySnapError{}) {
+			chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
+			for _, ts := range tss {
+				chg.AddAll(ts)
+			}
+		}
+
 		return err
 	}
 

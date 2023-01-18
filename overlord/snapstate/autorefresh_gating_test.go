@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 type autoRefreshGatingStore struct {
@@ -1578,6 +1579,54 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	c.Check(heldSnaps, DeepEquals, map[string]bool{
 		"snap-a": true,
 	})
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshTriggersPreDownload(c *C) {
+	snapstate.ReplaceStore(s.state, &autoRefreshGatingStore{
+		fakeStore: s.fakeStore,
+		refreshedSnaps: []*snap.Info{
+			{
+				Architectures: []string{"all"},
+				SnapType:      snap.TypeApp,
+				SideInfo: snap.SideInfo{
+					RealName: "snap-a",
+					Revision: snap.R(8),
+				},
+			},
+		}})
+
+	mockInstalledSnap(c, s.state, snapAyaml, false)
+	var triggerNotif bool
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo) {
+		triggerNotif = true
+		// TODO: register a download task in the pre-dowload to test that predownload
+		// awakes it
+
+	})
+	defer restore()
+
+	// gate-auto-refresh-hook feature disabled
+	updated, tss, err := snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, FitsTypeOf, &snapstate.BusySnapError{})
+	c.Assert(updated, Equals, "snap-a")
+	c.Assert(tss, HasLen, 1)
+	ts := tss[0].Tasks()
+	c.Assert(ts, HasLen, 1)
+	c.Assert(ts[0].Kind(), Equals, "pre-download")
+
+	chg := s.state.NewChange("autorefresh", "test")
+	for _, t := range ts {
+		chg.AddTask(t)
+	}
+
+	s.settle(c)
+	c.Assert(chg.Err(), IsNil)
+
+	op := s.fakeBackend.ops.MustFindOp(c, "storesvc-download")
+	c.Assert(op, NotNil)
+
+	// TODO continue
+	c.Assert(triggerNotif, Equals, true)
 }
 
 // this test demonstrates that affectedByRefresh uses current snap info (not

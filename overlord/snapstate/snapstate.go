@@ -358,6 +358,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		return nil, err
 	}
 
+	targetRevision := snapsup.Revision()
+	var revisionStr string
+	if snapsup.SideInfo != nil {
+		revisionStr = fmt.Sprintf(" (%s)", targetRevision)
+	}
+
 	if snapst.IsInstalled() {
 		// consider also the current revision to set plugs-only hint
 		info, err := snapst.CurrentInfo()
@@ -371,6 +377,29 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			// softCheckNothingRunningForRefresh, this block must be located
 			// after the conflict check done above.
 			if err := softCheckNothingRunningForRefresh(st, snapst, snapsup, info); err != nil {
+				// snap is in use; start pre-downloading the snap before notifying
+				// in advance
+				var busyErr *BusySnapError
+				if errors.As(err, &busyErr) {
+					tasks, err := findTasksMatching(st, "pre-download", snapsup.InstanceName(), snapsup.Revision())
+					if err != nil {
+						return nil, err
+					}
+
+					// there's already a task for this snap/revision combination
+					if len(tasks) > 0 {
+						return nil, err
+					}
+
+					preDownTask := st.NewTask("pre-download-snap", fmt.Sprintf(i18n.G("Pre-download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
+					preDownTask.Set("snap-setup", snapsup)
+					preDownTask.Set("refresh-info", busyErr.PendingSnapRefreshInfo())
+
+					tss := state.NewTaskSet()
+					tss.AddTask(preDownTask)
+					return tss, err
+				}
+
 				return nil, err
 			}
 		}
@@ -384,12 +413,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	ts := state.NewTaskSet()
-
-	targetRevision := snapsup.Revision()
-	revisionStr := ""
-	if snapsup.SideInfo != nil {
-		revisionStr = fmt.Sprintf(" (%s)", targetRevision)
-	}
 
 	// check if we already have the revision locally (alters tasks)
 	revisionIsLocal := snapst.LastIndex(targetRevision) >= 0

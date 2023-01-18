@@ -182,7 +182,11 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 		if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
 			continue
 		}
-		if chg.Kind() == "become-operational" {
+		switch chg.Kind() {
+		case "pre-download":
+			// pre-download tasks don't produce conflicts
+			fallthrough
+		case "become-operational":
 			// become-operational will be retried until success
 			// and on its own just runs a hook on gadget:
 			// do not make it interfere with user requests
