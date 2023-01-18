@@ -95,13 +95,13 @@ func run(parser *flags.Parser, args []string) (err error) {
 	// for processing of seeds with gadget because of readInfo().
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
 
-	if osGetuid() != 0 {
-		return fmt.Errorf("must be run as root")
-	}
-
 	rest, err := parser.ParseArgs(args)
 	if err != nil {
 		return err
+	}
+
+	if osGetuid() != 0 {
+		return fmt.Errorf("must be run as root")
 	}
 
 	var chrootDir string
