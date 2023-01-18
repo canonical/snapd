@@ -556,7 +556,7 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 }
 
 func isLocalSnap(name string) bool {
-	return strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.")
+	return strings.Contains(name, "/") || strings.Contains(name, ".")
 }
 
 func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error {
