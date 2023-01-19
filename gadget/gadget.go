@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget/edition"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -835,6 +836,29 @@ func validateVolume(vol *Volume) error {
 		if err := validateVolumeStructure(&s, vol); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
+
+		start := *s.Offset
+		end := start + quantity.Offset(s.Size)
+		// The GPT partition table will start from sector 2 with minimum
+		// length 16384 bytes
+		if vol.Schema == schemaGPT {
+			// If the block size is 512, the First Usable LBA must be greater than or equal to
+			// 34 (allowing 1 block for the Protective MBR, 1 block for the Partition Table
+			// Header, and 32 blocks for the GPT Partition Entry Array); if the logical block
+			// size is 4096, the First Useable LBA must be greater than or equal to 6 (allowing
+			// 1 block for the Protective MBR, 1 block for the GPT Header, and 4
+			// blocks for the GPT Partition Entry Array)
+			// Since we are not able to know the block size when building gadget snap, so we
+			// are not able to easily know whether the structure defined in gadget.yaml will
+			// overlap GPT header or GPT partition table, thus we only return error if the
+			// structure overlap the offset between 4096 and 512 * 34
+			if start < (512 * 34) && end > 4096 {
+				return fmt.Errorf("invalid structure: GPT header or GPT partition table overlapped with structure \"%s\"\n", s.Name)
+			} else if start < (4096 * 6) && end > 512 {
+				logger.Noticef("WARNING: GPT header or GPT partition table might be overlapped with structure \"%s\"", s.Name)
+			}
+		}
+
 		structures[idx] = vol.Structure[idx]
 		if s.Name != "" {
 			if _, ok := knownStructures[s.Name]; ok {
