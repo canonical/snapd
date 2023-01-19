@@ -6,11 +6,11 @@ details: |
 
 systems: [ubuntu-22.04-64]
 
+kill-timeout: 15m
+
 environment:
     USE_SNAPD_DEB/with_snapddeb: yes
     USE_SNAPD_DEB/without_snapddeb: no
-
-kill-timeout: 15m
 
 prepare: |
   # build gadget snap with gadget.yaml matching disk structure of the image
