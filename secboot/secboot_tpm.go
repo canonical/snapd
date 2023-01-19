@@ -68,6 +68,7 @@ var (
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
 	isTPMEnabled                        = (*sb_tpm2.Connection).IsEnabled
+	lockoutAuthSet                      = (*sb_tpm2.Connection).LockoutAuthSet
 	sbTPMEnsureProvisioned              = (*sb_tpm2.Connection).EnsureProvisioned
 	sbTPMEnsureProvisionedWithCustomSRK = (*sb_tpm2.Connection).EnsureProvisionedWithCustomSRK
 	tpmReleaseResources                 = tpmReleaseResourcesImpl
@@ -109,16 +110,6 @@ func CheckTPMKeySealingSupported(mode TPMProvisionMode) error {
 	logger.Noticef("TPM device detected and enabled")
 
 	return nil
-}
-
-// TODO: use secboot for this once
-// https://github.com/snapcore/secboot/pull/220 is available
-var lockoutAuthSet = func(tpm *sb_tpm2.Connection) bool {
-	value, err := tpm.TPMContext.GetCapabilityTPMProperty(tpm2.PropertyPermanent)
-	if err != nil {
-		return false
-	}
-	return tpm2.PermanentAttributes(value)&tpm2.AttrLockoutAuthSet > 0
 }
 
 func checkSecureBootEnabled() error {
