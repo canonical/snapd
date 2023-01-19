@@ -670,12 +670,12 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 		{
 			// invalid snap file
 			bootFile: bootloader.NewBootFile(existingFile, "rel", bootloader.RoleRecovery),
-			err:      fmt.Sprintf(`"%s/foo" is not a snap or snapdir`, tmpDir),
+			err:      fmt.Sprintf(`cannot process snap or snapdir: cannot read "%s/foo": EOF`, tmpDir),
 		},
 		{
 			// missing snap file
 			bootFile: bootloader.NewBootFile(missingFile, "rel", bootloader.RoleRecovery),
-			err:      fmt.Sprintf(`"%s/bar" is not a snap or snapdir`, tmpDir),
+			err:      fmt.Sprintf(`cannot process snap or snapdir: open %s/bar: no such file or directory`, tmpDir),
 		},
 	} {
 		o, err := secboot.EFIImageFromBootFile(&tc.bootFile)
@@ -777,7 +777,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
 		{tpmEnabled: true, missingFile: true, expectedErr: "cannot build EFI image load sequences: file /does/not/exist does not exist"},
-		{tpmEnabled: true, badSnapFile: true, expectedErr: `.*/kernel.snap" is not a snap or snapdir`},
+		{tpmEnabled: true, badSnapFile: true, expectedErr: `cannot build EFI image load sequences: cannot process snap or snapdir: cannot read ".*/kernel.snap": EOF`},
 		{tpmEnabled: true, addEFISbPolicyErr: mockErr, expectedErr: "cannot add EFI secure boot policy profile: some error"},
 		{tpmEnabled: true, addEFIBootManagerErr: mockErr, expectedErr: "cannot add EFI boot manager profile: some error"},
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},

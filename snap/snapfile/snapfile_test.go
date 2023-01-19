@@ -142,6 +142,15 @@ func (s *snapFileTestSuite) TestOpenSnapdirFileNoExists(c *C) {
 	c.Check(err, ErrorMatches, `cannot process snap or snapdir: open /.*/non-existing-file: no such file or directory`)
 }
 
+func (s *snapFileTestSuite) TestOpenSnapdirFileEmpty(c *C) {
+	emptyFile := filepath.Join(c.MkDir(), "foo")
+	err := ioutil.WriteFile(emptyFile, nil, 0644)
+	c.Assert(err, IsNil)
+	_, err = snapfile.Open(emptyFile)
+	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
+	c.Check(err, ErrorMatches, `cannot process snap or snapdir: cannot read "/.*/foo": EOF`)
+}
+
 func (s *snapFileTestSuite) TestFileOpenForSnapDirErrors(c *C) {
 	// no snap.yaml file
 	_, err := snapfile.Open(c.MkDir())

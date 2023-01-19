@@ -73,7 +73,7 @@ func notSnapErrorDetails(path string) error {
 	// information (the squashfs header is type u32)
 	var header [5]byte
 	if _, err := f.Read(header[:]); err != nil {
-		return err
+		return fmt.Errorf("cannot read %q: %v", path, err)
 	}
 	return fmt.Errorf("file %q is invalid (header %v)", path, header)
 }
