@@ -65,9 +65,8 @@ func (s *monitorSuite) calibrateInotifyDelay(c *C) {
 
 	err = iw.MonitorDelete(filelist, "test1", s.eventsCh)
 	c.Assert(err, IsNil)
-	var start time.Time
+	start := time.Now()
 	go func() {
-		start = time.Now()
 		err = os.Remove(folder1)
 		c.Assert(err, IsNil)
 	}()
