@@ -68,6 +68,9 @@ type groupToWatch struct {
 	// destroyed. The watcher writes the CGroup identifier on it; this way, the
 	// same channel can be shared to monitor several CGroups.
 	notify chan<- string
+
+	// This channel communicates any errors from trying to add the group back
+	errCh chan error
 }
 
 func (gtw *groupToWatch) sendClosedNotification() {
@@ -100,15 +103,15 @@ func newInotifyWatcher() (*inotifyWatcher, error) {
 
 // MonitorDelete monitors the specified paths for deletion.
 // Once all of them have been deleted, it pushes the specified name through the channel.
-func (iw *inotifyWatcher) MonitorDelete(folders []string, name string, channel chan<- string) error {
+func (iw *inotifyWatcher) MonitorDelete(folders []string, name string, notify chan<- string) error {
 	newWatch := &groupToWatch{
 		name:    name,
 		folders: folders,
-		notify:  channel,
+		notify:  notify,
+		errCh:   make(chan error),
 	}
-	// TODO: add error handling to addWatcher
 	iw.addWatchChan <- newWatch
-	return nil
+	return <-newWatch.errCh
 }
 
 func (iw *inotifyWatcher) addWatch(newWatch *groupToWatch) error {
@@ -208,9 +211,9 @@ func (iw *inotifyWatcher) watcherMainLoop() {
 
 		// adding new watches
 		case newWatch := <-iw.addWatchChan:
-			if err := iw.addWatch(newWatch); err != nil {
-				logger.Noticef("cannot add %+v: %v", newWatch, err)
-			}
+			err := iw.addWatch(newWatch)
+			newWatch.errCh <- err
+			close(newWatch.errCh)
 		}
 	}
 }
