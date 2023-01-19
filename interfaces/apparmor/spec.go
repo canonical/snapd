@@ -161,13 +161,13 @@ func (spec *Specification) AddDeduplicatedSnippet(snippet string) {
 //
 // For example the code:
 //
-// 		AddParametricSnippet([]string{"/dev/", "rw,"}, "sda1")
-//		AddParametricSnippet([]string{"/dev/", "rw,"}, "sda3")
-//		AddParametricSnippet([]string{"/dev/", "rw,"}, "sdb2")
+//	AddParametricSnippet([]string{"/dev/", "rw,"}, "sda1")
+//	AddParametricSnippet([]string{"/dev/", "rw,"}, "sda3")
+//	AddParametricSnippet([]string{"/dev/", "rw,"}, "sdb2")
 //
 // Results in a single apparmor rule:
 //
-//		"/dev/{sda1,sda3,sdb2} rw,"
+//	"/dev/{sda1,sda3,sdb2} rw,"
 //
 // This function should be used whenever the apparmor template features more
 // than one use of "**" syntax (which represent arbitrary many directories or
@@ -276,17 +276,18 @@ func (spec *Specification) emitLayout(si *snap.Info, layout *snap.Layout) {
 //
 // The per-snap snap-update-ns profiles are composed via a template and
 // snippets for the snap. The snippets may allow (depending on the snippet):
-// - mount profiles via the content interface
-// - creating missing mount point directories under $SNAP* (the 'tree'
-//   of permissions is needed for SecureMkDirAll that uses
-//   open(..., O_NOFOLLOW) and mkdirat() using the resulting file descriptor)
-// - creating a placeholder directory in /tmp/.snap/ in the per-snap mount
-//   namespace to support writable mimic which uses tmpfs and bind mount to
-//   poke holes in arbitrary read-only locations
-// - mounting/unmounting any part of $SNAP into placeholder directory
-// - mounting/unmounting tmpfs over the original $SNAP/** location
-// - mounting/unmounting from placeholder back to $SNAP/** (for reconstructing
-//   the data)
+//   - mount profiles via the content interface
+//   - creating missing mount point directories under $SNAP* (the 'tree'
+//     of permissions is needed for SecureMkDirAll that uses
+//     open(..., O_NOFOLLOW) and mkdirat() using the resulting file descriptor)
+//   - creating a placeholder directory in /tmp/.snap/ in the per-snap mount
+//     namespace to support writable mimic which uses tmpfs and bind mount to
+//     poke holes in arbitrary read-only locations
+//   - mounting/unmounting any part of $SNAP into placeholder directory
+//   - mounting/unmounting tmpfs over the original $SNAP/** location
+//   - mounting/unmounting from placeholder back to $SNAP/** (for reconstructing
+//     the data)
+//
 // Importantly, the above mount operations are happening within the per-snap
 // mount namespace.
 func (spec *Specification) AddLayout(snapInfo *snap.Info) {

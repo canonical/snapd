@@ -89,8 +89,9 @@ func unmarshalInitialSetupResult(hookOutput []byte) (*InitialSetupResult, error)
 }
 
 // TODO: unexport this because how the hook is driven is an implemenation
-//       detail. It creates quite a bit of churn unfortunately, see
-//       https://github.com/snapcore/snapd/compare/master...mvo5:ice/refactor-fde?expand=1
+//
+//	detail. It creates quite a bit of churn unfortunately, see
+//	https://github.com/snapcore/snapd/compare/master...mvo5:ice/refactor-fde?expand=1
 //
 // SetupRequest carries the operation and parameters for the fde-setup hooks
 // made available to them via the snapctl fde-setup-request command.

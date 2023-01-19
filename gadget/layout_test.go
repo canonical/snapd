@@ -48,7 +48,7 @@ func (p *layoutTestSuite) SetUpTest(c *C) {
 func (p *layoutTestSuite) TestVolumeSize(c *C) {
 	vol := gadget.Volume{
 		Structure: []gadget.VolumeStructure{
-			{Size: 2 * quantity.SizeMiB},
+			{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB},
 		},
 	}
 	opts := &gadget.LayoutOptions{GadgetRootDir: p.dir}
@@ -58,14 +58,17 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 	c.Assert(v, DeepEquals, &gadget.LaidOutVolume{
 		Volume: &gadget.Volume{
 			Structure: []gadget.VolumeStructure{
-				{Size: 2 * quantity.SizeMiB},
+				{Offset: asOffsetPtr(quantity.OffsetMiB), Size: 2 * quantity.SizeMiB},
 			},
 		},
 		Size:    3 * quantity.SizeMiB,
 		RootDir: p.dir,
 		LaidOutStructure: []gadget.LaidOutStructure{{
-			VolumeStructure: &gadget.VolumeStructure{Size: 2 * quantity.SizeMiB},
-			StartOffset:     1 * quantity.OffsetMiB,
+			VolumeStructure: &gadget.VolumeStructure{
+				Offset: asOffsetPtr(quantity.OffsetMiB),
+				Size:   2 * quantity.SizeMiB,
+			},
+			StartOffset: 1 * quantity.OffsetMiB,
 		}},
 	})
 }
@@ -799,9 +802,10 @@ func (p *layoutTestSuite) TestLayoutVolumeOffsetWriteBadRelativeTo(c *C) {
 	volBadStructure := gadget.Volume{
 		Structure: []gadget.VolumeStructure{
 			{
-				Name: "foo",
-				Type: "DA,21686148-6449-6E6F-744E-656564454649",
-				Size: 1 * quantity.SizeMiB,
+				Name:   "foo",
+				Type:   "DA,21686148-6449-6E6F-744E-656564454649",
+				Offset: asOffsetPtr(0),
+				Size:   1 * quantity.SizeMiB,
 				OffsetWrite: &gadget.RelativeOffset{
 					RelativeTo: "bar",
 					Offset:     10,
@@ -812,9 +816,10 @@ func (p *layoutTestSuite) TestLayoutVolumeOffsetWriteBadRelativeTo(c *C) {
 	volBadContent := gadget.Volume{
 		Structure: []gadget.VolumeStructure{
 			{
-				Name: "foo",
-				Type: "DA,21686148-6449-6E6F-744E-656564454649",
-				Size: 1 * quantity.SizeMiB,
+				Name:   "foo",
+				Type:   "DA,21686148-6449-6E6F-744E-656564454649",
+				Offset: asOffsetPtr(0),
+				Size:   1 * quantity.SizeMiB,
 				Content: []gadget.VolumeContent{
 					{
 						Image: "foo.img",

@@ -832,26 +832,26 @@ func (s *Store) extractSuggestedCurrency(resp *http.Response) {
 
 // ordersResult encapsulates the order data sent to us from the software center agent.
 //
-// {
-//   "orders": [
-//     {
-//       "snap_id": "abcd1234efgh5678ijkl9012",
-//       "currency": "USD",
-//       "amount": "2.99",
-//       "state": "Complete",
-//       "refundable_until": null,
-//       "purchase_date": "2016-09-20T15:00:00+00:00"
-//     },
-//     {
-//       "snap_id": "abcd1234efgh5678ijkl9012",
-//       "currency": null,
-//       "amount": null,
-//       "state": "Complete",
-//       "refundable_until": null,
-//       "purchase_date": "2016-09-20T15:00:00+00:00"
-//     }
-//   ]
-// }
+//	{
+//	  "orders": [
+//	    {
+//	      "snap_id": "abcd1234efgh5678ijkl9012",
+//	      "currency": "USD",
+//	      "amount": "2.99",
+//	      "state": "Complete",
+//	      "refundable_until": null,
+//	      "purchase_date": "2016-09-20T15:00:00+00:00"
+//	    },
+//	    {
+//	      "snap_id": "abcd1234efgh5678ijkl9012",
+//	      "currency": null,
+//	      "amount": null,
+//	      "state": "Complete",
+//	      "refundable_until": null,
+//	      "purchase_date": "2016-09-20T15:00:00+00:00"
+//	    }
+//	  ]
+//	}
 type ordersResult struct {
 	Orders []*order `json:"orders"`
 }

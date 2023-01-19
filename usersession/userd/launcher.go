@@ -65,13 +65,13 @@ const launcherIntrospectionXML = `
 // https://github.com/snapcore/snapd/pull/7731#pullrequestreview-362900171
 //
 // The current criteria for adding url schemes is:
-// * understanding and documenting the scheme in this file
-// * the scheme itself does not cause xdg-open to open files (eg, file:// or
-//   matching '^[[:alpha:]+\.\-]+:' (from xdg-open source))
-// * verifying that the recipient of the url (ie, what xdg-open calls) won't
-//   process file paths/etc that can be leveraged to break out of the sandbox
-//   (but understanding how the url can drive the recipient application is
-//   important)
+//   - understanding and documenting the scheme in this file
+//   - the scheme itself does not cause xdg-open to open files (eg, file:// or
+//     matching '^[[:alpha:]+\.\-]+:' (from xdg-open source))
+//   - verifying that the recipient of the url (ie, what xdg-open calls) won't
+//     process file paths/etc that can be leveraged to break out of the sandbox
+//     (but understanding how the url can drive the recipient application is
+//     important)
 //
 // This code uses golang's net/url.Parse() which will help ensure the url is
 // ok before passing to xdg-open. xdg-open itself properly quotes the url so

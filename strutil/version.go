@@ -101,10 +101,7 @@ func matchEpoch(a string) bool {
 // versionIsValid returns true if the given string is a valid
 // version number according to the debian policy
 func versionIsValid(a string) bool {
-	if matchEpoch(a) {
-		return false
-	}
-	return true
+	return !matchEpoch(a)
 }
 
 func nextFrag(s string) (frag, rest string, numeric bool) {
@@ -148,9 +145,10 @@ func compareSubversion(va, vb string) int {
 // VersionCompare compare two version strings that follow the debian
 // version policy and
 // Returns:
-//   -1 if a is smaller than b
-//    0 if a equals b
-//   +1 if a is bigger than b
+//
+//	-1 if a is smaller than b
+//	 0 if a equals b
+//	+1 if a is bigger than b
 func VersionCompare(va, vb string) (res int, err error) {
 	// FIXME: return err here instead
 	if !versionIsValid(va) {

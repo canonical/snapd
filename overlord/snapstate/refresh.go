@@ -204,13 +204,13 @@ func (err BusySnapError) Pids() []int {
 //
 // In practice, we either inhibit app startup and refresh the snap _or_ inhibit
 // the refresh change and continue running existing app processes.
-func hardEnsureNothingRunningDuringRefresh(backend managerBackend, st *state.State, snapst *SnapState, info *snap.Info) (*osutil.FileLock, error) {
+func hardEnsureNothingRunningDuringRefresh(backend managerBackend, st *state.State, snapst *SnapState, snapsup *SnapSetup, info *snap.Info) (*osutil.FileLock, error) {
 	return backend.RunInhibitSnapForUnlink(info, runinhibit.HintInhibitedForRefresh, func() error {
 		// In case of successful refresh inhibition the snap state is modified
 		// to indicate when the refresh was first inhibited. If the first
 		// refresh inhibition is outside of a grace period then refresh
 		// proceeds regardless of the existing processes.
-		return inhibitRefresh(st, snapst, info, HardNothingRunningRefreshCheck)
+		return inhibitRefresh(st, snapst, snapsup, info, HardNothingRunningRefreshCheck)
 	})
 }
 
@@ -225,7 +225,7 @@ func hardEnsureNothingRunningDuringRefresh(backend managerBackend, st *state.Sta
 // refresh was first postponed. Eventually the check does not fail, even if
 // non-service apps are running, because this mechanism only allows postponing
 // refreshes for a bounded amount of time.
-func softCheckNothingRunningForRefresh(st *state.State, snapst *SnapState, info *snap.Info) error {
+func softCheckNothingRunningForRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info *snap.Info) error {
 	// Grab per-snap lock to prevent new processes from starting. This is
 	// sufficient to perform the check, even though individual processes may
 	// fork or exit, we will have per-security-tag information about what is
@@ -233,6 +233,6 @@ func softCheckNothingRunningForRefresh(st *state.State, snapst *SnapState, info 
 	return backend.WithSnapLock(info, func() error {
 		// Perform the soft refresh viability check, possibly writing to the state
 		// on failure.
-		return inhibitRefresh(st, snapst, info, SoftNothingRunningRefreshCheck)
+		return inhibitRefresh(st, snapst, snapsup, info, SoftNothingRunningRefreshCheck)
 	})
 }

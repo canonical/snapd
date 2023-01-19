@@ -136,7 +136,7 @@ if [ "$STATIC" = 1 ]; then
 
     # Run static tests.
     echo Checking docs
-    ./mdlint.py ./*.md docs/*.md
+    ./mdlint.py ./*.md ./**/*.md
 
     # XXX: remove once we can use an action, see workflows/test.yaml for
     #      details why we still use this script

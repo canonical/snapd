@@ -1033,7 +1033,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		// held to prevent snap-run from advancing until UnlinkSnap, executed
 		// below, completes.
 		// XXX: should we skip it if type is snap.TypeSnapd?
-		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, oldInfo)
+		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, snapsup, oldInfo)
 		if err != nil {
 			return err
 		}
@@ -1763,6 +1763,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}()
 
+	if err := m.maybeDiscardNamespacesOnSnapdDowngrade(st, newInfo); err != nil {
+		return fmt.Errorf("cannot discard preserved namespaces: %v", err)
+	}
+
 	rebootInfo, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
@@ -2005,6 +2009,37 @@ func daemonRestartReason(st *state.State, typ snap.Type) string {
 	}
 
 	return "Requested daemon restart (snapd snap)."
+}
+
+// maybeDiscardNamespacesOnSnapdDowngrade must be called when we are about to
+// activate a different snapd version. It checks whether we are performing a
+// downgrade to a snapd version that does not support the
+// "x-snapd.origin=rootfs" option (which we use when mounting a snap's "/" as a
+// tmpfs) and, if so, discards all preserved snap namespaces; failure to do so
+// would cause snap-update-ns to misbehave and destroy our namespace.
+// This method assumes that the State is locked.
+func (m *SnapManager) maybeDiscardNamespacesOnSnapdDowngrade(st *state.State, snapInfo *snap.Info) error {
+	if snapInfo.Type() != snap.TypeSnapd || snapInfo.Version == "" {
+		return nil
+	}
+
+	// Support for "x-snapd.origin=rootfs" was introduced in snapd 2.57
+	if compare, err := strutil.VersionCompare(snapInfo.Version, "2.57"); err == nil && compare < 0 {
+		logger.Noticef("Downgrading snapd to version %q, discarding preserved namespaces", snapInfo.Version)
+		allSnaps, err := All(st)
+		if err != nil {
+			return err
+		}
+		for _, snap := range allSnaps {
+			logger.Debugf("Discarding namespace for snap %q", snap.InstanceName())
+			if err := m.backend.DiscardSnapNamespace(snap.InstanceName()); err != nil {
+				// We don't propagate the error as we don't want to block the
+				// downgrade for this. Let's just log it down.
+				logger.Noticef("WARNING: discarding namespace of snap %q failed, snap might be unusable until next reboot", snap.InstanceName())
+			}
+		}
+	}
+	return nil
 }
 
 // maybeUndoRemodelBootChanges will check if an undo needs to update the

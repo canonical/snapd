@@ -690,18 +690,19 @@ func (s *Info) ExpandSnapVariables(path string) string {
 
 // InstallDate returns the "install date" of the snap.
 //
-// If the snap is not active, it'll return a zero time; otherwise
+// If the snap is not active, it'll return nil; otherwise
 // it'll return the modtime of the "current" symlink. Sneaky.
-func (s *Info) InstallDate() time.Time {
+func (s *Info) InstallDate() *time.Time {
 	dir, rev := filepath.Split(s.MountDir())
 	cur := filepath.Join(dir, "current")
 	tag, err := os.Readlink(cur)
 	if err == nil && tag == rev {
 		if st, err := os.Lstat(cur); err == nil {
-			return st.ModTime()
+			modTime := st.ModTime()
+			return &modTime
 		}
 	}
-	return time.Time{}
+	return nil
 }
 
 // IsActive returns whether this snap revision is active.
@@ -1074,12 +1075,12 @@ type HookInfo struct {
 // SystemUsernameInfo provides information about a system username (ie, a
 // UNIX user and group with the same name). The scope defines visibility of the
 // username wrt the snap and the system. Defined scopes:
-// - shared    static, snapd-managed user/group shared between host and all
-//             snaps
-// - private   static, snapd-managed user/group private to a particular snap
-//             (currently not implemented)
-// - external  dynamic user/group shared between host and all snaps (currently
-//             not implented)
+//   - shared    static, snapd-managed user/group shared between host and all
+//     snaps
+//   - private   static, snapd-managed user/group private to a particular snap
+//     (currently not implemented)
+//   - external  dynamic user/group shared between host and all snaps (currently
+//     not implented)
 type SystemUsernameInfo struct {
 	Name  string
 	Scope string

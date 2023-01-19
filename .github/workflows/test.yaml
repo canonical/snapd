@@ -28,7 +28,7 @@ jobs:
 
     - name: Check built artifact
       run: |
-        unsquashfs snapd*.snap meta/snap.yaml usr/lib/snapd/info
+        unsquashfs snapd*.snap meta/snap.yaml usr/lib/snapd/
         if cat squashfs-root/meta/snap.yaml | grep -q "version:.*dirty.*"; then
           echo "PR produces dirty snapd snap version"
           cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
@@ -36,6 +36,7 @@ jobs:
         elif cat squashfs-root/usr/lib/snapd/info | grep -q "VERSION=.*dirty.*"; then
           echo "PR produces dirty internal snapd info version"
           cat squashfs-root/usr/lib/snapd/info
+          cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
           exit 1
         fi
 

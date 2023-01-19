@@ -642,6 +642,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 	bareStruct := gadget.VolumeStructure{
 		VolumeName: "foo",
 		Name:       "first",
+		Offset:     asOffsetPtr(quantity.OffsetMiB),
 		Size:       5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
@@ -650,6 +651,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 	fsStruct := gadget.VolumeStructure{
 		VolumeName: "foo",
 		Name:       "second",
+		Offset:     asOffsetPtr((1 + 5) * quantity.OffsetMiB),
 		Size:       10 * quantity.SizeMiB,
 		Filesystem: "ext4",
 		Content: []gadget.VolumeContent{
@@ -659,6 +661,7 @@ func (u *updateTestSuite) updateDataSet(c *C) (oldData gadget.GadgetData, newDat
 	lastStruct := gadget.VolumeStructure{
 		VolumeName: "foo",
 		Name:       "third",
+		Offset:     asOffsetPtr((1 + 5 + 10) * quantity.OffsetMiB),
 		Size:       5 * quantity.SizeMiB,
 		Filesystem: "vfat",
 		Content: []gadget.VolumeContent{
@@ -1890,9 +1893,9 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 
 	// change the new nofspart structure size which is an incompatible change
 
-	// ubuntu-save
+	// nofspart
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
-	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeMiB
+	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeKiB
 
 	muo := &mockUpdateProcessObserver{}
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
@@ -1903,7 +1906,12 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 
 	// go go go
 	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
-	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("nofspart"\) for volume foo: cannot change structure size from 4096 to 1048576`)
+	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("nofspart"\) for volume foo: cannot change structure size from 4096 to 1024`)
+
+	// now with overlap
+	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeMiB
+	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, ErrorMatches, `cannot lay out the new volume foo: cannot lay out volume, structure #2 \("some-filesystem"\) overlaps with preceding structure #1 \("nofspart"\)`)
 }
 
 func (u *updateTestSuite) TestUpdateApplyUC20KernelAssetsOnAllVolumesWithInitialMapAllVolumesUpdatedFullLogic(c *C) {
@@ -2551,8 +2559,9 @@ func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
 func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
-		Name: "foo",
-		Size: 5 * quantity.SizeMiB,
+		Name:   "foo",
+		Offset: asOffsetPtr(0),
+		Size:   5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
@@ -2601,8 +2610,9 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
-		Name: "foo",
-		Size: 5 * quantity.SizeMiB,
+		Name:   "foo",
+		Offset: asOffsetPtr(0),
+		Size:   5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
@@ -2610,6 +2620,8 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 	bareStructUpdate := bareStruct
 	bareStructUpdate.Name = "foo update"
 	bareStructUpdate.Update.Edition = 1
+	bareStructUpdate.Offset = asOffsetPtr(5 * quantity.OffsetMiB)
+
 	oldInfo := &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
 			"foo": {
@@ -2648,8 +2660,9 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
-		Name: "foo",
-		Size: 5 * quantity.SizeMiB,
+		Name:   "foo",
+		Offset: asOffsetPtr(0),
+		Size:   5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
@@ -2657,6 +2670,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 	fsStruct := gadget.VolumeStructure{
 		Name:       "foo",
 		Filesystem: "ext4",
+		Offset:     asOffsetPtr(0),
 		Size:       5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{UnresolvedSource: "/", Target: "/"},
@@ -2739,8 +2753,9 @@ func (u *updateTestSuite) TestUpdateApplyErrorRenamedVolume(c *C) {
 func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) {
 	// prepare the stage
 	bareStruct := gadget.VolumeStructure{
-		Name: "foo",
-		Size: 5 * quantity.SizeMiB,
+		Name:   "foo",
+		Offset: asOffsetPtr(0),
+		Size:   5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
 		},
@@ -2791,6 +2806,7 @@ func (u *updateTestSuite) policyDataSet(c *C) (oldData gadget.GadgetData, newDat
 		VolumeName: "foo",
 		Name:       "no-partition",
 		Type:       "bare",
+		Offset:     asOffsetPtr((1 + 5 + 10 + 5) * quantity.OffsetMiB),
 		Size:       5 * quantity.SizeMiB,
 		Content: []gadget.VolumeContent{
 			{Image: "first.img"},
@@ -3469,6 +3485,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesWithKernelPolicy(c *C) {
 	fsStruct := gadget.VolumeStructure{
 		VolumeName: "foo",
 		Name:       "foo",
+		Offset:     asOffsetPtr(0),
 		Size:       5 * quantity.SizeMiB,
 		Filesystem: "ext4",
 		Content: []gadget.VolumeContent{
@@ -3566,6 +3583,7 @@ assets:
 	// update policy rule no. 1 from update.go
 	fsStruct := gadget.VolumeStructure{
 		Name:       "foo",
+		Offset:     asOffsetPtr(0),
 		Size:       5 * quantity.SizeMiB,
 		Filesystem: "ext4",
 		Content: []gadget.VolumeContent{

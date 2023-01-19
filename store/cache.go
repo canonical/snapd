@@ -73,13 +73,13 @@ type CacheManager struct {
 // and the given maximum amount of items. The idea behind it is the
 // following algorithm:
 //
-// 1. When starting a download, check if it exists in $cacheDir
-// 2. If found, update its mtime, hardlink into target location, and
-//    return success
-// 3. If not found, download the snap
-// 4. On success, hardlink into $cacheDir/<digest>
-// 5. If cache dir has more than maxItems entries, remove oldest mtimes
-//    until it has maxItems
+//  1. When starting a download, check if it exists in $cacheDir
+//  2. If found, update its mtime, hardlink into target location, and
+//     return success
+//  3. If not found, download the snap
+//  4. On success, hardlink into $cacheDir/<digest>
+//  5. If cache dir has more than maxItems entries, remove oldest mtimes
+//     until it has maxItems
 //
 // The caching part is done here, the downloading happens in the store.go
 // code.
