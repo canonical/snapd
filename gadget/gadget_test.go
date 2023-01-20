@@ -1310,6 +1310,9 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchemaNotOverlapWithGPT(c *C) {
 		// might overlap with GPT partition table, print warning only
 		{"gpt", 2048, 17408, ""},
 	} {
+		loggerBuf, restore := logger.MockLogger()
+		defer restore()
+
 		c.Logf("tc: %v schema: %+v, size: %d, offset: %d", i, tc.s, tc.sz, tc.o)
 
 		err := gadget.ValidateVolume(&gadget.Volume{
@@ -1322,6 +1325,13 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchemaNotOverlapWithGPT(c *C) {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
 			c.Check(err, IsNil)
+
+			start := tc.o
+			end := start + quantity.Offset(tc.sz)
+			if start < 4096*34 && end > 512 {
+				c.Assert(loggerBuf.String(), testutil.Contains,
+					fmt.Sprintf("WARNING: GPT header or GPT partition table might be overlapped with structure \"name\""))
+			}
 		}
 	}
 }

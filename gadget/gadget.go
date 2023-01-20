@@ -847,13 +847,17 @@ func validateVolume(vol *Volume) error {
 			// Since we are not able to know the block size when building gadget snap, so we
 			// are not able to easily know whether the structure defined in gadget.yaml will
 			// overlap GPT header or GPT partition table, thus we only return error if the
-			// structure overlap the offset between 4096 and 512 * 34
+			// structure overlap the interval [4096, 512*34), which is the intersection between
+			// the GPT data for 512 bytes block size, which occupies [512, 512*34) and the GPT
+			// for 4096 block size, which is [4096, 4096*6), and we print warning only if there
+			// is some data in the union - intersection of the described GPT segments, which
+			// might be fine but is suspicious.
 			start := *s.Offset
 			end := start + quantity.Offset(s.Size)
-			if start < (512*34) && end > 4096 {
-				return fmt.Errorf("invalid structure: GPT header or GPT partition table overlapped with structure \"%s\"\n", s.Name)
-			} else if start < (4096*6) && end > 512 {
-				logger.Noticef("WARNING: GPT header or GPT partition table might be overlapped with structure \"%s\"", s.Name)
+			if start < 512*34 && end > 4096 {
+				return fmt.Errorf("invalid structure: GPT header or GPT partition table overlapped with structure %q\n", s.Name)
+			} else if start < 4096*6 && end > 512 {
+				logger.Noticef("WARNING: GPT header or GPT partition table might be overlapped with structure %q", s.Name)
 			}
 		}
 
