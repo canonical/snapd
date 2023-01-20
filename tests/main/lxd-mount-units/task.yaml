@@ -70,7 +70,14 @@ execute: |
 
     echo "Precondition check that mount overrides were generated inside the container"
     lxd.lxc exec ubuntu -- find /var/run/systemd/generator/ -name container.conf | MATCH "/var/run/systemd/generator/snap-${core_snap}.*mount.d/container.conf"
-    lxd.lxc exec ubuntu -- test -f /var/run/systemd/generator/snap.mount
+    # If / is not mounted "shared:" inside the container snapd-generator
+    # creates "snap.mount" bind unit that mounts shared. But newer lxd sets
+    # "/" to shared now already this needs to be conditional.
+    container_root_mount=$(lxd.lxc exec ubuntu -- cat /proc/self/mountinfo | grep -E '^[0-9]+ [0-9]+ [0-9:]+ /.* / [a-z,]+')
+    test -n "$container_root_mount"
+    if ! grep " shared:" <<< "$container_root_mount"; then
+        lxd.lxc exec ubuntu -- test -f /var/run/systemd/generator/snap.mount
+    fi
 
     echo "Precondition check that $core_snap snap is mounted correctly"
     # Make sure $core_snap is mounted and readable for a regular user
