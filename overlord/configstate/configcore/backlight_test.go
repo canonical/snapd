@@ -44,7 +44,7 @@ func (s *backlightSuite) SetUpTest(c *C) {
 
 func (s *backlightSuite) TestConfigureBacklightServiceMaskIntegration(c *C) {
 	s.systemctlArgs = nil
-	err := configcore.MockRun(coreDev, &mockConf{
+	err := configcore.MockFSOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.disable-backlight-service": true,
@@ -58,7 +58,7 @@ func (s *backlightSuite) TestConfigureBacklightServiceMaskIntegration(c *C) {
 
 func (s *backlightSuite) TestConfigureBacklightServiceUnmaskIntegration(c *C) {
 	s.systemctlArgs = nil
-	err := configcore.MockRun(coreDev, &mockConf{
+	err := configcore.MockFSOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.disable-backlight-service": false,

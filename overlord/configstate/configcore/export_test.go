@@ -37,10 +37,10 @@ var (
 
 type PlainCoreConfig = plainCoreConfig
 
-// MockRun is used for tests that run also when nomanagers flag is
+// MockFSOnlyRun is used for tests that run also when nomanagers flag is
 // set, that is, for config groups that do not need access to the
 // state.
-func MockRun(dev sysconfig.Device, cfg ConfGetter) error {
+func MockFSOnlyRun(dev sysconfig.Device, cfg ConfGetter) error {
 	return filesystemOnlyRun(dev, cfg, nil)
 }
 

@@ -57,7 +57,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsGoodVals(c *C) {
 	defer mountCmd.Restore()
 
 	for _, size := range []string{"104857600", "16M", "7G", "0"} {
-		err := configcore.MockRun(coreDev, &mockConf{
+		err := configcore.MockFSOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"tmp.size": size,
@@ -80,7 +80,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsBadVals(c *C) {
 	for _, size := range []string{"100p", "0x123", "10485f7600", "20%%",
 		"20%", "100m", "10k", "10K", "10g"} {
 
-		err := configcore.MockRun(coreDev, &mockConf{
+		err := configcore.MockFSOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"tmp.size": size,
@@ -98,7 +98,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsBadVals(c *C) {
 func (s *tmpfsSuite) TestConfigureTmpfsTooSmall(c *C) {
 	for _, size := range []string{"1", "16777215"} {
 
-		err := configcore.MockRun(coreDev, &mockConf{
+		err := configcore.MockFSOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"tmp.size": size,
@@ -123,7 +123,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsAllConfDirExistsAlready(c *C) {
 	c.Assert(err, IsNil)
 
 	size := "100M"
-	err = configcore.MockRun(coreDev, &mockConf{
+	err = configcore.MockFSOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"tmp.size": size,
@@ -155,7 +155,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsNoFileUpdate(c *C) {
 	// To make sure the times will differ if the file is newly written
 	time.Sleep(100 * time.Millisecond)
 
-	err = configcore.MockRun(coreDev, &mockConf{
+	err = configcore.MockFSOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"tmp.size": size,
@@ -188,7 +188,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
 	err = ioutil.WriteFile(s.servOverridePath, []byte(content), 0644)
 	c.Assert(err, IsNil)
 
-	err = configcore.MockRun(coreDev, &mockConf{
+	err = configcore.MockFSOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"tmp.size": "",
