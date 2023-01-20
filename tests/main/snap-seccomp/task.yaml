@@ -13,16 +13,23 @@ priority: 100
 
 environment:
     PROFILE: /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.sh
-    SNAP_SECCOMP: /usr/lib/snapd/snap-seccomp
 
 execute: |
     echo "Install test-snapd-sh and verify it works"
     snap install test-snapd-sh
     test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
+    if [ -e /usr/lib/snapd/snap-seccomp ]; then
+        SNAP_SECCOMP=/usr/lib/snapd/snap-seccomp
+    elif [ -e /usr/libexec/snapd/snap-seccomp ]; then
+        SNAP_SECCOMP=/usr/libexec/snapd/snap-seccomp
+    else
+        echo "missing path for snap-seccomp for this platform"
+    fi
+
     # FIXME: use dirs.sh in 2.27+
     echo "Ensure snap-seccomp is statically linked"
-    if ldd /usr/lib/snapd/snap-seccomp | MATCH libseccomp ; then
+    if ldd "$SNAP_SECCOMP" | MATCH libseccomp ; then
         echo "found dynamically linked libseccomp, we need a staticly linked one"
         exit 1
     fi
