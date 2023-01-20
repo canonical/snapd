@@ -268,6 +268,56 @@ func (s *UDisks2InterfaceSuite) TestUDevSpecFile(c *C) {
 	c.Assert(spec.Snippets()[0], testutil.Contains, `# Test UDev file`)
 }
 
+func (s *UDisks2InterfaceSuite) TestUDevSpecFileEvilPathRel(c *C) {
+	outsideFile := filepath.Join(dirs.GlobalRootDir, "outside")
+	c.Assert(ioutil.WriteFile(outsideFile, []byte(""), 0777), IsNil)
+	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
+	outsideFileRel, err := filepath.Rel(producerDir, outsideFile)
+	c.Assert(err, IsNil)
+
+	yaml := fmt.Sprintf(udisks2WithUdevFileProducerYamlTemplate, outsideFileRel)
+	_, slotInfo := MockConnectedSlot(c, yaml, nil, "udisks2")
+
+	spec := &udev.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, slotInfo), ErrorMatches, "cannot resolve udev-file: invalid escaping path")
+}
+
+func (s *UDisks2InterfaceSuite) TestUDevSpecFileEvilAbsSymlink(c *C) {
+	outsideFile := filepath.Join(dirs.GlobalRootDir, "outside")
+	c.Assert(ioutil.WriteFile(outsideFile, []byte(""), 0777), IsNil)
+	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
+	c.Assert(os.Symlink(outsideFile, filepath.Join(producerDir, "link")), IsNil)
+
+	yaml := fmt.Sprintf(udisks2WithUdevFileProducerYamlTemplate, "link")
+	_, slotInfo := MockConnectedSlot(c, yaml, nil, "udisks2")
+
+	spec := &udev.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, slotInfo), ErrorMatches, "cannot resolve udev-file: invalid absolute symlink")
+}
+
+func (s *UDisks2InterfaceSuite) TestUDevSpecFileEvilRelSymlink(c *C) {
+	outsideFile := filepath.Join(dirs.GlobalRootDir, "outside")
+	c.Assert(ioutil.WriteFile(outsideFile, []byte(""), 0777), IsNil)
+	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
+	outsideFileRel, err := filepath.Rel(producerDir, outsideFile)
+	c.Assert(err, IsNil)
+	c.Assert(os.Symlink(outsideFileRel, filepath.Join(producerDir, "link")), IsNil)
+
+	yaml := fmt.Sprintf(udisks2WithUdevFileProducerYamlTemplate, "link")
+	_, slotInfo := MockConnectedSlot(c, yaml, nil, "udisks2")
+
+	spec := &udev.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, slotInfo), ErrorMatches, "cannot resolve udev-file: invalid escaping path")
+}
+
+func (s *UDisks2InterfaceSuite) TestUDevSpecFileDoesNotExist(c *C) {
+	yaml := fmt.Sprintf(udisks2WithUdevFileProducerYamlTemplate, "non-existent")
+	_, slotInfo := MockConnectedSlot(c, yaml, nil, "udisks2")
+
+	spec := &udev.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, slotInfo), ErrorMatches, "cannot resolve udev-file: .*")
+}
+
 func (s *UDisks2InterfaceSuite) TestUDevSpecFileCannotOpen(c *C) {
 	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
 	c.Assert(ioutil.WriteFile(filepath.Join(producerDir, "non-readable"), []byte(""), 0222), IsNil)
