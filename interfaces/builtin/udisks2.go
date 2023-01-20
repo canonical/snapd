@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -440,7 +441,11 @@ func (iface *udisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot 
 		slot.Attr("udev-file", &udevFile)
 		if udevFile != "" {
 			mountDir := slot.Snap.MountDir()
-			data, err := ioutil.ReadFile(filepath.Join(mountDir, udevFile))
+			resolvedPath, err := osutil.ResolvePathInSysroot(mountDir, udevFile)
+			if err != nil {
+				return err
+			}
+			data, err := ioutil.ReadFile(filepath.Join(mountDir, resolvedPath))
 			if err != nil {
 				return fmt.Errorf("cannot open udev-file: %v", err)
 			}
