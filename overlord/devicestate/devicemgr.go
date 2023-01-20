@@ -2603,7 +2603,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	return res.Type, res.UnavailableErr
 }
 
-func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, mode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
+func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, tpmMode secboot.TPMProvisionMode, kernelInfo *snap.Info, gadgetInfo *gadget.Info) (EncryptionSupportInfo, error) {
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
 	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
@@ -2630,7 +2630,7 @@ func (m *DeviceManager) encryptionSupportInfo(model *asserts.Model, mode secboot
 	case checkFDESetupHookEncryption:
 		res.Type, checkEncryptionErr = m.checkFDEFeatures()
 	case checkSecbootEncryption:
-		checkEncryptionErr = secbootCheckTPMKeySealingSupported(mode)
+		checkEncryptionErr = secbootCheckTPMKeySealingSupported(tpmMode)
 		if checkEncryptionErr == nil {
 			res.Type = secboot.EncryptionTypeLUKS
 		}
