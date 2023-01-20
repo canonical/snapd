@@ -19,9 +19,7 @@ prepare: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-journal-quota
   tests.cleanup defer snap remove --purge test-snapd-journal-quota
   snap set system experimental.quota-groups=true
-  snap set system experimental.journal-quota=true
   tests.cleanup defer snap unset system experimental.quota-groups
-  tests.cleanup defer snap unset system experimental.journal-quota
 
 restore: |
   echo "Stopping the service"

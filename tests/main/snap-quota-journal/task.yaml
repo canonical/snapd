@@ -21,8 +21,6 @@ prepare: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-journal-quota
   snap set system experimental.quota-groups=true
   tests.cleanup defer snap unset system experimental.quota-groups
-  snap set system experimental.journal-quota=true
-  tests.cleanup defer snap unset system experimental.journal-quota
   
 execute: |
   echo "Starting service and verifying that log messages are sent to default journal namespace"

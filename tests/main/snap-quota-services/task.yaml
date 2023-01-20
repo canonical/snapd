@@ -18,8 +18,6 @@ prepare: |
   tests.cleanup defer snap remove --purge test-snapd-stressd
   snap set system experimental.quota-groups=true
   tests.cleanup defer snap unset system experimental.quota-groups
-  snap set system experimental.journal-quota=true
-  tests.cleanup defer snap unset system experimental.journal-quota
 
 execute: |
   # Create the top level snap group with a memory limit. test-snapd-stressd

@@ -124,8 +124,14 @@ func verifyQuotaRequirements(st *state.State, resourceLimits quota.Resources) er
 		}
 
 		// We also need to check against experimental features for journal quota
-		if err := isQuotaAvailable(st, features.JournalQuota, "journal-quota"); err != nil {
-			return err
+		if journErr := isQuotaAvailable(st, features.JournalQuota, "journal-quota"); journErr != nil {
+			// For backwards compatability with uses of journal quota before this added feature
+			// we also allow the enabled quota-groups feature switch to be set
+			if err := isQuotaAvailable(st, features.QuotaGroups, "quota-groups"); err != nil {
+				// but is that not enabled either, let's point them to the new option
+				return journErr
+			}
+			return journErr
 		}
 	}
 	return nil
