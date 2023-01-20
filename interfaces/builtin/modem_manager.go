@@ -56,6 +56,9 @@ network netlink raw,
 # that are assigned to the snap, but we are not there yet.
 /sys/bus/usb/devices/** r,
 
+# used since MM 1.18
+network netlink dgram,
+
 # Access to modem ports
 # FIXME snapd should be more dynamic to avoid conflicts between snaps trying to
 # access same ports.
@@ -246,6 +249,8 @@ bind
 listen
 # libgudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+# used since MM 1.18
+socket AF_NETLINK - NETLINK_ROUTE
 `
 
 const modemManagerPermanentSlotDBus = `
