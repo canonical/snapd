@@ -20,12 +20,10 @@
 package configcore
 
 import (
-	"time"
-
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
-	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,12 +33,31 @@ var (
 	SwitchDisableService = switchDisableService
 	UpdateKeyValueStream = updateKeyValueStream
 	AddFSOnlyHandler     = addFSOnlyHandler
-	AddWithStateHandler  = addWithStateHandler
 	FilesystemOnlyApply  = filesystemOnlyApply
-	StoreReachable       = storeReachable
 )
 
 type PlainCoreConfig = plainCoreConfig
+
+// MockRun is used for tests that run also when nomanagers flag is
+// set, that is, for config groups that do not need access to the
+// state.
+func MockRun(dev sysconfig.Device, cfg config.Conf) error {
+	for _, h := range handlers {
+		if err := h.validate(cfg); err != nil {
+			return err
+		}
+	}
+
+	for _, h := range handlers {
+		if h.flags().coreOnlyConfig && dev.Classic() {
+			continue
+		}
+		if err := h.handle(dev, cfg, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func MockFindGid(f func(string) (uint64, error)) func() {
 	old := osutilFindGid
@@ -80,28 +97,4 @@ func MockApparmorReloadAllSnapProfiles(f func() error) func() {
 	r := testutil.Backup(&apparmorReloadAllSnapProfiles)
 	apparmorReloadAllSnapProfiles = f
 	return r
-}
-
-type ConnectivityCheckStore = connectivityCheckStore
-
-func MockSnapstateStore(f func(st *state.State, deviceCtx snapstate.DeviceContext) ConnectivityCheckStore) func() {
-	old := snapstateStore
-	snapstateStore = f
-	return func() {
-		snapstateStore = old
-	}
-}
-
-func MockStoreReachableRetryWait(d time.Duration) func() {
-	old := storeReachableRetryWait
-	storeReachableRetryWait = d
-	return func() {
-		storeReachableRetryWait = old
-	}
-}
-
-func MockDevicestateResetSession(f func(*state.State) error) (restore func()) {
-	restore = testutil.Backup(&devicestateResetSession)
-	devicestateResetSession = f
-	return restore
 }
