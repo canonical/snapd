@@ -22,7 +22,6 @@ package configcore
 import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -38,10 +37,18 @@ var (
 
 type PlainCoreConfig = plainCoreConfig
 
+type MockConf interface {
+	Get(snapName, key string, result interface{}) error
+	GetMaybe(snapName, key string, result interface{}) error
+	GetPristine(snapName, key string, result interface{}) error
+	Set(snapName, key string, value interface{}) error
+	Changes() []string
+}
+
 // MockRun is used for tests that run also when nomanagers flag is
 // set, that is, for config groups that do not need access to the
 // state.
-func MockRun(dev sysconfig.Device, cfg config.Conf) error {
+func MockRun(dev sysconfig.Device, cfg MockConf) error {
 	for _, h := range handlers {
 		if err := h.validate(cfg); err != nil {
 			return err

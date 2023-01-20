@@ -24,8 +24,6 @@ package configcore
 import (
 	"fmt"
 	"time"
-
-	"github.com/snapcore/snapd/overlord/configstate/config"
 )
 
 func init() {
@@ -33,7 +31,7 @@ func init() {
 	supportedConfigurations["core.snapshots.automatic.retention"] = true
 }
 
-func validateAutomaticSnapshotsExpiration(tr config.Conf) error {
+func validateAutomaticSnapshotsExpiration(tr Conf) error {
 	expirationStr, err := coreCfg(tr, "snapshots.automatic.retention")
 	if err != nil {
 		return err
