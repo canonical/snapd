@@ -37,6 +37,13 @@ var (
 	validCertOption = regexp.MustCompile(`^core\.store-certs\.` + validCertRegexp + "$").MatchString
 )
 
+// ConfGetter is an interface for reading of config values.
+type ConfGetter interface {
+	Get(snapName, key string, result interface{}) error
+	GetMaybe(snapName, key string, result interface{}) error
+	GetPristine(snapName, key string, result interface{}) error
+}
+
 // coreCfg returns the configuration value for the core snap.
 func coreCfg(tr ConfGetter, key string) (result string, err error) {
 	var v interface{} = ""

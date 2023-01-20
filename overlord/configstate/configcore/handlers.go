@@ -163,10 +163,13 @@ func filesystemOnlyApply(dev sysconfig.Device, rootDir string, values map[string
 	}
 
 	cfg := plainCoreConfig(values)
-
 	ctx := &fsOnlyContext{
 		RootDir: rootDir,
 	}
+	return filesystemOnlyRun(dev, cfg, ctx)
+}
+
+func filesystemOnlyRun(dev sysconfig.Device, cfg ConfGetter, ctx *fsOnlyContext) error {
 	for _, h := range handlers {
 		if h.needsState() {
 			continue

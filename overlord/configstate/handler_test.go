@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -284,7 +285,7 @@ func (s *configcoreHandlerSuite) SetUpTest(c *C) {
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	s.o.AddManager(hookMgr)
-	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ config.ConfGetter) error {
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ configcore.ConfGetter) error {
 		return nil
 	})
 	s.AddCleanup(r)
@@ -351,7 +352,7 @@ volumes:
 		SnapType: "snapd",
 	})
 
-	witnessConfigcoreRun := func(dev sysconfig.Device, conf config.Conf) error {
+	witnessConfigcoreRun := func(dev sysconfig.Device, conf configcore.Conf) error {
 		c.Check(dev.Kernel(), Equals, "kernel")
 		// called with no state lock!
 		conf.State().Lock()
@@ -411,7 +412,7 @@ volumes:
 		SnapType: "os",
 	})
 
-	witnessConfigcoreRun := func(dev sysconfig.Device, conf config.Conf) error {
+	witnessConfigcoreRun := func(dev sysconfig.Device, conf configcore.Conf) error {
 		c.Check(dev.Kernel(), Equals, "kernel")
 		// called with no state lock!
 		conf.State().Lock()

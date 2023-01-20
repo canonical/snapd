@@ -37,33 +37,11 @@ var (
 
 type PlainCoreConfig = plainCoreConfig
 
-type MockConf interface {
-	Get(snapName, key string, result interface{}) error
-	GetMaybe(snapName, key string, result interface{}) error
-	GetPristine(snapName, key string, result interface{}) error
-	Set(snapName, key string, value interface{}) error
-	Changes() []string
-}
-
 // MockRun is used for tests that run also when nomanagers flag is
 // set, that is, for config groups that do not need access to the
 // state.
-func MockRun(dev sysconfig.Device, cfg MockConf) error {
-	for _, h := range handlers {
-		if err := h.validate(cfg); err != nil {
-			return err
-		}
-	}
-
-	for _, h := range handlers {
-		if h.flags().coreOnlyConfig && dev.Classic() {
-			continue
-		}
-		if err := h.handle(dev, cfg, nil); err != nil {
-			return err
-		}
-	}
-	return nil
+func MockRun(dev sysconfig.Device, cfg ConfGetter) error {
+	return filesystemOnlyRun(dev, cfg, nil)
 }
 
 func MockFindGid(f func(string) (uint64, error)) func() {
