@@ -820,5 +820,5 @@ func (s *prereqSuite) TestPreReqContentAttrsNotSatisfiedSeeding(c *C) {
 	c.Check(chg.Err(), IsNil)
 	c.Assert(chg.Tasks(), HasLen, 1)
 	c.Assert(chg.Tasks()[0].Log(), HasLen, 1)
-	c.Check(chg.Tasks()[0].Log()[0], testutil.Contains, `too early for operation, device not yet seeded or device model not acknowledged`)
+	c.Check(chg.Tasks()[0].Log()[0], testutil.Contains, `cannot update "some-snap" during seeding, will not have required content "this-does-not-match": too early for operation, device not yet seeded or device model not acknowledged`)
 }
