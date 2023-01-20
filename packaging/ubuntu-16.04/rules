@@ -207,8 +207,9 @@ override_dh_auto_build:
 	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
 	$(shell	if ldd _build/bin/snapctl; then false "need static build"; fi)
 
-	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
-ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
+	# ensure snap-seccomp is build with a static libseccomp
+	# to avoid having seccomp profile issues on hosts that do not
+	# ship newer libseccomp, but still need allowing newer syscalls.
 	sed -i "s|#cgo LDFLAGS:|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
 	(cd _build/src/$(DH_GOPKG) && GOCACHE=/tmp/go-build CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build -o ../../../../bin/snap-seccomp -mod=vendor $(GCCGOFLAGS) ./cmd/snap-seccomp)
 	# ensure that libseccomp is not dynamically linked
@@ -216,7 +217,6 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
 	test "$$(ldd _build/bin/snap-seccomp | grep libseccomp)" = ""
 	# revert again so that the subsequent tests work
 	sed -i "s|#cgo LDFLAGS: -l/usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|#cgo LDFLAGS:|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
-endif
 
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )
