@@ -26,7 +26,15 @@ import (
 	"strings"
 )
 
-func resolvePathInSysrootRec(sysroot, path string, symlinkRecursion int) (string, error) {
+func dumbJoin(a, b string) string {
+	if strings.HasSuffix(a, "/") {
+		return a + b
+	} else {
+		return a + "/" + b
+	}
+}
+
+func resolvePathInSysrootRec(sysroot, path string, errorOnEscape bool, symlinkRecursion int) (string, error) {
 	if path == "" || path == "/" {
 		// Relative paths are taken from sysroot
 		return "/", nil
@@ -37,7 +45,7 @@ func resolvePathInSysrootRec(sysroot, path string, symlinkRecursion int) (string
 	}
 
 	dir, file := filepath.Split(path)
-	resolvedDir, err := resolvePathInSysrootRec(sysroot, dir, symlinkRecursion)
+	resolvedDir, err := resolvePathInSysrootRec(sysroot, dir, errorOnEscape, symlinkRecursion)
 	if err != nil {
 		return "", err
 	}
@@ -48,13 +56,16 @@ func resolvePathInSysrootRec(sysroot, path string, symlinkRecursion int) (string
 		return resolvedDir, nil
 	}
 	if file == ".." {
+		if errorOnEscape && (resolvedDir == "/") {
+			return "", fmt.Errorf("invalid escaping path")
+		}
 		upperDir, _ := filepath.Split(resolvedDir)
 		return upperDir, nil
 	}
 
-	fileInResolvedDir := filepath.Join(resolvedDir, file)
+	fileInResolvedDir := dumbJoin(resolvedDir, file)
 
-	realPath := filepath.Join(sysroot, fileInResolvedDir)
+	realPath := dumbJoin(sysroot, fileInResolvedDir)
 	st, err := os.Lstat(realPath)
 	if err != nil {
 		return "", err
@@ -69,9 +80,12 @@ func resolvePathInSysrootRec(sysroot, path string, symlinkRecursion int) (string
 			return "", err
 		}
 		if filepath.IsAbs(target) {
-			return resolvePathInSysrootRec(sysroot, target, symlinkRecursion-1)
+			if errorOnEscape {
+				return "", fmt.Errorf("invalid absolute symlink")
+			}
+			return resolvePathInSysrootRec(sysroot, target, errorOnEscape, symlinkRecursion-1)
 		} else {
-			return resolvePathInSysrootRec(sysroot, filepath.Join(resolvedDir, target), symlinkRecursion-1)
+			return resolvePathInSysrootRec(sysroot, dumbJoin(resolvedDir, target), errorOnEscape, symlinkRecursion-1)
 		}
 	}
 
@@ -110,5 +124,20 @@ func resolvePathInSysrootRec(sysroot, path string, symlinkRecursion int) (string
 // The return path is the path within the sysroot. filepath.Join() has
 // to be used to get the path in the sysroot.
 func ResolvePathInSysroot(sysroot, path string) (string, error) {
-	return resolvePathInSysrootRec(sysroot, path, 255)
+	return resolvePathInSysrootRec(sysroot, path, false, 255)
+}
+
+// ResolvePathNoEscape resolves a path within a pseudo sysroot
+//
+// Like ResolvePathInSysroot(), it resolves path as if it was a sysroot.
+// However, any escaping relative path, or absolute symlink generates
+// an error.
+//
+// The input path can however be absolute, and will be treated as
+// relative.
+//
+// This is useful when a path is expected to be relative only and sees
+// any "attempt" to escape the sysroot as a malformed path.
+func ResolvePathNoEscape(sysroot, path string) (string, error) {
+	return resolvePathInSysrootRec(sysroot, path, true, 255)
 }

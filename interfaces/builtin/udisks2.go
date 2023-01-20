@@ -441,9 +441,9 @@ func (iface *udisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot 
 		slot.Attr("udev-file", &udevFile)
 		if udevFile != "" {
 			mountDir := slot.Snap.MountDir()
-			resolvedPath, err := osutil.ResolvePathInSysroot(mountDir, udevFile)
+			resolvedPath, err := osutil.ResolvePathNoEscape(mountDir, udevFile)
 			if err != nil {
-				return err
+				return fmt.Errorf("cannot resolve udev-file: %v", err)
 			}
 			data, err := ioutil.ReadFile(filepath.Join(mountDir, resolvedPath))
 			if err != nil {
