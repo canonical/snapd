@@ -120,13 +120,7 @@ func (x *cmdKnown) Execute(args []string) error {
 	var err error
 	switch {
 	case x.Remote && !x.Direct:
-		// --remote will query snapd
-		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers, &client.KnownOptions{Remote: true})
-		// if snapd is unavailable automatically fallback
-		var connErr client.ConnectionError
-		if xerrors.As(err, &connErr) {
-			assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
-		}
+		assertions, err = knownRemoteWithFallback(x.client, string(x.KnownOptions.AssertTypeName), headers)
 	case x.Direct:
 		// --direct implies remote
 		assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
@@ -144,4 +138,16 @@ func (x *cmdKnown) Execute(args []string) error {
 	}
 
 	return nil
+}
+
+func knownRemoteWithFallback(cl *client.Client, assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
+	// --remote will query snapd
+	assertions, err := cl.Known(assertTypeName, headers, &client.KnownOptions{Remote: true})
+	// if snapd is unavailable automatically fallback
+	var connErr client.ConnectionError
+	if xerrors.As(err, &connErr) {
+		assertions, err = downloadAssertion(assertTypeName, headers)
+	}
+
+	return assertions, err
 }
