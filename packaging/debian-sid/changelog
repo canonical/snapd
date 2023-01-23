@@ -1,3 +1,26 @@
+snapd (2.58.1-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1998462
+    - secboot: detect lockout mode in CheckTPMKeySealingSupported
+    - cmd/snap-update-ns: prevent keeping unneeded mountpoints
+    - o/snapstate: do not infinitely retry when an update fails during
+      seeding
+    - interfaces/modem-manager: add permissions for NETLINK_ROUTE
+    - systemd/emulation.go: use `systemctl --root` to enable/disable
+    - snap: provide more error context in `NotSnapError`
+    - interfaces: add read access to /run for cryptsetup
+    - boot: avoid reboot loop if there is a bad try kernel
+    - devicestate: retry serial acquire on time based certificate
+      errors
+    - o/devicestate: run systemctl daemon-reload after install-device
+      hook
+    - cmd/snap,daemon: add 'held' to notes in 'snap list'
+    - o/snapshotstate: check snapshots are self-contained on import
+    - cmd/snap: show user+gating hold info in 'snap info'
+    - daemon: expose user and gating holds at /v2/snaps/{name}
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 23 Jan 2023 18:03:40 +0100
+
 snapd (2.58-1) unstable; urgency=medium
 
   * New upstream release, LP: #1998462
