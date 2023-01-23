@@ -944,7 +944,7 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	}
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
-	restore = snapstate.MockRefreshCheck(func(si *snap.Info) error {
+	restore = snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
 	})
 	defer restore()
@@ -980,7 +980,7 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	}
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
-	restore = snapstate.MockRefreshCheck(func(si *snap.Info) error {
+	restore = snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
 	})
 	defer restore()
@@ -1014,7 +1014,7 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	}
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
-	restore = snapstate.MockRefreshCheck(func(si *snap.Info) error {
+	restore = snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		return &snapstate.BusySnapError{SnapInfo: si}
 	})
 	defer restore()
@@ -1045,7 +1045,7 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 	// manual refresh
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: false}}
 
-	restore = snapstate.MockRefreshCheck(func(si *snap.Info) error {
+	restore = snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		return &snapstate.BusySnapError{SnapInfo: si}
 	})
 	defer restore()

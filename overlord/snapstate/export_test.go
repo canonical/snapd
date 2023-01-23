@@ -333,10 +333,10 @@ func NewBusySnapError(info *snap.Info, pids []int, busyAppNames, busyHookNames [
 	}
 }
 
-func MockRefreshCheck(fn func(info *snap.Info) error) (restore func()) {
-	old := refreshCheck
-	refreshCheck = fn
-	return func() { refreshCheck = old }
+func MockRefreshAppsCheck(fn func(info *snap.Info) error) (restore func()) {
+	old := refreshAppsCheck
+	refreshAppsCheck = fn
+	return func() { refreshAppsCheck = old }
 }
 
 func (m *autoRefresh) EnsureRefreshHoldAtLeast(d time.Duration) error {
@@ -363,7 +363,7 @@ var (
 	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
 	AutoRefreshPhase1          = autoRefreshPhase1
 	RefreshRetain              = refreshRetain
-	RefreshCheck               = refreshCheck
+	RefreshCheck               = refreshAppsCheck
 
 	ExcludeFromRefreshAppAwareness = excludeFromRefreshAppAwareness
 )

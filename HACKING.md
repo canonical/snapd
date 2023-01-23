@@ -309,7 +309,7 @@ There are few guidelines that contributors should follow:
 - Try to write tests to cover the contributed changes.
 - Write idiomatic Go (refer to [Effective Go](https://go.dev/doc/effective_go) etc).
 - Exported names should have documentation comments.
-- (CODING.md)[CODING.md] contains a more extensive checklist of points
+- [CODING.md](CODING.md) contains a more extensive checklist of points
   to take into account when coding or reviewing code for the project.
 
 >If you need any help with any of these guidelines, please reach out to the team.

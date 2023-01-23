@@ -38,9 +38,9 @@ import (
 // pidsOfSnap is a mockable version of PidsOfSnap
 var pidsOfSnap = cgroup.PidsOfSnap
 
-// refreshCheck returns an error if the snap has processes running that aren't
+// refreshAppsCheck returns an error if the snap has processes running that aren't
 // services and aren't marked to be ignored (refresh-mode: "ignore-running").
-var refreshCheck = func(info *snap.Info) error {
+var refreshAppsCheck = func(info *snap.Info) error {
 	knownPids, err := pidsOfSnap(info.InstanceName())
 	if err != nil {
 		return err
