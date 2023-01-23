@@ -164,7 +164,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckAllowed(c *C) {
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
 	// Pretend that snaps can refresh normally.
-	restore := snapstate.MockRefreshCheck(func(info *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
 		return nil
 	})
 	defer restore()
@@ -187,7 +187,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
 	// Pretend that snaps cannot refresh.
-	restore := snapstate.MockRefreshCheck(func(info *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
 		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
 	})
 	defer restore()
@@ -211,7 +211,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
 	// Pretend that snaps can refresh normally.
-	restore := snapstate.MockRefreshCheck(func(info *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
 		return nil
 	})
 	defer restore()
@@ -240,7 +240,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
 	// Pretend that snaps cannot refresh.
-	restore := snapstate.MockRefreshCheck(func(info *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
 		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
 	})
 	defer restore()

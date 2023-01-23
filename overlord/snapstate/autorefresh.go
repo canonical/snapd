@@ -600,7 +600,7 @@ var asyncPendingRefreshNotification = func(context context.Context, client *user
 // took place. Apps can inhibit refreshes for up to "maxInhibition", beyond
 // that period the refresh will go ahead despite application activity.
 func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info *snap.Info) error {
-	checkerErr := refreshCheck(info)
+	checkerErr := refreshAppsCheck(info)
 	if checkerErr == nil {
 		return nil
 	}
