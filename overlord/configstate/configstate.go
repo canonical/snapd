@@ -170,9 +170,10 @@ func EarlyConfig(st *state.State, preloadGadget func() (sysconfig.Device, *gadge
 	if err != nil {
 		return err
 	}
-	tr := config.NewTransaction(st)
+	// No task is associated to the transaction if it is an early config
+	rt := configcore.NewRunTransaction(config.NewTransaction(st), nil)
 	if configed {
-		if err := configcoreExportExperimentalFlags(tr); err != nil {
+		if err := configcoreExportExperimentalFlags(rt); err != nil {
 			return fmt.Errorf("cannot export experimental config flags: %v", err)
 		}
 		return nil
@@ -187,10 +188,10 @@ func EarlyConfig(st *state.State, preloadGadget func() (sysconfig.Device, *gadge
 			return err
 		}
 		values := gadget.SystemDefaults(gi.Defaults)
-		if err := configcoreEarly(dev, tr, values); err != nil {
+		if err := configcoreEarly(dev, rt, values); err != nil {
 			return err
 		}
-		tr.Commit()
+		rt.Commit()
 	}
 	return nil
 }
