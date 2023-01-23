@@ -78,11 +78,11 @@ type SeedSnap struct {
 	// Info is the *snap.Info for the seed snap, filling this is
 	// delegated to the Writer using code, via Writer.SetInfo.
 	Info *snap.Info
-	// ARefs are references to the snap assertions if applicable,
-	// filling these is delegated to the Writer using code, the
-	// assumption is that the corresponding assertions can be
-	// found in the database passed to Writer.Start.
-	ARefs []*asserts.Ref
+	// aRefs are references to the snap assertions if applicable,
+	// these are filled invoking a AssertsFetchFunc passed to Downloaded.
+	// The assumption is that the corresponding assertions can be found in
+	// the database passed to Writer.Start.
+	aRefs []*asserts.Ref
 
 	local      bool
 	modelSnap  *asserts.ModelSnap
@@ -108,8 +108,10 @@ var _ naming.SnapRef = (*SeedSnap)(nil)
 // SeedSnaps returned by SnapsToDownload get SetInfo called with *snap.Info
 // retrieved from the store and then the snaps can be downloaded at
 // SeedSnap.Path, after which Downloaded must be invoked and the flow breaks
-// out of the loop only when it returns complete = true. In the loop as well
-// assertions for the snaps can be fetched and SeedSnap.ARefs set.
+// out of the loop only when it returns complete = true.
+
+// Downloaded must be passed an AssertsFetchFunc responsible for fetching or
+// retrieving snap assertions when applicable.
 //
 // Optionally a similar but simpler mechanism covers local snaps, where
 // LocalSnaps returns SeedSnaps that can be filled with information derived
@@ -190,6 +192,13 @@ type Writer struct {
 
 	snapsFromModel []*SeedSnap
 	extraSnaps     []*SeedSnap
+
+	consideredForAssertions int
+
+	consideredForSnapdCarrying int
+	systemSnap                 *SeedSnap
+	kernelSnap                 *SeedSnap
+	noKernelSnap               bool
 }
 
 type policy interface {
@@ -212,6 +221,8 @@ type policy interface {
 	needsImplicitSnaps(availableByMode map[string]*naming.SnapSet) (bool, error)
 	implicitSnaps(availableByMode map[string]*naming.SnapSet) []*asserts.ModelSnap
 	implicitExtraSnaps(availableByMode map[string]*naming.SnapSet) []*OptionsSnap
+	isSystemSnapCandidate(*SeedSnap) bool
+	ignoreUndeterminedSystemSnap() bool
 }
 
 type tree interface {
@@ -484,9 +495,10 @@ func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAss
 
 // LocalSnaps returns a list of seed snaps that are local.  The writer
 // delegates to produce *snap.Info for them to then be set via
-// SetInfo. If matching snap assertions can be found as well they can
-// be passed into SeedSnap ARefs, assuming they were added to the
-// writing assertion database.
+// SetInfo.
+// If matching snap assertions can be found as well, they should be made
+// available through the AssertsFetchFunc passed to Downloaded later, the
+// assumption is also that they are added to the writing assertion database.
 func (w *Writer) LocalSnaps() ([]*SeedSnap, error) {
 	if err := w.checkStep(localSnapsStep); err != nil {
 		return nil, err
@@ -531,8 +543,6 @@ func (w *Writer) InfoDerived() error {
 			}
 		}
 
-		sn.SnapRef = sn.Info
-
 		// local snap gets local revision
 		if sn.Info.Revision.Unset() {
 			sn.Info.Revision = snap.R(-1)
@@ -574,6 +584,7 @@ func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
 	sn.Info = info
 
 	if sn.local {
+		sn.SnapRef = info
 		// nothing more to do
 		return nil
 	}
@@ -772,8 +783,8 @@ func (w *Writer) extraSnapsToDownload(extraSnaps []*OptionsSnap) (toDownload []*
 }
 
 // SnapsToDownload returns a list of seed snaps to download. Once that
-// is done and their SeedSnaps Info with SetInfo and ARefs fields are
-// set, Downloaded should be called next.
+// is done and their SeedSnaps Info field is set with SetInfo fields
+// Downloaded should be called next.
 func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 	if err := w.checkStep(snapsToDownloadStep); err != nil {
 		return nil, err
@@ -865,7 +876,95 @@ func (w *Writer) checkBase(info *snap.Info, modes []string) error {
 	return w.policy.checkBase(info, modes, w.availableByMode)
 }
 
-func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
+func isKernelSnap(sn *SeedSnap) bool {
+	return sn.modelSnap != nil && sn.modelSnap.SnapType == "kernel"
+}
+
+// snapdCarryingSnapsKnown returns true once it all the snaps that carry snapd
+// or parts of it have been captured; they need to be known before assertions
+// can be fetched with the correct max formats
+func (w *Writer) snapdCarryingSnapsKnown() bool {
+	return w.systemSnap != nil && (w.noKernelSnap || w.kernelSnap != nil)
+}
+
+func (w *Writer) considerForSnapdCarrying(sn *SeedSnap) error {
+	if w.systemSnap == nil {
+		if w.policy.isSystemSnapCandidate(sn) {
+			w.systemSnap = sn
+			return nil
+		}
+	}
+	if w.noKernelSnap {
+		return nil
+	}
+	if isKernelSnap(sn) {
+		w.kernelSnap = sn
+		return nil
+	}
+	w.noKernelSnap = true
+	return nil
+}
+
+// An AssertsFetchFunc should fetch appropriate assertions for the snap sn, it
+// can take into account format constraints caused by the given systemSnap and
+// kernelSnap if set. The returned references are expected to be resolvable
+// in the writing assertion database.
+type AssertsFetchFunc func(sn, systemsSnap, kernelSnap *SeedSnap) ([]*asserts.Ref, error)
+
+func (w *Writer) ensureARefs(upToSnap *SeedSnap, fetchAsserts AssertsFetchFunc) error {
+	n := len(w.snapsFromModel)
+	xn := len(w.extraSnaps)
+
+	iterateUpTo := func(count *int, f func(sn *SeedSnap) error) error {
+		i := *count
+		snaps := w.snapsFromModel
+		for ; i < n+xn; i++ {
+			j := i
+			if j >= n {
+				snaps = w.extraSnaps
+				j -= n
+			}
+			sn := snaps[j]
+			if err := f(sn); err != nil {
+				return err
+			}
+			*count += 1
+			if sn == upToSnap {
+				break
+			}
+		}
+		return nil
+	}
+
+	if !w.snapdCarryingSnapsKnown() {
+		iterateUpTo(&w.consideredForSnapdCarrying, w.considerForSnapdCarrying)
+	}
+	if !w.snapdCarryingSnapsKnown() {
+		if upToSnap == nil && n+xn > 0 {
+			if !w.policy.ignoreUndeterminedSystemSnap() {
+				return fmt.Errorf("internal error: unable to determine system snap after all the snaps were considered")
+			}
+		}
+		return nil
+	}
+
+	return iterateUpTo(&w.consideredForAssertions, func(sn *SeedSnap) error {
+		if sn.Info.ID() == "" {
+			return nil
+		}
+		aRefs, err := fetchAsserts(sn, w.systemSnap, w.kernelSnap)
+		if err != nil {
+			return err
+		}
+		if aRefs == nil {
+			return fmt.Errorf("internal error: fetching assertions for snap %q returned empty", sn.SnapName())
+		}
+		sn.aRefs = aRefs
+		return w.checkPublisher(sn)
+	})
+}
+
+func (w *Writer) downloaded(seedSnaps []*SeedSnap, fetchAsserts AssertsFetchFunc) error {
 	if w.availableSnaps == nil {
 		w.availableSnaps = naming.NewSnapSet(nil)
 		w.availableByMode = make(map[string]*naming.SnapSet)
@@ -894,18 +993,19 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 				return fmt.Errorf("internal error: before seedwriter.Writer.Downloaded snap %q snap-id should have been set", sn.SnapName())
 			}
 		}
+
+		if err := checkType(sn, w.model); err != nil {
+			return err
+		}
+
 		if info.ID() != "" {
-			if sn.ARefs == nil {
-				return fmt.Errorf("internal error: before seedwriter.Writer.Downloaded snap %q ARefs should have been set", sn.SnapName())
+			if err := w.ensureARefs(sn, fetchAsserts); err != nil {
+				return err
 			}
 		}
 
 		// TODO: optionally check that model snap name and
 		// info snap name match
-
-		if err := checkType(sn, w.model); err != nil {
-			return err
-		}
 
 		needsClassic := info.NeedsClassic()
 		if needsClassic {
@@ -929,10 +1029,6 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 				return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly%s", info.SnapName(), dp, errorMsgForModesSuffix(modes))
 			}
 		}
-
-		if err := w.checkPublisher(sn); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -942,7 +1038,9 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 // setting it into the SeedSnaps returned by the previous
 // SnapsToDownload. It also returns whether the seed snap set is
 // complete or SnapsToDownload should be called again.
-func (w *Writer) Downloaded() (complete bool, err error) {
+// An AssertsFetchFunc must be provided for Downloaded to request to fetch snap
+// assertions as appropriate.
+func (w *Writer) Downloaded(fetchAsserts AssertsFetchFunc) (complete bool, err error) {
 	if err := w.checkStep(downloadedStep); err != nil {
 		return false, err
 	}
@@ -962,7 +1060,7 @@ func (w *Writer) Downloaded() (complete bool, err error) {
 	}
 
 	considered = considered[len(considered)-w.toDownloadConsideredNum:]
-	err = w.downloaded(considered)
+	err = w.downloaded(considered, fetchAsserts)
 	if err != nil {
 		return false, err
 	}
@@ -1003,11 +1101,14 @@ func (w *Writer) Downloaded() (complete bool, err error) {
 		panic(fmt.Sprintf("unknown to-download set: %d", w.toDownload))
 	}
 
+	if err := w.ensureARefs(nil, fetchAsserts); err != nil {
+		return false, err
+	}
 	return true, nil
 }
 
 func (w *Writer) checkPublisher(sn *SeedSnap) error {
-	if sn.local && sn.ARefs == nil {
+	if sn.local && sn.aRefs == nil {
 		// nothing to do
 		return nil
 	}
@@ -1034,7 +1135,7 @@ func (w *Writer) checkPublisher(sn *SeedSnap) error {
 }
 
 func (w *Writer) snapDecl(sn *SeedSnap) (*asserts.SnapDeclaration, error) {
-	for _, ref := range sn.ARefs {
+	for _, ref := range sn.aRefs {
 		if ref.Type == asserts.SnapDeclarationType {
 			a, err := ref.Resolve(w.db.Find)
 			if err != nil {
