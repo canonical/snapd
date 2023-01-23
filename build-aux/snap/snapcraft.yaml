@@ -66,18 +66,6 @@ parts:
       done
       ./get-deps.sh --skip-unused-check
     override-build: |
-      # TODO: when something like "craftctl get-version" is ready, then we can
-      # use that, but until then, we have to re-run mkversion.sh to check if the
-      # version number was set as "dirty" from the override-pull step
-      if sh -x $SNAPCRAFT_PROJECT_DIR/mkversion.sh --output-only | grep "dirty"; then
-        mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
-        ( 
-          echo "dirty git tree during build detected:"
-          git status
-          git diff
-        ) > $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/dirty-git-tree-info.txt
-      fi
-
       for PACKAGE in libc6*.deb
       do
           dpkg -x $PACKAGE $SNAPCRAFT_PART_BUILD/
