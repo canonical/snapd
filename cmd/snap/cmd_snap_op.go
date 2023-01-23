@@ -350,13 +350,23 @@ func maybeWithSudoSecurePath() bool {
 	return release.DistroLike("fedora", "opensuse", "debian")
 }
 
-func hasWaitTasks(chg *client.Change) bool {
+// hasOnlyWaitOrRerefreshTasks will check if the given change is
+// effectively in a "wait" state, i.e. only "wait" tasks or
+// "check re-refresh" tasks are left
+func hasOnlyWaitOrRerefreshTasks(chg *client.Change) bool {
+	var hasWaitTask bool
+
 	for _, t := range chg.Tasks {
 		if t.Status == "Wait" {
-			return true
+			hasWaitTask = true
+		}
+		// return early on any real "Doing" task
+		if t.Status == "Doing" && t.Kind != "check-rerefresh" {
+			return false
 		}
 	}
-	return false
+
+	return hasWaitTask
 }
 
 // show what has been done
@@ -366,7 +376,7 @@ func showDone(cli *client.Client, chg *client.Change, names []string, op string,
 		return err
 	}
 
-	if hasWaitTasks(chg) {
+	if hasOnlyWaitOrRerefreshTasks(chg) {
 		fmt.Fprintf(Stdout, i18n.G("Change %v waiting on external action to be completed\n"), chg.ID)
 		return nil
 	}

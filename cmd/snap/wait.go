@@ -138,7 +138,7 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 			break
 		}
 
-		if !wmx.waitWaitTasks && hasWaitTasks(chg) {
+		if !wmx.waitWaitTasks && hasOnlyWaitOrRerefreshTasks(chg) {
 			return chg, nil
 		}
 
