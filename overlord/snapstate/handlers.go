@@ -746,10 +746,12 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 				return err
 			}
 
-			taskIDs = append(taskIDs, t.ID())
-			t.Set("waiting-tasks", taskIDs)
+			if !strutil.ListContains(taskIDs, t.ID()) {
+				taskIDs = append(taskIDs, t.ID())
+				t.Set("waiting-tasks", taskIDs)
+			}
 
-			return &state.Retry{After: 5 * time.Minute}
+			return &state.Retry{After: time.Minute}
 		}
 	}
 
@@ -860,7 +862,10 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st.Unlock()
 	defer st.Lock()
 
-	if err := runinhibit.LockWithHint(snapsup.InstanceName(), runinhibit.HintInhibitedForPreDownload); err != nil {
+	err = backend.WithSnapLock(info, func() error {
+		return runinhibit.LockWithHint(snapsup.InstanceName(), runinhibit.HintInhibitedForPreDownload)
+	})
+	if err != nil {
 		return err
 	}
 
