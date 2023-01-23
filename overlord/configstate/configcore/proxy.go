@@ -79,7 +79,7 @@ func updateEtcEnvironmentConfig(path string, config map[string]string) error {
 	return nil
 }
 
-func handleProxyConfiguration(tr Conf, opts *fsOnlyContext) error {
+func handleProxyConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 	config := map[string]string{}
 	// normal proxy settings
 	for _, key := range []string{"http", "https", "ftp"} {
@@ -103,7 +103,7 @@ func handleProxyConfiguration(tr Conf, opts *fsOnlyContext) error {
 	return nil
 }
 
-func validateProxyStore(tr Conf) error {
+func validateProxyStore(tr RunTransaction) error {
 	proxyStore, err := coreCfg(tr, "proxy.store")
 	if err != nil {
 		return err
@@ -127,7 +127,7 @@ func validateProxyStore(tr Conf) error {
 	return err
 }
 
-func handleProxyStore(tr Conf, opts *fsOnlyContext) error {
+func handleProxyStore(tr RunTransaction, opts *fsOnlyContext) error {
 	// is proxy.store being modififed?
 	proxyStoreInChanges := false
 	for _, name := range tr.Changes() {

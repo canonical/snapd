@@ -125,7 +125,7 @@ func getNetplanCfgSnapshot() (dbus.BusObject, error) {
 	return netplanCfgSnapshot, nil
 }
 
-func validateNetplanSettings(tr Conf) error {
+func validateNetplanSettings(tr RunTransaction) error {
 	// validation is done by netplan itself on apply, there is no
 	// way to dry-run this
 	return nil
@@ -135,7 +135,7 @@ func isNetplanChange(chg string) bool {
 	return chg == "core.system.network.netplan" || strings.HasPrefix(chg, "core.system.network.netplan.")
 }
 
-func hasNetplanChanges(tr Conf) bool {
+func hasNetplanChanges(tr RunTransaction) bool {
 	for _, chg := range tr.Changes() {
 		if isNetplanChange(chg) {
 			return true
@@ -156,7 +156,7 @@ func testStoreReachableWithRetry(state *state.State, n int, wait time.Duration) 
 	return n, false
 }
 
-func handleNetplanConfiguration(tr Conf, opts *fsOnlyContext) (err error) {
+func handleNetplanConfiguration(tr RunTransaction, opts *fsOnlyContext) (err error) {
 	if !hasNetplanChanges(tr) {
 		return nil
 	}

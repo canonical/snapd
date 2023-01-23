@@ -926,7 +926,7 @@ snaps:
 	defer rhk()
 
 	// ensure we have something that captures the core config
-	restore := configstate.MockConfigcoreRun(func(sysconfig.Device, configcore.Conf) error {
+	restore := configstate.MockConfigcoreRun(func(sysconfig.Device, configcore.RunTransaction) error {
 		configured = append(configured, "configcore")
 		return nil
 	})

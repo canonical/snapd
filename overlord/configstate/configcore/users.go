@@ -37,11 +37,11 @@ func earlyUsersSettingsFilter(values, early map[string]interface{}) {
 	}
 }
 
-func validateUsersSettings(tr Conf) error {
+func validateUsersSettings(tr RunTransaction) error {
 	return validateBoolFlag(tr, "users.create.automatic")
 }
 
-func handleUserSettings(tr Conf, opts *fsOnlyContext) error {
+func handleUserSettings(tr RunTransaction, opts *fsOnlyContext) error {
 	output, err := coreCfg(tr, "users.create.automatic")
 	if err != nil {
 		return nil

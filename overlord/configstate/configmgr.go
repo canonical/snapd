@@ -33,7 +33,7 @@ import (
 
 var configcoreRun = configcore.Run
 
-func MockConfigcoreRun(f func(sysconfig.Device, configcore.Conf) error) (restore func()) {
+func MockConfigcoreRun(f func(sysconfig.Device, configcore.RunTransaction) error) (restore func()) {
 	origConfigcoreRun := configcoreRun
 	configcoreRun = f
 	return func() {
@@ -51,7 +51,7 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	// Note that we use the func() indirection so that mocking configcoreRun
 	// in tests works correctly.
 	hookManager.RegisterHijack("configure", "core", func(ctx *hookstate.Context) error {
-		dev, tr, err := func() (sysconfig.Device, configcore.Conf, error) {
+		dev, tr, err := func() (sysconfig.Device, configcore.RunTransaction, error) {
 			ctx.Lock()
 			defer ctx.Unlock()
 			task, _ := ctx.Task()
@@ -59,7 +59,8 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 			if err != nil {
 				return nil, nil, err
 			}
-			return dev, ContextTransaction(ctx), nil
+			rt := configcore.NewRunTransaction(ContextTransaction(ctx), task)
+			return dev, rt, nil
 		}()
 		if err != nil {
 			return err

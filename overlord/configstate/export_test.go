@@ -36,7 +36,7 @@ func MockConfigcoreExportExperimentalFlags(mock func(tr configcore.ConfGetter) e
 	}
 }
 
-func MockConfigcoreEarly(mock func(dev sysconfig.Device, cfg configcore.Conf, values map[string]interface{}) error) (restore func()) {
+func MockConfigcoreEarly(mock func(dev sysconfig.Device, cfg configcore.RunTransaction, values map[string]interface{}) error) (restore func()) {
 	old := configcoreEarly
 	configcoreEarly = mock
 	return func() {

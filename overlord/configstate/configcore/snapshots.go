@@ -31,7 +31,7 @@ func init() {
 	supportedConfigurations["core.snapshots.automatic.retention"] = true
 }
 
-func validateAutomaticSnapshotsExpiration(tr Conf) error {
+func validateAutomaticSnapshotsExpiration(tr RunTransaction) error {
 	expirationStr, err := coreCfg(tr, "snapshots.automatic.retention")
 	if err != nil {
 		return err
