@@ -66,7 +66,8 @@ func init() {
 	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, &flags{coreOnlyConfig: true})
 }
 
-// RunTransaction is an interface describing both state and transaction.
+// RunTransaction is an interface describing how to access
+// the system configuration state and transaction.
 type RunTransaction interface {
 	Get(snapName, key string, result interface{}) error
 	GetMaybe(snapName, key string, result interface{}) error
