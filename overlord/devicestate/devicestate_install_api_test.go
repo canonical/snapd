@@ -287,7 +287,10 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	// Insert encryption data when enabled
 	if opts.encrypted {
 		// Mock TPM and sealing
-		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
+		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+			c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
+			return nil
+		})
 		s.AddCleanup(restore)
 		restore = boot.MockSealKeyToModeenv(func(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
 			c.Check(model.Classic(), Equals, opts.isClassic)
@@ -434,7 +437,10 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 
 	// Simulate system with TPM
 	if hasTPM {
-		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
+		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func(tpmMode secboot.TPMProvisionMode) error {
+			c.Check(tpmMode, Equals, secboot.TPMProvisionFull)
+			return nil
+		})
 		s.AddCleanup(restore)
 	}
 
