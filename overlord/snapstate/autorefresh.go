@@ -536,17 +536,25 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return nil
 	}
 
-	if err != nil {
-		switch err.(type) {
-		case *httputil.PersistentNetworkError:
-			logger.Noticef("Cannot prepare auto-refresh change due to a permanent network error: %s", err)
-
-		case *BusySnapError:
-			chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
-			for _, ts := range tasksets {
-				chg.AddAll(ts)
-			}
+	var preDlTss, autorefreshTss []*state.TaskSet
+	for _, ts := range tasksets {
+		tasks := ts.Tasks()
+		if len(tasks) == 1 && tasks[0].Kind() == "pre-download-snap" {
+			preDlTss = append(preDlTss, ts)
+		} else {
+			autorefreshTss = append(autorefreshTss, ts)
 		}
+	}
+
+	if preDlTss != nil {
+		chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
+		for _, ts := range preDlTss {
+			chg.AddAll(ts)
+		}
+	}
+
+	if _, ok := err.(*httputil.PersistentNetworkError); ok {
+		logger.Noticef("Cannot prepare auto-refresh change due to a permanent network error: %s", err)
 		return err
 	}
 
@@ -556,7 +564,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return err
 	}
 
-	chg := mkAutoRefreshChange(m.state, updated, tasksets)
+	chg := mkAutoRefreshChange(m.state, updated, autorefreshTss)
 	state.TagTimingsWithChange(perfTimings, chg)
 	return nil
 }

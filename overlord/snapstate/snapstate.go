@@ -364,6 +364,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		revisionStr = fmt.Sprintf(" (%s)", targetRevision)
 	}
 
+	ts := state.NewTaskSet()
 	if snapst.IsInstalled() {
 		// consider also the current revision to set plugs-only hint
 		info, err := snapst.CurrentInfo()
@@ -377,10 +378,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			// softCheckNothingRunningForRefresh, this block must be located
 			// after the conflict check done above.
 			if err := softCheckNothingRunningForRefresh(st, snapst, snapsup, info); err != nil {
-				// snap is in use; start pre-downloading the snap before notifying
-				// in advance
+				// snap is running; schedule its downloading before notifying to close
 				var busyErr *BusySnapError
-				if errors.As(err, &busyErr) {
+				if errors.As(err, &busyErr) && snapsup.IsAutoRefresh {
 					tasks, err := findTasksMatching(st, "pre-download", snapsup.InstanceName(), snapsup.Revision())
 					if err != nil {
 						return nil, err
@@ -395,9 +395,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 					preDownTask.Set("snap-setup", snapsup)
 					preDownTask.Set("refresh-info", busyErr.PendingSnapRefreshInfo())
 
-					tss := state.NewTaskSet()
-					tss.AddTask(preDownTask)
-					return tss, err
+					ts.AddTask(preDownTask)
+					return ts, err
 				}
 
 				return nil, err
@@ -411,8 +410,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			}
 		}
 	}
-
-	ts := state.NewTaskSet()
 
 	// check if we already have the revision locally (alters tasks)
 	revisionIsLocal := snapst.LastIndex(targetRevision) >= 0
@@ -1796,6 +1793,13 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 
 		ts, err := doInstall(st, snapst, snapsup, 0, fromChange, inUseFor(deviceCtx))
 		if err != nil {
+			if errors.Is(err, &BusySnapError{}) && len(ts.Tasks()) > 0 {
+				// snap is busy and pre-download tasks were made for it
+				ts.JoinLane(st.NewLane())
+				tasksets = append(tasksets, ts)
+				continue
+			}
+
 			if refreshAll {
 				// doing "refresh all", just skip this snap
 				logger.Noticef("cannot refresh snap %q: %v", update.InstanceName(), err)
