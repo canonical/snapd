@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os/user"
 	"time"
@@ -139,7 +140,7 @@ func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 
 func EarlyPreloadGadget(m *DeviceManager) (sysconfig.Device, *gadget.Info, error) {
 	// let things fully run again
-	m.seedTimings = nil
+	m.earlyDeviceSeed = nil
 	return m.earlyPreloadGadget()
 }
 
@@ -183,15 +184,25 @@ func EnsureCloudInitRestricted(m *DeviceManager) error {
 	return m.ensureCloudInitRestricted()
 }
 
-var PopulateStateFromSeedImpl = populateStateFromSeedImpl
+func ImportAssertionsFromSeed(m *DeviceManager, isCoreBoot bool) (seed.Seed, error) {
+	return m.importAssertionsFromSeed(isCoreBoot)
+}
 
-type PopulateStateFromSeedOptions = populateStateFromSeedOptions
+func PopulateStateFromSeedImpl(m *DeviceManager, tm timings.Measurer) ([]*state.TaskSet, error) {
+	return m.populateStateFromSeedImpl(tm)
+}
 
-func MockPopulateStateFromSeed(f func(*state.State, *PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
-	old := populateStateFromSeed
-	populateStateFromSeed = f
+func MockPopulateStateFromSeed(m *DeviceManager, f func(seedLabel, seedMode string, tm timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
+	old := m.populateStateFromSeed
+	m.populateStateFromSeed = func(tm timings.Measurer) ([]*state.TaskSet, error) {
+		sLabel, sMode, err := m.seedLabelAndMode()
+		if err != nil {
+			panic(err)
+		}
+		return f(sLabel, sMode, tm)
+	}
 	return func() {
-		populateStateFromSeed = old
+		m.populateStateFromSeed = old
 	}
 }
 
@@ -249,8 +260,6 @@ func RecordSeededSystem(m *DeviceManager, st *state.State, sys *seededSystem) er
 
 var (
 	LoadDeviceSeed               = loadDeviceSeed
-	UnloadDeviceSeed             = unloadDeviceSeed
-	ImportAssertionsFromSeed     = importAssertionsFromSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
 	CheckGadgetValid             = checkGadgetValid
 	CheckGadgetRemodelCompatible = checkGadgetRemodelCompatible
@@ -364,6 +373,38 @@ func MockInstallFactoryReset(f func(model gadget.Model, gadgetRoot, kernelRoot, 
 	restore = testutil.Backup(&installFactoryReset)
 	installFactoryReset = f
 	return restore
+}
+
+func MockInstallWriteContent(f func(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *install.EncryptionSetupData, observer gadget.ContentObserver, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error)) (restore func()) {
+	old := installWriteContent
+	installWriteContent = f
+	return func() {
+		installWriteContent = old
+	}
+}
+
+func MockInstallMountVolumes(f func(onVolumes map[string]*gadget.Volume, encSetupData *install.EncryptionSetupData) (espMntDir string, unmount func() error, err error)) (restore func()) {
+	old := installMountVolumes
+	installMountVolumes = f
+	return func() {
+		installMountVolumes = old
+	}
+}
+
+func MockInstallEncryptPartitions(f func(onVolumes map[string]*gadget.Volume, encryptionType secboot.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error)) (restore func()) {
+	old := installEncryptPartitions
+	installEncryptPartitions = f
+	return func() {
+		installEncryptPartitions = old
+	}
+}
+
+func MockInstallSaveStorageTraits(f func(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *install.EncryptionSetupData) error) (restore func()) {
+	old := installSaveStorageTraits
+	installSaveStorageTraits = f
+	return func() {
+		installSaveStorageTraits = old
+	}
 }
 
 func MockSecbootStageEncryptionKeyChange(f func(node string, key keys.EncryptionKey) error) (restore func()) {
@@ -490,4 +531,41 @@ func MockCreateAllKnownSystemUsers(createAllUsers func(state *state.State, asser
 	restore = testutil.Backup(&createAllKnownSystemUsers)
 	createAllKnownSystemUsers = createAllUsers
 	return restore
+}
+
+func MockEncryptionSetupDataInCache(st *state.State, label string) (restore func()) {
+	st.Lock()
+	defer st.Unlock()
+	var esd *install.EncryptionSetupData
+	labelToEncData := map[string]*install.MockEncryptedDeviceAndRole{
+		"ubuntu-save": {
+			Role:            "system-save",
+			EncryptedDevice: "/dev/mapper/ubuntu-save",
+		},
+		"ubuntu-data": {
+			Role:            "system-data",
+			EncryptedDevice: "/dev/mapper/ubuntu-data",
+		},
+	}
+	esd = install.MockEncryptionSetupData(labelToEncData)
+	st.Cache(encryptionSetupDataKey{label}, esd)
+	return func() { CleanUpEncryptionSetupDataInCache(st, label) }
+}
+
+func CheckEncryptionSetupDataFromCache(st *state.State, label string) error {
+	cached := st.Cached(encryptionSetupDataKey{label})
+	if cached == nil {
+		return fmt.Errorf("no EncryptionSetupData found in cache")
+	}
+	if _, ok := cached.(*install.EncryptionSetupData); !ok {
+		return fmt.Errorf("wrong data type under encryptionSetupDataKey")
+	}
+	return nil
+}
+
+func CleanUpEncryptionSetupDataInCache(st *state.State, label string) {
+	st.Lock()
+	defer st.Unlock()
+	key := encryptionSetupDataKey{label}
+	st.Cache(key, nil)
 }

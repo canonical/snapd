@@ -620,28 +620,28 @@ func ParseLegacySchedule(scheduleSpec string) ([]*Schedule, error) {
 
 // ParseSchedule parses a schedule in V2 format. The format is described as:
 //
-//     eventlist = eventset *( ",," eventset )
-//     eventset = wdaylist / timelist / wdaylist "," timelist
+//	eventlist = eventset *( ",," eventset )
+//	eventset = wdaylist / timelist / wdaylist "," timelist
 //
-//     wdaylist = wdayset *( "," wdayset )
-//     wdayset = wday / wdaynumber / wdayspan
-//     wday =  ( "sun" / "mon" / "tue" / "wed" / "thu" / "fri" / "sat" )
-//     wdaynumber =  ( "sun" / "mon" / "tue" / "wed" / "thu" / "fri" / "sat" ) DIGIT
-//     wdayspan = wday "-" wday / wdaynumber "-" wday / wday "-" wdaynumber
+//	wdaylist = wdayset *( "," wdayset )
+//	wdayset = wday / wdaynumber / wdayspan
+//	wday =  ( "sun" / "mon" / "tue" / "wed" / "thu" / "fri" / "sat" )
+//	wdaynumber =  ( "sun" / "mon" / "tue" / "wed" / "thu" / "fri" / "sat" ) DIGIT
+//	wdayspan = wday "-" wday / wdaynumber "-" wday / wday "-" wdaynumber
 //
-//     timelist = timeset *( "," timeset )
-//     timeset = time / timespan
-//     time = 2DIGIT ":" 2DIGIT
-//     timespan = time ( "-" / "~" ) time [ "/" ( time / count ) ]
-//     count = 1*DIGIT
+//	timelist = timeset *( "," timeset )
+//	timeset = time / timespan
+//	time = 2DIGIT ":" 2DIGIT
+//	timespan = time ( "-" / "~" ) time [ "/" ( time / count ) ]
+//	count = 1*DIGIT
 //
 // Examples:
 // mon,10:00,,fri,15:00 (Monday at 10:00, Friday at 15:00)
 // mon,fri,10:00,15:00 (Monday at 10:00 and 15:00, Friday at 10:00 and 15:00)
 // mon-wed,fri,9:00-11:00/2 (Monday to Wednesday and on Friday, twice between
-//                           9:00 and 11:00)
-// mon,9:00~11:00,,wed,22:00~23:00 (Monday, sometime between 9:00 and 11:00, and
-//                                  on Wednesday, sometime between 22:00 and 23:00)
+// 9:00 and 11:00)
+// mon,9:00~11:00,,wed,22:00~23:00 (Monday, sometime between 9:00 and 11:00,
+// and on Wednesday, sometime between 22:00 and 23:00)
 // mon,wed  (Monday and on Wednesday)
 // mon,,wed (same as above)
 // mon1-wed (1st Monday of the month to the following Wednesday)

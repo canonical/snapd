@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -39,11 +38,11 @@ func init() {
 	supportedConfigurations["core.journal.persistent"] = true
 }
 
-func validateJournalSettings(tr config.ConfGetter) error {
+func validateJournalSettings(tr ConfGetter) error {
 	return validateBoolFlag(tr, "journal.persistent")
 }
 
-func handleJournalConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleJournalConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	output, err := coreCfg(tr, "journal.persistent")
 	if err != nil {
 		return err

@@ -66,10 +66,25 @@ type CreateOptions struct {
 	CreateAllMissingPartitions bool
 }
 
-// CreateMissingPartitions creates the partitions listed in the laid out volume
+// CreateMissingPartitions calls createMissingPartitions but returns only
+// OnDiskStructure, as it is meant to be used externally (i.e. by
+// muinstaller).
+func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts *CreateOptions) ([]gadget.OnDiskStructure, error) {
+	odlsStructures, err := createMissingPartitions(dl, pv, opts)
+	if err != nil {
+		return nil, err
+	}
+	onDiskStructures := []gadget.OnDiskStructure{}
+	for _, odls := range odlsStructures {
+		onDiskStructures = append(onDiskStructures, *odls.onDisk)
+	}
+	return onDiskStructures, nil
+}
+
+// createMissingPartitions creates the partitions listed in the laid out volume
 // pv that are missing from the existing device layout, returning a list of
 // structures that have been created.
-func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts *CreateOptions) ([]gadget.OnDiskStructure, error) {
+func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts *CreateOptions) ([]onDiskAndLaidoutStructure, error) {
 	if opts == nil {
 		opts = &CreateOptions{}
 	}
@@ -118,7 +133,7 @@ func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, 
 // device contents and gadget structure list, in sfdisk dump format, and
 // returns a partitioning description suitable for sfdisk input and a
 // list of the partitions to be created.
-func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts *CreateOptions) (sfdiskInput *bytes.Buffer, toBeCreated []gadget.OnDiskStructure, err error) {
+func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts *CreateOptions) (sfdiskInput *bytes.Buffer, toBeCreated []onDiskAndLaidoutStructure, err error) {
 	if opts == nil {
 		opts = &CreateOptions{}
 	}
@@ -138,7 +153,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts 
 	canExpandData := false
 	if n := len(pv.LaidOutStructure); n > 0 {
 		last := pv.LaidOutStructure[n-1]
-		if last.VolumeStructure.Role == gadget.SystemData {
+		if last.Role() == gadget.SystemData {
 			canExpandData = true
 		}
 	}
@@ -150,6 +165,8 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts 
 	// Write new partition data in named-fields format
 	buf := &bytes.Buffer{}
 	for _, p := range pv.LaidOutStructure {
+		// Make loop var per-iter as we store the pointer in the results
+		p := p
 		if !p.IsPartition() {
 			continue
 		}
@@ -176,15 +193,22 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts 
 			newSizeInSectors = dl.UsableSectorsEnd - startInSectors
 		}
 
-		ptype := partitionType(dl.Schema, p.Type)
+		ptype := partitionType(dl.Schema, p.Type())
 
 		// synthesize the node name and on disk structure
 		node := deviceName(dl.Device, pIndex)
-		ps := gadget.OnDiskStructure{
-			LaidOutStructure: p,
-			Node:             node,
-			DiskIndex:        pIndex,
-			Size:             quantity.Size(newSizeInSectors * sectorSize),
+		ps := onDiskAndLaidoutStructure{
+			onDisk: &gadget.OnDiskStructure{
+				Name:             p.Name(),
+				PartitionFSLabel: p.Label(),
+				Type:             p.Type(),
+				PartitionFSType:  p.Filesystem(),
+				StartOffset:      p.StartOffset,
+				Node:             node,
+				DiskIndex:        pIndex,
+				Size:             quantity.Size(newSizeInSectors * sectorSize),
+			},
+			laidOut: &p,
 		}
 
 		// format sfdisk input for creating this partition
@@ -282,49 +306,54 @@ func removeCreatedPartitions(gadgetRoot string, lv *gadget.LaidOutVolume, dl *ga
 	return nil
 }
 
-func partitionsWithRolesAndContent(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume, roles []string) []gadget.OnDiskStructure {
+func partitionsWithRolesAndContent(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume, roles []string) []onDiskAndLaidoutStructure {
 	roleForOffset := map[quantity.Offset]*gadget.LaidOutStructure{}
 	for idx, gs := range lv.LaidOutStructure {
-		if gs.Role != "" {
+		if gs.Role() != "" {
 			roleForOffset[gs.StartOffset] = &lv.LaidOutStructure[idx]
 		}
 	}
 
-	var parts []gadget.OnDiskStructure
+	var odloStructures []onDiskAndLaidoutStructure
 	for _, part := range dl.Structure {
+		// Create per-iter var from loop variable as we store the pointer in odls
+		part := part
 		gs := roleForOffset[part.StartOffset]
-		if gs == nil || gs.Role == "" || !strutil.ListContains(roles, gs.Role) {
+		if gs == nil || gs.Role() == "" || !strutil.ListContains(roles, gs.Role()) {
 			continue
 		}
-		// now that we have a match, override the laid out structure
-		// such that the fields reflect what was declared in the gadget,
-		// the on-disk-structure already has the right size as read from
-		// the partition table
-		part.LaidOutStructure = *gs
-		parts = append(parts, part)
+		// now that we have a match, set the laid out structure such
+		// that the fields reflect what was declared in the gadget, the
+		// on-disk-structure already has the right size as read from the
+		// partition table
+		odls := onDiskAndLaidoutStructure{
+			onDisk:  &part,
+			laidOut: gs,
+		}
+		odloStructures = append(odloStructures, odls)
 	}
-	return parts
+	return odloStructures
 }
 
 // ensureNodeExists makes sure the device nodes for all device structures are
 // available and notified to udev, within a specified amount of time.
-func ensureNodesExistImpl(dss []gadget.OnDiskStructure, timeout time.Duration) error {
+func ensureNodesExistImpl(odloStructures []onDiskAndLaidoutStructure, timeout time.Duration) error {
 	t0 := time.Now()
-	for _, ds := range dss {
+	for _, odls := range odloStructures {
 		found := false
 		for time.Since(t0) < timeout {
-			if osutil.FileExists(ds.Node) {
+			if osutil.FileExists(odls.onDisk.Node) {
 				found = true
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
 		if found {
-			if err := udevTrigger(ds.Node); err != nil {
+			if err := udevTrigger(odls.onDisk.Node); err != nil {
 				return err
 			}
 		} else {
-			return fmt.Errorf("device %s not available", ds.Node)
+			return fmt.Errorf("device %s not available", odls.onDisk.Node)
 		}
 	}
 	return nil
@@ -397,7 +426,7 @@ func wasCreatedDuringInstall(lv *gadget.LaidOutVolume, s gadget.OnDiskStructure)
 	for _, gs := range lv.LaidOutStructure {
 		// TODO: how to handle ubuntu-save here? maybe a higher level function
 		//       should decide whether to delete it or not?
-		switch gs.Role {
+		switch gs.Role() {
 		case gadget.SystemSave, gadget.SystemData, gadget.SystemBoot:
 			// then it was created during install or is to be created during
 			// install, see if the offset matches the provided on disk structure

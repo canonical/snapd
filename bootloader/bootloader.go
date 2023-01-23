@@ -329,7 +329,8 @@ var (
 //
 // The rootdir option is useful for image creation operations. It
 // can also be used to find the recovery bootloader, e.g. on uc20:
-//   bootloader.Find("/run/mnt/ubuntu-seed")
+//
+//	bootloader.Find("/run/mnt/ubuntu-seed")
 func Find(rootdir string, opts *Options) (Bootloader, error) {
 	if err := opts.validate(); err != nil {
 		return nil, err

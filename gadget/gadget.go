@@ -453,8 +453,8 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 // GadgetConnect describes an interface connection requested by the gadget
 // between seeded snaps. The syntax is of a mapping like:
 //
-//  plug: (<plug-snap-id>|system):plug
-//  [slot: (<slot-snap-id>|system):slot]
+//	plug: (<plug-snap-id>|system):plug
+//	[slot: (<slot-snap-id>|system):slot]
 //
 // "system" indicates a system plug or slot.
 // Fully omitting the slot part indicates a system slot with the same name
@@ -589,15 +589,21 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 
 	// basic validation
 	var bootloadersFound int
-	knownFsLabelsPerVolume := make(map[string]map[string]bool, len(gi.Volumes))
 	for name := range gi.Volumes {
 		v := gi.Volumes[name]
 		if v == nil {
 			return nil, fmt.Errorf("volume %q stanza is empty", name)
 		}
+
 		// set the VolumeName for the volume
 		v.Name = name
-		if err := validateVolume(v, knownFsLabelsPerVolume); err != nil {
+
+		// Set values that are implicit in gadget.yaml.
+		if err := setImplicitForVolume(v, model); err != nil {
+			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
+		}
+
+		if err := validateVolume(v); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
@@ -622,12 +628,6 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		return nil, fmt.Errorf("too many (%d) bootloaders declared", bootloadersFound)
 	}
 
-	for name, v := range gi.Volumes {
-		if err := setImplicitForVolume(v, model, knownFsLabelsPerVolume[name]); err != nil {
-			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
-		}
-	}
-
 	return &gi, nil
 }
 
@@ -649,19 +649,48 @@ func whichVolRuleset(model Model) volRuleset {
 	return volRuleset16
 }
 
-func setImplicitForVolume(vol *Volume, model Model, knownFsLabels map[string]bool) error {
+func setImplicitForVolume(vol *Volume, model Model) error {
 	rs := whichVolRuleset(model)
 	if vol.Schema == "" {
 		// default for schema is gpt
 		vol.Schema = schemaGPT
 	}
+
+	// for uniqueness of filesystem labels
+	knownFsLabels := make(map[string]bool, len(vol.Structure))
+	for _, s := range vol.Structure {
+		if s.Label != "" {
+			if seen := knownFsLabels[s.Label]; seen {
+				return fmt.Errorf("filesystem label %q is not unique", s.Label)
+			}
+			knownFsLabels[s.Label] = true
+		}
+	}
+
+	previousEnd := quantity.Offset(0)
 	for i := range vol.Structure {
 		// set the VolumeName for the structure from the volume itself
 		vol.Structure[i].VolumeName = vol.Name
+
+		// set other implicit data for the structure
 		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels); err != nil {
 			return err
 		}
+
+		// set offset if it was not set (must be after setImplicitForVolumeStructure
+		// so roles are good).
+		if vol.Structure[i].Offset == nil {
+			var start quantity.Offset
+			if vol.Structure[i].Role != schemaMBR && previousEnd < NonMBRStartOffset {
+				start = NonMBRStartOffset
+			} else {
+				start = previousEnd
+			}
+			vol.Structure[i].Offset = &start
+		}
+		previousEnd = *vol.Structure[i].Offset + quantity.Offset(vol.Structure[i].Size)
 	}
+
 	return nil
 }
 
@@ -780,7 +809,13 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bool) error {
+type byStructureOffset []VolumeStructure
+
+func (b byStructureOffset) Len() int           { return len(b) }
+func (b byStructureOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
+func (b byStructureOffset) Less(i, j int) bool { return *(b[i].Offset) < *(b[j].Offset) }
+
+func validateVolume(vol *Volume) error {
 	if !validVolumeName.MatchString(vol.Name) {
 		return errors.New("invalid name")
 	}
@@ -789,17 +824,10 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 	}
 
 	// named structures, for cross-referencing relative offset-write names
-	knownStructures := make(map[string]*LaidOutStructure, len(vol.Structure))
-	// for uniqueness of filesystem labels
-	knownFsLabels := make(map[string]bool, len(vol.Structure))
+	knownStructures := make(map[string]*VolumeStructure, len(vol.Structure))
 	// for validating structure overlap
-	structures := make([]LaidOutStructure, len(vol.Structure))
+	structures := make([]VolumeStructure, len(vol.Structure))
 
-	if knownFsLabelsPerVolume != nil {
-		knownFsLabelsPerVolume[vol.Name] = knownFsLabels
-	}
-
-	previousEnd := quantity.Offset(0)
 	// TODO: should we also validate that if there is a system-recovery-select
 	// role there should also be at least 2 system-recovery-image roles and
 	// same for system-boot-select and at least 2 system-boot-image roles?
@@ -807,38 +835,18 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 		if err := validateVolumeStructure(&s, vol); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
-		var start quantity.Offset
-		if s.Offset != nil {
-			start = *s.Offset
-		} else {
-			start = previousEnd
-		}
-		end := start + quantity.Offset(s.Size)
-		ps := LaidOutStructure{
-			VolumeStructure: &vol.Structure[idx],
-			StartOffset:     start,
-			YamlIndex:       idx,
-		}
-		structures[idx] = ps
+		structures[idx] = vol.Structure[idx]
 		if s.Name != "" {
 			if _, ok := knownStructures[s.Name]; ok {
 				return fmt.Errorf("structure name %q is not unique", s.Name)
 			}
 			// keep track of named structures
-			knownStructures[s.Name] = &ps
+			knownStructures[s.Name] = &structures[idx]
 		}
-		if s.Label != "" {
-			if seen := knownFsLabels[s.Label]; seen {
-				return fmt.Errorf("filesystem label %q is not unique", s.Label)
-			}
-			knownFsLabels[s.Label] = true
-		}
-
-		previousEnd = end
 	}
 
 	// sort by starting offset
-	sort.Sort(byStartOffset(structures))
+	sort.Sort(byStructureOffset(structures))
 
 	return validateCrossVolumeStructure(structures, knownStructures)
 }
@@ -854,32 +862,32 @@ func isMBR(vs *VolumeStructure) bool {
 	return false
 }
 
-func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures map[string]*LaidOutStructure) error {
+func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures map[string]*VolumeStructure) error {
 	previousEnd := quantity.Offset(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
 	// - laid out structure overlap
 	// use structures laid out within the volume
 	for pidx, ps := range structures {
-		if isMBR(ps.VolumeStructure) {
-			if ps.StartOffset != 0 {
-				return fmt.Errorf(`structure %v has "mbr" role and must start at offset 0`, ps)
+		if isMBR(&ps) {
+			if *(ps.Offset) != 0 {
+				return fmt.Errorf(`structure %q has "mbr" role and must start at offset 0`, ps.Name)
 			}
 		}
 		if ps.OffsetWrite != nil && ps.OffsetWrite.RelativeTo != "" {
 			// offset-write using a named structure
 			other := knownStructures[ps.OffsetWrite.RelativeTo]
 			if other == nil {
-				return fmt.Errorf("structure %v refers to an unknown structure %q",
-					ps, ps.OffsetWrite.RelativeTo)
+				return fmt.Errorf("structure %q refers to an unknown structure %q",
+					ps.Name, ps.OffsetWrite.RelativeTo)
 			}
 		}
 
-		if ps.StartOffset < previousEnd {
+		if *(ps.Offset) < previousEnd {
 			previous := structures[pidx-1]
-			return fmt.Errorf("structure %v overlaps with the preceding structure %v", ps, previous)
+			return fmt.Errorf("structure %q overlaps with the preceding structure %q", ps.Name, previous.Name)
 		}
-		previousEnd = ps.StartOffset + quantity.Offset(ps.Size)
+		previousEnd = *(ps.Offset) + quantity.Offset(ps.Size)
 
 		if ps.HasFilesystem() {
 			// content relative offset only possible if it's a bare structure
@@ -891,8 +899,8 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 			}
 			relativeToStructure := knownStructures[c.OffsetWrite.RelativeTo]
 			if relativeToStructure == nil {
-				return fmt.Errorf("structure %v, content %v refers to an unknown structure %q",
-					ps, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
+				return fmt.Errorf("structure %q, content %v refers to an unknown structure %q",
+					ps.Name, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
 			}
 		}
 	}
@@ -1184,11 +1192,11 @@ func IsCompatible(current, new *Info) error {
 	// layout both volumes partially, without going deep into the layout of
 	// structure content, we only want to make sure that structures are
 	// comapatible
-	pCurrent, err := LayoutVolumePartially(currentVol, DefaultConstraints)
+	pCurrent, err := LayoutVolumePartially(currentVol)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the current volume: %v", err)
 	}
-	pNew, err := LayoutVolumePartially(newVol, DefaultConstraints)
+	pNew, err := LayoutVolumePartially(newVol)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
 	}
@@ -1218,9 +1226,6 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model) (syste
 		return nil, nil, err
 	}
 
-	constraints := LayoutConstraints{
-		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-	}
 	// layout all volumes saving them
 	opts := &LayoutOptions{
 		GadgetRootDir: gadgetRoot,
@@ -1230,7 +1235,7 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model) (syste
 	// find the volume with the system-boot role on it, we already validated
 	// that the system-* roles are all on the same volume
 	for name, vol := range info.Volumes {
-		lvol, err := LayoutVolume(vol, constraints, opts)
+		lvol, err := LayoutVolume(vol, opts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1354,8 +1359,10 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, fu
 // According to https://elixir.bootlin.com/linux/latest/source/Documentation/admin-guide/kernel-parameters.txt
 // the # character can appear as part of a valid kernel command line argument,
 // specifically in the following argument:
-//   memmap=nn[KMG]#ss[KMG]
-//   memmap=100M@2G,100M#3G,1G!1024G
+//
+//	memmap=nn[KMG]#ss[KMG]
+//	memmap=100M@2G,100M#3G,1G!1024G
+//
 // Thus a lone # or a token starting with # are treated as errors.
 func parseCommandLineFromGadget(content []byte) (string, error) {
 	s := bufio.NewScanner(bytes.NewBuffer(content))

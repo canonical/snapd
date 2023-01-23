@@ -566,9 +566,8 @@ func (s *preseedingClassicSuite) TestDoMarkPreseeded(c *C) {
 
 func (s *preseedingClassicSuite) TestEnsureSeededPreseedFlag(c *C) {
 	called := false
-	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
+	restore := devicestate.MockPopulateStateFromSeed(s.mgr, func(sLabel, sMode string, tm timings.Measurer) ([]*state.TaskSet, error) {
 		called = true
-		c.Check(opts.Preseed, Equals, true)
 		return nil, nil
 	})
 	defer restore()
@@ -745,19 +744,18 @@ func (s *preseedingUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 	c.Assert(release.OnClassic, Equals, false)
 
 	called := false
-	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
-		called = true
-		c.Check(opts.Preseed, Equals, true)
-		c.Check(opts.Label, Equals, "20220105")
-		c.Check(opts.Mode, Equals, "run")
-		return nil, nil
-	})
-	defer restore()
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
 
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
+	restore := devicestate.MockPopulateStateFromSeed(mgr, func(sLabel, sMode string, tm timings.Measurer) ([]*state.TaskSet, error) {
+		called = true
+		c.Check(sLabel, Equals, "20220105")
+		c.Check(sMode, Equals, "run")
+		return nil, nil
+	})
+	defer restore()
 
 	err = devicestate.EnsureSeeded(mgr)
 	c.Assert(err, IsNil)

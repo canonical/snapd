@@ -359,7 +359,7 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 		if !s.HasFilesystem() {
 			continue
 		}
-		for _, c := range s.Content {
+		for _, c := range s.VolumeStructure.Content {
 			// TODO: detect and skip Content with "$kernel:" style
 			// refs if there is no kernelSnapRootDir passed in as
 			// well
@@ -403,7 +403,7 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 		if kernelSnapRootDir == "" {
 			opts.SkipResolveContent = true
 		}
-		lv, err := LayoutVolume(vol, DefaultConstraints, opts)
+		lv, err := LayoutVolume(vol, opts)
 		if err != nil {
 			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
 		}

@@ -57,7 +57,7 @@ var (
 )
 
 func (custo *Customizations) validate(model *asserts.Model) error {
-	core20 := model.Grade() != asserts.ModelGradeUnset
+	hasModes := model.Grade() != asserts.ModelGradeUnset
 	var unsupported []string
 	unsupportedConsoleConfDisable := func() {
 		if custo.ConsoleConf == "disabled" {
@@ -72,7 +72,7 @@ func (custo *Customizations) validate(model *asserts.Model) error {
 
 	kind := "UC16/18"
 	switch {
-	case core20:
+	case hasModes:
 		kind = "UC20+"
 		// TODO:UC20: consider supporting these with grade dangerous?
 		unsupportedConsoleConfDisable()
@@ -276,12 +276,12 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return fmt.Errorf("internal error: classic model but classic mode not set")
 	}
 
-	core20 := model.Grade() != asserts.ModelGradeUnset
+	hasModes := model.Grade() != asserts.ModelGradeUnset
 	var rootDir string
 	var bootRootDir string
 	var seedDir string
 	var label string
-	if !core20 {
+	if !hasModes {
 		if opts.Classic {
 			// Classic, PrepareDir is the root dir itself
 			rootDir = opts.PrepareDir
@@ -419,6 +419,26 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
+	// Build a map of snaps for the manifest file
+	imageManifest := make(map[string]snap.Revision)
+
+	// Check local snaps again, but now after InfoDerived has been called. InfoDerived
+	// fills out the snap revisions for the local snaps, and we need this to verify against
+	// expected revisions.
+	for _, sn := range localSnaps {
+		// Its a bit more tricky to deal with local snaps, as we only have that specific revision
+		// available. Therefore the revision in the local snap must be exactly the revision specified
+		// in the manifest. If it's not, we fail.
+		specifiedRevision := opts.Revisions[sn.Info.SnapName()]
+		if !specifiedRevision.Unset() && specifiedRevision != sn.Info.Revision {
+			return fmt.Errorf("cannot use snap %s for image, unknown/local revision does not match the value specified by revisions file (%s != %s)",
+				sn.Path, sn.Info.Revision, specifiedRevision)
+		}
+		if !sn.Info.Revision.Unset() {
+			imageManifest[sn.Info.SnapName()] = sn.Info.Revision
+		}
+	}
+
 	for {
 		toDownload, err := w.SnapsToDownload()
 		if err != nil {
@@ -431,7 +451,12 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			if sn == nil {
 				return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
 			}
-			fmt.Fprintf(Stdout, "Fetching %s\n", sn.SnapName())
+			rev := opts.Revisions[sn.SnapName()]
+			if !rev.Unset() {
+				fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), rev)
+			} else {
+				fmt.Fprintf(Stdout, "Fetching %s (%d)\n", sn.SnapName(), info.Revision)
+			}
 			if err := w.SetInfo(sn, info); err != nil {
 				return "", err
 			}
@@ -442,6 +467,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			byName[sn.SnapName()] = sn
 			snapToDownloadOptions[i].Snap = sn
 			snapToDownloadOptions[i].Channel = sn.Channel
+			snapToDownloadOptions[i].Revision = opts.Revisions[sn.SnapName()]
 			snapToDownloadOptions[i].CohortKey = opts.WideCohortKey
 		}
 		downloadedSnaps, err := tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
@@ -463,6 +489,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			prev := len(f.Refs())
 			if _, err = FetchAndCheckSnapAssertions(dlsn.Path, dlsn.Info, model, f, db); err != nil {
 				return err
+			}
+			if !sn.Info.Revision.Unset() {
+				imageManifest[sn.Info.SnapName()] = sn.Info.Revision
 			}
 			aRefs := f.Refs()[prev:]
 			sn.ARefs = aRefs
@@ -518,7 +547,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	//       This will need to be handled here eventually too.
 	if opts.Classic {
 		var fpath string
-		if core20 {
+		if hasModes {
 			fpath = filepath.Join(seedDir, "systems")
 		} else {
 			fpath = filepath.Join(seedDir, "seed.yaml")
@@ -544,7 +573,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 
 	bootWith := &boot.BootableSet{
 		UnpackedGadgetDir: gadgetUnpackDir,
-		Recovery:          core20,
+		Recovery:          hasModes,
 	}
 	if label != "" {
 		bootWith.RecoverySystemDir = filepath.Join("/systems/", label)
@@ -596,7 +625,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 	}
 
 	// early config & cloud-init config (done at install for Core 20)
-	if !core20 {
+	if !hasModes {
 		// and the cloud-init things
 		if err := installCloudConfig(rootDir, gadgetUnpackDir); err != nil {
 			return err
@@ -616,5 +645,11 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		customizeImage(rootDir, defaultsDir, &opts.Customizations)
 	}
 
+	// last thing is to generate the image seed manifest file
+	if opts.SeedManifestPath != "" {
+		if err := WriteSeedManifest(opts.SeedManifestPath, imageManifest); err != nil {
+			return err
+		}
+	}
 	return nil
 }

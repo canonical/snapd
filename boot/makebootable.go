@@ -32,6 +32,8 @@ import (
 	"github.com/snapcore/snapd/snap/snapfile"
 )
 
+var sealKeyToModeenv = sealKeyToModeenvImpl
+
 // BootableSet represents the boot snaps of a system to be made bootable.
 type BootableSet struct {
 	Base       *snap.Info
@@ -90,10 +92,10 @@ func MakeBootablePartition(partDir string, opts *bootloader.Options, bootWith *B
 
 // makeBootable16 setups the image filesystem for boot with UC16
 // and UC18 models. This entails:
-//  - installing the bootloader configuration from the gadget
-//  - creating symlinks for boot snaps from seed to the runtime blob dir
-//  - setting boot env vars pointing to the revisions of the boot snaps to use
-//  - extracting kernel assets as needed by the bootloader
+//   - installing the bootloader configuration from the gadget
+//   - creating symlinks for boot snaps from seed to the runtime blob dir
+//   - setting boot env vars pointing to the revisions of the boot snaps to use
+//   - extracting kernel assets as needed by the bootloader
 func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
 	opts := &bootloader.Options{
 		PrepareImageTime: true,

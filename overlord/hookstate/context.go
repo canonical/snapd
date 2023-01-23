@@ -302,12 +302,20 @@ func (c *Context) Logf(fmt string, args ...interface{}) {
 // ephemeral contexts or the task log.
 //
 // Context must be locked.
-func (c *Context) Errorf(fmt string, args ...interface{}) {
+func (c *Context) Errorf(format string, args ...interface{}) {
 	c.writing()
 	if c.IsEphemeral() {
 		// XXX: loger has no Errorf() :/
-		logger.Noticef(fmt, args...)
+		logger.Noticef(format, args...)
 	} else {
-		c.task.Errorf(fmt, args...)
+		c.task.Errorf(format, args...)
+		// If errors are ignored the task will not be in "Error"
+		// state so the error is hard to find. In this case also
+		// log errors to the journal to ensure that e.g. seeding
+		// configure errors are observable.
+		if c.setup != nil && c.setup.IgnoreError {
+			msg := fmt.Sprintf(format, args...)
+			logger.Noticef("ERROR task %v (%v): %v", c.task.ID(), c.task.Summary(), msg)
+		}
 	}
 }

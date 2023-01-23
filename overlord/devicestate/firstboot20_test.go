@@ -230,6 +230,17 @@ func stripSnapNamesWithChannels(snaps []string) []string {
 	return names
 }
 
+func (s *firstBoot20Suite) updateModel(c *C, sysLabel string, model *asserts.Model, modelUpdater func(c *C, headers map[string]interface{})) *asserts.Model {
+	if modelUpdater != nil {
+		hdrs := model.Headers()
+		modelUpdater(c, hdrs)
+		model = s.Brands.Model(model.BrandID(), model.Model(), hdrs)
+		modelFn := filepath.Join(s.SeedDir, "systems", sysLabel, "model")
+		seedtest.WriteAssertions(modelFn, model)
+	}
+	return model
+}
+
 func checkSnapstateDevModeFlags(c *C, tsAll []*state.TaskSet, snapsWithDevModeFlag ...string) {
 	allDevModeSnaps := stripSnapNamesWithChannels(snapsWithDevModeFlag)
 
@@ -300,18 +311,15 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	// create overlord and pick up the modeenv
 	s.startOverlord(c)
 
-	c.Check(devicestate.SaveAvailable(s.overlord.DeviceManager()), Equals, m.Mode == "run")
+	mgr := s.overlord.DeviceManager()
 
-	opts := devicestate.PopulateStateFromSeedOptions{
-		Label: m.RecoverySystem,
-		Mode:  m.Mode,
-	}
+	c.Check(devicestate.SaveAvailable(mgr), Equals, m.Mode == "run")
 
 	// run the firstboot stuff
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(mgr, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	snaps := []string{"snapd", "pc-kernel", "core20", "pc"}
@@ -561,10 +569,6 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(as, DeepEquals, deviceSeed.Model())
-
-	// inconsistent seed request
-	_, err = devicestate.LoadDeviceSeed(st, "20210201")
-	c.Assert(err, ErrorMatches, `internal error: requested inconsistent device seed: 20210201 \(was 20191018\)`)
 }
 
 func (s *firstBoot20Suite) testProcessAutoImportAssertions(c *C, withAutoImportAssertion bool) string {
@@ -696,12 +700,7 @@ defaults:
 	enabled, _ := features.Flag(tr, features.UserDaemons)
 	c.Check(enabled, Equals, true)
 
-	opts := devicestate.PopulateStateFromSeedOptions{
-		Label: m.RecoverySystem,
-		Mode:  m.Mode,
-	}
-
-	_, err = devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	_, err = devicestate.PopulateStateFromSeedImpl(o.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 }
 
@@ -787,16 +786,11 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 
 	s.startOverlord(c)
 
-	opts := devicestate.PopulateStateFromSeedOptions{
-		Label: m.RecoverySystem,
-		Mode:  m.Mode,
-	}
-
 	// run the firstboot stuff
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 
 	snaps := []string{"snapd", "core20"}
@@ -913,7 +907,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 	}})
 }
 
-func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c *C, modelGrade asserts.ModelGrade, expectedErr string) {
+func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c *C, modelGrade asserts.ModelGrade, modelUpdater func(*C, map[string]interface{}), expectedErr string) {
 	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "20.04"})()
 	// XXX this shouldn't be needed
 	defer release.MockOnClassic(true)()
@@ -921,7 +915,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAn
 
 	m := &boot.Modeenv{
 		Mode:           "run",
-		RecoverySystem: "20191018",
+		RecoverySystem: "20221129",
 		Base:           "core20_1.snap",
 		Classic:        true,
 	}
@@ -953,18 +947,15 @@ apps:
 	// validity check that our returned model has the expected grade
 	c.Assert(model.Grade(), Equals, modelGrade)
 
-	s.startOverlord(c)
+	s.updateModel(c, sysLabel, model, modelUpdater)
 
-	opts := devicestate.PopulateStateFromSeedOptions{
-		Label: m.RecoverySystem,
-		Mode:  m.Mode,
-	}
+	s.startOverlord(c)
 
 	// run the firstboot stuff
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	if expectedErr != "" {
 		c.Check(err, ErrorMatches, expectedErr)
 		return
@@ -1093,7 +1084,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesDangerousRunModeN
 		"modes": []interface{}{"run"},
 	}
 
-	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelDangerous, "")
+	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelDangerous, nil, "")
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKernelAndGadgetClassicSnap(c *C) {
@@ -1103,15 +1094,23 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKe
 		"modes":   []interface{}{"run"},
 	}
 
-	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelSigned, "")
+	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelSigned, nil, "")
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKernelAndGadgetClassicSnapImplicitFails(c *C) {
 	// classic snaps must be declared explicitly for non-dangerous models,
 	// not doing so results in a seeding error
+
+	// to evade the seedwriter checks to test the firstboot ones
+	// create the system with model grade dangerous and then
+	// switch/rewrite the model to be grade signed
 	s.extraSnapModelDetails["classic-installer"] = map[string]interface{}{
 		"modes": []interface{}{"run"},
 	}
 
-	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelSigned, `snap "classic-installer" requires classic confinement`)
+	switchToSigned := func(_ *C, modHeaders map[string]interface{}) {
+		modHeaders["grade"] = string(asserts.ModelSigned)
+	}
+
+	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelDangerous, switchToSigned, `snap "classic-installer" requires classic confinement`)
 }

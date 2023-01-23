@@ -516,6 +516,8 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	var path string
 
 	if isLocalSnap(nameOrPath) {
+		// don't log the request's body because the encoded snap is large.
+		x.client.SetMayLogBody(false)
 		path = nameOrPath
 		changeID, err = x.client.InstallPath(path, x.Name, opts)
 	} else {
@@ -569,6 +571,8 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	var err error
 
 	if isLocal {
+		// don't log the request's body because the encoded snap is large
+		x.client.SetMayLogBody(false)
 		changeID, err = x.client.InstallPathMany(names, opts)
 	} else {
 		if x.asksForMode() {
@@ -782,7 +786,13 @@ func (x *cmdRefresh) showRefreshTimes() error {
 		fmt.Fprintf(Stdout, "last: n/a\n")
 	}
 	if !hold.IsZero() {
-		fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(hold))
+		// show holds over 100 years as "forever", like in the input of 'snap refresh
+		// --hold', instead of as a distant time (how they're internally represented)
+		if hold.After(timeNow().Add(100 * 365 * 24 * time.Hour)) {
+			fmt.Fprintf(Stdout, "hold: forever\n")
+		} else {
+			fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(hold))
+		}
 	}
 	// only show "next" if its after "hold" to not confuse users
 	if !next.IsZero() {

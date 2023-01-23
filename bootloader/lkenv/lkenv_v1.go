@@ -23,19 +23,17 @@ import (
 	"fmt"
 )
 
-/**
- * Following structure has to be kept in sync with c structure defined by
- * include/lk/snappy-boot_v1.h
- * c headerfile is used by bootloader, this ensures sync of the environment
- * between snapd and bootloader
-
- * when this structure needs to be updated,
- * new version should be introduced instead together with c header file,
- * which is to be adopted by bootloader
- *
- * !!! Support for old version has to be maintained, as it is not guaranteed
- * all existing bootloader would adopt new version!
- */
+// Following structure has to be kept in sync with c structure defined by
+// include/lk/snappy-boot_v1.h
+// c headerfile is used by bootloader, this ensures sync of the environment
+// between snapd and bootloader
+//
+// when this structure needs to be updated,
+// new version should be introduced instead together with c header file,
+// which is to be adopted by bootloader
+//
+// !!! Support for old version has to be maintained, as it is not guaranteed
+// all existing bootloader would adopt new version!
 type SnapBootSelect_v1 struct {
 	/* Contains value BOOTSELECT_SIGNATURE defined above */
 	Signature uint32

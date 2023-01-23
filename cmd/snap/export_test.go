@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/tooling"
+	"github.com/snapcore/snapd/testutil"
 	usersessionclient "github.com/snapcore/snapd/usersession/client"
 )
 
@@ -129,27 +130,28 @@ func SetVerbose(iw *infoWriter, verbose bool) {
 }
 
 var (
-	ClientSnapFromPath          = clientSnapFromPath
-	SetupDiskSnap               = (*infoWriter).setupDiskSnap
-	SetupSnap                   = (*infoWriter).setupSnap
-	MaybePrintServices          = (*infoWriter).maybePrintServices
-	MaybePrintCommands          = (*infoWriter).maybePrintCommands
-	MaybePrintType              = (*infoWriter).maybePrintType
-	PrintSummary                = (*infoWriter).printSummary
-	MaybePrintPublisher         = (*infoWriter).maybePrintPublisher
-	MaybePrintNotes             = (*infoWriter).maybePrintNotes
-	MaybePrintStandaloneVersion = (*infoWriter).maybePrintStandaloneVersion
-	MaybePrintBuildDate         = (*infoWriter).maybePrintBuildDate
-	MaybePrintLinks             = (*infoWriter).maybePrintLinks
-	MaybePrintBase              = (*infoWriter).maybePrintBase
-	MaybePrintPath              = (*infoWriter).maybePrintPath
-	MaybePrintSum               = (*infoWriter).maybePrintSum
-	MaybePrintCohortKey         = (*infoWriter).maybePrintCohortKey
-	MaybePrintHealth            = (*infoWriter).maybePrintHealth
-	MaybePrintRefreshInfo       = (*infoWriter).maybePrintRefreshInfo
-	WaitInhibitUnlock           = waitInhibitUnlock
-	WaitWhileInhibited          = waitWhileInhibited
-	IsLocked                    = isLocked
+	ClientSnapFromPath                            = clientSnapFromPath
+	SetupDiskSnap                                 = (*infoWriter).setupDiskSnap
+	SetupSnap                                     = (*infoWriter).setupSnap
+	MaybePrintServices                            = (*infoWriter).maybePrintServices
+	MaybePrintCommands                            = (*infoWriter).maybePrintCommands
+	MaybePrintType                                = (*infoWriter).maybePrintType
+	PrintSummary                                  = (*infoWriter).printSummary
+	MaybePrintPublisher                           = (*infoWriter).maybePrintPublisher
+	MaybePrintNotes                               = (*infoWriter).maybePrintNotes
+	MaybePrintStandaloneVersion                   = (*infoWriter).maybePrintStandaloneVersion
+	MaybePrintBuildDate                           = (*infoWriter).maybePrintBuildDate
+	MaybePrintLinks                               = (*infoWriter).maybePrintLinks
+	MaybePrintBase                                = (*infoWriter).maybePrintBase
+	MaybePrintPath                                = (*infoWriter).maybePrintPath
+	MaybePrintSum                                 = (*infoWriter).maybePrintSum
+	MaybePrintCohortKey                           = (*infoWriter).maybePrintCohortKey
+	MaybePrintHealth                              = (*infoWriter).maybePrintHealth
+	MaybePrintRefreshInfo                         = (*infoWriter).maybePrintRefreshInfo
+	WaitInhibitUnlock                             = waitInhibitUnlock
+	WaitWhileInhibited                            = waitWhileInhibited
+	IsLocked                                      = isLocked
+	TryNotifyRefreshViaSnapDesktopIntegrationFlow = tryNotifyRefreshViaSnapDesktopIntegrationFlow
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -478,4 +480,10 @@ func ParseQuotaValues(maxMemory, cpuMax, cpuSet, threadsMax, journalSizeMax, jou
 	quotas.JournalRateLimit = journalRateLimit
 
 	return quotas.parseQuotas()
+}
+
+func MockImageReadSeedManifest(f func(manifestFile string) (map[string]snap.Revision, error)) (restore func()) {
+	restore = testutil.Backup(&imageReadSeedManifest)
+	imageReadSeedManifest = f
+	return restore
 }

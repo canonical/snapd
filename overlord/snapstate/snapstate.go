@@ -370,7 +370,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			// Note that because we are modifying the snap state inside
 			// softCheckNothingRunningForRefresh, this block must be located
 			// after the conflict check done above.
-			if err := softCheckNothingRunningForRefresh(st, snapst, info); err != nil {
+			if err := softCheckNothingRunningForRefresh(st, snapst, snapsup, info); err != nil {
 				return nil, err
 			}
 		}

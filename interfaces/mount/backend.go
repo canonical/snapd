@@ -24,8 +24,10 @@
 // into the snap.
 //
 // Each fstab like file looks like a regular fstab entry:
-//   /src/dir /dst/dir none bind 0 0
-//   /src/dir /dst/dir none bind,rw 0 0
+//
+//	/src/dir /dst/dir none bind 0 0
+//	/src/dir /dst/dir none bind,rw 0 0
+//
 // but only bind mounts are supported
 package mount
 

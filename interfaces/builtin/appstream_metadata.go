@@ -42,7 +42,8 @@ const appstreamMetadataBaseDeclarationSlots = `
 
 // Paths for upstream and collection metadata are defined in the
 // AppStream specification:
-//   https://www.freedesktop.org/software/appstream/docs/
+//
+//	https://www.freedesktop.org/software/appstream/docs/
 const appstreamMetadataConnectedPlugAppArmor = `
 # Description: Allow access to AppStream metadata from the host system
 

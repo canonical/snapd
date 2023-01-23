@@ -258,22 +258,24 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	st := o.State()
 	st.Lock()
 	st.Set("seeded", true)
-	st.Unlock()
-	err = o.StartUp()
-	c.Assert(err, IsNil)
-	o.InterfaceManager().DisableUDevMonitor()
-	s.o = o
-
-	st.Lock()
-	defer st.Unlock()
 	// registered
 	err = assertstate.Add(st, sysdb.GenericClassicModel())
-	c.Assert(err, IsNil)
 	devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "generic",
 		Model:  "generic-classic",
 		Serial: "serialserial",
 	})
+	st.Unlock()
+	c.Assert(err, IsNil)
+	err = o.StartUp()
+	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUDevMonitor()
+	s.o = o
+
+	s.AddCleanup(snapstate.MockEnsuredMountsUpdated(s.o.SnapManager(), true))
+
+	st.Lock()
+	defer st.Unlock()
 
 	// add "core" snap declaration
 	headers := map[string]interface{}{
@@ -508,8 +510,9 @@ func (s *baseMgrsSuite) makeSerialAssertionInState(c *C, st *state.State, brandI
 }
 
 // XXX: We have some very similar code in hookstate/ctlcmd/is_connected_test.go
-//      should this be moved to overlord/snapstate/snapstatetest as a common
-//      helper
+//
+//	should this be moved to overlord/snapstate/snapstatetest as a common
+//	helper
 func (ms *baseMgrsSuite) mockInstalledSnapWithFiles(c *C, snapYaml string, files [][]string) *snap.Info {
 	return ms.mockInstalledSnapWithRevAndFiles(c, snapYaml, snap.R(1), files)
 }
@@ -789,7 +792,7 @@ apps:
 	tr.Commit()
 
 	// put the snap in a quota group
-	err := servicestatetest.MockQuotaInState(st, "quota-grp", "", []string{"foo"},
+	err := servicestatetest.MockQuotaInState(st, "quota-grp", "", []string{"foo"}, nil,
 		quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
 
@@ -841,8 +844,10 @@ apps:
 	tr.Commit()
 
 	// add the snap to a quota group
-	ts, err := servicestate.CreateQuota(st, "grp", "", []string{"foo"},
-		quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	ts, err := servicestate.CreateQuota(st, "grp", servicestate.CreateQuotaOptions{
+		Snaps:          []string{"foo"},
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+	})
 	c.Assert(err, IsNil)
 	quotaUpdateChg := st.NewChange("update-quota", "...")
 	quotaUpdateChg.AddAll(ts)
@@ -6393,7 +6398,7 @@ volumes:
 	updaterForStructureCalls := 0
 	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updaterForStructureCalls++
-		c.Assert(ps.Name, Equals, "foo")
+		c.Assert(ps.Name(), Equals, "foo")
 		return &mockUpdater{}, nil
 	})
 	defer restore()
@@ -8983,7 +8988,7 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"--no-reload", "enable", "snap-snapd-x1.mount"})
 			return nil, nil
 		case 3:
-			c.Check(cmd, DeepEquals, []string{"start", "snap-snapd-x1.mount"})
+			c.Check(cmd, DeepEquals, []string{"reload-or-restart", "snap-snapd-x1.mount"})
 			return nil, nil
 			// next we get the calls for the rewritten service files after snapd
 			// restarts
@@ -9213,7 +9218,7 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"--no-reload", "enable", "snap-snapd-x1.mount"})
 			return nil, nil
 		case 3:
-			c.Check(cmd, DeepEquals, []string{"start", "snap-snapd-x1.mount"})
+			c.Check(cmd, DeepEquals, []string{"reload-or-restart", "snap-snapd-x1.mount"})
 			return nil, nil
 			// next we get the calls for the rewritten service files after snapd
 			// restarts

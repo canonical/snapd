@@ -135,43 +135,33 @@ main() {
 
     local subcommand="$1"
     local action=
-    local params=
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            -h|--help)
-                show_help
-                exit 0
-                ;;
-            *-manual)
-                action=$(echo "$subcommand" | tr '-' '_')                
-                shift
-                if [ "$1" == "--project-path" ]; then
-                    params="$2"
-                    shift 2
-                else
-                    params="$(pwd)"
-                fi
-                # shellcheck disable=SC2124
-                params="$params $@"
-                break
-                ;;
-            *)
-                action=$(echo "$subcommand" | tr '-' '_')
-                shift
-                # shellcheck disable=SC2124
-                params="$@"
-                break
-                ;;
-        esac
-    done
+    if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+        show_help
+        exit 0
+    else
+        action=$(echo "$subcommand" | tr '-' '_')
+        shift
+    fi
 
     if [ -z "$(declare -f "$action")" ]; then
         echo "spread-manager: no such command: $subcommand" >&2
         show_help
         exit 1
     fi
-    "$action" "$params"
-    
+
+    local project_path
+    if [ $# -gt 0 ]; then
+        if [[ "$action" =~ .*_manual ]]; then
+            project_path="$(pwd)"
+            if [ "$1" == "--project-path" ]; then
+                project_path="$2"
+                shift 2
+            fi
+            "$action" "$project_path" "$@"
+        else
+            "$action" "$@"
+        fi
+    fi
 }
 
 main "$@"

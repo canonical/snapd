@@ -333,6 +333,8 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt RestartType
 				task.Logf("Skipped automatic system restart on classic system when undoing changes back to previous state")
 				return nil
 			}
+		} else {
+			task.Logf("Requested system restart")
 		}
 	}
 	task.SetStatus(status)

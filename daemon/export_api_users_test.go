@@ -46,7 +46,7 @@ func MockDeviceStateCreateKnownUsers(createKnownUser func(st *state.State, sudoe
 	return restore
 }
 
-func MockDeviceStateRemoveUser(removeUser func(st *state.State, username string) (*auth.UserState, error)) (restore func()) {
+func MockDeviceStateRemoveUser(removeUser func(st *state.State, username string, opts *devicestate.RemoveUserOptions) (*auth.UserState, error)) (restore func()) {
 	restore = testutil.Backup(&deviceStateRemoveUser)
 	deviceStateRemoveUser = removeUser
 	return restore

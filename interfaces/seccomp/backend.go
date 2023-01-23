@@ -416,9 +416,9 @@ func (b *Backend) SandboxFeatures() []string {
 }
 
 // Determine if the system requires the use of socketcall(). Factors:
-// - if the kernel architecture is amd64, armhf or arm64, do not require
-//   socketcall (unused on these architectures)
-// - if the kernel architecture is i386 or s390x
+//   - if the kernel architecture is amd64, armhf or arm64, do not require
+//     socketcall (unused on these architectures)
+//   - if the kernel architecture is i386 or s390x
 //   - if the kernel is < 4.3, force the use of socketcall()
 //   - for backwards compatibility, if the system is Ubuntu 14.04 or lower,
 //     force use of socketcall()
@@ -426,8 +426,8 @@ func (b *Backend) SandboxFeatures() []string {
 //     "core16", then force use of socketcall()
 //   - otherwise (ie, if new enough kernel, not 14.04, and a non-16 base
 //     snap), don't force use of socketcall()
-// - if the kernel architecture is not any of the above, force the use of
-//   socketcall()
+//   - if the kernel architecture is not any of the above, force the use of
+//     socketcall()
 func requiresSocketcallImpl(baseSnap string) bool {
 	switch dpkgKernelArchitecture() {
 	case "i386", "s390x":

@@ -90,7 +90,7 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 		KernelRootDir: kernelUnpackDir,
 	}
 	for volName, vol := range info.Volumes {
-		pvol, err := gadget.LayoutVolume(vol, gadget.DefaultConstraints, opts)
+		pvol, err := gadget.LayoutVolume(vol, opts)
 		if err != nil {
 			return err
 		}
@@ -106,7 +106,7 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 			dst := filepath.Join(targetDir, volName, fmt.Sprintf("part%d", i))
 			// on UC20, ensure system-seed links back to the
 			// <PrepareDir>/system-seed
-			if ps.Role == gadget.SystemSeed {
+			if ps.Role() == gadget.SystemSeed {
 				uc20systemSeedDir := filepath.Join(fullPrepareDir, "system-seed")
 				if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 					return err

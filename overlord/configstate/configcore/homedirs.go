@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sysconfig"
 )
@@ -119,7 +118,7 @@ func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
 	return nil
 }
 
-func handleHomedirsConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleHomedirsConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	config, err := coreCfg(tr, "homedirs")
 	if err != nil {
 		return err
@@ -132,7 +131,7 @@ func handleHomedirsConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts 
 	return nil
 }
 
-func validateHomedirsConfiguration(tr config.ConfGetter) error {
+func validateHomedirsConfiguration(tr ConfGetter) error {
 	config, err := coreCfg(tr, "homedirs")
 	if err != nil {
 		return err

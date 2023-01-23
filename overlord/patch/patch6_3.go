@@ -41,7 +41,7 @@ func normChan(in string) string {
 }
 
 // patch6_3:
-//  - ensure channel spec is valid
+//   - ensure channel spec is valid
 func patch6_3(st *state.State) error {
 	var snaps map[string]*json.RawMessage
 	if err := st.Get("snaps", &snaps); err != nil && !errors.Is(err, state.ErrNoState) {

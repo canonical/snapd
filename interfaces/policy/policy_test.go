@@ -1617,7 +1617,7 @@ version: 0
 type: gadget
 slots:
   install-slot-or:
-`, `installation denied by "install-slot-or" slot rule.*`},
+`, ""}, // we ignore deny-installation rules for the purpose of the minimal check
 		{`name: install-snap
 version: 0
 slots:
@@ -2490,39 +2490,44 @@ func (s *policySuite) TestNameConstraintsAutoConnection(c *C) {
 // makes it easy to verify correctness of a related set of patterns
 //
 // Eg, if base decl has:
-//   slots:
-//     system-files:
-//       allow-installation:
-//         slot-snap-type:
-//           - core
-//   plugs:
-//     system-files:
-//       allow-installation: false
+//
+//	slots:
+//	  system-files:
+//	    allow-installation:
+//	      slot-snap-type:
+//	        - core
+//	plugs:
+//	  system-files:
+//	    allow-installation: false
 //
 // then test snap decls of the form:
-//   plugs:
-//     system-files:
-//       allow-installation:
-//         plug-attributes:
-//           write: ...
-// or:
-//   plugs:
-//     system-files:
-//       allow-installation:
-//         -
-//           plug-attributes:
-//             write: ...
-// or:
-//   plugs:
-//     system-files:
-//       allow-installation:
-//         -
-//           plug-attributes:
-//             write: ...
-//         -
-//           plug-attributes:
-//             write: ...
 //
+//	plugs:
+//	  system-files:
+//	    allow-installation:
+//	      plug-attributes:
+//	        write: ...
+//
+// or:
+//
+//	plugs:
+//	  system-files:
+//	    allow-installation:
+//	      -
+//	        plug-attributes:
+//	          write: ...
+//
+// or:
+//
+//	plugs:
+//	  system-files:
+//	    allow-installation:
+//	      -
+//	        plug-attributes:
+//	          write: ...
+//	      -
+//	        plug-attributes:
+//	          write: ...
 func (s *policySuite) TestSnapDeclListAttribWithBaseAllowInstallationFalse(c *C) {
 	baseDeclStr := `type: base-declaration
 authority-id: canonical
@@ -2857,8 +2862,9 @@ slots:
       slot-snap-type:
         - app
         - core
-      slot-snap-id:
-        - PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    deny-installation:
+      slot-snap-type:
+        - app
 timestamp: 2022-03-20T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -2945,8 +2951,9 @@ plugs:
       plug-snap-type:
         - app
         - core
-      plug-snap-id:
-        - PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    deny-installation:
+      plug-snap-type:
+        - app
 timestamp: 2022-03-20T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -2964,6 +2971,8 @@ plugs:
 `, nil)
 
 	// ok with dangerous
+	// NB: so far InstallCandidateMinimalCheck simply does not consider
+	// plugs
 	minCand := policy.InstallCandidateMinimalCheck{
 		Snap:            appSnap,
 		BaseDeclaration: baseDecl,

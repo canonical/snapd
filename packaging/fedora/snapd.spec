@@ -92,7 +92,6 @@
 %{!?_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
 %{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
 %{!?_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
-%{!?_tmpfilesdir: %global _tmpfilesdir %{_prefix}/lib/tmpfiles.d}
 
 # Fedora selinux-policy includes 'map' permission on a 'file' class. However,
 # Amazon Linux 2 does not have the updated policy containing the fix for
@@ -233,6 +232,9 @@ the started snap applications.
 Summary:        SELinux module for snapd
 License:        GPLv2+
 BuildArch:      noarch
+BuildRequires:  selinux-policy
+BuildRequires:  selinux-policy-devel
+BuildRequires:  make
 %{?selinux_requires}
 
 %description selinux
@@ -550,7 +552,8 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
 # snap-exec, snap-update-ns, and snapctl need to be built statically
 (
 %if 0%{?rhel} >= 7
-    # since 1.12.1, the go-toolset module is built with FIPS compliance that
+    # since RH Developer tools 2018.4 (and later releases),
+    # the go-toolset module is built with FIPS compliance that
     # defaults to using libcrypto.so which gets loaded at runtime via dlopen(),
     # disable that functionality for statically built binaries
     BUILDTAGS="${BUILDTAGS} no_openssl"
@@ -695,6 +698,7 @@ popd
 pushd ./data
 %make_install BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" DATADIR="%{_datadir}" \
               SYSTEMDSYSTEMUNITDIR="%{_unitdir}" SYSTEMDUSERUNITDIR="%{_userunitdir}" \
+              TMPFILESDIR="%{_tmpfilesdir}" \
               SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
               SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
 popd
@@ -826,7 +830,6 @@ popd
 %{_sysconfdir}/profile.d/snapd.sh
 %{_mandir}/man8/snapd-env-generator.8*
 %{_systemd_system_env_generator_dir}/snapd-env-generator
-%{_tmpfilesdir}/snapd.conf
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.autoimport.service
@@ -836,6 +839,7 @@ popd
 %{_unitdir}/snapd.mounts-pre.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
+%{_tmpfilesdir}/snapd.conf
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.SessionAgent.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
@@ -844,6 +848,7 @@ popd
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_datadir}/applications/io.snapcraft.SessionAgent.desktop
 %{_datadir}/fish/vendor_conf.d/snapd.fish
+%{_datadir}/snapd/snapcraft-logo-bird.svg
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
@@ -4569,7 +4574,7 @@ fi
    1.11 update
  - cmd/snap-bootstrap, secboot, tests: misc cleanups, add spread test
 
-* Thu Dec 15 2020 Michael Vogt <mvo@ubuntu.com>
+* Tue Dec 15 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.48.2
  - tests: sign new nested-18|20* models to allow for generic serials
  - secboot: add extra paranoia when waiting for that fde-reveal-key
