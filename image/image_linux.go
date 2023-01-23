@@ -385,6 +385,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
+	localARefs := make(map[*seedwriter.SeedSnap][]*asserts.Ref)
 	var curSnaps []*tooling.CurrentSnap
 	for _, sn := range localSnaps {
 		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, f, db)
@@ -404,7 +405,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		if err := w.SetInfo(sn, info); err != nil {
 			return err
 		}
-		sn.ARefs = aRefs
+		localARefs[sn] = aRefs
 
 		if info.ID() != "" {
 			curSnaps = append(curSnaps, &tooling.CurrentSnap{
@@ -438,6 +439,21 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		if !sn.Info.Revision.Unset() {
 			imageManifest[sn.Info.SnapName()] = sn.Info.Revision
 		}
+	}
+
+	fetchAsserts := func(sn, _, _ *seedwriter.SeedSnap) ([]*asserts.Ref, error) {
+		if aRefs, ok := localARefs[sn]; ok {
+			return aRefs, nil
+		}
+		// fetch snap assertions
+		prev := len(f.Refs())
+		if _, err = FetchAndCheckSnapAssertions(sn.Path, sn.Info, model, f, db); err != nil {
+			return nil, err
+		}
+		if !sn.Info.Revision.Unset() {
+			imageManifest[sn.Info.SnapName()] = sn.Info.Revision
+		}
+		return f.Refs()[prev:], nil
 	}
 
 	for {
@@ -481,22 +497,9 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 
 		for _, sn := range toDownload {
 			dlsn := downloadedSnaps[sn.SnapName()]
-
 			if err := w.SetRedirectChannel(sn, dlsn.RedirectChannel); err != nil {
 				return err
 			}
-
-			// fetch snap assertions
-			prev := len(f.Refs())
-			if _, err = FetchAndCheckSnapAssertions(dlsn.Path, dlsn.Info, model, f, db); err != nil {
-				return err
-			}
-			if !sn.Info.Revision.Unset() {
-				imageManifest[sn.Info.SnapName()] = sn.Info.Revision
-			}
-			aRefs := f.Refs()[prev:]
-			sn.ARefs = aRefs
-
 			curSnaps = append(curSnaps, &tooling.CurrentSnap{
 				SnapName: sn.Info.SnapName(),
 				SnapID:   sn.Info.ID(),
@@ -506,7 +509,7 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 			})
 		}
 
-		complete, err := w.Downloaded()
+		complete, err := w.Downloaded(fetchAsserts)
 		if err != nil {
 			return err
 		}
