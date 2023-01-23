@@ -68,6 +68,7 @@ var (
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
 	isTPMEnabled                        = (*sb_tpm2.Connection).IsEnabled
+	lockoutAuthSet                      = (*sb_tpm2.Connection).LockoutAuthSet
 	sbTPMEnsureProvisioned              = (*sb_tpm2.Connection).EnsureProvisioned
 	sbTPMEnsureProvisionedWithCustomSRK = (*sb_tpm2.Connection).EnsureProvisionedWithCustomSRK
 	tpmReleaseResources                 = tpmReleaseResourcesImpl
@@ -78,7 +79,7 @@ var (
 	_ (sb.SnapModel) = ModelForSealing(nil)
 )
 
-func CheckTPMKeySealingSupported() error {
+func CheckTPMKeySealingSupported(mode TPMProvisionMode) error {
 	logger.Noticef("checking if secure boot is enabled...")
 	if err := checkSecureBootEnabled(); err != nil {
 		logger.Noticef("secure boot not enabled: %v", err)
@@ -98,6 +99,12 @@ func CheckTPMKeySealingSupported() error {
 	if !isTPMEnabled(tpm) {
 		logger.Noticef("TPM device detected but not enabled")
 		return fmt.Errorf("TPM device is not enabled")
+	}
+	if mode == TPMProvisionFull {
+		if lockoutAuthSet(tpm) {
+			logger.Noticef("TPM in lockout mode")
+			return sb_tpm2.ErrTPMLockout
+		}
 	}
 
 	logger.Noticef("TPM device detected and enabled")
