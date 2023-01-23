@@ -38,7 +38,9 @@ import (
 // pidsOfSnap is a mockable version of PidsOfSnap
 var pidsOfSnap = cgroup.PidsOfSnap
 
-var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
+// refreshAppsCheck returns an error if the snap has processes running that aren't
+// services and aren't marked to be ignored (refresh-mode: "ignore-running").
+var refreshAppsCheck = func(info *snap.Info) error {
 	knownPids, err := pidsOfSnap(info.InstanceName())
 	if err != nil {
 		return err
@@ -57,7 +59,7 @@ var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app 
 	}
 
 	for name, app := range info.Apps {
-		if canAppRunDuringRefresh(app) {
+		if app.IsService() || app.RefreshMode == "ignore-running" {
 			continue
 		}
 		if PIDs := knownPids[app.SecurityTag()]; len(PIDs) > 0 {
@@ -87,46 +89,6 @@ var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app 
 		busyHookNames: busyHookNames,
 		pids:          busyPIDs,
 	}
-}
-
-// SoftNothingRunningRefreshCheck looks if there are at most only service processes alive.
-//
-// The check is designed to run early in the refresh pipeline. Before
-// downloading or stopping services for the update, we can check that only
-// services or snaps that explicitly allow refreshes are running, that is,
-// that no non-service apps or hooks are currently running.
-//
-// Since services are stopped during the update this provides a good early
-// precondition check. The check is also deliberately racy as existing snap
-// commands can fork new processes or existing processes can die. After the
-// soft check passes the user is free to start snap applications and block the
-// hard check.
-//
-// Apart from ignoring services, the check allows apps that want not to
-// block refresh to continue executing.
-func SoftNothingRunningRefreshCheck(info *snap.Info) error {
-	return genericRefreshCheck(info, func(app *snap.AppInfo) bool {
-		return app.IsService() || app.RefreshMode == "ignore-running"
-	})
-}
-
-// HardNothingRunningRefreshCheck looks if there are any undesired processes alive.
-//
-// The check is designed to run late in the refresh pipeline, after stopping
-// snap services. At this point non-enduring services should be stopped, hooks
-// should no longer run, and applications should be barred from running
-// externally (e.g. by using a new inhibition mechanism for snap run).
-//
-// The check fails if any process belonging to the snap, apart from services
-// and snaps that explicitly allow refreshes, is still alive. If a snap is busy
-// it cannot be refreshed and the refresh process is aborted.
-//
-// Apart from ignoring services, the check allows apps that want not to
-// block refresh to continue executing.
-func HardNothingRunningRefreshCheck(info *snap.Info) error {
-	return genericRefreshCheck(info, func(app *snap.AppInfo) bool {
-		return app.IsService() || app.RefreshMode == "ignore-running"
-	})
 }
 
 // BusySnapError indicates that snap has apps or hooks running and cannot refresh.
@@ -192,9 +154,10 @@ func (err BusySnapError) Pids() []int {
 
 // hardEnsureNothingRunningDuringRefresh performs the complete hard refresh interaction.
 //
-// This check uses HardNothingRunningRefreshCheck along with interaction with
-// two locks - the snap lock, shared by snap-confine and snapd and the snap run
-// inhibition lock, shared by snapd and snap run.
+// The check is designed to run late in the refresh pipeline, after stopping
+// snap services. At this point non-enduring services should be stopped, hooks
+// should no longer run, and applications should be barred from running
+// externally (e.g. by using a new inhibition mechanism for snap run).
 //
 // On success this function returns a locked snap lock, allowing the caller to
 // atomically, with regards to "snap-confine", finish any action that required
@@ -210,16 +173,17 @@ func hardEnsureNothingRunningDuringRefresh(backend managerBackend, st *state.Sta
 		// to indicate when the refresh was first inhibited. If the first
 		// refresh inhibition is outside of a grace period then refresh
 		// proceeds regardless of the existing processes.
-		return inhibitRefresh(st, snapst, snapsup, info, HardNothingRunningRefreshCheck)
+		return inhibitRefresh(st, snapst, snapsup, info)
 	})
 }
 
 // softCheckNothingRunningForRefresh checks if non-service apps are off for a snap refresh.
 //
-// The details of the check are explained by SoftNothingRunningRefreshCheck.
-// The check is performed while holding the snap lock, which ensures that we
-// are not racing with snap-confine, which is starting a new process in the
-// context of the given snap.
+// The check is designed to run early in the refresh pipeline. Before downloading
+// or stopping services for the update, that is, that no non-service apps or hooks
+// are currently running. This checks if a non-service and non-ignored snap is
+// running  while holding the snap lock, which ensures that we are not racing with
+// snap-confine, which is starting a new process in the context of the given snap.
 //
 // In the case that the check fails, the state is modified to reflect when the
 // refresh was first postponed. Eventually the check does not fail, even if
@@ -233,6 +197,6 @@ func softCheckNothingRunningForRefresh(st *state.State, snapst *SnapState, snaps
 	return backend.WithSnapLock(info, func() error {
 		// Perform the soft refresh viability check, possibly writing to the state
 		// on failure.
-		return inhibitRefresh(st, snapst, snapsup, info, SoftNothingRunningRefreshCheck)
+		return inhibitRefresh(st, snapst, snapsup, info)
 	})
 }
