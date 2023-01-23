@@ -279,6 +279,8 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 	ts := configstate.Configure(s.state, "core", map[string]interface{}{
 		"witness": true,
 	}, 0)
+	c.Assert(len(ts.Tasks()), Equals, 1)
+	taskID := ts.Tasks()[0].ID()
 
 	configcoreRan := false
 	witnessCfg := false
@@ -289,8 +291,7 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 		err := conf.Get("core", "witness", &witnessCfg)
 		c.Assert(err, IsNil)
 		configcoreRan = true
-		c.Assert(len(ts.Tasks()), Equals, 1)
-		c.Assert(conf.Task().ID(), Equals, ts.Tasks()[0].ID())
+		c.Assert(conf.Task().ID(), Equals, taskID)
 		return nil
 	}
 	r := configstate.MockConfigcoreRun(witnessConfigcoreRun)
