@@ -59,7 +59,6 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
-	userclient "github.com/snapcore/snapd/usersession/client"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -804,11 +803,6 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-
 	st.Lock()
 	snapsup, theStore, user, err := downloadSnapParams(st, t)
 	st.Unlock()
@@ -834,20 +828,14 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	var refreshInfo *userclient.PendingSnapRefreshInfo
-	if err := t.Get("refresh-info", &refreshInfo); err != nil {
-		return err
-	}
-
-	// successfully downloaded update, trigger notification so user stops snap
-	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
-
 	var waitingTasks []string
 	if err := t.Get("waiting-tasks", &waitingTasks); err != nil {
 		return err
 	}
 
-	// reset download tasks that might've postponed themselves waiting for this one
+	// there are download tasks waiting for this one so unblock them
+	// TODO: do we still need to notify the user given there's a ongoing refresh?
+	// Can the hard check fail?
 	if len(waitingTasks) > 0 {
 		for _, chg := range st.Changes() {
 			for _, t := range chg.Tasks() {
@@ -860,60 +848,18 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return nil
 	}
 
-	info, err := snapst.CurrentInfo()
-	if err != nil {
-		return err
-	}
+	for _, ts := range t.Change().Tasks() {
+		if ts.Kind() == "monitor-snaps" {
+			var names []string
+			if err := ts.Get("snap-names", names); err != nil {
+				return err
+			}
 
-	// don't hold state lock while waiting for the snap to stop or doing I/O
-	st.Unlock()
-	defer st.Lock()
-
-	err = backend.WithSnapLock(info, func() error {
-		return runinhibit.LockWithHint(snapsup.InstanceName(), runinhibit.HintInhibitedForPreDownload)
-	})
-	if err != nil {
-		return err
-	}
-
-	if err := refreshAppsCheck(info); err != nil {
-		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
-
-		done := make(chan string)
-		if err := cgroup.MonitorSnapEnded(snapsup.InstanceName(), done); err != nil {
-			return err
-		}
-
-		select {
-		case <-done:
+			names = append(names, snapsup.InstanceName())
+			ts.Set("snap-names", names)
+			break
 		}
 	}
-
-	if err := runinhibit.LockWithHint(snapsup.InstanceName(), runinhibit.HintInhibitedForRefresh); err != nil {
-		return err
-	}
-
-	st.Lock()
-	defer st.Unlock()
-
-	snaps, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
-	if err != nil {
-		return err
-	}
-
-	chg := mkAutoRefreshChange(st, snaps, tasksets)
-	if chg == nil {
-		// no snaps to refresh
-		return nil
-	}
-
-	releaseTask := st.NewTask("release-inhibit", "Release inhibition lock")
-	for _, t := range chg.Tasks() {
-		releaseTask.WaitFor(t)
-	}
-
-	// release the inhibition lock at the end even if the change fails
-	chg.AddTask(releaseTask)
 
 	return nil
 }
@@ -942,14 +888,64 @@ func findTasksMatching(st *state.State, kind string, snapName string, revision s
 	return tasks, nil
 }
 
-// TODO: always release the lock regardless of how the change terminates
-func (m *SnapManager) doReleaseInhibitLock(t *state.Task, tomb *tomb.Tomb) error {
-	snapsup, _, err := snapSetupAndState(t)
-	if err != nil {
+func (m *SnapManager) doMonitorSnaps(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var snapNames []string
+	if err := t.Get("snap-names", &snapNames); err != nil {
 		return err
 	}
 
-	return runinhibit.Unlock(snapsup.InstanceName())
+	done := make(chan string, len(snapNames))
+	var openSnaps int
+
+	for _, name := range snapNames {
+		var snapst SnapState
+		err := Get(t.State(), name, &snapst)
+		if err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+
+		err = backend.WithSnapLock(info, func() error {
+			return runinhibit.LockWithHint(name, runinhibit.HintInhibitedForPreDownload)
+		})
+		if err != nil {
+			return err
+		}
+
+		if err := refreshAppsCheck(info); err != nil {
+			// TODO: enable notification. Get refresh-info from pre-download task or move it?
+			//asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+
+			// TODO: notifying about multiple snaps in one call? new API endpoint?
+
+			if err := cgroup.MonitorSnapEnded(name, done); err != nil {
+				// TODO: go ahead with others?
+				return err
+			}
+
+			openSnaps++
+		}
+	}
+
+	st.Unlock()
+	for open := len(snapNames); open > 0; open-- {
+		select {
+		case <-done:
+			// TODO: timeouts?
+		}
+	}
+	st.Lock()
+
+	// TODO: hard check and then auto-refresh
+	return nil
 }
 
 var (

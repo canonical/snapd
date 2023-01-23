@@ -537,10 +537,18 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	}
 
 	var preDlTss, autorefreshTss []*state.TaskSet
+	var busySnaps []string
 	for _, ts := range tasksets {
 		tasks := ts.Tasks()
 		if len(tasks) == 1 && tasks[0].Kind() == "pre-download-snap" {
 			preDlTss = append(preDlTss, ts)
+
+			var snapsup *SnapSetup
+			if err := tasks[0].Get("snap-setup", &snapsup); err != nil {
+				return err
+			}
+
+			busySnaps = append(busySnaps, snapsup.InstanceName())
 		} else {
 			autorefreshTss = append(autorefreshTss, ts)
 		}
@@ -548,8 +556,15 @@ func (m *autoRefresh) launchAutoRefresh() error {
 
 	if preDlTss != nil {
 		chg := m.state.NewChange("pre-download", i18n.G("Pre-download tasks for auto-refresh"))
+
+		// TODO; the monitor task waits for all pre-downloads. If any fail, maybe we
+		// shouldn't notify the user about it and we shouldn't wait for it to stop
+		monitorTask := m.state.NewTask("monitor-snaps", i18n.G("Monitor pre-downloaded snaps"))
+		chg.AddTask(monitorTask)
+
 		for _, ts := range preDlTss {
 			chg.AddAll(ts)
+			monitorTask.WaitAll(ts)
 		}
 	}
 
@@ -564,6 +579,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return err
 	}
 
+	// TODO: no longer necessary; restore to how it was
 	chg := mkAutoRefreshChange(m.state, updated, autorefreshTss)
 	state.TagTimingsWithChange(perfTimings, chg)
 	return nil
