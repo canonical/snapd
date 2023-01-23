@@ -92,7 +92,7 @@ func (s *homedirsSuite) TestValidationUnhappy(c *C) {
 		// combine a valid path with an invalid one
 		{"/home/existingDir,/boot/invalid", `path "/boot/invalid/" uses reserved root directory "/boot/"`},
 	} {
-		err := configcore.Run(coreDev, &mockConf{
+		err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"homedirs": testData.homedirs,
@@ -107,7 +107,7 @@ func (s *homedirsSuite) TestConfigureWriteFailure(c *C) {
 		return errors.New("some write error")
 	})
 	defer restore()
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"homedirs": "/home/existingDir",
@@ -135,7 +135,7 @@ func (s *homedirsSuite) TestConfigureUnchanged(c *C) {
 	})
 	defer restore()
 
-	err = configcore.Run(coreDev, &mockConf{
+	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"homedirs": "/home/existingDir",
@@ -152,7 +152,7 @@ func (s *homedirsSuite) TestConfigureApparmorTunableFailure(c *C) {
 		return errors.New("tunable error")
 	})
 	defer restore()
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"homedirs": "/home/existingDir/one,/home/existingDir/two",
@@ -167,7 +167,7 @@ func (s *homedirsSuite) TestConfigureApparmorReloadFailure(c *C) {
 		return errors.New("reload error")
 	})
 	defer restore()
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"homedirs": "/home/existingDir",
@@ -191,7 +191,7 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 	})
 	defer restore()
 
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"homedirs": "/home/existingDir",
@@ -218,7 +218,7 @@ func (s *homedirsSuite) TestConfigureHomedirsEmptyHappy(c *C) {
 		return nil
 	})
 	defer restore()
-	err := configcore.Run(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"homedirs": "",

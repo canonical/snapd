@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
+// +build !nomanagers
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -20,13 +22,13 @@
 package configstate
 
 import (
-	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
 var NewConfigureHandler = newConfigureHandler
 
-func MockConfigcoreExportExperimentalFlags(mock func(tr config.ConfGetter) error) (restore func()) {
+func MockConfigcoreExportExperimentalFlags(mock func(tr configcore.ConfGetter) error) (restore func()) {
 	old := configcoreExportExperimentalFlags
 	configcoreExportExperimentalFlags = mock
 	return func() {
@@ -34,7 +36,7 @@ func MockConfigcoreExportExperimentalFlags(mock func(tr config.ConfGetter) error
 	}
 }
 
-func MockConfigcoreEarly(mock func(dev sysconfig.Device, cfg config.Conf, values map[string]interface{}) error) (restore func()) {
+func MockConfigcoreEarly(mock func(dev sysconfig.Device, cfg configcore.Conf, values map[string]interface{}) error) (restore func()) {
 	old := configcoreEarly
 	configcoreEarly = mock
 	return func() {

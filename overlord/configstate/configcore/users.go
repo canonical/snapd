@@ -23,8 +23,6 @@ package configcore
 
 import (
 	"strings"
-
-	"github.com/snapcore/snapd/overlord/configstate/config"
 )
 
 func init() {
@@ -39,11 +37,11 @@ func earlyUsersSettingsFilter(values, early map[string]interface{}) {
 	}
 }
 
-func validateUsersSettings(tr config.Conf) error {
+func validateUsersSettings(tr Conf) error {
 	return validateBoolFlag(tr, "users.create.automatic")
 }
 
-func handleUserSettings(tr config.Conf, opts *fsOnlyContext) error {
+func handleUserSettings(tr Conf, opts *fsOnlyContext) error {
 	output, err := coreCfg(tr, "users.create.automatic")
 	if err != nil {
 		return nil

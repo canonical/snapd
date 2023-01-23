@@ -3,7 +3,7 @@
 // +build !nomanagers
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,34 +22,23 @@
 package configcore_test
 
 import (
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	. "gopkg.in/check.v1"
 )
 
-type earlySuite struct {
-	configcoreSuite
+func (s *configcoreSuite) TestNilHandleWithStateHandlerPanic(c *C) {
+	c.Assert(func() { configcore.AddWithStateHandler(nil, nil, nil) },
+		Panics, "cannot have nil handle with addWithStateHandler if validatedOnlyStateConfig flag is not set")
 }
 
-var _ = Suite(&earlySuite{})
-
-func (s *earlySuite) TestEarly(c *C) {
-	patch := map[string]interface{}{
-		"experimental.parallel-instances": true,
-		"experimental.user-daemons":       true,
-		"services.ssh.disable":            true,
+func (r *configcoreSuite) TestConfigureUnknownOption(c *C) {
+	conf := &mockConf{
+		state: r.state,
+		changes: map[string]interface{}{
+			"unknown.option": "1",
+		},
 	}
-	tr := &mockConf{state: s.state}
-	err := configcore.Early(coreDev, tr, patch)
-	c.Assert(err, IsNil)
 
-	// only early options as described by flags earlyConfigFilters
-	// were processed
-
-	c.Check(tr.conf, DeepEquals, map[string]interface{}{
-		"experimental.parallel-instances": true,
-		"experimental.user-daemons":       true,
-	})
-	c.Check(features.ParallelInstances.IsEnabled(), Equals, true)
+	err := configcore.Run(coreDev, conf)
+	c.Check(err, ErrorMatches, `cannot set "core.unknown.option": unsupported system option`)
 }

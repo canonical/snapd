@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -34,11 +33,11 @@ func init() {
 	supportedConfigurations["core.users.lockout"] = true
 }
 
-func validateFaillockSettings(tr config.ConfGetter) error {
+func validateFaillockSettings(tr ConfGetter) error {
 	return validateBoolFlag(tr, "users.lockout")
 }
 
-func handleFaillockConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleFaillockConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	faillock, err := coreCfg(tr, "users.lockout")
 	if err != nil {
 		return err
