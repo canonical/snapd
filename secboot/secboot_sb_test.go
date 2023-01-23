@@ -82,31 +82,45 @@ func (s *secbootSuite) TestCheckTPMKeySealingSupported(c *C) {
 	efiNotSupported := []uint8(nil)
 	tpmErr := errors.New("TPM error")
 
+	tpmModesBoth := []secboot.TPMProvisionMode{secboot.TPMProvisionFull, secboot.TPMPartialReprovision}
 	type testCase struct {
 		tpmErr     error
 		tpmEnabled bool
+		tpmLockout bool
+		tpmModes   []secboot.TPMProvisionMode
 		sbData     []uint8
 		err        string
 	}
 	for i, tc := range []testCase{
 		// happy case
-		{tpmErr: nil, tpmEnabled: true, sbData: sbEnabled, err: ""},
+		{tpmErr: nil, tpmEnabled: true, tpmLockout: false, tpmModes: tpmModesBoth, sbData: sbEnabled, err: ""},
 		// secure boot EFI var is empty
-		{tpmErr: nil, tpmEnabled: true, sbData: sbEmpty, err: "secure boot variable does not exist"},
+		{tpmErr: nil, tpmEnabled: true, tpmLockout: false, tpmModes: tpmModesBoth, sbData: sbEmpty, err: "secure boot variable does not exist"},
 		// secure boot is disabled
-		{tpmErr: nil, tpmEnabled: true, sbData: sbDisabled, err: "secure boot is disabled"},
+		{tpmErr: nil, tpmEnabled: true, tpmLockout: false, tpmModes: tpmModesBoth, sbData: sbDisabled, err: "secure boot is disabled"},
 		// EFI not supported
-		{tpmErr: nil, tpmEnabled: true, sbData: efiNotSupported, err: "not a supported EFI system"},
+		{tpmErr: nil, tpmEnabled: true, tpmLockout: false, tpmModes: tpmModesBoth, sbData: efiNotSupported, err: "not a supported EFI system"},
 		// TPM connection error
-		{tpmErr: tpmErr, sbData: sbEnabled, err: "cannot connect to TPM device: TPM error"},
+		{tpmErr: tpmErr, sbData: sbEnabled, tpmLockout: false, tpmModes: tpmModesBoth, err: "cannot connect to TPM device: TPM error"},
 		// TPM was detected but it's not enabled
-		{tpmErr: nil, tpmEnabled: false, sbData: sbEnabled, err: "TPM device is not enabled"},
+		{tpmErr: nil, tpmEnabled: false, tpmLockout: false, tpmModes: tpmModesBoth, sbData: sbEnabled, err: "TPM device is not enabled"},
 		// No TPM device
-		{tpmErr: sb_tpm2.ErrNoTPM2Device, sbData: sbEnabled, err: "cannot connect to TPM device: no TPM2 device is available"},
+		{tpmErr: sb_tpm2.ErrNoTPM2Device, tpmLockout: false, tpmModes: tpmModesBoth, sbData: sbEnabled, err: "cannot connect to TPM device: no TPM2 device is available"},
+
+		// In DA lockout mode full provision errors
+		{tpmErr: nil, tpmEnabled: true, tpmLockout: true, tpmModes: []secboot.TPMProvisionMode{secboot.TPMProvisionFull}, sbData: sbEnabled, err: "the TPM is in DA lockout mode"},
+
+		// In DA lockout mode partial provision is fine
+		{tpmErr: nil, tpmEnabled: true, tpmLockout: true, tpmModes: []secboot.TPMProvisionMode{secboot.TPMPartialReprovision}, sbData: sbEnabled, err: ""},
 	} {
-		c.Logf("%d: %v %v %v %q", i, tc.tpmErr, tc.tpmEnabled, tc.sbData, tc.err)
+		c.Logf("%d: %v %v %v %v %q", i, tc.tpmErr, tc.tpmEnabled, tc.tpmModes, tc.sbData, tc.err)
 
 		_, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		restore = secboot.MockSbLockoutAuthSet(func(tpm *sb_tpm2.Connection) bool {
+			return tc.tpmLockout
+		})
 		defer restore()
 
 		restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
@@ -121,11 +135,13 @@ func (s *secbootSuite) TestCheckTPMKeySealingSupported(c *C) {
 		restoreEfiVars := efi.MockVars(vars, nil)
 		defer restoreEfiVars()
 
-		err := secboot.CheckTPMKeySealingSupported()
-		if tc.err == "" {
-			c.Assert(err, IsNil)
-		} else {
-			c.Assert(err, ErrorMatches, tc.err)
+		for _, tpmMode := range tc.tpmModes {
+			err := secboot.CheckTPMKeySealingSupported(tpmMode)
+			if tc.err == "" {
+				c.Assert(err, IsNil)
+			} else {
+				c.Assert(err, ErrorMatches, tc.err)
+			}
 		}
 	}
 }
