@@ -367,7 +367,7 @@ func showDone(cli *client.Client, chg *client.Change, names []string, op string,
 	}
 
 	if hasWaitTasks(chg) {
-		fmt.Fprintf(Stdout, i18n.G("Change %v waiting to be completed\n"), chg.ID)
+		fmt.Fprintf(Stdout, i18n.G("Change %v waiting on external action to be completed\n"), chg.ID)
 		return nil
 	}
 

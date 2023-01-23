@@ -41,7 +41,7 @@ type waitMixin struct {
 	NoWait    bool `long:"no-wait"`
 	skipAbort bool
 
-	// Wait also for tasks in he "wait" state.
+	// Wait also for tasks in the "wait" state.
 	waitWaitTasks bool
 }
 
