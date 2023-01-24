@@ -187,8 +187,7 @@ var mockLaidoutStructureWritable = gadget.LaidOutStructure{
 		// yaml structure (the MBR) that does not appear on disk
 		Offset: asOffsetPtr(1260388352),
 	},
-	StartOffset: 1260388352,
-	YamlIndex:   3,
+	YamlIndex: 3,
 }
 
 var mockLaidoutStructureSave = gadget.LaidOutStructure{
@@ -215,8 +214,7 @@ var mockLaidoutStructureSave = gadget.LaidOutStructure{
 		Filesystem: "ext4",
 		Offset:     asOffsetPtr(1260388352),
 	},
-	StartOffset: 1260388352,
-	YamlIndex:   3,
+	YamlIndex: 3,
 }
 
 var mockLaidoutStructureWritableAfterSave = gadget.LaidOutStructure{
@@ -244,8 +242,7 @@ var mockLaidoutStructureWritableAfterSave = gadget.LaidOutStructure{
 		Filesystem: "ext4",
 		Offset:     asOffsetPtr(1394606080),
 	},
-	StartOffset: 1394606080,
-	YamlIndex:   4,
+	YamlIndex: 4,
 }
 
 type uc20Model struct{}

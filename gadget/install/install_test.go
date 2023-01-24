@@ -649,8 +649,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					Filesystem: "vfat",
 					Size:       750 * quantity.SizeMiB,
 				},
-				StartOffset: (1 + 1200) * quantity.OffsetMiB,
-				YamlIndex:   1,
+				YamlIndex: 1,
 			},
 		}
 		if opts.noSave {
@@ -676,8 +675,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					Filesystem: "ext4",
 					Size:       (30528 - (1 + 1200 + 750)) * quantity.SizeMiB,
 				},
-				StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
-				YamlIndex:   2,
+				YamlIndex: 2,
 			},
 			)
 		} else {
@@ -704,8 +702,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 						Filesystem: "ext4",
 						Size:       16 * quantity.SizeMiB,
 					},
-					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
-					YamlIndex:   2,
+					YamlIndex: 2,
 				},
 			)
 			expectedDss = append(expectedDss, gadget.LaidOutStructure{
@@ -732,8 +729,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					// somewhere
 					Size: 1500 * quantity.SizeMiB,
 				},
-				StartOffset: (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
-				YamlIndex:   3,
+				YamlIndex: 3,
 			},
 			)
 		}

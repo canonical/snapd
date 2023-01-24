@@ -79,9 +79,6 @@ type LaidOutStructure struct {
 	OnDiskStructure
 	// VolumeStructure is the volume structure defined in gadget.yaml
 	VolumeStructure *VolumeStructure
-	// StartOffset defines the start offset of the structure within the
-	// enclosing volume
-	StartOffset quantity.Offset
 	// AbsoluteOffsetWrite is the resolved absolute position of offset-write
 	// for this structure element within the enclosing volume
 	AbsoluteOffsetWrite *quantity.Offset
@@ -201,7 +198,6 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byNa
 	for idx := range volume.Structure {
 		ps := LaidOutStructure{
 			VolumeStructure: &volume.Structure[idx],
-			StartOffset:     *volume.Structure[idx].Offset,
 			YamlIndex:       idx,
 		}
 
@@ -214,8 +210,8 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byNa
 		ps.OnDiskStructure = OnDiskStructure{
 			//Name:        ps.VolumeStructure.Name,
 			//Type:        ps.VolumeStructure.Type,
-			//StartOffset: *volume.Structure[idx].Offset,
-			Size: ps.VolumeStructure.Size,
+			StartOffset: *volume.Structure[idx].Offset,
+			Size:        ps.VolumeStructure.Size,
 		}
 
 		structures[idx] = ps

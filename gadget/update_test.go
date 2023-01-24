@@ -275,46 +275,46 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 		{
 			// explicitly declared start offset change
 			from: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1024},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
-				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 2048},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
-				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from [0-9]+ to [0-9]+",
 		}, {
 			// explicitly declared start offset in new structure
 			from: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1024},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
-				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 2048},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
-				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from unspecified to [0-9]+",
 		}, {
 			// explicitly declared start offset in old structure,
 			// missing from new
 			from: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1024},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
-				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 2048},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: nil},
-				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from [0-9]+ to unspecified",
 		}, {
 			// start offset changed due to layout
 			from: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1 * quantity.OffsetMiB},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-				StartOffset:     1 * quantity.OffsetMiB,
 			},
 			to: gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{StartOffset: 2 * quantity.OffsetMiB},
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-				StartOffset:     2 * quantity.OffsetMiB,
 			},
 			err: "cannot change structure start offset from [0-9]+ to [0-9]+",
 		},
@@ -3179,23 +3179,23 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	defer restore()
 
 	psBare := &gadget.LaidOutStructure{
+		OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1 * quantity.OffsetMiB},
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "none",
 			Size:       10 * quantity.SizeMiB,
 		},
-		StartOffset: 1 * quantity.OffsetMiB,
 	}
 	updater, err := gadget.UpdaterForStructure(gadget.StructureLocation{}, psBare, gadgetRootDir, rollbackDir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(updater, FitsTypeOf, &gadget.RawStructureUpdater{})
 
 	psFs := &gadget.LaidOutStructure{
+		OnDiskStructure: gadget.OnDiskStructure{StartOffset: 1 * quantity.OffsetMiB},
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "ext4",
 			Size:       10 * quantity.SizeMiB,
 			Label:      "writable",
 		},
-		StartOffset: 1 * quantity.OffsetMiB,
 	}
 	updater, err = gadget.UpdaterForStructure(gadget.StructureLocation{}, psFs, gadgetRootDir, rollbackDir, nil)
 	c.Assert(err, IsNil)

@@ -2167,7 +2167,6 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 					{Image: "u-boot.imz"},
 				},
 			},
-			StartOffset: 24576,
 			LaidOutContent: []gadget.LaidOutContent{
 				{
 					VolumeContent: &gadget.VolumeContent{
