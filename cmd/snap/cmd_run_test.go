@@ -2081,6 +2081,10 @@ func (s *RunSuite) TestDesktopIntegrationNoDBus(c *check.C) {
 	_, r := logger.MockLogger()
 	defer r()
 
+	noDBus := func() (*dbus.Conn, error) { return nil, fmt.Errorf("dbus not available") }
+	restore := dbusutil.MockConnections(noDBus, noDBus)
+	defer restore()
+
 	sent, err := snaprun.TryNotifyRefreshViaSnapDesktopIntegrationFlow("Test")
 	c.Assert(sent, check.Equals, false)
 	c.Assert(err, check.IsNil)
