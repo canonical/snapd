@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -47,7 +48,8 @@ func makeRollbackDir(name string) (string, error) {
 	return rollbackDir, nil
 }
 
-func currentGadgetInfo(st *state.State, curDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
+// CurrentGadgetInfo returns the gadget data for the currently installed snap.
+func CurrentGadgetInfo(st *state.State, curDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
 	currentInfo, err := snapstate.GadgetInfo(st, curDeviceCtx)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
@@ -128,7 +130,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 		// now calculate the "update" data, it's the same gadget but
 		// argumented from a different kernel
-		updateData, err = currentGadgetInfo(t.State(), groundDeviceCtx)
+		updateData, err = CurrentGadgetInfo(t.State(), groundDeviceCtx)
 		if err != nil {
 			return err
 		}
@@ -136,7 +138,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return fmt.Errorf("internal errror: doUpdateGadgetAssets called with snap type %v", snapsup.Type)
 	}
 
-	currentData, err := currentGadgetInfo(t.State(), groundDeviceCtx)
+	currentData, err := CurrentGadgetInfo(t.State(), groundDeviceCtx)
 	if err != nil {
 		return err
 	}
@@ -210,11 +212,41 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, nil)
 }
 
-func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, isUndo bool) (updated bool, err error) {
-	snapsup, err := snapstate.TaskSnapSetup(t)
-	if err != nil {
-		return false, err
+func buildOptionalKernelCommandLine(st *state.State) (string, error) {
+	var cmdlineOpt, cmdlineOptDanger string
+	tr := config.NewTransaction(st)
+	// Note that validation has already happened in configcore.
+	if err := tr.Get("core", "system.boot.cmdline-extra",
+		&cmdlineOpt); err != nil && !config.IsNoOption(err) {
+		return "", err
 	}
+
+	// Dangerous extra cmdline only considered for dangerous models and if
+	// the extra cmdline is not set.
+	if cmdlineOpt == "" {
+		deviceCtx, err := DeviceCtx(st, nil, nil)
+		if err != nil {
+			return "", err
+		}
+		if deviceCtx.Model().Grade() == asserts.ModelDangerous &&
+			cmdlineOpt == "" {
+			if err := tr.Get("core", "system.boot.dangerous-cmdline-extra",
+				&cmdlineOptDanger); err != nil && !config.IsNoOption(err) {
+				return "", err
+			}
+			cmdlineOpt = cmdlineOptDanger
+		}
+	}
+	logger.Debugf("optional command line part is %q", cmdlineOpt)
+
+	if cmdlineOpt != "" {
+		cmdlineOpt = " " + cmdlineOpt
+	}
+	return cmdlineOpt, nil
+}
+
+func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, useCurrentGadget bool) (updated bool, err error) {
+	logger.Debugf("updating kernel command line")
 	devCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return false, err
@@ -224,22 +256,33 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 		return false, nil
 	}
 	var gadgetData *gadget.GadgetData
-	if !isUndo {
-		// when updating, command line comes from the new gadget
+	if !useCurrentGadget {
+		// command line comes from the new gadget when updating
+		snapsup, err := snapstate.TaskSnapSetup(t)
+		if err != nil {
+			return false, err
+		}
 		gadgetData, err = pendingGadgetInfo(snapsup, devCtx)
 		if err != nil {
 			return false, err
 		}
 	} else {
-		// but when undoing, we use the current gadget which should have
-		// been restored
-		currentGadgetData, err := currentGadgetInfo(st, devCtx)
+		// but when undoing or when the change comes from a
+		// system option (no setup task), we use the current
+		// gadget (should have been restored in the undo case)
+		currentGadgetData, err := CurrentGadgetInfo(st, devCtx)
 		if err != nil {
 			return false, err
 		}
 		gadgetData = currentGadgetData
 	}
-	updated, err = boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir)
+
+	cmdlineOpt, err := buildOptionalKernelCommandLine(st)
+	if err != nil {
+		return false, err
+	}
+
+	updated, err = boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir, cmdlineOpt)
 	if err != nil {
 		return false, fmt.Errorf("cannot update kernel command line from gadget: %v", err)
 	}
@@ -269,8 +312,17 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 		return nil
 	}
 
-	const isUndo = false
-	updated, err := m.updateGadgetCommandLine(t, st, isUndo)
+	// Find out if the update has been triggered by setting a system
+	// option that modifies the kernel command line.
+	var isSysOption bool
+	if err := t.Get("system-option", &isSysOption); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	// We use the current gadget kernel command line if the change comes
+	// from setting a system option.
+	useCurrentGadget := isSysOption
+	updated, err := m.updateGadgetCommandLine(t, st, useCurrentGadget)
 	if err != nil {
 		return err
 	}
@@ -284,8 +336,12 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 	// snap carries an update to the gadget assets and a change in the
 	// kernel command line
 
-	// kernel command line was updated, request a reboot to make it effective
+	if isSysOption {
+		logger.Debugf("change comes from system option, we do not reboot")
+		return nil
+	}
 
+	// kernel command line was updated, request a reboot to make it effective
 	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, nil)
 }
 

@@ -413,7 +413,7 @@ func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
 		sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, append([][]string{
 			{"meta/snap.yaml", gadgetSnapYaml},
 		}, tc.files...))
-		vars, err := boot.BootVarsForTrustedCommandLineFromGadget(sf)
+		vars, err := boot.BootVarsForTrustedCommandLineFromGadget(sf, "")
 		if tc.errMsg == "" {
 			c.Assert(err, IsNil)
 			c.Assert(vars, DeepEquals, tc.expectedVars)

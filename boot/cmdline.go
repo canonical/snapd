@@ -107,7 +107,7 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 // bootVarsForTrustedCommandLineFromGadget returns a set of boot variables that
 // carry the command line arguments requested by the gadget. This is only useful
 // if snapd is managing the boot config.
-func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath string) (map[string]string, error) {
+func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath, cmdlineOpt string) (map[string]string, error) {
 	extraOrFull, full, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath)
 	if err != nil {
 		if err == gadget.ErrNoKernelCommandline {
@@ -121,6 +121,8 @@ func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath string) (map[st
 		}
 		return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
 	}
+	logger.Debugf("extraOrFull: %q, cmdlineOpt: %q", extraOrFull, cmdlineOpt)
+	extraOrFull += cmdlineOpt
 	// gadget has the kernel command line
 	args := map[string]string{
 		"snapd_extra_cmdline_args": "",
@@ -328,7 +330,7 @@ const (
 // by an update of boot config or the gadget snap. When needed, the modeenv is
 // updated with a candidate command line and the encryption keys are resealed.
 // This helper should be called right before updating the managed boot config.
-func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReason, gadgetSnapOrDir string) (updated bool, err error) {
+func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReason, gadgetSnapOrDir, cmdlineDyn string) (updated bool, err error) {
 	// TODO:UC20: consider updating a recovery system command line
 
 	m, err := loadModeenv()
@@ -355,6 +357,8 @@ func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReas
 	if err != nil {
 		return false, err
 	}
+	// Add part coming from options
+	candidateCmdline += cmdlineDyn
 	if cmdline == candidateCmdline {
 		// command line is the same or no actual change in modeenv
 		return false, nil

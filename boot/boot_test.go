@@ -3341,7 +3341,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyNoKeysNoReseal(c *C) {
 	})
 	defer restore()
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, "")
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
@@ -3397,7 +3397,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyWithReseal(c *C) {
 	})
 	defer restore()
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, "")
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
@@ -3436,7 +3436,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyNoChange(c *C) {
 	})
 	defer restore()
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, "")
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
@@ -3450,7 +3450,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyNoChange(c *C) {
 func (s *bootConfigSuite) TestBootConfigUpdateNonUC20DoesNothing(c *C) {
 	nonUC20coreDev := boottest.MockDevice("pc-kernel")
 	c.Assert(nonUC20coreDev.HasModeenv(), Equals, false)
-	updated, err := boot.UpdateManagedBootConfigs(nonUC20coreDev, s.gadgetSnap)
+	updated, err := boot.UpdateManagedBootConfigs(nonUC20coreDev, s.gadgetSnap, "")
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
@@ -3459,7 +3459,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateNonUC20DoesNothing(c *C) {
 func (s *bootConfigSuite) TestBootConfigUpdateBadModeErr(c *C) {
 	uc20Dev := boottest.MockUC20Device("recover", nil)
 	c.Assert(uc20Dev.HasModeenv(), Equals, true)
-	updated, err := boot.UpdateManagedBootConfigs(uc20Dev, s.gadgetSnap)
+	updated, err := boot.UpdateManagedBootConfigs(uc20Dev, s.gadgetSnap, "")
 	c.Assert(err, ErrorMatches, "internal error: boot config can only be updated in run mode")
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
@@ -3479,7 +3479,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateFailErr(c *C) {
 
 	s.bootloader.UpdateErr = errors.New("update fail")
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, "")
 	c.Assert(err, ErrorMatches, "update fail")
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
@@ -3496,7 +3496,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateCmdlineMismatchErr(c *C) {
 
 	s.mockCmdline(c, "snapd_recovery_mode=run unexpected cmdline")
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, "")
 	c.Assert(err, ErrorMatches, `internal error: current kernel command lines is unset`)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
@@ -3515,7 +3515,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateNotManagedErr(c *C) {
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, "")
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
@@ -3533,7 +3533,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateBootloaderFindErr(c *C) {
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, "")
 	c.Assert(err, ErrorMatches, "internal error: cannot find trusted assets bootloader under .*: mocked find error")
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
@@ -3593,7 +3593,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateWithGadgetAndReseal(c *C) {
 	})
 	defer restore()
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev, gadgetSnap)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, gadgetSnap, "")
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
@@ -3641,7 +3641,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateWithGadgetFullAndReseal(c *C) {
 	})
 	defer restore()
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev, gadgetSnap)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, gadgetSnap, "")
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, true)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
@@ -3745,7 +3745,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateNonUC20(c *C) {
 		{"cmdline.extra", "foo"},
 	})
 
-	reboot, err := boot.UpdateCommandLineForGadgetComponent(nonUC20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(nonUC20dev, sf, "")
 	c.Assert(err, ErrorMatches, `internal error: command line component cannot be updated on pre-UC20 devices`)
 	c.Assert(reboot, Equals, false)
 }
@@ -3761,7 +3761,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20NotManagedBootload
 	bl.SetErr = fmt.Errorf("unexpected call")
 	s.forceBootloader(bl)
 
-	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf, "")
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, false)
 	c.Check(bl.SetBootVarsCalls, Equals, 0)
@@ -3777,7 +3777,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsAdded(c *C) {
 	s.modeenvWithEncryption.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run static mocked panic=-1"}
 	c.Assert(s.modeenvWithEncryption.WriteTo(""), IsNil)
 
-	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf, "")
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, true)
 
@@ -3823,7 +3823,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsSwitch(c *C) {
 	c.Assert(err, IsNil)
 	s.bootloader.SetBootVarsCalls = 0
 
-	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf, "")
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, false)
 
@@ -3849,7 +3849,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsSwitch(c *C) {
 		{"cmdline.extra", "changed"},
 	})
 
-	reboot, err = boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sfChanged)
+	reboot, err = boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sfChanged, "")
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, true)
 
@@ -3896,7 +3896,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20UnencryptedArgsRem
 	c.Assert(err, IsNil)
 	s.bootloader.SetBootVarsCalls = 0
 
-	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf, "")
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, true)
 
@@ -3936,7 +3936,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20SetError(c *C) {
 
 	s.bootloader.SetErr = fmt.Errorf("set fails")
 
-	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf, "")
 	c.Assert(err, ErrorMatches, "cannot set run system kernel command line arguments: set fails")
 	c.Assert(reboot, Equals, false)
 	// set boot vars was called and failed
@@ -3974,7 +3974,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateWithResealError(c *C) 
 	})
 	defer restore()
 
-	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, gadgetSnap)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, gadgetSnap, "")
 	c.Assert(err, ErrorMatches, "cannot reseal the encryption key: reseal fails")
 	c.Check(reboot, Equals, false)
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
@@ -4006,7 +4006,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20TransitionFullExtr
 	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "extra args"},
 	})
-	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf, "")
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, true)
 	c.Check(s.resealCalls, Equals, 1)
@@ -4039,7 +4039,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20TransitionFullExtr
 	sfFull := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.full", "full args"},
 	})
-	reboot, err = boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sfFull)
+	reboot, err = boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sfFull, "")
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, true)
 	c.Check(s.resealCalls, Equals, 2)
@@ -4072,7 +4072,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20TransitionFullExtr
 
 	// transition back to no arguments from the gadget
 	sfNone := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, nil)
-	reboot, err = boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sfNone)
+	reboot, err = boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sfNone, "")
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, true)
 	c.Check(s.resealCalls, Equals, 3)
@@ -4146,7 +4146,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	// let's panic on reseal first
 	resealPanic = true
 	c.Assert(func() {
-		boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
+		boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf, "")
 	}, PanicMatches, "reseal panic")
 	c.Check(s.resealCalls, Equals, 1)
 	c.Check(s.resealCommandLines, DeepEquals, [][]string{{
@@ -4183,7 +4183,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	resealPanic = false
 	// but panic in set
 	c.Assert(func() {
-		boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
+		boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf, "")
 	}, PanicMatches, "mocked reboot panic in SetBootVars")
 	c.Check(s.resealCalls, Equals, 1)
 	c.Check(s.resealCommandLines, DeepEquals, [][]string{{
@@ -4215,7 +4215,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	s.resealCalls = 0
 	s.resealCommandLines = nil
 	restoreBootloaderNoPanic()
-	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf, "")
 	c.Assert(err, IsNil)
 	c.Check(reboot, Equals, true)
 	c.Check(s.resealCalls, Equals, 1)
@@ -4267,7 +4267,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 		panic("mocked reboot panic after SetBootVars")
 	}
 	c.Assert(func() {
-		boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
+		boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf, "")
 	}, PanicMatches, "mocked reboot panic after SetBootVars")
 	c.Check(s.resealCalls, Equals, 1)
 	c.Check(s.resealCommandLines, DeepEquals, [][]string{{
@@ -4311,7 +4311,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 
 	// try again, as if the task handler gets to run again
 	s.resealCalls = 0
-	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf, "")
 	c.Assert(err, IsNil)
 	// nothing changed now, we already booted with the new command line
 	c.Check(reboot, Equals, false)

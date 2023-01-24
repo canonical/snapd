@@ -327,12 +327,12 @@ func (s *configHelpersSuite) TestPatch(c *C) {
 		"a.b2": map[string]interface{}{"c": "C"},
 	}
 
-	tr := config.NewTransaction(s.state)
-	err := config.Patch(tr, "some-snap", patch)
+	rt := config.NewRunTransaction(config.NewTransaction(s.state), nil)
+	err := config.Patch(rt, "some-snap", patch)
 	c.Assert(err, IsNil)
 
 	var a map[string]interface{}
-	err = tr.Get("some-snap", "a", &a)
+	err = rt.Get("some-snap", "a", &a)
 	c.Check(err, IsNil)
 
 	c.Check(a, DeepEquals, map[string]interface{}{

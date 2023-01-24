@@ -64,6 +64,9 @@ func init() {
 
 	// netplan.*
 	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, &flags{coreOnlyConfig: true})
+
+	// boot.{,dangerous-}cmdline-extra
+	addWithStateHandler(validateCmdlineExtra, handleCmdlineExtra, coreOnly)
 }
 
 // RunTransaction is an interface describing how to access
