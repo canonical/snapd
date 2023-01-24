@@ -110,16 +110,11 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath, cmdlineOpt string) (map[string]string, error) {
 	extraOrFull, full, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath)
 	if err != nil {
-		if err == gadget.ErrNoKernelCommandline {
-			// nothing set by the gadget, but we could have had
-			// arguments before, so make sure those are cleared now
-			clear := map[string]string{
-				"snapd_extra_cmdline_args": "",
-				"snapd_full_cmdline_args":  "",
-			}
-			return clear, nil
+		if err != gadget.ErrNoKernelCommandline {
+			return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
 		}
-		return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
+		extraOrFull = ""
+		full = false
 	}
 	logger.Debugf("extraOrFull: %q, cmdlineOpt: %q", extraOrFull, cmdlineOpt)
 	extraOrFull += cmdlineOpt

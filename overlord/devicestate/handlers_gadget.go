@@ -228,8 +228,7 @@ func buildOptionalKernelCommandLine(st *state.State) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if deviceCtx.Model().Grade() == asserts.ModelDangerous &&
-			cmdlineOpt == "" {
+		if deviceCtx.Model().Grade() == asserts.ModelDangerous {
 			if err := tr.Get("core", "system.boot.dangerous-cmdline-extra",
 				&cmdlineOptDanger); err != nil && !config.IsNoOption(err) {
 				return "", err
