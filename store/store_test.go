@@ -1266,6 +1266,16 @@ const mockInfoJSON = `{
                 "width": null
             }
         ],
+        "categories": [
+            {
+                "featured": true,
+                "name": "featured"
+            },
+            {
+                "featured": false,
+                "name": "productivity"
+            }
+        ],
         "name": "hello-world",
         "prices": {"EUR": "0.99", "USD": "1.23"},
         "private": true,
@@ -1359,6 +1369,15 @@ func (s *storeTestSuite) TestInfo(c *C) {
 		}, {
 			Type: "video",
 			URL:  "https://vimeo.com/194577403",
+		},
+	})
+	c.Check(result.Categories, DeepEquals, snap.CategoryInfos{
+		{
+			Featured: true,
+			Name:     "featured",
+		}, {
+			Featured: false,
+			Name:     "productivity",
 		},
 	})
 	c.Check(result.MustBuy, Equals, true)
@@ -2059,6 +2078,16 @@ const mockSearchJSON = `{
                         "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
                     }
                 ],
+                "categories": [
+                    {
+                        "featured": true,
+                        "name": "featured"
+                    },
+                    {
+                        "featured": false,
+                        "name": "productivity"
+                    }
+                ],
                 "origin": "canonical",
                 "package_name": "hello-world",
                 "prices": {"EUR": 2.99, "USD": 3.49},
@@ -2115,6 +2144,16 @@ const mockSearchJSONv2 = `
                   {
                     "type": "screenshot",
                     "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png"
+                  }
+                ],
+                "categories": [
+                  {
+                    "featured": true,
+                    "name": "featured"
+                  },
+                  {
+                    "featured": false,
+                    "name": "productivity"
                   }
                 ],
                 "prices": {"EUR": "2.99", "USD": "3.49"},
@@ -2617,6 +2656,15 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 			URL:  "https://dashboard.snapcraft.io/site_media/appmedia/2018/06/Screenshot_from_2018-06-14_09-33-31.png",
 		},
 	})
+	c.Check(snp.Categories, DeepEquals, snap.CategoryInfos{
+		{
+			Featured: true,
+			Name:     "featured",
+		}, {
+			Featured: false,
+			Name:     "productivity",
+		},
+	})
 	c.Check(snp.MustBuy, Equals, true)
 	c.Check(snp.Contact(), Equals, "mailto:snaps@canonical.com")
 	c.Check(snp.Base, Equals, "bare-base")
@@ -2658,7 +2706,7 @@ func (s *storeTestSuite) TestFindV2FindFields(c *C) {
 	findFields := sto.FindFields()
 	sort.Strings(findFields)
 	c.Assert(findFields, DeepEquals, []string{
-		"base", "channel", "common-ids", "confinement", "contact",
+		"base", "categories", "channel", "common-ids", "confinement", "contact",
 		"description", "download", "license", "links", "media", "prices", "private",
 		"publisher", "revision", "store-url", "summary", "title", "type",
 		"version", "website"})

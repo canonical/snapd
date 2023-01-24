@@ -417,6 +417,22 @@ func (iw *infoWriter) printDescr() {
 	printDescr(iw, iw.theSnap.Description, iw.termWidth)
 }
 
+func (iw *infoWriter) maybePrintCategories() {
+	if len(iw.theSnap.Categories) == 0 {
+		return
+	}
+
+	categories := make([]string, 0, len(iw.theSnap.Categories))
+	for _, category := range iw.theSnap.Categories {
+		categories = append(categories, category.Name)
+	}
+
+	fmt.Fprintf(iw, "categories:\n")
+	for _, cmd := range categories {
+		fmt.Fprintf(iw, "  - %s\n", cmd)
+	}
+}
+
 func (iw *infoWriter) maybePrintCommands() {
 	if len(iw.theSnap.Apps) == 0 {
 		return
@@ -679,6 +695,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.printLicense()
 		iw.maybePrintPrice()
 		iw.printDescr()
+		iw.maybePrintCategories()
 		iw.maybePrintCommands()
 		iw.maybePrintServices()
 		iw.maybePrintNotes()

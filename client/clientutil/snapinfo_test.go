@@ -90,6 +90,10 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 		CommonIDs: []string{"org.thingy"},
 		StoreURL:  "https://snapcraft.io/thingy",
 		Broken:    "broken",
+		Categories: []snap.CategoryInfo{
+			{Featured: true, Name: "featured"},
+			{Featured: false, Name: "productivity"},
+		},
 	}
 	// valid InstallDate
 	err := os.MkdirAll(si.MountDir(), 0755)
@@ -158,6 +162,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 	c.Check(ci.StoreURL, Equals, si.StoreURL)
 	c.Check(ci.Developer, Equals, "thingyinc")
 	c.Check(ci.Publisher, DeepEquals, &si.Publisher)
+	c.Check(ci.Categories, DeepEquals, si.Categories)
 }
 
 type testStatusDecorator struct {
