@@ -122,7 +122,11 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, 
 	}
 
 	// Make sure the devices for the partitions we created are available
-	if err := ensureNodesExist(created, 5*time.Second); err != nil {
+	ods := []gadget.OnDiskStructure{}
+	for _, ls := range created {
+		ods = append(ods, ls.OnDiskStructure)
+	}
+	if err := ensureNodesExist(ods, 5*time.Second); err != nil {
 		return nil, fmt.Errorf("partition not available: %v", err)
 	}
 
@@ -337,23 +341,23 @@ func partitionsWithRolesAndContent(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVo
 
 // ensureNodeExists makes sure the device nodes for all device structures are
 // available and notified to udev, within a specified amount of time.
-func ensureNodesExistImpl(odloStructures []onDiskAndLaidoutStructure, timeout time.Duration) error {
+func ensureNodesExistImpl(loStructures []gadget.OnDiskStructure, timeout time.Duration) error {
 	t0 := time.Now()
-	for _, odls := range odloStructures {
+	for _, loStruct := range loStructures {
 		found := false
 		for time.Since(t0) < timeout {
-			if osutil.FileExists(odls.onDisk.Node) {
+			if osutil.FileExists(loStruct.Node) {
 				found = true
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
 		if found {
-			if err := udevTrigger(odls.onDisk.Node); err != nil {
+			if err := udevTrigger(loStruct.Node); err != nil {
 				return err
 			}
 		} else {
-			return fmt.Errorf("device %s not available", odls.onDisk.Node)
+			return fmt.Errorf("device %s not available", loStruct.Node)
 		}
 	}
 	return nil

@@ -96,10 +96,8 @@ func saveStorageTraits(mod gadget.Model, allLaidOutVols map[string]*gadget.LaidO
 	return nil
 }
 
-func maybeEncryptPartition(odls *onDiskAndLaidoutStructure, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, encryptionKey keys.EncryptionKey, err error) {
+func maybeEncryptPartition(laidOut *gadget.LaidOutStructure, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, encryptionKey keys.EncryptionKey, err error) {
 	mustEncrypt := (encryptionType != secboot.EncryptionTypeNone)
-	onDisk := odls.onDisk
-	laidOut := odls.laidOut
 	// fsParams.Device is the kernel device that carries the
 	// filesystem, which is either the raw /dev/<partition>, or
 	// the mapped LUKS device if the structure is encrypted (if

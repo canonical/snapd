@@ -59,7 +59,7 @@ func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
 	}
 }
 
-func MockEnsureNodesExist(f func(dss []OnDiskAndLaidoutStructure, timeout time.Duration) error) (restore func()) {
+func MockEnsureNodesExist(f func(dss []gadget.OnDiskStructure, timeout time.Duration) error) (restore func()) {
 	old := ensureNodesExist
 	ensureNodesExist = f
 	return func() {

@@ -160,88 +160,39 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		defer mockBlockdev.Restore()
 	}
 
-	restore = install.MockEnsureNodesExist(func(dss []install.OnDiskAndLaidoutStructure, timeout time.Duration) error {
+	restore = install.MockEnsureNodesExist(func(dss []gadget.OnDiskStructure, timeout time.Duration) error {
 		c.Assert(timeout, Equals, 5*time.Second)
-		c.Assert(dss, DeepEquals, []install.OnDiskAndLaidoutStructure{
-			install.MockOnDiskAndLaidoutStructure(
-				&gadget.OnDiskStructure{
-					Name:             "ubuntu-boot",
-					PartitionFSLabel: "ubuntu-boot",
-					Type:             "0C",
-					PartitionFSType:  "vfat",
-					StartOffset:      (1 + 1200) * quantity.OffsetMiB,
-					// note this is YamlIndex + 1, the YamlIndex starts at 0
-					DiskIndex: 2,
-					Node:      "/dev/mmcblk0p2",
-					Size:      750 * quantity.SizeMiB,
-				},
-				&gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
-						VolumeName: "pi",
-						Name:       "ubuntu-boot",
-						Label:      "ubuntu-boot",
-						Type:       "0C",
-						Role:       gadget.SystemBoot,
-						Filesystem: "vfat",
-						Offset:     asOffsetPtr((1 + 1200) * quantity.OffsetMiB),
-						Size:       750 * quantity.SizeMiB,
-					},
-					StartOffset: (1 + 1200) * quantity.OffsetMiB,
-					YamlIndex:   1,
-				}),
-			install.MockOnDiskAndLaidoutStructure(
-				&gadget.OnDiskStructure{
-					Name:             "ubuntu-save",
-					PartitionFSLabel: "ubuntu-save",
-					Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					PartitionFSType:  "ext4",
-					StartOffset:      (1 + 1200 + 750) * quantity.OffsetMiB,
-					// note this is YamlIndex + 1, the YamlIndex starts at 0
-					DiskIndex: 3,
-					Node:      "/dev/mmcblk0p3",
-					Size:      16 * quantity.SizeMiB,
-				},
-				&gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
-						VolumeName: "pi",
-						Name:       "ubuntu-save",
-						Label:      "ubuntu-save",
-						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-						Role:       gadget.SystemSave,
-						Filesystem: "ext4",
-						Offset:     asOffsetPtr((1 + 1200 + 750) * quantity.OffsetMiB),
-						Size:       16 * quantity.SizeMiB,
-					},
-					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
-					YamlIndex:   2,
-				}),
-			install.MockOnDiskAndLaidoutStructure(
-				&gadget.OnDiskStructure{
-					Name:             "ubuntu-data",
-					PartitionFSLabel: "ubuntu-data",
-					Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					PartitionFSType:  "ext4",
-					StartOffset:      (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
-					// note this is YamlIndex + 1, the YamlIndex starts at 0
-					DiskIndex: 4,
-					Node:      "/dev/mmcblk0p4",
-					Size:      (30528 - (1 + 1200 + 750 + 16)) * quantity.SizeMiB,
-				},
-				&gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
-						VolumeName: "pi",
-						Name:       "ubuntu-data",
-						Label:      "ubuntu-data",
-						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-						Role:       gadget.SystemData,
-						Filesystem: "ext4",
-						// as set in gadgettest.RaspiSimplifiedYaml
-						Offset: asOffsetPtr((1 + 1200 + 750 + 16) * quantity.OffsetMiB),
-						Size:   1500 * quantity.SizeMiB,
-					},
-					StartOffset: (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
-					YamlIndex:   3,
-				}),
+		c.Assert(dss, DeepEquals, []gadget.OnDiskStructure{{
+			Name:             "ubuntu-boot",
+			PartitionFSLabel: "ubuntu-boot",
+			Type:             "0C",
+			PartitionFSType:  "vfat",
+			StartOffset:      (1 + 1200) * quantity.OffsetMiB,
+			// note this is YamlIndex + 1, the YamlIndex starts at 0
+			DiskIndex: 2,
+			Node:      "/dev/mmcblk0p2",
+			Size:      750 * quantity.SizeMiB,
+		}, {
+			Name:             "ubuntu-save",
+			PartitionFSLabel: "ubuntu-save",
+			Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			PartitionFSType:  "ext4",
+			StartOffset:      (1 + 1200 + 750) * quantity.OffsetMiB,
+			// note this is YamlIndex + 1, the YamlIndex starts at 0
+			DiskIndex: 3,
+			Node:      "/dev/mmcblk0p3",
+			Size:      16 * quantity.SizeMiB,
+		}, {
+			Name:             "ubuntu-data",
+			PartitionFSLabel: "ubuntu-data",
+			Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			PartitionFSType:  "ext4",
+			StartOffset:      (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
+			// note this is YamlIndex + 1, the YamlIndex starts at 0
+			DiskIndex: 4,
+			Node:      "/dev/mmcblk0p4",
+			Size:      (30528 - (1 + 1200 + 750 + 16)) * quantity.SizeMiB,
+		},
 		})
 
 		// after ensuring that the nodes exist, we now setup a different, full
@@ -678,11 +629,11 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	if opts.encryption {
 		dataDev = "/dev/mapper/ubuntu-data"
 	}
-	restore = install.MockEnsureNodesExist(func(dss []install.OnDiskAndLaidoutStructure, timeout time.Duration) error {
+	restore = install.MockEnsureNodesExist(func(dss []gadget.OnDiskStructure, timeout time.Duration) error {
 		c.Assert(timeout, Equals, 5*time.Second)
-		expectedDss := []install.OnDiskAndLaidoutStructure{
-			install.MockOnDiskAndLaidoutStructure(
-				&gadget.OnDiskStructure{
+		expectedDss := []gadget.LaidOutStructure{
+			{
+				OnDiskStructure: gadget.OnDiskStructure{
 					Name:             "ubuntu-boot",
 					PartitionFSLabel: "ubuntu-boot",
 					Size:             750 * quantity.SizeMiB,
@@ -693,21 +644,19 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					DiskIndex: 2,
 					Node:      "/dev/mmcblk0p2",
 				},
-				&gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
-						VolumeName: "pi",
-						Filesystem: "vfat",
-						Size:       750 * quantity.SizeMiB,
-					},
-					StartOffset: (1 + 1200) * quantity.OffsetMiB,
-					YamlIndex:   1,
+				VolumeStructure: &gadget.VolumeStructure{
+					VolumeName: "pi",
+					Filesystem: "vfat",
+					Size:       750 * quantity.SizeMiB,
 				},
-			),
+				StartOffset: (1 + 1200) * quantity.OffsetMiB,
+				YamlIndex:   1,
+			},
 		}
 		if opts.noSave {
 			// just data
-			expectedDss = append(expectedDss, install.MockOnDiskAndLaidoutStructure(
-				&gadget.OnDiskStructure{
+			expectedDss = append(expectedDss, gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{
 					Name:             "ubuntu-data",
 					PartitionFSLabel: "ubuntu-data",
 					Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
@@ -718,35 +667,34 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					Node:      dataDev,
 					Size:      (30528 - (1 + 1200 + 750)) * quantity.SizeMiB,
 				},
-				&gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
-						VolumeName: "pi",
-						Name:       "ubuntu-data",
-						Label:      "ubuntu-data",
-						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-						Role:       gadget.SystemData,
-						Filesystem: "ext4",
-						Size:       (30528 - (1 + 1200 + 750)) * quantity.SizeMiB,
-					},
-					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
-					YamlIndex:   2,
+				VolumeStructure: &gadget.VolumeStructure{
+					VolumeName: "pi",
+					Name:       "ubuntu-data",
+					Label:      "ubuntu-data",
+					Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					Role:       gadget.SystemData,
+					Filesystem: "ext4",
+					Size:       (30528 - (1 + 1200 + 750)) * quantity.SizeMiB,
 				},
-			))
+				StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
+				YamlIndex:   2,
+			},
+			)
 		} else {
 			// data + save
-			expectedDss = append(expectedDss, install.MockOnDiskAndLaidoutStructure(
-				&gadget.OnDiskStructure{
-					Name:             "ubuntu-save",
-					PartitionFSLabel: "ubuntu-save",
-					Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					PartitionFSType:  "ext4",
-					StartOffset:      (1 + 1200 + 750) * quantity.OffsetMiB,
-					// note this is YamlIndex + 1, the YamlIndex starts at 0
-					DiskIndex: 3,
-					Node:      "/dev/mmcblk0p3",
-					Size:      16 * quantity.SizeMiB,
-				},
-				&gadget.LaidOutStructure{
+			expectedDss = append(expectedDss,
+				gadget.LaidOutStructure{
+					OnDiskStructure: gadget.OnDiskStructure{
+						Name:             "ubuntu-save",
+						PartitionFSLabel: "ubuntu-save",
+						Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						PartitionFSType:  "ext4",
+						StartOffset:      (1 + 1200 + 750) * quantity.OffsetMiB,
+						// note this is YamlIndex + 1, the YamlIndex starts at 0
+						DiskIndex: 3,
+						Node:      "/dev/mmcblk0p3",
+						Size:      16 * quantity.SizeMiB,
+					},
 					VolumeStructure: &gadget.VolumeStructure{
 						VolumeName: "pi",
 						Name:       "ubuntu-save",
@@ -759,9 +707,9 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
 					YamlIndex:   2,
 				},
-			))
-			expectedDss = append(expectedDss, install.MockOnDiskAndLaidoutStructure(
-				&gadget.OnDiskStructure{
+			)
+			expectedDss = append(expectedDss, gadget.LaidOutStructure{
+				OnDiskStructure: gadget.OnDiskStructure{
 					Name:             "ubuntu-data",
 					PartitionFSLabel: "ubuntu-data",
 					Type:             "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
@@ -772,23 +720,22 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					Node:      dataDev,
 					Size:      (30528 - (1 + 1200 + 750 + 16)) * quantity.SizeMiB,
 				},
-				&gadget.LaidOutStructure{
-					VolumeStructure: &gadget.VolumeStructure{
-						VolumeName: "pi",
-						Name:       "ubuntu-data",
-						Label:      "ubuntu-data",
-						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-						Role:       gadget.SystemData,
-						Filesystem: "ext4",
-						// TODO: this is set from the yaml, not from the actual
-						// calculated disk size, probably should be updated
-						// somewhere
-						Size: 1500 * quantity.SizeMiB,
-					},
-					StartOffset: (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
-					YamlIndex:   3,
+				VolumeStructure: &gadget.VolumeStructure{
+					VolumeName: "pi",
+					Name:       "ubuntu-data",
+					Label:      "ubuntu-data",
+					Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					Role:       gadget.SystemData,
+					Filesystem: "ext4",
+					// TODO: this is set from the yaml, not from the actual
+					// calculated disk size, probably should be updated
+					// somewhere
+					Size: 1500 * quantity.SizeMiB,
 				},
-			))
+				StartOffset: (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
+				YamlIndex:   3,
+			},
+			)
 		}
 		c.Assert(dss, DeepEquals, expectedDss)
 
