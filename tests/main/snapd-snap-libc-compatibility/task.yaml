@@ -6,9 +6,11 @@ summary: Ensure snapd builds as a snap
 # install it here to test the things that we need to test about the snapd snap
 
 # effectively we can only build the snap using LXD + snapcraft on ubuntu systems
-# due to various bugs with other distros and snapcraft and/or LXD
+# due to various bugs with other distros and snapcraft and/or LXD.
 systems:
-    - ubuntu-*
+    - ubuntu-16.04-64
+    - ubuntu-18.04-64
+    - ubuntu-2*
 
 # Start early as it takes a long time.
 priority: 100
@@ -17,13 +19,13 @@ prepare: |
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
 
-    echo "Install snapcraft from 4.x/candidate"
+    echo "Install snapcraft from 7.x/candidate"
     snap install snapcraft --channel=7.x/candidate --classic
     tests.cleanup defer snap remove --purge snapcraft
 
     echo "Remove any installed LXD debs"
     # meh trusty's apt doesn't support -y, so use apt-get
-    apt-get remove -y lxd lxd-client
+    apt-get remove -y lxd lxd-client || true
 
     # load the fuse kernel module before installing lxd
     modprobe fuse
@@ -67,7 +69,7 @@ execute: |
     # which are absent from our libc version
     echo "Get glibc simbols"
     # shellcheck disable=SC2207
-    AVAILABLE_SYMBOLS=($(objdump -p /lib/x86_64-linux-gnu/libc-*.so \
+    AVAILABLE_SYMBOLS=($(objdump -p /lib/x86_64-linux-gnu/libc*.so.6 \
         | grep -A 100 "Version definitions:" \
         | grep -e "^\s*GLIBC_[0-9]" \
         | sed 's/.* (\(GLIBC_[0-9.]*\)) .*/\1/'
